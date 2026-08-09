@@ -356,6 +356,16 @@ function runtimeDiscovery() {
             "open Ask AI, submit distinct questions, and observe each assistant response",
         },
       },
+      notifications: {
+        scenario: "notifications",
+        workspace: "reef-e2e",
+        start_path: "/workspace/reef-e2e/inbox",
+        interaction: {
+          type: "notification_inbox",
+          operation:
+            "open a comment mention notification, confirm it becomes read, and observe the source comment location in the issue activity timeline",
+        },
+      },
       comments: {
         scenario: "comment_mentions",
         workspace: "reef-e2e",
@@ -1188,6 +1198,20 @@ function notificationRow({
  * that must never appear in Alice's session-scoped response.
  */
 function seedNotifications(vault) {
+  vault.comments.push({
+    id: "comment-primary",
+    reef_id: "REEF-001",
+    body: "@alice this comment is the mentioned source.",
+    meta: {
+      author: "bob",
+      created_at: "2026-06-15T00:00:00.000Z",
+      edited_at: null,
+      mention_recipients: ["alice"],
+    },
+    created_at: "2026-06-15T00:00:00.000Z",
+    updated_at: "2026-06-15T00:00:00.000Z",
+    created_by: "bob",
+  });
   vault.notifications = [];
   for (let index = 0; index < 99; index += 1) {
     const issue = `REEF-${String((index % 3) + 1).padStart(3, "0")}`;

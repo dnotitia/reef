@@ -56,6 +56,18 @@ const MEMBERS = [
 ] as const;
 
 describe("CommentCard", () => {
+  it("exposes a stable, focusable source target for hash navigation", () => {
+    render(
+      <IntlTestProvider>
+        <CommentCard comment={COMMENT} currentLogin="bob" onSave={vi.fn()} />
+      </IntlTestProvider>,
+    );
+
+    const card = screen.getByTestId("comment-card");
+    expect(card).toHaveAttribute("id", `comment-${COMMENT.id}`);
+    expect(card).toHaveAttribute("tabindex", "-1");
+  });
+
   it("passes markdown hrefs and image srcs distinctly to the URL resolver", () => {
     const resolveMarkdownUrl = vi.fn((url: string, key: string) =>
       key === "href"

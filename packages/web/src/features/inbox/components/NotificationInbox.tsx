@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { buildOpenIssueHref } from "@/features/issues/lib/issueHref";
+import { commentTargetId } from "@/features/issues/lib/commentTarget";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { PageBody } from "@/features/ui/components/PageBody";
@@ -27,8 +28,18 @@ function humanizeEventType(eventType: string): string {
   return value ? value.charAt(0).toUpperCase() + value.slice(1) : "";
 }
 
-function notificationIssueHref(vault: string, reefId: string): string {
-  return `${buildOpenIssueHref(vault, reefId, new URLSearchParams())}#issue-activity`;
+function notificationIssueHref(
+  vault: string,
+  notification: Pick<
+    ReefNotification,
+    "reef_id" | "source_type" | "source_ref"
+  >,
+): string {
+  const targetId =
+    notification.source_type === "comment"
+      ? commentTargetId(notification.source_ref)
+      : null;
+  return `${buildOpenIssueHref(vault, notification.reef_id, new URLSearchParams())}#${targetId ?? "issue-activity"}`;
 }
 
 function NotificationItem({
@@ -52,7 +63,7 @@ function NotificationItem({
   };
   const eventLabel =
     humanizeEventType(notification.event_type) || t("notification");
-  const issueHref = notificationIssueHref(vault, notification.reef_id);
+  const issueHref = notificationIssueHref(vault, notification);
 
   async function updateStateAndRefresh(state: NotificationState) {
     setBusy(true);

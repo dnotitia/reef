@@ -168,6 +168,35 @@ function renderTimeline(issue = makeIssue()) {
 }
 
 describe("ActivityTimeline — unified feed (AC1, AC2)", () => {
+  it("scrolls to a comment source target after comments load asynchronously", async () => {
+    const scrolled: HTMLElement[] = [];
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: function (this: HTMLElement) {
+        scrolled.push(this);
+      },
+    });
+    window.history.replaceState({}, "", `#comment-${ALICE_COMMENT.id}`);
+
+    try {
+      renderTimeline();
+
+      const target = await screen.findByTestId("comment-card");
+      await waitFor(() => expect(scrolled).toContain(target));
+    } finally {
+      if (originalScrollIntoView) {
+        Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+          configurable: true,
+          value: originalScrollIntoView,
+        });
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+      }
+      window.history.replaceState({}, "", "/");
+    }
+  });
+
   it("merges comments, activity, and reconstructed events with an actor and time on each", async () => {
     renderTimeline(
       makeIssue({

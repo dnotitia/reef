@@ -10,7 +10,7 @@ import { resolveIssueAttachmentUrl } from "@/features/issues/lib/attachmentUrls"
 import { useVaultRoster } from "@/features/settings/hooks/useVaultRoster";
 import type { ActivityEvent, Comment, IssueMetadata } from "@reef/core";
 import { useTranslations } from "next-intl";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CommentCard } from "../comments/CommentCard";
 import { CommentComposer } from "../comments/CommentComposer";
@@ -70,6 +70,32 @@ export function ActivityTimeline({
     () => buildTimeline(comments, activity, issue),
     [comments, activity, issue],
   );
+  const commentIds = useMemo(
+    () => new Set(comments.map((comment) => comment.id)),
+    [comments],
+  );
+
+  useEffect(() => {
+    if (!issueId) return;
+    const hash = window.location.hash;
+    if (!hash.startsWith("#comment-")) return;
+
+    let targetId: string;
+    try {
+      targetId = decodeURIComponent(hash.slice(1));
+    } catch {
+      targetId = "";
+    }
+    const sourceRef = targetId.startsWith("comment-")
+      ? targetId.slice("comment-".length)
+      : "";
+    const target =
+      sourceRef && commentIds.has(sourceRef)
+        ? document.getElementById(targetId)
+        : null;
+    const fallback = document.getElementById("issue-activity");
+    (target ?? fallback)?.scrollIntoView({ block: "start" });
+  }, [commentIds, issueId]);
 
   const resolveMarkdownUrl = useMemo(
     () => (url: string, key: string) =>

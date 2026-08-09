@@ -114,6 +114,52 @@ describe("NotificationInboxPage", () => {
     );
   });
 
+  it("opens a comment notification at its persisted source comment after marking it read", async () => {
+    mocks.inboxState.notifications = [
+      {
+        ...makeNotification("3", "unread", "REEF-003"),
+        source_type: "comment",
+        source_ref: "comment-primary",
+      },
+    ];
+    renderPage();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open activity for REEF-003" }),
+    );
+
+    await waitFor(() =>
+      expect(mocks.mutateAsync).toHaveBeenCalledWith({
+        notificationKey: "notification:5:alice:8:activity:1:3",
+        state: "read",
+      }),
+    );
+    expect(mocks.push).toHaveBeenCalledWith(
+      "/workspace/reef-acme/issues/REEF-003#comment-comment-primary",
+    );
+  });
+
+  it("falls back to the issue activity anchor for a malformed comment source", async () => {
+    mocks.inboxState.notifications = [
+      {
+        ...makeNotification("4", "read", "REEF-004"),
+        source_type: "comment",
+        source_ref: "comment/with-invalid-target",
+      },
+    ];
+    renderPage();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open activity for REEF-004" }),
+    );
+
+    await waitFor(() =>
+      expect(mocks.push).toHaveBeenCalledWith(
+        "/workspace/reef-acme/issues/REEF-004#issue-activity",
+      ),
+    );
+  });
+
   it("offers mark unread and archive as server state actions", async () => {
     renderPage();
 

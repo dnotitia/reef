@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { akbProjectNotifications, buildNotificationKey } from "../../../index";
 import {
   makeAdapter,
@@ -91,7 +91,7 @@ function response(items: Record<string, unknown>[]) {
   return { body: makeSqlQueryResponse(items, ["id"]) };
 }
 
-function sql(call: { init: RequestInit | undefined }): string {
+function sql(call: { init?: RequestInit } = {}): string {
   return JSON.parse(String(call.init?.body)).sql as string;
 }
 
@@ -101,6 +101,65 @@ function project() {
     vault: "reef-sample",
     now: () => new Date(ACTIVATED_AT),
   });
+}
+
+function setupMentionProjectionFetch(comment: Record<string, unknown>) {
+  const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
+  let commentReads = 0;
+  const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    calls.push({ url, init });
+    const request = JSON.parse(String(init?.body)) as { sql: string };
+    const statement = request.sql;
+    let items: Record<string, unknown>[];
+
+    if (
+      statement.includes("WITH updated AS") &&
+      statement.includes("reef_settings")
+    ) {
+      items = [{ value: JSON.stringify(checkpoint()) }];
+    } else if (
+      statement.includes("SELECT value FROM") &&
+      statement.includes("reef_settings")
+    ) {
+      items = [{ value: JSON.stringify(checkpoint()) }];
+    } else if (statement.includes("reef_activity")) {
+      items = [];
+    } else if (statement.includes("reef_comments")) {
+      items = commentReads++ === 0 ? [comment] : [];
+    } else if (statement.includes("reef_subscriptions")) {
+      items = [
+        subscriptionRow("carol", "commenter", "active"),
+        subscriptionRow("carol", "manual", "muted"),
+        subscriptionRow("dana", "commenter", "active"),
+        subscriptionRow("alice", "commenter", "active"),
+      ];
+    } else if (
+      statement.includes("INSERT INTO") &&
+      statement.includes("reef_notifications")
+    ) {
+      const recipient = statement.match(/VALUES \('[^']*', '([^']*)'/)?.[1];
+      if (!recipient) throw new Error(`recipient missing from ${statement}`);
+      items = [
+        notificationRow({
+          recipient,
+          sourceType: "comment",
+          sourceRef: String(comment.id),
+          eventType: "comment_created",
+          actor: "alice",
+          occurredAt: "2026-06-15T00:02:00.000Z",
+        }),
+      ];
+    } else {
+      throw new Error(`unexpected SQL: ${statement}`);
+    }
+
+    return new Response(
+      JSON.stringify(makeSqlQueryResponse(items, ["id", "value"])),
+      { headers: { "content-type": "application/json" } },
+    );
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return { calls, fetchMock };
 }
 
 describe("notification projector", () => {
@@ -120,10 +179,10 @@ describe("notification projector", () => {
 
     expect(sql(calls[1] ?? {})).toContain("INSERT INTO reef_settings");
     expect(sql(calls[2] ?? {})).toContain(
-      "meta->>'at' > '2026-08-01T00:00:00.000Z'",
+      "(meta->>'at') > '2026-08-01T00:00:00.000Z'",
     );
     expect(sql(calls[3] ?? {})).toContain(
-      "meta->>'created_at' > '2026-08-01T00:00:00.000Z'",
+      "(COALESCE(meta->>'edited_at', meta->>'created_at')) > '2026-08-01T00:00:00.000Z'",
     );
     expect(calls.map(sql).join("\n")).not.toContain("reef_notifications");
   });
@@ -185,6 +244,175 @@ describe("notification projector", () => {
     expect(
       statements.find((statement) => statement.includes("reef_comments")),
     ).not.toContain("body");
+  });
+
+  it("fans out persisted comment mentions without subscriptions and filters mute, self, and duplicates", async () => {
+    const comment = commentRow({
+      id: "comment-mention",
+      meta: JSON.stringify({
+        author: "alice",
+        created_at: "2026-06-15T00:02:00.000Z",
+        mention_recipients: ["bob", "carol", "alice", "bob"],
+      }),
+    });
+    const { calls } = setupMentionProjectionFetch(comment);
+
+    await expect(project()).resolves.toMatchObject({
+      comment: { scanned: 1, fannedOut: 2, failed: false },
+    });
+
+    const notificationSql = calls
+      .map(sql)
+      .filter((statement) =>
+        statement.includes("INSERT INTO reef_notifications"),
+      );
+    expect(notificationSql).toHaveLength(2);
+    expect(
+      notificationSql.map(
+        (statement) => statement.match(/VALUES \('[^']*', '([^']*)'/)?.[1],
+      ),
+    ).toEqual(["bob", "dana"]);
+  });
+
+  it("uses the persisted edit time to replay a comment source for newly added recipients", async () => {
+    const createdComment = commentRow({
+      meta: JSON.stringify({
+        author: "alice",
+        created_at: "2026-08-01T00:02:00.000Z",
+        edited_at: null,
+        mention_recipients: ["bob"],
+      }),
+    });
+    const first = setupFetch([
+      response([{ value: JSON.stringify(checkpoint()) }]),
+      response([]),
+      response([createdComment]),
+      response([]),
+      response([
+        notificationRow({
+          recipient: "bob",
+          sourceType: "comment",
+          sourceRef: COMMENT_ID,
+          eventType: "comment_created",
+          actor: "alice",
+          occurredAt: "2026-08-01T00:02:00.000Z",
+        }),
+      ]),
+      response([{ value: JSON.stringify(checkpoint()) }]),
+    ]);
+
+    await expect(project()).resolves.toMatchObject({
+      comment: { scanned: 1, fannedOut: 1, failed: false },
+    });
+
+    const editedComment = commentRow({
+      meta: JSON.stringify({
+        author: "alice",
+        created_at: "2026-08-01T00:02:00.000Z",
+        edited_at: "2026-08-01T00:03:00.000Z",
+        mention_recipients: ["bob", "carol"],
+      }),
+    });
+    const second = setupFetch([
+      response([
+        {
+          value: JSON.stringify(
+            checkpoint({
+              comment_cursor: {
+                occurred_at: "2026-08-01T00:02:00.000Z",
+                id: COMMENT_ID,
+              },
+            }),
+          ),
+        },
+      ]),
+      response([]),
+      response([editedComment]),
+      response([]),
+      response([
+        notificationRow({
+          recipient: "bob",
+          sourceType: "comment",
+          sourceRef: COMMENT_ID,
+          eventType: "comment_created",
+          actor: "alice",
+          occurredAt: "2026-08-01T00:03:00.000Z",
+        }),
+      ]),
+      response([
+        notificationRow({
+          recipient: "carol",
+          sourceType: "comment",
+          sourceRef: COMMENT_ID,
+          eventType: "comment_created",
+          actor: "alice",
+          occurredAt: "2026-08-01T00:03:00.000Z",
+        }),
+      ]),
+      response([{ value: JSON.stringify(checkpoint()) }]),
+    ]);
+
+    await expect(project()).resolves.toMatchObject({
+      comment: { scanned: 1, fannedOut: 2, failed: false },
+    });
+
+    const secondNotificationSql = second.calls
+      .map(sql)
+      .filter((statement) =>
+        statement.includes("INSERT INTO reef_notifications"),
+      );
+    expect(secondNotificationSql).toHaveLength(2);
+    expect(secondNotificationSql.join("\n")).toContain(
+      buildNotificationKey({
+        recipient: "bob",
+        sourceType: "comment",
+        sourceRef: COMMENT_ID,
+      }),
+    );
+    expect(secondNotificationSql.join("\n")).toContain(
+      buildNotificationKey({
+        recipient: "carol",
+        sourceType: "comment",
+        sourceRef: COMMENT_ID,
+      }),
+    );
+    expect(sql(first.calls.at(-1) ?? {})).toContain(
+      `"comment_cursor":{"id":"${COMMENT_ID}","occurred_at":"2026-08-01T00:02:00.000Z"`,
+    );
+    expect(sql(second.calls.at(-1) ?? {})).toContain(
+      `"comment_cursor":{"id":"${COMMENT_ID}","occurred_at":"2026-08-01T00:03:00.000Z"`,
+    );
+  });
+
+  it("treats a malformed persisted mention projection as an empty list", async () => {
+    const comment = commentRow({
+      meta: JSON.stringify({
+        author: "alice",
+        created_at: "2026-08-01T00:02:00.000Z",
+        mention_recipients: { unresolved: true },
+      }),
+    });
+    const { calls } = setupFetch([
+      response([{ value: JSON.stringify(checkpoint()) }]),
+      response([]),
+      response([comment]),
+      response([]),
+      response([{ value: JSON.stringify(checkpoint()) }]),
+    ]);
+
+    await expect(project()).resolves.toMatchObject({
+      comment: {
+        scanned: 1,
+        fannedOut: 0,
+        skippedNoRecipients: 1,
+        failed: false,
+      },
+    });
+    expect(
+      calls.some((call) =>
+        sql(call).includes("INSERT INTO reef_notifications"),
+      ),
+    ).toBe(false);
   });
 
   it("advances past malformed and no-recipient rows so later valid work is delivered", async () => {

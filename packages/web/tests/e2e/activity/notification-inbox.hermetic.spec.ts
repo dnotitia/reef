@@ -75,7 +75,11 @@ test.describe("Hermetic notification Inbox", () => {
 
     await primaryRow.getByTestId("notification-open").click();
     await expect(page).toHaveURL(
-      `/workspace/${REEF_E2E_VAULT}/issues/REEF-001#issue-activity`,
+      `/workspace/${REEF_E2E_VAULT}/issues/REEF-001#comment-comment-primary`,
+    );
+    await expect(page.locator("#comment-comment-primary")).toBeVisible();
+    await expect(page.locator("#comment-comment-primary")).toContainText(
+      "mentioned source",
     );
     await expect
       .poll(
