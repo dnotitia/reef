@@ -34,7 +34,10 @@ function issueById(state: FixtureState, id: string) {
   return issue;
 }
 
-async function addMonitoredRepo(page: Page) {
+async function addMonitoredRepo(
+  page: Page,
+  request: Parameters<typeof resetFixture>[0],
+) {
   await page.goto(`/workspace/${REEF_E2E_VAULT}/settings/workspace`);
   const main = page.getByRole("main");
   await main.getByTestId("monitored-repos-trigger").click();
@@ -42,6 +45,14 @@ async function addMonitoredRepo(page: Page) {
   await expect(main.getByTestId("monitored-repos-trigger")).toContainText(
     "1 repo(s) selected",
   );
+  await expect
+    .poll(async () => {
+      const state = await readFixtureState(request);
+      return reefVault(state).monitored_repos.map(
+        (repo) => `${repo.owner}/${repo.name}`,
+      );
+    })
+    .toContain("octo/reef");
 }
 
 test.describe("Hermetic activity suggestion workflows", () => {
@@ -60,6 +71,17 @@ test.describe("Hermetic activity suggestion workflows", () => {
     await page.goto(`/workspace/${REEF_E2E_VAULT}/suggestions`);
 
     const emptyState = page.getByTestId("activity-empty-state");
+    await expect(emptyState).toHaveAccessibleName(
+      "Set up a monitored repository",
+    );
+    await expect(emptyState).toHaveAccessibleDescription(
+      "Add a monitored repository to start looking for suggestions.",
+    );
+    await expect(emptyState).toHaveAttribute("aria-labelledby", /.+/);
+    await expect(emptyState).toHaveAttribute("aria-describedby", /.+/);
+    expect(await emptyState.evaluate((element) => element.tagName)).toBe(
+      "SECTION",
+    );
     await expect(
       emptyState.getByRole("heading", {
         name: "Set up a monitored repository",
@@ -69,14 +91,54 @@ test.describe("Hermetic activity suggestion workflows", () => {
     await expect(emptyState.getByRole("button")).toHaveCount(0);
     await expect(page.getByTestId("activity-scan-target-empty")).toBeVisible();
     await expect(page.getByTestId("activity-refresh")).toBeDisabled();
-    await expect(
-      page.getByTestId("activity-scan-target-empty").getByRole("link", {
-        name: "Settings",
-      }),
-    ).toHaveCount(1);
+    const settingsLink = page
+      .getByTestId("activity-scan-target-empty")
+      .getByRole("link", { name: "Settings" });
+    await expect(settingsLink).toHaveCount(1);
+    await settingsLink.focus();
+    await expect(settingsLink).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(
+      `/workspace/${REEF_E2E_VAULT}/settings/workspace`,
+    );
     expect(
       reefVault(await readFixtureState(request)).monitored_repos,
     ).toHaveLength(0);
+  });
+
+  test("dismisses a draft from a focused control with Enter and Space", async ({
+    page,
+    request,
+  }) => {
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/suggestions`);
+
+    for (const [title, key] of [
+      ["Dismiss stale draft", "Enter"],
+      ["Draft API rate limit issue", "Space"],
+    ] as const) {
+      const card = page
+        .locator('[data-testid="activity-item-ai_draft"]')
+        .filter({ hasText: title });
+      await expect(card).toBeVisible();
+      const dismiss = card.getByRole("button", { name: "Dismiss" });
+      await dismiss.focus();
+      await expect(dismiss).toBeFocused();
+      await page.keyboard.press(key);
+      await expect(card).toBeHidden();
+    }
+
+    await expect
+      .poll(async () => {
+        const suggestions = reefVault(
+          await readFixtureState(request),
+        ).activity_suggestions;
+        return suggestions
+          .filter((suggestion) => suggestion.kind === "draft")
+          .every((suggestion) => suggestion.status === "dismissed");
+      })
+      .toBe(true);
   });
 
   test("keeps configured empty suggestions passive and leaves Check now separate", async ({
@@ -86,10 +148,19 @@ test.describe("Hermetic activity suggestion workflows", () => {
     await resetFixture(request, "configured_empty");
     await clearPersistedQueryCacheOnLoad(page);
     await openExistingWorkspace(page);
-    await addMonitoredRepo(page);
+    await addMonitoredRepo(page, request);
     await page.goto(`/workspace/${REEF_E2E_VAULT}/suggestions`);
 
     const emptyState = page.getByTestId("activity-empty-state");
+    await expect(emptyState).toHaveAccessibleName("No suggestions to review");
+    await expect(emptyState).toHaveAccessibleDescription(
+      "Suggestions will appear here when a scan finds something to review.",
+    );
+    await expect(emptyState).toHaveAttribute("aria-labelledby", /.+/);
+    await expect(emptyState).toHaveAttribute("aria-describedby", /.+/);
+    expect(await emptyState.evaluate((element) => element.tagName)).toBe(
+      "SECTION",
+    );
     await expect(
       emptyState.getByRole("heading", { name: "No suggestions to review" }),
     ).toBeVisible();
@@ -112,7 +183,7 @@ test.describe("Hermetic activity suggestion workflows", () => {
   }) => {
     await clearPersistedQueryCacheOnLoad(page);
     await openExistingWorkspace(page);
-    await addMonitoredRepo(page);
+    await addMonitoredRepo(page, request);
     await page.goto(`/workspace/${REEF_E2E_VAULT}/suggestions`);
 
     for (const title of ["Initial issue Alpha", "Initial issue Beta"]) {
@@ -144,6 +215,15 @@ test.describe("Hermetic activity suggestion workflows", () => {
       .click();
 
     const emptyState = page.getByTestId("activity-empty-state");
+    await expect(emptyState).toHaveAccessibleName("No matching suggestions");
+    await expect(emptyState).toHaveAccessibleDescription(
+      "Try a different filter or clear the current filter to see more suggestions.",
+    );
+    await expect(emptyState).toHaveAttribute("aria-labelledby", /.+/);
+    await expect(emptyState).toHaveAttribute("aria-describedby", /.+/);
+    expect(await emptyState.evaluate((element) => element.tagName)).toBe(
+      "SECTION",
+    );
     await expect(
       emptyState.getByRole("heading", { name: "No matching suggestions" }),
     ).toBeVisible();

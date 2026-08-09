@@ -816,6 +816,31 @@ Page-level actions such as Planning's create button or a Reports parent-scope
 recovery control remain outside the frame so the four section states keep
 identical geometry and content hierarchy.
 
+### Empty-state accessibility & responsive proof matrix
+
+Every framed section empty state is a semantic `section` whose accessible name
+and description reference its visible `h2` and `p` by hydration-safe, instance-
+unique ids. The frame therefore exposes one named region without duplicating
+copy in ARIA-only attributes. The prerequisite `structure` prompt stays an
+unboxed `div`; when it has no visible title, it does not introduce an unnamed
+region landmark. Board's no-match overlay follows the same visible-content
+reference pattern while preserving its column canvas and non-modal recovery.
+
+| Surface / state | Semantic and interaction proof | Responsive proof |
+| --- | --- | --- |
+| My Work empty / caught-up | Named region, passive, no frame or header CTA | 1440px Light; 375px and 320px Dark Korean; 200% zoom |
+| Inbox empty | Named region, passive, no CTA | Same viewport, theme, locale, and zoom matrix |
+| Reports true empty / no-match | Named region; one PageHeader create action or outside-frame recovery | Header wrapping and focus remain inside the viewport |
+| Planning kind empty | Named region; one PageHeader create action and dialog focus return | Kind switching, keyboard activation, and narrow wrapping |
+| Board no-match | Named overlay, keyboard Clear filters, columns and internal canvas preserved | Page chrome and recovery stay in view; canvas may scroll horizontally |
+| Suggestions unconfigured / passive / filtered | Named region; Settings, Check now, and Clear filters remain outside the frame | Korean wrapping, focus order, and no document-level horizontal scroll |
+| Loading / error / populated | No empty region is rendered; existing loading, error, and content semantics remain | Existing width and recovery behavior remain unchanged |
+
+The proof uses real rendered Light/Dark colors for text, muted copy, borders,
+controls, and focus indicators. It checks document-level overflow, clipped copy,
+bounding-box containment, keyboard activation, and focus restoration rather
+than inferring behavior from class names alone.
+
 ### Error Handling
 
 Errors follow "what happened + what you can do." Network and load failures

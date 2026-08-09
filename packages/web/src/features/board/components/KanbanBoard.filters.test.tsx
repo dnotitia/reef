@@ -202,16 +202,26 @@ describe("KanbanBoard filtering and rendering", () => {
     render(wrap(<KanbanBoard vault="reef-acme" />));
 
     const frame = await screen.findByTestId("kanban-no-matches");
+    const heading = within(frame).getByRole("heading", {
+      name: "No matching issues",
+    });
+    const description = within(frame).getByText(
+      "Try widening your filters or search to see more issues.",
+    );
+    expect(frame.tagName).toBe("SECTION");
+    expect(frame).toHaveAccessibleName("No matching issues");
+    expect(frame).toHaveAccessibleDescription(
+      "Try widening your filters or search to see more issues.",
+    );
+    expect(frame).toHaveAttribute("aria-labelledby", heading.id);
+    expect(frame).toHaveAttribute("aria-describedby", description.id);
+    expect(heading).toBeInTheDocument();
+    expect(description).toBeInTheDocument();
     expect(
-      within(frame).getByRole("heading", { name: "No matching issues" }),
-    ).toBeInTheDocument();
+      within(frame).queryByRole("button", { name: "Clear filters" }),
+    ).not.toBeInTheDocument();
     expect(
-      within(frame).getByText(
-        "Try widening your filters or search to see more issues.",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      within(frame).getByRole("button", { name: "Clear filters" }),
+      screen.getByRole("button", { name: "Clear filters" }),
     ).toBeInTheDocument();
 
     for (const name of ["Todo", "In Progress", "In Review", "Done", "Closed"]) {
@@ -221,9 +231,7 @@ describe("KanbanBoard filtering and rendering", () => {
     expect(screen.getByTestId("dnd-context")).toBeInTheDocument();
 
     const user = userEvent.setup();
-    await user.click(
-      within(frame).getByRole("button", { name: "Clear filters" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
     expect(useIssueStore.getState().filter).toEqual({});
     expect(useIssueStore.getState().searchQuery).toBe("");
     expect(await screen.findByText("UI board polish")).toBeInTheDocument();

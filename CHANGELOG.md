@@ -75,6 +75,11 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Section empty states now expose one named semantic region from their visible
+  title and description.** Structure prompts remain unboxed without an unnamed
+  landmark, and the same accessible references cover the Board no-match overlay
+  while preserving existing CTA, keyboard, responsive, and theme behavior.
+
 - **Zod validation now runs on Zod 4 across core, web, the Jira migrator, and
   orchestration.** Explicit record key schemas, strict/loose object policies,
   and flattened form/field errors preserve the existing boundary contracts;

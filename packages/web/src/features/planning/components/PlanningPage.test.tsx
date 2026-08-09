@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -205,10 +205,18 @@ describe("PlanningPage", () => {
     );
     expect(within(empty).queryByRole("button")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "New sprint" }));
-    expect(
-      await screen.findByTestId("planning-editor-dialog"),
-    ).toBeInTheDocument();
+    const trigger = screen.getByRole("button", { name: "New sprint" });
+    trigger.focus();
+    await user.keyboard("{Enter}");
+    const dialog = await screen.findByTestId("planning-editor-dialog");
+    expect(dialog).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("planning-editor-dialog"),
+      ).not.toBeInTheDocument();
+      expect(trigger).toHaveFocus();
+    });
   });
 
   it("renders sprint dates via the shared DateDisplay", async () => {
@@ -237,7 +245,8 @@ describe("PlanningPage", () => {
     expect(sprintsTab).toHaveAttribute("aria-pressed", "false");
     expect(milestonesTab).toHaveAttribute("aria-pressed", "true");
 
-    await user.click(releasesTab);
+    releasesTab.focus();
+    await user.keyboard(" ");
 
     expect(mockPush).toHaveBeenCalledTimes(1);
     const [url, opts] = mockPush.mock.calls[0];

@@ -3,6 +3,7 @@ import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import type { IssueMetadata } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -354,6 +355,32 @@ describe("ReportsPage", () => {
     expect(useViewStore.getState().newIssueDialogOpen).toBe(true);
   });
 
+  it("opens the header New issue CTA from Enter and Space", async () => {
+    mockApi([]);
+    const user = userEvent.setup();
+
+    render(wrap(<ReportsPage />));
+
+    const header = (
+      await screen.findByRole("heading", {
+        name: "Reports",
+        level: 1,
+      })
+    ).closest('[data-slot="page-header"]');
+    const trigger = await within(header as HTMLElement).findByRole("button", {
+      name: "New issue",
+    });
+
+    trigger.focus();
+    await user.keyboard("{Enter}");
+    expect(useViewStore.getState().newIssueDialogOpen).toBe(true);
+
+    useViewStore.getState().closeNewIssueDialog();
+    trigger.focus();
+    await user.keyboard(" ");
+    expect(useViewStore.getState().newIssueDialogOpen).toBe(true);
+  });
+
   it("shows an empty report state when filters match no issues", async () => {
     mockApi(issues);
 
@@ -430,7 +457,9 @@ describe("ReportsPage", () => {
     expect(
       within(screen.getByTestId("reports-empty")).queryByRole("button"),
     ).not.toBeInTheDocument();
-    fireEvent.click(clear);
+    const user = userEvent.setup();
+    clear.focus();
+    await user.keyboard("{Enter}");
 
     // Parent facet cleared → its affordance disappears (the label filter still
     // scopes the page, so the empty state itself remains).

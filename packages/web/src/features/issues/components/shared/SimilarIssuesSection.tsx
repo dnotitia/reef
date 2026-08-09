@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
 import { ExternalLink, X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useSimilarIssues } from "../../hooks/queries/useSimilarIssues";
 
 interface SimilarIssuesSectionProps {
@@ -23,6 +23,7 @@ export function SimilarIssuesSection({
 }: SimilarIssuesSectionProps) {
   const t = useTranslations("issues.create.similar");
   const statusLabels = useStatusLabels();
+  const sectionId = useId();
   const [dismissedQueries, setDismissedQueries] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -43,7 +44,8 @@ export function SimilarIssuesSection({
 
   return (
     <section
-      aria-label={t("heading")}
+      aria-labelledby={`${sectionId}-title`}
+      aria-describedby={`${sectionId}-description`}
       aria-busy={isChecking}
       aria-live="polite"
       data-testid="similar-issues-section"
@@ -52,15 +54,19 @@ export function SimilarIssuesSection({
       <SearchProgressBar active={isChecking} className="top-0 bottom-auto" />
       <div className="grid grid-cols-[minmax(0,1fr)_1.25rem] items-center gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <h3 className="shrink-0 text-xs font-medium text-muted-foreground">
+          <h2
+            id={`${sectionId}-title`}
+            className="shrink-0 text-xs font-medium text-muted-foreground"
+          >
             {t("heading")}
-          </h3>
-          <span
+          </h2>
+          <p
+            id={`${sectionId}-description`}
             className="min-w-0 truncate text-muted-foreground/70 text-xs"
             data-testid="similar-issues-status"
           >
             {statusLabel}
-          </span>
+          </p>
         </div>
         <button
           type="button"

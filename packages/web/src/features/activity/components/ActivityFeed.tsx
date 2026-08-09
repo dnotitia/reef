@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProjectConfig } from "@/features/settings/hooks/useProjectConfig";
 import { useStatusLabels } from "@/i18n/fieldLabels";
+import { activateButtonOnKeyDown, activateLinkOnKeyDown } from "@/lib/keyboard";
 import { withVault } from "@/lib/workspaceHref";
 import type {
   ActivityDraftSuggestion,
@@ -359,8 +360,8 @@ function ActivityFeedContent({
 
   return (
     <div data-testid="activity-feed" className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <fieldset className="flex items-center gap-2 border-0 p-0 m-0">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+        <fieldset className="m-0 flex min-w-0 flex-wrap items-center gap-2 border-0 p-0">
           <legend className="sr-only">{ta("filterSuggestions")}</legend>
           {(
             [
@@ -373,9 +374,10 @@ function ActivityFeedContent({
               key={value}
               type="button"
               onClick={() => setActivityTypeFilter(value)}
+              onKeyDown={activateButtonOnKeyDown}
               aria-pressed={activityTypeFilter === value}
               className={[
-                "rounded-full px-3 py-1 text-xs font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
+                "shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-1",
                 activityTypeFilter === value
                   ? "bg-foreground text-background"
                   : "bg-secondary text-muted-foreground hover:bg-surface-hover hover:text-foreground",
@@ -406,7 +408,8 @@ function ActivityFeedContent({
             settingsLink: () => (
               <Link
                 href={withVault(vault, "/settings")}
-                className="text-brand underline"
+                className="rounded-sm text-foreground underline focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-1"
+                onKeyDown={activateLinkOnKeyDown}
               >
                 {nav("settings")}
               </Link>
@@ -422,7 +425,8 @@ function ActivityFeedContent({
             settingsLink: () => (
               <Link
                 href={withVault(vault, "/settings")}
-                className="text-brand underline"
+                className="rounded-sm text-foreground underline focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-1"
+                onKeyDown={activateLinkOnKeyDown}
               >
                 {nav("settings")}
               </Link>
@@ -504,6 +508,7 @@ function ActivityFeedContent({
               variant="outline"
               size="sm"
               data-testid="activity-clear-filters"
+              onKeyDown={activateButtonOnKeyDown}
               onClick={() => setActivityTypeFilter("all")}
             >
               {common("clearFilters")}
