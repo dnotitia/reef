@@ -40,11 +40,9 @@ const ReadIssueToolIssueSchema = IssueMetadataSchema.pick({
   related_to: true,
 });
 
-export const ReadIssueOutputSchema = z
-  .object({
-    issue: ReadIssueToolIssueSchema,
-    content: z.string(),
-  })
-  .strict();
+export const ReadIssueOutputSchema = z.strictObject({
+  issue: ReadIssueToolIssueSchema,
+  content: z.string(),
+});
 
 export type ReadIssueOutput = z.infer<typeof ReadIssueOutputSchema>;

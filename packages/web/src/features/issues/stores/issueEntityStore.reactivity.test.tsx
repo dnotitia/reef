@@ -21,7 +21,10 @@ const renderCounts: Record<string, number> = {};
 const Probe = memo(function Probe({
   vault,
   id,
-}: { vault: string; id: string }) {
+}: {
+  vault: string;
+  id: string;
+}) {
   const entity = useIssueEntity(vault, id);
   renderCounts[id] = (renderCounts[id] ?? 0) + 1;
   return <div data-testid={`probe-${id}`}>{entity?.title}</div>;

@@ -27,7 +27,7 @@ export const CommentMetaSchema = z
   .superRefine((meta, ctx) => {
     if ((meta.parent_comment_id === null) !== (meta.thread_root_id === null)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["parent_comment_id"],
         message:
           "comment parent and thread root must both be set or both be null",

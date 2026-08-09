@@ -33,11 +33,21 @@ const mocks = vi.hoisted(() => {
       warn: vi.fn(),
       debug: vi.fn(),
     },
-    NodeSDK: vi.fn(() => sdk),
-    OTLPTraceExporter: vi.fn(() => exporter),
-    BatchSpanProcessor: vi.fn(() => batchSpanProcessor),
-    RequestLogSpanProcessor: vi.fn(() => requestLogSpanProcessor),
-    PinoInstrumentation: vi.fn(() => pinoInstrumentation),
+    NodeSDK: vi.fn(function () {
+      return sdk;
+    }),
+    OTLPTraceExporter: vi.fn(function () {
+      return exporter;
+    }),
+    BatchSpanProcessor: vi.fn(function () {
+      return batchSpanProcessor;
+    }),
+    RequestLogSpanProcessor: vi.fn(function () {
+      return requestLogSpanProcessor;
+    }),
+    PinoInstrumentation: vi.fn(function () {
+      return pinoInstrumentation;
+    }),
     resourceFromAttributes: vi.fn(() => resource),
     responseLoggingEnabled: vi.fn<() => boolean>(),
     setCoreLogger: vi.fn(),

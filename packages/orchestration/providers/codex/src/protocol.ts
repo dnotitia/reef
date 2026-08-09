@@ -4,169 +4,131 @@ const requestIdSchema = z.union([z.string().min(1), z.number().finite()]);
 const nonEmptyTextSchema = z.string().min(1);
 
 const messageObjectSchema = z
-  .record(z.unknown())
+  .record(z.string(), z.unknown())
   .refine((value) => Object.keys(value).length > 0);
 
 export const responseEnvelopeSchema = z
-  .object({
+  .strictObject({
     id: requestIdSchema,
     result: z.unknown().optional(),
     error: z
-      .object({
+      .looseObject({
         code: z.union([z.string(), z.number().finite()]),
         message: z.string(),
       })
-      .passthrough()
       .optional(),
   })
-  .strict()
   .superRefine((value, context) => {
     if (value.result === undefined && value.error === undefined) {
       context.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: "response must contain result or error",
       });
     }
     if (value.result !== undefined && value.error !== undefined) {
       context.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: "response cannot contain both result and error",
       });
     }
   });
 
-const methodMessageSchema = z
-  .object({
-    method: nonEmptyTextSchema,
-    id: requestIdSchema.optional(),
-    params: z.unknown().optional(),
-  })
-  .strict();
+const methodMessageSchema = z.strictObject({
+  method: nonEmptyTextSchema,
+  id: requestIdSchema.optional(),
+  params: z.unknown().optional(),
+});
 
-export const threadResultSchema = z
-  .object({
-    thread: z.object({ id: nonEmptyTextSchema }).passthrough(),
-  })
-  .passthrough();
+export const threadResultSchema = z.looseObject({
+  thread: z.looseObject({ id: nonEmptyTextSchema }),
+});
 
-export const turnResultSchema = z
-  .object({
-    turn: z.object({ id: nonEmptyTextSchema }).passthrough(),
-  })
-  .passthrough();
+export const turnResultSchema = z.looseObject({
+  turn: z.looseObject({ id: nonEmptyTextSchema }),
+});
 
-const threadTurnEnvelopeSchema = z
-  .object({
-    threadId: nonEmptyTextSchema,
-    turn: z
-      .object({
-        id: nonEmptyTextSchema,
-      })
-      .passthrough(),
-  })
-  .passthrough();
+const threadTurnEnvelopeSchema = z.looseObject({
+  threadId: nonEmptyTextSchema,
+  turn: z.looseObject({
+    id: nonEmptyTextSchema,
+  }),
+});
 
 export const turnStartedParamsSchema = threadTurnEnvelopeSchema;
 
-export const turnCompletedParamsSchema = z
-  .object({
-    threadId: nonEmptyTextSchema,
-    turn: z
-      .object({
-        id: nonEmptyTextSchema,
-        status: z.enum(["completed", "interrupted", "failed"]),
-        items: z.array(z.unknown()),
-      })
-      .passthrough(),
-  })
-  .passthrough();
-
-export const itemLifecycleParamsSchema = z
-  .object({
-    threadId: nonEmptyTextSchema,
-    turnId: nonEmptyTextSchema,
-    item: z
-      .object({
-        id: nonEmptyTextSchema,
-        type: nonEmptyTextSchema,
-      })
-      .passthrough(),
-  })
-  .passthrough();
-
-export const deltaParamsSchema = z
-  .object({
-    threadId: nonEmptyTextSchema,
-    turnId: nonEmptyTextSchema,
-    itemId: nonEmptyTextSchema,
-    delta: z.string(),
-  })
-  .passthrough();
-
-export const threadStatusChangedParamsSchema = z
-  .object({
-    threadId: nonEmptyTextSchema,
-    status: z
-      .object({
-        type: z.enum(["notLoaded", "idle", "systemError", "active"]),
-      })
-      .passthrough(),
-  })
-  .passthrough();
-
-export const errorNotificationParamsSchema = z
-  .object({
-    error: messageObjectSchema,
-    willRetry: z.boolean(),
-    threadId: nonEmptyTextSchema,
-    turnId: nonEmptyTextSchema,
-  })
-  .passthrough();
-
-const userInputOptionSchema = z
-  .object({
-    label: nonEmptyTextSchema,
-    description: z.string(),
-  })
-  .passthrough();
-
-const userInputQuestionSchema = z
-  .object({
+export const turnCompletedParamsSchema = z.looseObject({
+  threadId: nonEmptyTextSchema,
+  turn: z.looseObject({
     id: nonEmptyTextSchema,
-    header: nonEmptyTextSchema,
-    question: nonEmptyTextSchema,
-    options: z.array(userInputOptionSchema).nullable(),
-    isOther: z.boolean(),
-    isSecret: z.boolean(),
-  })
-  .passthrough();
+    status: z.enum(["completed", "interrupted", "failed"]),
+    items: z.array(z.unknown()),
+  }),
+});
 
-export const userInputRequestParamsSchema = z
-  .object({
-    threadId: nonEmptyTextSchema,
-    turnId: nonEmptyTextSchema,
-    itemId: nonEmptyTextSchema,
-    questions: z.array(userInputQuestionSchema).min(1),
-    autoResolutionMs: z.number().finite().nullable(),
-  })
-  .passthrough();
+export const itemLifecycleParamsSchema = z.looseObject({
+  threadId: nonEmptyTextSchema,
+  turnId: nonEmptyTextSchema,
+  item: z.looseObject({
+    id: nonEmptyTextSchema,
+    type: nonEmptyTextSchema,
+  }),
+});
 
-export const approvalRequestParamsSchema = z
-  .object({
-    threadId: nonEmptyTextSchema,
-    turnId: nonEmptyTextSchema,
-    itemId: nonEmptyTextSchema,
-    reason: z.string().nullable().optional(),
-    networkApprovalContext: z.unknown().nullable().optional(),
-  })
-  .passthrough();
+export const deltaParamsSchema = z.looseObject({
+  threadId: nonEmptyTextSchema,
+  turnId: nonEmptyTextSchema,
+  itemId: nonEmptyTextSchema,
+  delta: z.string(),
+});
 
-export const finalOutputSchema = z
-  .object({
-    intent: z.enum(["completed", "validation_requested", "blocked", "failed"]),
-    summary: z.string().trim().min(1).max(512),
-  })
-  .strict();
+export const threadStatusChangedParamsSchema = z.looseObject({
+  threadId: nonEmptyTextSchema,
+  status: z.looseObject({
+    type: z.enum(["notLoaded", "idle", "systemError", "active"]),
+  }),
+});
+
+export const errorNotificationParamsSchema = z.looseObject({
+  error: messageObjectSchema,
+  willRetry: z.boolean(),
+  threadId: nonEmptyTextSchema,
+  turnId: nonEmptyTextSchema,
+});
+
+const userInputOptionSchema = z.looseObject({
+  label: nonEmptyTextSchema,
+  description: z.string(),
+});
+
+const userInputQuestionSchema = z.looseObject({
+  id: nonEmptyTextSchema,
+  header: nonEmptyTextSchema,
+  question: nonEmptyTextSchema,
+  options: z.array(userInputOptionSchema).nullable(),
+  isOther: z.boolean(),
+  isSecret: z.boolean(),
+});
+
+export const userInputRequestParamsSchema = z.looseObject({
+  threadId: nonEmptyTextSchema,
+  turnId: nonEmptyTextSchema,
+  itemId: nonEmptyTextSchema,
+  questions: z.array(userInputQuestionSchema).min(1),
+  autoResolutionMs: z.number().finite().nullable(),
+});
+
+export const approvalRequestParamsSchema = z.looseObject({
+  threadId: nonEmptyTextSchema,
+  turnId: nonEmptyTextSchema,
+  itemId: nonEmptyTextSchema,
+  reason: z.string().nullable().optional(),
+  networkApprovalContext: z.unknown().nullable().optional(),
+});
+
+export const finalOutputSchema = z.strictObject({
+  intent: z.enum(["completed", "validation_requested", "blocked", "failed"]),
+  summary: z.string().trim().min(1).max(512),
+});
 
 export type JsonRpcId = z.infer<typeof requestIdSchema>;
 export type JsonRpcResponse = z.infer<typeof responseEnvelopeSchema>;

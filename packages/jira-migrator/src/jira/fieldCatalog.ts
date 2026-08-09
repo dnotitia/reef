@@ -262,10 +262,8 @@ export const resolveJiraFields = (
     ) as Record<JiraCanonicalFieldRole, JiraFieldResolution>,
   );
 
-export const JiraFieldCatalogSnapshotSchema = z
-  .object({
-    fields: JiraFieldCatalogSchema,
-    retrievedAt: z.string().datetime({ offset: true }),
-    source: z.enum(["jira_field_api", "issue_expansion"]),
-  })
-  .strict();
+export const JiraFieldCatalogSnapshotSchema = z.strictObject({
+  fields: JiraFieldCatalogSchema,
+  retrievedAt: z.string().datetime({ offset: true }),
+  source: z.enum(["jira_field_api", "issue_expansion"]),
+});

@@ -153,14 +153,14 @@ const assertFinalEventArtifactMatches = (
 ) => {
   if (event.artifact.run_id !== event.run_id) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       message: "artifact run_id must match event run_id",
       path: ["artifact", "run_id"],
     });
   }
   if (event.artifact.task_id !== event.task_id) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       message: "artifact task_id must match event task_id",
       path: ["artifact", "task_id"],
     });
@@ -228,14 +228,14 @@ export const AgentRunEnvelopeSchema = z
     envelope.events.forEach((event, index) => {
       if (event.run_id !== envelope.run_id) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           message: "event run_id must match envelope run_id",
           path: ["events", index, "run_id"],
         });
       }
       if (event.task_id !== envelope.task_id) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           message: "event task_id must match envelope task_id",
           path: ["events", index, "task_id"],
         });
@@ -243,14 +243,14 @@ export const AgentRunEnvelopeSchema = z
       if (event.type === "artifact.final") {
         if (event.artifact.run_id !== envelope.run_id) {
           ctx.addIssue({
-            code: z.ZodIssueCode.custom,
+            code: "custom",
             message: "artifact run_id must match envelope run_id",
             path: ["events", index, "artifact", "run_id"],
           });
         }
         if (event.artifact.task_id !== envelope.task_id) {
           ctx.addIssue({
-            code: z.ZodIssueCode.custom,
+            code: "custom",
             message: "artifact task_id must match envelope task_id",
             path: ["events", index, "artifact", "task_id"],
           });
@@ -261,14 +261,14 @@ export const AgentRunEnvelopeSchema = z
     envelope.artifacts.forEach((artifact, index) => {
       if (artifact.run_id !== envelope.run_id) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           message: "artifact run_id must match envelope run_id",
           path: ["artifacts", index, "run_id"],
         });
       }
       if (artifact.task_id !== envelope.task_id) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           message: "artifact task_id must match envelope task_id",
           path: ["artifacts", index, "task_id"],
         });

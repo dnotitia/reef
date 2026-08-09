@@ -47,21 +47,19 @@ type AgentToolsetPolicy = z.infer<typeof AgentToolsetPolicyEnum>;
 
 const AgentPipelineStageIdEnum = z.enum(AGENT_PIPELINE_STAGE_IDS);
 
-export const AgentTaskRegistryEntrySchema = z
-  .object({
-    taskId: AgentTaskIdEnum,
-    functionId: z.string().min(1),
-    spanName: z.string().min(1),
-    executionMode: AgentExecutionModeEnum,
-    maxSteps: z.number().int().positive().nullable(),
-    tokenLimit: z.number().int().positive().nullable(),
-    temperature: z.number().min(0).max(2).nullable(),
-    outputSchema: z.string().min(1),
-    repairPolicy: AgentRepairPolicyEnum,
-    toolsetPolicy: z.array(AgentToolsetPolicyEnum).min(1),
-    stages: z.array(AgentPipelineStageIdEnum).min(1),
-  })
-  .strict();
+export const AgentTaskRegistryEntrySchema = z.strictObject({
+  taskId: AgentTaskIdEnum,
+  functionId: z.string().min(1),
+  spanName: z.string().min(1),
+  executionMode: AgentExecutionModeEnum,
+  maxSteps: z.number().int().positive().nullable(),
+  tokenLimit: z.number().int().positive().nullable(),
+  temperature: z.number().min(0).max(2).nullable(),
+  outputSchema: z.string().min(1),
+  repairPolicy: AgentRepairPolicyEnum,
+  toolsetPolicy: z.array(AgentToolsetPolicyEnum).min(1),
+  stages: z.array(AgentPipelineStageIdEnum).min(1),
+});
 export type AgentTaskRegistryEntry = z.infer<
   typeof AgentTaskRegistryEntrySchema
 >;

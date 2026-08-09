@@ -67,14 +67,18 @@ vi.mock("@/components/ai-elements/prompt-input", () => ({
   ),
   PromptInputSubmit: ({
     "data-testid": testId,
-  }: { "data-testid"?: string }) => (
-    <button type="submit" data-testid={testId ?? "prompt-input-submit"} />
-  ),
+  }: {
+    "data-testid"?: string;
+  }) => <button type="submit" data-testid={testId ?? "prompt-input-submit"} />,
   PromptInputTextarea: ({
     placeholder,
     disabled,
     "data-testid": testId,
-  }: { placeholder?: string; disabled?: boolean; "data-testid"?: string }) => (
+  }: {
+    placeholder?: string;
+    disabled?: boolean;
+    "data-testid"?: string;
+  }) => (
     <textarea
       data-testid={testId ?? "prompt-input-textarea"}
       placeholder={placeholder}

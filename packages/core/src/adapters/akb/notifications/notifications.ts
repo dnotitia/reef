@@ -47,7 +47,7 @@ function validationError(error: ZodError): SchemaValidationError {
   });
 }
 
-function parseInput<S extends z.ZodTypeAny>(
+function parseInput<S extends z.ZodType>(
   schema: S,
   input: unknown,
 ): z.output<S> {

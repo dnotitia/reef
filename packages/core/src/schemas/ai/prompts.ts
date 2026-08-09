@@ -100,14 +100,12 @@ export type ActivityIssueLinkUserPromptRequest = z.infer<
   typeof ActivityIssueLinkUserPromptRequestSchema
 >;
 
-export const ActivityIssueLinkDecisionSchema = z
-  .object({
-    decision: z.enum(["linked", "possible_link", "no_link"]),
-    issue_id: z.string().nullable(),
-    confidence: z.number().min(0).max(1),
-    rationale: z.string(),
-  })
-  .strict();
+export const ActivityIssueLinkDecisionSchema = z.strictObject({
+  decision: z.enum(["linked", "possible_link", "no_link"]),
+  issue_id: z.string().nullable(),
+  confidence: z.number().min(0).max(1),
+  rationale: z.string(),
+});
 export type ActivityIssueLinkDecision = z.infer<
   typeof ActivityIssueLinkDecisionSchema
 >;

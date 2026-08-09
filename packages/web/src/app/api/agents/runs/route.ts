@@ -23,6 +23,7 @@ import {
   describeError,
 } from "@reef/core";
 import type { UIMessage } from "ai";
+import { z } from "zod";
 import {
   createAgentEventStream,
   createChatRunEventBridge,
@@ -87,7 +88,7 @@ export async function POST(request: Request): Promise<Response> {
       "agent.runRequestInvalid",
       400,
       "invalid_agent_run_request",
-      { validation: parsed.error.flatten() },
+      { validation: z.flattenError(parsed.error) },
     );
   }
   const runRequest = parsed.data;

@@ -48,23 +48,21 @@ const AkbKeycloakExchangeResponseSchema = z.object({
   kc_id_token: z.string().min(1).optional(),
 });
 
-// `/auth/me` wire shape. `.passthrough()` is LOAD-BEARING: email / display_name
+// `/auth/me` wire shape. `z.looseObject` is LOAD-BEARING: email / display_name
 // / is_admin / auth_method (and any future akb field) should survive untouched so
 // the me route can re-emit the public profile verbatim. Every identifier field
 // stays `.optional()` so the actor-resolution fallback union is preserved.
-export const AkbCurrentUserSchema = z
-  .object({
-    username: z.string().min(1).optional(),
-    user_id: z.string().min(1).optional(),
-    id: z.string().min(1).optional(),
-    sub: z.string().min(1).optional(),
-  })
-  .passthrough();
+export const AkbCurrentUserSchema = z.looseObject({
+  username: z.string().min(1).optional(),
+  user_id: z.string().min(1).optional(),
+  id: z.string().min(1).optional(),
+  sub: z.string().min(1).optional(),
+});
 
 export type AkbCurrentUser = z.infer<typeof AkbCurrentUserSchema>;
 
 // Client-facing projection of `/auth/me` for DISPLAY surfaces (the workspace
-// account menu). Unlike `AkbCurrentUserSchema` — which is `.passthrough()` and
+// account menu). Unlike `AkbCurrentUserSchema` — which is `z.looseObject` and
 // observe so the me route can re-emit the profile verbatim — this STRIPS
 // to the handful of fields the UI renders, so a `web` consumer imports a typed
 // shape instead of reaching into passthrough keys. Every field is optional:

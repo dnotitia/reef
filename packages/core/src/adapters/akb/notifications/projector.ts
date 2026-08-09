@@ -23,56 +23,42 @@ import { createNotification } from "./notifications";
 const DEFAULT_BATCH_SIZE = 100;
 const MAX_BATCH_SIZE = 500;
 
-const CursorSchema = z
-  .object({
-    occurred_at: z.string().min(1),
-    id: z.string().min(1),
-  })
-  .strict();
+const CursorSchema = z.strictObject({
+  occurred_at: z.string().min(1),
+  id: z.string().min(1),
+});
 
-const ProjectorCheckpointSchema = z
-  .object({
-    activated_at: z.string().datetime({ offset: true }),
-    activity_cursor: CursorSchema.nullable(),
-    comment_cursor: CursorSchema.nullable(),
-  })
-  .strict();
+const ProjectorCheckpointSchema = z.strictObject({
+  activated_at: z.string().datetime({ offset: true }),
+  activity_cursor: CursorSchema.nullable(),
+  comment_cursor: CursorSchema.nullable(),
+});
 
-const RawActivitySourceSchema = z
-  .object({
-    id: z.string().min(1),
-    reef_id: z.string().min(1),
-    event_type: z.string().min(1),
-    event_key: z.string().min(1),
-    meta: z
-      .object({
-        actor: z.string().min(1),
-        at: z.string().datetime({ offset: true }),
-      })
-      .passthrough(),
-  })
-  .strict();
+const RawActivitySourceSchema = z.strictObject({
+  id: z.string().min(1),
+  reef_id: z.string().min(1),
+  event_type: z.string().min(1),
+  event_key: z.string().min(1),
+  meta: z.looseObject({
+    actor: z.string().min(1),
+    at: z.string().datetime({ offset: true }),
+  }),
+});
 
-const RawCommentSourceSchema = z
-  .object({
-    id: z.string().min(1),
-    reef_id: z.string().min(1),
-    meta: z
-      .object({
-        author: z.string().min(1),
-        created_at: z.string().datetime({ offset: true }),
-      })
-      .passthrough(),
-  })
-  .strict();
+const RawCommentSourceSchema = z.strictObject({
+  id: z.string().min(1),
+  reef_id: z.string().min(1),
+  meta: z.looseObject({
+    author: z.string().min(1),
+    created_at: z.string().datetime({ offset: true }),
+  }),
+});
 
-const RawSubscriptionSchema = z
-  .object({
-    subscriber: z.string().min(1),
-    source: z.string().min(1),
-    status: z.enum(["active", "muted"]),
-  })
-  .strict();
+const RawSubscriptionSchema = z.strictObject({
+  subscriber: z.string().min(1),
+  source: z.string().min(1),
+  status: z.enum(["active", "muted"]),
+});
 
 type Cursor = z.infer<typeof CursorSchema>;
 type ProjectorCheckpoint = z.infer<typeof ProjectorCheckpointSchema>;
@@ -319,8 +305,9 @@ async function recipientsForSource(
     .filter(
       (
         parsed,
-      ): parsed is z.SafeParseSuccess<z.infer<typeof RawSubscriptionSchema>> =>
-        parsed.success,
+      ): parsed is z.ZodSafeParseSuccess<
+        z.infer<typeof RawSubscriptionSchema>
+      > => parsed.success,
     )
     .map((parsed) => parsed.data);
   const bySubscriber = new Map<

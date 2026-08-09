@@ -1,13 +1,12 @@
 {
-  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
-  "organizeImports": {
-    "enabled": true
-  },
+  "$schema": "https://biomejs.dev/schemas/2.5.7/schema.json",
+  "assist": { "actions": { "source": { "organizeImports": "off" } } },
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
-      "nursery": {
+      "preset": "recommended",
+      "nursery": {},
+      "style": {
         "noRestrictedImports": {
           "level": "error",
           "options": {
@@ -16,6 +15,36 @@
             }
           }
         }
+      },
+      "correctness": {
+        "noUnsafeOptionalChaining": "off",
+        "noUnusedFunctionParameters": "off",
+        "noUnusedImports": "off",
+        "noUnusedVariables": "off",
+        "useHookAtTopLevel": "off"
+      },
+      "a11y": {
+        "noStaticElementInteractions": "off",
+        "noSvgWithoutTitle": "off",
+        "useAriaPropsSupportedByRole": "off",
+        "useSemanticElements": "off"
+      },
+      "suspicious": {
+        "noArrayIndexKey": "off",
+        "noDocumentCookie": "off",
+        "noPrototypeBuiltins": "off",
+        "noTemplateCurlyInString": "off",
+        "noUndeclaredEnvVars": "off",
+        "useIterableCallbackReturn": "off"
+      },
+      "complexity": {
+        "noImportantStyles": "off",
+        "noUselessEscapeInRegex": "off",
+        "noUselessFragments": "off",
+        "useOptionalChain": "off"
+      },
+      "performance": {
+        "noImgElement": "off"
       }
     }
   },
@@ -30,20 +59,31 @@
       "trailingCommas": "all"
     }
   },
+  "json": {
+    "formatter": {
+      "expand": "auto"
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
   "files": {
-    "ignore": [
-      "node_modules",
-      ".pnpm-store",
-      ".next",
-      "dist",
-      "build",
-      ".turbo",
-      ".maintenance",
-      ".agents",
-      ".claude",
-      "storybook-static",
-      "packages/web/test-results",
-      "packages/web/src/components/ui"
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/.pnpm-store",
+      "!**/.next",
+      "!**/dist",
+      "!**/build",
+      "!**/.turbo",
+      "!**/.maintenance",
+      "!**/.agents",
+      "!**/.claude",
+      "!**/storybook-static",
+      "!**/packages/web/test-results",
+      "!**/packages/web/src/components/ui"
     ]
   }
 }

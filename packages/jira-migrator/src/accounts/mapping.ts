@@ -129,37 +129,31 @@ export interface JiraUsersCustomFields {
   };
 }
 
-export const JiraAccountOverrideSchema = z
-  .object({
-    actor: z.string().min(1),
-    reason: z.string().min(1).optional(),
-  })
-  .strict();
+export const JiraAccountOverrideSchema = z.strictObject({
+  actor: z.string().min(1),
+  reason: z.string().min(1).optional(),
+});
 
-export const JiraAccountMappingRecordSchema = z
-  .object({
-    accountId: z.string().min(1),
-    emailAddress: z.string().min(1).nullable(),
-    displayName: z.string().min(1).nullable(),
-    active: z.boolean().nullable(),
-    accountType: z.string().min(1).nullable(),
-    actor: z.string().min(1),
-    mappingStrategy: z.enum(["override", "email", "fallback"]),
-    overrideReason: z.string().min(1).nullable(),
-    firstSeenAt: z.string().min(1),
-    lastSeenAt: z.string().min(1),
-    projectKeys: z.array(z.string().min(1)),
-  })
-  .strict();
+export const JiraAccountMappingRecordSchema = z.strictObject({
+  accountId: z.string().min(1),
+  emailAddress: z.string().min(1).nullable(),
+  displayName: z.string().min(1).nullable(),
+  active: z.boolean().nullable(),
+  accountType: z.string().min(1).nullable(),
+  actor: z.string().min(1),
+  mappingStrategy: z.enum(["override", "email", "fallback"]),
+  overrideReason: z.string().min(1).nullable(),
+  firstSeenAt: z.string().min(1),
+  lastSeenAt: z.string().min(1),
+  projectKeys: z.array(z.string().min(1)),
+});
 
-export const JiraAccountMappingArtifactSchema = z
-  .object({
-    version: z.literal(1),
-    jiraCloudId: z.string().min(1),
-    accounts: z.record(JiraAccountMappingRecordSchema),
-    overrides: z.record(JiraAccountOverrideSchema),
-  })
-  .strict();
+export const JiraAccountMappingArtifactSchema = z.strictObject({
+  version: z.literal(1),
+  jiraCloudId: z.string().min(1),
+  accounts: z.record(z.string(), JiraAccountMappingRecordSchema),
+  overrides: z.record(z.string(), JiraAccountOverrideSchema),
+});
 
 const emptyChangeReport = (): JiraAccountMappingChangeReport => ({
   added: [],

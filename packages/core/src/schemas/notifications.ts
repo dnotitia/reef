@@ -17,13 +17,11 @@ export const EffectiveSubscriptionStateSchema = z.enum([
   "unwatched",
 ]);
 
-export const NotificationIdentitySchema = z
-  .object({
-    recipient: NonEmptyIdentitySchema,
-    sourceType: NonEmptyIdentitySchema,
-    sourceRef: NonEmptyIdentitySchema,
-  })
-  .strict();
+export const NotificationIdentitySchema = z.strictObject({
+  recipient: NonEmptyIdentitySchema,
+  sourceType: NonEmptyIdentitySchema,
+  sourceRef: NonEmptyIdentitySchema,
+});
 
 export const NotificationCreateInputSchema = NotificationIdentitySchema.extend({
   notificationKey: NonEmptyIdentitySchema.optional(),
@@ -32,80 +30,68 @@ export const NotificationCreateInputSchema = NotificationIdentitySchema.extend({
   actor: NonEmptyIdentitySchema,
   occurredAt: IsoDateTimeSchema,
   payload: z.unknown().nullable().optional(),
-  meta: z.record(z.unknown()).nullable().optional(),
-}).strict();
+  meta: z.record(z.string(), z.unknown()).nullable().optional(),
+});
 
-export const NotificationListInputSchema = z
-  .object({
-    recipient: NonEmptyIdentitySchema,
-    state: NotificationStateSchema.optional(),
-    limit: z.number().int().min(1).max(100).default(50),
-  })
-  .strict();
+export const NotificationListInputSchema = z.strictObject({
+  recipient: NonEmptyIdentitySchema,
+  state: NotificationStateSchema.optional(),
+  limit: z.number().int().min(1).max(100).default(50),
+});
 
-export const NotificationStateUpdateInputSchema = z
-  .object({
-    notificationKey: NonEmptyIdentitySchema,
-    recipient: NonEmptyIdentitySchema,
-    state: NotificationStateSchema,
-    changedAt: IsoDateTimeSchema.optional(),
-  })
-  .strict();
+export const NotificationStateUpdateInputSchema = z.strictObject({
+  notificationKey: NonEmptyIdentitySchema,
+  recipient: NonEmptyIdentitySchema,
+  state: NotificationStateSchema,
+  changedAt: IsoDateTimeSchema.optional(),
+});
 
-export const NotificationRowSchema = z
-  .object({
-    id: z.string().uuid(),
-    notification_key: NonEmptyIdentitySchema,
-    recipient: NonEmptyIdentitySchema,
-    reef_id: NonEmptyIdentitySchema,
-    source_type: NonEmptyIdentitySchema,
-    source_ref: NonEmptyIdentitySchema,
-    event_type: NonEmptyIdentitySchema,
-    actor: NonEmptyIdentitySchema,
-    occurred_at: IsoDateTimeSchema,
-    state: NotificationStateSchema,
-    read_at: IsoDateTimeSchema.nullable().optional(),
-    archived_at: IsoDateTimeSchema.nullable().optional(),
-    payload: z.unknown().nullable().optional(),
-    meta: z.record(z.unknown()).nullable().optional(),
-  })
-  .passthrough();
+export const NotificationRowSchema = z.looseObject({
+  id: z.string().uuid(),
+  notification_key: NonEmptyIdentitySchema,
+  recipient: NonEmptyIdentitySchema,
+  reef_id: NonEmptyIdentitySchema,
+  source_type: NonEmptyIdentitySchema,
+  source_ref: NonEmptyIdentitySchema,
+  event_type: NonEmptyIdentitySchema,
+  actor: NonEmptyIdentitySchema,
+  occurred_at: IsoDateTimeSchema,
+  state: NotificationStateSchema,
+  read_at: IsoDateTimeSchema.nullable().optional(),
+  archived_at: IsoDateTimeSchema.nullable().optional(),
+  payload: z.unknown().nullable().optional(),
+  meta: z.record(z.string(), z.unknown()).nullable().optional(),
+});
 
-export const SubscriptionIdentitySchema = z
-  .object({
-    reefId: NonEmptyIdentitySchema,
-    subscriber: NonEmptyIdentitySchema,
-    source: SubscriptionSourceSchema,
-  })
-  .strict();
+export const SubscriptionIdentitySchema = z.strictObject({
+  reefId: NonEmptyIdentitySchema,
+  subscriber: NonEmptyIdentitySchema,
+  source: SubscriptionSourceSchema,
+});
 
 export const SubscriptionUpsertInputSchema = SubscriptionIdentitySchema.extend({
   subscriptionKey: NonEmptyIdentitySchema.optional(),
   status: SubscriptionStatusSchema.default("active"),
   subscribedAt: IsoDateTimeSchema.optional(),
-  meta: z.record(z.unknown()).nullable().optional(),
-}).strict();
+  meta: z.record(z.string(), z.unknown()).nullable().optional(),
+});
 
-export const SubscriptionListInputSchema = z
-  .object({
-    reefId: NonEmptyIdentitySchema,
-    subscriber: NonEmptyIdentitySchema.optional(),
-    status: SubscriptionStatusSchema.optional(),
-  })
-  .strict();
+export const SubscriptionListInputSchema = z.strictObject({
+  reefId: NonEmptyIdentitySchema,
+  subscriber: NonEmptyIdentitySchema.optional(),
+  status: SubscriptionStatusSchema.optional(),
+});
 
-export const SubscriptionRowSchema = z
-  .object({
-    id: z.string().uuid(),
-    subscription_key: NonEmptyIdentitySchema,
-    reef_id: NonEmptyIdentitySchema,
-    subscriber: NonEmptyIdentitySchema,
-    source: SubscriptionSourceSchema,
-    status: SubscriptionStatusSchema,
-    subscribed_at: IsoDateTimeSchema,
-    meta: z.record(z.unknown()).nullable().optional(),
-  })
-  .passthrough();
+export const SubscriptionRowSchema = z.looseObject({
+  id: z.string().uuid(),
+  subscription_key: NonEmptyIdentitySchema,
+  reef_id: NonEmptyIdentitySchema,
+  subscriber: NonEmptyIdentitySchema,
+  source: SubscriptionSourceSchema,
+  status: SubscriptionStatusSchema,
+  subscribed_at: IsoDateTimeSchema,
+  meta: z.record(z.string(), z.unknown()).nullable().optional(),
+});
 
 export type NotificationState = z.infer<typeof NotificationStateSchema>;
 export type NotificationIdentity = z.infer<typeof NotificationIdentitySchema>;

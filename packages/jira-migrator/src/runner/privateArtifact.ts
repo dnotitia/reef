@@ -33,30 +33,24 @@ export function processIdentityMayOwnLiveLock(
   );
 }
 
-const PrivatePlanArtifactSchema = z
-  .object({
-    schema_version: z.literal(1),
-    run_id: z.string().min(1),
-    source: z
-      .object({
-        jira_cloud_id: z.string().min(1),
-        project_keys: z.array(z.string().min(1)).min(1),
-        board_ids: z.array(z.string().min(1)),
-        endpoint_fingerprint: z.string().regex(/^[a-f0-9]{64}$/u),
-      })
-      .strict(),
-    target: z
-      .object({
-        vault: z.string().min(1),
-        actor: z.string().min(1),
-        endpoint_fingerprint: z.string().regex(/^[a-f0-9]{64}$/u),
-      })
-      .strict(),
-    plan_sha256: z.string().regex(/^[a-f0-9]{64}$/u),
-    approval_report_sha256: z.string().regex(/^[a-f0-9]{64}$/u),
-    payload: z.unknown(),
-  })
-  .strict();
+const PrivatePlanArtifactSchema = z.strictObject({
+  schema_version: z.literal(1),
+  run_id: z.string().min(1),
+  source: z.strictObject({
+    jira_cloud_id: z.string().min(1),
+    project_keys: z.array(z.string().min(1)).min(1),
+    board_ids: z.array(z.string().min(1)),
+    endpoint_fingerprint: z.string().regex(/^[a-f0-9]{64}$/u),
+  }),
+  target: z.strictObject({
+    vault: z.string().min(1),
+    actor: z.string().min(1),
+    endpoint_fingerprint: z.string().regex(/^[a-f0-9]{64}$/u),
+  }),
+  plan_sha256: z.string().regex(/^[a-f0-9]{64}$/u),
+  approval_report_sha256: z.string().regex(/^[a-f0-9]{64}$/u),
+  payload: z.unknown(),
+});
 
 export type PrivatePlanArtifact = z.infer<typeof PrivatePlanArtifactSchema>;
 

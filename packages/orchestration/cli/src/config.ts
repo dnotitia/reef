@@ -24,7 +24,7 @@ const uniqueStrings = (values: readonly string[], context: z.RefinementCtx) => {
   for (const [index, value] of values.entries()) {
     if (seen.has(value)) {
       context.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: [index],
         message: "duplicate value",
       });
@@ -106,16 +106,14 @@ const remoteUrl = z
 
 const validationChecks = z
   .array(
-    z
-      .object({
-        name: z.string().min(1).max(128),
-        command: z
-          .string()
-          .min(1)
-          .max(64 * 1024),
-        timeout_ms: z.number().int().positive().max(MAX_VALIDATION_TIMEOUT_MS),
-      })
-      .strict(),
+    z.strictObject({
+      name: z.string().min(1).max(128),
+      command: z
+        .string()
+        .min(1)
+        .max(64 * 1024),
+      timeout_ms: z.number().int().positive().max(MAX_VALIDATION_TIMEOUT_MS),
+    }),
   )
   .min(1)
   .superRefine((checks, context) => {
@@ -123,7 +121,7 @@ const validationChecks = z
     for (const [index, check] of checks.entries()) {
       if (seen.has(check.name)) {
         context.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: [index, "name"],
           message: "duplicate validation check name",
         });
@@ -138,116 +136,81 @@ const providerBase = {
   environment: environmentNames,
 };
 
-const workProvider = z
-  .object({
-    kind: z.literal("work"),
-    ...providerBase,
-    required_capabilities: z
-      .array(z.enum(WORK_CAPABILITIES))
-      .superRefine(uniqueStrings),
-    options: z
-      .object({
-        vault: z.string().regex(VAULT_NAME),
-        base_url_env: z.string().regex(ENVIRONMENT_NAME),
-        jwt_env: z.string().regex(ENVIRONMENT_NAME),
-      })
-      .strict(),
-  })
-  .strict();
+const workProvider = z.strictObject({
+  kind: z.literal("work"),
+  ...providerBase,
+  required_capabilities: z
+    .array(z.enum(WORK_CAPABILITIES))
+    .superRefine(uniqueStrings),
+  options: z.strictObject({
+    vault: z.string().regex(VAULT_NAME),
+    base_url_env: z.string().regex(ENVIRONMENT_NAME),
+    jwt_env: z.string().regex(ENVIRONMENT_NAME),
+  }),
+});
 
-const harnessProvider = z
-  .object({
-    kind: z.literal("harness"),
-    ...providerBase,
-    required_capabilities: z
-      .array(z.enum(HARNESS_CAPABILITIES))
-      .superRefine(uniqueStrings),
-    options: z
-      .object({
-        executable: z.string().min(1).max(4_096),
-        model: z.string().min(1).max(256).optional(),
-        handshake_timeout_ms: z
-          .number()
-          .int()
-          .positive()
-          .max(120_000)
-          .optional(),
-        request_timeout_ms: z.number().int().positive().max(120_000).optional(),
-        shutdown_timeout_ms: z.number().int().positive().max(30_000).optional(),
-        max_events: z.number().int().positive().max(1_024).optional(),
-      })
-      .strict(),
-  })
-  .strict();
+const harnessProvider = z.strictObject({
+  kind: z.literal("harness"),
+  ...providerBase,
+  required_capabilities: z
+    .array(z.enum(HARNESS_CAPABILITIES))
+    .superRefine(uniqueStrings),
+  options: z.strictObject({
+    executable: z.string().min(1).max(4_096),
+    model: z.string().min(1).max(256).optional(),
+    handshake_timeout_ms: z.number().int().positive().max(120_000).optional(),
+    request_timeout_ms: z.number().int().positive().max(120_000).optional(),
+    shutdown_timeout_ms: z.number().int().positive().max(30_000).optional(),
+    max_events: z.number().int().positive().max(1_024).optional(),
+  }),
+});
 
-const infrastructureProvider = z
-  .object({
-    kind: z.literal("infrastructure"),
-    ...providerBase,
-    required_capabilities: z
-      .array(z.enum(INFRASTRUCTURE_CAPABILITIES))
-      .superRefine(uniqueStrings),
-    options: z
-      .object({
-        target: safeToken,
-        max_output_bytes: z
-          .number()
-          .int()
-          .positive()
-          .max(1_024 * 1_024)
-          .optional(),
-        termination_timeout_ms: z
-          .number()
-          .int()
-          .positive()
-          .max(30_000)
-          .optional(),
-      })
-      .strict(),
-  })
-  .strict();
+const infrastructureProvider = z.strictObject({
+  kind: z.literal("infrastructure"),
+  ...providerBase,
+  required_capabilities: z
+    .array(z.enum(INFRASTRUCTURE_CAPABILITIES))
+    .superRefine(uniqueStrings),
+  options: z.strictObject({
+    target: safeToken,
+    max_output_bytes: z
+      .number()
+      .int()
+      .positive()
+      .max(1_024 * 1_024)
+      .optional(),
+    termination_timeout_ms: z.number().int().positive().max(30_000).optional(),
+  }),
+});
 
-const scmProvider = z
-  .object({
-    kind: z.literal("scm"),
-    ...providerBase,
-    required_capabilities: z
-      .array(z.enum(SCM_CAPABILITIES))
-      .superRefine(uniqueStrings),
-    options: z
-      .object({
-        api_base_url: z.string().url().optional(),
-        token_env: z.string().regex(ENVIRONMENT_NAME).optional(),
-      })
-      .strict(),
-  })
-  .strict();
+const scmProvider = z.strictObject({
+  kind: z.literal("scm"),
+  ...providerBase,
+  required_capabilities: z
+    .array(z.enum(SCM_CAPABILITIES))
+    .superRefine(uniqueStrings),
+  options: z.strictObject({
+    api_base_url: z.string().url().optional(),
+    token_env: z.string().regex(ENVIRONMENT_NAME).optional(),
+  }),
+});
 
-const validationProvider = z
-  .object({
-    kind: z.literal("validation"),
-    ...providerBase,
-    required_capabilities: z
-      .array(z.enum(VALIDATION_CAPABILITIES))
-      .superRefine(uniqueStrings),
-    options: z
-      .object({
-        max_output_bytes: z
-          .number()
-          .int()
-          .positive()
-          .max(1_024 * 1_024)
-          .optional(),
-        termination_timeout_ms: z
-          .number()
-          .int()
-          .positive()
-          .max(30_000)
-          .optional(),
-      })
-      .strict(),
-  })
-  .strict();
+const validationProvider = z.strictObject({
+  kind: z.literal("validation"),
+  ...providerBase,
+  required_capabilities: z
+    .array(z.enum(VALIDATION_CAPABILITIES))
+    .superRefine(uniqueStrings),
+  options: z.strictObject({
+    max_output_bytes: z
+      .number()
+      .int()
+      .positive()
+      .max(1_024 * 1_024)
+      .optional(),
+    termination_timeout_ms: z.number().int().positive().max(30_000).optional(),
+  }),
+});
 
 export const CliProviderConfigSchema = z.discriminatedUnion("kind", [
   workProvider,
@@ -257,82 +220,70 @@ export const CliProviderConfigSchema = z.discriminatedUnion("kind", [
   validationProvider,
 ]);
 
-const repository = z
-  .object({
-    id: safeToken,
-    owner: z.string().regex(REPOSITORY_NAME),
-    name: z.string().regex(REPOSITORY_NAME),
-    root: absolutePath,
-    managed_work_root: absolutePath,
-    base_revision: z
-      .string()
-      .min(1)
-      .max(512)
-      .refine((value) => !/\s/u.test(value)),
-    remote: safeToken,
-    remote_url: remoteUrl,
-    base_branch: branchName,
-    branch_policy: z
-      .object({
-        allowed_prefixes: z.array(branchPrefix).min(1),
-        max_length: z.number().int().positive().max(255).optional(),
-      })
-      .strict(),
-    permissions: z
-      .object({
-        commit: z.boolean(),
-        push: z.boolean(),
-        pull_request: z.boolean(),
-      })
-      .strict(),
-  })
-  .strict();
+const repository = z.strictObject({
+  id: safeToken,
+  owner: z.string().regex(REPOSITORY_NAME),
+  name: z.string().regex(REPOSITORY_NAME),
+  root: absolutePath,
+  managed_work_root: absolutePath,
+  base_revision: z
+    .string()
+    .min(1)
+    .max(512)
+    .refine((value) => !/\s/u.test(value)),
+  remote: safeToken,
+  remote_url: remoteUrl,
+  base_branch: branchName,
+  branch_policy: z.strictObject({
+    allowed_prefixes: z.array(branchPrefix).min(1),
+    max_length: z.number().int().positive().max(255).optional(),
+  }),
+  permissions: z.strictObject({
+    commit: z.boolean(),
+    push: z.boolean(),
+    pull_request: z.boolean(),
+  }),
+});
 
-const controller = z
-  .object({
-    state_root: absolutePath,
-    stale_after_ms: z.number().finite().positive(),
-  })
-  .strict();
+const controller = z.strictObject({
+  state_root: absolutePath,
+  stale_after_ms: z.number().finite().positive(),
+});
 
-export const CliConfigSchema = z
-  .object({
-    schema_version: z.literal(1),
-    controller,
-    repository,
-    execution: z
-      .object({
-        run_window_ms: z.number().int().positive().max(MAX_RUN_WINDOW_MS),
-      })
-      .strict(),
-    validation_checks: validationChecks,
-    providers: z
-      .array(CliProviderConfigSchema)
-      .length(PROVIDER_KINDS.length)
-      .superRefine((providers, context) => {
-        const seen = new Set<string>();
-        for (const [index, provider] of providers.entries()) {
-          if (seen.has(provider.kind)) {
-            context.addIssue({
-              code: z.ZodIssueCode.custom,
-              path: [index, "kind"],
-              message: "duplicate provider kind",
-            });
-          }
-          seen.add(provider.kind);
+export const CliConfigSchema = z.strictObject({
+  schema_version: z.literal(1),
+  controller,
+  repository,
+  execution: z.strictObject({
+    run_window_ms: z.number().int().positive().max(MAX_RUN_WINDOW_MS),
+  }),
+  validation_checks: validationChecks,
+  providers: z
+    .array(CliProviderConfigSchema)
+    .length(PROVIDER_KINDS.length)
+    .superRefine((providers, context) => {
+      const seen = new Set<string>();
+      for (const [index, provider] of providers.entries()) {
+        if (seen.has(provider.kind)) {
+          context.addIssue({
+            code: "custom",
+            path: [index, "kind"],
+            message: "duplicate provider kind",
+          });
         }
-        for (const kind of PROVIDER_KINDS) {
-          if (!seen.has(kind)) {
-            context.addIssue({
-              code: z.ZodIssueCode.custom,
-              path: ["providers"],
-              message: `missing provider kind: ${kind}`,
-            });
-          }
+        seen.add(provider.kind);
+      }
+      for (const kind of PROVIDER_KINDS) {
+        if (!seen.has(kind)) {
+          context.addIssue({
+            code: "custom",
+            path: ["providers"],
+            message: `missing provider kind: ${kind}`,
+          });
         }
-      }),
-  })
-  .strict();
+      }
+    }),
+});
 
 export type CliConfig = z.output<typeof CliConfigSchema>;
 export type CliProviderConfig = CliConfig["providers"][number];
@@ -369,7 +320,12 @@ export interface ParsedCliConfig {
 export function parseCliConfig(input: unknown): ParsedCliConfig {
   const parsed = CliConfigSchema.safeParse(input);
   if (!parsed.success) {
-    throw new CliConfigError(parsed.error.issues[0]?.path ?? []);
+    throw new CliConfigError(
+      (parsed.error.issues[0]?.path ?? []).filter(
+        (segment): segment is string | number =>
+          typeof segment === "string" || typeof segment === "number",
+      ),
+    );
   }
   const config = deepFreeze(parsed.data) as CliConfig;
   const digest = createHash("sha256")

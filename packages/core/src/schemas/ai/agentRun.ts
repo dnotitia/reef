@@ -3,29 +3,23 @@ import { PROJECT_PREFIX_PATTERN, VaultNameSchema } from "../workspace";
 import { AgentArtifactSchema } from "./agents";
 import { EnrichmentRequestSchema } from "./enrichment";
 
-const TextPartSchema = z
-  .object({
-    type: z.literal("text"),
-    text: z.string(),
-  })
-  .passthrough();
+const TextPartSchema = z.looseObject({
+  type: z.literal("text"),
+  text: z.string(),
+});
 
-const ToolPartSchema = z
-  .object({
-    type: z.string().regex(/^tool-/),
-  })
-  .passthrough();
+const ToolPartSchema = z.looseObject({
+  type: z.string().regex(/^tool-/),
+});
 
-const FallbackPartSchema = z
-  .object({
-    type: z
-      .string()
-      .refine((type) => type !== "text" && !type.startsWith("tool-"), {
-        message:
-          "Part type collides with a known shape (text / tool-*); use the matching schema instead.",
-      }),
-  })
-  .passthrough();
+const FallbackPartSchema = z.looseObject({
+  type: z
+    .string()
+    .refine((type) => type !== "text" && !type.startsWith("tool-"), {
+      message:
+        "Part type collides with a known shape (text / tool-*); use the matching schema instead.",
+    }),
+});
 
 const UIMessagePartSchema = z.union([
   TextPartSchema,
@@ -33,13 +27,11 @@ const UIMessagePartSchema = z.union([
   FallbackPartSchema,
 ]);
 
-const CompatibleUIMessageSchema = z
-  .object({
-    id: z.string().min(1).optional(),
-    role: z.enum(["system", "user", "assistant"]),
-    parts: z.array(UIMessagePartSchema).min(1),
-  })
-  .passthrough();
+const CompatibleUIMessageSchema = z.looseObject({
+  id: z.string().min(1).optional(),
+  role: z.enum(["system", "user", "assistant"]),
+  parts: z.array(UIMessagePartSchema).min(1),
+});
 
 const AgentUIMessageSchema = CompatibleUIMessageSchema.extend({
   id: z.string().min(1),
@@ -56,13 +48,12 @@ const ChatGroundingFieldsSchema = {
 };
 
 export const WorkspaceChatRequestBodySchema = z
-  .object({
+  .looseObject({
     messages: z
       .array(CompatibleUIMessageSchema)
       .min(1, "messages must contain at least one message"),
     ...ChatGroundingFieldsSchema,
   })
-  .passthrough()
   .transform((body) => ({
     ...body,
     messages: body.messages.map((message, index) => ({
@@ -70,51 +61,41 @@ export const WorkspaceChatRequestBodySchema = z
       id: message.id ?? `chat-message-${index}`,
     })),
   }));
-export const WorkspaceChatAgentInputSchema = z
-  .object({
-    messages: z
-      .array(AgentUIMessageSchema)
-      .min(1, "messages must contain at least one message"),
-    ...ChatGroundingFieldsSchema,
-  })
-  .passthrough();
+export const WorkspaceChatAgentInputSchema = z.looseObject({
+  messages: z
+    .array(AgentUIMessageSchema)
+    .min(1, "messages must contain at least one message"),
+  ...ChatGroundingFieldsSchema,
+});
 export type WorkspaceChatAgentInput = z.infer<
   typeof WorkspaceChatAgentInputSchema
 >;
 
-export const ActivityScanAgentInputSchema = z
-  .object({
-    owner: z.string().min(1),
-    repo: z.string().min(1),
-    vault: VaultNameSchema,
-    since: z.string().min(1).nullable().default(null),
-    projectPrefix: z.string().min(1),
-  })
-  .strict();
+export const ActivityScanAgentInputSchema = z.strictObject({
+  owner: z.string().min(1),
+  repo: z.string().min(1),
+  vault: VaultNameSchema,
+  since: z.string().min(1).nullable().default(null),
+  projectPrefix: z.string().min(1),
+});
 export type ActivityScanAgentInput = z.infer<
   typeof ActivityScanAgentInputSchema
 >;
 
-const WorkspaceChatAgentRunRequestSchema = z
-  .object({
-    task_id: z.literal("chat.workspace"),
-    input: WorkspaceChatAgentInputSchema,
-  })
-  .strict();
+const WorkspaceChatAgentRunRequestSchema = z.strictObject({
+  task_id: z.literal("chat.workspace"),
+  input: WorkspaceChatAgentInputSchema,
+});
 
-const IssueEnrichmentAgentRunRequestSchema = z
-  .object({
-    task_id: z.literal("issue.enrichment"),
-    input: EnrichmentRequestSchema,
-  })
-  .strict();
+const IssueEnrichmentAgentRunRequestSchema = z.strictObject({
+  task_id: z.literal("issue.enrichment"),
+  input: EnrichmentRequestSchema,
+});
 
-const ActivityScanAgentRunRequestSchema = z
-  .object({
-    task_id: z.literal("activity.scan"),
-    input: ActivityScanAgentInputSchema,
-  })
-  .strict();
+const ActivityScanAgentRunRequestSchema = z.strictObject({
+  task_id: z.literal("activity.scan"),
+  input: ActivityScanAgentInputSchema,
+});
 
 export const AgentRunRequestSchema = z.discriminatedUnion("task_id", [
   WorkspaceChatAgentRunRequestSchema,
@@ -123,28 +104,24 @@ export const AgentRunRequestSchema = z.discriminatedUnion("task_id", [
 ]);
 export type AgentRunRequest = z.infer<typeof AgentRunRequestSchema>;
 
-export const AgentArtifactEditRequestSchema = z
-  .object({
-    artifact: AgentArtifactSchema,
-    patch: z.record(z.unknown()).default({}),
-    vault: VaultNameSchema.nullable().default(null),
-    actor: z.string().min(1).nullable().default(null),
-  })
-  .strict();
-export const AgentArtifactCommandRequestSchema = z
-  .object({
-    artifact: AgentArtifactSchema.nullable().default(null),
-    vault: VaultNameSchema.nullable().default(null),
-    prefix: z
-      .string()
-      .min(1)
-      .regex(
-        PROJECT_PREFIX_PATTERN,
-        "prefix must start with uppercase A-Z and use only A-Z, 0-9, or underscore",
-      )
-      .nullable()
-      .default(null),
-    actor: z.string().min(1).nullable().default(null),
-    reason: z.string().min(1).nullable().default(null),
-  })
-  .strict();
+export const AgentArtifactEditRequestSchema = z.strictObject({
+  artifact: AgentArtifactSchema,
+  patch: z.record(z.string(), z.unknown()).default({}),
+  vault: VaultNameSchema.nullable().default(null),
+  actor: z.string().min(1).nullable().default(null),
+});
+export const AgentArtifactCommandRequestSchema = z.strictObject({
+  artifact: AgentArtifactSchema.nullable().default(null),
+  vault: VaultNameSchema.nullable().default(null),
+  prefix: z
+    .string()
+    .min(1)
+    .regex(
+      PROJECT_PREFIX_PATTERN,
+      "prefix must start with uppercase A-Z and use only A-Z, 0-9, or underscore",
+    )
+    .nullable()
+    .default(null),
+  actor: z.string().min(1).nullable().default(null),
+  reason: z.string().min(1).nullable().default(null),
+});

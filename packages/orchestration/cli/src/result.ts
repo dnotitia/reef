@@ -13,167 +13,126 @@ import { z } from "zod";
 
 const providerKind = z.enum(PROVIDER_KINDS);
 
-const providerFailure = z
-  .object({
-    code: z.string().min(1),
-    path: z
-      .array(z.union([z.string(), z.number().int().nonnegative()]))
-      .optional(),
-    provider: z
-      .object({
-        kind: providerKind,
-        id: z.string().min(1),
-        operation: z.string().min(1),
-        capability: z.string().min(1).optional(),
-      })
-      .strict()
-      .optional(),
-  })
-  .strict();
+const providerFailure = z.strictObject({
+  code: z.string().min(1),
+  path: z
+    .array(z.union([z.string(), z.number().int().nonnegative()]))
+    .optional(),
+  provider: z
+    .strictObject({
+      kind: providerKind,
+      id: z.string().min(1),
+      operation: z.string().min(1),
+      capability: z.string().min(1).optional(),
+    })
+    .optional(),
+});
 
-const artifact = z
-  .object({
-    kind: z.enum([
-      "branch",
-      "commit",
-      "file",
-      "proof",
-      "pull_request",
-      "report",
-    ]),
-    ref: z.string().min(1),
-    uri: z.string().url().optional(),
-    title: z.string().optional(),
-  })
-  .strict();
+const artifact = z.strictObject({
+  kind: z.enum(["branch", "commit", "file", "proof", "pull_request", "report"]),
+  ref: z.string().min(1),
+  uri: z.string().url().optional(),
+  title: z.string().optional(),
+});
 
-const cleanupOutcome = z
-  .object({
-    index: z.number().int().nonnegative(),
-    status: z.enum(["succeeded", "failed"]),
-    failure: providerFailure.optional(),
-  })
-  .strict();
+const cleanupOutcome = z.strictObject({
+  index: z.number().int().nonnegative(),
+  status: z.enum(["succeeded", "failed"]),
+  failure: providerFailure.optional(),
+});
 
-export const TerminalPlanSummarySchema = z
-  .object({
-    schema_version: z.literal(1),
-    work: z
-      .object({
-        uri: z.string().min(1),
-        revision: z.string().min(1),
-        provenance: z
-          .object({
-            source: z.string().min(1),
-            revision: z.string().min(1),
-          })
-          .strict(),
-      })
-      .strict(),
-    providers: z
-      .object({
-        work: z
-          .object({
-            id: z.string(),
-            version: z.string(),
-            capabilities: z.array(z.string()),
-          })
-          .strict(),
-        harness: z
-          .object({
-            id: z.string(),
-            version: z.string(),
-            capabilities: z.array(z.string()),
-          })
-          .strict(),
-        infrastructure: z
-          .object({
-            id: z.string(),
-            version: z.string(),
-            capabilities: z.array(z.string()),
-          })
-          .strict(),
-        scm: z
-          .object({
-            id: z.string(),
-            version: z.string(),
-            capabilities: z.array(z.string()),
-          })
-          .strict(),
-        validation: z
-          .object({
-            id: z.string(),
-            version: z.string(),
-            capabilities: z.array(z.string()),
-          })
-          .strict(),
-      })
-      .strict(),
-    input_provenance: z
-      .object({
-        source: z.string().min(1),
-        revision: z.string().min(1),
-      })
-      .strict(),
-  })
-  .strict();
+export const TerminalPlanSummarySchema = z.strictObject({
+  schema_version: z.literal(1),
+  work: z.strictObject({
+    uri: z.string().min(1),
+    revision: z.string().min(1),
+    provenance: z.strictObject({
+      source: z.string().min(1),
+      revision: z.string().min(1),
+    }),
+  }),
+  providers: z.strictObject({
+    work: z.strictObject({
+      id: z.string(),
+      version: z.string(),
+      capabilities: z.array(z.string()),
+    }),
+    harness: z.strictObject({
+      id: z.string(),
+      version: z.string(),
+      capabilities: z.array(z.string()),
+    }),
+    infrastructure: z.strictObject({
+      id: z.string(),
+      version: z.string(),
+      capabilities: z.array(z.string()),
+    }),
+    scm: z.strictObject({
+      id: z.string(),
+      version: z.string(),
+      capabilities: z.array(z.string()),
+    }),
+    validation: z.strictObject({
+      id: z.string(),
+      version: z.string(),
+      capabilities: z.array(z.string()),
+    }),
+  }),
+  input_provenance: z.strictObject({
+    source: z.string().min(1),
+    revision: z.string().min(1),
+  }),
+});
 
-export const TerminalResultSchema = z
-  .object({
-    schema_version: z.literal(1),
-    run_id: z.string().min(1),
-    work_uri: z.string().min(1).nullable(),
-    outcome: z.enum(["succeeded", "failed", "blocked", "cancelled"]),
-    plan: TerminalPlanSummarySchema.nullable(),
-    artifact_refs: z.array(artifact),
-    cleanup: z.object({ outcomes: z.array(cleanupOutcome) }).strict(),
-    failure: providerFailure.nullable(),
-    controller: z
-      .object({
-        classification: z
-          .enum(["active", "terminal", "interrupted", "stale"])
-          .optional(),
-        liveness: z.enum(["alive", "dead", "unknown", "released"]).optional(),
-        allowed_actions: z.array(z.enum(["update", "cleanup"])),
-        existing_run: z
-          .object({
-            run_id: z.string(),
-            work_uri: z.string(),
-            phase: z.string(),
-            revision: z.number().int().nonnegative(),
-            started_at: z.string(),
-            updated_at: z.string(),
-          })
-          .strict()
-          .optional(),
-      })
-      .strict()
-      .nullable(),
-    next_actions: z.array(z.string().min(1)).min(1),
-  })
-  .strict();
+export const TerminalResultSchema = z.strictObject({
+  schema_version: z.literal(1),
+  run_id: z.string().min(1),
+  work_uri: z.string().min(1).nullable(),
+  outcome: z.enum(["succeeded", "failed", "blocked", "cancelled"]),
+  plan: TerminalPlanSummarySchema.nullable(),
+  artifact_refs: z.array(artifact),
+  cleanup: z.strictObject({ outcomes: z.array(cleanupOutcome) }),
+  failure: providerFailure.nullable(),
+  controller: z
+    .strictObject({
+      classification: z
+        .enum(["active", "terminal", "interrupted", "stale"])
+        .optional(),
+      liveness: z.enum(["alive", "dead", "unknown", "released"]).optional(),
+      allowed_actions: z.array(z.enum(["update", "cleanup"])),
+      existing_run: z
+        .strictObject({
+          run_id: z.string(),
+          work_uri: z.string(),
+          phase: z.string(),
+          revision: z.number().int().nonnegative(),
+          started_at: z.string(),
+          updated_at: z.string(),
+        })
+        .optional(),
+    })
+    .nullable(),
+  next_actions: z.array(z.string().min(1)).min(1),
+});
 
 export type TerminalPlanSummary = z.output<typeof TerminalPlanSummarySchema>;
 export type TerminalResult = z.output<typeof TerminalResultSchema>;
 export type TerminalFailure = NonNullable<TerminalResult["failure"]>;
 
-export const ProgressEventSchema = z
-  .object({
-    schema_version: z.literal(1),
-    event: z.literal("execution.phase"),
-    phase: z.enum(["preflight", "running", "cleanup", "terminal"]),
-    at: z.string().min(1),
-    work_uri: z.string().min(1),
-    outcome: z.enum(["succeeded", "failed", "cancelled"]).optional(),
-    failure: providerFailure.nullable().optional(),
-    cleanup: z
-      .object({
-        outcomes: z.array(cleanupOutcome),
-      })
-      .strict()
-      .optional(),
-  })
-  .strict();
+export const ProgressEventSchema = z.strictObject({
+  schema_version: z.literal(1),
+  event: z.literal("execution.phase"),
+  phase: z.enum(["preflight", "running", "cleanup", "terminal"]),
+  at: z.string().min(1),
+  work_uri: z.string().min(1),
+  outcome: z.enum(["succeeded", "failed", "cancelled"]).optional(),
+  failure: providerFailure.nullable().optional(),
+  cleanup: z
+    .strictObject({
+      outcomes: z.array(cleanupOutcome),
+    })
+    .optional(),
+});
 
 export type ProgressEvent = z.output<typeof ProgressEventSchema>;
 

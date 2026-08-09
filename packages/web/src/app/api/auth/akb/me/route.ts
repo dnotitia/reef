@@ -26,7 +26,7 @@ import {
  *
  * REEF-052: the akb `/auth/me` wire call + schema live in `core`; this Route
  * Handler owns just cookie decode/clear and the PM-facing status matrix.
- * `akbGetMe` validates with a `.passthrough()` schema and does not throws on a
+ * `akbGetMe` validates with a `z.looseObject` schema and does not throws on a
  * shape drift (observe), so a benign akb change does not knock a live
  * session into a 5xx — just an akb 401 (→ clear) or 5xx/network (→ 502) does.
  */
