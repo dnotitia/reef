@@ -96,10 +96,13 @@ test.describe("Branded error surfaces", () => {
     const home = page.getByRole("link", { name: "Go to reef home" });
     await page.keyboard.press("Tab");
     await expect(home).toBeFocused();
-    await expect(home).toHaveCSS("outline-style", "none");
-    const focusRing = await home.evaluate(
-      (element) => getComputedStyle(element).boxShadow,
-    );
-    expect(focusRing).not.toBe("none");
+    await expect(home).toHaveCSS("outline-style", "solid");
+    await expect(home).toHaveCSS("outline-width", "2px");
+    await expect(home).toHaveCSS("outline-offset", "1px");
+    await expect
+      .poll(() =>
+        home.evaluate((element) => getComputedStyle(element).outlineColor),
+      )
+      .not.toBe("transparent");
   });
 });
