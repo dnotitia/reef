@@ -19,7 +19,9 @@
   "scripts": {
     "build": "tsdown --config ../../../tsdown.config.mjs --filter @reef/orchestration-cli",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "pnpm --filter @reef/orchestration-cli... run build && node --test e2e/cli.e2e.mjs",
+    "dev:e2e": "pnpm --filter @reef/orchestration-cli... run build && node e2e/dev-runtime.mjs"
   },
   "dependencies": {
     "@octokit/rest": "catalog:",
