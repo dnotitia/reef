@@ -76,16 +76,20 @@ test.describe("Hermetic Ask AI tool transparency (REEF-372)", () => {
 
     await openExistingWorkspace(page);
     await page.locator('[data-testid="ask-ai-fab"]').click();
+    const askInput = page.locator('[data-testid="ask-ai-input"]');
+    const askSend = page.locator('[data-testid="ask-ai-send"]');
+    await expect(askSend).toBeDisabled();
+    await askInput.fill("   ");
+    await expect(askSend).toBeDisabled();
 
     const firstAssistant = page
       .locator('[data-testid="assistant-message"]')
       .last();
-    await page
-      .locator('[data-testid="ask-ai-input"]')
-      .fill(
-        "tool transparency e2e: search for REEF-001 Initial issue Alpha and show its link.",
-      );
-    await page.locator('[data-testid="ask-ai-send"]').click();
+    await askInput.fill(
+      "tool transparency e2e: search for REEF-001 Initial issue Alpha and show its link.",
+    );
+    await expect(askSend).toBeEnabled();
+    await askSend.click();
     await expect(firstAssistant).toContainText("REEF-001", {
       timeout: 15_000,
     });
@@ -110,6 +114,7 @@ test.describe("Hermetic Ask AI tool transparency (REEF-372)", () => {
       "aria-hidden",
       "false",
     );
+    await expect(page.locator('[data-testid="ask-ai-send"]')).toBeDisabled();
 
     await page
       .locator('[data-testid="ask-ai-input"]')
