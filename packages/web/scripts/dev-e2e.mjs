@@ -194,19 +194,32 @@ function resolveWebPath(webOrigin, value, name) {
   return url.toString();
 }
 
-export function getClientReadinessInputs(discovery) {
+export function getClientReadinessInputs(discovery, scenario) {
   if (discovery?.status !== "ready") {
     throw new Error("Fixture runtime discovery is not ready");
   }
   const fixtureLogin = discovery.fixture_login;
-  const chatTask = discovery.tasks?.chat;
+  const requestedScenario = validateScenario(scenario);
+  const task = Object.values(discovery.tasks ?? {}).find(
+    (candidate) =>
+      candidate &&
+      typeof candidate === "object" &&
+      candidate.scenario === requestedScenario,
+  );
+  const startPath =
+    task?.start_path ??
+    (task?.start_paths && typeof task.start_paths === "object"
+      ? Object.values(task.start_paths).find(
+          (candidate) => typeof candidate === "string",
+        )
+      : undefined);
   return {
     username: requireString(fixtureLogin?.username, "fixture login username"),
     password: requireString(fixtureLogin?.password, "fixture login password"),
     loginPath: requireString(fixtureLogin?.login_path, "fixture login path"),
     startPath: requireString(
-      chatTask?.start_path,
-      "client readiness start path",
+      startPath,
+      `client readiness start path for scenario "${requestedScenario}"`,
     ),
   };
 }
@@ -292,12 +305,14 @@ export async function probeWorkspaceClickInteractions(page, timeoutMs) {
 }
 
 export async function waitForClientInteractionReady(
-  { webOrigin, fixtureOrigin },
+  { webOrigin, fixtureOrigin, scenario },
   { browserType = chromium, timeoutMs = CLIENT_READY_TIMEOUT_MS } = {},
 ) {
   const discovery = await readRuntimeDiscovery(fixtureOrigin);
-  const { username, password, loginPath, startPath } =
-    getClientReadinessInputs(discovery);
+  const { username, password, loginPath, startPath } = getClientReadinessInputs(
+    discovery,
+    scenario,
+  );
   const browser = await browserType.launch({ headless: true });
   const context = await browser.newContext();
   const page = await context.newPage();
@@ -560,6 +575,7 @@ export async function startRuntime(options) {
   await waitForClientInteractionReady({
     webOrigin: options.webOrigin,
     fixtureOrigin: options.fixtureOrigin,
+    scenario: options.scenario,
   });
   process.stdout.write(
     "[dev:e2e] browser hydration and workspace interaction readiness confirmed\n",

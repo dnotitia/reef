@@ -68,12 +68,15 @@ test.describe("Hermetic notification Inbox", () => {
     await expect(page.getByText("Comment created")).toBeVisible();
     await expect(page.getByText("bob").first()).toBeVisible();
     const primaryRow = page
-      .getByTestId("notification-item")
+      .getByRole("listitem")
       .filter({ hasText: "Comment created" });
     await expect(primaryRow).toHaveCount(1);
-    await expect(primaryRow.getByTestId("notification-open")).toBeVisible();
+    const openNotification = primaryRow.getByRole("button", {
+      name: /Open activity for REEF-001|REEF-001 활동 열기/u,
+    });
+    await expect(openNotification).toBeVisible();
 
-    await primaryRow.getByTestId("notification-open").click();
+    await openNotification.click();
     await expect(page).toHaveURL(
       `/workspace/${REEF_E2E_VAULT}/issues/REEF-001#comment-comment-primary`,
     );
