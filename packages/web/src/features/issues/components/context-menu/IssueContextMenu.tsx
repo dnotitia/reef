@@ -243,7 +243,9 @@ export function IssueContextMenu({
 
   return (
     <ContextMenu>
-      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+      <ContextMenuTrigger asChild portal>
+        {children}
+      </ContextMenuTrigger>
       <ContextMenuContent
         aria-label={contentLabel}
         data-testid="issue-context-menu-content"

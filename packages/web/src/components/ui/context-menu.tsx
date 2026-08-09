@@ -3,6 +3,7 @@
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
 import { Check, ChevronRight } from "lucide-react";
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { useOverlayOpenRegistration } from "./overlayDismiss";
 
@@ -44,19 +45,122 @@ function ContextMenu({
   );
 }
 
+type ContextMenuTriggerProps = React.ComponentPropsWithoutRef<
+  typeof ContextMenuPrimitive.Trigger
+> & {
+  /**
+   * Radix's context-menu trigger also renders a Popper anchor beside its
+   * child. That extra element is invalid inside a table section, so table
+   * rows use a body-portal trigger while retaining their native DOM position.
+   */
+  portal?: boolean;
+};
+
+function isContextMenuKey(event: React.KeyboardEvent) {
+  return (
+    (event.key === "F10" && event.shiftKey) ||
+    event.key === "ContextMenu" ||
+    event.key === "Apps"
+  );
+}
+
+function dispatchContextMenu(
+  trigger: HTMLElement | null,
+  clientX: number,
+  clientY: number,
+) {
+  trigger?.dispatchEvent(
+    new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      clientX,
+      clientY,
+    }),
+  );
+}
+
 const ContextMenuTrigger = React.forwardRef<
   HTMLSpanElement,
-  React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.Trigger>
->(function ContextMenuTrigger({ className, onKeyDown, ...props }, ref) {
+  ContextMenuTriggerProps
+>(function ContextMenuTrigger(
+  {
+    className,
+    onContextMenu,
+    onKeyDown,
+    portal = false,
+    children,
+    asChild,
+    ...props
+  },
+  ref,
+) {
+  const triggerRef = React.useRef<HTMLSpanElement | null>(null);
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    if (portal) setMounted(true);
+  }, [portal]);
+
+  if (portal) {
+    const child = React.Children.only(children) as React.ReactElement<{
+      className?: string;
+      onContextMenu?: (event: React.MouseEvent<HTMLElement>) => void;
+      onKeyDown?: (event: React.KeyboardEvent<HTMLElement>) => void;
+    }>;
+    const childProps = child.props;
+    const childClassName = cn(childProps.className, className);
+
+    function handleContextMenu(event: React.MouseEvent<HTMLElement>) {
+      childProps.onContextMenu?.(event);
+      onContextMenu?.(event);
+      if (event.defaultPrevented) return;
+      event.preventDefault();
+      dispatchContextMenu(triggerRef.current, event.clientX, event.clientY);
+    }
+
+    function handleKeyDown(event: React.KeyboardEvent<HTMLElement>) {
+      childProps.onKeyDown?.(event);
+      onKeyDown?.(event);
+      if (event.defaultPrevented || !isContextMenuKey(event)) return;
+
+      event.preventDefault();
+      const rect = event.currentTarget.getBoundingClientRect();
+      dispatchContextMenu(
+        triggerRef.current,
+        Math.round(rect.left + Math.min(rect.width, 16)),
+        Math.round(rect.top + Math.min(rect.height, 16)),
+      );
+    }
+
+    const childWithTrigger = React.cloneElement(child, {
+      ...props,
+      className: childClassName,
+      onContextMenu: handleContextMenu,
+      onKeyDown: handleKeyDown,
+    });
+
+    return (
+      <>
+        {childWithTrigger}
+        {mounted &&
+          typeof document !== "undefined" &&
+          createPortal(
+            <ContextMenuPrimitive.Trigger
+              ref={triggerRef}
+              aria-hidden="true"
+              tabIndex={-1}
+              className="pointer-events-none fixed size-px overflow-hidden opacity-0"
+              {...props}
+            />,
+            document.body,
+          )}
+      </>
+    );
+  }
+
   function handleKeyDown(event: React.KeyboardEvent<HTMLSpanElement>) {
     onKeyDown?.(event);
-    if (event.defaultPrevented) return;
-
-    const isMenuKey =
-      (event.key === "F10" && event.shiftKey) ||
-      event.key === "ContextMenu" ||
-      event.key === "Apps";
-    if (!isMenuKey) return;
+    if (event.defaultPrevented || !isContextMenuKey(event)) return;
 
     event.preventDefault();
     const target = event.currentTarget as HTMLElement;
@@ -75,7 +179,9 @@ const ContextMenuTrigger = React.forwardRef<
     <ContextMenuPrimitive.Trigger
       ref={ref}
       className={cn("select-none", className)}
+      asChild={asChild}
       {...props}
+      {...(children === undefined ? {} : { children })}
       onKeyDown={handleKeyDown}
     />
   );

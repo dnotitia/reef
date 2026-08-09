@@ -1,6 +1,12 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -21,6 +27,25 @@ function Harness() {
       <ContextMenuContent data-testid="content">
         <ContextMenuItem data-testid="first-item">First</ContextMenuItem>
         <ContextMenuItem>Second</ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
+
+function TableHarness({ onClick }: { onClick: () => void }) {
+  return (
+    <ContextMenu>
+      <table>
+        <tbody>
+          <ContextMenuTrigger asChild portal>
+            <tr data-testid="table-trigger" tabIndex={0} onClick={onClick}>
+              <td>Table row</td>
+            </tr>
+          </ContextMenuTrigger>
+        </tbody>
+      </table>
+      <ContextMenuContent>
+        <ContextMenuItem data-testid="table-menu-item">Table menu</ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
   );
@@ -65,5 +90,21 @@ describe("ContextMenu", () => {
       "focus-visible:bg-surface-hover",
     );
     await user.keyboard("{Escape}");
+  });
+
+  it("keeps a table row in tbody while supporting the context menu", async () => {
+    const onClick = vi.fn();
+    render(<TableHarness onClick={onClick} />);
+
+    const row = screen.getByTestId("table-trigger");
+    await waitFor(() =>
+      expect(row.closest("tbody")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(row);
+    expect(onClick).toHaveBeenCalledTimes(1);
+
+    fireEvent.contextMenu(row, { clientX: 20, clientY: 30 });
+    expect(screen.getByTestId("table-menu-item")).toBeInTheDocument();
   });
 });

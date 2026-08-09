@@ -86,7 +86,7 @@ function IssueInlineEditTrigger({
   return (
     <button
       type="button"
-      className="flex h-full min-w-0 w-full items-center rounded-sm text-left outline-none transition-colors duration-150 hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:ring-2 focus-visible:ring-brand/40"
+      className="inline-flex h-full max-w-full min-w-0 items-center rounded-sm text-left outline-none transition-colors duration-150 hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:ring-2 focus-visible:ring-brand/40"
       aria-label={label}
       data-testid={`issue-inline-edit-${field}`}
       onClick={(event) => {
