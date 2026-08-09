@@ -293,30 +293,8 @@ export const KanbanCard = memo(function KanbanCard({
     ) {
       return;
     }
-    const card = cardRef.current;
-    const request = focusRequest;
-    const focusCard = () => {
-      card.focus({ preventScroll: true });
-      card.scrollIntoView({ block: "nearest", inline: "nearest" });
-    };
-    focusCard();
-
-    // Board layout and drag sensors can settle after the store has committed
-    // logical focus. Verify the DOM owner at the next paint and restore only
-    // the still-current request, so a transient remount cannot leave keyboard
-    // focus behind while the card remains visually selected.
-    const frame = requestAnimationFrame(() => {
-      const current = useIssueKeyboardStore.getState().focusRequest;
-      if (
-        current?.scope === request.scope &&
-        current.issueId === request.issueId &&
-        current.serial === request.serial &&
-        document.activeElement !== card
-      ) {
-        focusCard();
-      }
-    });
-    return () => cancelAnimationFrame(frame);
+    cardRef.current.focus({ preventScroll: true });
+    cardRef.current.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [focusRequest, issue.id]);
 
   const style = transform
