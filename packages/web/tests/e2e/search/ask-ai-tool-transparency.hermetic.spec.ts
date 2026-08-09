@@ -64,7 +64,7 @@ test.describe("Hermetic Ask AI tool transparency (REEF-372)", () => {
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
   });
 
-  test("keeps the workspace session across a close/reopen second run", async ({
+  test("answers exact issue questions with completed traces across close/reopen", async ({
     page,
   }) => {
     const agentRunStatuses: number[] = [];
@@ -85,30 +85,43 @@ test.describe("Hermetic Ask AI tool transparency (REEF-372)", () => {
     const firstAssistant = page
       .locator('[data-testid="assistant-message"]')
       .last();
-    await askInput.fill(
-      "tool transparency e2e: search for REEF-001 Initial issue Alpha and show its link.",
-    );
+    await askInput.fill("REEF-001 이슈의 제목과 상태를 알려줘");
     await expect(askSend).toBeEnabled();
     await askSend.click();
-    await expect(firstAssistant).toContainText("REEF-001", {
+    await expect(firstAssistant).toContainText("Initial issue Alpha", {
       timeout: 15_000,
     });
+    await expect(firstAssistant).toContainText("todo");
+    await expect(firstAssistant).not.toContainText("Mock OpenRouter response.");
     const firstTrace = firstAssistant.locator(
       '[data-testid="chat-tool-trace"]',
     );
-    await expect(firstTrace).toContainText("2 steps");
+    await expect(firstTrace).toContainText("1 step");
     await firstTrace.locator('button[aria-expanded="false"]').click();
-    await expect(firstTrace).toContainText("Searched issues");
-    await expect(firstTrace).toContainText("Searched documents");
+    await expect(firstTrace).toContainText("Read issue");
+    await firstTrace.locator('button[aria-expanded="false"]').click();
+    await expect(firstTrace).toContainText("read_issue");
+    await expect(firstTrace).toContainText("REEF-001");
     await expect(
       firstAssistant.locator('a[href="/workspace/reef-e2e/issues/REEF-001"]'),
     ).toHaveText("REEF-001");
 
+    await firstAssistant
+      .locator('a[href="/workspace/reef-e2e/issues/REEF-001"]')
+      .click();
+    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/REEF-001$/);
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+    await page.locator('[data-testid="issue-close"]').click();
+    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues$/);
     await page.locator('[data-testid="ask-ai-close"]').click();
     await expect(page.locator('[data-testid="ask-ai-dialog"]')).toHaveAttribute(
       "aria-hidden",
       "true",
     );
+    await page.locator('a[href="/workspace/reef-e2e/issues"]').click();
+    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues$/);
+    await expect(page.locator('[data-testid="kanban-board"]')).toBeVisible();
+    await expect(page.locator('[data-testid="ask-ai-fab"]')).toBeVisible();
     await page.locator('[data-testid="ask-ai-fab"]').click();
     await expect(page.locator('[data-testid="ask-ai-dialog"]')).toHaveAttribute(
       "aria-hidden",
@@ -118,15 +131,31 @@ test.describe("Hermetic Ask AI tool transparency (REEF-372)", () => {
 
     await page
       .locator('[data-testid="ask-ai-input"]')
-      .fill("REEF-002 Initial issue Beta에 대해 알려줘.");
+      .fill("REEF-002 이슈의 제목과 상태를 알려줘");
     await page.locator('[data-testid="ask-ai-send"]').click();
 
     const secondAssistant = page
       .locator('[data-testid="assistant-message"]')
       .last();
-    await expect(secondAssistant).toContainText("REEF-002 Initial issue Beta", {
+    await expect(secondAssistant).toContainText("Initial issue Beta", {
       timeout: 15_000,
     });
+    await expect(secondAssistant).toContainText("in_progress");
+    await expect(secondAssistant).not.toContainText(
+      "Mock OpenRouter response.",
+    );
+    const secondTrace = secondAssistant.locator(
+      '[data-testid="chat-tool-trace"]',
+    );
+    await expect(secondTrace).toContainText("1 step");
+    await secondTrace.locator('button[aria-expanded="false"]').click();
+    await expect(secondTrace).toContainText("Read issue");
+    await secondTrace.locator('button[aria-expanded="false"]').click();
+    await expect(secondTrace).toContainText("read_issue");
+    await expect(secondTrace).toContainText("REEF-002");
+    await expect(
+      secondAssistant.locator('a[href="/workspace/reef-e2e/issues/REEF-002"]'),
+    ).toHaveText("REEF-002");
     expect(agentRunStatuses).toEqual([200, 200]);
     await expect(
       page.getByText("워크스페이스 세션이 없거나 올바르지 않습니다."),
