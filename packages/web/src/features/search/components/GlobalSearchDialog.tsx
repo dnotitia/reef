@@ -84,13 +84,7 @@ function findCaseInsensitiveLiteralRange(
   return start === undefined || end === undefined ? null : { start, end };
 }
 
-function LiteralHighlight({
-  text,
-  query,
-}: {
-  text: string;
-  query: string;
-}) {
+function LiteralHighlight({ text, query }: { text: string; query: string }) {
   const parts: Array<{ text: string; matched: boolean }> = [];
   let cursor = 0;
   while (cursor < text.length) {

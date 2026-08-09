@@ -218,10 +218,7 @@ describe("akb table mutation helpers", () => {
   it("rejects an invalid UUID, empty operations, unknown op, and top-level typos before fetch", async () => {
     const { calls } = setupFetch([]);
     const adapter = makeAdapter();
-    const invoke = (input: {
-      idempotencyKey: string;
-      operations: unknown[];
-    }) =>
+    const invoke = (input: { idempotencyKey: string; operations: unknown[] }) =>
       akbApplyTableMigration({
         adapter,
         vault: "reef-test",

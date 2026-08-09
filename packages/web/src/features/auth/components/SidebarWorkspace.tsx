@@ -31,13 +31,7 @@ interface SidebarWorkspaceProps {
  * place, the round tinted avatar as a person, so the workspace row and the
  * account row below it stay distinct ("place vs person", REEF-146 / REEF-093).
  */
-function WorkspaceMonogram({
-  name,
-  large,
-}: {
-  name: string;
-  large?: boolean;
-}) {
+function WorkspaceMonogram({ name, large }: { name: string; large?: boolean }) {
   const initials = name.trim() ? computeInitials(name) : "?";
   return (
     <span
