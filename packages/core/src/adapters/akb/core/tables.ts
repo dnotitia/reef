@@ -63,56 +63,47 @@ export const AkbTableMutationColumnTypeSchema = z.enum([
   "enum",
 ]);
 
-const AkbAddedColumnSchema = z
-  .object({
-    name: NonEmptyStringSchema,
-    type: AkbTableMutationColumnTypeSchema,
-  })
-  .passthrough();
+const AkbAddedColumnSchema = z.looseObject({
+  name: NonEmptyStringSchema,
+  type: AkbTableMutationColumnTypeSchema,
+});
 
-const AkbAlteredColumnSchema = z
-  .object({ name: NonEmptyStringSchema })
-  .passthrough();
+const AkbAlteredColumnSchema = z.looseObject({ name: NonEmptyStringSchema });
 
-const AkbUniqueKeySchema = z
-  .object({
-    name: NonEmptyStringSchema.optional(),
-    columns: z.array(NonEmptyStringSchema).min(1),
-  })
-  .passthrough();
+const AkbUniqueKeySchema = z.looseObject({
+  name: NonEmptyStringSchema.optional(),
+  columns: z.array(NonEmptyStringSchema).min(1),
+});
 
 const AkbIndexColumnSchema = z.union([
   NonEmptyStringSchema,
-  z.object({ name: NonEmptyStringSchema }).passthrough(),
+  z.looseObject({ name: NonEmptyStringSchema }),
 ]);
 
-const AkbIndexSchema = z
-  .object({
-    name: NonEmptyStringSchema.optional(),
-    columns: z.array(AkbIndexColumnSchema).min(1),
-  })
-  .passthrough();
+const AkbIndexSchema = z.looseObject({
+  name: NonEmptyStringSchema.optional(),
+  columns: z.array(AkbIndexColumnSchema).min(1),
+});
 
 const AkbAlterTableChangesSchema = z
-  .object({
+  .strictObject({
     add_columns: z.array(AkbAddedColumnSchema).optional(),
     alter_columns: z.array(AkbAlteredColumnSchema).optional(),
     drop_columns: z.array(NonEmptyStringSchema).optional(),
-    rename_columns: z.record(NonEmptyStringSchema).optional(),
+    rename_columns: z.record(z.string(), NonEmptyStringSchema).optional(),
     add_unique_keys: z.array(AkbUniqueKeySchema).optional(),
     drop_unique_keys: z.array(NonEmptyStringSchema).optional(),
     add_indexes: z.array(AkbIndexSchema).optional(),
     drop_indexes: z.array(NonEmptyStringSchema).optional(),
   })
-  .strict()
   .superRefine((changes, ctx) => {
     for (const oldName of Object.keys(changes.rename_columns ?? {})) {
       if (oldName.length === 0) {
         ctx.addIssue({
-          code: z.ZodIssueCode.too_small,
+          code: "too_small",
           minimum: 1,
           inclusive: true,
-          type: "string",
+          origin: "string",
           path: ["rename_columns", oldName],
           message: "rename source must not be empty",
         });
@@ -120,89 +111,81 @@ const AkbAlterTableChangesSchema = z
     }
   });
 
-const MigrationBaseSchema = z.object({ table: NonEmptyStringSchema });
+const MigrationBaseSchema = z.strictObject({ table: NonEmptyStringSchema });
 
 const AkbTableMigrationOperationSchema = z.discriminatedUnion("op", [
   MigrationBaseSchema.extend({
     op: z.literal("add_column"),
     column: AkbAddedColumnSchema,
-  }).strict(),
+  }),
   MigrationBaseSchema.extend({
     op: z.literal("alter_column"),
     column: AkbAlteredColumnSchema,
-  }).strict(),
+  }),
   MigrationBaseSchema.extend({
     op: z.literal("drop_column"),
     name: NonEmptyStringSchema,
-  }).strict(),
+  }),
   MigrationBaseSchema.extend({
     op: z.literal("rename_column"),
     from: NonEmptyStringSchema,
     to: NonEmptyStringSchema,
-  }).strict(),
+  }),
   MigrationBaseSchema.extend({
     op: z.literal("add_unique_key"),
     unique_key: AkbUniqueKeySchema,
-  }).strict(),
+  }),
   MigrationBaseSchema.extend({
     op: z.literal("drop_unique_key"),
     name: NonEmptyStringSchema,
-  }).strict(),
+  }),
   MigrationBaseSchema.extend({
     op: z.literal("add_index"),
     index: AkbIndexSchema,
-  }).strict(),
+  }),
   MigrationBaseSchema.extend({
     op: z.literal("drop_index"),
     name: NonEmptyStringSchema,
-  }).strict(),
+  }),
 ]);
 
 const AkbTableMigrationOperationsSchema = z
   .array(AkbTableMigrationOperationSchema)
   .min(1);
 
-const AkbTableResponseColumnSchema = z
-  .object({
-    name: NonEmptyStringSchema,
-    type: AkbTableMutationColumnTypeSchema,
-  })
-  .passthrough();
+const AkbTableResponseColumnSchema = z.looseObject({
+  name: NonEmptyStringSchema,
+  type: AkbTableMutationColumnTypeSchema,
+});
 
-const AkbTableResultSchema = z
-  .object({
-    kind: z.literal("table"),
-    uri: NonEmptyStringSchema,
-    vault: NonEmptyStringSchema,
-    name: NonEmptyStringSchema,
-    columns: z.array(AkbTableResponseColumnSchema),
-    unique_keys: z.array(z.record(z.unknown())),
-    indexes: z.array(z.record(z.unknown())),
-  })
-  .passthrough();
+const AkbTableResultSchema = z.looseObject({
+  kind: z.literal("table"),
+  uri: NonEmptyStringSchema,
+  vault: NonEmptyStringSchema,
+  name: NonEmptyStringSchema,
+  columns: z.array(AkbTableResponseColumnSchema),
+  unique_keys: z.array(z.record(z.string(), z.unknown())),
+  indexes: z.array(z.record(z.string(), z.unknown())),
+});
 
-const AkbTableMigrationStepResultSchema = z
-  .object({
-    index: z.number().int().positive(),
-    op: NonEmptyStringSchema,
-    table: NonEmptyStringSchema,
-    result: AkbTableResultSchema,
-  })
-  .passthrough();
+const AkbTableMigrationStepResultSchema = z.looseObject({
+  index: z.number().int().positive(),
+  op: NonEmptyStringSchema,
+  table: NonEmptyStringSchema,
+  result: AkbTableResultSchema,
+});
 
-const AkbTableMigrationResultSchema = z
-  .object({
-    kind: z.literal("table_migration"),
-    id: z.string().uuid().optional(),
-    vault: NonEmptyStringSchema,
-    idempotency_key: z.string().uuid(),
-    checksum: NonEmptyStringSchema,
-    applied: z.boolean(),
-    applied_at: NonEmptyStringSchema.optional(),
-    operations: z.number().int().positive(),
-    results: z.array(AkbTableMigrationStepResultSchema),
-  })
-  .passthrough();
+const AkbTableMigrationResultSchema = z.looseObject({
+  kind: z.literal("table_migration"),
+  id: z.string().uuid().optional(),
+  vault: NonEmptyStringSchema,
+  idempotency_key: z.string().uuid(),
+  checksum: NonEmptyStringSchema,
+  applied: z.boolean(),
+  applied_at: NonEmptyStringSchema.optional(),
+  operations: z.number().int().positive(),
+  results: z.array(AkbTableMigrationStepResultSchema),
+});
 
 export type AkbAlterTableChanges = z.infer<typeof AkbAlterTableChangesSchema>;
 export type AkbTableMigrationOperation = z.infer<

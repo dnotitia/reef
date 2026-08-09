@@ -17,18 +17,16 @@ const RELATIONS_PATH = "/api/v1/relations";
 
 /**
  * One edge as serialized by akb's `get_resource_relations`. `name` is the
- * same-vault resolved title (omitted for cross-vault endpoints). `.passthrough()`
+ * same-vault resolved title (omitted for cross-vault endpoints). `z.looseObject`
  * keeps any future akb field rather than stripping it at the boundary.
  */
-export const AkbRelationEdgeSchema = z
-  .object({
-    direction: z.string().optional(),
-    relation: z.string(),
-    uri: z.string().min(1),
-    resource_type: z.string().optional(),
-    name: z.string().nullable().optional(),
-  })
-  .passthrough();
+export const AkbRelationEdgeSchema = z.looseObject({
+  direction: z.string().optional(),
+  relation: z.string(),
+  uri: z.string().min(1),
+  resource_type: z.string().optional(),
+  name: z.string().nullable().optional(),
+});
 
 export type AkbRelationEdge = z.infer<typeof AkbRelationEdgeSchema>;
 

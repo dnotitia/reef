@@ -19,12 +19,12 @@ export const IssueAttachmentSchema = z.object({
   source: IssueAttachmentSourceEnum,
   inline: z.boolean().default(false),
   original_jira_attachment_id: z.string().nullable().optional(),
-  meta: z.record(z.unknown()).nullable().optional(),
+  meta: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
-export const IssueAttachmentCreateInputSchema = IssueAttachmentSchema.omit({
-  id: true,
-}).strict();
+export const IssueAttachmentCreateInputSchema = z.strictObject(
+  IssueAttachmentSchema.omit({ id: true }).shape,
+);
 
 export type IssueAttachment = z.infer<typeof IssueAttachmentSchema>;
 export type IssueAttachmentCreateInput = z.infer<

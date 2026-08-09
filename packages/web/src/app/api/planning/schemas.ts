@@ -12,7 +12,7 @@ import { z } from "zod";
 const optionalDateText = z.string().nullable().optional();
 
 export const SprintInputSchema = z
-  .object({
+  .strictObject({
     name: z.string().min(1),
     status: SprintStatusEnum,
     start_date: optionalDateText,
@@ -20,36 +20,31 @@ export const SprintInputSchema = z
     goal: z.string().default(""),
     capacity_points: z.number().nonnegative().nullable().optional(),
   })
-  .strict()
   .superRefine((sprint, ctx) => {
     if (!sprint.start_date || !sprint.end_date) return;
     if (Date.parse(sprint.start_date) > Date.parse(sprint.end_date)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["end_date"],
         message: "end_date must be on or after start_date",
       });
     }
   });
 
-export const MilestoneInputSchema = z
-  .object({
-    name: z.string().min(1),
-    status: MilestoneStatusEnum,
-    target_date: optionalDateText,
-    description: z.string().default(""),
-  })
-  .strict();
+export const MilestoneInputSchema = z.strictObject({
+  name: z.string().min(1),
+  status: MilestoneStatusEnum,
+  target_date: optionalDateText,
+  description: z.string().default(""),
+});
 
-export const ReleaseInputSchema = z
-  .object({
-    name: z.string().min(1),
-    status: ReleaseStatusEnum,
-    target_date: optionalDateText,
-    released_at: optionalDateText,
-    notes: z.string().default(""),
-  })
-  .strict();
+export const ReleaseInputSchema = z.strictObject({
+  name: z.string().min(1),
+  status: ReleaseStatusEnum,
+  target_date: optionalDateText,
+  released_at: optionalDateText,
+  notes: z.string().default(""),
+});
 
 export const CreateSprintRequestSchema = z.object({
   vault: VaultNameSchema,
@@ -68,7 +63,7 @@ export const CreateMilestoneRequestSchema = z.object({
 
 export const UpdateMilestoneRequestSchema = z.object({
   vault: VaultNameSchema,
-  item: MilestoneSchema.strict(),
+  item: z.strictObject(MilestoneSchema.shape),
 });
 
 export const CreateReleaseRequestSchema = z.object({
@@ -78,5 +73,5 @@ export const CreateReleaseRequestSchema = z.object({
 
 export const UpdateReleaseRequestSchema = z.object({
   vault: VaultNameSchema,
-  item: ReleaseSchema.strict(),
+  item: z.strictObject(ReleaseSchema.shape),
 });

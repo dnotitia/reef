@@ -104,19 +104,18 @@ const providerTokenSchema = z
   .refine((value) => !/\s/.test(value), "must not contain whitespace");
 
 export const ProviderIdentitySchema = z
-  .object({
+  .strictObject({
     kind: ProviderKindSchema,
     id: providerTokenSchema,
     version: providerTokenSchema,
     capabilities: z.array(ProviderCapabilitySchema),
   })
-  .strict()
   .superRefine((provider, context) => {
     const seen = new Set<string>();
     provider.capabilities.forEach((capability, index) => {
       if (seen.has(capability)) {
         context.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["capabilities", index],
           message: `duplicate capability: ${capability}`,
         });
@@ -125,7 +124,7 @@ export const ProviderIdentitySchema = z
 
       if (!capabilitySets[provider.kind].has(capability)) {
         context.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["capabilities", index],
           message: `capability ${capability} is not valid for provider kind ${provider.kind}`,
         });
@@ -429,21 +428,19 @@ const validationRevisionSchema = z
   .max(512, "revision must be at most 512 characters")
   .refine((value) => !/\s/.test(value), "revision must not contain whitespace");
 
-export const ValidationCheckSchema = z
-  .object({
-    name: validationCheckNameSchema,
-    command: validationCommandSchema,
-    timeoutMs: z
-      .number()
-      .finite()
-      .int()
-      .positive()
-      .max(
-        MAX_VALIDATION_TIMEOUT_MS,
-        `timeoutMs must be at most ${MAX_VALIDATION_TIMEOUT_MS}`,
-      ),
-  })
-  .strict();
+export const ValidationCheckSchema = z.strictObject({
+  name: validationCheckNameSchema,
+  command: validationCommandSchema,
+  timeoutMs: z
+    .number()
+    .finite()
+    .int()
+    .positive()
+    .max(
+      MAX_VALIDATION_TIMEOUT_MS,
+      `timeoutMs must be at most ${MAX_VALIDATION_TIMEOUT_MS}`,
+    ),
+});
 
 export type ValidationCheck = z.infer<typeof ValidationCheckSchema>;
 
@@ -456,7 +453,7 @@ export const ValidationChecksSchema = z
       const previousIndex = seen.get(check.name);
       if (previousIndex !== undefined) {
         context.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: [index, "name"],
           message: `duplicate validation check name: ${check.name}`,
         });
@@ -466,13 +463,11 @@ export const ValidationChecksSchema = z
     });
   });
 
-export const ValidationRequestSchema = z
-  .object({
-    candidateRevision: validationRevisionSchema,
-    contractRevision: validationRevisionSchema,
-    checks: ValidationChecksSchema,
-  })
-  .strict();
+export const ValidationRequestSchema = z.strictObject({
+  candidateRevision: validationRevisionSchema,
+  contractRevision: validationRevisionSchema,
+  checks: ValidationChecksSchema,
+});
 
 export interface ValidationRequest {
   readonly candidateRevision: string;

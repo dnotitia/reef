@@ -75,6 +75,11 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Zod validation now runs on Zod 4 across core, web, the Jira migrator, and
+  orchestration.** Explicit record key schemas, strict/loose object policies,
+  and flattened form/field errors preserve the existing boundary contracts;
+  no Zod 3 compatibility path remains. (REEF-487)
+
 - **Suggestions empty states now explain their actual cause.** Unconfigured
   workspaces point to monitored-repository setup, configured passive queues
   keep a separate Check now action, and filtered no-match results offer one

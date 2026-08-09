@@ -86,40 +86,36 @@ export type DocumentResponse = z.infer<typeof DocumentResponseSchema>;
 // akb's `GET /api/v1/search` serializes each hit's document type under the
 // `doc_type` key (see akb `SearchResult`), NOT `type`. The document-reference
 // picker (REEF-083) reads `doc_type` to render a type glyph, so it is now a
-// named field rather than a passthrough mirror. `.passthrough()` still
+// named field rather than a passthrough mirror. `z.looseObject` still
 // preserves any other akb field verbatim.
-export const AkbSearchHitSchema = z
-  .object({
-    uri: z.string().min(1),
-    // nullable: a document with no title comes back as `title: null`. The
-    // document-reference picker + search_documents tool read this field, so
-    // rejecting null would fail the whole search over a single untitled hit.
-    title: z.string().nullable().optional(),
-    summary: z.string().nullable().optional(),
-    score: z.number().nullable().optional(),
-    matched_section: z.string().nullable().optional(),
-    source_type: z.string().optional(),
-    vault: z.string().optional(),
-    collection: z.string().nullable().optional(),
-    doc_type: z.string().nullable().optional(),
-    tags: z.array(z.string()).optional().default([]),
-  })
-  .passthrough();
+export const AkbSearchHitSchema = z.looseObject({
+  uri: z.string().min(1),
+  // nullable: a document with no title comes back as `title: null`. The
+  // document-reference picker + search_documents tool read this field, so
+  // rejecting null would fail the whole search over a single untitled hit.
+  title: z.string().nullable().optional(),
+  summary: z.string().nullable().optional(),
+  score: z.number().nullable().optional(),
+  matched_section: z.string().nullable().optional(),
+  source_type: z.string().optional(),
+  vault: z.string().optional(),
+  collection: z.string().nullable().optional(),
+  doc_type: z.string().nullable().optional(),
+  tags: z.array(z.string()).optional().default([]),
+});
 
 export type AkbSearchHit = z.infer<typeof AkbSearchHitSchema>;
 
-export const AkbSearchResponseSchema = z
-  .object({
-    results: z.array(AkbSearchHitSchema).optional(),
-    items: z.array(AkbSearchHitSchema).optional(),
-    returned: z.number().int().nonnegative().optional(),
-    total_matches: z.number().int().nonnegative().optional(),
-    truncated: z.boolean().optional().default(false),
-    degraded: z.boolean().optional().default(false),
-    degradation_reason: z.string().nullable().optional(),
-    unsupported: z.boolean().optional().default(false),
-  })
-  .passthrough();
+export const AkbSearchResponseSchema = z.looseObject({
+  results: z.array(AkbSearchHitSchema).optional(),
+  items: z.array(AkbSearchHitSchema).optional(),
+  returned: z.number().int().nonnegative().optional(),
+  total_matches: z.number().int().nonnegative().optional(),
+  truncated: z.boolean().optional().default(false),
+  degraded: z.boolean().optional().default(false),
+  degradation_reason: z.string().nullable().optional(),
+  unsupported: z.boolean().optional().default(false),
+});
 
 // ─── request helper ──────────────────────────────────────────────────────────
 

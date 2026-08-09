@@ -37,30 +37,26 @@ const ArtifactKindSchema = z.enum([
   "report",
 ]);
 
-const ArtifactInputSchema = z
-  .object({
-    kind: ArtifactKindSchema,
-    ref: z.string().refine((value) => value.trim().length > 0),
-    uri: z
-      .string()
-      .url()
-      .refine((value) => {
-        const protocol = new URL(value).protocol;
-        return protocol === "http:" || protocol === "https:";
-      })
-      .optional(),
-    title: z.string().optional(),
-  })
-  .strict();
+const ArtifactInputSchema = z.strictObject({
+  kind: ArtifactKindSchema,
+  ref: z.string().refine((value) => value.trim().length > 0),
+  uri: z
+    .string()
+    .url()
+    .refine((value) => {
+      const protocol = new URL(value).protocol;
+      return protocol === "http:" || protocol === "https:";
+    })
+    .optional(),
+  title: z.string().optional(),
+});
 
-const ReportInputSchema = z
-  .object({
-    uri: z.string().min(1),
-    revision: z.string().min(1),
-    outcome: z.enum(["failed", "pending", "succeeded"]),
-    summary: z.string().refine((value) => value.trim().length > 0),
-  })
-  .strict();
+const ReportInputSchema = z.strictObject({
+  uri: z.string().min(1),
+  revision: z.string().min(1),
+  outcome: z.enum(["failed", "pending", "succeeded"]),
+  summary: z.string().refine((value) => value.trim().length > 0),
+});
 
 type SupportedArtifactKind = ImplementationRef["type"];
 

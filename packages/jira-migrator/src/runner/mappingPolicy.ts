@@ -10,72 +10,63 @@ import type { JiraIssueMappingPolicy } from "../issues/mappingContracts.js";
 import type { JiraFieldOverrides } from "../jira/fieldCatalog.js";
 import type { JiraLinkMapping } from "../related/contracts.js";
 
-const LinkMatchSchema = z.object({
+const LinkMatchSchema = z.strictObject({
   typeId: z.string().min(1).optional(),
   name: z.string().min(1).optional(),
   inward: z.string().min(1).optional(),
   outward: z.string().min(1).optional(),
 });
 
-const PolicySchema = z
-  .object({
-    statuses: z.array(
-      z
-        .object({
-          id: z.string().min(1).optional(),
-          name: z.string().min(1).optional(),
-          categoryKey: z.string().min(1).optional(),
-          status: StatusEnum,
-          closedReason: ClosedReasonEnum.optional(),
-        })
-        .strict(),
-    ),
-    issueTypes: z.array(
-      z
-        .object({
-          id: z.string().min(1).optional(),
-          name: z.string().min(1).optional(),
-          issueType: IssueTypeEnum,
-        })
-        .strict(),
-    ),
-    priorities: z.array(
-      z
-        .object({
-          id: z.string().min(1).optional(),
-          name: z.string().min(1).optional(),
-          priority: PriorityEnum,
-        })
-        .strict(),
-    ),
-    fieldOverrides: z
-      .object({
-        sprint: z.string().min(1).optional(),
-        story_points: z.string().min(1).optional(),
-        start_date: z.string().min(1).optional(),
-        rank: z.string().min(1).optional(),
-      })
-      .strict()
-      .default({}),
-    linkMappings: z
-      .array(
-        z.discriminatedUnion("kind", [
-          LinkMatchSchema.extend({
-            kind: z.literal("directional"),
-            outwardRelation: z.enum(["blocks", "depends_on"]),
-            inwardRelation: z.enum(["blocks", "depends_on"]),
-            preserveExternalRef: z.boolean().optional(),
-          }).strict(),
-          LinkMatchSchema.extend({
-            kind: z.literal("symmetric"),
-            preserveExternalRef: z.boolean().optional(),
-          }).strict(),
-        ]),
-      )
-      .default([]),
-    attachmentMaxBytes: z.number().int().positive().optional(),
-  })
-  .strict();
+const PolicySchema = z.strictObject({
+  statuses: z.array(
+    z.strictObject({
+      id: z.string().min(1).optional(),
+      name: z.string().min(1).optional(),
+      categoryKey: z.string().min(1).optional(),
+      status: StatusEnum,
+      closedReason: ClosedReasonEnum.optional(),
+    }),
+  ),
+  issueTypes: z.array(
+    z.strictObject({
+      id: z.string().min(1).optional(),
+      name: z.string().min(1).optional(),
+      issueType: IssueTypeEnum,
+    }),
+  ),
+  priorities: z.array(
+    z.strictObject({
+      id: z.string().min(1).optional(),
+      name: z.string().min(1).optional(),
+      priority: PriorityEnum,
+    }),
+  ),
+  fieldOverrides: z
+    .strictObject({
+      sprint: z.string().min(1).optional(),
+      story_points: z.string().min(1).optional(),
+      start_date: z.string().min(1).optional(),
+      rank: z.string().min(1).optional(),
+    })
+    .default({}),
+  linkMappings: z
+    .array(
+      z.discriminatedUnion("kind", [
+        LinkMatchSchema.extend({
+          kind: z.literal("directional"),
+          outwardRelation: z.enum(["blocks", "depends_on"]),
+          inwardRelation: z.enum(["blocks", "depends_on"]),
+          preserveExternalRef: z.boolean().optional(),
+        }),
+        LinkMatchSchema.extend({
+          kind: z.literal("symmetric"),
+          preserveExternalRef: z.boolean().optional(),
+        }),
+      ]),
+    )
+    .default([]),
+  attachmentMaxBytes: z.number().int().positive().optional(),
+});
 
 export interface LoadedJiraMappingPolicy extends JiraIssueMappingPolicy {
   fieldOverrides: JiraFieldOverrides;

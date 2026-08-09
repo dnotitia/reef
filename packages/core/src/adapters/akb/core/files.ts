@@ -2,30 +2,24 @@ import { z } from "zod";
 import { AkbApiError, SchemaValidationError } from "../../../errors";
 import type { AkbAdapter } from "./http";
 
-const AkbFileUploadInitResponseSchema = z
-  .object({
-    uri: z.string().min(1),
-    upload_url: z.string().url(),
-  })
-  .passthrough();
+const AkbFileUploadInitResponseSchema = z.looseObject({
+  uri: z.string().min(1),
+  upload_url: z.string().url(),
+});
 
-const AkbFileResponseSchema = z
-  .object({
-    uri: z.string().min(1),
-    name: z.string().min(1),
-    mime_type: z.string().min(1),
-    size_bytes: z.number().int().nonnegative(),
-  })
-  .passthrough();
+const AkbFileResponseSchema = z.looseObject({
+  uri: z.string().min(1),
+  name: z.string().min(1),
+  mime_type: z.string().min(1),
+  size_bytes: z.number().int().nonnegative(),
+});
 
-const AkbFileDownloadResponseSchema = z
-  .object({
-    name: z.string().min(1),
-    download_url: z.string().url(),
-    mime_type: z.string().min(1),
-    size_bytes: z.number().int().nonnegative(),
-  })
-  .passthrough();
+const AkbFileDownloadResponseSchema = z.looseObject({
+  name: z.string().min(1),
+  download_url: z.string().url(),
+  mime_type: z.string().min(1),
+  size_bytes: z.number().int().nonnegative(),
+});
 
 export interface UploadAkbFileParams {
   adapter: AkbAdapter;

@@ -26,16 +26,12 @@ const SuggestionIdSchema = z
 // valid edited target; allowing them would save a suggestion that approval can
 // does not accept (REEF-109).
 const StatusSuggestionTargetSchema = StatusEnum.exclude(["closed", "backlog"]);
-const StatusSuggestionUpdateSchema = z
-  .object({
-    issue_id: z.string().min(1),
-    patch: z
-      .object({
-        status: StatusSuggestionTargetSchema,
-      })
-      .strict(),
-  })
-  .strict();
+const StatusSuggestionUpdateSchema = z.strictObject({
+  issue_id: z.string().min(1),
+  patch: z.strictObject({
+    status: StatusSuggestionTargetSchema,
+  }),
+});
 
 const PatchSuggestionRequestSchema = z.object({
   vault: VaultNameSchema,

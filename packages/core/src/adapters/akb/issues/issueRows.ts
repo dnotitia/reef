@@ -124,7 +124,7 @@ export function quoteOptionalText(
  * report the count. A non-array (a bare string/object where an array belongs)
  * counts as one drop so the caller can still flag it.
  */
-function sanitizeMetaRefs<S extends z.ZodTypeAny>(
+function sanitizeMetaRefs<S extends z.ZodType>(
   raw: unknown,
   schema: S,
 ): { refs: z.infer<S>[] | undefined; dropped: number } {

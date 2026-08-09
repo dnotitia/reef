@@ -5,6 +5,7 @@ import {
 import { localizedAgentError } from "@/lib/api/errorLocalization";
 import { logger } from "@/lib/logging/logger";
 import { AgentArtifactCommandRequestSchema } from "@reef/core";
+import { z } from "zod";
 import {
   agentArtifactCommandErrorResponse,
   artifactIdMismatchResponse,
@@ -35,7 +36,7 @@ export async function POST(
       "agent.artifactDismissalRequestInvalid",
       400,
       "invalid_artifact_command_request",
-      { validation: parsed.error.flatten() },
+      { validation: z.flattenError(parsed.error) },
     );
   }
 
