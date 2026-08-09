@@ -8,6 +8,7 @@ import {
   type IssueMetadata,
   IssueMetadataSchema,
 } from "../../../schemas/issues/metadata";
+import { parsePersistedMentionRecipients } from "../../../schemas/issues/mention";
 import { REEF_ISSUES_TABLE } from "../core/constants";
 import type { AkbAdapter } from "../core/http";
 import {
@@ -59,6 +60,7 @@ interface IssueRowMeta {
   reviewers: IssueMetadata["reviewers"] | null;
   qa_owner: IssueMetadata["qa_owner"] | null;
   custom_fields: IssueMetadata["custom_fields"] | null;
+  mention_recipients: IssueMetadata["mention_recipients"] | null;
 }
 
 function buildIssueRowMeta(issue: IssueMetadata): IssueRowMeta {
@@ -73,14 +75,16 @@ function buildIssueRowMeta(issue: IssueMetadata): IssueRowMeta {
     reviewers: issue.reviewers ?? null,
     qa_owner: issue.qa_owner ?? null,
     custom_fields: issue.custom_fields ?? null,
+    mention_recipients: issue.mention_recipients ?? [],
   };
 }
 
 /**
  * json/jsonb columns round-trip through akb's SQL endpoint as JSON text (see
- * `decodeSettingsValue`). Decode to a string[] and treat empty/absent as
- * `undefined` so reconstructed Issues match the "optional field omitted"
- * shape rather than carrying `[]`.
+ * `decodeSettingsValue`). Decode ordinary issue arrays as string[] and treat
+ * empty/absent as `undefined` so reconstructed Issues match the "optional field
+ * omitted" shape. The server-derived mention projection is parsed separately
+ * because its canonical empty value is `[]`.
  */
 export function decodeStringArray(raw: unknown): string[] | undefined {
   const decoded = decodeSettingsValue(raw);
@@ -213,6 +217,9 @@ export function rowToIssue(row: Record<string, unknown>): IssueMetadata {
     ...(meta.reviewers != null && { reviewers: meta.reviewers }),
     ...(meta.qa_owner != null && { qa_owner: meta.qa_owner }),
     ...(meta.custom_fields != null && { custom_fields: meta.custom_fields }),
+    mention_recipients: parsePersistedMentionRecipients(
+      meta.mention_recipients,
+    ),
   };
   try {
     return IssueMetadataSchema.parse(candidate);

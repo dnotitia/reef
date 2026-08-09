@@ -1,4 +1,8 @@
 import { AkbApiError, ConflictError, NotFoundError } from "../../../errors";
+import {
+  buildResolvedMentionRecipients,
+  extractMentionUsernames,
+} from "../../../schemas/issues/mention";
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
 import { deepEqual } from "../../../utils/deepEqual";
 import type { AkbAdapter } from "../core/http";
@@ -47,9 +51,11 @@ import {
 } from "../notifications/notifications";
 import {
   appendActivityEvents,
+  appendIssueBodyMentionsChangeEvent,
   appendStatusChangeEvent,
   diffFieldActivityEvents,
 } from "./activity";
+import { listVaultMembers } from "../workspace/vaults";
 export { buildIssueMetadataFromCreateInput } from "./createMetadata";
 export { allocateNextIssueId, listIssueRelations } from "./issueRelations";
 export { listIssues } from "./listIssues";
@@ -119,6 +125,45 @@ const sameJiraMigrationOwner = (left: unknown, right: unknown): boolean => {
   );
 };
 
+async function deriveIssueBodyMentionRecipients(
+  adapter: AkbAdapter,
+  vault: string,
+  content: string,
+): Promise<string[]> {
+  if (extractMentionUsernames(content).length === 0) return [];
+  const { members } = await listVaultMembers({ adapter, vault });
+  return buildResolvedMentionRecipients(
+    content,
+    members.map((member) => member.username),
+  );
+}
+
+interface MentionRecipientDelta {
+  recipients: string[];
+  added: string[];
+  removed: string[];
+  changed: boolean;
+}
+
+function mentionRecipientDelta(
+  before: readonly string[] | undefined,
+  after: readonly string[] | undefined,
+): MentionRecipientDelta {
+  const previous = new Set(before ?? []);
+  const next = new Set(after ?? []);
+  const recipients = [...next].sort();
+  const added = recipients.filter((recipient) => !previous.has(recipient));
+  const removed = [...previous]
+    .filter((recipient) => !next.has(recipient))
+    .sort();
+  return {
+    recipients,
+    added,
+    removed,
+    changed: added.length > 0 || removed.length > 0,
+  };
+}
+
 export async function readIssue(
   params: ReadIssueParams,
 ): Promise<ReadIssueResult> {
@@ -153,12 +198,27 @@ export async function readIssue(
 export async function writeIssue(
   params: WriteIssueParams,
 ): Promise<WriteIssueResult> {
-  const { adapter, vault, issue, content = "", claimFirst = false } = params;
-  return withSpan("akb.write_issue", { vault, id: issue.id }, async () => {
+  const {
+    adapter,
+    vault,
+    issue: inputIssue,
+    content = "",
+    claimFirst = false,
+  } = params;
+  return withSpan("akb.write_issue", { vault, id: inputIssue.id }, async () => {
+    const issue: IssueMetadata = {
+      ...inputIssue,
+      mention_recipients: await deriveIssueBodyMentionRecipients(
+        adapter,
+        vault,
+        content,
+      ),
+    };
     // Assumes `reef_issues` exists (provisioned by `ensureReefTables` at vault
     // creation / config write), mirroring `writeConfig`. A missing table
     // surfaces loudly from the INSERT rather than being silently auto-healed.
     const body = buildPutRequestBody(vault, issue, content);
+    let claimBeforeIssue: IssueMetadata | null = null;
     let claimDisposition: "created" | "existing" | null = null;
     if (claimFirst) {
       // Keep the pre-document claim archived and therefore invisible to issue
@@ -266,6 +326,7 @@ export async function writeIssue(
         )
       )[0];
       const existingIssue = existing ? rowToIssue(existing) : null;
+      claimBeforeIssue = existingIssue;
       const owner = (
         issue.custom_fields?.jira_migration as
           | Record<string, unknown>
@@ -350,10 +411,54 @@ export async function writeIssue(
         throw err;
       }
     }
+
+    const mentionDelta = mentionRecipientDelta(
+      claimBeforeIssue?.mention_recipients,
+      issue.mention_recipients,
+    );
+    if (mentionDelta.changed) {
+      try {
+        await appendIssueBodyMentionsChangeEvent(adapter, vault, {
+          reefId: issue.id,
+          recipients: mentionDelta.recipients,
+          added: mentionDelta.added,
+          removed: mentionDelta.removed,
+          documentCommit: put.commit_hash,
+          at: issue.updated_at,
+          actor: issue.updated_by,
+          source: issue.source ?? null,
+        });
+      } catch (err) {
+        if (claimFirst && claimBeforeIssue) {
+          await runSql(
+            adapter,
+            vault,
+            `UPDATE ${tableRef(REEF_ISSUES_TABLE)} SET ${buildRowAssignments(
+              issueRowMutableFields(claimBeforeIssue),
+            )} WHERE reef_id = ${quoteText(issue.id, "reef_id")}`,
+          ).catch(() => undefined);
+          if (claimDisposition === "created") {
+            await deleteDocumentQuietly(adapter, vault, put.path);
+          }
+        } else {
+          await runSql(
+            adapter,
+            vault,
+            `DELETE FROM ${tableRef(REEF_ISSUES_TABLE)} WHERE reef_id = ${quoteText(
+              issue.id,
+              "reef_id",
+            )}`,
+          ).catch(() => undefined);
+          await deleteDocumentQuietly(adapter, vault, put.path);
+        }
+        throw err;
+      }
+    }
     await syncAutomaticIssueSubscriptions(adapter, vault, issue.id, {}, issue);
     return {
       path: put.path,
       commit_hash: put.commit_hash,
+      issue,
     };
   });
 }
@@ -463,8 +568,19 @@ export async function updateIssue(
   } = params;
   return withSpan("akb.update_issue", { vault, id }, async (span) => {
     const current = await readIssue({ adapter, vault, id });
-    const mergedIssue = mergeIssue(current.issue, partial);
     const mergedBody = content ?? current.content;
+    const mergedIssue: IssueMetadata = {
+      ...mergeIssue(current.issue, partial),
+      mention_recipients: await deriveIssueBodyMentionRecipients(
+        adapter,
+        vault,
+        mergedBody,
+      ),
+    };
+    const mentionDelta = mentionRecipientDelta(
+      current.issue.mention_recipients,
+      mergedIssue.mention_recipients,
+    );
 
     // The akb document is the canonical source for the body + native-projected
     // fields (title→summary, labels→tags, depends_on/blocks→relations). PATCH
@@ -524,6 +640,26 @@ export async function updateIssue(
       mergedIssue.status === "backlog" &&
       current.issue.status !== "backlog" &&
       mergedIssue.rank == null;
+    const restoreDocument = async (reason: string): Promise<void> => {
+      if (!docDirty) return;
+      const revertBody = buildIssueDocPatchBody(current.issue, current.content);
+      revertBody.message = `Revert ${id} document: ${reason}`;
+      revertBody.expected_commit = commitHash;
+      await adapter.request(docPath, {
+        method: "PATCH",
+        body: revertBody,
+        resource: makeIssueResourceLabel(id),
+      });
+    };
+    const restoreRowProjection = async (): Promise<void> => {
+      await runSql(
+        adapter,
+        vault,
+        `UPDATE ${tableRef(REEF_ISSUES_TABLE)} SET ${buildRowAssignments(
+          issueRowMutableFields(current.issue),
+        )} WHERE reef_id = ${quoteText(id, "reef_id")}`,
+      );
+    };
     try {
       const rowUpdate = await runSql(
         adapter,
@@ -599,18 +735,8 @@ export async function updateIssue(
         span.setAttribute("row_update_recovered", true);
       } else {
         if (docDirty) {
-          const revertBody = buildIssueDocPatchBody(
-            current.issue,
-            current.content,
-          );
-          revertBody.message = `Revert ${id} document: row update failed`;
-          revertBody.expected_commit = commitHash;
           try {
-            await adapter.request(docPath, {
-              method: "PATCH",
-              body: revertBody,
-              resource: makeIssueResourceLabel(id),
-            });
+            await restoreDocument("row update failed");
           } catch (revertError) {
             if (revertError instanceof ConflictError) throw revertError;
             // Best-effort compensation; the original row-update error takes
@@ -635,6 +761,35 @@ export async function updateIssue(
       );
       if (row?.rank != null) {
         mergedIssue.rank = Number(row.rank);
+      }
+    }
+
+    if (docDirty && mentionDelta.changed) {
+      try {
+        await appendIssueBodyMentionsChangeEvent(adapter, vault, {
+          reefId: id,
+          recipients: mentionDelta.recipients,
+          added: mentionDelta.added,
+          removed: mentionDelta.removed,
+          documentCommit: commitHash,
+          at: partial.updated_at ?? mergedIssue.updated_at,
+          actor: mergedIssue.updated_by,
+          source: partial.source ?? null,
+        });
+      } catch (err) {
+        try {
+          await restoreRowProjection();
+        } catch {
+          span.addEvent("mention_row_compensation_failed");
+        }
+        if (docDirty) {
+          try {
+            await restoreDocument("issue body mention event failed");
+          } catch {
+            span.addEvent("mention_document_compensation_failed");
+          }
+        }
+        throw err;
       }
     }
 

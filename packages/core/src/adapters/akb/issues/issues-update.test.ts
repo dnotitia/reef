@@ -9,6 +9,11 @@ import {
 } from "../../../test-support/akb/fetchMock";
 import { mockOpenTelemetry } from "../../../test-support/akb/otelMock";
 import {
+  ALL_REEF_TABLES,
+  makeListTablesResponse,
+  makeSqlQueryResponse,
+} from "../core/sqlTestSupport";
+import {
   claimIssueId,
   reorderBacklogIssues,
   updateIssue,
@@ -80,6 +85,7 @@ function rowsForIssue(issue: IssueMetadata): unknown {
       last_editor: issue.updated_by,
       source: issue.source ?? null,
       last_status_change: issue.last_status_change ?? null,
+      mention_recipients: issue.mention_recipients ?? null,
       custom_fields: issue.custom_fields,
     },
   };
@@ -293,6 +299,110 @@ describe("updateIssue → row-update compensation", () => {
     expect(res.issue.title).toBe("Issue");
     // Exactly one PATCH (the forward edit); no compensating re-PATCH.
     expect(patchCalls(calls)).toHaveLength(1);
+  });
+
+  it("derives the mention projection from the current roster and appends a commit-bound delta", async () => {
+    const current = makeIssue({
+      assigned_to: undefined,
+      mention_recipients: ["alice"],
+    });
+    const { calls } = setupFetch([
+      { body: docGetResponse("old @alice") },
+      { body: rowsForIssue(current) },
+      {
+        body: {
+          members: [
+            { username: "alice", role: "member" },
+            { username: "bob", role: "member" },
+          ],
+        },
+      },
+      { body: putResponse("commit-mentions") },
+      { body: ROW_UPDATE_OK },
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { body: makeSqlQueryResponse([{ id: "mention-event" }], ["id"]) },
+    ]);
+
+    const result = await updateIssue({
+      adapter: makeTestAkbAdapter(),
+      vault: VAULT,
+      id: "REEF-001",
+      partial: {},
+      content: "new @bob @missing @bob",
+    });
+
+    expect(result.issue.mention_recipients).toEqual(["bob"]);
+    const rowSql = JSON.parse(String(calls[4]?.init?.body)).sql as string;
+    expect(rowSql).toContain('"mention_recipients":["bob"]');
+    const eventSql = JSON.parse(String(calls[6]?.init?.body)).sql as string;
+    expect(eventSql).toContain("issue_body_mentions_change:commit-mentions");
+    expect(eventSql).toContain('"recipients":["bob"]');
+    expect(eventSql).toContain('"added":["bob"]');
+    expect(eventSql).toContain('"removed":["alice"]');
+    expect(eventSql).toContain('"document_commit":"commit-mentions"');
+  });
+
+  it("does not append a mention event for a no-op recipient set", async () => {
+    const current = makeIssue({
+      assigned_to: undefined,
+      mention_recipients: ["alice"],
+    });
+    const { calls } = setupFetch([
+      { body: docGetResponse("old @alice") },
+      { body: rowsForIssue(current) },
+      { body: { members: [{ username: "alice", role: "member" }] } },
+      { body: putResponse("commit-same-mentions") },
+      { body: ROW_UPDATE_OK },
+    ]);
+
+    await updateIssue({
+      adapter: makeTestAkbAdapter(),
+      vault: VAULT,
+      id: "REEF-001",
+      partial: {},
+      content: "old @alice",
+    });
+
+    expect(calls).toHaveLength(5);
+    expect(calls.some((call) => call.url.includes("/members"))).toBe(true);
+    expect(calls.some((call) => call.url.includes("/tables"))).toBe(true);
+  });
+
+  it("compensates both row and document when the mention delta append fails", async () => {
+    const current = makeIssue({
+      assigned_to: undefined,
+      mention_recipients: ["alice"],
+    });
+    const { calls } = setupFetch([
+      { body: docGetResponse("old @alice") },
+      { body: rowsForIssue(current) },
+      { body: { members: [{ username: "bob", role: "member" }] } },
+      { body: putResponse("commit-failed-mentions") },
+      { body: ROW_UPDATE_OK },
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { status: 500, body: { error: "activity insert failed" } },
+      { body: ROW_UPDATE_OK },
+      { body: putResponse("commit-restored") },
+    ]);
+
+    await expect(
+      updateIssue({
+        adapter: makeTestAkbAdapter(),
+        vault: VAULT,
+        id: "REEF-001",
+        partial: {},
+        content: "new @bob",
+      }),
+    ).rejects.toBeInstanceOf(AkbApiError);
+
+    const patches = patchCalls(calls);
+    expect(patches).toHaveLength(2);
+    expect(bodyOf(patches[0]).content).toBe("new @bob");
+    expect(bodyOf(patches[1]).content).toBe("old @alice");
+    expect(bodyOf(patches[1]).expected_commit).toBe("commit-failed-mentions");
+    const compensationSql = JSON.parse(String(calls[7]?.init?.body))
+      .sql as string;
+    expect(compensationSql).toContain('"mention_recipients":["alice"]');
   });
 });
 

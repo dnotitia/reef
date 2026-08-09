@@ -1,17 +1,34 @@
 import { Editor } from "@tiptap/react";
+import type { VaultMember } from "@reef/core";
 import { afterEach, describe, expect, it } from "vitest";
 import { createMarkdownEditorExtensions } from "./MarkdownEditorImpl";
+import { prepareIssueBodyMentionMarkdown } from "./issueBodyMentionExtension";
 
 const editors: Editor[] = [];
 
-function createEditor(markdown: string) {
+function createEditor(
+  markdown: string,
+  mentionMembers?: readonly VaultMember[],
+) {
   const element = document.createElement("div");
   document.body.appendChild(element);
 
   const editor = new Editor({
     element,
-    extensions: createMarkdownEditorExtensions("Describe the issue..."),
-    content: markdown,
+    extensions: createMarkdownEditorExtensions(
+      "Describe the issue...",
+      undefined,
+      mentionMembers
+        ? {
+            membersRef: { current: mentionMembers },
+            suggestionsLabel: "Mention suggestions",
+            mentionOptionLabel: (username) => `Mention @${username}`,
+          }
+        : undefined,
+    ),
+    content: mentionMembers
+      ? prepareIssueBodyMentionMarkdown(markdown, mentionMembers)
+      : markdown,
     contentType: "markdown",
   });
 
@@ -26,6 +43,28 @@ afterEach(() => {
 });
 
 describe("MarkdownEditor Tiptap extensions", () => {
+  it("registers issue-body mentions only for the opt-in editor surface", () => {
+    const withoutMentions = createMarkdownEditorExtensions(
+      "Describe the issue...",
+    );
+    const withMentions = createMarkdownEditorExtensions(
+      "Describe the issue...",
+      undefined,
+      {
+        membersRef: { current: [{ username: "alice", role: "member" }] },
+        suggestionsLabel: "Mention suggestions",
+        mentionOptionLabel: (username) => `Mention @${username}`,
+      },
+    );
+
+    expect(
+      withoutMentions.some((extension) => extension.name === "mention"),
+    ).toBe(false);
+    expect(withMentions.some((extension) => extension.name === "mention")).toBe(
+      true,
+    );
+  });
+
   it("decorates an empty editor with the placeholder DOM contract", () => {
     const editor = createEditor("");
     const empty = editor.view.dom.querySelector(
@@ -135,6 +174,27 @@ describe("MarkdownEditor Tiptap extensions", () => {
     expect(editor.getMarkdown()).toContain(`[Research Report](${uri})`);
     const link = editor.view.dom.querySelector("a");
     expect(link?.getAttribute("href")).toBe(uri);
+  });
+
+  it("round-trips resolved issue-body mentions and keeps unresolved text", () => {
+    const markdown =
+      "Owner @alice and @{Ada Lovelace}, unresolved @missing, code `@alice`, and link [@alice](https://example.test)";
+    const editor = createEditor(markdown, [
+      { username: "alice", role: "member" },
+      { username: "Ada Lovelace", role: "member" },
+    ]);
+    const mentionNodes: string[] = [];
+    editor.state.doc.descendants((node) => {
+      if (node.type.name === "mention") {
+        mentionNodes.push(String(node.attrs.id));
+      }
+    });
+    expect(mentionNodes).toEqual(["alice", "Ada Lovelace"]);
+    expect(editor.getMarkdown()).toBe(markdown);
+    expect(
+      editor.view.dom.querySelector('[data-reef-mention="true"]')?.textContent,
+    ).toBe("@alice");
+    expect(editor.view.dom.textContent).toContain("@missing");
   });
 
   it.each([

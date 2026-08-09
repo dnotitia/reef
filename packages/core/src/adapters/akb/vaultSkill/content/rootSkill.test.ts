@@ -73,3 +73,17 @@ describe("root skill — issue body links (REEF-395)", () => {
     expect(content).toContain("Do not hand-write wiki links");
   });
 });
+
+describe("root skill — issue-body mention invariant", () => {
+  const content = rootSkillContent("reef-test");
+
+  it("keeps roster resolution and storage boundaries in the always-loaded skill", () => {
+    expect(content).toContain(
+      "Issue-body mentions are roster-resolved metadata",
+    );
+    expect(content).toContain("meta.mention_recipients");
+    expect(content).toContain(
+      "Never add a mention table, column, or separate store",
+    );
+  });
+});

@@ -43,7 +43,7 @@ INSERT INTO reef_issues
 VALUES
   ('akb://VAULT/coll/issues/doc/reef-001.md', 'REEF-001', 'Human title', 'backlog', 'task', NULL, NULL,
    'ACTOR', NULL, '[]'::json, '[]'::json, '[]'::json, '[]'::json,
-   '{"author":"ACTOR","last_editor":"ACTOR","source":"ai-agent:user_request","last_status_change":null,"external_refs":null,"implementation_refs":null,"watchers":null,"reviewers":null,"qa_owner":null,"custom_fields":null}'::json);
+   '{"author":"ACTOR","last_editor":"ACTOR","source":"ai-agent:user_request","last_status_change":null,"external_refs":null,"implementation_refs":null,"watchers":null,"reviewers":null,"qa_owner":null,"custom_fields":null,"mention_recipients":[]}'::json);
 
 For an issue that hangs under an epic, set parent_id to that epic's reef id (a plain reef id, never an akb:// URI). When you are adding to a group of siblings and do not already know the epic, read a sibling's parent_id rather than leaving it NULL:
   SELECT parent_id FROM reef_issues WHERE reef_id = 'REEF-042'
@@ -55,7 +55,7 @@ INSERT INTO reef_issues
 VALUES
   ('akb://VAULT/coll/issues/doc/reef-043.md', 'REEF-043', 'Child story', 'backlog', 'story', NULL, NULL,
    'ACTOR', 'REEF-012', '[]'::json, '[]'::json, '[]'::json, '[]'::json,
-   '{"author":"ACTOR","last_editor":"ACTOR","source":"ai-agent:user_request","last_status_change":null,"external_refs":null,"implementation_refs":null,"watchers":null,"reviewers":null,"qa_owner":null,"custom_fields":null}'::json);
+   '{"author":"ACTOR","last_editor":"ACTOR","source":"ai-agent:user_request","last_status_change":null,"external_refs":null,"implementation_refs":null,"watchers":null,"reviewers":null,"qa_owner":null,"custom_fields":null,"mention_recipients":[]}'::json);
 
 Use the document_uri returned by akb_put verbatim; do not hand-build it. Do NOT include id, created_at, updated_at, or created_by; AKB fills them.
 
@@ -79,7 +79,7 @@ For how to infer issue_type, priority, labels, and a clean title from a loose de
 
 ## The meta skeleton
 
-reef_issues.meta is rebuilt as a full object on every write, with every key present (null when absent). Use exactly these ten keys:
+reef_issues.meta is rebuilt as a full object on every write, with every key present (null when absent). Use exactly these eleven keys:
 
 {
   "author": "the acting user (required, non-empty)",
@@ -91,7 +91,8 @@ reef_issues.meta is rebuilt as a full object on every write, with every key pres
   "watchers": "array or null",
   "reviewers": "array or null",
   "qa_owner": "string or null",
-  "custom_fields": "object or null"
+  "custom_fields": "object or null",
+  "mention_recipients": "sorted array of exact-case current-roster usernames"
 }
 
 The Issue schema surfaces meta.author as created_by and meta.last_editor as updated_by, but the stored keys are always author and last_editor. When you update meta, preserve the keys you are not changing (rebuild the full object, or use jsonb_set on the specific key).
@@ -106,7 +107,7 @@ The read path validates every row's meta against the issue schema and silently s
 
 To diagnose a row that was written but never appears, compare it field by field against a healthy, visible row:
   SELECT * FROM reef_issues WHERE reef_id IN ('REEF-MISSING', 'REEF-VISIBLE')
-Line up the two meta objects and find the key whose value differs in type or shape from the working row. Then rebuild meta with the full ten-key skeleton above (correct types, valid ISO timestamps) and UPDATE the row -- it reappears as soon as the meta validates.
+Line up the two meta objects and find the key whose value differs in type or shape from the working row. Then rebuild meta with the full eleven-key skeleton above (correct types, valid ISO timestamps) and UPDATE the row -- it reappears as soon as the meta validates.
 
 ## Delivery links
 
@@ -130,15 +131,15 @@ implementation_refs is for delivery activity. Each item has:
 
 For table-only fields such as status, priority, assigned_to, sprint_id, milestone_id, release_id, closed_at, closed_reason, and archived_at, update reef_issues only. priority and assigned_to may be cleared to NULL.
 
-For body, title, labels, depends_on, related_to, or blocks changes, update both the AKB document and the reef_issues row. (Note blocks has no document field; it is folded into the document's related_to.)
+For body, title, labels, depends_on, related_to, or blocks changes, update both the AKB document and the reef_issues row. (Note blocks has no document field; it is folded into the document's related_to.) For an issue body create or update, read the current vault roster with akb_vault_members and run the canonical mention parser/formatter: store only the deduplicated, sorted, exact-case usernames that resolve in the current roster in meta.mention_recipients. An unresolved token is ordinary body text, is never included in the projection or delta, and must not reveal membership information.
 
-For meta-only fields such as source, last_status_change, external_refs, and implementation_refs, update the reef_issues.meta JSON and preserve existing unrelated meta keys.
+For meta-only fields such as source, last_status_change, external_refs, and implementation_refs, update the reef_issues.meta JSON and preserve existing unrelated meta keys. mention_recipients is server-derived from the body and current roster; callers must not accept it as a client-controlled create/update field.
 
 Do not set updated_at yourself; AKB bumps it on any row UPDATE.
 
 ## Record a field-change activity event
 
-reef_activity logs more than status. When an update changes the assignee, the priority, a planning link (milestone, sprint, or release), the title, the labels, the due date, the estimate, the parent, a relation (depends_on, blocks, or related_to), the archived state, or links a new delivery ref (a pull_request, commit, or branch in implementation_refs), you MUST ALSO append one immutable reef_activity row per change, in the same update -- the same append-only mechanism as the status_change rule below, just a different event_type. This is what populates the issue timeline with the full history, not status alone. Append:
+reef_activity logs more than status. When an update changes the assignee, the priority, a planning link (milestone, sprint, or release), the title, the labels, the due date, the estimate, the parent, a relation (depends_on, blocks, or related_to), the archived state, or links a new delivery ref (a pull_request, commit, or branch in implementation_refs), you MUST ALSO append one immutable reef_activity row per change, in the same update -- the same append-only mechanism as the status_change rule below, just a different event_type. This is what populates the issue timeline with the full history, not status alone. An issue body create/update that changes the resolved mention set MUST ALSO append the internal precursor event below; a no-op recipient set emits no event, and this event is filtered from the user activity timeline. Append:
 
 INSERT INTO reef_activity (reef_id, event_type, event_key, payload, meta)
 VALUES (
@@ -148,12 +149,14 @@ VALUES (
   '{"from":"alice","to":"bob"}'::json,
   '{"actor":"ACTOR","at":"2026-06-15T07:34:38.237Z","source":"ai-agent:user_request"}'::json);
 
-- event_type is one of assignee_change, priority_change, planning_link, impl_ref_linked, title_change, labels_change, due_date_change, estimate_change, parent_change, relation_change, or archived_change.
+- event_type is one of assignee_change, priority_change, planning_link, impl_ref_linked, title_change, labels_change, due_date_change, estimate_change, parent_change, relation_change, archived_change, or issue_body_mentions_change.
 - payload carries the change. The shape is one of three families:
   - {from,to} mutations -- assignee_change and priority_change (either side may be null: an unassigned issue or unset priority), title_change (both ends carry the title text -- a title is always set), due_date_change and parent_change (null on a set/clear or attach/detach; parent ids are plain reef ids), estimate_change (numbers, null when unset), and archived_change (booleans -- archive is false->true, restore is true->false).
   - {field,from,to} -- planning_link, where field is milestone, sprint, or release and from/to are the planning ids (null on attach/detach).
   - set changes (added/removed id collections) -- labels_change is {added,removed}; relation_change is {relation,added,removed} where relation is depends_on, blocks, or related_to. Emit one labels_change for the whole labels change and one relation_change per changed relation dimension; emit nothing for a dimension whose set is unchanged. impl_ref_linked is the set-addition special case: {ref_type,ref,repo} naming each newly-linked ref (ref_type is pull_request, commit, or branch; repo is owner/name or null), one event per newly-added ref and nothing when the refs array is unchanged.
 - event_key is the idempotency key. The {from,to} family uses <event_type>:<from>-><to>@<at> (booleans render as false/true, numbers as their digits); planning_link uses planning_link:<field>:<from>-><to>@<at>; impl_ref_linked uses impl_ref_linked:<ref_type>:<repo>:<ref>@<at>; the set-change family uses <event_type>:+<sorted added joined by commas>:-<sorted removed>@<at>, and relation_change inserts the relation after the event_type: relation_change:<relation>:+<sorted added>:-<sorted removed>@<at>. Use the literal ∅ token for a null segment so an attach never collides with a value. Before inserting, skip the insert if a row with the same reef_id and event_key already exists.
+- issue_body_mentions_change is the internal precursor event for an issue body create/update. Its payload is {recipients,added,removed,document_commit}; recipients, added, and removed are sorted exact-case usernames, and document_commit is the committed AKB document revision. Its event_key is issue_body_mentions_change:<document_commit>, so retries of the same document commit are idempotent. It is not a user activity timeline row; do not show it there.
+- An issue body document write, row projection update, and mention delta append are one logical operation. If the row or event append fails, the product path compensates the row and/or document so a partial body/projection/delta is not left behind.
 - In meta, "at" is the update's timestamp (the same value you stamp on every field of this update), "actor" is the acting user, and "source" mirrors the change's provenance or is null. When one update changes several of these fields at once, every event shares that one "at" so they group as a single moment.
 - Do NOT set id, created_by, created_at, or updated_at; AKB fills them. reef_activity is append-only -- never UPDATE or DELETE an event row. If an append fails after the row UPDATE already changed the field, leave the field change in place; do not roll it back over a missing history row.
 

@@ -68,7 +68,12 @@ export async function POST(request: Request): Promise<Response> {
             author: actor,
             source: "user:create_issue",
           });
-          await writeIssue({ adapter, vault, issue, content: create.content });
+          const written = await writeIssue({
+            adapter,
+            vault,
+            issue,
+            content: create.content,
+          });
           // Link cited akb documents as `references` edges now that the issue
           // exists (REEF-083 AC4). A link failure should not undo a successfully
           // created issue, so failures are collected and returned to the client
@@ -87,7 +92,7 @@ export async function POST(request: Request): Promise<Response> {
           }
           span.setAttribute("reference_count", (references ?? []).length);
           span.setAttribute("reference_failures", failedReferences.length);
-          return { issue, failedReferences };
+          return { issue: written.issue, failedReferences };
         } catch (err) {
           const error = err instanceof Error ? err : new Error(String(err));
           span.recordException(error);

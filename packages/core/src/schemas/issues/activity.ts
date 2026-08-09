@@ -61,6 +61,9 @@ export const ACTIVITY_EVENT_ATTACHMENT_REMOVED = "attachment_removed";
 export const ACTIVITY_EVENT_ISSUE_TYPE_CHANGE = "issue_type_change";
 /** A losslessly mapped Jira start-date transition (REEF-392). */
 export const ACTIVITY_EVENT_START_DATE_CHANGE = "start_date_change";
+/** A server-derived issue-body recipient-set change. */
+export const ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE =
+  "issue_body_mentions_change";
 
 /** Which planning dimension a `planning_link` event records. */
 export const PlanningLinkFieldEnum = z.enum(["milestone", "sprint", "release"]);
@@ -233,6 +236,21 @@ export type StartDateChangePayload = z.infer<
   typeof StartDateChangePayloadSchema
 >;
 
+/**
+ * `issue_body_mentions_change` is an internal precursor event. It records the
+ * committed recipient-set delta for notification work, while the user activity
+ * timeline filters this event from its public history.
+ */
+export const IssueBodyMentionsChangePayloadSchema = z.object({
+  recipients: z.array(z.string()),
+  added: z.array(z.string()),
+  removed: z.array(z.string()),
+  document_commit: z.string().min(1),
+});
+export type IssueBodyMentionsChangePayload = z.infer<
+  typeof IssueBodyMentionsChangePayloadSchema
+>;
+
 /** Validated caller override reserved for deterministic Jira migration keys. */
 export const JiraChangelogActivityEventKeySchema = z
   .string()
@@ -261,6 +279,7 @@ export const ACTIVITY_EVENT_TYPES = [
   ACTIVITY_EVENT_ATTACHMENT_REMOVED,
   ACTIVITY_EVENT_ISSUE_TYPE_CHANGE,
   ACTIVITY_EVENT_START_DATE_CHANGE,
+  ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE,
 ] as const;
 export type ActivityEventType = (typeof ACTIVITY_EVENT_TYPES)[number];
 
@@ -379,6 +398,11 @@ export const ActivityEventSchema = z.discriminatedUnion("event_type", [
     ...activityEventBaseShape,
     event_type: z.literal(ACTIVITY_EVENT_START_DATE_CHANGE),
     payload: StartDateChangePayloadSchema,
+  }),
+  z.object({
+    ...activityEventBaseShape,
+    event_type: z.literal(ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE),
+    payload: IssueBodyMentionsChangePayloadSchema,
   }),
 ]);
 export type ActivityEvent = z.infer<typeof ActivityEventSchema>;

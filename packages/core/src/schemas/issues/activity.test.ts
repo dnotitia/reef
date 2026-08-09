@@ -7,6 +7,7 @@ import {
   ACTIVITY_EVENT_DUE_DATE_CHANGE,
   ACTIVITY_EVENT_ESTIMATE_CHANGE,
   ACTIVITY_EVENT_IMPL_REF_LINKED,
+  ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE,
   ACTIVITY_EVENT_ISSUE_TYPE_CHANGE,
   ACTIVITY_EVENT_LABELS_CHANGE,
   ACTIVITY_EVENT_PARENT_CHANGE,
@@ -24,6 +25,7 @@ import {
   DueDateChangePayloadSchema,
   EstimateChangePayloadSchema,
   ImplRefLinkedPayloadSchema,
+  IssueBodyMentionsChangePayloadSchema,
   IssueTypeChangePayloadSchema,
   LabelsChangePayloadSchema,
   ParentChangePayloadSchema,
@@ -96,6 +98,18 @@ describe("activity payload schemas (REEF-126)", () => {
     expect(() =>
       ImplRefLinkedPayloadSchema.parse({ ref_type: "pull_request", ref: "" }),
     ).toThrow();
+  });
+
+  it("issue-body mention changes carry the committed recipient delta", () => {
+    const payload = {
+      recipients: ["alice", "bob"],
+      added: ["bob"],
+      removed: [],
+      document_commit: "commit-mentions",
+    };
+    expect(IssueBodyMentionsChangePayloadSchema.parse(payload)).toEqual(
+      payload,
+    );
   });
 });
 
@@ -287,6 +301,15 @@ describe("ActivityEventSchema discriminated union (REEF-126)", () => {
       {
         event_type: ACTIVITY_EVENT_START_DATE_CHANGE,
         payload: { from: null, to: "2026-07-21" },
+      },
+      {
+        event_type: ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE,
+        payload: {
+          recipients: ["alice"],
+          added: ["alice"],
+          removed: [],
+          document_commit: "commit-mentions",
+        },
       },
     ];
     for (const c of cases) {

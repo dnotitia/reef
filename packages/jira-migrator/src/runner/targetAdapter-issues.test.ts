@@ -364,6 +364,7 @@ describe("AKB Jira migration target", () => {
     const writeIssue = vi.fn(async () => ({
       path: "issues/reef-010.md",
       commit_hash: "commit-1",
+      issue: baseIssueReadback.issue,
     }));
     const updateIssue = vi.fn(
       async (): Promise<AkbUpdateIssueResult> => ({

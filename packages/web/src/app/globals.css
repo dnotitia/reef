@@ -451,6 +451,23 @@ hr {
   font-weight: 500;
 }
 
+/* Issue-body mentions use the same sanitized marker as comment mentions. The
+ * node is intentionally display-only; the roster-backed suggestion menu owns
+ * selection and keyboard focus while the editor retains the caret. */
+.reef-markdown-editor [data-reef-mention] {
+  color: var(--brand);
+  font-weight: 500;
+}
+
+.reef-issue-body-mention-popup {
+  z-index: 50;
+}
+
+.reef-issue-body-mention-suggestion {
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+  border-radius: 0.125rem;
+}
+
 .reef-markdown-editor
   ul[data-type="taskList"]
   > li

@@ -276,3 +276,20 @@ export function buildMentionRecipients(
   if (unresolved) return [];
   return [...new Set(usernames)];
 }
+
+/**
+ * Build the issue-body projection from the exact-case current roster.
+ * Unlike comment mentions, an unresolved issue-body token is ordinary text and
+ * must not invalidate the other resolved recipients or disclose membership.
+ */
+export function buildResolvedMentionRecipients(
+  value: string,
+  rosterUsernames: readonly string[],
+): string[] {
+  const roster = new Set(rosterUsernames);
+  return [
+    ...new Set(
+      extractMentionUsernames(value).filter((username) => roster.has(username)),
+    ),
+  ].sort();
+}

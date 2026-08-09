@@ -129,6 +129,8 @@ export const IssueMetadataSchema = z.object({
   reviewers: z.array(z.string()).optional(),
   qa_owner: z.string().nullable().optional(),
   custom_fields: z.record(z.string(), z.unknown()).optional(),
+  /** Server-derived exact-case recipients from the persisted issue body. */
+  mention_recipients: z.array(z.string().min(1)).optional(),
   archived_at: IsoDateFieldSchema.nullable().optional(),
 });
 

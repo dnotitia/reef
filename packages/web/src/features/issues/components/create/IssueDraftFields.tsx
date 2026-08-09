@@ -12,7 +12,7 @@ import {
 import { PRIORITY_OPTIONS } from "@reef/core/fields";
 import { NO_SELECTION } from "@reef/core/fields";
 import { useTranslations } from "next-intl";
-import { type ReactNode, type Ref, useId } from "react";
+import { type ComponentProps, type ReactNode, type Ref, useId } from "react";
 import type { PrioritySelection } from "../../lib/issueDraftForm";
 import { IssueFieldRow } from "../shared/IssueFieldRow";
 import { IssueFormSection } from "../shared/IssueFormSection";
@@ -39,6 +39,7 @@ interface IssueDraftFieldsProps {
   body: string;
   onBodyChange: (body: string) => void;
   vault?: string;
+  mentionConfig?: ComponentProps<typeof MarkdownEditor>["mentionConfig"];
   disabled?: boolean;
   titleAction?: ReactNode;
   titleBelow?: ReactNode;
@@ -89,6 +90,7 @@ export function IssueDraftFields({
   body,
   onBodyChange,
   vault,
+  mentionConfig,
   disabled = false,
   titleAction,
   titleBelow,
@@ -227,6 +229,7 @@ export function IssueDraftFields({
             readOnly={disabled}
             ariaLabel={t("descriptionAriaLabel")}
             vault={vault}
+            mentionConfig={mentionConfig}
           />,
         )}
       </div>

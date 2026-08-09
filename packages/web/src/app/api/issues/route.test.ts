@@ -69,6 +69,21 @@ const SAMPLE_ISSUE: IssueMetadata = {
   updated_by: "alice",
 };
 
+function makeWrittenIssue(id: string): IssueMetadata {
+  return {
+    id,
+    title: "New issue",
+    status: "backlog",
+    issue_type: "task",
+    created_at: "2026-05-01T00:00:00.000Z",
+    created_by: "carol",
+    updated_at: "2026-05-01T00:00:00.000Z",
+    updated_by: "carol",
+    source: "user:create_issue",
+    mention_recipients: [],
+  };
+}
+
 function authedHeaders(): Record<string, string> {
   return {
     cookie: `${SESSION_COOKIE}=${VALID_JWT}`,
@@ -328,6 +343,7 @@ describe("POST /api/issues", () => {
     mockAkbWriteIssue.mockResolvedValueOnce({
       path: "issues/reef-007.md",
       commit_hash: "abc1234",
+      issue: makeWrittenIssue("REEF-007"),
     });
     const req = new Request("http://localhost/api/issues", {
       method: "POST",
@@ -382,6 +398,7 @@ describe("POST /api/issues", () => {
     mockAkbWriteIssue.mockResolvedValueOnce({
       path: "issues/reef-007.md",
       commit_hash: "abc1234",
+      issue: makeWrittenIssue("REEF-007"),
     });
     const req = new Request("http://localhost/api/issues", {
       method: "POST",

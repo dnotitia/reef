@@ -17,11 +17,13 @@ import {
 } from "@/lib/akb/markdownDocumentLinks";
 import { cn } from "@/lib/utils";
 import { useAkbWebUrl } from "@/providers/AkbWebUrlProvider";
+import type { VaultMember } from "@reef/core";
 import Image from "@tiptap/extension-image";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Markdown } from "@tiptap/markdown";
 import {
+  type AnyExtension,
   type Editor,
   EditorContent,
   useEditor,
@@ -54,6 +56,11 @@ import {
   useRef,
   useState,
 } from "react";
+import {
+  createIssueBodyMentionExtension,
+  prepareIssueBodyMentionMarkdown,
+  type IssueBodyMentionExtensionOptions,
+} from "./issueBodyMentionExtension";
 
 /**
  * Shared height policy for both editor surfaces — the WYSIWYG body and the
@@ -107,6 +114,17 @@ export interface MarkdownEditorProps {
   onUploadFiles?: (files: File[]) => Promise<AttachmentMarkdownUploadResult[]>;
   /** Resolve stored image URLs (for example akb:// file URIs) for WYSIWYG paint. */
   resolveImageSrc?: (src: string) => string;
+  /**
+   * Enables issue-body-only member mentions. Omit this everywhere else so the
+   * shared editor keeps its existing schema and interaction contract.
+   */
+  mentionConfig?: MarkdownEditorMentionConfig;
+}
+
+export interface MarkdownEditorMentionConfig {
+  members: readonly VaultMember[];
+  suggestionsLabel: string;
+  mentionOptionLabel: (username: string) => string;
 }
 
 /** Active-state flags for every toolbar control, derived from the selection. */
@@ -167,8 +185,9 @@ function createImageExtension(resolveImageSrc?: (src: string) => string) {
 export function createMarkdownEditorExtensions(
   placeholder: string,
   resolveImageSrc?: (src: string) => string,
+  mentionConfig?: IssueBodyMentionExtensionOptions,
 ) {
-  return [
+  const extensions: AnyExtension[] = [
     // StarterKit v3 bundles the Link extension; configure it here rather than
     // registering a second @tiptap/extension-link (which warns about a
     // duplicate 'link' extension and leaves link behavior ambiguous).
@@ -193,6 +212,10 @@ export function createMarkdownEditorExtensions(
       showOnlyCurrent: false,
     }),
   ];
+  if (mentionConfig) {
+    extensions.push(createIssueBodyMentionExtension(mentionConfig));
+  }
+  return extensions;
 }
 
 function findClickedEditorLink(
@@ -342,13 +365,36 @@ function ToolbarDivider() {
 function syncEditorMarkdown(
   editor: Editor | null | undefined,
   markdown: string,
+  mentionMembers?: readonly VaultMember[],
 ) {
   if (!editor || editor.isDestroyed) return;
   if (editor.getMarkdown() === markdown) return;
-  editor.commands.setContent(markdown, {
-    contentType: "markdown",
-    emitUpdate: false,
-  });
+  editor.commands.setContent(
+    mentionMembers
+      ? prepareIssueBodyMentionMarkdown(markdown, mentionMembers)
+      : markdown,
+    {
+      contentType: "markdown",
+      emitUpdate: false,
+    },
+  );
+}
+
+function setEditorMarkdown(
+  editor: Editor | null | undefined,
+  markdown: string,
+  mentionMembers?: readonly VaultMember[],
+) {
+  if (!editor || editor.isDestroyed) return;
+  editor.commands.setContent(
+    mentionMembers
+      ? prepareIssueBodyMentionMarkdown(markdown, mentionMembers)
+      : markdown,
+    {
+      contentType: "markdown",
+      emitUpdate: false,
+    },
+  );
 }
 
 /**
@@ -381,6 +427,7 @@ export function MarkdownEditor({
   vault,
   onUploadFiles,
   resolveImageSrc,
+  mentionConfig,
 }: MarkdownEditorProps) {
   const t = useTranslations("markdownEditor");
   const c = useTranslations("common");
@@ -407,6 +454,16 @@ export function MarkdownEditor({
     new WeakMap<HTMLAnchorElement, number>(),
   );
   const linkSelectionRef = useRef<EditorSelectionRange | null>(null);
+  const mentionMembersRef = useRef<readonly VaultMember[]>([]);
+  const previousMentionRosterRef = useRef<string | null>(null);
+
+  const mentionRosterFingerprint = mentionConfig
+    ? mentionConfig.members.map((member) => member.username).join("\u0000")
+    : null;
+
+  useEffect(() => {
+    mentionMembersRef.current = mentionConfig?.members ?? [];
+  }, [mentionConfig?.members]);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -443,12 +500,16 @@ export function MarkdownEditor({
         if (next === latestValueRef.current) return;
         latestValueRef.current = next;
         onChangeRef.current(next);
-        syncEditorMarkdown(ed ?? editorRef.current, next);
+        syncEditorMarkdown(
+          ed ?? editorRef.current,
+          next,
+          mentionConfig ? mentionMembersRef.current : undefined,
+        );
         const root = rootRef.current;
         if (!root?.contains(document.activeElement)) onBlurRef.current?.(next);
       });
     },
-    [vault],
+    [mentionConfig, vault],
   );
 
   function publishMarkdown(rawMarkdown: string, ed?: Editor | null) {
@@ -457,7 +518,13 @@ export function MarkdownEditor({
       resolvedTitleMapRef.current,
     );
     latestValueRef.current = markdown;
-    if (markdown !== rawMarkdown) syncEditorMarkdown(ed, markdown);
+    if (markdown !== rawMarkdown) {
+      syncEditorMarkdown(
+        ed,
+        markdown,
+        mentionConfig ? mentionMembersRef.current : undefined,
+      );
+    }
     onChangeRef.current(markdown);
     queueAkbTitleResolution(markdown, ed);
   }
@@ -467,11 +534,23 @@ export function MarkdownEditor({
     // hydration mismatch — the editor mounts on the client just.
     immediatelyRender: false,
     /* eslint-disable react-hooks/refs -- Tiptap invokes this renderer after React render; the effect-updated ref preserves the latest attachment resolver without recreating the editor. */
-    extensions: createMarkdownEditorExtensions(placeholder, (src) => {
-      return resolveImageSrcRef.current?.(src) ?? src;
-    }),
+    extensions: createMarkdownEditorExtensions(
+      placeholder,
+      (src) => {
+        return resolveImageSrcRef.current?.(src) ?? src;
+      },
+      mentionConfig
+        ? {
+            membersRef: mentionMembersRef,
+            suggestionsLabel: mentionConfig.suggestionsLabel,
+            mentionOptionLabel: mentionConfig.mentionOptionLabel,
+          }
+        : undefined,
+    ),
     /* eslint-enable react-hooks/refs */
-    content: value,
+    content: mentionConfig
+      ? prepareIssueBodyMentionMarkdown(value, mentionConfig.members)
+      : value,
     contentType: "markdown",
     editable: !readOnly,
     editorProps: {
@@ -483,6 +562,9 @@ export function MarkdownEditor({
           "px-3 py-2 max-w-none",
         ),
         ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
+        ...(mentionConfig
+          ? { "aria-autocomplete": "list", "aria-expanded": "false" }
+          : {}),
       },
       handleDOMEvents: {
         mousedown: (view, event) =>
@@ -589,14 +671,32 @@ export function MarkdownEditor({
       // contentType: 'markdown' is required so the @tiptap/markdown extension parses the
       // string through marked; without it, Tiptap treats input as HTML and raw markdown
       // shows up as plain text. emitUpdate: false avoids retriggering onChange.
-      editor.commands.setContent(normalized, {
-        contentType: "markdown",
-        emitUpdate: false,
-      });
+      setEditorMarkdown(
+        editor,
+        normalized,
+        mentionConfig ? mentionMembersRef.current : undefined,
+      );
     }
     lastSyncedValueRef.current = normalized;
     queueAkbTitleResolution(normalized, editor);
-  }, [editor, queueAkbTitleResolution, value]);
+  }, [editor, mentionConfig, queueAkbTitleResolution, value]);
+
+  useEffect(() => {
+    if (!mentionConfig || !editor) return;
+    if (previousMentionRosterRef.current === mentionRosterFingerprint) return;
+    previousMentionRosterRef.current = mentionRosterFingerprint;
+
+    const selection = editor.state.selection;
+    const currentMarkdown = latestValueRef.current;
+    setEditorMarkdown(editor, currentMarkdown, mentionMembersRef.current);
+    const documentSize = editor.state.doc.content.size;
+    if (documentSize > 0 && typeof selection.from === "number") {
+      editor.commands.setTextSelection({
+        from: Math.min(selection.from, documentSize),
+        to: Math.min(selection.to, documentSize),
+      });
+    }
+  }, [editor, mentionConfig, mentionRosterFingerprint]);
 
   useEffect(() => {
     if (rootRef.current) {
@@ -628,10 +728,11 @@ export function MarkdownEditor({
     latestValueRef.current = newValue;
     onChange(newValue);
     if (editor) {
-      editor.commands.setContent(newValue, {
-        contentType: "markdown",
-        emitUpdate: false,
-      });
+      setEditorMarkdown(
+        editor,
+        newValue,
+        mentionConfig ? mentionMembersRef.current : undefined,
+      );
     }
     queueAkbTitleResolution(newValue, editor);
   }
@@ -641,10 +742,11 @@ export function MarkdownEditor({
     if (next === latestValueRef.current) return;
     latestValueRef.current = next;
     onChange(next);
-    editor?.commands.setContent(next, {
-      contentType: "markdown",
-      emitUpdate: false,
-    });
+    setEditorMarkdown(
+      editor,
+      next,
+      mentionConfig ? mentionMembersRef.current : undefined,
+    );
     // The native file picker can move focus outside the editor before the
     // asynchronous upload finishes. In that case the ordinary blur commit has
     // already saved the pre-upload body, so commit the completed insertion now.

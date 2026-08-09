@@ -47,6 +47,10 @@ explicitly in the entries below.
 - **Comment mentions now use exact-case vault-roster autocomplete, canonical
   escaped tokens, save-time validation, and projection-gated rendering.**
   (REEF-452)
+- **Issue-body mentions now use opt-in editor autocomplete with the canonical
+  mention parser, while create/update writes derive current-roster recipients
+  into issue metadata and record commit-bound internal deltas without exposing
+  them in the user activity timeline.** (REEF-453)
 - **Jira comment ADF mentions now reuse the canonical Reef mention serializer.**
   Mapped accounts are gated by the exact target-vault member roster, unsafe
   usernames use braced escaping, unresolved accounts remain non-identifying

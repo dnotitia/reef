@@ -1,5 +1,6 @@
 import { useViewStore } from "@/features/ui/stores/useViewStore";
 import type { IssueMetadata } from "@reef/core";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { useState } from "react";
@@ -39,7 +40,14 @@ beforeEach(() => {
 function renderMain(
   overrides: Partial<Parameters<typeof IssueDetailMain>[0]> = {},
 ) {
-  return render(renderMainElement(overrides));
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      {renderMainElement(overrides)}
+    </QueryClientProvider>,
+  );
 }
 
 /**
@@ -75,7 +83,14 @@ describe("IssueDetailMain autosave boundaries", () => {
       return renderMainElement({ title, setTitle, commitTitle });
     }
 
-    render(<TitleHarness />);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TitleHarness />
+      </QueryClientProvider>,
+    );
 
     const input = screen.getByTestId("issue-title-input");
     fireEvent.change(input, { target: { value: "Renamed title" } });

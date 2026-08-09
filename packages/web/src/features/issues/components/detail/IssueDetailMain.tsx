@@ -4,6 +4,7 @@ import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useViewStore } from "@/features/ui/stores/useViewStore";
+import { useVaultRoster } from "@/features/settings/hooks/useVaultRoster";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import type {
   ExternalRef,
@@ -14,7 +15,7 @@ import type {
 } from "@reef/core";
 import { Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
-import type { ComponentProps } from "react";
+import { useMemo, type ComponentProps } from "react";
 import { ActivityTimeline } from "../activity/ActivityTimeline";
 import { IssueAttachments } from "../attachments/IssueAttachments";
 import { IssueLinkedDocuments } from "../refs/IssueLinkedDocuments";
@@ -71,7 +72,18 @@ export function IssueDetailMain({
   const fieldNames = useFieldNameLabels();
   const t = useTranslations("issues.detail");
   const tr = useTranslations("issues.relations");
+  const markdownEditor = useTranslations("markdownEditor");
+  const { data: vaultMembers = [] } = useVaultRoster(vault);
   const openNewIssueDialog = useViewStore((state) => state.openNewIssueDialog);
+  const issueBodyMentionConfig = useMemo(
+    () => ({
+      members: vaultMembers,
+      suggestionsLabel: markdownEditor("mentionSuggestions"),
+      mentionOptionLabel: (username: string) =>
+        markdownEditor("mentionOption", { username: `@${username}` }),
+    }),
+    [markdownEditor, vaultMembers],
+  );
 
   function handleAddSubIssue() {
     if (!issue) return;
@@ -146,6 +158,7 @@ export function IssueDetailMain({
           placeholder={t("descriptionPlaceholder")}
           ariaLabel={t("descriptionAriaLabel")}
           vault={vault}
+          mentionConfig={issueBodyMentionConfig}
         />
       </div>
 

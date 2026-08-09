@@ -108,6 +108,7 @@ describe("AKB Jira migration target", () => {
     const writeIssue = vi.fn(async () => ({
       path: "issues/reef-011.md",
       commit_hash: "commit-1",
+      issue,
     }));
     const target = createAkbJiraMigrationTarget(
       {

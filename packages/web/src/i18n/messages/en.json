@@ -1392,7 +1392,9 @@
     "toggleSourceMode": "Toggle source mode",
     "apply": "Apply",
     "uploading": "Uploading attachment…",
-    "uploadError": "Couldn't upload that file."
+    "uploadError": "Couldn't upload that file.",
+    "mentionSuggestions": "Mention suggestions",
+    "mentionOption": "Mention {username}"
   },
   "misc": {
     "offlineBanner": "You're offline — viewing cached data. Changes will sync when you reconnect.",
