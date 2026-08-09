@@ -63,4 +63,68 @@ test.describe("Hermetic Ask AI tool transparency (REEF-372)", () => {
     await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/REEF-001$/);
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
   });
+
+  test("keeps the workspace session across a close/reopen second run", async ({
+    page,
+  }) => {
+    const agentRunStatuses: number[] = [];
+    page.on("response", (response) => {
+      if (new URL(response.url()).pathname === "/api/agents/runs") {
+        agentRunStatuses.push(response.status());
+      }
+    });
+
+    await openExistingWorkspace(page);
+    await page.locator('[data-testid="ask-ai-fab"]').click();
+
+    const firstAssistant = page
+      .locator('[data-testid="assistant-message"]')
+      .last();
+    await page
+      .locator('[data-testid="ask-ai-input"]')
+      .fill(
+        "tool transparency e2e: search for REEF-001 Initial issue Alpha and show its link.",
+      );
+    await page.locator('[data-testid="ask-ai-send"]').click();
+    await expect(firstAssistant).toContainText("REEF-001", {
+      timeout: 15_000,
+    });
+    const firstTrace = firstAssistant.locator(
+      '[data-testid="chat-tool-trace"]',
+    );
+    await expect(firstTrace).toContainText("2 steps");
+    await firstTrace.locator('button[aria-expanded="false"]').click();
+    await expect(firstTrace).toContainText("Searched issues");
+    await expect(firstTrace).toContainText("Searched documents");
+    await expect(
+      firstAssistant.locator('a[href="/workspace/reef-e2e/issues/REEF-001"]'),
+    ).toHaveText("REEF-001");
+
+    await page.locator('[data-testid="ask-ai-close"]').click();
+    await expect(page.locator('[data-testid="ask-ai-dialog"]')).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+    await page.locator('[data-testid="ask-ai-fab"]').click();
+    await expect(page.locator('[data-testid="ask-ai-dialog"]')).toHaveAttribute(
+      "aria-hidden",
+      "false",
+    );
+
+    await page
+      .locator('[data-testid="ask-ai-input"]')
+      .fill("REEF-002 Initial issue Beta에 대해 알려줘.");
+    await page.locator('[data-testid="ask-ai-send"]').click();
+
+    const secondAssistant = page
+      .locator('[data-testid="assistant-message"]')
+      .last();
+    await expect(secondAssistant).toContainText("REEF-002 Initial issue Beta", {
+      timeout: 15_000,
+    });
+    expect(agentRunStatuses).toEqual([200, 200]);
+    await expect(
+      page.getByText("워크스페이스 세션이 없거나 올바르지 않습니다."),
+    ).toHaveCount(0);
+  });
 });

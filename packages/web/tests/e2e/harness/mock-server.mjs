@@ -2818,9 +2818,9 @@ async function streamOpenRouterChunks(
 }
 
 function isToolLoopPromptTurn(body) {
-  return collectStrings(body?.messages ?? body?.input).some((value) =>
-    value.toLowerCase().includes(TOOL_LOOP_E2E_PROMPT),
-  );
+  return lastUserMessageText(body?.messages ?? body?.input)
+    .toLowerCase()
+    .includes(TOOL_LOOP_E2E_PROMPT);
 }
 
 function isToolLoopResultTurn(body) {
@@ -2848,21 +2848,6 @@ function hasFunctionCallOutput(value, callId) {
   return Object.values(value).some((item) =>
     hasFunctionCallOutput(item, callId),
   );
-}
-
-function collectStrings(value, strings = []) {
-  if (typeof value === "string") {
-    strings.push(value);
-    return strings;
-  }
-  if (Array.isArray(value)) {
-    for (const item of value) collectStrings(item, strings);
-    return strings;
-  }
-  if (value && typeof value === "object") {
-    for (const item of Object.values(value)) collectStrings(item, strings);
-  }
-  return strings;
 }
 
 function sleep(ms) {
