@@ -425,19 +425,35 @@ preserves all query values, and redirects to that vault's `/issues` surface.
 Malformed, inaccessible, and Reef-unconfigured vault roots never fall back to a
 different remembered vault or overwrite the browser default.
 
-**Kanban Board.** Five columns, one per status (Open, In Progress, In Review,
-Done, Closed), populated by drag-and-drop (`@dnd-kit`). A short drag distance
-distinguishes a drag from a click, so a click opens the issue's detail
-slide-over and a drag moves it. Dropping onto **Closed** opens a close-reason
-dialog (closing requires a reason); other moves commit immediately. Each card
-shows a status glyph, the monospace ID, a type pill, an optional "Blocked"
-badge, the title (two-line clamp), and a compact meta row (priority dot +
-label, assignee, start/due dates, sprint/release chips). Blocked state is
-computed from the dependency graph projected over the whole vault, so badges
-stay correct even when the board view is filtered.
+**Kanban Board.** The board presents its issue collection as buckets by Status,
+Priority, Assignee, Sprint, or Label; Status uses the five workflow columns
+(Open, In Progress, In Review, Done, Closed). The grouping choice is the
+`?group=` part of the shareable workspace URL and survives reload, back/forward,
+and Board/List switches; Board defaults to Status. A short drag distance
+distinguishes a drag from a click, so a click opens the issue's detail slide-over
+and a drag moves it. Status, Priority, Assignee, and Sprint buckets accept drops,
+including a None bucket for nullable fields; same-value drops make no request.
+Dropping onto **Closed** opens a close-reason dialog (closing requires a reason).
+Label buckets are explicitly read-only, with a translated hover/focus
+explanation, while card click and keyboard detail opening remain available. Each
+card shows a status glyph, the monospace ID, a type pill, an optional "Blocked"
+badge, the title (two-line clamp), and a compact meta row (priority dot + label,
+assignee, start/due dates, sprint/release chips). Blocked state is computed from
+the dependency graph projected over the whole vault, so badges stay correct even
+when the board view is filtered.
 
 **List.** A dense, sortable table rendering the same issues with their field
-leaves.
+leaves. It defaults to no grouping, and can group by None, Status, Priority,
+Assignee, Sprint, or Label. Each populated bucket has a sticky, keyboard-focusable
+header with a localized label, count, and `aria-expanded` collapse control;
+collapsed rows leave the virtual item count and header count intact while their
+DOM rows are removed. Multi-label issues occur once under each distinct label,
+but selection and mutation still use the issue id. Group headers and rows share
+the existing TanStack Virtual projection, cursor loading, bounded DOM,
+selection, focus, quick-edit, sticky-column, and anchor-preservation behavior.
+Grouping is UI-local: it is not stored in Dexie or akb, while the group choice
+itself remains in the URL for sharing and navigation. Timeline and Backlog
+ignore the group choice.
 
 **Multi-select and bulk edit.** List owns multi-select because its leading
 checkbox column and field-comparison layout fit batch work. Rows expose compact

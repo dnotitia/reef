@@ -271,6 +271,45 @@ test.describe("large issue list virtualization", () => {
     expect(Math.abs(after - before)).toBeLessThan(240);
   });
 
+  test("keeps a grouped deep list bounded while loading cursor pages and preserving focus/selection", async ({
+    page,
+  }) => {
+    const requests = issueListRequests(page);
+    await openLargeList(page, "group=priority&labels=large-fixture");
+
+    await expect
+      .poll(() => page.locator('[data-testid="issue-list-row"]').count())
+      .toBeLessThanOrEqual(50);
+    await expect(
+      page.locator('[data-testid="issue-group-header"]').first(),
+    ).toBeVisible();
+
+    const first = page.locator('[data-issue-id="REEF-0101"]').first();
+    const second = page.locator('[data-issue-id="REEF-0102"]').first();
+    await page.locator('[data-testid="issue-list-row"]').first().focus();
+    for (let index = 0; index < 99; index += 1) {
+      await page.keyboard.press("j");
+    }
+    await expect(first).toBeVisible({ timeout: 15_000 });
+    await expect(first).toHaveAttribute("data-keyboard-focused", "true");
+    await first.getByTestId("issue-row-checkbox").click();
+    await second
+      .getByTestId("issue-row-checkbox")
+      .click({ modifiers: ["Shift"] });
+    await expect(first).toHaveAttribute("aria-selected", "true");
+    await expect(second).toHaveAttribute("aria-selected", "true");
+
+    const cursorResponse = waitForIssueListPage(page, true);
+    await scrollToListEnd(page);
+    await cursorResponse;
+    expect(
+      requests.filter((raw) => new URL(raw).searchParams.has("cursor")).length,
+    ).toBeGreaterThan(0);
+    await expect
+      .poll(() => page.locator('[data-testid="issue-list-row"]').count())
+      .toBeLessThanOrEqual(50);
+  });
+
   test("keeps hard-load CLS below budget and still renders a finite sibling view", async ({
     page,
     request,

@@ -252,4 +252,132 @@ describe("KanbanBoard drag and status updates", () => {
       mockApiFetch.mock.calls.some(([url]) => url === "/api/issues/REEF-001"),
     ).toBe(false);
   });
+
+  it("uses the shared bulk patch path for a writable priority group", async () => {
+    mockApiFetch.mockImplementation(async (url, init) => {
+      if ((url as string).startsWith("/api/issues?vault=reef-acme")) {
+        return new Response(JSON.stringify({ issues: FILTER_ISSUES }), {
+          status: 200,
+        });
+      }
+      if (url === "/api/issues/REEF-010" && init?.method === "PATCH") {
+        return new Response(
+          JSON.stringify({
+            issue: { ...FILTER_ISSUES[0], priority: "low" },
+            content: "",
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response("{}", { status: 500 });
+    });
+
+    render(wrap(<KanbanBoard vault="reef-acme" groupBy="priority" />));
+    await screen.findByText("UI board polish");
+
+    act(() => {
+      dndHarness.contextProps?.onDragEnd?.({
+        active: { data: { current: { issue: FILTER_ISSUES[0] } } },
+        over: { id: "priority:low" },
+      });
+    });
+
+    await waitFor(() =>
+      expect(mockApiFetch).toHaveBeenCalledWith(
+        "/api/issues/REEF-010",
+        expect.objectContaining({ method: "PATCH" }),
+      ),
+    );
+    const patchCall = mockApiFetch.mock.calls.find(
+      ([url, init]) =>
+        url === "/api/issues/REEF-010" && init?.method === "PATCH",
+    );
+    expect(JSON.parse(patchCall?.[1]?.body as string).update.patch).toEqual({
+      priority: "low",
+    });
+  });
+
+  it("writes null when a writable grouped field targets None and skips same-value drops", async () => {
+    mockApiFetch.mockImplementation(async (url, init) => {
+      if ((url as string).startsWith("/api/issues?vault=reef-acme")) {
+        return new Response(JSON.stringify({ issues: FILTER_ISSUES }), {
+          status: 200,
+        });
+      }
+      if (url === "/api/issues/REEF-010" && init?.method === "PATCH") {
+        return new Response(
+          JSON.stringify({
+            issue: { ...FILTER_ISSUES[0], priority: null },
+            content: "",
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response("{}", { status: 500 });
+    });
+
+    render(wrap(<KanbanBoard vault="reef-acme" groupBy="priority" />));
+    await screen.findByText("UI board polish");
+
+    act(() => {
+      dndHarness.contextProps?.onDragEnd?.({
+        active: { data: { current: { issue: FILTER_ISSUES[0] } } },
+        over: { id: "priority:none" },
+      });
+      dndHarness.contextProps?.onDragEnd?.({
+        active: { data: { current: { issue: FILTER_ISSUES[0] } } },
+        over: { id: "priority:high" },
+      });
+    });
+
+    await waitFor(() =>
+      expect(mockApiFetch).toHaveBeenCalledWith(
+        "/api/issues/REEF-010",
+        expect.objectContaining({ method: "PATCH" }),
+      ),
+    );
+    const patchCalls = mockApiFetch.mock.calls.filter(
+      ([url, init]) =>
+        url === "/api/issues/REEF-010" && init?.method === "PATCH",
+    );
+    expect(patchCalls).toHaveLength(1);
+    expect(JSON.parse(patchCalls[0]?.[1]?.body as string).update.patch).toEqual(
+      {
+        priority: null,
+      },
+    );
+  });
+
+  it("disables sensors and drops for label groups while retaining issue cards", async () => {
+    mockApiFetch.mockImplementation(async (url) => {
+      if ((url as string).startsWith("/api/issues?vault=reef-acme")) {
+        return new Response(JSON.stringify({ issues: FILTER_ISSUES }), {
+          status: 200,
+        });
+      }
+      return new Response("{}", { status: 500 });
+    });
+
+    render(wrap(<KanbanBoard vault="reef-acme" groupBy="label" />));
+    await screen.findByText("UI board polish");
+
+    expect(dndHarness.contextProps?.sensors).toEqual([]);
+    expect(screen.getAllByTestId("kanban-card").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByTitle(/Label groups are read-only/i).length,
+    ).toBeGreaterThan(0);
+
+    act(() => {
+      dndHarness.contextProps?.onDragEnd?.({
+        active: { data: { current: { issue: FILTER_ISSUES[0] } } },
+        over: { id: "label:ui" },
+      });
+    });
+    expect(
+      mockApiFetch.mock.calls.some(
+        ([url, init]) =>
+          url === "/api/issues/REEF-010" && init?.method === "PATCH",
+      ),
+    ).toBe(false);
+  });
 });

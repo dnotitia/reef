@@ -5,6 +5,7 @@ import "fake-indexeddb/auto";
 import { setPersistedIssueFilter } from "@/lib/storage/config";
 import { db } from "@/lib/storage/db";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useIssueStore } from "../../stores/useIssueStore";
@@ -49,7 +50,7 @@ vi.mock("@/features/settings/hooks/useActiveVault", () => ({
 }));
 
 function Harness() {
-  useIssueUrlSync();
+  const { groupBy, setGroupBy } = useIssueUrlSync();
   const setFilter = useIssueStore((state) => state.setFilter);
   const applyFilter = useIssueStore((state) => state.applyFilter);
 
@@ -61,6 +62,10 @@ function Harness() {
       <button type="button" onClick={() => setFilter({ priority: ["high"] })}>
         Set priority
       </button>
+      <button type="button" onClick={() => setGroupBy("label")}>
+        Set group
+      </button>
+      <output data-testid="group-by">{groupBy}</output>
       <button
         type="button"
         onClick={() =>
@@ -153,6 +158,37 @@ describe("useIssueUrlSync", () => {
     // URL-wins keeps skipNextWrite, so neither push nor replace fires.
     expect(mockPush).not.toHaveBeenCalled();
     expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it("normalizes an invalid group URL to the view default while preserving filters", async () => {
+    navigationState.searchParams = new URLSearchParams(
+      "view=list&group=not-a-group&status=todo",
+    );
+
+    render(<Harness />);
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/workspace/reef-acme/issues?view=list&group=none&status=todo",
+        { scroll: false },
+      );
+    });
+    expect(screen.getByTestId("group-by")).toHaveTextContent("none");
+  });
+
+  it("pushes a group selection without dropping view or filters", async () => {
+    navigationState.searchParams = new URLSearchParams(
+      "view=list&group=none&status=todo",
+    );
+    const user = userEvent.setup();
+
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "Set group" }));
+
+    expect(mockPush).toHaveBeenCalledWith(
+      "/workspace/reef-acme/issues?view=list&group=label&status=todo",
+      { scroll: false },
+    );
   });
 
   it("ignores an orphaned order param with no sort field (REEF-059)", async () => {
@@ -347,6 +383,19 @@ describe("useIssueUrlSync", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Set status" }));
     await Promise.resolve();
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it("does not push a group selection onto a detail route", async () => {
+    navigationState.pathname = "/workspace/reef-acme/issues/REEF-001";
+    navigationState.searchParams = new URLSearchParams("view=list&group=none");
+
+    render(<Harness />);
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Set group" }));
+
     expect(mockPush).not.toHaveBeenCalled();
     expect(mockReplace).not.toHaveBeenCalled();
   });

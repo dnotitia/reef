@@ -72,6 +72,22 @@ describe("FilterBar", () => {
     expect(screen.getByTestId("labels-input")).toBeTruthy();
   });
 
+  it("offers view-scoped group choices and writes the selected group", async () => {
+    const user = userEvent.setup();
+    const setGroupBy = vi.fn();
+    renderFilterBar({
+      view: "list",
+      groupBy: "none",
+      setGroupBy,
+    });
+
+    await user.click(screen.getByTestId("display-options-trigger"));
+    expect(screen.getByTestId("group-by-none")).toBeInTheDocument();
+    expect(screen.getByTestId("group-by-label")).toBeInTheDocument();
+    await user.click(screen.getByTestId("group-by-label"));
+    expect(setGroupBy).toHaveBeenCalledWith("label");
+  });
+
   it("keeps Milestone a single-select value field with a readable panel; Sprint/Release are multi-select chips (REEF-267)", async () => {
     const user = userEvent.setup();
     vi.mocked(useActiveVault).mockReturnValue({

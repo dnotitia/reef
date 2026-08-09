@@ -6,8 +6,14 @@ import { withVault } from "@/lib/workspaceHref";
 import { StatusEnum, USER_SORT_FIELDS } from "@reef/core";
 import { type UserSortField, naturalSortOrder } from "@reef/core/fields";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { type RefObject, useEffect, useRef } from "react";
+import { type RefObject, useCallback, useEffect, useRef } from "react";
 import { type IssueFilter, useIssueStore } from "../../stores/useIssueStore";
+import {
+  parseIssueGroupBy,
+  serializeIssueGroupBy,
+  type IssueGroupBy,
+} from "../../lib/groupBy";
+import { parseViewParam } from "../../lib/viewMode";
 
 /**
  * The list/board workspace is scoped to the vault's issues list
@@ -40,6 +46,8 @@ const ISSUE_QUERY_KEYS = [
   "order",
   "q",
 ] as const;
+
+const GROUP_QUERY_KEY = "group";
 
 function readIssueUrlState(searchParams: URLSearchParams): {
   filter: IssueFilter;
@@ -150,7 +158,10 @@ function normalizeRestoredSort(filter: IssueFilter): IssueFilter {
 }
 
 function hasIssueQueryParams(searchParams: URLSearchParams): boolean {
-  return ISSUE_QUERY_KEYS.some((key) => searchParams.has(key));
+  return (
+    searchParams.has(GROUP_QUERY_KEY) ||
+    ISSUE_QUERY_KEYS.some((key) => searchParams.has(key))
+  );
 }
 
 function buildIssueSearchParams(
@@ -223,13 +234,19 @@ function normalizeParams(query: string): string {
  * the restore's own write is marked; user edits (including ones made while the
  * restore is still in flight) are left unmarked and saved normally.
  */
-export function useIssueUrlSync(): { skipNextSave: RefObject<boolean> } {
+export function useIssueUrlSync(): {
+  skipNextSave: RefObject<boolean>;
+  groupBy: IssueGroupBy;
+  setGroupBy: (groupBy: IssueGroupBy) => void;
+} {
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
   const { vault } = useActiveVault();
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const view = parseViewParam(searchParams.get("view"));
+  const groupBy = parseIssueGroupBy(searchParams.get(GROUP_QUERY_KEY), view);
 
   // Gates URL writeback. Set as soon as the hydration source is decided
   // (synchronously, before any async restore settles) so a user filter change —
@@ -418,5 +435,33 @@ export function useIssueUrlSync(): { skipNextSave: RefObject<boolean> } {
     }
   }, [filter, pathname, router, searchParams, searchQuery, vault]);
 
-  return { skipNextSave };
+  useEffect(() => {
+    if (
+      pathname !== withVault(vault, ISSUES_LIST_BASE) ||
+      (view !== "board" && view !== "list")
+    ) {
+      return;
+    }
+    const rawGroupBy = searchParams.get(GROUP_QUERY_KEY);
+    if (rawGroupBy === null) return;
+    const normalized = serializeIssueGroupBy(groupBy);
+    if (rawGroupBy === normalized) return;
+
+    const params = new URLSearchParams(searchParams);
+    params.set(GROUP_QUERY_KEY, normalized);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [groupBy, pathname, router, searchParams, vault, view]);
+
+  const setGroupBy = useCallback(
+    (nextGroupBy: IssueGroupBy) => {
+      if (pathname !== withVault(vault, ISSUES_LIST_BASE)) return;
+      if (view !== "board" && view !== "list") return;
+      const params = new URLSearchParams(searchParams);
+      params.set(GROUP_QUERY_KEY, serializeIssueGroupBy(nextGroupBy));
+      router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [pathname, router, searchParams, vault, view],
+  );
+
+  return { skipNextSave, groupBy, setGroupBy };
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import type { Status } from "@reef/core";
+import type { IssueGroupBy, IssueWorkspaceView } from "../../lib/groupBy";
 import { FilterBar } from "./FilterBar";
 import { SearchBar } from "./SearchBar";
 
@@ -10,11 +11,17 @@ interface IssueFilterToolbarProps {
   backlogScope?: boolean;
   /** Forwarded to FilterBar to restrict the Status facet per view. */
   statusOptions?: readonly Status[];
+  view?: IssueWorkspaceView;
+  groupBy?: IssueGroupBy;
+  setGroupBy?: (groupBy: IssueGroupBy) => void;
 }
 
 export function IssueFilterToolbar({
   backlogScope = false,
   statusOptions,
+  view,
+  groupBy,
+  setGroupBy,
 }: IssueFilterToolbarProps) {
   return (
     <div
@@ -22,7 +29,13 @@ export function IssueFilterToolbar({
       data-testid="issue-filter-toolbar"
     >
       <SearchBar />
-      <FilterBar backlogScope={backlogScope} statusOptions={statusOptions} />
+      <FilterBar
+        backlogScope={backlogScope}
+        statusOptions={statusOptions}
+        view={view}
+        groupBy={groupBy}
+        setGroupBy={setGroupBy}
+      />
     </div>
   );
 }
