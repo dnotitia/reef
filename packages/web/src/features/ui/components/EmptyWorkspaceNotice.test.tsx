@@ -32,6 +32,8 @@ describe("EmptyWorkspaceNotice", () => {
       "px-6",
       "py-12",
     );
+    expect(notice.tagName).toBe("DIV");
+    expect(notice).not.toHaveAttribute("role", "region");
     expect(notice).not.toHaveClass("rounded-lg", "border-dashed");
     expect(screen.getByText(/Pick a workspace/i)).toBeInTheDocument();
     expect(screen.getByText(/to get started\./i)).toBeInTheDocument();

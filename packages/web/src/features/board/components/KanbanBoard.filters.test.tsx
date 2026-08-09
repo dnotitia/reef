@@ -202,14 +202,21 @@ describe("KanbanBoard filtering and rendering", () => {
     render(wrap(<KanbanBoard vault="reef-acme" />));
 
     const frame = await screen.findByTestId("kanban-no-matches");
-    expect(
-      within(frame).getByRole("heading", { name: "No matching issues" }),
-    ).toBeInTheDocument();
-    expect(
-      within(frame).getByText(
-        "Try widening your filters or search to see more issues.",
-      ),
-    ).toBeInTheDocument();
+    const heading = within(frame).getByRole("heading", {
+      name: "No matching issues",
+    });
+    const description = within(frame).getByText(
+      "Try widening your filters or search to see more issues.",
+    );
+    expect(frame.tagName).toBe("SECTION");
+    expect(frame).toHaveAccessibleName("No matching issues");
+    expect(frame).toHaveAccessibleDescription(
+      "Try widening your filters or search to see more issues.",
+    );
+    expect(frame).toHaveAttribute("aria-labelledby", heading.id);
+    expect(frame).toHaveAttribute("aria-describedby", description.id);
+    expect(heading).toBeInTheDocument();
+    expect(description).toBeInTheDocument();
     expect(
       within(frame).getByRole("button", { name: "Clear filters" }),
     ).toBeInTheDocument();

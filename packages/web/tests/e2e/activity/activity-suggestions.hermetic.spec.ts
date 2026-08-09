@@ -60,6 +60,17 @@ test.describe("Hermetic activity suggestion workflows", () => {
     await page.goto(`/workspace/${REEF_E2E_VAULT}/suggestions`);
 
     const emptyState = page.getByTestId("activity-empty-state");
+    await expect(emptyState).toHaveAccessibleName(
+      "Set up a monitored repository",
+    );
+    await expect(emptyState).toHaveAccessibleDescription(
+      "Add a monitored repository to start looking for suggestions.",
+    );
+    await expect(emptyState).toHaveAttribute("aria-labelledby", /.+/);
+    await expect(emptyState).toHaveAttribute("aria-describedby", /.+/);
+    expect(await emptyState.evaluate((element) => element.tagName)).toBe(
+      "SECTION",
+    );
     await expect(
       emptyState.getByRole("heading", {
         name: "Set up a monitored repository",
@@ -90,6 +101,15 @@ test.describe("Hermetic activity suggestion workflows", () => {
     await page.goto(`/workspace/${REEF_E2E_VAULT}/suggestions`);
 
     const emptyState = page.getByTestId("activity-empty-state");
+    await expect(emptyState).toHaveAccessibleName("No suggestions to review");
+    await expect(emptyState).toHaveAccessibleDescription(
+      "Suggestions will appear here when a scan finds something to review.",
+    );
+    await expect(emptyState).toHaveAttribute("aria-labelledby", /.+/);
+    await expect(emptyState).toHaveAttribute("aria-describedby", /.+/);
+    expect(await emptyState.evaluate((element) => element.tagName)).toBe(
+      "SECTION",
+    );
     await expect(
       emptyState.getByRole("heading", { name: "No suggestions to review" }),
     ).toBeVisible();
@@ -144,6 +164,15 @@ test.describe("Hermetic activity suggestion workflows", () => {
       .click();
 
     const emptyState = page.getByTestId("activity-empty-state");
+    await expect(emptyState).toHaveAccessibleName("No matching suggestions");
+    await expect(emptyState).toHaveAccessibleDescription(
+      "Try a different filter or clear the current filter to see more suggestions.",
+    );
+    await expect(emptyState).toHaveAttribute("aria-labelledby", /.+/);
+    await expect(emptyState).toHaveAttribute("aria-describedby", /.+/);
+    expect(await emptyState.evaluate((element) => element.tagName)).toBe(
+      "SECTION",
+    );
     await expect(
       emptyState.getByRole("heading", { name: "No matching suggestions" }),
     ).toBeVisible();

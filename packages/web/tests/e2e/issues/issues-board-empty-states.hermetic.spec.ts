@@ -57,6 +57,13 @@ test.describe("Hermetic board empty states", () => {
 
     const frame = page.getByTestId("kanban-no-matches");
     await expect(frame).toBeVisible({ timeout: 15_000 });
+    await expect(frame).toHaveAccessibleName("No matching issues");
+    await expect(frame).toHaveAccessibleDescription(
+      "Try widening your filters or search to see more issues.",
+    );
+    await expect(frame).toHaveAttribute("aria-labelledby", /.+/);
+    await expect(frame).toHaveAttribute("aria-describedby", /.+/);
+    expect(await frame.evaluate((element) => element.tagName)).toBe("SECTION");
     await expect(
       frame.getByRole("heading", { name: "No matching issues" }),
     ).toBeVisible();

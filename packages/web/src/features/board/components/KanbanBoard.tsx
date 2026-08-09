@@ -46,7 +46,7 @@ import {
 import type { ClosedReason, IssueListItem, Status } from "@reef/core";
 import { STATUS_OPTIONS, WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import { useTranslations } from "next-intl";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useBoardStore } from "../stores/useBoardStore";
 import { KanbanCardPreview } from "./KanbanCard";
@@ -83,6 +83,7 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
   useWorkflowStatusGuard();
   const t = useTranslations("board");
   const common = useTranslations("common");
+  const noMatchId = useId();
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
   // Server-side narrows the transfer (facets + free-text search); the client
@@ -307,15 +308,23 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
             />
           ))}
           {showNoMatch && (
-            <div
+            <section
               data-testid="kanban-no-matches"
               className="pointer-events-none absolute inset-x-6 top-16 z-10 flex justify-center"
+              aria-labelledby={`${noMatchId}-title`}
+              aria-describedby={`${noMatchId}-description`}
             >
               <div className="pointer-events-none flex max-w-md flex-col items-center rounded-lg border border-border-subtle bg-background/95 px-5 py-4 text-center backdrop-blur-sm">
-                <h2 className="text-sm font-semibold text-foreground">
+                <h2
+                  id={`${noMatchId}-title`}
+                  className="text-sm font-semibold text-foreground"
+                >
                   {t("noMatchTitle")}
                 </h2>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p
+                  id={`${noMatchId}-description`}
+                  className="mt-1 text-xs text-muted-foreground"
+                >
                   {t("noMatchDescription")}
                 </p>
                 <Button
@@ -328,7 +337,7 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
                   {common("clearFilters")}
                 </Button>
               </div>
-            </div>
+            </section>
           )}
         </div>
         <DragOverlay dropAnimation={DROP_ANIMATION}>

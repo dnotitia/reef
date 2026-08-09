@@ -1,11 +1,22 @@
 import { cn } from "@/lib/utils";
-import type { HTMLAttributes, ReactNode } from "react";
+import {
+  type ComponentPropsWithoutRef,
+  type ReactNode,
+  useId,
+} from "react";
 
 export type EmptyStateVariant = "structure" | "section";
 
-type EmptyStateHTMLProps = Omit<HTMLAttributes<HTMLDivElement>, "title">;
+type StructureEmptyStateHTMLProps = Omit<
+  ComponentPropsWithoutRef<"div">,
+  "title"
+>;
+type SectionEmptyStateHTMLProps = Omit<
+  ComponentPropsWithoutRef<"section">,
+  "title"
+>;
 
-interface StructureEmptyStateProps extends EmptyStateHTMLProps {
+interface StructureEmptyStateProps extends StructureEmptyStateHTMLProps {
   /** Use structure when the page cannot be composed without a prerequisite. */
   variant: "structure";
   /** Optional heading for a structure prompt. */
@@ -14,7 +25,7 @@ interface StructureEmptyStateProps extends EmptyStateHTMLProps {
   description?: ReactNode;
 }
 
-interface SectionEmptyStateProps extends EmptyStateHTMLProps {
+interface SectionEmptyStateProps extends SectionEmptyStateHTMLProps {
   /** Section is the canonical framed variant and is the default. */
   variant?: "section";
   /** Required section heading, rendered as the single h2. */
@@ -37,6 +48,8 @@ export function EmptyState({
   className,
   ...props
 }: EmptyStateProps) {
+  const id = useId();
+
   if (variant === "structure") {
     const { title, description, ...structureProps } = props;
     const hasTitle = title !== undefined && title !== null;
@@ -72,19 +85,27 @@ export function EmptyState({
   const { title, description, ...sectionProps } = props;
 
   return (
-    <div
+    <section
       data-slot="empty-state"
       className={cn(SECTION_FRAME, className)}
       {...sectionProps}
+      aria-labelledby={`${id}-title`}
+      aria-describedby={`${id}-description`}
     >
       <div className="flex flex-col items-center">
-        <h2 className="text-pretty text-sm font-semibold text-foreground">
+        <h2
+          id={`${id}-title`}
+          className="text-pretty text-sm font-semibold text-foreground"
+        >
           {title}
         </h2>
-        <p className="mt-1 text-pretty text-sm text-muted-foreground">
+        <p
+          id={`${id}-description`}
+          className="mt-1 text-pretty text-sm text-muted-foreground"
+        >
           {description}
         </p>
       </div>
-    </div>
+    </section>
   );
 }

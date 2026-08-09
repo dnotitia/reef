@@ -75,6 +75,11 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Section empty states now expose one named semantic region from their visible
+  title and description.** Structure prompts remain unboxed without an unnamed
+  landmark, and the same accessible references cover the Board no-match overlay
+  while preserving existing CTA, keyboard, responsive, and theme behavior.
+
 - **Suggestions empty states now explain their actual cause.** Unconfigured
   workspaces point to monitored-repository setup, configured passive queues
   keep a separate Check now action, and filtered no-match results offer one

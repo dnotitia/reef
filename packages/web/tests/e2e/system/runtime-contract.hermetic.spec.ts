@@ -14,6 +14,42 @@ const IMAGE_UPLOAD_FIXTURE_BYTES = Buffer.from(
   "base64",
 );
 
+async function expectNamedEmptyRegion(locator: Locator) {
+  const heading = locator.locator("h2");
+  const description = locator.locator("p");
+  await expect(locator).toBeVisible();
+  await expect(heading).toHaveCount(1);
+  await expect(description).toHaveCount(1);
+
+  const headingText = await heading.innerText();
+  const descriptionText = await description.innerText();
+  await expect(locator).toHaveAccessibleName(headingText);
+  await expect(locator).toHaveAccessibleDescription(descriptionText);
+
+  const references = await locator.evaluate((element) => {
+    const headingId = element.getAttribute("aria-labelledby");
+    const descriptionId = element.getAttribute("aria-describedby");
+    return {
+      tagName: element.tagName,
+      headingId,
+      descriptionId,
+      headingText: headingId
+        ? document.getElementById(headingId)?.textContent
+        : null,
+      descriptionText: descriptionId
+        ? document.getElementById(descriptionId)?.textContent
+        : null,
+    };
+  });
+
+  expect(references.tagName).toBe("SECTION");
+  expect(references.headingId).toBeTruthy();
+  expect(references.descriptionId).toBeTruthy();
+  expect(references.headingId).not.toBe(references.descriptionId);
+  expect(references.headingText?.trim()).toBe(headingText.trim());
+  expect(references.descriptionText?.trim()).toBe(descriptionText.trim());
+}
+
 test.describe("Hermetic runtime discovery", () => {
   test("publishes runtime controls and resets named-filter fixtures idempotently", async ({
     request,
@@ -215,6 +251,7 @@ test.describe("Hermetic runtime discovery", () => {
     request,
   }) => {
     await context.clearCookies();
+    await page.setViewportSize({ width: 1440, height: 900 });
     await resetFixture(request, "configured_empty");
 
     const state = await readFixtureState(request);
@@ -242,8 +279,7 @@ test.describe("Hermetic runtime discovery", () => {
     await page.goto("/workspace/reef-e2e/my-work");
     const myWorkEmpty = page.getByTestId("my-work-empty");
     await expect(myWorkEmpty).toBeVisible();
-    await expect(myWorkEmpty.locator("h2")).toHaveCount(1);
-    await expect(myWorkEmpty.locator("p")).toHaveCount(1);
+    await expectNamedEmptyRegion(myWorkEmpty);
     await expect(myWorkEmpty.getByRole("link")).toHaveCount(0);
     await expect(
       page.locator('[data-slot="page-header"]').getByRole("link"),
@@ -262,8 +298,7 @@ test.describe("Hermetic runtime discovery", () => {
     await page.goto("/workspace/reef-e2e/inbox");
     const inboxEmpty = page.getByTestId("notification-inbox-empty");
     await expect(inboxEmpty).toBeVisible();
-    await expect(inboxEmpty.locator("h2")).toHaveCount(1);
-    await expect(inboxEmpty.locator("p")).toHaveCount(1);
+    await expectNamedEmptyRegion(inboxEmpty);
     await expect(
       inboxEmpty.locator('[data-slot="empty-state-icon"]'),
     ).toHaveCount(0);
@@ -273,10 +308,7 @@ test.describe("Hermetic runtime discovery", () => {
     await page.goto("/workspace/reef-e2e/reports");
     const reportsEmpty = page.getByTestId("reports-empty");
     await expect(reportsEmpty).toBeVisible();
-    await expect(
-      reportsEmpty.getByRole("heading", { name: "No active issues yet" }),
-    ).toBeVisible();
-    await expect(reportsEmpty.locator("p")).toHaveCount(1);
+    await expectNamedEmptyRegion(reportsEmpty);
     await expect(reportsEmpty.getByRole("button")).toHaveCount(0);
     await expect(
       page
@@ -288,8 +320,7 @@ test.describe("Hermetic runtime discovery", () => {
     await page.goto("/workspace/reef-e2e/planning");
     const planningEmpty = page.getByTestId("planning-empty-sprints");
     await expect(planningEmpty).toBeVisible();
-    await expect(planningEmpty.locator("h2")).toHaveCount(1);
-    await expect(planningEmpty.locator("p")).toHaveCount(1);
+    await expectNamedEmptyRegion(planningEmpty);
     await expect(planningEmpty.getByRole("button")).toHaveCount(0);
     await expect(
       page
@@ -306,11 +337,11 @@ test.describe("Hermetic runtime discovery", () => {
 
     await page.getByRole("button", { name: "Milestones" }).click();
     await page.waitForURL(/planning\?kind=milestones$/);
-    await expect(page.getByTestId("planning-empty-milestones")).toBeVisible();
+    await expectNamedEmptyRegion(page.getByTestId("planning-empty-milestones"));
 
     await page.getByRole("button", { name: "Releases" }).click();
     await page.waitForURL(/planning\?kind=releases$/);
-    await expect(page.getByTestId("planning-empty-releases")).toBeVisible();
+    await expectNamedEmptyRegion(page.getByTestId("planning-empty-releases"));
 
     await page
       .locator('[data-slot="page-header"]')
@@ -331,7 +362,8 @@ test.describe("Hermetic runtime discovery", () => {
     request,
   }) => {
     await context.clearCookies();
-    await page.setViewportSize({ width: 390, height: 844 });
+    const viewportWidth = 375;
+    await page.setViewportSize({ width: viewportWidth, height: 844 });
     await page.emulateMedia({ colorScheme: "dark" });
     await clearPersistedQueryCacheOnLoad(page);
     await resetFixture(request, "configured_empty");
@@ -350,7 +382,7 @@ test.describe("Hermetic runtime discovery", () => {
         );
       }
       expect(box.width).toBeGreaterThan(250);
-      expect(box.x + box.width).toBeLessThanOrEqual(390);
+      expect(box.x + box.width).toBeLessThanOrEqual(viewportWidth);
       frameBoxes.push({ width: box.width, height: box.height });
     }
 
@@ -396,7 +428,7 @@ test.describe("Hermetic runtime discovery", () => {
     if (!reportsActionBox)
       throw new Error("Expected the Reports New issue action to have a box");
     expect(reportsActionBox.x + reportsActionBox.width).toBeLessThanOrEqual(
-      390,
+      viewportWidth,
     );
     await expectViewportFits();
 
@@ -412,7 +444,7 @@ test.describe("Hermetic runtime discovery", () => {
     const sprintBox = await sprintAction.boundingBox();
     if (!sprintBox)
       throw new Error("Expected the New sprint action to have a box");
-    expect(sprintBox.x + sprintBox.width).toBeLessThanOrEqual(390);
+    expect(sprintBox.x + sprintBox.width).toBeLessThanOrEqual(viewportWidth);
     await expectViewportFits();
 
     const reference = frameBoxes[0];
@@ -428,7 +460,8 @@ test.describe("Hermetic runtime discovery", () => {
     request,
   }) => {
     await context.clearCookies();
-    await page.setViewportSize({ width: 390, height: 844 });
+    const viewportWidth = 375;
+    await page.setViewportSize({ width: viewportWidth, height: 844 });
     await page.emulateMedia({ colorScheme: "dark" });
     await clearPersistedQueryCacheOnLoad(page);
     await resetFixture(request, "configured_caught_up");
@@ -467,6 +500,124 @@ test.describe("Hermetic runtime discovery", () => {
     await expect(
       page.locator('[data-slot="page-header"]').getByRole("link"),
     ).toHaveCount(0);
+  });
+
+  test("keeps empty and caught-up states inside a 320px dark Korean viewport", async ({
+    context,
+    page,
+    request,
+  }) => {
+    const viewportWidth = 320;
+    await context.clearCookies();
+    await page.setViewportSize({ width: viewportWidth, height: 844 });
+    await page.emulateMedia({ colorScheme: "dark" });
+    await clearPersistedQueryCacheOnLoad(page);
+    await resetFixture(request, "configured_empty");
+    await context.addCookies([
+      { name: "NEXT_LOCALE", value: "ko", domain: "localhost", path: "/" },
+    ]);
+    await openExistingWorkspace(page);
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+
+    async function expectViewportFits() {
+      const widths = await page.evaluate(() => ({
+        body: document.body.scrollWidth,
+        document: document.documentElement.scrollWidth,
+        viewport: window.innerWidth,
+      }));
+      expect(widths.body).toBeLessThanOrEqual(widths.viewport);
+      expect(widths.document).toBeLessThanOrEqual(widths.viewport);
+    }
+
+    async function expectFrameFits(locator: Locator) {
+      await expectNamedEmptyRegion(locator);
+      const box = await locator.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box?.x ?? 0).toBeGreaterThanOrEqual(0);
+      expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(
+        viewportWidth,
+      );
+      await expectViewportFits();
+    }
+
+    await page.goto("/workspace/reef-e2e/my-work");
+    await expectFrameFits(page.getByTestId("my-work-empty"));
+    await expect(
+      page.locator('[data-slot="page-header"]').getByRole("link"),
+    ).toHaveCount(0);
+
+    await page.goto("/workspace/reef-e2e/inbox");
+    await expectFrameFits(page.getByTestId("notification-inbox-empty"));
+
+    await page.goto("/workspace/reef-e2e/reports");
+    await expectFrameFits(page.getByTestId("reports-empty"));
+    const reportsAction = page
+      .locator('[data-slot="page-header"]')
+      .getByRole("button", { name: "새 이슈", exact: true });
+    await expect(reportsAction).toBeVisible();
+    const reportsBox = await reportsAction.boundingBox();
+    expect(reportsBox).not.toBeNull();
+    expect((reportsBox?.x ?? 0) + (reportsBox?.width ?? 0)).toBeLessThanOrEqual(
+      viewportWidth,
+    );
+
+    await page.goto("/workspace/reef-e2e/planning");
+    await expectFrameFits(page.getByTestId("planning-empty-sprints"));
+    const planningAction = page
+      .locator('[data-slot="page-header"]')
+      .getByRole("button");
+    await expect(planningAction).toBeVisible();
+    const planningBox = await planningAction.boundingBox();
+    expect(planningBox).not.toBeNull();
+    expect(
+      (planningBox?.x ?? 0) + (planningBox?.width ?? 0),
+    ).toBeLessThanOrEqual(viewportWidth);
+
+    await resetFixture(request, "configured_caught_up");
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/my-work");
+    const caughtUp = page.getByTestId("my-work-caught-up");
+    await expectFrameFits(caughtUp);
+    await expect(
+      page.locator('[data-slot="page-header"]').getByRole("link"),
+    ).toHaveCount(0);
+  });
+
+  test("keeps empty copy, primary action, and focus usable at an effective 200% zoom", async ({
+    context,
+    page,
+    request,
+  }) => {
+    // A 720px CSS viewport is the equivalent reflow width for 200% browser
+    // zoom from the required 1440px desktop proof size.
+    await context.clearCookies();
+    await page.setViewportSize({ width: 720, height: 900 });
+    await page.emulateMedia({ colorScheme: "light" });
+    await clearPersistedQueryCacheOnLoad(page);
+    await resetFixture(request, "configured_empty");
+    await openExistingWorkspace(page);
+
+    await page.goto("/workspace/reef-e2e/reports");
+    const reportsEmpty = page.getByTestId("reports-empty");
+    await expectNamedEmptyRegion(reportsEmpty);
+    const reportsAction = page
+      .locator('[data-slot="page-header"]')
+      .getByRole("button", { name: "New issue", exact: true });
+    await expect(reportsAction).toBeVisible();
+    const actionBox = await reportsAction.boundingBox();
+    expect(actionBox).not.toBeNull();
+    expect((actionBox?.x ?? 0) + (actionBox?.width ?? 0)).toBeLessThanOrEqual(
+      720,
+    );
+
+    await reportsAction.focus();
+    await expect(reportsAction).toBeFocused();
+    await page.keyboard.press("Enter");
+    const dialog = page.locator('[data-testid="new-issue-dialog"]');
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(reportsAction).toBeFocused();
   });
 
   test("preserves the label no-match after clearing a parent report scope", async ({
