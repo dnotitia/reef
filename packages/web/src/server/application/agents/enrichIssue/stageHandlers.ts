@@ -11,7 +11,7 @@ import type {
   ReferenceSuggestion,
 } from "@reef/core";
 import { extractErrorDetail } from "@reef/core";
-import { stepCountIs } from "ai";
+import { isStepCount } from "ai";
 import { AgentFieldSuggestionArtifactSchema } from "../framework/events";
 import type { AgentStageHandlerMap } from "../framework/registry";
 import {
@@ -201,17 +201,19 @@ export function buildIssueEnrichmentStageHandlers(span: {
           system: state.system,
           prompt: state.user,
           tools: state.tools ?? {},
-          stopWhen: stepCountIs(MAX_ENRICHMENT_STEPS),
+          stopWhen: isStepCount(MAX_ENRICHMENT_STEPS),
+          telemetry: {
+            isEnabled: true,
+            functionId: "reef.agent.issue.enrichment",
+            recordInputs: false,
+            recordOutputs: false,
+          },
           output: JSON_TEXT_OUTPUT,
           temperature: 0.3,
           maxOutputTokens: 4096,
         });
         state.generationResult = result;
         state.rawText = result.text;
-        span.setAttribute(
-          "enrichment.response_preview",
-          result.text.slice(0, 200),
-        );
         span.setAttribute("enrichment.response_length", result.text.length);
         span.setAttribute(
           "enrichment.finish_reason",
@@ -280,10 +282,6 @@ export function buildIssueEnrichmentStageHandlers(span: {
           state.needsRepair = true;
           state.repairReason = err.context.message;
           span.setAttribute("enrichment.repair.started", true);
-          span.setAttribute(
-            "enrichment.repair.reason",
-            err.context.message.slice(0, 200),
-          );
         }
         return {
           state,
@@ -351,10 +349,6 @@ export function buildIssueEnrichmentStageHandlers(span: {
         };
       } catch (err) {
         span.setAttribute("enrichment.repair.succeeded", false);
-        span.setAttribute(
-          "enrichment.repair.error",
-          extractErrorDetail(err).slice(0, 200),
-        );
         emit({
           type: "repair.failed",
           repair: {

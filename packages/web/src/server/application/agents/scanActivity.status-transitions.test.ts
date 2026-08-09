@@ -290,12 +290,20 @@ describe("scanActivity status transitions", () => {
       ),
     ).toBe(true);
     const firstGenerateArgs = llm.generateText.mock.calls[0]?.[0] as {
-      experimental_telemetry?: { functionId?: string };
+      telemetry?: {
+        functionId?: string;
+        recordInputs?: boolean;
+        recordOutputs?: boolean;
+      };
       tools?: unknown;
     };
-    expect(firstGenerateArgs.experimental_telemetry?.functionId).toBe(
+    expect(firstGenerateArgs.telemetry?.functionId).toBe(
       getAgentRegistryEntry("activity.status-change").functionId,
     );
+    expect(firstGenerateArgs.telemetry).toMatchObject({
+      recordInputs: false,
+      recordOutputs: false,
+    });
     expect(firstGenerateArgs.tools).toBeUndefined();
   });
 });

@@ -18,7 +18,7 @@ import {
   ToolLoopAgent,
   type UIMessage,
   createAgentUIStreamResponse,
-  stepCountIs,
+  isStepCount,
 } from "ai";
 import { type AgentRunEvent, AgentRunEventSchema } from "./framework/events";
 import {
@@ -74,8 +74,8 @@ export interface CreateWorkspaceChatAgentResponseParams
    * (REEF-360 AC2 / AC4).
    */
   currentIssueId?: string | null;
-  onStepFinish?: (summary: WorkspaceChatStepSummary) => void;
-  onFinish?: () => void;
+  onStepEnd?: (summary: WorkspaceChatStepSummary) => void;
+  onEnd?: () => void;
   onError?: (error: unknown) => string;
   onEvent?: (event: AgentRunEvent) => void;
 }
@@ -165,8 +165,8 @@ export async function createWorkspaceChatAgentResponse(
         : {}),
       instructions,
       tools,
-      stopWhen: stepCountIs(taskConfig.maxSteps ?? 10),
-      experimental_telemetry: {
+      stopWhen: isStepCount(taskConfig.maxSteps ?? 10),
+      telemetry: {
         isEnabled: true,
         functionId: taskConfig.functionId,
         // does not record the assembled prompt or conversation into telemetry
@@ -175,19 +175,19 @@ export async function createWorkspaceChatAgentResponse(
         recordInputs: false,
         recordOutputs: false,
       },
-      onStepFinish: (stepResult) => {
+      onStepEnd: (stepResult) => {
         const toolNames = stepResult.toolCalls.flatMap((toolCall) =>
           toolCall?.toolName ? [toolCall.toolName] : [],
         );
-        params.onStepFinish?.({
+        params.onStepEnd?.({
           stepIndex: stepCounter++,
           finishReason: stepResult.finishReason,
           toolNames,
         });
       },
-      onFinish: () => {
+      onEnd: () => {
         lifecycle.emitCompleted();
-        params.onFinish?.();
+        params.onEnd?.();
       },
     });
 

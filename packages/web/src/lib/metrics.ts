@@ -121,7 +121,7 @@ export const httpRequestDurationSeconds: Histogram<"method" | "route_class"> =
 
 /**
  * Total number of agent loop steps executed by AI agent routes.
- * Increment once per `onStepFinish` callback invocation.
+ * Increment once per `onStepEnd` callback invocation.
  */
 export const agentLoopStepsTotal: Counter<string> = metrics.agentLoopStepsTotal;
 

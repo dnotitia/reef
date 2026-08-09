@@ -12,7 +12,7 @@ const nextConfig: NextConfig = {
   // pino loads its transport via a worker thread and `require`, which the
   // bundler cannot trace — externalizing them lets pino resolve them at runtime.
   // (REEF-235)
-  serverExternalPackages: ["pino", "pino-pretty"],
+  serverExternalPackages: ["pino", "pino-pretty", "zod"],
   experimental: {
     // Transform barrel named imports into direct deep imports at build time so
     // the package index is never fully loaded. Recommended fix per the Vercel

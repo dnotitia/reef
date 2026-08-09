@@ -2,6 +2,7 @@ import {
   RequestLogSpanProcessor,
   responseLoggingEnabled,
 } from "@/lib/logging/requestSpanLog";
+import { OpenTelemetry } from "@ai-sdk/otel";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { PinoInstrumentation } from "@opentelemetry/instrumentation-pino";
 import { resourceFromAttributes } from "@opentelemetry/resources";
@@ -11,6 +12,7 @@ import {
   ATTR_SERVICE_VERSION,
 } from "@opentelemetry/semantic-conventions";
 import { setCoreLogger } from "@reef/core";
+import { registerTelemetry } from "ai";
 import pkg from "../../../package.json";
 
 /**
@@ -94,6 +96,7 @@ export function registerNode() {
   });
 
   sdk.start();
+  registerTelemetry(new OpenTelemetry());
 
   // Wire the core observability seam to the shared pino logger so `core`'s
   // "emit once, shape twice" instrumentation (scan checkpoints, LLM token usage,

@@ -4,7 +4,7 @@ import type { AkbAdapter } from "@reef/core";
 import { akbReadIssue } from "@reef/core";
 import { inferStatusFromCodeSignal } from "@reef/core";
 import { type PendingDraft, PendingDraftSchema } from "@reef/core";
-import { stepCountIs } from "ai";
+import { isStepCount } from "ai";
 import { getAgentRegistryEntry } from "../framework/registry";
 import { buildAutoIssueUserPrompt } from "../prompts/autoIssue";
 import { createIssueAuthoringToolset } from "../tools/toolsets";
@@ -78,10 +78,12 @@ async function generateDraftForActivityInner(
           system: systemPrompt,
           prompt: userPrompt,
           tools,
-          stopWhen: stepCountIs(MAX_DRAFT_STEPS),
-          experimental_telemetry: {
+          stopWhen: isStepCount(MAX_DRAFT_STEPS),
+          telemetry: {
             isEnabled: true,
             functionId: getAgentRegistryEntry("activity.draft").functionId,
+            recordInputs: false,
+            recordOutputs: false,
           },
         });
 

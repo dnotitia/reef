@@ -6,7 +6,7 @@ import {
   type ActivityIssueLinkDecision,
   ActivityIssueLinkDecisionSchema,
 } from "@reef/core";
-import { stepCountIs } from "ai";
+import { isStepCount } from "ai";
 import { getAgentRegistryEntry } from "../framework/registry";
 import { buildActivityIssueLinkUserPrompt } from "../prompts/activityIssueLink";
 import { createWorkspaceReadToolset } from "../tools/toolsets";
@@ -68,10 +68,12 @@ async function generateIssueLinkForActivityInner(
           system: systemPrompt,
           prompt: userPrompt,
           tools,
-          stopWhen: stepCountIs(MAX_LINK_STEPS),
-          experimental_telemetry: {
+          stopWhen: isStepCount(MAX_LINK_STEPS),
+          telemetry: {
             isEnabled: true,
             functionId: getAgentRegistryEntry("activity.issue-link").functionId,
+            recordInputs: false,
+            recordOutputs: false,
           },
         });
         const { text } = result;

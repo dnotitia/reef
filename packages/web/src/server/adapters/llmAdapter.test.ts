@@ -81,18 +81,26 @@ describe("createLlmAdapter", () => {
     expect(model).toMatchObject({ type: "identified-language-model" });
     const middleware = mockWrapLanguageModel.mock.calls[0]?.[0].middleware as {
       transformParams: (args: {
+        type: "generate" | "stream";
         params: { headers?: Record<string, string | undefined> };
+        model: typeof mockModelInstance;
       }) => Promise<{ headers?: Record<string, string | undefined> }>;
     };
     const first = await middleware.transformParams({
+      type: "generate",
       params: {
         headers: {
           "X-Reef": "preserved",
           "idempotency-key": "caller-controlled",
         },
       },
+      model: mockModelInstance,
     });
-    const second = await middleware.transformParams({ params: {} });
+    const second = await middleware.transformParams({
+      type: "stream",
+      params: {},
+      model: mockModelInstance,
+    });
     const firstId = first.headers?.["Idempotency-Key"];
     const secondId = second.headers?.["Idempotency-Key"];
     expect(first.headers?.["X-Reef"]).toBe("preserved");
@@ -127,7 +135,7 @@ describe("createLlmAdapter", () => {
     it("calls through to the AI SDK generateText function", async () => {
       const fakeResult = {
         text: "hello world",
-        usage: { promptTokens: 10, completionTokens: 20 },
+        usage: { inputTokens: 10, outputTokens: 20 },
         finishReason: "stop",
       };
       mockGenerateText.mockResolvedValueOnce(fakeResult);
@@ -156,7 +164,7 @@ describe("createLlmAdapter", () => {
       });
     });
 
-    it("merges experimental_telemetry into the AI SDK call", async () => {
+    it("merges telemetry into the AI SDK call without recording inputs or outputs", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: "ok",
         finishReason: "stop",
@@ -169,11 +177,18 @@ describe("createLlmAdapter", () => {
       });
 
       const callArgs = mockGenerateText.mock.calls[0][0] as {
-        experimental_telemetry: { isEnabled: boolean; functionId: string };
+        telemetry: {
+          isEnabled: boolean;
+          functionId: string;
+          recordInputs: boolean;
+          recordOutputs: boolean;
+        };
       };
-      expect(callArgs.experimental_telemetry).toMatchObject({
+      expect(callArgs.telemetry).toMatchObject({
         isEnabled: true,
         functionId: "reef.generateText",
+        recordInputs: false,
+        recordOutputs: false,
       });
     });
 
@@ -321,7 +336,7 @@ describe("createLlmAdapter", () => {
       });
     });
 
-    it("merges experimental_telemetry into the AI SDK streamText call", () => {
+    it("merges telemetry into the AI SDK streamText call without recording inputs or outputs", () => {
       mockStreamText.mockReturnValueOnce({ toDataStreamResponse: vi.fn() });
 
       const adapter = createLlmAdapter(makeParams());
@@ -331,12 +346,51 @@ describe("createLlmAdapter", () => {
       });
 
       const callArgs = mockStreamText.mock.calls[0][0] as {
-        experimental_telemetry: { isEnabled: boolean; functionId: string };
+        telemetry: {
+          isEnabled: boolean;
+          functionId: string;
+          recordInputs: boolean;
+          recordOutputs: boolean;
+        };
       };
-      expect(callArgs.experimental_telemetry).toMatchObject({
+      expect(callArgs.telemetry).toMatchObject({
         isEnabled: true,
         functionId: "reef.streamText",
+        recordInputs: false,
+        recordOutputs: false,
       });
+    });
+
+    it("uses v7 end and abort callbacks while preserving caller callbacks", () => {
+      mockStreamText.mockReturnValueOnce({ toDataStreamResponse: vi.fn() });
+      const onEnd = vi.fn();
+      const onAbort = vi.fn();
+      const onError = vi.fn();
+      const adapter = createLlmAdapter(makeParams());
+
+      adapter.streamText({
+        model: adapter.model(),
+        messages: [{ role: "user", content: "hi" }],
+        onEnd,
+        onAbort,
+        onError,
+      });
+
+      const callArgs = mockStreamText.mock.calls.at(-1)?.[0] as {
+        onEnd: (event: unknown) => void;
+        onAbort: (event: unknown) => void;
+        onError: (event: unknown) => void;
+      };
+      callArgs.onEnd({
+        finishReason: "stop",
+        usage: { inputTokens: 3, outputTokens: 4 },
+      });
+      callArgs.onAbort({ steps: [] });
+      callArgs.onError({ error: new Error("late stream error") });
+
+      expect(onEnd).toHaveBeenCalledOnce();
+      expect(onAbort).toHaveBeenCalledOnce();
+      expect(onError).toHaveBeenCalledOnce();
     });
 
     it("wraps synchronous setup errors from streamText in LlmError", () => {

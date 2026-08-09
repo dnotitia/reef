@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => {
   const batchSpanProcessor = { kind: "batch-span-processor" };
   const requestLogSpanProcessor = { kind: "request-log-span-processor" };
   const pinoInstrumentation = { kind: "pino-instrumentation" };
+  const openTelemetry = { kind: "ai-sdk-open-telemetry" };
   const resource = { kind: "resource" };
   const sdk = {
     start: vi.fn(),
@@ -26,6 +27,7 @@ const mocks = vi.hoisted(() => {
     batchSpanProcessor,
     requestLogSpanProcessor,
     pinoInstrumentation,
+    openTelemetry,
     resource,
     sdk,
     logger: {
@@ -51,6 +53,10 @@ const mocks = vi.hoisted(() => {
     resourceFromAttributes: vi.fn(() => resource),
     responseLoggingEnabled: vi.fn<() => boolean>(),
     setCoreLogger: vi.fn(),
+    OpenTelemetry: vi.fn(function () {
+      return openTelemetry;
+    }),
+    registerTelemetry: vi.fn(),
   };
 });
 
@@ -73,6 +79,8 @@ vi.mock("@opentelemetry/sdk-node", () => ({
   tracing: { BatchSpanProcessor: mocks.BatchSpanProcessor },
 }));
 vi.mock("@reef/core", () => ({ setCoreLogger: mocks.setCoreLogger }));
+vi.mock("@ai-sdk/otel", () => ({ OpenTelemetry: mocks.OpenTelemetry }));
+vi.mock("ai", () => ({ registerTelemetry: mocks.registerTelemetry }));
 
 import { registerNode } from "./instrumentation-node";
 
@@ -142,6 +150,9 @@ describe("registerNode", () => {
       instrumentations: [mocks.pinoInstrumentation],
     });
     expect(mocks.sdk.start).toHaveBeenCalledOnce();
+    expect(mocks.OpenTelemetry).toHaveBeenCalledOnce();
+    expect(mocks.registerTelemetry).toHaveBeenCalledOnce();
+    expect(mocks.registerTelemetry).toHaveBeenCalledWith(mocks.openTelemetry);
     expect(processOnceSpy).toHaveBeenNthCalledWith(
       1,
       "SIGTERM",
