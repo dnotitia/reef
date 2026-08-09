@@ -55,6 +55,11 @@ explicitly in the entries below.
 
 ### Operational
 
+- **The hermetic web runtime now reaches browser readiness in empty fixture
+  scenarios.** Readiness proves an ordinary New issue dialog interaction without
+  requiring a populated issue card, so every supported scenario can publish its
+  ready descriptor directly.
+
 - **The repository now has one Node 24 and pnpm toolchain baseline.** Shared
   workspace versions are owned by the default pnpm catalog, while CI, Docker,
   and Renovate use the same runtime and package-manager declarations.
