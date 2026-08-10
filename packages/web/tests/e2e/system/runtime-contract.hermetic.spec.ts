@@ -214,6 +214,16 @@ test.describe("Hermetic runtime discovery", () => {
               "open Ask AI, submit distinct questions, and observe each assistant response",
           },
         },
+        notifications: {
+          scenario: "notifications",
+          workspace: "reef-e2e",
+          start_path: "/workspace/reef-e2e/inbox",
+          interaction: {
+            type: "notification_inbox",
+            operation:
+              "open a comment mention notification, confirm it becomes read, and observe the source comment location in the issue activity timeline",
+          },
+        },
         comments: {
           scenario: "comment_mentions",
           workspace: "reef-e2e",
