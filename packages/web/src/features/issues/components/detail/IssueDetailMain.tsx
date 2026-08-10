@@ -144,7 +144,7 @@ export function IssueDetailMain({
         />
       </div>
 
-      <div className="flex flex-col gap-1">
+      <div id="issue-description" className="scroll-mt-4 flex flex-col gap-1">
         {/* biome-ignore lint/a11y/noLabelWithoutControl: MarkdownEditor uses contenteditable, not a native input */}
         <label className="text-xs font-medium text-muted-foreground">
           {fieldNames.description}

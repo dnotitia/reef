@@ -24,6 +24,20 @@ function primaryNotification(
   return notification;
 }
 
+function issueBodyMentionNotification(
+  state: Awaited<ReturnType<typeof readFixtureState>>,
+) {
+  const notification = reefVault(state).notifications.find(
+    (candidate) =>
+      candidate.source_ref ===
+      "issue_body_mentions_change:e2e-issue-body-commit",
+  );
+  if (!notification) {
+    throw new Error("Missing issue-body mention notification fixture");
+  }
+  return notification;
+}
+
 test.describe("Hermetic notification Inbox", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
@@ -132,5 +146,51 @@ test.describe("Hermetic notification Inbox", () => {
         .getByTestId("notification-item")
         .filter({ hasText: "Comment created" }),
     ).toHaveCount(0);
+  });
+
+  test("opens an issue-body mention at the description and persists read state", async ({
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.getByRole("link", { name: /Inbox/ }).click();
+    await expect(page).toHaveURL(`/workspace/${REEF_E2E_VAULT}/inbox`);
+
+    const mentionRow = page
+      .getByTestId("notification-item")
+      .filter({ hasText: "You were mentioned in an issue" });
+    await expect(mentionRow).toHaveCount(1);
+    await expect(mentionRow).toContainText("bob");
+    await expect(mentionRow).toContainText("REEF-001");
+    await expect(mentionRow).toHaveAttribute("data-state", "unread");
+
+    await mentionRow.getByTestId("notification-open").click();
+    await expect(page).toHaveURL(
+      `/workspace/${REEF_E2E_VAULT}/issues/REEF-001#issue-description`,
+    );
+    await expect(page.locator("#issue-description")).toBeVisible();
+    await expect(page.locator("#issue-description")).toContainText(
+      "Alpha description from fixture.",
+    );
+    await expect
+      .poll(
+        async () =>
+          issueBodyMentionNotification(await readFixtureState(request)).state,
+      )
+      .toBe("read");
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/inbox`);
+    const reloadedMentionRow = page
+      .getByTestId("notification-item")
+      .filter({ hasText: "You were mentioned in an issue" });
+    await expect(reloadedMentionRow).toHaveCount(1);
+    await expect(reloadedMentionRow).toHaveAttribute("data-state", "read");
+
+    await page.reload();
+    const refreshedMentionRows = page
+      .getByTestId("notification-item")
+      .filter({ hasText: "You were mentioned in an issue" });
+    await expect(refreshedMentionRows).toHaveCount(1);
+    await expect(refreshedMentionRows).toHaveAttribute("data-state", "read");
   });
 });

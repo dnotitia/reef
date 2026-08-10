@@ -1214,17 +1214,26 @@ function seedNotifications(vault) {
   });
   vault.notifications = [];
   for (let index = 0; index < 99; index += 1) {
-    const issue = `REEF-${String((index % 3) + 1).padStart(3, "0")}`;
+    const isIssueBodyMention = index === 98;
+    const issue = isIssueBodyMention
+      ? "REEF-001"
+      : `REEF-${String((index % 3) + 1).padStart(3, "0")}`;
     vault.notifications.push(
       notificationRow({
         id: 7000 + index,
         recipient: "alice",
         reefId: issue,
         sourceType: "activity",
-        sourceRef: `fixture-${index}`,
-        eventType: "status_change",
+        sourceRef: isIssueBodyMention
+          ? "issue_body_mentions_change:e2e-issue-body-commit"
+          : `fixture-${index}`,
+        eventType: isIssueBodyMention
+          ? "issue_body_mentions_change"
+          : "status_change",
         actor: "bob",
-        occurredAt: new Date(NOW_MS - (99 - index) * 60_000).toISOString(),
+        occurredAt: isIssueBodyMention
+          ? NOW
+          : new Date(NOW_MS - (99 - index) * 60_000).toISOString(),
         state: "unread",
       }),
     );
@@ -1263,6 +1272,11 @@ function seedNotifications(vault) {
       occurredAt: "2026-06-15T00:00:00.000Z",
       state: "unread",
     }),
+  );
+  seedIssueDocument(
+    vault,
+    "REEF-001",
+    "Alpha description from fixture. Alice was mentioned in the issue body.",
   );
 }
 

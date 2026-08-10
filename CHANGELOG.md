@@ -57,6 +57,9 @@ explicitly in the entries below.
 - **Comment mention notifications now reach recipients independently of issue
   subscriptions, respect self-mention and manual mute controls, and open the
   source comment after the notification is marked read.**
+- **Issue-body mention notifications now use the committed added-recipient
+  delta, preserve Inbox state across retries, and open the issue description
+  after marking the notification read.** (REEF-454)
 - **Jira comment ADF mentions now reuse the canonical Reef mention serializer.**
   Mapped accounts are gated by the exact target-vault member roster, unsafe
   usernames use braced escaping, unresolved accounts remain non-identifying

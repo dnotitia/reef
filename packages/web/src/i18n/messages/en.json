@@ -1105,6 +1105,7 @@
     "pageTitle": "Inbox",
     "loading": "Loading notifications…",
     "notification": "Notification",
+    "issueBodyMention": "You were mentioned in an issue",
     "listLabel": "Notifications",
     "emptyTitle": "You’re all caught up",
     "emptyDescription": "New collaboration activity for your issues will appear here.",

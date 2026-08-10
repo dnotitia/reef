@@ -49,24 +49,30 @@ function makeNotification(
   key: string,
   state: "unread" | "read",
   issue: string,
+  overrides: Partial<{
+    source_type: string;
+    source_ref: string;
+    event_type: string;
+    actor: string;
+  }> = {},
 ) {
   return {
     id: `00000000-0000-4000-8000-${key.padStart(12, "0")}`,
     notification_key: `notification:5:alice:8:activity:${key.length}:${key}`,
     recipient: "alice",
     reef_id: issue,
-    source_type: "activity",
-    source_ref: `event-${key}`,
-    event_type: "comment_created",
-    actor: "bob",
+    source_type: overrides.source_type ?? "activity",
+    source_ref: overrides.source_ref ?? `event-${key}`,
+    event_type: overrides.event_type ?? "comment_created",
+    actor: overrides.actor ?? "bob",
     occurred_at: "2026-07-28T00:00:00.000Z",
     state,
   };
 }
 
-function renderPage() {
+function renderPage(locale: "en" | "ko" = "en") {
   return render(
-    <IntlTestProvider>
+    <IntlTestProvider locale={locale}>
       <NotificationInboxPage />
     </IntlTestProvider>,
   );
@@ -111,6 +117,63 @@ describe("NotificationInboxPage", () => {
     );
     expect(mocks.push).toHaveBeenCalledWith(
       "/workspace/reef-acme/issues/REEF-001#issue-activity",
+    );
+  });
+
+  it("uses the localized issue-body mention label and description target", async () => {
+    mocks.inboxState.notifications = [
+      makeNotification("mention", "unread", "REEF-003", {
+        source_ref: "issue_body_mentions_change:document-commit-1",
+        event_type: "issue_body_mentions_change",
+      }),
+    ];
+    renderPage();
+
+    expect(
+      screen.getByText("You were mentioned in an issue"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open activity for REEF-003" }),
+    );
+
+    await waitFor(() =>
+      expect(mocks.mutateAsync).toHaveBeenCalledWith({
+        notificationKey: "notification:5:alice:8:activity:7:mention",
+        state: "read",
+      }),
+    );
+    expect(mocks.push).toHaveBeenCalledWith(
+      "/workspace/reef-acme/issues/REEF-003#issue-description",
+    );
+  });
+
+  it("localizes the issue-body mention label in Korean", () => {
+    mocks.inboxState.notifications = [
+      makeNotification("mention-ko", "read", "REEF-004", {
+        event_type: "issue_body_mentions_change",
+      }),
+    ];
+    renderPage("ko");
+
+    expect(
+      screen.getByText("이슈 본문에서 멘션되었습니다"),
+    ).toBeInTheDocument();
+  });
+
+  it("does not navigate when marking an unread notification read fails", async () => {
+    mocks.inboxState.notifications = [
+      makeNotification("failed", "unread", "REEF-005"),
+    ];
+    mocks.mutateAsync.mockRejectedValueOnce(new Error("read failed"));
+    renderPage();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open activity for REEF-005" }),
+    );
+
+    await waitFor(() => expect(mocks.push).not.toHaveBeenCalled());
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Couldn't update this notification. Try again.",
     );
   });
 

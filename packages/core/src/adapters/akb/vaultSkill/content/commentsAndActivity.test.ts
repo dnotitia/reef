@@ -38,6 +38,14 @@ describe("comments-and-activity runbook (REEF-252)", () => {
       expect(content).toContain("never a user-visible timeline row");
     });
 
+    it("documents the added-only notification consumer contract", () => {
+      expect(content).toContain("IssueBodyMentionsChangePayloadSchema");
+      expect(content).toContain("uses only `added` as direct recipients");
+      expect(content).toContain("explicit manual Mute");
+      expect(content).toContain("preserves read/archived state");
+      expect(content).toContain("source checkpoint for");
+    });
+
     it("marks the log append-only — never UPDATE or DELETE an event row", () => {
       expect(content).toContain("Never UPDATE or DELETE a reef_activity row");
     });
