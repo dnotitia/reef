@@ -148,6 +148,34 @@ describe("dev:e2e runtime contract", () => {
     ).toThrow(/fixture login password/);
   });
 
+  it("resolves the demo board issue-drill entrypoint", () => {
+    expect(
+      getClientReadinessInputs(
+        {
+          status: "ready",
+          fixture_login: {
+            username: "alice",
+            password: "fixture-password",
+            login_path: "/login?password=1",
+          },
+          tasks: {
+            issue_drill_navigation: {
+              scenario: "demo_board",
+              workspace: "reef-e2e",
+              start_path: "/workspace/reef-e2e/issues/REEF-103",
+            },
+          },
+        },
+        "demo_board",
+      ),
+    ).toMatchObject({
+      username: "alice",
+      password: "fixture-password",
+      loginPath: "/login?password=1",
+      startPath: "/workspace/reef-e2e/issues/REEF-103",
+    });
+  });
+
   function readinessPage({ newIssueClickWorks = true } = {}) {
     const state = { newIssueOpen: false };
     const selectors: string[] = [];

@@ -11,9 +11,9 @@ interface UseIssueSheetDismissArgs {
   issueId: string;
   /**
    * Exit the sheet to its entry view — the list/board the user came from. The
-   * soft-nav intercepting route passes `router.back()` (one step, since drill
-   * hops are flat `replace`s); the deep-link base route passes a push to the
-   * vault-scoped issues list.
+   * first sheet in a detail session owns this callback; a relation drill can
+   * remount the sheet through the intercepting route, but it must not replace
+   * the original Close destination.
    */
   onExit: () => void;
 }
@@ -47,6 +47,9 @@ export function useIssueSheetDismiss({
   const currentId = useIssueNavStack((state) => state.currentId);
   const back = useIssueNavStack((state) => state.back);
   const reconcile = useIssueNavStack((state) => state.reconcile);
+  const registerExitOwner = useIssueNavStack(
+    (state) => state.registerExitOwner,
+  );
   const clear = useIssueNavStack((state) => state.clear);
 
   // Reconcile the trail with the route id the sheet mounted on. The intercepted
@@ -60,6 +63,14 @@ export function useIssueSheetDismiss({
   useEffect(() => {
     reconcile(issueId);
   }, [issueId, reconcile]);
+
+  // Keep the entry callback in a separate effect so a re-render of the outgoing
+  // sheet during a drill cannot reconcile its old route id back over the target
+  // that `drill()` just recorded. The first callback still wins; remounted
+  // relation routes are ignored by the store.
+  useEffect(() => {
+    registerExitOwner(onExit);
+  }, [onExit, registerExitOwner]);
 
   // Solely trust the trail when it actually describes the on-screen issue, so the
   // outgoing sheet does not flash a Back to itself the instant a hop moves the
@@ -77,8 +88,9 @@ export function useIssueSheetDismiss({
   }, [back, router, searchParams, vault]);
 
   const exit = useCallback(() => {
+    const sessionExit = useIssueNavStack.getState().exitOwner ?? onExit;
     clear();
-    onExit();
+    sessionExit();
   }, [clear, onExit]);
 
   const dismissViaEsc = useCallback(() => {

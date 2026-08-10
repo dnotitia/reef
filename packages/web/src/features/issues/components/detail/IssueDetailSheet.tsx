@@ -27,9 +27,10 @@ interface IssueDetailSheetProps {
   /**
    * Exit the sheet to its entry view (the list/board the user came from). Used
    * by Close, by an outside click, and by Esc when there is no drill trail. The
-   * soft-nav intercepting route passes `router.back()`; the deep-link base route
-   * passes `router.push("/issues")`. Back/Esc within a drill trail are handled
-   * internally via the in-memory nav stack (REEF-270).
+   * first sheet in a detail session owns this callback; a relation drill may
+   * remount the sheet through the intercepting route without changing the
+   * destination. Back/Esc within a drill trail are handled internally via the
+   * in-memory nav stack (REEF-270).
    */
   onClose: () => void;
 }
@@ -37,7 +38,9 @@ interface IssueDetailSheetProps {
 /**
  * Shared slide-over wrapper for the IssueDetail panel. Both the
  * intercepting route (soft nav) and the base route (deep link) mount this
- * so the chrome stays identical — the entry-exit target differs.
+ * so the chrome stays identical. The first mounted sheet captures the entry
+ * exit target for the whole detail session, even if a drill remounts this
+ * component through the other route.
  *
  * Persistent chrome bar (REEF-286): the sheet owns a single top bar that lives
  * *outside* the body — wayfinding + identity on the left (drill Back · parent

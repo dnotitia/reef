@@ -13,6 +13,9 @@ const { mockUseActiveVault, mockBack } = vi.hoisted(() => ({
   mockUseActiveVault: vi.fn(),
   mockBack: vi.fn(),
 }));
+const { mockUsePathname } = vi.hoisted(() => ({
+  mockUsePathname: vi.fn(() => "/workspace/reef-acme/issues/REEF-001"),
+}));
 
 vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   useActiveVault: mockUseActiveVault,
@@ -20,9 +23,22 @@ vi.mock("@/features/settings/hooks/useActiveVault", () => ({
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ back: mockBack, push: vi.fn() }),
+  usePathname: mockUsePathname,
 }));
 
+vi.mock("@/features/issues/components/detail/IssueDetailSheet", () => ({
+  IssueDetailSheet: ({ issueId }: { issueId: string }) => (
+    <div data-testid="mock-issue-detail-sheet">{issueId}</div>
+  ),
+}));
+
+vi.mock("react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react")>();
+  return { ...actual, use: vi.fn((value: unknown) => value) };
+});
+
 import IssueModalPage from "./page";
+import { useIssueNavStack } from "@/features/issues/stores/useIssueNavStack";
 
 function wrap(ui: ReactNode) {
   const queryClient = new QueryClient({
@@ -38,6 +54,8 @@ function wrap(ui: ReactNode) {
 describe("Intercepting route — /(dashboard)/@modal/(.)issues/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUsePathname.mockReturnValue("/workspace/reef-acme/issues/REEF-001");
+    useIssueNavStack.getState().clear();
   });
 
   it("module exports a default React component", () => {
@@ -54,5 +72,24 @@ describe("Intercepting route — /(dashboard)/@modal/(.)issues/[id]", () => {
     // IssueDetailSheet is preserved through the akb pivot.
     const mod = await import("./page");
     expect(typeof mod.default).toBe("function");
+  });
+
+  it("does not retain the modal child after navigating to a non-detail path", () => {
+    useIssueNavStack.setState({
+      trail: ["REEF-000"],
+      currentId: "REEF-001",
+      exitOwner: () => {},
+    });
+    mockUsePathname.mockReturnValue("/workspace/reef-acme/issues");
+
+    render(
+      <IssueModalPage
+        params={{ id: "REEF-001" } as unknown as Promise<{ id: string }>}
+      />,
+    );
+
+    expect(screen.queryByTestId("mock-issue-detail-sheet")).toBeNull();
+    expect(useIssueNavStack.getState().trail).toEqual([]);
+    expect(useIssueNavStack.getState().exitOwner).toBeNull();
   });
 });

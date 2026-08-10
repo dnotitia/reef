@@ -18,11 +18,12 @@ import { create } from "zustand";
  *  - `currentId` is the issue the trail expects on screen. The sheet trusts the
  *    trail while `currentId` matches the route id, so the outgoing sheet
  *    does not flash a Back to itself mid-hop, and `reconcile` can reset the trail
- *    when a fresh navigation lands on a different issue.
+ *    and exit owner when a fresh navigation lands on a different issue.
  *
- * The trail is emptied at session boundaries by whoever owns them: `clear()` on
- * Close / outside click, and the `@modal` default slot when the sheet leaves and
- * the list comes back (including a browser Back that pops the modal). So when a
+ * The trail and exit owner are emptied at session boundaries by whoever owns
+ * them: `clear()` on Close / outside click, and the `@modal` default slot when
+ * the sheet leaves and the list comes back (including a browser Back that pops
+ * the modal). So when a
  * sheet mounts, the sole way `currentId` already matches its id is a genuine
  * drill/back this store just drove — `reconcile` keeps the trail then, and
  * resets to depth 0 otherwise. Every operation here is idempotent so React
@@ -38,6 +39,12 @@ interface IssueNavStackState {
   /** Issue the trail currently expects on screen, or null before any open. */
   currentId: string | null;
   /**
+   * Exit callback captured by the first sheet in the current detail session.
+   * Relation routes may remount the sheet through `@modal`, but they must not
+   * replace the entry route's Close destination.
+   */
+  exitOwner: (() => void) | null;
+  /**
    * Record a drill hop: push the issue we are leaving (`fromId`) onto the trail
    * and move `currentId` to the target. Called right before the `router.replace`
    * that swaps the sheet content.
@@ -52,9 +59,11 @@ interface IssueNavStackState {
    * Reconcile the trail with an issue id that appeared on a detail route.
    * Idempotent: when `currentId` already matches, the store drove this arrival
    * (a drill/back), so keep the trail; otherwise a fresh navigation landed here,
-   * so reset to a depth-0 trail rooted at this id.
+   * so reset to a depth-0 trail rooted at this id and a new entry owner.
    */
   reconcile: (id: string) => void;
+  /** Capture the entry route's exit callback once for the current session. */
+  registerExitOwner: (onExit: () => void) => void;
   /** Empty the trail entirely (Close / outside click / return to the list). */
   clear: () => void;
 }
@@ -62,6 +71,7 @@ interface IssueNavStackState {
 export const useIssueNavStack = create<IssueNavStackState>((set, get) => ({
   trail: [],
   currentId: null,
+  exitOwner: null,
 
   drill: (fromId, toId) =>
     set((state) => ({ trail: [...state.trail, fromId], currentId: toId })),
@@ -76,8 +86,13 @@ export const useIssueNavStack = create<IssueNavStackState>((set, get) => ({
 
   reconcile: (id) => {
     if (get().currentId === id) return;
-    set({ trail: [], currentId: id });
+    set({ trail: [], currentId: id, exitOwner: null });
   },
 
-  clear: () => set({ trail: [], currentId: null }),
+  registerExitOwner: (onExit) => {
+    if (get().exitOwner !== null) return;
+    set({ exitOwner: onExit });
+  },
+
+  clear: () => set({ trail: [], currentId: null, exitOwner: null }),
 }));

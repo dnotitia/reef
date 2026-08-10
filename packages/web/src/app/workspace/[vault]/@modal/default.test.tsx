@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import ModalDefault from "./default";
 
 afterEach(() => {
-  useIssueNavStack.setState({ trail: [], currentId: null });
+  useIssueNavStack.getState().clear();
 });
 
 describe("ModalDefault (REEF-270 drill session boundary)", () => {

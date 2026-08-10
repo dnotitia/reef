@@ -68,7 +68,7 @@ function wrap(ui: ReactNode) {
 describe("IssueDetailSheet", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useIssueNavStack.setState({ trail: [], currentId: null });
+    useIssueNavStack.getState().clear();
   });
 
   it("renders the skeleton path while vault is loading", () => {
@@ -254,6 +254,34 @@ describe("IssueDetailSheet", () => {
       const onClose = renderDrilledInto("REEF-001");
 
       await user.click(screen.getByTestId("issue-close"));
+
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(useIssueNavStack.getState().trail).toEqual([]);
+    });
+
+    it("Escape unwinds one drill hop instead of closing the session", async () => {
+      const user = userEvent.setup();
+      useIssueNavStack.setState({ trail: ["REEF-A"], currentId: "REEF-001" });
+      const onClose = renderDrilledInto("REEF-001");
+
+      await user.keyboard("{Escape}");
+
+      expect(mockReplace).toHaveBeenCalledWith("/issues/REEF-A");
+      expect(onClose).not.toHaveBeenCalled();
+      expect(useIssueNavStack.getState().trail).toEqual([]);
+    });
+
+    it("outside click closes the entire drill session", async () => {
+      const user = userEvent.setup();
+      useIssueNavStack.setState({
+        trail: ["REEF-A", "REEF-B"],
+        currentId: "REEF-001",
+      });
+      const onClose = renderDrilledInto("REEF-001");
+      const overlay = document.querySelector('[data-slot="sheet-overlay"]');
+
+      expect(overlay).not.toBeNull();
+      await user.click(overlay as HTMLElement);
 
       expect(onClose).toHaveBeenCalledTimes(1);
       expect(useIssueNavStack.getState().trail).toEqual([]);

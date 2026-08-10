@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { useIssueNavStack } from "./useIssueNavStack";
 
 afterEach(() => {
-  useIssueNavStack.setState({ trail: [], currentId: null });
+  useIssueNavStack.getState().clear();
 });
 
 describe("useIssueNavStack (REEF-270)", () => {
@@ -60,6 +60,31 @@ describe("useIssueNavStack (REEF-270)", () => {
     useIssueNavStack.getState().reconcile("REEF-Z");
     expect(useIssueNavStack.getState().trail).toEqual([]);
     expect(useIssueNavStack.getState().currentId).toBe("REEF-Z");
+  });
+
+  it("captures the first entry exit owner until the session is cleared", () => {
+    const firstExit = () => {};
+    const remountedRouteExit = () => {};
+
+    useIssueNavStack.getState().registerExitOwner(firstExit);
+    useIssueNavStack.getState().registerExitOwner(remountedRouteExit);
+
+    expect(useIssueNavStack.getState().exitOwner).toBe(firstExit);
+
+    useIssueNavStack.getState().clear();
+    expect(useIssueNavStack.getState().exitOwner).toBeNull();
+  });
+
+  it("resets the entry exit owner with a fresh route navigation", () => {
+    const initialExit = () => {};
+    const freshRouteExit = () => {};
+
+    useIssueNavStack.getState().registerExitOwner(initialExit);
+    useIssueNavStack.setState({ currentId: "REEF-A" });
+    useIssueNavStack.getState().reconcile("REEF-B");
+    useIssueNavStack.getState().registerExitOwner(freshRouteExit);
+
+    expect(useIssueNavStack.getState().exitOwner).toBe(freshRouteExit);
   });
 
   it("clear empties the trail and current pointer (the session-boundary reset)", () => {
