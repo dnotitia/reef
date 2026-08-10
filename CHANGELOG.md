@@ -50,6 +50,10 @@ explicitly in the entries below.
 - **Comment mentions now use exact-case vault-roster autocomplete, canonical
   escaped tokens, save-time validation, and projection-gated rendering.**
   (REEF-452)
+- **Issue-body mentions now use opt-in editor autocomplete with the canonical
+  mention parser, while create/update writes derive current-roster recipients
+  into issue metadata and record commit-bound internal deltas without exposing
+  them in the user activity timeline.** (REEF-453)
 - **Comment mention notifications now reach recipients independently of issue
   subscriptions, respect self-mention and manual mute controls, and open the
   source comment after the notification is marked read.**

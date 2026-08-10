@@ -100,6 +100,21 @@ describe("IssueMetadataSchema lineage", () => {
       }).operation,
     ).toBe("update");
   });
+
+  it("keeps mention recipients out of client create/update wires", () => {
+    expect(
+      IssueCreateInputSchema.safeParse({
+        fields: { title: "Create me", mention_recipients: ["alice"] },
+        content: "@alice",
+      }).success,
+    ).toBe(false);
+    expect(
+      IssueUpdateInputSchema.safeParse({
+        issue_id: "REEF-001",
+        patch: { mention_recipients: ["alice"] },
+      }).success,
+    ).toBe(false);
+  });
 });
 
 describe("ExternalRefSchema document → references migration (REEF-083)", () => {

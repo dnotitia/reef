@@ -27,6 +27,8 @@ These few rules, if broken, produce a malformed or invisible issue. They are sho
 
 6. **Propose inferred fields, then write.** Anything you inferred or defaulted (issue_type, priority, assignee, planning links, a status side effect) goes into one short proposal the user can correct before you write. Do not interrogate field by field. Why: writes are last-write-wins across two non-transactional stores, and PM judgment -- not a fill-in form -- is the whole point of this workspace. (conversational-playbook.md)
 
+7. **Issue-body mentions are roster-resolved metadata, not a second data model.** On issue create/update, reuse the canonical @username / @{unsafe username} parser and the current akb_vault_members roster. Store only sorted, deduplicated, exact-case resolved usernames in meta.mention_recipients; unresolved tokens remain ordinary body text and must not reveal membership. The issue_body_mentions_change activity row is an internal precursor for committed deltas, is idempotent by document commit, and is not a user timeline event. Never add a mention table, column, or separate store. (issue-workflows.md + comments-and-activity.md)
+
 ## Read the runbook before you act
 
 Creating an issue needs two runbooks, not one: conversational-playbook.md (what to decide, when to ask, planning-link judgment) and issue-workflows.md (the write mechanics). Reading only the mechanics one is the common miss -- it is how planning links and PM judgment get dropped. For other intents, read the one the router names; use akb_browse before akb_put on an unfamiliar collection.

@@ -97,6 +97,26 @@ describe("issue workflows — field-change activity invariant (REEF-126)", () =>
   });
 });
 
+describe("issue workflows — issue-body mention projection", () => {
+  const content = issueWorkflowsContent();
+
+  it("derives recipients from the current roster and preserves unresolved text", () => {
+    expect(content).toContain("akb_vault_members");
+    expect(content).toContain("meta.mention_recipients");
+    expect(content).toContain("An unresolved token is ordinary body text");
+    expect(content).toContain(
+      "callers must not accept it as a client-controlled",
+    );
+  });
+
+  it("documents the commit-bound internal delta event and compensation", () => {
+    expect(content).toContain("issue_body_mentions_change:<document_commit>");
+    expect(content).toContain("a no-op recipient set emits no event");
+    expect(content).toContain("compensates the row and/or document");
+    expect(content).toContain("not a user activity timeline row");
+  });
+});
+
 // REEF-395: the issue-creation runbook needs to tell agents how to write links in
 // generated Markdown bodies and when to use structured relationship fields.
 describe("issue workflows — issue body link syntax (REEF-395)", () => {

@@ -459,6 +459,71 @@ test.describe("Hermetic issue route surfaces", () => {
       .not.toContain("REEF-004");
   });
 
+  test("keeps a created mention body visible after closing, reload, and sign-in", async ({
+    context,
+    page,
+  }) => {
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+
+    const title = "Created mention body survives re-open";
+    const body = "@alice plain @ghost-v4";
+    await page.getByTestId("new-issue-trigger").click();
+    const dialog = page.getByTestId("new-issue-dialog");
+    await expect(dialog).toBeVisible();
+    await dialog.getByTestId("new-issue-title-input").fill(title);
+    await dialog
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+    await dialog.getByTestId("markdown-source-textarea").fill(body);
+    await dialog.getByTestId("new-issue-submit").click();
+
+    await page.waitForURL(/\/issues\/REEF-\d+$/, { timeout: 10_000 });
+    const issueId = new URL(page.url()).pathname.split("/").at(-1);
+    if (!issueId || !/^REEF-\d+$/.test(issueId)) {
+      throw new Error(`Unexpected created issue URL: ${page.url()}`);
+    }
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await expect(page.getByTestId("issue-title-input")).toHaveValue(title);
+
+    await page.getByTestId("issue-close").click();
+    await page.waitForURL(/\/issues(?:\?[^#]*)?$/, { timeout: 10_000 });
+
+    const backlogPath = `/workspace/${REEF_E2E_VAULT}/issues?view=backlog`;
+    const expectCreatedBacklogRow = async () => {
+      await page.goto(backlogPath);
+      await expect(page.getByTestId("backlog-table")).toBeVisible();
+      const row = page.getByTestId("backlog-row").filter({ hasText: issueId });
+      await expect(row).toContainText(title);
+    };
+
+    await expectCreatedBacklogRow();
+    await page.reload();
+    await expect(page.getByTestId("backlog-table")).toBeVisible();
+    await expect(
+      page.getByTestId("backlog-row").filter({ hasText: issueId }),
+    ).toContainText(title);
+
+    await context.clearCookies();
+    await openExistingWorkspace(page);
+    await expectCreatedBacklogRow();
+
+    await page.getByTestId("backlog-row").filter({ hasText: issueId }).click();
+    await page.waitForURL(new RegExp(`/issues/${issueId}\\?view=backlog$`), {
+      timeout: 10_000,
+    });
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+    await expect(page.getByTestId("markdown-source-textarea")).toHaveValue(
+      body,
+    );
+  });
+
   test("creates a sub-issue from Sub-issues with inherited defaults and optimistic child list update", async ({
     page,
     request,

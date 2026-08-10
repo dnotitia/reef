@@ -46,6 +46,7 @@ export {
 } from "./comment";
 
 export {
+  buildResolvedMentionRecipients,
   buildMentionRecipients,
   extractMentionUsernames,
   formatMentionToken,
@@ -89,6 +90,7 @@ export {
   ACTIVITY_EVENT_ATTACHMENT_REMOVED,
   ACTIVITY_EVENT_ISSUE_TYPE_CHANGE,
   ACTIVITY_EVENT_START_DATE_CHANGE,
+  ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE,
   type ActivityEventType,
   type ActivityEventPayload,
   type AssigneeChangePayload,
@@ -109,6 +111,7 @@ export {
   type AttachmentRemovedPayload,
   type IssueTypeChangePayload,
   type StartDateChangePayload,
+  type IssueBodyMentionsChangePayload,
   type ActivityEvent,
 } from "./activity";
 

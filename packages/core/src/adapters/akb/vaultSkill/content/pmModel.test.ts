@@ -29,10 +29,17 @@ describe("pm-model data-model manifest (REEF-252)", () => {
 
   it("documents reef_activity columns including event_type and the meta shape", () => {
     expect(content).toContain("## reef_activity columns");
-    expect(content).toContain(
-      "status_change, assignee_change, priority_change, planning_link, or impl_ref_linked",
-    );
+    expect(content).toContain("status_change, assignee_change");
+    expect(content).toContain("issue_body_mentions_change");
     expect(content).toContain("{actor, at, source}");
+  });
+
+  it("documents the server-derived issue-body recipient projection", () => {
+    expect(content).toContain("mention_recipients");
+    expect(content).toContain("current roster");
+    expect(content).toContain(
+      "Do not add a table, column, or separate mention store",
+    );
   });
 
   it("keeps the canonical author/timestamps in meta, not akb's auto columns", () => {

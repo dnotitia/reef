@@ -9,7 +9,7 @@ Activity events are WRITTEN only as a side effect of a lifecycle change -- see "
 
 reef_activity is the issue's immutable audit history (the Jira changelog / Linear IssueHistory equivalent). Read it oldest-first, ordering by the semantic meta.at (ISO-8601 sorts lexically) with the akb uuid id as a stable tiebreak -- the same order the product timeline uses:
 
-  SELECT * FROM reef_activity WHERE reef_id = 'REEF-001' ORDER BY meta->>'at' ASC, id ASC
+  SELECT * FROM reef_activity WHERE reef_id = 'REEF-001' AND event_type <> 'issue_body_mentions_change' ORDER BY meta->>'at' ASC, id ASC
 
 Each row carries event_type (which kind of change), event_key (the idempotency key), payload (event-specific json), and meta with actor, at, and source. meta.at is the event time (and sort key), meta.actor is the reef-semantic actor who caused it, and meta.source is the trigger provenance or null. The actor and time come from meta, NOT from akb's auto created_by/created_at columns (those are the akb principal and akb bookkeeping).
 
@@ -20,6 +20,7 @@ Interpret payload by event_type:
 - priority_change: payload {from,to} -- priority moved between levels; either side may be null (an unset priority).
 - planning_link: payload {field,from,to} -- a milestone, sprint, or release was attached or detached; field names which dimension, and from/to are the planning ids (null on attach or detach).
 - impl_ref_linked: payload {ref_type,ref,repo} -- a delivery ref was linked to the issue; ref_type is pull_request, commit, or branch, ref is the PR number / SHA / branch name, and repo is owner/name or null. This is a set addition, so there is one event per newly-linked ref.
+- issue_body_mentions_change: payload {recipients,added,removed,document_commit} -- an internal precursor records the committed issue-body recipient delta. Its event_key is issue_body_mentions_change:<document_commit>, so the same document commit is idempotent. It is never a user-visible timeline row; exclude it from history reads and presentation.
 
 Two read rules:
 

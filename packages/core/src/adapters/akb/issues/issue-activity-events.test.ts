@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
 import {
   ALL_REEF_TABLES,
+  ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE,
   REEF_ACTIVITY_TABLE,
   SAMPLE_ISSUE,
   activityEventKey,
   appendActivityEvents,
+  appendIssueBodyMentionsChangeEvent,
   appendStatusChangeEvent,
   diffFieldActivityEvents,
   listIssueActivity,
@@ -66,6 +68,52 @@ describe("statusChangeEventKey", () => {
     expect(
       statusChangeEventKey("todo", "in_progress", "2026-06-18T01:00:00.000Z"),
     ).toBe("status_change:todo->in_progress@2026-06-18T01:00:00.000Z");
+  });
+});
+
+describe("issue body mention activity", () => {
+  it("uses the document commit as its idempotency key", () => {
+    expect(
+      activityEventKey(
+        {
+          eventType: ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE,
+          payload: {
+            recipients: ["alice"],
+            added: ["alice"],
+            removed: [],
+            document_commit: "commit-mentions",
+          },
+        },
+        "2026-07-01T00:00:00.000Z",
+      ),
+    ).toBe("issue_body_mentions_change:commit-mentions");
+  });
+
+  it("stores the canonical delta payload with the normal activity schema", async () => {
+    const { calls } = setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { body: makeSqlQueryResponse([{ id: "mention-event" }], ["id"]) },
+    ]);
+
+    await appendIssueBodyMentionsChangeEvent(makeAdapter(), "reef-sample", {
+      reefId: SAMPLE_ISSUE.id,
+      recipients: ["alice", "bob"],
+      added: ["bob"],
+      removed: ["carol"],
+      documentCommit: "commit-mentions",
+      at: "2026-07-01T00:00:00.000Z",
+      actor: "alice",
+      source: "web",
+    });
+
+    expect(calls).toHaveLength(2);
+    const sql = lastSql(calls[1]?.init?.body);
+    expect(sql).toContain("issue_body_mentions_change:commit-mentions");
+    expect(sql).toContain('"recipients":["alice","bob"]');
+    expect(sql).toContain('"added":["bob"]');
+    expect(sql).toContain('"removed":["carol"]');
+    expect(sql).toContain('"document_commit":"commit-mentions"');
+    expect(sql).toContain("WHERE NOT EXISTS");
   });
 });
 
@@ -254,6 +302,38 @@ describe("listIssueActivity", () => {
 
     expect(events).toHaveLength(1);
     expect(events[0]?.id).toBe("e1");
+  });
+
+  it("does not expose the internal mention precursor in the user timeline", async () => {
+    setupFetch([
+      {
+        body: makeSqlQueryResponse(
+          [
+            makeActivityRow({
+              id: "mention-event",
+              event_type: ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE,
+              event_key: "issue_body_mentions_change:commit-mentions",
+              payload: {
+                recipients: ["alice"],
+                added: ["alice"],
+                removed: [],
+                document_commit: "commit-mentions",
+              },
+            }),
+            makeActivityRow({ id: "status-event" }),
+          ],
+          ACTIVITY_ROW_COLUMNS,
+        ),
+      },
+    ]);
+
+    const events = await listIssueActivity(
+      makeAdapter(),
+      "reef-sample",
+      "REEF-063",
+    );
+
+    expect(events.map((event) => event.id)).toEqual(["status-event"]);
   });
 });
 

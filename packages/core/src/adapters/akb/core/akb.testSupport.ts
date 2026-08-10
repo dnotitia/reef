@@ -9,6 +9,7 @@ export type { IssueMetadata } from "../../../schemas/issues/metadata";
 export type { Template } from "../../../schemas/issues/template";
 export {
   ISSUES_COLLECTION,
+  ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE,
   MONITORED_REPOS_TABLE,
   REEF_ACTIVITY_TABLE,
   REEF_NOTIFICATIONS_TABLE,
@@ -27,6 +28,7 @@ export {
   REEF_TEMPLATES_TABLE,
   activityEventKey,
   appendActivityEvents,
+  appendIssueBodyMentionsChangeEvent,
   appendStatusChangeEvent,
   composeActivitySuggestionDocumentBody,
   createAkbAdapter,
@@ -78,6 +80,7 @@ export {
   writeIssue,
   writeMultipleIssues,
   writeTemplate,
+  type IssueBodyMentionsChangeEventInput,
 } from "../index";
 export * from "../activity/activityFixtures";
 export * from "./httpTestSupport";

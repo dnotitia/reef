@@ -17,6 +17,7 @@ import { useCreateIssue } from "@/features/issues/hooks/mutations/useCreateIssue
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
+import { useVaultRoster } from "@/features/settings/hooks/useVaultRoster";
 import {
   ensureProjectConfig,
   useProjectConfig,
@@ -86,6 +87,7 @@ export function NewIssueDialog({
   const t = useTranslations("toasts");
   const tc = useTranslations("issues.create");
   const common = useTranslations("common");
+  const markdownEditor = useTranslations("markdownEditor");
   const fieldNames = useFieldNameLabels();
   const createMutation = useCreateIssue();
   const queryClient = useQueryClient();
@@ -94,6 +96,7 @@ export function NewIssueDialog({
   const configQuery = useProjectConfig(vault ?? "");
   const prefix =
     configQuery.data?.config.project_prefix ?? DEFAULT_CONFIG.project_prefix;
+  const { data: vaultMembers = [] } = useVaultRoster(vault ?? "");
 
   const {
     title,
@@ -209,6 +212,18 @@ export function NewIssueDialog({
   );
   const subIssueContext =
     dialogContext?.kind === "subIssue" ? dialogContext : null;
+  const issueBodyMentionConfig = useMemo(
+    () =>
+      vault
+        ? {
+            members: vaultMembers,
+            suggestionsLabel: markdownEditor("mentionSuggestions"),
+            mentionOptionLabel: (username: string) =>
+              markdownEditor("mentionOption", { username: `@${username}` }),
+          }
+        : undefined,
+    [markdownEditor, vault, vaultMembers],
+  );
 
   function resetForm() {
     resetFields();
@@ -640,6 +655,7 @@ export function NewIssueDialog({
             body={body}
             onBodyChange={setBody}
             vault={vault ?? undefined}
+            mentionConfig={issueBodyMentionConfig}
             disabled={isSubmitting}
             renderField={renderEnrichable}
             titleId="new-issue-title"

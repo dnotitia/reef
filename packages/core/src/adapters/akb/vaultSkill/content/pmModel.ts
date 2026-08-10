@@ -49,9 +49,9 @@ AKB manages id (the comment's uuid), created_at, updated_at, and created_by auto
 reef_activity is an issue's immutable, append-only audit history, one row per recorded change (the board timeline reads it). Columns:
 
 - reef_id: the issue the event belongs to.
-- event_type: which kind of change -- status_change, assignee_change, priority_change, planning_link, or impl_ref_linked.
+- event_type: which kind of change -- status_change, assignee_change, priority_change, planning_link, impl_ref_linked, title_change, labels_change, due_date_change, estimate_change, parent_change, relation_change, archived_change, attachment_added, attachment_removed, issue_type_change, start_date_change, or issue_body_mentions_change.
 - event_key: the idempotency key, so the same logical change retried does not double a row.
-- payload (json): event-specific data, for example {from,to} for a status_change. The exact shape per event_type is in comments-and-activity.md.
+- payload (json): event-specific data, for example {from,to} for a status_change. The exact shape per event_type is in comments-and-activity.md. The issue_body_mentions_change payload is {recipients, added, removed, document_commit}; it is an internal precursor for notification work, not a user-visible timeline event.
 - meta (json): {actor, at, source}. actor is the reef-semantic actor who caused the event; at is the ISO-8601 event time and sort key; source is the trigger provenance or null. As with reef_comments, these live in meta, not akb's auto columns.
 
 Append-only: rows are written only as a side effect of a lifecycle change (see issue-workflows.md) and are never updated or deleted. See comments-and-activity.md to read the timeline.
@@ -102,7 +102,7 @@ Use issue_type values: epic, story, task, bug, spike, chore. This is the reef_is
 
 ## The meta column
 
-The reef_issues.meta json column is the home for Reef semantic actors (author, last_editor) and reef-only fields that have no native column. Its exact key set and skeleton are in issue-workflows.md.
+The reef_issues.meta json column is the home for Reef semantic actors (author, last_editor) and reef-only fields that have no native column. Its exact key set and skeleton are in issue-workflows.md. mention_recipients is a sorted, deduplicated array of exact-case vault usernames resolved from the issue body by the current roster. It is server-derived on issue create/update; unresolved tokens remain body text and are excluded. Do not add a table, column, or separate mention store.
 
 ## Delivery links
 

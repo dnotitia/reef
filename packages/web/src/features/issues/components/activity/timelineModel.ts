@@ -6,6 +6,7 @@ import {
   ACTIVITY_EVENT_DUE_DATE_CHANGE,
   ACTIVITY_EVENT_ESTIMATE_CHANGE,
   ACTIVITY_EVENT_IMPL_REF_LINKED,
+  ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE,
   ACTIVITY_EVENT_ISSUE_TYPE_CHANGE,
   ACTIVITY_EVENT_LABELS_CHANGE,
   ACTIVITY_EVENT_PARENT_CHANGE,
@@ -388,6 +389,10 @@ function fromActivityEvent(event: ActivityEvent): TimelineSystemEvent | null {
     case ACTIVITY_EVENT_IMPL_REF_LINKED:
       // Delivery is reconstructed from the issue's implementation_refs; the
       // activity row would render a second, duplicate delivery line (AC4).
+      return null;
+    case ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE:
+      // The mention delta is an internal precursor used for notifications and
+      // auditability, not a user-visible activity timeline row.
       return null;
   }
 }

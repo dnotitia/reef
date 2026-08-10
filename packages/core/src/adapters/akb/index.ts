@@ -117,6 +117,7 @@ export {
 export {
   activityEventKey,
   appendActivityEvents,
+  appendIssueBodyMentionsChangeEvent,
   appendStatusChangeEvent,
   diffFieldActivityEvents,
   listIssueActivity,
@@ -124,9 +125,11 @@ export {
   reconcileJiraChangelogActivityEvents,
   statusChangeEventKey,
   type ActivityEventInput,
+  type IssueBodyMentionsChangeEventInput,
   type JiraImportedAttachmentActivityActorInput,
   type StatusChangeEventInput,
 } from "./issues/activity";
+export { ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE } from "../../schemas/issues/activity";
 export {
   composeActivitySuggestionDocumentBody,
   writeActivitySuggestion,

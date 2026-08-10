@@ -8,6 +8,7 @@ import {
   ACTIVITY_EVENT_DUE_DATE_CHANGE,
   ACTIVITY_EVENT_ESTIMATE_CHANGE,
   ACTIVITY_EVENT_IMPL_REF_LINKED,
+  ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE,
   ACTIVITY_EVENT_ISSUE_TYPE_CHANGE,
   ACTIVITY_EVENT_LABELS_CHANGE,
   ACTIVITY_EVENT_PARENT_CHANGE,
@@ -29,6 +30,7 @@ import {
   type AttachmentAddedPayload,
   AttachmentAddedPayloadSchema,
   type AttachmentRemovedPayload,
+  type IssueBodyMentionsChangePayload,
   AttachmentRemovedPayloadSchema,
   type DueDateChangePayload,
   DueDateChangePayloadSchema,
@@ -38,6 +40,7 @@ import {
   ImplRefLinkedPayloadSchema,
   type IssueTypeChangePayload,
   IssueTypeChangePayloadSchema,
+  IssueBodyMentionsChangePayloadSchema,
   JiraChangelogActivityEventKeySchema,
   type LabelsChangePayload,
   LabelsChangePayloadSchema,
@@ -142,6 +145,10 @@ export type ActivityEventDescriptor =
   | {
       eventType: typeof ACTIVITY_EVENT_START_DATE_CHANGE;
       payload: StartDateChangePayload;
+    }
+  | {
+      eventType: typeof ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE;
+      payload: IssueBodyMentionsChangePayload;
     };
 
 /**
@@ -213,6 +220,8 @@ export function activityEventKey(
     case ACTIVITY_EVENT_ATTACHMENT_REMOVED: {
       return `${descriptor.eventType}:${descriptor.payload.attachment_id}@${at}`;
     }
+    case ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE:
+      return `${descriptor.eventType}:${descriptor.payload.document_commit}`;
     default: {
       // status / assignee / priority / title / due_date / estimate / parent /
       // archived all key on from→to (each from/to is a scalar or null).
@@ -250,6 +259,17 @@ export interface StatusChangeEventInput {
   /** reef semantic actor who caused the change (the issue's `updated_by`). */
   actor: string;
   /** Trigger provenance (the issue's `meta.source`), or null. */
+  source?: string | null;
+}
+
+export interface IssueBodyMentionsChangeEventInput {
+  reefId: string;
+  recipients: string[];
+  added: string[];
+  removed: string[];
+  documentCommit: string;
+  at: string;
+  actor: string;
   source?: string | null;
 }
 
@@ -332,6 +352,44 @@ export async function appendStatusChangeEvent(
         eventType: ACTIVITY_EVENT_STATUS_CHANGE,
         eventKey: statusChangeEventKey(event.from, event.to, event.at),
         payload: { from: event.from, to: event.to },
+        meta: {
+          actor: event.actor,
+          at: event.at,
+          source: event.source ?? null,
+        },
+      });
+      span.setAttribute("appended", appended);
+    },
+  );
+}
+
+/**
+ * Append the internal issue-body mention precursor event. This is deliberately
+ * a strict append path: callers use a failure to compensate the document and
+ * row projection, so a recipient delta can never be acknowledged without its
+ * commit-bound event.
+ */
+export async function appendIssueBodyMentionsChangeEvent(
+  adapter: AkbAdapter,
+  vault: string,
+  event: IssueBodyMentionsChangeEventInput,
+): Promise<void> {
+  return withSpan(
+    "akb.append_issue_body_mentions_change_event",
+    { vault, reef_id: event.reefId },
+    async (span) => {
+      const payload = IssueBodyMentionsChangePayloadSchema.parse({
+        recipients: event.recipients,
+        added: event.added,
+        removed: event.removed,
+        document_commit: event.documentCommit,
+      });
+      await ensureReefTables({ adapter, vault });
+      const appended = await insertActivityEventRow(adapter, vault, {
+        reefId: event.reefId,
+        eventType: ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE,
+        eventKey: `${ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE}:${event.documentCommit}`,
+        payload,
         meta: {
           actor: event.actor,
           at: event.at,
@@ -794,6 +852,8 @@ const PAYLOAD_SCHEMA_BY_EVENT_TYPE = {
   [ACTIVITY_EVENT_ATTACHMENT_REMOVED]: AttachmentRemovedPayloadSchema,
   [ACTIVITY_EVENT_ISSUE_TYPE_CHANGE]: IssueTypeChangePayloadSchema,
   [ACTIVITY_EVENT_START_DATE_CHANGE]: StartDateChangePayloadSchema,
+  [ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE]:
+    IssueBodyMentionsChangePayloadSchema,
 } as const;
 
 /**
@@ -885,7 +945,10 @@ export async function listIssueActivity(
       const events: ActivityEvent[] = [];
       for (const row of rows) {
         try {
-          events.push(rowToActivityEvent(row));
+          const event = rowToActivityEvent(row);
+          if (event.event_type !== ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE) {
+            events.push(event);
+          }
         } catch {
           // Skip a malformed event row rather than failing the whole history.
         }

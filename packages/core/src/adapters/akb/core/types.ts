@@ -84,6 +84,8 @@ export interface ClaimIssueIdParams {
 export interface WriteIssueResult {
   path: string;
   commit_hash: string;
+  /** Metadata after server-owned projections have been derived. */
+  issue: IssueMetadata;
 }
 
 export interface UpdateIssueParams {

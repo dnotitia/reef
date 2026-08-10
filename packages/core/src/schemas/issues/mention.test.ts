@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  buildResolvedMentionRecipients,
   buildMentionRecipients,
   formatMentionToken,
   parseMentionTokens,
@@ -74,5 +75,25 @@ describe("comment mention grammar", () => {
     expect(parsePersistedMentionRecipients(["alice", "alice"])).toEqual([
       "alice",
     ]);
+  });
+});
+
+describe("issue body mention projection", () => {
+  it("keeps resolved exact-case recipients and ignores unresolved tokens", () => {
+    expect(
+      buildResolvedMentionRecipients("@bob @missing @bob @{Ada Lovelace}", [
+        "bob",
+        "Ada Lovelace",
+      ]),
+    ).toEqual(["Ada Lovelace", "bob"]);
+  });
+
+  it("does not project mentions in parser-owned markdown regions", () => {
+    expect(
+      buildResolvedMentionRecipients(
+        "`@bob` [@bob](https://example.test) mail bob@example.test\n\n@bob",
+        ["bob"],
+      ),
+    ).toEqual(["bob"]);
   });
 });

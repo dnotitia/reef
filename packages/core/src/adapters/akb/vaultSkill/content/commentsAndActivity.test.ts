@@ -15,7 +15,7 @@ describe("comments-and-activity runbook (REEF-252)", () => {
   describe("activity timeline read", () => {
     it("documents the oldest-first reef_activity query the adapter uses", () => {
       expect(content).toContain(
-        "SELECT * FROM reef_activity WHERE reef_id = 'REEF-001' ORDER BY meta->>'at' ASC, id ASC",
+        "SELECT * FROM reef_activity WHERE reef_id = 'REEF-001' AND event_type <> 'issue_body_mentions_change' ORDER BY meta->>'at' ASC, id ASC",
       );
     });
 
@@ -26,9 +26,16 @@ describe("comments-and-activity runbook (REEF-252)", () => {
         "priority_change",
         "planning_link",
         "impl_ref_linked",
+        "issue_body_mentions_change",
       ]) {
         expect(content).toContain(eventType);
       }
+    });
+
+    it("keeps the internal mention precursor out of the user timeline", () => {
+      expect(content).toContain("internal precursor");
+      expect(content).toContain("document_commit");
+      expect(content).toContain("never a user-visible timeline row");
     });
 
     it("marks the log append-only — never UPDATE or DELETE an event row", () => {

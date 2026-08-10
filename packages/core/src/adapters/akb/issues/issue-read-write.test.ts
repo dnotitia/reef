@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildSubscriptionKey } from "../../../schemas/notifications";
 import {
   AkbApiError,
+  ALL_REEF_TABLES,
   AuthError,
   ConflictError,
   ISSUES_COLLECTION,
@@ -14,6 +15,7 @@ import {
   makeAdapter,
   makeDocumentResponse,
   makeIssueRow,
+  makeListTablesResponse,
   makePutResponse,
   makeSqlMutationResponse,
   makeSqlQueryResponse,
@@ -289,6 +291,44 @@ describe("writeIssue", () => {
     expect(insertSql).toContain('"last_editor":"bob"');
   });
 
+  it("derives create-time mention recipients from the roster and ignores client metadata", async () => {
+    const { calls } = setupFetch([
+      {
+        body: {
+          members: [
+            { username: "alice", role: "member" },
+            { username: "Ada Lovelace", role: "member" },
+          ],
+        },
+      },
+      { status: 201, body: makePutResponse() },
+      { body: makeSqlMutationResponse("INSERT 0 1") },
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { body: makeSqlQueryResponse([{ id: "mention-event" }], ["id"]) },
+    ]);
+    const issue: IssueMetadata = {
+      ...SAMPLE_ISSUE,
+      assigned_to: undefined,
+      mention_recipients: ["client-controlled"],
+    };
+
+    const result = await writeIssue({
+      adapter: makeAdapter(),
+      vault: "reef-sample",
+      issue,
+      content: "Owner @alice @missing @{Ada Lovelace}",
+    });
+
+    expect(result.issue.mention_recipients).toEqual(["Ada Lovelace", "alice"]);
+    const rowSql = JSON.parse(String(calls[2]?.init?.body)).sql as string;
+    expect(rowSql).toContain('"mention_recipients":["Ada Lovelace","alice"]');
+    const eventSql = JSON.parse(String(calls[4]?.init?.body)).sql as string;
+    expect(eventSql).toContain("issue_body_mentions_change:abc1234");
+    expect(eventSql).toContain('"added":["Ada Lovelace","alice"]');
+    expect(eventSql).toContain('"removed":[]');
+    expect(eventSql).toContain('"document_commit":"abc1234"');
+  });
+
   it("compensates by deleting the document when the row INSERT fails", async () => {
     const { calls } = setupFetch([
       { status: 201, body: makePutResponse() }, // POST document
@@ -309,6 +349,37 @@ describe("writeIssue", () => {
     expect(calls[2]?.url).toContain(
       "/api/v1/documents/reef-sample/issues/reef-001-fix-the-login-flow.md",
     );
+  });
+
+  it("compensates the row and document when the mention delta append fails", async () => {
+    const { calls } = setupFetch([
+      {
+        body: {
+          members: [{ username: "alice", role: "member" }],
+        },
+      },
+      { status: 201, body: makePutResponse() },
+      { body: makeSqlMutationResponse("INSERT 0 1") },
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { status: 500, body: { detail: "activity insert blew up" } },
+      { body: makeSqlMutationResponse("DELETE 1") },
+      { status: 204, empty: true },
+    ]);
+
+    await expect(
+      writeIssue({
+        adapter: makeAdapter(),
+        vault: "reef-sample",
+        issue: SAMPLE_ISSUE,
+        content: "Owner @alice",
+      }),
+    ).rejects.toBeInstanceOf(AkbApiError);
+
+    expect(calls).toHaveLength(7);
+    expect(JSON.parse(String(calls[5]?.init?.body)).sql).toContain(
+      "DELETE FROM reef_issues",
+    );
+    expect(calls[6]?.init?.method).toBe("DELETE");
   });
 
   it("propagates 409 as ConflictError", async () => {
