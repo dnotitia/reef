@@ -103,6 +103,50 @@ test.describe("Hermetic issue keyboard navigation", () => {
     await expect(rows.first()).toContainText("In Progress");
   });
 
+  test("keeps each List quick editor beside its activated field without opening detail", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+
+    const rows = await expectIssueListKeyboardReady(page);
+    const row = rows.first();
+
+    for (const field of ["status", "priority", "assignee"] as const) {
+      await row.getByTestId(`issue-inline-edit-${field}`).click();
+      const anchor = page.getByTestId("issue-quick-edit-anchor");
+      await expect(anchor).toBeVisible();
+      await expect(page.locator('[data-testid="issue-detail"]')).toHaveCount(0);
+
+      const geometry = await page.evaluate((fieldName) => {
+        const trigger = document.querySelector<HTMLElement>(
+          `[data-testid="issue-inline-edit-${fieldName}"]`,
+        );
+        const editor = document.querySelector<HTMLElement>(
+          '[data-testid="issue-quick-edit-anchor"]',
+        );
+        if (!trigger || !editor) throw new Error("quick-edit geometry missing");
+        const triggerRect = trigger.getBoundingClientRect();
+        return {
+          triggerLeft: triggerRect.left,
+          triggerCenter: triggerRect.top + triggerRect.height / 2,
+          editorLeft: Number.parseFloat(editor.style.left),
+          editorCenter: Number.parseFloat(editor.style.top),
+        };
+      }, field);
+
+      expect(geometry.editorLeft).toBeCloseTo(geometry.triggerLeft, 0);
+      expect(geometry.editorCenter).toBeCloseTo(geometry.triggerCenter, 0);
+
+      const editorTrigger =
+        field === "assignee"
+          ? page.getByTestId("assignee-combobox").locator("button").first()
+          : page.getByTestId(`issue-quick-edit-${field}`);
+      await editorTrigger.press("Escape");
+      await expect(anchor).toHaveCount(0);
+    }
+  });
+
   test("moves Backlog focus with j, exposes semantic links, and opens the focused issue", async ({
     page,
   }) => {

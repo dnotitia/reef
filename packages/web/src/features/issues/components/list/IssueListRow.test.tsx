@@ -1,6 +1,13 @@
 import type { IssueMetadata } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -85,6 +92,23 @@ function renderRow(
     </table>,
     { wrapper: createWrapper() },
   );
+}
+
+function setBoundingClientRect(
+  element: Element,
+  rect: Pick<DOMRect, "left" | "top" | "width" | "height">,
+) {
+  Object.defineProperty(element, "getBoundingClientRect", {
+    configurable: true,
+    value: () => ({
+      ...rect,
+      right: rect.left + rect.width,
+      bottom: rect.top + rect.height,
+      x: rect.left,
+      y: rect.top,
+      toJSON: () => rect,
+    }),
+  });
 }
 
 describe("IssueListRow", () => {
@@ -202,8 +226,200 @@ describe("IssueListRow", () => {
     }
   });
 
-  it("opens the inline editor from a focused cell with Enter without opening detail", () => {
+  it("opens each inline editor from a focused cell with Enter without opening detail", () => {
     const onClick = vi.fn();
+    for (const field of ["status", "priority", "assignee"] as const) {
+      cleanup();
+      useIssueKeyboardStore
+        .getState()
+        .setVisibleOccurrences("list", [
+          { key: "row-1", issueId: mockIssue.id },
+        ]);
+      render(
+        <IssueListRow
+          issue={mockIssue}
+          vault="reef-test"
+          allIssues={[mockIssue]}
+          logicalIds={[mockIssue.id]}
+          occurrenceKey="row-1"
+          onClick={onClick}
+        />,
+        { wrapper: createWrapper() },
+      );
+
+      fireEvent.keyDown(screen.getByTestId(`issue-inline-edit-${field}`), {
+        key: "Enter",
+      });
+
+      expect(useIssueKeyboardStore.getState().quickEditRequest).toMatchObject({
+        scope: "list",
+        issueId: mockIssue.id,
+        occurrenceKey: "row-1",
+        field,
+      });
+      expect(onClick).not.toHaveBeenCalled();
+      useIssueKeyboardStore.getState().closeQuickEdit();
+    }
+  });
+
+  it("positions each quick editor from its active field trigger, not the ID cell", async () => {
+    const user = userEvent.setup();
+    const fieldRects = {
+      status: { left: 320, top: 80, width: 96, height: 28 },
+      priority: { left: 460, top: 80, width: 88, height: 28 },
+      assignee: { left: 600, top: 80, width: 128, height: 28 },
+    } as const;
+
+    for (const field of ["status", "priority", "assignee"] as const) {
+      cleanup();
+      useIssueKeyboardStore
+        .getState()
+        .setVisibleOccurrences("list", [
+          { key: "row-1", issueId: mockIssue.id },
+        ]);
+      render(
+        <IssueListRow
+          issue={mockIssue}
+          vault="reef-test"
+          allIssues={[mockIssue]}
+          logicalIds={[mockIssue.id]}
+          occurrenceKey="row-1"
+        />,
+        { wrapper: createWrapper() },
+      );
+
+      const idCell = screen
+        .getByTestId("issue-list-row")
+        .querySelector<HTMLElement>('td[data-column-key="id"]');
+      expect(idCell).not.toBeNull();
+      const trigger = screen.getByTestId(`issue-inline-edit-${field}`);
+      setBoundingClientRect(idCell as HTMLElement, {
+        left: 16,
+        top: 80,
+        width: 128,
+        height: 40,
+      });
+      setBoundingClientRect(trigger, fieldRects[field]);
+
+      await user.click(trigger);
+
+      expect(screen.getByTestId("issue-quick-edit-anchor")).toHaveStyle({
+        left: `${fieldRects[field].left}px`,
+      });
+      useIssueKeyboardStore.getState().closeQuickEdit();
+    }
+  });
+
+  it("follows the active trigger after resize and vertical or horizontal table scroll", async () => {
+    useIssueKeyboardStore
+      .getState()
+      .setVisibleOccurrences("list", [{ key: "row-1", issueId: mockIssue.id }]);
+    render(
+      <div data-testid="issue-list-scroll-container">
+        <table>
+          <tbody>
+            <IssueListRow
+              issue={mockIssue}
+              vault="reef-test"
+              allIssues={[mockIssue]}
+              logicalIds={[mockIssue.id]}
+              occurrenceKey="row-1"
+            />
+          </tbody>
+        </table>
+      </div>,
+      { wrapper: createWrapper() },
+    );
+
+    const idCell = screen
+      .getByTestId("issue-list-row")
+      .querySelector<HTMLElement>('td[data-column-key="id"]');
+    const trigger = screen.getByTestId("issue-inline-edit-priority");
+    const scrollContainer = screen.getByTestId("issue-list-scroll-container");
+    expect(idCell).not.toBeNull();
+    setBoundingClientRect(idCell as HTMLElement, {
+      left: 16,
+      top: 80,
+      width: 128,
+      height: 40,
+    });
+    let triggerRect = {
+      left: 460,
+      top: 80,
+      width: 88,
+      height: 28,
+    };
+    const triggerRectSpy = vi.fn(() => ({
+      ...triggerRect,
+      right: triggerRect.left + triggerRect.width,
+      bottom: triggerRect.top + triggerRect.height,
+      x: triggerRect.left,
+      y: triggerRect.top,
+      toJSON: () => triggerRect,
+    }));
+    Object.defineProperty(trigger, "getBoundingClientRect", {
+      configurable: true,
+      value: triggerRectSpy,
+    });
+
+    act(() => {
+      useIssueKeyboardStore
+        .getState()
+        .focusOccurrence("list", "row-1", mockIssue.id, {
+          requestDomFocus: false,
+        });
+      useIssueKeyboardStore
+        .getState()
+        .requestQuickEdit("list", "priority", { requestDomFocus: false });
+    });
+    expect(useIssueKeyboardStore.getState().quickEditRequest).toMatchObject({
+      scope: "list",
+      issueId: mockIssue.id,
+      occurrenceKey: "row-1",
+      field: "priority",
+    });
+    const anchor = await screen.findByTestId("issue-quick-edit-anchor");
+    expect(anchor).toHaveStyle({ left: "460px", top: "94px" });
+
+    triggerRect = {
+      left: 720,
+      top: 140,
+      width: 88,
+      height: 28,
+    };
+    expect(trigger.getBoundingClientRect().left).toBe(720);
+    await act(async () => {
+      window.dispatchEvent(new Event("resize"));
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("issue-quick-edit-anchor")).toHaveStyle({
+        left: "720px",
+        top: "154px",
+      }),
+    );
+
+    triggerRect = {
+      left: 860,
+      top: 220,
+      width: 88,
+      height: 28,
+    };
+    scrollContainer.scrollLeft = 140;
+    scrollContainer.scrollTop = 240;
+    await act(async () => {
+      fireEvent.scroll(scrollContainer);
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("issue-quick-edit-anchor")).toHaveStyle({
+        left: "860px",
+        top: "234px",
+      }),
+    );
+    useIssueKeyboardStore.getState().closeQuickEdit();
+  });
+
+  it("keeps Escape closing the active quick editor", async () => {
+    const user = userEvent.setup();
     useIssueKeyboardStore
       .getState()
       .setVisibleOccurrences("list", [{ key: "row-1", issueId: mockIssue.id }]);
@@ -214,22 +430,19 @@ describe("IssueListRow", () => {
         allIssues={[mockIssue]}
         logicalIds={[mockIssue.id]}
         occurrenceKey="row-1"
-        onClick={onClick}
       />,
       { wrapper: createWrapper() },
     );
 
-    fireEvent.keyDown(screen.getByTestId("issue-inline-edit-status"), {
-      key: "Enter",
-    });
+    await user.click(screen.getByTestId("issue-inline-edit-priority"));
+    expect(screen.getByTestId("issue-quick-edit-anchor")).toBeInTheDocument();
 
-    expect(useIssueKeyboardStore.getState().quickEditRequest).toMatchObject({
-      scope: "list",
-      issueId: mockIssue.id,
-      occurrenceKey: "row-1",
-      field: "status",
-    });
-    expect(onClick).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("issue-quick-edit-anchor")).toBeNull(),
+    );
+    expect(useIssueKeyboardStore.getState().quickEditRequest).toBeNull();
   });
 
   it("toggles selection from the checkbox without opening detail", async () => {

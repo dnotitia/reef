@@ -33,8 +33,10 @@ import { useLocale, useTranslations } from "next-intl";
 import {
   type KeyboardEvent,
   type MouseEvent,
+  type Ref,
   type ReactNode,
   memo,
+  useCallback,
   useEffect,
   useRef,
 } from "react";
@@ -70,12 +72,14 @@ function IssueInlineEditTrigger({
   occurrenceKey,
   label,
   children,
+  anchorRef,
 }: {
   field: IssueQuickEditField;
   issueId: string;
   occurrenceKey: string;
   label: string;
   children: ReactNode;
+  anchorRef?: Ref<HTMLButtonElement>;
 }) {
   function requestEdit() {
     const keyboard = useIssueKeyboardStore.getState();
@@ -85,6 +89,7 @@ function IssueInlineEditTrigger({
 
   return (
     <button
+      ref={anchorRef}
       type="button"
       className="inline-flex h-full max-w-full min-w-0 items-center rounded-sm text-left outline-none transition-colors duration-150 hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:ring-2 focus-visible:ring-brand/40"
       aria-label={label}
@@ -185,6 +190,21 @@ export const IssueListRow = memo(function IssueListRow({
   const currentLogin = useCurrentUserLogin();
   const locale = useLocale();
   const rowRef = useRef<HTMLTableRowElement | null>(null);
+  const statusTriggerRef = useRef<HTMLButtonElement>(null);
+  const priorityTriggerRef = useRef<HTMLButtonElement>(null);
+  const assigneeTriggerRef = useRef<HTMLButtonElement>(null);
+  const getQuickEditAnchor = useCallback((field: IssueQuickEditField) => {
+    switch (field) {
+      case "status":
+        return statusTriggerRef.current;
+      case "priority":
+        return priorityTriggerRef.current;
+      case "assignee":
+        return assigneeTriggerRef.current;
+      default:
+        return null;
+    }
+  }, []);
   const stickyStateClass = selected || focused ? "bg-brand/5" : undefined;
 
   useEffect(() => {
@@ -308,6 +328,7 @@ export const IssueListRow = memo(function IssueListRow({
             issue={issue}
             vault={vault}
             occurrenceKey={keyboardOccurrenceKey}
+            getAnchorElement={getQuickEditAnchor}
           />
         </TableCell>
 
@@ -345,6 +366,7 @@ export const IssueListRow = memo(function IssueListRow({
             issueId={issue.id}
             occurrenceKey={keyboardOccurrenceKey}
             label={fieldNames.status}
+            anchorRef={statusTriggerRef}
           >
             <StatusBadge status={issue.status} />
           </IssueInlineEditTrigger>
@@ -361,6 +383,7 @@ export const IssueListRow = memo(function IssueListRow({
             issueId={issue.id}
             occurrenceKey={keyboardOccurrenceKey}
             label={fieldNames.priority}
+            anchorRef={priorityTriggerRef}
           >
             {issue.priority ? (
               <PriorityBadge priority={issue.priority} />
@@ -381,6 +404,7 @@ export const IssueListRow = memo(function IssueListRow({
             issueId={issue.id}
             occurrenceKey={keyboardOccurrenceKey}
             label={fieldNames.assignee}
+            anchorRef={assigneeTriggerRef}
           >
             {issue.assigned_to ? (
               <PersonChip

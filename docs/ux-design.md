@@ -385,7 +385,9 @@ Priority, and Sprint submenus expose the current value and a nullable None
 choice; closing still requires the existing reason dialog. Copy Link uses the
 canonical vault/issue URL, while Copy ID copies the issue identifier. In List,
 the Status, Priority, and Assignee cells open the existing inline editor on
-click or Enter and do not open the detail sheet.
+click or Enter and do not open the detail sheet. The portaled editor is
+positioned from the activated field trigger itself, not the row's ID cell, and
+re-measures after window or table scrolling so it follows sticky-column motion.
 
 ### Surface, Depth & Motion
 
