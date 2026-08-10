@@ -674,6 +674,7 @@ export function IssueListTable({
                     vault={vault}
                     allIssues={graph}
                     planningCatalog={planningCatalog}
+                    assignees={assignees}
                     highlightQuery={searchQuery}
                     logicalIds={visibleIssueIds}
                     occurrenceKey={item.occurrenceKey}

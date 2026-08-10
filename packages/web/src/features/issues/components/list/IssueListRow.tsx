@@ -10,6 +10,7 @@ import { StatusBadge } from "@/components/ui/status-icon";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { IssueQuickEditAnchor } from "@/features/issues/components/quick-edit/IssueQuickEditAnchor";
+import { IssueContextMenu } from "@/features/issues/components/context-menu/IssueContextMenu";
 import { IssueSelectionCheckbox } from "@/features/issues/components/shared/IssueSelectionCheckbox";
 import {
   ISSUE_LIST_DEFAULT_COLUMNS,
@@ -19,13 +20,26 @@ import {
   issueTableColumnOffset,
 } from "@/features/issues/components/shared/issueTableContract";
 import { useIssueFlash } from "@/features/issues/stores/useFlashStore";
-import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
+import {
+  type IssueQuickEditField,
+  useIssueKeyboardStore,
+} from "@/features/issues/stores/useIssueKeyboardStore";
 import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
 import { findPlanningName } from "@/features/planning/lib/planningItems";
 import { cn } from "@/lib/utils";
-import type { IssueListItem, PlanningCatalog } from "@reef/core";
+import type { Collaborator, IssueListItem, PlanningCatalog } from "@reef/core";
+import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { useLocale, useTranslations } from "next-intl";
-import { type MouseEvent, memo, useEffect, useRef } from "react";
+import {
+  type KeyboardEvent,
+  type MouseEvent,
+  type Ref,
+  type ReactNode,
+  memo,
+  useCallback,
+  useEffect,
+  useRef,
+} from "react";
 import {
   type IssueRelationLike,
   getUnresolvedBlockerCount,
@@ -45,10 +59,55 @@ interface IssueListRowProps {
   allIssues: readonly IssueRelationLike[];
   highlightQuery?: string;
   planningCatalog?: PlanningCatalog;
+  assignees?: readonly Collaborator[];
   logicalIds?: readonly string[];
   occurrenceKey?: string;
   columns?: readonly IssueListColumnKey[];
   onClick?: (id: string) => void;
+}
+
+function IssueInlineEditTrigger({
+  field,
+  issueId,
+  occurrenceKey,
+  label,
+  children,
+  anchorRef,
+}: {
+  field: IssueQuickEditField;
+  issueId: string;
+  occurrenceKey: string;
+  label: string;
+  children: ReactNode;
+  anchorRef?: Ref<HTMLButtonElement>;
+}) {
+  function requestEdit() {
+    const keyboard = useIssueKeyboardStore.getState();
+    keyboard.focusOccurrence("list", occurrenceKey, issueId);
+    keyboard.requestQuickEdit("list", field, { requestDomFocus: false });
+  }
+
+  return (
+    <button
+      ref={anchorRef}
+      type="button"
+      className="inline-flex h-full max-w-full min-w-0 items-center rounded-sm text-left outline-none transition-colors duration-150 hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:ring-2 focus-visible:ring-brand/40"
+      aria-label={label}
+      data-testid={`issue-inline-edit-${field}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        requestEdit();
+      }}
+      onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        event.stopPropagation();
+        requestEdit();
+      }}
+    >
+      {children}
+    </button>
+  );
 }
 
 function issueListCellClass(column: IssueListColumnKey, stateClass?: string) {
@@ -93,6 +152,7 @@ export const IssueListRow = memo(function IssueListRow({
   allIssues,
   highlightQuery: _highlightQuery,
   planningCatalog,
+  assignees,
   logicalIds = [],
   occurrenceKey,
   columns = ISSUE_LIST_DEFAULT_COLUMNS,
@@ -126,9 +186,25 @@ export const IssueListRow = memo(function IssueListRow({
   );
   const selectionRunning = useIssueSelectionStore((state) => state.running);
   const bulk = useTranslations("issues.bulk");
+  const fieldNames = useFieldNameLabels();
   const currentLogin = useCurrentUserLogin();
   const locale = useLocale();
   const rowRef = useRef<HTMLTableRowElement | null>(null);
+  const statusTriggerRef = useRef<HTMLButtonElement>(null);
+  const priorityTriggerRef = useRef<HTMLButtonElement>(null);
+  const assigneeTriggerRef = useRef<HTMLButtonElement>(null);
+  const getQuickEditAnchor = useCallback((field: IssueQuickEditField) => {
+    switch (field) {
+      case "status":
+        return statusTriggerRef.current;
+      case "priority":
+        return priorityTriggerRef.current;
+      case "assignee":
+        return assigneeTriggerRef.current;
+      default:
+        return null;
+    }
+  }, []);
   const stickyStateClass = selected || focused ? "bg-brand/5" : undefined;
 
   useEffect(() => {
@@ -177,210 +253,243 @@ export const IssueListRow = memo(function IssueListRow({
   }, [focused]);
 
   return (
-    <TableRow
-      ref={rowRef}
-      className={cn(
-        "reef-issue-list-row group h-10 cursor-pointer transition-colors duration-150 focus-visible:outline-none",
-        onClick && "hover:bg-surface-hover",
-        focused && "bg-brand/5",
-        selected && "bg-brand/5 ring-1 ring-inset ring-brand/30",
-        isFlashing && "reef-flash-row",
-      )}
-      tabIndex={focused || tabStopped ? 0 : -1}
-      aria-selected={selected || undefined}
-      onFocus={() => focusOccurrence("list", keyboardOccurrenceKey, issue.id)}
-      onClick={(event: MouseEvent<HTMLTableRowElement>) => {
-        if (event.shiftKey) {
-          event.preventDefault();
-          useIssueSelectionStore.getState().extendRange(issue.id, logicalIds);
-          return;
-        }
-        onClick?.(issue.id);
-      }}
-      data-testid="issue-list-row"
-      data-issue-id={issue.id}
-      data-occurrence-key={keyboardOccurrenceKey}
-      data-shortcut-surface="issue-list-row"
-      data-keyboard-focused={focused ? "true" : undefined}
+    <IssueContextMenu
+      issue={issue}
+      vault={vault}
+      planningCatalog={planningCatalog}
+      assignees={assignees}
     >
-      <TableCell
+      <TableRow
+        ref={rowRef}
         className={cn(
-          issueListCellClass("select", stickyStateClass),
-          "w-10 px-2",
+          "reef-issue-list-row group h-10 cursor-pointer transition-colors duration-150 focus-visible:outline-none",
+          onClick && "hover:bg-surface-hover",
+          focused && "bg-brand/5",
+          selected && "bg-brand/5 ring-1 ring-inset ring-brand/30",
+          isFlashing && "reef-flash-row",
         )}
-        style={issueListCellStyle(columns, "select")}
-        data-column-key="select"
+        tabIndex={focused || tabStopped ? 0 : -1}
+        aria-selected={selected || undefined}
+        onFocus={() => focusOccurrence("list", keyboardOccurrenceKey, issue.id)}
+        onClick={(event: MouseEvent<HTMLTableRowElement>) => {
+          if (event.shiftKey) {
+            event.preventDefault();
+            useIssueSelectionStore.getState().extendRange(issue.id, logicalIds);
+            return;
+          }
+          onClick?.(issue.id);
+        }}
+        data-testid="issue-list-row"
+        data-issue-id={issue.id}
+        data-occurrence-key={keyboardOccurrenceKey}
+        data-shortcut-surface="issue-list-row"
+        data-keyboard-focused={focused ? "true" : undefined}
       >
-        <IssueSelectionCheckbox
-          checked={selected}
-          disabled={selectionRunning}
-          label={bulk("selectIssue", { id: issue.id })}
+        <TableCell
           className={cn(
-            "opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100",
-            selected && "opacity-100",
+            issueListCellClass("select", stickyStateClass),
+            "w-10 px-2",
           )}
-          testId="issue-row-checkbox"
-          onChange={(event) => {
-            if ((event.nativeEvent as globalThis.MouseEvent).shiftKey) {
-              useIssueSelectionStore
-                .getState()
-                .extendRange(issue.id, logicalIds);
-              return;
-            }
-            useIssueSelectionStore.getState().toggle(issue.id);
-          }}
-        />
-      </TableCell>
-      {/* ID */}
-      <TableCell
-        className={cn(
-          issueListCellClass("id", stickyStateClass),
-          "relative font-mono text-xs text-muted-foreground",
-        )}
-        style={issueListCellStyle(columns, "id")}
-        data-column-key="id"
-      >
-        {issue.id}
-        <IssueQuickEditAnchor
-          scope="list"
-          issue={issue}
-          vault={vault}
-          occurrenceKey={keyboardOccurrenceKey}
-        />
-      </TableCell>
-
-      {/* Type */}
-      <TableCell
-        className={issueListCellClass("type", stickyStateClass)}
-        style={issueListCellStyle(columns, "type")}
-        data-column-key="type"
-      >
-        <TypePill type={issue.issue_type} variant="list" />
-      </TableCell>
-
-      {/* Title */}
-      <TableCell
-        className={issueListCellClass("title", stickyStateClass)}
-        style={issueListCellStyle(columns, "title")}
-        data-column-key="title"
-      >
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="min-w-0 flex-1 truncate font-medium text-foreground">
-            {issue.title}
-          </span>
-          {blocked && <BlockedBadge variant="list" count={blockerCount} />}
-        </span>
-      </TableCell>
-
-      {/* Status */}
-      <TableCell
-        className={issueListCellClass("status")}
-        style={issueListCellStyle(columns, "status")}
-        data-column-key="status"
-      >
-        <StatusBadge status={issue.status} />
-      </TableCell>
-
-      {/* Priority */}
-      <TableCell
-        className={issueListCellClass("priority")}
-        style={issueListCellStyle(columns, "priority")}
-        data-column-key="priority"
-      >
-        {issue.priority ? (
-          <PriorityBadge priority={issue.priority} />
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        )}
-      </TableCell>
-
-      {/* Assignee */}
-      <TableCell
-        className={cn(issueListCellClass("assignee"), "text-sm")}
-        style={issueListCellStyle(columns, "assignee")}
-        data-column-key="assignee"
-      >
-        {issue.assigned_to ? (
-          <PersonChip
-            identityKey={issue.assigned_to}
-            size="sm"
-            tone={personToneFor(issue.assigned_to, currentLogin)}
+          style={issueListCellStyle(columns, "select")}
+          data-column-key="select"
+        >
+          <IssueSelectionCheckbox
+            checked={selected}
+            disabled={selectionRunning}
+            label={bulk("selectIssue", { id: issue.id })}
+            className={cn(
+              "opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100",
+              selected && "opacity-100",
+            )}
+            testId="issue-row-checkbox"
+            onChange={(event) => {
+              if ((event.nativeEvent as globalThis.MouseEvent).shiftKey) {
+                useIssueSelectionStore
+                  .getState()
+                  .extendRange(issue.id, logicalIds);
+                return;
+              }
+              useIssueSelectionStore.getState().toggle(issue.id);
+            }}
           />
-        ) : (
-          <span className="text-muted-foreground">—</span>
+        </TableCell>
+        {/* ID */}
+        <TableCell
+          className={cn(
+            issueListCellClass("id", stickyStateClass),
+            "relative font-mono text-xs text-muted-foreground",
+          )}
+          style={issueListCellStyle(columns, "id")}
+          data-column-key="id"
+        >
+          {issue.id}
+          <IssueQuickEditAnchor
+            scope="list"
+            issue={issue}
+            vault={vault}
+            occurrenceKey={keyboardOccurrenceKey}
+            getAnchorElement={getQuickEditAnchor}
+          />
+        </TableCell>
+
+        {/* Type */}
+        <TableCell
+          className={issueListCellClass("type", stickyStateClass)}
+          style={issueListCellStyle(columns, "type")}
+          data-column-key="type"
+        >
+          <TypePill type={issue.issue_type} variant="list" />
+        </TableCell>
+
+        {/* Title */}
+        <TableCell
+          className={issueListCellClass("title", stickyStateClass)}
+          style={issueListCellStyle(columns, "title")}
+          data-column-key="title"
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 flex-1 truncate font-medium text-foreground">
+              {issue.title}
+            </span>
+            {blocked && <BlockedBadge variant="list" count={blockerCount} />}
+          </span>
+        </TableCell>
+
+        {/* Status */}
+        <TableCell
+          className={issueListCellClass("status")}
+          style={issueListCellStyle(columns, "status")}
+          data-column-key="status"
+        >
+          <IssueInlineEditTrigger
+            field="status"
+            issueId={issue.id}
+            occurrenceKey={keyboardOccurrenceKey}
+            label={fieldNames.status}
+            anchorRef={statusTriggerRef}
+          >
+            <StatusBadge status={issue.status} />
+          </IssueInlineEditTrigger>
+        </TableCell>
+
+        {/* Priority */}
+        <TableCell
+          className={issueListCellClass("priority")}
+          style={issueListCellStyle(columns, "priority")}
+          data-column-key="priority"
+        >
+          <IssueInlineEditTrigger
+            field="priority"
+            issueId={issue.id}
+            occurrenceKey={keyboardOccurrenceKey}
+            label={fieldNames.priority}
+            anchorRef={priorityTriggerRef}
+          >
+            {issue.priority ? (
+              <PriorityBadge priority={issue.priority} />
+            ) : (
+              <span className="text-muted-foreground">—</span>
+            )}
+          </IssueInlineEditTrigger>
+        </TableCell>
+
+        {/* Assignee */}
+        <TableCell
+          className={cn(issueListCellClass("assignee"), "text-sm")}
+          style={issueListCellStyle(columns, "assignee")}
+          data-column-key="assignee"
+        >
+          <IssueInlineEditTrigger
+            field="assignee"
+            issueId={issue.id}
+            occurrenceKey={keyboardOccurrenceKey}
+            label={fieldNames.assignee}
+            anchorRef={assigneeTriggerRef}
+          >
+            {issue.assigned_to ? (
+              <PersonChip
+                identityKey={issue.assigned_to}
+                size="sm"
+                tone={personToneFor(issue.assigned_to, currentLogin)}
+              />
+            ) : (
+              <span className="text-muted-foreground">—</span>
+            )}
+          </IssueInlineEditTrigger>
+        </TableCell>
+
+        {/* Start */}
+        {columns.includes("start") && (
+          <TableCell
+            className="h-10 min-w-0 px-3 py-0 text-xs whitespace-nowrap text-muted-foreground"
+            style={issueListCellStyle(columns, "start")}
+            data-column-key="start"
+          >
+            <DateDisplay date={issue.start_date} emptyText="—" />
+          </TableCell>
         )}
-      </TableCell>
 
-      {/* Start */}
-      {columns.includes("start") && (
-        <TableCell
-          className="h-10 min-w-0 px-3 py-0 text-xs whitespace-nowrap text-muted-foreground"
-          style={issueListCellStyle(columns, "start")}
-          data-column-key="start"
-        >
-          <DateDisplay date={issue.start_date} emptyText="—" />
-        </TableCell>
-      )}
+        {/* Sprint */}
+        {columns.includes("sprint") && (
+          <TableCell
+            className="h-10 min-w-0 px-3 py-0 text-xs text-muted-foreground"
+            style={issueListCellStyle(columns, "sprint")}
+            data-column-key="sprint"
+          >
+            {findPlanningName(planningCatalog, "sprints", issue.sprint_id) ??
+              "—"}
+          </TableCell>
+        )}
 
-      {/* Sprint */}
-      {columns.includes("sprint") && (
-        <TableCell
-          className="h-10 min-w-0 px-3 py-0 text-xs text-muted-foreground"
-          style={issueListCellStyle(columns, "sprint")}
-          data-column-key="sprint"
-        >
-          {findPlanningName(planningCatalog, "sprints", issue.sprint_id) ?? "—"}
-        </TableCell>
-      )}
+        {/* Milestone */}
+        {columns.includes("milestone") && (
+          <TableCell
+            className="h-10 min-w-0 px-3 py-0 text-xs text-muted-foreground"
+            style={issueListCellStyle(columns, "milestone")}
+            data-column-key="milestone"
+          >
+            {findPlanningName(
+              planningCatalog,
+              "milestones",
+              issue.milestone_id,
+            ) ?? "—"}
+          </TableCell>
+        )}
 
-      {/* Milestone */}
-      {columns.includes("milestone") && (
-        <TableCell
-          className="h-10 min-w-0 px-3 py-0 text-xs text-muted-foreground"
-          style={issueListCellStyle(columns, "milestone")}
-          data-column-key="milestone"
-        >
-          {findPlanningName(
-            planningCatalog,
-            "milestones",
-            issue.milestone_id,
-          ) ?? "—"}
-        </TableCell>
-      )}
+        {/* Release */}
+        {columns.includes("release") && (
+          <TableCell
+            className="h-10 min-w-0 px-3 py-0 text-xs text-muted-foreground"
+            style={issueListCellStyle(columns, "release")}
+            data-column-key="release"
+          >
+            {findPlanningName(planningCatalog, "releases", issue.release_id) ??
+              "—"}
+          </TableCell>
+        )}
 
-      {/* Release */}
-      {columns.includes("release") && (
-        <TableCell
-          className="h-10 min-w-0 px-3 py-0 text-xs text-muted-foreground"
-          style={issueListCellStyle(columns, "release")}
-          data-column-key="release"
-        >
-          {findPlanningName(planningCatalog, "releases", issue.release_id) ??
-            "—"}
-        </TableCell>
-      )}
+        {/* Due */}
+        {columns.includes("due") && (
+          <TableCell
+            className="h-10 min-w-0 px-3 py-0 text-xs whitespace-nowrap text-muted-foreground"
+            style={issueListCellStyle(columns, "due")}
+            data-column-key="due"
+          >
+            <DateDisplay date={issue.due_date} emptyText="—" />
+          </TableCell>
+        )}
 
-      {/* Due */}
-      {columns.includes("due") && (
-        <TableCell
-          className="h-10 min-w-0 px-3 py-0 text-xs whitespace-nowrap text-muted-foreground"
-          style={issueListCellStyle(columns, "due")}
-          data-column-key="due"
-        >
-          <DateDisplay date={issue.due_date} emptyText="—" />
-        </TableCell>
-      )}
-
-      {/* Updated */}
-      {columns.includes("updated") && (
-        <TableCell
-          className="h-10 min-w-0 px-3 py-0 text-xs whitespace-nowrap text-muted-foreground"
-          style={issueListCellStyle(columns, "updated")}
-          data-column-key="updated"
-        >
-          {formatRelativeTime(issue.updated_at, locale)}
-        </TableCell>
-      )}
-    </TableRow>
+        {/* Updated */}
+        {columns.includes("updated") && (
+          <TableCell
+            className="h-10 min-w-0 px-3 py-0 text-xs whitespace-nowrap text-muted-foreground"
+            style={issueListCellStyle(columns, "updated")}
+            data-column-key="updated"
+          >
+            {formatRelativeTime(issue.updated_at, locale)}
+          </TableCell>
+        )}
+      </TableRow>
+    </IssueContextMenu>
   );
 });

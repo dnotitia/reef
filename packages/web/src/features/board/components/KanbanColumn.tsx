@@ -5,7 +5,12 @@ import { DURATION_BASE, EASE_SIGNATURE } from "@/lib/motionTokens";
 import { cn } from "@/lib/utils";
 import { useDroppable } from "@dnd-kit/core";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
-import type { IssueListItem, PlanningCatalog, Status } from "@reef/core";
+import type {
+  Collaborator,
+  IssueListItem,
+  PlanningCatalog,
+  Status,
+} from "@reef/core";
 import { memo } from "react";
 import type { IssueGroupBucket } from "../../issues/lib/grouping";
 import { KanbanCard } from "./KanbanCard";
@@ -23,6 +28,7 @@ export interface KanbanColumnProps {
    */
   blockedIds?: ReadonlySet<string>;
   planningCatalog?: PlanningCatalog;
+  assignees?: readonly Collaborator[];
   onIssueClick?: (id: string) => void;
   readOnlyReason?: string;
 }
@@ -35,6 +41,7 @@ export const KanbanColumn = memo(function KanbanColumn({
   issues,
   blockedIds = EMPTY_BLOCKED_IDS,
   planningCatalog,
+  assignees,
   onIssueClick,
   readOnlyReason,
 }: KanbanColumnProps) {
@@ -93,6 +100,7 @@ export const KanbanColumn = memo(function KanbanColumn({
             readOnlyReason={readOnlyReason}
             blocked={blockedIds.has(issue.id)}
             planningCatalog={planningCatalog}
+            assignees={assignees}
             onClick={onIssueClick}
           />
         ))}

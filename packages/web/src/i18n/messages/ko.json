@@ -709,6 +709,8 @@
     "archiveStateError": "보관 상태를 변경하지 못했습니다.",
     "linkCopied": "링크를 복사했습니다",
     "copyLinkError": "링크를 복사하지 못했습니다.",
+    "idCopied": "이슈 ID를 복사했습니다",
+    "copyIdError": "이슈 ID를 복사하지 못했습니다.",
     "undoError": "실행 취소하지 못했습니다.",
     "commentAddError": "댓글을 추가하지 못했습니다. 다시 시도해 주세요.",
     "commentEditError": "수정 내용을 저장하지 못했습니다. 다시 시도해 주세요.",
@@ -1048,6 +1050,21 @@
       "parentIssue": "상위 이슈 {id}",
       "backNavigation": "뒤로 가기 탐색",
       "backTo": "{id}(으)로 돌아가기"
+    },
+    "contextMenu": {
+      "ariaLabel": "{id} 작업",
+      "status": "상태",
+      "assignee": "담당자",
+      "priority": "우선순위",
+      "sprint": "스프린트",
+      "none": "없음",
+      "copyLink": "링크 복사",
+      "copyId": "ID 복사",
+      "archive": "보관",
+      "unarchive": "보관 해제",
+      "loading": "불러오는 중…",
+      "noMembers": "워크스페이스 멤버 없음",
+      "noSprints": "스프린트 없음"
     },
     "subscription": {
       "controlLabel": "이슈 알림: {state}",

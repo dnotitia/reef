@@ -666,6 +666,8 @@
     "archiveStateError": "Failed to change archive state.",
     "linkCopied": "Link copied",
     "copyLinkError": "Couldn't copy the link",
+    "idCopied": "Issue ID copied",
+    "copyIdError": "Couldn't copy the issue ID",
     "undoError": "Failed to undo.",
     "commentAddError": "Couldn't add comment. Try again.",
     "commentEditError": "Couldn't save the edit. Try again.",
@@ -861,6 +863,21 @@
       "parentIssue": "Parent issue {id}",
       "backNavigation": "Back navigation",
       "backTo": "Back to {id}"
+    },
+    "contextMenu": {
+      "ariaLabel": "Actions for {id}",
+      "status": "Status",
+      "assignee": "Assignee",
+      "priority": "Priority",
+      "sprint": "Sprint",
+      "none": "None",
+      "copyLink": "Copy link",
+      "copyId": "Copy ID",
+      "archive": "Archive",
+      "unarchive": "Unarchive",
+      "loading": "Loading…",
+      "noMembers": "No workspace members",
+      "noSprints": "No sprints"
     },
     "subscription": {
       "controlLabel": "Issue notifications: {state}",

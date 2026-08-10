@@ -19,6 +19,7 @@ import { buildStatusPatch } from "@/features/issues/lib/statusPatch";
 import { useFlashStore } from "@/features/issues/stores/useFlashStore";
 import {
   type IssueKeyboardScope,
+  type IssueQuickEditField,
   useIssueKeyboardStore,
 } from "@/features/issues/stores/useIssueKeyboardStore";
 import {
@@ -50,6 +51,8 @@ interface IssueQuickEditAnchorProps {
   vault: string;
   occurrenceKey?: string;
   className?: string;
+  /** Resolve a List field to the actual focusable trigger that opened it. */
+  getAnchorElement?: (field: IssueQuickEditField) => HTMLElement | null;
 }
 
 const renderStatusOption = (status: Status) => <StatusBadge status={status} />;
@@ -67,6 +70,7 @@ export function IssueQuickEditAnchor({
   vault,
   occurrenceKey,
   className,
+  getAnchorElement,
 }: IssueQuickEditAnchorProps) {
   const request = useIssueKeyboardStore((state) => state.quickEditRequest);
   const closeQuickEdit = useIssueKeyboardStore((state) => state.closeQuickEdit);
@@ -82,6 +86,7 @@ export function IssueQuickEditAnchor({
     top: number;
   } | null>(null);
   const anchorOriginRef = useRef<HTMLSpanElement>(null);
+  const suppressResizeCloseRef = useRef(false);
 
   const resolvedOccurrenceKey = occurrenceKey ?? issue.id;
   const field =
@@ -92,14 +97,32 @@ export function IssueQuickEditAnchor({
       : null;
 
   const updateAnchorPosition = useCallback(() => {
-    const cell = anchorOriginRef.current?.parentElement;
-    if (!cell) return;
-    const rect = cell.getBoundingClientRect();
+    if (field === null) return;
+    const anchor = getAnchorElement
+      ? field === "labels"
+        ? anchorOriginRef.current?.parentElement
+        : getAnchorElement(field)
+      : anchorOriginRef.current?.parentElement;
+    if (!anchor) {
+      setAnchorPosition(null);
+      return;
+    }
+    const rect = anchor.getBoundingClientRect();
     setAnchorPosition({
-      left: rect.left + 8,
+      left: rect.left + (getAnchorElement && field !== "labels" ? 0 : 8),
       top: rect.top + rect.height / 2,
     });
-  }, []);
+  }, [field, getAnchorElement]);
+
+  const handleResize = useCallback(() => {
+    // Radix Select closes its controlled content on resize. The quick editor
+    // must remain open so its portal can follow the active List trigger.
+    suppressResizeCloseRef.current = true;
+    queueMicrotask(() => {
+      suppressResizeCloseRef.current = false;
+    });
+    updateAnchorPosition();
+  }, [updateAnchorPosition]);
 
   useLayoutEffect(() => {
     if (field === null) {
@@ -108,13 +131,13 @@ export function IssueQuickEditAnchor({
     }
 
     updateAnchorPosition();
-    window.addEventListener("resize", updateAnchorPosition);
+    window.addEventListener("resize", handleResize, true);
     window.addEventListener("scroll", updateAnchorPosition, true);
     return () => {
-      window.removeEventListener("resize", updateAnchorPosition);
+      window.removeEventListener("resize", handleResize, true);
       window.removeEventListener("scroll", updateAnchorPosition, true);
     };
-  }, [field, updateAnchorPosition]);
+  }, [field, handleResize, updateAnchorPosition]);
 
   function commitPatch(patch: IssueUpdatePatch) {
     mutation.mutateAsync({ id: issue.id, vault, patch }).then(
@@ -137,7 +160,7 @@ export function IssueQuickEditAnchor({
   }
 
   function closeOpenField(open: boolean) {
-    if (!open) closeQuickEdit();
+    if (!open && !suppressResizeCloseRef.current) closeQuickEdit();
   }
 
   function commitStatus(next: Status) {
@@ -256,8 +279,8 @@ export function IssueQuickEditAnchor({
       </div>
     );
 
-  // The origin stays in the row for positioning, while the interactive panel
-  // lives under body so sticky table cells cannot clip its hit area.
+  // The interactive panel lives under body so sticky table cells cannot clip
+  // its hit area. When supplied, its position follows the active trigger.
   const renderedAnchor =
     anchor === null
       ? null
