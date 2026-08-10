@@ -51,6 +51,9 @@ explicitly in the entries below.
   mention parser, while create/update writes derive current-roster recipients
   into issue metadata and record commit-bound internal deltas without exposing
   them in the user activity timeline.** (REEF-453)
+- **Comment mention notifications now reach recipients independently of issue
+  subscriptions, respect self-mention and manual mute controls, and open the
+  source comment after the notification is marked read.**
 - **Jira comment ADF mentions now reuse the canonical Reef mention serializer.**
   Mapped accounts are gated by the exact target-vault member roster, unsafe
   usernames use braced escaping, unresolved accounts remain non-identifying

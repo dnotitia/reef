@@ -28,6 +28,7 @@ import {
   draftFromPersistedComment,
   serializeCommentMentionDraft,
 } from "./commentMentionDraft";
+import { commentTargetId } from "../../lib/commentTarget";
 
 type RemarkPlugins = ComponentProps<typeof Streamdown>["remarkPlugins"];
 
@@ -135,7 +136,12 @@ export function CommentCard({
   };
 
   return (
-    <div className={cn("group flex gap-3", flash && "reef-flash-row")}>
+    <div
+      id={commentTargetId(comment.id) ?? undefined}
+      data-testid="comment-card"
+      tabIndex={-1}
+      className={cn("group flex scroll-mt-4 gap-3", flash && "reef-flash-row")}
+    >
       <PersonAvatar
         identityKey={comment.author}
         name={comment.author}

@@ -81,27 +81,70 @@ describe("dev:e2e runtime contract", () => {
 
   it("requires the fixture's browser login and workspace entrypoint contract", () => {
     expect(
-      getClientReadinessInputs({
-        status: "ready",
-        fixture_login: {
-          username: "alice",
-          password: "fixture-password",
-          login_path: "/login?password=1",
+      getClientReadinessInputs(
+        {
+          status: "ready",
+          fixture_login: {
+            username: "alice",
+            password: "fixture-password",
+            login_path: "/login?password=1",
+          },
+          tasks: {
+            chat: {
+              scenario: "configured",
+              start_path: "/workspace/reef-e2e/issues",
+            },
+            notifications: {
+              scenario: "notifications",
+              start_path: "/workspace/reef-e2e/inbox",
+            },
+          },
         },
-        tasks: { chat: { start_path: "/workspace/reef-e2e/issues" } },
-      }),
+        "configured",
+      ),
     ).toEqual({
       username: "alice",
       password: "fixture-password",
       loginPath: "/login?password=1",
       startPath: "/workspace/reef-e2e/issues",
     });
+    expect(
+      getClientReadinessInputs(
+        {
+          status: "ready",
+          fixture_login: {
+            username: "alice",
+            password: "fixture-password",
+            login_path: "/login?password=1",
+          },
+          tasks: {
+            chat: {
+              scenario: "configured",
+              start_path: "/workspace/reef-e2e/issues",
+            },
+            notifications: {
+              scenario: "notifications",
+              start_path: "/workspace/reef-e2e/inbox",
+            },
+          },
+        },
+        "notifications",
+      ),
+    ).toMatchObject({ startPath: "/workspace/reef-e2e/inbox" });
     expect(() =>
-      getClientReadinessInputs({
-        status: "ready",
-        fixture_login: { username: "alice" },
-        tasks: { chat: { start_path: "/workspace/reef-e2e/issues" } },
-      }),
+      getClientReadinessInputs(
+        {
+          status: "ready",
+          fixture_login: { username: "alice" },
+          tasks: {
+            chat: {
+              scenario: "configured",
+              start_path: "/workspace/reef-e2e/issues",
+            },
+          },
+        },
+        "configured",
+      ),
     ).toThrow(/fixture login password/);
   });
 

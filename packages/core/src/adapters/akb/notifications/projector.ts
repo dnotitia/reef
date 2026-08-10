@@ -4,6 +4,7 @@ import {
   type NotificationCreateInput,
   buildNotificationKey,
 } from "../../../schemas/notifications";
+import { parsePersistedMentionRecipients } from "../../../schemas/issues/mention";
 import {
   type AkbAdapter,
   REEF_ACTIVITY_TABLE,
@@ -22,6 +23,7 @@ import { createNotification } from "./notifications";
 
 const DEFAULT_BATCH_SIZE = 100;
 const MAX_BATCH_SIZE = 500;
+const IsoDateTimeSchema = z.string().datetime({ offset: true });
 
 const CursorSchema = z.strictObject({
   occurred_at: z.string().min(1),
@@ -51,6 +53,8 @@ const RawCommentSourceSchema = z.strictObject({
   meta: z.looseObject({
     author: z.string().min(1),
     created_at: z.string().datetime({ offset: true }),
+    edited_at: z.unknown().optional(),
+    mention_recipients: z.unknown().optional(),
   }),
 });
 
@@ -70,6 +74,7 @@ type ProjectableSource = {
   eventType: string;
   actor: string;
   occurredAt: string;
+  mentionRecipients: string[];
 };
 
 export interface NotificationProjectorInput {
@@ -199,20 +204,33 @@ async function persistCheckpoint(
 
 function cursorFromRaw(
   row: Record<string, unknown>,
-  timeField: "at" | "created_at",
+  source: "activity" | "comment",
 ): Cursor | null {
-  const meta = decodeSettingsValue(row.meta);
-  if (
-    typeof row.id !== "string" ||
-    !meta ||
-    typeof meta !== "object" ||
-    typeof (meta as Record<string, unknown>)[timeField] !== "string"
-  ) {
-    return null;
+  if (source === "activity") {
+    const meta = decodeSettingsValue(row.meta);
+    if (
+      typeof row.id !== "string" ||
+      !meta ||
+      typeof meta !== "object" ||
+      typeof (meta as Record<string, unknown>).at !== "string"
+    ) {
+      return null;
+    }
+    return {
+      id: row.id,
+      occurred_at: (meta as Record<string, string>).at,
+    };
   }
+
+  const parsed = RawCommentSourceSchema.safeParse({
+    ...row,
+    meta: decodeSettingsValue(row.meta),
+  });
+  if (!parsed.success) return null;
+  const editedAt = IsoDateTimeSchema.safeParse(parsed.data.meta.edited_at);
   return {
-    id: row.id,
-    occurred_at: (meta as Record<string, string>)[timeField],
+    id: parsed.data.id,
+    occurred_at: editedAt.success ? editedAt.data : parsed.data.meta.created_at,
   };
 }
 
@@ -226,16 +244,19 @@ async function readSourceRows(
 ): Promise<Record<string, unknown>[]> {
   const table =
     source === "activity" ? REEF_ACTIVITY_TABLE : REEF_COMMENTS_TABLE;
-  const timeField = source === "activity" ? "at" : "created_at";
+  const timeExpression =
+    source === "activity"
+      ? "meta->>'at'"
+      : "COALESCE(meta->>'edited_at', meta->>'created_at')";
   const columns =
     source === "activity"
       ? "id, reef_id, event_type, event_key, meta"
       : "id, reef_id, meta";
   const cursorClause = cursor
-    ? ` AND ((meta->>'${timeField}') > ${quoteText(
+    ? ` AND ((${timeExpression}) > ${quoteText(
         cursor.occurred_at,
         "notification projector cursor time",
-      )} OR ((meta->>'${timeField}') = ${quoteText(
+      )} OR ((${timeExpression}) = ${quoteText(
         cursor.occurred_at,
         "notification projector cursor time",
       )} AND id::text > ${quoteText(
@@ -246,10 +267,10 @@ async function readSourceRows(
   const response = await runSql(
     adapter,
     vault,
-    `SELECT ${columns} FROM ${tableRef(table)} WHERE meta->>'${timeField}' > ${quoteText(
+    `SELECT ${columns} FROM ${tableRef(table)} WHERE (${timeExpression}) > ${quoteText(
       activatedAt,
       "notification projector activation time",
-    )}${cursorClause} ORDER BY meta->>'${timeField}' ASC, id ASC LIMIT ${batchSize}`,
+    )}${cursorClause} ORDER BY (${timeExpression}) ASC, id ASC LIMIT ${batchSize}`,
   );
   return rows(response);
 }
@@ -271,6 +292,7 @@ function mapSource(
       eventType: parsed.data.event_type,
       actor: parsed.data.meta.actor,
       occurredAt: parsed.data.meta.at,
+      mentionRecipients: [],
     };
   }
   const parsed = RawCommentSourceSchema.safeParse({
@@ -284,7 +306,13 @@ function mapSource(
     sourceRef: parsed.data.id,
     eventType: "comment_created",
     actor: parsed.data.meta.author,
-    occurredAt: parsed.data.meta.created_at,
+    occurredAt: (() => {
+      const editedAt = IsoDateTimeSchema.safeParse(parsed.data.meta.edited_at);
+      return editedAt.success ? editedAt.data : parsed.data.meta.created_at;
+    })(),
+    mentionRecipients: parsePersistedMentionRecipients(
+      parsed.data.meta.mention_recipients,
+    ),
   };
 }
 
@@ -319,8 +347,11 @@ async function recipientsForSource(
     entries.push(subscription);
     bySubscriber.set(subscription.subscriber, entries);
   }
-  return [...bySubscriber]
-    .filter(([subscriber, entries]) => {
+  const mentioned = new Set(source.mentionRecipients);
+  const candidates = new Set([...bySubscriber.keys(), ...mentioned]);
+  return [...candidates]
+    .filter((subscriber) => {
+      const entries = bySubscriber.get(subscriber) ?? [];
       if (subscriber === source.actor) return false;
       if (
         entries.some(
@@ -329,9 +360,11 @@ async function recipientsForSource(
       ) {
         return false;
       }
-      return entries.some((entry) => entry.status === "active");
+      return (
+        mentioned.has(subscriber) ||
+        entries.some((entry) => entry.status === "active")
+      );
     })
-    .map(([subscriber]) => subscriber)
     .sort((left, right) => left.localeCompare(right));
 }
 
@@ -373,7 +406,6 @@ async function projectSource(
 ): Promise<NotificationProjectionSourceResult> {
   const cursorField =
     source === "activity" ? "activity_cursor" : "comment_cursor";
-  const timeField = source === "activity" ? "at" : "created_at";
   const result: NotificationProjectionSourceResult = {
     scanned: 0,
     fannedOut: 0,
@@ -399,7 +431,7 @@ async function projectSource(
     }
     if (sourceRows.length === 0) return result;
     for (const row of sourceRows) {
-      const cursor = cursorFromRaw(row, timeField);
+      const cursor = cursorFromRaw(row, source);
       if (!cursor) {
         result.skippedMalformed += 1;
         continue;
