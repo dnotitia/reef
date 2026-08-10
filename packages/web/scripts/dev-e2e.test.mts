@@ -162,7 +162,7 @@ describe("dev:e2e runtime contract", () => {
             issue_drill_navigation: {
               scenario: "demo_board",
               workspace: "reef-e2e",
-              start_path: "/workspace/reef-e2e/issues/REEF-103",
+              start_path: "/workspace/reef-e2e/issues?view=list",
             },
           },
         },
@@ -172,7 +172,7 @@ describe("dev:e2e runtime contract", () => {
       username: "alice",
       password: "fixture-password",
       loginPath: "/login?password=1",
-      startPath: "/workspace/reef-e2e/issues/REEF-103",
+      startPath: "/workspace/reef-e2e/issues?view=list",
     });
   });
 
