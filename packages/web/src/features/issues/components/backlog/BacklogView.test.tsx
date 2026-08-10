@@ -3,7 +3,7 @@ import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { apiFetch } from "@/lib/apiClient";
 import type { IssueMetadata } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -129,14 +129,16 @@ describe("BacklogView", () => {
     // The body no longer adds a separate guidance row. Rank guidance belongs
     // to the table header, keeping the first data row on the shared baseline.
     expect(screen.getByTestId("backlog-table")).toBeInTheDocument();
-    expect(screen.getByTestId("backlog-rank-header")).toHaveAttribute(
+    const rankHeader = screen.getByTestId("backlog-rank-header");
+    expect(rankHeader).toHaveAttribute(
       "title",
       "Drag to reorder in Rank order",
     );
-    expect(screen.getByTestId("backlog-rank-header")).toHaveClass(
-      "h-8",
-      "py-0",
-    );
+    expect(rankHeader).toHaveClass("h-8", "py-0");
+    expect(within(rankHeader).getByText("Rank")).toHaveClass("sr-only");
+    expect(
+      within(rankHeader).getByText("Drag to reorder in Rank order"),
+    ).toHaveClass("sr-only");
     expect(screen.getByTestId("backlog-row")).toHaveClass("h-10");
     expect(screen.getByTestId("backlog-status-select-REEF-1")).toHaveClass(
       "h-8",

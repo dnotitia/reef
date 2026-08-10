@@ -603,12 +603,12 @@ function BacklogTableHeader({
                 }
               />
             ) : column === "rank" ? (
-              <span className="inline-flex items-center gap-1">
-                {t("rank")}
+              <>
+                <span className="sr-only">{t("rank")}</span>
                 <span id="backlog-rank-description" className="sr-only">
                   {reorderHint}
                 </span>
-              </span>
+              </>
             ) : (
               columnLabels[column]
             )}
