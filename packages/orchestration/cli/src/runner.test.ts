@@ -81,10 +81,11 @@ function configFor(directory: string, runWindowMs = 10): CliConfig {
       remote: "origin",
       remote_url: "https://github.com/octo/reef",
       base_branch: "main",
+      branch: "feat/fixture",
       branch_policy: { allowed_prefixes: ["feat/"] },
       permissions: { commit: false, push: false, pull_request: false },
     },
-    execution: { run_window_ms: runWindowMs },
+    delivery: { max_validation_attempts: 2 },
     validation_checks: [
       { name: "invocation", command: "true", timeout_ms: 1000 },
     ],
@@ -205,6 +206,23 @@ async function setupFixture(runWindowMs = 10) {
       REEF_AKB_JWT: "secret-work-token-canary",
       PATH: process.env.PATH ?? "/usr/bin:/bin",
     },
+    executeDelivery: async (context: {
+      signal: AbortSignal;
+      plan: { work: { snapshot: { revision: string } } };
+    }) => {
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, runWindowMs);
+        const onAbort = (): void => {
+          clearTimeout(timer);
+          reject(new DOMException("cancelled", "AbortError"));
+        };
+        context.signal.addEventListener("abort", onAbort, { once: true });
+      });
+      return {
+        artifacts: [],
+        validatedRevision: context.plan.work.snapshot.revision,
+      };
+    },
   };
 }
 
@@ -216,7 +234,10 @@ describe("foreground work URI runner", () => {
       ["run", "reef://reef-test/REEF-101", "--config", fixture.configPath],
       {
         environment: fixture.environment,
-        onEvent: (event) => progress.push({ phase: event.phase }),
+        executeDelivery: fixture.executeDelivery,
+        onEvent: (event) => {
+          if ("phase" in event) progress.push({ phase: event.phase });
+        },
       },
     );
 
@@ -227,7 +248,7 @@ describe("foreground work URI runner", () => {
       work_uri: "reef://reef-test/REEF-101",
       outcome: "succeeded",
       artifact_refs: [],
-      next_actions: ["delivery_handoff_not_started"],
+      next_actions: ["review_in_progress"],
     });
     expect(result.terminal.plan?.providers.work).toMatchObject({
       id: "reef",
@@ -257,7 +278,10 @@ describe("foreground work URI runner", () => {
         ["run", "reef://reef-test/REEF-101", "--config", fixture.configPath],
         {
           environment: fixture.environment,
-          onEvent: (event) => progress.push(event.phase),
+          executeDelivery: fixture.executeDelivery,
+          onEvent: (event) => {
+            if ("phase" in event) progress.push(event.phase);
+          },
         },
       );
 
@@ -284,7 +308,10 @@ describe("foreground work URI runner", () => {
 
     const result = await runCliInvocation(
       ["run", "reef://reef-test/REEF-101", "--config", fixture.configPath],
-      { environment: fixture.environment },
+      {
+        environment: fixture.environment,
+        executeDelivery: fixture.executeDelivery,
+      },
     );
 
     if ("help" in result) throw new Error("expected a run result");
@@ -306,9 +333,10 @@ describe("foreground work URI runner", () => {
       ["run", "reef://reef-test/REEF-101", "--config", fixture.configPath],
       {
         environment: fixture.environment,
+        executeDelivery: fixture.executeDelivery,
         signal: controller.signal,
         onEvent: (event) => {
-          if (event.phase === "running") running?.();
+          if ("phase" in event && event.phase === "running") running?.();
         },
       },
     );
@@ -333,9 +361,10 @@ describe("foreground work URI runner", () => {
       ["run", "reef://reef-test/REEF-101", "--config", fixture.configPath],
       {
         environment: fixture.environment,
+        executeDelivery: fixture.executeDelivery,
         signal: controller.signal,
         onEvent: (event) => {
-          if (event.phase === "running") running?.();
+          if ("phase" in event && event.phase === "running") running?.();
         },
       },
     );
@@ -343,7 +372,10 @@ describe("foreground work URI runner", () => {
 
     const blocked = await runCliInvocation(
       ["run", "reef://reef-test/REEF-101", "--config", fixture.configPath],
-      { environment: fixture.environment },
+      {
+        environment: fixture.environment,
+        executeDelivery: fixture.executeDelivery,
+      },
     );
     if ("help" in blocked) throw new Error("expected a run result");
     expect(blocked.exitCode).toBe(3);
@@ -364,18 +396,21 @@ describe("foreground work URI runner", () => {
     const config = JSON.parse(
       await readFile(fixture.configPath, "utf8"),
     ) as Record<string, unknown>;
-    config.execution = undefined;
+    config.delivery = undefined;
     await writeFile(fixture.configPath, JSON.stringify(config));
 
     const result = await runCliInvocation(
       ["run", "reef://reef-test/REEF-101", "--config", fixture.configPath],
-      { environment: fixture.environment },
+      {
+        environment: fixture.environment,
+        executeDelivery: fixture.executeDelivery,
+      },
     );
     if ("help" in result) throw new Error("expected a run result");
     expect(result.exitCode).toBe(2);
     expect(result.terminal.failure).toMatchObject({
       code: "config_invalid",
-      path: ["execution"],
+      path: ["delivery"],
     });
   });
 });

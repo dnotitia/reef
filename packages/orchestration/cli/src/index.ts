@@ -27,6 +27,7 @@ export {
 export {
   TerminalPlanSummarySchema,
   TerminalResultSchema,
+  DeliveryProgressEventSchema,
   ProgressEventSchema,
   dedupeArtifacts,
   exitCodeForOutcome,
@@ -35,6 +36,7 @@ export {
   safeFailure,
   terminalFromExecution,
   type ProgressEvent,
+  type DeliveryProgressEvent,
   type TerminalFailure,
   type TerminalPlanSummary,
   type TerminalResult,

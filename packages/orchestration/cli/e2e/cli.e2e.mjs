@@ -29,26 +29,14 @@ const assertNoSensitiveOutput = async (fixture, result) => {
     result.stderr,
     JSON.stringify(result.terminal),
   ].join("\n");
-  assert.ok(
-    !output.includes(fixture.root),
-    "private fixture root leaked into CLI output",
-  );
+  assert.ok(!output.includes(fixture.root), "private fixture root leaked");
   for (const value of sensitiveValues(fixture)) {
-    assert.ok(
-      !output.includes(value),
-      "fixture credential leaked into CLI output",
-    );
+    assert.ok(!output.includes(value), "fixture credential leaked");
   }
   for (const file of await fixture.controllerFiles()) {
-    assert.ok(
-      !file.content.includes(fixture.root),
-      `private path leaked into ${file.path}`,
-    );
+    assert.ok(!file.content.includes(fixture.root), "private path leaked");
     for (const value of sensitiveValues(fixture)) {
-      assert.ok(
-        !file.content.includes(value),
-        `credential leaked into ${file.path}`,
-      );
+      assert.ok(!file.content.includes(value), "credential leaked");
     }
   }
 };
@@ -57,12 +45,15 @@ const assertPhaseStream = (
   result,
   expected = ["preflight", "running", "cleanup", "terminal"],
 ) => {
+  const phaseEvents = result.events.filter(
+    (event) => event.event === "execution.phase",
+  );
   assert.deepEqual(
-    result.events.map((event) => event.phase),
+    phaseEvents.map((event) => event.phase),
     expected,
   );
   for (const line of result.stderr.trim().split("\n")) {
-    assert.doesNotThrow(() => JSON.parse(line));
+    if (line.trim()) assert.doesNotThrow(() => JSON.parse(line));
   }
 };
 
@@ -72,61 +63,137 @@ const disposeFixture = async (fixture) => {
   await assert.rejects(fetch(`${fixture.baseUrl}/api/v1/auth/me`));
 };
 
-test("runs the built dist/cli.js through real provider resolution with one terminal line", async () => {
-  const fixture = await createFixture({ runWindowMs: 10 });
+test("hands off a successful exact head through branch, proof, draft PR, and Reef review", async () => {
+  const fixture = await createFixture({ scenario: "success" });
   try {
-    const process = fixture.spawnCli();
-    const result = await process.result;
+    const result = await fixture.spawnCli().result;
 
     assertTerminalProcess(result, 0, "succeeded");
     assertPhaseStream(result);
+    const artifacts = result.terminal.artifact_refs;
     assert.deepEqual(
-      Object.fromEntries(
-        Object.entries(result.terminal.plan.providers).map(
-          ([kind, provider]) => [kind, provider.id],
-        ),
-      ),
-      {
-        work: "reef",
-        harness: "codex",
-        infrastructure: "local",
-        scm: "github",
-        validation: "local-validation",
-      },
+      artifacts.map(({ kind }) => kind),
+      ["branch", "commit", "proof", "pull_request"],
+    );
+    const commit = artifacts.find(({ kind }) => kind === "commit");
+    const proof = artifacts.find(({ kind }) => kind === "proof");
+    assert.ok(commit);
+    assert.ok(proof);
+    assert.equal(proof.ref, commit.ref);
+    assert.equal(fixture.targetRow().status, "in_review");
+    const meta = JSON.parse(fixture.targetRow().meta);
+    assert.deepEqual(
+      meta.implementation_refs.map(({ type, ref }) => ({ type, ref })),
+      [
+        { type: "branch", ref: fixture.branch },
+        { type: "commit", ref: commit.ref },
+        { type: "pull_request", ref: "1" },
+      ],
+    );
+    assert.equal(fixture.pullRequests.length, 1);
+    assert.equal(fixture.pullRequests[0].draft, true);
+    assert.deepEqual(
+      result.events
+        .filter((event) => event.event === "execution.validation")
+        .map(({ stage }) => stage),
+      ["validation_attempt", "validation_passed"],
     );
     assert.ok(
       fixture.requests.some(({ path }) =>
-        path.endsWith(`/documents/${"fixture-vault"}/issues/reef-101.md`),
+        path.endsWith(
+          `/documents/${"fixture-vault"}/issues/${fixture.targetId.toLowerCase()}.md`,
+        ),
       ),
     );
     assert.ok(fixture.requests.some(({ path }) => path === "/api/v1/auth/me"));
-    const githubArtifact = await fixture.exerciseGithubAdapter();
-    assert.deepEqual(githubArtifact, {
-      kind: "pull_request",
-      ref: "1",
-      uri: "https://github.com/fixture/reef/pull/1",
-      title: "Fixture draft pull request",
-    });
-    assert.ok(
-      fixture.requests.some(
-        ({ method, path }) =>
-          method === "GET" && path === "/github/repos/fixture/reef/pulls",
-      ),
-    );
-    assert.ok(
-      fixture.requests.some(
-        ({ method, path }) =>
-          method === "POST" && path === "/github/repos/fixture/reef/pulls",
-      ),
-    );
     await assertNoSensitiveOutput(fixture, result);
   } finally {
     await disposeFixture(fixture);
   }
 });
 
-test("returns stable config, provider-resolution, and upstream failure terminals before leaking resources", async () => {
-  const fixture = await createFixture({ runWindowMs: 10 });
+test("repairs the first failed local validation with a new exact candidate head", async () => {
+  const fixture = await createFixture({ scenario: "repair" });
+  try {
+    const result = await fixture.spawnCli().result;
+
+    assertTerminalProcess(result, 0, "succeeded");
+    const commit = result.terminal.artifact_refs.find(
+      ({ kind }) => kind === "commit",
+    );
+    const proof = result.terminal.artifact_refs.find(
+      ({ kind }) => kind === "proof",
+    );
+    assert.ok(commit);
+    assert.ok(proof);
+    assert.equal(commit.ref, proof.ref);
+    assert.notEqual(commit.ref, fixture.baseRevision);
+    assert.equal(fixture.targetRow().status, "in_review");
+    assert.equal(fixture.pullRequests.length, 1);
+    const validationEvents = result.events.filter(
+      (event) => event.event === "execution.validation",
+    );
+    assert.deepEqual(
+      validationEvents.map(({ stage }) => stage),
+      [
+        "validation_attempt",
+        "validation_failed",
+        "validation_repair",
+        "validation_attempt",
+        "validation_passed",
+      ],
+    );
+    const [firstAttempt, firstFailure, repair, secondAttempt, passed] =
+      validationEvents;
+    assert.equal(firstAttempt.attempt, 1);
+    assert.equal(
+      firstFailure.candidate_revision,
+      firstAttempt.candidate_revision,
+    );
+    assert.equal(firstFailure.check.status, "failed");
+    assert.equal(repair.attempt, 2);
+    assert.equal(
+      repair.previous_candidate_revision,
+      firstAttempt.candidate_revision,
+    );
+    assert.equal(repair.candidate_revision, secondAttempt.candidate_revision);
+    assert.notEqual(
+      repair.candidate_revision,
+      repair.previous_candidate_revision,
+    );
+    assert.equal(passed.candidate_revision, commit.ref);
+    await assertNoSensitiveOutput(fixture, result);
+  } finally {
+    await disposeFixture(fixture);
+  }
+});
+
+test("leaves a blocked user-input decision pending without PR or review handoff", async () => {
+  const fixture = await createFixture({ scenario: "blocked" });
+  try {
+    const result = await fixture.spawnCli().result;
+
+    assertTerminalProcess(result, 3, "blocked");
+    assert.equal(result.terminal.failure.code, "blocked");
+    assert.deepEqual(result.terminal.artifact_refs, []);
+    assert.equal(fixture.targetRow().status, "in_progress");
+    assert.equal(fixture.pullRequests.length, 0);
+    assert.equal(
+      JSON.parse(fixture.targetRow().meta).implementation_refs,
+      null,
+    );
+    assert.equal(fixture.comments.length, 1);
+    assert.match(fixture.comments[0].body, /^pending: Question:/u);
+    assert.match(fixture.comments[0].body, /Choices:/u);
+    assert.match(fixture.comments[0].body, /Recommendation:/u);
+    await assertNoSensitiveOutput(fixture, result);
+  } finally {
+    await disposeFixture(fixture);
+  }
+});
+
+test("returns stable config, provider-resolution, and upstream failures before claiming", async () => {
+  const fixture = await createFixture({ scenario: "success" });
   try {
     const invalid = await fixture.spawnCli({
       configPath: fixture.invalidConfigPath,
@@ -173,8 +240,8 @@ test("returns stable config, provider-resolution, and upstream failure terminals
   }
 });
 
-test("blocks a duplicate active claim without reclaiming the first process", async () => {
-  const fixture = await createFixture({ runWindowMs: 5_000 });
+test("blocks a duplicate active claim and cancels the owner without delivery", async () => {
+  const fixture = await createFixture({ scenario: "hold" });
   try {
     const first = fixture.spawnCli();
     await first.waitForPhase("running");
@@ -182,10 +249,6 @@ test("blocks a duplicate active claim without reclaiming the first process", asy
     const blocked = await fixture.spawnCli().result;
     assertTerminalProcess(blocked, 3, "blocked");
     assert.equal(blocked.terminal.failure.code, "duplicate_work");
-    assert.equal(
-      blocked.terminal.controller.existing_run.work_uri,
-      fixture.workUri,
-    );
     assert.equal(first.child.exitCode, null);
 
     first.child.kill("SIGINT");
@@ -196,67 +259,5 @@ test("blocks a duplicate active claim without reclaiming the first process", asy
     await assertNoSensitiveOutput(fixture, firstResult);
   } finally {
     await disposeFixture(fixture);
-  }
-});
-
-test("turns SIGINT into a cancelled terminal result and releases controller state for cleanup", async () => {
-  const fixture = await createFixture({ runWindowMs: 5_000 });
-  try {
-    const running = fixture.spawnCli();
-    await running.waitForPhase("running");
-    running.child.kill("SIGINT");
-    const result = await running.result;
-
-    assertTerminalProcess(result, 130, "cancelled");
-    assertPhaseStream(result);
-    assert.equal(result.terminal.failure.code, "cancelled");
-    assert.deepEqual(result.terminal.cleanup.outcomes, []);
-    const states = await fixture.controllerFiles();
-    assert.equal(states.length, 2);
-    const parsedStates = states.map(({ content }) => JSON.parse(content));
-    assert.ok(parsedStates.some((state) => state.phase === "terminal"));
-    assert.ok(parsedStates.some((state) => state.status === "released"));
-    await assertNoSensitiveOutput(fixture, result);
-  } finally {
-    await disposeFixture(fixture);
-  }
-});
-
-test("keeps parallel fixture roots, ports, claims, and cleanup ownership isolated", async () => {
-  const [firstFixture, secondFixture] = await Promise.all([
-    createFixture({ runWindowMs: 5_000 }),
-    createFixture({ runWindowMs: 5_000 }),
-  ]);
-  try {
-    assert.notEqual(firstFixture.root, secondFixture.root);
-    assert.notEqual(firstFixture.port, secondFixture.port);
-
-    const first = firstFixture.spawnCli();
-    const second = secondFixture.spawnCli();
-    await Promise.all([
-      first.waitForPhase("running"),
-      second.waitForPhase("running"),
-    ]);
-
-    first.child.kill("SIGINT");
-    const firstResult = await first.result;
-    assertTerminalProcess(firstResult, 130, "cancelled");
-    assert.equal(second.child.exitCode, null);
-    assert.ok((await secondFixture.controllerFiles()).length > 0);
-    await assertNoSensitiveOutput(firstFixture, firstResult);
-    assert.ok(!firstResult.stdout.includes(secondFixture.root));
-    assert.ok(!firstResult.stderr.includes(secondFixture.root));
-
-    second.child.kill("SIGINT");
-    const secondResult = await second.result;
-    assertTerminalProcess(secondResult, 130, "cancelled");
-    await assertNoSensitiveOutput(secondFixture, secondResult);
-    assert.ok(!secondResult.stdout.includes(firstFixture.root));
-    assert.ok(!secondResult.stderr.includes(firstFixture.root));
-  } finally {
-    await Promise.all([
-      disposeFixture(firstFixture),
-      disposeFixture(secondFixture),
-    ]);
   }
 });

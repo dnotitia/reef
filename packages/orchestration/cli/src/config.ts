@@ -17,7 +17,7 @@ const TOKEN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$/u;
 const REPOSITORY_NAME = /^[A-Za-z0-9._-]+$/u;
 const VAULT_NAME = /^[a-z0-9][a-z0-9_-]{0,63}$/u;
 const SHA = /^[0-9a-f]{40,64}$/iu;
-const MAX_RUN_WINDOW_MS = 30 * 60 * 1_000;
+const MAX_VALIDATION_ATTEMPTS = 32;
 
 const uniqueStrings = (values: readonly string[], context: z.RefinementCtx) => {
   const seen = new Set<string>();
@@ -234,6 +234,7 @@ const repository = z.strictObject({
   remote: safeToken,
   remote_url: remoteUrl,
   base_branch: branchName,
+  branch: branchName,
   branch_policy: z.strictObject({
     allowed_prefixes: z.array(branchPrefix).min(1),
     max_length: z.number().int().positive().max(255).optional(),
@@ -254,8 +255,12 @@ export const CliConfigSchema = z.strictObject({
   schema_version: z.literal(1),
   controller,
   repository,
-  execution: z.strictObject({
-    run_window_ms: z.number().int().positive().max(MAX_RUN_WINDOW_MS),
+  delivery: z.strictObject({
+    max_validation_attempts: z
+      .number()
+      .int()
+      .min(2)
+      .max(MAX_VALIDATION_ATTEMPTS),
   }),
   validation_checks: validationChecks,
   providers: z
@@ -346,6 +351,6 @@ export function providerConfigFor(
 }
 
 export const cliConfigConstants = Object.freeze({
-  maxRunWindowMs: MAX_RUN_WINDOW_MS,
+  maxValidationAttempts: MAX_VALIDATION_ATTEMPTS,
   environmentNamePattern: ENVIRONMENT_NAME.source,
 });

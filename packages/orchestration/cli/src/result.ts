@@ -119,13 +119,13 @@ export type TerminalPlanSummary = z.output<typeof TerminalPlanSummarySchema>;
 export type TerminalResult = z.output<typeof TerminalResultSchema>;
 export type TerminalFailure = NonNullable<TerminalResult["failure"]>;
 
-export const ProgressEventSchema = z.strictObject({
+const phaseProgressEventSchema = z.strictObject({
   schema_version: z.literal(1),
   event: z.literal("execution.phase"),
   phase: z.enum(["preflight", "running", "cleanup", "terminal"]),
   at: z.string().min(1),
   work_uri: z.string().min(1),
-  outcome: z.enum(["succeeded", "failed", "cancelled"]).optional(),
+  outcome: z.enum(["succeeded", "failed", "blocked", "cancelled"]).optional(),
   failure: providerFailure.nullable().optional(),
   cleanup: z
     .strictObject({
@@ -134,6 +134,37 @@ export const ProgressEventSchema = z.strictObject({
     .optional(),
 });
 
+export const DeliveryProgressEventSchema = z.strictObject({
+  schema_version: z.literal(1),
+  event: z.literal("execution.validation"),
+  at: z.string().min(1),
+  work_uri: z.string().min(1),
+  stage: z.enum([
+    "validation_attempt",
+    "validation_failed",
+    "validation_repair",
+    "validation_passed",
+  ]),
+  attempt: z.number().int().positive(),
+  candidate_revision: z.string().min(1),
+  previous_candidate_revision: z.string().min(1).optional(),
+  check: z
+    .strictObject({
+      name: z.string().min(1),
+      status: z.enum(["failed", "passed", "timed_out", "cancelled", "skipped"]),
+      summary: z.string().min(1),
+    })
+    .optional(),
+});
+
+export const ProgressEventSchema = z.union([
+  phaseProgressEventSchema,
+  DeliveryProgressEventSchema,
+]);
+
+export type DeliveryProgressEvent = z.output<
+  typeof DeliveryProgressEventSchema
+>;
 export type ProgressEvent = z.output<typeof ProgressEventSchema>;
 
 export function planSummary(plan: RunPlan): TerminalPlanSummary {
@@ -189,10 +220,13 @@ export function safeFailure(
     return path ? { ...summary, path: [...path] } : summary;
   }
   if (isSafeFailure(failure)) {
+    const provider = isProviderErrorJson(failure.provider)
+      ? providerFailureSummary(failure.provider).provider
+      : failure.provider;
     return {
       code: failure.code,
       ...(failure.path ? { path: failure.path } : {}),
-      ...(failure.provider ? { provider: failure.provider } : {}),
+      ...(provider ? { provider } : {}),
     };
   }
   return {
@@ -235,6 +269,12 @@ export function terminalFromExecution(
   runId: string,
   plan: RunPlan,
   result: ExecutionResult,
+  artifacts: readonly ProviderArtifact[] = [],
+  nextActions: readonly string[] = result.outcome === "succeeded"
+    ? ["review_in_progress"]
+    : result.outcome === "blocked"
+      ? ["user_input_required", "delivery_handoff_not_started"]
+      : ["delivery_handoff_not_started"],
 ): TerminalResult {
   return {
     schema_version: 1,
@@ -242,7 +282,7 @@ export function terminalFromExecution(
     work_uri: plan.work.uri,
     outcome: result.outcome,
     plan: planSummary(plan),
-    artifact_refs: [],
+    artifact_refs: [...dedupeArtifacts(artifacts)],
     cleanup: cleanupSummary(result.cleanup),
     failure: result.failure
       ? safeFailure(
@@ -251,7 +291,7 @@ export function terminalFromExecution(
         )
       : null,
     controller: null,
-    next_actions: ["delivery_handoff_not_started"],
+    next_actions: [...nextActions],
   };
 }
 

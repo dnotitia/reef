@@ -25,8 +25,6 @@ export const CLI_PATH = fileURLToPath(
 const TEST_PATH = process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin";
 const VAULT = "fixture-vault";
 const ACTOR = "fixture-actor";
-const TARGET_ID = "REEF-101";
-const DEPENDENCY_ID = "REEF-102";
 
 const gitEnvironment = Object.freeze({
   PATH: TEST_PATH,
@@ -94,14 +92,53 @@ const createGitFixture = async (root, identity) => {
   return { repositoryRoot, bareRemote, baseRevision };
 };
 
-const createCodexExecutable = async (root) => {
+const createCodexExecutable = async (root, scenario) => {
   const executable = join(root, "codex-app-server.mjs");
   await writeFile(
     executable,
     [
       "#!/usr/bin/env node",
       "process.stdin.setEncoding('utf8');",
-      "process.stdin.on('data', () => undefined);",
+      "import { appendFileSync } from 'node:fs';",
+      "import { join } from 'node:path';",
+      `const scenario = ${JSON.stringify(scenario)};`,
+      "const threadId = 'fixture-thread';",
+      "let buffer = '';",
+      "let turnCount = 0;",
+      "const send = (value) => process.stdout.write(`${JSON.stringify(value)}\\n`);",
+      "const output = (intent, summary) => JSON.stringify({ intent, summary });",
+      "const edit = (name, value) => appendFileSync(join(process.cwd(), name), value);",
+      "const emitTurn = (turnId, intent, summary) => {",
+      "  const item = { id: `item-${turnId}`, type: 'agentMessage', text: output(intent, summary) };",
+      "  send({ method: 'turn/started', params: { threadId, turn: { id: turnId } } });",
+      "  send({ method: 'item/completed', params: { threadId, turnId, item } });",
+      "  send({ method: 'turn/completed', params: { threadId, turn: { id: turnId, status: 'completed', items: [item] } } });",
+      "};",
+      "const userInput = (turnId) => send({",
+      "  id: 41,",
+      "  method: 'item/tool/requestUserInput',",
+      "  params: { threadId, turnId, itemId: 'question-1', autoResolutionMs: null, questions: [{ id: 'choice', header: 'Decision', question: 'Which synthetic environment should be used?', options: [{ label: 'Existing', description: 'Use the existing environment.' }, { label: 'New', description: 'Create a new environment.' }], isOther: false, isSecret: false }] },",
+      "});",
+      "const afterTurn = (turnId) => {",
+      "  turnCount += 1;",
+      "  if (scenario === 'hold') return;",
+      "  if (scenario === 'blocked' && turnCount === 1) { userInput(turnId); return; }",
+      "  if (scenario === 'repair' && turnCount === 1) { edit('implementation.txt', 'initial\\n'); emitTurn(turnId, 'validation_requested', 'ready for validation'); return; }",
+      "  if (scenario === 'repair' && turnCount === 2) { edit('repair.txt', 'repair\\n'); emitTurn(turnId, 'validation_requested', 'ready for repaired validation'); return; }",
+      "  if (scenario === 'success' && turnCount === 1) { edit('implementation.txt', 'success\\n'); emitTurn(turnId, 'validation_requested', 'ready for validation'); return; }",
+      "  emitTurn(turnId, 'completed', 'implementation complete');",
+      "};",
+      "const handle = (message) => {",
+      "  if (message.method === 'initialize') { send({ id: message.id, result: {} }); return; }",
+      "  if (message.method === 'thread/start') { send({ id: message.id, result: { thread: { id: threadId } } }); return; }",
+      "  if (message.method === 'thread/resume') { send({ id: message.id, result: { thread: { id: threadId } } }); return; }",
+      "  if (message.method === 'turn/start') { const turnId = `turn-${turnCount + 1}`; send({ id: message.id, result: { turn: { id: turnId } } }); afterTurn(turnId); return; }",
+      "  if (message.method === 'turn/steer') { send({ id: message.id, result: {} }); afterTurn(message.params.expectedTurnId); return; }",
+      "  if (message.method === 'turn/interrupt') { send({ id: message.id, result: {} }); return; }",
+      "  if (message.method === 'initialized') return;",
+      "  if (message.id !== undefined) send({ id: message.id, result: {} });",
+      "};",
+      "process.stdin.on('data', (chunk) => { buffer += chunk; for (;;) { const index = buffer.indexOf('\\n'); if (index < 0) break; const line = buffer.slice(0, index); buffer = buffer.slice(index + 1); if (!line.trim()) continue; handle(JSON.parse(line)); } });",
       "setInterval(() => undefined, 1000);",
       "",
     ].join("\n"),
@@ -110,10 +147,10 @@ const createCodexExecutable = async (root) => {
   return executable;
 };
 
-const issueRow = (id, status, dependsOn, identity) => ({
+const issueRow = (id, targetId, status, dependsOn, identity) => ({
   document_uri: `akb://${VAULT}/coll/issues/doc/${id.toLowerCase()}.md`,
   reef_id: id,
-  title: id === TARGET_ID ? "Fixture work" : "Fixture dependency",
+  title: id === targetId ? "Fixture work" : "Fixture dependency",
   status,
   issue_type: "task",
   priority: "medium",
@@ -152,14 +189,14 @@ const issueRow = (id, status, dependsOn, identity) => ({
   }),
 });
 
-const issueDocument = (id, identity) => ({
+const issueDocument = (id, targetId, identity) => ({
   uri: `akb://${VAULT}/coll/issues/doc/${id.toLowerCase()}.md`,
   vault: VAULT,
   path: `issues/${id.toLowerCase()}.md`,
   title: id,
   type: "task",
   status: "active",
-  summary: id === TARGET_ID ? "Fixture work" : "Fixture dependency",
+  summary: id === targetId ? "Fixture work" : "Fixture dependency",
   created_by: ACTOR,
   created_at: "2026-01-01T00:00:00.000Z",
   updated_at: "2026-01-01T00:00:00.000Z",
@@ -170,14 +207,39 @@ const issueDocument = (id, identity) => ({
   public_slug: null,
 });
 
-const createServerFixture = async ({ identity, jwt, githubToken }) => {
+const sqlLiteral = (sql, pattern) => {
+  const match = sql.match(pattern);
+  return match?.[1]?.replaceAll("''", "'") ?? null;
+};
+
+const sqlJson = (sql, pattern) => {
+  const value = sqlLiteral(sql, pattern);
+  if (value === null) return null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+};
+
+const createServerFixture = async ({
+  identity,
+  targetId,
+  dependencyId,
+  jwt,
+  githubToken,
+}) => {
   const rows = new Map([
-    [TARGET_ID, issueRow(TARGET_ID, "todo", [DEPENDENCY_ID], identity)],
-    [DEPENDENCY_ID, issueRow(DEPENDENCY_ID, "done", [], identity)],
+    [targetId, issueRow(targetId, targetId, "todo", [dependencyId], identity)],
+    [dependencyId, issueRow(dependencyId, targetId, "done", [], identity)],
   ]);
   const requests = [];
+  const tables = new Set();
+  const comments = [];
+  const pullRequests = [];
   const sockets = new Set();
   let workReadFailure = false;
+  let updateSequence = 0;
   const server = createServer((request, response) => {
     void (async () => {
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
@@ -217,7 +279,29 @@ const createServerFixture = async ({ identity, jwt, githubToken }) => {
           sendJson(response, 404, { error: "fixture_not_found" });
           return;
         }
-        sendJson(response, 200, issueDocument(id, identity));
+        sendJson(response, 200, issueDocument(id, targetId, identity));
+        return;
+      }
+
+      if (
+        url.pathname === `/api/v1/tables/${VAULT}` &&
+        request.method === "GET"
+      ) {
+        sendJson(response, 200, {
+          kind: "table",
+          vault: VAULT,
+          items: [...tables].map((name) => ({ name })),
+        });
+        return;
+      }
+
+      if (
+        url.pathname === `/api/v1/tables/${VAULT}` &&
+        request.method === "POST"
+      ) {
+        const body = JSON.parse(await readRequestBody(request));
+        if (typeof body.name === "string") tables.add(body.name);
+        sendJson(response, 201, { name: body.name });
         return;
       }
 
@@ -231,6 +315,94 @@ const createServerFixture = async ({ identity, jwt, githubToken }) => {
           .match(/reef_id\s*=\s*'((?:''|[^'])*)'/iu)?.[1]
           ?.replaceAll("''", "'");
         const row = id === undefined ? undefined : rows.get(id);
+        if (row && /\bUPDATE\s+reef_issues\b/iu.test(sql)) {
+          const status = sqlLiteral(sql, /"status"\s*=\s*'((?:''|[^'])*)'/iu);
+          if (status) row.status = status;
+          const meta = sqlJson(sql, /"meta"\s*=\s*'((?:''|[^'])*)'::json/iu);
+          if (meta && typeof meta === "object") {
+            row.meta = JSON.stringify(meta);
+          }
+          updateSequence += 1;
+          row.updated_at = `2026-01-01T00:00:${String(updateSequence).padStart(2, "0")}.000Z`;
+        }
+        if (/\bINSERT\s+INTO\s+reef_comments\b/iu.test(sql)) {
+          const insertSql = sql.slice(
+            sql.toLowerCase().indexOf("insert into reef_comments"),
+          );
+          const commentMatch = insertSql.match(
+            /\bSELECT\s+'((?:''|[^'])*)',\s*'((?:''|[^'])*)',\s*'((?:''|[^'])*)'::json/iu,
+          );
+          const reefId = commentMatch?.[1]?.replaceAll("''", "'") ?? null;
+          const bodyText = commentMatch?.[2]?.replaceAll("''", "'") ?? null;
+          const metadata = commentMatch?.[3]
+            ? JSON.parse(commentMatch[3].replaceAll("''", "'"))
+            : null;
+          const author =
+            metadata && typeof metadata === "object" && "author" in metadata
+              ? String(metadata.author)
+              : null;
+          const createdAt =
+            metadata && typeof metadata === "object" && "created_at" in metadata
+              ? String(metadata.created_at)
+              : null;
+          if (reefId && bodyText && author && createdAt) {
+            const comment = {
+              id: `comment-${comments.length + 1}`,
+              reef_id: reefId,
+              body: bodyText,
+              meta: JSON.stringify({
+                author,
+                created_at: createdAt,
+                edited_at: null,
+                parent_comment_id: null,
+                thread_root_id: null,
+                mention_recipients: [],
+              }),
+            };
+            comments.push(comment);
+            sendJson(response, 200, {
+              kind: "table_query",
+              columns: Object.keys(comment),
+              items: [comment],
+              total: 1,
+            });
+            return;
+          }
+        }
+        if (/\bINSERT\s+INTO\s+reef_subscriptions\b/iu.test(sql)) {
+          const subscriptionMatch = sql.match(
+            /\bVALUES\s*\(\s*'((?:''|[^'])*)',\s*'((?:''|[^'])*)',\s*'((?:''|[^'])*)',\s*'((?:''|[^'])*)',\s*'((?:''|[^'])*)',\s*'((?:''|[^'])*)'/iu,
+          );
+          if (subscriptionMatch) {
+            const [
+              subscriptionKey,
+              reefId,
+              subscriber,
+              source,
+              status,
+              subscribedAt,
+            ] = subscriptionMatch
+              .slice(1)
+              .map((value) => value.replaceAll("''", "'"));
+            const subscription = {
+              id: "00000000-0000-4000-8000-000000000001",
+              subscription_key: subscriptionKey,
+              reef_id: reefId,
+              subscriber,
+              source,
+              status,
+              subscribed_at: subscribedAt,
+              meta: null,
+            };
+            sendJson(response, 200, {
+              kind: "table_query",
+              columns: Object.keys(subscription),
+              items: [subscription],
+              total: 1,
+            });
+            return;
+          }
+        }
         const items = row === undefined ? [] : [row];
         sendJson(response, 200, {
           kind: "table_query",
@@ -250,7 +422,7 @@ const createServerFixture = async ({ identity, jwt, githubToken }) => {
           url.pathname === "/github/repos/fixture/reef/pulls" &&
           request.method === "GET"
         ) {
-          sendJson(response, 200, []);
+          sendJson(response, 200, pullRequests);
           return;
         }
         if (
@@ -258,14 +430,16 @@ const createServerFixture = async ({ identity, jwt, githubToken }) => {
           request.method === "POST"
         ) {
           const body = JSON.parse(await readRequestBody(request));
-          sendJson(response, 201, {
+          const pullRequest = {
             number: 1,
             state: "open",
             draft: true,
             title: body.title,
             head: { ref: body.head, label: `fixture:${body.head}` },
             base: { ref: body.base },
-          });
+          };
+          pullRequests.push(pullRequest);
+          sendJson(response, 201, pullRequest);
           return;
         }
         sendJson(response, 200, { fixture: true, repository: "fixture/reef" });
@@ -295,6 +469,9 @@ const createServerFixture = async ({ identity, jwt, githubToken }) => {
     server,
     sockets,
     requests,
+    comments,
+    pullRequests,
+    targetRow: () => rows.get(targetId),
     port: address.port,
     setWorkReadFailure: (value) => {
       workReadFailure = value;
@@ -314,7 +491,8 @@ const createConfig = ({
   githubToken,
   infraSecret,
   validationSecret,
-  runWindowMs,
+  branch,
+  scenario,
 }) => ({
   schema_version: 1,
   controller: {
@@ -331,12 +509,22 @@ const createConfig = ({
     remote: "origin",
     remote_url: bareRemote,
     base_branch: "main",
+    branch,
     branch_policy: { allowed_prefixes: ["feat/"] },
-    permissions: { commit: false, push: false, pull_request: false },
+    permissions: { commit: true, push: true, pull_request: true },
   },
-  execution: { run_window_ms: runWindowMs },
+  delivery: { max_validation_attempts: 3 },
   validation_checks: [
-    { name: "fixture-check", command: "true", timeout_ms: 1_000 },
+    {
+      name: "fixture-check",
+      command:
+        scenario === "repair"
+          ? "test -f repair.txt"
+          : scenario === "success"
+            ? "test -f implementation.txt"
+            : "true",
+      timeout_ms: 1_000,
+    },
   ],
   providers: [
     {
@@ -344,7 +532,13 @@ const createConfig = ({
       id: "reef",
       version: "1.0.0",
       environment: ["REEF_AKB_BASE_URL", "REEF_AKB_JWT"],
-      required_capabilities: ["read"],
+      required_capabilities: [
+        "read",
+        "refresh",
+        "transition",
+        "report",
+        "linkArtifact",
+      ],
       options: {
         vault: VAULT,
         base_url_env: "REEF_AKB_BASE_URL",
@@ -424,19 +618,25 @@ const stripFixtureEnvironment = (config) => {
   return copy;
 };
 
-export const createFixture = async ({ runWindowMs = 20_000 } = {}) => {
+export const createFixture = async ({ scenario = "success" } = {}) => {
   const identity = randomUUID().replaceAll("-", "").slice(0, 12);
+  const numericIdentity = Number.parseInt(identity.slice(0, 6), 16);
+  const targetId = `REEF-${100 + (numericIdentity % 800)}`;
+  const dependencyId = `REEF-${100 + ((numericIdentity + 1) % 800)}`;
+  const branch = `feat/fixture-${identity}`;
   const root = await mkdtemp(join(tmpdir(), "reef-cli-e2e-"));
   const jwt = `fixture-jwt-${identity}`;
   const githubToken = `fixture-github-token-${identity}`;
   const infraSecret = `fixture-infra-secret-${identity}`;
   const validationSecret = `fixture-validation-secret-${identity}`;
   const git = await createGitFixture(root, identity);
-  const codexExecutable = await createCodexExecutable(root);
+  const codexExecutable = await createCodexExecutable(root, scenario);
   const managedWorkRoot = join(root, "managed-work");
   await mkdir(managedWorkRoot, { recursive: true });
   const serverFixture = await createServerFixture({
     identity,
+    targetId,
+    dependencyId,
     jwt,
     githubToken,
   });
@@ -451,7 +651,8 @@ export const createFixture = async ({ runWindowMs = 20_000 } = {}) => {
     githubToken,
     infraSecret,
     validationSecret,
-    runWindowMs,
+    branch,
+    scenario,
   });
   const configPath = join(root, "config.json");
   const invalidConfigPath = join(root, "invalid-config.json");
@@ -483,6 +684,9 @@ export const createFixture = async ({ runWindowMs = 20_000 } = {}) => {
   const fixture = {
     root,
     identity,
+    targetId,
+    dependencyId,
+    branch,
     configPath,
     invalidConfigPath,
     providerMismatchConfigPath,
@@ -491,11 +695,14 @@ export const createFixture = async ({ runWindowMs = 20_000 } = {}) => {
     bareRemote: git.bareRemote,
     codexExecutable,
     baseRevision: git.baseRevision,
-    workUri: `reef://${VAULT}/${TARGET_ID}`,
+    workUri: `reef://${VAULT}/${targetId}`,
     port: serverFixture.port,
     baseUrl,
     environment: config._fixture_environment,
     requests: serverFixture.requests,
+    comments: serverFixture.comments,
+    pullRequests: serverFixture.pullRequests,
+    targetRow: serverFixture.targetRow,
     config: stripFixtureEnvironment(config),
     setWorkReadFailure: serverFixture.setWorkReadFailure,
     spawnCli: (options = {}) => {
@@ -551,7 +758,11 @@ export const createFixture = async ({ runWindowMs = 20_000 } = {}) => {
 const parseProgressLine = (line) => {
   try {
     const value = JSON.parse(line);
-    return value && value.event === "execution.phase" ? value : null;
+    return value &&
+      (value.event === "execution.phase" ||
+        value.event === "execution.validation")
+      ? value
+      : null;
   } catch {
     return null;
   }
@@ -648,7 +859,7 @@ export const directCommand = (fixture, configPath = fixture.configPath) => {
 };
 
 export const exerciseGithubAdapter = async (fixture) => {
-  const branch = `feat/fixture-${fixture.identity}`;
+  const branch = `feat/github-fixture-${fixture.identity}`;
   await runGit(fixture.repositoryRoot, [
     "switch",
     "--create",
