@@ -37,10 +37,8 @@ export function useIssueDrill(fromIssueId: string) {
         onClick: (event: MouseEvent<HTMLAnchorElement>) => {
           // Let the browser handle anything that isn't a plain left click so
           // cmd/ctrl/shift/middle-click still opens a new tab (a fresh deep link).
-          // This link owns primary activation even when an outer layer has
-          // already cancelled the event; otherwise the in-memory trail and URL
-          // remain on the child with no user-visible response.
           if (
+            event.defaultPrevented ||
             event.button !== 0 ||
             event.metaKey ||
             event.ctrlKey ||

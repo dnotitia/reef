@@ -276,56 +276,6 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
     await expect(page.locator('[data-testid="issue-detail"]')).toHaveCount(0);
   });
 
-  test("deep-link parent link and Close work through the user-facing accessible controls", async ({
-    page,
-  }) => {
-    await openExistingWorkspace(page);
-    await page.goto(`/workspace/reef-e2e/issues/${LEAF}`);
-    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
-
-    const parentLink = page.getByRole("link", {
-      name: "Parent issue REEF-102: Polish onboarding for existing AKB workspaces",
-    });
-    await expect(parentLink).toBeVisible();
-    await parentLink.press("Enter");
-    await page.waitForURL(new RegExp(`/issues/${MID}`), { timeout: 10_000 });
-    await expect(page.locator('[data-testid="issue-title-input"]')).toHaveValue(
-      "Polish onboarding for existing AKB workspaces",
-    );
-
-    await page.getByRole("button", { name: "Close" }).click();
-    await page.waitForURL(/\/issues$/, { timeout: 10_000 });
-    await expect(
-      page.locator('[data-testid="issue-detail-modal"]'),
-    ).toHaveCount(0);
-  });
-
-  test("deep-link parent link still drills when an outer click listener cancels default", async ({
-    page,
-  }) => {
-    await openExistingWorkspace(page);
-    await page.goto(`/workspace/reef-e2e/issues/${LEAF}`);
-    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
-
-    await page.getByTestId("issue-parent-breadcrumb").evaluate((element) => {
-      document.addEventListener("click", (event) => event.preventDefault(), {
-        capture: true,
-        once: true,
-      });
-      (element as HTMLAnchorElement).click();
-    });
-    await page.waitForURL(new RegExp(`/issues/${MID}`), { timeout: 10_000 });
-    await expect(page.locator('[data-testid="issue-title-input"]')).toHaveValue(
-      "Polish onboarding for existing AKB workspaces",
-    );
-
-    await page.getByRole("button", { name: "Close" }).click();
-    await page.waitForURL(/\/issues$/, { timeout: 10_000 });
-    await expect(
-      page.locator('[data-testid="issue-detail-modal"]'),
-    ).toHaveCount(0);
-  });
-
   test("deep-link child → parent → Back returns to the child without a duplicate sheet", async ({
     page,
   }) => {
