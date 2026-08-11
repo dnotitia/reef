@@ -12,6 +12,8 @@ explicitly in the entries below.
 
 ## Unreleased
 
+## v0.10.0 - 2026-08-11
+
 ### Added
 
 - **Reports true-empty states now expose a filled PageHeader New issue action.**
@@ -159,6 +161,13 @@ explicitly in the entries below.
   management is grouped under per-filter submenus, and existing account, sort,
   subscription, column, and issue-action callers use the same checked/current,
   focus, alignment, and destructive treatments.
+
+### Migration
+
+- Browser-local named issue filters extend the existing Dexie/IndexedDB `config`
+  store in place. The persisted issue-list cache buster advances to v6 and
+  discards stale snapshots once on upgrade; no server-side or AKB schema
+  migration is required.
 
 ### Fixed
 
