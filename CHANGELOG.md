@@ -109,9 +109,9 @@ explicitly in the entries below.
   no Zod 3 compatibility path remains. (REEF-487)
 - **Jira migration now preserves more source fidelity across content, history,
   links, media, and resumes.** ADF panels and line endings normalize safely,
-  mapped mentions remain canonical, changelog and sprint history map into Reef
-  activity, attachment and linked-issue bindings stay bounded and deterministic,
-  and interrupted runs recover a stable archive identity.
+  changelog and sprint history map into Reef activity, attachment and linked-issue
+  bindings stay bounded and deterministic, and interrupted runs recover a stable
+  archive identity.
 
 - **Suggestions empty states now explain their actual cause.** Unconfigured
   workspaces point to monitored-repository setup, configured passive queues
