@@ -26,7 +26,7 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "!.next/dev/**"],
       "env": ["NEXT_PUBLIC_*", "NEXT_TELEMETRY_DISABLED"]
     },
     "dev": {
