@@ -81,7 +81,13 @@ function AuthenticatedWorkspaceGuard({
   // their loading/error states — a real member is not held back, and a
   // non-member still lands on access-denied once the list resolves.
   if (vaultsQuery.isSuccess && !isMember) {
-    return <WorkspaceAccessDenied vault={vault} vaults={vaultsQuery.data} />;
+    return (
+      <WorkspaceAccessDenied
+        appVersion={appVersion}
+        vault={vault}
+        vaults={vaultsQuery.data}
+      />
+    );
   }
 
   return <DashboardShell appVersion={appVersion}>{children}</DashboardShell>;

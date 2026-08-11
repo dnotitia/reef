@@ -60,6 +60,24 @@ test.describe("Hermetic onboarding flow", () => {
     ).toBeVisible();
   });
 
+  test("keeps the account menu on authenticated onboarding and signs out", async ({
+    page,
+  }) => {
+    await signInAsAlice(page);
+    await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+
+    await expect(
+      page.getByRole("button", { name: "Account menu" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Account menu" }).click();
+    await page.getByRole("menuitem", { name: "Sign out" }).click();
+
+    await expect(page).toHaveURL(/\/login$/, { timeout: 10_000 });
+    await expect(
+      page.getByRole("button", { name: "Account menu" }),
+    ).toHaveCount(0);
+  });
+
   test("prefers a remembered configured workspace", async ({
     page,
     request,

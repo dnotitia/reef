@@ -359,6 +359,10 @@ fluid main column:
   targets render as compact issue rows rather than pill chips.
 - **Ask AI** — a floating non-modal panel (≈420×560) anchored bottom-right,
   above its FAB.
+- **Authenticated exception surfaces** — `/onboarding` and the workspace
+  access-denied screen keep the same account identity/menu in the top-right
+  utility area once the session is confirmed. Recovery actions remain the
+  primary content on access denial; account actions are secondary.
 
 Density is tuned per surface: Kanban cards are scannable (status glyph, ID,
 type pill, title clamp, a compact meta row); list rows are tabular and dense;
@@ -388,6 +392,10 @@ the Status, Priority, and Assignee cells open the existing inline editor on
 click or Enter and do not open the detail sheet. The portaled editor is
 positioned from the activated field trigger itself, not the row's ID cell, and
 re-measures after window or table scrolling so it follows sticky-column motion.
+
+The shared account menu uses a visible focus ring, an `계정 메뉴`/`Account menu`
+ARIA label, and at least a 44px trigger and action-row hit target. Its sign-out
+progress and failure copy are exposed through polite live feedback.
 
 ### Surface, Depth & Motion
 
@@ -675,6 +683,13 @@ configured workspaces and therefore do not bypass onboarding. Monitored
 repository access comes from deployment-managed GitHub
 credentials, so onboarding configures a *workspace*, not a Git repo, and no
 issue is committed under anyone's GitHub identity.
+
+The authenticated onboarding and access-denied surfaces retain the shared
+account menu, including the current identity, theme shortcut, release notes,
+and the same sign-out flow used by the dashboard sidebar. The menu is absent
+while the session gate is checking, on unauthenticated surfaces, and on
+`/login`; signing out clears only AKB-scoped browser state and returns to
+`/login`.
 
 ### Planning, Reports, Settings
 

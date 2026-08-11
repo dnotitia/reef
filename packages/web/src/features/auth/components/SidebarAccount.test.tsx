@@ -51,6 +51,7 @@ import {
   deriveIdentity,
   releaseNotesUrl,
 } from "./SidebarAccount";
+import { AccountMenu } from "./AccountMenu";
 
 function wrap(ui: ReactNode) {
   const queryClient = new QueryClient({
@@ -174,6 +175,7 @@ describe("SidebarAccount", () => {
     // did not, so Tab focus was invisible. jsdom has no layout — this guards the
     // canonical button ring token the fix adds.
     const trigger = screen.getByRole("button", { name: "Account menu" });
+    expect(trigger).toHaveClass("min-h-11");
     expect(trigger.className).toContain("focus-visible:ring-brand/40");
     expect(trigger.className).toContain("focus-visible:outline-none");
   });
@@ -307,5 +309,27 @@ describe("SidebarAccount", () => {
       expect(screen.getByText(/couldn't sign out/i)).toBeInTheDocument(),
     );
     expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it("uses the shared identity and a 44px utility hit target outside the sidebar", () => {
+    render(wrap(<AccountMenu appVersion="0.4.0" placement="utility" />));
+
+    const trigger = screen.getByRole("button", { name: "Account menu" });
+    expect(trigger).toHaveClass("min-h-11", "min-w-11");
+    expect(screen.getByText("Alice Example")).toBeInTheDocument();
+  });
+
+  it("reuses the shared sign-out flow from the utility placement", async () => {
+    signOutOfWorkspace.mockResolvedValue({});
+    const user = userEvent.setup();
+    render(wrap(<AccountMenu appVersion="0.4.0" placement="utility" />));
+
+    await user.click(screen.getByRole("button", { name: "Account menu" }));
+    const signOutItem = screen.getByTestId("account-signout");
+    expect(signOutItem).toHaveClass("min-h-11");
+    await user.click(signOutItem);
+
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith("/login"));
+    expect(signOutOfWorkspace).toHaveBeenCalledOnce();
   });
 });

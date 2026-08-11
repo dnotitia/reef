@@ -1,7 +1,18 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import type { EnrichedVaultSummary } from "@reef/core";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+}));
+vi.mock("@/features/auth/hooks/useCurrentUser", () => ({
+  useCurrentUser: () => ({
+    data: { display_name: "Alice Example", email: "alice@example.com" },
+    isLoading: false,
+  }),
+}));
 import { WorkspaceAccessDenied } from "./WorkspaceAccessDenied";
 
 function vault(name: string, hasReefConfig: boolean): EnrichedVaultSummary {
@@ -12,10 +23,19 @@ function vault(name: string, hasReefConfig: boolean): EnrichedVaultSummary {
 }
 
 function renderDenied(vaults: EnrichedVaultSummary[], denied = "reef-other") {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   return render(
-    <IntlTestProvider>
-      <WorkspaceAccessDenied vault={denied} vaults={vaults} />
-    </IntlTestProvider>,
+    <QueryClientProvider client={queryClient}>
+      <IntlTestProvider>
+        <WorkspaceAccessDenied
+          appVersion="0.10.0"
+          vault={denied}
+          vaults={vaults}
+        />
+      </IntlTestProvider>
+    </QueryClientProvider>,
   );
 }
 
@@ -44,5 +64,13 @@ describe("WorkspaceAccessDenied (REEF-315 AC5)", () => {
     expect(
       screen.queryByTestId("access-denied-workspace-raw"),
     ).not.toBeInTheDocument();
+  });
+
+  it("keeps the authenticated account menu available as a secondary utility", () => {
+    renderDenied([vault("reef-acme", true)]);
+
+    expect(
+      screen.getByRole("button", { name: "Account menu" }),
+    ).toBeInTheDocument();
   });
 });

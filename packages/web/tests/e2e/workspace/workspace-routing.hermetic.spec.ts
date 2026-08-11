@@ -129,6 +129,12 @@ test.describe("workspace URL routing (REEF-315)", () => {
     await expect(
       page.locator('[data-testid="access-denied-workspace-reef-e2e"]'),
     ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Account menu" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Account menu" }).click();
+    await page.getByRole("menuitem", { name: "Sign out" }).click();
+    await expect(page).toHaveURL(/\/login$/, { timeout: 10_000 });
   });
 
   test("a bare vault URL remains explicit through login", async ({
