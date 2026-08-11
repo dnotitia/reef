@@ -1,6 +1,7 @@
 "use client";
 
 import { ReefMark } from "@/components/ui/reef-mark";
+import { AccountMenu } from "@/features/auth/components/AccountMenu";
 import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
 import type { EnrichedVaultSummary } from "@reef/core";
@@ -8,6 +9,8 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 
 interface WorkspaceAccessDeniedProps {
+  /** The running Reef version shown by the shared account menu. */
+  appVersion: string;
   /** The vault from the URL the signed-in user is blocked from accessing. */
   vault: string;
   /** The vaults the user CAN access, from `useVaults()`. */
@@ -24,6 +27,7 @@ interface WorkspaceAccessDeniedProps {
  * path into onboarding when they have none.
  */
 export function WorkspaceAccessDenied({
+  appVersion,
   vault,
   vaults,
 }: WorkspaceAccessDeniedProps) {
@@ -32,9 +36,15 @@ export function WorkspaceAccessDenied({
 
   return (
     <div
-      className="flex h-screen flex-col items-center justify-center bg-background px-6"
+      className="relative flex h-screen flex-col items-center justify-center bg-background px-6"
       data-testid="workspace-access-denied"
     >
+      <div
+        className="absolute right-4 top-4 z-10 sm:right-6 sm:top-6"
+        data-testid="access-denied-account-menu"
+      >
+        <AccountMenu appVersion={appVersion} placement="utility" />
+      </div>
       <div className="flex w-full max-w-md flex-col items-center gap-6 text-center">
         <ReefMark className="size-10" decorative />
         <div className="flex flex-col gap-2">
