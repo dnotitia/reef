@@ -26,12 +26,30 @@ function activityRow(overrides: Record<string, unknown> = {}) {
     reef_id: "REEF-1",
     event_type: "status_change",
     event_key: "status_change:todo->in_progress@2026-08-01T00:01:00.000Z",
+    payload: JSON.stringify({ from: "todo", to: "in_progress" }),
     meta: JSON.stringify({
       actor: "alice",
       at: "2026-08-01T00:01:00.000Z",
     }),
     ...overrides,
   };
+}
+
+function issueBodyMentionActivityRow(
+  added: unknown,
+  overrides: Record<string, unknown> = {},
+) {
+  return activityRow({
+    event_type: "issue_body_mentions_change",
+    event_key: "issue_body_mentions_change:document-commit-1",
+    payload: JSON.stringify({
+      recipients: ["bob", "carol"],
+      added,
+      removed: [],
+      document_commit: "document-commit-1",
+    }),
+    ...overrides,
+  });
 }
 
 function commentRow(overrides: Record<string, unknown> = {}) {
@@ -61,7 +79,9 @@ function notificationRow(input: {
   eventType: string;
   actor: string;
   occurredAt: string;
+  state?: "unread" | "read" | "archived";
 }) {
+  const state = input.state ?? "unread";
   return {
     id: "018f47a4-8e3b-7f62-a3d2-9876543210ae",
     notification_key: buildNotificationKey({
@@ -76,9 +96,9 @@ function notificationRow(input: {
     event_type: input.eventType,
     actor: input.actor,
     occurred_at: input.occurredAt,
-    state: "unread",
-    read_at: null,
-    archived_at: null,
+    state,
+    read_at: state === "unread" ? null : "2026-08-01T00:04:00.000Z",
+    archived_at: state === "archived" ? "2026-08-01T00:04:00.000Z" : null,
     payload: JSON.stringify({
       source_type: input.sourceType,
       source_ref: input.sourceRef,
@@ -149,6 +169,72 @@ function setupMentionProjectionFetch(comment: Record<string, unknown>) {
           occurredAt: "2026-06-15T00:02:00.000Z",
         }),
       ];
+    } else {
+      throw new Error(`unexpected SQL: ${statement}`);
+    }
+
+    return new Response(
+      JSON.stringify(makeSqlQueryResponse(items, ["id", "value"])),
+      { headers: { "content-type": "application/json" } },
+    );
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return { calls, fetchMock };
+}
+
+function setupActivityMentionProjectionFetch(options: {
+  activity: Record<string, unknown>[];
+  subscriptions?: Record<string, unknown>[];
+  notifications?: Record<string, Record<string, unknown>>;
+  failRecipients?: string[];
+}) {
+  const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
+  let activityReads = 0;
+  const activity = options.activity[0];
+  const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    calls.push({ url, init });
+    const statement = JSON.parse(String(init?.body)).sql as string;
+    let items: Record<string, unknown>[];
+
+    if (statement.includes("reef_settings")) {
+      items = [{ value: JSON.stringify(checkpoint()) }];
+    } else if (statement.includes("reef_activity")) {
+      items = activityReads++ === 0 ? options.activity : [];
+    } else if (statement.includes("reef_subscriptions")) {
+      items = options.subscriptions ?? [];
+    } else if (
+      statement.includes("INSERT INTO") &&
+      statement.includes("reef_notifications")
+    ) {
+      const recipient = statement.match(/VALUES \('[^']*', '([^']*)'/)?.[1];
+      if (!recipient) throw new Error(`recipient missing from ${statement}`);
+      if (options.failRecipients?.includes(recipient)) {
+        throw new Error(`notification write failed for ${recipient}`);
+      }
+      const eventKey = String(activity?.event_key ?? "mention-event");
+      const eventType = String(
+        activity?.event_type ?? "issue_body_mentions_change",
+      );
+      const actor = String(
+        JSON.parse(String(activity?.meta ?? "{}"))?.actor ?? "alice",
+      );
+      const occurredAt = String(
+        JSON.parse(String(activity?.meta ?? "{}"))?.at ??
+          "2026-08-01T00:01:00.000Z",
+      );
+      items = [
+        options.notifications?.[recipient] ??
+          notificationRow({
+            recipient,
+            sourceType: "activity",
+            sourceRef: eventKey,
+            eventType,
+            actor,
+            occurredAt,
+          }),
+      ];
+    } else if (statement.includes("reef_comments")) {
+      items = [];
     } else {
       throw new Error(`unexpected SQL: ${statement}`);
     }
@@ -576,5 +662,222 @@ describe("notification projector", () => {
       }),
     );
     expect(retry.calls.map(sql).join("\n")).toContain("'carol'");
+  });
+
+  it("fans out only payload.added recipients, without requiring subscriptions", async () => {
+    const activity = issueBodyMentionActivityRow([
+      "bob",
+      "carol",
+      "alice",
+      "erin",
+    ]);
+    const { calls } = setupActivityMentionProjectionFetch({
+      activity: [activity],
+      subscriptions: [
+        subscriptionRow("bob", "requester"),
+        subscriptionRow("carol", "commenter"),
+        subscriptionRow("carol", "manual", "muted"),
+        subscriptionRow("dana", "requester"),
+      ],
+    });
+
+    await expect(project()).resolves.toMatchObject({
+      activity: { scanned: 1, fannedOut: 2, failed: false },
+    });
+
+    const notificationSql = calls
+      .map(sql)
+      .filter((statement) =>
+        statement.includes("INSERT INTO reef_notifications"),
+      );
+    expect(notificationSql).toHaveLength(2);
+    expect(
+      notificationSql.map(
+        (statement) => statement.match(/VALUES \('[^']*', '([^']*)'/)?.[1],
+      ),
+    ).toEqual(["bob", "erin"]);
+    expect(notificationSql.join("\n")).toContain(
+      "'issue_body_mentions_change'",
+    );
+    expect(notificationSql.join("\n")).not.toContain("'dana'");
+    expect(notificationSql.join("\n")).not.toContain("'carol'");
+    expect(
+      calls
+        .map(sql)
+        .filter((statement) => statement.includes("reef_activity"))[0],
+    ).toContain("payload");
+  });
+
+  it("fails closed for empty, removal-only, and malformed added payloads", async () => {
+    const empty = setupActivityMentionProjectionFetch({
+      activity: [issueBodyMentionActivityRow([])],
+    });
+    await expect(project()).resolves.toMatchObject({
+      activity: {
+        scanned: 1,
+        fannedOut: 0,
+        skippedNoRecipients: 1,
+        skippedMalformed: 0,
+      },
+    });
+    expect(empty.calls.map(sql).join("\n")).not.toContain(
+      "INSERT INTO reef_notifications",
+    );
+
+    const removalOnly = setupActivityMentionProjectionFetch({
+      activity: [
+        issueBodyMentionActivityRow([], {
+          event_key: "issue_body_mentions_change:document-commit-remove",
+          payload: JSON.stringify({
+            recipients: [],
+            added: [],
+            removed: ["bob"],
+            document_commit: "document-commit-remove",
+          }),
+        }),
+      ],
+    });
+    await expect(project()).resolves.toMatchObject({
+      activity: { scanned: 1, fannedOut: 0, skippedNoRecipients: 1 },
+    });
+    expect(removalOnly.calls.map(sql).join("\n")).not.toContain(
+      "INSERT INTO reef_notifications",
+    );
+
+    const malformed = setupActivityMentionProjectionFetch({
+      activity: [
+        issueBodyMentionActivityRow(
+          { unresolved: true },
+          {
+            event_key: "issue_body_mentions_change:document-commit-malformed",
+          },
+        ),
+      ],
+    });
+    await expect(project()).resolves.toMatchObject({
+      activity: { scanned: 1, fannedOut: 0, skippedMalformed: 1 },
+    });
+    expect(malformed.calls.map(sql).join("\n")).not.toContain(
+      "INSERT INTO reef_notifications",
+    );
+  });
+
+  it("uses a new source identity when a recipient is removed and later re-added", async () => {
+    const firstActivity = issueBodyMentionActivityRow(["bob"]);
+    const first = setupActivityMentionProjectionFetch({
+      activity: [firstActivity],
+    });
+    await expect(project()).resolves.toMatchObject({
+      activity: { fannedOut: 1, failed: false },
+    });
+
+    const secondActivity = issueBodyMentionActivityRow(["bob"], {
+      event_key: "issue_body_mentions_change:document-commit-2",
+      payload: JSON.stringify({
+        recipients: ["bob"],
+        added: ["bob"],
+        removed: [],
+        document_commit: "document-commit-2",
+      }),
+      meta: JSON.stringify({
+        actor: "alice",
+        at: "2026-08-01T00:03:00.000Z",
+      }),
+    });
+    const second = setupActivityMentionProjectionFetch({
+      activity: [secondActivity],
+    });
+    await expect(project()).resolves.toMatchObject({
+      activity: { fannedOut: 1, failed: false },
+    });
+
+    const firstInsert = first.calls
+      .map(sql)
+      .find((statement) =>
+        statement.includes("INSERT INTO reef_notifications"),
+      );
+    const secondInsert = second.calls
+      .map(sql)
+      .find((statement) =>
+        statement.includes("INSERT INTO reef_notifications"),
+      );
+    expect(firstInsert).toContain("document-commit-1");
+    expect(secondInsert).toContain("document-commit-2");
+    expect(secondInsert).not.toContain("document-commit-1");
+  });
+
+  it("replays an identical event idempotently while preserving read and archived state", async () => {
+    const activity = issueBodyMentionActivityRow(["bob"]);
+    const existing = notificationRow({
+      recipient: "bob",
+      sourceType: "activity",
+      sourceRef: String(activity.event_key),
+      eventType: "issue_body_mentions_change",
+      actor: "alice",
+      occurredAt: "2026-08-01T00:01:00.000Z",
+      state: "archived",
+    });
+    const first = setupActivityMentionProjectionFetch({
+      activity: [activity],
+      notifications: { bob: existing },
+    });
+    await expect(project()).resolves.toMatchObject({
+      activity: { fannedOut: 1, failed: false },
+    });
+    const retry = setupActivityMentionProjectionFetch({
+      activity: [activity],
+      notifications: { bob: existing },
+    });
+    await expect(project()).resolves.toMatchObject({
+      activity: { fannedOut: 1, failed: false },
+    });
+
+    const inserts = [...first.calls, ...retry.calls]
+      .map(sql)
+      .filter((statement) =>
+        statement.includes("INSERT INTO reef_notifications"),
+      );
+    expect(inserts).toHaveLength(2);
+    expect(inserts[0]).toContain("ON CONFLICT (notification_key) DO UPDATE");
+    expect(inserts[0]).toContain(
+      "SET notification_key = EXCLUDED.notification_key",
+    );
+    expect(existing.state).toBe("archived");
+    expect(inserts[1]).toContain(
+      buildNotificationKey({
+        recipient: "bob",
+        sourceType: "activity",
+        sourceRef: String(activity.event_key),
+      }),
+    );
+  });
+
+  it("does not advance an issue-body source checkpoint when recipient fan-out fails", async () => {
+    const activity = issueBodyMentionActivityRow(["bob", "carol"]);
+    const first = setupActivityMentionProjectionFetch({
+      activity: [activity],
+      failRecipients: ["carol"],
+    });
+    await expect(project()).resolves.toMatchObject({
+      activity: { failed: true, cursor: null },
+    });
+    expect(
+      first.calls.filter((call) => sql(call).includes("UPDATE reef_settings")),
+    ).toHaveLength(0);
+
+    const retry = setupActivityMentionProjectionFetch({
+      activity: [activity],
+    });
+    await expect(project()).resolves.toMatchObject({
+      activity: { failed: false, fannedOut: 2 },
+    });
+    const retryInserts = retry.calls
+      .map(sql)
+      .filter((statement) =>
+        statement.includes("INSERT INTO reef_notifications"),
+      );
+    expect(retryInserts).toHaveLength(2);
+    expect(retryInserts.join("\n")).toContain("'bob'");
+    expect(retryInserts.join("\n")).toContain("'carol'");
   });
 });

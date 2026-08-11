@@ -10,9 +10,10 @@ import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNot
 import { PageBody } from "@/features/ui/components/PageBody";
 import { PageHeader } from "@/features/ui/components/PageHeader";
 import { formatAbsoluteTime } from "@/lib/relativeTime";
-import type {
-  NotificationState,
-  Notification as ReefNotification,
+import {
+  ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE,
+  type NotificationState,
+  type Notification as ReefNotification,
 } from "@reef/core";
 import { Archive, Bell, MailOpen } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -32,13 +33,15 @@ function notificationIssueHref(
   vault: string,
   notification: Pick<
     ReefNotification,
-    "reef_id" | "source_type" | "source_ref"
+    "reef_id" | "source_type" | "source_ref" | "event_type"
   >,
 ): string {
   const targetId =
     notification.source_type === "comment"
       ? commentTargetId(notification.source_ref)
-      : null;
+      : notification.event_type === ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE
+        ? "issue-description"
+        : null;
   return `${buildOpenIssueHref(vault, notification.reef_id, new URLSearchParams())}#${targetId ?? "issue-activity"}`;
 }
 
@@ -62,7 +65,9 @@ function NotificationItem({
     archived: t("state.archived"),
   };
   const eventLabel =
-    humanizeEventType(notification.event_type) || t("notification");
+    notification.event_type === ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE
+      ? t("issueBodyMention")
+      : humanizeEventType(notification.event_type) || t("notification");
   const issueHref = notificationIssueHref(vault, notification);
 
   async function updateStateAndRefresh(state: NotificationState) {

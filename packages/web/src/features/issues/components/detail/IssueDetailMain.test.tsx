@@ -75,6 +75,12 @@ describe("IssueDetailMain focus-ring clipping (REEF-226)", () => {
 });
 
 describe("IssueDetailMain autosave boundaries", () => {
+  it("exposes a stable issue description anchor", () => {
+    renderMain();
+
+    expect(document.getElementById("issue-description")).toBeInTheDocument();
+  });
+
   it("commits the title input's current value on blur", () => {
     const commitTitle = vi.fn();
 

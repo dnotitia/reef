@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { ConflictError, SchemaValidationError } from "../../../errors";
 import {
+  ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE,
+  IssueBodyMentionsChangePayloadSchema,
+} from "../../../schemas/issues/activity";
+import {
   type NotificationCreateInput,
   buildNotificationKey,
 } from "../../../schemas/notifications";
@@ -41,6 +45,7 @@ const RawActivitySourceSchema = z.strictObject({
   reef_id: z.string().min(1),
   event_type: z.string().min(1),
   event_key: z.string().min(1),
+  payload: z.unknown().nullable().optional(),
   meta: z.looseObject({
     actor: z.string().min(1),
     at: z.string().datetime({ offset: true }),
@@ -75,6 +80,7 @@ type ProjectableSource = {
   actor: string;
   occurredAt: string;
   mentionRecipients: string[];
+  directMentionOnly: boolean;
 };
 
 export interface NotificationProjectorInput {
@@ -250,7 +256,7 @@ async function readSourceRows(
       : "COALESCE(meta->>'edited_at', meta->>'created_at')";
   const columns =
     source === "activity"
-      ? "id, reef_id, event_type, event_key, meta"
+      ? "id, reef_id, event_type, event_key, payload, meta"
       : "id, reef_id, meta";
   const cursorClause = cursor
     ? ` AND ((${timeExpression}) > ${quoteText(
@@ -283,8 +289,31 @@ function mapSource(
     const parsed = RawActivitySourceSchema.safeParse({
       ...row,
       meta: decodeSettingsValue(row.meta),
+      payload: decodeSettingsValue(row.payload),
     });
     if (!parsed.success) return null;
+    if (parsed.data.event_type === ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE) {
+      const payload = IssueBodyMentionsChangePayloadSchema.safeParse(
+        parsed.data.payload,
+      );
+      if (!payload.success) return null;
+      const mentionRecipients = parsePersistedMentionRecipients(
+        payload.data.added,
+      );
+      if (payload.data.added.length > 0 && mentionRecipients.length === 0) {
+        return null;
+      }
+      return {
+        reefId: parsed.data.reef_id,
+        sourceType: "activity",
+        sourceRef: parsed.data.event_key,
+        eventType: parsed.data.event_type,
+        actor: parsed.data.meta.actor,
+        occurredAt: parsed.data.meta.at,
+        mentionRecipients,
+        directMentionOnly: true,
+      };
+    }
     return {
       reefId: parsed.data.reef_id,
       sourceType: "activity",
@@ -293,6 +322,7 @@ function mapSource(
       actor: parsed.data.meta.actor,
       occurredAt: parsed.data.meta.at,
       mentionRecipients: [],
+      directMentionOnly: false,
     };
   }
   const parsed = RawCommentSourceSchema.safeParse({
@@ -313,6 +343,7 @@ function mapSource(
     mentionRecipients: parsePersistedMentionRecipients(
       parsed.data.meta.mention_recipients,
     ),
+    directMentionOnly: false,
   };
 }
 
@@ -348,7 +379,9 @@ async function recipientsForSource(
     bySubscriber.set(subscription.subscriber, entries);
   }
   const mentioned = new Set(source.mentionRecipients);
-  const candidates = new Set([...bySubscriber.keys(), ...mentioned]);
+  const candidates = source.directMentionOnly
+    ? mentioned
+    : new Set([...bySubscriber.keys(), ...mentioned]);
   return [...candidates]
     .filter((subscriber) => {
       const entries = bySubscriber.get(subscriber) ?? [];
@@ -360,10 +393,10 @@ async function recipientsForSource(
       ) {
         return false;
       }
-      return (
-        mentioned.has(subscriber) ||
-        entries.some((entry) => entry.status === "active")
-      );
+      return source.directMentionOnly
+        ? mentioned.has(subscriber)
+        : mentioned.has(subscriber) ||
+            entries.some((entry) => entry.status === "active");
     })
     .sort((left, right) => left.localeCompare(right));
 }

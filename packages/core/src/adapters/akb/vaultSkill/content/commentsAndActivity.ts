@@ -22,6 +22,17 @@ Interpret payload by event_type:
 - impl_ref_linked: payload {ref_type,ref,repo} -- a delivery ref was linked to the issue; ref_type is pull_request, commit, or branch, ref is the PR number / SHA / branch name, and repo is owner/name or null. This is a set addition, so there is one event per newly-linked ref.
 - issue_body_mentions_change: payload {recipients,added,removed,document_commit} -- an internal precursor records the committed issue-body recipient delta. Its event_key is issue_body_mentions_change:<document_commit>, so the same document commit is idempotent. It is never a user-visible timeline row; exclude it from history reads and presentation.
 
+The notification projector consumes this internal precursor without reparsing the
+body or looking up the roster: it validates the persisted payload with
+\`IssueBodyMentionsChangePayloadSchema\` and uses only \`added\` as direct recipients.
+Those recipients do not need an active subscription; the actor and a recipient's
+explicit manual Mute are excluded, while subscribers absent from \`added\` do not
+receive this event. Notification identity is \`recipient + activity + event_key\`,
+so replay preserves read/archived state. Empty or removal-only \`added\` creates no
+notification, and a recipient write failure leaves the source checkpoint for
+retry with the same identities. Malformed payloads fail closed without exposing
+membership information.
+
 Two read rules:
 
 - Treat the log as append-only. Never UPDATE or DELETE a reef_activity row -- events are written only by the lifecycle rules in issue-workflows.md.

@@ -1292,6 +1292,7 @@
     "pageTitle": "받은 알림",
     "loading": "알림을 불러오는 중…",
     "notification": "알림",
+    "issueBodyMention": "이슈 본문에서 멘션되었습니다",
     "listLabel": "알림 목록",
     "emptyTitle": "모두 확인했습니다",
     "emptyDescription": "내 이슈의 새 협업 활동이 여기에 표시됩니다.",
