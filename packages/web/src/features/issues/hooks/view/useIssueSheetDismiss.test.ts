@@ -24,7 +24,7 @@ vi.mock("@/features/settings/hooks/useActiveVault", () => ({
 
 afterEach(() => {
   mockReplace.mockClear();
-  useIssueNavStack.setState({ trail: [], currentId: null });
+  useIssueNavStack.getState().clear();
 });
 
 describe("useIssueSheetDismiss (REEF-270)", () => {
@@ -111,5 +111,45 @@ describe("useIssueSheetDismiss (REEF-270)", () => {
 
     expect(useIssueNavStack.getState().trail).toEqual([]);
     expect(onExit).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the deep-link exit owner when a relation route remounts the sheet", () => {
+    const deepLinkExit = vi.fn();
+    const interceptedRouteExit = vi.fn();
+
+    renderHook(() =>
+      useIssueSheetDismiss({ issueId: "REEF-103", onExit: deepLinkExit }),
+    );
+    useIssueNavStack.getState().drill("REEF-103", "REEF-102");
+    const { result: parentSheet } = renderHook(() =>
+      useIssueSheetDismiss({
+        issueId: "REEF-102",
+        onExit: interceptedRouteExit,
+      }),
+    );
+
+    act(() => parentSheet.current.exit());
+
+    expect(deepLinkExit).toHaveBeenCalledTimes(1);
+    expect(interceptedRouteExit).not.toHaveBeenCalled();
+  });
+
+  it("does not let an outgoing rerender reconcile over a recorded drill", () => {
+    const firstExit = vi.fn();
+    const replacementExit = vi.fn();
+    const { rerender } = renderHook(
+      ({ onExit }: { onExit: () => void }) =>
+        useIssueSheetDismiss({ issueId: "REEF-103", onExit }),
+      { initialProps: { onExit: firstExit } },
+    );
+
+    act(() => {
+      useIssueNavStack.getState().drill("REEF-103", "REEF-102");
+      rerender({ onExit: replacementExit });
+    });
+
+    expect(useIssueNavStack.getState().trail).toEqual(["REEF-103"]);
+    expect(useIssueNavStack.getState().currentId).toBe("REEF-102");
+    expect(useIssueNavStack.getState().exitOwner).toBe(firstExit);
   });
 });

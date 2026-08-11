@@ -306,6 +306,11 @@ function runtimeDiscovery() {
     },
     scenarios: SUPPORTED_SCENARIOS,
     tasks: {
+      issue_drill_navigation: {
+        scenario: "demo_board",
+        workspace: "reef-e2e",
+        start_path: "/workspace/reef-e2e/issues?view=list",
+      },
       named_issue_filters: {
         scenario: "configured_multi",
         workspace: "reef-e2e",

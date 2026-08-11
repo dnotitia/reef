@@ -222,4 +222,92 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
     await page.locator('[data-testid="issue-close"]').click();
     await page.waitForURL(/\/issues$/, { timeout: 10_000 });
   });
+
+  async function openDeepLeafAndDrillToParent(
+    page: import("@playwright/test").Page,
+    { reload = false } = {},
+  ) {
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/reef-e2e/issues/${LEAF}`);
+    if (reload) await page.reload();
+
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+    await expect(
+      page.locator('[data-testid="issue-detail-modal"]'),
+    ).toHaveCount(1);
+    await expect(page.locator(breadcrumb)).toHaveAttribute(
+      "data-issue-id",
+      MID,
+    );
+
+    await page.locator(breadcrumb).click();
+    await page.waitForURL(new RegExp(`/issues/${MID}`), { timeout: 10_000 });
+    await expect(page.locator('[data-testid="issue-title-input"]')).toHaveValue(
+      "Polish onboarding for existing AKB workspaces",
+    );
+    await expect(
+      page.locator('[data-testid="issue-detail-modal"]'),
+    ).toHaveCount(1);
+  }
+
+  test("deep-link child → parent → Close exits the session once", async ({
+    page,
+  }) => {
+    await openDeepLeafAndDrillToParent(page);
+
+    await page.locator('[data-testid="issue-close"]').click();
+    await page.waitForURL(/\/issues$/, { timeout: 10_000 });
+    await expect(
+      page.locator('[data-testid="issue-detail-modal"]'),
+    ).toHaveCount(0);
+    await expect(page.locator('[data-testid="issue-detail"]')).toHaveCount(0);
+  });
+
+  test("refreshed deep-link child → parent → Close keeps URL, title, and sheet aligned", async ({
+    page,
+  }) => {
+    await openDeepLeafAndDrillToParent(page, { reload: true });
+
+    await page.locator('[data-testid="issue-close"]').click();
+    await page.waitForURL(/\/issues$/, { timeout: 10_000 });
+    await expect(
+      page.locator('[data-testid="issue-detail-modal"]'),
+    ).toHaveCount(0);
+    await expect(page.locator('[data-testid="issue-detail"]')).toHaveCount(0);
+  });
+
+  test("deep-link child → parent → Back returns to the child without a duplicate sheet", async ({
+    page,
+  }) => {
+    await openDeepLeafAndDrillToParent(page);
+
+    await page.locator(drillBack).click();
+    await page.waitForURL(new RegExp(`/issues/${LEAF}`), { timeout: 10_000 });
+    await expect(page.locator('[data-testid="issue-title-input"]')).toHaveValue(
+      "Add saved filters for stakeholder reports",
+    );
+    await expect(
+      page.locator('[data-testid="issue-detail-modal"]'),
+    ).toHaveCount(1);
+
+    await page.locator('[data-testid="issue-close"]').click();
+    await page.waitForURL(/\/issues$/, { timeout: 10_000 });
+    await expect(
+      page.locator('[data-testid="issue-detail-modal"]'),
+    ).toHaveCount(0);
+  });
+
+  test("deep-link child → parent → outside click closes the whole session", async ({
+    page,
+  }) => {
+    await openDeepLeafAndDrillToParent(page);
+
+    await page.locator('[data-slot="sheet-overlay"]').click({
+      position: { x: 8, y: 8 },
+    });
+    await page.waitForURL(/\/issues$/, { timeout: 10_000 });
+    await expect(
+      page.locator('[data-testid="issue-detail-modal"]'),
+    ).toHaveCount(0);
+  });
 });

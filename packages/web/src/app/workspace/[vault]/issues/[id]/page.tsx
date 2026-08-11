@@ -3,10 +3,11 @@
 import { IssueDetailSheet } from "@/features/issues/components/detail/IssueDetailSheet";
 import { IssuesWorkspace } from "@/features/issues/components/filters/IssuesWorkspace";
 import { IssuesWorkspaceSkeleton } from "@/features/issues/components/filters/IssuesWorkspaceSkeleton";
+import { useIssueNavStack } from "@/features/issues/stores/useIssueNavStack";
 import { useHydrated } from "@/lib/useHydrated";
 import { withVault } from "@/lib/workspaceHref";
-import { useRouter } from "next/navigation";
-import { Suspense, use } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, use, useEffect, useState } from "react";
 
 interface IssuePageProps {
   params: Promise<{ id: string; vault: string }>;
@@ -21,15 +22,31 @@ interface IssuePageProps {
  * runs when the URL was hit cold.
  *
  * UX: the IssuesWorkspace fills the layout slot as a backdrop and the
- * IssueDetailSheet slide-over sits on top. On a cold hit there is no `?view=`,
- * so the workspace defaults to the Board view. A cold hit starts a depth-0
- * drill trail (REEF-270), so exiting pushes the user to the vault's issues list
- * — we don't rely on history.back() here because the tab may have started
- * directly at this URL with no prior entry.
+ * IssueDetailSheet slide-over sits on top. When a cold hit has no `?view=`, the
+ * workspace defaults to the Board view; any supplied view/filter/sort query is
+ * carried back to the entry list. A cold hit starts a depth-0 drill trail
+ * (REEF-270), so exiting pushes the user to that vault-scoped list — we don't
+ * rely on history.back() here because the tab may have started directly at
+ * this URL with no prior entry. Once a relationship drill activates the
+ * intercepting parallel route, the base sheet yields to that route so the
+ * session has one visible sheet rather than a stacked duplicate.
  */
 export default function IssuePage({ params }: IssuePageProps) {
   const { id, vault } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const trailLength = useIssueNavStack((state) => state.trail.length);
+  // Route-local (never persisted): once this base page hands the session to
+  // the intercepting slot, it stays hidden even when Back unwinds to the
+  // original issue, preventing the two parallel sheets from stacking again.
+  const [hasDrilledInSession, setHasDrilledInSession] = useState(false);
+  const entryViewPath = searchParams.toString()
+    ? `/issues?${searchParams.toString()}`
+    : "/issues";
+
+  useEffect(() => {
+    if (trailLength > 0) setHasDrilledInSession(true);
+  }, [trailLength]);
 
   // The IssueDetailSheet is a modal Radix Dialog rendered open. On this cold-hit
   // route it shares the initial SSR/hydration pass with the IssuesWorkspace
@@ -47,10 +64,10 @@ export default function IssuePage({ params }: IssuePageProps) {
       <Suspense fallback={<IssuesWorkspaceSkeleton />}>
         <IssuesWorkspace />
       </Suspense>
-      {mounted && (
+      {mounted && !hasDrilledInSession && (
         <IssueDetailSheet
           issueId={id}
-          onClose={() => router.push(withVault(vault, "/issues"))}
+          onClose={() => router.push(withVault(vault, entryViewPath))}
         />
       )}
     </>

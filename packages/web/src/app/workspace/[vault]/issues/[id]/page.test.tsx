@@ -1,11 +1,15 @@
 import { render, screen } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockBack = vi.fn();
-const mockPush = vi.fn();
+const { mockBack, mockPush, mockUseSearchParams } = vi.hoisted(() => ({
+  mockBack: vi.fn(),
+  mockPush: vi.fn(),
+  mockUseSearchParams: vi.fn(() => new URLSearchParams()),
+}));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ back: mockBack, push: mockPush }),
+  useSearchParams: mockUseSearchParams,
 }));
 
 vi.mock("@/features/issues/components/filters/IssuesWorkspace", () => ({
@@ -37,12 +41,19 @@ vi.mock("react", async (importOriginal) => {
 });
 
 import IssuePage from "./page";
+import { useIssueNavStack } from "@/features/issues/stores/useIssueNavStack";
 
 function makeParams(id: string) {
   return { id, vault: "reef-acme" };
 }
 
 describe("IssuePage (base route — hard navigation deep link)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseSearchParams.mockReturnValue(new URLSearchParams());
+    useIssueNavStack.getState().clear();
+  });
+
   it("renders the IssuesWorkspace backdrop and, after mount, the IssueDetailSheet", () => {
     render(
       <IssuePage
@@ -99,8 +110,6 @@ describe("IssuePage (base route — hard navigation deep link)", () => {
   });
 
   it("closes by pushing the vault-scoped issues list — never relies on history.back()", () => {
-    mockBack.mockClear();
-    mockPush.mockClear();
     render(
       <IssuePage
         params={
@@ -114,5 +123,44 @@ describe("IssuePage (base route — hard navigation deep link)", () => {
     screen.getByTestId("mock-close").click();
     expect(mockPush).toHaveBeenCalledWith("/workspace/reef-acme/issues");
     expect(mockBack).not.toHaveBeenCalled();
+  });
+
+  it("preserves the entry view, filter, and sort query on close", () => {
+    mockUseSearchParams.mockReturnValue(
+      new URLSearchParams("view=list&status=todo&sort=priority&order=desc"),
+    );
+    render(
+      <IssuePage
+        params={
+          makeParams("REEF-001") as unknown as Promise<{
+            id: string;
+            vault: string;
+          }>
+        }
+      />,
+    );
+
+    screen.getByTestId("mock-close").click();
+
+    expect(mockPush).toHaveBeenCalledWith(
+      "/workspace/reef-acme/issues?view=list&status=todo&sort=priority&order=desc",
+    );
+  });
+
+  it("yields the base sheet once a drill activates the intercepting route", () => {
+    useIssueNavStack.getState().drill("REEF-103", "REEF-102");
+
+    render(
+      <IssuePage
+        params={
+          makeParams("REEF-103") as unknown as Promise<{
+            id: string;
+            vault: string;
+          }>
+        }
+      />,
+    );
+
+    expect(screen.queryByTestId("issue-detail-sheet")).toBeNull();
   });
 });

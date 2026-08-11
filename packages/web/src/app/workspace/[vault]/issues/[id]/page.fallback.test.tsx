@@ -22,6 +22,7 @@ vi.mock("@/features/issues/components/detail/IssueDetailSheet", () => ({
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), back: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 import IssuePage from "./page";

@@ -171,6 +171,11 @@ explicitly in the entries below.
   surrounding Sheet handles the next Escape.** Selection values, trigger focus,
   and the existing Sheet Back/Close behavior remain unchanged. (REEF-490)
 
+- **Issue-detail Close now exits a deep-linked drill session in one action.**
+  Drilling from a hard-open issue into related issues keeps the original entry
+  destination for Close, Escape, and outside-click dismissal while preserving
+  the existing Back trail and view/filter/sort query parameters. (REEF-494)
+
 ## v0.9.0 - 2026-08-03
 
 ### Added
