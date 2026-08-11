@@ -12,6 +12,8 @@ explicitly in the entries below.
 
 ## Unreleased
 
+## v0.10.0 - 2026-08-11
+
 ### Added
 
 - **Reports true-empty states now expose a filled PageHeader New issue action.**
@@ -38,15 +40,11 @@ explicitly in the entries below.
 
 - **Named personal issue filters** can save, apply, update, rename, duplicate,
   and delete browser-local facet, display, and sort presets without adding
-  user-specific server state. The existing Dexie/IndexedDB `config` store
-  gains named-filter keys in place; existing browser settings remain intact and
-  no server-side storage migration is required.
+  user-specific server state.
 
 - **Large issue lists now load and render progressively.** The List view fetches
-  100-issue cursor pages, keeps the DOM virtualized while preserving keyboard
-  focus, selection, quick edits, and finite sibling views. The persisted query
-  cache buster advances to v6, so stale issue-list snapshots are discarded once
-  on upgrade.
+  100-issue cursor pages and keeps the DOM virtualized while preserving keyboard
+  focus, selection, quick edits, and finite sibling views.
 - **Comment mentions now use exact-case vault-roster autocomplete, canonical
   escaped tokens, save-time validation, and projection-gated rendering.**
   (REEF-452)
@@ -109,6 +107,11 @@ explicitly in the entries below.
   orchestration.** Explicit record key schemas, strict/loose object policies,
   and flattened form/field errors preserve the existing boundary contracts;
   no Zod 3 compatibility path remains. (REEF-487)
+- **Jira migration now preserves more source fidelity across content, history,
+  links, media, and resumes.** ADF panels and line endings normalize safely,
+  changelog and sprint history map into Reef activity, attachment and linked-issue
+  bindings stay bounded and deterministic, and interrupted runs recover a stable
+  archive identity.
 
 - **Suggestions empty states now explain their actual cause.** Unconfigured
   workspaces point to monitored-repository setup, configured passive queues
@@ -131,6 +134,10 @@ explicitly in the entries below.
   shared selection column, localized Status/Assignee/Priority/Labels actions,
   semantic issue links, and row-scoped keyboard focus extend the existing
   Backlog reorder and inline-status workflow without exposing Sprint controls.
+- **Issue rows and Board cards now support keyboard- and pointer-driven context
+  menus with inline field editing.** Quick editors stay anchored to their field
+  triggers while row selection, navigation, and existing action semantics remain
+  intact. (REEF-345)
 - **Empty states now share one canonical section frame across My Work, Inbox,
   Reports, and Planning, while the unconfigured-workspace prompt stays
   deliberately unboxed.** The four section frames use the same geometry and
@@ -159,6 +166,19 @@ explicitly in the entries below.
   management is grouped under per-filter submenus, and existing account, sort,
   subscription, column, and issue-action callers use the same checked/current,
   focus, alignment, and destructive treatments.
+
+### Security
+
+- **Security advisories are patched across runtime and build dependencies.** The
+  lockfile now pins patched versions of Mermaid, PostCSS, protobufjs, Sharp,
+  DOMPurify, linkify-it, brace-expansion, and the Jaeger propagator.
+
+### Migration
+
+- Browser-local named issue filters extend the existing Dexie/IndexedDB `config`
+  store in place. The persisted issue-list cache buster advances to v6 and
+  discards stale snapshots once on upgrade; no server-side or AKB schema
+  migration is required.
 
 ### Fixed
 
