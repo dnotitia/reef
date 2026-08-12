@@ -244,7 +244,12 @@ export const IssueChildren = memo(function IssueChildren({
             </div>
 
             <TooltipProvider>
-              <ul aria-label={t("subIssues")} className="flex flex-col gap-0.5">
+              <ul
+                aria-label={t("subIssues")}
+                // Keep the link's 2px teal focus ring inside the detail main's
+                // horizontal clipping boundary without changing the row grid.
+                className="flex flex-col gap-0.5 px-1"
+              >
                 {children.map((child) => (
                   <li key={child.id}>
                     <IssueChildRow

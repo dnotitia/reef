@@ -150,6 +150,13 @@ describe("IssueChildren", () => {
     expect(doneLink?.className).toContain("opacity-60");
   });
 
+  it("reserves horizontal paint space for the child focus ring", () => {
+    render(<IssueChildren issueId={PARENT} allIssues={ALL} />);
+
+    const list = screen.getByRole("list", { name: "Sub-issues" });
+    expect(list).toHaveClass("px-1");
+  });
+
   it("links each child to its detail route", () => {
     render(<IssueChildren issueId={PARENT} allIssues={ALL} />);
     const openLink = screen
