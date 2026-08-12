@@ -50,15 +50,37 @@ function Tooltip({
   );
 }
 
+type TooltipTriggerProps = Omit<
+  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Trigger>,
+  "aria-describedby"
+> & {
+  "aria-describedby"?: string | null;
+};
+
 const TooltipTrigger = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Trigger>,
-  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Trigger>
->(function TooltipTrigger({ className, ...props }, ref) {
+  TooltipTriggerProps
+>(function TooltipTrigger(
+  { className, "aria-describedby": ariaDescribedBy, ...props },
+  ref,
+) {
+  const triggerProps =
+    ariaDescribedBy === undefined
+      ? props
+      : {
+          ...props,
+          // Radix's internal value must remain unset when the trigger is not
+          // eligible for a tooltip; preserve null at runtime while keeping
+          // the primitive's DOM prop type string-compatible.
+          "aria-describedby": ariaDescribedBy as unknown as
+            | string
+            | undefined,
+        };
   return (
     <TooltipPrimitive.Trigger
       ref={ref}
       className={cn("outline-none", className)}
-      {...props}
+      {...triggerProps}
     />
   );
 });

@@ -54,13 +54,17 @@ function useTitleOverflow(
       return;
     }
 
+    let disposed = false;
+
     const measure = () => {
-      if (element.textContent !== title) return;
+      if (disposed || element.textContent !== title) return;
       const next = element.scrollWidth > element.clientWidth;
       setIsOverflowing((previous) => (previous === next ? previous : next));
     };
 
     measure();
+    const frame = requestAnimationFrame(measure);
+    void document.fonts?.ready.then(measure);
     const observer =
       typeof ResizeObserver === "function"
         ? new ResizeObserver(measure)
@@ -69,6 +73,8 @@ function useTitleOverflow(
     window.addEventListener("resize", measure);
 
     return () => {
+      disposed = true;
+      cancelAnimationFrame(frame);
       observer?.disconnect();
       window.removeEventListener("resize", measure);
     };
@@ -114,12 +120,17 @@ function IssueChildRow({
     </Link>
   );
 
-  if (!isTitleOverflowing) return link;
-
   return (
     <Tooltip>
-      <TooltipTrigger asChild>{link}</TooltipTrigger>
-      <TooltipContent>{child.title}</TooltipContent>
+      <TooltipTrigger
+        asChild
+        {...(!isTitleOverflowing ? { "aria-describedby": null } : {})}
+      >
+        {link}
+      </TooltipTrigger>
+      {isTitleOverflowing ? (
+        <TooltipContent>{child.title}</TooltipContent>
+      ) : null}
     </Tooltip>
   );
 }
