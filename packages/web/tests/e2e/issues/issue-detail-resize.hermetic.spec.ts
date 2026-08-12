@@ -26,7 +26,21 @@ test.describe("Hermetic issue detail splitter", () => {
     await expect(handle).toHaveAttribute("aria-orientation", "vertical");
     await expect(handle).toHaveAttribute("aria-valuemin", "960");
     await expect(handle).toHaveAttribute("aria-valuenow", "1200");
+    await expect(handle).toHaveAttribute("aria-valuetext", "1200px");
     await expect(handle).toHaveAttribute("aria-controls", "issue-detail-panel");
+    await expect(handle).toHaveAttribute(
+      "aria-describedby",
+      "issue-detail-resize-description",
+    );
+    await expect(page.locator("#issue-detail-panel")).toHaveAttribute(
+      "role",
+      "region",
+    );
+    await expect(
+      page.locator("#issue-detail-resize-description"),
+    ).toContainText(
+      "Vertical separator controls the issue detail panel. Current width 1200px; minimum 960px; maximum 1353.6px.",
+    );
 
     const box = await handle.boundingBox();
     if (!box) throw new Error("Splitter is not laid out");
@@ -46,6 +60,10 @@ test.describe("Hermetic issue detail splitter", () => {
     await expect(handle).toHaveAttribute(
       "aria-valuenow",
       String(draggedWidth - 32),
+    );
+    await expect(handle).toHaveAttribute(
+      "aria-valuetext",
+      `${draggedWidth - 32}px`,
     );
     await page.keyboard.press("Home");
     await expect(handle).toHaveAttribute("aria-valuenow", "960");

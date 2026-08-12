@@ -896,6 +896,7 @@
       "srTitle": "Issue {issueId}",
       "srDescription": "Edit details for issue {issueId}.",
       "resizeHandle": "Resize issue detail panel",
+      "resizeHandleDescription": "Vertical separator controls the issue detail panel. Current width {current}px; minimum {min}px; maximum {max}px.",
       "saving": "Saving…",
       "saved": "Saved",
       "notSaved": "Not saved",

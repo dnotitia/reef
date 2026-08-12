@@ -44,6 +44,7 @@ interface IssueDetailSheetProps {
 }
 
 const ISSUE_DETAIL_PANEL_ID = "issue-detail-panel";
+const ISSUE_DETAIL_RESIZE_DESCRIPTION_ID = "issue-detail-resize-description";
 const ISSUE_DETAIL_DESKTOP_MIN_WIDTH = 1280;
 export const ISSUE_DETAIL_DEFAULT_WIDTH = 1200;
 export const ISSUE_DETAIL_MIN_WIDTH = 960;
@@ -375,7 +376,6 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
             event.preventDefault();
             exit();
           }}
-          id={ISSUE_DETAIL_PANEL_ID}
           // Wider canvas (REEF-149) so the rail's property rows get full width
           // and Planning dates / Relationship inputs stop truncating. The
           // inline width is desktop-only; the CSS fallback keeps the existing
@@ -395,34 +395,45 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
           }
         >
           {isDesktop ? (
-            <div
-              role="separator"
-              tabIndex={0}
-              aria-label={t("resizeHandle")}
-              aria-controls={ISSUE_DETAIL_PANEL_ID}
-              aria-orientation="vertical"
-              aria-valuemin={ISSUE_DETAIL_MIN_WIDTH}
-              aria-valuemax={maxWidth}
-              aria-valuenow={panelWidth}
-              data-testid="issue-detail-resize-handle"
-              data-resizing={isResizing ? "true" : "false"}
-              className="group absolute inset-y-0 left-0 z-10 flex w-3 touch-none select-none cursor-col-resize items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60"
-              onKeyDown={onKeyDown}
-              onPointerCancel={onPointerCancel}
-              onPointerDown={onPointerDown}
-              onPointerMove={onPointerMove}
-              onPointerUp={onPointerUp}
-              onLostPointerCapture={onLostPointerCapture}
-            >
-              <span
-                aria-hidden="true"
-                className={
-                  isResizing
-                    ? "h-full w-px bg-brand"
-                    : "h-full w-px bg-border-subtle transition-colors group-hover:bg-brand group-focus-visible:bg-brand"
-                }
-              />
-            </div>
+            <>
+              <div
+                role="separator"
+                tabIndex={0}
+                aria-label={t("resizeHandle")}
+                aria-controls={ISSUE_DETAIL_PANEL_ID}
+                aria-describedby={ISSUE_DETAIL_RESIZE_DESCRIPTION_ID}
+                aria-orientation="vertical"
+                aria-valuemin={ISSUE_DETAIL_MIN_WIDTH}
+                aria-valuemax={maxWidth}
+                aria-valuenow={panelWidth}
+                aria-valuetext={`${panelWidth}px`}
+                data-testid="issue-detail-resize-handle"
+                data-resizing={isResizing ? "true" : "false"}
+                className="group absolute inset-y-0 left-0 z-10 flex w-3 touch-none select-none cursor-col-resize items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60"
+                onKeyDown={onKeyDown}
+                onPointerCancel={onPointerCancel}
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onLostPointerCapture={onLostPointerCapture}
+              >
+                <span
+                  aria-hidden="true"
+                  className={
+                    isResizing
+                      ? "h-full w-px bg-brand"
+                      : "h-full w-px bg-border-subtle transition-colors group-hover:bg-brand group-focus-visible:bg-brand"
+                  }
+                />
+              </div>
+              <span id={ISSUE_DETAIL_RESIZE_DESCRIPTION_ID} className="sr-only">
+                {t("resizeHandleDescription", {
+                  current: String(panelWidth),
+                  min: String(ISSUE_DETAIL_MIN_WIDTH),
+                  max: String(maxWidth),
+                })}
+              </span>
+            </>
           ) : null}
           {/* Visually-hidden title/description satisfy Radix Dialog a11y
               without duplicating the PM-facing identity rendered in the bar. */}
@@ -443,7 +454,12 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
               AC5). Wrapped with the body in a no-gap column so SheetContent's
               gap-4 doesn't open between the bar and the body. */}
           <IssueChromeSlotProvider value={actionsSlot}>
-            <div className="flex min-w-0 flex-col">
+            <div
+              id={ISSUE_DETAIL_PANEL_ID}
+              role="region"
+              aria-label={t("srTitle", { issueId })}
+              className="flex min-w-0 flex-col"
+            >
               <div
                 data-testid="issue-detail-chrome"
                 className="flex items-center gap-2 px-6 pt-4"

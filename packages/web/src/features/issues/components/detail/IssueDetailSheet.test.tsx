@@ -387,9 +387,23 @@ describe("IssueDetailSheet", () => {
         String(getIssueDetailMaxWidth(1440)),
       );
       expect(splitter).toHaveAttribute("aria-valuenow", "1200");
+      expect(splitter).toHaveAttribute("aria-valuetext", "1200px");
       expect(splitter).toHaveAttribute("aria-controls", "issue-detail-panel");
+      expect(splitter).toHaveAttribute(
+        "aria-describedby",
+        "issue-detail-resize-description",
+      );
+      expect(
+        document.getElementById("issue-detail-resize-description"),
+      ).toHaveTextContent(
+        "Vertical separator controls the issue detail panel. Current width 1200px; minimum 960px; maximum 1353.6px.",
+      );
+      expect(document.getElementById("issue-detail-panel")).toHaveAttribute(
+        "role",
+        "region",
+      );
       expect(document.getElementById("issue-detail-panel")).toContainElement(
-        splitter,
+        screen.getByTestId("issue-detail-chrome"),
       );
     });
 
@@ -488,8 +502,8 @@ describe("IssueDetailSheet", () => {
       render(wrap(<IssueDetailSheet issueId="REEF-001" onClose={() => {}} />));
 
       expect(screen.queryByRole("separator")).not.toBeInTheDocument();
-      const panel = document.getElementById("issue-detail-panel");
-      expect(panel?.getAttribute("style")).toContain(
+      const sheet = document.querySelector('[data-slot="sheet-content"]');
+      expect(sheet?.getAttribute("style")).toContain(
         "width: min(94vw, var(--issue-detail-width-default))",
       );
     });
