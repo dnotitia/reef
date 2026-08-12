@@ -14,6 +14,10 @@ vi.mock("@/lib/apiClient", async () => {
   return { ...actual, apiFetch: vi.fn() };
 });
 
+vi.mock("@/features/auth/hooks/useCurrentUserLogin", () => ({
+  useCurrentUserLogin: () => null,
+}));
+
 const mockApiFetch = vi.mocked(apiFetch);
 const issues: IssueListItem[] = ["REEF-001", "REEF-002", "REEF-003"].map(
   (id) => ({
