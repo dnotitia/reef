@@ -13,7 +13,15 @@ import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { withVault } from "@/lib/workspaceHref";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { useState } from "react";
+import {
+  type CSSProperties,
+  type KeyboardEvent,
+  type PointerEvent,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { IssueChromeIdentity } from "./IssueChromeIdentity";
 import { IssueChromeSlotProvider } from "./IssueChromeSlot";
 import { IssueDetail } from "./IssueDetail";
@@ -33,6 +41,200 @@ interface IssueDetailSheetProps {
    * in-memory nav stack (REEF-270).
    */
   onClose: () => void;
+}
+
+const ISSUE_DETAIL_PANEL_ID = "issue-detail-panel";
+const ISSUE_DETAIL_RESIZE_DESCRIPTION_ID = "issue-detail-resize-description";
+const ISSUE_DETAIL_DESKTOP_MIN_WIDTH = 1280;
+export const ISSUE_DETAIL_DEFAULT_WIDTH = 1200;
+export const ISSUE_DETAIL_MIN_WIDTH = 960;
+export const ISSUE_DETAIL_MAX_WIDTH = 1440;
+export const ISSUE_DETAIL_KEYBOARD_STEP = 32;
+export const ISSUE_DETAIL_SESSION_STORAGE_KEY = "reef:issue-detail-width:v1";
+
+function subscribeToViewport(onStoreChange: () => void) {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener("resize", onStoreChange);
+  return () => window.removeEventListener("resize", onStoreChange);
+}
+
+function getViewportWidth() {
+  return typeof window === "undefined" ? 0 : window.innerWidth;
+}
+
+function getServerViewportWidth() {
+  return 0;
+}
+
+export function getIssueDetailMaxWidth(viewportWidth: number) {
+  return Math.max(
+    ISSUE_DETAIL_MIN_WIDTH,
+    Math.min(viewportWidth * 0.94, ISSUE_DETAIL_MAX_WIDTH),
+  );
+}
+
+export function clampIssueDetailWidth(value: number, maxWidth: number) {
+  const safeMax = Math.max(ISSUE_DETAIL_MIN_WIDTH, maxWidth);
+  if (!Number.isFinite(value)) {
+    return Math.min(ISSUE_DETAIL_DEFAULT_WIDTH, safeMax);
+  }
+  return Math.min(Math.max(value, ISSUE_DETAIL_MIN_WIDTH), safeMax);
+}
+
+function readStoredIssueDetailWidth() {
+  try {
+    const raw = window.sessionStorage.getItem(ISSUE_DETAIL_SESSION_STORAGE_KEY);
+    if (raw === null) return null;
+    const parsed: unknown = JSON.parse(raw);
+    return typeof parsed === "number" && Number.isFinite(parsed)
+      ? parsed
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeIssueDetailWidth(width: number) {
+  try {
+    window.sessionStorage.setItem(
+      ISSUE_DETAIL_SESSION_STORAGE_KEY,
+      JSON.stringify(width),
+    );
+  } catch {
+    // Private browsing and disabled storage should not block resizing.
+  }
+}
+
+interface IssueDetailResizeHandlers {
+  isDesktop: boolean;
+  isResizing: boolean;
+  maxWidth: number;
+  panelWidth: number;
+  onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
+  onLostPointerCapture: (event: PointerEvent<HTMLDivElement>) => void;
+  onPointerCancel: (event: PointerEvent<HTMLDivElement>) => void;
+  onPointerDown: (event: PointerEvent<HTMLDivElement>) => void;
+  onPointerMove: (event: PointerEvent<HTMLDivElement>) => void;
+  onPointerUp: (event: PointerEvent<HTMLDivElement>) => void;
+}
+
+function useIssueDetailResize(): IssueDetailResizeHandlers {
+  // The sheet is the single owner of this viewport subscription. The live
+  // width snapshot also lets a desktop resize clamp a stored width before it
+  // can make the rail or navigation unreachable.
+  const viewportWidth = useSyncExternalStore(
+    subscribeToViewport,
+    getViewportWidth,
+    getServerViewportWidth,
+  );
+  const isDesktop = viewportWidth >= ISSUE_DETAIL_DESKTOP_MIN_WIDTH;
+  const maxWidth = getIssueDetailMaxWidth(viewportWidth);
+  const [panelWidth, setPanelWidth] = useState(ISSUE_DETAIL_DEFAULT_WIDTH);
+  const [isResizing, setIsResizing] = useState(false);
+  const panelWidthRef = useRef(ISSUE_DETAIL_DEFAULT_WIDTH);
+  const loadedSessionWidthRef = useRef(false);
+  const dragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startWidth: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!isDesktop || loadedSessionWidthRef.current) return;
+    loadedSessionWidthRef.current = true;
+    const storedWidth = readStoredIssueDetailWidth();
+    if (storedWidth === null) return;
+    const nextWidth = clampIssueDetailWidth(
+      storedWidth,
+      getIssueDetailMaxWidth(viewportWidth),
+    );
+    panelWidthRef.current = nextWidth;
+    setPanelWidth(nextWidth);
+  }, [isDesktop, viewportWidth]);
+
+  useEffect(() => {
+    if (!isDesktop) return;
+    const nextWidth = clampIssueDetailWidth(panelWidthRef.current, maxWidth);
+    if (nextWidth === panelWidthRef.current) return;
+    panelWidthRef.current = nextWidth;
+    setPanelWidth(nextWidth);
+    storeIssueDetailWidth(nextWidth);
+  }, [isDesktop, maxWidth]);
+
+  function updatePanelWidth(value: number) {
+    const nextWidth = clampIssueDetailWidth(value, maxWidth);
+    if (nextWidth === panelWidthRef.current) return;
+    panelWidthRef.current = nextWidth;
+    setPanelWidth(nextWidth);
+    storeIssueDetailWidth(nextWidth);
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (!isDesktop) return;
+    let nextWidth: number | null = null;
+    switch (event.key) {
+      case "ArrowLeft":
+        nextWidth = panelWidthRef.current + ISSUE_DETAIL_KEYBOARD_STEP;
+        break;
+      case "ArrowRight":
+        nextWidth = panelWidthRef.current - ISSUE_DETAIL_KEYBOARD_STEP;
+        break;
+      case "Home":
+        nextWidth = ISSUE_DETAIL_MIN_WIDTH;
+        break;
+      case "End":
+        nextWidth = maxWidth;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    updatePanelWidth(nextWidth);
+  }
+
+  function onPointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (!isDesktop || event.button !== 0) return;
+    event.preventDefault();
+    event.currentTarget.focus();
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: panelWidthRef.current,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setIsResizing(true);
+  }
+
+  function onPointerMove(event: PointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    // The sheet is anchored to the right: moving the boundary left grows the
+    // primary pane, while moving it right makes room for the backdrop.
+    updatePanelWidth(drag.startWidth + (drag.startX - event.clientX));
+  }
+
+  function finishPointerResize(event: PointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(drag.pointerId)) {
+      event.currentTarget.releasePointerCapture(drag.pointerId);
+    }
+    dragRef.current = null;
+    setIsResizing(false);
+  }
+
+  return {
+    isDesktop,
+    isResizing,
+    maxWidth,
+    panelWidth,
+    onKeyDown,
+    onLostPointerCapture: finishPointerResize,
+    onPointerCancel: finishPointerResize,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp: finishPointerResize,
+  };
 }
 
 /**
@@ -61,6 +263,18 @@ interface IssueDetailSheetProps {
 export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
   const t = useTranslations("issues.detail");
   const nav = useTranslations("nav");
+  const {
+    isDesktop,
+    isResizing,
+    maxWidth,
+    panelWidth,
+    onKeyDown,
+    onLostPointerCapture,
+    onPointerCancel,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+  } = useIssueDetailResize();
   const { vault, isLoading: vaultLoading } = useActiveVault();
   const { backTo, goBack, exit, dismissViaEsc } = useIssueSheetDismiss({
     issueId,
@@ -163,11 +377,64 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
             exit();
           }}
           // Wider canvas (REEF-149) so the rail's property rows get full width
-          // and Planning dates / Relationship inputs stop truncating.
-          // `overscroll-contain` keeps a scroll at the sheet's edge from chaining
-          // to the page behind it (WIG).
-          className="w-[min(94vw,1200px)] sm:max-w-[1200px] overflow-y-auto overscroll-contain"
+          // and Planning dates / Relationship inputs stop truncating. The
+          // inline width is desktop-only; the CSS fallback keeps the existing
+          // narrow responsive sheet geometry. `overscroll-contain` keeps a
+          // scroll at the sheet's edge from chaining to the page behind it.
+          className="issue-detail-sheet min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain"
+          style={
+            {
+              "--issue-detail-width": `${panelWidth}px`,
+              width: isDesktop
+                ? "var(--issue-detail-width)"
+                : "min(94vw, var(--issue-detail-width-default))",
+              maxWidth: isDesktop
+                ? "var(--issue-detail-width-max)"
+                : "var(--issue-detail-width-default)",
+            } as CSSProperties
+          }
         >
+          {isDesktop ? (
+            <>
+              <div
+                role="separator"
+                tabIndex={0}
+                aria-label={t("resizeHandle")}
+                aria-controls={ISSUE_DETAIL_PANEL_ID}
+                aria-describedby={ISSUE_DETAIL_RESIZE_DESCRIPTION_ID}
+                aria-orientation="vertical"
+                aria-valuemin={ISSUE_DETAIL_MIN_WIDTH}
+                aria-valuemax={maxWidth}
+                aria-valuenow={panelWidth}
+                aria-valuetext={`${panelWidth}px`}
+                data-testid="issue-detail-resize-handle"
+                data-resizing={isResizing ? "true" : "false"}
+                className="group absolute inset-y-0 left-0 z-10 flex w-3 touch-none select-none cursor-col-resize items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60"
+                onKeyDown={onKeyDown}
+                onPointerCancel={onPointerCancel}
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onLostPointerCapture={onLostPointerCapture}
+              >
+                <span
+                  aria-hidden="true"
+                  className={
+                    isResizing
+                      ? "h-full w-px bg-brand"
+                      : "h-full w-px bg-border-subtle transition-colors group-hover:bg-brand group-focus-visible:bg-brand"
+                  }
+                />
+              </div>
+              <span id={ISSUE_DETAIL_RESIZE_DESCRIPTION_ID} className="sr-only">
+                {t("resizeHandleDescription", {
+                  current: String(panelWidth),
+                  min: String(ISSUE_DETAIL_MIN_WIDTH),
+                  max: String(maxWidth),
+                })}
+              </span>
+            </>
+          ) : null}
           {/* Visually-hidden title/description satisfy Radix Dialog a11y
               without duplicating the PM-facing identity rendered in the bar. */}
           <SheetTitle className="sr-only">
@@ -187,7 +454,12 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
               AC5). Wrapped with the body in a no-gap column so SheetContent's
               gap-4 doesn't open between the bar and the body. */}
           <IssueChromeSlotProvider value={actionsSlot}>
-            <div className="flex flex-col">
+            <div
+              id={ISSUE_DETAIL_PANEL_ID}
+              role="region"
+              aria-label={t("srTitle", { issueId })}
+              className="flex min-w-0 flex-col"
+            >
               <div
                 data-testid="issue-detail-chrome"
                 className="flex items-center gap-2 px-6 pt-4"
