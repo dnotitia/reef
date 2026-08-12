@@ -1,6 +1,7 @@
 "use client";
 
 import { IssueOptionRow } from "@/components/fields/IssueOptionRow";
+import { PersonChip } from "@/components/fields/PersonChip";
 import { useIssueDrill } from "@/features/issues/hooks/view/useIssueDrill";
 import {
   type IssueRelationLike,
@@ -8,7 +9,12 @@ import {
   unresolvedBlockerCountIn,
 } from "@/features/issues/lib/dependencyUtils";
 import { cn } from "@/lib/utils";
-import { type IssueListItem, type Status, isResolvedStatus } from "@reef/core";
+import {
+  type IssueListItem,
+  type Status,
+  type VaultMember,
+  isResolvedStatus,
+} from "@reef/core";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import {
@@ -16,6 +22,7 @@ import {
   type RefObject,
   memo,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -83,10 +90,18 @@ function useTitleOverflow(
   return isOverflowing;
 }
 
+function isAssigneeTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    target.closest('[data-issue-option-slot="assignee"]') !== null
+  );
+}
+
 interface IssueChildRowProps {
   child: IssueListItem;
   blockerCount: number;
   getDrillProps: IssueDrillProps;
+  membersByUsername: ReadonlyMap<string, VaultMember>;
   resolved: boolean;
 }
 
@@ -94,45 +109,90 @@ function IssueChildRow({
   child,
   blockerCount,
   getDrillProps,
+  membersByUsername,
   resolved,
 }: IssueChildRowProps) {
+  const t = useTranslations("issues.relations");
   const titleRef = useRef<HTMLSpanElement>(null);
   const isTitleOverflowing = useTitleOverflow(titleRef, child.title);
+  const titleDescriptionId = useId();
+  const [titleTooltipOpen, setTitleTooltipOpen] = useState(false);
+  const assignedTo = child.assigned_to?.trim() || null;
+  const member = assignedTo ? membersByUsername.get(assignedTo) : undefined;
+  const assigneeName =
+    member?.display_name?.trim() || assignedTo || t("unassigned");
   const link = (
     <Link
       {...getDrillProps(child.id)}
       data-issue-id={child.id}
       aria-label={isTitleOverflowing ? `${child.id} ${child.title}` : undefined}
+      aria-describedby={isTitleOverflowing ? titleDescriptionId : undefined}
+      onFocus={() => {
+        if (isTitleOverflowing) setTitleTooltipOpen(true);
+      }}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setTitleTooltipOpen(false);
+        }
+      }}
+      onPointerEnter={(event) => {
+        if (isTitleOverflowing && !isAssigneeTarget(event.target)) {
+          setTitleTooltipOpen(true);
+        }
+      }}
+      onPointerLeave={() => setTitleTooltipOpen(false)}
       className={cn(
         // `min-w-0 flex-1` lets the IssueOptionRow grid inside truncate
         // instead of overflowing the column (REEF-285), matching the
         // navigable relation row's Link.
-        "flex min-w-0 flex-1 touch-manipulation items-center rounded-md px-1.5 py-1 transition-colors duration-150",
+        "flex min-w-0 flex-1 touch-manipulation items-center gap-2 rounded-md px-1.5 py-1 transition-colors duration-150 @max-[40rem]:flex-wrap",
         "hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
         resolved && "opacity-60 hover:opacity-100",
       )}
     >
-      <IssueOptionRow
-        issue={child}
-        blockerCount={blockerCount}
-        titleRef={titleRef}
-      />
+      <Tooltip
+        open={isTitleOverflowing && titleTooltipOpen}
+        onOpenChange={setTitleTooltipOpen}
+      >
+        <TooltipTrigger asChild>
+          <span className="flex min-w-0 flex-1 @max-[40rem]:basis-full">
+            <IssueOptionRow
+              issue={child}
+              blockerCount={blockerCount}
+              titleRef={titleRef}
+            />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>{child.title}</TooltipContent>
+      </Tooltip>
+      <span id={titleDescriptionId} className="sr-only">
+        {isTitleOverflowing ? child.title : null}
+      </span>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            data-testid={`issue-child-assignee-${child.id}`}
+            data-issue-option-slot="assignee"
+            aria-label={t("assigneeLabel", { name: assigneeName })}
+            title={assigneeName}
+            onPointerEnter={() => setTitleTooltipOpen(false)}
+            className="flex min-w-0 max-w-[8rem] shrink items-center @max-[40rem]:ml-auto"
+          >
+            <PersonChip
+              identityKey={assignedTo}
+              name={member?.display_name ?? null}
+              fallbackLabel={t("unassigned")}
+              size="sm"
+              wrapperClassName="w-full min-w-0"
+            />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>{assigneeName}</TooltipContent>
+      </Tooltip>
     </Link>
   );
 
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        asChild
-        {...(!isTitleOverflowing ? { "aria-describedby": null } : {})}
-      >
-        {link}
-      </TooltipTrigger>
-      {isTitleOverflowing ? (
-        <TooltipContent>{child.title}</TooltipContent>
-      ) : null}
-    </Tooltip>
-  );
+  return link;
 }
 
 interface IssueChildrenProps {
@@ -140,6 +200,8 @@ interface IssueChildrenProps {
   issueId: string;
   /** Whole-vault list already loaded by the detail panel. */
   allIssues: readonly IssueListItem[];
+  /** Current vault roster already loaded by the detail panel. */
+  members?: readonly VaultMember[];
   /**
    * Whole-vault relation graph for accurate blocker badges. Defaults to
    * `allIssues`; callers should pass the relations projection so a dependency on
@@ -175,6 +237,7 @@ interface IssueChildrenProps {
 export const IssueChildren = memo(function IssueChildren({
   issueId,
   allIssues,
+  members = [],
   relationGraph,
   action,
 }: IssueChildrenProps) {
@@ -193,6 +256,14 @@ export const IssueChildren = memo(function IssueChildren({
       return a.id.localeCompare(b.id);
     });
   }, [allIssues, issueId]);
+
+  // Build the roster index once so every child resolves its display name in
+  // O(1), while the detail panel's existing roster query remains the only
+  // network source for member data.
+  const membersByUsername = useMemo(
+    () => new Map(members.map((member) => [member.username, member])),
+    [members],
+  );
 
   // Built once over the whole-vault relation graph so each row resolves its
   // blocker count in O(1) instead of rebuilding the dependency map per row.
@@ -246,7 +317,7 @@ export const IssueChildren = memo(function IssueChildren({
             <TooltipProvider>
               <ul aria-label={t("subIssues")} className="flex flex-col gap-0.5">
                 {children.map((child) => (
-                  <li key={child.id}>
+                  <li key={child.id} className="@container">
                     <IssueChildRow
                       child={child}
                       blockerCount={unresolvedBlockerCountIn(
@@ -254,6 +325,7 @@ export const IssueChildren = memo(function IssueChildren({
                         blockedIndex,
                       )}
                       getDrillProps={getDrillProps}
+                      membersByUsername={membersByUsername}
                       resolved={isResolvedStatus(child.status)}
                     />
                   </li>

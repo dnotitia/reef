@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { openExistingWorkspace, resetFixture } from "../harness/fixture";
+import {
+  openExistingWorkspace,
+  readFixtureState,
+  resetFixture,
+} from "../harness/fixture";
 
 // The demo_board fixture wires a parent chain REEF-101 → REEF-102 → REEF-103
 // (mock-server.mjs), so each issue exposes a sub-issue to drill *into* and a
@@ -137,6 +141,72 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
         )
         .toBe(true);
     }
+  });
+
+  test("shows child assignees at narrow widths and refreshes after reassignment", async ({
+    page,
+    request,
+  }) => {
+    await openRootFromList(page);
+
+    const assignedLink = page.locator(
+      '[data-testid="issue-children"] a[data-issue-id="REEF-102"]',
+    );
+    const unassignedLink = page.locator(
+      '[data-testid="issue-children"] a[data-issue-id="REEF-112"]',
+    );
+    await expect(assignedLink).toContainText("Alice Example");
+    await expect(unassignedLink).toContainText("Unassigned");
+    await assignedLink.getByTestId("issue-child-assignee-REEF-102").hover();
+    await expect(page.getByRole("tooltip")).toHaveText("Alice Example");
+
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 1280, height: 900 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth <= window.innerWidth,
+          ),
+        )
+        .toBe(true);
+      await expect(
+        assignedLink.getByTestId("issue-child-assignee-REEF-102"),
+      ).toBeVisible();
+      await expect(
+        unassignedLink.getByTestId("issue-child-assignee-REEF-112"),
+      ).toBeVisible();
+    }
+
+    await assignedLink.click();
+    await page.waitForURL(new RegExp(`/issues/${MID}`), { timeout: 10_000 });
+    const assignee = page.getByTestId("assignee-combobox");
+    await assignee.locator("button").first().click();
+    await expect(
+      assignee.getByRole("option", { name: "Bob Example" }),
+    ).toBeVisible();
+    await assignee.getByRole("option", { name: "Bob Example" }).click();
+
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        const vault = state.vaults.find(
+          (candidate) => candidate.name === "reef-e2e",
+        );
+        return vault?.issues.find((issue) => issue.id === MID)?.assigned_to;
+      })
+      .toBe("bob");
+
+    await page.locator(drillBack).click();
+    await page.waitForURL(new RegExp(`/issues/${ROOT}`), { timeout: 10_000 });
+    await expect(
+      page.getByTestId("issue-child-assignee-REEF-102"),
+    ).toContainText("Bob Example");
+    await expect(
+      page.getByTestId("issue-child-assignee-REEF-112"),
+    ).toContainText("Unassigned");
   });
 
   test("Close exits the whole trail to the list in one action (AC2)", async ({

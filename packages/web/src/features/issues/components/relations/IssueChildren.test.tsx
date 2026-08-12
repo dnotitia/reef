@@ -1,5 +1,5 @@
 import { useIssueNavStack } from "@/features/issues/stores/useIssueNavStack";
-import type { IssueListItem } from "@reef/core";
+import type { IssueListItem, VaultMember } from "@reef/core";
 import {
   cleanup,
   fireEvent,
@@ -72,6 +72,11 @@ function makeIssue(overrides: Partial<IssueListItem>): IssueListItem {
 }
 
 const PARENT = "REEF-100";
+
+const members: VaultMember[] = [
+  { username: "alice", display_name: "Alice Kim", role: "writer" },
+  { username: "bob", display_name: null, role: "reader" },
+];
 
 const childOpen = makeIssue({
   id: "REEF-101",
@@ -158,6 +163,113 @@ describe("IssueChildren", () => {
     expect(openLink?.getAttribute("href")).toBe(
       "/workspace/reef-test/issues/REEF-101",
     );
+  });
+
+  it("shows display names, identifier fallbacks, and a localized unassigned state", () => {
+    render(
+      <IssueChildren
+        issueId={PARENT}
+        allIssues={[
+          makeIssue({
+            id: "REEF-101",
+            title: "Assigned child",
+            parent_id: PARENT,
+            assigned_to: "alice",
+          }),
+          makeIssue({
+            id: "REEF-102",
+            title: "Identifier fallback child",
+            parent_id: PARENT,
+            assigned_to: "carol",
+          }),
+          makeIssue({
+            id: "REEF-103",
+            title: "Unassigned child",
+            parent_id: PARENT,
+            assigned_to: null,
+          }),
+        ]}
+        members={members}
+      />,
+    );
+
+    expect(
+      screen.getByTestId("issue-child-assignee-REEF-101"),
+    ).toHaveTextContent("Alice Kim");
+    expect(
+      screen.getByTestId("issue-child-assignee-REEF-101"),
+    ).toHaveAccessibleName("Assignee: Alice Kim");
+    expect(
+      screen.getByTestId("issue-child-assignee-REEF-102"),
+    ).toHaveTextContent("carol");
+    expect(
+      screen.getByTestId("issue-child-assignee-REEF-103"),
+    ).toHaveTextContent("Unassigned");
+  });
+
+  it("keeps the assignee's full name available in its own tooltip", async () => {
+    const user = userEvent.setup();
+    render(
+      <IssueChildren
+        issueId={PARENT}
+        allIssues={[
+          makeIssue({
+            id: "REEF-101",
+            title: "Assigned child",
+            parent_id: PARENT,
+            assigned_to: "alice",
+          }),
+        ]}
+        members={members}
+      />,
+    );
+
+    await user.hover(screen.getByTestId("issue-child-assignee-REEF-101"));
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Alice Kim");
+  });
+
+  it("updates the assignee display from current list and roster props", () => {
+    const { rerender } = render(
+      <IssueChildren
+        issueId={PARENT}
+        allIssues={[
+          makeIssue({
+            id: "REEF-101",
+            title: "Changing child",
+            parent_id: PARENT,
+            assigned_to: "alice",
+          }),
+        ]}
+        members={members}
+      />,
+    );
+
+    expect(
+      screen.getByTestId("issue-child-assignee-REEF-101"),
+    ).toHaveTextContent("Alice Kim");
+
+    rerender(
+      <IssueChildren
+        issueId={PARENT}
+        allIssues={[
+          makeIssue({
+            id: "REEF-101",
+            title: "Changing child",
+            parent_id: PARENT,
+            assigned_to: "bob",
+          }),
+        ]}
+        members={[
+          ...members,
+          { username: "bob", display_name: "Bob Park", role: "reader" },
+        ]}
+      />,
+    );
+
+    expect(
+      screen.getByTestId("issue-child-assignee-REEF-101"),
+    ).toHaveTextContent("Bob Park");
+    expect(screen.queryByText("Alice Kim")).not.toBeInTheDocument();
   });
 
   it("drills into a child in place: records the hop and replaces (REEF-270)", async () => {

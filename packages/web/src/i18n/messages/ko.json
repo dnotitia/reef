@@ -1198,6 +1198,8 @@
       "subIssues": "하위 이슈",
       "addSubIssue": "하위 이슈 추가",
       "noSubIssues": "아직 하위 이슈가 없습니다.",
+      "unassigned": "미할당",
+      "assigneeLabel": "담당자: {name}",
       "progressLabel": "하위 이슈 {total}개 중 {done}개 완료",
       "progressCount": "{total}개 중 {done}개 완료",
       "idPlaceholder": "REEF-001 또는 제목…",

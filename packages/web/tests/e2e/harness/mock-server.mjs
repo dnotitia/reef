@@ -890,6 +890,13 @@ function demoBoardVault(name) {
   const milestoneId = uuidFor(102);
   const releaseId = uuidFor(103);
   const vault = configuredVault(name);
+  vault.members.push({
+    username: "bob",
+    display_name: "Bob Example",
+    email: "bob@example.com",
+    role: "writer",
+    since: NOW,
+  });
   const issues = [
     issueRow({
       id: "REEF-101",
