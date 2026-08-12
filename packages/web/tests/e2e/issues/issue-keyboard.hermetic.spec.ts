@@ -255,10 +255,15 @@ test.describe("Hermetic issue keyboard navigation", () => {
         checkboxBottom: checkboxRect?.bottom ?? 0,
         scrollHeight: scroll?.scrollHeight ?? 0,
         clientHeight: scroll?.clientHeight ?? 0,
+        mountedRows:
+          scroll?.querySelectorAll('[data-testid="issue-list-row"]').length ??
+          0,
       };
     });
 
     expect(geometry.clientHeight).toBeGreaterThan(0);
+    expect(geometry.clientHeight).toBeLessThanOrEqual(360);
+    expect(geometry.mountedRows).toBeLessThanOrEqual(50);
     expect(geometry.rowTop).toBeGreaterThanOrEqual(geometry.scrollTop);
     expect(geometry.rowBottom).toBeLessThanOrEqual(geometry.scrollBottom);
     expect(geometry.checkboxTop).toBeGreaterThanOrEqual(geometry.scrollTop);
