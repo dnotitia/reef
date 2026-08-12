@@ -12,6 +12,23 @@ vi.mock("@/lib/apiClient", async () => {
   };
 });
 
+const { mockRememberRecentAssigneeLogin } = vi.hoisted(() => ({
+  mockRememberRecentAssigneeLogin: vi.fn(),
+}));
+
+vi.mock("@/features/auth/hooks/useCurrentUserLogin", () => ({
+  useCurrentUserLogin: () => "alice",
+}));
+
+vi.mock("@/lib/storage/assigneeRecents", () => ({
+  assigneeRecentsQueryKey: (actor: string | null, vault: string) => [
+    "assignee-recents",
+    actor,
+    vault,
+  ],
+  rememberRecentAssigneeLogin: mockRememberRecentAssigneeLogin,
+}));
+
 import { apiFetch } from "@/lib/apiClient";
 import type { IssueMetadata } from "@reef/core";
 import { useUpdateIssue } from "./useUpdateIssue";
@@ -67,6 +84,7 @@ function renderUseUpdateIssue(
 describe("useUpdateIssue", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRememberRecentAssigneeLogin.mockResolvedValue(["bob"]);
   });
 
   it("PATCHes /api/issues/{id} with { vault, update }", async () => {
@@ -100,6 +118,69 @@ describe("useUpdateIssue", () => {
       issue: UPDATED,
       content: "## body",
     });
+  });
+
+  it("records a successful non-null assigned_to in the actor/vault recent cache", async () => {
+    mockApiFetch.mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ issue: UPDATED, content: "" }), {
+          status: 200,
+        }),
+    );
+    const queryClient = makeTestQueryClient();
+    const { result } = renderUseUpdateIssue(queryClient);
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        id: "REEF-001",
+        vault: "reef-acme",
+        patch: { assigned_to: "bob" },
+      });
+    });
+
+    expect(mockRememberRecentAssigneeLogin).toHaveBeenCalledWith(
+      "alice",
+      "reef-acme",
+      "bob",
+    );
+    expect(
+      queryClient.getQueryData(["assignee-recents", "alice", "reef-acme"]),
+    ).toEqual(["bob"]);
+  });
+
+  it("does not record clears, unrelated patches, or failed saves", async () => {
+    mockApiFetch.mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ issue: UPDATED, content: "" }), {
+          status: 200,
+        }),
+    );
+    const { result } = renderUseUpdateIssue();
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        id: "REEF-001",
+        vault: "reef-acme",
+        patch: { assigned_to: null },
+      });
+      await result.current.mutateAsync({
+        id: "REEF-001",
+        vault: "reef-acme",
+        patch: { title: "Renamed" },
+      });
+    });
+    mockApiFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
+    await act(async () => {
+      await expect(
+        result.current.mutateAsync({
+          id: "REEF-001",
+          vault: "reef-acme",
+          patch: { assigned_to: "carol" },
+        }),
+      ).rejects.toThrow();
+    });
+
+    expect(mockRememberRecentAssigneeLogin).not.toHaveBeenCalled();
   });
 
   it("includes content in body when provided", async () => {

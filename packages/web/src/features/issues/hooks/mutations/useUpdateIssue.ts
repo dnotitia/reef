@@ -1,6 +1,11 @@
 "use client";
 
+import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
+import {
+  assigneeRecentsQueryKey,
+  rememberRecentAssigneeLogin,
+} from "@/lib/storage/assigneeRecents";
 import type { IssueDocument, IssueUpdatePatch } from "@reef/core";
 import {
   type QueryKey,
@@ -54,6 +59,7 @@ interface UpdateIssueMutationContext {
  */
 export function useUpdateIssue(options: UseUpdateIssueOptions = {}) {
   const queryClient = useQueryClient();
+  const currentLogin = useCurrentUserLogin();
   const reconciliation = options.reconciliation ?? "immediate";
 
   return useMutation<
@@ -161,7 +167,7 @@ export function useUpdateIssue(options: UseUpdateIssueOptions = {}) {
         });
       }
     },
-    onSuccess: (data, { id, vault, patch }) => {
+    onSuccess: async (data, { id, vault, patch }) => {
       const item = toListItem(data.issue);
       // The server response is authoritative — write it straight into the
       // detail and every list-variant cache (ref-preserving for unchanged
@@ -205,6 +211,25 @@ export function useUpdateIssue(options: UseUpdateIssueOptions = {}) {
         void queryClient.invalidateQueries({
           queryKey: activityKey(vault, id),
         });
+      }
+
+      const assignedLogin =
+        typeof patch.assigned_to === "string" ? patch.assigned_to.trim() : "";
+      if (currentLogin && assignedLogin) {
+        try {
+          const recentLogins = await rememberRecentAssigneeLogin(
+            currentLogin,
+            vault,
+            assignedLogin,
+          );
+          queryClient.setQueryData(
+            assigneeRecentsQueryKey(currentLogin, vault),
+            recentLogins,
+          );
+        } catch {
+          // Browser storage failure must not turn a successful issue save into
+          // an error or claim that the login was added to recents.
+        }
       }
     },
   });

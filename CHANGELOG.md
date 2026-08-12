@@ -14,6 +14,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Issue detail assignee selection now exposes every assignable writer, admin,
+  and owner with deterministic ordering and recent-success prioritization,
+  while preserving long-list keyboard behavior and failed-save rollback.**
+  (REEF-501)
 - **Truncated sub-issue titles now expose the full title on hover and keyboard focus without changing the existing row metadata layout.** (REEF-507)
 - **Issue detail panels can now be resized on desktop** with a pointer or
   keyboard splitter, while preserving the width for the current tab session

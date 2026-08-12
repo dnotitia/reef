@@ -11,14 +11,15 @@ import {
   akbVaultMemberToCollaborator as vaultMemberToCollaborator,
 } from "@reef/core";
 
-const MAX_RESULTS = 10;
+const ASSIGNABLE_ROLES = new Set(["writer", "admin", "owner"]);
 
 /**
  * GET /api/vault-members?vault={vault}&q={query}
  *
- * Returns workspace members for the AssigneeCombobox typeahead. `q` filters
- * by `username` / `display_name` substring (case insensitive). Empty `q` →
- * the full member list, capped at {@link MAX_RESULTS}.
+ * Returns workspace members for the AssigneeCombobox typeahead. Only members
+ * that can receive issue assignments are returned. `q` filters by `username`
+ * / `display_name` substring (case insensitive); an empty `q` returns the
+ * complete assignable member list without a result cap.
  *
  * Response shape mirrors the older `/api/users/search` envelope (`{ users:
  * Collaborator[] }`) so the client hook and combobox don't need new types.
@@ -40,9 +41,10 @@ export async function GET(request: Request): Promise<Response> {
 
   try {
     const { members } = await listVaultMembers({ adapter, vault });
-    const users = filterVaultMembers(members, query)
-      .slice(0, MAX_RESULTS)
-      .map(vaultMemberToCollaborator);
+    const users = filterVaultMembers(
+      members.filter((member) => ASSIGNABLE_ROLES.has(member.role)),
+      query,
+    ).map(vaultMemberToCollaborator);
     return Response.json({ users });
   } catch (err) {
     logger.error({ err, vault }, "vault_members failed");

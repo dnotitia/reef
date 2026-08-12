@@ -164,6 +164,16 @@ test.describe("Hermetic runtime discovery", () => {
         },
       },
       tasks: {
+        assignee_picker: {
+          scenario: "assignee_picker",
+          workspace: "reef-e2e",
+          start_path: "/workspace/reef-e2e/issues/REEF-001",
+          interaction: {
+            type: "assignee_picker",
+            operation:
+              "open issue detail, browse the complete writer/admin/owner roster, search by display name or login, select a candidate, reload to verify recent-first ordering, and verify a failed save leaves the existing assignment and recent history unchanged",
+          },
+        },
         issue_drill_navigation: {
           scenario: "demo_board",
           workspace: "reef-e2e",
@@ -293,6 +303,7 @@ test.describe("Hermetic runtime discovery", () => {
     expect(contract.scenarios).toEqual(
       expect.arrayContaining([
         "configured_multi",
+        "assignee_picker",
         "backlog_bulk_partial_failure",
         "demo_board",
         "configured_empty",
