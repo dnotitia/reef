@@ -90,6 +90,7 @@ test.describe("Hermetic issue detail splitter", () => {
     await expect(
       page.getByRole("button", { name: restoreWidthName }),
     ).toHaveAttribute("aria-pressed", "true");
+    await handle.focus();
     await page.keyboard.press("ArrowRight");
     await expect(handle).toHaveAttribute("aria-valuenow", "1321.6");
     await expect(
