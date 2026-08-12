@@ -510,10 +510,12 @@ competes with the Ask AI control or covers issue content.
 **Timeline.** A date-windowed schedule view of the same set.
 
 **Backlog.** A flat triage list of backlog issues with manual rank order,
-drag-to-reorder when no explicit sort is active, and an inline status picker to
-promote work out of the backlog. Empty and no-match states are distinct: an
-empty backlog explains how deferred work arrives there, while filtered-out
-results offer a Clear filters action.
+drag-to-reorder when no explicit sort is active, and the shared inline quick
+edit for Status, Priority, and Assignee. These field triggers keep the same
+mutation, close-confirmation, cache, keyboard, and anchor behavior as List;
+Labels and planning fields are not exposed in this triage lens. Empty and
+no-match states are distinct: an empty backlog explains how deferred work
+arrives there, while filtered-out results offer a Clear filters action.
 
 The board shows a column-skeleton while loading, the list and backlog show row
 skeletons, and timeline/settings have route-level skeletons shaped to their

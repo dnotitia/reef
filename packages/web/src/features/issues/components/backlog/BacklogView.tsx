@@ -10,12 +10,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  kanbanToastId,
-  notifyRetryableError,
-} from "@/components/ui/toastFeedback";
+import { notifyRetryableError } from "@/components/ui/toastFeedback";
 import { BacklogRow } from "@/features/issues/components/backlog/BacklogRow";
-import { CloseIssueDialog } from "@/features/issues/components/detail/CloseIssueDialog";
 import { IssueSelectionCheckbox } from "@/features/issues/components/shared/IssueSelectionCheckbox";
 import {
   BACKLOG_COLUMNS,
@@ -24,7 +20,6 @@ import {
   issueTableWidth,
 } from "@/features/issues/components/shared/issueTableContract";
 import { useReorderBacklog } from "@/features/issues/hooks/mutations/useReorderBacklog";
-import { useUpdateIssue } from "@/features/issues/hooks/mutations/useUpdateIssue";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
 import { useResolvedAutoHideWindows } from "@/features/issues/hooks/useResolvedAutoHideWindows";
@@ -38,7 +33,6 @@ import {
   sortIssues,
 } from "@/features/issues/lib/issueListUtils";
 import { loadedSelectionState } from "@/features/issues/lib/issueSelection";
-import { buildStatusPatch } from "@/features/issues/lib/statusPatch";
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
 import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
@@ -63,17 +57,12 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
-import {
-  type ClosedReason,
-  type IssueListItem,
-  type Status,
-  backlogRankSortKey,
-} from "@reef/core";
+import { type IssueListItem, backlogRankSortKey } from "@reef/core";
 import { CircleDashed } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 
 const EMPTY_ISSUES: IssueListItem[] = [];
@@ -136,11 +125,11 @@ interface BacklogViewProps {
 
 /**
  * The dedicated backlog view: a flat triage list of `backlog` issues with an
- * inline status picker to promote them out of the backlog (REEF-109) and
- * drag-to-reorder for the editable `rank` order (REEF-129). It owns its own fetch
- * and the status/reorder mutations; the surrounding chrome (PageHeader,
- * ViewSwitcher, filter toolbar) is owned by IssuesWorkspace, which hides the
- * status facet for this view.
+ * inline quick-edit fields to triage them in place and
+ * drag-to-reorder for the editable `rank` order (REEF-129). It owns its own
+ * fetch and reorder mutation; field edits use the shared List quick-edit path.
+ * The surrounding chrome (PageHeader, ViewSwitcher, filter toolbar) is owned
+ * by IssuesWorkspace, which hides the status facet for this view.
  *
  * Rank order is the default (no explicit user sort): the server orders by
  * `rank`, the rows are drag-reorderable, and unranked issues sink to a tail
@@ -154,10 +143,7 @@ export function BacklogView({ vault }: BacklogViewProps) {
   const searchQuery = useIssueStore((state) => state.searchQuery);
   const openIssue = useOpenIssue();
   const searchParams = useSearchParams();
-  const mutation = useUpdateIssue();
   const reorder = useReorderBacklog();
-  const [pendingCloseIssue, setPendingCloseIssue] =
-    useState<IssueListItem | null>(null);
 
   // Rank order is shown whenever the user has not picked an explicit sort.
   const isRankOrder = !filter.sortField;
@@ -334,26 +320,6 @@ export function BacklogView({ vault }: BacklogViewProps) {
     };
   }, []);
 
-  function runStatusUpdate(input: {
-    id: string;
-    patch: ReturnType<typeof buildStatusPatch>;
-  }) {
-    mutation.mutateAsync({ id: input.id, vault, patch: input.patch }).then(
-      () => toast.dismiss(kanbanToastId(input.id)),
-      (err: unknown) => {
-        notifyRetryableError({
-          id: kanbanToastId(input.id),
-          title:
-            err instanceof Error && err.message
-              ? err.message
-              : t("updateErrorTitle"),
-          description: t("updateErrorDescription"),
-          onRetry: () => runStatusUpdate(input),
-        });
-      },
-    );
-  }
-
   function runReorder(input: {
     ordered: IssueListItem[];
     fromIndex: number;
@@ -417,29 +383,6 @@ export function BacklogView({ vault }: BacklogViewProps) {
     (id: string) => buildOpenIssueHref(vault, id, searchParams),
     [searchParams, vault],
   );
-
-  function handleStatusChange(issue: IssueListItem, nextStatus: Status) {
-    if (nextStatus === issue.status) return;
-    // Closing needs a reason — route through the shared dialog like the board.
-    if (nextStatus === "closed") {
-      setPendingCloseIssue(issue);
-      return;
-    }
-    runStatusUpdate({
-      id: issue.id,
-      patch: buildStatusPatch(issue, nextStatus),
-    });
-  }
-
-  function confirmClose(reason: ClosedReason) {
-    if (!pendingCloseIssue) return;
-    const issue = pendingCloseIssue;
-    setPendingCloseIssue(null);
-    runStatusUpdate({
-      id: issue.id,
-      patch: buildStatusPatch(issue, "closed", undefined, reason),
-    });
-  }
 
   const count = visibleIssues.length;
   // `filtersActive` (computed above) doubles as the no-matches signal: a zero
@@ -527,12 +470,12 @@ export function BacklogView({ vault }: BacklogViewProps) {
                     )}
                     <BacklogRow
                       issue={issue}
+                      vault={vault}
                       href={issueHref(issue.id)}
                       logicalIds={sortableIds}
                       sortable={canReorder}
                       reorderHint={reorderHint}
                       onOpen={openIssue}
-                      onStatusChange={handleStatusChange}
                     />
                   </Fragment>
                 ))}
@@ -541,16 +484,6 @@ export function BacklogView({ vault }: BacklogViewProps) {
           </Table>
         </DndContext>
       )}
-
-      <CloseIssueDialog
-        open={pendingCloseIssue !== null}
-        issueId={pendingCloseIssue?.id ?? ""}
-        disabled={mutation.isPending}
-        onOpenChange={(open) => {
-          if (!open) setPendingCloseIssue(null);
-        }}
-        onConfirm={confirmClose}
-      />
     </PageBody>
   );
 }

@@ -147,11 +147,9 @@ test.describe("Hermetic issue route surfaces", () => {
         'tbody tr[data-testid="backlog-row"] td[data-column-key="id"]',
       );
       const status = root.querySelector(
-        '[data-testid^="backlog-status-select-"]',
+        '[data-testid="issue-inline-edit-status"]',
       );
-      const statusValue = status?.querySelector<HTMLElement>(
-        '[data-slot="select-value"]',
-      );
+      const statusValue = status?.querySelector<HTMLElement>("span > span");
       return {
         headerHeight: header?.getBoundingClientRect().height ?? 0,
         rowHeight: row?.getBoundingClientRect().height ?? 0,
@@ -166,7 +164,7 @@ test.describe("Hermetic issue route surfaces", () => {
     });
     expect(Math.round(backlogGeometry.headerHeight)).toBe(32);
     expect(Math.round(backlogGeometry.rowHeight)).toBe(40);
-    expect(backlogGeometry.statusHeight).toBeLessThanOrEqual(32);
+    expect(backlogGeometry.statusHeight).toBeLessThanOrEqual(40);
     expect(backlogGeometry.statusText).toBe("Backlog");
     expect(backlogGeometry.statusTextClipped).toBe(false);
     expect(backlogGeometry.columnKeys).toEqual([
@@ -287,12 +285,10 @@ test.describe("Hermetic issue route surfaces", () => {
     await expect(page.getByTestId("backlog-table")).toBeVisible();
 
     const narrowStatusGeometry = await page
-      .locator('[data-testid^="backlog-status-select-"]')
+      .locator('[data-testid="issue-inline-edit-status"]')
       .first()
       .evaluate((element) => {
-        const value = element.querySelector<HTMLElement>(
-          '[data-slot="select-value"]',
-        );
+        const value = element.querySelector<HTMLElement>("span > span");
         return {
           text: value?.textContent?.trim() ?? "",
           clipped: !value || value.scrollWidth > value.clientWidth,

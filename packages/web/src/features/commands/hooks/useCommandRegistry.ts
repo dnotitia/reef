@@ -421,17 +421,17 @@ export function useCommandRegistry({
         "issue.editPriority": "priority",
         "issue.editLabels": "labels",
       };
-      if (quickField[descriptor.id]) {
+      const field = quickField[descriptor.id];
+      if (field) {
         for (const scope of ["list", "board", "backlog"] as const) {
+          // Backlog exposes only the three triage fields; labels remain a List
+          // surface even though the shared keyboard catalog covers all rows.
+          if (scope === "backlog" && field === "labels") continue;
           bindings.push({
             labelKey: descriptor.id,
             scope,
             keys: shortcut.bindings[0]?.keys ?? [],
-            handler: () =>
-              editFocusedIssue(
-                scope,
-                quickField[descriptor.id] as IssueQuickEditField,
-              ),
+            handler: () => editFocusedIssue(scope, field),
           });
         }
         continue;

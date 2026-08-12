@@ -90,7 +90,7 @@ function mockList(rows: IssueMetadata[]) {
       return new Response(JSON.stringify({ relations: [] }), { status: 200 });
     }
     if (path.startsWith("/api/issues/")) {
-      // PATCH from the inline status picker — echo a minimal document.
+      // PATCH from the shared quick editor — echo a minimal document.
       return new Response(
         JSON.stringify({ issue: { ...rows[0], status: "todo" }, content: "" }),
         { status: 200 },
@@ -140,8 +140,8 @@ describe("BacklogView", () => {
       within(rankHeader).getByText("Drag to reorder in Rank order"),
     ).toHaveClass("sr-only");
     expect(screen.getByTestId("backlog-row")).toHaveClass("h-10");
-    expect(screen.getByTestId("backlog-status-select-REEF-1")).toHaveClass(
-      "h-8",
+    expect(screen.getByTestId("issue-inline-edit-status")).toHaveClass(
+      "inline-flex",
     );
     expect(screen.queryByTestId("backlog-order-mode")).toBeNull();
   });
@@ -159,10 +159,13 @@ describe("BacklogView", () => {
       "href",
       "/workspace/reef-acme/issues/REEF-1",
     );
-    expect(screen.getByTestId("backlog-status-select-REEF-1")).toHaveAttribute(
-      "aria-label",
-      "Change REEF-1 status",
-    );
+    const firstRow = screen
+      .getAllByTestId("backlog-row")
+      .find((row) => row.getAttribute("data-issue-id") === "REEF-1");
+    expect(firstRow).not.toBeUndefined();
+    expect(
+      within(firstRow as HTMLElement).getByTestId("issue-inline-edit-status"),
+    ).toHaveAttribute("aria-label", "Status");
     expect(screen.getByTestId("backlog-grip-REEF-1")).toHaveAttribute(
       "aria-label",
       "Reorder REEF-1",
@@ -176,13 +179,13 @@ describe("BacklogView", () => {
     expect(selectedRow).toHaveAttribute("aria-selected", "true");
   });
 
-  it("promotes a backlog issue to Todo via the inline status picker", async () => {
+  it("promotes a backlog issue to Todo via the shared inline quick editor", async () => {
     mockList(issues);
     const user = userEvent.setup();
     render(wrap(<BacklogView vault="reef-acme" />));
 
     await screen.findByText("Deferred idea");
-    await user.click(screen.getByTestId("backlog-status-select-REEF-1"));
+    await user.click(screen.getByTestId("issue-inline-edit-status"));
     await user.click(await screen.findByRole("option", { name: /Todo/i }));
 
     await waitFor(() => {

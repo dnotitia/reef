@@ -51,6 +51,8 @@ interface IssueQuickEditAnchorProps {
   vault: string;
   occurrenceKey?: string;
   className?: string;
+  /** Limit the fields exposed by a surface (Backlog intentionally omits labels). */
+  allowedFields?: readonly IssueQuickEditField[];
   /** Resolve a List field to the actual focusable trigger that opened it. */
   getAnchorElement?: (field: IssueQuickEditField) => HTMLElement | null;
 }
@@ -70,6 +72,7 @@ export function IssueQuickEditAnchor({
   vault,
   occurrenceKey,
   className,
+  allowedFields,
   getAnchorElement,
 }: IssueQuickEditAnchorProps) {
   const request = useIssueKeyboardStore((state) => state.quickEditRequest);
@@ -92,7 +95,8 @@ export function IssueQuickEditAnchor({
   const field =
     request?.scope === scope &&
     request.issueId === issue.id &&
-    (request.occurrenceKey ?? request.issueId) === resolvedOccurrenceKey
+    (request.occurrenceKey ?? request.issueId) === resolvedOccurrenceKey &&
+    (allowedFields === undefined || allowedFields.includes(request.field))
       ? request.field
       : null;
 

@@ -2,7 +2,15 @@ import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboard
 import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import type { IssueListItem } from "@reef/core";
-import { render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -48,33 +56,42 @@ const issue: IssueListItem = {
   updated_by: "alice",
 };
 
-function renderRow() {
+function renderRow(onOpen: (id: string) => void = vi.fn()) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   return render(
-    <IntlTestProvider>
-      <table>
-        <tbody>
-          <BacklogRow
-            issue={issue}
-            href="/workspace/reef-acme/issues/REEF-007?view=backlog"
-            logicalIds={[issue.id]}
-            onOpen={vi.fn()}
-            onStatusChange={vi.fn()}
-            reorderHint="Drag to reorder in Rank order"
-            sortable
-          />
-        </tbody>
-      </table>
-    </IntlTestProvider>,
+    <QueryClientProvider client={queryClient}>
+      <IntlTestProvider>
+        <table>
+          <tbody>
+            <BacklogRow
+              issue={issue}
+              vault="reef-acme"
+              href="/workspace/reef-acme/issues/REEF-007?view=backlog"
+              logicalIds={[issue.id]}
+              onOpen={onOpen}
+              reorderHint="Drag to reorder in Rank order"
+              sortable
+            />
+          </tbody>
+        </table>
+      </IntlTestProvider>
+    </QueryClientProvider>,
   );
 }
 
 describe("BacklogRow", () => {
   afterEach(() => {
+    cleanup();
     useIssueSelectionStore.getState().clearForContextChange();
     useIssueKeyboardStore.setState({
       visibleIssueIds: { list: [], board: [], backlog: [] },
+      visibleOccurrences: { list: [], board: [], backlog: [] },
       focusedIssueId: { list: null, board: null, backlog: null },
+      focusedOccurrenceKey: { list: null, board: null, backlog: null },
       tabStopIssueId: { list: null, board: null, backlog: null },
+      tabStopOccurrenceKey: { list: null, board: null, backlog: null },
       focusRequest: null,
       quickEditRequest: null,
     });
@@ -95,9 +112,10 @@ describe("BacklogRow", () => {
       "aria-label",
       "Reorder REEF-007",
     );
-    expect(
-      screen.getByTestId("backlog-status-select-REEF-007"),
-    ).toHaveAttribute("aria-label", "Change REEF-007 status");
+    expect(screen.getByTestId("issue-inline-edit-status")).toHaveAttribute(
+      "aria-label",
+      "Status",
+    );
   });
 
   it("toggles selection without opening the row", async () => {
@@ -113,5 +131,109 @@ describe("BacklogRow", () => {
       "aria-selected",
       "true",
     );
+  });
+
+  it("opens the shared quick editor from every triage field without opening detail", async () => {
+    const user = userEvent.setup();
+    const onOpen = vi.fn();
+
+    useIssueKeyboardStore
+      .getState()
+      .setVisibleOccurrences("backlog", [{ key: issue.id, issueId: issue.id }]);
+    renderRow(onOpen);
+
+    for (const field of ["status", "priority", "assignee"] as const) {
+      await user.click(screen.getByTestId(`issue-inline-edit-${field}`));
+      expect(useIssueKeyboardStore.getState().quickEditRequest).toMatchObject({
+        scope: "backlog",
+        issueId: issue.id,
+        occurrenceKey: issue.id,
+        field,
+      });
+      expect(screen.getByTestId("issue-quick-edit-anchor")).toBeVisible();
+      expect(onOpen).not.toHaveBeenCalled();
+      useIssueKeyboardStore.getState().closeQuickEdit();
+    }
+  });
+
+  it("opens each triage editor from Enter without opening detail", () => {
+    const onOpen = vi.fn();
+
+    for (const field of ["status", "priority", "assignee"] as const) {
+      cleanup();
+      useIssueKeyboardStore
+        .getState()
+        .setVisibleOccurrences("backlog", [
+          { key: issue.id, issueId: issue.id },
+        ]);
+      renderRow(onOpen);
+
+      fireEvent.keyDown(screen.getByTestId(`issue-inline-edit-${field}`), {
+        key: "Enter",
+      });
+
+      expect(useIssueKeyboardStore.getState().quickEditRequest).toMatchObject({
+        scope: "backlog",
+        issueId: issue.id,
+        occurrenceKey: issue.id,
+        field,
+      });
+      expect(onOpen).not.toHaveBeenCalled();
+      useIssueKeyboardStore.getState().closeQuickEdit();
+    }
+  });
+
+  it("positions the shared editor beside the activated backlog field", async () => {
+    useIssueKeyboardStore
+      .getState()
+      .setVisibleOccurrences("backlog", [{ key: issue.id, issueId: issue.id }]);
+    renderRow();
+
+    const trigger = screen.getByTestId("issue-inline-edit-priority");
+    Object.defineProperty(trigger, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        left: 460,
+        top: 80,
+        width: 88,
+        height: 28,
+        right: 548,
+        bottom: 108,
+        x: 460,
+        y: 80,
+        toJSON: () => ({}),
+      }),
+    });
+
+    await userEvent.setup().click(trigger);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("issue-quick-edit-anchor")).toHaveStyle({
+        left: "460px",
+        top: "94px",
+      }),
+    );
+    useIssueKeyboardStore.getState().closeQuickEdit();
+  });
+
+  it("does not expose labels or planning quick-edit controls", () => {
+    renderRow();
+
+    expect(screen.queryByTestId("issue-inline-edit-labels")).toBeNull();
+    expect(screen.queryByTestId("issue-inline-edit-sprint")).toBeNull();
+    expect(screen.queryByTestId("issue-inline-edit-release")).toBeNull();
+  });
+
+  it("ignores a stale Backlog Labels request instead of rendering a hidden editor", () => {
+    useIssueKeyboardStore
+      .getState()
+      .setVisibleOccurrences("backlog", [{ key: issue.id, issueId: issue.id }]);
+    renderRow();
+
+    act(() => {
+      useIssueKeyboardStore.getState().requestQuickEdit("backlog", "labels");
+    });
+
+    expect(screen.queryByTestId("issue-quick-edit-anchor")).toBeNull();
   });
 });

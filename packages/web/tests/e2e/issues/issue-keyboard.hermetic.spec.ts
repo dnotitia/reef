@@ -164,9 +164,10 @@ test.describe("Hermetic issue keyboard navigation", () => {
       "href",
       "/workspace/reef-e2e/issues/REEF-003?view=backlog",
     );
-    await expect(
-      row.getByTestId("backlog-status-select-REEF-003"),
-    ).toHaveAttribute("aria-label", "Change REEF-003 status");
+    await expect(row.getByTestId("issue-inline-edit-status")).toHaveAttribute(
+      "aria-label",
+      "Status",
+    );
     await expect(row.getByTestId("backlog-grip-REEF-003")).toHaveAttribute(
       "aria-label",
       "Reorder REEF-003",

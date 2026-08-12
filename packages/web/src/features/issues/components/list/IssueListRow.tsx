@@ -9,6 +9,7 @@ import { PriorityBadge } from "@/components/ui/priority-dot";
 import { StatusBadge } from "@/components/ui/status-icon";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
+import { IssueInlineEditTrigger } from "@/features/issues/components/quick-edit/IssueInlineEditTrigger";
 import { IssueQuickEditAnchor } from "@/features/issues/components/quick-edit/IssueQuickEditAnchor";
 import { IssueContextMenu } from "@/features/issues/components/context-menu/IssueContextMenu";
 import { IssueSelectionCheckbox } from "@/features/issues/components/shared/IssueSelectionCheckbox";
@@ -30,16 +31,7 @@ import { cn } from "@/lib/utils";
 import type { Collaborator, IssueListItem, PlanningCatalog } from "@reef/core";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { useLocale, useTranslations } from "next-intl";
-import {
-  type KeyboardEvent,
-  type MouseEvent,
-  type Ref,
-  type ReactNode,
-  memo,
-  useCallback,
-  useEffect,
-  useRef,
-} from "react";
+import { type MouseEvent, memo, useCallback, useEffect, useRef } from "react";
 import {
   type IssueRelationLike,
   getUnresolvedBlockerCount,
@@ -64,50 +56,6 @@ interface IssueListRowProps {
   occurrenceKey?: string;
   columns?: readonly IssueListColumnKey[];
   onClick?: (id: string) => void;
-}
-
-function IssueInlineEditTrigger({
-  field,
-  issueId,
-  occurrenceKey,
-  label,
-  children,
-  anchorRef,
-}: {
-  field: IssueQuickEditField;
-  issueId: string;
-  occurrenceKey: string;
-  label: string;
-  children: ReactNode;
-  anchorRef?: Ref<HTMLButtonElement>;
-}) {
-  function requestEdit() {
-    const keyboard = useIssueKeyboardStore.getState();
-    keyboard.focusOccurrence("list", occurrenceKey, issueId);
-    keyboard.requestQuickEdit("list", field, { requestDomFocus: false });
-  }
-
-  return (
-    <button
-      ref={anchorRef}
-      type="button"
-      className="inline-flex h-full max-w-full min-w-0 items-center rounded-sm text-left outline-none transition-colors duration-150 hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:ring-2 focus-visible:ring-brand/40"
-      aria-label={label}
-      data-testid={`issue-inline-edit-${field}`}
-      onClick={(event) => {
-        event.stopPropagation();
-        requestEdit();
-      }}
-      onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => {
-        if (event.key !== "Enter") return;
-        event.preventDefault();
-        event.stopPropagation();
-        requestEdit();
-      }}
-    >
-      {children}
-    </button>
-  );
 }
 
 function issueListCellClass(column: IssueListColumnKey, stateClass?: string) {
@@ -362,6 +310,7 @@ export const IssueListRow = memo(function IssueListRow({
           data-column-key="status"
         >
           <IssueInlineEditTrigger
+            scope="list"
             field="status"
             issueId={issue.id}
             occurrenceKey={keyboardOccurrenceKey}
@@ -379,6 +328,7 @@ export const IssueListRow = memo(function IssueListRow({
           data-column-key="priority"
         >
           <IssueInlineEditTrigger
+            scope="list"
             field="priority"
             issueId={issue.id}
             occurrenceKey={keyboardOccurrenceKey}
@@ -400,6 +350,7 @@ export const IssueListRow = memo(function IssueListRow({
           data-column-key="assignee"
         >
           <IssueInlineEditTrigger
+            scope="list"
             field="assignee"
             issueId={issue.id}
             occurrenceKey={keyboardOccurrenceKey}
