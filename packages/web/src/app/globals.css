@@ -595,6 +595,13 @@ hr {
   transition-timing-function: var(--ease-signature);
 }
 
+/* Sticky cells sit above ordinary columns while the List scrolls horizontally.
+ * The selected/focused tint must stay opaque at that boundary; a translucent
+ * brand mix lets scrolled status or assignee content show through the title. */
+.reef-list-sticky-state {
+  background-color: color-mix(in oklab, var(--brand) 5%, var(--background));
+}
+
 .reef-issue-list-row:focus-visible,
 .reef-issue-list-row[data-keyboard-focused="true"] {
   background-color: color-mix(in oklab, var(--brand) 5%, transparent);

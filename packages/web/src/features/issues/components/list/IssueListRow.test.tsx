@@ -216,7 +216,7 @@ describe("IssueListRow", () => {
     expect(row).toHaveAttribute("data-context-open", "true");
     expect(row.className).toContain("bg-brand/5");
     expect(row.className).toContain("ring-1");
-    expect(stickyCell?.className).toContain("bg-brand/5");
+    expect(stickyCell?.className).toContain("reef-list-sticky-state");
     expect(stickyCell?.className).not.toContain("group-hover:bg-surface-hover");
     expect(ordinaryCell?.className).not.toContain("bg-surface-hover");
 

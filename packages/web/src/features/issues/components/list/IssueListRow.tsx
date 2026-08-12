@@ -81,7 +81,7 @@ function issueListCellClass(
         "sticky",
         selectedOrFocused || visualState === "context-open"
           ? selectedOrFocused
-            ? "bg-brand/5"
+            ? "reef-list-sticky-state"
             : "bg-background"
           : "bg-background group-hover:bg-surface-hover",
         column === "id" ? "z-20" : "z-10",

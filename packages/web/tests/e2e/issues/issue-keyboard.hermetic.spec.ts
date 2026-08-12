@@ -185,7 +185,7 @@ test.describe("Hermetic issue keyboard navigation", () => {
     });
     expect(selectedChrome.rowClass).toContain("bg-brand/5");
     expect(selectedChrome.rowClass).not.toContain("hover:bg-surface-hover");
-    expect(selectedChrome.stickyClass).toContain("bg-brand/5");
+    expect(selectedChrome.stickyClass).toContain("reef-list-sticky-state");
     expect(selectedChrome.stickyClass).not.toContain(
       "group-hover:bg-surface-hover",
     );
@@ -385,6 +385,93 @@ test.describe("Hermetic issue keyboard navigation", () => {
     }
     expect(separated(after.title, after.status)).toBe(true);
     expect(separated(after.status, after.priority)).toBe(true);
+  });
+
+  test("keeps the sticky List boundary opaque at the right horizontal extreme", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 640, height: 360 });
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+
+    const rows = await expectIssueListKeyboardReady(page);
+    const selectedRow = rows.filter({ hasText: "Initial issue Alpha" });
+    const unselectedRow = rows.filter({ hasText: "Initial issue Beta" });
+    const scroll = page.getByTestId("issue-list-scroll-container");
+    await selectedRow.getByTestId("issue-row-checkbox").click();
+    await expect(selectedRow).toHaveAttribute("aria-selected", "true");
+
+    await scroll.evaluate((element) => {
+      const root = element as HTMLElement;
+      root.scrollLeft = root.scrollWidth;
+      root.dispatchEvent(new Event("scroll"));
+    });
+    await page.waitForTimeout(50);
+
+    const boundary = async (row: typeof selectedRow) =>
+      row.evaluate((element) => {
+        const stickyColumns = ["select", "id", "type", "title"];
+        const rect = (column: string) => {
+          const cell = element.querySelector<HTMLElement>(
+            `td[data-column-key="${column}"]`,
+          );
+          if (!cell) throw new Error(`missing ${column} cell`);
+          const bounds = cell.getBoundingClientRect();
+          return {
+            left: bounds.left,
+            right: bounds.right,
+            top: bounds.top,
+            bottom: bounds.bottom,
+          };
+        };
+        const sticky = stickyColumns.map((column) => {
+          const cell = element.querySelector<HTMLElement>(
+            `td[data-column-key="${column}"]`,
+          );
+          if (!cell) throw new Error(`missing sticky ${column} cell`);
+          const background = getComputedStyle(cell).backgroundColor;
+          const alpha = background.match(/\/\s*([\d.]+)\)?$/u);
+          return {
+            column,
+            background,
+            alpha: alpha ? Number(alpha[1]) : 1,
+            zIndex: getComputedStyle(cell).zIndex,
+            rect: rect(column),
+          };
+        });
+        const overlaps = ["status", "assignee"].map((column) => {
+          const ordinary = rect(column);
+          return {
+            column,
+            overlap: sticky.some(
+              ({ rect: stickyRect }) =>
+                stickyRect.left < ordinary.right &&
+                ordinary.left < stickyRect.right &&
+                stickyRect.top < ordinary.bottom &&
+                ordinary.top < stickyRect.bottom,
+            ),
+          };
+        });
+        return { sticky, overlaps };
+      });
+
+    const selectedBoundary = await boundary(selectedRow);
+    const unselectedBoundary = await boundary(unselectedRow);
+    expect(selectedBoundary.overlaps).toEqual([
+      { column: "status", overlap: true },
+      { column: "assignee", overlap: true },
+    ]);
+    expect(unselectedBoundary.overlaps).toEqual([
+      { column: "status", overlap: true },
+      { column: "assignee", overlap: true },
+    ]);
+    for (const cell of [
+      ...selectedBoundary.sticky,
+      ...unselectedBoundary.sticky,
+    ]) {
+      expect(cell.alpha).toBe(1);
+      expect(cell.zIndex).not.toBe("auto");
+    }
   });
 
   test("moves Backlog focus with j, exposes semantic links, and opens the focused issue", async ({
