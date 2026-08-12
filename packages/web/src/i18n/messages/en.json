@@ -895,6 +895,7 @@
       "noVaultPrompt": "Configure a workspace in <link>{settings}</link> to view this issue.",
       "srTitle": "Issue {issueId}",
       "srDescription": "Edit details for issue {issueId}.",
+      "resizeHandle": "Resize issue detail panel",
       "saving": "Saving…",
       "saved": "Saved",
       "notSaved": "Not saved",

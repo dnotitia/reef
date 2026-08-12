@@ -12,6 +12,12 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Fixed
+
+- **Issue detail panels can now be resized on desktop** with a pointer or
+  keyboard splitter, while preserving the width for the current tab session
+  and keeping the existing narrow-screen layout.
+
 ## v0.10.0 - 2026-08-11
 
 ### Added

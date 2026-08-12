@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/apiClient", async () => {
   const actual =
@@ -56,7 +56,15 @@ vi.mock("@/features/issues/hooks/queries/useIssueList", () => ({
 }));
 
 import { useIssueNavStack } from "@/features/issues/stores/useIssueNavStack";
-import { IssueDetailSheet } from "./IssueDetailSheet";
+import {
+  clampIssueDetailWidth,
+  getIssueDetailMaxWidth,
+  ISSUE_DETAIL_DEFAULT_WIDTH,
+  ISSUE_DETAIL_KEYBOARD_STEP,
+  ISSUE_DETAIL_MIN_WIDTH,
+  ISSUE_DETAIL_SESSION_STORAGE_KEY,
+  IssueDetailSheet,
+} from "./IssueDetailSheet";
 
 function wrap(ui: ReactNode) {
   const queryClient = new QueryClient({
@@ -65,10 +73,25 @@ function wrap(ui: ReactNode) {
   return <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>;
 }
 
+function setViewportWidth(width: number) {
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    value: width,
+  });
+  window.dispatchEvent(new Event("resize"));
+}
+
 describe("IssueDetailSheet", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
+    setViewportWidth(1024);
     useIssueNavStack.getState().clear();
+  });
+
+  afterEach(() => {
+    sessionStorage.clear();
+    setViewportWidth(1024);
   });
 
   it("renders the skeleton path while vault is loading", () => {
@@ -312,6 +335,7 @@ describe("IssueDetailSheet", () => {
   // property rows get full width, and `overscroll-contain` stops a scroll at the
   // sheet edge from chaining to the page behind it.
   it("renders a widened, overscroll-contained canvas", () => {
+    setViewportWidth(1440);
     mockUseActiveVault.mockReturnValue({
       vault: "reef-acme",
       isLoading: false,
@@ -321,7 +345,153 @@ describe("IssueDetailSheet", () => {
 
     const content = document.querySelector('[data-slot="sheet-content"]');
     expect(content).not.toBeNull();
-    expect(content?.className).toContain("1200");
+    expect(content?.className).toContain("issue-detail-sheet");
+    expect(content?.getAttribute("style")).toContain(
+      "--issue-detail-width: 1200px",
+    );
     expect(content?.className).toContain("overscroll-contain");
+  });
+
+  it("clamps resize values to the desktop bounds", () => {
+    const maxWidth = getIssueDetailMaxWidth(1440);
+    expect(clampIssueDetailWidth(1, maxWidth)).toBe(ISSUE_DETAIL_MIN_WIDTH);
+    expect(clampIssueDetailWidth(Number.POSITIVE_INFINITY, maxWidth)).toBe(
+      ISSUE_DETAIL_DEFAULT_WIDTH,
+    );
+    expect(clampIssueDetailWidth(10_000, maxWidth)).toBe(maxWidth);
+  });
+
+  describe("desktop splitter", () => {
+    function renderDesktop() {
+      setViewportWidth(1440);
+      mockUseActiveVault.mockReturnValue({
+        vault: "reef-acme",
+        isLoading: false,
+        refetch: () => Promise.resolve(),
+      });
+      return render(
+        wrap(<IssueDetailSheet issueId="REEF-001" onClose={() => {}} />),
+      );
+    }
+
+    it("exposes the separator contract and controls the detail panel", () => {
+      renderDesktop();
+
+      const splitter = screen.getByRole("separator", {
+        name: "Resize issue detail panel",
+      });
+      expect(splitter).toHaveAttribute("aria-orientation", "vertical");
+      expect(splitter).toHaveAttribute("aria-valuemin", "960");
+      expect(splitter).toHaveAttribute(
+        "aria-valuemax",
+        String(getIssueDetailMaxWidth(1440)),
+      );
+      expect(splitter).toHaveAttribute("aria-valuenow", "1200");
+      expect(splitter).toHaveAttribute("aria-controls", "issue-detail-panel");
+      expect(document.getElementById("issue-detail-panel")).toContainElement(
+        splitter,
+      );
+    });
+
+    it("changes width with the W3C keyboard contract and persists each value", async () => {
+      const user = userEvent.setup();
+      renderDesktop();
+      const splitter = screen.getByRole("separator");
+
+      splitter.focus();
+      await user.keyboard("{ArrowLeft}");
+      expect(splitter).toHaveAttribute(
+        "aria-valuenow",
+        String(ISSUE_DETAIL_DEFAULT_WIDTH + ISSUE_DETAIL_KEYBOARD_STEP),
+      );
+      await user.keyboard("{ArrowRight}");
+      expect(splitter).toHaveAttribute(
+        "aria-valuenow",
+        String(ISSUE_DETAIL_DEFAULT_WIDTH),
+      );
+      await user.keyboard("{Home}");
+      expect(splitter).toHaveAttribute(
+        "aria-valuenow",
+        String(ISSUE_DETAIL_MIN_WIDTH),
+      );
+      await user.keyboard("{End}");
+      const maxWidth = getIssueDetailMaxWidth(1440);
+      expect(splitter).toHaveAttribute("aria-valuenow", String(maxWidth));
+      expect(sessionStorage.getItem(ISSUE_DETAIL_SESSION_STORAGE_KEY)).toBe(
+        JSON.stringify(maxWidth),
+      );
+      expect(document.activeElement).toBe(splitter);
+    });
+
+    it("captures pointer drags and releases the capture at the end", () => {
+      renderDesktop();
+      const splitter = screen.getByRole("separator");
+      const setPointerCapture = vi.spyOn(splitter, "setPointerCapture");
+      const releasePointerCapture = vi.spyOn(splitter, "releasePointerCapture");
+      vi.spyOn(splitter, "hasPointerCapture").mockReturnValue(true);
+
+      fireEvent.pointerDown(splitter, {
+        button: 0,
+        clientX: 300,
+        pointerId: 7,
+      });
+      expect(setPointerCapture).toHaveBeenCalledWith(7);
+      expect(splitter).toHaveAttribute("data-resizing", "true");
+
+      fireEvent.pointerMove(splitter, {
+        clientX: 200,
+        pointerId: 7,
+      });
+      expect(splitter).toHaveAttribute("aria-valuenow", "1300");
+
+      fireEvent.pointerUp(splitter, { pointerId: 7 });
+      expect(releasePointerCapture).toHaveBeenCalledWith(7);
+      expect(splitter).toHaveAttribute("data-resizing", "false");
+    });
+
+    it("restores a valid session width and falls back from corrupt storage", async () => {
+      sessionStorage.setItem(ISSUE_DETAIL_SESSION_STORAGE_KEY, "1288");
+      const first = renderDesktop();
+      const splitter = screen.getByRole("separator");
+      await waitFor(() =>
+        expect(splitter).toHaveAttribute("aria-valuenow", "1288"),
+      );
+
+      first.rerender(
+        wrap(<IssueDetailSheet issueId="REEF-002" onClose={() => {}} />),
+      );
+      await waitFor(() =>
+        expect(screen.getByRole("separator")).toHaveAttribute(
+          "aria-valuenow",
+          "1288",
+        ),
+      );
+
+      first.unmount();
+      sessionStorage.setItem(ISSUE_DETAIL_SESSION_STORAGE_KEY, "not-json");
+      renderDesktop();
+      await waitFor(() =>
+        expect(screen.getByRole("separator")).toHaveAttribute(
+          "aria-valuenow",
+          String(ISSUE_DETAIL_DEFAULT_WIDTH),
+        ),
+      );
+    });
+
+    it("omits the splitter below the desktop breakpoint", () => {
+      setViewportWidth(1279);
+      mockUseActiveVault.mockReturnValue({
+        vault: "reef-acme",
+        isLoading: false,
+        refetch: () => Promise.resolve(),
+      });
+      render(wrap(<IssueDetailSheet issueId="REEF-001" onClose={() => {}} />));
+
+      expect(screen.queryByRole("separator")).not.toBeInTheDocument();
+      const panel = document.getElementById("issue-detail-panel");
+      expect(panel?.getAttribute("style")).toContain(
+        "width: min(94vw, var(--issue-detail-width-default))",
+      );
+    });
   });
 });
