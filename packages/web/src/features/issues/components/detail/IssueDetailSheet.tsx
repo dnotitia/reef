@@ -11,6 +11,7 @@ import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueSheetDismiss } from "@/features/issues/hooks/view/useIssueSheetDismiss";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { withVault } from "@/lib/workspaceHref";
+import { Maximize2, Minimize2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import {
@@ -51,6 +52,10 @@ export const ISSUE_DETAIL_MIN_WIDTH = 960;
 export const ISSUE_DETAIL_MAX_WIDTH = 1440;
 export const ISSUE_DETAIL_KEYBOARD_STEP = 32;
 export const ISSUE_DETAIL_SESSION_STORAGE_KEY = "reef:issue-detail-width:v1";
+export const ISSUE_DETAIL_EXPANDED_SESSION_STORAGE_KEY =
+  "reef:issue-detail-expanded:v1";
+export const ISSUE_DETAIL_RESTORE_WIDTH_SESSION_STORAGE_KEY =
+  "reef:issue-detail-restore-width:v1";
 
 function subscribeToViewport(onStoreChange: () => void) {
   if (typeof window === "undefined") return () => {};
@@ -105,7 +110,64 @@ function storeIssueDetailWidth(width: number) {
   }
 }
 
+function readStoredIssueDetailExpanded() {
+  try {
+    const raw = window.sessionStorage.getItem(
+      ISSUE_DETAIL_EXPANDED_SESSION_STORAGE_KEY,
+    );
+    if (raw === null) return null;
+    const parsed: unknown = JSON.parse(raw);
+    return typeof parsed === "boolean" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeIssueDetailExpanded(expanded: boolean) {
+  try {
+    window.sessionStorage.setItem(
+      ISSUE_DETAIL_EXPANDED_SESSION_STORAGE_KEY,
+      JSON.stringify(expanded),
+    );
+  } catch {
+    // Private browsing and disabled storage should not block resizing.
+  }
+}
+
+function readStoredIssueDetailRestoreWidth() {
+  try {
+    const raw = window.sessionStorage.getItem(
+      ISSUE_DETAIL_RESTORE_WIDTH_SESSION_STORAGE_KEY,
+    );
+    if (raw === null) return null;
+    const parsed: unknown = JSON.parse(raw);
+    return typeof parsed === "number" && Number.isFinite(parsed)
+      ? parsed
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeIssueDetailRestoreWidth(width: number | null) {
+  try {
+    if (width === null) {
+      window.sessionStorage.removeItem(
+        ISSUE_DETAIL_RESTORE_WIDTH_SESSION_STORAGE_KEY,
+      );
+      return;
+    }
+    window.sessionStorage.setItem(
+      ISSUE_DETAIL_RESTORE_WIDTH_SESSION_STORAGE_KEY,
+      JSON.stringify(width),
+    );
+  } catch {
+    // Private browsing and disabled storage should not block resizing.
+  }
+}
+
 interface IssueDetailResizeHandlers {
+  isExpanded: boolean;
   isDesktop: boolean;
   isResizing: boolean;
   maxWidth: number;
@@ -116,6 +178,7 @@ interface IssueDetailResizeHandlers {
   onPointerDown: (event: PointerEvent<HTMLDivElement>) => void;
   onPointerMove: (event: PointerEvent<HTMLDivElement>) => void;
   onPointerUp: (event: PointerEvent<HTMLDivElement>) => void;
+  onToggleExpanded: () => void;
 }
 
 function useIssueDetailResize(): IssueDetailResizeHandlers {
@@ -130,9 +193,13 @@ function useIssueDetailResize(): IssueDetailResizeHandlers {
   const isDesktop = viewportWidth >= ISSUE_DETAIL_DESKTOP_MIN_WIDTH;
   const maxWidth = getIssueDetailMaxWidth(viewportWidth);
   const [panelWidth, setPanelWidth] = useState(ISSUE_DETAIL_DEFAULT_WIDTH);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const panelWidthRef = useRef(ISSUE_DETAIL_DEFAULT_WIDTH);
-  const loadedSessionWidthRef = useRef(false);
+  const normalWidthRef = useRef(ISSUE_DETAIL_DEFAULT_WIDTH);
+  const expandedRef = useRef(false);
+  const restoreWidthRef = useRef<number | null>(null);
+  const loadedSessionStateRef = useRef(false);
   const dragRef = useRef<{
     pointerId: number;
     startX: number;
@@ -140,33 +207,90 @@ function useIssueDetailResize(): IssueDetailResizeHandlers {
   } | null>(null);
 
   useEffect(() => {
-    if (!isDesktop || loadedSessionWidthRef.current) return;
-    loadedSessionWidthRef.current = true;
+    if (!isDesktop || loadedSessionStateRef.current) return;
+    loadedSessionStateRef.current = true;
     const storedWidth = readStoredIssueDetailWidth();
-    if (storedWidth === null) return;
-    const nextWidth = clampIssueDetailWidth(
-      storedWidth,
-      getIssueDetailMaxWidth(viewportWidth),
+    const nextNormalWidth = clampIssueDetailWidth(
+      storedWidth ?? Number.NaN,
+      maxWidth,
     );
-    panelWidthRef.current = nextWidth;
-    setPanelWidth(nextWidth);
-  }, [isDesktop, viewportWidth]);
+    const nextExpanded = readStoredIssueDetailExpanded() === true;
+    const nextRestoreWidth = readStoredIssueDetailRestoreWidth();
+    normalWidthRef.current = nextNormalWidth;
+    restoreWidthRef.current = nextExpanded ? nextRestoreWidth : null;
+    expandedRef.current = nextExpanded;
+    setIsExpanded(nextExpanded);
+    const nextPanelWidth = nextExpanded ? maxWidth : nextNormalWidth;
+    panelWidthRef.current = nextPanelWidth;
+    setPanelWidth(nextPanelWidth);
+  }, [isDesktop, maxWidth]);
 
   useEffect(() => {
-    if (!isDesktop) return;
-    const nextWidth = clampIssueDetailWidth(panelWidthRef.current, maxWidth);
+    if (!isDesktop || !loadedSessionStateRef.current) return;
+    if (expandedRef.current) {
+      if (panelWidthRef.current === maxWidth) return;
+      panelWidthRef.current = maxWidth;
+      setPanelWidth(maxWidth);
+      return;
+    }
+    const nextWidth = clampIssueDetailWidth(normalWidthRef.current, maxWidth);
+    if (nextWidth !== normalWidthRef.current) {
+      normalWidthRef.current = nextWidth;
+      storeIssueDetailWidth(nextWidth);
+    }
     if (nextWidth === panelWidthRef.current) return;
     panelWidthRef.current = nextWidth;
     setPanelWidth(nextWidth);
-    storeIssueDetailWidth(nextWidth);
   }, [isDesktop, maxWidth]);
 
   function updatePanelWidth(value: number) {
     const nextWidth = clampIssueDetailWidth(value, maxWidth);
     if (nextWidth === panelWidthRef.current) return;
+    if (expandedRef.current) {
+      expandedRef.current = false;
+      setIsExpanded(false);
+      restoreWidthRef.current = null;
+      storeIssueDetailExpanded(false);
+      storeIssueDetailRestoreWidth(null);
+    }
+    normalWidthRef.current = nextWidth;
     panelWidthRef.current = nextWidth;
     setPanelWidth(nextWidth);
     storeIssueDetailWidth(nextWidth);
+  }
+
+  function onToggleExpanded() {
+    if (!isDesktop) return;
+    if (expandedRef.current) {
+      const nextWidth = clampIssueDetailWidth(
+        restoreWidthRef.current ?? Number.NaN,
+        maxWidth,
+      );
+      expandedRef.current = false;
+      setIsExpanded(false);
+      restoreWidthRef.current = null;
+      normalWidthRef.current = nextWidth;
+      panelWidthRef.current = nextWidth;
+      setPanelWidth(nextWidth);
+      storeIssueDetailWidth(nextWidth);
+      storeIssueDetailExpanded(false);
+      storeIssueDetailRestoreWidth(null);
+      return;
+    }
+
+    const nextNormalWidth = clampIssueDetailWidth(
+      normalWidthRef.current,
+      maxWidth,
+    );
+    normalWidthRef.current = nextNormalWidth;
+    restoreWidthRef.current = nextNormalWidth;
+    expandedRef.current = true;
+    setIsExpanded(true);
+    panelWidthRef.current = maxWidth;
+    setPanelWidth(maxWidth);
+    storeIssueDetailWidth(nextNormalWidth);
+    storeIssueDetailExpanded(true);
+    storeIssueDetailRestoreWidth(nextNormalWidth);
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -224,6 +348,7 @@ function useIssueDetailResize(): IssueDetailResizeHandlers {
   }
 
   return {
+    isExpanded,
     isDesktop,
     isResizing,
     maxWidth,
@@ -234,6 +359,7 @@ function useIssueDetailResize(): IssueDetailResizeHandlers {
     onPointerDown,
     onPointerMove,
     onPointerUp: finishPointerResize,
+    onToggleExpanded,
   };
 }
 
@@ -264,6 +390,7 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
   const t = useTranslations("issues.detail");
   const nav = useTranslations("nav");
   const {
+    isExpanded,
     isDesktop,
     isResizing,
     maxWidth,
@@ -274,6 +401,7 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
     onPointerDown,
     onPointerMove,
     onPointerUp,
+    onToggleExpanded,
   } = useIssueDetailResize();
   const { vault, isLoading: vaultLoading } = useActiveVault();
   const { backTo, goBack, exit, dismissViaEsc } = useIssueSheetDismiss({
@@ -481,6 +609,24 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
                       become flex siblings of Close, and the slot adds no gap
                       while it is empty during loading. */}
                   <div ref={setActionsSlot} className="contents" />
+                  {isDesktop ? (
+                    <button
+                      type="button"
+                      data-testid="issue-detail-width-toggle"
+                      aria-label={t(
+                        isExpanded ? "restoreWidth" : "expandWidth",
+                      )}
+                      aria-pressed={isExpanded}
+                      onClick={onToggleExpanded}
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+                    >
+                      {isExpanded ? (
+                        <Minimize2 className="h-4 w-4" aria-hidden="true" />
+                      ) : (
+                        <Maximize2 className="h-4 w-4" aria-hidden="true" />
+                      )}
+                    </button>
+                  ) : null}
                   <IssueDetailCloseButton onClose={exit} />
                 </div>
               </div>

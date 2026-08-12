@@ -1,4 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
+import type { Locale } from "@/i18n/locales";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
@@ -60,17 +62,23 @@ import {
   clampIssueDetailWidth,
   getIssueDetailMaxWidth,
   ISSUE_DETAIL_DEFAULT_WIDTH,
+  ISSUE_DETAIL_EXPANDED_SESSION_STORAGE_KEY,
   ISSUE_DETAIL_KEYBOARD_STEP,
   ISSUE_DETAIL_MIN_WIDTH,
+  ISSUE_DETAIL_RESTORE_WIDTH_SESSION_STORAGE_KEY,
   ISSUE_DETAIL_SESSION_STORAGE_KEY,
   IssueDetailSheet,
 } from "./IssueDetailSheet";
 
-function wrap(ui: ReactNode) {
+function wrap(ui: ReactNode, locale: Locale = "en") {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <IntlTestProvider locale={locale}>{ui}</IntlTestProvider>
+    </QueryClientProvider>
+  );
 }
 
 function setViewportWidth(width: number) {
@@ -362,7 +370,7 @@ describe("IssueDetailSheet", () => {
   });
 
   describe("desktop splitter", () => {
-    function renderDesktop() {
+    function renderDesktop(locale: Locale = "en") {
       setViewportWidth(1440);
       mockUseActiveVault.mockReturnValue({
         vault: "reef-acme",
@@ -370,7 +378,10 @@ describe("IssueDetailSheet", () => {
         refetch: () => Promise.resolve(),
       });
       return render(
-        wrap(<IssueDetailSheet issueId="REEF-001" onClose={() => {}} />),
+        wrap(
+          <IssueDetailSheet issueId="REEF-001" onClose={() => {}} />,
+          locale,
+        ),
       );
     }
 
@@ -492,6 +503,226 @@ describe("IssueDetailSheet", () => {
       );
     });
 
+    it("expands to the viewport maximum and restores the previous width", async () => {
+      const user = userEvent.setup();
+      renderDesktop();
+      const splitter = screen.getByRole("separator");
+
+      splitter.focus();
+      await user.keyboard("{ArrowLeft}");
+      const normalWidth =
+        ISSUE_DETAIL_DEFAULT_WIDTH + ISSUE_DETAIL_KEYBOARD_STEP;
+      const expand = screen.getByRole("button", {
+        name: "Expand issue detail panel to maximum width",
+      });
+
+      await user.click(expand);
+
+      const maxWidth = getIssueDetailMaxWidth(1440);
+      expect(splitter).toHaveAttribute("aria-valuenow", String(maxWidth));
+      expect(expand).toHaveAttribute("aria-pressed", "true");
+      expect(
+        screen.getByRole("button", {
+          name: "Restore issue detail panel width",
+        }),
+      ).toHaveAttribute("aria-pressed", "true");
+      expect(sessionStorage.getItem(ISSUE_DETAIL_SESSION_STORAGE_KEY)).toBe(
+        JSON.stringify(normalWidth),
+      );
+      expect(
+        sessionStorage.getItem(ISSUE_DETAIL_EXPANDED_SESSION_STORAGE_KEY),
+      ).toBe("true");
+      expect(
+        sessionStorage.getItem(ISSUE_DETAIL_RESTORE_WIDTH_SESSION_STORAGE_KEY),
+      ).toBe(JSON.stringify(normalWidth));
+
+      await user.click(
+        screen.getByRole("button", {
+          name: "Restore issue detail panel width",
+        }),
+      );
+
+      expect(splitter).toHaveAttribute("aria-valuenow", String(normalWidth));
+      expect(
+        screen.getByRole("button", {
+          name: "Expand issue detail panel to maximum width",
+        }),
+      ).toHaveAttribute("aria-pressed", "false");
+      expect(
+        sessionStorage.getItem(ISSUE_DETAIL_EXPANDED_SESSION_STORAGE_KEY),
+      ).toBe("false");
+      expect(
+        sessionStorage.getItem(ISSUE_DETAIL_RESTORE_WIDTH_SESSION_STORAGE_KEY),
+      ).toBeNull();
+    });
+
+    it.each([
+      ["missing", null],
+      ["non-numeric", JSON.stringify("not-a-number")],
+    ])(
+      "uses the default width when the restore snapshot is %s",
+      async (_label, raw) => {
+        const user = userEvent.setup();
+        sessionStorage.setItem(
+          ISSUE_DETAIL_EXPANDED_SESSION_STORAGE_KEY,
+          "true",
+        );
+        if (raw !== null) {
+          sessionStorage.setItem(
+            ISSUE_DETAIL_RESTORE_WIDTH_SESSION_STORAGE_KEY,
+            raw,
+          );
+        }
+        renderDesktop();
+        const splitter = screen.getByRole("separator");
+        await waitFor(() =>
+          expect(splitter).toHaveAttribute(
+            "aria-valuenow",
+            String(getIssueDetailMaxWidth(1440)),
+          ),
+        );
+
+        await user.click(
+          screen.getByRole("button", {
+            name: "Restore issue detail panel width",
+          }),
+        );
+
+        expect(splitter).toHaveAttribute(
+          "aria-valuenow",
+          String(ISSUE_DETAIL_DEFAULT_WIDTH),
+        );
+        expect(
+          screen.getByRole("button", {
+            name: "Expand issue detail panel to maximum width",
+          }),
+        ).toHaveAttribute("aria-pressed", "false");
+      },
+    );
+
+    it("exits expanded mode when the splitter is adjusted by keyboard", async () => {
+      const user = userEvent.setup();
+      renderDesktop();
+      const splitter = screen.getByRole("separator");
+      const expand = screen.getByRole("button", {
+        name: "Expand issue detail panel to maximum width",
+      });
+
+      await user.click(expand);
+      splitter.focus();
+      await user.keyboard("{ArrowRight}");
+
+      const adjustedWidth =
+        getIssueDetailMaxWidth(1440) - ISSUE_DETAIL_KEYBOARD_STEP;
+      expect(splitter).toHaveAttribute("aria-valuenow", String(adjustedWidth));
+      expect(
+        screen.getByRole("button", {
+          name: "Expand issue detail panel to maximum width",
+        }),
+      ).toHaveAttribute("aria-pressed", "false");
+      expect(sessionStorage.getItem(ISSUE_DETAIL_SESSION_STORAGE_KEY)).toBe(
+        JSON.stringify(adjustedWidth),
+      );
+      expect(
+        sessionStorage.getItem(ISSUE_DETAIL_RESTORE_WIDTH_SESSION_STORAGE_KEY),
+      ).toBeNull();
+
+      await user.click(
+        screen.getByRole("button", {
+          name: "Expand issue detail panel to maximum width",
+        }),
+      );
+      await user.click(
+        screen.getByRole("button", {
+          name: "Restore issue detail panel width",
+        }),
+      );
+      expect(splitter).toHaveAttribute("aria-valuenow", String(adjustedWidth));
+    });
+
+    it("exits expanded mode when the splitter is adjusted by pointer", async () => {
+      const user = userEvent.setup();
+      renderDesktop();
+      const splitter = screen.getByRole("separator");
+
+      await user.click(
+        screen.getByRole("button", {
+          name: "Expand issue detail panel to maximum width",
+        }),
+      );
+      fireEvent.pointerDown(splitter, {
+        button: 0,
+        clientX: 300,
+        pointerId: 9,
+      });
+      fireEvent.pointerMove(splitter, {
+        clientX: 340,
+        pointerId: 9,
+      });
+      fireEvent.pointerUp(splitter, { pointerId: 9 });
+
+      expect(splitter).toHaveAttribute(
+        "aria-valuenow",
+        String(getIssueDetailMaxWidth(1440) - 40),
+      );
+      expect(
+        screen.getByRole("button", {
+          name: "Expand issue detail panel to maximum width",
+        }),
+      ).toHaveAttribute("aria-pressed", "false");
+    });
+
+    it("restores expanded state across issue navigation and exposes the translated focus ring", async () => {
+      const user = userEvent.setup();
+      sessionStorage.setItem(ISSUE_DETAIL_SESSION_STORAGE_KEY, "1288");
+      sessionStorage.setItem(ISSUE_DETAIL_EXPANDED_SESSION_STORAGE_KEY, "true");
+      sessionStorage.setItem(
+        ISSUE_DETAIL_RESTORE_WIDTH_SESSION_STORAGE_KEY,
+        "1100",
+      );
+      const first = renderDesktop("ko");
+      const splitter = screen.getByRole("separator");
+      await waitFor(() =>
+        expect(splitter).toHaveAttribute(
+          "aria-valuenow",
+          String(getIssueDetailMaxWidth(1440)),
+        ),
+      );
+      const toggle = screen.getByRole("button", {
+        name: "이슈 상세 패널 너비 복원",
+      });
+      expect(toggle).toHaveAttribute("aria-pressed", "true");
+      expect(toggle.className).toContain("focus-visible:ring-2");
+
+      first.rerender(
+        wrap(<IssueDetailSheet issueId="REEF-002" onClose={() => {}} />, "ko"),
+      );
+      await waitFor(() =>
+        expect(screen.getByRole("separator")).toHaveAttribute(
+          "aria-valuenow",
+          String(getIssueDetailMaxWidth(1440)),
+        ),
+      );
+      expect(
+        screen.getByRole("button", { name: "이슈 상세 패널 너비 복원" }),
+      ).toHaveAttribute("aria-pressed", "true");
+
+      first.unmount();
+      renderDesktop("ko");
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: "이슈 상세 패널 너비 복원" }),
+        ).toHaveAttribute("aria-pressed", "true"),
+      );
+      await user.click(
+        screen.getByRole("button", { name: "이슈 상세 패널 너비 복원" }),
+      );
+      expect(screen.getByRole("separator")).toHaveAttribute(
+        "aria-valuenow",
+        "1100",
+      );
+    });
+
     it("omits the splitter below the desktop breakpoint", () => {
       setViewportWidth(1279);
       mockUseActiveVault.mockReturnValue({
@@ -502,6 +733,10 @@ describe("IssueDetailSheet", () => {
       render(wrap(<IssueDetailSheet issueId="REEF-001" onClose={() => {}} />));
 
       expect(screen.queryByRole("separator")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("issue-detail-width-toggle"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByTestId("issue-close")).toBeVisible();
       const sheet = document.querySelector('[data-slot="sheet-content"]');
       expect(sheet?.getAttribute("style")).toContain(
         "width: min(94vw, var(--issue-detail-width-default))",

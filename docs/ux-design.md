@@ -352,11 +352,15 @@ fluid main column:
   App-version context lives in the account menu as a release-notes link.
 - **Main column** — a per-page header and the page body. The Issues page body
   swaps between Board, List, Timeline, and Backlog.
-- **Issue detail** — a right-side slide-over Sheet (`min(94vw, 1200px)`),
-  internally a two-column layout: title, description, Sub-issues, linked
-  documents, refs, and activity timeline on the left; a 400px
-  Details/People/Planning/Parent/Relations property rail on the right. Relation
-  targets render as compact issue rows rather than pill chips.
+- **Issue detail** — a right-side slide-over Sheet, internally a two-column
+  layout: title, description, Sub-issues, linked documents, refs, and activity
+  timeline on the left; a 400px Details/People/Planning/Parent/Relations
+  property rail on the right. On desktop, the left splitter controls the panel
+  between 960px and `min(94vw, 1440px)`, while the header's width action toggles
+  the maximum width and restores the preceding splitter width. The width and
+  toggle state live for the current browser tab session; narrow viewports keep
+  the existing `min(94vw, 1200px)` layout without a splitter or width action.
+  Relation targets render as compact issue rows rather than pill chips.
 - **Ask AI** — a floating non-modal panel (≈420×560) anchored bottom-right,
   above its FAB.
 - **Authenticated exception surfaces** — `/onboarding` and the workspace
