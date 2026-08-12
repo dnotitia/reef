@@ -29,7 +29,10 @@ export const CLIENT_READINESS_INTERACTIONS = Object.freeze({
     close: '[data-testid="new-issue-cancel"]',
   }),
   issueDetail: Object.freeze({
-    observable: '[data-testid="issue-detail-modal"]',
+    // The modal test id wraps Radix's portal and therefore has no layout box.
+    // Readiness must observe the loaded public detail surface, not that empty
+    // shell, so Playwright's visible contract reflects what a user can see.
+    observable: '[data-testid="issue-detail"]',
     close: '[data-testid="issue-close"]',
   }),
 });

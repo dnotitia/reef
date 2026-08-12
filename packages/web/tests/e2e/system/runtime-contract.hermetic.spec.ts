@@ -133,6 +133,21 @@ async function expectVisibleFocus(
 }
 
 test.describe("Hermetic runtime discovery", () => {
+  test("exposes loaded issue detail content for a cold deep-link readiness probe", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "assignee_picker");
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues/REEF-001");
+
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await expect(page.getByTestId("issue-close")).toBeVisible();
+    await expect(
+      page.locator('[data-testid="issue-detail-modal"]'),
+    ).toHaveCount(1);
+  });
+
   test("publishes runtime controls and resets named-filter fixtures idempotently", async ({
     request,
   }) => {

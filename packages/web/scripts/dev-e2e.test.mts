@@ -179,9 +179,19 @@ describe("dev:e2e runtime contract", () => {
   function readinessPage({
     newIssueClickWorks = true,
     issueDetailOpen = false,
+    issueDetailLoaded,
     issueDetailCloseWorks = true,
+  }: {
+    newIssueClickWorks?: boolean;
+    issueDetailOpen?: boolean;
+    issueDetailLoaded?: boolean;
+    issueDetailCloseWorks?: boolean;
   } = {}) {
-    const state = { newIssueOpen: false, issueDetailOpen };
+    const state = {
+      newIssueOpen: false,
+      issueDetailOpen,
+      issueDetailLoaded: issueDetailLoaded ?? issueDetailOpen,
+    };
     const selectors: string[] = [];
     const locatorFor = (selector: string) => {
       const locator = {
@@ -192,7 +202,7 @@ describe("dev:e2e runtime contract", () => {
               ? state.newIssueOpen
               : selector ===
                   CLIENT_READINESS_INTERACTIONS.issueDetail.observable
-                ? state.issueDetailOpen
+                ? state.issueDetailLoaded
                 : true;
           if ((expected === "visible") !== visible) {
             throw new Error(`${selector} is not ${expected}`);
@@ -210,7 +220,10 @@ describe("dev:e2e runtime contract", () => {
           } else if (
             selector === CLIENT_READINESS_INTERACTIONS.issueDetail.close
           ) {
-            if (issueDetailCloseWorks) state.issueDetailOpen = false;
+            if (issueDetailCloseWorks) {
+              state.issueDetailOpen = false;
+              state.issueDetailLoaded = false;
+            }
           }
         },
       };
@@ -276,6 +289,16 @@ describe("dev:e2e runtime contract", () => {
         { startPath: "/workspace/reef-e2e/issues/REEF-001" },
       ),
     ).rejects.toThrow(/declared issue detail start close/);
+  });
+
+  it("does not treat the issue-detail shell as visible before content loads", async () => {
+    await expect(
+      probeWorkspaceClickInteractions(
+        readinessPage({ issueDetailOpen: true, issueDetailLoaded: false }).page,
+        1_000,
+        { startPath: "/workspace/reef-e2e/issues/REEF-001" },
+      ),
+    ).rejects.toThrow(/declared issue detail start/);
   });
 
   it("writes a private runtime ready descriptor", async () => {
