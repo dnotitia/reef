@@ -209,6 +209,32 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
     ).toContainText("Unassigned");
   });
 
+  test("switches from assignee hover to the focused title tooltip", async ({
+    page,
+  }) => {
+    await openRootFromList(page);
+
+    const assignedLink = page.locator(
+      '[data-testid="issue-children"] a[data-issue-id="REEF-102"]',
+    );
+    const assignee = assignedLink.getByTestId("issue-child-assignee-REEF-102");
+    const fullLongTitle =
+      "Polish onboarding for existing AKB workspaces across migration, access, and workspace setup flows with inherited settings and preserved planning context";
+
+    await assignee.hover();
+    await expect(page.getByRole("tooltip")).toHaveText("Alice Example");
+    await assignee.focus();
+    await expect(assignee).toBeFocused();
+    await expect(page.getByRole("tooltip")).toHaveText("Alice Example");
+
+    // Keep the pointer over the assignee while keyboard focus moves to the
+    // same row's link. The two tooltip states must remain mutually exclusive.
+    await assignedLink.focus();
+    await expect(assignedLink).toBeFocused();
+    await expect(page.getByRole("tooltip")).toHaveCount(1);
+    await expect(page.getByRole("tooltip")).toHaveText(fullLongTitle);
+  });
+
   test("Close exits the whole trail to the list in one action (AC2)", async ({
     page,
   }) => {
@@ -233,7 +259,6 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
     await page.waitForURL(new RegExp(`/issues/${ROOT}`), { timeout: 10_000 });
     await expect(page.locator(drillBack)).toHaveCount(0);
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
-
     // No trail left → Esc closes to the list.
     await page.keyboard.press("Escape");
     await page.waitForURL(/\/issues\?view=list$/, { timeout: 10_000 });
