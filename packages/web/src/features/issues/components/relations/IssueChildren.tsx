@@ -11,7 +11,21 @@ import { cn } from "@/lib/utils";
 import { type IssueListItem, type Status, isResolvedStatus } from "@reef/core";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { type ReactNode, memo, useMemo } from "react";
+import {
+  type ReactNode,
+  type RefObject,
+  memo,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { IssueFormSection } from "../shared/IssueFormSection";
 
 /** Lifecycle order for sorting remaining children
@@ -24,6 +38,102 @@ const STATUS_ORDER: Record<Status, number> = {
   done: 4,
   closed: 5,
 };
+
+type IssueDrillProps = ReturnType<typeof useIssueDrill>;
+
+function useTitleOverflow(
+  titleRef: RefObject<HTMLSpanElement | null>,
+  title: string,
+): boolean {
+  const [isOverflowing, setIsOverflowing] = useState(false);
+
+  useEffect(() => {
+    const element = titleRef.current;
+    if (!element) {
+      setIsOverflowing(false);
+      return;
+    }
+
+    let disposed = false;
+
+    const measure = () => {
+      if (disposed || element.textContent !== title) return;
+      const next = element.scrollWidth > element.clientWidth;
+      setIsOverflowing((previous) => (previous === next ? previous : next));
+    };
+
+    measure();
+    const frame = requestAnimationFrame(measure);
+    void document.fonts?.ready.then(measure);
+    const observer =
+      typeof ResizeObserver === "function"
+        ? new ResizeObserver(measure)
+        : undefined;
+    observer?.observe(element);
+    window.addEventListener("resize", measure);
+
+    return () => {
+      disposed = true;
+      cancelAnimationFrame(frame);
+      observer?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [titleRef, title]);
+
+  return isOverflowing;
+}
+
+interface IssueChildRowProps {
+  child: IssueListItem;
+  blockerCount: number;
+  getDrillProps: IssueDrillProps;
+  resolved: boolean;
+}
+
+function IssueChildRow({
+  child,
+  blockerCount,
+  getDrillProps,
+  resolved,
+}: IssueChildRowProps) {
+  const titleRef = useRef<HTMLSpanElement>(null);
+  const isTitleOverflowing = useTitleOverflow(titleRef, child.title);
+  const link = (
+    <Link
+      {...getDrillProps(child.id)}
+      data-issue-id={child.id}
+      aria-label={isTitleOverflowing ? `${child.id} ${child.title}` : undefined}
+      className={cn(
+        // `min-w-0 flex-1` lets the IssueOptionRow grid inside truncate
+        // instead of overflowing the column (REEF-285), matching the
+        // navigable relation row's Link.
+        "flex min-w-0 flex-1 touch-manipulation items-center rounded-md px-1.5 py-1 transition-colors duration-150",
+        "hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
+        resolved && "opacity-60 hover:opacity-100",
+      )}
+    >
+      <IssueOptionRow
+        issue={child}
+        blockerCount={blockerCount}
+        titleRef={titleRef}
+      />
+    </Link>
+  );
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        asChild
+        {...(!isTitleOverflowing ? { "aria-describedby": null } : {})}
+      >
+        {link}
+      </TooltipTrigger>
+      {isTitleOverflowing ? (
+        <TooltipContent>{child.title}</TooltipContent>
+      ) : null}
+    </Tooltip>
+  );
+}
 
 interface IssueChildrenProps {
   /** The parent issue whose children we list. */
@@ -115,7 +225,6 @@ export const IssueChildren = memo(function IssueChildren({
             <div className="flex items-center gap-3">
               {/* Animate transform (not width) so the bar fill stays off the layout
                   path; transform-origin left grows it from the start. */}
-              {/* biome-ignore lint/a11y/useFocusableInteractive: progressbar is a non-focusable ARIA range widget (a status indicator), not a keyboard tab stop. */}
               <div
                 className="h-1 flex-1 overflow-hidden rounded-full bg-secondary"
                 role="progressbar"
@@ -134,35 +243,23 @@ export const IssueChildren = memo(function IssueChildren({
               </span>
             </div>
 
-            <ul aria-label={t("subIssues")} className="flex flex-col gap-0.5">
-              {children.map((child) => {
-                const resolved = isResolvedStatus(child.status);
-                return (
+            <TooltipProvider>
+              <ul aria-label={t("subIssues")} className="flex flex-col gap-0.5">
+                {children.map((child) => (
                   <li key={child.id}>
-                    <Link
-                      {...getDrillProps(child.id)}
-                      data-issue-id={child.id}
-                      className={cn(
-                        // `min-w-0 flex-1` lets the IssueOptionRow grid inside truncate
-                        // instead of overflowing the column (REEF-285), matching the
-                        // navigable relation row's Link.
-                        "flex min-w-0 flex-1 touch-manipulation items-center rounded-md px-1.5 py-1 transition-colors duration-150",
-                        "hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
-                        resolved && "opacity-60 hover:opacity-100",
+                    <IssueChildRow
+                      child={child}
+                      blockerCount={unresolvedBlockerCountIn(
+                        child,
+                        blockedIndex,
                       )}
-                    >
-                      <IssueOptionRow
-                        issue={child}
-                        blockerCount={unresolvedBlockerCountIn(
-                          child,
-                          blockedIndex,
-                        )}
-                      />
-                    </Link>
+                      getDrillProps={getDrillProps}
+                      resolved={isResolvedStatus(child.status)}
+                    />
                   </li>
-                );
-              })}
-            </ul>
+                ))}
+              </ul>
+            </TooltipProvider>
           </>
         )}
       </div>

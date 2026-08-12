@@ -1,5 +1,6 @@
 import { type IssueListItem, type IssueType, IssueTypeEnum } from "@reef/core";
 import { render, screen } from "@testing-library/react";
+import { createRef } from "react";
 import { describe, expect, it } from "vitest";
 import { IssueOptionRow } from "./IssueOptionRow";
 import { ISSUE_TYPE_COLORS } from "./fieldKit";
@@ -205,5 +206,13 @@ describe("IssueOptionRow", () => {
     expect(
       screen.getByText("REEF-042").closest("[translate='no']"),
     ).not.toBeNull();
+  });
+
+  it("exposes the rendered title element to overflow-aware callers", () => {
+    const titleRef = createRef<HTMLSpanElement>();
+    render(<IssueOptionRow issue={ISSUE} titleRef={titleRef} />);
+
+    expect(titleRef.current).toBe(screen.getByText(ISSUE.title));
+    expect(titleRef.current).toHaveClass("truncate");
   });
 });

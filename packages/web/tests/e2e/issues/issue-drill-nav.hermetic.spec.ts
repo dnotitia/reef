@@ -58,7 +58,7 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
     await page.locator(drillBack).click();
     await page.waitForURL(new RegExp(`/issues/${MID}`), { timeout: 10_000 });
     await expect(page.locator('[data-testid="issue-title-input"]')).toHaveValue(
-      "Polish onboarding for existing AKB workspaces",
+      "Polish onboarding for existing AKB workspaces across migration, access, and workspace setup flows with inherited settings and preserved planning context",
     );
     await expect(page.locator(drillBack)).toHaveAttribute("data-back-to", ROOT);
 
@@ -69,6 +69,74 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
       "Triage GitHub activity into draft issues",
     );
     await expect(page.locator(drillBack)).toHaveCount(0);
+  });
+
+  test("shows the full child title only when its title track overflows", async ({
+    page,
+  }) => {
+    await openRootFromList(page);
+
+    const longLink = page.locator(
+      '[data-testid="issue-children"] a[data-issue-id="REEF-102"]',
+    );
+    const shortLink = page.locator(
+      '[data-testid="issue-children"] a[data-issue-id="REEF-112"]',
+    );
+    const longTitle = longLink.locator(
+      '[data-issue-option-slot="title"] > span',
+    );
+    const shortTitle = shortLink.locator(
+      '[data-issue-option-slot="title"] > span',
+    );
+    const fullLongTitle =
+      "Polish onboarding for existing AKB workspaces across migration, access, and workspace setup flows with inherited settings and preserved planning context";
+
+    await expect(longLink).toBeVisible();
+    await expect(shortLink).toBeVisible();
+
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 1280, height: 900 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await expect
+        .poll(() =>
+          longTitle.evaluate(
+            (element) => element.scrollWidth > element.clientWidth,
+          ),
+        )
+        .toBe(true);
+      await expect
+        .poll(() =>
+          shortTitle.evaluate(
+            (element) => element.scrollWidth > element.clientWidth,
+          ),
+        )
+        .toBe(false);
+
+      await longLink.hover();
+      const tooltip = page.getByRole("tooltip");
+      await expect(tooltip).toHaveText(fullLongTitle);
+
+      await longLink.focus();
+      await expect(tooltip).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(tooltip).toHaveCount(0);
+
+      await shortLink.hover();
+      await expect(page.getByRole("tooltip")).toHaveCount(0);
+      await shortLink.focus();
+      await expect(page.getByRole("tooltip")).toHaveCount(0);
+      await shortLink.blur();
+
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth <= window.innerWidth,
+          ),
+        )
+        .toBe(true);
+    }
   });
 
   test("Close exits the whole trail to the list in one action (AC2)", async ({
@@ -197,7 +265,9 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
     await page.waitForURL(/\/issues\?view=list$/, { timeout: 10_000 });
 
     await page
-      .getByText("Polish onboarding for existing AKB workspaces")
+      .getByText(
+        "Polish onboarding for existing AKB workspaces across migration, access, and workspace setup flows with inherited settings and preserved planning context",
+      )
       .click();
     await page.waitForURL(new RegExp(`/issues/${MID}`), { timeout: 10_000 });
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
@@ -243,7 +313,7 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
     await page.locator(breadcrumb).click();
     await page.waitForURL(new RegExp(`/issues/${MID}`), { timeout: 10_000 });
     await expect(page.locator('[data-testid="issue-title-input"]')).toHaveValue(
-      "Polish onboarding for existing AKB workspaces",
+      "Polish onboarding for existing AKB workspaces across migration, access, and workspace setup flows with inherited settings and preserved planning context",
     );
     await expect(
       page.locator('[data-testid="issue-detail-modal"]'),

@@ -908,7 +908,8 @@ function demoBoardVault(name) {
     }),
     issueRow({
       id: "REEF-102",
-      title: "Polish onboarding for existing AKB workspaces",
+      title:
+        "Polish onboarding for existing AKB workspaces across migration, access, and workspace setup flows with inherited settings and preserved planning context",
       status: "todo",
       issue_type: "task",
       priority: "high",
@@ -1061,12 +1062,13 @@ function demoBoardVault(name) {
     }),
     issueRow({
       id: "REEF-112",
-      title: "Prioritize mobile board density",
+      title: "Mobile density",
       status: "backlog",
       issue_type: "task",
       priority: "low",
       assigned_to: null,
       rank: 1000,
+      parent_id: "REEF-101",
       labels: ["mobile", "board"],
     }),
   ];
