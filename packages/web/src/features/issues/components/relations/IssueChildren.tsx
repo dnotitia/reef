@@ -129,7 +129,7 @@ function IssueChildRow({
       className={cn(
         // The row owns layout and hover state while its title link and
         // read-only assignee button remain separate interactive elements.
-        "flex min-w-0 flex-1 touch-manipulation items-center gap-2 rounded-md px-1.5 py-1 transition-colors duration-150 @max-[40rem]:flex-wrap",
+        "flex min-w-0 flex-1 touch-manipulation items-center gap-3 rounded-md px-1.5 py-1 transition-colors duration-150 @max-[40rem]:flex-wrap",
         "hover:bg-surface-hover focus-within:outline-none focus-within:ring-2 focus-within:ring-brand/40",
         resolved && "opacity-60 hover:opacity-100",
       )}
@@ -164,7 +164,7 @@ function IssueChildRow({
             setActiveTooltip(null);
           }
         }}
-        className="flex min-w-0 flex-1 touch-manipulation items-center gap-2 rounded-md px-1.5 py-1 transition-colors duration-150 @max-[40rem]:basis-full @max-[40rem]:flex-wrap focus-visible:outline-none"
+        className="flex min-w-0 flex-1 touch-manipulation items-center gap-2 rounded-md px-1.5 py-1 transition-colors duration-150 @max-[40rem]:basis-full @max-[40rem]:flex-wrap focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
       >
         <Tooltip
           open={isTitleOverflowing && activeTooltip === "title"}
@@ -213,7 +213,7 @@ function IssueChildRow({
             title={assigneeName}
             onPointerEnter={() => setActiveTooltip("assignee")}
             onFocus={() => setActiveTooltip("assignee")}
-            className="flex min-w-0 max-w-[8rem] shrink items-center rounded-md border-0 bg-transparent p-0 @max-[40rem]:ml-auto focus-visible:outline-none"
+            className="flex w-32 shrink-0 items-center justify-start rounded-md border-0 bg-transparent p-0 @max-[40rem]:ml-auto focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
           >
             <PersonChip
               identityKey={assignedTo}

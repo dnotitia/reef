@@ -213,6 +213,73 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
     ).toContainText("Unassigned");
   });
 
+  test("keeps assigned and unassigned assignee slots aligned at desktop and 390px", async ({
+    page,
+  }) => {
+    await openRootFromList(page);
+
+    const assignedSlot = page.getByTestId("issue-child-assignee-REEF-102");
+    const unassignedSlot = page.getByTestId("issue-child-assignee-REEF-112");
+    const assignedLink = page.locator(
+      '[data-testid="issue-children"] a[data-issue-id="REEF-102"]',
+    );
+    const unassignedLink = page.locator(
+      '[data-testid="issue-children"] a[data-issue-id="REEF-112"]',
+    );
+
+    for (const viewport of [
+      { width: 1280, height: 900 },
+      { width: 390, height: 844 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await expect(assignedSlot).toBeVisible();
+      await expect(unassignedSlot).toBeVisible();
+
+      const [assignedBox, unassignedBox, assignedTitleBox, unassignedTitleBox] =
+        await Promise.all([
+          assignedSlot.boundingBox(),
+          unassignedSlot.boundingBox(),
+          assignedLink.boundingBox(),
+          unassignedLink.boundingBox(),
+        ]);
+      expect(assignedBox).not.toBeNull();
+      expect(unassignedBox).not.toBeNull();
+      expect(assignedTitleBox).not.toBeNull();
+      expect(unassignedTitleBox).not.toBeNull();
+
+      expect(
+        Math.abs((assignedBox?.x ?? 0) - (unassignedBox?.x ?? 0)),
+      ).toBeLessThanOrEqual(2);
+      expect(
+        Math.abs((assignedBox?.width ?? 0) - (unassignedBox?.width ?? 0)),
+      ).toBeLessThanOrEqual(2);
+
+      for (const [titleBox, assigneeBox] of [
+        [assignedTitleBox, assignedBox],
+        [unassignedTitleBox, unassignedBox],
+      ] as const) {
+        const overlaps =
+          (titleBox?.x ?? 0) <
+            (assigneeBox?.x ?? 0) + (assigneeBox?.width ?? 0) &&
+          (assigneeBox?.x ?? 0) < (titleBox?.x ?? 0) + (titleBox?.width ?? 0) &&
+          Math.abs((titleBox?.y ?? 0) - (assigneeBox?.y ?? 0)) <
+            Math.max(titleBox?.height ?? 0, assigneeBox?.height ?? 0);
+        expect(overlaps).toBe(false);
+      }
+
+      const rows = page.locator('[data-testid="issue-children"] li');
+      for (let index = 0; index < (await rows.count()); index += 1) {
+        const overflow = await rows
+          .nth(index)
+          .evaluate((element) => element.scrollWidth > element.clientWidth);
+        expect(overflow).toBe(false);
+      }
+    }
+
+    await expect(assignedLink).toHaveClass(/focus-visible:ring-2/);
+    await expect(assignedSlot).toHaveClass(/focus-visible:ring-2/);
+  });
+
   test("switches from assignee hover to the focused title tooltip", async ({
     page,
   }) => {

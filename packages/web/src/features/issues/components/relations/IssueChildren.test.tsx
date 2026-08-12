@@ -207,6 +207,44 @@ describe("IssueChildren", () => {
     ).toHaveTextContent("Unassigned");
   });
 
+  it("reserves one assignee track and independent focus rings for every row", () => {
+    render(
+      <IssueChildren
+        issueId={PARENT}
+        allIssues={[
+          makeIssue({
+            id: "REEF-101",
+            title: "Assigned child",
+            parent_id: PARENT,
+            assigned_to: "alice",
+          }),
+          makeIssue({
+            id: "REEF-102",
+            title: "Unassigned child",
+            parent_id: PARENT,
+            assigned_to: null,
+          }),
+        ]}
+        members={members}
+      />,
+    );
+
+    const assigned = screen.getByTestId("issue-child-assignee-REEF-101");
+    const unassigned = screen.getByTestId("issue-child-assignee-REEF-102");
+    expect(assigned.className).toContain("w-32");
+    expect(unassigned.className).toContain("w-32");
+    expect(assigned.className).toContain("shrink-0");
+    expect(unassigned.className).toContain("shrink-0");
+    expect(assigned.className).toContain("justify-start");
+    expect(unassigned.className).toContain("justify-start");
+    expect(assigned.className).toContain("focus-visible:ring-2");
+    expect(unassigned.className).toContain("focus-visible:ring-2");
+
+    for (const link of screen.getAllByRole("link")) {
+      expect(link.className).toContain("focus-visible:ring-2");
+    }
+  });
+
   it("keeps the assignee's full name available in its own tooltip", async () => {
     const user = userEvent.setup();
     render(
