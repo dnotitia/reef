@@ -584,6 +584,59 @@ describe("IssueDetail", { timeout: 10_000 }, () => {
     expect(patchBodies[1].update.patch).toEqual({ title: "Renamed title" });
   });
 
+  it("rolls a failed assignee save back to the previous visible assignment", async () => {
+    const assignedIssue: IssueMetadata = { ...SAMPLE, assigned_to: "alice" };
+    mockApiFetch.mockImplementation(async (url, init) => {
+      const u = String(url);
+      const method = (init as RequestInit | undefined)?.method;
+      if (method === "PATCH" && u === "/api/issues/REEF-001") {
+        return new Response(JSON.stringify({ error: "save boom" }), {
+          status: 500,
+        });
+      }
+      if (isIssueDetailRequest(u, "REEF-001")) {
+        return new Response(
+          JSON.stringify({ issue: assignedIssue, content: "## body" }),
+          { status: 200 },
+        );
+      }
+      if (u.startsWith("/api/issues?vault=")) {
+        return new Response(JSON.stringify({ issues: [assignedIssue] }), {
+          status: 200,
+        });
+      }
+      if (u.startsWith("/api/vault-members")) {
+        return new Response(
+          JSON.stringify({
+            users: [{ login: "bob", name: "Bob Example", avatar_url: null }],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify(issueQueryFallback(u)), {
+        status: 200,
+      });
+    });
+
+    const user = userEvent.setup();
+    render(
+      wrap(
+        <IssueDetail issueId="REEF-001" vault="reef-acme" onClose={() => {}} />,
+      ),
+    );
+
+    await user.click(await screen.findByLabelText("Assignee: alice"));
+    await user.click(
+      await screen.findByRole("option", { name: /Bob Example/ }),
+    );
+
+    await screen.findByTestId("issue-save-retry");
+    expect(screen.getByTestId("issue-save-status")).toHaveTextContent(
+      "Not saved",
+    );
+    expect(screen.getByLabelText("Assignee: alice")).toBeInTheDocument();
+  });
+
   it("keeps an earlier field's failure surfaced when a later, unrelated field saves", async () => {
     // title save fails; a subsequent priority change succeeds. The unrelated
     // success should not clear the title failure or falsely claim "Saved".

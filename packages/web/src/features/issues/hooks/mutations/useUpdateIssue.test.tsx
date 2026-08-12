@@ -550,6 +550,53 @@ describe("useUpdateIssue", () => {
     expect(detail).toEqual({ issue: ORIGINAL, content: "old body" });
   });
 
+  it("notifies callers with the restored detail snapshot after a failure", async () => {
+    mockApiFetch.mockResolvedValue(
+      new Response(JSON.stringify({ error: "Save failed." }), {
+        status: 500,
+      }),
+    );
+    const queryClient = makeTestQueryClient();
+    const previousDetail = {
+      issue: { ...ORIGINAL, assigned_to: "alice" },
+      content: "old body",
+    };
+    queryClient.setQueryData(
+      ["issues", "detail", "reef-acme", "REEF-001"],
+      previousDetail,
+    );
+    const onError = vi.fn();
+    const { result } = renderUseUpdateIssue(queryClient, { onError });
+
+    await act(async () => {
+      await result.current
+        .mutateAsync({
+          id: "REEF-001",
+          vault: "reef-acme",
+          patch: { assigned_to: "bob" },
+        })
+        .catch(() => {});
+    });
+
+    expect(onError).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        id: "REEF-001",
+        vault: "reef-acme",
+        patch: { assigned_to: "bob" },
+      }),
+      { previousDetail },
+    );
+    expect(
+      queryClient.getQueryData<typeof previousDetail>([
+        "issues",
+        "detail",
+        "reef-acme",
+        "REEF-001",
+      ])?.issue.assigned_to,
+    ).toBe("alice");
+  });
+
   it("sends expected_commit from the cached detail commit_hash (REEF-227)", async () => {
     mockApiFetch.mockResolvedValue(
       new Response(

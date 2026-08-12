@@ -149,6 +149,7 @@ test.describe("Hermetic assignee picker", () => {
     await expect(page.getByTestId("issue-save-status")).toContainText(
       "Not saved",
     );
+    await expect(page.getByLabel("Assignee: alice")).toBeVisible();
     await expect.poll(() => issueAssignee(request, "REEF-002")).toBe("alice");
     expect(await readIndexedDbConfig(page, RECENTS_KEY)).toBeUndefined();
 
