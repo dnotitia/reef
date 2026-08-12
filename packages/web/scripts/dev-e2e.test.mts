@@ -176,8 +176,12 @@ describe("dev:e2e runtime contract", () => {
     });
   });
 
-  function readinessPage({ newIssueClickWorks = true } = {}) {
-    const state = { newIssueOpen: false };
+  function readinessPage({
+    newIssueClickWorks = true,
+    issueDetailOpen = false,
+    issueDetailCloseWorks = true,
+  } = {}) {
+    const state = { newIssueOpen: false, issueDetailOpen };
     const selectors: string[] = [];
     const locatorFor = (selector: string) => {
       const locator = {
@@ -186,18 +190,27 @@ describe("dev:e2e runtime contract", () => {
           const visible =
             selector === CLIENT_READINESS_INTERACTIONS.newIssue.observable
               ? state.newIssueOpen
-              : true;
+              : selector ===
+                  CLIENT_READINESS_INTERACTIONS.issueDetail.observable
+                ? state.issueDetailOpen
+                : true;
           if ((expected === "visible") !== visible) {
             throw new Error(`${selector} is not ${expected}`);
           }
         },
         click: async () => {
           if (selector === CLIENT_READINESS_INTERACTIONS.newIssue.trigger) {
-            if (newIssueClickWorks) state.newIssueOpen = true;
+            if (!state.issueDetailOpen && newIssueClickWorks) {
+              state.newIssueOpen = true;
+            }
           } else if (
             selector === CLIENT_READINESS_INTERACTIONS.newIssue.close
           ) {
             state.newIssueOpen = false;
+          } else if (
+            selector === CLIENT_READINESS_INTERACTIONS.issueDetail.close
+          ) {
+            if (issueDetailCloseWorks) state.issueDetailOpen = false;
           }
         },
       };
@@ -234,6 +247,35 @@ describe("dev:e2e runtime contract", () => {
         1_000,
       ),
     ).rejects.toThrow(/New Issue dialog after click/);
+  });
+
+  it("honors an issue-detail start path before probing workspace clicks", async () => {
+    const { page, selectors } = readinessPage({ issueDetailOpen: true });
+
+    await probeWorkspaceClickInteractions(page, 1_000, {
+      startPath: "/workspace/reef-e2e/issues/REEF-001",
+    });
+
+    expect(selectors).toEqual([
+      CLIENT_READINESS_INTERACTIONS.issueDetail.observable,
+      CLIENT_READINESS_INTERACTIONS.issueDetail.close,
+      CLIENT_READINESS_INTERACTIONS.newIssue.trigger,
+      CLIENT_READINESS_INTERACTIONS.newIssue.observable,
+      CLIENT_READINESS_INTERACTIONS.newIssue.close,
+    ]);
+  });
+
+  it("fails readiness when the declared issue-detail start cannot close", async () => {
+    await expect(
+      probeWorkspaceClickInteractions(
+        readinessPage({
+          issueDetailCloseWorks: false,
+          issueDetailOpen: true,
+        }).page,
+        1_000,
+        { startPath: "/workspace/reef-e2e/issues/REEF-001" },
+      ),
+    ).rejects.toThrow(/declared issue detail start close/);
   });
 
   it("writes a private runtime ready descriptor", async () => {

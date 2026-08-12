@@ -28,6 +28,10 @@ export const CLIENT_READINESS_INTERACTIONS = Object.freeze({
     observable: '[data-testid="new-issue-dialog"]',
     close: '[data-testid="new-issue-cancel"]',
   }),
+  issueDetail: Object.freeze({
+    observable: '[data-testid="issue-detail-modal"]',
+    close: '[data-testid="issue-close"]',
+  }),
 });
 const E2E_GITHUB_APP_PRIVATE_KEY = generateKeyPairSync("rsa", {
   modulusLength: 2048,
@@ -278,7 +282,45 @@ async function waitForInteractionState(locator, state, label, timeoutMs) {
   }
 }
 
-export async function probeWorkspaceClickInteractions(page, timeoutMs) {
+function isIssueDetailStartPath(startPath) {
+  if (typeof startPath !== "string") return false;
+  const pathname = new URL(startPath, "http://reef-e2e.invalid").pathname;
+  const segments = pathname.split("/").filter(Boolean);
+  return (
+    segments[0] === "workspace" &&
+    segments[2] === "issues" &&
+    segments.length >= 4
+  );
+}
+
+async function dismissIssueDetailStart(page, timeoutMs) {
+  const issueDetail = CLIENT_READINESS_INTERACTIONS.issueDetail;
+  const issueDetailModal = page.locator(issueDetail.observable);
+  await waitForInteractionState(
+    issueDetailModal,
+    "visible",
+    "declared issue detail start",
+    timeoutMs,
+  );
+
+  await page.locator(issueDetail.close).click();
+  await waitForInteractionState(
+    issueDetailModal,
+    "hidden",
+    "declared issue detail start close",
+    timeoutMs,
+  );
+}
+
+export async function probeWorkspaceClickInteractions(
+  page,
+  timeoutMs,
+  { startPath } = {},
+) {
+  if (isIssueDetailStartPath(startPath)) {
+    await dismissIssueDetailStart(page, timeoutMs);
+  }
+
   const newIssue = CLIENT_READINESS_INTERACTIONS.newIssue;
   const newIssueTrigger = page.locator(newIssue.trigger);
   const newIssueDialog = page.locator(newIssue.observable);
@@ -353,7 +395,7 @@ export async function waitForClientInteractionReady(
       },
     );
     await probeSearchInteraction(page, timeoutMs);
-    await probeWorkspaceClickInteractions(page, timeoutMs);
+    await probeWorkspaceClickInteractions(page, timeoutMs, { startPath });
   } finally {
     await context.close().catch(() => undefined);
     await browser.close().catch(() => undefined);
