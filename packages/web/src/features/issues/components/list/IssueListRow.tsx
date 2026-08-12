@@ -31,7 +31,14 @@ import { cn } from "@/lib/utils";
 import type { Collaborator, IssueListItem, PlanningCatalog } from "@reef/core";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { useLocale, useTranslations } from "next-intl";
-import { type MouseEvent, memo, useCallback, useEffect, useRef } from "react";
+import {
+  type MouseEvent,
+  memo,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   type IssueRelationLike,
   getUnresolvedBlockerCount,
@@ -58,16 +65,28 @@ interface IssueListRowProps {
   onClick?: (id: string) => void;
 }
 
-function issueListCellClass(column: IssueListColumnKey, stateClass?: string) {
+type IssueListRowVisualState = "idle" | "focused" | "context-open" | "selected";
+
+function issueListCellClass(
+  column: IssueListColumnKey,
+  visualState: IssueListRowVisualState,
+) {
+  const selectedOrFocused =
+    visualState === "selected" || visualState === "focused";
+
   return cn(
     "h-10 min-w-0 px-3 py-0 align-middle",
     isIssueTableStickyColumn(column) &&
       cn(
-        "sticky bg-background group-hover:bg-surface-hover",
+        "sticky",
+        selectedOrFocused || visualState === "context-open"
+          ? selectedOrFocused
+            ? "bg-brand/5"
+            : "bg-background"
+          : "bg-background group-hover:bg-surface-hover",
         column === "id" ? "z-20" : "z-10",
       ),
     column === "title" && "min-w-[15rem]",
-    stateClass,
   );
 }
 
@@ -133,6 +152,7 @@ export const IssueListRow = memo(function IssueListRow({
     state.selectedIds.has(issue.id),
   );
   const selectionRunning = useIssueSelectionStore((state) => state.running);
+  const [contextOpen, setContextOpen] = useState(false);
   const bulk = useTranslations("issues.bulk");
   const fieldNames = useFieldNameLabels();
   const currentLogin = useCurrentUserLogin();
@@ -153,7 +173,18 @@ export const IssueListRow = memo(function IssueListRow({
         return null;
     }
   }, []);
-  const stickyStateClass = selected || focused ? "bg-brand/5" : undefined;
+  // A selected row owns the strongest chrome. An open context menu and
+  // keyboard focus share the next tier, while pointer hover is only a
+  // fallback. Keep this decision in one place so sticky cells and the row
+  // cannot drift. Context-open wins the tie so an unselected keyboard target
+  // remains outline-only while its menu is open.
+  const visualState: IssueListRowVisualState = selected
+    ? "selected"
+    : contextOpen
+      ? "context-open"
+      : focused
+        ? "focused"
+        : "idle";
 
   useEffect(() => {
     if (
@@ -173,7 +204,11 @@ export const IssueListRow = memo(function IssueListRow({
     const container =
       row?.closest('[data-testid="issue-list-scroll-container"]') ??
       row?.closest('[data-slot="table-container"]');
-    if (!focused || !row || !(container instanceof HTMLElement)) {
+    if (
+      (!focused && !contextOpen) ||
+      !row ||
+      !(container instanceof HTMLElement)
+    ) {
       return;
     }
 
@@ -198,7 +233,7 @@ export const IssueListRow = memo(function IssueListRow({
       row.style.removeProperty("--reef-list-focus-left");
       row.style.removeProperty("--reef-list-focus-width");
     };
-  }, [focused]);
+  }, [contextOpen, focused]);
 
   return (
     <IssueContextMenu
@@ -206,14 +241,17 @@ export const IssueListRow = memo(function IssueListRow({
       vault={vault}
       planningCatalog={planningCatalog}
       assignees={assignees}
+      onOpenChange={setContextOpen}
     >
       <TableRow
         ref={rowRef}
         className={cn(
           "reef-issue-list-row group h-10 cursor-pointer transition-colors duration-150 focus-visible:outline-none",
-          onClick && "hover:bg-surface-hover",
-          focused && "bg-brand/5",
-          selected && "bg-brand/5 ring-1 ring-inset ring-brand/30",
+          visualState === "idle" && onClick && "hover:bg-surface-hover",
+          (visualState === "focused" || visualState === "selected") &&
+            "bg-brand/5 hover:bg-brand/5",
+          visualState === "selected" && "ring-1 ring-inset ring-brand/30",
+          visualState === "context-open" && "hover:bg-transparent",
           isFlashing && "reef-flash-row",
         )}
         tabIndex={focused || tabStopped ? 0 : -1}
@@ -232,12 +270,10 @@ export const IssueListRow = memo(function IssueListRow({
         data-occurrence-key={keyboardOccurrenceKey}
         data-shortcut-surface="issue-list-row"
         data-keyboard-focused={focused ? "true" : undefined}
+        data-context-open={contextOpen ? "true" : undefined}
       >
         <TableCell
-          className={cn(
-            issueListCellClass("select", stickyStateClass),
-            "w-10 px-2",
-          )}
+          className={cn(issueListCellClass("select", visualState), "w-10 px-2")}
           style={issueListCellStyle(columns, "select")}
           data-column-key="select"
         >
@@ -264,7 +300,7 @@ export const IssueListRow = memo(function IssueListRow({
         {/* ID */}
         <TableCell
           className={cn(
-            issueListCellClass("id", stickyStateClass),
+            issueListCellClass("id", visualState),
             "relative font-mono text-xs text-muted-foreground",
           )}
           style={issueListCellStyle(columns, "id")}
@@ -282,7 +318,7 @@ export const IssueListRow = memo(function IssueListRow({
 
         {/* Type */}
         <TableCell
-          className={issueListCellClass("type", stickyStateClass)}
+          className={issueListCellClass("type", visualState)}
           style={issueListCellStyle(columns, "type")}
           data-column-key="type"
         >
@@ -291,7 +327,7 @@ export const IssueListRow = memo(function IssueListRow({
 
         {/* Title */}
         <TableCell
-          className={issueListCellClass("title", stickyStateClass)}
+          className={issueListCellClass("title", visualState)}
           style={issueListCellStyle(columns, "title")}
           data-column-key="title"
         >
@@ -305,7 +341,7 @@ export const IssueListRow = memo(function IssueListRow({
 
         {/* Status */}
         <TableCell
-          className={issueListCellClass("status")}
+          className={issueListCellClass("status", visualState)}
           style={issueListCellStyle(columns, "status")}
           data-column-key="status"
         >
@@ -323,7 +359,7 @@ export const IssueListRow = memo(function IssueListRow({
 
         {/* Priority */}
         <TableCell
-          className={issueListCellClass("priority")}
+          className={issueListCellClass("priority", visualState)}
           style={issueListCellStyle(columns, "priority")}
           data-column-key="priority"
         >
@@ -345,7 +381,7 @@ export const IssueListRow = memo(function IssueListRow({
 
         {/* Assignee */}
         <TableCell
-          className={cn(issueListCellClass("assignee"), "text-sm")}
+          className={cn(issueListCellClass("assignee", visualState), "text-sm")}
           style={issueListCellStyle(columns, "assignee")}
           data-column-key="assignee"
         >

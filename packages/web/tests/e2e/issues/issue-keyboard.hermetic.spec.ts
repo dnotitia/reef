@@ -147,6 +147,82 @@ test.describe("Hermetic issue keyboard navigation", () => {
     }
   });
 
+  test("keeps List selection and row context chrome through pointer and keyboard menus", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+
+    const rows = await expectIssueListKeyboardReady(page);
+    const selectedRow = rows.filter({ hasText: "Initial issue Alpha" });
+    const unselectedRow = rows.filter({ hasText: "Initial issue Beta" });
+    await expect(selectedRow).toBeVisible();
+    await expect(unselectedRow).toBeVisible();
+
+    await selectedRow.getByTestId("issue-row-checkbox").click();
+    await expect(selectedRow).toHaveAttribute("aria-selected", "true");
+    await expect(
+      page.locator('[data-testid="issue-list-row"][aria-selected="true"]'),
+    ).toHaveCount(1);
+
+    await selectedRow.click({ button: "right" });
+    const menu = page.getByRole("menu");
+    await expect(menu).toBeVisible();
+    await expect(selectedRow).toHaveAttribute("data-context-open", "true");
+    await expect(selectedRow).toHaveAttribute("aria-selected", "true");
+    await expect(
+      page.locator('[data-testid="issue-list-row"][aria-selected="true"]'),
+    ).toHaveCount(1);
+
+    const selectedChrome = await selectedRow.evaluate((row) => {
+      const stickyId = row.querySelector<HTMLElement>(
+        'td[data-column-key="id"]',
+      );
+      return {
+        rowClass: row.className,
+        stickyClass: stickyId?.className ?? "",
+      };
+    });
+    expect(selectedChrome.rowClass).toContain("bg-brand/5");
+    expect(selectedChrome.rowClass).not.toContain("hover:bg-surface-hover");
+    expect(selectedChrome.stickyClass).toContain("bg-brand/5");
+    expect(selectedChrome.stickyClass).not.toContain(
+      "group-hover:bg-surface-hover",
+    );
+
+    const copyLink = menu.getByTestId("issue-context-menu-copy-link");
+    await copyLink.hover();
+    await expect(copyLink).toHaveAttribute("data-highlighted");
+    await expect(selectedRow).toHaveAttribute("data-context-open", "true");
+    await page.keyboard.press("Escape");
+    await expect(selectedRow).not.toHaveAttribute("data-context-open", "true");
+
+    await unselectedRow.click({ button: "right" });
+    await expect(page.getByRole("menu")).toBeVisible();
+    await expect(unselectedRow).toHaveAttribute("data-context-open", "true");
+    await expect(unselectedRow).not.toHaveAttribute("aria-selected");
+    await expect(
+      page.locator('[data-testid="issue-list-row"][aria-selected="true"]'),
+    ).toHaveCount(1);
+    await expect(unselectedRow).toHaveClass(/hover:bg-transparent/);
+    await page.keyboard.press("Escape");
+    await expect(unselectedRow).not.toHaveAttribute(
+      "data-context-open",
+      "true",
+    );
+
+    await unselectedRow.focus();
+    await page.keyboard.press("Shift+F10");
+    await expect(page.getByRole("menu")).toBeVisible();
+    await expect(unselectedRow).toHaveAttribute("data-context-open", "true");
+    await page.keyboard.press("Escape");
+    await expect(unselectedRow).toBeFocused();
+    await expect(unselectedRow).not.toHaveAttribute(
+      "data-context-open",
+      "true",
+    );
+  });
+
   test("moves Backlog focus with j, exposes semantic links, and opens the focused issue", async ({
     page,
   }) => {

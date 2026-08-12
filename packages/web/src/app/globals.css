@@ -602,19 +602,33 @@ hr {
   z-index: 1;
 }
 
+.reef-issue-list-row[data-context-open="true"]:not([aria-selected="true"]) {
+  background-color: transparent;
+  outline: none;
+  z-index: 1;
+}
+
 .reef-issue-list-row:focus-visible > td,
-.reef-issue-list-row[data-keyboard-focused="true"] > td {
+.reef-issue-list-row[data-keyboard-focused="true"] > td,
+.reef-issue-list-row[data-context-open="true"]:not([aria-selected="true"])
+  > td {
   border-block-color: transparent;
 }
 
 .reef-issue-list-row:has(+ .reef-issue-list-row:focus-visible) > td,
 .reef-issue-list-row:has(+ .reef-issue-list-row[data-keyboard-focused="true"])
+  > td,
+.reef-issue-list-row:has(
+    + .reef-issue-list-row[data-context-open="true"]:not([aria-selected="true"])
+  )
   > td {
   border-bottom-color: transparent;
 }
 
 .reef-issue-list-row:focus-visible > td:first-child::after,
-.reef-issue-list-row[data-keyboard-focused="true"] > td:first-child::after {
+.reef-issue-list-row[data-keyboard-focused="true"] > td:first-child::after,
+.reef-issue-list-row[data-context-open="true"]:not([aria-selected="true"])
+  > td:first-child::after {
   content: "";
   position: absolute;
   top: 0;
