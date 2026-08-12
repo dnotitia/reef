@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import type { IssueListItem } from "@reef/core";
 import { Check } from "lucide-react";
 import { useTranslations } from "next-intl";
+import type { Ref } from "react";
 
 /**
  * Shared option row for issue dropdowns (REEF-032).
@@ -48,6 +49,8 @@ interface IssueOptionRowProps {
   blockerCount?: number;
   /** Trailing check for the currently-chosen option (single-select). */
   selected?: boolean;
+  /** Optional seam for surfaces that need to measure the rendered title. */
+  titleRef?: Ref<HTMLSpanElement>;
   className?: string;
 }
 
@@ -56,6 +59,7 @@ export function IssueOptionRow({
   query = "",
   blockerCount = 0,
   selected = false,
+  titleRef,
   className,
 }: IssueOptionRowProps) {
   const t = useTranslations("components.issueOption");
@@ -111,6 +115,7 @@ export function IssueOptionRow({
         className="flex min-w-0 items-center gap-1.5"
       >
         <HighlightText
+          ref={titleRef}
           text={issue.title}
           query={query}
           className="min-w-0 flex-1 truncate text-sm"

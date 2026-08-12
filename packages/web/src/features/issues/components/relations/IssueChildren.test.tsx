@@ -1,6 +1,12 @@
 import { useIssueNavStack } from "@/features/issues/stores/useIssueNavStack";
 import type { IssueListItem } from "@reef/core";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -220,5 +226,93 @@ describe("IssueChildren", () => {
     expect(row?.className).toContain(
       "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem]",
     );
+  });
+
+  it("reveals an overflowing child title on hover and keyboard focus", async () => {
+    const user = userEvent.setup();
+    const title =
+      "A child title that is longer than the available relation-row title track";
+    render(
+      <IssueChildren
+        issueId={PARENT}
+        allIssues={[
+          makeIssue({
+            id: "REEF-104",
+            title,
+            parent_id: PARENT,
+            status: "todo",
+          }),
+        ]}
+      />,
+    );
+
+    const titleElement = screen.getByText(title);
+    Object.defineProperty(titleElement, "clientWidth", {
+      configurable: true,
+      value: 96,
+    });
+    Object.defineProperty(titleElement, "scrollWidth", {
+      configurable: true,
+      value: 360,
+    });
+    fireEvent(window, new Event("resize"));
+
+    const link = screen.getByRole("link", { name: new RegExp(title) });
+    await user.hover(link);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(title);
+    expect(link).toHaveAttribute("aria-describedby");
+
+    await user.unhover(link);
+    await user.tab();
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(title);
+
+    link.blur();
+    await waitFor(() =>
+      expect(screen.queryByRole("tooltip")).not.toBeInTheDocument(),
+    );
+    link.focus();
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(title);
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByRole("tooltip")).not.toBeInTheDocument(),
+    );
+    expect(link).toHaveFocus();
+  });
+
+  it("does not create a tooltip when the title fits its track", async () => {
+    const user = userEvent.setup();
+    const title = "Short child title";
+    render(
+      <IssueChildren
+        issueId={PARENT}
+        allIssues={[
+          makeIssue({
+            id: "REEF-105",
+            title,
+            parent_id: PARENT,
+            status: "todo",
+          }),
+        ]}
+      />,
+    );
+
+    const titleElement = screen.getByText(title);
+    Object.defineProperty(titleElement, "clientWidth", {
+      configurable: true,
+      value: 240,
+    });
+    Object.defineProperty(titleElement, "scrollWidth", {
+      configurable: true,
+      value: 120,
+    });
+    fireEvent(window, new Event("resize"));
+
+    const link = screen.getByRole("link", { name: new RegExp(title) });
+    await user.hover(link);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    await user.unhover(link);
+    link.focus();
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    expect(link).not.toHaveAttribute("aria-describedby");
   });
 });

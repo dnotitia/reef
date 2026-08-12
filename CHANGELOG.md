@@ -12,6 +12,10 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Fixed
+
+- **Truncated sub-issue titles now expose the full title on hover and keyboard focus without changing the existing row metadata layout.** (REEF-507)
+
 ## v0.10.0 - 2026-08-11
 
 ### Added
