@@ -1082,6 +1082,8 @@
       "noVaultPrompt": "<link>{settings}</link>에서 워크스페이스를 설정해 이 이슈를 확인하세요.",
       "srTitle": "이슈 {issueId}",
       "srDescription": "이슈 {issueId}의 세부 정보를 편집합니다.",
+      "resizeHandle": "이슈 상세 패널 크기 조절",
+      "resizeHandleDescription": "세로 구분선이 이슈 상세 패널을 조절합니다. 현재 너비 {current}px, 최소 {min}px, 최대 {max}px입니다.",
       "saving": "저장 중…",
       "saved": "저장됨",
       "notSaved": "저장 안 됨",
