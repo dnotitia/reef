@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { openExistingWorkspace, resetFixture } from "../harness/fixture";
+import {
+  openExistingWorkspace,
+  readFixtureState,
+  resetFixture,
+} from "../harness/fixture";
 
 // The demo_board fixture wires a parent chain REEF-101 → REEF-102 → REEF-103
 // (mock-server.mjs), so each issue exposes a sub-issue to drill *into* and a
@@ -151,6 +155,167 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
         )
         .toBe(true);
     }
+  });
+
+  test("shows child assignees at narrow widths and refreshes after reassignment", async ({
+    page,
+    request,
+  }) => {
+    await openRootFromList(page);
+
+    const assignedLink = page.locator(
+      '[data-testid="issue-children"] a[data-issue-id="REEF-102"]',
+    );
+    const unassignedLink = page.locator(
+      '[data-testid="issue-children"] a[data-issue-id="REEF-112"]',
+    );
+    await expect(
+      page.getByTestId("issue-child-assignee-REEF-102"),
+    ).toContainText("Alice Example");
+    await expect(
+      page.getByTestId("issue-child-assignee-REEF-112"),
+    ).toContainText("Unassigned");
+    await page.getByTestId("issue-child-assignee-REEF-102").hover();
+    await expect(page.getByRole("tooltip")).toHaveText("Alice Example");
+
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 1280, height: 900 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth <= window.innerWidth,
+          ),
+        )
+        .toBe(true);
+      await expect(
+        page.getByTestId("issue-child-assignee-REEF-102"),
+      ).toBeVisible();
+      await expect(
+        page.getByTestId("issue-child-assignee-REEF-112"),
+      ).toBeVisible();
+    }
+
+    await assignedLink.click();
+    await page.waitForURL(new RegExp(`/issues/${MID}`), { timeout: 10_000 });
+    const assignee = page.getByTestId("assignee-combobox");
+    await assignee.locator("button").first().click();
+    await expect(
+      assignee.getByRole("option", { name: "Bob Example" }),
+    ).toBeVisible();
+    await assignee.getByRole("option", { name: "Bob Example" }).click();
+
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        const vault = state.vaults.find(
+          (candidate) => candidate.name === "reef-e2e",
+        );
+        return vault?.issues.find((issue) => issue.id === MID)?.assigned_to;
+      })
+      .toBe("bob");
+
+    await page.locator(drillBack).click();
+    await page.waitForURL(new RegExp(`/issues/${ROOT}`), { timeout: 10_000 });
+    await expect(
+      page.getByTestId("issue-child-assignee-REEF-102"),
+    ).toContainText("Bob Example");
+    await expect(
+      page.getByTestId("issue-child-assignee-REEF-112"),
+    ).toContainText("Unassigned");
+  });
+
+  test("keeps assigned and unassigned assignee slots aligned at desktop and 390px", async ({
+    page,
+  }) => {
+    await openRootFromList(page);
+
+    const assignedSlot = page.getByTestId("issue-child-assignee-REEF-102");
+    const unassignedSlot = page.getByTestId("issue-child-assignee-REEF-112");
+    const assignedLink = page.locator(
+      '[data-testid="issue-children"] a[data-issue-id="REEF-102"]',
+    );
+    const unassignedLink = page.locator(
+      '[data-testid="issue-children"] a[data-issue-id="REEF-112"]',
+    );
+
+    for (const viewport of [
+      { width: 1280, height: 900 },
+      { width: 390, height: 844 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await expect(assignedSlot).toBeVisible();
+      await expect(unassignedSlot).toBeVisible();
+
+      const [assignedBox, unassignedBox, assignedTitleBox, unassignedTitleBox] =
+        await Promise.all([
+          assignedSlot.boundingBox(),
+          unassignedSlot.boundingBox(),
+          assignedLink.boundingBox(),
+          unassignedLink.boundingBox(),
+        ]);
+      expect(assignedBox).not.toBeNull();
+      expect(unassignedBox).not.toBeNull();
+      expect(assignedTitleBox).not.toBeNull();
+      expect(unassignedTitleBox).not.toBeNull();
+
+      expect(
+        Math.abs((assignedBox?.x ?? 0) - (unassignedBox?.x ?? 0)),
+      ).toBeLessThanOrEqual(2);
+      expect(
+        Math.abs((assignedBox?.width ?? 0) - (unassignedBox?.width ?? 0)),
+      ).toBeLessThanOrEqual(2);
+
+      for (const [titleBox, assigneeBox] of [
+        [assignedTitleBox, assignedBox],
+        [unassignedTitleBox, unassignedBox],
+      ] as const) {
+        const overlaps =
+          (titleBox?.x ?? 0) <
+            (assigneeBox?.x ?? 0) + (assigneeBox?.width ?? 0) &&
+          (assigneeBox?.x ?? 0) < (titleBox?.x ?? 0) + (titleBox?.width ?? 0) &&
+          Math.abs((titleBox?.y ?? 0) - (assigneeBox?.y ?? 0)) <
+            Math.max(titleBox?.height ?? 0, assigneeBox?.height ?? 0);
+        expect(overlaps).toBe(false);
+      }
+
+      const rows = page.locator('[data-testid="issue-children"] li');
+      for (let index = 0; index < (await rows.count()); index += 1) {
+        const overflow = await rows
+          .nth(index)
+          .evaluate((element) => element.scrollWidth > element.clientWidth);
+        expect(overflow).toBe(false);
+      }
+    }
+
+    await expect(assignedLink).toHaveClass(/focus-visible:ring-2/);
+    await expect(assignedSlot).toHaveClass(/focus-visible:ring-2/);
+  });
+
+  test("switches from assignee hover to the focused title tooltip", async ({
+    page,
+  }) => {
+    await openRootFromList(page);
+
+    const assignedLink = page.locator(
+      '[data-testid="issue-children"] a[data-issue-id="REEF-102"]',
+    );
+    const assignee = page.getByTestId("issue-child-assignee-REEF-102");
+    const fullLongTitle =
+      "Polish onboarding for existing AKB workspaces across migration, access, and workspace setup flows with inherited settings and preserved planning context";
+
+    await assignee.hover();
+    await expect(page.getByRole("tooltip")).toHaveText("Alice Example");
+
+    // Focus the hovered assignee and reverse-tab into the preceding title link
+    // in the same row. This is a real keyboard transition while the pointer
+    // remains over the assignee; the two tooltip states must be exclusive.
+    await assignee.press("Shift+Tab");
+    await expect(assignedLink).toBeFocused();
+    await expect(page.getByRole("tooltip")).toHaveCount(1);
+    await expect(page.getByRole("tooltip")).toHaveText(fullLongTitle);
   });
 
   test("Close exits the whole trail to the list in one action (AC2)", async ({

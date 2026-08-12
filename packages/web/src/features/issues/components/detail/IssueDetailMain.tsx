@@ -165,6 +165,7 @@ export function IssueDetailMain({
       <IssueChildren
         issueId={issueId}
         allIssues={allIssues}
+        members={vaultMembers}
         relationGraph={relations}
         action={addSubIssueAction}
       />

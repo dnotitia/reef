@@ -1011,6 +1011,8 @@
       "subIssues": "Sub-issues",
       "addSubIssue": "Add sub-issue",
       "noSubIssues": "No sub-issues yet.",
+      "unassigned": "Unassigned",
+      "assigneeLabel": "Assignee: {name}",
       "progressLabel": "{done} of {total} sub-issues done",
       "progressCount": "{done} of {total} done",
       "idPlaceholder": "REEF-001 or title…",

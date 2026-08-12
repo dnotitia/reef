@@ -564,7 +564,10 @@ activity timeline merges comments, status changes, and reconstructed events into
 one chronological thread. Relationship dropdowns, navigable relation rows, and
 sub-issue rows use the same compact issue-row rhythm as the rest of the detail
 panel; their issue-type mark is glyph-only in the visual row, with the localized
-type name kept for screen readers.
+type name kept for screen readers. Sub-issue rows also show a read-only assignee
+avatar and display name (or a localized unassigned label), with long names
+truncated inside the row and available through their own tooltip and accessible
+name.
 
 The chrome also carries an actor-scoped notification control. Its trigger names
 and shows the effective **Watch / Watching / Muted** state, while the menu
