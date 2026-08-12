@@ -223,6 +223,170 @@ test.describe("Hermetic issue keyboard navigation", () => {
     );
   });
 
+  test("keeps the selected List row reachable at an effective 200% viewport", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 640, height: 360 });
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+
+    const rows = await expectIssueListKeyboardReady(page);
+    const selectedRow = rows.filter({ hasText: "Initial issue Alpha" });
+    await expect(selectedRow).toBeVisible();
+    await selectedRow.getByTestId("issue-row-checkbox").click();
+    await expect(selectedRow).toHaveAttribute("aria-selected", "true");
+
+    const geometry = await selectedRow.evaluate((row) => {
+      const rowRect = row.getBoundingClientRect();
+      const scroll = row.closest<HTMLElement>(
+        '[data-testid="issue-list-scroll-container"]',
+      );
+      const scrollRect = scroll?.getBoundingClientRect();
+      const checkbox = row.querySelector<HTMLElement>(
+        '[data-testid="issue-row-checkbox"]',
+      );
+      const checkboxRect = checkbox?.getBoundingClientRect();
+      return {
+        rowTop: rowRect.top,
+        rowBottom: rowRect.bottom,
+        scrollTop: scrollRect?.top ?? 0,
+        scrollBottom: scrollRect?.bottom ?? 0,
+        checkboxTop: checkboxRect?.top ?? 0,
+        checkboxBottom: checkboxRect?.bottom ?? 0,
+        scrollHeight: scroll?.scrollHeight ?? 0,
+        clientHeight: scroll?.clientHeight ?? 0,
+      };
+    });
+
+    expect(geometry.clientHeight).toBeGreaterThan(0);
+    expect(geometry.rowTop).toBeGreaterThanOrEqual(geometry.scrollTop);
+    expect(geometry.rowBottom).toBeLessThanOrEqual(geometry.scrollBottom);
+    expect(geometry.checkboxTop).toBeGreaterThanOrEqual(geometry.scrollTop);
+    expect(geometry.checkboxBottom).toBeLessThanOrEqual(geometry.scrollBottom);
+
+    await page.locator("main").evaluate((element) => {
+      const main = element as HTMLElement;
+      main.scrollTop = main.scrollHeight;
+    });
+    await page.waitForTimeout(50);
+    const viewportGeometry = await selectedRow.evaluate((row) => {
+      const rect = row.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom };
+    });
+    expect(viewportGeometry.top).toBeGreaterThanOrEqual(0);
+    expect(viewportGeometry.bottom).toBeLessThanOrEqual(360);
+
+    await selectedRow.click({ button: "right" });
+    await expect(page.getByRole("menu")).toBeVisible();
+    await expect(selectedRow).toHaveAttribute("data-context-open", "true");
+  });
+
+  test("keeps an unselected context target and menu usable at an effective 200% viewport", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 640, height: 360 });
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+
+    const rows = await expectIssueListKeyboardReady(page);
+    const selectedRow = rows.filter({ hasText: "Initial issue Alpha" });
+    const targetRow = rows.filter({ hasText: "Initial issue Beta" });
+    await selectedRow.getByTestId("issue-row-checkbox").click();
+    await expect(selectedRow).toHaveAttribute("aria-selected", "true");
+
+    await page.locator("main").evaluate((element) => {
+      const main = element as HTMLElement;
+      main.scrollTop = main.scrollHeight;
+    });
+    await page.waitForTimeout(50);
+    const targetGeometry = await targetRow.evaluate((row) => {
+      const rect = row.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom };
+    });
+    expect(targetGeometry.top).toBeGreaterThanOrEqual(0);
+    expect(targetGeometry.bottom).toBeLessThanOrEqual(360);
+
+    await targetRow.click({ button: "right" });
+    const menu = page.getByRole("menu");
+    await expect(menu).toBeVisible();
+    await expect(targetRow).toHaveAttribute("data-context-open", "true");
+    await expect(targetRow).not.toHaveAttribute("aria-selected");
+    await expect(
+      page.locator('[data-testid="issue-list-row"][aria-selected="true"]'),
+    ).toHaveCount(1);
+
+    const menuGeometry = await menu.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom };
+    });
+    expect(menuGeometry.top).toBeGreaterThanOrEqual(0);
+    expect(menuGeometry.bottom).toBeLessThanOrEqual(360);
+    await expect(menu.getByRole("menuitem").first()).toBeVisible();
+  });
+
+  test("keeps List text separated after horizontal scrolling at an effective 200% viewport", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 640, height: 360 });
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+
+    const rows = await expectIssueListKeyboardReady(page);
+    const row = rows.filter({ hasText: "Initial issue Alpha" });
+    const scroll = page.getByTestId("issue-list-scroll-container");
+    await expect(row).toBeVisible();
+    await expect
+      .poll(async () =>
+        scroll.evaluate((element) => element.scrollWidth > element.clientWidth),
+      )
+      .toBe(true);
+
+    const textRects = async () =>
+      row.evaluate((element) => {
+        const root = element.closest<HTMLElement>(
+          '[data-testid="issue-list-scroll-container"]',
+        );
+        if (!root) throw new Error("missing List scroll container");
+        const rootRect = root.getBoundingClientRect();
+        const rangeRect = (column: string) => {
+          const cell = element.querySelector<HTMLElement>(
+            `td[data-column-key="${column}"]`,
+          );
+          if (!cell) throw new Error(`missing ${column} cell`);
+          const range = document.createRange();
+          range.selectNodeContents(cell);
+          const rect = range.getBoundingClientRect();
+          const cellRect = cell.getBoundingClientRect();
+          return {
+            left: Math.max(rect.left, cellRect.left, rootRect.left),
+            right: Math.min(rect.right, cellRect.right, rootRect.right),
+          };
+        };
+        return {
+          title: rangeRect("title"),
+          status: rangeRect("status"),
+          priority: rangeRect("priority"),
+        };
+      });
+
+    await scroll.evaluate((element) => {
+      const root = element as HTMLElement;
+      root.scrollLeft = Math.min(600, root.scrollWidth);
+      root.dispatchEvent(new Event("scroll"));
+    });
+    await page.waitForTimeout(50);
+    const after = await textRects();
+    const separated = (
+      first: { left: number; right: number },
+      second: { left: number; right: number },
+    ) => first.right <= second.left || second.right <= first.left;
+    for (const range of Object.values(after)) {
+      expect(range.right).toBeGreaterThan(range.left);
+    }
+    expect(separated(after.title, after.status)).toBe(true);
+    expect(separated(after.status, after.priority)).toBe(true);
+  });
+
   test("moves Backlog focus with j, exposes semantic links, and opens the focused issue", async ({
     page,
   }) => {

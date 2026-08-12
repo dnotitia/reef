@@ -645,8 +645,11 @@ hr {
 /* The expanded desktop shell leaves 704px for the issue content at 992px.
  * Keep the fresh default List preset fully visible in that narrow desktop
  * content column; optional planning columns opt back into the table-local
- * horizontal scroll owned by the List surface. */
-@media (max-width: 1231px) {
+ * horizontal scroll owned by the List surface. At the mobile/zoom-width
+ * breakpoint the table keeps its intrinsic column widths instead: shrinking
+ * sticky columns below their readable width lets ordinary cells paint through
+ * the sticky title boundary while horizontally scrolling. */
+@media (min-width: 768px) and (max-width: 1231px) {
   .reef-issue-list-table:not(.reef-issue-list-table-expanded) {
     min-width: 0 !important;
   }

@@ -54,8 +54,16 @@ export function IssuesWorkspace() {
     clearSelectionForContextChange();
   }, [clearSelectionForContextChange, selectionContext]);
 
+  // List keeps a scrollable route to its table when the selection toolbar is
+  // taller than a short viewport; the other issue surfaces retain their fixed
+  // shell sizing.
+  const workspaceClassName =
+    view === "list"
+      ? "flex h-auto min-h-full flex-col"
+      : "flex h-full min-h-0 flex-col";
+
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className={workspaceClassName}>
       <PageHeader
         title={nav("issues")}
         description={vault || undefined}
