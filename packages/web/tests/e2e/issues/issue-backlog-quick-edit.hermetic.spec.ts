@@ -85,9 +85,9 @@ test.describe("Hermetic Backlog quick edit", () => {
       await closeQuickEditor(page, field);
     }
 
-    expect(row.getByTestId("issue-inline-edit-labels")).toHaveCount(0);
-    expect(row.getByTestId("issue-inline-edit-sprint")).toHaveCount(0);
-    expect(row.getByTestId("issue-inline-edit-release")).toHaveCount(0);
+    await expect(row.getByTestId("issue-inline-edit-labels")).toHaveCount(0);
+    await expect(row.getByTestId("issue-inline-edit-sprint")).toHaveCount(0);
+    await expect(row.getByTestId("issue-inline-edit-release")).toHaveCount(0);
   });
 
   test("keeps the Backlog keyboard scope to triage fields and omits Labels", async ({
