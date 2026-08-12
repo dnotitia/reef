@@ -111,7 +111,11 @@ test.describe("Hermetic Backlog quick edit", () => {
       ["a", "assignee"],
     ] as const) {
       await page.keyboard.press(key);
-      await expect(page.getByTestId(`issue-quick-edit-${field}`)).toBeVisible();
+      const editor =
+        field === "assignee"
+          ? page.getByTestId("assignee-combobox")
+          : page.getByTestId(`issue-quick-edit-${field}`);
+      await expect(editor).toBeVisible();
       await closeQuickEditor(page, field);
     }
 
