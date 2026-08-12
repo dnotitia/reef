@@ -1,6 +1,5 @@
 "use client";
 
-import { EnumSelectField } from "@/components/fields/EnumSelectField";
 import { personToneFor } from "@/components/fields/PersonAvatar";
 import { PersonChip } from "@/components/fields/PersonChip";
 import { TypePill } from "@/components/fields/TypePill";
@@ -8,6 +7,8 @@ import { PriorityBadge } from "@/components/ui/priority-dot";
 import { StatusBadge } from "@/components/ui/status-icon";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
+import { IssueInlineEditTrigger } from "@/features/issues/components/quick-edit/IssueInlineEditTrigger";
+import { IssueQuickEditAnchor } from "@/features/issues/components/quick-edit/IssueQuickEditAnchor";
 import { IssueSelectionCheckbox } from "@/features/issues/components/shared/IssueSelectionCheckbox";
 import {
   ISSUE_TABLE_COLUMN_WIDTHS,
@@ -16,26 +17,22 @@ import {
 import { formatRelativeTime } from "@/features/issues/lib/formatRelativeTime";
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
 import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
+import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { IssueListItem, Status } from "@reef/core";
-import { STATUS_OPTIONS } from "@reef/core/fields";
+import type { IssueListItem } from "@reef/core";
 import { GripVertical } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import { type MouseEvent, memo, useCallback, useEffect, useRef } from "react";
 
-// Hoisted so it is not re-created per render (the status picker renders one per
-// option, per row).
-const renderStatusOption = (s: Status) => <StatusBadge status={s} />;
-
 interface BacklogRowProps {
   issue: IssueListItem;
+  vault: string;
   href: string;
   logicalIds: readonly string[];
   onOpen: (id: string) => void;
-  onStatusChange: (issue: IssueListItem, nextStatus: Status) => void;
   /**
    * Rank-order mode (REEF-129): the row is drag-reorderable by its grip
    * handle. When false (a user sort is active) the grip is inert and the row is
@@ -44,6 +41,8 @@ interface BacklogRowProps {
   sortable?: boolean;
   reorderHint: string;
 }
+
+const BACKLOG_QUICK_EDIT_FIELDS = ["status", "priority", "assignee"] as const;
 
 function backlogCellClass(column: IssueTableColumnKey) {
   return cn(
@@ -63,16 +62,16 @@ function backlogCellStyle(column: IssueTableColumnKey) {
 /**
  * Slim triage row for the backlog view: Rank · ID · Type · Title · Status ·
  * Priority · Assignee · Updated. In rank-order mode the leading grip is a
- * drag handle; the Status cell is an inline picker so a backlog issue can be
- * promoted to Todo in place (REEF-109). Clicking the row opens the issue; the
- * grip and the status picker stop propagation so neither navigates.
+ * drag handle; the triage fields use the shared inline quick-edit triggers.
+ * Clicking the row opens the issue; the grip and field triggers stop
+ * propagation so neither navigates.
  */
 export const BacklogRow = memo(function BacklogRow({
   issue,
+  vault,
   href,
   logicalIds,
   onOpen,
-  onStatusChange,
   sortable = false,
   reorderHint,
 }: BacklogRowProps) {
@@ -88,6 +87,7 @@ export const BacklogRow = memo(function BacklogRow({
   const locale = useLocale();
   const t = useTranslations("issues.backlog");
   const bulk = useTranslations("issues.bulk");
+  const fieldNames = useFieldNameLabels();
   const focused = useIssueKeyboardStore(
     (state) => state.focusedIssueId.backlog === issue.id,
   );
@@ -101,6 +101,24 @@ export const BacklogRow = memo(function BacklogRow({
   );
   const selectionRunning = useIssueSelectionStore((state) => state.running);
   const rowRef = useRef<HTMLTableRowElement | null>(null);
+  const statusTriggerRef = useRef<HTMLButtonElement>(null);
+  const priorityTriggerRef = useRef<HTMLButtonElement>(null);
+  const assigneeTriggerRef = useRef<HTMLButtonElement>(null);
+  const getQuickEditAnchor = useCallback(
+    (field: "status" | "priority" | "assignee" | "labels") => {
+      switch (field) {
+        case "status":
+          return statusTriggerRef.current;
+        case "priority":
+          return priorityTriggerRef.current;
+        case "assignee":
+          return assigneeTriggerRef.current;
+        default:
+          return null;
+      }
+    },
+    [],
+  );
   const setRowRef = useCallback(
     (node: HTMLTableRowElement | null) => {
       rowRef.current = node;
@@ -216,6 +234,13 @@ export const BacklogRow = memo(function BacklogRow({
         >
           {issue.id}
         </Link>
+        <IssueQuickEditAnchor
+          scope="backlog"
+          issue={issue}
+          vault={vault}
+          allowedFields={BACKLOG_QUICK_EDIT_FIELDS}
+          getAnchorElement={getQuickEditAnchor}
+        />
       </TableCell>
 
       {/* Type */}
@@ -242,25 +267,22 @@ export const BacklogRow = memo(function BacklogRow({
         </Link>
       </TableCell>
 
-      {/* Status — inline picker. The click guard just stops the parent row's
-          navigation; the Select inside owns its own keyboard handling. */}
+      {/* Status — the shared quick-edit trigger stops row navigation. */}
       <TableCell
         className={backlogCellClass("status")}
         style={backlogCellStyle("status")}
         data-column-key="status"
-        onClick={(e) => e.stopPropagation()}
       >
-        <div className="w-full max-w-full">
-          <EnumSelectField
-            value={issue.status}
-            onValueChange={(val) => onStatusChange(issue, val as Status)}
-            options={STATUS_OPTIONS}
-            renderItem={renderStatusOption}
-            testId={`backlog-status-select-${issue.id}`}
-            ariaLabel={t("statusChange", { id: issue.id })}
-            triggerClassName="h-8"
-          />
-        </div>
+        <IssueInlineEditTrigger
+          scope="backlog"
+          field="status"
+          issueId={issue.id}
+          occurrenceKey={issue.id}
+          label={fieldNames.status}
+          anchorRef={statusTriggerRef}
+        >
+          <StatusBadge status={issue.status} />
+        </IssueInlineEditTrigger>
       </TableCell>
 
       {/* Priority */}
@@ -269,11 +291,20 @@ export const BacklogRow = memo(function BacklogRow({
         style={backlogCellStyle("priority")}
         data-column-key="priority"
       >
-        {issue.priority ? (
-          <PriorityBadge priority={issue.priority} />
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        )}
+        <IssueInlineEditTrigger
+          scope="backlog"
+          field="priority"
+          issueId={issue.id}
+          occurrenceKey={issue.id}
+          label={fieldNames.priority}
+          anchorRef={priorityTriggerRef}
+        >
+          {issue.priority ? (
+            <PriorityBadge priority={issue.priority} />
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
+        </IssueInlineEditTrigger>
       </TableCell>
 
       {/* Assignee */}
@@ -282,15 +313,24 @@ export const BacklogRow = memo(function BacklogRow({
         style={backlogCellStyle("assignee")}
         data-column-key="assignee"
       >
-        {issue.assigned_to ? (
-          <PersonChip
-            identityKey={issue.assigned_to}
-            size="sm"
-            tone={personToneFor(issue.assigned_to, currentLogin)}
-          />
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        )}
+        <IssueInlineEditTrigger
+          scope="backlog"
+          field="assignee"
+          issueId={issue.id}
+          occurrenceKey={issue.id}
+          label={fieldNames.assignee}
+          anchorRef={assigneeTriggerRef}
+        >
+          {issue.assigned_to ? (
+            <PersonChip
+              identityKey={issue.assigned_to}
+              size="sm"
+              tone={personToneFor(issue.assigned_to, currentLogin)}
+            />
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
+        </IssueInlineEditTrigger>
       </TableCell>
 
       {/* Updated */}

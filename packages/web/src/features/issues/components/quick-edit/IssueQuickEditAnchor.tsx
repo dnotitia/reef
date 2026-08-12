@@ -51,6 +51,8 @@ interface IssueQuickEditAnchorProps {
   vault: string;
   occurrenceKey?: string;
   className?: string;
+  /** Limit the fields exposed by a surface (Backlog intentionally omits labels). */
+  allowedFields?: readonly IssueQuickEditField[];
   /** Resolve a List field to the actual focusable trigger that opened it. */
   getAnchorElement?: (field: IssueQuickEditField) => HTMLElement | null;
 }
@@ -70,6 +72,7 @@ export function IssueQuickEditAnchor({
   vault,
   occurrenceKey,
   className,
+  allowedFields,
   getAnchorElement,
 }: IssueQuickEditAnchorProps) {
   const request = useIssueKeyboardStore((state) => state.quickEditRequest);
@@ -86,13 +89,18 @@ export function IssueQuickEditAnchor({
     top: number;
   } | null>(null);
   const anchorOriginRef = useRef<HTMLSpanElement>(null);
+  const viewportSizeRef = useRef<{ width: number; height: number } | null>(
+    null,
+  );
   const suppressResizeCloseRef = useRef(false);
+  const clearResizeSuppressionRef = useRef<number | null>(null);
 
   const resolvedOccurrenceKey = occurrenceKey ?? issue.id;
   const field =
     request?.scope === scope &&
     request.issueId === issue.id &&
-    (request.occurrenceKey ?? request.issueId) === resolvedOccurrenceKey
+    (request.occurrenceKey ?? request.issueId) === resolvedOccurrenceKey &&
+    (allowedFields === undefined || allowedFields.includes(request.field))
       ? request.field
       : null;
 
@@ -114,15 +122,36 @@ export function IssueQuickEditAnchor({
     });
   }, [field, getAnchorElement]);
 
+  const noteViewportResize = useCallback((force = false) => {
+    if (typeof window === "undefined") return false;
+    const nextSize = { width: window.innerWidth, height: window.innerHeight };
+    const previousSize = viewportSizeRef.current;
+    viewportSizeRef.current = nextSize;
+    const changed =
+      previousSize !== null &&
+      (previousSize.width !== nextSize.width ||
+        previousSize.height !== nextSize.height);
+    if (!changed && !force) return false;
+
+    suppressResizeCloseRef.current = true;
+    if (clearResizeSuppressionRef.current !== null) {
+      window.clearTimeout(clearResizeSuppressionRef.current);
+    }
+    clearResizeSuppressionRef.current = window.setTimeout(() => {
+      suppressResizeCloseRef.current = false;
+      clearResizeSuppressionRef.current = null;
+    }, 100);
+    return true;
+  }, []);
+
   const handleResize = useCallback(() => {
     // Radix Select closes its controlled content on resize. The quick editor
-    // must remain open so its portal can follow the active List trigger.
-    suppressResizeCloseRef.current = true;
-    queueMicrotask(() => {
-      suppressResizeCloseRef.current = false;
-    });
+    // must remain open so its portal can follow the active trigger. The close
+    // callback can run before or after this listener, so track the viewport
+    // size as well as the event ordering rather than relying on one microtask.
+    noteViewportResize(true);
     updateAnchorPosition();
-  }, [updateAnchorPosition]);
+  }, [noteViewportResize, updateAnchorPosition]);
 
   useLayoutEffect(() => {
     if (field === null) {
@@ -130,12 +159,23 @@ export function IssueQuickEditAnchor({
       return;
     }
 
+    if (typeof window !== "undefined") {
+      viewportSizeRef.current = {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      };
+    }
     updateAnchorPosition();
     window.addEventListener("resize", handleResize, true);
     window.addEventListener("scroll", updateAnchorPosition, true);
     return () => {
       window.removeEventListener("resize", handleResize, true);
       window.removeEventListener("scroll", updateAnchorPosition, true);
+      if (clearResizeSuppressionRef.current !== null) {
+        window.clearTimeout(clearResizeSuppressionRef.current);
+        clearResizeSuppressionRef.current = null;
+      }
+      suppressResizeCloseRef.current = false;
     };
   }, [field, handleResize, updateAnchorPosition]);
 
@@ -160,7 +200,13 @@ export function IssueQuickEditAnchor({
   }
 
   function closeOpenField(open: boolean) {
-    if (!open && !suppressResizeCloseRef.current) closeQuickEdit();
+    if (!open) {
+      if (noteViewportResize() || suppressResizeCloseRef.current) {
+        suppressResizeCloseRef.current = false;
+        return;
+      }
+      closeQuickEdit();
+    }
   }
 
   function commitStatus(next: Status) {
