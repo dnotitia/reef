@@ -90,6 +90,31 @@ test.describe("Hermetic Backlog quick edit", () => {
     await expect(row.getByTestId("issue-inline-edit-release")).toHaveCount(0);
   });
 
+  test("keeps the Priority editor open and attached after a viewport resize", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.setViewportSize({ width: 1024, height: 700 });
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=backlog`);
+
+    const row = page.getByTestId("backlog-row").first();
+    await expect(row).toBeVisible();
+    await row.getByTestId("issue-inline-edit-priority").click();
+
+    const anchor = page.getByTestId("issue-quick-edit-anchor");
+    await expect(anchor).toBeVisible();
+    await expect(page.getByTestId("issue-quick-edit-priority")).toBeVisible();
+    await expect(page.getByRole("listbox")).toBeVisible();
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+
+    await expect(anchor).toBeVisible();
+    await expect(page.getByTestId("issue-quick-edit-priority")).toBeVisible();
+    await expect(page.getByRole("listbox")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(anchor).toHaveCount(0);
+  });
+
   test("keeps the Backlog keyboard scope to triage fields and omits Labels", async ({
     page,
   }) => {
