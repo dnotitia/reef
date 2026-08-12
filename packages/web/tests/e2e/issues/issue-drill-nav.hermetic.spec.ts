@@ -120,6 +120,20 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
 
       await longLink.focus();
       await expect(tooltip).toBeVisible();
+
+      const listBox = await page
+        .locator('[data-testid="issue-children"] ul')
+        .boundingBox();
+      const focusedLinkBox = await longLink.boundingBox();
+      if (!listBox || !focusedLinkBox) {
+        throw new Error(
+          "Expected the child list and focused link to have bounds",
+        );
+      }
+      expect(focusedLinkBox.x).toBeGreaterThanOrEqual(listBox.x + 2);
+      expect(focusedLinkBox.x + focusedLinkBox.width).toBeLessThanOrEqual(
+        listBox.x + listBox.width - 2,
+      );
       await page.keyboard.press("Escape");
       await expect(tooltip).toHaveCount(0);
 
