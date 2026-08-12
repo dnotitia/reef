@@ -152,7 +152,7 @@ describe("IssueChildren", () => {
     const doneLink = screen
       .getAllByRole("link")
       .find((a) => a.getAttribute("data-issue-id") === "REEF-102");
-    expect(doneLink?.className).toContain("opacity-60");
+    expect(doneLink?.parentElement?.className).toContain("opacity-60");
   });
 
   it("links each child to its detail route", () => {

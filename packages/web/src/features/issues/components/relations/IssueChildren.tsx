@@ -124,29 +124,21 @@ function IssueChildRow({
   const assigneeName =
     member?.display_name?.trim() || assignedTo || t("unassigned");
 
-  const link = (
-    <Link
-      {...getDrillProps(child.id)}
-      data-issue-id={child.id}
-      aria-label={isTitleOverflowing ? `${child.id} ${child.title}` : undefined}
-      aria-describedby={isTitleOverflowing ? titleDescriptionId : undefined}
-      onFocus={(event) => {
-        if (isAssigneeTarget(event.target)) return;
-        setActiveTooltip(isTitleOverflowing ? "title" : null);
-      }}
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-          setActiveTooltip(null);
-        }
-      }}
-      onMouseEnter={(event) => {
+  return (
+    <div
+      className={cn(
+        // The row owns layout and hover state while its title link and
+        // read-only assignee button remain separate interactive elements.
+        "flex min-w-0 flex-1 touch-manipulation items-center gap-2 rounded-md px-1.5 py-1 transition-colors duration-150 @max-[40rem]:flex-wrap",
+        "hover:bg-surface-hover focus-within:outline-none focus-within:ring-2 focus-within:ring-brand/40",
+        resolved && "opacity-60 hover:opacity-100",
+      )}
+      onPointerMoveCapture={(event) => {
+        // Pointer movement is the hover signal. A remounted row under a
+        // stationary pointer emits no movement, so a drill-back cannot reopen
+        // a tooltip that would consume the sheet's next Escape.
         if (
-          // A drill-back restores focus to the sheet resize handle while the
-          // stationary pointer can still be over this remounted row. Do not
-          // reopen a pointer-only tooltip that would consume the next Escape.
-          !document.activeElement?.matches(
-            '[data-testid="issue-detail-resize-handle"]',
-          ) &&
+          !event.defaultPrevented &&
           !isAssigneeTarget(event.target) &&
           isTitleOverflowing
         ) {
@@ -154,43 +146,55 @@ function IssueChildRow({
         }
       }}
       onPointerLeave={() => setActiveTooltip(null)}
-      className={cn(
-        // `min-w-0 flex-1` lets the IssueOptionRow grid inside truncate
-        // instead of overflowing the column (REEF-285), matching the
-        // navigable relation row's Link.
-        "flex min-w-0 flex-1 touch-manipulation items-center gap-2 rounded-md px-1.5 py-1 transition-colors duration-150 @max-[40rem]:flex-wrap",
-        "hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
-        resolved && "opacity-60 hover:opacity-100",
-      )}
     >
-      <Tooltip
-        open={isTitleOverflowing && activeTooltip === "title"}
-        onOpenChange={(open) => {
-          setActiveTooltip((current) => {
-            if (open) return "title";
-            return current === "title" ? null : current;
-          });
+      <Link
+        {...getDrillProps(child.id)}
+        data-issue-id={child.id}
+        aria-label={
+          isTitleOverflowing ? `${child.id} ${child.title}` : undefined
+        }
+        aria-describedby={isTitleOverflowing ? titleDescriptionId : undefined}
+        onFocus={() => {
+          setActiveTooltip(isTitleOverflowing ? "title" : null);
         }}
+        onBlur={(event) => {
+          if (
+            !event.currentTarget.contains(event.relatedTarget as Node | null)
+          ) {
+            setActiveTooltip(null);
+          }
+        }}
+        className="flex min-w-0 flex-1 touch-manipulation items-center gap-2 rounded-md px-1.5 py-1 transition-colors duration-150 @max-[40rem]:basis-full @max-[40rem]:flex-wrap focus-visible:outline-none"
       >
-        {/* The row owns hover state so Radix cannot reopen this title trigger
+        <Tooltip
+          open={isTitleOverflowing && activeTooltip === "title"}
+          onOpenChange={(open) => {
+            setActiveTooltip((current) => {
+              if (open) return "title";
+              return current === "title" ? null : current;
+            });
+          }}
+        >
+          {/* The row owns hover state so Radix cannot reopen this title trigger
             from a stationary pointer during an assignee → title focus move. */}
-        <TooltipTrigger asChild>
-          <span
-            className="flex min-w-0 flex-1 @max-[40rem]:basis-full"
-            onPointerMove={(event) => event.preventDefault()}
-          >
-            <IssueOptionRow
-              issue={child}
-              blockerCount={blockerCount}
-              titleRef={titleRef}
-            />
-          </span>
-        </TooltipTrigger>
-        <TooltipContent>{child.title}</TooltipContent>
-      </Tooltip>
-      <span id={titleDescriptionId} className="sr-only">
-        {isTitleOverflowing ? child.title : null}
-      </span>
+          <TooltipTrigger asChild>
+            <span
+              className="flex min-w-0 flex-1 @max-[40rem]:basis-full"
+              onPointerMove={(event) => event.preventDefault()}
+            >
+              <IssueOptionRow
+                issue={child}
+                blockerCount={blockerCount}
+                titleRef={titleRef}
+              />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>{child.title}</TooltipContent>
+        </Tooltip>
+        <span id={titleDescriptionId} className="sr-only">
+          {isTitleOverflowing ? child.title : null}
+        </span>
+      </Link>
       <Tooltip
         open={activeTooltip === "assignee"}
         onOpenChange={(open) => {
@@ -201,15 +205,15 @@ function IssueChildRow({
         }}
       >
         <TooltipTrigger asChild>
-          <span
-            role="button"
-            tabIndex={0}
+          <button
+            type="button"
             data-testid={`issue-child-assignee-${child.id}`}
             data-issue-option-slot="assignee"
             aria-label={t("assigneeLabel", { name: assigneeName })}
             title={assigneeName}
             onPointerEnter={() => setActiveTooltip("assignee")}
-            className="flex min-w-0 max-w-[8rem] shrink items-center @max-[40rem]:ml-auto"
+            onFocus={() => setActiveTooltip("assignee")}
+            className="flex min-w-0 max-w-[8rem] shrink items-center rounded-md border-0 bg-transparent p-0 @max-[40rem]:ml-auto focus-visible:outline-none"
           >
             <PersonChip
               identityKey={assignedTo}
@@ -218,14 +222,12 @@ function IssueChildRow({
               size="sm"
               wrapperClassName="w-full min-w-0"
             />
-          </span>
+          </button>
         </TooltipTrigger>
         <TooltipContent>{assigneeName}</TooltipContent>
       </Tooltip>
-    </Link>
+    </div>
   );
-
-  return link;
 }
 
 interface IssueChildrenProps {

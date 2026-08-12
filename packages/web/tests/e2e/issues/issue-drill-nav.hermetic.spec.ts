@@ -155,9 +155,13 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
     const unassignedLink = page.locator(
       '[data-testid="issue-children"] a[data-issue-id="REEF-112"]',
     );
-    await expect(assignedLink).toContainText("Alice Example");
-    await expect(unassignedLink).toContainText("Unassigned");
-    await assignedLink.getByTestId("issue-child-assignee-REEF-102").hover();
+    await expect(
+      page.getByTestId("issue-child-assignee-REEF-102"),
+    ).toContainText("Alice Example");
+    await expect(
+      page.getByTestId("issue-child-assignee-REEF-112"),
+    ).toContainText("Unassigned");
+    await page.getByTestId("issue-child-assignee-REEF-102").hover();
     await expect(page.getByRole("tooltip")).toHaveText("Alice Example");
 
     for (const viewport of [
@@ -173,10 +177,10 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
         )
         .toBe(true);
       await expect(
-        assignedLink.getByTestId("issue-child-assignee-REEF-102"),
+        page.getByTestId("issue-child-assignee-REEF-102"),
       ).toBeVisible();
       await expect(
-        unassignedLink.getByTestId("issue-child-assignee-REEF-112"),
+        page.getByTestId("issue-child-assignee-REEF-112"),
       ).toBeVisible();
     }
 
@@ -217,19 +221,17 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
     const assignedLink = page.locator(
       '[data-testid="issue-children"] a[data-issue-id="REEF-102"]',
     );
-    const assignee = assignedLink.getByTestId("issue-child-assignee-REEF-102");
+    const assignee = page.getByTestId("issue-child-assignee-REEF-102");
     const fullLongTitle =
       "Polish onboarding for existing AKB workspaces across migration, access, and workspace setup flows with inherited settings and preserved planning context";
 
     await assignee.hover();
     await expect(page.getByRole("tooltip")).toHaveText("Alice Example");
-    await assignee.focus();
-    await expect(assignee).toBeFocused();
-    await expect(page.getByRole("tooltip")).toHaveText("Alice Example");
 
-    // Keep the pointer over the assignee while keyboard focus moves to the
-    // same row's link. The two tooltip states must remain mutually exclusive.
-    await assignedLink.focus();
+    // Focus the hovered assignee and reverse-tab into the preceding title link
+    // in the same row. This is a real keyboard transition while the pointer
+    // remains over the assignee; the two tooltip states must be exclusive.
+    await assignee.press("Shift+Tab");
     await expect(assignedLink).toBeFocused();
     await expect(page.getByRole("tooltip")).toHaveCount(1);
     await expect(page.getByRole("tooltip")).toHaveText(fullLongTitle);
@@ -259,6 +261,7 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
     await page.waitForURL(new RegExp(`/issues/${ROOT}`), { timeout: 10_000 });
     await expect(page.locator(drillBack)).toHaveCount(0);
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+
     // No trail left → Esc closes to the list.
     await page.keyboard.press("Escape");
     await page.waitForURL(/\/issues\?view=list$/, { timeout: 10_000 });
