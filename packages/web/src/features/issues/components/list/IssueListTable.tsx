@@ -29,6 +29,7 @@ import { useInfiniteIssueList } from "@/features/issues/hooks/queries/useInfinit
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
 import { useResolvedAutoHideWindows } from "@/features/issues/hooks/useResolvedAutoHideWindows";
 import { useOpenIssue } from "@/features/issues/hooks/view/useOpenIssue";
+import { useVaultRoster } from "@/features/settings/hooks/useVaultRoster";
 import { buildIssueQuery } from "@/features/issues/lib/buildIssueQuery";
 import { applyDependencyFilter } from "@/features/issues/lib/dependencyUtils";
 import type { IssueGroupBy } from "@/features/issues/lib/groupBy";
@@ -266,6 +267,7 @@ export function IssueListTable({
   const { data: relations } = useIssueRelations(vault);
   const { data: planningCatalog } = usePlanningCatalog(vault);
   const { data: assignees } = useUserSearch("", vault);
+  const { data: vaultMembers } = useVaultRoster(vault);
 
   const allIssues = useMemo(() => flattenIssueListPages(data), [data]);
   const graph = relations ?? allIssues;
@@ -292,16 +294,15 @@ export function IssueListTable({
       ),
     [planningCatalog],
   );
-  const assigneeNames = useMemo(
-    () =>
-      Object.fromEntries(
-        (assignees ?? []).map((assignee) => [
-          assignee.login,
-          assignee.name?.trim() || assignee.login,
-        ]),
-      ),
-    [assignees],
-  );
+  const assigneeNames = useMemo(() => {
+    const names: Record<string, string> = {};
+    for (const member of vaultMembers ?? []) {
+      const username = member.username;
+      if (!username.trim()) continue;
+      names[username] = member.display_name?.trim() || username;
+    }
+    return names;
+  }, [vaultMembers]);
   const descriptor = useMemo(
     () =>
       createIssueGroupDescriptor(groupBy, {
@@ -675,6 +676,7 @@ export function IssueListTable({
                     allIssues={graph}
                     planningCatalog={planningCatalog}
                     assignees={assignees}
+                    assigneeNames={assigneeNames}
                     highlightQuery={searchQuery}
                     logicalIds={visibleIssueIds}
                     occurrenceKey={item.occurrenceKey}

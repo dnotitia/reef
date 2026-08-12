@@ -52,6 +52,8 @@ interface IssueListRowProps {
   highlightQuery?: string;
   planningCatalog?: PlanningCatalog;
   assignees?: readonly Collaborator[];
+  /** Current vault display names, indexed by stable assigned_to login. */
+  assigneeNames?: Readonly<Record<string, string>>;
   logicalIds?: readonly string[];
   occurrenceKey?: string;
   columns?: readonly IssueListColumnKey[];
@@ -101,6 +103,7 @@ export const IssueListRow = memo(function IssueListRow({
   highlightQuery: _highlightQuery,
   planningCatalog,
   assignees,
+  assigneeNames,
   logicalIds = [],
   occurrenceKey,
   columns = ISSUE_LIST_DEFAULT_COLUMNS,
@@ -360,6 +363,11 @@ export const IssueListRow = memo(function IssueListRow({
             {issue.assigned_to ? (
               <PersonChip
                 identityKey={issue.assigned_to}
+                name={
+                  issue.assigned_to
+                    ? assigneeNames?.[issue.assigned_to]
+                    : undefined
+                }
                 size="sm"
                 tone={personToneFor(issue.assigned_to, currentLogin)}
               />

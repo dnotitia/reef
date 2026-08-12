@@ -77,6 +77,7 @@ function renderRow(
   issue: IssueMetadata = mockIssue,
   allIssues: IssueMetadata[] = [mockIssue],
   onClick?: (id: string) => void,
+  assigneeNames?: Readonly<Record<string, string>>,
 ) {
   return render(
     <table>
@@ -85,6 +86,7 @@ function renderRow(
           issue={issue}
           vault="reef-test"
           allIssues={allIssues}
+          assigneeNames={assigneeNames}
           logicalIds={["REEF-001", "REEF-002", "REEF-003"]}
           onClick={onClick}
         />
@@ -137,10 +139,42 @@ describe("IssueListRow", () => {
     expect(priorityEl).toBeTruthy();
   });
 
-  it("renders assignee", () => {
-    renderRow();
-    const assigneeEl = screen.getAllByText("alice")[0];
-    expect(assigneeEl).toBeTruthy();
+  it("renders the current assignee display name instead of the login", () => {
+    renderRow(mockIssue, [mockIssue], undefined, { alice: "Alice Example" });
+
+    expect(screen.getAllByText("Alice Example")[0]).toBeTruthy();
+    expect(screen.queryByText("alice")).toBeNull();
+  });
+
+  it("falls back to an unknown assignee login", () => {
+    const issue = { ...mockIssue, assigned_to: "missing-user" };
+    renderRow(issue, [issue], undefined, { alice: "Alice Example" });
+
+    expect(screen.getAllByText("missing-user")[0]).toBeTruthy();
+  });
+
+  it("updates the displayed name when the roster index changes", () => {
+    const view = renderRow(mockIssue, [mockIssue], undefined, {
+      alice: "Old Name",
+    });
+    expect(screen.getByText("Old Name")).toBeInTheDocument();
+
+    view.rerender(
+      <table>
+        <tbody>
+          <IssueListRow
+            issue={mockIssue}
+            vault="reef-test"
+            allIssues={[mockIssue]}
+            assigneeNames={{ alice: "New Name" }}
+            logicalIds={["REEF-001", "REEF-002", "REEF-003"]}
+          />
+        </tbody>
+      </table>,
+    );
+
+    expect(screen.getByText("New Name")).toBeInTheDocument();
+    expect(screen.queryByText("Old Name")).toBeNull();
   });
 
   it("shows dash for missing assignee", () => {

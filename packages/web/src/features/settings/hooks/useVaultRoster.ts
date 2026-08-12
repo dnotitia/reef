@@ -40,6 +40,10 @@ export function useVaultRoster(vault: string) {
     },
     enabled: !!vault,
     staleTime: 5 * 60 * 1000,
+    // The browser may restore a fresh-looking snapshot after AKB changed a
+    // member's display name. Revalidate every mount so vault-scoped surfaces
+    // converge on the current roster without blocking their cached first paint.
+    refetchOnMount: "always",
     retry: false,
   });
 
