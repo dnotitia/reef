@@ -823,7 +823,6 @@ function RelationSelectedRow({
     Boolean(target),
   );
   const titleDescriptionId = useId();
-  const [focusWithin, setFocusWithin] = useState(false);
   const describedBy = target && isOverflowing ? titleDescriptionId : undefined;
 
   const targetContent = target ? (
@@ -869,41 +868,29 @@ function RelationSelectedRow({
 
   return (
     <li className="flex items-center gap-1">
-      <OverflowTooltip
-        value={target?.title ?? ""}
-        isOverflowing={Boolean(target && isOverflowing)}
-        active={focusWithin}
-        onDismiss={() => setFocusWithin(false)}
-      >
-        <div
-          className="flex min-w-0 flex-1 items-center gap-1"
-          onFocusCapture={() => setFocusWithin(true)}
-          onBlurCapture={(event) => {
-            if (
-              !event.currentTarget.contains(event.relatedTarget as Node | null)
-            ) {
-              setFocusWithin(false);
-            }
-          }}
+      <div className="flex min-w-0 flex-1 items-center gap-1">
+        <OverflowTooltip
+          value={target?.title ?? ""}
+          isOverflowing={Boolean(target && isOverflowing)}
         >
           {rowContent}
-          <button
-            type="button"
-            aria-label={t("removeRelation", { id: relationId })}
-            aria-describedby={describedBy}
-            disabled={disabled}
-            onClick={() => onRemove(relationId)}
-            className="shrink-0 touch-manipulation rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50"
-          >
-            <X className="h-3.5 w-3.5" aria-hidden="true" />
-          </button>
-          {describedBy ? (
-            <span id={describedBy} className="sr-only">
-              {target?.title}
-            </span>
-          ) : null}
-        </div>
-      </OverflowTooltip>
+        </OverflowTooltip>
+        <button
+          type="button"
+          aria-label={t("removeRelation", { id: relationId })}
+          aria-describedby={describedBy}
+          disabled={disabled}
+          onClick={() => onRemove(relationId)}
+          className="shrink-0 touch-manipulation rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50"
+        >
+          <X className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+        {describedBy ? (
+          <span id={describedBy} className="sr-only">
+            {target?.title}
+          </span>
+        ) : null}
+      </div>
     </li>
   );
 }

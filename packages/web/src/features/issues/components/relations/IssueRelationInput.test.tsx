@@ -507,6 +507,20 @@ describe("IssueRelationInput", () => {
     await waitFor(() =>
       expect(screen.queryByRole("tooltip")).not.toBeInTheDocument(),
     );
+
+    const removeButton = screen.getByRole("button", {
+      name: "Remove REEF-003",
+    });
+    await user.hover(removeButton);
+    await waitFor(() =>
+      expect(screen.queryByRole("tooltip")).not.toBeInTheDocument(),
+    );
+    await user.unhover(removeButton);
+    await user.tab();
+    expect(removeButton).toHaveFocus();
+    await waitFor(() =>
+      expect(screen.queryByRole("tooltip")).not.toBeInTheDocument(),
+    );
   });
 
   it("adds a candidate chosen from the dropdown", async () => {
