@@ -174,6 +174,43 @@ test.describe("Hermetic issue keyboard navigation", () => {
     }
   });
 
+  test("collision-places the narrow List Priority editor inside a 640px viewport", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+    await page.setViewportSize({ width: 640, height: 360 });
+
+    const rows = await expectIssueListKeyboardReady(page);
+    const row = rows.filter({ hasText: "Initial issue Alpha" });
+    await row.getByTestId("issue-inline-edit-priority").click();
+
+    const content = page.locator('[data-slot="select-content"]');
+    await expect(content).toBeVisible();
+    const geometry = await content.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const anchor = document.querySelector<HTMLElement>(
+        '[data-testid="issue-quick-edit-anchor"]',
+      );
+      const anchorRect = anchor?.getBoundingClientRect();
+      return {
+        left: rect.left,
+        right: rect.right,
+        width: rect.width,
+        anchorLeft: anchorRect?.left,
+        anchorRight: anchorRect?.right,
+      };
+    });
+
+    expect(geometry.width).toBe(192);
+    expect(geometry.left).toBeGreaterThanOrEqual(0);
+    expect(geometry.right).toBeLessThanOrEqual(640);
+    expect(geometry.anchorLeft).toBeGreaterThanOrEqual(0);
+    expect(geometry.anchorRight).toBeLessThanOrEqual(640);
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("issue-quick-edit-anchor")).toHaveCount(0);
+  });
+
   test("keeps List selection and row context chrome through pointer and keyboard menus", async ({
     page,
   }) => {

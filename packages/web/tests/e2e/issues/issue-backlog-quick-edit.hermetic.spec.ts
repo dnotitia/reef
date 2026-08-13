@@ -143,6 +143,45 @@ test.describe("Hermetic Backlog quick edit", () => {
     await expect(anchor).toHaveCount(0);
   });
 
+  test("collision-places the narrow Backlog Priority editor inside a 640px viewport", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=backlog`);
+    await page.setViewportSize({ width: 640, height: 360 });
+
+    const row = page.getByTestId("backlog-row").filter({
+      hasText: "REEF-003",
+    });
+    await expect(row).toBeVisible();
+    await row.getByTestId("issue-inline-edit-priority").click();
+
+    const content = page.locator('[data-slot="select-content"]');
+    await expect(content).toBeVisible();
+    const geometry = await content.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const anchor = document.querySelector<HTMLElement>(
+        '[data-testid="issue-quick-edit-anchor"]',
+      );
+      const anchorRect = anchor?.getBoundingClientRect();
+      return {
+        left: rect.left,
+        right: rect.right,
+        width: rect.width,
+        anchorLeft: anchorRect?.left,
+        anchorRight: anchorRect?.right,
+      };
+    });
+
+    expect(geometry.width).toBe(192);
+    expect(geometry.left).toBeGreaterThanOrEqual(0);
+    expect(geometry.right).toBeLessThanOrEqual(640);
+    expect(geometry.anchorLeft).toBeGreaterThanOrEqual(0);
+    expect(geometry.anchorRight).toBeLessThanOrEqual(640);
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("issue-quick-edit-anchor")).toHaveCount(0);
+  });
+
   test("keeps the Backlog keyboard scope to triage fields and omits Labels", async ({
     page,
   }) => {
