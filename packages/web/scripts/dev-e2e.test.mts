@@ -176,23 +176,41 @@ describe("dev:e2e runtime contract", () => {
     });
   });
 
-  function readinessPage({ newIssueClickWorks = true } = {}) {
-    const state = { newIssueOpen: false };
+  function readinessPage({
+    newIssueClickWorks = true,
+    issueDetailOpen = false,
+  } = {}) {
+    const state = { issueDetailOpen, newIssueOpen: false };
     const selectors: string[] = [];
     const locatorFor = (selector: string) => {
       const locator = {
         first: () => locator,
+        isVisible: async () =>
+          selector === CLIENT_READINESS_INTERACTIONS.issueDetail.observable
+            ? state.issueDetailOpen
+            : selector === CLIENT_READINESS_INTERACTIONS.newIssue.observable
+              ? state.newIssueOpen
+              : true,
         waitFor: async ({ state: expected }: { state: string }) => {
           const visible =
-            selector === CLIENT_READINESS_INTERACTIONS.newIssue.observable
-              ? state.newIssueOpen
-              : true;
+            selector === CLIENT_READINESS_INTERACTIONS.issueDetail.observable
+              ? state.issueDetailOpen
+              : selector === CLIENT_READINESS_INTERACTIONS.newIssue.observable
+                ? state.newIssueOpen
+                : true;
           if ((expected === "visible") !== visible) {
             throw new Error(`${selector} is not ${expected}`);
           }
         },
         click: async () => {
-          if (selector === CLIENT_READINESS_INTERACTIONS.newIssue.trigger) {
+          if (selector === CLIENT_READINESS_INTERACTIONS.issueDetail.close) {
+            state.issueDetailOpen = false;
+          } else if (
+            selector === CLIENT_READINESS_INTERACTIONS.newIssue.trigger
+          ) {
+            if (state.issueDetailOpen) {
+              throw new Error("issue detail intercepted New Issue trigger");
+            }
             if (newIssueClickWorks) state.newIssueOpen = true;
           } else if (
             selector === CLIENT_READINESS_INTERACTIONS.newIssue.close
@@ -215,12 +233,27 @@ describe("dev:e2e runtime contract", () => {
     };
   }
 
+  it("closes a direct issue detail before probing the workspace click", async () => {
+    const { page, selectors } = readinessPage({ issueDetailOpen: true });
+
+    await probeWorkspaceClickInteractions(page, 1_000);
+
+    expect(selectors).toEqual([
+      CLIENT_READINESS_INTERACTIONS.issueDetail.observable,
+      CLIENT_READINESS_INTERACTIONS.issueDetail.close,
+      CLIENT_READINESS_INTERACTIONS.newIssue.trigger,
+      CLIENT_READINESS_INTERACTIONS.newIssue.observable,
+      CLIENT_READINESS_INTERACTIONS.newIssue.close,
+    ]);
+  });
+
   it("requires an ordinary workspace click to produce observable state", async () => {
     const { page, selectors } = readinessPage();
 
     await probeWorkspaceClickInteractions(page, 1_000);
 
     expect(selectors).toEqual([
+      CLIENT_READINESS_INTERACTIONS.issueDetail.observable,
       CLIENT_READINESS_INTERACTIONS.newIssue.trigger,
       CLIENT_READINESS_INTERACTIONS.newIssue.observable,
       CLIENT_READINESS_INTERACTIONS.newIssue.close,

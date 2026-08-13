@@ -23,6 +23,10 @@ const SAFE_SCENARIO = /^[A-Za-z][A-Za-z0-9_-]*$/u;
 const CLIENT_READY_TIMEOUT_MS = 120_000;
 const CLIENT_READINESS = { mode: "browser", status: "ready" };
 export const CLIENT_READINESS_INTERACTIONS = Object.freeze({
+  issueDetail: Object.freeze({
+    observable: '[data-testid="issue-detail-modal"]',
+    close: '[data-testid="issue-close"]',
+  }),
   newIssue: Object.freeze({
     trigger: '[data-testid="new-issue-trigger"]',
     observable: '[data-testid="new-issue-dialog"]',
@@ -279,6 +283,25 @@ async function waitForInteractionState(locator, state, label, timeoutMs) {
 }
 
 export async function probeWorkspaceClickInteractions(page, timeoutMs) {
+  const issueDetail = CLIENT_READINESS_INTERACTIONS.issueDetail;
+  const issueDetailModal = page.locator(issueDetail.observable);
+  if (await issueDetailModal.isVisible().catch(() => false)) {
+    const issueDetailClose = page.locator(issueDetail.close);
+    await waitForInteractionState(
+      issueDetailClose,
+      "visible",
+      "Issue detail close control",
+      timeoutMs,
+    );
+    await issueDetailClose.click();
+    await waitForInteractionState(
+      issueDetailModal,
+      "hidden",
+      "Issue detail close",
+      timeoutMs,
+    );
+  }
+
   const newIssue = CLIENT_READINESS_INTERACTIONS.newIssue;
   const newIssueTrigger = page.locator(newIssue.trigger);
   const newIssueDialog = page.locator(newIssue.observable);
