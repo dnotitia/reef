@@ -1,105 +1,86 @@
 // @vitest-environment node
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  getRuntime: vi.fn(),
+  logoutLocation: vi.fn(),
+}));
+
+vi.mock("@/server/auth/runtime", () => ({
+  getSsoAuthRuntime: mocks.getRuntime,
+}));
+
 import { GET } from "./route";
 
-function makeRequest(cookie?: string, nonce = "logout-nonce"): Request {
-  const headers: Record<string, string> = {};
-  if (cookie) headers.cookie = cookie;
-  return new Request(
-    `http://localhost/api/auth/akb/sso/logout?nonce=${nonce}`,
-    {
-      method: "GET",
-      headers,
-    },
-  );
-}
+const TOKEN_MARKERS = [
+  "access-token-material",
+  "refresh-token-material",
+  "id-token-material",
+  "id_token_hint",
+];
 
 describe("GET /api/auth/akb/sso/logout", () => {
   beforeEach(() => {
-    vi.stubEnv("AKB_BACKEND_URL", "http://akb.test");
     vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("REEF_AUTH_MODE", "sso");
+    vi.stubEnv(
+      "REEF_KEYCLOAK_ISSUER",
+      "https://identity.example.com/realms/reef",
+    );
+    vi.stubEnv("REEF_KEYCLOAK_CLIENT_ID", "reef-web");
+    vi.stubEnv("REEF_AKB_API_AUDIENCE", "akb-api");
+    vi.stubEnv("REEF_PUBLIC_ORIGIN", "https://reef.example.com");
+    mocks.logoutLocation.mockReturnValue(
+      "https://identity.example.com/realms/reef/protocol/openid-connect/logout?client_id=reef-web&post_logout_redirect_uri=https%3A%2F%2Freef.example.com%2Flogin",
+    );
+    mocks.getRuntime.mockResolvedValue({
+      oidc: { logoutLocation: mocks.logoutLocation },
+    });
   });
 
   afterEach(() => {
+    vi.clearAllMocks();
     vi.unstubAllEnvs();
-    vi.restoreAllMocks();
   });
 
-  it("relays the public AKB/Keycloak logout redirect and clears auth cookies", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-      new Response(null, {
-        status: 302,
-        headers: { location: "https://idp.test/logout" },
-      }),
-    );
-
-    const res = await GET(
-      makeRequest(
-        "__reef_sso_logout_id_token=id-token; __reef_sso_logout=logout-nonce",
-      ),
-    );
-
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://idp.test/logout");
-
-    const logoutUrl = new URL(String(fetchSpy.mock.calls[0]?.[0]));
-    expect(`${logoutUrl.origin}${logoutUrl.pathname}`).toBe(
-      "http://akb.test/api/v1/auth/keycloak/logout",
-    );
-    expect(logoutUrl.search).toBe("");
-    const init = fetchSpy.mock.calls[0]?.[1];
-    expect(init?.method).toBe("POST");
-    expect(JSON.parse(String(init?.body))).toEqual({
-      id_token_hint: "id-token",
-    });
-
-    const setCookie = res.headers.get("set-cookie") ?? "";
-    expect(setCookie).toContain("__reef_session=");
-    expect(setCookie).toContain("__reef_sso=");
-    expect(setCookie).toContain("__reef_sso_id_token=");
-    expect(setCookie).toContain("__reef_sso_start=");
-    expect(setCookie).toContain("__reef_sso_logout=");
-    expect(setCookie).toContain("__reef_sso_logout_id_token=");
-    expect(setCookie).toContain("Max-Age=0");
-  });
-
-  it("rejects the follow-up route when the logout nonce is absent", async () => {
+  it("returns only the issuer-derived navigation and clears browser carriers", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const response = await GET();
 
-    const res = await GET(makeRequest());
-
-    expect(res.status).toBe(403);
-    expect(res.headers.get("set-cookie")).toBeNull();
+    expect(response.status).toBe(302);
+    const location = response.headers.get("location") ?? "";
+    expect(location).toBe(mocks.logoutLocation.mock.results[0]?.value);
+    expect(new URL(location).pathname).toBe(
+      "/realms/reef/protocol/openid-connect/logout",
+    );
+    const exposed = `${location} ${response.headers.get("set-cookie") ?? ""}`;
+    for (const token of TOKEN_MARKERS) expect(exposed).not.toContain(token);
+    expect(exposed).toContain("__reef_session=");
+    expect(exposed).toContain("Max-Age=0");
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("rejects the follow-up route when the logout nonce does not match", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
+  it("is unavailable outside SSO mode", async () => {
+    vi.stubEnv("REEF_AUTH_MODE", "local");
 
-    const res = await GET(
-      makeRequest(
-        "__reef_sso_logout_id_token=id-token; __reef_sso_logout=logout-nonce",
-        "wrong-nonce",
-      ),
-    );
+    const response = await GET();
 
-    expect(res.status).toBe(403);
-    expect(res.headers.get("set-cookie")).toBeNull();
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(response.status).toBe(404);
+    expect(mocks.getRuntime).not.toHaveBeenCalled();
   });
 
-  it("falls back to /login when AKB logout cannot provide a public redirect", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-      new Response(null, { status: 404 }),
+  it("falls back to a same-origin login path without exposing an upstream error", async () => {
+    mocks.getRuntime.mockRejectedValue(
+      new Error("refresh-token-material appeared upstream"),
     );
 
-    const res = await GET(
-      makeRequest(
-        "__reef_sso_logout_id_token=id-token; __reef_sso_logout=logout-nonce",
-      ),
-    );
+    const response = await GET();
 
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("/login");
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe("/login");
+    expect(JSON.stringify([...response.headers])).not.toContain(
+      "refresh-token-material",
+    );
   });
 });

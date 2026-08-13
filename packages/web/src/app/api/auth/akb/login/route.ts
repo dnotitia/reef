@@ -8,6 +8,7 @@ import {
 } from "@/lib/akb/sessionCookie";
 import { respondWithError } from "@/lib/api/requestHelpers";
 import { logger } from "@/lib/logging/logger";
+import { readAuthRuntimeConfig } from "@/server/auth/config";
 import {
   AkbApiError,
   AuthError,
@@ -38,6 +39,20 @@ const LoginRequestSchema = z.object({
 });
 
 export async function POST(request: Request): Promise<Response> {
+  try {
+    if (readAuthRuntimeConfig().mode !== "local") {
+      return Response.json(
+        { error: "Sign-in method is unavailable." },
+        { status: 404 },
+      );
+    }
+  } catch {
+    return Response.json(
+      { error: "Authentication is not configured." },
+      { status: 503 },
+    );
+  }
+
   let rawBody: unknown;
   try {
     rawBody = await request.json();

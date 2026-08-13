@@ -6,18 +6,14 @@
  * attacker-influenceable, and behind a TLS-terminating proxy they expose an
  * internal scheme/host/port that would not match akb's exact-origin allowlist.
  *
- * Used as the absolute callback origin reef hands akb when delegating Keycloak
- * SSO. akb delivers the post-login one-time code to an origin listed in its
- * `keycloak_post_login_allowed_origins` allowlist, so reef sends an absolute
- * callback on this origin to make the code return to reef instead of akb's own
- * SPA. The returned value is the canonical `scheme://host[:port]` — akb's
- * `_normalize_origin` form (host lowercased, default ports dropped) — which should
- * match the operator's allowlist entry character-for-character.
+ * Reef-owned SSO uses this origin to form its exact OIDC callback and
+ * post-logout redirect URIs. It is deployment-managed rather than inferred
+ * from a request host. The returned value is canonical `scheme://host[:port]`
+ * (host lowercased, default ports dropped).
  *
- * Returns null when unset: reef then keeps the older same-site callback path,
- * so single-target and akb-SPA deployments are unaffected (opt-in). Throws
- * on a malformed value so a deploy typo fails fast instead of silently degrading
- * SSO to the akb host.
+ * This compatibility normalizer returns null when unset. The mode-aware auth
+ * runtime applies the stricter rule: `REEF_PUBLIC_ORIGIN` is required in SSO
+ * mode. A malformed value always throws.
  */
 export function getReefPublicOrigin(): string | null {
   const raw = process.env.REEF_PUBLIC_ORIGIN;
@@ -34,11 +30,8 @@ export function getReefPublicOrigin(): string | null {
   if (url.protocol !== "https:" && url.protocol !== "http:") {
     throw new Error("REEF_PUBLIC_ORIGIN must use the http or https scheme");
   }
-  // The post-login callback on this origin carries the one-time SSO code — a
-  // credential exchangeable for an akb session — so the origin should be a secure
-  // context. Permit plain http for loopback/localhost dev; any other host
-  // should be https, or a production typo (http://reef.example.com) would have the
-  // code transit in cleartext.
+  // The OIDC authorization response returns to this origin, so require a
+  // secure context except for loopback development.
   if (url.protocol === "http:" && !isLoopbackHost(url.hostname)) {
     throw new Error("REEF_PUBLIC_ORIGIN must use https for non-loopback hosts");
   }
@@ -51,8 +44,7 @@ export function getReefPublicOrigin(): string | null {
     );
   }
   // `URL.origin` is the canonical `scheme://host[:port]`: host lowercased and
-  // default ports (:443 for https, :80 for http) dropped, matching akb's
-  // `_normalize_origin` for the no-default-port form the allowlist should use.
+  // default ports (:443 for https, :80 for http) dropped.
   return url.origin;
 }
 

@@ -8,8 +8,16 @@ vi.mock("@/components/ui/reef-mark", () => ({
 }));
 
 vi.mock("@/features/auth/components/LoginPanel", () => ({
-  LoginPanel: ({ redirectTo }: { redirectTo: string }) => (
-    <div data-testid="login-panel">{redirectTo}</div>
+  LoginPanel: ({
+    authMode,
+    redirectTo,
+  }: {
+    authMode: string | null;
+    redirectTo: string;
+  }) => (
+    <div data-testid="login-panel" data-auth-mode={authMode ?? "invalid"}>
+      {redirectTo}
+    </div>
   ),
 }));
 
@@ -29,18 +37,48 @@ import LoginPage from "./page";
 
 const loadAkbAuthConfigMock = vi.mocked(loadAkbAuthConfig);
 
-function ssoEnabledConfig(options: { ssoOnly?: boolean } = {}) {
+function localConfig(keycloakEnabled = false) {
   return {
     ok: true as const,
     config: {
       local_auth: { enabled: true },
       keycloak: {
-        enabled: true,
-        login_url: "/api/v1/auth/keycloak/login",
-        sso_only: options.ssoOnly ?? false,
+        enabled: keycloakEnabled,
+        login_url: keycloakEnabled ? "/api/v1/auth/keycloak/login" : null,
+        sso_only: false,
       },
     },
   };
+}
+
+function versionedSsoConfig(providerCount = 1) {
+  return {
+    ok: true as const,
+    config: {
+      schema_version: 2 as const,
+      auth_mode: "sso" as const,
+      local_auth: { enabled: false },
+      keycloak: { enabled: true, browser_session_ready: true },
+      providers: Array.from({ length: providerCount }, (_, index) => ({
+        provider_type: "keycloak-oidc" as const,
+        alias: index === 0 ? "workforce" : `workforce-${index + 1}`,
+        display_name: `Workforce ${index + 1}`,
+        login_url: `/api/auth/akb/sso/start?provider=${index === 0 ? "workforce" : `workforce-${index + 1}`}`,
+      })),
+    },
+  };
+}
+
+function configureSsoMode(): void {
+  vi.stubEnv("NODE_ENV", "test");
+  vi.stubEnv("REEF_AUTH_MODE", "sso");
+  vi.stubEnv(
+    "REEF_KEYCLOAK_ISSUER",
+    "https://identity.example.com/realms/reef",
+  );
+  vi.stubEnv("REEF_KEYCLOAK_CLIENT_ID", "reef-web");
+  vi.stubEnv("REEF_AKB_API_AUDIENCE", "akb-api");
+  vi.stubEnv("REEF_PUBLIC_ORIGIN", "https://reef.example.com");
 }
 
 describe("LoginPage", () => {
@@ -61,7 +99,7 @@ describe("LoginPage", () => {
     );
 
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "SSO could not complete. Try again or use password.",
+      "SSO could not complete. Please try again.",
     );
     expect(screen.getByRole("alert")).not.toHaveTextContent("exchange_failed");
   });
@@ -100,8 +138,8 @@ describe("LoginPage", () => {
     );
   });
 
-  it("passes a safe redirect target into the login panel", async () => {
-    loadAkbAuthConfigMock.mockResolvedValue(ssoEnabledConfig());
+  it("passes a safe redirect target into the local login panel", async () => {
+    loadAkbAuthConfigMock.mockResolvedValue(localConfig());
     render(
       <IntlTestProvider>
         {
@@ -117,116 +155,76 @@ describe("LoginPage", () => {
     expect(screen.getByTestId("login-panel")).toHaveTextContent(
       "/issues?status=open",
     );
+    expect(screen.getByTestId("login-panel")).toHaveAttribute(
+      "data-auth-mode",
+      "local",
+    );
     expect(screen.getByRole("heading", { name: "reef" })).toHaveAttribute(
       "translate",
       "no",
     );
   });
 
-  describe("SSO-first auto-redirect (REEF-312)", () => {
-    it("does not auto-redirect by default (env unset)", async () => {
-      loadAkbAuthConfigMock.mockResolvedValue(ssoEnabledConfig());
+  describe("mode-aware SSO auto-redirect", () => {
+    it("does not follow a legacy delegated SSO catalog in local mode", async () => {
+      loadAkbAuthConfigMock.mockResolvedValue(localConfig(true));
+
       const view = await LoginPage({ searchParams: Promise.resolve({}) });
       render(<IntlTestProvider>{view}</IntlTestProvider>);
 
-      expect(screen.getByTestId("login-panel")).toBeInTheDocument();
-      expect(loadAkbAuthConfigMock).toHaveBeenCalledTimes(1);
-    });
-
-    it("redirects when AKB declares an SSO-only policy without an env override", async () => {
-      loadAkbAuthConfigMock.mockResolvedValue(
-        ssoEnabledConfig({ ssoOnly: true }),
+      expect(screen.getByTestId("login-panel")).toHaveAttribute(
+        "data-auth-mode",
+        "local",
       );
-
-      await expect(
-        LoginPage({ searchParams: Promise.resolve({ redirect: "/issues" }) }),
-      ).rejects.toThrow("REDIRECT:/api/auth/akb/sso/start?redirect=%2Fissues");
     });
 
-    it("redirects to SSO start, preserving the redirect destination", async () => {
-      vi.stubEnv("REEF_SSO_AUTO_REDIRECT", "1");
-      loadAkbAuthConfigMock.mockResolvedValue(ssoEnabledConfig());
+    it("starts Reef OIDC for the single versioned provider", async () => {
+      configureSsoMode();
+      loadAkbAuthConfigMock.mockResolvedValue(versionedSsoConfig());
 
       await expect(
         LoginPage({
           searchParams: Promise.resolve({ redirect: "/issues?status=open" }),
         }),
       ).rejects.toThrow(
-        "REDIRECT:/api/auth/akb/sso/start?redirect=%2Fissues%3Fstatus%3Dopen",
+        "REDIRECT:/api/auth/akb/sso/start?redirect=%2Fissues%3Fstatus%3Dopen&provider=workforce",
       );
     });
 
-    it("does not auto-redirect on an SSO error (loop guard)", async () => {
-      vi.stubEnv("REEF_SSO_AUTO_REDIRECT", "1");
-      loadAkbAuthConfigMock.mockResolvedValue(ssoEnabledConfig());
-
-      const view = await LoginPage({
-        searchParams: Promise.resolve({ sso_error: "exchange_failed" }),
-      });
-      render(<IntlTestProvider>{view}</IntlTestProvider>);
-
-      expect(screen.getByRole("alert")).toBeInTheDocument();
-      // The error short-circuits before any config probe.
-      expect(loadAkbAuthConfigMock).not.toHaveBeenCalled();
-    });
-
-    it("does not auto-redirect on a legacy error (loop guard)", async () => {
-      vi.stubEnv("REEF_SSO_AUTO_REDIRECT", "1");
-      loadAkbAuthConfigMock.mockResolvedValue(ssoEnabledConfig());
-
-      const view = await LoginPage({
-        searchParams: Promise.resolve({ error: "expired" }),
-      });
-      render(<IntlTestProvider>{view}</IntlTestProvider>);
-
-      expect(screen.getByTestId("login-panel")).toBeInTheDocument();
-      expect(loadAkbAuthConfigMock).not.toHaveBeenCalled();
-    });
-
-    it("honors the password escape hatch (?password=1)", async () => {
-      vi.stubEnv("REEF_SSO_AUTO_REDIRECT", "1");
-      loadAkbAuthConfigMock.mockResolvedValue(ssoEnabledConfig());
-
-      const view = await LoginPage({
-        searchParams: Promise.resolve({ password: "1" }),
-      });
-      render(<IntlTestProvider>{view}</IntlTestProvider>);
-
-      expect(screen.getByTestId("login-panel")).toBeInTheDocument();
-      expect(loadAkbAuthConfigMock).not.toHaveBeenCalled();
-    });
-
-    it("honors the password escape hatch (?prompt=login)", async () => {
-      vi.stubEnv("REEF_SSO_AUTO_REDIRECT", "1");
-      loadAkbAuthConfigMock.mockResolvedValue(ssoEnabledConfig());
-
-      const view = await LoginPage({
-        searchParams: Promise.resolve({ prompt: "login" }),
-      });
-      render(<IntlTestProvider>{view}</IntlTestProvider>);
-
-      expect(screen.getByTestId("login-panel")).toBeInTheDocument();
-      expect(loadAkbAuthConfigMock).not.toHaveBeenCalled();
-    });
-
-    it("falls back to the panel when akb SSO is disabled", async () => {
-      vi.stubEnv("REEF_SSO_AUTO_REDIRECT", "1");
-      loadAkbAuthConfigMock.mockResolvedValue({
-        ok: true,
-        config: {
-          local_auth: { enabled: true },
-          keycloak: { enabled: false, login_url: null, sso_only: false },
-        },
-      });
+    it("keeps the SSO panel for multiple provider choices", async () => {
+      configureSsoMode();
+      loadAkbAuthConfigMock.mockResolvedValue(versionedSsoConfig(2));
 
       const view = await LoginPage({ searchParams: Promise.resolve({}) });
       render(<IntlTestProvider>{view}</IntlTestProvider>);
 
-      expect(screen.getByTestId("login-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("login-panel")).toHaveAttribute(
+        "data-auth-mode",
+        "sso",
+      );
     });
 
-    it("falls back to the panel when the backend is unreachable", async () => {
-      vi.stubEnv("REEF_SSO_AUTO_REDIRECT", "1");
+    it.each([
+      { sso_error: "sso_failed" },
+      { error: "expired" },
+      { password: "1" },
+      { prompt: "login" },
+    ])(
+      "does not auto-loop for guarded query $sso_error$error$password$prompt",
+      async (params) => {
+        configureSsoMode();
+        loadAkbAuthConfigMock.mockResolvedValue(versionedSsoConfig());
+
+        const view = await LoginPage({ searchParams: Promise.resolve(params) });
+        render(<IntlTestProvider>{view}</IntlTestProvider>);
+
+        expect(screen.getByTestId("login-panel")).toBeInTheDocument();
+        expect(loadAkbAuthConfigMock).not.toHaveBeenCalled();
+      },
+    );
+
+    it("fails to the panel when the provider catalog is unreachable", async () => {
+      configureSsoMode();
       loadAkbAuthConfigMock.mockResolvedValue({
         ok: false,
         reason: "backend_rejected",
@@ -235,7 +233,10 @@ describe("LoginPage", () => {
       const view = await LoginPage({ searchParams: Promise.resolve({}) });
       render(<IntlTestProvider>{view}</IntlTestProvider>);
 
-      expect(screen.getByTestId("login-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("login-panel")).toHaveAttribute(
+        "data-auth-mode",
+        "sso",
+      );
     });
   });
 });

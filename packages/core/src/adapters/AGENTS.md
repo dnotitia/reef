@@ -45,7 +45,9 @@ server-only `packages/web/src/server/` tree and must not be reintroduced here.
   Row-only scalar fields (status, priority, assignee, dates, planning ids,
   estimate, severity, parent) stay last-write-wins with server-side read-merge.
 - In the web request path, `createAkbAdapter({ ... })` is constructed per
-  request from the `__reef_session` cookie and forwards
-  `Authorization: Bearer <pat>` to `AKB_BACKEND_URL`. Operator and worker
-  runtimes may construct the same public adapter from deployment-managed
-  credentials; they must not import web cookie helpers.
+  request and forwards exactly one mode-selected credential to
+  `AKB_BACKEND_URL`: the AKB-issued JWT from `__reef_session` in local mode, or
+  the current server-held Keycloak access token resolved from the opaque handle
+  in SSO mode. Operator and worker runtimes may construct the same public
+  adapter from deployment-managed credentials; they must not import web cookie
+  or SSO-session helpers.

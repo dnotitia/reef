@@ -6,6 +6,8 @@ import {
   parseCookieHeader,
 } from "./sessionCookie";
 
+const OPAQUE_SESSION_HANDLE_RE = /^[A-Za-z0-9_-]{43}$/u;
+
 /**
  * Extract the akb session JWT from the `__reef_session` cookie.
  *
@@ -30,4 +32,16 @@ export function extractAkbSession(source: Request | ReadonlyHeaders): string {
     throw new AuthError({ message: "expired_session_cookie" });
   }
   return jwt;
+}
+
+/** Extract the random server-side SSO session handle from the same cookie. */
+export function extractSsoSessionHandle(
+  source: Request | ReadonlyHeaders,
+): string {
+  const headers = source instanceof Request ? source.headers : source;
+  const handle = parseCookieHeader(headers.get("cookie"))[SESSION_COOKIE];
+  if (!handle || !OPAQUE_SESSION_HANDLE_RE.test(handle)) {
+    throw new AuthError({ message: "missing_sso_session" });
+  }
+  return handle;
 }

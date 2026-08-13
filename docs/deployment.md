@@ -1,12 +1,10 @@
 # Deploying reef
 
-reef ships as a single stateless web service, **reef-web**, that talks to an
-[akb](https://github.com/dnotitia/akb) backend. reef-web persists nothing of its
-own: the akb session lives in an httpOnly cookie, monitored repositories are
-accessed through deployment-managed GitHub credentials, and LLM config is
-deployment-managed server state. That means deployment is just "run the
-container, point it at akb, and optionally give it one OpenAI-compatible LLM
-endpoint plus GitHub configuration."
+reef ships as one mode-aware web service, **reef-web**, that talks to an
+[akb](https://github.com/dnotitia/akb) backend. Local auth is stateless and keeps
+AKB's JWT in an httpOnly cookie. SSO adds encrypted, expiring OIDC token custody
+in Redis behind an opaque cookie handle. Monitored-repository and LLM
+credentials remain deployment-managed server state.
 
 This guide covers three ways to run it:
 
@@ -45,7 +43,8 @@ ephemeral published port, and verify the health response:
 
 ```bash
 docker build --no-cache -t reef-web:local .
-docker run --rm --user 1001 -p 127.0.0.1:0:3000 reef-web:local
+docker run --rm --user 1001 -p 127.0.0.1:0:3000 \
+  -e REEF_AUTH_MODE=local reef-web:local
 ```
 
 Use the published port from Docker's output to request `/api/healthz`; the
@@ -90,7 +89,9 @@ cp -r deploy/k8s/overlays/example deploy/k8s/overlays/my-cluster
    already exist (reef-web does not create it).
 2. **Image** — `kustomization.yaml` → `images[].newName` / `newTag`. Point this
    at the registry/repository you pushed to in step 1.
-3. **akb backend + public origin** — `patch-config.yaml`:
+3. **Auth profile, akb backend, and public origin** — `patch-config.yaml`:
+   - `REEF_AUTH_MODE` — keep `local`, or use `sso` only after completing
+     [the SSO contract](keycloak-sso.md).
    - `AKB_BACKEND_URL` — the in-cluster DNS of your akb backend Service, e.g.
      `http://backend.<akb-namespace>.svc.cluster.local:8000` (substitute your
      akb namespace and Service name).
@@ -101,9 +102,11 @@ cp -r deploy/k8s/overlays/example deploy/k8s/overlays/my-cluster
 
 ### Provide optional capability secrets
 
-The Deployment reads optional GitHub and LLM credentials from a Secret named
-`reef-web-secret` in the same namespace. The Secret reference is optional, so
-an AKB/Keycloak-only deployment does not need to create an empty Secret.
+The Deployment reads secrets from `reef-web-secret` in the same namespace. The
+reference is optional for local auth when GitHub and AI are disabled.
+Production SSO must provide `REEF_SESSION_REDIS_URL` and
+`REEF_SESSION_ENCRYPTION_KEY` in this Secret; GitHub and LLM credentials remain
+optional capabilities.
 
 To enable AI, create the Secret with `REEF_LLM_API_KEY`:
 
@@ -117,8 +120,8 @@ Set `REEF_LLM_BASE_URL` and `REEF_LLM_MODEL` in the overlay ConfigMap at the
 same time. The URL may point to OpenRouter or an akb-platform gateway; Reef does
 not classify the endpoint or derive a deployment mode from it. All three values
 enable AI, partial configuration fails closed, and no values is an intentionally
-disabled capability. Keycloak remains independent, so a Keycloak-only
-deployment is valid.
+disabled capability. Authentication remains independent; an SSO deployment
+without AI is valid once its required auth/session settings are present.
 
 #### Upgrade an existing OpenRouter deployment
 
@@ -205,6 +208,7 @@ services:
       - "3000:3000"
     environment:
       NODE_ENV: production
+      REEF_AUTH_MODE: local
       # akb backend reef-web talks to (reachable from the container)
       AKB_BACKEND_URL: http://akb-backend:8000
       # reef-web's canonical external origin (bare scheme://host[:port]).
@@ -232,9 +236,9 @@ REEF_GITHUB_APP_PRIVATE_KEY="$(cat github-app.private-key.pem)" \
 docker compose up
 ```
 
-reef-web is stateless, so there is no database or volume to manage. If your
-akb backend runs in the same Compose project, give it a service name and use
-that as the host in `AKB_BACKEND_URL` (e.g. `http://akb-backend:8000`).
+Local auth needs no Reef database or volume. SSO uses an external Redis service;
+do not mount token state into the web container. If AKB runs in the same Compose
+project, use its service name in `AKB_BACKEND_URL`.
 
 ---
 
@@ -245,9 +249,14 @@ the `reef-web-config` ConfigMap plus the optional `reef-web-secret` Secret).
 
 | Variable | Required | Description |
 | --- | --- | --- |
+| `REEF_AUTH_MODE` | yes | Explicitly `local` or `sso`; missing and unknown values fail startup. |
 | `AKB_BACKEND_URL` | yes | Base URL of the akb backend reef-web calls server-side. In-cluster this is a Service DNS name (`http://<service>.<namespace>.svc.cluster.local:8000`). |
-| `REEF_PUBLIC_ORIGIN` | yes for SSO | reef-web's canonical external origin — bare `scheme://host[:port]`, no path. Sent to akb as the absolute SSO callback base so reef and akb's own frontend can share a tenant Keycloak. Must match the ingress/public host. `https` except for localhost dev. |
-| `REEF_SSO_AUTO_REDIRECT` | no | Optional SSO-first presentation override for a hybrid AKB. AKB `keycloak.sso_only=true` redirects without it; AKB `local_auth.enabled=false` suppresses password login even when `?password=1`/`?prompt=login` is present. SSO/session errors suppress automatic redirect as the loop guard. |
+| `REEF_PUBLIC_ORIGIN` | yes for SSO | Reef's canonical bare origin. It forms the exact OIDC callback and post-logout URIs; HTTPS is required outside localhost development. |
+| `REEF_KEYCLOAK_ISSUER` | yes for SSO | Exact HTTPS Keycloak realm issuer used to derive fixed OIDC/JWKS endpoints. |
+| `REEF_KEYCLOAK_CLIENT_ID` | yes for SSO | Dedicated Reef public-client id. |
+| `REEF_AKB_API_AUDIENCE` | yes for SSO | Audience required in Keycloak access tokens forwarded to AKB. |
+| `REEF_SESSION_REDIS_URL` | production SSO | Redis or Redis-TLS URL for encrypted session records and refresh locks. Keep credential-bearing URLs in a Secret. |
+| `REEF_SESSION_ENCRYPTION_KEY` | production SSO | Independent base64/base64url-encoded 32-byte AES key. Keep it in a Secret. |
 | `REEF_LLM_API_KEY` | for enabled AI | Key for the configured OpenAI-compatible endpoint. Keep it in a Secret; never inline it in manifests or commit it. |
 | `REEF_LLM_BASE_URL` | for enabled AI | OpenAI-compatible endpoint base URL. It may target OpenRouter or an akb-platform gateway. |
 | `REEF_LLM_MODEL` | for enabled AI | Deployment-selected model id passed to the configured endpoint. |
@@ -270,11 +279,11 @@ Optional tracing/observability:
 | `LOG_LEVEL` | pino level for backend stdout logs (`debug`/`info`/`warn`/`error`). Defaults to `debug` in development and `info` otherwise. |
 | `NEXT_PUBLIC_AKB_WEB_URL` | Public URL of the akb web app, used to open a linked akb document in a new tab from an issue. Optional; when unset that action is hidden. |
 
-Per-user secrets are intentionally **not** environment variables: the akb
-session is an httpOnly cookie minted per request. GitHub and LLM credentials are
-deployment-managed server secrets, not browser storage. The three `REEF_LLM_*`
-values must be set together; with none set, AI routes are unavailable but Reef,
-AKB, and Keycloak flows remain ready.
+Local AKB JWTs and SSO token sets are per-user credentials, not environment
+variables. The local JWT stays in an httpOnly cookie; the SSO token set stays in
+encrypted Redis and the browser gets only an opaque handle. GitHub and LLM
+credentials are deployment-managed server secrets. The three `REEF_LLM_*`
+values must be set together; with none set, AI routes are unavailable.
 
 ### Backend logging and the prod access-line policy
 
@@ -289,14 +298,10 @@ logs/traces separation: in a deployment that exports traces, request status and
 timing already live on the request span in the trace backend, correlated to the
 inbound `request` log by `trace_id`, so synthesizing a second stdout line per
 request would be redundant noise. The inbound `request` line (emitted once at the
-proxy) stays on in every environment, now stamped with the akb `actor` so an
-error can be tied to a user (REEF-271). That actor is the **claimed** session
-identity decoded from the cookie, not a verified one — reef-web is not the JWT
-signing authority (akb is, and re-validates every forwarded request), so it is
-reliable for akb-accepted requests and a best-effort hint on a forged cookie that
-akb then rejects. It is a debug aid only, never used for authorization, and is
-deliberately not emitted as the OTel `enduser.id` attribute (which denotes a
-verified end user).
+proxy) stays on in every environment. In local mode it may include the
+**claimed** actor decoded from the AKB JWT cookie; AKB remains the verifier. An
+opaque SSO handle carries no actor claim and is never decoded or logged. Actor
+metadata is a debug aid only, never authorization input or OTel `enduser.id`.
 
 This leaves one gap: a deployment that runs **without a trace backend** would see
 no response status/duration anywhere, and the richer backend signals (activity-

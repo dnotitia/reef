@@ -6,7 +6,7 @@ import {
   NotFoundError,
   SchemaValidationError,
 } from "../../../errors";
-import { AkbSearchHitSchema } from "./http";
+import { AkbSearchHitSchema, createAkbAdapter } from "./http";
 import { makeAdapter, setupFetch } from "./httpTestSupport";
 import { isMissingTableError } from "./sql";
 
@@ -27,6 +27,29 @@ describe("AkbSearchHitSchema", () => {
       source_type: "document",
     });
     expect(parsed.success).toBe(true);
+  });
+});
+
+describe("mode-aware AKB bearer adapter", () => {
+  it("forwards an SSO access token and requires exactly one credential", async () => {
+    const { calls } = setupFetch([{ status: 204, empty: true }]);
+    const adapter = createAkbAdapter({
+      baseUrl: "https://akb.test",
+      accessToken: "keycloak-access-token",
+    });
+
+    await adapter.request("/api/v1/auth/me");
+
+    expect(calls[0]?.init?.headers).toMatchObject({
+      Authorization: "Bearer keycloak-access-token",
+    });
+    expect(() =>
+      createAkbAdapter({
+        baseUrl: "https://akb.test",
+        jwt: "akb-jwt",
+        accessToken: "keycloak-access-token",
+      }),
+    ).toThrowError("Exactly one AKB bearer credential is required");
   });
 });
 

@@ -6,8 +6,10 @@
   agent application code, and provider-specific error normalization. Use the
   public `@reef/core` surface for AKB access, domain schemas, models, errors,
   and observability.
-- Keep credentials in request-scoped server adapters or the httpOnly AKB
-  session boundary. Do not log tokens, raw cookies, prompt text, or upstream
-  response bodies.
+- Keep local credentials in request-scoped server adapters or the httpOnly AKB
+  JWT boundary. SSO token sets are the sole per-user server-state exception:
+  keep them encrypted in the `server/auth` session repository and expose only
+  an opaque httpOnly handle. Do not log tokens, raw cookies, prompt text, or
+  upstream response bodies.
 - Wrap async provider boundaries in OpenTelemetry spans and use the shared web
   logger for request/server diagnostics.

@@ -175,7 +175,7 @@ function filenameFromContentDisposition(header: string | null): string | null {
   return plain?.[1] ?? null;
 }
 
-function makeRequest(baseUrl: string, jwt: string): AkbRequest {
+function makeRequest(baseUrl: string, bearerToken: string): AkbRequest {
   return async (path, init = {}) => {
     const url = buildUrl(baseUrl, path, init.query);
     const method = init.method ?? "GET";
@@ -191,7 +191,7 @@ function makeRequest(baseUrl: string, jwt: string): AkbRequest {
       const startMs = Date.now();
       try {
         const headers: Record<string, string> = {
-          Authorization: `Bearer ${jwt}`,
+          Authorization: `Bearer ${bearerToken}`,
           Accept: "application/json",
           ...init.rawHeaders,
         };
@@ -266,18 +266,22 @@ function makeRequest(baseUrl: string, jwt: string): AkbRequest {
 // ─── Factory ──────────────────────────────────────────────────────────────────
 
 /**
- * Factory: create a per-request adapter scoped to a single user's JWT.
+ * Factory: create a per-request adapter scoped to one trusted bearer
+ * credential. Local mode passes AKB's session JWT; SSO BFFs pass the current
+ * OIDC access token intended for the AKB API.
  *
  * Callers should instantiate the adapter inside the request handler and let it be
- * GC'd on return — does not cache at module scope. The JWT is held in the closure
- * for the lifetime of the request.
+ * GC'd on return — does not cache at module scope. The bearer credential is held
+ * in the closure only for the lifetime of the request.
  */
-export function createAkbAdapter({
-  baseUrl,
-  jwt,
-}: {
+export function createAkbAdapter(input: {
   baseUrl: string;
-  jwt: string;
+  jwt?: string;
+  accessToken?: string;
 }): AkbAdapter {
-  return { request: makeRequest(baseUrl, jwt) };
+  const bearerToken = input.accessToken ?? input.jwt;
+  if (!bearerToken || (input.accessToken && input.jwt)) {
+    throw new Error("Exactly one AKB bearer credential is required");
+  }
+  return { request: makeRequest(input.baseUrl, bearerToken) };
 }

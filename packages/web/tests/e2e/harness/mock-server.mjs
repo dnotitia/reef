@@ -186,13 +186,8 @@ const server = createServer(async (req, res) => {
         code: state.accountDenialCode,
       });
     }
-    // akb's Keycloak login start. reef-web calls this server-side to begin the
-    // hand-off (REEF-312). It is mounted at the bare path, not under /akb,
-    // because core resolves the akb-reported login_url ("/api/v1/auth/keycloak/
-    // login") against the backend ORIGIN — an absolute path drops the /akb mount
-    // prefix this fixture uses (a real akb backend has no path prefix). Mirrors
-    // akb's contract: a 3xx with an absolute Location, which reef forwards to the
-    // browser. Points back at this fixture's authorize page below.
+    // Legacy AKB Keycloak start retained as a negative cutover fixture. The
+    // default local-mode Reef runtime must not call or relay this endpoint.
     if (
       url.pathname === "/api/v1/auth/keycloak/login" &&
       req.method === "GET"
@@ -206,9 +201,8 @@ const server = createServer(async (req, res) => {
       });
       return res.end();
     }
-    // Fixture stand-in for the external Keycloak authorize page, so the SSO-first
-    // auto-redirect can be exercised end to end: the login start above bounces
-    // the browser here.
+    // Fixture stand-in for an external Keycloak authorize page. A dedicated SSO
+    // harness may use it; the default hermetic runtime stays in local mode.
     if (url.pathname === "/keycloak/authorize") {
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       return res.end(

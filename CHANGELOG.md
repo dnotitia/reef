@@ -12,6 +12,16 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Changed
+
+- **Authentication is now an explicit local-or-SSO deployment choice.** Local
+  mode preserves AKB-issued JWT cookies. SSO mode makes Reef the dedicated
+  Keycloak Authorization Code + PKCE BFF, stores the token set encrypted in
+  Redis behind an opaque browser handle, rotates refresh credentials with
+  distributed concurrency control, and retires Reef's AKB JWT-exchange path.
+  Production SSO now requires its Redis URL and an independent 32-byte session
+  encryption key.
+
 ### Fixed
 
 - **Issue detail assignee selection now exposes every assignable writer, admin,

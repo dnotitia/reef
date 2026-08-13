@@ -1,70 +1,102 @@
 // @vitest-environment node
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  getRuntime: vi.fn(),
+  logout: vi.fn(),
+}));
+
+vi.mock("@/server/auth/runtime", () => ({
+  getSsoAuthRuntime: mocks.getRuntime,
+}));
+
 import { POST } from "./route";
 
+const OPAQUE_HANDLE = Buffer.alloc(32, 7).toString("base64url");
+const TOKEN_MARKERS = [
+  "access-token-material",
+  "refresh-token-material",
+  "id-token-material",
+  "id_token_hint",
+];
+
 function makeRequest(cookie?: string): Request {
-  const headers: Record<string, string> = {};
-  if (cookie) headers.cookie = cookie;
-  return new Request("http://localhost/api/auth/akb/logout", {
+  return new Request("https://reef.example.com/api/auth/akb/logout", {
     method: "POST",
-    headers,
+    headers: cookie ? { cookie } : undefined,
   });
+}
+
+function configureSso(): void {
+  vi.stubEnv("REEF_AUTH_MODE", "sso");
+  vi.stubEnv(
+    "REEF_KEYCLOAK_ISSUER",
+    "https://identity.example.com/realms/reef",
+  );
+  vi.stubEnv("REEF_KEYCLOAK_CLIENT_ID", "reef-web");
+  vi.stubEnv("REEF_AKB_API_AUDIENCE", "akb-api");
+  vi.stubEnv("REEF_PUBLIC_ORIGIN", "https://reef.example.com");
 }
 
 describe("POST /api/auth/akb/logout", () => {
   beforeEach(() => {
     vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("REEF_AUTH_MODE", "local");
+    mocks.logout.mockResolvedValue(
+      "https://identity.example.com/realms/reef/protocol/openid-connect/logout",
+    );
+    mocks.getRuntime.mockResolvedValue({ sessions: { logout: mocks.logout } });
   });
 
   afterEach(() => {
+    vi.clearAllMocks();
     vi.unstubAllEnvs();
-    vi.restoreAllMocks();
   });
 
-  it("returns 204 and clears reef auth cookies", async () => {
-    const res = await POST(makeRequest());
-    expect(res.status).toBe(204);
+  it("keeps local logout stateless and clears the AKB JWT cookie", async () => {
+    const response = await POST(makeRequest("__reef_session=local-jwt"));
 
-    const setCookie = res.headers.get("set-cookie") ?? "";
-    expect(setCookie).toContain("__reef_session=");
-    expect(setCookie).toContain("__reef_sso=");
-    expect(setCookie).toContain("__reef_sso_id_token=");
-    expect(setCookie).toContain("__reef_sso_start=");
-    expect(setCookie).toContain("Max-Age=0");
-    expect(setCookie).toContain("HttpOnly");
-    expect(setCookie).toContain("Path=/");
+    expect(response.status).toBe(204);
+    expect(response.headers.get("set-cookie")).toContain("__reef_session=");
+    expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
+    expect(mocks.getRuntime).not.toHaveBeenCalled();
   });
 
-  it("does NOT call the akb backend (no fetch issued)", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
-    await POST(makeRequest());
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
+  it("deletes the opaque SSO session and returns only same-origin navigation", async () => {
+    configureSso();
 
-  it("sets Cache-Control: no-store", async () => {
-    const res = await POST(makeRequest());
-    expect(res.headers.get("cache-control")).toBe("no-store");
-  });
-
-  it("returns an SSO logout redirect URL while preserving the id token hint for the follow-up route", async () => {
-    const res = await POST(
-      makeRequest("__reef_sso=1; __reef_sso_id_token=id-token"),
+    const response = await POST(
+      makeRequest(
+        `__reef_session=${OPAQUE_HANDLE}; __reef_sso_id_token=id-token-material`,
+      ),
     );
 
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    const redirectUrl = new URL(body.redirectUrl, "http://localhost");
-    expect(redirectUrl.pathname).toBe("/api/auth/akb/sso/logout");
-    expect(redirectUrl.searchParams.get("nonce")).toBeTruthy();
+    expect(response.status).toBe(200);
+    expect(mocks.logout).toHaveBeenCalledWith(OPAQUE_HANDLE);
+    const body = await response.json();
+    expect(body).toEqual({
+      redirectUrl: "/api/auth/akb/sso/logout",
+    });
+    const exposed = `${response.headers.get("set-cookie") ?? ""} ${JSON.stringify(body)}`;
+    for (const token of TOKEN_MARKERS) expect(exposed).not.toContain(token);
+    expect(exposed).toContain("Max-Age=0");
+  });
 
-    const setCookie = res.headers.get("set-cookie") ?? "";
-    expect(setCookie).toContain("__reef_session=");
-    expect(setCookie).toContain("__reef_sso=");
-    expect(setCookie).toContain("__reef_sso_start=");
-    expect(setCookie).toContain("__reef_sso_id_token=");
-    expect(setCookie).toContain("__reef_sso_logout=");
-    expect(setCookie).toContain("__reef_sso_logout_id_token=id-token");
-    expect(setCookie).toContain("Max-Age=60");
-    expect(setCookie).toContain("Max-Age=0");
+  it("still clears the browser carrier if revocation or storage fails", async () => {
+    configureSso();
+    mocks.logout.mockRejectedValue(
+      new Error("refresh-token-material appeared upstream"),
+    );
+
+    const response = await POST(makeRequest(`__reef_session=${OPAQUE_HANDLE}`));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      redirectUrl: "/api/auth/akb/sso/logout",
+    });
+    expect(response.headers.get("set-cookie")).not.toContain(
+      "refresh-token-material",
+    );
   });
 });

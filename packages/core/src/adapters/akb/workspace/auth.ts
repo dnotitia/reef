@@ -26,7 +26,7 @@ const AkbLoginResponseSchema = z.object({
   user: AkbUserSchema,
 });
 
-export const AkbAuthConfigSchema = z.object({
+const LegacyAkbAuthConfigSchema = z.object({
   local_auth: z
     .object({
       enabled: z.boolean(),
@@ -40,7 +40,32 @@ export const AkbAuthConfigSchema = z.object({
   }),
 });
 
+export const AkbSsoProviderSchema = z.object({
+  provider_type: z.literal("keycloak-oidc"),
+  alias: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,62}$/u),
+  display_name: z.string().min(1).max(255),
+  login_url: z.string().min(1).nullable(),
+});
+
+const VersionedAkbAuthConfigSchema = z.object({
+  schema_version: z.literal(2),
+  auth_mode: z.enum(["local", "sso"]),
+  local_auth: z.object({ enabled: z.boolean() }),
+  keycloak: z.object({
+    enabled: z.boolean(),
+    browser_session_ready: z.boolean(),
+  }),
+  providers: z.array(AkbSsoProviderSchema).max(32),
+  mcp_oauth: z.object({ enabled: z.boolean() }).optional(),
+});
+
+export const AkbAuthConfigSchema = z.union([
+  VersionedAkbAuthConfigSchema,
+  LegacyAkbAuthConfigSchema,
+]);
+
 export type AkbAuthConfig = z.infer<typeof AkbAuthConfigSchema>;
+export type AkbSsoProvider = z.infer<typeof AkbSsoProviderSchema>;
 
 const AkbKeycloakExchangeResponseSchema = z.object({
   token: z.string().min(1),

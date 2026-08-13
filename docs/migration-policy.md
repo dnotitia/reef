@@ -32,9 +32,16 @@ that could mis-render old cached data:
 - Mention the cache invalidation in `CHANGELOG.md` under `Migration` or
   `Changed`, depending on user impact.
 
-Browser migrations must never move the akb session into IndexedDB. The akb
-session stays in the `__reef_session` httpOnly cookie, and GitHub credentials
-stay deployment-managed server state rather than browser-local state.
+Browser migrations must never move authentication into IndexedDB. In local
+mode, `__reef_session` contains AKB's httpOnly JWT. In SSO mode it contains only
+a random opaque handle; access, refresh, and ID tokens stay in Reef's encrypted
+server-side session store. GitHub credentials remain deployment-managed server
+state rather than browser-local state.
+
+The Redis SSO record is an expiring credential-custody envelope, not durable
+product data and not a browser migration surface. Changing the single active
+session-encryption key invalidates existing SSO sessions; treat that operation
+as a planned sign-in reset until a multi-key rotation contract exists.
 
 ## akb Compatibility
 

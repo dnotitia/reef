@@ -6,6 +6,9 @@ kind: ConfigMap
 metadata:
   name: reef-web-config
 data:
+  # Keep local for AKB-issued JWT auth. See docs/keycloak-sso.md before changing
+  # this overlay to sso.
+  REEF_AUTH_MODE: "local"
   # In-cluster DNS of the akb backend reef-web talks to. Replace
   # `example` with the namespace akb runs in (and adjust the Service name
   # if yours differs), e.g. http://backend.<akb-namespace>.svc.cluster.local:8000.

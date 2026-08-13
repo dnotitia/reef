@@ -1,155 +1,165 @@
 import { getAkbBackendUrl } from "@/lib/akb/akbBackendUrl";
+import { extractSsoSessionHandle } from "@/lib/akb/extractAkbSession";
 import {
   AUTH_ACCOUNT_ERROR_HEADER,
   AUTH_INVALIDATED_HEADER,
 } from "@/lib/akb/headers";
-import {
-  buildPathWithParams,
-  isSafeSameOriginPath,
-} from "@/lib/akb/safeRedirect";
+import { buildPathWithParams } from "@/lib/akb/safeRedirect";
 import {
   DEFAULT_SESSION_MAX_AGE_SECONDS,
   SSO_START_COOKIE,
   buildAuthInvalidationCookie,
   buildClearedAuthInvalidationCookie,
   buildClearedEstablishedAuthCookies,
-  buildClearedSsoIdTokenCookie,
-  buildClearedSsoStartCookie,
-  buildSessionCookie,
-  buildSsoIdTokenCookie,
-  buildSsoSessionCookie,
-  decodeJwtExp,
+  buildClearedSsoCookies,
+  buildSsoSessionHandleCookie,
   parseCookieHeader,
 } from "@/lib/akb/sessionCookie";
 import { logger } from "@/lib/logging/logger";
+import type { CompletedAuthorization } from "@/server/auth/oidcClient";
+import { getSsoAuthRuntime } from "@/server/auth/runtime";
 import {
-  AkbApiError,
   AuthError,
-  akbExchangeKeycloakCode,
+  akbGetMe,
+  createAkbAdapter,
   isAkbAccountErrorCode,
 } from "@reef/core";
 
 export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
-  const ssoError = url.searchParams.get("sso_error");
-
-  const startNonce = parseCookieHeader(request.headers.get("cookie"))[
+  const state = url.searchParams.get("state");
+  const providerError = url.searchParams.get("error");
+  const browserBinding = parseCookieHeader(request.headers.get("cookie"))[
     SSO_START_COOKIE
   ];
-  const completionPath = parseCompletionRedirect(
-    url.searchParams.get("redirect"),
-    startNonce,
-  );
-  if (!completionPath) {
-    return loginErrorRedirect("invalid_sso_state", {
-      clearStartCookie: true,
-    });
+  if (providerError || !code || !state || !browserBinding) {
+    return loginErrorRedirect("invalid_sso_state", { clearStartCookie: true });
   }
-  if (isAkbAccountErrorCode(ssoError)) {
-    return loginErrorRedirect(ssoError, {
-      clearStartCookie: true,
-      clearEstablishedAuth: true,
+
+  let runtime: Awaited<ReturnType<typeof getSsoAuthRuntime>>;
+  let completed: CompletedAuthorization;
+  try {
+    runtime = await getSsoAuthRuntime();
+    completed = await runtime.oidc.completeAuthorization(runtime.repository, {
+      code,
+      state,
+      browserBinding,
     });
-  }
-  if (!code) {
-    return loginErrorRedirect("missing_code", {
-      clearStartCookie: true,
-    });
+  } catch {
+    logger.error({}, "reef_sso_callback: OIDC completion failed");
+    return loginErrorRedirect("sso_failed", { clearStartCookie: true });
   }
 
   let backendUrl: string;
   try {
     backendUrl = getAkbBackendUrl();
-  } catch (err) {
-    logger.error({ err }, "akb_sso_callback: backend url missing");
+  } catch {
+    await discardCompletedAuthorization(completed, runtime);
+    logger.error({}, "reef_sso_callback: backend URL missing");
     return loginErrorRedirect("backend_unconfigured", {
       clearStartCookie: true,
     });
   }
 
   try {
-    const result = await akbExchangeKeycloakCode({ baseUrl: backendUrl, code });
-    const maxAgeSeconds = sessionMaxAgeSeconds(result.token);
-    const headers = new Headers({
-      // Relative same-origin Location (completionPath is a validated `/...` path);
-      // request.url's host is the container bind address behind the ingress
-      // (REEF-137 follow-up).
-      Location: completionPath,
-      "Cache-Control": "no-store",
+    await akbGetMe({
+      adapter: createAkbAdapter({
+        baseUrl: backendUrl,
+        accessToken: completed.tokenSet.accessToken,
+      }),
     });
-    headers.append(
-      "Set-Cookie",
-      buildSessionCookie(result.token, { maxAgeSeconds }),
-    );
-    headers.append("Set-Cookie", buildSsoSessionCookie({ maxAgeSeconds }));
-    if (result.kcIdToken) {
-      headers.append(
-        "Set-Cookie",
-        buildSsoIdTokenCookie(result.kcIdToken, { maxAgeSeconds }),
-      );
-    } else {
-      headers.append("Set-Cookie", buildClearedSsoIdTokenCookie());
-    }
-    headers.append("Set-Cookie", buildClearedSsoStartCookie());
-    headers.append("Set-Cookie", buildClearedAuthInvalidationCookie());
-    return new Response(null, { status: 302, headers });
   } catch (err) {
     if (
       err instanceof AuthError &&
       err.context.origin === "akb" &&
       isAkbAccountErrorCode(err.context.code)
     ) {
+      await invalidateExistingSession(request, runtime);
+      await discardCompletedAuthorization(completed, runtime);
       return loginErrorRedirect(err.context.code, {
         clearStartCookie: true,
         clearEstablishedAuth: true,
       });
     }
-    if (err instanceof AuthError || err instanceof AkbApiError) {
-      logger.error({ err }, "akb_sso_callback: exchange failed");
-      return loginErrorRedirect("exchange_failed", {
+    if (
+      err instanceof AuthError &&
+      err.context.origin === "akb" &&
+      err.context.status === 401
+    ) {
+      await invalidateExistingSession(request, runtime);
+      await discardCompletedAuthorization(completed, runtime);
+      return loginErrorRedirect("account_validation_failed", {
         clearStartCookie: true,
+        clearEstablishedAuth: true,
       });
     }
-    throw err;
+    await discardCompletedAuthorization(completed, runtime);
+    logger.error({}, "reef_sso_callback: AKB account projection failed");
+    return loginErrorRedirect("account_validation_failed", {
+      clearStartCookie: true,
+    });
+  }
+
+  let handle: string;
+  try {
+    handle = await runtime.sessions.createSession(completed);
+  } catch {
+    await discardCompletedAuthorization(completed, runtime);
+    logger.error({}, "reef_sso_callback: session persistence failed");
+    return loginErrorRedirect("session_unavailable", {
+      clearStartCookie: true,
+    });
+  }
+
+  const nowSeconds = Math.floor(Date.now() / 1_000);
+  const maxAgeSeconds = Math.min(
+    DEFAULT_SESSION_MAX_AGE_SECONDS,
+    Math.max(
+      1,
+      (completed.tokenSet.refreshTokenExpiresAt ??
+        nowSeconds + DEFAULT_SESSION_MAX_AGE_SECONDS) - nowSeconds,
+    ),
+  );
+  const headers = new Headers({
+    Location: buildPathWithParams("/login/sso-complete", {
+      next: completed.redirectPath,
+    }),
+    "Cache-Control": "no-store",
+  });
+  for (const cookie of buildClearedSsoCookies()) {
+    headers.append("Set-Cookie", cookie);
+  }
+  headers.append("Set-Cookie", buildClearedAuthInvalidationCookie());
+  headers.append(
+    "Set-Cookie",
+    buildSsoSessionHandleCookie(handle, { maxAgeSeconds }),
+  );
+  return new Response(null, { status: 302, headers });
+}
+
+async function discardCompletedAuthorization(
+  completed: CompletedAuthorization,
+  runtime: Awaited<ReturnType<typeof getSsoAuthRuntime>>,
+): Promise<void> {
+  const refreshToken = completed.tokenSet.refreshToken;
+  if (!refreshToken) return;
+  try {
+    await runtime.oidc.revokeRefreshToken(refreshToken);
+  } catch {
+    // The token never entered a Reef session; expiry is the final fallback.
   }
 }
 
-function parseCompletionRedirect(
-  rawRedirect: string | null,
-  startNonce: string | undefined,
-): string | null {
-  if (!startNonce || !isSafeSameOriginPath(rawRedirect)) {
-    return null;
+async function invalidateExistingSession(
+  request: Request,
+  runtime: Awaited<ReturnType<typeof getSsoAuthRuntime>>,
+): Promise<void> {
+  try {
+    await runtime.sessions.invalidate(extractSsoSessionHandle(request));
+  } catch {
+    // No established opaque session to invalidate.
   }
-  const redirectUrl = new URL(rawRedirect, "http://reef.local");
-  const rawCompletionRedirect =
-    redirectUrl.pathname === "/api/auth/akb/sso/callback"
-      ? redirectUrl.searchParams.get("redirect")
-      : rawRedirect;
-  if (!isSafeSameOriginPath(rawCompletionRedirect)) {
-    return null;
-  }
-  const completionUrl = new URL(rawCompletionRedirect, "http://reef.local");
-  if (completionUrl.pathname !== "/login/sso-complete") {
-    return null;
-  }
-  if (completionUrl.searchParams.get("state") !== startNonce) {
-    return null;
-  }
-  const next = completionUrl.searchParams.get("next");
-  if (!isSafeSameOriginPath(next)) {
-    return null;
-  }
-  return `${completionUrl.pathname}${completionUrl.search}`;
-}
-
-function sessionMaxAgeSeconds(jwt: string): number {
-  const exp = decodeJwtExp(jwt);
-  const nowSec = Math.floor(Date.now() / 1000);
-  return exp && exp > nowSec
-    ? Math.min(exp - nowSec, DEFAULT_SESSION_MAX_AGE_SECONDS)
-    : DEFAULT_SESSION_MAX_AGE_SECONDS;
 }
 
 function loginErrorRedirect(
@@ -160,13 +170,13 @@ function loginErrorRedirect(
   } = {},
 ): Response {
   const headers = new Headers({
-    // Relative same-origin Location; request.url's host is the container bind
-    // address behind the ingress (REEF-137 follow-up).
     Location: buildPathWithParams("/login", { sso_error: code }),
     "Cache-Control": "no-store",
   });
   if (options.clearStartCookie) {
-    headers.append("Set-Cookie", buildClearedSsoStartCookie());
+    for (const cookie of buildClearedSsoCookies()) {
+      headers.append("Set-Cookie", cookie);
+    }
   }
   if (options.clearEstablishedAuth) {
     headers.set(AUTH_INVALIDATED_HEADER, "1");

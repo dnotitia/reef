@@ -412,4 +412,15 @@ describe("LoginPanel", () => {
     expect(screen.queryByTestId("sso-option-region")).not.toBeInTheDocument();
     expect(screen.getByTestId("login-password")).toBeInTheDocument();
   });
+
+  it("fails closed in SSO mode when config fetch fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+
+    renderWithQueryClient(<LoginPanel authMode="sso" />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /no sign-in method is available/i,
+    );
+    expect(screen.queryByTestId("login-password")).not.toBeInTheDocument();
+  });
 });

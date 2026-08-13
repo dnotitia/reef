@@ -14,6 +14,7 @@ import {
 import { setCoreLogger } from "@reef/core";
 import { registerTelemetry } from "ai";
 import pkg from "../../../package.json";
+import { readAuthRuntimeConfig } from "./server/auth/config";
 
 /**
  * Node.js-runtime instrumentation.
@@ -27,6 +28,11 @@ import pkg from "../../../package.json";
  * attributes, log output, or response bodies.
  */
 export function registerNode() {
+  // Authentication mode is a required startup choice. SSO also validates its
+  // issuer, client/audience, Redis URL, and independent AES key before this
+  // process starts serving any login or API surface.
+  readAuthRuntimeConfig();
+
   // Parse comma-separated key=value pairs from OTEL_EXPORTER_OTLP_HEADERS.
   // Example: "x-langfuse-public-key=pk-...,x-langfuse-secret-key=sk-..."
   const headersRaw = process.env.OTEL_EXPORTER_OTLP_HEADERS ?? "";
