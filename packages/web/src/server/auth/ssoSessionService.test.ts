@@ -1,8 +1,9 @@
 // @vitest-environment node
 
+import { SignJWT, generateKeyPair } from "jose";
 import { describe, expect, it, vi } from "vitest";
 import type { KeycloakOidcClient } from "./oidcClient";
-import { OidcProtocolError } from "./oidcClient";
+import { OidcProtocolError, createKeycloakOidcClient } from "./oidcClient";
 import { createSessionCipher } from "./sessionCipher";
 import {
   createEncryptedSessionRepository,
@@ -182,6 +183,74 @@ describe("SSO session refresh", () => {
       "current-access-token",
     );
     await expect(repository.readSession(handle)).resolves.not.toBeNull();
+  });
+
+  it("keeps a still-valid session when the remote JWKS response is malformed", async () => {
+    const issuer = "https://identity.example.com/realms/reef";
+    const transport =
+      "http://keycloak.identity.svc.cluster.local:8080/realms/reef";
+    const { privateKey } = await generateKeyPair("RS256", {
+      modulusLength: 2048,
+    });
+    const refreshedAccessToken = await new SignJWT({
+      iss: issuer,
+      aud: "akb-api",
+      sub: "keycloak-subject",
+      iat: NOW_SECONDS,
+      exp: NOW_SECONDS + 300,
+      azp: "reef-web",
+      typ: "Bearer",
+      identity_provider: "workforce",
+      sid: "keycloak-session-id",
+    })
+      .setProtectedHeader({ alg: "RS256", typ: "JWT", kid: "reef-test-key" })
+      .sign(privateKey);
+    const fetchImpl = vi.fn<typeof fetch>(async (input) => {
+      const url = input.toString();
+      if (url.endsWith("/protocol/openid-connect/token")) {
+        return Response.json({
+          access_token: refreshedAccessToken,
+          token_type: "Bearer",
+          expires_in: 300,
+        });
+      }
+      if (url.endsWith("/protocol/openid-connect/certs")) {
+        return Response.json({ keys: "malformed" });
+      }
+      throw new Error(`unexpected OIDC request: ${url}`);
+    });
+    const repository = createEncryptedSessionRepository({
+      backend: createMemorySessionBackend({ now: () => NOW_SECONDS * 1_000 }),
+      cipher: createSessionCipher(new Uint8Array(Buffer.alloc(32, 4))),
+    });
+    const oidc = createKeycloakOidcClient(
+      {
+        issuer,
+        transportUrl: transport,
+        clientId: "reef-web",
+        akbApiAudience: "akb-api",
+        publicOrigin: "https://reef.example.com",
+      },
+      { fetch: fetchImpl, now: () => NOW_SECONDS },
+    );
+    const service = createSsoSessionService({
+      repository,
+      oidc,
+      now: () => NOW_SECONDS,
+    });
+    const handle = await createSession(repository);
+
+    await expect(service.resolveAccessToken(handle)).resolves.toBe(
+      "current-access-token",
+    );
+    await expect(repository.readSession(handle)).resolves.toMatchObject({
+      revision: 1,
+      tokenSet: { accessToken: "current-access-token" },
+    });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      `${transport}/protocol/openid-connect/certs`,
+      expect.objectContaining({ cache: "no-store" }),
+    );
   });
 
   it("does not destroy an expired session record on a transient failure", async () => {

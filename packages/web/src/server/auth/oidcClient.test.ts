@@ -67,6 +67,19 @@ function clientWithBounds(
   );
 }
 
+function remoteClient(fetchImpl: typeof fetch) {
+  return createKeycloakOidcClient(
+    {
+      issuer: ISSUER,
+      transportUrl: TRANSPORT,
+      clientId: CLIENT_ID,
+      akbApiAudience: API_AUDIENCE,
+      publicOrigin: "https://reef.example.com",
+    },
+    { fetch: fetchImpl, now: () => NOW_SECONDS },
+  );
+}
+
 async function accessToken(
   claims: Record<string, unknown> = {},
   header: Record<string, unknown> = {},
@@ -349,6 +362,41 @@ describe("Keycloak OIDC profile", () => {
     ).rejects.toMatchObject({
       code: "oidc_upstream_unavailable",
       kind: "transient",
+    });
+  });
+
+  it("classifies malformed remote JWKS JSON as transient", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response("{", {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(
+      remoteClient(fetchImpl).validateAuthorizationTokenSet(
+        await validTokenResponse(),
+        { nonce: NONCE, providerAlias: PROVIDER },
+      ),
+    ).rejects.toMatchObject({
+      code: "oidc_upstream_unavailable",
+      kind: "transient",
+    });
+  });
+
+  it("keeps remote JWKS key-selection failures fail-closed", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json({ keys: [] }));
+
+    await expect(
+      remoteClient(fetchImpl).validateAuthorizationTokenSet(
+        await validTokenResponse(),
+        { nonce: NONCE, providerAlias: PROVIDER },
+      ),
+    ).rejects.toMatchObject({
+      code: "oidc_token_invalid",
+      kind: "invalid",
     });
   });
 

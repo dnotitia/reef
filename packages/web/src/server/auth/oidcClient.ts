@@ -77,6 +77,7 @@ export class OidcProtocolError extends Error {
 
 class OidcResponseDeadlineError extends Error {}
 class OidcResponseLimitError extends Error {}
+class OidcRemoteJwksResponseError extends Error {}
 
 export interface KeycloakOidcClient {
   checkReachability(): Promise<void>;
@@ -155,7 +156,7 @@ export function createKeycloakOidcClient(
           ) {
             throw new DOMException("JWKS deadline exceeded", "TimeoutError");
           }
-          throw new TypeError("oidc_jwks_response_invalid");
+          throw new OidcRemoteJwksResponseError();
         }
       },
     });
@@ -591,7 +592,9 @@ function tokenVerificationError(
     error instanceof joseErrors.JWKSTimeout ||
     (error instanceof joseErrors.JOSEError &&
       error.code === "ERR_JOSE_GENERIC") ||
-    (usesRemoteJwks && error instanceof TypeError)
+    (usesRemoteJwks &&
+      (error instanceof joseErrors.JWKSInvalid ||
+        error instanceof OidcRemoteJwksResponseError))
   ) {
     return new OidcProtocolError("oidc_upstream_unavailable", "transient");
   }
