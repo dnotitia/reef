@@ -594,7 +594,7 @@ export async function startRuntime(options) {
       // operator/deployment backend replace the fixture that discovery
       // advertises for browser login.
       AKB_BACKEND_URL: `${options.fixtureOrigin}/akb`,
-      // The E2E-only asset route uses this loopback origin in both dev and
+      // The E2E-only asset rewrite uses this loopback origin in both dev and
       // production-build harnesses; ordinary production has no fixture origin.
       REEF_E2E_MOCK_URL: options.fixtureOrigin,
       // Server-read akb web base (REEF-368) so linked-document backlinks render

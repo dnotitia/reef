@@ -255,8 +255,8 @@ test.describe("Hermetic Markdown editor fixture", () => {
         naturalHeight: image.naturalHeight,
       }),
     );
-    expect(imageDimensions.naturalWidth).toBeGreaterThan(0);
-    expect(imageDimensions.naturalHeight).toBeGreaterThan(0);
+    expect(imageDimensions.naturalWidth).toBe(96);
+    expect(imageDimensions.naturalHeight).toBe(48);
 
     const themeCases: Array<{
       preference: ThemePreference;

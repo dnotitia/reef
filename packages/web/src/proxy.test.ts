@@ -590,9 +590,63 @@ describe("proxy — CSP header audit", () => {
   });
 });
 
-describe("proxy — E2E fixture asset CSP boundary", () => {
+describe("proxy — E2E fixture asset rewrite boundary", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
+  });
+
+  it("rewrites only the fixed image path to the configured loopback fixture", () => {
+    vi.stubEnv("REEF_E2E_MOCK_URL", "http://127.0.0.1:9136");
+
+    const response = proxy(
+      new NextRequest(
+        "https://reef.test/api/e2e/assets/reef-markdown-editor-image.png",
+        {
+          headers: {
+            authorization: "Bearer fake-token",
+            cookie: "__reef_session=fake-session",
+            "x-reef-llm": "fake-llm-header",
+          },
+        },
+      ),
+    );
+
+    expect(response.headers.get("x-middleware-rewrite")).toBe(
+      "http://127.0.0.1:9136/__e2e/assets/reef-markdown-editor-image.png",
+    );
+    expect(response.headers.get("x-middleware-request-authorization")).toBe("");
+    expect(response.headers.get("x-middleware-request-cookie")).toBe("");
+    expect(response.headers.get("x-middleware-request-x-reef-llm")).toBe("");
+  });
+
+  it("rejects arbitrary paths, queries, methods, and non-loopback origins", () => {
+    vi.stubEnv("REEF_E2E_MOCK_URL", "http://127.0.0.1:9136");
+    const requests = [
+      new NextRequest(
+        "https://reef.test/api/e2e/assets/reef-markdown-editor-image.png?target=http://169.254.169.254/",
+      ),
+      new NextRequest(
+        "https://reef.test/api/e2e/assets/reef-markdown-editor-image.png/../secret",
+      ),
+      new NextRequest("https://reef.test/api/e2e/assets/other.png"),
+      new NextRequest(
+        "https://reef.test/api/e2e/assets/reef-markdown-editor-image.png",
+        { method: "HEAD" },
+      ),
+    ];
+
+    for (const request of requests) {
+      expect(proxy(request).headers.get("x-middleware-rewrite")).toBeNull();
+    }
+
+    vi.stubEnv("REEF_E2E_MOCK_URL", "https://fixture.example.test");
+    expect(
+      proxy(
+        new NextRequest(
+          "https://reef.test/api/e2e/assets/reef-markdown-editor-image.png",
+        ),
+      ).headers.get("x-middleware-rewrite"),
+    ).toBeNull();
   });
 
   it("keeps the production image policy unchanged when E2E env is present", () => {
