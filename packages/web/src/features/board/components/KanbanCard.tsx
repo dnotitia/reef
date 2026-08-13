@@ -67,6 +67,7 @@ interface KanbanCardProps {
 
 interface KanbanCardSurfaceProps extends HTMLAttributes<HTMLDivElement> {
   issue: IssueListItem;
+  currentLogin?: string | null;
   blocked?: boolean;
   planningCatalog?: PlanningCatalog;
   isDragging?: boolean;
@@ -124,6 +125,7 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
   function KanbanCardSurface(
     {
       issue,
+      currentLogin = null,
       blocked = false,
       planningCatalog,
       isDragging = false,
@@ -135,7 +137,6 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
     },
     ref,
   ) {
-    const currentLogin = useCurrentUserLogin();
     const priorityLabels = usePriorityLabels();
     const [nowMs] = useState(() => Date.now());
     const dueTime = issue.due_date ? new Date(issue.due_date).getTime() : null;
@@ -285,6 +286,7 @@ export const KanbanCard = memo(function KanbanCard({
   dragEnabled = true,
   readOnlyReason,
 }: KanbanCardProps) {
+  const currentLogin = useCurrentUserLogin();
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
       id: occurrenceKey ?? issue.id,
@@ -374,6 +376,7 @@ export const KanbanCard = memo(function KanbanCard({
       data-occurrence-key={keyboardOccurrenceKey}
       data-keyboard-focused={focused ? "true" : undefined}
       issue={issue}
+      currentLogin={currentLogin}
       blocked={blocked}
       planningCatalog={planningCatalog}
       isDragging={isDragging}
@@ -398,6 +401,7 @@ export const KanbanCard = memo(function KanbanCard({
     <IssueContextMenu
       issue={issue}
       vault={vault}
+      currentLogin={currentLogin}
       planningCatalog={planningCatalog}
       assignees={assignees}
     >

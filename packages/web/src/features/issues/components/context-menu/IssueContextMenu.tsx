@@ -31,7 +31,6 @@ import {
 } from "@/components/ui/context-menu";
 import { useArchiveIssue } from "@/features/issues/hooks/mutations/useArchiveIssue";
 import { useUpdateIssue } from "@/features/issues/hooks/mutations/useUpdateIssue";
-import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { useFlashStore } from "@/features/issues/stores/useFlashStore";
 import { buildOpenIssueHref } from "@/features/issues/lib/issueHref";
 import { buildStatusPatch } from "@/features/issues/lib/statusPatch";
@@ -59,6 +58,7 @@ import { CloseIssueDialog } from "../detail/CloseIssueDialog";
 interface IssueContextMenuProps {
   issue: IssueListItem;
   vault: string;
+  currentLogin: string | null;
   planningCatalog?: PlanningCatalog;
   assignees?: readonly Collaborator[];
   onOpenChange?: (open: boolean) => void;
@@ -83,6 +83,7 @@ function NoneOption({ label }: { label: string }) {
 export function IssueContextMenu({
   issue,
   vault,
+  currentLogin,
   planningCatalog,
   assignees,
   onOpenChange,
@@ -92,7 +93,6 @@ export function IssueContextMenu({
   const detail = useTranslations("issues.detail");
   const toasts = useTranslations("toasts");
   const board = useTranslations("board");
-  const currentLogin = useCurrentUserLogin();
   const updateMutation = useUpdateIssue();
   const archiveMutation = useArchiveIssue();
   const flashIssue = useFlashStore((state) => state.flashIssue);

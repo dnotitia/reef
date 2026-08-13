@@ -248,6 +248,7 @@ export const IssueListRow = memo(function IssueListRow({
     <IssueContextMenu
       issue={issue}
       vault={vault}
+      currentLogin={currentLogin}
       planningCatalog={planningCatalog}
       assignees={assignees}
       onOpenChange={setContextOpen}

@@ -33,10 +33,6 @@ vi.mock("@/features/issues/hooks/mutations/useArchiveIssue", () => ({
   }),
 }));
 
-vi.mock("@/features/auth/hooks/useCurrentUserLogin", () => ({
-  useCurrentUserLogin: () => "alice",
-}));
-
 const issue: IssueListItem = {
   id: "REEF-001",
   title: "Context menu issue",
@@ -76,6 +72,7 @@ function renderMenu({ locale = "en" as Locale, archived = false } = {}) {
       <IssueContextMenu
         issue={nextIssue}
         vault="reef-test"
+        currentLogin="alice"
         planningCatalog={planningCatalog}
         assignees={[
           { login: "alice", name: "Alice Kim", avatar_url: null },
@@ -247,6 +244,7 @@ describe("IssueContextMenu", () => {
         <IssueContextMenu
           issue={{ ...issue, priority: null }}
           vault="reef-test"
+          currentLogin="alice"
           planningCatalog={planningCatalog}
           assignees={[]}
         >
