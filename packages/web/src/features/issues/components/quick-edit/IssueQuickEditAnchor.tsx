@@ -61,6 +61,8 @@ const renderStatusOption = (status: Status) => <StatusBadge status={status} />;
 const renderPriorityOption = (priority: Priority) => (
   <PriorityBadge priority={priority} />
 );
+const COMPACT_QUICK_EDIT_WIDTH = "w-48";
+const DEFAULT_QUICK_EDIT_WIDTH = "w-56";
 
 function sameStringArray(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index]);
@@ -103,6 +105,10 @@ export function IssueQuickEditAnchor({
     (allowedFields === undefined || allowedFields.includes(request.field))
       ? request.field
       : null;
+  const anchorWidth =
+    field === "status" || field === "priority"
+      ? COMPACT_QUICK_EDIT_WIDTH
+      : DEFAULT_QUICK_EDIT_WIDTH;
 
   const updateAnchorPosition = useCallback(() => {
     if (field === null) return;
@@ -232,7 +238,8 @@ export function IssueQuickEditAnchor({
     field === null ? null : (
       <div
         className={cn(
-          "pointer-events-auto fixed z-50 w-56 -translate-y-1/2",
+          "pointer-events-auto fixed z-50 -translate-y-1/2",
+          anchorWidth,
           className,
         )}
         style={{
@@ -256,6 +263,7 @@ export function IssueQuickEditAnchor({
             onOpenChange={closeOpenField}
             disabled={mutation.isPending}
             triggerClassName="bg-popover shadow-lg shadow-foreground/10"
+            contentClassName={COMPACT_QUICK_EDIT_WIDTH}
           />
         )}
 
@@ -278,6 +286,7 @@ export function IssueQuickEditAnchor({
             onOpenChange={closeOpenField}
             disabled={mutation.isPending}
             triggerClassName="bg-popover shadow-lg shadow-foreground/10"
+            contentClassName={COMPACT_QUICK_EDIT_WIDTH}
           />
         )}
 

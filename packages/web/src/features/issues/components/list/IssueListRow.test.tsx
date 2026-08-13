@@ -468,6 +468,49 @@ describe("IssueListRow", () => {
     }
   });
 
+  it("uses compact enum chrome while keeping the assignee anchor width", async () => {
+    const user = userEvent.setup();
+
+    for (const field of ["status", "priority", "assignee"] as const) {
+      cleanup();
+      useIssueKeyboardStore
+        .getState()
+        .setVisibleOccurrences("list", [
+          { key: "row-1", issueId: mockIssue.id },
+        ]);
+      render(
+        <IssueListRow
+          issue={mockIssue}
+          vault="reef-test"
+          allIssues={[mockIssue]}
+          logicalIds={[mockIssue.id]}
+          occurrenceKey="row-1"
+        />,
+        { wrapper: createWrapper() },
+      );
+
+      await user.click(screen.getByTestId(`issue-inline-edit-${field}`));
+
+      const anchor = screen.getByTestId("issue-quick-edit-anchor");
+      expect(anchor).toHaveClass(field === "assignee" ? "w-56" : "w-48");
+
+      if (field !== "assignee") {
+        expect(screen.getByRole("listbox")).toHaveClass("w-48");
+      }
+
+      useIssueKeyboardStore.getState().closeQuickEdit();
+    }
+
+    act(() => {
+      useIssueKeyboardStore
+        .getState()
+        .requestQuickEdit("list", "labels", { requestDomFocus: false });
+    });
+    expect(screen.getByTestId("issue-quick-edit-anchor")).toHaveClass("w-56");
+    expect(screen.getByRole("dialog")).toHaveClass("w-72");
+    useIssueKeyboardStore.getState().closeQuickEdit();
+  });
+
   it("follows the active trigger after resize and vertical or horizontal table scroll", async () => {
     useIssueKeyboardStore
       .getState()

@@ -138,6 +138,33 @@ test.describe("Hermetic issue keyboard navigation", () => {
       expect(geometry.editorLeft).toBeCloseTo(geometry.triggerLeft, 0);
       expect(geometry.editorCenter).toBeCloseTo(geometry.triggerCenter, 0);
 
+      const widths = await page.evaluate((fieldName) => {
+        const editor = document.querySelector<HTMLElement>(
+          '[data-testid="issue-quick-edit-anchor"]',
+        );
+        const content =
+          fieldName === "assignee"
+            ? document.querySelector<HTMLElement>(
+                '[data-testid="assignee-combobox"] [role="listbox"]',
+              )?.parentElement
+            : document.querySelector<HTMLElement>(
+                '[data-slot="select-content"]',
+              );
+        if (!editor || !content) throw new Error("quick-edit width missing");
+        return {
+          editor: editor.getBoundingClientRect().width,
+          content: content.getBoundingClientRect().width,
+        };
+      }, field);
+
+      if (field === "assignee") {
+        expect(widths.editor).toBe(224);
+        expect(widths.content).toBeGreaterThanOrEqual(256);
+      } else {
+        expect(widths.editor).toBe(192);
+        expect(widths.content).toBe(192);
+      }
+
       const editorTrigger =
         field === "assignee"
           ? page.getByTestId("assignee-combobox").locator("button").first()

@@ -216,6 +216,31 @@ describe("BacklogRow", () => {
     useIssueKeyboardStore.getState().closeQuickEdit();
   });
 
+  it("uses compact enum chrome while keeping the assignee anchor width", async () => {
+    const user = userEvent.setup();
+
+    for (const field of ["status", "priority", "assignee"] as const) {
+      cleanup();
+      useIssueKeyboardStore
+        .getState()
+        .setVisibleOccurrences("backlog", [
+          { key: issue.id, issueId: issue.id },
+        ]);
+      renderRow();
+
+      await user.click(screen.getByTestId(`issue-inline-edit-${field}`));
+
+      const anchor = screen.getByTestId("issue-quick-edit-anchor");
+      expect(anchor).toHaveClass(field === "assignee" ? "w-56" : "w-48");
+
+      if (field !== "assignee") {
+        expect(screen.getByRole("listbox")).toHaveClass("w-48");
+      }
+
+      useIssueKeyboardStore.getState().closeQuickEdit();
+    }
+  });
+
   it("does not expose labels or planning quick-edit controls", () => {
     renderRow();
 
