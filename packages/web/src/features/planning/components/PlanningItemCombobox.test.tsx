@@ -1,6 +1,14 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import type { PlanningCatalog } from "@reef/core";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   PLANNING_ITEM_PANEL_CLASS,
@@ -38,7 +46,12 @@ vi.mock("../hooks/usePlanningCatalog", () => ({
   usePlanningCatalog: () => ({ data: catalog, isPending: false }),
 }));
 
-afterEach(cleanup);
+const ORIGINAL_SPRINT_NAME = catalog.sprints[0].name;
+
+afterEach(() => {
+  catalog.sprints[0].name = ORIGINAL_SPRINT_NAME;
+  cleanup();
+});
 
 // lucide tags each glyph with `lucide-<name>`; the sprint kind glyph is
 // `iteration-cw`, so we can assert its presence/absence precisely.
@@ -139,5 +152,92 @@ describe("PlanningItemCombobox", () => {
 
     const panel = screen.getByRole("listbox").parentElement;
     expect(panel?.className).toContain(PLANNING_ITEM_PANEL_CLASS);
+  });
+
+  it("reveals an overflowing planning name on trigger hover and active option", async () => {
+    const user = userEvent.setup();
+    const longName =
+      "A planning sprint name that is longer than a compact selector can display";
+    catalog.sprints[0].name = longName;
+
+    render(
+      <PlanningItemCombobox
+        kind="sprints"
+        vault="v"
+        value={SPRINT_ID}
+        onChange={() => {}}
+        testId="sprint-combo"
+      />,
+    );
+
+    const triggerName = screen.getByText(longName);
+    Object.defineProperty(triggerName, "clientWidth", {
+      configurable: true,
+      value: 96,
+    });
+    Object.defineProperty(triggerName, "scrollWidth", {
+      configurable: true,
+      value: 360,
+    });
+    await act(async () => {
+      fireEvent(window, new Event("resize"));
+    });
+    const measuredTrigger = screen.getByTestId("sprint-combo");
+
+    await user.hover(measuredTrigger);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(longName);
+    await user.unhover(measuredTrigger);
+    await waitFor(() =>
+      expect(screen.queryByRole("tooltip")).not.toBeInTheDocument(),
+    );
+
+    await user.click(measuredTrigger);
+    await user.unhover(screen.getByTestId("sprint-combo"));
+    const option = screen.getByRole("option", { name: new RegExp(longName) });
+    await user.hover(option);
+    const optionName = option.querySelector("span.truncate") as HTMLElement;
+    Object.defineProperty(optionName, "clientWidth", {
+      configurable: true,
+      value: 96,
+    });
+    Object.defineProperty(optionName, "scrollWidth", {
+      configurable: true,
+      value: 360,
+    });
+    await act(async () => {
+      fireEvent(window, new Event("resize"));
+    });
+
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(longName);
+  });
+
+  it("does not create a tooltip when a planning name fits", async () => {
+    const user = userEvent.setup();
+    render(
+      <PlanningItemCombobox
+        kind="sprints"
+        vault="v"
+        value={SPRINT_ID}
+        onChange={() => {}}
+        testId="sprint-combo"
+      />,
+    );
+
+    const trigger = screen.getByTestId("sprint-combo");
+    const triggerName = screen.getByText("Sprint 3");
+    Object.defineProperty(triggerName, "clientWidth", {
+      configurable: true,
+      value: 240,
+    });
+    Object.defineProperty(triggerName, "scrollWidth", {
+      configurable: true,
+      value: 120,
+    });
+    await act(async () => {
+      fireEvent(window, new Event("resize"));
+    });
+
+    await user.hover(trigger);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 });

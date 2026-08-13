@@ -1,6 +1,12 @@
 import { useIssueNavStack } from "@/features/issues/stores/useIssueNavStack";
 import type { IssueMetadata } from "@reef/core";
-import { act, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -412,6 +418,94 @@ describe("IssueRelationInput", () => {
     ).not.toContainElement(badge);
     expect(title.closest("[data-issue-option-row]")?.className).toContain(
       "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem]",
+    );
+  });
+
+  // REEF-509 overflow inventory: relation candidate/selected title tracks,
+  // planning single-select trigger/options, and IssueChildren titles are the
+  // eligible text surfaces. IDs, the free-text Use row, assignee/status/type,
+  // and other metadata stay out of this tooltip policy.
+  it("reveals only overflowing relation titles on hover and keyboard active state", async () => {
+    const user = userEvent.setup();
+    const title =
+      "A relation title that is substantially longer than its compact row track";
+    const longIssue: IssueMetadata = {
+      ...RICH[0],
+      id: "REEF-003",
+      title,
+    };
+    const { rerender } = render(
+      <IssueRelationInput
+        id="depends-on"
+        label="Depends on"
+        value={[]}
+        allIssues={[longIssue]}
+        onChange={() => {}}
+      />,
+    );
+
+    const field = screen.getByLabelText("Depends on");
+    await user.type(field, "REEF-003");
+    const candidateTitle = screen.getByText(title);
+    Object.defineProperty(candidateTitle, "clientWidth", {
+      configurable: true,
+      value: 96,
+    });
+    Object.defineProperty(candidateTitle, "scrollWidth", {
+      configurable: true,
+      value: 360,
+    });
+    await act(async () => {
+      fireEvent(window, new Event("resize"));
+    });
+
+    const candidate = document.querySelector(
+      '[data-issue-id="REEF-003"]',
+    ) as HTMLElement;
+    expect(candidate).not.toBeNull();
+    expect(field).toHaveAttribute("aria-activedescendant", candidate.id);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(title);
+
+    await user.hover(candidate);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(title);
+    await user.unhover(candidate);
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByRole("tooltip")).not.toBeInTheDocument(),
+    );
+
+    rerender(
+      <IssueRelationInput
+        id="depends-on"
+        label="Depends on"
+        value={["REEF-003"]}
+        allIssues={[longIssue]}
+        onChange={() => {}}
+        navigable
+      />,
+    );
+    const selectedTitle = screen.getByText(title);
+    Object.defineProperty(selectedTitle, "clientWidth", {
+      configurable: true,
+      value: 96,
+    });
+    Object.defineProperty(selectedTitle, "scrollWidth", {
+      configurable: true,
+      value: 360,
+    });
+    await act(async () => {
+      fireEvent(window, new Event("resize"));
+    });
+
+    const link = screen.getByRole("link");
+    await waitFor(() => expect(link).toHaveAttribute("aria-describedby"));
+    fireEvent.pointerMove(link, { pointerType: "mouse" });
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(title);
+    link.focus();
+    expect(link).toHaveAttribute("aria-describedby");
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByRole("tooltip")).not.toBeInTheDocument(),
     );
   });
 
@@ -866,11 +960,11 @@ describe("IssueRelationInput", () => {
       });
     // Capture the ResizeObserver callback so the content-growth resize can be
     // fired deterministically (the jsdom shim does not fires on its own).
-    let fireResize: (() => void) | null = null;
+    const resizeCallbacks: Array<() => void> = [];
     const RealResizeObserver = globalThis.ResizeObserver;
     globalThis.ResizeObserver = class {
       constructor(cb: ResizeObserverCallback) {
-        fireResize = () => cb([], this as unknown as ResizeObserver);
+        resizeCallbacks.push(() => cb([], this as unknown as ResizeObserver));
       }
       observe() {}
       unobserve() {}
@@ -897,7 +991,7 @@ describe("IssueRelationInput", () => {
       // The list grows past the room below; the observer re-measures.
       panelHeight = 300;
       await act(async () => {
-        fireResize?.();
+        for (const fireResize of resizeCallbacks) fireResize();
       });
 
       // Now anchored from its bottom — flipped up, no longer spilling off-screen.

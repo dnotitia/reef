@@ -3,6 +3,10 @@
 import { IssueOptionRow } from "@/components/fields/IssueOptionRow";
 import { Button } from "@/components/ui/button";
 import { useOverlayOpenRegistration } from "@/components/ui/overlayDismiss";
+import {
+  OverflowTooltip,
+  useTextOverflow,
+} from "@/components/ui/overflow-tooltip";
 import { useIssueDrill } from "@/features/issues/hooks/view/useIssueDrill";
 import {
   type IssueRelationLike,
@@ -70,6 +74,61 @@ interface IssueRelationInputProps {
 type Option =
   | { kind: "issue"; issue: IssueListItem }
   | { kind: "use"; id: string };
+
+type IssueOption = Extract<Option, { kind: "issue" }>;
+type IssueDrillProps = ReturnType<typeof useIssueDrill>;
+
+function RelationCandidateOption({
+  option,
+  optionId,
+  inputValue,
+  blockerCount,
+  selected,
+  active,
+  onSelect,
+  onActive,
+}: {
+  option: IssueOption;
+  optionId: string;
+  inputValue: string;
+  blockerCount: number;
+  selected: boolean;
+  active: boolean;
+  onSelect: () => void;
+  onActive: () => void;
+}) {
+  const titleRef = useRef<HTMLSpanElement>(null);
+  const isOverflowing = useTextOverflow(titleRef, option.issue.title);
+
+  return (
+    <OverflowTooltip
+      value={option.issue.title}
+      isOverflowing={isOverflowing}
+      active={active}
+    >
+      <button
+        id={optionId}
+        type="button"
+        tabIndex={-1}
+        data-issue-id={option.issue.id}
+        onClick={onSelect}
+        onMouseEnter={onActive}
+        className={cn(
+          "flex w-full cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-left touch-manipulation",
+          active && "bg-accent text-accent-foreground",
+        )}
+      >
+        <IssueOptionRow
+          issue={option.issue}
+          query={inputValue}
+          blockerCount={blockerCount}
+          selected={selected}
+          titleRef={titleRef}
+        />
+      </button>
+    </OverflowTooltip>
+  );
+}
 
 /**
  * Issue-relation combobox (REEF-032). Replaces the native `<datalist>` with a
@@ -446,6 +505,11 @@ export function IssueRelationInput({
             role="combobox"
             aria-expanded={showPanel}
             aria-controls={showPanel ? listId : undefined}
+            aria-activedescendant={
+              showPanel && options.length > 0
+                ? `${listId}-option-${active}`
+                : undefined
+            }
             aria-autocomplete="list"
             aria-label={hideLabel ? label : undefined}
             value={inputValue}
@@ -552,6 +616,7 @@ export function IssueRelationInput({
                       return (
                         <button
                           key="__use"
+                          id={`${listId}-option-${index}`}
                           type="button"
                           tabIndex={-1}
                           onClick={() => selectOption(option)}
@@ -577,30 +642,22 @@ export function IssueRelationInput({
                       );
                     }
                     return (
-                      <button
+                      <RelationCandidateOption
                         key={option.issue.id}
-                        type="button"
-                        tabIndex={-1}
-                        data-issue-id={option.issue.id}
-                        onClick={() => selectOption(option)}
-                        onMouseEnter={() => setActiveIndex(index)}
-                        className={cn(
-                          "flex w-full cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-left touch-manipulation",
-                          isActive && "bg-accent text-accent-foreground",
+                        option={option}
+                        optionId={`${listId}-option-${index}`}
+                        inputValue={inputValue}
+                        blockerCount={unresolvedBlockerCountIn(
+                          option.issue,
+                          blockedIndex,
                         )}
-                      >
-                        <IssueOptionRow
-                          issue={option.issue}
-                          query={inputValue}
-                          blockerCount={unresolvedBlockerCountIn(
-                            option.issue,
-                            blockedIndex,
-                          )}
-                          selected={
-                            isSingle && option.issue.id === selectedSingleValue
-                          }
-                        />
-                      </button>
+                        selected={
+                          isSingle && option.issue.id === selectedSingleValue
+                        }
+                        active={isActive}
+                        onSelect={() => selectOption(option)}
+                        onActive={() => setActiveIndex(index)}
+                      />
                     );
                   })}
                 </div>
@@ -686,48 +743,23 @@ function NavigableRelationRows({
   disabled: boolean;
   onRemove: (id: string) => void;
 }) {
-  const t = useTranslations("issues.relations");
   const getDrillProps = useIssueDrill(currentIssueId ?? "");
   return (
     <ul className="flex flex-col gap-0.5">
       {value.map((relationId) => {
         const target = issuesById.get(relationId);
         return (
-          <li key={relationId} className="flex items-center gap-1">
-            <Link
-              {...getDrillProps(relationId)}
-              data-issue-id={relationId}
-              className={cn(
-                "flex min-w-0 flex-1 touch-manipulation items-center rounded-md px-1.5 py-1 transition-colors duration-150",
-                "hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
-              )}
-            >
-              {target ? (
-                <IssueOptionRow
-                  issue={target}
-                  blockerCount={unresolvedBlockerCountIn(target, blockedIndex)}
-                />
-              ) : (
-                // Relation target absent from allIssues (archived, etc.):
-                // degrade to an id fallback link, keeping navigation.
-                <span
-                  translate="no"
-                  className="font-mono text-xs tabular-nums text-muted-foreground"
-                >
-                  {relationId}
-                </span>
-              )}
-            </Link>
-            <button
-              type="button"
-              aria-label={t("removeRelation", { id: relationId })}
-              disabled={disabled}
-              onClick={() => onRemove(relationId)}
-              className="shrink-0 touch-manipulation rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50"
-            >
-              <X className="h-3.5 w-3.5" aria-hidden="true" />
-            </button>
-          </li>
+          <RelationSelectedRow
+            key={relationId}
+            relationId={relationId}
+            target={target}
+            blockerCount={
+              target ? unresolvedBlockerCountIn(target, blockedIndex) : 0
+            }
+            disabled={disabled}
+            onRemove={onRemove}
+            getDrillProps={getDrillProps}
+          />
         );
       })}
     </ul>
@@ -747,40 +779,131 @@ function StaticRelationRows({
   disabled: boolean;
   onRemove: (id: string) => void;
 }) {
-  const t = useTranslations("issues.relations");
   return (
     <ul className="flex flex-col gap-0.5">
       {value.map((relationId) => {
         const target = issuesById.get(relationId);
         return (
-          <li key={relationId} className="flex items-center gap-1">
-            <div className="flex min-w-0 flex-1 items-center rounded-md px-1.5 py-1">
-              {target ? (
-                <IssueOptionRow
-                  issue={target}
-                  blockerCount={unresolvedBlockerCountIn(target, blockedIndex)}
-                />
-              ) : (
-                <span
-                  translate="no"
-                  className="font-mono text-xs tabular-nums text-muted-foreground"
-                >
-                  {relationId}
-                </span>
-              )}
-            </div>
-            <button
-              type="button"
-              aria-label={t("removeRelation", { id: relationId })}
-              disabled={disabled}
-              onClick={() => onRemove(relationId)}
-              className="shrink-0 touch-manipulation rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50"
-            >
-              <X className="h-3.5 w-3.5" aria-hidden="true" />
-            </button>
-          </li>
+          <RelationSelectedRow
+            key={relationId}
+            relationId={relationId}
+            target={target}
+            blockerCount={
+              target ? unresolvedBlockerCountIn(target, blockedIndex) : 0
+            }
+            disabled={disabled}
+            onRemove={onRemove}
+          />
         );
       })}
     </ul>
+  );
+}
+
+function RelationSelectedRow({
+  relationId,
+  target,
+  blockerCount,
+  disabled,
+  onRemove,
+  getDrillProps,
+}: {
+  relationId: string;
+  target?: IssueListItem;
+  blockerCount: number;
+  disabled: boolean;
+  onRemove: (id: string) => void;
+  getDrillProps?: IssueDrillProps;
+}) {
+  const t = useTranslations("issues.relations");
+  const titleRef = useRef<HTMLSpanElement>(null);
+  const isOverflowing = useTextOverflow(
+    titleRef,
+    target?.title ?? "",
+    Boolean(target),
+  );
+  const titleDescriptionId = useId();
+  const [focusWithin, setFocusWithin] = useState(false);
+  const describedBy = target && isOverflowing ? titleDescriptionId : undefined;
+
+  const targetContent = target ? (
+    <IssueOptionRow
+      issue={target}
+      blockerCount={blockerCount}
+      titleRef={titleRef}
+    />
+  ) : (
+    // Relation target absent from allIssues (archived, etc.): keep an id-only
+    // fallback and leave it outside the title-overflow policy.
+    <span
+      translate="no"
+      className="font-mono text-xs tabular-nums text-muted-foreground"
+    >
+      {relationId}
+    </span>
+  );
+
+  const rowContent = getDrillProps ? (
+    (() => {
+      const linkProps = getDrillProps(relationId);
+      return (
+        <Link
+          {...linkProps}
+          href={linkProps.href}
+          data-issue-id={relationId}
+          aria-describedby={describedBy}
+          className={cn(
+            "flex min-w-0 flex-1 touch-manipulation items-center rounded-md px-1.5 py-1 transition-colors duration-150",
+            "hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
+          )}
+        >
+          {targetContent}
+        </Link>
+      );
+    })()
+  ) : (
+    <div className="flex min-w-0 flex-1 items-center rounded-md px-1.5 py-1">
+      {targetContent}
+    </div>
+  );
+
+  return (
+    <li className="flex items-center gap-1">
+      <OverflowTooltip
+        value={target?.title ?? ""}
+        isOverflowing={Boolean(target && isOverflowing)}
+        active={focusWithin}
+        onDismiss={() => setFocusWithin(false)}
+      >
+        <div
+          className="flex min-w-0 flex-1 items-center gap-1"
+          onFocusCapture={() => setFocusWithin(true)}
+          onBlurCapture={(event) => {
+            if (
+              !event.currentTarget.contains(event.relatedTarget as Node | null)
+            ) {
+              setFocusWithin(false);
+            }
+          }}
+        >
+          {rowContent}
+          <button
+            type="button"
+            aria-label={t("removeRelation", { id: relationId })}
+            aria-describedby={describedBy}
+            disabled={disabled}
+            onClick={() => onRemove(relationId)}
+            className="shrink-0 touch-manipulation rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+          {describedBy ? (
+            <span id={describedBy} className="sr-only">
+              {target?.title}
+            </span>
+          ) : null}
+        </div>
+      </OverflowTooltip>
+    </li>
   );
 }
