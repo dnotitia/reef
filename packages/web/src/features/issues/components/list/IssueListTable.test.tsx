@@ -66,6 +66,9 @@ describe("IssueListTable", () => {
     navigationState.searchParams = new URLSearchParams();
     mockApiFetch.mockImplementation(async (url) => {
       const path = String(url);
+      if (path.startsWith("/api/vaults/") && path.endsWith("/members")) {
+        return new Response(JSON.stringify({ members: [] }), { status: 200 });
+      }
       if (path.startsWith("/api/vault-members")) {
         return new Response(JSON.stringify({ users: [] }), { status: 200 });
       }
@@ -80,6 +83,89 @@ describe("IssueListTable", () => {
       selectedIssueId: null,
     });
     useIssueSelectionStore.getState().clear();
+  });
+
+  it("uses the current full-roster display name for rows and assignee groups", async () => {
+    const assignedIssues: IssueMetadata[] = [
+      { ...issues[0], title: "Assigned task", assigned_to: "alice" },
+    ];
+    mockApiFetch.mockImplementation(async (url) => {
+      const path = String(url);
+      if (path.startsWith("/api/vaults/") && path.endsWith("/members")) {
+        return new Response(
+          JSON.stringify({
+            members: [
+              {
+                username: "alice",
+                display_name: "  Alice Example  ",
+                role: "reader",
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      if (path.startsWith("/api/vault-members")) {
+        return new Response(JSON.stringify({ users: [] }), { status: 200 });
+      }
+      if (path.startsWith("/api/issues/relations")) {
+        return new Response(JSON.stringify({ relations: [] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ issues: assignedIssues }), {
+        status: 200,
+      });
+    });
+
+    render(wrap(<IssueListTable vault="reef-acme" groupBy="assignee" />));
+
+    expect(await screen.findByText("Assigned task")).toBeInTheDocument();
+    expect(screen.getAllByText("Alice Example")).toHaveLength(2);
+    expect(screen.queryByText("alice")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: /Collapse Alice Example/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("falls back to stable logins and the existing dash for incomplete roster data", async () => {
+    const fallbackIssues: IssueMetadata[] = [
+      { ...issues[0], id: "REEF-1", title: "Blank name", assigned_to: "alice" },
+      {
+        ...issues[1],
+        id: "REEF-2",
+        title: "Unknown member",
+        assigned_to: "missing-user",
+      },
+      { ...issues[0], id: "REEF-3", title: "Unassigned", assigned_to: null },
+    ];
+    mockApiFetch.mockImplementation(async (url) => {
+      const path = String(url);
+      if (path.startsWith("/api/vaults/") && path.endsWith("/members")) {
+        return new Response(
+          JSON.stringify({
+            members: [
+              { username: "alice", display_name: "   ", role: "reader" },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      if (path.startsWith("/api/vault-members")) {
+        return new Response(JSON.stringify({ users: [] }), { status: 200 });
+      }
+      if (path.startsWith("/api/issues/relations")) {
+        return new Response(JSON.stringify({ relations: [] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ issues: fallbackIssues }), {
+        status: 200,
+      });
+    });
+
+    render(wrap(<IssueListTable vault="reef-acme" />));
+
+    await screen.findByText("Blank name");
+    expect(screen.getAllByText("alice")).toHaveLength(1);
+    expect(screen.getAllByText("missing-user")).toHaveLength(1);
+    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
   });
 
   it("requests the first 100-issue page and renders the rows", async () => {
@@ -207,6 +293,12 @@ describe("IssueListTable", () => {
 
   it("shows the data-empty state when no issues match", async () => {
     mockApiFetch.mockImplementation(async (url) => {
+      if (
+        String(url).startsWith("/api/vaults/") &&
+        String(url).endsWith("/members")
+      ) {
+        return new Response(JSON.stringify({ members: [] }), { status: 200 });
+      }
       if (String(url).startsWith("/api/vault-members")) {
         return new Response(JSON.stringify({ users: [] }), { status: 200 });
       }
@@ -248,6 +340,12 @@ describe("IssueListTable", () => {
       },
     ];
     mockApiFetch.mockImplementation(async (url) => {
+      if (
+        String(url).startsWith("/api/vaults/") &&
+        String(url).endsWith("/members")
+      ) {
+        return new Response(JSON.stringify({ members: [] }), { status: 200 });
+      }
       if (String(url).startsWith("/api/vault-members")) {
         return new Response(JSON.stringify({ users: [] }), { status: 200 });
       }
@@ -292,6 +390,12 @@ describe("IssueListTable", () => {
       { ...issues[1], labels: ["beta"] },
     ];
     mockApiFetch.mockImplementation(async (url) => {
+      if (
+        String(url).startsWith("/api/vaults/") &&
+        String(url).endsWith("/members")
+      ) {
+        return new Response(JSON.stringify({ members: [] }), { status: 200 });
+      }
       if (String(url).startsWith("/api/vault-members")) {
         return new Response(JSON.stringify({ users: [] }), { status: 200 });
       }

@@ -14,6 +14,9 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Issue-list assignee cells now resolve the current vault display name from
+  the stable username, with refresh-on-mount roster revalidation and login
+  fallbacks for missing names or members.** (REEF-504)
 - **Truncated sub-issue titles now expose the full title on hover and keyboard focus without changing the existing row metadata layout.** (REEF-507)
 - **Issue detail panels can now be resized on desktop** with a pointer or
   keyboard splitter, while preserving the width for the current tab session
