@@ -282,20 +282,53 @@ async function waitForInteractionState(locator, state, label, timeoutMs) {
   }
 }
 
-export async function probeWorkspaceClickInteractions(page, timeoutMs) {
+function isIssueDetailStartPath(startPath) {
+  if (typeof startPath !== "string") return false;
+  const segments = new URL(startPath, "http://reef-e2e.test").pathname
+    .split("/")
+    .filter(Boolean);
+  return segments.at(-2) === "issues" && Boolean(segments.at(-1));
+}
+
+export async function probeWorkspaceClickInteractions(
+  page,
+  timeoutMs,
+  { startPath } = {},
+) {
   const issueDetail = CLIENT_READINESS_INTERACTIONS.issueDetail;
-  const issueDetailModal = page.locator(issueDetail.observable);
-  if (await issueDetailModal.isVisible().catch(() => false)) {
-    const issueDetailClose = page.locator(issueDetail.close);
+  const directIssueDetail = isIssueDetailStartPath(startPath);
+  let issueDetailClose;
+  if (directIssueDetail) {
+    issueDetailClose = page.locator(issueDetail.close);
     await waitForInteractionState(
       issueDetailClose,
       "visible",
-      "Issue detail close control",
+      "Direct issue detail close control",
       timeoutMs,
     );
+  } else {
+    const issueDetailModal = page.locator(issueDetail.observable);
+    if (await issueDetailModal.isVisible().catch(() => false)) {
+      issueDetailClose = page.locator(issueDetail.close);
+      await waitForInteractionState(
+        issueDetailClose,
+        "visible",
+        "Issue detail close control",
+        timeoutMs,
+      );
+      await issueDetailClose.click();
+      await waitForInteractionState(
+        issueDetailModal,
+        "hidden",
+        "Issue detail close",
+        timeoutMs,
+      );
+    }
+  }
+  if (directIssueDetail) {
     await issueDetailClose.click();
     await waitForInteractionState(
-      issueDetailModal,
+      issueDetailClose,
       "hidden",
       "Issue detail close",
       timeoutMs,
@@ -375,8 +408,14 @@ export async function waitForClientInteractionReady(
         timeout: timeoutMs,
       },
     );
+    const directIssueDetail = isIssueDetailStartPath(startPath);
+    if (directIssueDetail) {
+      await probeWorkspaceClickInteractions(page, timeoutMs, { startPath });
+    }
     await probeSearchInteraction(page, timeoutMs);
-    await probeWorkspaceClickInteractions(page, timeoutMs);
+    if (!directIssueDetail) {
+      await probeWorkspaceClickInteractions(page, timeoutMs, { startPath });
+    }
   } finally {
     await context.close().catch(() => undefined);
     await browser.close().catch(() => undefined);
