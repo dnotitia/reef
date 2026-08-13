@@ -598,7 +598,6 @@ hr {
  * The adjacent cell dividers are muted while focused so the brand line does
  * not stack with the normal row hairlines on the same edge. */
 .reef-issue-list-row {
-  --reef-list-focus-left: 0px;
   --reef-list-focus-width: 100%;
   --reef-issue-list-row-ring: color-mix(
     in oklab,
@@ -619,6 +618,13 @@ hr {
   transition-timing-function: var(--ease-signature);
 }
 
+/* Sticky cells sit above ordinary columns while the List scrolls horizontally.
+ * The selected/focused tint must stay opaque at that boundary; a translucent
+ * brand mix lets scrolled status or assignee content show through the title. */
+.reef-list-sticky-state {
+  background-color: color-mix(in oklab, var(--brand) 5%, var(--background));
+}
+
 .reef-issue-list-row:focus-visible,
 .reef-issue-list-row[data-keyboard-focused="true"] {
   background-color: color-mix(in oklab, var(--brand) 5%, transparent);
@@ -626,23 +632,40 @@ hr {
   z-index: 1;
 }
 
+.reef-issue-list-row[data-context-open="true"]:not([aria-selected="true"]) {
+  background-color: transparent;
+  outline: none;
+  z-index: 1;
+}
+
 .reef-issue-list-row:focus-visible > td,
-.reef-issue-list-row[data-keyboard-focused="true"] > td {
+.reef-issue-list-row[data-keyboard-focused="true"] > td,
+.reef-issue-list-row[aria-selected="true"] > td,
+.reef-issue-list-row[data-context-open="true"]:not([aria-selected="true"])
+  > td {
   border-block-color: transparent;
 }
 
 .reef-issue-list-row:has(+ .reef-issue-list-row:focus-visible) > td,
 .reef-issue-list-row:has(+ .reef-issue-list-row[data-keyboard-focused="true"])
+  > td,
+.reef-issue-list-row:has(+ .reef-issue-list-row[aria-selected="true"]) > td,
+.reef-issue-list-row:has(
+    + .reef-issue-list-row[data-context-open="true"]:not([aria-selected="true"])
+  )
   > td {
   border-bottom-color: transparent;
 }
 
 .reef-issue-list-row:focus-visible > td:first-child::after,
-.reef-issue-list-row[data-keyboard-focused="true"] > td:first-child::after {
+.reef-issue-list-row[data-keyboard-focused="true"] > td:first-child::after,
+.reef-issue-list-row[aria-selected="true"] > td:first-child::after,
+.reef-issue-list-row[data-context-open="true"]:not([aria-selected="true"])
+  > td:first-child::after {
   content: "";
   position: absolute;
   top: 0;
-  left: calc(var(--reef-list-focus-left) + 1px);
+  left: 1px;
   z-index: 1;
   box-sizing: border-box;
   width: calc(var(--reef-list-focus-width) - 2px);
@@ -652,11 +675,18 @@ hr {
   pointer-events: none;
 }
 
+/* The boundary is anchored in the first sticky cell so it can span the
+ * visible scrollport. Active rows raise that cell above the opaque sticky
+ * title layer; otherwise the title background paints over the teal border. */
+
 /* The expanded desktop shell leaves 704px for the issue content at 992px.
  * Keep the fresh default List preset fully visible in that narrow desktop
  * content column; optional planning columns opt back into the table-local
- * horizontal scroll owned by the List surface. */
-@media (max-width: 1231px) {
+ * horizontal scroll owned by the List surface. At the mobile/zoom-width
+ * breakpoint the table keeps its intrinsic column widths instead: shrinking
+ * sticky columns below their readable width lets ordinary cells paint through
+ * the sticky title boundary while horizontally scrolling. */
+@media (min-width: 768px) and (max-width: 1231px) {
   .reef-issue-list-table:not(.reef-issue-list-table-expanded) {
     min-width: 0 !important;
   }

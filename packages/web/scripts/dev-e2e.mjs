@@ -24,7 +24,10 @@ const CLIENT_READY_TIMEOUT_MS = 120_000;
 const CLIENT_READINESS = { mode: "browser", status: "ready" };
 export const CLIENT_READINESS_INTERACTIONS = Object.freeze({
   issueDetail: Object.freeze({
-    observable: '[data-testid="issue-detail-modal"]',
+    // The modal test id wraps Radix's portal and therefore has no layout box.
+    // Readiness must observe the loaded public detail surface, not that empty
+    // shell, so Playwright's visible contract reflects what a user can see.
+    observable: '[data-testid="issue-detail"]',
     close: '[data-testid="issue-close"]',
   }),
   newIssue: Object.freeze({
@@ -284,10 +287,32 @@ async function waitForInteractionState(locator, state, label, timeoutMs) {
 
 function isIssueDetailStartPath(startPath) {
   if (typeof startPath !== "string") return false;
-  const segments = new URL(startPath, "http://reef-e2e.test").pathname
-    .split("/")
-    .filter(Boolean);
-  return segments.at(-2) === "issues" && Boolean(segments.at(-1));
+  const pathname = new URL(startPath, "http://reef-e2e.invalid").pathname;
+  const segments = pathname.split("/").filter(Boolean);
+  return (
+    segments[0] === "workspace" &&
+    segments[2] === "issues" &&
+    segments.length >= 4
+  );
+}
+
+async function dismissIssueDetailStart(page, timeoutMs) {
+  const issueDetail = CLIENT_READINESS_INTERACTIONS.issueDetail;
+  const issueDetailModal = page.locator(issueDetail.observable);
+  await waitForInteractionState(
+    issueDetailModal,
+    "visible",
+    "declared issue detail start",
+    timeoutMs,
+  );
+
+  await page.locator(issueDetail.close).click();
+  await waitForInteractionState(
+    issueDetailModal,
+    "hidden",
+    "declared issue detail start close",
+    timeoutMs,
+  );
 }
 
 export async function probeWorkspaceClickInteractions(
@@ -295,44 +320,8 @@ export async function probeWorkspaceClickInteractions(
   timeoutMs,
   { startPath } = {},
 ) {
-  const issueDetail = CLIENT_READINESS_INTERACTIONS.issueDetail;
-  const directIssueDetail = isIssueDetailStartPath(startPath);
-  let issueDetailClose;
-  if (directIssueDetail) {
-    issueDetailClose = page.locator(issueDetail.close);
-    await waitForInteractionState(
-      issueDetailClose,
-      "visible",
-      "Direct issue detail close control",
-      timeoutMs,
-    );
-  } else {
-    const issueDetailModal = page.locator(issueDetail.observable);
-    if (await issueDetailModal.isVisible().catch(() => false)) {
-      issueDetailClose = page.locator(issueDetail.close);
-      await waitForInteractionState(
-        issueDetailClose,
-        "visible",
-        "Issue detail close control",
-        timeoutMs,
-      );
-      await issueDetailClose.click();
-      await waitForInteractionState(
-        issueDetailModal,
-        "hidden",
-        "Issue detail close",
-        timeoutMs,
-      );
-    }
-  }
-  if (directIssueDetail) {
-    await issueDetailClose.click();
-    await waitForInteractionState(
-      issueDetailClose,
-      "hidden",
-      "Issue detail close",
-      timeoutMs,
-    );
+  if (isIssueDetailStartPath(startPath)) {
+    await dismissIssueDetailStart(page, timeoutMs);
   }
 
   const newIssue = CLIENT_READINESS_INTERACTIONS.newIssue;
@@ -408,14 +397,8 @@ export async function waitForClientInteractionReady(
         timeout: timeoutMs,
       },
     );
-    const directIssueDetail = isIssueDetailStartPath(startPath);
-    if (directIssueDetail) {
-      await probeWorkspaceClickInteractions(page, timeoutMs, { startPath });
-    }
     await probeSearchInteraction(page, timeoutMs);
-    if (!directIssueDetail) {
-      await probeWorkspaceClickInteractions(page, timeoutMs, { startPath });
-    }
+    await probeWorkspaceClickInteractions(page, timeoutMs, { startPath });
   } finally {
     await context.close().catch(() => undefined);
     await browser.close().catch(() => undefined);

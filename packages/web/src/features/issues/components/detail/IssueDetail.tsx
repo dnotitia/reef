@@ -114,7 +114,20 @@ function IssueDetailLoaded({
 }) {
   const t = useTranslations("toasts");
   const dt = useTranslations("issues.detail");
-  const updateMutation = useUpdateIssue();
+  const updateMutation = useUpdateIssue({
+    onError: (_error, { patch }, context) => {
+      // `useUpdateIssue` has already restored the query snapshots. Keep the
+      // local form in the same state for the one optimistic field whose picker
+      // is visible in this detail surface; other failed fields stay editable
+      // so the autosave retry can replay them unchanged.
+      if (!("assigned_to" in patch) || !context?.previousDetail) return;
+      dispatchDraft({
+        type: "set",
+        field: "assignee",
+        value: context.previousDetail.issue.assigned_to ?? "",
+      });
+    },
+  });
   const archiveMutation = useArchiveIssue();
   const deleteMutation = useDeleteIssue();
   const uploadAttachment = useUploadIssueAttachment();

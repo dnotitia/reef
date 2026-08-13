@@ -43,6 +43,7 @@ const SUPPORTED_SCENARIOS = [
   "configured_empty",
   "configured_caught_up",
   "configured_multi",
+  "assignee_picker",
   "backlog_bulk_partial_failure",
   "demo_board",
   "content_search",
@@ -330,6 +331,16 @@ function runtimeDiscovery() {
     },
     scenarios: SUPPORTED_SCENARIOS,
     tasks: {
+      assignee_picker: {
+        scenario: "assignee_picker",
+        workspace: "reef-e2e",
+        start_path: "/workspace/reef-e2e/issues/REEF-001",
+        interaction: {
+          type: "assignee_picker",
+          operation:
+            "open issue detail, browse the complete writer/admin/owner roster, search by display name or login, select a candidate, reload to verify recent-first ordering, and verify a failed save leaves the existing assignment and recent history unchanged",
+        },
+      },
       issue_drill_navigation: {
         scenario: "demo_board",
         workspace: "reef-e2e",
@@ -503,6 +514,7 @@ function makeState(scenario) {
     scenario === "configured_empty" ||
     scenario === "configured_caught_up" ||
     scenario === "configured_multi" ||
+    scenario === "assignee_picker" ||
     scenario === "backlog_bulk_partial_failure" ||
     scenario === "activity_suggestions" ||
     scenario === "notifications" ||
@@ -517,7 +529,9 @@ function makeState(scenario) {
           ? configuredEmptyVault(REEF_VAULT)
           : scenario === "configured_caught_up"
             ? configuredCaughtUpVault(REEF_VAULT)
-            : configuredVault(REEF_VAULT);
+            : scenario === "assignee_picker"
+              ? assigneePickerVault(REEF_VAULT)
+              : configuredVault(REEF_VAULT);
     if (scenario === "activity_suggestions") seedActivitySuggestions(vault);
     if (scenario === "notifications") seedNotifications(vault);
     if (scenario === "skill_outdated") seedOutdatedVaultSkill(vault);
@@ -548,6 +562,9 @@ function makeState(scenario) {
       failedIssue.status = "backlog";
       failedIssue.rank = 1000;
       next.issueUpdateFailures.set(failedIssue.reef_id, "once");
+    }
+    if (scenario === "assignee_picker") {
+      next.issueUpdateFailures.set("REEF-002", "once");
     }
     next.vaults.set("raw-vault", rawVault("raw-vault"));
     if (scenario === "configured_multi") {
@@ -804,6 +821,75 @@ function configuredEmptyVault(name) {
   vault.activity = [];
   vault.notifications = [];
   vault.subscriptions = [];
+  return vault;
+}
+
+function assigneePickerVault(name) {
+  const vault = configuredVault(name);
+  const rollbackIssue = vault.issues.find(
+    (issue) => issue.reef_id === "REEF-002",
+  );
+  if (rollbackIssue) rollbackIssue.assigned_to = "alice";
+  vault.members = [
+    {
+      username: "alice",
+      display_name: "Alice Example",
+      email: "alice@example.com",
+      role: "owner",
+      since: NOW,
+    },
+    {
+      username: "bob",
+      display_name: "Bob Example",
+      email: "bob@example.com",
+      role: "writer",
+      since: NOW,
+    },
+    {
+      username: "carol",
+      display_name: "Carol Example",
+      email: "carol@example.com",
+      role: "admin",
+      since: NOW,
+    },
+    {
+      username: "same-z",
+      display_name: "Same Name",
+      email: "same-z@example.com",
+      role: "writer",
+      since: NOW,
+    },
+    {
+      username: "same-a",
+      display_name: "Same Name",
+      email: "same-a@example.com",
+      role: "writer",
+      since: NOW,
+    },
+    ...Array.from({ length: 10 }, (_, index) => ({
+      username: `candidate-${String(index + 1).padStart(2, "0")}`,
+      display_name: `Candidate ${String(index + 1).padStart(2, "0")}`,
+      email: `candidate-${String(index + 1).padStart(2, "0")}@example.com`,
+      role: index % 3 === 0 ? "admin" : "writer",
+      since: NOW,
+    })),
+    {
+      username: "reader-only",
+      display_name: "Reader Only",
+      email: "reader-only@example.com",
+      role: "reader",
+      since: NOW,
+    },
+    {
+      username: "unknown-role",
+      display_name: "Unknown Role",
+      email: "unknown-role@example.com",
+      role: "member",
+      since: NOW,
+    },
+  ];
+  vault.comments = [];
+  vault.activity = [];
   return vault;
 }
 

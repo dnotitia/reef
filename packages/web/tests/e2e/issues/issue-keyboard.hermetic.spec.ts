@@ -147,6 +147,405 @@ test.describe("Hermetic issue keyboard navigation", () => {
     }
   });
 
+  test("keeps List selection and row context chrome through pointer and keyboard menus", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+
+    const rows = await expectIssueListKeyboardReady(page);
+    const selectedRow = rows.filter({ hasText: "Initial issue Alpha" });
+    const unselectedRow = rows.filter({ hasText: "Initial issue Beta" });
+    await expect(selectedRow).toBeVisible();
+    await expect(unselectedRow).toBeVisible();
+
+    await selectedRow.getByTestId("issue-row-checkbox").click();
+    await expect(selectedRow).toHaveAttribute("aria-selected", "true");
+    await expect(
+      page.locator('[data-testid="issue-list-row"][aria-selected="true"]'),
+    ).toHaveCount(1);
+
+    await selectedRow.click({ button: "right" });
+    const menu = page.getByRole("menu");
+    await expect(menu).toBeVisible();
+    await expect(selectedRow).toHaveAttribute("data-context-open", "true");
+    await expect(selectedRow).toHaveAttribute("aria-selected", "true");
+    await expect(
+      page.locator('[data-testid="issue-list-row"][aria-selected="true"]'),
+    ).toHaveCount(1);
+
+    const selectedChrome = await selectedRow.evaluate((row) => {
+      const stickyId = row.querySelector<HTMLElement>(
+        'td[data-column-key="id"]',
+      );
+      return {
+        rowClass: row.className,
+        stickyClass: stickyId?.className ?? "",
+      };
+    });
+    expect(selectedChrome.rowClass).toContain("bg-brand/5");
+    expect(selectedChrome.rowClass).not.toContain("hover:bg-surface-hover");
+    expect(selectedChrome.stickyClass).toContain("reef-list-sticky-state");
+    expect(selectedChrome.stickyClass).not.toContain(
+      "group-hover:bg-surface-hover",
+    );
+
+    const copyLink = menu.getByTestId("issue-context-menu-copy-link");
+    await copyLink.hover();
+    await expect(copyLink).toHaveAttribute("data-highlighted");
+    await expect(selectedRow).toHaveAttribute("data-context-open", "true");
+    await page.keyboard.press("Escape");
+    await expect(selectedRow).not.toHaveAttribute("data-context-open", "true");
+
+    await unselectedRow.click({ button: "right" });
+    await expect(page.getByRole("menu")).toBeVisible();
+    await expect(unselectedRow).toHaveAttribute("data-context-open", "true");
+    await expect(unselectedRow).not.toHaveAttribute("aria-selected");
+    await expect(
+      page.locator('[data-testid="issue-list-row"][aria-selected="true"]'),
+    ).toHaveCount(1);
+    await expect(unselectedRow).toHaveClass(/hover:bg-transparent/);
+    await page.keyboard.press("Escape");
+    await expect(unselectedRow).not.toHaveAttribute(
+      "data-context-open",
+      "true",
+    );
+
+    await unselectedRow.focus();
+    await page.keyboard.press("Shift+F10");
+    await expect(page.getByRole("menu")).toBeVisible();
+    await expect(unselectedRow).toHaveAttribute("data-context-open", "true");
+    await page.keyboard.press("Escape");
+    await expect(unselectedRow).toBeFocused();
+    await expect(unselectedRow).not.toHaveAttribute(
+      "data-context-open",
+      "true",
+    );
+  });
+
+  test("keeps the selected List row reachable at an effective 200% viewport", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 640, height: 360 });
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+
+    const rows = await expectIssueListKeyboardReady(page);
+    const selectedRow = rows.filter({ hasText: "Initial issue Alpha" });
+    await expect(selectedRow).toBeVisible();
+    await selectedRow.getByTestId("issue-row-checkbox").click();
+    await expect(selectedRow).toHaveAttribute("aria-selected", "true");
+
+    const geometry = await selectedRow.evaluate((row) => {
+      const rowRect = row.getBoundingClientRect();
+      const scroll = row.closest<HTMLElement>(
+        '[data-testid="issue-list-scroll-container"]',
+      );
+      const scrollRect = scroll?.getBoundingClientRect();
+      const checkbox = row.querySelector<HTMLElement>(
+        '[data-testid="issue-row-checkbox"]',
+      );
+      const checkboxRect = checkbox?.getBoundingClientRect();
+      return {
+        rowTop: rowRect.top,
+        rowBottom: rowRect.bottom,
+        scrollTop: scrollRect?.top ?? 0,
+        scrollBottom: scrollRect?.bottom ?? 0,
+        checkboxTop: checkboxRect?.top ?? 0,
+        checkboxBottom: checkboxRect?.bottom ?? 0,
+        scrollHeight: scroll?.scrollHeight ?? 0,
+        clientHeight: scroll?.clientHeight ?? 0,
+        mountedRows:
+          scroll?.querySelectorAll('[data-testid="issue-list-row"]').length ??
+          0,
+      };
+    });
+
+    expect(geometry.clientHeight).toBeGreaterThan(0);
+    expect(geometry.clientHeight).toBeLessThanOrEqual(360);
+    expect(geometry.mountedRows).toBeLessThanOrEqual(50);
+    expect(geometry.rowTop).toBeGreaterThanOrEqual(geometry.scrollTop);
+    expect(geometry.rowBottom).toBeLessThanOrEqual(geometry.scrollBottom);
+    expect(geometry.checkboxTop).toBeGreaterThanOrEqual(geometry.scrollTop);
+    expect(geometry.checkboxBottom).toBeLessThanOrEqual(geometry.scrollBottom);
+
+    await page.locator("main").evaluate((element) => {
+      const main = element as HTMLElement;
+      main.scrollTop = main.scrollHeight;
+    });
+    await page.waitForTimeout(50);
+    const viewportGeometry = await selectedRow.evaluate((row) => {
+      const rect = row.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom };
+    });
+    expect(viewportGeometry.top).toBeGreaterThanOrEqual(0);
+    expect(viewportGeometry.bottom).toBeLessThanOrEqual(360);
+
+    await selectedRow.click({ button: "right" });
+    await expect(page.getByRole("menu")).toBeVisible();
+    await expect(selectedRow).toHaveAttribute("data-context-open", "true");
+  });
+
+  test("keeps an unselected context target and menu usable at an effective 200% viewport", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 640, height: 360 });
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+
+    const rows = await expectIssueListKeyboardReady(page);
+    const selectedRow = rows.filter({ hasText: "Initial issue Alpha" });
+    const targetRow = rows.filter({ hasText: "Initial issue Beta" });
+    await selectedRow.getByTestId("issue-row-checkbox").click();
+    await expect(selectedRow).toHaveAttribute("aria-selected", "true");
+
+    await page.locator("main").evaluate((element) => {
+      const main = element as HTMLElement;
+      main.scrollTop = main.scrollHeight;
+    });
+    await page.waitForTimeout(50);
+    const targetGeometry = await targetRow.evaluate((row) => {
+      const rect = row.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom };
+    });
+    expect(targetGeometry.top).toBeGreaterThanOrEqual(0);
+    expect(targetGeometry.bottom).toBeLessThanOrEqual(360);
+
+    await targetRow.click({ button: "right" });
+    const menu = page.getByRole("menu");
+    await expect(menu).toBeVisible();
+    await expect(targetRow).toHaveAttribute("data-context-open", "true");
+    await expect(targetRow).not.toHaveAttribute("aria-selected");
+    await expect(
+      page.locator('[data-testid="issue-list-row"][aria-selected="true"]'),
+    ).toHaveCount(1);
+
+    const menuGeometry = await menu.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom };
+    });
+    expect(menuGeometry.top).toBeGreaterThanOrEqual(0);
+    expect(menuGeometry.bottom).toBeLessThanOrEqual(360);
+    await expect(menu.getByRole("menuitem").first()).toBeVisible();
+  });
+
+  test("keeps List text separated after horizontal scrolling at an effective 200% viewport", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 640, height: 360 });
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+
+    const rows = await expectIssueListKeyboardReady(page);
+    const row = rows.filter({ hasText: "Initial issue Alpha" });
+    const scroll = page.getByTestId("issue-list-scroll-container");
+    await expect(row).toBeVisible();
+    await expect
+      .poll(async () =>
+        scroll.evaluate((element) => element.scrollWidth > element.clientWidth),
+      )
+      .toBe(true);
+
+    const textRects = async () =>
+      row.evaluate((element) => {
+        const root = element.closest<HTMLElement>(
+          '[data-testid="issue-list-scroll-container"]',
+        );
+        if (!root) throw new Error("missing List scroll container");
+        const rootRect = root.getBoundingClientRect();
+        const rangeRect = (column: string) => {
+          const cell = element.querySelector<HTMLElement>(
+            `td[data-column-key="${column}"]`,
+          );
+          if (!cell) throw new Error(`missing ${column} cell`);
+          const range = document.createRange();
+          range.selectNodeContents(cell);
+          const rect = range.getBoundingClientRect();
+          const cellRect = cell.getBoundingClientRect();
+          return {
+            left: Math.max(rect.left, cellRect.left, rootRect.left),
+            right: Math.min(rect.right, cellRect.right, rootRect.right),
+          };
+        };
+        return {
+          title: rangeRect("title"),
+          status: rangeRect("status"),
+          priority: rangeRect("priority"),
+        };
+      });
+
+    await scroll.evaluate((element) => {
+      const root = element as HTMLElement;
+      root.scrollLeft = Math.min(600, root.scrollWidth);
+      root.dispatchEvent(new Event("scroll"));
+    });
+    await page.waitForTimeout(50);
+    const after = await textRects();
+    const separated = (
+      first: { left: number; right: number },
+      second: { left: number; right: number },
+    ) => first.right <= second.left || second.right <= first.left;
+    for (const range of Object.values(after)) {
+      expect(range.right).toBeGreaterThan(range.left);
+    }
+    expect(separated(after.title, after.status)).toBe(true);
+    expect(separated(after.status, after.priority)).toBe(true);
+  });
+
+  test("keeps the sticky List boundary opaque at the right horizontal extreme", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 640, height: 360 });
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+
+    const rows = await expectIssueListKeyboardReady(page);
+    const selectedRow = rows.filter({ hasText: "Initial issue Alpha" });
+    const unselectedRow = rows.filter({ hasText: "Initial issue Beta" });
+    const scroll = page.getByTestId("issue-list-scroll-container");
+    await selectedRow.getByTestId("issue-row-checkbox").click();
+    await expect(selectedRow).toHaveAttribute("aria-selected", "true");
+
+    const boundary = async (row: typeof selectedRow) =>
+      row.evaluate((element) => {
+        const stickyColumns = ["select", "id", "type", "title"];
+        const rect = (column: string) => {
+          const cell = element.querySelector<HTMLElement>(
+            `td[data-column-key="${column}"]`,
+          );
+          if (!cell) throw new Error(`missing ${column} cell`);
+          const bounds = cell.getBoundingClientRect();
+          return {
+            left: bounds.left,
+            right: bounds.right,
+            top: bounds.top,
+            bottom: bounds.bottom,
+          };
+        };
+        const sticky = stickyColumns.map((column) => {
+          const cell = element.querySelector<HTMLElement>(
+            `td[data-column-key="${column}"]`,
+          );
+          if (!cell) throw new Error(`missing sticky ${column} cell`);
+          const background = getComputedStyle(cell).backgroundColor;
+          const alpha = background.match(/\/\s*([\d.]+)\)?$/u);
+          return {
+            column,
+            background,
+            alpha: alpha ? Number(alpha[1]) : 1,
+            zIndex: getComputedStyle(cell).zIndex,
+            rect: rect(column),
+          };
+        });
+        const boundaryCell = element.querySelector<HTMLElement>(
+          'td[data-column-key="select"]',
+        );
+        const titleCell = element.querySelector<HTMLElement>(
+          'td[data-column-key="title"]',
+        );
+        if (!boundaryCell || !titleCell) {
+          throw new Error("missing row boundary cells");
+        }
+        const scrollRoot = element.closest<HTMLElement>(
+          '[data-testid="issue-list-scroll-container"]',
+        );
+        if (!scrollRoot) {
+          throw new Error("missing List scroll container");
+        }
+        const pseudo = getComputedStyle(boundaryCell, "::after");
+        const boundaryRect = boundaryCell.getBoundingClientRect();
+        const scrollRect = scrollRoot.getBoundingClientRect();
+        const pseudoLeft = Number.parseFloat(pseudo.left);
+        const pseudoWidth = Number.parseFloat(pseudo.width);
+        const overlaps = ["status", "assignee"].map((column) => {
+          const ordinary = rect(column);
+          return {
+            column,
+            overlap: sticky.some(
+              ({ rect: stickyRect }) =>
+                stickyRect.left < ordinary.right &&
+                ordinary.left < stickyRect.right &&
+                stickyRect.top < ordinary.bottom &&
+                ordinary.top < stickyRect.bottom,
+            ),
+          };
+        });
+        return {
+          sticky,
+          overlaps,
+          activeBoundary: {
+            content: pseudo.content,
+            borderTopStyle: pseudo.borderTopStyle,
+            borderTopWidth: pseudo.borderTopWidth,
+            selectZIndex: Number(getComputedStyle(boundaryCell).zIndex),
+            titleZIndex: Number(getComputedStyle(titleCell).zIndex),
+            left: boundaryRect.left + pseudoLeft,
+            right: boundaryRect.left + pseudoLeft + pseudoWidth,
+            viewportLeft: scrollRect.left,
+            viewportRight: scrollRect.right,
+          },
+        };
+      });
+
+    const assertActiveBoundary = (
+      snapshot: Awaited<ReturnType<typeof boundary>>,
+    ) => {
+      expect(snapshot.activeBoundary.content).not.toBe("none");
+      expect(snapshot.activeBoundary.borderTopStyle).toBe("solid");
+      expect(snapshot.activeBoundary.borderTopWidth).toBe("1px");
+      expect(snapshot.activeBoundary.selectZIndex).toBeGreaterThan(
+        snapshot.activeBoundary.titleZIndex,
+      );
+      expect(snapshot.activeBoundary.left).toBeLessThanOrEqual(
+        snapshot.activeBoundary.viewportLeft + 1,
+      );
+      expect(snapshot.activeBoundary.right).toBeGreaterThanOrEqual(
+        snapshot.activeBoundary.viewportRight - 1,
+      );
+    };
+
+    await scroll.evaluate((element) => {
+      const root = element as HTMLElement;
+      root.scrollLeft = 0;
+      root.dispatchEvent(new Event("scroll"));
+    });
+    await page.waitForTimeout(50);
+    const selectedLeftBoundary = await boundary(selectedRow);
+    assertActiveBoundary(selectedLeftBoundary);
+
+    await scroll.evaluate((element) => {
+      const root = element as HTMLElement;
+      root.scrollLeft = root.scrollWidth;
+      root.dispatchEvent(new Event("scroll"));
+    });
+    await page.waitForTimeout(50);
+
+    const selectedBoundary = await boundary(selectedRow);
+    const unselectedBoundary = await boundary(unselectedRow);
+    assertActiveBoundary(selectedBoundary);
+    expect(selectedBoundary.overlaps).toEqual([
+      { column: "status", overlap: true },
+      { column: "assignee", overlap: true },
+    ]);
+    expect(unselectedBoundary.overlaps).toEqual([
+      { column: "status", overlap: true },
+      { column: "assignee", overlap: true },
+    ]);
+    for (const cell of [
+      ...selectedBoundary.sticky,
+      ...unselectedBoundary.sticky,
+    ]) {
+      expect(cell.alpha).toBe(1);
+      expect(cell.zIndex).not.toBe("auto");
+    }
+
+    await unselectedRow.click({ button: "right" });
+    await expect(page.getByRole("menu")).toBeVisible();
+    const unselectedContextBoundary = await boundary(unselectedRow);
+    assertActiveBoundary(unselectedContextBoundary);
+    await page.keyboard.press("Escape");
+  });
+
   test("moves Backlog focus with j, exposes semantic links, and opens the focused issue", async ({
     page,
   }) => {

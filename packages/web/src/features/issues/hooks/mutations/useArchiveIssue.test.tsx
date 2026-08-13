@@ -12,6 +12,10 @@ vi.mock("@/lib/apiClient", async () => {
   };
 });
 
+vi.mock("@/features/auth/hooks/useCurrentUserLogin", () => ({
+  useCurrentUserLogin: () => null,
+}));
+
 import { apiFetch } from "@/lib/apiClient";
 import type { IssueMetadata } from "@reef/core";
 import { useArchiveIssue } from "./useArchiveIssue";

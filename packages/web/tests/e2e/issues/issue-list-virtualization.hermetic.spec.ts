@@ -104,6 +104,37 @@ test.describe("large issue list virtualization", () => {
     await resetFixture(request, "large_vault");
   });
 
+  test("keeps the selected List viewport positive and virtualized at an effective 200% viewport", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 640, height: 360 });
+    await openLargeList(page);
+
+    const scroll = page.getByTestId("issue-list-scroll-container");
+    const firstRow = page.locator('[data-testid="issue-list-row"]').first();
+    await firstRow.getByTestId("issue-row-checkbox").click();
+    await expect(firstRow).toHaveAttribute("aria-selected", "true");
+
+    const metrics = await scroll.evaluate((element) => {
+      const root = element as HTMLElement;
+      const rect = root.getBoundingClientRect();
+      return {
+        clientHeight: root.clientHeight,
+        scrollHeight: root.scrollHeight,
+        mountedRows: root.querySelectorAll('[data-testid="issue-list-row"]')
+          .length,
+        top: rect.top,
+        bottom: rect.bottom,
+      };
+    });
+
+    expect(metrics.clientHeight).toBeGreaterThan(0);
+    expect(metrics.clientHeight).toBeLessThanOrEqual(360);
+    expect(metrics.scrollHeight).toBeGreaterThan(metrics.clientHeight);
+    expect(metrics.mountedRows).toBeLessThanOrEqual(50);
+    expect(metrics.bottom - metrics.top).toBe(metrics.clientHeight);
+  });
+
   test("loads 100 rows first, keeps the DOM bounded, and follows one cursor page", async ({
     page,
   }) => {

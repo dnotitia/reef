@@ -83,14 +83,17 @@ describe("global focus styles", () => {
     const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
 
     expect(css).toContain("border-radius: 0.375rem");
-    expect(css).toContain("--reef-list-focus-left: 0px");
     expect(css).toContain("--reef-list-focus-width: 100%");
     expect(css).toContain(".reef-issue-list-row:focus-visible");
     expect(css).toContain('.reef-issue-list-row[data-keyboard-focused="true"]');
     expect(css).toContain(
       ".reef-issue-list-row:focus-visible > td:first-child::after",
     );
-    expect(css).toContain("left: calc(var(--reef-list-focus-left) + 1px)");
+    expect(css).toContain(
+      '.reef-issue-list-row[aria-selected="true"] > td:first-child::after',
+    );
+    expect(css).toContain('.reef-issue-list-row[aria-selected="true"] > td');
+    expect(css).toContain("left: 1px");
     expect(css).toContain("width: calc(var(--reef-list-focus-width) - 2px)");
     expect(css).toContain("border: 1px solid var(--reef-issue-list-row-ring)");
     expect(css).toContain("border-block-color: transparent");

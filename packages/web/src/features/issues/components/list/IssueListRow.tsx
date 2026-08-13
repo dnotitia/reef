@@ -31,7 +31,14 @@ import { cn } from "@/lib/utils";
 import type { Collaborator, IssueListItem, PlanningCatalog } from "@reef/core";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { useLocale, useTranslations } from "next-intl";
-import { type MouseEvent, memo, useCallback, useEffect, useRef } from "react";
+import {
+  type MouseEvent,
+  memo,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   type IssueRelationLike,
   getUnresolvedBlockerCount,
@@ -60,22 +67,42 @@ interface IssueListRowProps {
   onClick?: (id: string) => void;
 }
 
-function issueListCellClass(column: IssueListColumnKey, stateClass?: string) {
+type IssueListRowVisualState = "idle" | "focused" | "context-open" | "selected";
+
+function issueListCellClass(
+  column: IssueListColumnKey,
+  visualState: IssueListRowVisualState,
+) {
+  const selectedOrFocused =
+    visualState === "selected" || visualState === "focused";
+  const activeBoundary = visualState !== "idle";
+
   return cn(
     "h-10 min-w-0 px-3 py-0 align-middle",
     isIssueTableStickyColumn(column) &&
       cn(
-        "sticky bg-background group-hover:bg-surface-hover",
-        column === "id" ? "z-20" : "z-10",
+        "sticky",
+        selectedOrFocused || visualState === "context-open"
+          ? selectedOrFocused
+            ? "reef-list-sticky-state"
+            : "bg-background"
+          : "bg-background group-hover:bg-surface-hover",
+        column === "select"
+          ? activeBoundary
+            ? "z-40"
+            : "z-10"
+          : column === "id"
+            ? "z-20"
+            : "z-10",
       ),
     column === "title" && "min-w-[15rem]",
-    stateClass,
   );
 }
 
 function issueListCellStyle(
   columns: readonly IssueListColumnKey[],
   column: IssueListColumnKey,
+  visualState: IssueListRowVisualState,
 ) {
   return {
     ...(column === "title"
@@ -85,7 +112,12 @@ function issueListCellStyle(
       ? {
           left: issueTableColumnOffset(columns, column),
           position: "sticky" as const,
-          zIndex: column === "id" ? 30 : 10,
+          zIndex:
+            column === "select" && visualState !== "idle"
+              ? 40
+              : column === "id"
+                ? 30
+                : 10,
         }
       : {}),
   };
@@ -136,6 +168,7 @@ export const IssueListRow = memo(function IssueListRow({
     state.selectedIds.has(issue.id),
   );
   const selectionRunning = useIssueSelectionStore((state) => state.running);
+  const [contextOpen, setContextOpen] = useState(false);
   const bulk = useTranslations("issues.bulk");
   const fieldNames = useFieldNameLabels();
   const currentLogin = useCurrentUserLogin();
@@ -156,7 +189,18 @@ export const IssueListRow = memo(function IssueListRow({
         return null;
     }
   }, []);
-  const stickyStateClass = selected || focused ? "bg-brand/5" : undefined;
+  // A selected row owns the strongest chrome. An open context menu and
+  // keyboard focus share the next tier, while pointer hover is only a
+  // fallback. Keep this decision in one place so sticky cells and the row
+  // cannot drift. Context-open wins the tie so an unselected keyboard target
+  // remains outline-only while its menu is open.
+  const visualState: IssueListRowVisualState = selected
+    ? "selected"
+    : contextOpen
+      ? "context-open"
+      : focused
+        ? "focused"
+        : "idle";
 
   useEffect(() => {
     if (
@@ -176,15 +220,15 @@ export const IssueListRow = memo(function IssueListRow({
     const container =
       row?.closest('[data-testid="issue-list-scroll-container"]') ??
       row?.closest('[data-slot="table-container"]');
-    if (!focused || !row || !(container instanceof HTMLElement)) {
+    if (
+      (!focused && !contextOpen && !selected) ||
+      !row ||
+      !(container instanceof HTMLElement)
+    ) {
       return;
     }
 
     const syncFocusChrome = () => {
-      row.style.setProperty(
-        "--reef-list-focus-left",
-        `${container.scrollLeft}px`,
-      );
       row.style.setProperty(
         "--reef-list-focus-width",
         `${container.clientWidth}px`,
@@ -192,16 +236,13 @@ export const IssueListRow = memo(function IssueListRow({
     };
 
     syncFocusChrome();
-    container.addEventListener("scroll", syncFocusChrome, { passive: true });
     window.addEventListener("resize", syncFocusChrome);
 
     return () => {
-      container.removeEventListener("scroll", syncFocusChrome);
       window.removeEventListener("resize", syncFocusChrome);
-      row.style.removeProperty("--reef-list-focus-left");
       row.style.removeProperty("--reef-list-focus-width");
     };
-  }, [focused]);
+  }, [contextOpen, focused, selected]);
 
   return (
     <IssueContextMenu
@@ -209,14 +250,17 @@ export const IssueListRow = memo(function IssueListRow({
       vault={vault}
       planningCatalog={planningCatalog}
       assignees={assignees}
+      onOpenChange={setContextOpen}
     >
       <TableRow
         ref={rowRef}
         className={cn(
           "reef-issue-list-row group h-10 cursor-pointer transition-colors duration-150 focus-visible:outline-none",
-          onClick && "hover:bg-surface-hover",
-          focused && "bg-brand/5",
-          selected && "bg-brand/5 ring-1 ring-inset ring-brand/30",
+          visualState === "idle" && onClick && "hover:bg-surface-hover",
+          (visualState === "focused" || visualState === "selected") &&
+            "bg-brand/5 hover:bg-brand/5",
+          visualState === "selected" && "ring-1 ring-inset ring-brand/30",
+          visualState === "context-open" && "hover:bg-transparent",
           isFlashing && "reef-flash-row",
         )}
         tabIndex={focused || tabStopped ? 0 : -1}
@@ -235,13 +279,11 @@ export const IssueListRow = memo(function IssueListRow({
         data-occurrence-key={keyboardOccurrenceKey}
         data-shortcut-surface="issue-list-row"
         data-keyboard-focused={focused ? "true" : undefined}
+        data-context-open={contextOpen ? "true" : undefined}
       >
         <TableCell
-          className={cn(
-            issueListCellClass("select", stickyStateClass),
-            "w-10 px-2",
-          )}
-          style={issueListCellStyle(columns, "select")}
+          className={cn(issueListCellClass("select", visualState), "w-10 px-2")}
+          style={issueListCellStyle(columns, "select", visualState)}
           data-column-key="select"
         >
           <IssueSelectionCheckbox
@@ -267,10 +309,10 @@ export const IssueListRow = memo(function IssueListRow({
         {/* ID */}
         <TableCell
           className={cn(
-            issueListCellClass("id", stickyStateClass),
+            issueListCellClass("id", visualState),
             "relative font-mono text-xs text-muted-foreground",
           )}
-          style={issueListCellStyle(columns, "id")}
+          style={issueListCellStyle(columns, "id", visualState)}
           data-column-key="id"
         >
           {issue.id}
@@ -285,8 +327,8 @@ export const IssueListRow = memo(function IssueListRow({
 
         {/* Type */}
         <TableCell
-          className={issueListCellClass("type", stickyStateClass)}
-          style={issueListCellStyle(columns, "type")}
+          className={issueListCellClass("type", visualState)}
+          style={issueListCellStyle(columns, "type", visualState)}
           data-column-key="type"
         >
           <TypePill type={issue.issue_type} variant="list" />
@@ -294,8 +336,8 @@ export const IssueListRow = memo(function IssueListRow({
 
         {/* Title */}
         <TableCell
-          className={issueListCellClass("title", stickyStateClass)}
-          style={issueListCellStyle(columns, "title")}
+          className={issueListCellClass("title", visualState)}
+          style={issueListCellStyle(columns, "title", visualState)}
           data-column-key="title"
         >
           <span className="flex min-w-0 items-center gap-2">
@@ -308,8 +350,8 @@ export const IssueListRow = memo(function IssueListRow({
 
         {/* Status */}
         <TableCell
-          className={issueListCellClass("status")}
-          style={issueListCellStyle(columns, "status")}
+          className={issueListCellClass("status", visualState)}
+          style={issueListCellStyle(columns, "status", visualState)}
           data-column-key="status"
         >
           <IssueInlineEditTrigger
@@ -326,8 +368,8 @@ export const IssueListRow = memo(function IssueListRow({
 
         {/* Priority */}
         <TableCell
-          className={issueListCellClass("priority")}
-          style={issueListCellStyle(columns, "priority")}
+          className={issueListCellClass("priority", visualState)}
+          style={issueListCellStyle(columns, "priority", visualState)}
           data-column-key="priority"
         >
           <IssueInlineEditTrigger
@@ -348,8 +390,8 @@ export const IssueListRow = memo(function IssueListRow({
 
         {/* Assignee */}
         <TableCell
-          className={cn(issueListCellClass("assignee"), "text-sm")}
-          style={issueListCellStyle(columns, "assignee")}
+          className={cn(issueListCellClass("assignee", visualState), "text-sm")}
+          style={issueListCellStyle(columns, "assignee", visualState)}
           data-column-key="assignee"
         >
           <IssueInlineEditTrigger
@@ -381,7 +423,7 @@ export const IssueListRow = memo(function IssueListRow({
         {columns.includes("start") && (
           <TableCell
             className="h-10 min-w-0 px-3 py-0 text-xs whitespace-nowrap text-muted-foreground"
-            style={issueListCellStyle(columns, "start")}
+            style={issueListCellStyle(columns, "start", visualState)}
             data-column-key="start"
           >
             <DateDisplay date={issue.start_date} emptyText="—" />
@@ -392,7 +434,7 @@ export const IssueListRow = memo(function IssueListRow({
         {columns.includes("sprint") && (
           <TableCell
             className="h-10 min-w-0 px-3 py-0 text-xs text-muted-foreground"
-            style={issueListCellStyle(columns, "sprint")}
+            style={issueListCellStyle(columns, "sprint", visualState)}
             data-column-key="sprint"
           >
             {findPlanningName(planningCatalog, "sprints", issue.sprint_id) ??
@@ -404,7 +446,7 @@ export const IssueListRow = memo(function IssueListRow({
         {columns.includes("milestone") && (
           <TableCell
             className="h-10 min-w-0 px-3 py-0 text-xs text-muted-foreground"
-            style={issueListCellStyle(columns, "milestone")}
+            style={issueListCellStyle(columns, "milestone", visualState)}
             data-column-key="milestone"
           >
             {findPlanningName(
@@ -419,7 +461,7 @@ export const IssueListRow = memo(function IssueListRow({
         {columns.includes("release") && (
           <TableCell
             className="h-10 min-w-0 px-3 py-0 text-xs text-muted-foreground"
-            style={issueListCellStyle(columns, "release")}
+            style={issueListCellStyle(columns, "release", visualState)}
             data-column-key="release"
           >
             {findPlanningName(planningCatalog, "releases", issue.release_id) ??
@@ -431,7 +473,7 @@ export const IssueListRow = memo(function IssueListRow({
         {columns.includes("due") && (
           <TableCell
             className="h-10 min-w-0 px-3 py-0 text-xs whitespace-nowrap text-muted-foreground"
-            style={issueListCellStyle(columns, "due")}
+            style={issueListCellStyle(columns, "due", visualState)}
             data-column-key="due"
           >
             <DateDisplay date={issue.due_date} emptyText="—" />
@@ -442,7 +484,7 @@ export const IssueListRow = memo(function IssueListRow({
         {columns.includes("updated") && (
           <TableCell
             className="h-10 min-w-0 px-3 py-0 text-xs whitespace-nowrap text-muted-foreground"
-            style={issueListCellStyle(columns, "updated")}
+            style={issueListCellStyle(columns, "updated", visualState)}
             data-column-key="updated"
           >
             {formatRelativeTime(issue.updated_at, locale)}

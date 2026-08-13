@@ -11,6 +11,7 @@ export type FixtureScenario =
   | "configured_caught_up"
   | "content_search"
   | "configured_multi"
+  | "assignee_picker"
   | "backlog_bulk_partial_failure"
   | "demo_board"
   | "raw_only"
