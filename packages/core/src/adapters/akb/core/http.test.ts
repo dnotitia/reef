@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   AkbApiError,
   AuthError,
@@ -50,6 +50,63 @@ describe("mode-aware AKB bearer adapter", () => {
         accessToken: "keycloak-access-token",
       }),
     ).toThrowError("Exactly one AKB bearer credential is required");
+  });
+
+  it("does not replay a token-bearing POST across redirects", async () => {
+    const { calls } = setupFetch([{ status: 204, empty: true }]);
+    const adapter = createAkbAdapter({
+      baseUrl: "https://akb.test",
+      accessToken: "keycloak-access-token",
+    });
+
+    await adapter.request("/api/v1/project", {
+      method: "POST",
+      body: { name: "reef" },
+    });
+
+    expect(calls[0]?.init?.redirect).toBe("manual");
+  });
+
+  it("bounds an SSO projection response body", async () => {
+    setupFetch([{ body: { username: "alice", padding: "x".repeat(128) } }]);
+    const adapter = createAkbAdapter({
+      baseUrl: "https://akb.test",
+      accessToken: "keycloak-access-token",
+      requestPolicy: { maxJsonResponseBytes: 64, timeoutMs: 1_000 },
+    });
+
+    await expect(adapter.request("/api/v1/auth/me")).rejects.toBeInstanceOf(
+      AkbApiError,
+    );
+  });
+
+  it("applies the projection deadline to a stalled body read", async () => {
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("{"));
+        setTimeout(() => {
+          if (!cancelled) controller.close();
+        }, 100);
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(body, { status: 200 })),
+    );
+    const adapter = createAkbAdapter({
+      baseUrl: "https://akb.test",
+      accessToken: "keycloak-access-token",
+      requestPolicy: { maxJsonResponseBytes: 64, timeoutMs: 20 },
+    });
+
+    await expect(adapter.request("/api/v1/auth/me")).rejects.toBeInstanceOf(
+      AkbApiError,
+    );
+    expect(cancelled).toBe(true);
   });
 });
 

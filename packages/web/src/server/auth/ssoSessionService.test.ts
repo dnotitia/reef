@@ -23,14 +23,19 @@ function tokenSet(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function harness(refresh: KeycloakOidcClient["refresh"]) {
+function harness(
+  refresh: KeycloakOidcClient["refresh"],
+  options: { now?: () => number } = {},
+) {
+  const now = options.now ?? (() => NOW_SECONDS);
   const repository = createEncryptedSessionRepository({
-    backend: createMemorySessionBackend(),
+    backend: createMemorySessionBackend({ now: () => now() * 1_000 }),
     cipher: createSessionCipher(new Uint8Array(Buffer.alloc(32, 4))),
   });
   const oidc = {
     refresh,
     revokeRefreshToken: vi.fn().mockResolvedValue(undefined),
+    verifyBackchannelLogoutToken: vi.fn(),
     logoutLocation: vi
       .fn()
       .mockReturnValue("https://identity.example.com/logout"),
@@ -41,7 +46,7 @@ function harness(refresh: KeycloakOidcClient["refresh"]) {
     service: createSsoSessionService({
       repository,
       oidc,
-      now: () => NOW_SECONDS,
+      now,
       sleep: (milliseconds) =>
         new Promise((resolve) => setTimeout(resolve, milliseconds)),
       refreshPollMs: 1,
@@ -58,6 +63,9 @@ async function createSession(
     {
       providerAlias: "workforce",
       oidcNonce: "login-nonce",
+      subject: "keycloak-subject",
+      sessionId: "keycloak-session-id",
+      sessionExpiresAt: NOW_SECONDS + 24 * 60 * 60,
       tokenSet: tokenSet(overrides),
     },
     60_000,
@@ -65,6 +73,49 @@ async function createSession(
 }
 
 describe("SSO session refresh", () => {
+  it("caps every refresh TTL at the immutable login-time deadline", async () => {
+    let now = NOW_SECONDS;
+    const refresh = vi.fn<KeycloakOidcClient["refresh"]>(async () =>
+      tokenSet({
+        accessToken: "rotated-access-token",
+        accessTokenExpiresAt: now + 300,
+        refreshToken: "rotated-refresh-token",
+        refreshTokenExpiresAt: now + 7 * 24 * 60 * 60,
+      }),
+    );
+    const { repository, service } = harness(refresh, { now: () => now });
+    const replaceSession = vi.spyOn(repository, "replaceSession");
+
+    const issued = await service.createSession({
+      providerAlias: "workforce",
+      redirectPath: "/",
+      oidcNonce: "login-nonce",
+      subject: "keycloak-subject",
+      sessionId: "keycloak-session-id",
+      tokenSet: tokenSet({
+        refreshTokenExpiresAt: NOW_SECONDS + 7 * 24 * 60 * 60,
+      }),
+    });
+
+    expect(issued.expiresAt).toBe(NOW_SECONDS + 24 * 60 * 60);
+    now = issued.expiresAt - 10;
+    await expect(service.resolveAccessToken(issued.handle)).resolves.toBe(
+      "rotated-access-token",
+    );
+    expect(replaceSession).toHaveBeenCalledWith(
+      issued.handle,
+      1,
+      expect.objectContaining({ sessionExpiresAt: issued.expiresAt }),
+      10_000,
+    );
+
+    now = issued.expiresAt + 1;
+    await expect(
+      service.resolveAccessToken(issued.handle),
+    ).rejects.toMatchObject({ code: "sso_session_expired", kind: "expired" });
+    await expect(repository.readSession(issued.handle)).resolves.toBeNull();
+  });
+
   it("rotates refresh credentials once under concurrent requests", async () => {
     const refresh = vi.fn<KeycloakOidcClient["refresh"]>(async () => {
       await new Promise((resolve) => setTimeout(resolve, 5));
@@ -169,6 +220,41 @@ describe("SSO session refresh", () => {
 });
 
 describe("SSO session logout", () => {
+  it("invalidates the sid-selected sessions and rejects a replayed logout jti", async () => {
+    const { repository, service, oidc } = harness(vi.fn());
+    const firstHandle = await createSession(repository);
+    const secondHandle = await repository.createSession(
+      {
+        providerAlias: "workforce",
+        oidcNonce: "login-nonce",
+        subject: "keycloak-subject",
+        sessionId: "other-keycloak-session-id",
+        sessionExpiresAt: NOW_SECONDS + 24 * 60 * 60,
+        tokenSet: tokenSet(),
+      },
+      60_000,
+    );
+    vi.mocked(oidc.verifyBackchannelLogoutToken).mockResolvedValue({
+      jti: "logout-token-jti",
+      subject: "keycloak-subject",
+      sessionId: "keycloak-session-id",
+      replayTtlMs: 180_000,
+    });
+
+    await expect(
+      service.backchannelLogout("signed-logout-token"),
+    ).resolves.toBeUndefined();
+    await expect(repository.readSession(firstHandle)).resolves.toBeNull();
+    await expect(repository.readSession(secondHandle)).resolves.not.toBeNull();
+
+    await expect(
+      service.backchannelLogout("signed-logout-token"),
+    ).rejects.toMatchObject({
+      code: "oidc_logout_token_replayed",
+      kind: "invalid",
+    });
+  });
+
   it("deletes locally before best-effort refresh-token revocation", async () => {
     const { repository, service, oidc } = harness(vi.fn());
     const handle = await createSession(repository);
@@ -186,5 +272,16 @@ describe("SSO session logout", () => {
     expect(location).toBe("https://identity.example.com/logout");
     expect(location).not.toContain("id_token_hint");
     expect(location).not.toContain("current-id-token");
+  });
+
+  it("does not report logout success or revoke when authoritative deletion fails", async () => {
+    const { repository, service, oidc } = harness(vi.fn());
+    const handle = await createSession(repository);
+    vi.spyOn(repository, "deleteSession").mockRejectedValue(
+      new Error("redis unavailable"),
+    );
+
+    await expect(service.logout(handle)).rejects.toThrow("redis unavailable");
+    expect(oidc.revokeRefreshToken).not.toHaveBeenCalled();
   });
 });

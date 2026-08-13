@@ -15,3 +15,6 @@ data:
   AKB_BACKEND_URL: "http://akb-backend.example.svc.cluster.local:8000"
   # reef-web's canonical public origin. Must match the ingress host below.
   REEF_PUBLIC_ORIGIN: "https://reef.example.com"
+  # Required when switching this overlay to production SSO. Keep browser
+  # redirects on REEF_KEYCLOAK_ISSUER and use Service DNS only here.
+  # REEF_KEYCLOAK_TRANSPORT_URL: "http://keycloak.identity.svc.cluster.local:8080/realms/reef"

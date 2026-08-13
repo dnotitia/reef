@@ -1,21 +1,18 @@
-import { buildClearedAuthCookies } from "@/lib/akb/sessionCookie";
 import { readAuthRuntimeConfig } from "@/server/auth/config";
-import { getSsoAuthRuntime } from "@/server/auth/runtime";
+import { buildKeycloakLogoutLocation } from "@/server/auth/oidcClient";
 
 /** Navigate to the issuer-derived logout endpoint without an ID-token hint. */
 export async function GET(): Promise<Response> {
   const headers = new Headers({ "Cache-Control": "no-store" });
-  for (const cookie of buildClearedAuthCookies()) {
-    headers.append("Set-Cookie", cookie);
-  }
   try {
-    if (readAuthRuntimeConfig().mode !== "sso") {
+    const config = readAuthRuntimeConfig();
+    if (config.mode !== "sso") {
       return Response.json(
         { error: "SSO route unavailable." },
         { status: 404, headers },
       );
     }
-    headers.set("Location", (await getSsoAuthRuntime()).oidc.logoutLocation());
+    headers.set("Location", buildKeycloakLogoutLocation(config));
     return new Response(null, { status: 302, headers });
   } catch {
     headers.set("Location", "/login");

@@ -3,6 +3,7 @@ import {
   type JWTPayload,
   type JWTVerifyGetKey,
   createRemoteJWKSet,
+  customFetch,
   decodeProtectedHeader,
   errors as joseErrors,
   jwtVerify,
@@ -18,6 +19,11 @@ const OPAQUE_VALUE_RE = /^[A-Za-z0-9_-]{43}$/u;
 const MAX_OAUTH_VALUE_BYTES = 512 * 1024;
 const LOGIN_TRANSACTION_TTL_MS = 10 * 60 * 1_000;
 const OIDC_UPSTREAM_TIMEOUT_MS = 5_000;
+const MAX_OIDC_RESPONSE_BYTES = 2 * 1024 * 1024;
+const BACKCHANNEL_LOGOUT_MAX_AGE_SECONDS = 120;
+const OIDC_CLOCK_TOLERANCE_SECONDS = 5;
+const BACKCHANNEL_LOGOUT_EVENT =
+  "http://schemas.openid.net/event/backchannel-logout";
 
 const AuthorizationTokenResponseSchema = z.object({
   access_token: z.string().min(1).max(MAX_OAUTH_VALUE_BYTES),
@@ -39,6 +45,7 @@ const RefreshTokenResponseSchema = z.object({
 
 export interface KeycloakOidcConfig {
   issuer: string;
+  transportUrl: string;
   clientId: string;
   akbApiAudience: string;
   publicOrigin: string;
@@ -53,6 +60,8 @@ export interface CompletedAuthorization {
   providerAlias: string;
   redirectPath: string;
   oidcNonce: string;
+  subject: string;
+  sessionId?: string;
   tokenSet: SsoTokenSet;
 }
 
@@ -66,7 +75,11 @@ export class OidcProtocolError extends Error {
   }
 }
 
+class OidcResponseDeadlineError extends Error {}
+class OidcResponseLimitError extends Error {}
+
 export interface KeycloakOidcClient {
+  checkReachability(): Promise<void>;
   beginAuthorization(
     repository: EncryptedSessionRepository,
     input: { providerAlias: string; redirectPath: string },
@@ -81,9 +94,21 @@ export interface KeycloakOidcClient {
   ): Promise<SsoTokenSet>;
   refresh(
     refreshToken: string,
-    expected: { nonce: string; providerAlias: string; idToken?: string },
+    expected: {
+      nonce: string;
+      providerAlias: string;
+      subject?: string;
+      sessionId?: string;
+      idToken?: string;
+    },
   ): Promise<SsoTokenSet>;
   revokeRefreshToken(refreshToken: string): Promise<void>;
+  verifyBackchannelLogoutToken(logoutToken: string): Promise<{
+    jti: string;
+    subject?: string;
+    sessionId?: string;
+    replayTtlMs: number;
+  }>;
   logoutLocation(): string;
 }
 
@@ -93,18 +118,46 @@ export function createKeycloakOidcClient(
     fetch?: typeof fetch;
     jwks?: JWTVerifyGetKey;
     now?: () => number;
+    upstreamTimeoutMs?: number;
+    maxResponseBytes?: number;
   } = {},
 ): KeycloakOidcClient {
   const fetchImpl = dependencies.fetch ?? fetch;
   const now = dependencies.now ?? (() => Math.floor(Date.now() / 1_000));
-  const endpoints = keycloakEndpoints(config.issuer);
+  const upstreamTimeoutMs =
+    dependencies.upstreamTimeoutMs ?? OIDC_UPSTREAM_TIMEOUT_MS;
+  const maxResponseBytes =
+    dependencies.maxResponseBytes ?? MAX_OIDC_RESPONSE_BYTES;
+  const endpoints = keycloakEndpoints(config.issuer, config.transportUrl);
   const usesRemoteJwks = dependencies.jwks === undefined;
   const jwks =
     dependencies.jwks ??
     createRemoteJWKSet(new URL(endpoints.jwks), {
-      timeoutDuration: 5_000,
+      timeoutDuration: upstreamTimeoutMs,
       cooldownDuration: 30_000,
       cacheMaxAge: 10 * 60 * 1_000,
+      [customFetch]: async (url, init) => {
+        const response = await fetchImpl(url, {
+          ...init,
+          cache: "no-store",
+        });
+        if (response.status !== 200) return response;
+        try {
+          const payload = await readBoundedJson(response, {
+            maxBytes: maxResponseBytes,
+            signal: init.signal,
+          });
+          return Response.json(payload);
+        } catch (error) {
+          if (
+            error instanceof OidcResponseDeadlineError ||
+            init.signal.aborted
+          ) {
+            throw new DOMException("JWKS deadline exceeded", "TimeoutError");
+          }
+          throw new TypeError("oidc_jwks_response_invalid");
+        }
+      },
     });
   const redirectUri = `${config.publicOrigin}/api/auth/akb/sso/callback`;
 
@@ -119,7 +172,7 @@ export function createKeycloakOidcClient(
         issuer: config.issuer,
         audience: config.akbApiAudience,
         currentDate: new Date(now() * 1_000),
-        clockTolerance: 5,
+        clockTolerance: OIDC_CLOCK_TOLERANCE_SECONDS,
       });
       if (
         payload.azp !== config.clientId ||
@@ -144,7 +197,7 @@ export function createKeycloakOidcClient(
       nonceRequired: boolean;
       subject: string;
     },
-  ): Promise<void> {
+  ): Promise<JWTPayload> {
     assertPinnedHeader(token);
     try {
       const { payload } = await jwtVerify(token, jwks, {
@@ -152,7 +205,7 @@ export function createKeycloakOidcClient(
         issuer: config.issuer,
         audience: config.clientId,
         currentDate: new Date(now() * 1_000),
-        clockTolerance: 5,
+        clockTolerance: OIDC_CLOCK_TOLERANCE_SECONDS,
       });
       const nonceMatches = expected.nonceRequired
         ? payload.nonce === expected.nonce
@@ -168,6 +221,7 @@ export function createKeycloakOidcClient(
       ) {
         throw new Error("claim mismatch");
       }
+      return payload;
     } catch (error) {
       throw tokenVerificationError(error, usesRemoteJwks);
     }
@@ -177,6 +231,7 @@ export function createKeycloakOidcClient(
     body: URLSearchParams,
     failureKind: "authorization" | "refresh",
   ): Promise<unknown> {
+    const signal = AbortSignal.timeout(upstreamTimeoutMs);
     let response: Response;
     try {
       response = await fetchImpl(endpoints.token, {
@@ -188,7 +243,7 @@ export function createKeycloakOidcClient(
         body,
         cache: "no-store",
         redirect: "manual",
-        signal: AbortSignal.timeout(OIDC_UPSTREAM_TIMEOUT_MS),
+        signal,
       });
     } catch {
       throw new OidcProtocolError("oidc_upstream_unavailable", "transient");
@@ -207,8 +262,14 @@ export function createKeycloakOidcClient(
       );
     }
     try {
-      return await response.json();
-    } catch {
+      return await readBoundedJson(response, {
+        maxBytes: maxResponseBytes,
+        signal,
+      });
+    } catch (error) {
+      if (error instanceof OidcResponseDeadlineError || signal.aborted) {
+        throw new OidcProtocolError("oidc_upstream_unavailable", "transient");
+      }
       throw new OidcProtocolError("oidc_token_response_invalid", "invalid");
     }
   }
@@ -217,6 +278,17 @@ export function createKeycloakOidcClient(
     raw: unknown,
     expected: { nonce: string; providerAlias: string },
   ): Promise<SsoTokenSet> {
+    return (await validateAuthorization(raw, expected)).tokenSet;
+  }
+
+  async function validateAuthorization(
+    raw: unknown,
+    expected: { nonce: string; providerAlias: string },
+  ): Promise<{
+    tokenSet: SsoTokenSet;
+    subject: string;
+    sessionId?: string;
+  }> {
     const parsed = AuthorizationTokenResponseSchema.safeParse(raw);
     if (!parsed.success || !PROVIDER_ALIAS_RE.test(expected.providerAlias)) {
       throw new OidcProtocolError("oidc_token_invalid", "invalid");
@@ -226,25 +298,57 @@ export function createKeycloakOidcClient(
       value.access_token,
       expected.providerAlias,
     );
-    await verifyIdToken(value.id_token, value.access_token, {
+    const idClaims = await verifyIdToken(value.id_token, value.access_token, {
       nonce: expected.nonce,
       nonceRequired: true,
       subject: accessClaims.sub ?? "",
     });
+    const sessionId = consistentSessionId(accessClaims.sid, idClaims.sid);
     return {
-      accessToken: value.access_token,
-      accessTokenExpiresAt: boundedExpiration(
-        now(),
-        value.expires_in,
-        accessClaims.exp,
-      ),
-      refreshToken: value.refresh_token,
-      refreshTokenExpiresAt: now() + value.refresh_expires_in,
-      idToken: value.id_token,
+      subject: accessClaims.sub ?? "",
+      ...(sessionId ? { sessionId } : {}),
+      tokenSet: {
+        accessToken: value.access_token,
+        accessTokenExpiresAt: boundedExpiration(
+          now(),
+          value.expires_in,
+          accessClaims.exp,
+        ),
+        refreshToken: value.refresh_token,
+        refreshTokenExpiresAt: now() + value.refresh_expires_in,
+        idToken: value.id_token,
+      },
     };
   }
 
   return {
+    async checkReachability() {
+      const signal = AbortSignal.timeout(upstreamTimeoutMs);
+      try {
+        const response = await fetchImpl(endpoints.jwks, {
+          method: "GET",
+          headers: { Accept: "application/json, application/jwk-set+json" },
+          cache: "no-store",
+          redirect: "manual",
+          signal,
+        });
+        if (!response.ok) throw new Error("JWKS unavailable");
+        const payload = await readBoundedJson(response, {
+          maxBytes: maxResponseBytes,
+          signal,
+        });
+        if (
+          !payload ||
+          typeof payload !== "object" ||
+          !Array.isArray((payload as { keys?: unknown }).keys)
+        ) {
+          throw new Error("JWKS invalid");
+        }
+      } catch {
+        throw new OidcProtocolError("oidc_upstream_unavailable", "transient");
+      }
+    },
+
     async beginAuthorization(repository, input) {
       if (
         !PROVIDER_ALIAS_RE.test(input.providerAlias) ||
@@ -313,7 +417,7 @@ export function createKeycloakOidcClient(
         }),
         "authorization",
       );
-      const tokenSet = await validateAuthorizationTokenSet(raw, {
+      const authorization = await validateAuthorization(raw, {
         nonce: transaction.nonce,
         providerAlias: transaction.providerAlias,
       });
@@ -321,7 +425,11 @@ export function createKeycloakOidcClient(
         providerAlias: transaction.providerAlias,
         redirectPath: transaction.redirectPath,
         oidcNonce: transaction.nonce,
-        tokenSet,
+        subject: authorization.subject,
+        ...(authorization.sessionId
+          ? { sessionId: authorization.sessionId }
+          : {}),
+        tokenSet: authorization.tokenSet,
       };
     },
 
@@ -345,12 +453,20 @@ export function createKeycloakOidcClient(
         value.access_token,
         expected.providerAlias,
       );
+      if (expected.subject && accessClaims.sub !== expected.subject) {
+        throw new OidcProtocolError("oidc_token_invalid", "invalid");
+      }
+      let idClaims: JWTPayload | undefined;
       if (value.id_token) {
-        await verifyIdToken(value.id_token, value.access_token, {
+        idClaims = await verifyIdToken(value.id_token, value.access_token, {
           nonce: expected.nonce,
           nonceRequired: false,
           subject: accessClaims.sub ?? "",
         });
+      }
+      const sessionId = consistentSessionId(accessClaims.sid, idClaims?.sid);
+      if (expected.sessionId && sessionId && sessionId !== expected.sessionId) {
+        throw new OidcProtocolError("oidc_token_invalid", "invalid");
       }
       return {
         accessToken: value.access_token,
@@ -384,7 +500,7 @@ export function createKeycloakOidcClient(
           }),
           cache: "no-store",
           redirect: "manual",
-          signal: AbortSignal.timeout(OIDC_UPSTREAM_TIMEOUT_MS),
+          signal: AbortSignal.timeout(upstreamTimeoutMs),
         });
       } catch {
         throw new OidcProtocolError("oidc_upstream_unavailable", "transient");
@@ -394,16 +510,77 @@ export function createKeycloakOidcClient(
       }
     },
 
+    async verifyBackchannelLogoutToken(logoutToken) {
+      assertPinnedHeader(logoutToken, { requireJwtTyp: false });
+      try {
+        const { payload } = await jwtVerify(logoutToken, jwks, {
+          algorithms: ["RS256"],
+          issuer: config.issuer,
+          audience: config.clientId,
+          currentDate: new Date(now() * 1_000),
+          clockTolerance: OIDC_CLOCK_TOLERANCE_SECONDS,
+        });
+        const issuedAt = payload.iat;
+        const jti = boundedClaim(payload.jti);
+        const subject = optionalBoundedClaim(payload.sub);
+        const sessionId = optionalBoundedClaim(payload.sid);
+        const events = payload.events;
+        const event =
+          events && typeof events === "object" && !Array.isArray(events)
+            ? (events as Record<string, unknown>)[BACKCHANNEL_LOGOUT_EVENT]
+            : undefined;
+        const exactAudience =
+          payload.aud === config.clientId ||
+          (Array.isArray(payload.aud) &&
+            payload.aud.length === 1 &&
+            payload.aud[0] === config.clientId);
+        if (
+          payload.iss !== config.issuer ||
+          !exactAudience ||
+          !Number.isSafeInteger(issuedAt) ||
+          (issuedAt ?? 0) > now() + OIDC_CLOCK_TOLERANCE_SECONDS ||
+          now() - (issuedAt ?? 0) > BACKCHANNEL_LOGOUT_MAX_AGE_SECONDS ||
+          !jti ||
+          (!subject && !sessionId) ||
+          payload.nonce !== undefined ||
+          !event ||
+          typeof event !== "object" ||
+          Array.isArray(event)
+        ) {
+          throw new Error("claim mismatch");
+        }
+        return {
+          jti,
+          ...(subject ? { subject } : {}),
+          ...(sessionId ? { sessionId } : {}),
+          replayTtlMs:
+            (BACKCHANNEL_LOGOUT_MAX_AGE_SECONDS +
+              OIDC_CLOCK_TOLERANCE_SECONDS) *
+            1_000,
+        };
+      } catch (error) {
+        throw tokenVerificationError(error, usesRemoteJwks);
+      }
+    },
+
     logoutLocation() {
-      const location = new URL(endpoints.logout);
-      location.searchParams.set("client_id", config.clientId);
-      location.searchParams.set(
-        "post_logout_redirect_uri",
-        `${config.publicOrigin}/login`,
-      );
-      return location.toString();
+      return buildKeycloakLogoutLocation(config);
     },
   };
+}
+
+export function buildKeycloakLogoutLocation(
+  config: Pick<KeycloakOidcConfig, "issuer" | "clientId" | "publicOrigin">,
+): string {
+  const location = new URL(
+    `${config.issuer.replace(/\/$/u, "")}/protocol/openid-connect/logout`,
+  );
+  location.searchParams.set("client_id", config.clientId);
+  location.searchParams.set(
+    "post_logout_redirect_uri",
+    `${config.publicOrigin}/login`,
+  );
+  return location.toString();
 }
 
 function tokenVerificationError(
@@ -425,12 +602,62 @@ function isTransientUpstreamStatus(status: number): boolean {
   return status === 408 || status === 429 || status >= 500;
 }
 
-function assertPinnedHeader(token: string): void {
+async function readBoundedJson(
+  response: Response,
+  options: { maxBytes: number; signal: AbortSignal },
+): Promise<unknown> {
+  const contentLength = Number(response.headers.get("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > options.maxBytes) {
+    throw new OidcResponseLimitError();
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) throw new SyntaxError("empty response");
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let bytesRead = 0;
+  let body = "";
+  try {
+    while (true) {
+      const { done, value } = await readWithDeadline(reader, options.signal);
+      if (done) break;
+      bytesRead += value.byteLength;
+      if (bytesRead > options.maxBytes) throw new OidcResponseLimitError();
+      body += decoder.decode(value, { stream: true });
+    }
+    body += decoder.decode();
+    return JSON.parse(body) as unknown;
+  } catch (error) {
+    void reader.cancel().catch(() => undefined);
+    throw error;
+  }
+}
+
+function readWithDeadline(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  signal: AbortSignal,
+): Promise<ReadableStreamReadResult<Uint8Array>> {
+  if (signal.aborted) return Promise.reject(new OidcResponseDeadlineError());
+  return new Promise((resolve, reject) => {
+    const onAbort = () => reject(new OidcResponseDeadlineError());
+    signal.addEventListener("abort", onAbort, { once: true });
+    void reader
+      .read()
+      .then(resolve, reject)
+      .finally(() => {
+        signal.removeEventListener("abort", onAbort);
+      });
+  });
+}
+
+function assertPinnedHeader(
+  token: string,
+  options: { requireJwtTyp?: boolean } = {},
+): void {
   try {
     const header = decodeProtectedHeader(token);
     if (
       header.alg !== "RS256" ||
-      header.typ !== "JWT" ||
+      (options.requireJwtTyp !== false && header.typ !== "JWT") ||
       typeof header.kid !== "string" ||
       header.kid.length === 0 ||
       header.kid.length > 255 ||
@@ -446,14 +673,28 @@ function assertPinnedHeader(token: string): void {
   }
 }
 
-function keycloakEndpoints(issuer: string) {
-  const root = issuer.replace(/\/$/u, "");
+function boundedClaim(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 && value.length <= 2_048
+    ? value
+    : null;
+}
+
+function optionalBoundedClaim(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  const bounded = boundedClaim(value);
+  if (!bounded) throw new Error("claim mismatch");
+  return bounded;
+}
+
+function keycloakEndpoints(issuer: string, transportUrl: string) {
+  const canonicalRoot = issuer.replace(/\/$/u, "");
+  const transportRoot = transportUrl.replace(/\/$/u, "");
   return {
-    authorization: `${root}/protocol/openid-connect/auth`,
-    token: `${root}/protocol/openid-connect/token`,
-    jwks: `${root}/protocol/openid-connect/certs`,
-    revocation: `${root}/protocol/openid-connect/revoke`,
-    logout: `${root}/protocol/openid-connect/logout`,
+    authorization: `${canonicalRoot}/protocol/openid-connect/auth`,
+    token: `${transportRoot}/protocol/openid-connect/token`,
+    jwks: `${transportRoot}/protocol/openid-connect/certs`,
+    revocation: `${transportRoot}/protocol/openid-connect/revoke`,
+    logout: `${canonicalRoot}/protocol/openid-connect/logout`,
   };
 }
 
@@ -463,6 +704,26 @@ function accessTokenHash(accessToken: string): string {
     .digest()
     .subarray(0, 16)
     .toString("base64url");
+}
+
+function consistentSessionId(...claims: unknown[]): string | undefined {
+  const values: string[] = [];
+  for (const claim of claims) {
+    if (claim === undefined) continue;
+    if (
+      typeof claim !== "string" ||
+      claim.length === 0 ||
+      claim.length > 2_048
+    ) {
+      throw new OidcProtocolError("oidc_token_invalid", "invalid");
+    }
+    values.push(claim);
+  }
+  if (values.length === 0) return undefined;
+  if (values.some((value) => value !== values[0])) {
+    throw new OidcProtocolError("oidc_token_invalid", "invalid");
+  }
+  return values[0];
 }
 
 function boundedExpiration(

@@ -83,6 +83,7 @@ variables for secrets.
 | `REEF_AUTH_MODE` | Required explicit profile: `local` for AKB-issued JWT cookies or `sso` for Reef-owned OIDC and opaque sessions. |
 | `AKB_BACKEND_URL` | Base URL for the AKB backend. Local dev usually uses `http://localhost:8000`. |
 | `REEF_KEYCLOAK_ISSUER` | Exact Keycloak realm issuer in SSO mode. HTTPS outside loopback development. |
+| `REEF_KEYCLOAK_TRANSPORT_URL` | Production-required in-cluster Keycloak realm URL for token/JWKS/revocation and readiness calls; exact realm path must match the issuer. |
 | `REEF_KEYCLOAK_CLIENT_ID` | Reef's dedicated Keycloak client id in SSO mode. |
 | `REEF_AKB_API_AUDIENCE` | Required AKB API audience in every accepted Keycloak access token. |
 | `REEF_PUBLIC_ORIGIN` | Reef's bare public origin; required in SSO mode for callback/logout URLs. |
@@ -112,9 +113,10 @@ credential model.
 
 In SSO mode, Reef is the OIDC client and AKB supplies only its public versioned
 auth/provider catalog plus the account/API authority. Reef never calls AKB's
-retired browser-login or JWT-exchange endpoints. Production SSO requires Redis
-and the independent encryption key; only tests and non-production development
-may use the in-memory store. See `../../docs/keycloak-sso.md`.
+retired browser-login or JWT-exchange endpoints. Production SSO requires Redis,
+the independent encryption key, and a distinct in-cluster Keycloak transport;
+only tests and non-production development may use the in-memory store or public
+issuer transport. See `../../docs/keycloak-sso.md`.
 
 ## Layout
 

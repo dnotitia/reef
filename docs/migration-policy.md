@@ -41,7 +41,10 @@ state rather than browser-local state.
 The Redis SSO record is an expiring credential-custody envelope, not durable
 product data and not a browser migration surface. Changing the single active
 session-encryption key invalidates existing SSO sessions; treat that operation
-as a planned sign-in reset until a multi-key rotation contract exists.
+as a planned sign-in reset until a multi-key rotation contract exists. Records
+carry an immutable login-time deadline and encrypted Keycloak subject/session
+identifiers; Redis sid/sub indexes and logout-jti replay markers contain hashes
+only and expire within that bounded session/protocol window.
 
 ## akb Compatibility
 

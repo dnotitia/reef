@@ -9,7 +9,9 @@
 - Keep local credentials in request-scoped server adapters or the httpOnly AKB
   JWT boundary. SSO token sets are the sole per-user server-state exception:
   keep them encrypted in the `server/auth` session repository and expose only
-  an opaque httpOnly handle. Do not log tokens, raw cookies, prompt text, or
-  upstream response bodies.
+  an opaque httpOnly handle. Preserve the login-time session deadline and keep
+  back-channel sid/sub/jti index material hashed. Canonical issuer redirects and
+  claim checks stay separate from production in-cluster OIDC transport. Do not
+  log tokens, raw cookies, prompt text, or upstream response bodies.
 - Wrap async provider boundaries in OpenTelemetry spans and use the shared web
   logger for request/server diagnostics.

@@ -214,7 +214,8 @@ runs it as a non-root user. Kubernetes manifests live under `deploy/k8s`.
 Production deployments provide an explicit `REEF_AUTH_MODE` and
 `AKB_BACKEND_URL`. SSO mode additionally configures Reef's dedicated Keycloak
 client, AKB API audience, public origin, Redis session store, and independent
-encryption key. See [docs/deployment.md](docs/deployment.md) and
+encryption key, plus a distinct in-cluster Keycloak transport for token/JWKS/
+revocation traffic. See [docs/deployment.md](docs/deployment.md) and
 [docs/keycloak-sso.md](docs/keycloak-sso.md).
 
 ## Documentation

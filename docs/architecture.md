@@ -194,7 +194,11 @@ and account authority remain in AKB. Authentication has two explicit profiles:
   refresh, and ID tokens remain in an AES-256-GCM encrypted Redis record keyed by
   a hash of that handle. Login state is one-time, encrypted, browser-bound, and
   replay-safe. Refresh uses a bounded distributed lock plus atomic revision
-  compare-and-set. This ephemeral secret-session store is not product state.
+  compare-and-set capped by an immutable login-time deadline. Hashed Keycloak
+  sid/sub indexes support replay-protected OpenID Back-Channel Logout without
+  exposing identifiers in Redis metadata. Browser redirects and JWT issuer
+  checks use the canonical issuer; token/JWKS/revocation traffic uses a distinct
+  production-required in-cluster transport. This ephemeral secret-session store is not product state.
   Production fails closed without Redis and an independent 32-byte encryption
   key; only tests and non-production development may use memory with an
   ephemeral key.

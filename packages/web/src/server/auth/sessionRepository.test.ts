@@ -34,12 +34,93 @@ function createRepository() {
 }
 
 describe("encrypted SSO session repository", () => {
+  it("atomically indexes sessions by hashed sid/sub and consumes logout jti once", async () => {
+    const { backend, repository } = createRepository();
+    const sharedSubject = "keycloak-subject-sensitive";
+    const firstSessionId = "keycloak-session-sensitive-a";
+    const secondSessionId = "keycloak-session-sensitive-b";
+    const firstHandle = await repository.createSession(
+      {
+        providerAlias: "workforce",
+        oidcNonce: "nonce-value",
+        subject: sharedSubject,
+        sessionId: firstSessionId,
+        sessionExpiresAt: 5_000,
+        tokenSet: TOKEN_SET,
+      },
+      60_000,
+    );
+    const secondHandle = await repository.createSession(
+      {
+        providerAlias: "workforce",
+        oidcNonce: "nonce-value",
+        subject: sharedSubject,
+        sessionId: secondSessionId,
+        sessionExpiresAt: 5_000,
+        tokenSet: TOKEN_SET,
+      },
+      60_000,
+    );
+
+    const stored = backend.inspect();
+    for (const rawValue of [
+      firstHandle,
+      secondHandle,
+      sharedSubject,
+      firstSessionId,
+      secondSessionId,
+      ...Object.values(TOKEN_SET),
+    ]) {
+      expect(stored).not.toContain(String(rawValue));
+    }
+
+    await expect(
+      repository.invalidateBackchannelLogout({
+        sessionId: firstSessionId,
+        subject: sharedSubject,
+        jti: "logout-token-jti-sensitive-a",
+        replayTtlMs: 180_000,
+      }),
+    ).resolves.toEqual({ invalidated: 1, replayed: false });
+    await expect(repository.readSession(firstHandle)).resolves.toBeNull();
+    await expect(repository.readSession(secondHandle)).resolves.not.toBeNull();
+
+    await expect(
+      repository.invalidateBackchannelLogout({
+        sessionId: firstSessionId,
+        subject: sharedSubject,
+        jti: "logout-token-jti-sensitive-a",
+        replayTtlMs: 180_000,
+      }),
+    ).resolves.toEqual({ invalidated: 0, replayed: true });
+
+    await expect(
+      repository.invalidateBackchannelLogout({
+        subject: sharedSubject,
+        jti: "logout-token-jti-sensitive-b",
+        replayTtlMs: 180_000,
+      }),
+    ).resolves.toEqual({ invalidated: 1, replayed: false });
+    await expect(repository.readSession(secondHandle)).resolves.toBeNull();
+    await expect(
+      repository.invalidateBackchannelLogout({
+        subject: "missing-keycloak-subject",
+        jti: "logout-token-jti-sensitive-missing",
+        replayTtlMs: 180_000,
+      }),
+    ).resolves.toEqual({ invalidated: 0, replayed: false });
+    expect(backend.inspect()).not.toContain("logout-token-jti-sensitive");
+  });
+
   it("issues only an opaque handle and atomically rotates encrypted token state", async () => {
     const { backend, repository } = createRepository();
     const handle = await repository.createSession(
       {
         providerAlias: "workforce",
         oidcNonce: "nonce-value",
+        subject: "keycloak-subject",
+        sessionId: "keycloak-session-id",
+        sessionExpiresAt: 5_000,
         tokenSet: TOKEN_SET,
       },
       60_000,
@@ -66,6 +147,9 @@ describe("encrypted SSO session repository", () => {
         {
           providerAlias: "workforce",
           oidcNonce: "nonce-value",
+          subject: "keycloak-subject",
+          sessionId: "keycloak-session-id",
+          sessionExpiresAt: 5_000,
           tokenSet: rotated,
         },
         60_000,
@@ -78,6 +162,9 @@ describe("encrypted SSO session repository", () => {
         {
           providerAlias: "workforce",
           oidcNonce: "nonce-value",
+          subject: "keycloak-subject",
+          sessionId: "keycloak-session-id",
+          sessionExpiresAt: 5_000,
           tokenSet: TOKEN_SET,
         },
         60_000,
@@ -133,6 +220,9 @@ describe("encrypted SSO session repository", () => {
       {
         providerAlias: "workforce",
         oidcNonce: "nonce-value",
+        subject: "keycloak-subject",
+        sessionId: "keycloak-session-id",
+        sessionExpiresAt: 5_000,
         tokenSet: TOKEN_SET,
       },
       100,

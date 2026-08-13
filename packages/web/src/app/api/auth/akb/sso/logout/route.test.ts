@@ -19,6 +19,8 @@ const TOKEN_MARKERS = [
   "id-token-material",
   "id_token_hint",
 ];
+const EXPECTED_LOGOUT_LOCATION =
+  "https://identity.example.com/realms/reef/protocol/openid-connect/logout?client_id=reef-web&post_logout_redirect_uri=https%3A%2F%2Freef.example.com%2Flogin";
 
 describe("GET /api/auth/akb/sso/logout", () => {
   beforeEach(() => {
@@ -44,21 +46,21 @@ describe("GET /api/auth/akb/sso/logout", () => {
     vi.unstubAllEnvs();
   });
 
-  it("returns only the issuer-derived navigation and clears browser carriers", async () => {
+  it("returns only issuer-derived navigation without mutating browser state", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     const response = await GET();
 
     expect(response.status).toBe(302);
     const location = response.headers.get("location") ?? "";
-    expect(location).toBe(mocks.logoutLocation.mock.results[0]?.value);
+    expect(location).toBe(EXPECTED_LOGOUT_LOCATION);
     expect(new URL(location).pathname).toBe(
       "/realms/reef/protocol/openid-connect/logout",
     );
     const exposed = `${location} ${response.headers.get("set-cookie") ?? ""}`;
     for (const token of TOKEN_MARKERS) expect(exposed).not.toContain(token);
-    expect(exposed).toContain("__reef_session=");
-    expect(exposed).toContain("Max-Age=0");
+    expect(response.headers.get("set-cookie")).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
+    expect(mocks.getRuntime).not.toHaveBeenCalled();
   });
 
   it("is unavailable outside SSO mode", async () => {
@@ -71,9 +73,7 @@ describe("GET /api/auth/akb/sso/logout", () => {
   });
 
   it("falls back to a same-origin login path without exposing an upstream error", async () => {
-    mocks.getRuntime.mockRejectedValue(
-      new Error("refresh-token-material appeared upstream"),
-    );
+    vi.stubEnv("REEF_KEYCLOAK_ISSUER", "refresh-token-material");
 
     const response = await GET();
 

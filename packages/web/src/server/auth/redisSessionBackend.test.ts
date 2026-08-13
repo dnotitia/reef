@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   type RedisSessionClient,
   createRedisSessionBackend,
@@ -43,6 +43,46 @@ function createFakeRedis(): RedisSessionClient {
 }
 
 describe("Redis session backend", () => {
+  it("uses one Redis script for indexed create and replay-protected invalidation", async () => {
+    const client = createFakeRedis();
+    const evalScript = vi
+      .spyOn(client, "eval")
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(2);
+    const backend = createRedisSessionBackend(client);
+
+    await expect(
+      backend.setIndexedSessionIfAbsent(
+        "reef:sso:session:hashed-handle",
+        "reef:sso:session-meta:hashed-handle",
+        "1|sealed",
+        ["reef:sso:sid:hashed-sid", "reef:sso:sub:hashed-sub"],
+        60_000,
+      ),
+    ).resolves.toBe(true);
+    await expect(
+      backend.invalidateIndexedSessions(
+        "reef:sso:sid:hashed-sid",
+        "reef:sso:logout-jti:hashed-jti",
+        180_000,
+      ),
+    ).resolves.toEqual({ invalidated: 2, replayed: false });
+
+    expect(evalScript).toHaveBeenCalledTimes(2);
+    expect(evalScript.mock.calls[0]?.[1]).toMatchObject({
+      keys: [
+        "reef:sso:session:hashed-handle",
+        "reef:sso:session-meta:hashed-handle",
+        "reef:sso:sid:hashed-sid",
+        "reef:sso:sub:hashed-sub",
+      ],
+    });
+    expect(evalScript.mock.calls[1]?.[1]).toEqual({
+      keys: ["reef:sso:sid:hashed-sid", "reef:sso:logout-jti:hashed-jti"],
+      arguments: ["180000"],
+    });
+  });
+
   it("uses atomic compare-and-set and owner-checked lock release", async () => {
     const backend = createRedisSessionBackend(createFakeRedis());
     await expect(

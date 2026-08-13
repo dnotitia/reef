@@ -57,10 +57,13 @@ metadata.
   opaque `__reef_session` handle, and keeps the Keycloak token set encrypted
   with AES-256-GCM in Redis.
 - Production SSO fails closed without `REEF_SESSION_REDIS_URL` and an
-  independent 32-byte `REEF_SESSION_ENCRYPTION_KEY`. An in-memory session
-  backend and ephemeral key are allowed only in tests or non-production
-  development. Access, refresh, and ID tokens must never enter browser-visible
-  JavaScript, bodies, URLs, storage, cookies, logs, or span attributes.
+  independent 32-byte `REEF_SESSION_ENCRYPTION_KEY`, plus a distinct explicit
+  in-cluster Keycloak transport whose exact realm path matches the canonical
+  issuer. An in-memory session backend, ephemeral key, and issuer transport are
+  allowed only in tests or non-production development. Session TTLs never pass
+  their immutable login-time deadline; back-channel logout keeps only hashed
+  sid/sub/jti index metadata. Access, refresh, and ID tokens must never enter
+  browser-visible JavaScript, bodies, URLs, storage, cookies, logs, or span attributes.
 - GitHub access for monitored-repo grounding and activity scans is deployment
   managed through `REEF_GITHUB_APP_ID`, `REEF_GITHUB_APP_INSTALLATION_ID`, and
   `REEF_GITHUB_APP_PRIVATE_KEY`, with `REEF_GITHUB_PAT` allowed only as a

@@ -12,6 +12,8 @@ function ssoEnvironment(
     NODE_ENV: "production",
     REEF_AUTH_MODE: "sso",
     REEF_KEYCLOAK_ISSUER: "https://identity.example.com/realms/reef",
+    REEF_KEYCLOAK_TRANSPORT_URL:
+      "http://keycloak.identity.svc.cluster.local:8080/realms/reef",
     REEF_KEYCLOAK_CLIENT_ID: "reef-web",
     REEF_AKB_API_AUDIENCE: "akb-api",
     REEF_PUBLIC_ORIGIN: "https://reef.example.com",
@@ -22,6 +24,49 @@ function ssoEnvironment(
 }
 
 describe("readAuthRuntimeConfig", () => {
+  it("requires a distinct in-cluster Keycloak transport in production", () => {
+    expect(() =>
+      readAuthRuntimeConfig(
+        ssoEnvironment({ REEF_KEYCLOAK_TRANSPORT_URL: undefined }),
+      ),
+    ).toThrowError("sso_keycloak_transport_required");
+    expect(() =>
+      readAuthRuntimeConfig(
+        ssoEnvironment({
+          REEF_KEYCLOAK_TRANSPORT_URL:
+            "https://identity.example.com/realms/reef",
+        }),
+      ),
+    ).toThrowError("sso_keycloak_transport_invalid");
+  });
+
+  it("keeps the canonical issuer separate from the exact-realm transport URL", () => {
+    expect(readAuthRuntimeConfig(ssoEnvironment())).toMatchObject({
+      mode: "sso",
+      issuer: "https://identity.example.com/realms/reef",
+      transportUrl:
+        "http://keycloak.identity.svc.cluster.local:8080/realms/reef",
+    });
+  });
+
+  it.each([
+    ["realm mismatch", "http://keycloak:8080/realms/other"],
+    ["extra path", "http://keycloak:8080/realms/reef/extra"],
+    ["credentials", "http://user:pass@keycloak:8080/realms/reef"],
+    ["query", "http://keycloak:8080/realms/reef?internal=true"],
+    ["fragment", "http://keycloak:8080/realms/reef#internal"],
+    ["IPv4 literal", "http://10.0.0.10:8080/realms/reef"],
+    ["IPv6 literal", "http://[fd00::10]:8080/realms/reef"],
+    ["public DNS", "https://identity-internal.example.com/realms/reef"],
+    ["loopback DNS", "http://localhost:8080/realms/reef"],
+  ])("rejects an invalid Keycloak transport with %s", (_label, transport) => {
+    expect(() =>
+      readAuthRuntimeConfig(
+        ssoEnvironment({ REEF_KEYCLOAK_TRANSPORT_URL: transport }),
+      ),
+    ).toThrowError("sso_keycloak_transport_invalid");
+  });
+
   it("fails closed when production SSO has no Redis URL", () => {
     expect(() =>
       readAuthRuntimeConfig(
@@ -50,6 +95,7 @@ describe("readAuthRuntimeConfig", () => {
       ssoEnvironment({
         NODE_ENV: "development",
         REEF_KEYCLOAK_ISSUER: "http://localhost:8080/realms/reef",
+        REEF_KEYCLOAK_TRANSPORT_URL: undefined,
         REEF_PUBLIC_ORIGIN: "http://localhost:3000",
         REEF_SESSION_REDIS_URL: undefined,
         REEF_SESSION_ENCRYPTION_KEY: undefined,
@@ -60,6 +106,7 @@ describe("readAuthRuntimeConfig", () => {
       mode: "sso",
       redisUrl: null,
       encryptionKey: null,
+      transportUrl: "http://localhost:8080/realms/reef",
     });
   });
 
@@ -89,5 +136,15 @@ describe("readAuthRuntimeConfig", () => {
         ssoEnvironment({ REEF_PUBLIC_ORIGIN: "https://reef.example.com/app" }),
       ),
     ).toThrowError("sso_public_origin_invalid");
+  });
+
+  it("rejects a canonical issuer that is not an exact realm URL", () => {
+    expect(() =>
+      readAuthRuntimeConfig(
+        ssoEnvironment({
+          REEF_KEYCLOAK_ISSUER: "https://identity.example.com/realms/reef/sub",
+        }),
+      ),
+    ).toThrowError("sso_issuer_invalid");
   });
 });

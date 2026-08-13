@@ -1,3 +1,4 @@
+import { isIP } from "node:net";
 import { z } from "zod";
 
 export type ReefAuthMode = "local" | "sso";
@@ -11,6 +12,7 @@ export interface LocalAuthRuntimeConfig {
 export interface SsoAuthRuntimeConfig {
   mode: "sso";
   issuer: string;
+  transportUrl: string;
   clientId: string;
   akbApiAudience: string;
   publicOrigin: string;
@@ -44,6 +46,9 @@ export function readAuthRuntimeConfig(
     bareOrigin: false,
     allowLoopbackHttp: env.NODE_ENV !== "production",
   });
+  if (!isExactRealmUrl(issuer) || isIpHostname(new URL(issuer).hostname)) {
+    throw new AuthConfigurationError("sso_issuer_invalid");
+  }
   const clientId = readIdentifier(
     env.REEF_KEYCLOAK_CLIENT_ID,
     "sso_client_id_invalid",
@@ -62,6 +67,11 @@ export function readAuthRuntimeConfig(
   const encryptionKey = readEncryptionKey(env.REEF_SESSION_ENCRYPTION_KEY);
   const ephemeralAllowed =
     env.NODE_ENV === "development" || env.NODE_ENV === "test";
+  const transportUrl = readKeycloakTransportUrl(
+    env.REEF_KEYCLOAK_TRANSPORT_URL,
+    issuer,
+    !ephemeralAllowed,
+  );
   if (!ephemeralAllowed) {
     if (!redisUrl) {
       throw new AuthConfigurationError("sso_session_redis_required");
@@ -74,12 +84,81 @@ export function readAuthRuntimeConfig(
   return {
     mode,
     issuer,
+    transportUrl,
     clientId,
     akbApiAudience,
     publicOrigin,
     redisUrl,
     encryptionKey,
   };
+}
+
+function readKeycloakTransportUrl(
+  value: string | undefined,
+  issuer: string,
+  required: boolean,
+): string {
+  if (!value) {
+    if (required) {
+      throw new AuthConfigurationError("sso_keycloak_transport_required");
+    }
+    return issuer;
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new AuthConfigurationError("sso_keycloak_transport_invalid");
+  }
+  const canonical = new URL(issuer);
+  if (
+    !["http:", "https:"].includes(parsed.protocol) ||
+    !parsed.hostname ||
+    parsed.username ||
+    parsed.password ||
+    parsed.search ||
+    parsed.hash ||
+    isIpHostname(parsed.hostname) ||
+    !isExactRealmUrl(parsed.toString()) ||
+    parsed.pathname !== canonical.pathname ||
+    (required &&
+      (parsed.hostname.toLowerCase() === canonical.hostname.toLowerCase() ||
+        !isInClusterHostname(parsed.hostname)))
+  ) {
+    throw new AuthConfigurationError("sso_keycloak_transport_invalid");
+  }
+  return parsed.toString().replace(/\/$/u, "");
+}
+
+function isExactRealmUrl(value: string): boolean {
+  try {
+    return /^\/realms\/[A-Za-z0-9._~-]+$/u.test(new URL(value).pathname);
+  } catch {
+    return false;
+  }
+}
+
+function isIpHostname(hostname: string): boolean {
+  const unwrapped =
+    hostname.startsWith("[") && hostname.endsWith("]")
+      ? hostname.slice(1, -1)
+      : hostname;
+  return isIP(unwrapped) !== 0;
+}
+
+function isInClusterHostname(hostname: string): boolean {
+  const normalized = hostname.toLowerCase();
+  if (normalized === "localhost" || normalized.endsWith(".")) return false;
+  const labels = normalized.split(".");
+  if (
+    labels.some(
+      (label) => !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/u.test(label),
+    )
+  ) {
+    return false;
+  }
+  return labels.length === 1 || labels.indexOf("svc") >= 2;
 }
 
 export function readAuthMode(env: AuthEnvironment = process.env): ReefAuthMode {

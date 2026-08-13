@@ -5,6 +5,7 @@ import type { SessionCipher } from "./sessionCipher";
 const OPAQUE_HANDLE_RE = /^[A-Za-z0-9_-]{43}$/u;
 const PROVIDER_ALIAS_RE = /^[a-z0-9][a-z0-9._-]{0,62}$/u;
 const MAX_TOKEN_BYTES = 512 * 1024;
+const MAX_OIDC_IDENTIFIER_BYTES = 2_048;
 
 export const SsoTokenSetSchema = z.object({
   accessToken: z.string().min(1).max(MAX_TOKEN_BYTES),
@@ -19,6 +20,9 @@ export type SsoTokenSet = z.infer<typeof SsoTokenSetSchema>;
 const SsoSessionDataSchema = z.object({
   providerAlias: z.string().regex(PROVIDER_ALIAS_RE),
   oidcNonce: z.string().min(1).max(255),
+  subject: z.string().min(1).max(MAX_OIDC_IDENTIFIER_BYTES),
+  sessionId: z.string().min(1).max(MAX_OIDC_IDENTIFIER_BYTES).optional(),
+  sessionExpiresAt: z.number().int().positive(),
   tokenSet: SsoTokenSetSchema,
 });
 
@@ -57,6 +61,13 @@ export class SsoSessionRecordError extends Error {
 
 export interface SessionStorageBackend {
   setIfAbsent(key: string, value: string, ttlMs: number): Promise<boolean>;
+  setIndexedSessionIfAbsent(
+    key: string,
+    metadataKey: string,
+    value: string,
+    indexKeys: readonly string[],
+    ttlMs: number,
+  ): Promise<boolean>;
   get(key: string): Promise<string | null>;
   getAndDelete(key: string): Promise<string | null>;
   compareAndSet(
@@ -65,7 +76,21 @@ export interface SessionStorageBackend {
     value: string,
     ttlMs: number,
   ): Promise<boolean>;
+  compareAndSetIndexedSession(
+    key: string,
+    metadataKey: string,
+    expectedRevision: number,
+    value: string,
+    indexKeys: readonly string[],
+    ttlMs: number,
+  ): Promise<boolean>;
   delete(key: string): Promise<void>;
+  deleteIndexedSession(key: string, metadataKey: string): Promise<void>;
+  invalidateIndexedSessions(
+    indexKey: string,
+    replayKey: string,
+    replayTtlMs: number,
+  ): Promise<{ invalidated: number; replayed: boolean }>;
   deleteIfValue(key: string, expectedValue: string): Promise<void>;
 }
 
@@ -79,6 +104,12 @@ export interface EncryptedSessionRepository {
     ttlMs: number,
   ): Promise<boolean>;
   deleteSession(handle: string): Promise<void>;
+  invalidateBackchannelLogout(input: {
+    sessionId?: string;
+    subject?: string;
+    jti: string;
+    replayTtlMs: number;
+  }): Promise<{ invalidated: number; replayed: boolean }>;
   createLoginTransaction(
     data: LoginTransaction,
     ttlMs: number,
@@ -109,7 +140,15 @@ export function createEncryptedSessionRepository(options: {
         const handle = randomOpaqueValue();
         const key = sessionKey(handle);
         const sealed = cipher.seal(parsed, key);
-        if (await backend.setIfAbsent(key, encodeRecord(1, sealed), ttlMs)) {
+        if (
+          await backend.setIndexedSessionIfAbsent(
+            key,
+            sessionMetadataKey(handle),
+            encodeRecord(1, sealed),
+            sessionIndexKeys(parsed),
+            ttlMs,
+          )
+        ) {
           return handle;
         }
       }
@@ -138,17 +177,44 @@ export function createEncryptedSessionRepository(options: {
       const key = sessionKey(handle);
       const nextRevision = expectedRevision + 1;
       const sealed = cipher.seal(parsed, key);
-      return backend.compareAndSet(
+      return backend.compareAndSetIndexedSession(
         key,
+        sessionMetadataKey(handle),
         expectedRevision,
         encodeRecord(nextRevision, sealed),
+        sessionIndexKeys(parsed),
         ttlMs,
       );
     },
 
     async deleteSession(handle) {
       if (!OPAQUE_HANDLE_RE.test(handle)) return;
-      await backend.delete(sessionKey(handle));
+      await backend.deleteIndexedSession(
+        sessionKey(handle),
+        sessionMetadataKey(handle),
+      );
+    },
+
+    invalidateBackchannelLogout(input) {
+      const identifier = input.sessionId ?? input.subject;
+      if (
+        !identifier ||
+        identifier.length > MAX_OIDC_IDENTIFIER_BYTES ||
+        !input.jti ||
+        input.jti.length > MAX_OIDC_IDENTIFIER_BYTES ||
+        !Number.isSafeInteger(input.replayTtlMs) ||
+        input.replayTtlMs <= 0
+      ) {
+        throw new Error("sso_backchannel_logout_input_invalid");
+      }
+      const indexKey = input.sessionId
+        ? sessionIdIndexKey(identifier)
+        : subjectIndexKey(identifier);
+      return backend.invalidateIndexedSessions(
+        indexKey,
+        logoutReplayKey(input.jti),
+        input.replayTtlMs,
+      );
     },
 
     async createLoginTransaction(data, ttlMs) {
@@ -213,6 +279,11 @@ interface MemoryEntry {
   expiresAt: number;
 }
 
+interface MemoryIndex {
+  members: Set<string>;
+  expiresAt: number;
+}
+
 export interface MemorySessionBackend extends SessionStorageBackend {
   /** Ciphertext-only test diagnostic; never returns plaintext token state. */
   inspect(): string;
@@ -223,6 +294,7 @@ export function createMemorySessionBackend(options?: {
 }): MemorySessionBackend {
   const now = options?.now ?? Date.now;
   const entries = new Map<string, MemoryEntry>();
+  const indexes = new Map<string, MemoryIndex>();
 
   function readEntry(key: string): MemoryEntry | null {
     const entry = entries.get(key);
@@ -234,10 +306,66 @@ export function createMemorySessionBackend(options?: {
     return entry;
   }
 
+  function readIndex(key: string): MemoryIndex | null {
+    const index = indexes.get(key);
+    if (!index) return null;
+    if (index.expiresAt <= now()) {
+      indexes.delete(key);
+      return null;
+    }
+    return index;
+  }
+
+  function addIndexMember(key: string, member: string, expiresAt: number) {
+    const index = readIndex(key) ?? {
+      members: new Set<string>(),
+      expiresAt,
+    };
+    index.members.add(member);
+    index.expiresAt = Math.max(index.expiresAt, expiresAt);
+    indexes.set(key, index);
+  }
+
+  function removeIndexMember(key: string, member: string) {
+    const index = readIndex(key);
+    if (!index) return;
+    index.members.delete(member);
+    if (index.members.size === 0) indexes.delete(key);
+  }
+
+  function deleteIndexedSession(key: string, metadataKey: string): boolean {
+    const metadata = readEntry(metadataKey)?.value;
+    if (metadata) {
+      const decoded = decodeIndexMetadata(metadata);
+      if (decoded?.sessionKey === key) {
+        for (const indexKey of decoded.indexKeys) {
+          removeIndexMember(indexKey, metadataKey);
+        }
+      }
+    }
+    const existed = readEntry(key) !== null;
+    entries.delete(key);
+    entries.delete(metadataKey);
+    return existed;
+  }
+
   return {
     async setIfAbsent(key, value, ttlMs) {
       if (readEntry(key)) return false;
       entries.set(key, { value, expiresAt: now() + ttlMs });
+      return true;
+    },
+    async setIndexedSessionIfAbsent(key, metadataKey, value, indexKeys, ttlMs) {
+      if (readEntry(key) || readEntry(metadataKey)) return false;
+      const expiresAt = now() + ttlMs;
+      entries.set(key, { value, expiresAt });
+      entries.set(metadataKey, {
+        value: encodeIndexMetadata(key, indexKeys),
+        expiresAt,
+      });
+      for (const indexKey of indexKeys) {
+        addIndexMember(indexKey, metadataKey, expiresAt);
+      }
       return true;
     },
     async get(key) {
@@ -256,14 +384,73 @@ export function createMemorySessionBackend(options?: {
       entries.set(key, { value, expiresAt: now() + ttlMs });
       return true;
     },
+    async compareAndSetIndexedSession(
+      key,
+      metadataKey,
+      expectedRevision,
+      value,
+      indexKeys,
+      ttlMs,
+    ) {
+      const entry = readEntry(key);
+      const metadata = readEntry(metadataKey);
+      const expectedMetadata = encodeIndexMetadata(key, indexKeys);
+      if (
+        !entry ||
+        recordRevision(entry.value) !== expectedRevision ||
+        metadata?.value !== expectedMetadata
+      ) {
+        return false;
+      }
+      const expiresAt = now() + ttlMs;
+      entries.set(key, { value, expiresAt });
+      entries.set(metadataKey, { value: expectedMetadata, expiresAt });
+      for (const indexKey of indexKeys) {
+        addIndexMember(indexKey, metadataKey, expiresAt);
+      }
+      return true;
+    },
     async delete(key) {
       entries.delete(key);
+    },
+    async deleteIndexedSession(key, metadataKey) {
+      deleteIndexedSession(key, metadataKey);
+    },
+    async invalidateIndexedSessions(indexKey, replayKey, replayTtlMs) {
+      if (readEntry(replayKey)) {
+        return { invalidated: 0, replayed: true };
+      }
+      entries.set(replayKey, {
+        value: "1",
+        expiresAt: now() + replayTtlMs,
+      });
+      const members = [...(readIndex(indexKey)?.members ?? [])];
+      let invalidated = 0;
+      for (const metadataKey of members) {
+        const metadata = readEntry(metadataKey)?.value;
+        const decoded = metadata ? decodeIndexMetadata(metadata) : null;
+        if (!decoded) {
+          removeIndexMember(indexKey, metadataKey);
+          continue;
+        }
+        if (deleteIndexedSession(decoded.sessionKey, metadataKey)) {
+          invalidated += 1;
+        }
+      }
+      indexes.delete(indexKey);
+      return { invalidated, replayed: false };
     },
     async deleteIfValue(key, expectedValue) {
       if (readEntry(key)?.value === expectedValue) entries.delete(key);
     },
     inspect() {
-      return JSON.stringify([...entries]);
+      return JSON.stringify([
+        ...entries,
+        ...[...indexes].map(([key, value]) => [
+          key,
+          { members: [...value.members], expiresAt: value.expiresAt },
+        ]),
+      ]);
     },
   };
 }
@@ -298,12 +485,56 @@ function randomOpaqueValue(): string {
   return randomBytes(32).toString("base64url");
 }
 
+function encodeIndexMetadata(
+  sessionStorageKey: string,
+  indexKeys: readonly string[],
+): string {
+  return [sessionStorageKey, ...indexKeys].join("|");
+}
+
+function decodeIndexMetadata(
+  value: string,
+): { sessionKey: string; indexKeys: string[] } | null {
+  const [storedSessionKey, ...indexKeys] = value.split("|");
+  if (
+    !storedSessionKey ||
+    indexKeys.length === 0 ||
+    indexKeys.some((key) => !key)
+  ) {
+    return null;
+  }
+  return { sessionKey: storedSessionKey, indexKeys };
+}
+
 function hashedHandle(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("base64url");
 }
 
 function sessionKey(handle: string): string {
   return `reef:sso:session:${hashedHandle(handle)}`;
+}
+
+function sessionMetadataKey(handle: string): string {
+  return `reef:sso:session-meta:${hashedHandle(handle)}`;
+}
+
+function subjectIndexKey(subject: string): string {
+  return `reef:sso:sub:${hashedHandle(subject)}`;
+}
+
+function sessionIdIndexKey(sessionId: string): string {
+  return `reef:sso:sid:${hashedHandle(sessionId)}`;
+}
+
+function logoutReplayKey(jti: string): string {
+  return `reef:sso:logout-jti:${hashedHandle(jti)}`;
+}
+
+function sessionIndexKeys(data: SsoSessionData): string[] {
+  return [
+    ...(data.sessionId ? [sessionIdIndexKey(data.sessionId)] : []),
+    subjectIndexKey(data.subject),
+  ];
 }
 
 function loginKey(state: string): string {

@@ -15,6 +15,7 @@ REEF_AUTH_MODE=sso
 AKB_BACKEND_URL=https://akb.example.com
 REEF_PUBLIC_ORIGIN=https://reef.example.com
 REEF_KEYCLOAK_ISSUER=https://identity.example.com/realms/reef
+REEF_KEYCLOAK_TRANSPORT_URL=http://keycloak.identity.svc.cluster.local:8080/realms/reef
 REEF_KEYCLOAK_CLIENT_ID=reef-web
 REEF_AKB_API_AUDIENCE=akb-api
 REEF_SESSION_REDIS_URL=rediss://redis.example.com:6380/0
@@ -27,8 +28,12 @@ other application secrets; `openssl rand -base64 32` produces the required
 size. Keep both the Redis URL and encryption key in the deployment secret
 store. Do not expose any SSO setting through `NEXT_PUBLIC_*`.
 
-Production SSO fails at startup when Redis or the encryption key is absent or
-invalid. Tests and non-production development may omit both and use an
+Production SSO fails at startup when Redis, the encryption key, or the internal
+Keycloak transport is absent or invalid. The transport URL must use a non-IP
+in-cluster DNS name, contain no credentials/query/fragment, use the exact realm
+path from `REEF_KEYCLOAK_ISSUER`, and be distinct from the public issuer host.
+Tests and non-production development may omit it and use the canonical issuer
+for transport; they may also omit Redis and the encryption key and use an
 in-memory store with a process-ephemeral key. That fallback is intentionally
 unsuitable for multiple replicas or durable login sessions.
 
@@ -40,12 +45,14 @@ no implicit or resource-owner-password flow. Register exactly:
 ```text
 redirect URI:      https://reef.example.com/api/auth/akb/sso/callback
 post-logout URI:   https://reef.example.com/login
+back-channel URI:  https://reef.example.com/api/auth/akb/sso/backchannel-logout
 ```
 
-Reef derives authorization, token, JWKS, revocation, and logout endpoints only
-from `REEF_KEYCLOAK_ISSUER`. It accepts only RS256 JWTs from that issuer's fixed
-JWKS endpoint and rejects token-directed `jku`, `jwk`, `x5u`, or `x5c` key
-sources.
+Browser authorization/logout endpoints and JWT `iss` verification stay pinned
+to `REEF_KEYCLOAK_ISSUER`. Token, JWKS, revocation, and readiness calls use only
+`REEF_KEYCLOAK_TRANSPORT_URL`; Reef never substitutes public ingress for that
+production transport. It accepts only RS256 JWTs from the transport's fixed
+JWKS endpoint and rejects token-directed `jku`, `jwk`, `x5u`, or `x5c` sources.
 
 The Keycloak client/audience configuration must make these claims true:
 
@@ -107,9 +114,12 @@ never follows or relays the AKB `login_url`.
 5. Reef stores the token set in an AES-256-GCM encrypted Redis record and gives
    the browser a random 256-bit `__reef_session` httpOnly, SameSite=Lax handle.
 
-Access, refresh, and ID tokens never enter browser-visible JavaScript, response
+At login Reef records one immutable absolute server-session deadline. Refresh
+rotation can shorten storage TTL but cannot move that deadline, so copied
+handles expire with the original session. Access, refresh, and ID tokens never enter browser-visible JavaScript, response
 bodies, URLs, browser storage, or cookies. Redis keys contain only a hash of the
-handle; ciphertext is bound to its record key as GCM additional data.
+handle; sid/sub indexes, replay-jti markers, and index metadata contain only
+hashes. Ciphertext is bound to its record key as GCM additional data.
 
 Before forwarding an AKB request, Reef resolves the current access token. A
 near-expiry token is refreshed under a bounded distributed lock and persisted
@@ -125,11 +135,22 @@ permission denials do not sign the user out.
 
 ## Logout
 
-The logout POST clears the browser carrier and deletes the server session before
-best-effort refresh-token revocation. It returns only a fixed same-origin
-continuation path. The follow-up route constructs navigation from the pinned
-issuer, client id, and Reef post-logout URI. Reef never puts `id_token_hint` or
-any token in a cookie, body, URL, redirect, or log-facing error.
+The logout POST deletes the server session before clearing the browser carrier
+and then best-effort revokes the refresh token. If authoritative Redis deletion
+fails, it returns a retryable 503 and retains the cookie. It returns only a
+fixed same-origin continuation path after success. The public follow-up GET is
+state-free and constructs navigation from the canonical issuer, client id, and
+Reef post-logout URI. Reef never puts `id_token_hint` or any token in a cookie,
+body, URL, redirect, or log-facing error.
+
+OpenID Back-Channel Logout accepts a form-encoded `logout_token` at the URI
+above. Verification is pinned to RS256, the exact public issuer, and the
+dedicated Reef client audience. `iss`, `aud`, `iat`, `jti`, the exact
+`http://schemas.openid.net/event/backchannel-logout` event, and `sid` or `sub`
+are required; `nonce` is prohibited and token age is bounded. A replay-protected
+atomic Redis operation prefers `sid` when both identifiers exist, deletes all
+matching records, and cleans both hashed indexes. A valid token with no matching
+session still returns 200.
 
 Changing `REEF_SESSION_ENCRYPTION_KEY` intentionally invalidates existing SSO
 sessions. Plan key rotation as a sign-in reset unless a future release adds a
@@ -146,6 +167,8 @@ The security contract is concentrated in:
 - `packages/web/src/lib/akb/loadAkbAuthConfig.test.ts`
 - `packages/core/src/adapters/akb/workspace/auth.test.ts`
 
-Platform readiness requires the dedicated client, exact callback/logout URIs,
-RS256 realm signing, AKB audience and provider-claim mappers, an enabled public
-AKB provider catalog, Redis connectivity, and an independent encryption key.
+Platform readiness requires the dedicated client, exact callback/logout and
+back-channel URIs, RS256 realm signing, AKB audience/provider mappers, an enabled
+public AKB provider catalog, Redis connectivity, an independent encryption key,
+and reachable JWKS over the in-cluster transport. Kubernetes readiness checks
+these Redis/OIDC dependencies at `/api/readyz`; `/api/healthz` is liveness only.

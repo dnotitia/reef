@@ -35,8 +35,8 @@ docker buildx build --platform linux/amd64 \
   --push .
 ```
 
-The container listens on `3000` and exposes a health endpoint at
-`/api/healthz` (used by the Kubernetes liveness/readiness probes).
+The container listens on `3000`. `/api/healthz` is process liveness;
+`/api/readyz` is dependency-aware Kubernetes readiness.
 
 For a local image proof, build without credentials, run it as UID 1001 with an
 ephemeral published port, and verify the health response:
@@ -150,7 +150,9 @@ the manifests (or remove the Secret when it contains no other capability keys).
 Then apply the overlay normally. Existing old pods keep their startup
 environment until drained, while new pods start in the valid AI-disabled state.
 
-`GET /api/healthz` is the Reef workload liveness/readiness endpoint. The legacy-
+`GET /api/healthz` is the dependency-free liveness endpoint. `GET /api/readyz`
+validates auth configuration and, in SSO mode, proves Redis and Keycloak JWKS
+reachability over the explicit in-cluster transport before returning 200. The legacy-
 named `GET /api/ai/managed-platform` endpoint is an LLM capability declaration:
 valid enabled and disabled states return 200, while malformed LLM configuration
 returns 503. It must not be used as the workload readiness probe.
@@ -252,7 +254,8 @@ the `reef-web-config` ConfigMap plus the optional `reef-web-secret` Secret).
 | `REEF_AUTH_MODE` | yes | Explicitly `local` or `sso`; missing and unknown values fail startup. |
 | `AKB_BACKEND_URL` | yes | Base URL of the akb backend reef-web calls server-side. In-cluster this is a Service DNS name (`http://<service>.<namespace>.svc.cluster.local:8000`). |
 | `REEF_PUBLIC_ORIGIN` | yes for SSO | Reef's canonical bare origin. It forms the exact OIDC callback and post-logout URIs; HTTPS is required outside localhost development. |
-| `REEF_KEYCLOAK_ISSUER` | yes for SSO | Exact HTTPS Keycloak realm issuer used to derive fixed OIDC/JWKS endpoints. |
+| `REEF_KEYCLOAK_ISSUER` | yes for SSO | Exact HTTPS Keycloak realm issuer used for browser authorization/logout and JWT `iss` verification. |
+| `REEF_KEYCLOAK_TRANSPORT_URL` | production SSO | Distinct in-cluster Keycloak realm URL used for token, JWKS, revocation, and readiness traffic. Its exact realm path must match the canonical issuer; credentials, query/fragment, IP literals, and the public issuer host are rejected. |
 | `REEF_KEYCLOAK_CLIENT_ID` | yes for SSO | Dedicated Reef public-client id. |
 | `REEF_AKB_API_AUDIENCE` | yes for SSO | Audience required in Keycloak access tokens forwarded to AKB. |
 | `REEF_SESSION_REDIS_URL` | production SSO | Redis or Redis-TLS URL for encrypted session records and refresh locks. Keep credential-bearing URLs in a Secret. |

@@ -55,6 +55,8 @@ function completedAuthorization() {
     providerAlias: "workforce",
     redirectPath: "/workspace/example/issues",
     oidcNonce: "login-nonce",
+    subject: "keycloak-subject",
+    sessionId: "keycloak-session-id",
     tokenSet: {
       accessToken: ACCESS_TOKEN,
       accessTokenExpiresAt: Math.floor(Date.now() / 1_000) + 300,
@@ -69,7 +71,10 @@ describe("GET /api/auth/akb/sso/callback", () => {
   beforeEach(() => {
     vi.stubEnv("AKB_BACKEND_URL", "http://akb.test");
     mocks.completeAuthorization.mockResolvedValue(completedAuthorization());
-    mocks.createSession.mockResolvedValue(SESSION_HANDLE);
+    mocks.createSession.mockResolvedValue({
+      handle: SESSION_HANDLE,
+      expiresAt: Math.floor(Date.now() / 1_000) + 1_800,
+    });
     mocks.invalidate.mockResolvedValue(undefined);
     mocks.revokeRefreshToken.mockResolvedValue(undefined);
   });

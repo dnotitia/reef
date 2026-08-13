@@ -18,6 +18,7 @@ export interface SsoAuthRuntime {
   oidc: ReturnType<typeof createKeycloakOidcClient>;
   repository: ReturnType<typeof createEncryptedSessionRepository>;
   sessions: ReturnType<typeof createSsoSessionService>;
+  checkReadiness(): Promise<void>;
 }
 
 const runtimeGlobal = globalThis as typeof globalThis & {
@@ -45,9 +46,10 @@ async function createRuntime(): Promise<SsoAuthRuntime> {
     throw new Error("sso_auth_mode_required");
   }
 
-  const backend = config.redisUrl
+  const connectedRedis = config.redisUrl
     ? await connectRedisBackend(config.redisUrl)
-    : createMemorySessionBackend();
+    : null;
+  const backend = connectedRedis?.backend ?? createMemorySessionBackend();
   const encryptionKey = config.encryptionKey ?? new Uint8Array(randomBytes(32));
   const repository = createEncryptedSessionRepository({
     backend,
@@ -55,12 +57,24 @@ async function createRuntime(): Promise<SsoAuthRuntime> {
   });
   const oidc = createKeycloakOidcClient({
     issuer: config.issuer,
+    transportUrl: config.transportUrl,
     clientId: config.clientId,
     akbApiAudience: config.akbApiAudience,
     publicOrigin: config.publicOrigin,
   });
   const sessions = createSsoSessionService({ repository, oidc });
-  return { config, oidc, repository, sessions };
+  return {
+    config,
+    oidc,
+    repository,
+    sessions,
+    async checkReadiness() {
+      await Promise.all([
+        connectedRedis?.check() ?? Promise.resolve(),
+        oidc.checkReachability(),
+      ]);
+    },
+  };
 }
 
 async function connectRedisBackend(redisUrl: string) {
@@ -70,12 +84,43 @@ async function connectRedisBackend(redisUrl: string) {
     // connection errors may include a credential-bearing Redis URL.
   });
   await connectRedisClient(client, REDIS_IO_TIMEOUT_MS);
-  return createRedisSessionBackend(client as unknown as RedisSessionClient);
+  const sessionClient = client as unknown as RedisSessionClient;
+  return {
+    backend: createRedisSessionBackend(sessionClient),
+    check: () => checkRedisClient(client, REDIS_IO_TIMEOUT_MS),
+  };
 }
 
 interface ConnectableRedisClient {
   connect(): Promise<unknown>;
   destroy(): void;
+}
+
+interface PingableRedisClient {
+  ping(): Promise<string>;
+}
+
+export async function checkRedisClient(
+  client: PingableRedisClient,
+  timeoutMs: number,
+): Promise<void> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const response = await Promise.race([
+      client.ping(),
+      new Promise<never>((_resolve, reject) => {
+        timeoutHandle = setTimeout(
+          () => reject(new Error("sso_session_store_unavailable")),
+          timeoutMs,
+        );
+      }),
+    ]);
+    if (response !== "PONG") throw new Error("sso_session_store_unavailable");
+  } catch {
+    throw new Error("sso_session_store_unavailable");
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+  }
 }
 
 export async function connectRedisClient(

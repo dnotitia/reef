@@ -1,7 +1,11 @@
 // @vitest-environment node
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildRedisClientOptions, connectRedisClient } from "./runtime";
+import {
+  buildRedisClientOptions,
+  checkRedisClient,
+  connectRedisClient,
+} from "./runtime";
 
 describe("SSO Redis runtime", () => {
   afterEach(() => {
@@ -34,5 +38,22 @@ describe("SSO Redis runtime", () => {
 
     await rejected;
     expect(client.destroy).toHaveBeenCalledOnce();
+  });
+
+  it("requires a bounded Redis PONG for readiness", async () => {
+    const healthy = { ping: vi.fn().mockResolvedValue("PONG") };
+    await expect(checkRedisClient(healthy, 50)).resolves.toBeUndefined();
+    expect(healthy.ping).toHaveBeenCalledOnce();
+
+    vi.useFakeTimers();
+    const stalled = {
+      ping: vi.fn(() => new Promise<never>(() => undefined)),
+    };
+    const checking = checkRedisClient(stalled, 50);
+    const rejected = expect(checking).rejects.toThrowError(
+      "sso_session_store_unavailable",
+    );
+    await vi.advanceTimersByTimeAsync(50);
+    await rejected;
   });
 });

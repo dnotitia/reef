@@ -83,7 +83,7 @@ describe("POST /api/auth/akb/logout", () => {
     expect(exposed).toContain("Max-Age=0");
   });
 
-  it("still clears the browser carrier if revocation or storage fails", async () => {
+  it("returns a retryable failure and retains the browser carrier when authoritative deletion fails", async () => {
     configureSso();
     mocks.logout.mockRejectedValue(
       new Error("refresh-token-material appeared upstream"),
@@ -91,11 +91,10 @@ describe("POST /api/auth/akb/logout", () => {
 
     const response = await POST(makeRequest(`__reef_session=${OPAQUE_HANDLE}`));
 
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      redirectUrl: "/api/auth/akb/sso/logout",
-    });
-    expect(response.headers.get("set-cookie")).not.toContain(
+    expect(response.status).toBe(503);
+    expect(await response.text()).toBe("");
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(JSON.stringify([...response.headers])).not.toContain(
       "refresh-token-material",
     );
   });

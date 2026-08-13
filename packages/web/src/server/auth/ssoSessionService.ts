@@ -28,9 +28,13 @@ export class SsoSessionError extends Error {
 }
 
 export interface SsoSessionService {
-  createSession(completed: CompletedAuthorization): Promise<string>;
+  createSession(completed: CompletedAuthorization): Promise<{
+    handle: string;
+    expiresAt: number;
+  }>;
   resolveAccessToken(handle: string): Promise<string>;
   invalidate(handle: string): Promise<void>;
+  backchannelLogout(logoutToken: string): Promise<void>;
   logout(handle: string): Promise<string>;
 }
 
@@ -74,6 +78,10 @@ export function createSsoSessionService(options: {
     if (!session) {
       throw new SsoSessionError("sso_session_expired", "expired");
     }
+    if (session.sessionExpiresAt <= now()) {
+      await deleteSessionBestEffort(handle);
+      throw new SsoSessionError("sso_session_expired", "expired");
+    }
     return session;
   }
 
@@ -85,15 +93,17 @@ export function createSsoSessionService(options: {
     return tokenSet.accessTokenExpiresAt <= now() + ACCESS_REFRESH_SKEW_SECONDS;
   }
 
-  function ttlMs(tokenSet: SsoTokenSet): number {
+  function ttlMs(tokenSet: SsoTokenSet, sessionExpiresAt: number): number {
     const refreshExpiration = tokenSet.refreshTokenExpiresAt;
-    if (!refreshExpiration) return MAX_SESSION_TTL_SECONDS * 1_000;
-    return (
-      Math.min(
-        MAX_SESSION_TTL_SECONDS,
-        Math.max(1, refreshExpiration - now()),
-      ) * 1_000
-    );
+    const deadlineSeconds = sessionExpiresAt - now();
+    const refreshSeconds = refreshExpiration
+      ? refreshExpiration - now()
+      : deadlineSeconds;
+    const boundedSeconds = Math.min(deadlineSeconds, refreshSeconds);
+    if (boundedSeconds <= 0) {
+      throw new SsoSessionError("sso_session_expired", "expired");
+    }
+    return Math.max(1, boundedSeconds) * 1_000;
   }
 
   async function waitForRefreshWinner(
@@ -181,6 +191,8 @@ export function createSsoSessionService(options: {
         refreshed = await oidc.refresh(refreshToken, {
           nonce: current.oidcNonce,
           providerAlias: current.providerAlias,
+          subject: current.subject,
+          sessionId: current.sessionId,
           idToken: current.tokenSet.idToken,
         });
       } catch (error) {
@@ -207,6 +219,9 @@ export function createSsoSessionService(options: {
       const next: SsoSessionData = {
         providerAlias: current.providerAlias,
         oidcNonce: current.oidcNonce,
+        subject: current.subject,
+        ...(current.sessionId ? { sessionId: current.sessionId } : {}),
+        sessionExpiresAt: current.sessionExpiresAt,
         tokenSet: rotatedTokenSet,
       };
       let replaced: boolean;
@@ -215,7 +230,7 @@ export function createSsoSessionService(options: {
           handle,
           current.revision,
           next,
-          ttlMs(rotatedTokenSet),
+          ttlMs(rotatedTokenSet, current.sessionExpiresAt),
         );
       } catch {
         throw new SsoSessionError("sso_session_store_unavailable", "transient");
@@ -236,15 +251,23 @@ export function createSsoSessionService(options: {
   }
 
   return {
-    createSession(completed) {
-      return repository.createSession(
+    async createSession(completed) {
+      const sessionExpiresAt = Math.min(
+        now() + MAX_SESSION_TTL_SECONDS,
+        completed.tokenSet.refreshTokenExpiresAt ?? Number.POSITIVE_INFINITY,
+      );
+      const handle = await repository.createSession(
         {
           providerAlias: completed.providerAlias,
           oidcNonce: completed.oidcNonce,
+          subject: completed.subject,
+          ...(completed.sessionId ? { sessionId: completed.sessionId } : {}),
+          sessionExpiresAt,
           tokenSet: completed.tokenSet,
         },
-        ttlMs(completed.tokenSet),
+        ttlMs(completed.tokenSet, sessionExpiresAt),
       );
+      return { handle, expiresAt: sessionExpiresAt };
     },
 
     async resolveAccessToken(handle) {
@@ -256,6 +279,21 @@ export function createSsoSessionService(options: {
 
     invalidate(handle) {
       return repository.deleteSession(handle);
+    },
+
+    async backchannelLogout(logoutToken) {
+      const verified = await oidc.verifyBackchannelLogoutToken(logoutToken);
+      let result: Awaited<
+        ReturnType<EncryptedSessionRepository["invalidateBackchannelLogout"]>
+      >;
+      try {
+        result = await repository.invalidateBackchannelLogout(verified);
+      } catch {
+        throw new SsoSessionError("sso_session_store_unavailable", "transient");
+      }
+      if (result.replayed) {
+        throw new OidcProtocolError("oidc_logout_token_replayed", "invalid");
+      }
     },
 
     async logout(handle) {

@@ -10,6 +10,7 @@ import {
 } from "../../../errors";
 import { stripTrailingSlashes } from "../../url";
 import { readAkbErrorResponse } from "./errorResponse";
+import { AkbResponseDeadlineError, readAkbJsonBody } from "./responseBody";
 
 const tracer = trace.getTracer("@reef/core");
 
@@ -22,6 +23,11 @@ type AkbFetchBody = Exclude<
 
 export interface AkbAdapter {
   request: AkbRequest;
+}
+
+export interface AkbRequestPolicy {
+  timeoutMs: number;
+  maxJsonResponseBytes: number;
 }
 
 export type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
@@ -175,7 +181,11 @@ function filenameFromContentDisposition(header: string | null): string | null {
   return plain?.[1] ?? null;
 }
 
-function makeRequest(baseUrl: string, bearerToken: string): AkbRequest {
+function makeRequest(
+  baseUrl: string,
+  bearerToken: string,
+  requestPolicy?: AkbRequestPolicy,
+): AkbRequest {
   return async (path, init = {}) => {
     const url = buildUrl(baseUrl, path, init.query);
     const method = init.method ?? "GET";
@@ -203,8 +213,17 @@ function makeRequest(baseUrl: string, bearerToken: string): AkbRequest {
           body = init.rawBody;
         }
         let response: Response;
+        const signal = requestPolicy
+          ? AbortSignal.timeout(requestPolicy.timeoutMs)
+          : undefined;
         try {
-          response = await fetch(url, { method, headers, body });
+          response = await fetch(url, {
+            method,
+            headers,
+            body,
+            redirect: method === "GET" ? "follow" : "manual",
+            ...(signal ? { signal } : {}),
+          });
         } catch (err) {
           const error = err instanceof Error ? err : new Error("Network error");
           span.recordException(error);
@@ -228,7 +247,15 @@ function makeRequest(baseUrl: string, bearerToken: string): AkbRequest {
           return null;
         }
         if (!response.ok) {
-          const error = await readAkbErrorResponse(response);
+          const error = await readAkbErrorResponse(
+            response,
+            requestPolicy && signal
+              ? {
+                  maxBytes: requestPolicy.maxJsonResponseBytes,
+                  signal,
+                }
+              : undefined,
+          );
           translateAkbHttpError(
             response.status,
             error.message,
@@ -250,8 +277,25 @@ function makeRequest(baseUrl: string, bearerToken: string): AkbRequest {
           } satisfies AkbBinaryResponse;
         }
         try {
-          return await response.json();
-        } catch {
+          return await readAkbJsonBody(
+            response,
+            requestPolicy && signal
+              ? {
+                  maxBytes: requestPolicy.maxJsonResponseBytes,
+                  signal,
+                }
+              : undefined,
+          );
+        } catch (error) {
+          if (requestPolicy) {
+            throw new AkbApiError({
+              status: error instanceof AkbResponseDeadlineError ? 0 : 502,
+              message:
+                error instanceof AkbResponseDeadlineError
+                  ? "akb_response_timeout"
+                  : "akb_response_invalid",
+            });
+          }
           // 2xx with empty body — treat as null payload.
           return null;
         }
@@ -278,10 +322,22 @@ export function createAkbAdapter(input: {
   baseUrl: string;
   jwt?: string;
   accessToken?: string;
+  requestPolicy?: AkbRequestPolicy;
 }): AkbAdapter {
   const bearerToken = input.accessToken ?? input.jwt;
   if (!bearerToken || (input.accessToken && input.jwt)) {
     throw new Error("Exactly one AKB bearer credential is required");
   }
-  return { request: makeRequest(input.baseUrl, bearerToken) };
+  if (
+    input.requestPolicy &&
+    (!Number.isSafeInteger(input.requestPolicy.timeoutMs) ||
+      input.requestPolicy.timeoutMs <= 0 ||
+      !Number.isSafeInteger(input.requestPolicy.maxJsonResponseBytes) ||
+      input.requestPolicy.maxJsonResponseBytes <= 0)
+  ) {
+    throw new Error("AKB request policy must use positive integer bounds");
+  }
+  return {
+    request: makeRequest(input.baseUrl, bearerToken, input.requestPolicy),
+  };
 }

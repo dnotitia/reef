@@ -6,7 +6,6 @@ import {
 } from "@/lib/akb/headers";
 import { buildPathWithParams } from "@/lib/akb/safeRedirect";
 import {
-  DEFAULT_SESSION_MAX_AGE_SECONDS,
   SSO_START_COOKIE,
   buildAuthInvalidationCookie,
   buildClearedAuthInvalidationCookie,
@@ -24,6 +23,9 @@ import {
   createAkbAdapter,
   isAkbAccountErrorCode,
 } from "@reef/core";
+
+const AKB_PROJECTION_TIMEOUT_MS = 5_000;
+const MAX_AKB_PROJECTION_RESPONSE_BYTES = 512 * 1024;
 
 export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
@@ -67,6 +69,10 @@ export async function GET(request: Request): Promise<Response> {
       adapter: createAkbAdapter({
         baseUrl: backendUrl,
         accessToken: completed.tokenSet.accessToken,
+        requestPolicy: {
+          timeoutMs: AKB_PROJECTION_TIMEOUT_MS,
+          maxJsonResponseBytes: MAX_AKB_PROJECTION_RESPONSE_BYTES,
+        },
       }),
     });
   } catch (err) {
@@ -101,9 +107,9 @@ export async function GET(request: Request): Promise<Response> {
     });
   }
 
-  let handle: string;
+  let issuedSession: { handle: string; expiresAt: number };
   try {
-    handle = await runtime.sessions.createSession(completed);
+    issuedSession = await runtime.sessions.createSession(completed);
   } catch {
     await discardCompletedAuthorization(completed, runtime);
     logger.error({}, "reef_sso_callback: session persistence failed");
@@ -113,14 +119,7 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   const nowSeconds = Math.floor(Date.now() / 1_000);
-  const maxAgeSeconds = Math.min(
-    DEFAULT_SESSION_MAX_AGE_SECONDS,
-    Math.max(
-      1,
-      (completed.tokenSet.refreshTokenExpiresAt ??
-        nowSeconds + DEFAULT_SESSION_MAX_AGE_SECONDS) - nowSeconds,
-    ),
-  );
+  const maxAgeSeconds = Math.max(1, issuedSession.expiresAt - nowSeconds);
   const headers = new Headers({
     Location: buildPathWithParams("/login/sso-complete", {
       next: completed.redirectPath,
@@ -133,7 +132,7 @@ export async function GET(request: Request): Promise<Response> {
   headers.append("Set-Cookie", buildClearedAuthInvalidationCookie());
   headers.append(
     "Set-Cookie",
-    buildSsoSessionHandleCookie(handle, { maxAgeSeconds }),
+    buildSsoSessionHandleCookie(issuedSession.handle, { maxAgeSeconds }),
   );
   return new Response(null, { status: 302, headers });
 }

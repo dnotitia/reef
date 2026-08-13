@@ -6,9 +6,6 @@ import { getSsoAuthRuntime } from "@/server/auth/runtime";
 /** End the selected Reef auth session without returning any token material. */
 export async function POST(request: Request): Promise<Response> {
   const headers = new Headers({ "Cache-Control": "no-store" });
-  for (const cookie of buildClearedAuthCookies()) {
-    headers.append("Set-Cookie", cookie);
-  }
 
   let mode: ReturnType<typeof readAuthRuntimeConfig>["mode"];
   try {
@@ -20,20 +17,40 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
   if (mode === "local") {
+    appendClearedAuthCookies(headers);
     return new Response(null, { status: 204, headers });
   }
 
+  let handle: string;
   try {
-    const handle = extractSsoSessionHandle(request);
-    await (await getSsoAuthRuntime()).sessions.logout(handle);
+    handle = extractSsoSessionHandle(request);
   } catch {
-    // Missing/expired sessions are already logged out. Store failures still
-    // clear the browser carrier and fail closed on the next request.
+    appendClearedAuthCookies(headers);
+    headers.set("Content-Type", "application/json");
+    return new Response(
+      JSON.stringify({ redirectUrl: "/api/auth/akb/sso/logout" }),
+      { status: 200, headers },
+    );
   }
 
+  try {
+    await (await getSsoAuthRuntime()).sessions.logout(handle);
+  } catch {
+    // Redis deletion is authoritative. Preserve the only browser handle so the
+    // user can retry rather than reporting a logout that did not happen.
+    return new Response(null, { status: 503, headers });
+  }
+
+  appendClearedAuthCookies(headers);
   headers.set("Content-Type", "application/json");
   return new Response(
     JSON.stringify({ redirectUrl: "/api/auth/akb/sso/logout" }),
     { status: 200, headers },
   );
+}
+
+function appendClearedAuthCookies(headers: Headers): void {
+  for (const cookie of buildClearedAuthCookies()) {
+    headers.append("Set-Cookie", cookie);
+  }
 }

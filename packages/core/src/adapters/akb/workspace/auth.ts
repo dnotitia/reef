@@ -3,7 +3,11 @@ import { AkbApiError, AuthError, isAkbAccountErrorCode } from "../../../errors";
 import { stripTrailingSlashes } from "../../url";
 import { readAkbErrorResponse } from "../core/errorResponse";
 import type { AkbAdapter } from "../core/http";
+import { readAkbJsonBody } from "../core/responseBody";
 import { withSpan } from "../core/shared";
+
+const AKB_AUTH_TIMEOUT_MS = 5_000;
+const MAX_AKB_AUTH_RESPONSE_BYTES = 2 * 1024 * 1024;
 
 // ─── Canonical akb auth response schemas (single core home) ───────────────────
 //
@@ -129,6 +133,7 @@ export function login(params: AkbLoginParams): Promise<AkbLoginResult> {
   const { baseUrl, username, password } = params;
   return withSpan("akb.auth.login", {}, async (span) => {
     const url = `${stripTrailingSlashes(baseUrl)}/api/v1/auth/login`;
+    const signal = AbortSignal.timeout(AKB_AUTH_TIMEOUT_MS);
     let response: Response;
     try {
       response = await fetch(url, {
@@ -138,6 +143,8 @@ export function login(params: AkbLoginParams): Promise<AkbLoginResult> {
           Accept: "application/json",
         },
         body: JSON.stringify({ username, password }),
+        redirect: "manual",
+        signal,
       });
     } catch (err) {
       throw new AkbApiError({
@@ -146,7 +153,10 @@ export function login(params: AkbLoginParams): Promise<AkbLoginResult> {
       });
     }
     if (!response.ok) {
-      const error = await readAkbErrorResponse(response);
+      const error = await readAkbErrorResponse(response, {
+        maxBytes: MAX_AKB_AUTH_RESPONSE_BYTES,
+        signal,
+      });
       if (
         response.status === 401 ||
         response.status === 403 ||
@@ -167,7 +177,10 @@ export function login(params: AkbLoginParams): Promise<AkbLoginResult> {
     }
     let payload: unknown;
     try {
-      payload = await response.json();
+      payload = await readAkbJsonBody(response, {
+        maxBytes: MAX_AKB_AUTH_RESPONSE_BYTES,
+        signal,
+      });
     } catch {
       throw new AkbApiError({ status: 502, message: "login_non_json" });
     }
@@ -259,11 +272,13 @@ export function startKeycloakLogin(
     url.searchParams.set("redirect", redirectPath);
 
     let response: Response;
+    const signal = AbortSignal.timeout(AKB_AUTH_TIMEOUT_MS);
     try {
       response = await fetch(url, {
         method: "GET",
         headers: { Accept: "text/html,application/xhtml+xml" },
         redirect: "manual",
+        signal,
       });
     } catch (err) {
       throw new AkbApiError({
@@ -344,6 +359,7 @@ export function startKeycloakLogout(
     const url = `${stripTrailingSlashes(baseUrl)}/api/v1/auth/keycloak/logout`;
 
     let response: Response;
+    const signal = AbortSignal.timeout(AKB_AUTH_TIMEOUT_MS);
     try {
       response = await fetch(url, {
         method: "POST",
@@ -353,6 +369,7 @@ export function startKeycloakLogout(
         },
         body: JSON.stringify({ id_token_hint: idTokenHint }),
         redirect: "manual",
+        signal,
       });
     } catch (err) {
       throw new AkbApiError({
@@ -452,11 +469,14 @@ async function fetchTokenlessJson(params: {
     serializedBody = JSON.stringify(body);
   }
   let response: Response;
+  const signal = AbortSignal.timeout(AKB_AUTH_TIMEOUT_MS);
   try {
     response = await fetch(url, {
       method,
       headers,
       body: serializedBody,
+      redirect: "manual",
+      signal,
     });
   } catch (err) {
     throw new AkbApiError({
@@ -465,7 +485,10 @@ async function fetchTokenlessJson(params: {
     });
   }
   if (!response.ok) {
-    const error = await readAkbErrorResponse(response);
+    const error = await readAkbErrorResponse(response, {
+      maxBytes: MAX_AKB_AUTH_RESPONSE_BYTES,
+      signal,
+    });
     if (
       authStatuses?.has(response.status) ||
       isAkbAccountErrorCode(error.code)
@@ -483,7 +506,10 @@ async function fetchTokenlessJson(params: {
     });
   }
   try {
-    return await response.json();
+    return await readAkbJsonBody(response, {
+      maxBytes: MAX_AKB_AUTH_RESPONSE_BYTES,
+      signal,
+    });
   } catch {
     throw new AkbApiError({ status: 502, message: nonJsonMessage });
   }

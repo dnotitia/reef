@@ -55,6 +55,8 @@ describe("akb auth adapter", () => {
       expect(result).toEqual({ token, user: VALID_USER });
       expect(calls[0]?.url).toBe("https://akb.test/api/v1/auth/login");
       expect(calls[0]?.init?.method).toBe("POST");
+      expect(calls[0]?.init?.redirect).toBe("manual");
+      expect(calls[0]?.init?.signal).toBeInstanceOf(AbortSignal);
       expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
         username: "alice",
         password: "hunter2",
@@ -342,6 +344,8 @@ describe("akb auth adapter", () => {
         "https://akb.test/api/v1/auth/keycloak/exchange",
       );
       expect(calls[0]?.init?.method).toBe("POST");
+      expect(calls[0]?.init?.redirect).toBe("manual");
+      expect(calls[0]?.init?.signal).toBeInstanceOf(AbortSignal);
       expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
         code: "one-time-code",
       });

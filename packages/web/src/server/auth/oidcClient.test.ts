@@ -18,11 +18,14 @@ import {
 } from "./sessionRepository";
 
 const ISSUER = "https://identity.example.com/realms/reef";
+const TRANSPORT = "http://keycloak.identity.svc.cluster.local:8080/realms/reef";
 const CLIENT_ID = "reef-web";
 const API_AUDIENCE = "akb-api";
 const PROVIDER = "workforce";
 const NONCE = "expected-nonce";
 const NOW_SECONDS = 2_000_000_000;
+const BACKCHANNEL_LOGOUT_EVENT =
+  "http://schemas.openid.net/event/backchannel-logout";
 
 let privateKey: Awaited<ReturnType<typeof generateKeyPair>>["privateKey"];
 let jwks: ReturnType<typeof createLocalJWKSet>;
@@ -39,11 +42,28 @@ function client(fetchImpl: typeof fetch = vi.fn()) {
   return createKeycloakOidcClient(
     {
       issuer: ISSUER,
+      transportUrl: TRANSPORT,
       clientId: CLIENT_ID,
       akbApiAudience: API_AUDIENCE,
       publicOrigin: "https://reef.example.com",
     },
     { fetch: fetchImpl, jwks, now: () => NOW_SECONDS },
+  );
+}
+
+function clientWithBounds(
+  fetchImpl: typeof fetch,
+  options: { maxResponseBytes?: number; upstreamTimeoutMs?: number },
+) {
+  return createKeycloakOidcClient(
+    {
+      issuer: ISSUER,
+      transportUrl: TRANSPORT,
+      clientId: CLIENT_ID,
+      akbApiAudience: API_AUDIENCE,
+      publicOrigin: "https://reef.example.com",
+    },
+    { fetch: fetchImpl, jwks, now: () => NOW_SECONDS, ...options },
   );
 }
 
@@ -60,6 +80,7 @@ async function accessToken(
     azp: CLIENT_ID,
     typ: "Bearer",
     identity_provider: PROVIDER,
+    sid: "keycloak-session-id",
     ...claims,
   })
     .setProtectedHeader({
@@ -89,6 +110,7 @@ async function idToken(
     azp: CLIENT_ID,
     nonce: NONCE,
     at_hash: atHash,
+    sid: "keycloak-session-id",
     ...claims,
   })
     .setProtectedHeader({
@@ -111,12 +133,118 @@ async function validTokenResponse(nonce = NONCE) {
   };
 }
 
+async function logoutToken(
+  claims: Record<string, unknown> = {},
+  header: Record<string, unknown> = {},
+): Promise<string> {
+  return new SignJWT({
+    iss: ISSUER,
+    aud: CLIENT_ID,
+    iat: NOW_SECONDS,
+    jti: "logout-token-jti",
+    events: { [BACKCHANNEL_LOGOUT_EVENT]: {} },
+    sid: "keycloak-session-id",
+    sub: "keycloak-subject",
+    ...claims,
+  })
+    .setProtectedHeader({
+      alg: "RS256",
+      kid: "reef-test-key",
+      ...header,
+    })
+    .sign(privateKey);
+}
+
 describe("Keycloak OIDC profile", () => {
+  it("checks OIDC reachability through the in-cluster JWKS transport", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json({ keys: [{ kty: "RSA" }] }));
+
+    await client(fetchImpl).checkReachability();
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      `${TRANSPORT}/protocol/openid-connect/certs`,
+      expect.objectContaining({
+        method: "GET",
+        redirect: "manual",
+        signal: expect.any(AbortSignal),
+      }),
+    );
+  });
+
+  it("verifies a typ-less RS256 back-channel logout token for the exact Reef client", async () => {
+    await expect(
+      client().verifyBackchannelLogoutToken(await logoutToken()),
+    ).resolves.toMatchObject({
+      jti: "logout-token-jti",
+      sessionId: "keycloak-session-id",
+      subject: "keycloak-subject",
+      replayTtlMs: expect.any(Number),
+    });
+  });
+
+  it("accepts a subject-only back-channel logout token", async () => {
+    const verified = await client().verifyBackchannelLogoutToken(
+      await logoutToken({ sid: undefined }),
+    );
+
+    expect(verified).toMatchObject({ subject: "keycloak-subject" });
+    expect(verified).not.toHaveProperty("sessionId");
+  });
+
+  it.each([
+    ["issuer", { iss: "https://wrong.example.com/realms/reef" }],
+    ["missing issuer", { iss: undefined }],
+    ["audience", { aud: "other-client" }],
+    ["additional audience", { aud: [CLIENT_ID, "other-client"] }],
+    ["missing audience", { aud: undefined }],
+    ["missing issued-at", { iat: undefined }],
+    ["stale issued-at", { iat: NOW_SECONDS - 121 }],
+    ["future issued-at", { iat: NOW_SECONDS + 6 }],
+    ["missing jti", { jti: undefined }],
+    ["missing events", { events: undefined }],
+    [
+      "wrong event key",
+      { events: { "http://schemas.openid.net/event/logout": {} } },
+    ],
+    ["missing sid and sub", { sid: undefined, sub: undefined }],
+    ["nonce", { nonce: "nonce-is-prohibited" }],
+  ])("rejects a back-channel logout token with %s", async (_label, claims) => {
+    await expect(
+      client().verifyBackchannelLogoutToken(await logoutToken(claims)),
+    ).rejects.toMatchObject({ code: "oidc_token_invalid", kind: "invalid" });
+  });
+
+  it("pins back-channel logout verification to RS256 without token-directed keys", async () => {
+    const hsToken = await new SignJWT({
+      iss: ISSUER,
+      aud: CLIENT_ID,
+      iat: NOW_SECONDS,
+      jti: "logout-token-jti",
+      events: { [BACKCHANNEL_LOGOUT_EVENT]: {} },
+      sid: "keycloak-session-id",
+    })
+      .setProtectedHeader({ alg: "HS256" })
+      .sign(new Uint8Array(Buffer.alloc(32, 2)));
+    const directedKey = await logoutToken(
+      {},
+      { jku: "https://evil.example/jwks" },
+    );
+
+    for (const token of [hsToken, directedKey]) {
+      await expect(
+        client().verifyBackchannelLogoutToken(token),
+      ).rejects.toMatchObject({ code: "oidc_token_invalid", kind: "invalid" });
+    }
+  });
+
   it.each([
     ["issuer", { iss: "https://wrong.example.com/realms/reef" }, {}, NONCE],
     ["audience", { aud: "other-api" }, {}, NONCE],
     ["azp", { azp: "other-client" }, {}, NONCE],
     ["provider", { identity_provider: "other-provider" }, {}, NONCE],
+    ["session id", { sid: "other-session-id" }, {}, NONCE],
     ["nonce", {}, { nonce: "wrong-nonce" }, NONCE],
     ["access token hash", {}, { at_hash: "wrong-hash" }, NONCE],
   ])("rejects a wrong %s", async (_label, accessClaims, idClaims, nonce) => {
@@ -204,6 +332,7 @@ describe("Keycloak OIDC profile", () => {
     const oidc = createKeycloakOidcClient(
       {
         issuer: ISSUER,
+        transportUrl: TRANSPORT,
         clientId: CLIENT_ID,
         akbApiAudience: API_AUDIENCE,
         publicOrigin: "https://reef.example.com",
@@ -245,6 +374,51 @@ describe("Keycloak OIDC profile", () => {
       expect(JSON.stringify(error)).not.toContain(refreshToken);
     },
   );
+
+  it("rejects an oversized token response before buffering it", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json(await validTokenResponse()));
+
+    await expect(
+      clientWithBounds(fetchImpl, { maxResponseBytes: 64 }).refresh(
+        "refresh-token-material",
+        { nonce: NONCE, providerAlias: PROVIDER },
+      ),
+    ).rejects.toMatchObject({
+      code: "oidc_token_response_invalid",
+      kind: "invalid",
+    });
+  });
+
+  it("applies the upstream deadline to a stalled token body read", async () => {
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("{"));
+        setTimeout(() => {
+          if (!cancelled) controller.close();
+        }, 100);
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(body, { status: 200 }));
+
+    await expect(
+      clientWithBounds(fetchImpl, { upstreamTimeoutMs: 20 }).refresh(
+        "refresh-token-material",
+        { nonce: NONCE, providerAlias: PROVIDER },
+      ),
+    ).rejects.toMatchObject({
+      code: "oidc_upstream_unavailable",
+      kind: "transient",
+    });
+    expect(cancelled).toBe(true);
+  });
 
   it.each([400, 401])(
     "classifies refresh endpoint %s as rejected",
@@ -293,7 +467,7 @@ describe("Keycloak OIDC profile", () => {
       idToken: identity,
     });
     expect(fetchImpl).toHaveBeenCalledWith(
-      `${ISSUER}/protocol/openid-connect/token`,
+      `${TRANSPORT}/protocol/openid-connect/token`,
       expect.objectContaining({ redirect: "manual" }),
     );
   });
@@ -325,7 +499,7 @@ describe("Keycloak OIDC profile", () => {
     await client(fetchImpl).revokeRefreshToken("refresh-token-material");
 
     expect(fetchImpl).toHaveBeenCalledWith(
-      `${ISSUER}/protocol/openid-connect/revoke`,
+      `${TRANSPORT}/protocol/openid-connect/revoke`,
       expect.objectContaining({ redirect: "manual" }),
     );
   });
@@ -367,6 +541,8 @@ describe("Keycloak OIDC profile", () => {
     ).resolves.toMatchObject({
       providerAlias: PROVIDER,
       redirectPath: "/workspace/example/issues",
+      subject: "subject-1",
+      sessionId: "keycloak-session-id",
       tokenSet: {
         accessToken: tokenResponse.access_token,
         refreshToken: tokenResponse.refresh_token,
@@ -382,7 +558,7 @@ describe("Keycloak OIDC profile", () => {
     ).rejects.toThrowError("oidc_state_invalid");
     expect(fetchImpl).toHaveBeenCalledOnce();
     expect(fetchImpl).toHaveBeenCalledWith(
-      `${ISSUER}/protocol/openid-connect/token`,
+      `${TRANSPORT}/protocol/openid-connect/token`,
       expect.objectContaining({ redirect: "manual" }),
     );
   });
