@@ -59,11 +59,32 @@ describe("GET /api/e2e/assets/reef-markdown-editor-image.png", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("stays disabled outside dev and for non-loopback fixture origins", async () => {
+  it("serves the explicit fixture origin from a production build", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("REEF_E2E_MOCK_URL", "http://127.0.0.1:9136");
+    fetchMock.mockResolvedValue(
+      new Response(fixtureBytes, {
+        status: 200,
+        headers: { "content-type": "image/png" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await GET(
+      new Request(`https://reef.test${WEB_ASSET_PATH}`),
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledWith(
+      new URL(`http://127.0.0.1:9136${FIXTURE_ASSET_PATH}`),
+      { cache: "no-store" },
+    );
+  });
+
+  it("stays disabled without fixture config and for non-loopback origins", async () => {
     vi.stubGlobal("fetch", fetchMock);
 
     vi.stubEnv("NODE_ENV", "production");
-    vi.stubEnv("REEF_E2E_MOCK_URL", "http://127.0.0.1:9136");
     expect(
       (await GET(new Request(`https://reef.test${WEB_ASSET_PATH}`))).status,
     ).toBe(404);

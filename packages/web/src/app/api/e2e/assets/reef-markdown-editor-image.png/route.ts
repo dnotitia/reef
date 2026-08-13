@@ -8,8 +8,6 @@ function notFound(): Response {
 }
 
 function readFixtureOrigin(): string | undefined {
-  if (process.env.NODE_ENV !== "development") return undefined;
-
   const configuredOrigin = process.env.REEF_E2E_MOCK_URL;
   if (!configuredOrigin) return undefined;
 
