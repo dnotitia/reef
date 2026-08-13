@@ -15,6 +15,23 @@ import { AssigneeCombobox } from "./AssigneeCombobox";
 
 const mockApiFetch = vi.mocked(apiFetch);
 
+const { mockRecentLogins } = vi.hoisted(() => ({
+  mockRecentLogins: { value: [] as string[] },
+}));
+
+vi.mock("@/features/auth/hooks/useCurrentUserLogin", () => ({
+  useCurrentUserLogin: () => "alice",
+}));
+
+vi.mock("@/lib/storage/assigneeRecents", () => ({
+  assigneeRecentsQueryKey: (actor: string | null, vault: string) => [
+    "assignee-recents",
+    actor,
+    vault,
+  ],
+  getRecentAssigneeLogins: vi.fn(async () => mockRecentLogins.value),
+}));
+
 function wrap(ui: ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -25,9 +42,38 @@ function wrap(ui: ReactNode) {
 describe("AssigneeCombobox", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRecentLogins.value = [];
     mockApiFetch.mockResolvedValue(
       new Response(JSON.stringify({ users: [] }), { status: 200 }),
     );
+  });
+
+  it("orders recent assignable users first and remaining users deterministically", async () => {
+    const user = userEvent.setup();
+    mockRecentLogins.value = ["bob"];
+    mockApiFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          users: [
+            { login: "zara", name: "Zara", avatar_url: null },
+            { login: "alice", name: "Alice", avatar_url: null },
+            { login: "bob", name: "Bob", avatar_url: null },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    render(
+      wrap(<AssigneeCombobox value="" onChange={() => {}} vault="reef-acme" />),
+    );
+    await user.click(await screen.findByLabelText("Assignee"));
+
+    const options = await screen.findAllByRole("option");
+    expect(options[0]).toHaveTextContent("Unassigned");
+    expect(options[1]).toHaveTextContent("Bob");
+    expect(options[2]).toHaveTextContent("Alice");
+    expect(options[3]).toHaveTextContent("Zara");
   });
 
   it("renders a disabled combobox without fetching members when vault is empty", () => {

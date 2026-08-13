@@ -14,6 +14,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Issue detail assignee selection now exposes every assignable writer, admin,
+  and owner with deterministic ordering and recent-success prioritization,
+  while preserving long-list keyboard behavior and failed-save rollback.**
+  (REEF-501)
 - **Issue-list assignee cells now resolve the current vault display name from
   the stable username, with refresh-on-mount roster revalidation and login
   fallbacks for missing names or members.** (REEF-504)

@@ -1,6 +1,11 @@
 "use client";
 
+import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
+import {
+  assigneeRecentsQueryKey,
+  rememberRecentAssigneeLogin,
+} from "@/lib/storage/assigneeRecents";
 import type { IssueDocument, IssueUpdatePatch } from "@reef/core";
 import {
   type QueryKey,
@@ -16,7 +21,7 @@ import {
 import { toListItem } from "../../lib/toListItem";
 import { activityKey } from "../queries/useActivity";
 
-interface UpdateIssueInput {
+export interface UpdateIssueInput {
   id: string;
   vault: string;
   patch: IssueUpdatePatch;
@@ -25,13 +30,26 @@ interface UpdateIssueInput {
 
 export type UpdateIssueResult = IssueDocument;
 
+export interface UpdateIssueRollbackContext {
+  previousDetail?: UpdateIssueResult;
+}
+
 export interface UseUpdateIssueOptions {
   /** Bulk jobs defer list/relation reconciliation until their sequential queue finishes. */
   reconciliation?: "immediate" | "deferred";
+  /**
+   * Runs after the optimistic caches have been restored. Detail callers can use
+   * the snapshot to reconcile local draft state without changing retry/error
+   * handling for the mutation itself.
+   */
+  onError?: (
+    error: Error,
+    input: UpdateIssueInput,
+    context: UpdateIssueRollbackContext | undefined,
+  ) => void;
 }
 
-interface UpdateIssueMutationContext {
-  previousDetail?: UpdateIssueResult;
+interface UpdateIssueMutationContext extends UpdateIssueRollbackContext {
   previousLists?: Array<[QueryKey, unknown]>;
 }
 
@@ -54,6 +72,7 @@ interface UpdateIssueMutationContext {
  */
 export function useUpdateIssue(options: UseUpdateIssueOptions = {}) {
   const queryClient = useQueryClient();
+  const currentLogin = useCurrentUserLogin();
   const reconciliation = options.reconciliation ?? "immediate";
 
   return useMutation<
@@ -135,7 +154,7 @@ export function useUpdateIssue(options: UseUpdateIssueOptions = {}) {
 
       return { previousDetail, previousLists };
     },
-    onError: (err, { id, vault }, context) => {
+    onError: (err, { id, vault, ...input }, context) => {
       if (context?.previousLists) {
         for (const [key, data] of context.previousLists) {
           queryClient.setQueryData(key, data);
@@ -160,8 +179,13 @@ export function useUpdateIssue(options: UseUpdateIssueOptions = {}) {
           queryKey: ["issues", "detail", vault, id],
         });
       }
+      options.onError?.(
+        err,
+        { id, vault, ...input },
+        context ? { previousDetail: context.previousDetail } : undefined,
+      );
     },
-    onSuccess: (data, { id, vault, patch }) => {
+    onSuccess: async (data, { id, vault, patch }) => {
       const item = toListItem(data.issue);
       // The server response is authoritative — write it straight into the
       // detail and every list-variant cache (ref-preserving for unchanged
@@ -205,6 +229,25 @@ export function useUpdateIssue(options: UseUpdateIssueOptions = {}) {
         void queryClient.invalidateQueries({
           queryKey: activityKey(vault, id),
         });
+      }
+
+      const assignedLogin =
+        typeof patch.assigned_to === "string" ? patch.assigned_to.trim() : "";
+      if (currentLogin && assignedLogin) {
+        try {
+          const recentLogins = await rememberRecentAssigneeLogin(
+            currentLogin,
+            vault,
+            assignedLogin,
+          );
+          queryClient.setQueryData(
+            assigneeRecentsQueryKey(currentLogin, vault),
+            recentLogins,
+          );
+        } catch {
+          // Browser storage failure must not turn a successful issue save into
+          // an error or claim that the login was added to recents.
+        }
       }
     },
   });

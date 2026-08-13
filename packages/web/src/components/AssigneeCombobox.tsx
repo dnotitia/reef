@@ -7,11 +7,17 @@ import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { useUserSearch } from "@/features/issues/hooks/queries/useUserSearch";
+import { orderAssigneeCollaborators } from "@/lib/assigneeOptionOrder";
+import {
+  assigneeRecentsQueryKey,
+  getRecentAssigneeLogins,
+} from "@/lib/storage/assigneeRecents";
 import {
   SEARCH_DEBOUNCE_COLD,
   useDebouncedQuery,
 } from "@/lib/useDebouncedQuery";
 import { useHydrated } from "@/lib/useHydrated";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useMemo } from "react";
 
@@ -103,13 +109,22 @@ export function AssigneeCombobox({
     isError,
   } = useUserSearch(debouncedQuery, vault);
   const currentLogin = useCurrentUserLogin();
+  const { data: recentLogins = [] } = useQuery({
+    queryKey: assigneeRecentsQueryKey(currentLogin, vault),
+    queryFn: () => getRecentAssigneeLogins(currentLogin, vault),
+    enabled: Boolean(currentLogin && vault),
+    // Re-read the browser-local record on mount. The persisted query snapshot
+    // can contain the pre-selection empty list when the async mutation writes
+    // IndexedDB after the query persister's last snapshot.
+    staleTime: 0,
+  });
 
   const options = useMemo<ComboboxOption<string>[]>(
     () =>
-      (users ?? []).map((user) =>
+      orderAssigneeCollaborators(users ?? [], recentLogins).map((user) =>
         createAssigneeComboboxOption(user, currentLogin),
       ),
-    [users, currentLogin],
+    [currentLogin, recentLogins, users],
   );
 
   // Fallback after a real client-side lookup failure. Rendering the same

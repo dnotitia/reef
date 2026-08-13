@@ -31,8 +31,10 @@ function authedHeaders(): Record<string, string> {
 
 const MEMBERS = [
   { username: "alice", display_name: "Alice Anderson", role: "admin" },
-  { username: "bob", display_name: "Bob Brown", role: "member" },
-  { username: "carol", display_name: null, role: "member" },
+  { username: "bob", display_name: "Bob Brown", role: "writer" },
+  { username: "carol", display_name: null, role: "reader" },
+  { username: "dana", display_name: "Dana Doe", role: "owner" },
+  { username: "eve", display_name: "Eve Example", role: "member" },
 ];
 
 beforeEach(() => {
@@ -72,7 +74,7 @@ describe("GET /api/vault-members", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns all members mapped to Collaborator shape when q is empty", async () => {
+  it("returns only assignable roles mapped to Collaborator shape when q is empty", async () => {
     mockAkbListVaultMembers.mockResolvedValueOnce({ members: MEMBERS });
     const req = new Request(
       "http://localhost/api/vault-members?vault=reef-acme",
@@ -81,13 +83,16 @@ describe("GET /api/vault-members", () => {
     const res = await GET(req);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.users).toHaveLength(3);
     expect(body.users[0]).toEqual({
       login: "alice",
       name: "Alice Anderson",
       avatar_url: null,
     });
-    expect(body.users[2].name).toBe("carol");
+    expect(body.users.map((user: { login: string }) => user.login)).toEqual([
+      "alice",
+      "bob",
+      "dana",
+    ]);
   });
 
   it("filters by q substring (case insensitive)", async () => {
@@ -103,11 +108,11 @@ describe("GET /api/vault-members", () => {
     ]);
   });
 
-  it("caps results at MAX_RESULTS=10", async () => {
+  it("returns every assignable result without a cap", async () => {
     const many = Array.from({ length: 25 }, (_, i) => ({
       username: `user${i.toString().padStart(2, "0")}`,
       display_name: `User ${i}`,
-      role: "member",
+      role: i === 24 ? "reader" : "writer",
     }));
     mockAkbListVaultMembers.mockResolvedValueOnce({ members: many });
     const req = new Request(
@@ -116,7 +121,7 @@ describe("GET /api/vault-members", () => {
     );
     const res = await GET(req);
     const body = await res.json();
-    expect(body.users).toHaveLength(10);
+    expect(body.users).toHaveLength(24);
   });
 
   it("translates AuthError to 401", async () => {

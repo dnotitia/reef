@@ -133,6 +133,21 @@ async function expectVisibleFocus(
 }
 
 test.describe("Hermetic runtime discovery", () => {
+  test("exposes loaded issue detail content for a cold deep-link readiness probe", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "assignee_picker");
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues/REEF-001");
+
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await expect(page.getByTestId("issue-close")).toBeVisible();
+    await expect(
+      page.locator('[data-testid="issue-detail-modal"]'),
+    ).toHaveCount(1);
+  });
+
   test("publishes runtime controls and resets named-filter fixtures idempotently", async ({
     request,
   }) => {
@@ -164,6 +179,16 @@ test.describe("Hermetic runtime discovery", () => {
         },
       },
       tasks: {
+        assignee_picker: {
+          scenario: "assignee_picker",
+          workspace: "reef-e2e",
+          start_path: "/workspace/reef-e2e/issues/REEF-001",
+          interaction: {
+            type: "assignee_picker",
+            operation:
+              "open issue detail, browse the complete writer/admin/owner roster, search by display name or login, select a candidate, reload to verify recent-first ordering, and verify a failed save leaves the existing assignment and recent history unchanged",
+          },
+        },
         issue_drill_navigation: {
           scenario: "demo_board",
           workspace: "reef-e2e",
@@ -293,6 +318,7 @@ test.describe("Hermetic runtime discovery", () => {
     expect(contract.scenarios).toEqual(
       expect.arrayContaining([
         "configured_multi",
+        "assignee_picker",
         "backlog_bulk_partial_failure",
         "demo_board",
         "configured_empty",
