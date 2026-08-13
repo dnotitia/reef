@@ -5,6 +5,7 @@ import {
   ArchiveRestore,
   CalendarRange,
   Copy,
+  Flag,
   Link2,
   UserRound,
 } from "lucide-react";
@@ -269,7 +270,7 @@ export function IssueContextMenu({
       >
         <ContextMenuSub>
           <ContextMenuSubTrigger
-            leading={<StatusBadge status={issue.status} />}
+            leading={<Flag className="size-3.5" />}
             disabled={menuDisabled}
           >
             {menu("status")}
@@ -339,7 +340,7 @@ export function IssueContextMenu({
 
         <ContextMenuSub>
           <ContextMenuSubTrigger
-            leading={<PriorityBadge priority={issue.priority ?? null} />}
+            leading={<Flag className="size-3.5" />}
             disabled={menuDisabled}
           >
             {menu("priority")}

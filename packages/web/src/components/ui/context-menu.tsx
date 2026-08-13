@@ -244,8 +244,7 @@ const ContextMenuContent = React.forwardRef<
           focusInitialItem();
         }}
         className={cn(
-          "max-w-[calc(100vw-1rem)] min-w-[180px] text-popover-foreground",
-          CBX_PANEL,
+          "z-50 max-w-[calc(100vw-1rem)] min-w-[180px] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg shadow-foreground/5 outline-none",
           "data-[state=open]:motion-safe:animate-in data-[state=open]:motion-safe:fade-in-0 data-[state=open]:motion-safe:zoom-in-95 motion-reduce:animate-none",
           className,
         )}
@@ -313,7 +312,7 @@ const ContextMenuItem = React.forwardRef<HTMLDivElement, ContextMenuItemProps>(
         }}
         className={cn(
           "flex min-h-8 cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[13px] text-foreground outline-none transition-colors duration-150",
-          CBX_OPTION_HIGHLIGHT,
+          "data-[highlighted]:bg-surface-hover data-[highlighted]:text-foreground focus-visible:bg-surface-hover",
           "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
           "data-[selected=true]:font-medium",
           destructive &&
@@ -443,9 +442,8 @@ const ContextMenuSubTrigger = React.forwardRef<
     <ContextMenuPrimitive.SubTrigger
       ref={ref}
       className={cn(
-        CBX_OPTION_BASE,
-        CBX_OPTION_ROW,
-        CBX_OPTION_HIGHLIGHT,
+        "flex min-h-8 cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[13px] text-foreground outline-none transition-colors duration-150",
+        "data-[highlighted]:bg-surface-hover data-[highlighted]:text-foreground focus-visible:bg-surface-hover",
         "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         className,
       )}
