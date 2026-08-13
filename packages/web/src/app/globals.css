@@ -387,6 +387,30 @@ hr {
   border-color: var(--border-subtle);
 }
 
+/* Tailwind Typography's prose variables are owned by the issue WYSIWYG only.
+ * The editor follows Reef's semantic tokens through the root `.dark` theme
+ * boundary; it must not introduce a second dark-mode palette or invert class. */
+.reef-markdown-editor {
+  --tw-prose-body: var(--foreground);
+  --tw-prose-headings: var(--foreground);
+  --tw-prose-lead: var(--muted-foreground);
+  --tw-prose-links: var(--brand);
+  --tw-prose-bold: var(--foreground);
+  --tw-prose-counters: var(--muted-foreground);
+  --tw-prose-bullets: var(--muted-foreground);
+  --tw-prose-hr: var(--border-subtle);
+  --tw-prose-quotes: var(--foreground);
+  --tw-prose-quote-borders: var(--brand);
+  --tw-prose-captions: var(--muted-foreground);
+  --tw-prose-kbd: var(--foreground);
+  --tw-prose-kbd-shadows: var(--border-subtle);
+  --tw-prose-code: var(--foreground);
+  --tw-prose-pre-code: var(--foreground);
+  --tw-prose-pre-bg: var(--surface-subtle);
+  --tw-prose-th-borders: var(--border-subtle);
+  --tw-prose-td-borders: var(--border-subtle);
+}
+
 /* Tiptap's Placeholder extension owns the marker and localized text. During a
  * non-empty -> empty transaction, 3.29 can omit `is-editor-empty` while keeping
  * the empty-node decoration. The sole top-level empty block is the stable empty

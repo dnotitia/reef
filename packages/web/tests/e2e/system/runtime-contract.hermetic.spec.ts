@@ -239,6 +239,17 @@ test.describe("Hermetic runtime discovery", () => {
               "open an issue, add a comment, and observe it in the activity timeline",
           },
         },
+        markdown_fixture: {
+          scenario: "markdown_fixture",
+          workspace: "reef-e2e",
+          start_path: expect.stringMatching(
+            /^\/workspace\/reef-e2e\/issues\/[^/]+$/u,
+          ),
+          interaction: {
+            type: "markdown_editor",
+            operation: expect.stringContaining("Source"),
+          },
+        },
         empty_states: {
           scenario: "configured_empty",
           workspace: "reef-e2e",
@@ -299,6 +310,7 @@ test.describe("Hermetic runtime discovery", () => {
         "configured_caught_up",
         "content_search",
         "large_vault",
+        "markdown_fixture",
       ]),
     );
 

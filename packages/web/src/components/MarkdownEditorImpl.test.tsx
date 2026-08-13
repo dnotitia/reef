@@ -178,6 +178,8 @@ describe("MarkdownEditor", () => {
 
     expect(className).toContain(EDITOR_CONTENT_CLASS);
     expect(className).toContain(EDITOR_BODY_SIZING);
+    expect(className).toContain("prose prose-sm");
+    expect(className).not.toContain("dark:prose-invert");
   });
 
   it("opens clicked editor links with noopener while consuming the link click", () => {

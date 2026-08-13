@@ -149,4 +149,37 @@ describe("global focus styles", () => {
     expect(css).toContain("content: attr(data-placeholder);");
     expect(css).toContain("pointer-events: none;");
   });
+
+  it("keeps every editor Typography color variable on Reef semantic tokens", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const editorStart = css.indexOf(".reef-markdown-editor {");
+    expect(editorStart).toBeGreaterThan(-1);
+    const editorEnd = findCssBlockEnd(css, editorStart);
+    expect(editorEnd).toBeGreaterThan(editorStart);
+    const editorBlock = css.slice(editorStart, editorEnd);
+    const expectedTokens = {
+      "--tw-prose-body": "--foreground",
+      "--tw-prose-headings": "--foreground",
+      "--tw-prose-lead": "--muted-foreground",
+      "--tw-prose-links": "--brand",
+      "--tw-prose-bold": "--foreground",
+      "--tw-prose-counters": "--muted-foreground",
+      "--tw-prose-bullets": "--muted-foreground",
+      "--tw-prose-hr": "--border-subtle",
+      "--tw-prose-quotes": "--foreground",
+      "--tw-prose-quote-borders": "--brand",
+      "--tw-prose-captions": "--muted-foreground",
+      "--tw-prose-kbd": "--foreground",
+      "--tw-prose-kbd-shadows": "--border-subtle",
+      "--tw-prose-code": "--foreground",
+      "--tw-prose-pre-code": "--foreground",
+      "--tw-prose-pre-bg": "--surface-subtle",
+      "--tw-prose-th-borders": "--border-subtle",
+      "--tw-prose-td-borders": "--border-subtle",
+    } as const;
+
+    for (const [variable, token] of Object.entries(expectedTokens)) {
+      expect(editorBlock).toContain(`${variable}: var(${token});`);
+    }
+  });
 });
