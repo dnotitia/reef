@@ -169,6 +169,10 @@ async function readMarkdownSurface(editor: Locator) {
   });
 }
 
+function imageSourcesFromCsp(csp: string): string[] {
+  return csp.match(/img-src\s+([^;]+)/u)?.[1]?.split(/\s+/u) ?? [];
+}
+
 test.describe("Hermetic Markdown editor fixture", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
@@ -181,6 +185,10 @@ test.describe("Hermetic Markdown editor fixture", () => {
   }, testInfo) => {
     test.setTimeout(90_000);
     await page.setViewportSize({ width: 1440, height: 900 });
+    const consoleErrors: string[] = [];
+    page.on("console", (message) => {
+      if (message.type() === "error") consoleErrors.push(message.text());
+    });
 
     const task = await readMarkdownFixtureTask(request);
     expect(task).toMatchObject({
@@ -203,11 +211,38 @@ test.describe("Hermetic Markdown editor fixture", () => {
     expect(fixtureDocument?.content).toContain("```ts");
 
     await openExistingWorkspace(page);
-    await page.goto(task.start_path ?? "");
+    const issueResponse = await page.goto(task.start_path ?? "");
     await expect(page.getByTestId("issue-detail")).toBeVisible();
 
     const editor = page.locator(".reef-markdown-editor");
     await expect(editor).toBeVisible();
+    const fixtureImage = editor.getByRole("img", { name: "Fixture image" });
+    await expect(fixtureImage).toHaveCount(1);
+    const imageSource = await fixtureImage.getAttribute("src");
+    if (!imageSource) throw new Error("Markdown fixture image has no source");
+    const imageOrigin = new URL(imageSource, E2E_MOCK_URL).origin;
+    expect(imageOrigin).toBe(new URL(E2E_MOCK_URL).origin);
+    expect(
+      imageSourcesFromCsp(
+        issueResponse?.headers()["content-security-policy"] ?? "",
+      ),
+    ).toContain(imageOrigin);
+    await expect
+      .poll(() =>
+        fixtureImage.evaluate(
+          (image: HTMLImageElement) =>
+            image.complete && image.naturalWidth > 0 && image.naturalHeight > 0,
+        ),
+      )
+      .toBe(true);
+    const imageDimensions = await fixtureImage.evaluate(
+      (image: HTMLImageElement) => ({
+        naturalWidth: image.naturalWidth,
+        naturalHeight: image.naturalHeight,
+      }),
+    );
+    expect(imageDimensions.naturalWidth).toBeGreaterThan(0);
+    expect(imageDimensions.naturalHeight).toBeGreaterThan(0);
 
     const themeCases: Array<{
       preference: ThemePreference;
@@ -304,5 +339,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
       });
       expect(roundTrip.text).toContain("@alice");
     }
+
+    expect(consoleErrors).toEqual([]);
   });
 });

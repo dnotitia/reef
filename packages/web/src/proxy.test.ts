@@ -589,3 +589,34 @@ describe("proxy — CSP header audit", () => {
     expect(csp1).not.toBe(csp2);
   });
 });
+
+describe("proxy — dev:e2e fixture image CSP", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("allows only the loopback fixture origin in development", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("REEF_E2E_MOCK_URL", "http://127.0.0.1:9136");
+
+    const response = proxy(
+      new NextRequest("https://reef.test/workspace/reef-e2e/issues/REEF-001"),
+    );
+    const csp = response.headers.get("Content-Security-Policy") ?? "";
+    const imageSrc = csp.match(/img-src\s+([^;]+)/)?.[1] ?? "";
+
+    expect(imageSrc.split(/\s+/u)).toContain("http://127.0.0.1:9136");
+  });
+
+  it("does not add the fixture origin outside development", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("REEF_E2E_MOCK_URL", "http://127.0.0.1:9136");
+
+    const response = proxy(
+      new NextRequest("https://reef.test/workspace/reef-e2e/issues/REEF-001"),
+    );
+    const csp = response.headers.get("Content-Security-Policy") ?? "";
+
+    expect(csp).not.toContain("http://127.0.0.1:9136");
+  });
+});
