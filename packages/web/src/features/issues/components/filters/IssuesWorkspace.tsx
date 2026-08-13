@@ -99,7 +99,13 @@ export function IssuesWorkspace() {
               preset={view === "backlog" ? "backlog" : "list"}
             />
           ) : null}
-          <div className="flex flex-1 min-h-0 flex-col">
+          <div
+            className={
+              view === "list"
+                ? "flex min-h-48 flex-1 flex-col"
+                : "flex flex-1 min-h-0 flex-col"
+            }
+          >
             {view === "board" ? (
               <KanbanBoard vault={vault} groupBy={groupBy} />
             ) : view === "list" ? (

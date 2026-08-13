@@ -57,6 +57,7 @@ interface IssueContextMenuProps {
   vault: string;
   planningCatalog?: PlanningCatalog;
   assignees?: readonly Collaborator[];
+  onOpenChange?: (open: boolean) => void;
   children: ReactNode;
 }
 
@@ -75,6 +76,7 @@ export function IssueContextMenu({
   vault,
   planningCatalog,
   assignees,
+  onOpenChange,
   children,
 }: IssueContextMenuProps) {
   const menu = useTranslations("issues.contextMenu");
@@ -242,7 +244,7 @@ export function IssueContextMenu({
   const menuDisabled = updateMutation.isPending || archiveMutation.isPending;
 
   return (
-    <ContextMenu>
+    <ContextMenu onOpenChange={onOpenChange}>
       <ContextMenuTrigger asChild portal>
         {children}
       </ContextMenuTrigger>
