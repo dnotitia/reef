@@ -11,6 +11,58 @@ import { logger } from "@/lib/logging/logger";
 import { httpRequestDurationSeconds, httpRequestsTotal } from "@/lib/metrics";
 import { type NextRequest, NextResponse } from "next/server";
 
+const E2E_MARKDOWN_IMAGE_PATH =
+  "/api/e2e/assets/reef-markdown-editor-image.png";
+const E2E_MARKDOWN_IMAGE_UPSTREAM_PATH =
+  "/__e2e/assets/reef-markdown-editor-image.png";
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
+
+function e2eMarkdownImageDestination(request: NextRequest): URL | undefined {
+  if (
+    request.method !== "GET" ||
+    request.nextUrl.pathname !== E2E_MARKDOWN_IMAGE_PATH ||
+    request.nextUrl.search
+  ) {
+    return undefined;
+  }
+
+  const configuredOrigin = process.env.REEF_E2E_MOCK_URL;
+  if (!configuredOrigin) return undefined;
+
+  try {
+    const origin = new URL(configuredOrigin);
+    if (
+      origin.protocol !== "http:" ||
+      !LOOPBACK_HOSTS.has(origin.hostname) ||
+      origin.username ||
+      origin.password ||
+      origin.pathname !== "/" ||
+      origin.search ||
+      origin.hash
+    ) {
+      return undefined;
+    }
+    return new URL(E2E_MARKDOWN_IMAGE_UPSTREAM_PATH, origin);
+  } catch {
+    return undefined;
+  }
+}
+
+function e2eAssetRequestHeaders(request: NextRequest): Headers {
+  const headers = new Headers(request.headers);
+  // The fixture server is local and fixed, but it still must not receive
+  // browser credentials when Proxy performs the E2E-only rewrite.
+  for (const name of [
+    "authorization",
+    "cookie",
+    "proxy-authorization",
+    "x-reef-llm",
+  ]) {
+    headers.set(name, "");
+  }
+  return headers;
+}
+
 /**
  * Next.js 16 proxy — replaces the older `middleware.ts` convention.
  * (See `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/proxy.md`.)
@@ -166,9 +218,14 @@ export function proxy(request: NextRequest) {
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", csp);
 
-  const response = NextResponse.next({
-    request: { headers: requestHeaders },
-  });
+  const assetDestination = e2eMarkdownImageDestination(request);
+  const response = assetDestination
+    ? NextResponse.rewrite(assetDestination, {
+        request: { headers: e2eAssetRequestHeaders(request) },
+      })
+    : NextResponse.next({
+        request: { headers: requestHeaders },
+      });
   response.headers.set("x-nonce", nonce);
   response.headers.set("Content-Security-Policy", csp);
 

@@ -25,6 +25,9 @@ function buildWebServerEnv(): Record<string, string> {
     // Hermetic E2E owns its auth backend; ambient deployment settings must not
     // replace the fixture that the browser login contract exercises.
     AKB_BACKEND_URL: `${E2E_MOCK_URL}/akb`,
+    // The E2E-only asset rewrite uses this loopback origin in both dev and
+    // production-build harnesses; ordinary production has no fixture origin.
+    REEF_E2E_MOCK_URL: E2E_MOCK_URL,
     // Keep the hermetic server pinned to canonical names when a developer shell
     // exports the supported OpenRouter compatibility aliases.
     OPENROUTER_API_KEY: "",

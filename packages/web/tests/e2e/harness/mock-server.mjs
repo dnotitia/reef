@@ -21,6 +21,22 @@ const IMAGE_UPLOAD_FIXTURE_BYTES = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAGAAAAAwCAYAAADuFn/PAAAAs0lEQVR42u3ZsQmAQBAEQHMTezA3sQfLEmxEEGzC0D5sQ9O3g/vgeUSYYMNNbqLlmmlLKUo/P2FK++O1h+mOJUxpP51DmHttw5T2GwAAAAAAAAAAAAAAPgCofeBcv/aBc/3aB871AQAAAAAAAAAAAAD4AsAQs4QBAAAAAAAAAAAA+AcYYpYwAAAAAAAAAAAAAP8AQ8wSBgAAAAAAAAAAAOAfYIhZwgAAAAAAAAAAAAB+D/ACWn8C0ZKjwsMAAAAASUVORK5CYII=",
   "base64",
 );
+const MARKDOWN_FIXTURE_IMAGE_URL =
+  "/api/e2e/assets/reef-markdown-editor-image.png";
+const MARKDOWN_FIXTURE = [
+  "# Markdown reference",
+  "## Structure",
+  "### Details",
+  "A paragraph with **bold**, *italic*, a [reef link](https://example.com/reef), and `inline code`. It also names @alice.",
+  "1. Ordered item one\n2. Ordered item two",
+  "- Unordered item one\n- Unordered item two",
+  "- [ ] Unchecked task\n- [x] Completed task",
+  "> A quoted paragraph with a meaningful boundary.",
+  '```ts\nconst token = "reef";\nreturn token;\n```',
+  "---",
+  `![Fixture image](${MARKDOWN_FIXTURE_IMAGE_URL})`,
+  "| Pattern | Meaning |\n| --- | --- |\n| pipe | preserved source |",
+].join("\n\n");
 const SUPPORTED_SCENARIOS = [
   "empty",
   "configured",
@@ -37,6 +53,7 @@ const SUPPORTED_SCENARIOS = [
   "skill_outdated",
   "comment_mentions",
   "large_vault",
+  "markdown_fixture",
 ];
 const SUPPORTED_SCENARIO_SET = new Set(SUPPORTED_SCENARIOS);
 const ACCOUNT_DENIAL_CODES = new Set([
@@ -278,6 +295,13 @@ function normalizeScenario(value) {
   return SUPPORTED_SCENARIO_SET.has(value) ? value : "configured";
 }
 
+function markdownFixtureStartPath() {
+  const issue = state.vaults.get(REEF_VAULT)?.issues[0];
+  return issue
+    ? `/workspace/${REEF_VAULT}/issues/${issue.reef_id}`
+    : `/workspace/${REEF_VAULT}/issues`;
+}
+
 function runtimeDiscovery() {
   return {
     schema_version: 1,
@@ -390,6 +414,16 @@ function runtimeDiscovery() {
           type: "issue_activity",
           operation:
             "open an issue, add a comment, and observe it in the activity timeline",
+        },
+      },
+      markdown_fixture: {
+        scenario: "markdown_fixture",
+        workspace: REEF_VAULT,
+        start_path: markdownFixtureStartPath(),
+        interaction: {
+          type: "markdown_editor",
+          operation:
+            "open the fixture issue, inspect the supported Markdown elements, switch to Source, return to WYSIWYG, and compare the preserved structure",
         },
       },
       large_issue_list: {
@@ -537,6 +571,9 @@ function makeState(scenario) {
       next.vaults.set("reef-zeta", configuredVault("reef-zeta"));
       next.vaults.set("reef-alpha", configuredVault("reef-alpha"));
     }
+  } else if (scenario === "markdown_fixture") {
+    next.vaults.set(REEF_VAULT, markdownFixtureVault(REEF_VAULT));
+    next.vaults.set("raw-vault", rawVault("raw-vault"));
   } else if (scenario === "demo_board") {
     next.vaults.set(REEF_VAULT, demoBoardVault(REEF_VAULT));
     next.vaults.set("raw-vault", rawVault("raw-vault"));
@@ -548,6 +585,23 @@ function makeState(scenario) {
   }
 
   return next;
+}
+
+function markdownFixtureVault(name) {
+  const vault = configuredVault(name);
+  const issue = vault.issues[0];
+  if (!issue) throw new Error("Markdown fixture requires a seeded issue");
+
+  issue.title = "Markdown reference";
+  issue.labels = ["markdown", "fixture"];
+  vault.issues = [issue];
+  vault.documents = new Map();
+  vault.comments = [];
+  vault.activity = [];
+  vault.notifications = [];
+  vault.subscriptions = [];
+  seedIssueDocument(vault, issue.reef_id, MARKDOWN_FIXTURE);
+  return vault;
 }
 
 function configuredVault(name) {

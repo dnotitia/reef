@@ -179,11 +179,13 @@ describe("dev:e2e runtime contract", () => {
   function readinessPage({
     newIssueClickWorks = true,
     issueDetailOpen = false,
+    issueDetailAppearanceDelayMs,
     issueDetailLoaded,
     issueDetailCloseWorks = true,
   }: {
     newIssueClickWorks?: boolean;
     issueDetailOpen?: boolean;
+    issueDetailAppearanceDelayMs?: number;
     issueDetailLoaded?: boolean;
     issueDetailCloseWorks?: boolean;
   } = {}) {
@@ -193,17 +195,62 @@ describe("dev:e2e runtime contract", () => {
       issueDetailLoaded: issueDetailLoaded ?? issueDetailOpen,
     };
     const selectors: string[] = [];
+    let issueDetailAppearance: Promise<void> | undefined;
+    const scheduleIssueDetailAppearance = () => {
+      if (
+        issueDetailAppearanceDelayMs === undefined ||
+        issueDetailAppearance !== undefined
+      ) {
+        return;
+      }
+      issueDetailAppearance = new Promise((resolve) => {
+        setTimeout(() => {
+          state.issueDetailOpen = true;
+          state.issueDetailLoaded = true;
+          resolve();
+        }, issueDetailAppearanceDelayMs);
+      });
+    };
     const locatorFor = (selector: string) => {
       const locator = {
         first: () => locator,
+        isVisible: async () => {
+          if (
+            selector === CLIENT_READINESS_INTERACTIONS.issueDetail.observable
+          ) {
+            scheduleIssueDetailAppearance();
+            return state.issueDetailLoaded;
+          }
+          if (selector === CLIENT_READINESS_INTERACTIONS.issueDetail.close) {
+            return state.issueDetailOpen;
+          }
+          return selector === CLIENT_READINESS_INTERACTIONS.newIssue.observable
+            ? state.newIssueOpen
+            : true;
+        },
         waitFor: async ({ state: expected }: { state: string }) => {
+          if (
+            (selector ===
+              CLIENT_READINESS_INTERACTIONS.issueDetail.observable ||
+              selector === CLIENT_READINESS_INTERACTIONS.issueDetail.close) &&
+            expected === "visible"
+          ) {
+            scheduleIssueDetailAppearance();
+            await issueDetailAppearance;
+          } else if (
+            selector === CLIENT_READINESS_INTERACTIONS.newIssue.trigger
+          ) {
+            await issueDetailAppearance;
+          }
           const visible =
             selector === CLIENT_READINESS_INTERACTIONS.newIssue.observable
               ? state.newIssueOpen
               : selector ===
                   CLIENT_READINESS_INTERACTIONS.issueDetail.observable
                 ? state.issueDetailLoaded
-                : true;
+                : selector === CLIENT_READINESS_INTERACTIONS.issueDetail.close
+                  ? state.issueDetailOpen
+                  : true;
           if ((expected === "visible") !== visible) {
             throw new Error(`${selector} is not ${expected}`);
           }
@@ -240,6 +287,24 @@ describe("dev:e2e runtime contract", () => {
       },
     };
   }
+
+  it("waits for a delayed direct issue detail before probing the workspace click", async () => {
+    const { page, selectors } = readinessPage({
+      issueDetailAppearanceDelayMs: 5,
+    });
+
+    await probeWorkspaceClickInteractions(page, 1_000, {
+      startPath: "/workspace/reef-e2e/issues/example",
+    });
+
+    expect(selectors).toEqual([
+      CLIENT_READINESS_INTERACTIONS.issueDetail.observable,
+      CLIENT_READINESS_INTERACTIONS.issueDetail.close,
+      CLIENT_READINESS_INTERACTIONS.newIssue.trigger,
+      CLIENT_READINESS_INTERACTIONS.newIssue.observable,
+      CLIENT_READINESS_INTERACTIONS.newIssue.close,
+    ]);
+  });
 
   it("requires an ordinary workspace click to produce observable state", async () => {
     const { page, selectors } = readinessPage();

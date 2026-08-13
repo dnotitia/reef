@@ -152,4 +152,57 @@ describe("global focus styles", () => {
     expect(css).toContain("content: attr(data-placeholder);");
     expect(css).toContain("pointer-events: none;");
   });
+
+  it("keeps every editor Typography color variable on Reef semantic tokens", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const editorStart = css.indexOf(".reef-markdown-editor {");
+    expect(editorStart).toBeGreaterThan(-1);
+    const editorEnd = findCssBlockEnd(css, editorStart);
+    expect(editorEnd).toBeGreaterThan(editorStart);
+    const editorBlock = css.slice(editorStart, editorEnd);
+    const expectedTokens = {
+      "--tw-prose-body": "--foreground",
+      "--tw-prose-headings": "--foreground",
+      "--tw-prose-lead": "--muted-foreground",
+      "--tw-prose-links": "--foreground",
+      "--tw-prose-bold": "--foreground",
+      "--tw-prose-counters": "--muted-foreground",
+      "--tw-prose-bullets": "--muted-foreground",
+      "--tw-prose-hr": "--border-subtle",
+      "--tw-prose-quotes": "--foreground",
+      "--tw-prose-quote-borders": "--brand",
+      "--tw-prose-captions": "--muted-foreground",
+      "--tw-prose-kbd": "--foreground",
+      "--tw-prose-kbd-shadows": "--border-subtle",
+      "--tw-prose-code": "--foreground",
+      "--tw-prose-pre-code": "--foreground",
+      "--tw-prose-pre-bg": "--surface-subtle",
+      "--tw-prose-th-borders": "--border-subtle",
+      "--tw-prose-td-borders": "--border-subtle",
+    } as const;
+
+    for (const [variable, token] of Object.entries(expectedTokens)) {
+      expect(editorBlock).toContain(`${variable}: var(${token});`);
+    }
+
+    const linkStart = css.indexOf(".reef-markdown-editor a {");
+    expect(linkStart).toBeGreaterThan(-1);
+    const linkEnd = findCssBlockEnd(css, linkStart);
+    expect(linkEnd).toBeGreaterThan(linkStart);
+    const linkBlock = css.slice(linkStart, linkEnd);
+    expect(linkBlock).toContain("color: var(--foreground);");
+    expect(linkBlock).toContain(
+      "text-decoration-color: color-mix(in oklab, var(--brand) 50%, transparent);",
+    );
+    expect(linkBlock).toContain("text-decoration-thickness: 1px;");
+    expect(linkBlock).toContain("text-underline-offset: 2px;");
+
+    const interactiveLinkStart = css.indexOf(".reef-markdown-editor a:hover,");
+    expect(interactiveLinkStart).toBeGreaterThan(linkEnd);
+    const interactiveLinkEnd = findCssBlockEnd(css, interactiveLinkStart);
+    expect(interactiveLinkEnd).toBeGreaterThan(interactiveLinkStart);
+    expect(css.slice(interactiveLinkStart, interactiveLinkEnd)).toContain(
+      "text-decoration-color: var(--brand);",
+    );
+  });
 });

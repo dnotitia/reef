@@ -19,7 +19,8 @@ export type FixtureScenario =
   | "notifications"
   | "skill_outdated"
   | "comment_mentions"
-  | "large_vault";
+  | "large_vault"
+  | "markdown_fixture";
 export const REEF_E2E_VAULT = "reef-e2e";
 
 function escapeRegExp(value: string): string {

@@ -557,7 +557,7 @@ export function MarkdownEditor({
       attributes: {
         class: cn(
           EDITOR_CONTENT_CLASS,
-          "prose prose-sm dark:prose-invert focus:outline-none",
+          "prose prose-sm focus:outline-none",
           EDITOR_BODY_SIZING,
           "px-3 py-2 max-w-none",
         ),

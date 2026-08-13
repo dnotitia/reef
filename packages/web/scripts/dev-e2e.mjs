@@ -23,17 +23,17 @@ const SAFE_SCENARIO = /^[A-Za-z][A-Za-z0-9_-]*$/u;
 const CLIENT_READY_TIMEOUT_MS = 120_000;
 const CLIENT_READINESS = { mode: "browser", status: "ready" };
 export const CLIENT_READINESS_INTERACTIONS = Object.freeze({
-  newIssue: Object.freeze({
-    trigger: '[data-testid="new-issue-trigger"]',
-    observable: '[data-testid="new-issue-dialog"]',
-    close: '[data-testid="new-issue-cancel"]',
-  }),
   issueDetail: Object.freeze({
     // The modal test id wraps Radix's portal and therefore has no layout box.
     // Readiness must observe the loaded public detail surface, not that empty
     // shell, so Playwright's visible contract reflects what a user can see.
     observable: '[data-testid="issue-detail"]',
     close: '[data-testid="issue-close"]',
+  }),
+  newIssue: Object.freeze({
+    trigger: '[data-testid="new-issue-trigger"]',
+    observable: '[data-testid="new-issue-dialog"]',
+    close: '[data-testid="new-issue-cancel"]',
   }),
 });
 const E2E_GITHUB_APP_PRIVATE_KEY = generateKeyPairSync("rsa", {
@@ -594,6 +594,9 @@ export async function startRuntime(options) {
       // operator/deployment backend replace the fixture that discovery
       // advertises for browser login.
       AKB_BACKEND_URL: `${options.fixtureOrigin}/akb`,
+      // The E2E-only asset rewrite uses this loopback origin in both dev and
+      // production-build harnesses; ordinary production has no fixture origin.
+      REEF_E2E_MOCK_URL: options.fixtureOrigin,
       // Server-read akb web base (REEF-368) so linked-document backlinks render
       // when browsing the hermetic runtime locally.
       AKB_WEB_URL: process.env.AKB_WEB_URL ?? "https://akb.e2e.test",
