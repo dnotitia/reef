@@ -216,6 +216,75 @@ describe("BacklogRow", () => {
     useIssueKeyboardStore.getState().closeQuickEdit();
   });
 
+  it("keeps the narrow Priority quick editor inside the viewport", async () => {
+    const originalInnerWidth = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 640,
+    });
+
+    try {
+      useIssueKeyboardStore
+        .getState()
+        .setVisibleOccurrences("backlog", [
+          { key: issue.id, issueId: issue.id },
+        ]);
+      renderRow();
+
+      const trigger = screen.getByTestId("issue-inline-edit-priority");
+      Object.defineProperty(trigger, "getBoundingClientRect", {
+        configurable: true,
+        value: () => ({
+          left: 500,
+          top: 80,
+          width: 88,
+          height: 28,
+          right: 588,
+          bottom: 108,
+          x: 500,
+          y: 80,
+          toJSON: () => ({}),
+        }),
+      });
+
+      await userEvent.setup().click(trigger);
+
+      const anchor = screen.getByTestId("issue-quick-edit-anchor");
+      expect(Number.parseFloat(anchor.style.left)).toBeLessThanOrEqual(448);
+      expect(Number.parseFloat(anchor.style.left)).toBeGreaterThanOrEqual(0);
+    } finally {
+      Object.defineProperty(window, "innerWidth", {
+        configurable: true,
+        value: originalInnerWidth,
+      });
+    }
+  });
+
+  it("uses compact enum chrome while keeping the assignee anchor width", async () => {
+    const user = userEvent.setup();
+
+    for (const field of ["status", "priority", "assignee"] as const) {
+      cleanup();
+      useIssueKeyboardStore
+        .getState()
+        .setVisibleOccurrences("backlog", [
+          { key: issue.id, issueId: issue.id },
+        ]);
+      renderRow();
+
+      await user.click(screen.getByTestId(`issue-inline-edit-${field}`));
+
+      const anchor = screen.getByTestId("issue-quick-edit-anchor");
+      expect(anchor).toHaveClass(field === "assignee" ? "w-56" : "w-48");
+
+      if (field !== "assignee") {
+        expect(screen.getByRole("listbox")).toHaveClass("w-48");
+      }
+
+      useIssueKeyboardStore.getState().closeQuickEdit();
+    }
+  });
+
   it("does not expose labels or planning quick-edit controls", () => {
     renderRow();
 

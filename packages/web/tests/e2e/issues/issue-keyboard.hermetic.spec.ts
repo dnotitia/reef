@@ -138,6 +138,33 @@ test.describe("Hermetic issue keyboard navigation", () => {
       expect(geometry.editorLeft).toBeCloseTo(geometry.triggerLeft, 0);
       expect(geometry.editorCenter).toBeCloseTo(geometry.triggerCenter, 0);
 
+      const widths = await page.evaluate((fieldName) => {
+        const editor = document.querySelector<HTMLElement>(
+          '[data-testid="issue-quick-edit-anchor"]',
+        );
+        const content =
+          fieldName === "assignee"
+            ? document.querySelector<HTMLElement>(
+                '[data-testid="assignee-combobox"] [role="listbox"]',
+              )?.parentElement
+            : document.querySelector<HTMLElement>(
+                '[data-slot="select-content"]',
+              );
+        if (!editor || !content) throw new Error("quick-edit width missing");
+        return {
+          editor: editor.getBoundingClientRect().width,
+          content: content.getBoundingClientRect().width,
+        };
+      }, field);
+
+      if (field === "assignee") {
+        expect(widths.editor).toBe(224);
+        expect(widths.content).toBeGreaterThanOrEqual(256);
+      } else {
+        expect(widths.editor).toBe(192);
+        expect(widths.content).toBe(192);
+      }
+
       const editorTrigger =
         field === "assignee"
           ? page.getByTestId("assignee-combobox").locator("button").first()
@@ -145,6 +172,43 @@ test.describe("Hermetic issue keyboard navigation", () => {
       await editorTrigger.press("Escape");
       await expect(anchor).toHaveCount(0);
     }
+  });
+
+  test("collision-places the narrow List Priority editor inside a 640px viewport", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+    await page.setViewportSize({ width: 640, height: 360 });
+
+    const rows = await expectIssueListKeyboardReady(page);
+    const row = rows.filter({ hasText: "Initial issue Alpha" });
+    await row.getByTestId("issue-inline-edit-priority").click();
+
+    const content = page.locator('[data-slot="select-content"]');
+    await expect(content).toBeVisible();
+    const geometry = await content.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const anchor = document.querySelector<HTMLElement>(
+        '[data-testid="issue-quick-edit-anchor"]',
+      );
+      const anchorRect = anchor?.getBoundingClientRect();
+      return {
+        left: rect.left,
+        right: rect.right,
+        width: rect.width,
+        anchorLeft: anchorRect?.left,
+        anchorRight: anchorRect?.right,
+      };
+    });
+
+    expect(geometry.width).toBe(192);
+    expect(geometry.left).toBeGreaterThanOrEqual(0);
+    expect(geometry.right).toBeLessThanOrEqual(640);
+    expect(geometry.anchorLeft).toBeGreaterThanOrEqual(0);
+    expect(geometry.anchorRight).toBeLessThanOrEqual(640);
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("issue-quick-edit-anchor")).toHaveCount(0);
   });
 
   test("keeps List selection and row context chrome through pointer and keyboard menus", async ({

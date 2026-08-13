@@ -61,6 +61,11 @@ const renderStatusOption = (status: Status) => <StatusBadge status={status} />;
 const renderPriorityOption = (priority: Priority) => (
   <PriorityBadge priority={priority} />
 );
+const COMPACT_QUICK_EDIT_WIDTH = "w-48";
+const DEFAULT_QUICK_EDIT_WIDTH = "w-56";
+const COMPACT_QUICK_EDIT_WIDTH_PX = 192;
+const DEFAULT_QUICK_EDIT_WIDTH_PX = 224;
+const QUICK_EDIT_VIEWPORT_MARGIN_PX = 8;
 
 function sameStringArray(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index]);
@@ -103,9 +108,17 @@ export function IssueQuickEditAnchor({
     (allowedFields === undefined || allowedFields.includes(request.field))
       ? request.field
       : null;
+  const anchorWidth =
+    field === "status" || field === "priority"
+      ? COMPACT_QUICK_EDIT_WIDTH
+      : DEFAULT_QUICK_EDIT_WIDTH;
+  const anchorWidthPx =
+    field === "status" || field === "priority"
+      ? COMPACT_QUICK_EDIT_WIDTH_PX
+      : DEFAULT_QUICK_EDIT_WIDTH_PX;
 
   const updateAnchorPosition = useCallback(() => {
-    if (field === null) return;
+    if (field === null || typeof window === "undefined") return;
     const anchor = getAnchorElement
       ? field === "labels"
         ? anchorOriginRef.current?.parentElement
@@ -116,11 +129,23 @@ export function IssueQuickEditAnchor({
       return;
     }
     const rect = anchor.getBoundingClientRect();
+    const requestedLeft =
+      rect.left + (getAnchorElement && field !== "labels" ? 0 : 8);
+    // Radix can collision-place a portaled SelectContent, but the fixed shell
+    // still owns the trigger and non-portaled quick-edit panels. Keep that
+    // shared shell inside the viewport so neither path clips at the edge.
+    const maxLeft = Math.max(
+      QUICK_EDIT_VIEWPORT_MARGIN_PX,
+      window.innerWidth - anchorWidthPx - QUICK_EDIT_VIEWPORT_MARGIN_PX,
+    );
     setAnchorPosition({
-      left: rect.left + (getAnchorElement && field !== "labels" ? 0 : 8),
+      left: Math.min(
+        Math.max(requestedLeft, QUICK_EDIT_VIEWPORT_MARGIN_PX),
+        maxLeft,
+      ),
       top: rect.top + rect.height / 2,
     });
-  }, [field, getAnchorElement]);
+  }, [anchorWidthPx, field, getAnchorElement]);
 
   const noteViewportResize = useCallback((force = false) => {
     if (typeof window === "undefined") return false;
@@ -232,7 +257,8 @@ export function IssueQuickEditAnchor({
     field === null ? null : (
       <div
         className={cn(
-          "pointer-events-auto fixed z-50 w-56 -translate-y-1/2",
+          "pointer-events-auto fixed z-50 -translate-y-1/2",
+          anchorWidth,
           className,
         )}
         style={{
@@ -256,6 +282,7 @@ export function IssueQuickEditAnchor({
             onOpenChange={closeOpenField}
             disabled={mutation.isPending}
             triggerClassName="bg-popover shadow-lg shadow-foreground/10"
+            contentClassName={COMPACT_QUICK_EDIT_WIDTH}
           />
         )}
 
@@ -278,6 +305,7 @@ export function IssueQuickEditAnchor({
             onOpenChange={closeOpenField}
             disabled={mutation.isPending}
             triggerClassName="bg-popover shadow-lg shadow-foreground/10"
+            contentClassName={COMPACT_QUICK_EDIT_WIDTH}
           />
         )}
 
