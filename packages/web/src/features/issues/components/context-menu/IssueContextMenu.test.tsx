@@ -33,6 +33,10 @@ vi.mock("@/features/issues/hooks/mutations/useArchiveIssue", () => ({
   }),
 }));
 
+vi.mock("@/features/auth/hooks/useCurrentUserLogin", () => ({
+  useCurrentUserLogin: () => "alice",
+}));
+
 const issue: IssueListItem = {
   id: "REEF-001",
   title: "Context menu issue",
@@ -173,6 +177,97 @@ describe("IssueContextMenu", () => {
     });
   });
 
+  it("renders shared field leaves, current checks, and distinct parent meanings", async () => {
+    const user = userEvent.setup();
+    renderMenu();
+
+    await openMenu();
+
+    const statusParent = screen.getByRole("menuitem", { name: "Status" });
+    const priorityParent = screen.getByRole("menuitem", { name: "Priority" });
+    expect(
+      statusParent.querySelector("svg.text-status-open"),
+    ).toBeInTheDocument();
+    expect(
+      priorityParent.querySelector("svg.text-status-open"),
+    ).not.toBeInTheDocument();
+    expect(
+      priorityParent.querySelector('[aria-hidden="true"]'),
+    ).toBeInTheDocument();
+
+    await openSubmenu(user, "Status");
+    const statusOption = screen.getByTestId("issue-context-menu-status-todo");
+    expect(statusOption).toHaveTextContent("Todo");
+    expect(statusOption.querySelector("svg")).toBeInTheDocument();
+    expect(statusOption).toHaveAttribute("aria-checked", "true");
+
+    await user.keyboard("{Escape}");
+    await openMenu();
+    await openSubmenu(user, "Priority");
+    const priorityOption = screen.getByTestId(
+      "issue-context-menu-priority-high",
+    );
+    expect(priorityOption).toHaveTextContent("High");
+    expect(
+      priorityOption.querySelector('[aria-hidden="true"]'),
+    ).toBeInTheDocument();
+    expect(priorityOption).toHaveAttribute("aria-checked", "true");
+
+    await user.keyboard("{Escape}");
+    await openMenu();
+    await openSubmenu(user, "Assignee");
+    const assigneeOption = screen.getByTestId(
+      "issue-context-menu-assignee-alice",
+    );
+    expect(assigneeOption).toHaveTextContent("Alice Kim");
+    expect(assigneeOption).toHaveTextContent("@alice");
+    expect(
+      assigneeOption.querySelector('[aria-hidden="true"]'),
+    ).toBeInTheDocument();
+    expect(assigneeOption).toHaveAttribute("aria-checked", "true");
+
+    await user.keyboard("{Escape}");
+    await openMenu();
+    await openSubmenu(user, "Sprint");
+    const sprintOption = screen.getByTestId(
+      "issue-context-menu-sprint-11111111-1111-4111-8111-111111111111",
+    );
+    expect(sprintOption).toHaveTextContent("Sprint One");
+    expect(sprintOption).toHaveTextContent("Active");
+    expect(
+      sprintOption.querySelector('[aria-hidden="true"]'),
+    ).toBeInTheDocument();
+    expect(sprintOption).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("uses a neutral no-priority parent and option leaf", async () => {
+    const user = userEvent.setup();
+    render(
+      <IntlTestProvider locale="en">
+        <IssueContextMenu
+          issue={{ ...issue, priority: null }}
+          vault="reef-test"
+          planningCatalog={planningCatalog}
+          assignees={[]}
+        >
+          <button type="button" data-testid="issue-context-menu-trigger">
+            Issue
+          </button>
+        </IssueContextMenu>
+      </IntlTestProvider>,
+    );
+
+    await openMenu();
+    const priorityParent = screen.getByRole("menuitem", { name: "Priority" });
+    expect(priorityParent).toHaveTextContent("Priority");
+    expect(priorityParent).toHaveTextContent("No priority");
+
+    await openSubmenu(user, "Priority");
+    const noneOption = screen.getByTestId("issue-context-menu-priority-none");
+    expect(noneOption).toHaveTextContent("No priority");
+    expect(noneOption).toHaveAttribute("aria-checked", "true");
+  });
+
   it("requires the existing close-reason dialog before patching a closed status", async () => {
     const user = userEvent.setup();
     mocks.update.mockResolvedValue({ issue, content: "" });
@@ -245,7 +340,6 @@ describe("IssueContextMenu", () => {
   });
 
   it("uses translated menu copy", async () => {
-    const user = userEvent.setup();
     renderMenu({ locale: "ko" });
     await openMenu();
 

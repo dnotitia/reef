@@ -1,11 +1,14 @@
 import { PRIORITY_COLORS } from "@/components/fields/fieldKit";
-import { usePriorityLabels } from "@/i18n/fieldLabels";
+import {
+  useEnrichmentEmptyLabels,
+  usePriorityLabels,
+} from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { Priority } from "@reef/core";
 import { useTranslations } from "next-intl";
 
 interface PriorityDotProps {
-  priority: Priority;
+  priority: Priority | null;
   size?: number;
   className?: string;
   /**
@@ -23,20 +26,26 @@ export function PriorityDot({
   decorative = false,
 }: PriorityDotProps) {
   const priorityLabels = usePriorityLabels();
+  const emptyLabels = useEnrichmentEmptyLabels();
   const t = useTranslations("components.priorityDot");
+  const isUnset = priority === null;
   return (
     <span
       role={decorative ? undefined : "img"}
       aria-label={
         decorative
           ? undefined
-          : t("ariaLabel", { value: priorityLabels[priority] })
+          : t("ariaLabel", {
+              value: isUnset ? emptyLabels.noPriority : priorityLabels[priority],
+            })
       }
       aria-hidden={decorative ? true : undefined}
-      title={decorative ? undefined : priorityLabels[priority]}
+      title={decorative ? undefined : isUnset ? emptyLabels.noPriority : priorityLabels[priority]}
       className={cn(
         "inline-block shrink-0 rounded-full",
-        PRIORITY_COLORS[priority],
+        isUnset
+          ? "border border-muted-foreground/60"
+          : PRIORITY_COLORS[priority],
         className,
       )}
       style={{ width: size, height: size }}
@@ -45,13 +54,14 @@ export function PriorityDot({
 }
 
 interface PriorityBadgeProps {
-  priority: Priority;
+  priority: Priority | null;
   size?: number;
   className?: string;
 }
 
 export function PriorityBadge({ priority, size, className }: PriorityBadgeProps) {
   const priorityLabels = usePriorityLabels();
+  const emptyLabels = useEnrichmentEmptyLabels();
   return (
     <span
       className={cn(
@@ -60,7 +70,7 @@ export function PriorityBadge({ priority, size, className }: PriorityBadgeProps)
       )}
     >
       <PriorityDot priority={priority} size={size} decorative />
-      <span>{priorityLabels[priority]}</span>
+      <span>{priority ? priorityLabels[priority] : emptyLabels.noPriority}</span>
     </span>
   );
 }

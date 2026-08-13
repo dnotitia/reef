@@ -54,6 +54,7 @@ import {
   CBX_PANEL,
   CBX_PANEL_ABOVE,
   CBX_PANEL_BELOW,
+  CBX_PANEL_POSITIONED,
   CBX_SEARCH,
   CBX_TRIGGER_ACTIVE,
   CBX_TRIGGER_BUTTON,
@@ -567,6 +568,7 @@ export function Combobox<T extends string>({
           ref={panelRef}
           className={cn(
             CBX_PANEL,
+            CBX_PANEL_POSITIONED,
             placement.vertical === "up" ? CBX_PANEL_ABOVE : CBX_PANEL_BELOW,
             placement.horizontal === "end" ? "right-0" : "left-0",
             contentClassName,
