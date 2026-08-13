@@ -138,12 +138,12 @@ export function createKeycloakOidcClient(
       cooldownDuration: 30_000,
       cacheMaxAge: 10 * 60 * 1_000,
       [customFetch]: async (url, init) => {
-        const response = await fetchImpl(url, {
-          ...init,
-          cache: "no-store",
-        });
-        if (response.status !== 200) return response;
         try {
+          const response = await fetchImpl(url, {
+            ...init,
+            cache: "no-store",
+          });
+          if (response.status !== 200) return response;
           const payload = await readBoundedJson(response, {
             maxBytes: maxResponseBytes,
             signal: init.signal,
