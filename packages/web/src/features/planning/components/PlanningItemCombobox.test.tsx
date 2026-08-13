@@ -205,6 +205,7 @@ describe("PlanningItemCombobox", () => {
       const trigger = screen.getByTestId("sprint-combo");
       const triggerText = trigger.querySelector("[data-overflow-target]");
       expect(triggerText).not.toBeNull();
+      expect(triggerText).toHaveClass("block");
       setOverflowGeometry(triggerText as HTMLElement);
       act(() => resize.flush());
       trigger.focus();

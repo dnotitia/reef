@@ -101,7 +101,7 @@ export function PlanningItemCombobox({
       loading={isPending}
       placeholder={resolvedPlaceholder}
       renderValue={() => (
-        <span data-overflow-target="" className="truncate">
+        <span data-overflow-target="" className="block min-w-0 truncate">
           {selected?.name ?? value}
         </span>
       )}

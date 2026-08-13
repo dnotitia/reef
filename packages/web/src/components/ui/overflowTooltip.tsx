@@ -16,6 +16,26 @@ import {
 /** Marker for the exact text node whose width determines tooltip eligibility. */
 export const OVERFLOW_TARGET_SELECTOR = "[data-overflow-target]";
 
+function hasOverflow(
+  container: HTMLElement,
+  targetSelector?: string,
+): boolean | undefined {
+  const target = targetSelector
+    ? container.querySelector<HTMLElement>(targetSelector)
+    : container;
+  if (!target) return false;
+
+  // A conditional Radix trigger can replace the wrapper before its new text
+  // node has participated in layout. Preserve a known result until that node
+  // has measurable geometry; otherwise a transient 0/0 read can undo a real
+  // overflow result and make the tooltip flicker out of the same render pass.
+  if (target.clientWidth === 0 && target.scrollWidth === 0) {
+    return target.textContent?.trim() ? undefined : false;
+  }
+
+  return target.scrollWidth > target.clientWidth;
+}
+
 /**
  * Measure a rendered text node against its own available width.
  *
@@ -30,6 +50,10 @@ export function useOverflowMeasurement(
 ): boolean {
   const [isOverflowing, setIsOverflowing] = useState(false);
 
+  // The trigger wrapper changes shape when the first overflow result enables
+  // Radix's TooltipTrigger. Re-run only for this primitive state transition so
+  // the observer follows the newly committed DOM node without a per-render
+  // layout read.
   useEffect(() => {
     const container = containerRef.current;
     if (!container) {
@@ -39,17 +63,10 @@ export function useOverflowMeasurement(
 
     let disposed = false;
 
-    const getTarget = () =>
-      targetSelector
-        ? container.querySelector<HTMLElement>(targetSelector)
-        : container;
-
     const measure = () => {
       if (disposed) return;
-      const target = getTarget();
-      const next = Boolean(
-        target && target.scrollWidth > target.clientWidth,
-      );
+      const next = hasOverflow(container, targetSelector);
+      if (next === undefined) return;
       setIsOverflowing((previous) => (previous === next ? previous : next));
     };
 
@@ -58,6 +75,14 @@ export function useOverflowMeasurement(
       typeof requestAnimationFrame === "function"
         ? requestAnimationFrame(measure)
         : undefined;
+    // Portaled panels can settle their final width after the first paint. A
+    // second frame catches that layout without adding a global resize listener.
+    let settleFrame: number | undefined;
+    if (typeof requestAnimationFrame === "function") {
+      settleFrame = requestAnimationFrame(() => {
+        if (!disposed) settleFrame = requestAnimationFrame(measure);
+      });
+    }
     const fontsReady = document.fonts?.ready;
     void fontsReady?.then(measure, () => undefined);
 
@@ -66,15 +91,18 @@ export function useOverflowMeasurement(
         ? new ResizeObserver(measure)
         : undefined;
     observer?.observe(container);
-    const target = getTarget();
+    const target = targetSelector
+      ? container.querySelector<HTMLElement>(targetSelector)
+      : container;
     if (target && target !== container) observer?.observe(target);
 
     return () => {
       disposed = true;
       if (frame !== undefined) cancelAnimationFrame(frame);
+      if (settleFrame !== undefined) cancelAnimationFrame(settleFrame);
       observer?.disconnect();
     };
-  }, [containerRef, targetSelector, value]);
+  }, [containerRef, targetSelector, value, isOverflowing]);
 
   return isOverflowing;
 }

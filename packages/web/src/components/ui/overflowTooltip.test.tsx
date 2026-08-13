@@ -1,11 +1,33 @@
 import { act, render, screen } from "@testing-library/react";
-import { useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { useOverflowMeasurement } from "./overflowTooltip";
 
-function MeasurementProbe({ text }: { text: string }) {
+function MeasurementProbe({
+  text,
+  geometry = "fit",
+}: {
+  text: string;
+  geometry?: "fit" | "overflow";
+}) {
   const targetRef = useRef<HTMLSpanElement>(null);
   const overflowing = useOverflowMeasurement(targetRef, text);
+
+  useLayoutEffect(() => {
+    const target = targetRef.current;
+    if (!target) return;
+
+    Object.defineProperties(target, {
+      clientWidth: {
+        configurable: true,
+        value: geometry === "overflow" ? 64 : 260,
+      },
+      scrollWidth: {
+        configurable: true,
+        value: 240,
+      },
+    });
+  }, [geometry]);
 
   return (
     <span>
@@ -62,5 +84,41 @@ describe("useOverflowMeasurement", () => {
 
     rerender(<MeasurementProbe text="A replacement" />);
     expect(screen.getByTestId("measurement-state")).toHaveTextContent("fit");
+  });
+
+  it("rechecks geometry after a parent render settles", () => {
+    const callbacks: Array<() => void> = [];
+    globalThis.ResizeObserver = class {
+      constructor(callback: ResizeObserverCallback) {
+        callbacks.push(() => callback([], this as unknown as ResizeObserver));
+      }
+
+      observe() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+
+    try {
+      const { rerender } = render(
+        <MeasurementProbe text="Long value" geometry="fit" />,
+      );
+
+      expect(screen.getByTestId("measurement-state")).toHaveTextContent(
+        "fit",
+      );
+
+      rerender(<MeasurementProbe text="Long value" geometry="overflow" />);
+      act(() => callbacks.forEach((callback) => callback()));
+      expect(screen.getByTestId("measurement-state")).toHaveTextContent(
+        "overflow",
+      );
+
+      rerender(<MeasurementProbe text="Long value" geometry="fit" />);
+      act(() => callbacks.forEach((callback) => callback()));
+      expect(screen.getByTestId("measurement-state")).toHaveTextContent(
+        "fit",
+      );
+    } finally {
+      globalThis.ResizeObserver = originalResizeObserver;
+    }
   });
 });
