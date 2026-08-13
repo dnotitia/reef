@@ -72,6 +72,7 @@ function renderMenu({ locale = "en" as Locale, archived = false } = {}) {
       <IssueContextMenu
         issue={nextIssue}
         vault="reef-test"
+        currentLogin="alice"
         planningCatalog={planningCatalog}
         assignees={[
           { login: "alice", name: "Alice Kim", avatar_url: null },
@@ -173,6 +174,114 @@ describe("IssueContextMenu", () => {
     });
   });
 
+  it("preserves root chrome while sharing submenu panel and option chrome", async () => {
+    const user = userEvent.setup();
+    renderMenu();
+
+    await openMenu();
+
+    const rootContent = screen.getByTestId("issue-context-menu-content");
+    const statusParent = screen.getByRole("menuitem", { name: "Status" });
+    const priorityParent = screen.getByRole("menuitem", { name: "Priority" });
+    expect(rootContent.className).toContain("min-w-[180px]");
+    expect(rootContent.className).toContain(
+      "rounded-md border border-border bg-popover p-1",
+    );
+    expect(rootContent.className).not.toContain(
+      "motion-safe:animate-in motion-safe:fade-in-0",
+    );
+    expect(statusParent.className).not.toContain("relative");
+    expect(statusParent.className).not.toContain("pr-7");
+    expect(priorityParent.className).not.toContain("relative");
+    expect(priorityParent.className).not.toContain("pr-7");
+    expect(statusParent.querySelector("svg")).toBeInTheDocument();
+    expect(priorityParent.querySelector("svg")).toBeInTheDocument();
+    expect(statusParent).not.toHaveTextContent("Todo");
+    expect(priorityParent).not.toHaveTextContent("High");
+
+    await openSubmenu(user, "Status");
+    const statusMenu = screen.getByRole("menu", { name: "Status" });
+    expect(statusMenu.className).toContain("min-w-[13rem]");
+    expect(statusMenu.className).toContain(
+      "motion-safe:animate-in motion-safe:fade-in-0",
+    );
+    const statusOption = screen.getByTestId("issue-context-menu-status-todo");
+    expect(statusOption).toHaveTextContent("Todo");
+    expect(statusOption.querySelector("svg")).toBeInTheDocument();
+    expect(statusOption).toHaveAttribute("aria-checked", "true");
+    expect(statusOption.className).toContain("relative");
+    expect(statusOption.className).toContain("w-full");
+    expect(statusOption.className).toContain("pr-7");
+
+    await user.keyboard("{Escape}");
+    await openMenu();
+    await openSubmenu(user, "Priority");
+    const priorityOption = screen.getByTestId(
+      "issue-context-menu-priority-high",
+    );
+    expect(priorityOption).toHaveTextContent("High");
+    expect(
+      priorityOption.querySelector('[aria-hidden="true"]'),
+    ).toBeInTheDocument();
+    expect(priorityOption).toHaveAttribute("aria-checked", "true");
+
+    await user.keyboard("{Escape}");
+    await openMenu();
+    await openSubmenu(user, "Assignee");
+    const assigneeOption = screen.getByTestId(
+      "issue-context-menu-assignee-alice",
+    );
+    expect(assigneeOption).toHaveTextContent("Alice Kim");
+    expect(assigneeOption).toHaveTextContent("@alice");
+    expect(
+      assigneeOption.querySelector('[aria-hidden="true"]'),
+    ).toBeInTheDocument();
+    expect(assigneeOption).toHaveAttribute("aria-checked", "true");
+
+    await user.keyboard("{Escape}");
+    await openMenu();
+    await openSubmenu(user, "Sprint");
+    const sprintOption = screen.getByTestId(
+      "issue-context-menu-sprint-11111111-1111-4111-8111-111111111111",
+    );
+    expect(sprintOption).toHaveTextContent("Sprint One");
+    expect(sprintOption).toHaveTextContent("Active");
+    expect(
+      sprintOption.querySelector('[aria-hidden="true"]'),
+    ).toBeInTheDocument();
+    expect(sprintOption).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("keeps the root priority icon while rendering the neutral submenu leaf", async () => {
+    const user = userEvent.setup();
+    render(
+      <IntlTestProvider locale="en">
+        <IssueContextMenu
+          issue={{ ...issue, priority: null }}
+          vault="reef-test"
+          currentLogin="alice"
+          planningCatalog={planningCatalog}
+          assignees={[]}
+        >
+          <button type="button" data-testid="issue-context-menu-trigger">
+            Issue
+          </button>
+        </IssueContextMenu>
+      </IntlTestProvider>,
+    );
+
+    await openMenu();
+    const priorityParent = screen.getByRole("menuitem", { name: "Priority" });
+    expect(priorityParent).toHaveTextContent("Priority");
+    expect(priorityParent).not.toHaveTextContent("No priority");
+    expect(priorityParent.querySelector("svg")).toBeInTheDocument();
+
+    await openSubmenu(user, "Priority");
+    const noneOption = screen.getByTestId("issue-context-menu-priority-none");
+    expect(noneOption).toHaveTextContent("No priority");
+    expect(noneOption).toHaveAttribute("aria-checked", "true");
+  });
+
   it("requires the existing close-reason dialog before patching a closed status", async () => {
     const user = userEvent.setup();
     mocks.update.mockResolvedValue({ issue, content: "" });
@@ -245,7 +354,6 @@ describe("IssueContextMenu", () => {
   });
 
   it("uses translated menu copy", async () => {
-    const user = userEvent.setup();
     renderMenu({ locale: "ko" });
     await openMenu();
 

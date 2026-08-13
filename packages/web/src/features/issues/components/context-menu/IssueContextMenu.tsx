@@ -13,6 +13,11 @@ import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { PersonAvatar } from "@/components/fields/PersonAvatar";
+import { PersonOption } from "@/components/fields/PersonOption";
+import { PlanningOption } from "@/components/fields/PlanningOption";
+import { PriorityBadge } from "@/components/ui/priority-dot";
+import { StatusBadge } from "@/components/ui/status-icon";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -27,7 +32,6 @@ import {
 } from "@/components/ui/context-menu";
 import { useArchiveIssue } from "@/features/issues/hooks/mutations/useArchiveIssue";
 import { useUpdateIssue } from "@/features/issues/hooks/mutations/useUpdateIssue";
-import { usePriorityLabels, useStatusLabels } from "@/i18n/fieldLabels";
 import { useFlashStore } from "@/features/issues/stores/useFlashStore";
 import { buildOpenIssueHref } from "@/features/issues/lib/issueHref";
 import { buildStatusPatch } from "@/features/issues/lib/statusPatch";
@@ -55,6 +59,7 @@ import { CloseIssueDialog } from "../detail/CloseIssueDialog";
 interface IssueContextMenuProps {
   issue: IssueListItem;
   vault: string;
+  currentLogin: string | null;
   planningCatalog?: PlanningCatalog;
   assignees?: readonly Collaborator[];
   onOpenChange?: (open: boolean) => void;
@@ -64,16 +69,22 @@ interface IssueContextMenuProps {
 interface SprintOption {
   id: string;
   name: string;
+  status: string | null;
 }
 
-function collaboratorLabel(collaborator: Collaborator): string {
-  const name = collaborator.name?.trim();
-  return name ? `${name} (${collaborator.login})` : collaborator.login;
+function NoneOption({ label }: { label: string }) {
+  return (
+    <span className="flex min-w-0 flex-1 items-center gap-2">
+      <PersonAvatar identityKey={null} size="sm" decorative />
+      <span>{label}</span>
+    </span>
+  );
 }
 
 export function IssueContextMenu({
   issue,
   vault,
+  currentLogin,
   planningCatalog,
   assignees,
   onOpenChange,
@@ -83,8 +94,6 @@ export function IssueContextMenu({
   const detail = useTranslations("issues.detail");
   const toasts = useTranslations("toasts");
   const board = useTranslations("board");
-  const statusLabels = useStatusLabels();
-  const priorityLabels = usePriorityLabels();
   const updateMutation = useUpdateIssue();
   const archiveMutation = useArchiveIssue();
   const flashIssue = useFlashStore((state) => state.flashIssue);
@@ -106,15 +115,22 @@ export function IssueContextMenu({
   }, [assignees, issue.assigned_to]);
 
   const sprintOptions = useMemo<SprintOption[]>(() => {
-    const options = (planningCatalog?.sprints ?? []).map((sprint) => ({
-      id: sprint.id,
-      name: sprint.name,
-    }));
+    const options: SprintOption[] = (planningCatalog?.sprints ?? []).map(
+      (sprint) => ({
+        id: sprint.id,
+        name: sprint.name,
+        status: sprint.status,
+      }),
+    );
     if (
       issue.sprint_id &&
       !options.some((sprint) => sprint.id === issue.sprint_id)
     ) {
-      options.unshift({ id: issue.sprint_id, name: issue.sprint_id });
+      options.unshift({
+        id: issue.sprint_id,
+        name: issue.sprint_id,
+        status: null,
+      });
     }
     return options;
   }, [issue.sprint_id, planningCatalog]);
@@ -271,7 +287,7 @@ export function IssueContextMenu({
                   data-testid={`issue-context-menu-status-${status}`}
                   disabled={menuDisabled}
                 >
-                  {statusLabels[status]}
+                  <StatusBadge status={status} />
                 </ContextMenuRadioItem>
               ))}
             </ContextMenuRadioGroup>
@@ -295,7 +311,7 @@ export function IssueContextMenu({
                 data-testid="issue-context-menu-assignee-none"
                 disabled={menuDisabled}
               >
-                {menu("none")}
+                <NoneOption label={menu("none")} />
               </ContextMenuRadioItem>
               {assignees === undefined && (
                 <ContextMenuItem disabled>{menu("loading")}</ContextMenuItem>
@@ -310,7 +326,12 @@ export function IssueContextMenu({
                   data-testid={`issue-context-menu-assignee-${assignee.login}`}
                   disabled={menuDisabled}
                 >
-                  {collaboratorLabel(assignee)}
+                  <PersonOption
+                    login={assignee.login}
+                    name={assignee.name}
+                    avatarUrl={assignee.avatar_url}
+                    currentLogin={currentLogin}
+                  />
                 </ContextMenuRadioItem>
               ))}
             </ContextMenuRadioGroup>
@@ -334,7 +355,7 @@ export function IssueContextMenu({
                 data-testid="issue-context-menu-priority-none"
                 disabled={menuDisabled}
               >
-                {menu("none")}
+                <PriorityBadge priority={null} />
               </ContextMenuRadioItem>
               {PRIORITY_OPTIONS.map((priority) => (
                 <ContextMenuRadioItem
@@ -343,7 +364,7 @@ export function IssueContextMenu({
                   data-testid={`issue-context-menu-priority-${priority}`}
                   disabled={menuDisabled}
                 >
-                  {priorityLabels[priority]}
+                  <PriorityBadge priority={priority} />
                 </ContextMenuRadioItem>
               ))}
             </ContextMenuRadioGroup>
@@ -382,7 +403,11 @@ export function IssueContextMenu({
                   data-testid={`issue-context-menu-sprint-${sprint.id}`}
                   disabled={menuDisabled}
                 >
-                  {sprint.name}
+                  <PlanningOption
+                    kind="sprints"
+                    name={sprint.name}
+                    status={sprint.status}
+                  />
                 </ContextMenuRadioItem>
               ))}
             </ContextMenuRadioGroup>

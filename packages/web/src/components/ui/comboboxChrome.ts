@@ -71,9 +71,12 @@ export const CBX_CHEVRON =
  * sheet (REEF-145).
  */
 export const CBX_PANEL =
-  "absolute z-50 w-full min-w-[12rem] rounded-md border border-border " +
+  "z-50 rounded-md border border-border " +
   "bg-popover p-1 shadow-lg shadow-foreground/5 outline-none " +
   "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95";
+
+/** Positioning for the non-portaled combobox panel. */
+export const CBX_PANEL_POSITIONED = "absolute w-full min-w-[12rem]";
 
 /** Panel opening downward, anchored under the trigger (default). */
 export const CBX_PANEL_BELOW = "top-full mt-1";
@@ -99,6 +102,11 @@ export const CBX_OPTION_ROW = "flex items-center gap-2";
 
 /** Keyboard-active highlight — identical token to hover so mouse and keyboard match. */
 export const CBX_OPTION_ACTIVE = "bg-surface-hover text-foreground";
+
+/** Radix menu highlight state, shared by context-menu option rows. */
+export const CBX_OPTION_HIGHLIGHT =
+  "data-[highlighted]:bg-surface-hover data-[highlighted]:text-foreground " +
+  "focus-visible:bg-surface-hover";
 
 /** Muted "none" row (Unassigned / Any sprint). */
 export const CBX_OPTION_MUTED = "text-muted-foreground";
