@@ -101,7 +101,9 @@ export function PlanningItemCombobox({
       loading={isPending}
       placeholder={resolvedPlaceholder}
       renderValue={() => (
-        <span className="truncate">{selected?.name ?? value}</span>
+        <span data-overflow-target="" className="truncate">
+          {selected?.name ?? value}
+        </span>
       )}
       noneOption={showNoneOption ? { label: resolvedEmptyLabel } : undefined}
       emptyState={t("empty")}
@@ -111,6 +113,7 @@ export function PlanningItemCombobox({
         value ? `${resolvedLabel}: ${selected?.name ?? value}` : resolvedLabel
       }
       contentClassName={panelClassName}
+      overflowTooltips
     />
   );
 }

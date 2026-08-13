@@ -13,7 +13,9 @@ export interface PlanningOptionProps {
 export function PlanningOption({ kind, name, status }: PlanningOptionProps) {
   return (
     <span className="flex min-w-0 flex-1 items-center gap-2">
-      <span className="truncate">{name}</span>
+      <span data-overflow-target="" className="truncate">
+        {name}
+      </span>
       <PlanningStatusBadge
         kind={kind}
         status={status}

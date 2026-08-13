@@ -118,6 +118,7 @@ export function IssueOptionRow({
           ref={titleRef}
           text={issue.title}
           query={query}
+          data-overflow-target=""
           className="min-w-0 flex-1 truncate text-sm"
         />
         {selected ? (

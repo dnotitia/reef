@@ -43,6 +43,35 @@ describe("Combobox", () => {
     expect(trigger.querySelector("svg")).not.toBeNull();
   });
 
+  it("keeps overflow tooltips opt-in for generic combobox consumers", async () => {
+    const user = userEvent.setup();
+    const longLabel = "A generic option name that should remain policy-neutral";
+    render(
+      <Combobox<string>
+        value={null}
+        onChange={() => {}}
+        options={[
+          {
+            value: "long",
+            label: longLabel,
+            content: (
+              <span data-overflow-target className="truncate">
+                {longLabel}
+              </span>
+            ),
+          },
+        ]}
+        ariaLabel="Generic field"
+        placeholder="Pick a value"
+      />,
+    );
+
+    await user.click(screen.getByLabelText("Generic field"));
+    const option = screen.getByRole("option", { name: longLabel });
+    await user.hover(option);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
   it("opens on click and commits the clicked option, then closes", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

@@ -1,6 +1,13 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import type { PlanningCatalog } from "@reef/core";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   PLANNING_ITEM_PANEL_CLASS,
@@ -8,6 +15,7 @@ import {
 } from "./PlanningItemCombobox";
 
 const SPRINT_ID = "11111111-1111-4111-8111-111111111111";
+const LONG_SPRINT_ID = "11111111-1111-4111-8111-111111111113";
 
 const catalog: PlanningCatalog = {
   sprints: [
@@ -29,6 +37,15 @@ const catalog: PlanningCatalog = {
       goal: "",
       capacity_points: null,
     },
+    {
+      id: LONG_SPRINT_ID,
+      name: "A planning sprint name that is longer than the compact field width",
+      status: "active",
+      start_date: "2026-06-26",
+      end_date: "2026-07-03",
+      goal: "",
+      capacity_points: null,
+    },
   ],
   milestones: [],
   releases: [],
@@ -39,6 +56,33 @@ vi.mock("../hooks/usePlanningCatalog", () => ({
 }));
 
 afterEach(cleanup);
+
+function installMeasurementObserver() {
+  const previous = globalThis.ResizeObserver;
+  const callbacks: Array<() => void> = [];
+  globalThis.ResizeObserver = class {
+    constructor(callback: ResizeObserverCallback) {
+      callbacks.push(() => callback([], this as unknown as ResizeObserver));
+    }
+
+    observe() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+
+  return {
+    flush: () => callbacks.forEach((callback) => callback()),
+    restore: () => {
+      globalThis.ResizeObserver = previous;
+    },
+  };
+}
+
+function setOverflowGeometry(element: Element) {
+  Object.defineProperties(element, {
+    clientWidth: { configurable: true, value: 96 },
+    scrollWidth: { configurable: true, value: 360 },
+  });
+}
 
 // lucide tags each glyph with `lucide-<name>`; the sprint kind glyph is
 // `iteration-cw`, so we can assert its presence/absence precisely.
@@ -139,5 +183,79 @@ describe("PlanningItemCombobox", () => {
 
     const panel = screen.getByRole("listbox").parentElement;
     expect(panel?.className).toContain(PLANNING_ITEM_PANEL_CLASS);
+  });
+
+  it("shows overflowing trigger and active option names while preserving planning chrome", async () => {
+    const resize = installMeasurementObserver();
+    const user = userEvent.setup();
+    const longName =
+      "A planning sprint name that is longer than the compact field width";
+
+    try {
+      render(
+        <PlanningItemCombobox
+          kind="sprints"
+          vault="v"
+          value={LONG_SPRINT_ID}
+          onChange={() => {}}
+          testId="sprint-combo"
+        />,
+      );
+
+      const trigger = screen.getByTestId("sprint-combo");
+      const triggerText = trigger.querySelector("[data-overflow-target]");
+      expect(triggerText).not.toBeNull();
+      setOverflowGeometry(triggerText as HTMLElement);
+      act(() => resize.flush());
+      trigger.focus();
+      expect(await screen.findByRole("tooltip")).toHaveTextContent(longName);
+      expect(trigger).toHaveAttribute("aria-describedby");
+
+      fireEvent.click(trigger);
+      const option = screen.getByRole("option", {
+        name: /planning sprint name/,
+      });
+      const optionText = option.querySelector("[data-overflow-target]");
+      expect(optionText).not.toBeNull();
+      setOverflowGeometry(optionText as HTMLElement);
+      act(() => resize.flush());
+      expect(await screen.findByRole("tooltip")).toHaveTextContent(longName);
+      expect(option.querySelector(".lucide-check")).not.toBeNull();
+      expect(option).toHaveTextContent("Active");
+
+      await user.keyboard("{Escape}");
+      expect(trigger).toHaveFocus();
+      expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    } finally {
+      resize.restore();
+    }
+  });
+
+  it("does not add an overflow tooltip or description when the trigger fits", async () => {
+    const resize = installMeasurementObserver();
+    try {
+      render(
+        <PlanningItemCombobox
+          kind="sprints"
+          vault="v"
+          value={SPRINT_ID}
+          onChange={() => {}}
+          testId="sprint-combo"
+        />,
+      );
+      const trigger = screen.getByTestId("sprint-combo");
+      const triggerText = trigger.querySelector("[data-overflow-target]");
+      expect(triggerText).not.toBeNull();
+      Object.defineProperties(triggerText as HTMLElement, {
+        clientWidth: { configurable: true, value: 240 },
+        scrollWidth: { configurable: true, value: 96 },
+      });
+      act(() => resize.flush());
+      trigger.focus();
+      expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+      expect(trigger).not.toHaveAttribute("aria-describedby");
+    } finally {
+      resize.restore();
+    }
   });
 });

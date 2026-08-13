@@ -3,6 +3,11 @@
 import { IssueOptionRow } from "@/components/fields/IssueOptionRow";
 import { Button } from "@/components/ui/button";
 import { useOverlayOpenRegistration } from "@/components/ui/overlayDismiss";
+import {
+  OverflowTooltip,
+  OVERFLOW_TARGET_SELECTOR,
+} from "@/components/ui/overflowTooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { useIssueDrill } from "@/features/issues/hooks/view/useIssueDrill";
 import {
   type IssueRelationLike,
@@ -71,6 +76,8 @@ type Option =
   | { kind: "issue"; issue: IssueListItem }
   | { kind: "use"; id: string };
 
+type IssueDrillProps = ReturnType<typeof useIssueDrill>;
+
 /**
  * Issue-relation combobox (REEF-032). Replaces the native `<datalist>` with a
  * small self-owned listbox so each candidate renders as a card-level
@@ -110,6 +117,9 @@ export function IssueRelationInput({
   const [draft, setDraft] = useState(isSingle ? selectedSingleValue : "");
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [overflowingOptions, setOverflowingOptions] = useState<Set<number>>(
+    () => new Set(),
+  );
   // While open inside a Sheet/Dialog, defer Escape to this dropdown so it closes
   // the panel rather than the surrounding sheet (REEF-288).
   useOverlayOpenRegistration(open);
@@ -130,6 +140,17 @@ export function IssueRelationInput({
     width: number;
     maxHeight: number;
   } | null>(null);
+
+  const updateOptionOverflow = useCallback((index: number, next: boolean) => {
+    setOverflowingOptions((previous) => {
+      const has = previous.has(index);
+      if (has === next) return previous;
+      const updated = new Set(previous);
+      if (next) updated.add(index);
+      else updated.delete(index);
+      return updated;
+    });
+  }, []);
 
   // Position the portaled panel relative to the field: at least as wide as the
   // input but does not narrower than 20rem (so the rich rows stay readable in narrow
@@ -275,6 +296,8 @@ export function IssueRelationInput({
   const active = options.length
     ? Math.max(0, Math.min(activeIndex, options.length - 1))
     : 0;
+  const activeOptionId =
+    showPanel && options.length > 0 ? `${listId}-option-${active}` : undefined;
 
   useEffect(() => {
     if (!showPanel) return;
@@ -428,231 +451,265 @@ export function IssueRelationInput({
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
-      {!hideLabel && (
-        <label
-          className="text-xs font-medium text-muted-foreground"
-          htmlFor={id}
-        >
-          {label}
-        </label>
-      )}
-      <div ref={wrapperRef}>
-        <div className="flex gap-1.5">
-          <input
-            id={id}
-            name={id}
-            type="text"
-            role="combobox"
-            aria-expanded={showPanel}
-            aria-controls={showPanel ? listId : undefined}
-            aria-autocomplete="list"
-            aria-label={hideLabel ? label : undefined}
-            value={inputValue}
-            onChange={(e) => {
-              setDraft(e.target.value);
-              setActiveIndex(0);
-              setOpen(true);
-            }}
-            onFocus={() => {
-              setDraft(inputValue);
-              setOpen(true);
-            }}
-            onKeyDown={handleKeyDown}
-            // Short enough to stay readable in a narrow column while still
-            // showing the example id shape and ending with an ellipsis.
-            placeholder={t("idPlaceholder")}
-            disabled={disabled}
-            autoComplete="off"
-            spellCheck={false}
-            className={INPUT_CLASS}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            aria-label={
-              isClearMode
-                ? t("clearField", { field: label })
-                : isSingle
-                  ? t("setField", { field: label })
-                  : t("addField", { field: label })
-            }
-            // Clear is consistently available; Set/Add require something committable
-            // (a match or a valid free-text id) so a non-id string does not be saved.
-            disabled={disabled || (isClearMode ? false : !canCommit || atMax)}
-            onClick={isClearMode ? clearSingleRelation : commitPreferred}
+    <TooltipProvider>
+      <div className="flex flex-col gap-1.5">
+        {!hideLabel && (
+          <label
+            className="text-xs font-medium text-muted-foreground"
+            htmlFor={id}
           >
-            {isSingle ? (
-              isClearMode ? (
-                <X className="h-3.5 w-3.5" />
-              ) : (
-                <Check className="h-3.5 w-3.5" />
-              )
-            ) : (
-              <Plus className="h-3.5 w-3.5" />
-            )}
-          </Button>
-        </div>
-
-        {showPanel &&
-          createPortal(
-            <div
-              ref={panelRef}
-              data-testid="relation-dropdown-panel"
-              // Keep focus on the input when an option is clicked, so the click's
-              // onSelect fires before the outside-mousedown close handler runs.
-              onMouseDown={(e) => e.preventDefault()}
-              // The panel renders before it is measured (so `panelRef` exists for
-              // the layout effect to measure) — hide it for that pre-paint frame so
-              // it does not flashes at the wrong corner.
-              style={{
-                position: "fixed",
-                top: coords?.top,
-                bottom: coords?.bottom,
-                left: coords?.left,
-                width: coords?.width,
-                visibility: coords ? undefined : "hidden",
+            {label}
+          </label>
+        )}
+        <div ref={wrapperRef}>
+          <div className="flex gap-1.5">
+            <input
+              id={id}
+              name={id}
+              type="text"
+              role="combobox"
+              aria-expanded={showPanel}
+              aria-controls={showPanel ? listId : undefined}
+              aria-activedescendant={activeOptionId}
+              aria-describedby={
+                activeOptionId && overflowingOptions.has(active)
+                  ? `${activeOptionId}-overflow`
+                  : undefined
+              }
+              aria-autocomplete="list"
+              aria-label={hideLabel ? label : undefined}
+              value={inputValue}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                setActiveIndex(0);
+                setOpen(true);
               }}
-              className={cn(
-                // `pointer-events-auto` is load-bearing: when this field lives in
-                // a modal Radix dialog (e.g. NewIssueDialog), the dialog's
-                // DismissableLayer sets `pointer-events: none` on <body>, and this
-                // panel — portaled to <body> — inherits it. Without re-enabling
-                // pointer events, clicks pass through the panel: the option button's
-                // onClick does not fires (no relation added) and the outside-mousedown
-                // handler closes the dropdown instead. Inline (non-modal) surfaces
-                // are unaffected but harmless to set.
-                "pointer-events-auto z-[100] rounded-md border border-border bg-popover p-1 shadow-lg shadow-foreground/5",
-                "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95",
-              )}
+              onFocus={() => {
+                setDraft(inputValue);
+                setOpen(true);
+              }}
+              onKeyDown={handleKeyDown}
+              // Short enough to stay readable in a narrow column while still
+              // showing the example id shape and ending with an ellipsis.
+              placeholder={t("idPlaceholder")}
+              disabled={disabled}
+              autoComplete="off"
+              spellCheck={false}
+              className={INPUT_CLASS}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label={
+                isClearMode
+                  ? t("clearField", { field: label })
+                  : isSingle
+                    ? t("setField", { field: label })
+                    : t("addField", { field: label })
+              }
+              // Clear is consistently available; Set/Add require something committable
+              // (a match or a valid free-text id) so a non-id string does not be saved.
+              disabled={disabled || (isClearMode ? false : !canCommit || atMax)}
+              onClick={isClearMode ? clearSingleRelation : commitPreferred}
             >
-              {options.length === 0 ? (
-                <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-                  {t("noMatches")}
-                </p>
+              {isSingle ? (
+                isClearMode ? (
+                  <X className="h-3.5 w-3.5" />
+                ) : (
+                  <Check className="h-3.5 w-3.5" />
+                )
               ) : (
-                <div
-                  ref={listRef}
-                  id={listId}
-                  // `overscroll-contain` stops wheel-scroll from chaining to the
-                  // dialog/sheet; `maxHeight` caps the list to the room available
-                  // in the chosen direction so it does not spills off-screen
-                  // (REEF-223). `max-h-64` is the unmeasured fallback.
-                  style={{ maxHeight: coords?.maxHeight }}
-                  className="max-h-64 overflow-y-auto overflow-x-hidden overscroll-contain"
-                >
-                  {options.map((option, index) => {
-                    const isActive = index === active;
-                    // Options are buttons (not a role="listbox"/"option" tree): the
-                    // input owns ↑/↓ navigation + Enter, buttons are kept out of the
-                    // tab order (tabIndex -1), and this matches the lint-clean dropdown
-                    // pattern already used by AssigneeCombobox.
-                    if (option.kind === "use") {
+                <Plus className="h-3.5 w-3.5" />
+              )}
+            </Button>
+          </div>
+
+          {showPanel &&
+            createPortal(
+              <div
+                ref={panelRef}
+                data-testid="relation-dropdown-panel"
+                // Keep focus on the input when an option is clicked, so the click's
+                // onSelect fires before the outside-mousedown close handler runs.
+                onMouseDown={(e) => e.preventDefault()}
+                // The panel renders before it is measured (so `panelRef` exists for
+                // the layout effect to measure) — hide it for that pre-paint frame so
+                // it does not flashes at the wrong corner.
+                style={{
+                  position: "fixed",
+                  top: coords?.top,
+                  bottom: coords?.bottom,
+                  left: coords?.left,
+                  width: coords?.width,
+                  visibility: coords ? undefined : "hidden",
+                }}
+                className={cn(
+                  // `pointer-events-auto` is load-bearing: when this field lives in
+                  // a modal Radix dialog (e.g. NewIssueDialog), the dialog's
+                  // DismissableLayer sets `pointer-events: none` on <body>, and this
+                  // panel — portaled to <body> — inherits it. Without re-enabling
+                  // pointer events, clicks pass through the panel: the option button's
+                  // onClick does not fires (no relation added) and the outside-mousedown
+                  // handler closes the dropdown instead. Inline (non-modal) surfaces
+                  // are unaffected but harmless to set.
+                  "pointer-events-auto z-[100] rounded-md border border-border bg-popover p-1 shadow-lg shadow-foreground/5",
+                  "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95",
+                )}
+              >
+                {options.length === 0 ? (
+                  <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+                    {t("noMatches")}
+                  </p>
+                ) : (
+                  <div
+                    ref={listRef}
+                    id={listId}
+                    // `overscroll-contain` stops wheel-scroll from chaining to the
+                    // dialog/sheet; `maxHeight` caps the list to the room available
+                    // in the chosen direction so it does not spills off-screen
+                    // (REEF-223). `max-h-64` is the unmeasured fallback.
+                    style={{ maxHeight: coords?.maxHeight }}
+                    className="max-h-64 overflow-y-auto overflow-x-hidden overscroll-contain"
+                  >
+                    {options.map((option, index) => {
+                      const isActive = index === active;
+                      // Options are buttons (not a role="listbox"/"option" tree): the
+                      // input owns ↑/↓ navigation + Enter, buttons are kept out of the
+                      // tab order (tabIndex -1), and this matches the lint-clean dropdown
+                      // pattern already used by AssigneeCombobox.
+                      if (option.kind === "use") {
+                        return (
+                          <button
+                            key="__use"
+                            type="button"
+                            id={`${listId}-option-${index}`}
+                            tabIndex={-1}
+                            onClick={() => selectOption(option)}
+                            onMouseEnter={() => setActiveIndex(index)}
+                            className={cn(
+                              "flex w-full cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground touch-manipulation",
+                              isActive && "bg-accent text-accent-foreground",
+                            )}
+                          >
+                            <Plus
+                              className="size-3.5 shrink-0"
+                              aria-hidden="true"
+                            />
+                            <span>
+                              {t.rich("useOption", {
+                                id: option.id,
+                                mono: (chunks) => (
+                                  <span className="font-mono">{chunks}</span>
+                                ),
+                              })}
+                            </span>
+                          </button>
+                        );
+                      }
                       return (
                         <button
-                          key="__use"
+                          key={option.issue.id}
                           type="button"
+                          id={`${listId}-option-${index}`}
                           tabIndex={-1}
+                          data-issue-id={option.issue.id}
+                          aria-describedby={
+                            isActive && overflowingOptions.has(index)
+                              ? `${listId}-option-${index}-overflow`
+                              : undefined
+                          }
                           onClick={() => selectOption(option)}
                           onMouseEnter={() => setActiveIndex(index)}
                           className={cn(
-                            "flex w-full cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground touch-manipulation",
+                            "flex w-full cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-left touch-manipulation",
                             isActive && "bg-accent text-accent-foreground",
                           )}
                         >
-                          <Plus
-                            className="size-3.5 shrink-0"
-                            aria-hidden="true"
-                          />
-                          <span>
-                            {t.rich("useOption", {
-                              id: option.id,
-                              mono: (chunks) => (
-                                <span className="font-mono">{chunks}</span>
-                              ),
-                            })}
-                          </span>
+                          <OverflowTooltip
+                            active={isActive}
+                            className="flex min-w-0 flex-1"
+                            onOverflowChange={(next) =>
+                              updateOptionOverflow(index, next)
+                            }
+                            text={option.issue.title}
+                            targetSelector={OVERFLOW_TARGET_SELECTOR}
+                          >
+                            <IssueOptionRow
+                              issue={option.issue}
+                              query={inputValue}
+                              blockerCount={unresolvedBlockerCountIn(
+                                option.issue,
+                                blockedIndex,
+                              )}
+                              selected={
+                                isSingle &&
+                                option.issue.id === selectedSingleValue
+                              }
+                            />
+                          </OverflowTooltip>
+                          {isActive && overflowingOptions.has(index) && (
+                            <span
+                              id={`${listId}-option-${index}-overflow`}
+                              className="sr-only"
+                            >
+                              {option.issue.title}
+                            </span>
+                          )}
                         </button>
                       );
-                    }
-                    return (
-                      <button
-                        key={option.issue.id}
-                        type="button"
-                        tabIndex={-1}
-                        data-issue-id={option.issue.id}
-                        onClick={() => selectOption(option)}
-                        onMouseEnter={() => setActiveIndex(index)}
-                        className={cn(
-                          "flex w-full cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-left touch-manipulation",
-                          isActive && "bg-accent text-accent-foreground",
-                        )}
-                      >
-                        <IssueOptionRow
-                          issue={option.issue}
-                          query={inputValue}
-                          blockerCount={unresolvedBlockerCountIn(
-                            option.issue,
-                            blockedIndex,
-                          )}
-                          selected={
-                            isSingle && option.issue.id === selectedSingleValue
-                          }
-                        />
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>,
-            document.body,
-          )}
+                    })}
+                  </div>
+                )}
+              </div>,
+              document.body,
+            )}
+        </div>
+
+        {/* Screen-reader hint for the live result count. */}
+        <span aria-live="polite" className="sr-only">
+          {showPanel && trimmed.length > 0
+            ? t("matchCount", { count: matches.length })
+            : ""}
+        </span>
+
+        {!isSingle &&
+          (value.length > 0 ? (
+            navigable ? (
+              // Detail panel (REEF-268/284): selected targets drill in place
+              // through the same nav model as the parent breadcrumb and
+              // Sub-issues. Isolated in its own component so the drill hook
+              // (router/searchParams) runs on the detail path.
+              <NavigableRelationRows
+                value={value}
+                currentIssueId={currentIssueId}
+                issuesById={issuesById}
+                blockedIndex={blockedIndex}
+                disabled={disabled}
+                onRemove={removeRelation}
+              />
+            ) : (
+              // Create dialog / activity-draft editor: selected targets use the
+              // same compact issue-row rhythm, but without links so clicking does
+              // not leave an unsaved issue.
+              <StaticRelationRows
+                value={value}
+                issuesById={issuesById}
+                blockedIndex={blockedIndex}
+                disabled={disabled}
+                onRemove={removeRelation}
+              />
+            )
+          ) : navigable ? (
+            <p
+              data-testid={`${id}-empty`}
+              className="rounded-md border border-dashed border-border-subtle bg-surface px-2 py-2 text-xs text-muted-foreground"
+            >
+              {t("emptyRelation")}
+            </p>
+          ) : null)}
       </div>
-
-      {/* Screen-reader hint for the live result count. */}
-      <span aria-live="polite" className="sr-only">
-        {showPanel && trimmed.length > 0
-          ? t("matchCount", { count: matches.length })
-          : ""}
-      </span>
-
-      {!isSingle &&
-        (value.length > 0 ? (
-          navigable ? (
-            // Detail panel (REEF-268/284): selected targets drill in place
-            // through the same nav model as the parent breadcrumb and
-            // Sub-issues. Isolated in its own component so the drill hook
-            // (router/searchParams) runs on the detail path.
-            <NavigableRelationRows
-              value={value}
-              currentIssueId={currentIssueId}
-              issuesById={issuesById}
-              blockedIndex={blockedIndex}
-              disabled={disabled}
-              onRemove={removeRelation}
-            />
-          ) : (
-            // Create dialog / activity-draft editor: selected targets use the
-            // same compact issue-row rhythm, but without links so clicking does
-            // not leave an unsaved issue.
-            <StaticRelationRows
-              value={value}
-              issuesById={issuesById}
-              blockedIndex={blockedIndex}
-              disabled={disabled}
-              onRemove={removeRelation}
-            />
-          )
-        ) : navigable ? (
-          <p
-            data-testid={`${id}-empty`}
-            className="rounded-md border border-dashed border-border-subtle bg-surface px-2 py-2 text-xs text-muted-foreground"
-          >
-            {t("emptyRelation")}
-          </p>
-        ) : null)}
-    </div>
+    </TooltipProvider>
   );
 }
 
@@ -692,7 +749,18 @@ function NavigableRelationRows({
     <ul className="flex flex-col gap-0.5">
       {value.map((relationId) => {
         const target = issuesById.get(relationId);
-        return (
+        return target ? (
+          <NavigableRelationRow
+            key={relationId}
+            relationId={relationId}
+            target={target}
+            blockerCount={unresolvedBlockerCountIn(target, blockedIndex)}
+            disabled={disabled}
+            getDrillProps={getDrillProps}
+            onRemove={onRemove}
+            removeLabel={t("removeRelation", { id: relationId })}
+          />
+        ) : (
           <li key={relationId} className="flex items-center gap-1">
             <Link
               {...getDrillProps(relationId)}
@@ -702,21 +770,12 @@ function NavigableRelationRows({
                 "hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
               )}
             >
-              {target ? (
-                <IssueOptionRow
-                  issue={target}
-                  blockerCount={unresolvedBlockerCountIn(target, blockedIndex)}
-                />
-              ) : (
-                // Relation target absent from allIssues (archived, etc.):
-                // degrade to an id fallback link, keeping navigation.
-                <span
-                  translate="no"
-                  className="font-mono text-xs tabular-nums text-muted-foreground"
-                >
-                  {relationId}
-                </span>
-              )}
+              <span
+                translate="no"
+                className="font-mono text-xs tabular-nums text-muted-foreground"
+              >
+                {relationId}
+              </span>
             </Link>
             <button
               type="button"
@@ -731,6 +790,71 @@ function NavigableRelationRows({
         );
       })}
     </ul>
+  );
+}
+
+function NavigableRelationRow({
+  relationId,
+  target,
+  blockerCount,
+  disabled,
+  getDrillProps,
+  onRemove,
+  removeLabel,
+}: {
+  relationId: string;
+  target: IssueListItem;
+  blockerCount: number;
+  disabled: boolean;
+  getDrillProps: IssueDrillProps;
+  onRemove: (id: string) => void;
+  removeLabel: string;
+}) {
+  const [linkFocused, setLinkFocused] = useState(false);
+  const [linkHovered, setLinkHovered] = useState(false);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+  const descriptionId = useId();
+
+  return (
+    <li className="flex items-center gap-1">
+      <Link
+        {...getDrillProps(relationId)}
+        data-issue-id={relationId}
+        aria-describedby={isOverflowing ? descriptionId : undefined}
+        onFocus={() => setLinkFocused(true)}
+        onBlur={() => setLinkFocused(false)}
+        onPointerEnter={() => setLinkHovered(true)}
+        onPointerLeave={() => setLinkHovered(false)}
+        className={cn(
+          "flex min-w-0 flex-1 touch-manipulation items-center rounded-md px-1.5 py-1 transition-colors duration-150",
+          "hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
+        )}
+      >
+        <OverflowTooltip
+          active={linkFocused || linkHovered}
+          className="flex min-w-0 flex-1"
+          onOverflowChange={setIsOverflowing}
+          text={target.title}
+          targetSelector={OVERFLOW_TARGET_SELECTOR}
+        >
+          <IssueOptionRow issue={target} blockerCount={blockerCount} />
+        </OverflowTooltip>
+      </Link>
+      {isOverflowing && (
+        <span id={descriptionId} className="sr-only">
+          {target.title}
+        </span>
+      )}
+      <button
+        type="button"
+        aria-label={removeLabel}
+        disabled={disabled}
+        onClick={() => onRemove(relationId)}
+        className="shrink-0 touch-manipulation rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50"
+      >
+        <X className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
+    </li>
   );
 }
 
@@ -752,22 +876,25 @@ function StaticRelationRows({
     <ul className="flex flex-col gap-0.5">
       {value.map((relationId) => {
         const target = issuesById.get(relationId);
-        return (
+        return target ? (
+          <StaticRelationRow
+            key={relationId}
+            relationId={relationId}
+            target={target}
+            blockerCount={unresolvedBlockerCountIn(target, blockedIndex)}
+            disabled={disabled}
+            onRemove={onRemove}
+            removeLabel={t("removeRelation", { id: relationId })}
+          />
+        ) : (
           <li key={relationId} className="flex items-center gap-1">
             <div className="flex min-w-0 flex-1 items-center rounded-md px-1.5 py-1">
-              {target ? (
-                <IssueOptionRow
-                  issue={target}
-                  blockerCount={unresolvedBlockerCountIn(target, blockedIndex)}
-                />
-              ) : (
-                <span
-                  translate="no"
-                  className="font-mono text-xs tabular-nums text-muted-foreground"
-                >
-                  {relationId}
-                </span>
-              )}
+              <span
+                translate="no"
+                className="font-mono text-xs tabular-nums text-muted-foreground"
+              >
+                {relationId}
+              </span>
             </div>
             <button
               type="button"
@@ -782,5 +909,65 @@ function StaticRelationRows({
         );
       })}
     </ul>
+  );
+}
+
+function StaticRelationRow({
+  relationId,
+  target,
+  blockerCount,
+  disabled,
+  onRemove,
+  removeLabel,
+}: {
+  relationId: string;
+  target: IssueListItem;
+  blockerCount: number;
+  disabled: boolean;
+  onRemove: (id: string) => void;
+  removeLabel: string;
+}) {
+  const [removeFocused, setRemoveFocused] = useState(false);
+  const [rowHovered, setRowHovered] = useState(false);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+  const descriptionId = useId();
+
+  return (
+    <li
+      className="flex items-center gap-1"
+      onPointerEnter={() => setRowHovered(true)}
+      onPointerLeave={() => setRowHovered(false)}
+    >
+      <div className="flex min-w-0 flex-1 items-center rounded-md px-1.5 py-1">
+        <OverflowTooltip
+          active={removeFocused || rowHovered}
+          className="flex min-w-0 flex-1"
+          onOverflowChange={setIsOverflowing}
+          text={target.title}
+          targetSelector={OVERFLOW_TARGET_SELECTOR}
+        >
+          <IssueOptionRow issue={target} blockerCount={blockerCount} />
+        </OverflowTooltip>
+      </div>
+      <button
+        type="button"
+        aria-label={removeLabel}
+        aria-describedby={
+          isOverflowing && removeFocused ? descriptionId : undefined
+        }
+        disabled={disabled}
+        onFocus={() => setRemoveFocused(true)}
+        onBlur={() => setRemoveFocused(false)}
+        onClick={() => onRemove(relationId)}
+        className="shrink-0 touch-manipulation rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50"
+      >
+        <X className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
+      {isOverflowing && removeFocused && (
+        <span id={descriptionId} className="sr-only">
+          {target.title}
+        </span>
+      )}
+    </li>
   );
 }

@@ -1,6 +1,7 @@
 import { useIssueNavStack } from "@/features/issues/stores/useIssueNavStack";
 import type { IssueListItem, VaultMember } from "@reef/core";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -53,6 +54,26 @@ afterEach(() => {
   mockReplace.mockClear();
   useIssueNavStack.setState({ trail: [], currentId: null });
 });
+
+function installMeasurementObserver() {
+  const previous = globalThis.ResizeObserver;
+  const callbacks: Array<() => void> = [];
+  globalThis.ResizeObserver = class {
+    constructor(callback: ResizeObserverCallback) {
+      callbacks.push(() => callback([], this as unknown as ResizeObserver));
+    }
+
+    observe() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+
+  return {
+    flush: () => callbacks.forEach((callback) => callback()),
+    restore: () => {
+      globalThis.ResizeObserver = previous;
+    },
+  };
+}
 
 const base = {
   created_by: "alice",
@@ -387,89 +408,99 @@ describe("IssueChildren", () => {
 
   it("reveals an overflowing child title on hover and keyboard focus", async () => {
     const user = userEvent.setup();
+    const resize = installMeasurementObserver();
     const title =
       "A child title that is longer than the available relation-row title track";
-    render(
-      <IssueChildren
-        issueId={PARENT}
-        allIssues={[
-          makeIssue({
-            id: "REEF-104",
-            title,
-            parent_id: PARENT,
-            status: "todo",
-          }),
-        ]}
-      />,
-    );
+    try {
+      render(
+        <IssueChildren
+          issueId={PARENT}
+          allIssues={[
+            makeIssue({
+              id: "REEF-104",
+              title,
+              parent_id: PARENT,
+              status: "todo",
+            }),
+          ]}
+        />,
+      );
 
-    const titleElement = screen.getByText(title);
-    Object.defineProperty(titleElement, "clientWidth", {
-      configurable: true,
-      value: 96,
-    });
-    Object.defineProperty(titleElement, "scrollWidth", {
-      configurable: true,
-      value: 360,
-    });
-    fireEvent(window, new Event("resize"));
+      const titleElement = screen.getByText(title);
+      Object.defineProperty(titleElement, "clientWidth", {
+        configurable: true,
+        value: 96,
+      });
+      Object.defineProperty(titleElement, "scrollWidth", {
+        configurable: true,
+        value: 360,
+      });
+      act(() => resize.flush());
 
-    const link = screen.getByRole("link", { name: new RegExp(title) });
-    await user.hover(link);
-    expect(await screen.findByRole("tooltip")).toHaveTextContent(title);
-    expect(link).toHaveAttribute("aria-describedby");
+      const link = screen.getByRole("link", { name: new RegExp(title) });
+      await user.hover(link);
+      expect(await screen.findByRole("tooltip")).toHaveTextContent(title);
+      expect(link).toHaveAttribute("aria-describedby");
 
-    await user.unhover(link);
-    await user.tab();
-    expect(await screen.findByRole("tooltip")).toHaveTextContent(title);
+      await user.unhover(link);
+      await user.tab();
+      expect(await screen.findByRole("tooltip")).toHaveTextContent(title);
 
-    link.blur();
-    await waitFor(() =>
-      expect(screen.queryByRole("tooltip")).not.toBeInTheDocument(),
-    );
-    link.focus();
-    expect(await screen.findByRole("tooltip")).toHaveTextContent(title);
-    await user.keyboard("{Escape}");
-    await waitFor(() =>
-      expect(screen.queryByRole("tooltip")).not.toBeInTheDocument(),
-    );
-    expect(link).toHaveFocus();
+      link.blur();
+      await waitFor(() =>
+        expect(screen.queryByRole("tooltip")).not.toBeInTheDocument(),
+      );
+      link.focus();
+      expect(await screen.findByRole("tooltip")).toHaveTextContent(title);
+      await user.keyboard("{Escape}");
+      await waitFor(() =>
+        expect(screen.queryByRole("tooltip")).not.toBeInTheDocument(),
+      );
+      expect(link).toHaveFocus();
+    } finally {
+      resize.restore();
+    }
   });
 
   it("does not create a tooltip when the title fits its track", async () => {
     const user = userEvent.setup();
+    const resize = installMeasurementObserver();
     const title = "Short child title";
-    render(
-      <IssueChildren
-        issueId={PARENT}
-        allIssues={[
-          makeIssue({
-            id: "REEF-105",
-            title,
-            parent_id: PARENT,
-            status: "todo",
-          }),
-        ]}
-      />,
-    );
+    try {
+      render(
+        <IssueChildren
+          issueId={PARENT}
+          allIssues={[
+            makeIssue({
+              id: "REEF-105",
+              title,
+              parent_id: PARENT,
+              status: "todo",
+            }),
+          ]}
+        />,
+      );
 
-    const titleElement = screen.getByText(title);
-    Object.defineProperty(titleElement, "clientWidth", {
-      configurable: true,
-      value: 240,
-    });
-    Object.defineProperty(titleElement, "scrollWidth", {
-      configurable: true,
-      value: 120,
-    });
-    fireEvent(window, new Event("resize"));
+      const titleElement = screen.getByText(title);
+      Object.defineProperty(titleElement, "clientWidth", {
+        configurable: true,
+        value: 240,
+      });
+      Object.defineProperty(titleElement, "scrollWidth", {
+        configurable: true,
+        value: 120,
+      });
+      act(() => resize.flush());
 
-    const link = screen.getByRole("link", { name: new RegExp(title) });
-    await user.hover(link);
-    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
-    await user.unhover(link);
-    link.focus();
-    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
-    expect(link).not.toHaveAttribute("aria-describedby");
+      const link = screen.getByRole("link", { name: new RegExp(title) });
+      await user.hover(link);
+      expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+      await user.unhover(link);
+      link.focus();
+      expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+      expect(link).not.toHaveAttribute("aria-describedby");
+    } finally {
+      resize.restore();
+    }
   });
 });

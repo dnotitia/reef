@@ -59,8 +59,13 @@ import {
   CBX_TRIGGER_BUTTON,
   CBX_TRIGGER_FIELD,
 } from "./comboboxChrome";
+import {
+  OverflowTooltip,
+  OVERFLOW_TARGET_SELECTOR,
+} from "./overflowTooltip";
 import { SearchProgressBar } from "./SearchProgressBar";
 import { useOverlayOpenRegistration } from "./overlayDismiss";
+import { TooltipProvider } from "./tooltip";
 
 export interface ComboboxOption<T extends string> {
   value: T;
@@ -119,6 +124,8 @@ interface ComboboxProps<T extends string> {
   contentClassName?: string;
   /** Per-row layout override (e.g. two-line stacks). Defaults to a single line. */
   optionClassName?: string;
+  /** Explicit opt-in for planning's measured trigger/option names. */
+  overflowTooltips?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
@@ -158,6 +165,7 @@ export function Combobox<T extends string>({
   className,
   contentClassName,
   optionClassName,
+  overflowTooltips = false,
   open: controlledOpen,
   onOpenChange,
 }: ComboboxProps<T>) {
@@ -174,6 +182,12 @@ export function Combobox<T extends string>({
   );
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
+  const [triggerFocused, setTriggerFocused] = useState(false);
+  const [triggerTooltipDismissed, setTriggerTooltipDismissed] = useState(false);
+  const [triggerOverflowing, setTriggerOverflowing] = useState(false);
+  const [overflowingRows, setOverflowingRows] = useState<Set<number>>(
+    () => new Set(),
+  );
   const [placement, setPlacement] = useState<PanelPlacement>({
     vertical: "down",
     horizontal: align,
@@ -196,6 +210,20 @@ export function Combobox<T extends string>({
 
   const listId = useId();
   const isButton = triggerVariant === "button";
+
+  const updateRowOverflow = useCallback(
+    (index: number, next: boolean) => {
+      setOverflowingRows((previous) => {
+        const has = previous.has(index);
+        if (has === next) return previous;
+        const updated = new Set(previous);
+        if (next) updated.add(index);
+        else updated.delete(index);
+        return updated;
+      });
+    },
+    [],
+  );
 
   // Client-side filter only when searchable AND the caller is not running its
   // own (server) search via onQueryChange.
@@ -274,6 +302,7 @@ export function Combobox<T extends string>({
   }, [rows, value]);
 
   const close = useCallback(() => {
+    setTriggerTooltipDismissed(true);
     setOpen(false);
     setQuery("");
     onQueryChange?.("");
@@ -281,6 +310,7 @@ export function Combobox<T extends string>({
 
   const openPanel = useCallback(() => {
     if (disabled) return;
+    setTriggerTooltipDismissed(false);
     setOpen(true);
     initializeActiveIndex();
   }, [disabled, initializeActiveIndex, setOpen]);
@@ -509,21 +539,39 @@ export function Combobox<T extends string>({
       <span className="truncate text-muted-foreground">{placeholder}</span>
     ));
 
-  return (
-    <div
-      ref={rootRef}
-      data-testid={testId}
-      // Close when keyboard focus (Tab) leaves the combobox entirely — the
-      // mousedown-outside handler only covers pointer dismissal. relatedTarget
-      // is the element gaining focus; null or outside-root means we tabbed away.
-      onBlur={(e) => {
-        if (!rootRef.current?.contains(e.relatedTarget as Node | null)) close();
-      }}
-      className={cn(
-        isButton ? "relative inline-block" : "relative w-full",
-        className,
-      )}
+  const triggerOverflowText = selectedOption?.label ?? value ?? "";
+  const triggerDescriptionId = `${listId}-trigger-overflow`;
+  const renderedTriggerBody = overflowTooltips ? (
+    <OverflowTooltip
+      active={triggerFocused && !open && !triggerTooltipDismissed}
+      className="min-w-0 flex-1"
+      onOverflowChange={setTriggerOverflowing}
+      text={triggerOverflowText}
+      targetSelector={OVERFLOW_TARGET_SELECTOR}
     >
+      {triggerBody}
+    </OverflowTooltip>
+  ) : (
+    triggerBody
+  );
+
+  return (
+    <TooltipProvider>
+      <div
+        ref={rootRef}
+        data-testid={testId}
+        // Close when keyboard focus (Tab) leaves the combobox entirely — the
+        // mousedown-outside handler only covers pointer dismissal. relatedTarget
+        // is the element gaining focus; null or outside-root means we tabbed away.
+        onBlur={(e) => {
+          if (!rootRef.current?.contains(e.relatedTarget as Node | null))
+            close();
+        }}
+        className={cn(
+          isButton ? "relative inline-block" : "relative w-full",
+          className,
+        )}
+      >
       <button
         ref={triggerRef}
         type="button"
@@ -536,6 +584,16 @@ export function Combobox<T extends string>({
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
         aria-activedescendant={!searchable && open ? activeRowId : undefined}
+        aria-describedby={
+          overflowTooltips && triggerOverflowing
+            ? triggerDescriptionId
+            : undefined
+        }
+        onFocus={() => {
+          setTriggerFocused(true);
+          setTriggerTooltipDismissed(false);
+        }}
+        onBlur={() => setTriggerFocused(false)}
         onPointerDown={handlePointerDown}
         onPointerCancel={() => {
           pointerActivationRef.current = false;
@@ -556,11 +614,16 @@ export function Combobox<T extends string>({
           !isButton && active && CBX_TRIGGER_ACTIVE,
         )}
       >
-        {triggerBody}
+        {renderedTriggerBody}
         {!isButton && !triggerContent && (
           <ChevronDown data-open={open} className={CBX_CHEVRON} />
         )}
       </button>
+      {overflowTooltips && triggerOverflowing && (
+        <span id={triggerDescriptionId} className="sr-only">
+          {triggerOverflowText}
+        </span>
+      )}
 
       {open && (
         <div
@@ -626,6 +689,13 @@ export function Combobox<T extends string>({
                     role="option"
                     aria-selected={selected}
                     aria-disabled={row.disabled || undefined}
+                    aria-describedby={
+                      overflowTooltips &&
+                      isActive &&
+                      overflowingRows.has(index)
+                        ? `${listId}-row-${index}-overflow`
+                        : undefined
+                    }
                     tabIndex={-1}
                     id={`${listId}-row-${index}`}
                     data-testid={row.testId}
@@ -644,8 +714,32 @@ export function Combobox<T extends string>({
                       "disabled:pointer-events-none disabled:opacity-50",
                     )}
                   >
-                    {row.content}
+                    {overflowTooltips ? (
+                      <OverflowTooltip
+                        active={isActive}
+                        className="flex min-w-0 flex-1"
+                        onOverflowChange={(next) =>
+                          updateRowOverflow(index, next)
+                        }
+                        text={row.label}
+                        targetSelector={OVERFLOW_TARGET_SELECTOR}
+                      >
+                        {row.content}
+                      </OverflowTooltip>
+                    ) : (
+                      row.content
+                    )}
                     {selected && <Check className={CBX_CHECK} aria-hidden />}
+                    {overflowTooltips &&
+                      isActive &&
+                      overflowingRows.has(index) && (
+                        <span
+                          id={`${listId}-row-${index}-overflow`}
+                          className="sr-only"
+                        >
+                          {row.label}
+                        </span>
+                      )}
                   </button>
               );
             })}
@@ -665,6 +759,7 @@ export function Combobox<T extends string>({
             : ""}
         </span>
       )}
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }

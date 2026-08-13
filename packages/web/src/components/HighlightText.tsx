@@ -1,9 +1,9 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Fragment, forwardRef } from "react";
+import { Fragment, forwardRef, type HTMLAttributes } from "react";
 
-interface HighlightTextProps {
+interface HighlightTextProps extends HTMLAttributes<HTMLSpanElement> {
   text: string;
   /** Case-insensitive needle. Empty string or whitespace renders text unchanged. */
   query: string;
@@ -22,11 +22,11 @@ interface HighlightTextProps {
  * dependency direction one-way (shared ← features, does not the reverse).
  */
 export const HighlightText = forwardRef<HTMLSpanElement, HighlightTextProps>(
-  function HighlightText({ text, query, className }, ref) {
+  function HighlightText({ text, query, className, ...rest }, ref) {
     const trimmed = query.trim();
     if (!trimmed)
       return (
-        <span ref={ref} className={className}>
+        <span ref={ref} className={className} {...rest}>
           {text}
         </span>
       );
@@ -53,7 +53,7 @@ export const HighlightText = forwardRef<HTMLSpanElement, HighlightTextProps>(
     }
 
     return (
-      <span ref={ref} className={className}>
+      <span ref={ref} className={className} {...rest}>
         {parts.map((part, i) => {
           // Keys combine position + value: stable within a render, and the entire
           // list is rebuilt whenever `text` or `query` change anyway.

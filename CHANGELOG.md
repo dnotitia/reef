@@ -22,6 +22,9 @@ explicitly in the entries below.
   the stable username, with refresh-on-mount roster revalidation and login
   fallbacks for missing names or members.** (REEF-504)
 - **Truncated sub-issue titles now expose the full title on hover and keyboard focus without changing the existing row metadata layout.** (REEF-507)
+- **Actually truncated relation and planning-item names now expose the full value
+  on pointer hover or keyboard focus, while preserving existing selection,
+  dismissal, navigation, and responsive row behavior.** (REEF-509)
 - **Issue detail panels can now be resized on desktop** with a pointer or
   keyboard splitter, while preserving the width for the current tab session
   and keeping the existing narrow-screen layout.
