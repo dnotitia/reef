@@ -201,10 +201,18 @@ describe("IssueListRow", () => {
     const stickyCell = row.querySelector<HTMLElement>(
       'td[data-column-key="id"]',
     );
+    const boundaryCell = row.querySelector<HTMLElement>(
+      'td[data-column-key="select"]',
+    );
+    const titleCell = row.querySelector<HTMLElement>(
+      'td[data-column-key="title"]',
+    );
     const ordinaryCell = row.querySelector<HTMLElement>(
       'td[data-column-key="title"]',
     );
     expect(stickyCell).not.toBeNull();
+    expect(boundaryCell).not.toBeNull();
+    expect(titleCell).not.toBeNull();
     expect(ordinaryCell).not.toBeNull();
 
     fireEvent.contextMenu(row, { clientX: 20, clientY: 20 });
@@ -216,6 +224,10 @@ describe("IssueListRow", () => {
     expect(row).toHaveAttribute("data-context-open", "true");
     expect(row.className).toContain("bg-brand/5");
     expect(row.className).toContain("ring-1");
+    expect(Number(boundaryCell?.style.zIndex)).toBeGreaterThan(
+      Number(titleCell?.style.zIndex),
+    );
+    expect(boundaryCell?.style.zIndex).toBe("40");
     expect(stickyCell?.className).toContain("reef-list-sticky-state");
     expect(stickyCell?.className).not.toContain("group-hover:bg-surface-hover");
     expect(ordinaryCell?.className).not.toContain("bg-surface-hover");
@@ -249,7 +261,15 @@ describe("IssueListRow", () => {
     const stickyCell = row.querySelector<HTMLElement>(
       'td[data-column-key="id"]',
     );
+    const boundaryCell = row.querySelector<HTMLElement>(
+      'td[data-column-key="select"]',
+    );
+    const titleCell = row.querySelector<HTMLElement>(
+      'td[data-column-key="title"]',
+    );
     expect(stickyCell).not.toBeNull();
+    expect(boundaryCell).not.toBeNull();
+    expect(titleCell).not.toBeNull();
 
     fireEvent.contextMenu(row, { clientX: 20, clientY: 20 });
 
@@ -260,6 +280,10 @@ describe("IssueListRow", () => {
     expect(row).toHaveAttribute("data-context-open", "true");
     expect(row.className).not.toContain("bg-brand/5");
     expect(row.className).toContain("hover:bg-transparent");
+    expect(Number(boundaryCell?.style.zIndex)).toBeGreaterThan(
+      Number(titleCell?.style.zIndex),
+    );
+    expect(boundaryCell?.style.zIndex).toBe("40");
     expect(stickyCell?.className).not.toContain("group-hover:bg-surface-hover");
 
     await user.keyboard("{Escape}");

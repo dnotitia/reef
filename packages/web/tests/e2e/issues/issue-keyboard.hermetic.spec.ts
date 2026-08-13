@@ -406,13 +406,6 @@ test.describe("Hermetic issue keyboard navigation", () => {
     await selectedRow.getByTestId("issue-row-checkbox").click();
     await expect(selectedRow).toHaveAttribute("aria-selected", "true");
 
-    await scroll.evaluate((element) => {
-      const root = element as HTMLElement;
-      root.scrollLeft = root.scrollWidth;
-      root.dispatchEvent(new Event("scroll"));
-    });
-    await page.waitForTimeout(50);
-
     const boundary = async (row: typeof selectedRow) =>
       row.evaluate((element) => {
         const stickyColumns = ["select", "id", "type", "title"];
@@ -444,6 +437,26 @@ test.describe("Hermetic issue keyboard navigation", () => {
             rect: rect(column),
           };
         });
+        const boundaryCell = element.querySelector<HTMLElement>(
+          'td[data-column-key="select"]',
+        );
+        const titleCell = element.querySelector<HTMLElement>(
+          'td[data-column-key="title"]',
+        );
+        if (!boundaryCell || !titleCell) {
+          throw new Error("missing row boundary cells");
+        }
+        const scrollRoot = element.closest<HTMLElement>(
+          '[data-testid="issue-list-scroll-container"]',
+        );
+        if (!scrollRoot) {
+          throw new Error("missing List scroll container");
+        }
+        const pseudo = getComputedStyle(boundaryCell, "::after");
+        const boundaryRect = boundaryCell.getBoundingClientRect();
+        const scrollRect = scrollRoot.getBoundingClientRect();
+        const pseudoLeft = Number.parseFloat(pseudo.left);
+        const pseudoWidth = Number.parseFloat(pseudo.width);
         const overlaps = ["status", "assignee"].map((column) => {
           const ordinary = rect(column);
           return {
@@ -457,11 +470,59 @@ test.describe("Hermetic issue keyboard navigation", () => {
             ),
           };
         });
-        return { sticky, overlaps };
+        return {
+          sticky,
+          overlaps,
+          activeBoundary: {
+            content: pseudo.content,
+            borderTopStyle: pseudo.borderTopStyle,
+            borderTopWidth: pseudo.borderTopWidth,
+            selectZIndex: Number(getComputedStyle(boundaryCell).zIndex),
+            titleZIndex: Number(getComputedStyle(titleCell).zIndex),
+            left: boundaryRect.left + pseudoLeft,
+            right: boundaryRect.left + pseudoLeft + pseudoWidth,
+            viewportLeft: scrollRect.left,
+            viewportRight: scrollRect.right,
+          },
+        };
       });
+
+    const assertActiveBoundary = (
+      snapshot: Awaited<ReturnType<typeof boundary>>,
+    ) => {
+      expect(snapshot.activeBoundary.content).not.toBe("none");
+      expect(snapshot.activeBoundary.borderTopStyle).toBe("solid");
+      expect(snapshot.activeBoundary.borderTopWidth).toBe("1px");
+      expect(snapshot.activeBoundary.selectZIndex).toBeGreaterThan(
+        snapshot.activeBoundary.titleZIndex,
+      );
+      expect(snapshot.activeBoundary.left).toBeLessThanOrEqual(
+        snapshot.activeBoundary.viewportLeft + 1,
+      );
+      expect(snapshot.activeBoundary.right).toBeGreaterThanOrEqual(
+        snapshot.activeBoundary.viewportRight - 1,
+      );
+    };
+
+    await scroll.evaluate((element) => {
+      const root = element as HTMLElement;
+      root.scrollLeft = 0;
+      root.dispatchEvent(new Event("scroll"));
+    });
+    await page.waitForTimeout(50);
+    const selectedLeftBoundary = await boundary(selectedRow);
+    assertActiveBoundary(selectedLeftBoundary);
+
+    await scroll.evaluate((element) => {
+      const root = element as HTMLElement;
+      root.scrollLeft = root.scrollWidth;
+      root.dispatchEvent(new Event("scroll"));
+    });
+    await page.waitForTimeout(50);
 
     const selectedBoundary = await boundary(selectedRow);
     const unselectedBoundary = await boundary(unselectedRow);
+    assertActiveBoundary(selectedBoundary);
     expect(selectedBoundary.overlaps).toEqual([
       { column: "status", overlap: true },
       { column: "assignee", overlap: true },
@@ -477,6 +538,12 @@ test.describe("Hermetic issue keyboard navigation", () => {
       expect(cell.alpha).toBe(1);
       expect(cell.zIndex).not.toBe("auto");
     }
+
+    await unselectedRow.click({ button: "right" });
+    await expect(page.getByRole("menu")).toBeVisible();
+    const unselectedContextBoundary = await boundary(unselectedRow);
+    assertActiveBoundary(unselectedContextBoundary);
+    await page.keyboard.press("Escape");
   });
 
   test("moves Backlog focus with j, exposes semantic links, and opens the focused issue", async ({
