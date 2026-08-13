@@ -107,9 +107,6 @@ function IssueChildRow({
         onFocus={() => {
           setActiveTooltip(isTitleOverflowing ? "title" : null);
         }}
-        onPointerEnter={() => {
-          setActiveTooltip(isTitleOverflowing ? "title" : null);
-        }}
         onBlur={(event) => {
           if (
             !event.currentTarget.contains(event.relatedTarget as Node | null)
