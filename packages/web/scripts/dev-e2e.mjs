@@ -611,8 +611,8 @@ export async function startRuntime(options) {
       // operator/deployment backend replace the fixture that discovery
       // advertises for browser login.
       AKB_BACKEND_URL: `${options.fixtureOrigin}/akb`,
-      // The dev-only proxy uses this loopback origin to allow fixture images;
-      // production CSP remains unchanged.
+      // The dev-only E2E asset route uses this loopback origin; production
+      // behavior and CSP remain unchanged.
       REEF_E2E_MOCK_URL: options.fixtureOrigin,
       // Server-read akb web base (REEF-368) so linked-document backlinks render
       // when browsing the hermetic runtime locally.

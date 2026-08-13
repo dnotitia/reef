@@ -590,25 +590,12 @@ describe("proxy — CSP header audit", () => {
   });
 });
 
-describe("proxy — dev:e2e fixture image CSP", () => {
+describe("proxy — E2E fixture asset CSP boundary", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });
 
-  it("allows only the loopback fixture origin in development", () => {
-    vi.stubEnv("NODE_ENV", "development");
-    vi.stubEnv("REEF_E2E_MOCK_URL", "http://127.0.0.1:9136");
-
-    const response = proxy(
-      new NextRequest("https://reef.test/workspace/reef-e2e/issues/REEF-001"),
-    );
-    const csp = response.headers.get("Content-Security-Policy") ?? "";
-    const imageSrc = csp.match(/img-src\s+([^;]+)/)?.[1] ?? "";
-
-    expect(imageSrc.split(/\s+/u)).toContain("http://127.0.0.1:9136");
-  });
-
-  it("does not add the fixture origin outside development", () => {
+  it("keeps the production image policy unchanged when E2E env is present", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("REEF_E2E_MOCK_URL", "http://127.0.0.1:9136");
 
@@ -617,6 +604,9 @@ describe("proxy — dev:e2e fixture image CSP", () => {
     );
     const csp = response.headers.get("Content-Security-Policy") ?? "";
 
-    expect(csp).not.toContain("http://127.0.0.1:9136");
+    expect(csp).toContain(
+      "img-src 'self' data: blob: https://avatars.githubusercontent.com",
+    );
+    expect(csp).not.toContain("127.0.0.1:9136");
   });
 });

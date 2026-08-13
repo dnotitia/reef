@@ -128,7 +128,6 @@ export function proxy(request: NextRequest) {
   //                                   execution and is the Next.js-recommended trade-off
   //                                   when style nonces aren't feasible
   //   img-src 'self' data: blob: https://avatars.githubusercontent.com
-  //                                 [dev:e2e: loopback fixture origin]
   //                                 — inline SVG data URIs, same-origin images, blob:
   //                                   URLs created by next/image runtime, and GitHub user
   //                                   avatars (rendered via plain <img> in
@@ -142,19 +141,11 @@ export function proxy(request: NextRequest) {
   //                                   exfiltration via form submission
   //   frame-ancestors 'none'        — disallow embedding in iframes (clickjacking)
   //   upgrade-insecure-requests     — transparently upgrade http subresources to https
-  const e2eImageOrigin = getDevelopmentE2EImageOrigin();
-  const imageSources = [
-    "'self'",
-    "data:",
-    "blob:",
-    "https://avatars.githubusercontent.com",
-    ...(e2eImageOrigin ? [e2eImageOrigin] : []),
-  ];
   const csp = [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'",
-    `img-src ${imageSources.join(" ")}`,
+    "img-src 'self' data: blob: https://avatars.githubusercontent.com",
     "connect-src 'self'",
     "font-src 'self'",
     "object-src 'none'",
@@ -188,34 +179,6 @@ export function proxy(request: NextRequest) {
   httpRequestDurationSeconds.observe(labels, durationSeconds);
 
   return response;
-}
-
-function getDevelopmentE2EImageOrigin(): string | undefined {
-  if (process.env.NODE_ENV !== "development") return undefined;
-
-  const configuredOrigin = process.env.REEF_E2E_MOCK_URL;
-  if (!configuredOrigin) return undefined;
-
-  try {
-    const url = new URL(configuredOrigin);
-    const isLoopback = ["127.0.0.1", "localhost", "[::1]"].includes(
-      url.hostname,
-    );
-    if (
-      url.protocol !== "http:" ||
-      !isLoopback ||
-      url.username ||
-      url.password ||
-      url.pathname !== "/" ||
-      url.search ||
-      url.hash
-    ) {
-      return undefined;
-    }
-    return url.origin;
-  } catch {
-    return undefined;
-  }
 }
 
 /**

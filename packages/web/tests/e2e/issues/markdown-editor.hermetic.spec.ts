@@ -173,6 +173,9 @@ function imageSourcesFromCsp(csp: string): string[] {
   return csp.match(/img-src\s+([^;]+)/u)?.[1]?.split(/\s+/u) ?? [];
 }
 
+const MARKDOWN_FIXTURE_IMAGE_PATH =
+  "/api/e2e/assets/reef-markdown-editor-image.png";
+
 test.describe("Hermetic Markdown editor fixture", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
@@ -186,9 +189,11 @@ test.describe("Hermetic Markdown editor fixture", () => {
     test.setTimeout(90_000);
     await page.setViewportSize({ width: 1440, height: 900 });
     const consoleErrors: string[] = [];
+    const pageErrors: string[] = [];
     page.on("console", (message) => {
       if (message.type() === "error") consoleErrors.push(message.text());
     });
+    page.on("pageerror", (error) => pageErrors.push(error.message));
 
     const task = await readMarkdownFixtureTask(request);
     expect(task).toMatchObject({
@@ -220,13 +225,19 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await expect(fixtureImage).toHaveCount(1);
     const imageSource = await fixtureImage.getAttribute("src");
     if (!imageSource) throw new Error("Markdown fixture image has no source");
-    const imageOrigin = new URL(imageSource, E2E_MOCK_URL).origin;
-    expect(imageOrigin).toBe(new URL(E2E_MOCK_URL).origin);
-    expect(
-      imageSourcesFromCsp(
-        issueResponse?.headers()["content-security-policy"] ?? "",
-      ),
-    ).toContain(imageOrigin);
+    const webOrigin = new URL(page.url()).origin;
+    const imageUrl = new URL(imageSource, page.url());
+    expect(imageSource).toBe(MARKDOWN_FIXTURE_IMAGE_PATH);
+    expect(imageUrl.origin).toBe(webOrigin);
+    expect(imageUrl.origin).not.toBe(new URL(E2E_MOCK_URL).origin);
+    const imageResponse = await request.get(imageUrl.toString());
+    expect(imageResponse.ok()).toBeTruthy();
+    expect(imageResponse.headers()["content-type"]).toBe("image/png");
+    const imageCspSources = imageSourcesFromCsp(
+      issueResponse?.headers()["content-security-policy"] ?? "",
+    );
+    expect(imageCspSources).toContain("'self'");
+    expect(imageCspSources).not.toContain(new URL(E2E_MOCK_URL).origin);
     await expect
       .poll(() =>
         fixtureImage.evaluate(
@@ -341,5 +352,6 @@ test.describe("Hermetic Markdown editor fixture", () => {
     }
 
     expect(consoleErrors).toEqual([]);
+    expect(pageErrors).toEqual([]);
   });
 });
