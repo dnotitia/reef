@@ -394,7 +394,7 @@ hr {
   --tw-prose-body: var(--foreground);
   --tw-prose-headings: var(--foreground);
   --tw-prose-lead: var(--muted-foreground);
-  --tw-prose-links: var(--brand);
+  --tw-prose-links: var(--foreground);
   --tw-prose-bold: var(--foreground);
   --tw-prose-counters: var(--muted-foreground);
   --tw-prose-bullets: var(--muted-foreground);
@@ -409,6 +409,22 @@ hr {
   --tw-prose-pre-bg: var(--surface-subtle);
   --tw-prose-th-borders: var(--border-subtle);
   --tw-prose-td-borders: var(--border-subtle);
+}
+
+/* Keep issue-body links in the reading hierarchy with body text. The Reef
+ * brand remains the link affordance through a restrained underline, which
+ * becomes fully branded for hover and keyboard focus. */
+.reef-markdown-editor a {
+  color: var(--foreground);
+  text-decoration-color: color-mix(in oklab, var(--brand) 50%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  transition: text-decoration-color 150ms ease;
+}
+
+.reef-markdown-editor a:hover,
+.reef-markdown-editor a:focus {
+  text-decoration-color: var(--brand);
 }
 
 /* Tiptap's Placeholder extension owns the marker and localized text. During a

@@ -89,6 +89,7 @@ async function readMarkdownSurface(editor: Locator) {
     const paragraph = root.querySelector<HTMLElement>("p");
     const heading = root.querySelector<HTMLElement>("h1");
     const link = root.querySelector<HTMLElement>("a");
+    const mention = root.querySelector<HTMLElement>("[data-reef-mention]");
     const inlineCode = root.querySelector<HTMLElement>("p code");
     const quote = root.querySelector<HTMLElement>("blockquote");
     const pre = root.querySelector<HTMLElement>("pre");
@@ -141,6 +142,8 @@ async function readMarkdownSurface(editor: Locator) {
         body: paragraph ? getComputedStyle(paragraph).color : "",
         heading: heading ? getComputedStyle(heading).color : "",
         link: link ? getComputedStyle(link).color : "",
+        linkDecoration: link ? getComputedStyle(link).textDecorationColor : "",
+        mention: mention ? getComputedStyle(mention).color : "",
         inlineCode: inlineCode ? getComputedStyle(inlineCode).color : "",
         quoteBorder: quote
           ? getComputedStyle(quote).borderInlineStartColor
@@ -291,7 +294,10 @@ test.describe("Hermetic Markdown editor fixture", () => {
       });
       expect(surface.colors.body).toBe(surface.colors.foreground);
       expect(surface.colors.heading).toBe(surface.colors.foreground);
-      expect(surface.colors.link).toBe(surface.colors.brand);
+      expect(surface.colors.link).toBe(surface.colors.foreground);
+      expect(surface.colors.mention).toBe(surface.colors.brand);
+      expect(surface.colors.link).not.toBe(surface.colors.mention);
+      expect(surface.colors.linkDecoration).not.toBe(surface.colors.brand);
       expect(surface.colors.inlineCode).toBe(surface.colors.foreground);
       expect(surface.colors.quoteBorder).toBe(surface.colors.brand);
       expect(surface.colors.preCode).toBe(surface.colors.foreground);
@@ -299,10 +305,31 @@ test.describe("Hermetic Markdown editor fixture", () => {
       expect(surface.colors.ruleBorder).toBe(surface.colors.borderSubtle);
       expect(surface.proseVariables).toEqual({
         body: surface.colors.foreground,
-        links: surface.colors.brand,
+        links: surface.colors.foreground,
         preBackground: surface.colors.surfaceSubtle,
       });
       expect(surface.overflow).toEqual({ editor: true, document: true });
+
+      const fixtureLink = editor.getByRole("link", { name: "reef link" });
+      await fixtureLink.hover();
+      await expect
+        .poll(() =>
+          fixtureLink.evaluate(
+            (element) => getComputedStyle(element).textDecorationColor,
+          ),
+        )
+        .toBe(surface.colors.brand);
+      await fixtureLink.focus();
+      await expect
+        .poll(() =>
+          fixtureLink.evaluate(
+            (element) => getComputedStyle(element).textDecorationColor,
+          ),
+        )
+        .toBe(surface.colors.brand);
+      await page.evaluate(() => {
+        (document.activeElement as HTMLElement | null)?.blur();
+      });
 
       await page.screenshot({
         animations: "disabled",

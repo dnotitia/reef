@@ -164,7 +164,7 @@ describe("global focus styles", () => {
       "--tw-prose-body": "--foreground",
       "--tw-prose-headings": "--foreground",
       "--tw-prose-lead": "--muted-foreground",
-      "--tw-prose-links": "--brand",
+      "--tw-prose-links": "--foreground",
       "--tw-prose-bold": "--foreground",
       "--tw-prose-counters": "--muted-foreground",
       "--tw-prose-bullets": "--muted-foreground",
@@ -184,5 +184,25 @@ describe("global focus styles", () => {
     for (const [variable, token] of Object.entries(expectedTokens)) {
       expect(editorBlock).toContain(`${variable}: var(${token});`);
     }
+
+    const linkStart = css.indexOf(".reef-markdown-editor a {");
+    expect(linkStart).toBeGreaterThan(-1);
+    const linkEnd = findCssBlockEnd(css, linkStart);
+    expect(linkEnd).toBeGreaterThan(linkStart);
+    const linkBlock = css.slice(linkStart, linkEnd);
+    expect(linkBlock).toContain("color: var(--foreground);");
+    expect(linkBlock).toContain(
+      "text-decoration-color: color-mix(in oklab, var(--brand) 50%, transparent);",
+    );
+    expect(linkBlock).toContain("text-decoration-thickness: 1px;");
+    expect(linkBlock).toContain("text-underline-offset: 2px;");
+
+    const interactiveLinkStart = css.indexOf(".reef-markdown-editor a:hover,");
+    expect(interactiveLinkStart).toBeGreaterThan(linkEnd);
+    const interactiveLinkEnd = findCssBlockEnd(css, interactiveLinkStart);
+    expect(interactiveLinkEnd).toBeGreaterThan(interactiveLinkStart);
+    expect(css.slice(interactiveLinkStart, interactiveLinkEnd)).toContain(
+      "text-decoration-color: var(--brand);",
+    );
   });
 });
