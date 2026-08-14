@@ -57,13 +57,13 @@ jobs:
 
       - name: Setup Python for AKB bootstrap
         if: matrix.akb_ref == 'main'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.14"
 
       - name: Setup uv for AKB bootstrap
         if: matrix.akb_ref == 'main'
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v10
 
       - name: Configure akb (local-dev defaults)
         working-directory: .akb-live
