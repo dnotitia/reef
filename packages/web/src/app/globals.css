@@ -444,6 +444,27 @@ hr {
   margin-block: 20px 6px;
 }
 
+/* Images are block evidence in an issue body. Keep their intrinsic size until
+ * the editor width or the 32rem height ceiling requires containment; the
+ * semantic surface makes transparent screenshots legible in both themes. */
+.reef-markdown-editor > img {
+  display: block;
+  box-sizing: border-box;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 32rem;
+  object-fit: contain;
+  margin-block: 16px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.375rem;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
 .reef-markdown-editor > :first-child {
   margin-block-start: 0;
 }
@@ -604,6 +625,48 @@ hr {
 .reef-markdown-editor a:focus-visible {
   text-decoration-color: var(--brand);
   text-decoration-thickness: 2px;
+}
+
+/* Explicit AKB file links are compact inline actions, distinct from ordinary
+ * Markdown URLs. The filename remains the accessible anchor text; the small
+ * type badge and outbound cue are display-only affordances. */
+.reef-markdown-editor a[data-reef-file-link="true"] {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.125rem 0.375rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+  vertical-align: baseline;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.25rem;
+  text-decoration: none;
+}
+
+.reef-markdown-editor a[data-reef-file-link="true"]::before {
+  content: "↗";
+  flex: 0 0 auto;
+  color: var(--muted-foreground);
+  font-size: 0.75em;
+  line-height: 1;
+}
+
+.reef-markdown-editor
+  a[data-reef-file-link="true"]
+  > [data-reef-file-type]::after {
+  content: attr(data-reef-file-type);
+  flex: 0 0 auto;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono-stack);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.04em;
 }
 
 /* Tiptap's Placeholder extension owns the marker and localized text. During a

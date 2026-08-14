@@ -156,6 +156,11 @@ function IssueDetailLoaded({
     () => (url: string) => resolveIssueAttachmentUrl({ issueId, vault, url }),
     [issueId, vault],
   );
+  const resolveBodyAttachmentHref = useMemo(
+    () => (url: string) =>
+      resolveIssueAttachmentUrl({ issueId, vault, url, key: "href" }),
+    [issueId, vault],
+  );
 
   // "Ask AI about this issue" grounds the chat on this issue (REEF-360 AC3).
   // Grounding is set by this explicit affordance — not silently from the
@@ -383,6 +388,7 @@ function IssueDetailLoaded({
           }
           onUploadBodyFiles={handleBodyUploadFiles}
           resolveBodyImageSrc={resolveBodyImageSrc}
+          resolveBodyAttachmentHref={resolveBodyAttachmentHref}
           commitTitle={commitTitle}
           commitBody={commitBody}
           commit={commit}

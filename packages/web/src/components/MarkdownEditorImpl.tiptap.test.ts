@@ -9,6 +9,7 @@ const editors: Editor[] = [];
 function createEditor(
   markdown: string,
   mentionMembers?: readonly VaultMember[],
+  resolveAttachmentHref?: (href: string) => string,
 ) {
   const element = document.createElement("div");
   document.body.appendChild(element);
@@ -25,6 +26,7 @@ function createEditor(
             mentionOptionLabel: (username) => `Mention @${username}`,
           }
         : undefined,
+      resolveAttachmentHref,
     ),
     content: mentionMembers
       ? prepareIssueBodyMentionMarkdown(markdown, mentionMembers)
@@ -128,6 +130,43 @@ describe("MarkdownEditor Tiptap extensions", () => {
 
     expect(markdown).toBe(`[${marker}](${href})`);
     expect(link?.textContent).toBe(marker);
+  });
+
+  it("marks only explicit AKB file links and keeps their URI out of the proxy href", () => {
+    const fileUri = "akb://reef-test/issues/file/incident-log";
+    const documentUri = "akb://reef-test/coll/research/doc/report.md";
+    const resolve = (uri: string) =>
+      `/api/issues/REEF-001/attachments/file?uri=${encodeURIComponent(uri)}&download=1`;
+    const editor = createEditor(
+      `[incident.log](${fileUri}) [AKB report](${documentUri}) [normal](https://example.com)`,
+      undefined,
+      resolve,
+    );
+    const root = editor.view.dom;
+
+    const fileLink = root.querySelector<HTMLAnchorElement>(
+      'a[data-reef-file-link="true"]',
+    );
+    expect(fileLink?.dataset.reefFileUri).toBe(fileUri);
+    expect(
+      fileLink?.querySelector<HTMLElement>("[data-reef-file-type]")?.dataset
+        .reefFileType,
+    ).toBe("LOG");
+    expect(fileLink?.getAttribute("href")).toBe(resolve(fileUri));
+    expect(fileLink?.getAttribute("target")).toBe("_blank");
+    expect(fileLink?.getAttribute("rel")).toBe("noreferrer");
+
+    const documentLink = root.querySelector<HTMLAnchorElement>(
+      `a[href="${documentUri}"]`,
+    );
+    expect(documentLink?.dataset.reefFileLink).toBeUndefined();
+    expect(
+      root.querySelector<HTMLAnchorElement>('a[href="https://example.com"]')
+        ?.dataset.reefFileLink,
+    ).toBeUndefined();
+
+    expect(fileLink?.getAttribute("href")).toBe(resolve(fileUri));
+    expect(editor.getMarkdown()).toContain(`[incident.log](${fileUri})`);
   });
 
   it("round-trips list, task, link, and image markdown together", () => {
@@ -388,6 +427,34 @@ describe("MarkdownEditor Tiptap extensions", () => {
     expect(editor.getMarkdown()).toContain(
       "![screen](akb://reef-test/issues/file/file-1)",
     );
+  });
+
+  it("round-trips image variants and an explicit file link without changing Source Markdown", () => {
+    const markdown = [
+      "![small](https://example.com/small.png)",
+      "![large](https://example.com/large.png)",
+      "![transparent](https://example.com/transparent.png)",
+      "![broken](https://example.com/missing.png)",
+      "[incident.log](akb://reef-test/issues/file/incident-log)",
+    ].join("\n\n");
+    const editor = createEditor(markdown);
+    expect(editor.view.dom.querySelectorAll("img")).toHaveLength(4);
+    expect(editor.view.dom.querySelector('img[alt="broken"]')).not.toBeNull();
+    expect(editor.getMarkdown()).toContain(
+      "![transparent](https://example.com/transparent.png)",
+    );
+    expect(editor.getMarkdown()).toContain(
+      "![broken](https://example.com/missing.png)",
+    );
+    expect(editor.getMarkdown()).toContain(
+      "[incident.log](akb://reef-test/issues/file/incident-log)",
+    );
+
+    const reloaded = createEditor(editor.getMarkdown());
+    expect(reloaded.view.dom.querySelectorAll("img")).toHaveLength(4);
+    expect(
+      reloaded.view.dom.querySelector('a[href*="/file/incident-log"]'),
+    ).not.toBeNull();
   });
 
   // The REEF-161 checklist alignment CSS (globals.css, `.reef-markdown-editor`)

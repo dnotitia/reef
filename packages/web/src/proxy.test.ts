@@ -619,6 +619,26 @@ describe("proxy — E2E fixture asset rewrite boundary", () => {
     expect(response.headers.get("x-middleware-request-x-reef-llm")).toBe("");
   });
 
+  it.each([
+    [
+      "/api/e2e/assets/reef-markdown-editor-large.svg",
+      "http://127.0.0.1:9136/__e2e/assets/reef-markdown-editor-large.svg",
+    ],
+    [
+      "/api/e2e/assets/reef-markdown-editor-transparent.svg",
+      "http://127.0.0.1:9136/__e2e/assets/reef-markdown-editor-transparent.svg",
+    ],
+    [
+      "/api/e2e/assets/reef-markdown-editor-missing.png",
+      "http://127.0.0.1:9136/__e2e/assets/reef-markdown-editor-missing.png",
+    ],
+  ])("rewrites the approved Markdown media variant %s", (path, upstream) => {
+    vi.stubEnv("REEF_E2E_MOCK_URL", "http://127.0.0.1:9136");
+    const response = proxy(new NextRequest(`https://reef.test${path}`));
+
+    expect(response.headers.get("x-middleware-rewrite")).toBe(upstream);
+  });
+
   it("rejects arbitrary paths, queries, methods, and non-loopback origins", () => {
     vi.stubEnv("REEF_E2E_MOCK_URL", "http://127.0.0.1:9136");
     const requests = [
