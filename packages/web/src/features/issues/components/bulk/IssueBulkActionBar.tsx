@@ -9,7 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { PriorityBadge } from "@/components/ui/priority-dot";
+import { PriorityOption } from "@/components/ui/priority-dot";
 import { StatusBadge } from "@/components/ui/status-icon";
 import { CloseIssueDialog } from "@/features/issues/components/detail/CloseIssueDialog";
 import {
@@ -48,7 +48,7 @@ interface LabelBulkActionProps {
 
 const renderStatus = (status: Status) => <StatusBadge status={status} />;
 const renderPriority = (priority: Priority) => (
-  <PriorityBadge priority={priority} />
+  <PriorityOption priority={priority} />
 );
 
 function LabelBulkAction({
@@ -243,7 +243,10 @@ export function IssueBulkActionBar({
             options={PRIORITY_OPTIONS}
             renderItem={renderPriority}
             placeholder={fieldNames.priority}
-            noneOption={{ value: NO_SELECTION, label: empty.noPriority }}
+            noneOption={{
+              value: NO_SELECTION,
+              label: <PriorityOption priority={null} />,
+            }}
             disabled={runner.running}
             triggerClassName="w-32"
             testId="bulk-priority"

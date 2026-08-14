@@ -8,7 +8,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { PriorityBadge } from "@/components/ui/priority-dot";
+import { PriorityOption } from "@/components/ui/priority-dot";
 import { StatusBadge } from "@/components/ui/status-icon";
 import {
   kanbanToastId,
@@ -59,7 +59,7 @@ interface IssueQuickEditAnchorProps {
 
 const renderStatusOption = (status: Status) => <StatusBadge status={status} />;
 const renderPriorityOption = (priority: Priority) => (
-  <PriorityBadge priority={priority} />
+  <PriorityOption priority={priority} />
 );
 const COMPACT_QUICK_EDIT_WIDTH = "w-48";
 const DEFAULT_QUICK_EDIT_WIDTH = "w-56";
@@ -320,7 +320,10 @@ export function IssueQuickEditAnchor({
             options={PRIORITY_OPTIONS}
             renderItem={renderPriorityOption}
             placeholder={empty.noPriority}
-            noneOption={{ value: NO_SELECTION, label: empty.noPriority }}
+            noneOption={{
+              value: NO_SELECTION,
+              label: <PriorityOption priority={null} />,
+            }}
             testId="issue-quick-edit-priority"
             open
             onOpenChange={closeOpenField}
