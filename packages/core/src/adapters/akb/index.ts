@@ -208,3 +208,16 @@ export {
   type GetCurrentActorResult,
 } from "./workspace/auth";
 export type * from "./core/types";
+export {
+  createControlPlaneAdminAdapter,
+  createControlPlaneAppAdapter,
+  exchangeControlPlaneCredential,
+  type ControlPlaneAdminAdapter,
+  type ControlPlaneAdminAdapterConfig,
+  type ControlPlaneAppAdapter,
+  type ControlPlaneAppAdapterConfig,
+  type ControlPlaneCredentialExchangeConfig,
+  type ControlPlaneRequestPolicy,
+  type ControlPlaneActorMode,
+  type ControlPlaneOperation,
+} from "./controlPlane";

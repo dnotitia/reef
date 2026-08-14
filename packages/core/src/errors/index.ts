@@ -52,6 +52,18 @@ export const ERROR_MESSAGES_EN = {
     unavailable:
       "AI service is unavailable. Please try again or check your LLM configuration.",
   },
+  controlPlane: {
+    authentication: "Control-plane authentication failed.",
+    authorization: "You are not authorized to perform this app operation.",
+    notFound: "The requested app resource could not be found.",
+    conflict: "The app operation conflicted with the current state.",
+    invalidArgument: "The app operation request was invalid.",
+    rateLimited: "The app service is rate-limited. Please try again later.",
+    unavailable: "The app service is unavailable. Please try again later.",
+    transport: "The app service could not be reached. Please try again later.",
+    invalidResponse: "The app service returned an invalid response.",
+    unknown: "An unexpected app service error occurred.",
+  },
   notFound: {
     item: "The requested {resource} could not be found.",
     issue: "Issue not found.",
@@ -259,6 +271,94 @@ export class AkbApiError extends ReefError {
   }
 }
 
+export type ControlPlaneErrorCategory =
+  | "authentication"
+  | "authorization"
+  | "not_found"
+  | "conflict"
+  | "invalid_argument"
+  | "rate_limited"
+  | "unavailable"
+  | "transport"
+  | "invalid_response"
+  | "unknown";
+
+export interface ControlPlaneErrorContext {
+  category: ControlPlaneErrorCategory;
+  operation: string;
+  /** The status returned by AKB, or 0 when no response was received. */
+  upstreamStatus: number;
+  /** The safe PM-facing HTTP descriptor status. */
+  httpStatus: number;
+  retryable: boolean;
+  upstreamCode?: string;
+  hint?: string;
+}
+
+const CONTROL_PLANE_ERROR_CODES: Record<
+  ControlPlaneErrorCategory,
+  keyof typeof ERROR_MESSAGES_EN.controlPlane
+> = {
+  authentication: "authentication",
+  authorization: "authorization",
+  not_found: "notFound",
+  conflict: "conflict",
+  invalid_argument: "invalidArgument",
+  rate_limited: "rateLimited",
+  unavailable: "unavailable",
+  transport: "transport",
+  invalid_response: "invalidResponse",
+  unknown: "unknown",
+};
+
+/** Safe, origin-specific error boundary for AKB control-plane calls. */
+export class ControlPlaneError extends ReefError {
+  readonly context: ControlPlaneErrorContext;
+  readonly category: ControlPlaneErrorCategory;
+  readonly status: number;
+  readonly httpStatus: number;
+  readonly upstreamStatus: number;
+  readonly retryable: boolean;
+  readonly upstreamCode?: string;
+  readonly hint?: string;
+
+  constructor(context: ControlPlaneErrorContext) {
+    super(
+      resolveEnMessage(
+        `controlPlane.${CONTROL_PLANE_ERROR_CODES[context.category]}`,
+      ),
+    );
+    this.name = "ControlPlaneError";
+    this.context = context;
+    this.category = context.category;
+    this.status = context.upstreamStatus;
+    this.httpStatus = context.httpStatus;
+    this.upstreamStatus = context.upstreamStatus;
+    this.retryable = context.retryable;
+    this.upstreamCode = context.upstreamCode;
+    this.hint = context.hint;
+  }
+
+  toUserMessage(): string {
+    return this.message;
+  }
+
+  /** Keep JSON diagnostics limited to the already-redacted control-plane context. */
+  toJSON(): Record<string, unknown> {
+    return {
+      name: this.name,
+      category: this.category,
+      status: this.status,
+      httpStatus: this.httpStatus,
+      upstreamStatus: this.upstreamStatus,
+      retryable: this.retryable,
+      upstreamCode: this.upstreamCode,
+      hint: this.hint,
+      operation: this.context.operation,
+    };
+  }
+}
+
 export interface LlmErrorContext {
   message: string;
 }
@@ -462,6 +562,12 @@ export function describeError(err: unknown): ErrorDescriptor {
     };
   }
   if (err instanceof ConflictError) return { code: "conflict", status: 409 };
+  if (err instanceof ControlPlaneError) {
+    return {
+      code: `controlPlane.${CONTROL_PLANE_ERROR_CODES[err.category]}`,
+      status: err.httpStatus,
+    };
+  }
   if (err instanceof AuthError) return authErrorCode(err.context);
   if (err instanceof NotFoundError) {
     return { ...notFoundCode(err.context), status: 404 };

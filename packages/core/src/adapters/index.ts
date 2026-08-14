@@ -204,3 +204,16 @@ export {
   type GetCurrentActorParams as AkbGetCurrentActorParams,
   type GetCurrentActorResult as AkbGetCurrentActorResult,
 } from "./akb";
+export {
+  createControlPlaneAdminAdapter,
+  createControlPlaneAppAdapter,
+  exchangeControlPlaneCredential,
+  type ControlPlaneAdminAdapter,
+  type ControlPlaneAdminAdapterConfig,
+  type ControlPlaneAppAdapter,
+  type ControlPlaneAppAdapterConfig,
+  type ControlPlaneCredentialExchangeConfig,
+  type ControlPlaneRequestPolicy,
+  type ControlPlaneActorMode,
+  type ControlPlaneOperation,
+} from "./akb/controlPlane";

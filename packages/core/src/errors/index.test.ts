@@ -4,6 +4,7 @@ import {
   AkbApiError,
   AuthError,
   ConflictError,
+  ControlPlaneError,
   ERROR_MESSAGES_EN,
   GitHubApiError,
   LlmError,
@@ -289,6 +290,40 @@ describe("NotFoundError", () => {
 // ─── describeError (the AC4 web-localization seam) ──────────────────────────────
 
 describe("describeError", () => {
+  it.each([
+    ["authentication", 401, false, "controlPlane.authentication"],
+    ["authorization", 403, false, "controlPlane.authorization"],
+    ["not_found", 404, false, "controlPlane.notFound"],
+    ["conflict", 409, false, "controlPlane.conflict"],
+    ["invalid_argument", 422, false, "controlPlane.invalidArgument"],
+    ["rate_limited", 429, true, "controlPlane.rateLimited"],
+    ["unavailable", 503, true, "controlPlane.unavailable"],
+    ["transport", 503, true, "controlPlane.transport"],
+    ["invalid_response", 502, true, "controlPlane.invalidResponse"],
+    ["unknown", 502, false, "controlPlane.unknown"],
+  ] as const)(
+    "ControlPlaneError %s keeps its safe category, descriptor and retryability",
+    (category, httpStatus, retryable, code) => {
+      const error = new ControlPlaneError({
+        category,
+        operation: "app.inventory.list",
+        upstreamStatus: category === "transport" ? 0 : httpStatus,
+        httpStatus,
+        retryable,
+        upstreamCode: "permission_denied",
+        hint: "retry with the current grant",
+      });
+      expect(describeError(error)).toEqual({ code, status: httpStatus });
+      expect(error.toJSON()).toMatchObject({
+        category,
+        httpStatus,
+        retryable,
+        operation: "app.inventory.list",
+      });
+      expect(error.toJSON()).not.toHaveProperty("message");
+    },
+  );
+
   it("ConflictError → conflict / 409", () => {
     expect(describeError(new ConflictError())).toEqual({
       code: "conflict",
