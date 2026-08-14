@@ -337,6 +337,67 @@ describe("global focus styles", () => {
     );
   });
 
+  it("contains editor images without enlarging small evidence or leaking globally", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const imageStart = css.indexOf(".reef-markdown-editor > img {");
+    expect(imageStart).toBeGreaterThan(-1);
+    const imageEnd = findCssBlockEnd(css, imageStart);
+    const imageBlock = css.slice(imageStart, imageEnd);
+
+    for (const declaration of [
+      "display: block;",
+      "width: auto;",
+      "height: auto;",
+      "max-width: 100%;",
+      "max-height: 32rem;",
+      "object-fit: contain;",
+      "margin-block: 16px;",
+      "background: var(--surface-subtle);",
+      "border: 1px solid var(--border-subtle);",
+      "border-radius: 0.375rem;",
+      "color: var(--muted-foreground);",
+      "overflow-wrap: anywhere;",
+    ]) {
+      expect(imageBlock, declaration).toContain(declaration);
+    }
+
+    expect(css).not.toContain("\nimg {");
+  });
+
+  it("keeps file-link surface and long-label wrapping scoped to the editor", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const fileLinkStart = css.indexOf(
+      '.reef-markdown-editor a[data-reef-file-link="true"] {',
+    );
+    expect(fileLinkStart).toBeGreaterThan(-1);
+    const fileLinkEnd = findCssBlockEnd(css, fileLinkStart);
+    const fileLinkBlock = css.slice(fileLinkStart, fileLinkEnd);
+    for (const declaration of [
+      "display: inline-flex;",
+      "max-width: 100%;",
+      "min-width: 0;",
+      "overflow-wrap: anywhere;",
+      "word-break: break-word;",
+      "white-space: normal;",
+      "background: var(--surface-subtle);",
+      "border: 1px solid var(--border-subtle);",
+      "border-radius: 0.25rem;",
+      "text-decoration: none;",
+    ]) {
+      expect(fileLinkBlock, declaration).toContain(declaration);
+    }
+
+    const typeBadgeStart = css.indexOf(
+      '.reef-markdown-editor\n  a[data-reef-file-link="true"]\n  > [data-reef-file-type]::after {',
+    );
+    expect(typeBadgeStart).toBeGreaterThan(fileLinkEnd);
+    const typeBadgeEnd = findCssBlockEnd(css, typeBadgeStart);
+    expect(css.slice(typeBadgeStart, typeBadgeEnd)).toContain(
+      "content: attr(data-reef-file-type);",
+    );
+    expect(css).not.toContain('\na[data-reef-file-link="true"] {');
+  });
+
   it("keeps block Markdown surfaces dense, scoped, and scroll-contained", () => {
     const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
 

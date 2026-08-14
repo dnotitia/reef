@@ -4,6 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import {
+  attachmentFileTypeLabel,
+  isAkbFileUri,
+} from "@/features/issues/lib/attachmentUrls";
+import {
   type AttachmentMarkdownUploadResult,
   appendMarkdownSnippets,
   filesFromFileList,
@@ -18,10 +22,14 @@ import {
 import { cn } from "@/lib/utils";
 import { useAkbWebUrl } from "@/providers/AkbWebUrlProvider";
 import type { VaultMember } from "@reef/core";
+import { Extension, mergeAttributes } from "@tiptap/core";
 import Image from "@tiptap/extension-image";
+import LinkExtension from "@tiptap/extension-link";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Markdown } from "@tiptap/markdown";
+import { Plugin } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import {
   type AnyExtension,
   type Editor,
@@ -114,6 +122,8 @@ export interface MarkdownEditorProps {
   onUploadFiles?: (files: File[]) => Promise<AttachmentMarkdownUploadResult[]>;
   /** Resolve stored image URLs (for example akb:// file URIs) for WYSIWYG paint. */
   resolveImageSrc?: (src: string) => string;
+  /** Resolve explicit AKB file links for the issue-scoped authenticated proxy. */
+  resolveAttachmentHref?: (href: string) => string;
   /**
    * Enables issue-body-only member mentions. Omit this everywhere else so the
    * shared editor keeps its existing schema and interaction contract.
@@ -182,32 +192,93 @@ function createImageExtension(resolveImageSrc?: (src: string) => string) {
   });
 }
 
+function createIssueAttachmentLinkExtension(
+  resolveAttachmentHref?: (href: string) => string | undefined,
+) {
+  return LinkExtension.extend({
+    renderHTML({ HTMLAttributes, mark }) {
+      const attrs = { ...HTMLAttributes };
+      const href = typeof attrs.href === "string" ? attrs.href : "";
+      if (isAkbFileUri(href)) {
+        attrs["data-reef-file-link"] = "true";
+        attrs["data-reef-file-uri"] = href;
+        const resolvedHref = resolveAttachmentHref?.(href);
+        if (resolvedHref) {
+          attrs.href = resolvedHref;
+          attrs.target = "_blank";
+          attrs.rel = "noreferrer";
+        }
+      }
+      return (
+        this.parent?.({ mark, HTMLAttributes: attrs }) ?? [
+          "a",
+          mergeAttributes(this.options.HTMLAttributes, attrs),
+          0,
+        ]
+      );
+    },
+  }).configure({
+    openOnClick: false,
+    HTMLAttributes: { tabindex: 0 },
+    protocols: [{ scheme: "akb", optionalSlashes: true }],
+    isAllowedUri: (url, ctx) =>
+      url.startsWith("akb://")
+        ? parseAkbDocumentUri(url) !== null || isAkbFileUri(url)
+        : ctx.defaultValidate(url),
+  });
+}
+
+function createIssueAttachmentLinkDecorationExtension() {
+  return Extension.create({
+    name: "issueAttachmentLinkDecoration",
+    addProseMirrorPlugins() {
+      return [
+        new Plugin({
+          props: {
+            decorations: (state) => {
+              const decorations: Decoration[] = [];
+              state.doc.descendants((node, pos) => {
+                if (!node.isText || !node.text) return;
+                const href = node.marks.find(
+                  (mark) => mark.type.name === "link",
+                )?.attrs.href;
+                if (typeof href !== "string" || !isAkbFileUri(href)) return;
+
+                const attrs: Record<string, string> = {
+                  "data-reef-file-type": attachmentFileTypeLabel(node.text),
+                };
+                decorations.push(
+                  Decoration.inline(pos, pos + node.nodeSize, attrs),
+                );
+              });
+              return DecorationSet.create(state.doc, decorations);
+            },
+          },
+        }),
+      ];
+    },
+  });
+}
+
 export function createMarkdownEditorExtensions(
   placeholder: string,
   resolveImageSrc?: (src: string) => string,
   mentionConfig?: IssueBodyMentionExtensionOptions,
+  resolveAttachmentHref?: (href: string) => string | undefined,
 ) {
   const extensions: AnyExtension[] = [
     // StarterKit v3 bundles the Link extension; configure it here rather than
     // registering a second @tiptap/extension-link (which warns about a
     // duplicate 'link' extension and leaves link behavior ambiguous).
-    StarterKit.configure({
-      link: {
-        openOnClick: false,
-        // Anchors inside the contenteditable need an explicit tab stop. This
-        // keeps ordinary and AKB links keyboard-reachable without changing
-        // their Markdown mark or making mention spans interactive.
-        HTMLAttributes: { tabindex: 0 },
-        protocols: [{ scheme: "akb", optionalSlashes: true }],
-        isAllowedUri: (url, ctx) =>
-          url.startsWith("akb://")
-            ? parseAkbDocumentUri(url) !== null
-            : ctx.defaultValidate(url),
-      },
-    }),
+    StarterKit.configure({ link: false }),
+    // Keep the shared Link behavior while adding issue-scoped file-link
+    // display attributes at render time. The authored AKB URI remains the
+    // mark's href and therefore remains the Markdown serialization value.
+    createIssueAttachmentLinkExtension(resolveAttachmentHref),
     TaskList,
     TaskItem.configure({ nested: true }),
     createImageExtension(resolveImageSrc),
+    createIssueAttachmentLinkDecorationExtension(),
     Markdown,
     Placeholder.configure({
       placeholder,
@@ -431,6 +502,7 @@ export function MarkdownEditor({
   vault,
   onUploadFiles,
   resolveImageSrc,
+  resolveAttachmentHref,
   mentionConfig,
 }: MarkdownEditorProps) {
   const t = useTranslations("markdownEditor");
@@ -450,6 +522,7 @@ export function MarkdownEditor({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const readOnlyRef = useRef(readOnly);
   const resolveImageSrcRef = useRef(resolveImageSrc);
+  const resolveAttachmentHrefRef = useRef(resolveAttachmentHref);
   const editorRef = useRef<Editor | null>(null);
   const resolvedTitleMapRef = useRef(new Map<string, string | null>());
   const pendingTitleUrisRef = useRef(new Set<string>());
@@ -550,6 +623,7 @@ export function MarkdownEditor({
             mentionOptionLabel: mentionConfig.mentionOptionLabel,
           }
         : undefined,
+      (href) => resolveAttachmentHrefRef.current?.(href),
     ),
     /* eslint-enable react-hooks/refs */
     content: mentionConfig
@@ -633,6 +707,10 @@ export function MarkdownEditor({
   useEffect(() => {
     resolveImageSrcRef.current = resolveImageSrc;
   }, [resolveImageSrc]);
+
+  useEffect(() => {
+    resolveAttachmentHrefRef.current = resolveAttachmentHref;
+  }, [resolveAttachmentHref]);
 
   // Subscribe to derived active-state booleans just, so the toolbar re-renders
   // when formatting under the cursor changes — not on every transaction. The

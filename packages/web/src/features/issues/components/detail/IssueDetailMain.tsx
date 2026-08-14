@@ -44,6 +44,7 @@ export function IssueDetailMain({
   setImplementationRefs,
   onUploadBodyFiles,
   resolveBodyImageSrc,
+  resolveBodyAttachmentHref,
   commitTitle,
   commitBody,
   commit,
@@ -65,6 +66,9 @@ export function IssueDetailMain({
   resolveBodyImageSrc?: ComponentProps<
     typeof MarkdownEditor
   >["resolveImageSrc"];
+  resolveBodyAttachmentHref?: ComponentProps<
+    typeof MarkdownEditor
+  >["resolveAttachmentHref"];
   commitTitle: (value: string) => void;
   commitBody: (value: string) => void;
   commit: (patch: IssueUpdatePatch) => void;
@@ -155,6 +159,7 @@ export function IssueDetailMain({
           onBlur={commitBody}
           onUploadFiles={onUploadBodyFiles}
           resolveImageSrc={resolveBodyImageSrc}
+          resolveAttachmentHref={resolveBodyAttachmentHref}
           placeholder={t("descriptionPlaceholder")}
           ariaLabel={t("descriptionAriaLabel")}
           vault={vault}

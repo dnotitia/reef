@@ -11,16 +11,30 @@ import { logger } from "@/lib/logging/logger";
 import { httpRequestDurationSeconds, httpRequestsTotal } from "@/lib/metrics";
 import { type NextRequest, NextResponse } from "next/server";
 
-const E2E_MARKDOWN_IMAGE_PATH =
-  "/api/e2e/assets/reef-markdown-editor-image.png";
-const E2E_MARKDOWN_IMAGE_UPSTREAM_PATH =
-  "/__e2e/assets/reef-markdown-editor-image.png";
+const E2E_MARKDOWN_ASSET_PATHS = new Map([
+  [
+    "/api/e2e/assets/reef-markdown-editor-image.png",
+    "/__e2e/assets/reef-markdown-editor-image.png",
+  ],
+  [
+    "/api/e2e/assets/reef-markdown-editor-large.svg",
+    "/__e2e/assets/reef-markdown-editor-large.svg",
+  ],
+  [
+    "/api/e2e/assets/reef-markdown-editor-transparent.svg",
+    "/__e2e/assets/reef-markdown-editor-transparent.svg",
+  ],
+  [
+    "/api/e2e/assets/reef-markdown-editor-missing.png",
+    "/__e2e/assets/reef-markdown-editor-missing.png",
+  ],
+]);
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
-function e2eMarkdownImageDestination(request: NextRequest): URL | undefined {
+function e2eMarkdownAssetDestination(request: NextRequest): URL | undefined {
   if (
     request.method !== "GET" ||
-    request.nextUrl.pathname !== E2E_MARKDOWN_IMAGE_PATH ||
+    !E2E_MARKDOWN_ASSET_PATHS.has(request.nextUrl.pathname) ||
     request.nextUrl.search
   ) {
     return undefined;
@@ -42,7 +56,10 @@ function e2eMarkdownImageDestination(request: NextRequest): URL | undefined {
     ) {
       return undefined;
     }
-    return new URL(E2E_MARKDOWN_IMAGE_UPSTREAM_PATH, origin);
+    return new URL(
+      E2E_MARKDOWN_ASSET_PATHS.get(request.nextUrl.pathname) ?? "",
+      origin,
+    );
   } catch {
     return undefined;
   }
@@ -219,7 +236,7 @@ export function proxy(request: NextRequest) {
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", csp);
 
-  const assetDestination = e2eMarkdownImageDestination(request);
+  const assetDestination = e2eMarkdownAssetDestination(request);
   const response = assetDestination
     ? NextResponse.rewrite(assetDestination, {
         request: { headers: e2eAssetRequestHeaders(request) },

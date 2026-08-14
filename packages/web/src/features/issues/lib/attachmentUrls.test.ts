@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  attachmentFileTypeLabel,
   isAkbFileUri,
   issueAttachmentFileHref,
   resolveIssueAttachmentUrl,
@@ -10,6 +11,15 @@ describe("attachmentUrls (REEF-349)", () => {
     expect(isAkbFileUri("akb://reef-test/issues/file/file-1")).toBe(true);
     expect(isAkbFileUri("akb://reef-test/issues/doc/file-1")).toBe(false);
     expect(isAkbFileUri("https://example.com/file/file-1")).toBe(false);
+  });
+
+  it("derives a bounded display type from the Markdown filename label", () => {
+    expect(attachmentFileTypeLabel("incident.log")).toBe("LOG");
+    expect(attachmentFileTypeLabel("archive.tar.gz")).toBe("GZ");
+    expect(attachmentFileTypeLabel("README")).toBe("FILE");
+    expect(attachmentFileTypeLabel("capture.verylongextension")).toBe("FILE");
+    expect(attachmentFileTypeLabel("capture.bad-ext")).toBe("FILE");
+    expect(attachmentFileTypeLabel("capture.éxt")).toBe("FILE");
   });
 
   it("builds an issue-scoped file proxy URL", () => {

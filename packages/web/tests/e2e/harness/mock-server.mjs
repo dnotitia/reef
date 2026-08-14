@@ -23,6 +23,47 @@ const IMAGE_UPLOAD_FIXTURE_BYTES = Buffer.from(
 );
 const MARKDOWN_FIXTURE_IMAGE_URL =
   "/api/e2e/assets/reef-markdown-editor-image.png";
+const MARKDOWN_FIXTURE_LARGE_IMAGE_URL =
+  "/api/e2e/assets/reef-markdown-editor-large.svg";
+const MARKDOWN_FIXTURE_TRANSPARENT_IMAGE_URL =
+  "/api/e2e/assets/reef-markdown-editor-transparent.svg";
+const MARKDOWN_FIXTURE_BROKEN_IMAGE_PATH =
+  "/__e2e/assets/reef-markdown-editor-missing.png";
+const MARKDOWN_MEDIA_ASSETS = new Map([
+  [
+    "/__e2e/assets/reef-markdown-editor-large.svg",
+    {
+      contentType: "image/svg+xml",
+      body: Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200" viewBox="0 0 1600 1200"><rect width="1600" height="1200" fill="#0f766e"/><text x="800" y="600" fill="white" font-size="96" text-anchor="middle">large fixture</text></svg>',
+        "utf8",
+      ),
+    },
+  ],
+  [
+    "/__e2e/assets/reef-markdown-editor-transparent.svg",
+    {
+      contentType: "image/svg+xml",
+      body: Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180"><circle cx="160" cy="90" r="72" fill="none" stroke="#0f766e" stroke-width="8"/></svg>',
+        "utf8",
+      ),
+    },
+  ],
+  [
+    MARKDOWN_FIXTURE_BROKEN_IMAGE_PATH,
+    {
+      contentType: "image/png",
+      body: Buffer.from("not a valid image", "utf8"),
+    },
+  ],
+]);
+const MARKDOWN_FIXTURE_FILE_ID = "incident-log";
+const MARKDOWN_FIXTURE_FILE_URI = `akb://${REEF_VAULT}/issues/file/${MARKDOWN_FIXTURE_FILE_ID}`;
+const MARKDOWN_FIXTURE_FILE_BYTES = Buffer.from(
+  "fixture incident log\nstatus=contained\n",
+  "utf8",
+);
 const MARKDOWN_FIXTURE = [
   "A compact mixed-language introduction: 한국어 문서와 English notes share the same 2026 issue context.",
   "A second top-level paragraph repeats the reading rhythm with 숫자 12345, API names, and enough text to exercise normal wrapping in the detail panel.",
@@ -39,6 +80,10 @@ const MARKDOWN_FIXTURE = [
   '```ts\nconst token = "reef";\nconst intentionallyLongLine = "012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789";\nreturn token;\n```',
   "---",
   `![Fixture image](${MARKDOWN_FIXTURE_IMAGE_URL})`,
+  `![Large fixture image](${MARKDOWN_FIXTURE_LARGE_IMAGE_URL})`,
+  `![Transparent fixture image](${MARKDOWN_FIXTURE_TRANSPARENT_IMAGE_URL})`,
+  "![Broken fixture image](/api/e2e/assets/reef-markdown-editor-missing.png)",
+  `[incident.log](${MARKDOWN_FIXTURE_FILE_URI})`,
   "| Pattern | Meaning |\n| --- | --- |\n| pipe | preserved source |",
   "The final paragraph closes the fixture with 한국어·English·숫자 혼합 content and verifies the last direct block boundary.",
 ].join("\n\n");
@@ -99,6 +144,15 @@ const server = createServer(async (req, res) => {
         "Cache-Control": "no-store",
       });
       return res.end(IMAGE_UPLOAD_FIXTURE_BYTES);
+    }
+    const markdownMediaAsset = MARKDOWN_MEDIA_ASSETS.get(url.pathname);
+    if (markdownMediaAsset && req.method === "GET") {
+      res.writeHead(200, {
+        "Content-Type": markdownMediaAsset.contentType,
+        "Content-Length": String(markdownMediaAsset.body.length),
+        "Cache-Control": "no-store",
+      });
+      return res.end(markdownMediaAsset.body);
     }
     if (url.pathname === "/__e2e/runtime" && req.method === "GET") {
       return json(res, 200, runtimeDiscovery());
@@ -599,6 +653,37 @@ function markdownFixtureVault(name) {
   vault.activity = [];
   vault.notifications = [];
   vault.subscriptions = [];
+  vault.files = new Map([
+    [
+      MARKDOWN_FIXTURE_FILE_ID,
+      {
+        id: MARKDOWN_FIXTURE_FILE_ID,
+        uri: MARKDOWN_FIXTURE_FILE_URI,
+        filename: "incident.log",
+        mimeType: "text/plain",
+        sizeBytes: MARKDOWN_FIXTURE_FILE_BYTES.length,
+        body: MARKDOWN_FIXTURE_FILE_BYTES,
+        contentHash: sha256(MARKDOWN_FIXTURE_FILE_BYTES),
+        confirmed: true,
+      },
+    ],
+  ]);
+  vault.attachments = [
+    {
+      id: "markdown-fixture-attachment",
+      reef_id: issue.reef_id,
+      file_uri: MARKDOWN_FIXTURE_FILE_URI,
+      filename: "incident.log",
+      mime_type: "text/plain",
+      size_bytes: MARKDOWN_FIXTURE_FILE_BYTES.length,
+      author: "alice",
+      created_at: NOW,
+      source: "issue_body",
+      inline: true,
+      original_jira_attachment_id: null,
+      meta: null,
+    },
+  ];
   seedIssueDocument(vault, issue.reef_id, MARKDOWN_FIXTURE);
   return vault;
 }

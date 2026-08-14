@@ -187,6 +187,8 @@ async function readMarkdownSurface(editor: Locator) {
         codeBlocks: root.querySelectorAll("pre code").length,
         rules: root.querySelectorAll("hr").length,
         images: root.querySelectorAll("img").length,
+        fileLinks: root.querySelectorAll('a[data-reef-file-link="true"]')
+          .length,
         mentions: root.querySelectorAll('[data-reef-mention="true"]').length,
         tables: root.querySelectorAll("table").length,
       },
@@ -351,6 +353,11 @@ function imageSourcesFromCsp(csp: string): string[] {
 
 const MARKDOWN_FIXTURE_IMAGE_PATH =
   "/api/e2e/assets/reef-markdown-editor-image.png";
+const MARKDOWN_FIXTURE_LARGE_IMAGE_PATH =
+  "/api/e2e/assets/reef-markdown-editor-large.svg";
+const MARKDOWN_FIXTURE_TRANSPARENT_IMAGE_PATH =
+  "/api/e2e/assets/reef-markdown-editor-transparent.svg";
+const MARKDOWN_FIXTURE_FILE_URI = "akb://reef-e2e/issues/file/incident-log";
 
 test.describe("Hermetic Markdown editor fixture", () => {
   test.beforeEach(async ({ context, request }) => {
@@ -390,6 +397,12 @@ test.describe("Hermetic Markdown editor fixture", () => {
     expect(fixtureDocument?.content).toContain("| Pattern | Meaning |");
     expect(fixtureDocument?.content).toContain("@alice");
     expect(fixtureDocument?.content).toContain("```ts");
+    expect(fixtureDocument?.content).toContain(
+      `![Large fixture image](${MARKDOWN_FIXTURE_LARGE_IMAGE_PATH})`,
+    );
+    expect(fixtureDocument?.content).toContain(
+      `[incident.log](${MARKDOWN_FIXTURE_FILE_URI})`,
+    );
 
     await openExistingWorkspace(page);
     const issueResponse = await page.goto(task.start_path ?? "");
@@ -397,7 +410,10 @@ test.describe("Hermetic Markdown editor fixture", () => {
 
     const editor = page.locator(".reef-markdown-editor");
     await expect(editor).toBeVisible();
-    const fixtureImage = editor.getByRole("img", { name: "Fixture image" });
+    const fixtureImage = editor.getByRole("img", {
+      name: "Fixture image",
+      exact: true,
+    });
     await expect(fixtureImage).toHaveCount(1);
     const imageSource = await fixtureImage.getAttribute("src");
     if (!imageSource) throw new Error("Markdown fixture image has no source");
@@ -430,6 +446,124 @@ test.describe("Hermetic Markdown editor fixture", () => {
     );
     expect(imageDimensions.naturalWidth).toBe(96);
     expect(imageDimensions.naturalHeight).toBe(48);
+    const largeImage = editor.getByRole("img", {
+      name: "Large fixture image",
+    });
+    const transparentImage = editor.getByRole("img", {
+      name: "Transparent fixture image",
+    });
+    const brokenImage = editor.getByRole("img", {
+      name: "Broken fixture image",
+    });
+    await expect(largeImage).toHaveAttribute(
+      "src",
+      MARKDOWN_FIXTURE_LARGE_IMAGE_PATH,
+    );
+    await expect(transparentImage).toHaveAttribute(
+      "src",
+      MARKDOWN_FIXTURE_TRANSPARENT_IMAGE_PATH,
+    );
+    await expect(brokenImage).toHaveAttribute("alt", "Broken fixture image");
+    await expect
+      .poll(() =>
+        largeImage.evaluate(
+          (image: HTMLImageElement) =>
+            image.complete && image.naturalWidth > 0 && image.naturalHeight > 0,
+        ),
+      )
+      .toBe(true);
+    const imageGeometry = await editor.evaluate((root: HTMLElement) => {
+      const read = (selector: string) => {
+        const image = root.querySelector<HTMLImageElement>(selector);
+        if (!image) return null;
+        const rect = image.getBoundingClientRect();
+        const styles = getComputedStyle(image);
+        return {
+          naturalWidth: image.naturalWidth,
+          naturalHeight: image.naturalHeight,
+          renderedWidth: rect.width,
+          renderedHeight: rect.height,
+          maxWidth: styles.maxWidth,
+          maxHeight: styles.maxHeight,
+          objectFit: styles.objectFit,
+          display: styles.display,
+          marginBlockStart: styles.marginBlockStart,
+          marginBlockEnd: styles.marginBlockEnd,
+          background: styles.backgroundColor,
+          border: styles.borderTopColor,
+          radius: styles.borderTopLeftRadius,
+        };
+      };
+      return {
+        small: read('img[alt="Fixture image"]'),
+        large: read('img[alt="Large fixture image"]'),
+        transparent: read('img[alt="Transparent fixture image"]'),
+        broken: read('img[alt="Broken fixture image"]'),
+      };
+    });
+    expect(imageGeometry.small).toMatchObject({
+      naturalWidth: 96,
+      naturalHeight: 48,
+      maxWidth: "100%",
+      maxHeight: "512px",
+      objectFit: "contain",
+      display: "block",
+      marginBlockStart: "16px",
+      marginBlockEnd: "16px",
+    });
+    expect(imageGeometry.small?.renderedWidth).toBeLessThanOrEqual(98);
+    expect(imageGeometry.large).toMatchObject({
+      naturalWidth: 1600,
+      naturalHeight: 1200,
+      maxHeight: "512px",
+      objectFit: "contain",
+      display: "block",
+    });
+    expect(imageGeometry.large?.renderedHeight).toBeLessThanOrEqual(514);
+    expect(imageGeometry.transparent).toMatchObject({
+      naturalWidth: 320,
+      naturalHeight: 180,
+      background: imageGeometry.small?.background,
+      border: imageGeometry.small?.border,
+      radius: imageGeometry.small?.radius,
+    });
+    expect(imageGeometry.broken).toMatchObject({
+      maxWidth: "100%",
+      maxHeight: "512px",
+      display: "block",
+      marginBlockStart: "16px",
+      marginBlockEnd: "16px",
+    });
+
+    const fileLink = editor.getByRole("link", { name: "incident.log" });
+    await expect(fileLink).toHaveAttribute("data-reef-file-link", "true");
+    await expect(fileLink.locator("[data-reef-file-type]")).toHaveAttribute(
+      "data-reef-file-type",
+      "LOG",
+    );
+    await expect(fileLink).toHaveAttribute(
+      "data-reef-file-uri",
+      MARKDOWN_FIXTURE_FILE_URI,
+    );
+    await expect(fileLink).toHaveAttribute("target", "_blank");
+    await expect(fileLink).toHaveAttribute("rel", "noreferrer");
+    const fileProxyHref = await fileLink.getAttribute("href");
+    if (!fileProxyHref)
+      throw new Error("Markdown fixture file link has no href");
+    expect(fileProxyHref).not.toContain(MARKDOWN_FIXTURE_FILE_URI);
+    expect(fileProxyHref).toContain(
+      "/api/issues/REEF-001/attachments/file?vault=reef-e2e&uri=",
+    );
+    expect(fileProxyHref).toContain("download=1");
+    const fileResponse = await page.request.get(
+      new URL(fileProxyHref, page.url()).toString(),
+    );
+    expect(fileResponse.status()).toBe(200);
+    expect(fileResponse.headers()["content-type"]).toContain("text/plain");
+    expect(fileResponse.headers()["content-disposition"]).toContain(
+      "attachment",
+    );
+    expect(await fileResponse.text()).toContain("fixture incident log");
 
     const themeCases: Array<{
       preference: ThemePreference;
@@ -467,7 +601,8 @@ test.describe("Hermetic Markdown editor fixture", () => {
         quoteNestedOrderedLists: 1,
         codeBlocks: 1,
         rules: 1,
-        images: 1,
+        images: 4,
+        fileLinks: 1,
         mentions: 1,
         tables: 0,
       });
@@ -623,6 +758,12 @@ test.describe("Hermetic Markdown editor fixture", () => {
       expect(sourceMarkdown).toContain(
         "akb://reef-e2e/coll/docs/doc/spec-overview.md",
       );
+      expect(sourceMarkdown).toContain(MARKDOWN_FIXTURE_LARGE_IMAGE_PATH);
+      expect(sourceMarkdown).toContain(MARKDOWN_FIXTURE_TRANSPARENT_IMAGE_PATH);
+      expect(sourceMarkdown).toContain(
+        "/api/e2e/assets/reef-markdown-editor-missing.png",
+      );
+      expect(sourceMarkdown).toContain(MARKDOWN_FIXTURE_FILE_URI);
       expect(sourceMarkdown).toContain("```ts");
       expect(sourceMarkdown).toContain("intentionallyLongLine");
       expect(sourceMarkdown).toContain("A second quoted paragraph");
@@ -661,13 +802,66 @@ test.describe("Hermetic Markdown editor fixture", () => {
         quotes: 1,
         codeBlocks: 1,
         rules: 1,
-        images: 1,
+        images: 4,
+        fileLinks: 1,
         mentions: 1,
       });
       expect(roundTrip.text).toContain("@alice");
       expect(roundTrip.text).toContain("nested emphasis");
       expect(roundTrip.blockOrder).toEqual(surface.blockOrder);
     }
+
+    // Commit a harmless source-only marker, reload the real issue detail, and
+    // verify the media/file source and rendered affordances survive the server
+    // round-trip. This exercises the existing body autosave boundary without
+    // changing the fixture's authored links or attachment data.
+    await page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+    const saveSource = page.getByTestId("markdown-source-textarea");
+    const persistedMarker = "\n\nreef-517 save round-trip marker";
+    const sourceBeforeSave = await saveSource.inputValue();
+    await saveSource.fill(`${sourceBeforeSave}${persistedMarker}`);
+    const saveResponse = page.waitForResponse(
+      (response) =>
+        response.url().includes("/api/issues/REEF-001") &&
+        response.request().method() === "PATCH" &&
+        response.status() === 200,
+    );
+    await page.getByTestId("issue-title-input").click();
+    await saveResponse;
+
+    await page.reload();
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    const reopenedEditor = page.locator(".reef-markdown-editor");
+    await expect(reopenedEditor).toBeVisible();
+    await page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+    const reopenedSource = page.getByTestId("markdown-source-textarea");
+    const reopenedMarkdown = await reopenedSource.inputValue();
+    expect(reopenedMarkdown).toContain(persistedMarker.trim());
+    expect(reopenedMarkdown).toContain(MARKDOWN_FIXTURE_LARGE_IMAGE_PATH);
+    expect(reopenedMarkdown).toContain(MARKDOWN_FIXTURE_TRANSPARENT_IMAGE_PATH);
+    expect(reopenedMarkdown).toContain(MARKDOWN_FIXTURE_FILE_URI);
+    await page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+    await expect(reopenedEditor.locator("img")).toHaveCount(4);
+    const reopenedFileLink = reopenedEditor.getByRole("link", {
+      name: "incident.log",
+    });
+    await expect(reopenedFileLink).toHaveAttribute(
+      "data-reef-file-link",
+      "true",
+    );
+    await expect(reopenedFileLink).toHaveAttribute("target", "_blank");
+    expect(await reopenedFileLink.getAttribute("href")).toContain(
+      "/api/issues/REEF-001/attachments/file?",
+    );
 
     expect(consoleErrors).toEqual([]);
     expect(pageErrors).toEqual([]);
