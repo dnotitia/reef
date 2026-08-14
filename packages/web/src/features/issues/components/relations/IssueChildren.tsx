@@ -163,7 +163,7 @@ function IssueChildRow({
             title={assigneeName}
             onPointerEnter={() => setActiveTooltip("assignee")}
             onFocus={() => setActiveTooltip("assignee")}
-            className="flex w-32 shrink-0 items-center justify-start rounded-md border-0 bg-transparent p-0 @max-[40rem]:ml-auto focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+            className="flex w-32 shrink-0 items-center justify-start rounded-md border-0 bg-transparent p-0 text-sm @max-[40rem]:ml-auto focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
           >
             <PersonChip
               identityKey={assignedTo}

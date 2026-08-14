@@ -214,7 +214,7 @@ describe("IssueChildren", () => {
     ).toHaveTextContent("Unassigned");
   });
 
-  it("reserves one assignee track and independent focus rings for every row", () => {
+  it("keeps assignee typography, tracks, and focus rings consistent with issue rows", () => {
     render(
       <IssueChildren
         issueId={PARENT}
@@ -244,6 +244,10 @@ describe("IssueChildren", () => {
     expect(unassigned.className).toContain("shrink-0");
     expect(assigned.className).toContain("justify-start");
     expect(unassigned.className).toContain("justify-start");
+    expect(assigned.className).toContain("text-sm");
+    expect(unassigned.className).toContain("text-sm");
+    expect(screen.getByText("Assigned child").className).toContain("text-sm");
+    expect(screen.getByText("Unassigned child").className).toContain("text-sm");
     expect(assigned.className).toContain("focus-visible:ring-2");
     expect(unassigned.className).toContain("focus-visible:ring-2");
 
