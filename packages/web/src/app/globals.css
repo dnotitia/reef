@@ -792,8 +792,9 @@ hr {
  * keyboard selection never widens the issue sheet. */
 .reef-slash-command-popup,
 .reef-issue-reference-popup {
-  z-index: 50;
+  z-index: 100;
   max-width: min(28rem, calc(100vw - 2rem));
+  pointer-events: auto;
 }
 
 /* Rich issue references are presentation-only nodes. Their Markdown identity

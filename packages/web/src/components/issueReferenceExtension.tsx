@@ -202,8 +202,19 @@ function IssueSuggestionList({
           aria-selected={index === selectedIndex}
           aria-label={issueOptionLabel(issue)}
           className="flex w-full min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs text-foreground hover:bg-surface-hover aria-selected:bg-surface-hover"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => onSelect(issue)}
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          onMouseDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onSelect(issue);
+          }}
         >
           <StatusIcon status={issue.status} size={13} decorative />
           <span
@@ -217,6 +228,31 @@ function IssueSuggestionList({
       ))}
     </div>
   );
+}
+
+const ISSUE_REFERENCE_QUERY_PATTERN =
+  /(?:^|[\s([])(#?[A-Za-z][A-Za-z0-9_]*-\d*)$/u;
+
+function findIssueReferenceSuggestionMatch({
+  $position,
+}: Parameters<
+  NonNullable<SuggestionOptions<IssueListItem>["findSuggestionMatch"]>
+>[0]) {
+  const text = $position.nodeBefore?.isText
+    ? ($position.nodeBefore.text ?? "")
+    : "";
+  if (!text) return null;
+  const match = text.match(ISSUE_REFERENCE_QUERY_PATTERN);
+  const raw = match?.[1];
+  if (!raw) return null;
+  return {
+    range: {
+      from: $position.pos - raw.length,
+      to: $position.pos,
+    },
+    query: raw.startsWith("#") ? raw.slice(1) : raw,
+    text: raw,
+  };
 }
 
 function setSuggestionAria(
@@ -272,8 +308,12 @@ function createIssueReferenceSuggestion(
 
   return {
     pluginKey: new PluginKey("reefIssueReferenceSuggestion"),
-    char: "#",
-    allowedPrefixes: [" ", "\n", "(", "["] as string[],
+    // The matcher supports both the documented plain `REEF-…` flow and the
+    // earlier `#REEF-…` affordance without requiring a separate suggestion
+    // plugin (and therefore without duplicate keyed-plugin state).
+    char: "",
+    allowedPrefixes: null,
+    findSuggestionMatch: findIssueReferenceSuggestionMatch,
     allow: ({ editor }) => !editor.view.composing,
     items: ({ query }) => {
       const normalizedQuery = query.toLocaleLowerCase();

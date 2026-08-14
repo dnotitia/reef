@@ -1085,6 +1085,85 @@ test.describe("Hermetic Markdown editor fixture", () => {
     });
   });
 
+  test("executes a slash command from a real mouse click", async ({
+    page,
+    request,
+  }) => {
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    const editor = page.locator(".reef-markdown-editor");
+    const proseMirror = editor;
+    const existingBulletLists = editor.locator(
+      'ul:not([data-type="taskList"])',
+    );
+    const existingCount = await existingBulletLists.count();
+
+    await proseMirror.locator("p").last().click();
+    await page.keyboard.press("End");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("/bullet");
+
+    const listbox = page.getByRole("listbox");
+    await expect(listbox).toBeVisible();
+    await listbox
+      .getByRole("option", { name: /Bullet list|글머리 기호 목록/u })
+      .click();
+
+    await expect(listbox).toHaveCount(0);
+    await expect
+      .poll(() => existingBulletLists.count())
+      .toBeGreaterThan(existingCount);
+    await expect(proseMirror).not.toContainText("/bullet");
+  });
+
+  test("opens direct REEF-id autocomplete and commits a plain token", async ({
+    page,
+    request,
+  }) => {
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    const editor = page.locator(".reef-markdown-editor");
+    const proseMirror = editor;
+    const sourceToggle = page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button");
+    await sourceToggle.click();
+    await page.getByTestId("markdown-source-textarea").fill("");
+    await sourceToggle.click();
+    await expect(editor).toBeVisible();
+    await proseMirror.locator("p").first().click();
+    await page.keyboard.type("REEF-00");
+
+    const listbox = page.getByRole("listbox");
+    await expect(listbox).toBeVisible();
+    const options = listbox.getByRole("option");
+    await expect(options).toHaveCount(2);
+    await expect(listbox).toContainText("REEF-002");
+    await expect(listbox).toContainText("REEF-003");
+    await expect(listbox).not.toContainText("REEF-001");
+
+    await page.keyboard.press("Enter");
+    await expect(listbox).toHaveCount(0);
+    await expect(proseMirror).toContainText("REEF-002");
+
+    await page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+    await expect(page.getByTestId("markdown-source-textarea")).toHaveValue(
+      "REEF-002 ",
+    );
+    await expect(page.getByTestId("markdown-source-textarea")).not.toHaveValue(
+      /\[@issue/,
+    );
+  });
+
   test("keeps independent task state through keyboard, Source, save, and re-entry", async ({
     page,
     request,

@@ -64,8 +64,22 @@ function SlashSuggestionList({
           role="option"
           aria-selected={index === selectedIndex}
           className="flex w-full min-w-0 items-center rounded-sm px-2 py-1.5 text-left text-xs text-foreground hover:bg-surface-hover aria-selected:bg-surface-hover"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => onSelect(item)}
+          onPointerDown={(event) => {
+            // Keep the ProseMirror range active until click. Floating UI's
+            // outside-pointer dismissal otherwise exits the suggestion before
+            // the command can consume the button click.
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          onMouseDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onSelect(item);
+          }}
         >
           <span className="truncate">{item.label}</span>
         </button>
