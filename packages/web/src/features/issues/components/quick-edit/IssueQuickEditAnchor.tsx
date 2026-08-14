@@ -100,6 +100,21 @@ export function IssueQuickEditAnchor({
   const suppressResizeCloseRef = useRef(false);
   const clearResizeSuppressionRef = useRef<number | null>(null);
 
+  const clearResizeCloseSuppression = useCallback(() => {
+    suppressResizeCloseRef.current = false;
+    if (clearResizeSuppressionRef.current !== null) {
+      window.clearTimeout(clearResizeSuppressionRef.current);
+      clearResizeSuppressionRef.current = null;
+    }
+  }, []);
+
+  const handleDismissKeyDown = useCallback(
+    (event: KeyboardEvent) => {
+      if (event.key === "Escape") clearResizeCloseSuppression();
+    },
+    [clearResizeCloseSuppression],
+  );
+
   const resolvedOccurrenceKey = occurrenceKey ?? issue.id;
   const field =
     request?.scope === scope &&
@@ -147,27 +162,29 @@ export function IssueQuickEditAnchor({
     });
   }, [anchorWidthPx, field, getAnchorElement]);
 
-  const noteViewportResize = useCallback((force = false) => {
-    if (typeof window === "undefined") return false;
-    const nextSize = { width: window.innerWidth, height: window.innerHeight };
-    const previousSize = viewportSizeRef.current;
-    viewportSizeRef.current = nextSize;
-    const changed =
-      previousSize !== null &&
-      (previousSize.width !== nextSize.width ||
-        previousSize.height !== nextSize.height);
-    if (!changed && !force) return false;
+  const noteViewportResize = useCallback(
+    (force = false) => {
+      if (typeof window === "undefined") return false;
+      const nextSize = { width: window.innerWidth, height: window.innerHeight };
+      const previousSize = viewportSizeRef.current;
+      viewportSizeRef.current = nextSize;
+      const changed =
+        previousSize !== null &&
+        (previousSize.width !== nextSize.width ||
+          previousSize.height !== nextSize.height);
+      if (!changed && !force) return false;
 
-    suppressResizeCloseRef.current = true;
-    if (clearResizeSuppressionRef.current !== null) {
-      window.clearTimeout(clearResizeSuppressionRef.current);
-    }
-    clearResizeSuppressionRef.current = window.setTimeout(() => {
-      suppressResizeCloseRef.current = false;
-      clearResizeSuppressionRef.current = null;
-    }, 100);
-    return true;
-  }, []);
+      suppressResizeCloseRef.current = true;
+      if (clearResizeSuppressionRef.current !== null) {
+        window.clearTimeout(clearResizeSuppressionRef.current);
+      }
+      clearResizeSuppressionRef.current = window.setTimeout(() => {
+        clearResizeCloseSuppression();
+      }, 100);
+      return true;
+    },
+    [clearResizeCloseSuppression],
+  );
 
   const handleResize = useCallback(() => {
     // Radix Select closes its controlled content on resize. The quick editor
@@ -193,16 +210,20 @@ export function IssueQuickEditAnchor({
     updateAnchorPosition();
     window.addEventListener("resize", handleResize, true);
     window.addEventListener("scroll", updateAnchorPosition, true);
+    window.addEventListener("keydown", handleDismissKeyDown, true);
     return () => {
       window.removeEventListener("resize", handleResize, true);
       window.removeEventListener("scroll", updateAnchorPosition, true);
-      if (clearResizeSuppressionRef.current !== null) {
-        window.clearTimeout(clearResizeSuppressionRef.current);
-        clearResizeSuppressionRef.current = null;
-      }
-      suppressResizeCloseRef.current = false;
+      window.removeEventListener("keydown", handleDismissKeyDown, true);
+      clearResizeCloseSuppression();
     };
-  }, [field, handleResize, updateAnchorPosition]);
+  }, [
+    clearResizeCloseSuppression,
+    field,
+    handleResize,
+    handleDismissKeyDown,
+    updateAnchorPosition,
+  ]);
 
   function commitPatch(patch: IssueUpdatePatch) {
     mutation.mutateAsync({ id: issue.id, vault, patch }).then(

@@ -664,7 +664,7 @@ describe("IssueListRow", () => {
     useIssueKeyboardStore.getState().closeQuickEdit();
   });
 
-  it("keeps Escape closing the active quick editor", async () => {
+  it("keeps Escape closing the active quick editor immediately after resize", async () => {
     const user = userEvent.setup();
     useIssueKeyboardStore
       .getState()
@@ -683,6 +683,9 @@ describe("IssueListRow", () => {
     await user.click(screen.getByTestId("issue-inline-edit-priority"));
     expect(screen.getByTestId("issue-quick-edit-anchor")).toBeInTheDocument();
 
+    await act(async () => {
+      window.dispatchEvent(new Event("resize"));
+    });
     await user.keyboard("{Escape}");
 
     await waitFor(() =>
