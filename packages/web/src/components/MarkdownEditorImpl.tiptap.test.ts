@@ -201,8 +201,23 @@ describe("MarkdownEditor Tiptap extensions", () => {
       "AKB report",
     );
     expect(
+      editor.view.dom
+        .querySelector('a[href="https://example.com/reef"]')
+        ?.getAttribute("tabindex"),
+    ).toBe("0");
+    expect(
+      editor.view.dom
+        .querySelector(`a[href="${uri}"]`)
+        ?.getAttribute("tabindex"),
+    ).toBe("0");
+    expect(
       editor.view.dom.querySelector('[data-reef-mention="true"]')?.textContent,
     ).toBe("@alice");
+    expect(
+      editor.view.dom
+        .querySelector('[data-reef-mention="true"]')
+        ?.getAttribute("tabindex"),
+    ).toBeNull();
 
     const serialized = editor.getMarkdown();
     expect(serialized).toContain("굵게");

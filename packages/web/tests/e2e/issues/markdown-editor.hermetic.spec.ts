@@ -584,4 +584,41 @@ test.describe("Hermetic Markdown editor fixture", () => {
     expect(consoleErrors).toEqual([]);
     expect(pageErrors).toEqual([]);
   });
+
+  test("tabs through Markdown links while skipping the mention", async ({
+    page,
+    request,
+  }) => {
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    const editor = page.locator(".reef-markdown-editor");
+    await expect(editor).toBeVisible();
+    const normalLink = editor.getByRole("link", { name: "reef link" });
+    const akbLink = editor.getByRole("link", { name: "AKB report" });
+    const mention = editor.locator('[data-reef-mention="true"]');
+    const firstTaskCheckbox = editor
+      .locator('ul[data-type="taskList"] input[type="checkbox"]')
+      .first();
+
+    await expect(normalLink).toHaveAttribute("tabindex", "0");
+    await expect(akbLink).toHaveAttribute("tabindex", "0");
+    await expect(mention).not.toHaveAttribute("tabindex");
+    await expect(mention).not.toHaveRole("link");
+
+    await editor.focus();
+    await page.keyboard.press("Tab");
+    await expect(normalLink).toBeFocused();
+    await expect(normalLink).toHaveCSS("text-decoration-thickness", "2px");
+
+    await page.keyboard.press("Tab");
+    await expect(akbLink).toBeFocused();
+    await expect(akbLink).toHaveCSS("text-decoration-thickness", "2px");
+
+    await page.keyboard.press("Tab");
+    await expect(firstTaskCheckbox).toBeFocused();
+    await expect(mention).not.toBeFocused();
+  });
 });

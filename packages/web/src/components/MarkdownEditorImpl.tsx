@@ -194,6 +194,10 @@ export function createMarkdownEditorExtensions(
     StarterKit.configure({
       link: {
         openOnClick: false,
+        // Anchors inside the contenteditable need an explicit tab stop. This
+        // keeps ordinary and AKB links keyboard-reachable without changing
+        // their Markdown mark or making mention spans interactive.
+        HTMLAttributes: { tabindex: 0 },
         protocols: [{ scheme: "akb", optionalSlashes: true }],
         isAllowedUri: (url, ctx) =>
           url.startsWith("akb://")
