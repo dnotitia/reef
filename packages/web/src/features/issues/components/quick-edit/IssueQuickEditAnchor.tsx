@@ -108,13 +108,6 @@ export function IssueQuickEditAnchor({
     }
   }, []);
 
-  const handleDismissKeyDown = useCallback(
-    (event: KeyboardEvent) => {
-      if (event.key === "Escape") clearResizeCloseSuppression();
-    },
-    [clearResizeCloseSuppression],
-  );
-
   const resolvedOccurrenceKey = occurrenceKey ?? issue.id;
   const field =
     request?.scope === scope &&
@@ -123,6 +116,19 @@ export function IssueQuickEditAnchor({
     (allowedFields === undefined || allowedFields.includes(request.field))
       ? request.field
       : null;
+  const handleDismissKeyDown = useCallback(
+    (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      clearResizeCloseSuppression();
+      // List assignee quick-edit opens in a body portal while focus can remain
+      // on the originating cell trigger, outside the Combobox event tree.
+      if (scope !== "list" || field !== "assignee") return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeQuickEdit();
+    },
+    [clearResizeCloseSuppression, closeQuickEdit, field, scope],
+  );
   const anchorWidth =
     field === "status" || field === "priority"
       ? COMPACT_QUICK_EDIT_WIDTH

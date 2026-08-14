@@ -32,6 +32,9 @@ explicitly in the entries below.
   real priority options while keeping it free of a priority color dot.** The
   shared treatment covers List and Backlog quick edit, issue creation, issue
   detail, and bulk edit. (REEF-521)
+- **Issue List assignee quick editors now close on Escape even when focus stays
+  on the originating cell trigger, without changing the assignee or issuing a
+  save request.** (REEF-497)
 - **Issue quick editors now close reliably with Escape immediately after a
   viewport resize, and List context-menu keyboard coverage no longer races a
   preceding pointer menu's focus restoration.**
