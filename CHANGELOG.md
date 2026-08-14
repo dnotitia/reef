@@ -21,6 +21,12 @@ explicitly in the entries below.
 
 ### Changed
 
+- **REEF-348 accelerates issue body authoring with keyboard-first slash block
+  commands, loaded REEF-id autocomplete and in-app reference rendering, basic
+  GFM tables, and bounded lowlight syntax highlighting.** References remain
+  plain Markdown, comments use the same known/unknown presentation, and
+  relation metadata changes only after an explicit localized action.
+
 - **Issue detail editing now uses a roomier three-step desktop width scale:**
   1200px minimum, 1440px default, and 1680px maximum, while still capping the
   panel at 94% of narrower viewports.

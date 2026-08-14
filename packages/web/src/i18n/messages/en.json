@@ -1423,7 +1423,22 @@
     "uploading": "Uploading attachment…",
     "uploadError": "Couldn't upload that file.",
     "mentionSuggestions": "Mention suggestions",
-    "mentionOption": "Mention {username}"
+    "mentionOption": "Mention {username}",
+    "slashSuggestions": "Block commands",
+    "slashHeading1": "Heading 1",
+    "slashHeading2": "Heading 2",
+    "slashHeading3": "Heading 3",
+    "slashBulletList": "Bullet list",
+    "slashNumberedList": "Numbered list",
+    "slashTaskList": "Task list",
+    "slashTable": "Table",
+    "slashCodeBlock": "Code block",
+    "slashQuote": "Quote",
+    "slashDivider": "Divider",
+    "issueSuggestions": "Issue references",
+    "issueOption": "{id}: {title}",
+    "relationAdd": "Add relation",
+    "relationPending": "Adding…"
   },
   "misc": {
     "offlineBanner": "You're offline — viewing cached data. Changes will sync when you reconnect.",

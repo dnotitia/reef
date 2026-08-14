@@ -381,6 +381,35 @@ inline marks, task lists, images, toolbar/Source controls, comments, AI
 Markdown, or other global `prose` surfaces; language fences remain serialized
 for the future syntax-highlighting boundary.
 
+The shared issue editor also exposes two transient, keyboard-first listboxes.
+Typing `/` at the start of an empty paragraph opens localized block commands for
+headings, lists, task lists, tables, code, quotes, and dividers; arrows wrap,
+Enter applies, and Escape dismisses without leaving the trigger text. Typing
+`#` followed by an issue id fragment filters the already-loaded whole-vault
+issue list by id or title, excludes the current issue, and commits only the
+plain id plus a trailing space. Both surfaces expose listbox/option ARIA state,
+visible selected focus, mouse selection, and composition/IME guards. Their
+popup width is bounded to the editor/detail viewport.
+
+Known standalone REEF ids in the body are presentation-only rich references:
+the loaded status glyph, monospace id, and title are rebuilt from the current
+`IssueListItem` list and link to the vault-scoped detail route. Unknown ids,
+inline/fenced code, and ids inside existing Markdown links remain plain. The
+same known/unknown rendering is used by comment read surfaces. The reference
+node serializes back to the original plain id, so status/title refreshes never
+dirty the body or write relation metadata. After a known reference is committed
+the editor may show a localized **관계 추가 / Add relation** inline action; only
+that explicit action updates `related_to`, with deduplication and a pending
+lock.
+
+Basic GFM pipe tables are editable with a header row and serialize back to the
+same pipe form. The table wrapper is the only horizontal scrollport; merged
+cells, multi-block cells, alignment controls, and resizing are intentionally out
+of scope. Fenced blocks use the bounded lowlight common-language registry inside
+the existing lazy editor chunk. Known languages receive editor-scoped `hljs`
+token decorations with semantic light/dark colors; empty and unknown languages
+stay readable plain code, and all fence language/text bytes remain round-trippable.
+
 ### Spacing, Layout & Density
 
 Layout follows Tailwind's spacing scale. The frame is a fixed sidebar plus a

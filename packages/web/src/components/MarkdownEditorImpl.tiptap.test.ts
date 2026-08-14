@@ -1,8 +1,9 @@
 import { Editor } from "@tiptap/react";
-import type { VaultMember } from "@reef/core";
+import type { IssueListItem, VaultMember } from "@reef/core";
 import { afterEach, describe, expect, it } from "vitest";
 import { createMarkdownEditorExtensions } from "./MarkdownEditorImpl";
 import { prepareIssueBodyMentionMarkdown } from "./issueBodyMentionExtension";
+import { prepareIssueReferenceMarkdown } from "./issueReferenceExtension";
 
 const editors: Editor[] = [];
 
@@ -10,6 +11,7 @@ function createEditor(
   markdown: string,
   mentionMembers?: readonly VaultMember[],
   resolveAttachmentHref?: (href: string) => string,
+  issues?: readonly IssueListItem[],
 ) {
   const element = document.createElement("div");
   document.body.appendChild(element);
@@ -27,10 +29,26 @@ function createEditor(
           }
         : undefined,
       resolveAttachmentHref,
+      issues
+        ? {
+            issuesRef: { current: issues },
+            currentIssueId: "REEF-001",
+            vault: "reef-test",
+            suggestionsLabel: "Issue references",
+            issueOptionLabel: (issue) => `${issue.id}: ${issue.title}`,
+          }
+        : undefined,
     ),
-    content: mentionMembers
-      ? prepareIssueBodyMentionMarkdown(markdown, mentionMembers)
-      : markdown,
+    content: issues
+      ? prepareIssueReferenceMarkdown(
+          mentionMembers
+            ? prepareIssueBodyMentionMarkdown(markdown, mentionMembers)
+            : markdown,
+          issues,
+        )
+      : mentionMembers
+        ? prepareIssueBodyMentionMarkdown(markdown, mentionMembers)
+        : markdown,
     contentType: "markdown",
   });
 
@@ -45,6 +63,11 @@ afterEach(() => {
 });
 
 describe("MarkdownEditor Tiptap extensions", () => {
+  const knownIssues = [
+    { id: "REEF-001", title: "Current issue", status: "todo" },
+    { id: "REEF-002", title: "Second issue", status: "in_progress" },
+  ] as IssueListItem[];
+
   it("registers issue-body mentions only for the opt-in editor surface", () => {
     const withoutMentions = createMarkdownEditorExtensions(
       "Describe the issue...",
@@ -245,6 +268,60 @@ describe("MarkdownEditor Tiptap extensions", () => {
       reloaded.view.dom.querySelector("blockquote > ul ol"),
     ).not.toBeNull();
     expect(reloaded.view.dom.querySelector("hr")).not.toBeNull();
+  });
+
+  it("round-trips a basic GFM table with a header row", () => {
+    const markdown = "| Name | State |\n| --- | --- |\n| Reef | ready |";
+    const editor = createEditor(markdown);
+
+    expect(editor.view.dom.querySelector(".tableWrapper table")).not.toBeNull();
+    expect(editor.view.dom.querySelectorAll("th")).toHaveLength(2);
+    expect(editor.view.dom.querySelectorAll("tbody tr")).toHaveLength(2);
+    expect(editor.getMarkdown()).toContain("| Name | State |");
+    expect(editor.getMarkdown()).toContain("| Reef | ready |");
+
+    const reloaded = createEditor(editor.getMarkdown());
+    expect(reloaded.view.dom.querySelector("th")?.textContent).toBe("Name");
+    expect(
+      reloaded.view.dom.querySelector("tbody tr:last-child")?.textContent,
+    ).toContain("ready");
+  });
+
+  it("highlights known code languages while unknown fences stay plain", () => {
+    const editor = createEditor(
+      '```ts\nconst answer: string = "ok";\n```\n\n```reef-unknown\nplain token\n```',
+    );
+    const blocks = editor.view.dom.querySelectorAll("pre code");
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]?.className).toContain("language-ts");
+    expect(
+      blocks[0]?.querySelector(".hljs-keyword, .hljs-type, .hljs-string"),
+    ).not.toBeNull();
+    expect(blocks[1]?.className).toContain("language-reef-unknown");
+    expect(blocks[1]?.querySelector("[class*='hljs-']")).toBeNull();
+    expect(editor.getMarkdown()).toContain("```ts");
+    expect(editor.getMarkdown()).toContain("```reef-unknown");
+  });
+
+  it("renders known issue ids with presentation data but serializes plain ids", () => {
+    const markdown =
+      "See REEF-002 and REEF-999, `REEF-002`, [REEF-002](https://example.test).";
+    const editor = createEditor(markdown, undefined, undefined, knownIssues);
+    const reference = editor.view.dom.querySelector<HTMLAnchorElement>(
+      "a[data-reef-issue-id]",
+    );
+
+    expect(reference?.dataset.reefIssueId).toBe("REEF-002");
+    expect(reference?.dataset.reefStatus).toBe("in_progress");
+    expect(reference?.textContent).toContain("REEF-002");
+    expect(reference?.textContent).toContain("Second issue");
+    expect(editor.view.dom.querySelector("code")?.textContent).toBe("REEF-002");
+    expect(
+      editor.view.dom.querySelector('a[href="https://example.test"]')
+        ?.textContent,
+    ).toBe("REEF-002");
+    expect(editor.view.dom.textContent).toContain("REEF-999");
+    expect(editor.getMarkdown()).toBe(markdown);
   });
 
   it("preserves markdown links to akb documents", () => {

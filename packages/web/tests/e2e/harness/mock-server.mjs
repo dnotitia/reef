@@ -72,7 +72,7 @@ const MARKDOWN_FIXTURE = [
   "## Structure",
   "A second section paragraph explains the structure before the nested heading and keeps the blocks visibly separated.",
   "### Details",
-  "A paragraph with **bold**, *italic*, ~~strikethrough~~, and **_~~nested emphasis~~_**; it includes a [reef link](https://example.com/reef), an [AKB report](akb://reef-e2e/coll/docs/doc/spec-overview.md), `inline code`, and @alice.",
+  "A paragraph with **bold**, *italic*, ~~strikethrough~~, and **_~~nested emphasis~~_**; it includes a [reef link](https://example.com/reef), an [AKB report](akb://reef-e2e/coll/docs/doc/spec-overview.md), `inline code`, and @alice. Standalone references REEF-002 and REEF-999 stay readable beside `REEF-002` and [REEF-002](https://example.com/reef-reference).",
   "1. Ordered item one\n2. Ordered item two\n   - Nested unordered item\n     1. Nested ordered child",
   "- Unordered item one\n- Unordered item two\n  1. Nested ordered child\n     - Nested unordered grandchild",
   "- [x] Completed parent\n  - [ ] Open child\n  - [x] Completed child",
@@ -476,7 +476,7 @@ function runtimeDiscovery() {
         interaction: {
           type: "markdown_editor",
           operation:
-            "open the fixture issue, inspect the supported Markdown elements, switch to Source, return to WYSIWYG, and compare the preserved structure",
+            "open the fixture issue, use slash commands and loaded issue autocomplete, inspect known/unknown body and comment references, edit the basic table, verify bounded syntax highlighting, switch to Source, return to WYSIWYG, and compare the preserved structure",
         },
       },
       large_issue_list: {
@@ -643,13 +643,29 @@ function makeState(scenario) {
 function markdownFixtureVault(name) {
   const vault = configuredVault(name);
   const issue = vault.issues[0];
+  const referenceIssues = vault.issues.slice(1, 3);
   if (!issue) throw new Error("Markdown fixture requires a seeded issue");
 
   issue.title = "Markdown reference";
   issue.labels = ["markdown", "fixture"];
-  vault.issues = [issue];
+  issue.related_to = [];
+  vault.issues = [issue, ...referenceIssues];
   vault.documents = new Map();
-  vault.comments = [];
+  vault.comments = [
+    {
+      id: "markdown-fixture-comment",
+      reef_id: issue.reef_id,
+      body: "Comment references REEF-002 and unknown REEF-999, `REEF-002`, and [REEF-002](https://example.com/comment-reference).",
+      meta: {
+        author: "alice",
+        created_at: NOW,
+        edited_at: null,
+      },
+      created_at: NOW,
+      updated_at: NOW,
+      created_by: "alice",
+    },
+  ];
   vault.activity = [];
   vault.notifications = [];
   vault.subscriptions = [];
@@ -685,6 +701,13 @@ function markdownFixtureVault(name) {
     },
   ];
   seedIssueDocument(vault, issue.reef_id, MARKDOWN_FIXTURE);
+  for (const referenceIssue of referenceIssues) {
+    seedIssueDocument(
+      vault,
+      referenceIssue.reef_id,
+      `${referenceIssue.title} fixture reference.`,
+    );
+  }
   return vault;
 }
 

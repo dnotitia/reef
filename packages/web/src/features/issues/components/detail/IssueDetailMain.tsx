@@ -48,6 +48,7 @@ export function IssueDetailMain({
   commitTitle,
   commitBody,
   commit,
+  onAddRelatedIssue,
 }: {
   issueId: string;
   vault: string;
@@ -72,6 +73,7 @@ export function IssueDetailMain({
   commitTitle: (value: string) => void;
   commitBody: (value: string) => void;
   commit: (patch: IssueUpdatePatch) => void;
+  onAddRelatedIssue?: (issueId: string) => Promise<void>;
 }) {
   const fieldNames = useFieldNameLabels();
   const t = useTranslations("issues.detail");
@@ -87,6 +89,24 @@ export function IssueDetailMain({
         markdownEditor("mentionOption", { username: `@${username}` }),
     }),
     [markdownEditor, vaultMembers],
+  );
+  const issueReferenceConfig = useMemo(
+    () => ({
+      issues: allIssues,
+      currentIssueId: issueId,
+      vault,
+      relatedIssueIds: issue?.related_to ?? [],
+      suggestionsLabel: markdownEditor("issueSuggestions"),
+      issueOptionLabel: (target: IssueListItem) =>
+        markdownEditor("issueOption", {
+          id: target.id,
+          title: target.title,
+        }),
+      relationAddLabel: markdownEditor("relationAdd"),
+      relationPendingLabel: markdownEditor("relationPending"),
+      onAddRelatedIssue,
+    }),
+    [allIssues, issue, issueId, markdownEditor, onAddRelatedIssue, vault],
   );
 
   function handleAddSubIssue() {
@@ -164,6 +184,7 @@ export function IssueDetailMain({
           ariaLabel={t("descriptionAriaLabel")}
           vault={vault}
           mentionConfig={issueBodyMentionConfig}
+          issueReferenceConfig={issueReferenceConfig}
         />
       </div>
 
@@ -200,7 +221,12 @@ export function IssueDetailMain({
           status changes, and reconstructed events merge into one chronological
           thread after the structured fields. */}
       {issue ? (
-        <ActivityTimeline issueId={issueId} vault={vault} issue={issue} />
+        <ActivityTimeline
+          issueId={issueId}
+          vault={vault}
+          issue={issue}
+          allIssues={allIssues}
+        />
       ) : null}
     </main>
   );

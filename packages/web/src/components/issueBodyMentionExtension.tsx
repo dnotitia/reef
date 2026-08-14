@@ -11,6 +11,7 @@ import {
   type MarkdownTokenizer,
 } from "@tiptap/core";
 import Mention, { type MentionNodeAttrs } from "@tiptap/extension-mention";
+import { PluginKey } from "@tiptap/pm/state";
 import { ReactRenderer } from "@tiptap/react";
 import type {
   SuggestionKeyDownProps,
@@ -217,6 +218,7 @@ function createIssueBodyMentionSuggestion(
   }
 
   return {
+    pluginKey: new PluginKey("reefIssueBodyMentionSuggestion"),
     char: "@",
     allowedPrefixes: null,
     findSuggestionMatch: (config) => {

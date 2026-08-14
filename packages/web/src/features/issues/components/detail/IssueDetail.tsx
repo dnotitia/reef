@@ -211,6 +211,26 @@ function IssueDetailLoaded({
     if (value !== (data.content ?? "")) commit({}, value);
   }
 
+  async function handleAddRelatedIssue(targetId: string) {
+    const previous = draft.relatedTo;
+    if (targetId === issue.id || previous.includes(targetId)) return;
+    const next = [...new Set([...previous, targetId])];
+    setDraftField("relatedTo", next);
+    try {
+      await updateMutation.mutateAsync({
+        id: issueId,
+        vault,
+        patch: { related_to: next },
+      });
+    } catch (error) {
+      setDraftField("relatedTo", previous);
+      toast.error(
+        error instanceof Error ? error.message : t("commentEditError"),
+      );
+      throw error;
+    }
+  }
+
   async function handleBodyUploadFiles(files: File[]) {
     return Promise.all(
       files.map((file) =>
@@ -392,6 +412,7 @@ function IssueDetailLoaded({
           commitTitle={commitTitle}
           commitBody={commitBody}
           commit={commit}
+          onAddRelatedIssue={handleAddRelatedIssue}
         />
 
         <IssueDetailSidebar

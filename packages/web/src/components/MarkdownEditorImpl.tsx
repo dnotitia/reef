@@ -21,12 +21,14 @@ import {
 } from "@/lib/akb/markdownDocumentLinks";
 import { cn } from "@/lib/utils";
 import { useAkbWebUrl } from "@/providers/AkbWebUrlProvider";
-import type { VaultMember } from "@reef/core";
+import type { IssueListItem, VaultMember } from "@reef/core";
 import { Extension, mergeAttributes } from "@tiptap/core";
+import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import Image from "@tiptap/extension-image";
 import LinkExtension from "@tiptap/extension-link";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import Placeholder from "@tiptap/extension-placeholder";
+import { TableKit } from "@tiptap/extension-table";
 import { Markdown } from "@tiptap/markdown";
 import { Plugin } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
@@ -38,6 +40,7 @@ import {
   useEditorState,
 } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import { common, createLowlight } from "lowlight";
 import {
   Bold,
   Code,
@@ -69,6 +72,16 @@ import {
   prepareIssueBodyMentionMarkdown,
   type IssueBodyMentionExtensionOptions,
 } from "./issueBodyMentionExtension";
+import {
+  createIssueReferenceExtension,
+  prepareIssueReferenceMarkdown,
+  type IssueReferenceExtensionOptions,
+} from "./issueReferenceExtension";
+import {
+  createSlashCommandExtension,
+  type SlashCommandItem,
+  type SlashCommandExtensionOptions,
+} from "./slashCommandExtension";
 
 /**
  * Shared height policy for both editor surfaces — the WYSIWYG body and the
@@ -92,6 +105,17 @@ export const EDITOR_BODY_SIZING =
   "min-h-[200px] max-h-[clamp(200px,48vh,560px)] overflow-y-auto [scrollbar-gutter:stable]";
 export const EDITOR_BODY_FRAME_CLASS = "p-1";
 export const EDITOR_CONTENT_CLASS = "reef-markdown-editor";
+
+// Keep the registry bounded to lowlight's common grammars. Importing `all`
+// would pull the full highlight.js catalogue into the editor's lazy chunk.
+const REEF_LOWLIGHT = createLowlight(common);
+// CodeBlockLowlight falls back to `highlightAuto` when a fence has no known
+// language. Reef deliberately keeps those blocks plain so a typo or an empty
+// fence never invents token colours.
+REEF_LOWLIGHT.highlightAuto = (value: string) => ({
+  type: "root",
+  children: [{ type: "text", value }],
+});
 
 export interface MarkdownEditorProps {
   value: string;
@@ -129,12 +153,26 @@ export interface MarkdownEditorProps {
    * shared editor keeps its existing schema and interaction contract.
    */
   mentionConfig?: MarkdownEditorMentionConfig;
+  /** Whole-vault loaded issues for plain-id references and autocomplete. */
+  issueReferenceConfig?: MarkdownEditorIssueReferenceConfig;
 }
 
 export interface MarkdownEditorMentionConfig {
   members: readonly VaultMember[];
   suggestionsLabel: string;
   mentionOptionLabel: (username: string) => string;
+}
+
+export interface MarkdownEditorIssueReferenceConfig {
+  issues: readonly IssueListItem[];
+  currentIssueId: string;
+  vault: string;
+  relatedIssueIds: readonly string[];
+  suggestionsLabel: string;
+  issueOptionLabel: (issue: IssueListItem) => string;
+  relationAddLabel: string;
+  relationPendingLabel: string;
+  onAddRelatedIssue?: (issueId: string) => Promise<void>;
 }
 
 /** Active-state flags for every toolbar control, derived from the selection. */
@@ -265,12 +303,15 @@ export function createMarkdownEditorExtensions(
   resolveImageSrc?: (src: string) => string,
   mentionConfig?: IssueBodyMentionExtensionOptions,
   resolveAttachmentHref?: (href: string) => string | undefined,
+  issueReferenceConfig?: IssueReferenceExtensionOptions,
+  slashCommandConfig?: SlashCommandExtensionOptions,
 ) {
   const extensions: AnyExtension[] = [
     // StarterKit v3 bundles the Link extension; configure it here rather than
     // registering a second @tiptap/extension-link (which warns about a
     // duplicate 'link' extension and leaves link behavior ambiguous).
-    StarterKit.configure({ link: false }),
+    StarterKit.configure({ link: false, codeBlock: false }),
+    CodeBlockLowlight.configure({ lowlight: REEF_LOWLIGHT }),
     // Keep the shared Link behavior while adding issue-scoped file-link
     // display attributes at render time. The authored AKB URI remains the
     // mark's href and therefore remains the Markdown serialization value.
@@ -279,6 +320,7 @@ export function createMarkdownEditorExtensions(
     TaskItem.configure({ nested: true }),
     createImageExtension(resolveImageSrc),
     createIssueAttachmentLinkDecorationExtension(),
+    TableKit.configure({ table: { resizable: false, renderWrapper: true } }),
     Markdown,
     Placeholder.configure({
       placeholder,
@@ -289,6 +331,12 @@ export function createMarkdownEditorExtensions(
   ];
   if (mentionConfig) {
     extensions.push(createIssueBodyMentionExtension(mentionConfig));
+  }
+  if (issueReferenceConfig) {
+    extensions.push(createIssueReferenceExtension(issueReferenceConfig));
+  }
+  if (slashCommandConfig) {
+    extensions.push(createSlashCommandExtension(slashCommandConfig));
   }
   return extensions;
 }
@@ -441,13 +489,21 @@ function syncEditorMarkdown(
   editor: Editor | null | undefined,
   markdown: string,
   mentionMembers?: readonly VaultMember[],
+  issueList?: readonly IssueListItem[],
 ) {
   if (!editor || editor.isDestroyed) return;
   if (editor.getMarkdown() === markdown) return;
   editor.commands.setContent(
-    mentionMembers
-      ? prepareIssueBodyMentionMarkdown(markdown, mentionMembers)
-      : markdown,
+    issueList
+      ? prepareIssueReferenceMarkdown(
+          mentionMembers
+            ? prepareIssueBodyMentionMarkdown(markdown, mentionMembers)
+            : markdown,
+          issueList,
+        )
+      : mentionMembers
+        ? prepareIssueBodyMentionMarkdown(markdown, mentionMembers)
+        : markdown,
     {
       contentType: "markdown",
       emitUpdate: false,
@@ -459,12 +515,20 @@ function setEditorMarkdown(
   editor: Editor | null | undefined,
   markdown: string,
   mentionMembers?: readonly VaultMember[],
+  issueList?: readonly IssueListItem[],
 ) {
   if (!editor || editor.isDestroyed) return;
   editor.commands.setContent(
-    mentionMembers
-      ? prepareIssueBodyMentionMarkdown(markdown, mentionMembers)
-      : markdown,
+    issueList
+      ? prepareIssueReferenceMarkdown(
+          mentionMembers
+            ? prepareIssueBodyMentionMarkdown(markdown, mentionMembers)
+            : markdown,
+          issueList,
+        )
+      : mentionMembers
+        ? prepareIssueBodyMentionMarkdown(markdown, mentionMembers)
+        : markdown,
     {
       contentType: "markdown",
       emitUpdate: false,
@@ -504,6 +568,7 @@ export function MarkdownEditor({
   resolveImageSrc,
   resolveAttachmentHref,
   mentionConfig,
+  issueReferenceConfig,
 }: MarkdownEditorProps) {
   const t = useTranslations("markdownEditor");
   const c = useTranslations("common");
@@ -533,14 +598,92 @@ export function MarkdownEditor({
   const linkSelectionRef = useRef<EditorSelectionRange | null>(null);
   const mentionMembersRef = useRef<readonly VaultMember[]>([]);
   const previousMentionRosterRef = useRef<string | null>(null);
+  const issueListRef = useRef<readonly IssueListItem[]>(
+    issueReferenceConfig?.issues ?? [],
+  );
+  const issueReferenceConfigRef = useRef(issueReferenceConfig);
+  const relationCallbackRef = useRef(issueReferenceConfig?.onAddRelatedIssue);
+  const previousIssueReferenceFingerprintRef = useRef<string | null>(null);
+  const [pendingRelationId, setPendingRelationId] = useState<string | null>(
+    null,
+  );
+  const [relationPending, setRelationPending] = useState(false);
 
   const mentionRosterFingerprint = mentionConfig
     ? mentionConfig.members.map((member) => member.username).join("\u0000")
     : null;
+  const issueReferenceFingerprint = issueReferenceConfig
+    ? issueReferenceConfig.issues
+        .map((issue) => `${issue.id}:${issue.status}:${issue.title}`)
+        .sort()
+        .join("\u0000")
+    : null;
+
+  const slashCommandConfig: SlashCommandExtensionOptions = {
+    suggestionsLabel: t("slashSuggestions"),
+    commands: [
+      {
+        id: "heading1",
+        label: t("slashHeading1"),
+        keywords: ["heading", "h1", "제목"],
+      },
+      {
+        id: "heading2",
+        label: t("slashHeading2"),
+        keywords: ["heading", "h2", "제목"],
+      },
+      {
+        id: "heading3",
+        label: t("slashHeading3"),
+        keywords: ["heading", "h3", "제목"],
+      },
+      {
+        id: "bulletList",
+        label: t("slashBulletList"),
+        keywords: ["bullet", "list", "글머리", "목록"],
+      },
+      {
+        id: "orderedList",
+        label: t("slashNumberedList"),
+        keywords: ["numbered", "ordered", "list", "번호"],
+      },
+      {
+        id: "taskList",
+        label: t("slashTaskList"),
+        keywords: ["task", "todo", "check", "할 일"],
+      },
+      {
+        id: "table",
+        label: t("slashTable"),
+        keywords: ["table", "gfm", "표"],
+      },
+      {
+        id: "codeBlock",
+        label: t("slashCodeBlock"),
+        keywords: ["code", "fence", "코드"],
+      },
+      {
+        id: "blockquote",
+        label: t("slashQuote"),
+        keywords: ["quote", "blockquote", "인용"],
+      },
+      {
+        id: "divider",
+        label: t("slashDivider"),
+        keywords: ["divider", "rule", "hr", "구분선"],
+      },
+    ],
+  };
 
   useEffect(() => {
     mentionMembersRef.current = mentionConfig?.members ?? [];
   }, [mentionConfig?.members]);
+
+  useEffect(() => {
+    issueListRef.current = issueReferenceConfig?.issues ?? [];
+    issueReferenceConfigRef.current = issueReferenceConfig;
+    relationCallbackRef.current = issueReferenceConfig?.onAddRelatedIssue;
+  }, [issueReferenceConfig]);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -581,12 +724,13 @@ export function MarkdownEditor({
           ed ?? editorRef.current,
           next,
           mentionConfig ? mentionMembersRef.current : undefined,
+          issueReferenceConfig ? issueListRef.current : undefined,
         );
         const root = rootRef.current;
         if (!root?.contains(document.activeElement)) onBlurRef.current?.(next);
       });
     },
-    [mentionConfig, vault],
+    [issueReferenceConfig, mentionConfig, vault],
   );
 
   function publishMarkdown(rawMarkdown: string, ed?: Editor | null) {
@@ -600,6 +744,7 @@ export function MarkdownEditor({
         ed,
         markdown,
         mentionConfig ? mentionMembersRef.current : undefined,
+        issueReferenceConfig ? issueListRef.current : undefined,
       );
     }
     onChangeRef.current(markdown);
@@ -624,11 +769,30 @@ export function MarkdownEditor({
           }
         : undefined,
       (href) => resolveAttachmentHrefRef.current?.(href),
+      issueReferenceConfig
+        ? {
+            issuesRef: issueListRef,
+            currentIssueId: issueReferenceConfig.currentIssueId,
+            vault: issueReferenceConfig.vault,
+            suggestionsLabel: issueReferenceConfig.suggestionsLabel,
+            issueOptionLabel: issueReferenceConfig.issueOptionLabel,
+            onCommit: (id) => {
+              const config = issueReferenceConfigRef.current;
+              if (!config || id === config.currentIssueId) return;
+              const related = new Set(config.relatedIssueIds);
+              if (!related.has(id)) setPendingRelationId(id);
+            },
+          }
+        : undefined,
+      slashCommandConfig,
     ),
     /* eslint-enable react-hooks/refs */
-    content: mentionConfig
-      ? prepareIssueBodyMentionMarkdown(value, mentionConfig.members)
-      : value,
+    content: prepareIssueReferenceMarkdown(
+      mentionConfig
+        ? prepareIssueBodyMentionMarkdown(value, mentionConfig.members)
+        : value,
+      issueReferenceConfig?.issues ?? [],
+    ),
     contentType: "markdown",
     editable: !readOnly,
     editorProps: {
@@ -640,7 +804,7 @@ export function MarkdownEditor({
           "px-3 py-2 max-w-none",
         ),
         ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
-        ...(mentionConfig
+        ...(mentionConfig || issueReferenceConfig
           ? { "aria-autocomplete": "list", "aria-expanded": "false" }
           : {}),
       },
@@ -757,11 +921,18 @@ export function MarkdownEditor({
         editor,
         normalized,
         mentionConfig ? mentionMembersRef.current : undefined,
+        issueReferenceConfig ? issueListRef.current : undefined,
       );
     }
     lastSyncedValueRef.current = normalized;
     queueAkbTitleResolution(normalized, editor);
-  }, [editor, mentionConfig, queueAkbTitleResolution, value]);
+  }, [
+    editor,
+    issueReferenceConfig,
+    mentionConfig,
+    queueAkbTitleResolution,
+    value,
+  ]);
 
   useEffect(() => {
     if (!mentionConfig || !editor) return;
@@ -770,7 +941,12 @@ export function MarkdownEditor({
 
     const selection = editor.state.selection;
     const currentMarkdown = latestValueRef.current;
-    setEditorMarkdown(editor, currentMarkdown, mentionMembersRef.current);
+    setEditorMarkdown(
+      editor,
+      currentMarkdown,
+      mentionMembersRef.current,
+      issueReferenceConfig ? issueListRef.current : undefined,
+    );
     const documentSize = editor.state.doc.content.size;
     if (documentSize > 0 && typeof selection.from === "number") {
       editor.commands.setTextSelection({
@@ -778,7 +954,31 @@ export function MarkdownEditor({
         to: Math.min(selection.to, documentSize),
       });
     }
-  }, [editor, mentionConfig, mentionRosterFingerprint]);
+  }, [editor, issueReferenceConfig, mentionConfig, mentionRosterFingerprint]);
+
+  useEffect(() => {
+    if (!issueReferenceConfig || !editor) return;
+    if (
+      previousIssueReferenceFingerprintRef.current === issueReferenceFingerprint
+    ) {
+      return;
+    }
+    previousIssueReferenceFingerprintRef.current = issueReferenceFingerprint;
+    const selection = editor.state.selection;
+    setEditorMarkdown(
+      editor,
+      latestValueRef.current,
+      mentionConfig ? mentionMembersRef.current : undefined,
+      issueListRef.current,
+    );
+    const documentSize = editor.state.doc.content.size;
+    if (documentSize > 0 && typeof selection.from === "number") {
+      editor.commands.setTextSelection({
+        from: Math.min(selection.from, documentSize),
+        to: Math.min(selection.to, documentSize),
+      });
+    }
+  }, [editor, issueReferenceConfig, issueReferenceFingerprint, mentionConfig]);
 
   useEffect(() => {
     if (rootRef.current) {
@@ -814,6 +1014,7 @@ export function MarkdownEditor({
         editor,
         newValue,
         mentionConfig ? mentionMembersRef.current : undefined,
+        issueReferenceConfig ? issueListRef.current : undefined,
       );
     }
     queueAkbTitleResolution(newValue, editor);
@@ -828,6 +1029,7 @@ export function MarkdownEditor({
       editor,
       next,
       mentionConfig ? mentionMembersRef.current : undefined,
+      issueReferenceConfig ? issueListRef.current : undefined,
     );
     // The native file picker can move focus outside the editor before the
     // asynchronous upload finishes. In that case the ordinary blur commit has
@@ -958,6 +1160,29 @@ export function MarkdownEditor({
       if (!s) closeLinkEditor();
       return !s;
     });
+  }
+
+  useEffect(() => {
+    if (!pendingRelationId || !issueReferenceConfig) return;
+    if (issueReferenceConfig.relatedIssueIds.includes(pendingRelationId)) {
+      setPendingRelationId(null);
+    }
+  }, [issueReferenceConfig, pendingRelationId]);
+
+  async function addPendingRelation() {
+    const target = pendingRelationId;
+    const callback = relationCallbackRef.current;
+    if (!target || !callback || relationPending) return;
+    setRelationPending(true);
+    try {
+      await callback(target);
+      setPendingRelationId(null);
+    } catch {
+      // The owning mutation surfaces the error; keep the explicit action so it
+      // remains retryable without changing the body or relation twice.
+    } finally {
+      setRelationPending(false);
+    }
   }
 
   const showLinkEditor = linkEditorOpen && !sourceMode && !readOnly;
@@ -1257,6 +1482,29 @@ export function MarkdownEditor({
           <EditorContent editor={editor} />
         )}
       </div>
+
+      {pendingRelationId && issueReferenceConfig ? (
+        <div
+          className="flex items-center gap-2 border-t border-border-subtle px-3 py-1.5 text-xs"
+          data-testid="issue-reference-relation-action"
+        >
+          <span className="min-w-0 truncate text-muted-foreground">
+            {pendingRelationId}
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 shrink-0 px-2 text-xs text-brand hover:text-brand"
+            onClick={() => void addPendingRelation()}
+            disabled={relationPending || readOnly}
+          >
+            {relationPending
+              ? issueReferenceConfig.relationPendingLabel
+              : issueReferenceConfig.relationAddLabel}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }
