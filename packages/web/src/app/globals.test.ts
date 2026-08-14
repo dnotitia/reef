@@ -205,4 +205,63 @@ describe("global focus styles", () => {
       "text-decoration-color: var(--brand);",
     );
   });
+
+  it("keeps issue Markdown rhythm compact and scoped to direct blocks", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const directBlockRules = [
+      [
+        ".reef-markdown-editor > p",
+        ["font-size: 14px;", "line-height: 22px;", "margin-block: 8px;"],
+      ],
+      [
+        ".reef-markdown-editor > h1",
+        [
+          "font-size: 24px;",
+          "line-height: 30px;",
+          "font-weight: 600;",
+          "margin-block: 24px 10px;",
+        ],
+      ],
+      [
+        ".reef-markdown-editor > h2",
+        [
+          "font-size: 20px;",
+          "line-height: 28px;",
+          "font-weight: 600;",
+          "margin-block: 22px 8px;",
+        ],
+      ],
+      [
+        ".reef-markdown-editor > h3",
+        [
+          "font-size: 16px;",
+          "line-height: 24px;",
+          "font-weight: 600;",
+          "margin-block: 20px 6px;",
+        ],
+      ],
+    ] as const;
+
+    for (const [selector, declarations] of directBlockRules) {
+      const selectorStart = css.indexOf(`${selector} {`);
+      expect(selectorStart, selector).toBeGreaterThan(-1);
+      const selectorEnd = findCssBlockEnd(css, selectorStart);
+      expect(selectorEnd, selector).toBeGreaterThan(selectorStart);
+      const block = css.slice(selectorStart, selectorEnd);
+      for (const declaration of declarations) {
+        expect(block, `${selector} ${declaration}`).toContain(declaration);
+      }
+    }
+
+    expect(css).toContain(
+      ".reef-markdown-editor > :first-child {\n  margin-block-start: 0;",
+    );
+    expect(css).toContain(
+      ".reef-markdown-editor > :last-child {\n  margin-block-end: 0;",
+    );
+    expect(css).not.toContain(".reef-markdown-editor p {");
+    expect(css).toContain(
+      '.reef-markdown-editor ul[data-type="taskList"] > li > div > p {',
+    );
+  });
 });
