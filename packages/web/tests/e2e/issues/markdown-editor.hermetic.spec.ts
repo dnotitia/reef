@@ -179,6 +179,11 @@ async function readMarkdownSurface(editor: Locator) {
         checkboxes: checkboxes.length,
         checkedCheckboxes: checkboxes.filter((input) => input.checked).length,
         quotes: root.querySelectorAll("blockquote").length,
+        quoteParagraphs: quote?.querySelectorAll(":scope > p").length ?? 0,
+        quoteLists:
+          quote?.querySelectorAll(":scope > ul, :scope > ol").length ?? 0,
+        quoteNestedOrderedLists:
+          quote?.querySelectorAll(":scope > ul ol").length ?? 0,
         codeBlocks: root.querySelectorAll("pre code").length,
         rules: root.querySelectorAll("hr").length,
         images: root.querySelectorAll("img").length,
@@ -259,9 +264,46 @@ async function readMarkdownSurface(editor: Locator) {
         quoteBorder: quote
           ? getComputedStyle(quote).borderInlineStartColor
           : "",
+        quoteBorderWidth: quote
+          ? getComputedStyle(quote).borderInlineStartWidth
+          : "",
+        quoteBackground: quote ? getComputedStyle(quote).backgroundColor : "",
+        quoteFontStyle: quote ? getComputedStyle(quote).fontStyle : "",
+        quoteFontWeight: quote ? getComputedStyle(quote).fontWeight : "",
+        quotePaddingBlock: quote
+          ? getComputedStyle(quote).paddingBlockStart
+          : "",
+        quotePaddingInline: quote
+          ? getComputedStyle(quote).paddingInlineStart
+          : "",
+        quoteFirstChildMarginTop: quote
+          ? getComputedStyle(quote.firstElementChild as HTMLElement).marginTop
+          : "",
+        quoteLastChildMarginBottom: quote
+          ? getComputedStyle(quote.lastElementChild as HTMLElement).marginBottom
+          : "",
         preCode: preCode ? getComputedStyle(preCode).color : "",
+        preCodeFontFamily: preCode ? getComputedStyle(preCode).fontFamily : "",
+        preCodeFontSize: preCode ? getComputedStyle(preCode).fontSize : "",
+        preCodeLineHeight: preCode ? getComputedStyle(preCode).lineHeight : "",
+        preCodeWhiteSpace: preCode ? getComputedStyle(preCode).whiteSpace : "",
+        preCodeLanguage: preCode?.className ?? "",
         preBackground: pre ? getComputedStyle(pre).backgroundColor : "",
+        preBorder: pre ? getComputedStyle(pre).borderTopColor : "",
+        preRadius: pre ? getComputedStyle(pre).borderTopLeftRadius : "",
+        prePaddingInline: pre ? getComputedStyle(pre).paddingInlineStart : "",
+        prePaddingBlock: pre ? getComputedStyle(pre).paddingBlockStart : "",
+        preOverflowX: pre ? getComputedStyle(pre).overflowX : "",
+        preWhiteSpace: pre ? getComputedStyle(pre).whiteSpace : "",
         ruleBorder: rule ? getComputedStyle(rule).borderTopColor : "",
+        ruleBorderWidth: rule ? getComputedStyle(rule).borderTopWidth : "",
+        ruleBorderStyle: rule ? getComputedStyle(rule).borderTopStyle : "",
+        ruleMarginBlock: rule
+          ? {
+              start: getComputedStyle(rule).marginBlockStart,
+              end: getComputedStyle(rule).marginBlockEnd,
+            }
+          : null,
         foreground: resolveColor("--foreground"),
         brand: resolveColor("--brand"),
         borderSubtle: resolveColor("--border-subtle"),
@@ -290,6 +332,11 @@ async function readMarkdownSurface(editor: Locator) {
       text: root.textContent ?? "",
       overflow: {
         editor: root.scrollWidth <= root.clientWidth,
+        codeBlock: pre ? pre.scrollWidth > pre.clientWidth : false,
+        codeBlockContained: pre
+          ? pre.scrollWidth > pre.clientWidth &&
+            root.scrollWidth <= root.clientWidth
+          : false,
         document:
           document.documentElement.scrollWidth <=
           document.documentElement.clientWidth,
@@ -409,12 +456,15 @@ test.describe("Hermetic Markdown editor fixture", () => {
         inlineCode: 1,
         strikethrough: 2,
         nestedStrikethrough: 1,
-        orderedLists: 1,
-        unorderedLists: 1,
+        orderedLists: 2,
+        unorderedLists: 2,
         taskLists: 1,
         checkboxes: 2,
         checkedCheckboxes: 1,
         quotes: 1,
+        quoteParagraphs: 2,
+        quoteLists: 1,
+        quoteNestedOrderedLists: 1,
         codeBlocks: 1,
         rules: 1,
         images: 1,
@@ -459,9 +509,34 @@ test.describe("Hermetic Markdown editor fixture", () => {
       });
       expect(surface.colors.nestedStrikethrough).toBe("line-through");
       expect(surface.colors.quoteBorder).toBe(surface.colors.brand);
+      expect(surface.colors.quoteBorderWidth).toBe("2px");
+      expect(surface.colors.quoteBackground).toBe(surface.colors.surfaceSubtle);
+      expect(surface.colors.quoteFontStyle).toBe("normal");
+      expect(surface.colors.quoteFontWeight).toBe("400");
+      expect(surface.colors.quotePaddingBlock).toBe("8px");
+      expect(surface.colors.quotePaddingInline).toBe("12px");
+      expect(surface.colors.quoteFirstChildMarginTop).toBe("0px");
+      expect(surface.colors.quoteLastChildMarginBottom).toBe("0px");
       expect(surface.colors.preCode).toBe(surface.colors.foreground);
+      expect(surface.colors.preCodeFontFamily).toContain("Geist Mono");
+      expect(surface.colors.preCodeFontSize).toBe("13px");
+      expect(surface.colors.preCodeLineHeight).toBe("20px");
+      expect(surface.colors.preCodeWhiteSpace).toBe("pre");
+      expect(surface.colors.preCodeLanguage).toContain("language-ts");
       expect(surface.colors.preBackground).toBe(surface.colors.surfaceSubtle);
+      expect(surface.colors.preBorder).toBe(surface.colors.borderSubtle);
+      expect(surface.colors.preRadius).toBe("6px");
+      expect(surface.colors.prePaddingInline).toBe("14px");
+      expect(surface.colors.prePaddingBlock).toBe("12px");
+      expect(surface.colors.preOverflowX).toBe("auto");
+      expect(surface.colors.preWhiteSpace).toBe("pre");
       expect(surface.colors.ruleBorder).toBe(surface.colors.borderSubtle);
+      expect(surface.colors.ruleBorderWidth).toBe("1px");
+      expect(surface.colors.ruleBorderStyle).toBe("solid");
+      expect(surface.colors.ruleMarginBlock).toEqual({
+        start: "24px",
+        end: "24px",
+      });
       expect(surface.proseVariables).toEqual({
         body: surface.colors.foreground,
         links: surface.colors.foreground,
@@ -498,7 +573,12 @@ test.describe("Hermetic Markdown editor fixture", () => {
           },
         },
       });
-      expect(surface.overflow).toEqual({ editor: true, document: true });
+      expect(surface.overflow).toEqual({
+        editor: true,
+        codeBlock: true,
+        codeBlockContained: true,
+        document: true,
+      });
 
       const fixtureLink = editor.getByRole("link", { name: "reef link" });
       await fixtureLink.hover();
@@ -544,6 +624,11 @@ test.describe("Hermetic Markdown editor fixture", () => {
         "akb://reef-e2e/coll/docs/doc/spec-overview.md",
       );
       expect(sourceMarkdown).toContain("```ts");
+      expect(sourceMarkdown).toContain("intentionallyLongLine");
+      expect(sourceMarkdown).toContain("A second quoted paragraph");
+      expect(sourceMarkdown).toContain("Nested unordered item");
+      expect(sourceMarkdown).toContain("Nested ordered child");
+      expect(sourceMarkdown).toContain("---");
       expect(sourceMarkdown).toContain("| Pattern | Meaning |");
       await page.screenshot({
         animations: "disabled",
@@ -565,8 +650,11 @@ test.describe("Hermetic Markdown editor fixture", () => {
         inlineCode: 1,
         strikethrough: 2,
         nestedStrikethrough: 1,
-        orderedLists: 1,
-        unorderedLists: 1,
+        orderedLists: 2,
+        unorderedLists: 2,
+        quoteParagraphs: 2,
+        quoteLists: 1,
+        quoteNestedOrderedLists: 1,
         taskLists: 1,
         checkboxes: 2,
         checkedCheckboxes: 1,
@@ -583,6 +671,82 @@ test.describe("Hermetic Markdown editor fixture", () => {
 
     expect(consoleErrors).toEqual([]);
     expect(pageErrors).toEqual([]);
+  });
+
+  test("contains the long code line at an effective 200% viewport", async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width: 720, height: 900 });
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    const editor = page.locator(".reef-markdown-editor");
+    await expect(editor).toBeVisible();
+    const surface = await readMarkdownSurface(editor);
+    expect(surface.overflow).toMatchObject({
+      editor: true,
+      codeBlock: true,
+      codeBlockContained: true,
+      document: true,
+    });
+    expect(surface.colors.preCodeLanguage).toContain("language-ts");
+    expect(surface.colors.preCodeWhiteSpace).toBe("pre");
+
+    const geometry = await editor.evaluate((root: HTMLElement) => {
+      const pre = root.querySelector<HTMLElement>("pre");
+      return {
+        editorClientWidth: root.clientWidth,
+        editorScrollWidth: root.scrollWidth,
+        preClientWidth: pre?.clientWidth ?? 0,
+        preScrollWidth: pre?.scrollWidth ?? 0,
+        documentClientWidth: document.documentElement.clientWidth,
+        documentScrollWidth: document.documentElement.scrollWidth,
+      };
+    });
+    expect(geometry.preScrollWidth).toBeGreaterThan(geometry.preClientWidth);
+    expect(geometry.editorScrollWidth).toBeLessThanOrEqual(
+      geometry.editorClientWidth,
+    );
+    expect(geometry.documentScrollWidth).toBeLessThanOrEqual(
+      geometry.documentClientWidth,
+    );
+
+    await page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+    const source = page.getByTestId("markdown-source-textarea");
+    await expect(source).toBeVisible();
+    const sourceMarkdown = await source.inputValue();
+    expect(sourceMarkdown).toContain("```ts");
+    expect(sourceMarkdown).toContain("intentionallyLongLine");
+    expect(sourceMarkdown).toContain("Nested unordered item");
+    expect(sourceMarkdown).toContain("Nested ordered child");
+    expect(sourceMarkdown).toContain("---");
+
+    await page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+    await expect(editor).toBeVisible();
+    const roundTrip = await readMarkdownSurface(editor);
+    expect(roundTrip.counts).toMatchObject({
+      quotes: 1,
+      quoteParagraphs: 2,
+      quoteLists: 1,
+      quoteNestedOrderedLists: 1,
+      codeBlocks: 1,
+      rules: 1,
+    });
+    expect(roundTrip.overflow).toMatchObject({
+      editor: true,
+      codeBlock: true,
+      codeBlockContained: true,
+      document: true,
+    });
   });
 
   test("tabs through Markdown links while skipping the mention", async ({

@@ -167,6 +167,47 @@ describe("MarkdownEditor Tiptap extensions", () => {
     );
   });
 
+  it("round-trips language fences, nested quote lists, and horizontal rules", () => {
+    const markdown = [
+      '```ts\nconst intentionallyLongLine = "012345678901234567890123456789";\n```',
+      "> First quoted paragraph.\n>\n> Second quoted paragraph.\n>\n> - Nested unordered item\n>   1. Nested ordered child",
+      "---",
+    ].join("\n\n");
+    const editor = createEditor(markdown);
+
+    expect(editor.view.dom.querySelector("pre code")?.className).toContain(
+      "language-ts",
+    );
+    expect(editor.view.dom.querySelector("pre code")?.textContent).toContain(
+      "intentionallyLongLine",
+    );
+    const quote = editor.view.dom.querySelector("blockquote");
+    expect(quote?.querySelectorAll(":scope > p")).toHaveLength(2);
+    expect(quote?.querySelector(":scope > ul")).not.toBeNull();
+    expect(quote?.querySelector(":scope > ul ol")).not.toBeNull();
+    expect(editor.view.dom.querySelector(":scope > hr")).not.toBeNull();
+
+    const serialized = editor.getMarkdown();
+    expect(serialized).toContain("```ts");
+    expect(serialized).toContain("intentionallyLongLine");
+    expect(serialized).toContain("First quoted paragraph");
+    expect(serialized).toContain("Nested unordered item");
+    expect(serialized).toContain("Nested ordered child");
+    expect(serialized).toContain("---");
+
+    const reloaded = createEditor(serialized);
+    expect(
+      Array.from(reloaded.view.dom.children, (element) => element.tagName),
+    ).toEqual(["PRE", "BLOCKQUOTE", "HR"]);
+    expect(reloaded.view.dom.querySelector("pre code")?.className).toContain(
+      "language-ts",
+    );
+    expect(
+      reloaded.view.dom.querySelector("blockquote > ul ol"),
+    ).not.toBeNull();
+    expect(reloaded.view.dom.querySelector("hr")).not.toBeNull();
+  });
+
   it("preserves markdown links to akb documents", () => {
     const uri = "akb://reef-test/coll/research/doc/report.md";
     const editor = createEditor(`[Research Report](${uri})`);

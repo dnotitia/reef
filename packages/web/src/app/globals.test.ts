@@ -336,4 +336,92 @@ describe("global focus styles", () => {
       '.reef-markdown-editor ul[data-type="taskList"] > li > div > p {',
     );
   });
+
+  it("keeps block Markdown surfaces dense, scoped, and scroll-contained", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+
+    const preStart = css.indexOf(".reef-markdown-editor > pre {");
+    expect(preStart).toBeGreaterThan(-1);
+    const preEnd = findCssBlockEnd(css, preStart);
+    expect(preEnd).toBeGreaterThan(preStart);
+    const preBlock = css.slice(preStart, preEnd);
+    for (const declaration of [
+      "font-family: var(--font-mono-stack);",
+      "font-size: 13px;",
+      "line-height: 20px;",
+      "color: var(--foreground);",
+      "background: var(--surface-subtle);",
+      "border: 1px solid var(--border-subtle);",
+      "border-radius: 0.375rem;",
+      "padding: 12px 14px;",
+      "max-width: 100%;",
+      "min-width: 0;",
+      "overflow-x: auto;",
+      "white-space: pre;",
+    ]) {
+      expect(preBlock, declaration).toContain(declaration);
+    }
+
+    const quoteStart = css.indexOf(".reef-markdown-editor > blockquote {");
+    expect(quoteStart).toBeGreaterThan(-1);
+    const quoteEnd = findCssBlockEnd(css, quoteStart);
+    expect(quoteEnd).toBeGreaterThan(quoteStart);
+    const quoteBlock = css.slice(quoteStart, quoteEnd);
+    for (const declaration of [
+      "border-inline-start: 2px solid var(--brand);",
+      "background: var(--surface-subtle);",
+      "font-style: normal;",
+      "quotes: none;",
+      "padding: 8px 12px;",
+    ]) {
+      expect(quoteBlock, declaration).toContain(declaration);
+    }
+
+    const quotePseudoStart = css.indexOf(
+      ".reef-markdown-editor > blockquote::before,",
+    );
+    expect(quotePseudoStart).toBeGreaterThan(quoteEnd);
+    const quotePseudoEnd = findCssBlockEnd(css, quotePseudoStart);
+    expect(quotePseudoEnd).toBeGreaterThan(quotePseudoStart);
+    expect(css.slice(quotePseudoStart, quotePseudoEnd)).toContain(
+      "content: none;",
+    );
+    expect(css).toContain(
+      ".reef-markdown-editor > blockquote > p:first-of-type::before,",
+    );
+    expect(css).toContain(
+      ".reef-markdown-editor > blockquote > p:last-of-type::after",
+    );
+    expect(css).toContain(
+      ".reef-markdown-editor > blockquote > :first-child {\n  margin-block-start: 0;",
+    );
+    expect(css).toContain(
+      ".reef-markdown-editor > blockquote > :last-child {\n  margin-block-end: 0;",
+    );
+
+    const ruleStart = css.indexOf(".reef-markdown-editor > hr {");
+    expect(ruleStart).toBeGreaterThan(-1);
+    const ruleEnd = findCssBlockEnd(css, ruleStart);
+    expect(ruleEnd).toBeGreaterThan(ruleStart);
+    const ruleBlock = css.slice(ruleStart, ruleEnd);
+    for (const declaration of [
+      "border: 0;",
+      "border-top: 1px solid var(--border-subtle);",
+      "height: 0;",
+      "margin-block: 24px;",
+    ]) {
+      expect(ruleBlock, declaration).toContain(declaration);
+    }
+
+    const globalHrStart = css.indexOf("hr {");
+    expect(globalHrStart).toBeGreaterThan(-1);
+    const globalHrEnd = findCssBlockEnd(css, globalHrStart);
+    expect(globalHrEnd).toBeGreaterThan(globalHrStart);
+    expect(css.slice(globalHrStart, globalHrEnd)).toContain(
+      "border-color: var(--border-subtle);",
+    );
+    expect(css.slice(globalHrStart, globalHrEnd)).not.toContain(
+      "margin-block: 24px;",
+    );
+  });
 });

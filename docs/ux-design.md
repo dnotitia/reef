@@ -351,6 +351,20 @@ their sanitized `data-reef-mention` marker, brand/500 treatment, and no
 underline or link behavior. These rules are editor-scoped and do not alter
 fenced code blocks, comments, or AI Markdown.
 
+Block Markdown keeps the same controlled density. Fenced code uses the existing
+Geist Mono stack at `13px/20px` on `--surface-subtle`, with a
+`--border-subtle` 1px boundary, restrained radius, and compact padding; its
+`pre` owns `white-space: pre` and `overflow-x: auto` so long lines scroll inside
+the block without widening the editor or detail document. Blockquotes remove
+forced italics and generated quote marks, using a 2px `--brand` start rule and
+an extremely light `--surface-subtle` surface; direct paragraphs and lists keep
+their normal weight/style and first/last block rhythm inside the quote. A
+horizontal rule is a single `--border-subtle` 1px hairline with 24px block
+spacing. These block rules remain scoped to the issue WYSIWYG and do not change
+inline marks, task lists, images, toolbar/Source controls, comments, AI
+Markdown, or other global `prose` surfaces; language fences remain serialized
+for the future syntax-highlighting boundary.
+
 ### Spacing, Layout & Density
 
 Layout follows Tailwind's spacing scale. The frame is a fixed sidebar plus a
