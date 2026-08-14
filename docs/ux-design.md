@@ -330,6 +330,16 @@ The scale is compact on purpose:
 Hero-scale type does not belong inside dashboard panels. Routed product
 surfaces should not drop below 12px captions or 14px body copy.
 
+Issue Markdown bodies use a compact rhythm inside the scoped
+`.reef-markdown-editor` WYSIWYG surface. Top-level paragraphs are 14px with a
+22px line height and 8px between consecutive paragraphs. Top-level headings
+step down through H1 24px/30px, H2 20px/28px, and H3 16px/24px; each uses
+600 weight and has block margins of H1 24px/10px, H2 22px/8px, and H3
+20px/6px (top/bottom). The first direct block starts at 0 and the last direct
+block ends at 0. These overrides stay on direct children so list and checklist
+item paragraphs keep their own layout, and the global `prose-sm` defaults and
+other Markdown surfaces are unchanged.
+
 ### Spacing, Layout & Density
 
 Layout follows Tailwind's spacing scale. The frame is a fixed sidebar plus a

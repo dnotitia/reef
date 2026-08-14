@@ -96,6 +96,41 @@ async function readMarkdownSurface(editor: Locator) {
     const preCode = root.querySelector<HTMLElement>("pre code");
     const rule = root.querySelector<HTMLElement>("hr");
     const rootStyles = getComputedStyle(root);
+    const directChildren = Array.from(root.children) as HTMLElement[];
+    const findDirectChild = (selector: string) =>
+      directChildren.find((element) => element.matches(selector));
+    const directParagraphs = directChildren.filter((element) =>
+      element.matches("p"),
+    );
+    const consecutiveParagraphPair = directParagraphs
+      .map(
+        (paragraph, index) => [paragraph, directParagraphs[index + 1]] as const,
+      )
+      .find(([, next]) => next);
+    const actualGap = (first: HTMLElement, second: HTMLElement) => {
+      const firstRect = first.getBoundingClientRect();
+      const secondRect = second.getBoundingClientRect();
+      return Math.round((secondRect.top - firstRect.bottom) * 100) / 100;
+    };
+    const headingMetrics = Object.fromEntries(
+      (["h1", "h2", "h3"] as const).map((level) => {
+        const heading = findDirectChild(level);
+        if (!heading) return [level, null];
+        const styles = getComputedStyle(heading);
+        const previous = heading.previousElementSibling as HTMLElement | null;
+        return [
+          level,
+          {
+            fontSize: styles.fontSize,
+            lineHeight: styles.lineHeight,
+            fontWeight: styles.fontWeight,
+            marginTop: styles.marginTop,
+            marginBottom: styles.marginBottom,
+            sectionGap: previous ? actualGap(previous, heading) : null,
+          },
+        ];
+      }),
+    );
     const resolveProseColor = (variable: string) => {
       const probe = document.createElement("span");
       probe.style.setProperty("color", rootStyles.getPropertyValue(variable));
@@ -160,6 +195,21 @@ async function readMarkdownSurface(editor: Locator) {
         body: resolveProseColor("--tw-prose-body"),
         links: resolveProseColor("--tw-prose-links"),
         preBackground: resolveProseBackground("--tw-prose-pre-bg"),
+      },
+      blockOrder: directChildren.map((element) =>
+        element.tagName.toLowerCase(),
+      ),
+      rhythm: {
+        firstBlockMarginTop: directChildren[0]
+          ? getComputedStyle(directChildren[0]).marginTop
+          : "",
+        lastBlockMarginBottom: directChildren.at(-1)
+          ? getComputedStyle(directChildren.at(-1) as HTMLElement).marginBottom
+          : "",
+        directParagraphGap: consecutiveParagraphPair
+          ? actualGap(consecutiveParagraphPair[0], consecutiveParagraphPair[1])
+          : null,
+        headings: headingMetrics,
       },
       text: root.textContent ?? "",
       overflow: {
@@ -308,6 +358,37 @@ test.describe("Hermetic Markdown editor fixture", () => {
         links: surface.colors.foreground,
         preBackground: surface.colors.surfaceSubtle,
       });
+      expect(surface.rhythm).toMatchObject({
+        firstBlockMarginTop: "0px",
+        lastBlockMarginBottom: "0px",
+        directParagraphGap: 8,
+        headings: {
+          h1: {
+            fontSize: "24px",
+            lineHeight: "30px",
+            fontWeight: "600",
+            marginTop: "24px",
+            marginBottom: "10px",
+            sectionGap: 24,
+          },
+          h2: {
+            fontSize: "20px",
+            lineHeight: "28px",
+            fontWeight: "600",
+            marginTop: "22px",
+            marginBottom: "8px",
+            sectionGap: 22,
+          },
+          h3: {
+            fontSize: "16px",
+            lineHeight: "24px",
+            fontWeight: "600",
+            marginTop: "20px",
+            marginBottom: "6px",
+            sectionGap: 20,
+          },
+        },
+      });
       expect(surface.overflow).toEqual({ editor: true, document: true });
 
       const fixtureLink = editor.getByRole("link", { name: "reef link" });
@@ -344,6 +425,9 @@ test.describe("Hermetic Markdown editor fixture", () => {
       await expect(source).toBeVisible();
       const sourceMarkdown = await source.inputValue();
       expect(sourceMarkdown).toContain("# Markdown reference");
+      expect(sourceMarkdown).toContain("한국어 문서와 English notes");
+      expect(sourceMarkdown).toContain("## Structure");
+      expect(sourceMarkdown).toContain("### Details");
       expect(sourceMarkdown).toContain("@alice");
       expect(sourceMarkdown).toContain("```ts");
       expect(sourceMarkdown).toContain("| Pattern | Meaning |");
@@ -376,6 +460,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
         mentions: 1,
       });
       expect(roundTrip.text).toContain("@alice");
+      expect(roundTrip.blockOrder).toEqual(surface.blockOrder);
     }
 
     expect(consoleErrors).toEqual([]);

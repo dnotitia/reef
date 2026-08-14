@@ -24,8 +24,12 @@ const IMAGE_UPLOAD_FIXTURE_BYTES = Buffer.from(
 const MARKDOWN_FIXTURE_IMAGE_URL =
   "/api/e2e/assets/reef-markdown-editor-image.png";
 const MARKDOWN_FIXTURE = [
+  "A compact mixed-language introduction: 한국어 문서와 English notes share the same 2026 issue context.",
+  "A second top-level paragraph repeats the reading rhythm with 숫자 12345, API names, and enough text to exercise normal wrapping in the detail panel.",
   "# Markdown reference",
+  "A heading-led section keeps the hierarchy readable while this paragraph combines 한국어, English, and 42 without widening the editor.",
   "## Structure",
+  "A second section paragraph explains the structure before the nested heading and keeps the blocks visibly separated.",
   "### Details",
   "A paragraph with **bold**, *italic*, a [reef link](https://example.com/reef), and `inline code`. It also names @alice.",
   "1. Ordered item one\n2. Ordered item two",
@@ -36,6 +40,7 @@ const MARKDOWN_FIXTURE = [
   "---",
   `![Fixture image](${MARKDOWN_FIXTURE_IMAGE_URL})`,
   "| Pattern | Meaning |\n| --- | --- |\n| pipe | preserved source |",
+  "The final paragraph closes the fixture with 한국어·English·숫자 혼합 content and verifies the last direct block boundary.",
 ].join("\n\n");
 const SUPPORTED_SCENARIOS = [
   "empty",
