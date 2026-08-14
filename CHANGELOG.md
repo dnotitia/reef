@@ -39,6 +39,9 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Sub-issue assignee names now use the same compact body typography as the
+  issue titles beside them**, preserving the existing avatar, ID, status, and
+  priority hierarchy across desktop and narrow layouts.
 - **Priority selectors now render the unset label with the same typography as
   real priority options while keeping it free of a priority color dot.** The
   shared treatment covers List and Backlog quick edit, issue creation, issue

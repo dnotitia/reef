@@ -249,6 +249,20 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
       await expect(assignedSlot).toBeVisible();
       await expect(unassignedSlot).toBeVisible();
 
+      const [assigneeTypography, titleTypography] = await Promise.all([
+        assignedSlot.evaluate((element) => {
+          const style = getComputedStyle(element);
+          return { fontSize: style.fontSize, lineHeight: style.lineHeight };
+        }),
+        assignedLink
+          .locator('[data-issue-option-slot="title"] > span')
+          .evaluate((element) => {
+            const style = getComputedStyle(element);
+            return { fontSize: style.fontSize, lineHeight: style.lineHeight };
+          }),
+      ]);
+      expect(assigneeTypography).toEqual(titleTypography);
+
       const [assignedBox, unassignedBox, assignedTitleBox, unassignedTitleBox] =
         await Promise.all([
           assignedSlot.boundingBox(),
