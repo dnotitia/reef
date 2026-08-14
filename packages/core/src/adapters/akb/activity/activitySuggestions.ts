@@ -51,7 +51,7 @@ function activitySuggestionDocumentSummary(
 }
 
 function composeActivitySuggestionContent(body: string): string {
-  const trimmedBody = body.replace(/\s+$/, "");
+  const trimmedBody = body.trimEnd();
   return trimmedBody.length === 0 ? "" : `${trimmedBody}\n`;
 }
 

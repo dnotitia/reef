@@ -20,6 +20,17 @@ describe("parseLenientJson", () => {
     if (result.ok) expect(result.value).toEqual({ a: 1 });
   });
 
+  it("strips a case-insensitive JSON fence without a backtracking regex", () => {
+    const result = parseLenientJson('```JSON\n{"a":1}\n```');
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value).toEqual({ a: 1 });
+  });
+
+  it("rejects an unterminated fence with a long whitespace run", () => {
+    const result = parseLenientJson(`\`\`\`json\n${" ".repeat(100_000)}x`);
+    expect(result.ok).toBe(false);
+  });
+
   it("extracts JSON wrapped in a prose preamble", () => {
     const result = parseLenientJson('Here is the object: {"a":1} thanks');
     expect(result.ok).toBe(true);

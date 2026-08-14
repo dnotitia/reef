@@ -80,7 +80,10 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version-file: .node-version
-          cache: "pnpm"
+
+      # This job intentionally executes akb's moving `main` branch. Keep it
+      # isolated from GitHub Actions caches so upstream code cannot poison a
+      # cache later restored by another default-branch workflow.
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
