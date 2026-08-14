@@ -1,4 +1,11 @@
-const FENCE_PATTERN = /^```(?:json)?\s*([\s\S]*?)\s*```$/i;
+function extractFencedCandidate(trimmed: string): string | undefined {
+  if (!trimmed.startsWith("```") || !trimmed.endsWith("```")) {
+    return undefined;
+  }
+
+  const contentStart = trimmed.slice(3, 7).toLowerCase() === "json" ? 7 : 3;
+  return trimmed.slice(contentStart, -3).trim();
+}
 
 /**
  * Parse a JSON payload that an LLM may have wrapped in noise.
@@ -13,9 +20,8 @@ const FENCE_PATTERN = /^```(?:json)?\s*([\s\S]*?)\s*```$/i;
  * and ends with `}` — the slice would be byte-identical to candidate (1),
  * so re-parsing it just doubles the cost on the common clean-JSON path.
  *
- * Returns the parsed value (still `unknown` — caller validates shape).
- * Returns `null` to signal failure; callers translate that into their own
- * domain error so the helper itself stays error-class agnostic.
+ * Returns the parsed value (still `unknown` — caller validates shape), or an
+ * `ok: false` result so callers can translate failure into a domain error.
  */
 export function parseLenientJson(
   raw: string,
@@ -23,9 +29,9 @@ export function parseLenientJson(
   const trimmed = raw.trim();
   if (!trimmed) return { ok: false, error: new Error("empty input") };
 
-  const fenceMatch = trimmed.match(FENCE_PATTERN);
+  const fencedCandidate = extractFencedCandidate(trimmed);
   const candidates: string[] = [trimmed];
-  if (fenceMatch) candidates.push(fenceMatch[1].trim());
+  if (fencedCandidate !== undefined) candidates.push(fencedCandidate);
   const firstBrace = trimmed.indexOf("{");
   const lastBrace = trimmed.lastIndexOf("}");
   if (

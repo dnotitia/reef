@@ -12,6 +12,13 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Security
+
+- **LLM JSON and activity-content parsing now avoid polynomial-time regular
+  expressions, the live AKB drift workflow no longer exposes a shared package
+  cache while executing the upstream moving branch, and vulnerable transitive
+  `DOMPurify` and `nanoid` releases are replaced with patched versions.**
+
 ### Changed
 
 - **Comment authors can now permanently delete their own comment and every

@@ -30,6 +30,20 @@ describe("activity suggestions", () => {
     expect(body).not.toContain("kind:");
   });
 
+  it("normalizes long trailing whitespace in linear time", () => {
+    const body = composeActivitySuggestionDocumentBody({
+      ...SAMPLE_DRAFT_SUGGESTION,
+      proposal: {
+        ...SAMPLE_DRAFT_SUGGESTION.proposal,
+        create: {
+          ...SAMPLE_DRAFT_SUGGESTION.proposal.create,
+          content: `Keep this content${" ".repeat(100_000)}`,
+        },
+      },
+    });
+    expect(body).toBe("Keep this content\n");
+  });
+
   it("composes status-change markdown with only the rationale", () => {
     const body = composeActivitySuggestionDocumentBody(
       SAMPLE_STATUS_CHANGE_SUGGESTION,
