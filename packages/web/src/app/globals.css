@@ -452,20 +452,68 @@ hr {
   margin-block-end: 0;
 }
 
-/* Keep issue-body links in the reading hierarchy with body text. The Reef
- * brand remains the link affordance through a restrained underline, which
- * becomes fully branded for hover and keyboard focus. */
-.reef-markdown-editor a {
+/* Inline Markdown marks belong to the issue document's semantic hierarchy.
+ * Keep these selectors inside the WYSIWYG scope so comments, AI Markdown, and
+ * other prose consumers retain their own renderer contracts. */
+.reef-markdown-editor :not(pre) > code {
   color: var(--foreground);
-  text-decoration-color: color-mix(in oklab, var(--brand) 50%, transparent);
+  font-family: var(--font-mono-stack);
+  font-size: 0.875em;
+  font-weight: 500;
+  line-height: inherit;
+  background-color: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.25rem;
+  padding-inline: 0.25rem;
+  padding-block: 0.125rem;
+  vertical-align: baseline;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Tailwind Typography adds visual backticks with these pseudo-elements. Reef
+ * renders the code surface itself; fenced `pre > code` remains untouched. */
+.reef-markdown-editor :not(pre) > code::before,
+.reef-markdown-editor :not(pre) > code::after {
+  content: none;
+}
+
+.reef-markdown-editor strong {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.reef-markdown-editor em {
+  color: var(--foreground);
+  font-style: italic;
+}
+
+.reef-markdown-editor s,
+.reef-markdown-editor del {
+  color: var(--foreground);
+  text-decoration-line: line-through;
+  text-decoration-color: currentColor;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+/* Links stay visibly branded in every state. Focus-visible increases the
+ * underline weight while the shared global focus ring supplies keyboard
+ * location, so the two affordances do not compete. */
+.reef-markdown-editor a,
+.reef-markdown-editor a:visited {
+  color: var(--brand);
+  text-decoration-line: underline;
+  text-decoration-color: var(--brand);
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
   transition: text-decoration-color 150ms ease;
 }
 
 .reef-markdown-editor a:hover,
-.reef-markdown-editor a:focus {
+.reef-markdown-editor a:focus-visible {
   text-decoration-color: var(--brand);
+  text-decoration-thickness: 2px;
 }
 
 /* Tiptap's Placeholder extension owns the marker and localized text. During a
@@ -543,6 +591,7 @@ hr {
 .reef-markdown-editor [data-reef-mention] {
   color: var(--brand);
   font-weight: 500;
+  text-decoration-line: none;
 }
 
 .reef-issue-body-mention-popup {

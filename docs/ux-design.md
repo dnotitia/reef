@@ -340,6 +340,17 @@ block ends at 0. These overrides stay on direct children so list and checklist
 item paragraphs keep their own layout, and the global `prose-sm` defaults and
 other Markdown surfaces are unchanged.
 
+Inline marks inside the same scoped surface follow the same semantic hierarchy:
+links use the `--brand` foreground and keep a visible underline in default,
+hover, visited, and keyboard-focus states; inline code uses the existing Geist
+Mono stack on `--surface-subtle` with a `--border-subtle` hairline, compact
+padding, and no generated backticks; bold, italic, and strikethrough retain
+`--foreground` contrast (600 weight, italic style, and a clear line-through),
+including when the marks are nested. Roster-resolved issue-body mentions keep
+their sanitized `data-reef-mention` marker, brand/500 treatment, and no
+underline or link behavior. These rules are editor-scoped and do not alter
+fenced code blocks, comments, or AI Markdown.
+
 ### Spacing, Layout & Density
 
 Layout follows Tailwind's spacing scale. The frame is a fixed sidebar plus a

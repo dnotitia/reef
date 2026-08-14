@@ -89,8 +89,15 @@ async function readMarkdownSurface(editor: Locator) {
     const paragraph = root.querySelector<HTMLElement>("p");
     const heading = root.querySelector<HTMLElement>("h1");
     const link = root.querySelector<HTMLElement>("a");
+    const akbLink = root.querySelector<HTMLElement>(
+      'a[data-akb-uri], a[href^="akb://"], a[href*="spec-overview"]',
+    );
     const mention = root.querySelector<HTMLElement>("[data-reef-mention]");
     const inlineCode = root.querySelector<HTMLElement>("p code");
+    const strong = root.querySelector<HTMLElement>("strong");
+    const emphasis = root.querySelector<HTMLElement>("em");
+    const strike = root.querySelector<HTMLElement>("s");
+    const nestedStrike = root.querySelector<HTMLElement>("strong em s");
     const quote = root.querySelector<HTMLElement>("blockquote");
     const pre = root.querySelector<HTMLElement>("pre");
     const preCode = root.querySelector<HTMLElement>("pre code");
@@ -159,7 +166,12 @@ async function readMarkdownSurface(editor: Locator) {
         emphasis: root.querySelectorAll("em").length,
         links: root.querySelectorAll('a[href="https://example.com/reef"]')
           .length,
+        akbLinks: root.querySelectorAll(
+          'a[data-akb-uri], a[href^="akb://"], a[href*="spec-overview"]',
+        ).length,
         inlineCode: root.querySelectorAll("p code").length,
+        strikethrough: root.querySelectorAll("s").length,
+        nestedStrikethrough: root.querySelectorAll("strong em s").length,
         orderedLists: root.querySelectorAll("ol").length,
         unorderedLists: root.querySelectorAll('ul:not([data-type="taskList"])')
           .length,
@@ -178,8 +190,72 @@ async function readMarkdownSurface(editor: Locator) {
         heading: heading ? getComputedStyle(heading).color : "",
         link: link ? getComputedStyle(link).color : "",
         linkDecoration: link ? getComputedStyle(link).textDecorationColor : "",
+        linkDecorationLine: link
+          ? getComputedStyle(link).textDecorationLine
+          : "",
+        linkDecorationThickness: link
+          ? getComputedStyle(link).textDecorationThickness
+          : "",
+        akbLinkHref:
+          akbLink?.getAttribute("data-akb-uri") ??
+          akbLink?.getAttribute("href") ??
+          "",
         mention: mention ? getComputedStyle(mention).color : "",
+        mentionDecorationLine: mention
+          ? getComputedStyle(mention).textDecorationLine
+          : "",
         inlineCode: inlineCode ? getComputedStyle(inlineCode).color : "",
+        inlineCodeFontFamily: inlineCode
+          ? getComputedStyle(inlineCode).fontFamily
+          : "",
+        inlineCodeLineHeight: inlineCode
+          ? getComputedStyle(inlineCode).lineHeight
+          : "",
+        inlineCodeVerticalAlign: inlineCode
+          ? getComputedStyle(inlineCode).verticalAlign
+          : "",
+        inlineCodeBackground: inlineCode
+          ? getComputedStyle(inlineCode).backgroundColor
+          : "",
+        inlineCodeBorder: inlineCode
+          ? getComputedStyle(inlineCode).borderTopColor
+          : "",
+        inlineCodeRadius: inlineCode
+          ? getComputedStyle(inlineCode).borderTopLeftRadius
+          : "",
+        inlineCodePaddingInline: inlineCode
+          ? getComputedStyle(inlineCode).paddingInlineStart
+          : "",
+        inlineCodePaddingBlock: inlineCode
+          ? getComputedStyle(inlineCode).paddingBlockStart
+          : "",
+        inlineCodeBefore: inlineCode
+          ? getComputedStyle(inlineCode, "::before").content
+          : "",
+        inlineCodeAfter: inlineCode
+          ? getComputedStyle(inlineCode, "::after").content
+          : "",
+        strong: strong
+          ? {
+              color: getComputedStyle(strong).color,
+              fontWeight: getComputedStyle(strong).fontWeight,
+            }
+          : null,
+        emphasis: emphasis
+          ? {
+              color: getComputedStyle(emphasis).color,
+              fontStyle: getComputedStyle(emphasis).fontStyle,
+            }
+          : null,
+        strikethrough: strike
+          ? {
+              color: getComputedStyle(strike).color,
+              decoration: getComputedStyle(strike).textDecorationLine,
+            }
+          : null,
+        nestedStrikethrough: nestedStrike
+          ? getComputedStyle(nestedStrike).textDecorationLine
+          : "",
         quoteBorder: quote
           ? getComputedStyle(quote).borderInlineStartColor
           : "",
@@ -326,10 +402,13 @@ test.describe("Hermetic Markdown editor fixture", () => {
       expect(surface.counts).toMatchObject({
         headings: 3,
         paragraphs: expect.any(Number),
-        strong: 1,
-        emphasis: 1,
+        strong: 2,
+        emphasis: 2,
         links: 1,
+        akbLinks: 1,
         inlineCode: 1,
+        strikethrough: 2,
+        nestedStrikethrough: 1,
         orderedLists: 1,
         unorderedLists: 1,
         taskLists: 1,
@@ -344,11 +423,41 @@ test.describe("Hermetic Markdown editor fixture", () => {
       });
       expect(surface.colors.body).toBe(surface.colors.foreground);
       expect(surface.colors.heading).toBe(surface.colors.foreground);
-      expect(surface.colors.link).toBe(surface.colors.foreground);
+      expect(surface.colors.link).toBe(surface.colors.brand);
       expect(surface.colors.mention).toBe(surface.colors.brand);
-      expect(surface.colors.link).not.toBe(surface.colors.mention);
-      expect(surface.colors.linkDecoration).not.toBe(surface.colors.brand);
+      expect(surface.colors.akbLinkHref).toBe(
+        "akb://reef-e2e/coll/docs/doc/spec-overview.md",
+      );
+      expect(surface.colors.linkDecoration).toBe(surface.colors.brand);
+      expect(surface.colors.linkDecorationLine).toContain("underline");
+      expect(surface.colors.linkDecorationThickness).toBe("1px");
+      expect(surface.colors.mentionDecorationLine).toBe("none");
       expect(surface.colors.inlineCode).toBe(surface.colors.foreground);
+      expect(surface.colors.inlineCodeFontFamily).toContain("Geist Mono");
+      expect(surface.colors.inlineCodeLineHeight).toBe("22px");
+      expect(surface.colors.inlineCodeVerticalAlign).toBe("baseline");
+      expect(surface.colors.inlineCodeBackground).toBe(
+        surface.colors.surfaceSubtle,
+      );
+      expect(surface.colors.inlineCodeBorder).toBe(surface.colors.borderSubtle);
+      expect(surface.colors.inlineCodeRadius).toBe("4px");
+      expect(surface.colors.inlineCodePaddingInline).toBe("4px");
+      expect(surface.colors.inlineCodePaddingBlock).toBe("2px");
+      expect(surface.colors.inlineCodeBefore).toBe("none");
+      expect(surface.colors.inlineCodeAfter).toBe("none");
+      expect(surface.colors.strong).toMatchObject({
+        color: surface.colors.foreground,
+        fontWeight: "600",
+      });
+      expect(surface.colors.emphasis).toMatchObject({
+        color: surface.colors.foreground,
+        fontStyle: "italic",
+      });
+      expect(surface.colors.strikethrough).toMatchObject({
+        color: surface.colors.foreground,
+        decoration: "line-through",
+      });
+      expect(surface.colors.nestedStrikethrough).toBe("line-through");
       expect(surface.colors.quoteBorder).toBe(surface.colors.brand);
       expect(surface.colors.preCode).toBe(surface.colors.foreground);
       expect(surface.colors.preBackground).toBe(surface.colors.surfaceSubtle);
@@ -429,6 +538,11 @@ test.describe("Hermetic Markdown editor fixture", () => {
       expect(sourceMarkdown).toContain("## Structure");
       expect(sourceMarkdown).toContain("### Details");
       expect(sourceMarkdown).toContain("@alice");
+      expect(sourceMarkdown).toContain("~~strikethrough~~");
+      expect(sourceMarkdown).toContain("nested emphasis");
+      expect(sourceMarkdown).toContain(
+        "akb://reef-e2e/coll/docs/doc/spec-overview.md",
+      );
       expect(sourceMarkdown).toContain("```ts");
       expect(sourceMarkdown).toContain("| Pattern | Meaning |");
       await page.screenshot({
@@ -444,10 +558,13 @@ test.describe("Hermetic Markdown editor fixture", () => {
       const roundTrip = await readMarkdownSurface(editor);
       expect(roundTrip.counts).toMatchObject({
         headings: 3,
-        strong: 1,
-        emphasis: 1,
+        strong: 2,
+        emphasis: 2,
         links: 1,
+        akbLinks: 1,
         inlineCode: 1,
+        strikethrough: 2,
+        nestedStrikethrough: 1,
         orderedLists: 1,
         unorderedLists: 1,
         taskLists: 1,
@@ -460,6 +577,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
         mentions: 1,
       });
       expect(roundTrip.text).toContain("@alice");
+      expect(roundTrip.text).toContain("nested emphasis");
       expect(roundTrip.blockOrder).toEqual(surface.blockOrder);
     }
 

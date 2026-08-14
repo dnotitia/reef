@@ -31,7 +31,7 @@ const MARKDOWN_FIXTURE = [
   "## Structure",
   "A second section paragraph explains the structure before the nested heading and keeps the blocks visibly separated.",
   "### Details",
-  "A paragraph with **bold**, *italic*, a [reef link](https://example.com/reef), and `inline code`. It also names @alice.",
+  "A paragraph with **bold**, *italic*, ~~strikethrough~~, and **_~~nested emphasis~~_**; it includes a [reef link](https://example.com/reef), an [AKB report](akb://reef-e2e/coll/docs/doc/spec-overview.md), `inline code`, and @alice.",
   "1. Ordered item one\n2. Ordered item two",
   "- Unordered item one\n- Unordered item two",
   "- [ ] Unchecked task\n- [x] Completed task",

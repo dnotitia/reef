@@ -185,17 +185,17 @@ describe("global focus styles", () => {
       expect(editorBlock).toContain(`${variable}: var(${token});`);
     }
 
-    const linkStart = css.indexOf(".reef-markdown-editor a {");
+    const linkStart = css.indexOf(".reef-markdown-editor a,");
     expect(linkStart).toBeGreaterThan(-1);
     const linkEnd = findCssBlockEnd(css, linkStart);
     expect(linkEnd).toBeGreaterThan(linkStart);
     const linkBlock = css.slice(linkStart, linkEnd);
-    expect(linkBlock).toContain("color: var(--foreground);");
-    expect(linkBlock).toContain(
-      "text-decoration-color: color-mix(in oklab, var(--brand) 50%, transparent);",
-    );
+    expect(linkBlock).toContain("color: var(--brand);");
+    expect(linkBlock).toContain("text-decoration-line: underline;");
+    expect(linkBlock).toContain("text-decoration-color: var(--brand);");
     expect(linkBlock).toContain("text-decoration-thickness: 1px;");
     expect(linkBlock).toContain("text-underline-offset: 2px;");
+    expect(css).toContain(".reef-markdown-editor a:visited");
 
     const interactiveLinkStart = css.indexOf(".reef-markdown-editor a:hover,");
     expect(interactiveLinkStart).toBeGreaterThan(linkEnd);
@@ -204,6 +204,78 @@ describe("global focus styles", () => {
     expect(css.slice(interactiveLinkStart, interactiveLinkEnd)).toContain(
       "text-decoration-color: var(--brand);",
     );
+    expect(css.slice(interactiveLinkStart, interactiveLinkEnd)).toContain(
+      "text-decoration-thickness: 2px;",
+    );
+    expect(css).toContain(".reef-markdown-editor a:focus-visible");
+  });
+
+  it("gives inline marks an explicit Reef hierarchy without touching code blocks", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+
+    const inlineCodeStart = css.indexOf(
+      ".reef-markdown-editor :not(pre) > code {",
+    );
+    expect(inlineCodeStart).toBeGreaterThan(-1);
+    const inlineCodeEnd = findCssBlockEnd(css, inlineCodeStart);
+    expect(inlineCodeEnd).toBeGreaterThan(inlineCodeStart);
+    const inlineCodeBlock = css.slice(inlineCodeStart, inlineCodeEnd);
+    for (const declaration of [
+      "font-family: var(--font-mono-stack);",
+      "color: var(--foreground);",
+      "background-color: var(--surface-subtle);",
+      "border: 1px solid var(--border-subtle);",
+      "border-radius: 0.25rem;",
+      "padding-inline: 0.25rem;",
+      "padding-block: 0.125rem;",
+      "vertical-align: baseline;",
+    ]) {
+      expect(inlineCodeBlock, declaration).toContain(declaration);
+    }
+
+    expect(css).toContain(".reef-markdown-editor :not(pre) > code::before,");
+    expect(css).toContain(".reef-markdown-editor :not(pre) > code::after");
+    expect(css).toContain("content: none;");
+    expect(css).not.toContain(".reef-markdown-editor code {");
+    expect(css).not.toContain(".reef-markdown-editor pre code {");
+  });
+
+  it("keeps bold, italic, strike, and mentions on the foreground hierarchy", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    for (const [selector, declarations] of [
+      [
+        ".reef-markdown-editor strong {",
+        ["color: var(--foreground);", "font-weight: 600;"],
+      ],
+      [
+        ".reef-markdown-editor em {",
+        ["color: var(--foreground);", "font-style: italic;"],
+      ],
+      [
+        ".reef-markdown-editor s,",
+        ["color: var(--foreground);", "text-decoration-line: line-through;"],
+      ],
+    ] as const) {
+      const start = css.indexOf(selector);
+      expect(start, selector).toBeGreaterThan(-1);
+      const end = findCssBlockEnd(css, start);
+      expect(end, selector).toBeGreaterThan(start);
+      const block = css.slice(start, end);
+      for (const declaration of declarations) {
+        expect(block, `${selector} ${declaration}`).toContain(declaration);
+      }
+    }
+
+    const mentionStart = css.indexOf(
+      ".reef-markdown-editor [data-reef-mention] {",
+    );
+    expect(mentionStart).toBeGreaterThan(-1);
+    const mentionEnd = findCssBlockEnd(css, mentionStart);
+    expect(mentionEnd).toBeGreaterThan(mentionStart);
+    const mentionBlock = css.slice(mentionStart, mentionEnd);
+    expect(mentionBlock).toContain("color: var(--brand);");
+    expect(mentionBlock).toContain("font-weight: 500;");
+    expect(mentionBlock).toContain("text-decoration-line: none;");
   });
 
   it("keeps issue Markdown rhythm compact and scoped to direct blocks", () => {

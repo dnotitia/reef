@@ -176,6 +176,56 @@ describe("MarkdownEditor Tiptap extensions", () => {
     expect(link?.getAttribute("href")).toBe(uri);
   });
 
+  it("round-trips mixed inline marks, an AKB link, and a resolved mention", () => {
+    const uri = "akb://reef-test/coll/research/doc/report.md";
+    const markdown =
+      "문장 **굵게**, *기울임*, ~~취소선~~, **_~~중첩~~_**, [reef link](https://example.com/reef), [AKB report](" +
+      `${uri}), \`inline code\`, and @alice.`;
+    const members = [{ username: "alice", role: "member" }] as const;
+    const editor = createEditor(markdown, members);
+
+    expect(editor.view.dom.querySelector("strong")?.textContent).toContain(
+      "굵게",
+    );
+    expect(editor.view.dom.querySelector("em")?.textContent).toContain(
+      "기울임",
+    );
+    expect(editor.view.dom.querySelector("s")?.textContent).toContain("취소선");
+    expect(
+      editor.view.dom.querySelector("strong em s, strong s em, em strong s"),
+    ).not.toBeNull();
+    expect(editor.view.dom.querySelector("code")?.textContent).toBe(
+      "inline code",
+    );
+    expect(editor.view.dom.querySelector(`a[href="${uri}"]`)?.textContent).toBe(
+      "AKB report",
+    );
+    expect(
+      editor.view.dom.querySelector('[data-reef-mention="true"]')?.textContent,
+    ).toBe("@alice");
+
+    const serialized = editor.getMarkdown();
+    expect(serialized).toContain("굵게");
+    expect(serialized).toContain("기울임");
+    expect(serialized).toContain("취소선");
+    expect(serialized).toContain("중첩");
+    expect(serialized).toContain(`[AKB report](${uri})`);
+    expect(serialized).toContain("`inline code`");
+    expect(serialized).toContain("@alice");
+
+    const reloaded = createEditor(serialized, members);
+    expect(
+      reloaded.view.dom.querySelector(`a[href="${uri}"]`)?.textContent,
+    ).toBe("AKB report");
+    expect(reloaded.view.dom.querySelector("s")?.textContent).toContain(
+      "취소선",
+    );
+    expect(
+      reloaded.view.dom.querySelector('[data-reef-mention="true"]')
+        ?.textContent,
+    ).toBe("@alice");
+  });
+
   it("round-trips resolved issue-body mentions and keeps unresolved text", () => {
     const markdown =
       "Owner @alice and @{Ada Lovelace}, unresolved @missing, code `@alice`, and link [@alice](https://example.test)";
