@@ -63,7 +63,7 @@ jobs:
 
       - name: Setup uv for AKB bootstrap
         if: matrix.akb_ref == 'main'
-        uses: astral-sh/setup-uv@v10
+        uses: astral-sh/setup-uv@v10.0.0
 
       - name: Configure akb (local-dev defaults)
         working-directory: .akb-live
