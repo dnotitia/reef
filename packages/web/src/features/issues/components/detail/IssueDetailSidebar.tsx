@@ -7,7 +7,7 @@ import { SeverityBadge } from "@/components/fields/SeverityBadge";
 import { TypePill } from "@/components/fields/TypePill";
 import { Input } from "@/components/ui/input";
 import { LabelChipInput } from "@/components/ui/label-chip-input";
-import { PriorityBadge } from "@/components/ui/priority-dot";
+import { PriorityOption } from "@/components/ui/priority-dot";
 import { StatusBadge } from "@/components/ui/status-icon";
 import { PlanningItemCombobox } from "@/features/planning/components/PlanningItemCombobox";
 import {
@@ -38,7 +38,7 @@ import { IssueFieldRow } from "../shared/IssueFieldRow";
 import { IssueFormSection } from "../shared/IssueFormSection";
 
 const renderStatusOption = (s: Status) => <StatusBadge status={s} />;
-const renderPriorityOption = (p: Priority) => <PriorityBadge priority={p} />;
+const renderPriorityOption = (p: Priority) => <PriorityOption priority={p} />;
 const renderSeverityOption = (s: Severity) => <SeverityBadge severity={s} />;
 
 const renderTypeOption = (t: IssueType) => (
@@ -232,7 +232,10 @@ export function IssueDetailSidebar({
             options={PRIORITY_OPTIONS}
             renderItem={renderPriorityOption}
             placeholder={empty.noPriority}
-            noneOption={{ value: NO_SELECTION, label: empty.noPriority }}
+            noneOption={{
+              value: NO_SELECTION,
+              label: <PriorityOption priority={null} />,
+            }}
             testId="issue-priority-select"
             ariaLabelledby="issue-priority-label"
           />

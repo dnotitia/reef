@@ -4,7 +4,7 @@ import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { EnumSelectField } from "@/components/fields/EnumSelectField";
 import { Input } from "@/components/ui/input";
 import { LabelChipInput } from "@/components/ui/label-chip-input";
-import { PriorityBadge } from "@/components/ui/priority-dot";
+import { PriorityOption } from "@/components/ui/priority-dot";
 import {
   useEnrichmentEmptyLabels,
   useFieldNameLabels,
@@ -168,9 +168,12 @@ export function IssueDraftFields({
       value={priority}
       onValueChange={(value) => onPriorityChange(value as PrioritySelection)}
       options={PRIORITY_OPTIONS}
-      renderItem={(p) => <PriorityBadge priority={p} />}
+      renderItem={(p) => <PriorityOption priority={p} />}
       placeholder={emptyLabels.noPriority}
-      noneOption={{ value: NO_SELECTION, label: emptyLabels.noPriority }}
+      noneOption={{
+        value: NO_SELECTION,
+        label: <PriorityOption priority={null} />,
+      }}
       testId={priorityTestId}
       ariaLabelledby={priorityLabelId}
       disabled={disabled}

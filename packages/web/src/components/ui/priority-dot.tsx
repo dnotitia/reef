@@ -57,9 +57,15 @@ interface PriorityBadgeProps {
   priority: Priority | null;
   size?: number;
   className?: string;
+  showDot?: boolean;
 }
 
-export function PriorityBadge({ priority, size, className }: PriorityBadgeProps) {
+export function PriorityBadge({
+  priority,
+  size,
+  className,
+  showDot = true,
+}: PriorityBadgeProps) {
   const priorityLabels = usePriorityLabels();
   const emptyLabels = useEnrichmentEmptyLabels();
   return (
@@ -69,8 +75,18 @@ export function PriorityBadge({ priority, size, className }: PriorityBadgeProps)
         className,
       )}
     >
-      <PriorityDot priority={priority} size={size} decorative />
+      {showDot ? (
+        <PriorityDot priority={priority} size={size} decorative />
+      ) : null}
       <span>{priority ? priorityLabels[priority] : emptyLabels.noPriority}</span>
     </span>
   );
+}
+
+/**
+ * Canonical priority select option. Unset keeps the same label typography as
+ * real priorities without inventing a neutral priority marker (REEF-521).
+ */
+export function PriorityOption({ priority }: { priority: Priority | null }) {
+  return <PriorityBadge priority={priority} showDot={priority !== null} />;
 }
