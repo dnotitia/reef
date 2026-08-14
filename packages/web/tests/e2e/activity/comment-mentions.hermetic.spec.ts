@@ -254,4 +254,119 @@ test.describe("Comment mentions (REEF-452)", () => {
       0,
     );
   });
+
+  test("deletes only the author's comment subtree after confirmation and persists after reload (REEF-520)", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues/REEF-001");
+
+    const otherAuthorThread = page.getByTestId("comment-thread").first();
+    await expect(
+      otherAuthorThread.getByRole("button", { name: "Delete comment" }),
+    ).toHaveCount(0);
+
+    const composer = page.getByRole("textbox", {
+      name: "Add a comment",
+      exact: true,
+    });
+    await composer.fill("cascade root");
+    await page
+      .getByRole("button", { name: "Comment", exact: true })
+      .last()
+      .click();
+    const rootThread = page
+      .getByTestId("comment-thread")
+      .filter({ hasText: "cascade root" })
+      .last();
+    await expect(rootThread).toBeVisible();
+
+    await rootThread.getByRole("button", { name: "Reply" }).click();
+    const replyComposer = rootThread.getByRole("textbox", {
+      name: "Reply to alice",
+      exact: true,
+    });
+    await replyComposer.fill("cascade reply");
+    await replyComposer
+      .locator("xpath=ancestor::form")
+      .getByRole("button", { name: "Reply", exact: true })
+      .click();
+    await expect(
+      rootThread.getByText("cascade reply", { exact: true }),
+    ).toBeVisible();
+
+    const replyRow = rootThread
+      .getByTestId("comment-reply")
+      .filter({ hasText: "cascade reply" });
+    await replyRow.getByRole("button", { name: "Reply" }).click();
+    const nestedComposer = rootThread.getByRole("textbox", {
+      name: "Reply to alice",
+      exact: true,
+    });
+    await nestedComposer.fill("cascade nested");
+    await nestedComposer
+      .locator("xpath=ancestor::form")
+      .getByRole("button", { name: "Reply", exact: true })
+      .click();
+    await expect(
+      rootThread.getByText("cascade nested", { exact: true }),
+    ).toBeVisible();
+
+    const rootCommentId = (
+      await rootThread.getByTestId("comment-card").first().getAttribute("id")
+    )?.replace(/^comment-/u, "");
+    expect(rootCommentId).toBeTruthy();
+
+    await rootThread
+      .getByRole("button", { name: "Delete comment" })
+      .first()
+      .click();
+    await expect(page.getByTestId("comment-delete-confirm")).toBeVisible();
+    await page.getByTestId("comment-delete-cancel").click();
+    await expect(
+      rootThread.getByText("cascade root", { exact: true }),
+    ).toBeVisible();
+
+    await rootThread
+      .getByRole("button", { name: "Delete comment" })
+      .first()
+      .click();
+    const deleteResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname.includes(
+          `/comments/${rootCommentId}`,
+        ) && response.request().method() === "DELETE",
+    );
+    await page.getByTestId("comment-delete-confirm-btn").click();
+    const deleted = await deleteResponse;
+    expect(deleted.ok()).toBeTruthy();
+    expect((await deleted.json()).deleted_comment_ids).toHaveLength(3);
+
+    await expect(page.getByText("cascade root", { exact: true })).toHaveCount(
+      0,
+    );
+    await expect(page.getByText("cascade reply", { exact: true })).toHaveCount(
+      0,
+    );
+    await expect(page.getByText("cascade nested", { exact: true })).toHaveCount(
+      0,
+    );
+    await expect(
+      page.getByText(/Kicking this off/, { exact: false }),
+    ).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByText("cascade root", { exact: true })).toHaveCount(
+      0,
+    );
+    await expect(page.getByText("cascade reply", { exact: true })).toHaveCount(
+      0,
+    );
+    await expect(page.getByText("cascade nested", { exact: true })).toHaveCount(
+      0,
+    );
+    await expect(
+      page.getByText(/Kicking this off/, { exact: false }),
+    ).toBeVisible();
+  });
 });

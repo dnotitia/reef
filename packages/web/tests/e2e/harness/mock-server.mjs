@@ -2068,6 +2068,59 @@ function handleSql(vault, sql) {
     return tableQuery(notificationColumns(), [row]);
   }
 
+  if (
+    lower.startsWith("with recursive") &&
+    lower.includes("delete from reef_comments") &&
+    lower.includes("delete from reef_notifications")
+  ) {
+    const targetMatch = normalized.match(
+      /where id\s*=\s*'((?:''|[^'])+)'\s+and reef_id\s*=\s*'((?:''|[^'])+)'\s+and meta->>'author'\s*=\s*'((?:''|[^'])+)'/i,
+    );
+    if (!targetMatch) return tableQuery(["id"], []);
+    const commentId = targetMatch[1].replace(/''/g, "'");
+    const reefId = targetMatch[2].replace(/''/g, "'");
+    const actor = targetMatch[3].replace(/''/g, "'");
+    const target = vault.comments.find(
+      (comment) =>
+        comment.id === commentId &&
+        comment.reef_id === reefId &&
+        comment.meta?.author === actor,
+    );
+    if (!target) return tableQuery(["id"], []);
+
+    const deletedIds = new Set([target.id]);
+    let expanded = true;
+    while (expanded) {
+      expanded = false;
+      for (const comment of vault.comments) {
+        if (
+          comment.reef_id === reefId &&
+          typeof comment.meta?.parent_comment_id === "string" &&
+          deletedIds.has(comment.meta.parent_comment_id) &&
+          !deletedIds.has(comment.id)
+        ) {
+          deletedIds.add(comment.id);
+          expanded = true;
+        }
+      }
+    }
+    vault.notifications = vault.notifications.filter(
+      (notification) =>
+        !(
+          notification.reef_id === reefId &&
+          notification.source_type === "comment" &&
+          deletedIds.has(notification.source_ref)
+        ),
+    );
+    vault.comments = vault.comments.filter(
+      (comment) => !deletedIds.has(comment.id),
+    );
+    return tableQuery(
+      ["id"],
+      [...deletedIds].sort().map((id) => ({ id })),
+    );
+  }
+
   if (lower.startsWith("select * from reef_issues")) {
     if (state.issueListFailure) {
       return { error: "e2e forced issue list failure" };

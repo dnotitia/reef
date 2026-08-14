@@ -3,11 +3,19 @@
 import { PersonAvatar, personToneFor } from "@/components/fields/PersonAvatar";
 import { linkSafetyConfig } from "@/components/markdown/linkSafety";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { remarkCommentMentions } from "@/lib/markdown/remarkCommentMentions";
 import { formatAbsoluteTime, formatRelativeTime } from "@/lib/relativeTime";
 import { cn } from "@/lib/utils";
 import type { Comment, VaultMember } from "@reef/core";
-import { Pencil, Reply } from "lucide-react";
+import { Pencil, Reply, Trash2 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import {
   type ComponentProps,
@@ -44,6 +52,8 @@ interface CommentCardProps {
   flash?: boolean;
   /** Resolve to leave edit mode; reject to stay editing (error toasted above). */
   onSave: (body: string) => Promise<void>;
+  /** Resolve after the server confirms hard deletion of this comment subtree. */
+  onDelete?: () => Promise<void>;
   onReply?: () => void;
   replyToAuthor?: string;
   resolveMarkdownUrl?: UrlTransform;
@@ -62,6 +72,7 @@ export function CommentCard({
   currentLogin,
   flash = false,
   onSave,
+  onDelete,
   onReply,
   replyToAuthor,
   resolveMarkdownUrl,
@@ -81,6 +92,8 @@ export function CommentCard({
     draftRef.current = draft;
   }, [draft]);
   const [saving, setSaving] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [nowMs] = useState(() => Date.now());
   const locale = useLocale();
   const t = useTranslations("issues.comments");
@@ -126,6 +139,19 @@ export function CommentCard({
       // Stay in edit mode; the parent surfaces the error as a toast.
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!onDelete || deleting) return;
+    setDeleting(true);
+    try {
+      await onDelete();
+      setDeleteOpen(false);
+    } catch {
+      // Keep the comment and confirmation open so the user can retry.
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -199,6 +225,19 @@ export function CommentCard({
                   <Pencil className="size-3.5" aria-hidden="true" />
                 </Button>
               ) : null}
+              {isOwn && onDelete ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t("deleteComment")}
+                  title={t("deleteComment")}
+                  onClick={() => setDeleteOpen(true)}
+                  className="text-muted-foreground opacity-0 motion-safe:transition-opacity motion-safe:duration-150 motion-safe:ease-[var(--ease-signature)] hover:text-destructive focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
+                >
+                  <Trash2 className="size-3.5" aria-hidden="true" />
+                </Button>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -262,6 +301,53 @@ export function CommentCard({
           </Streamdown>
         )}
       </div>
+
+      {isOwn && onDelete ? (
+        <Dialog
+          open={deleteOpen}
+          onOpenChange={(open) => {
+            if (!deleting) setDeleteOpen(open);
+          }}
+        >
+          <DialogContent
+            data-testid="comment-delete-confirm"
+            className="max-w-md gap-4"
+            onInteractOutside={(event) => {
+              if (deleting) event.preventDefault();
+            }}
+            onEscapeKeyDown={(event) => {
+              if (deleting) event.preventDefault();
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>{t("deleteTitle")}</DialogTitle>
+              <DialogDescription>{t("deleteDescription")}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setDeleteOpen(false)}
+                disabled={deleting}
+                data-testid="comment-delete-cancel"
+              >
+                {c("cancel")}
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => void confirmDelete()}
+                disabled={deleting}
+                data-testid="comment-delete-confirm-btn"
+              >
+                {deleting ? t("deleting") : c("delete")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </div>
   );
 }

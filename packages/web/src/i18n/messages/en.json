@@ -671,6 +671,7 @@
     "undoError": "Failed to undo.",
     "commentAddError": "Couldn't add comment. Try again.",
     "commentEditError": "Couldn't save the edit. Try again.",
+    "commentDeleteError": "Couldn't delete the comment. Try again.",
     "issueCreatedFromDraft": "Issue {id} created from draft",
     "draftApproved": "Draft suggestion approved",
     "approveDraftError": "Failed to approve draft.",
@@ -779,6 +780,10 @@
     },
     "comments": {
       "editComment": "Edit comment",
+      "deleteComment": "Delete comment",
+      "deleteTitle": "Delete this comment?",
+      "deleteDescription": "This comment and all replies below it will be permanently deleted.",
+      "deleting": "Deleting…",
       "reply": "Reply",
       "replyingTo": "Replying to <target>{author}</target>",
       "replyLabel": "Reply to {author}",

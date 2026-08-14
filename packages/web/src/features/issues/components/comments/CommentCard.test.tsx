@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import type { Comment } from "@reef/core";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { CommentCard } from "./CommentCard";
 
@@ -203,5 +209,94 @@ describe("CommentCard", () => {
 
     expect(onSave).toHaveBeenCalledWith("\\@Bob Smyth hello");
     expect(onSave).not.toHaveBeenCalledWith("@{Bob Smith} hello");
+  });
+
+  it("shows delete only for the author and requires confirmation", async () => {
+    const onDelete = vi.fn(async () => undefined);
+    const { rerender } = render(
+      <IntlTestProvider>
+        <CommentCard
+          comment={COMMENT}
+          currentLogin="alice"
+          onSave={vi.fn()}
+          onDelete={onDelete}
+        />
+      </IntlTestProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete comment" }));
+    expect(screen.getByTestId("comment-delete-confirm")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("comment-delete-cancel"));
+    expect(onDelete).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("comment-delete-confirm")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete comment" }));
+    fireEvent.click(screen.getByTestId("comment-delete-confirm-btn"));
+    await expect(onDelete).toHaveBeenCalledOnce();
+
+    rerender(
+      <IntlTestProvider>
+        <CommentCard
+          comment={COMMENT}
+          currentLogin="bob"
+          onSave={vi.fn()}
+          onDelete={onDelete}
+        />
+      </IntlTestProvider>,
+    );
+    expect(screen.queryByRole("button", { name: "Delete comment" })).toBeNull();
+  });
+
+  it("blocks duplicate confirmation while deletion is pending and closes after success", async () => {
+    let resolveDelete: (() => void) | undefined;
+    const onDelete = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDelete = resolve;
+        }),
+    );
+    render(
+      <IntlTestProvider>
+        <CommentCard
+          comment={COMMENT}
+          currentLogin="alice"
+          onSave={vi.fn()}
+          onDelete={onDelete}
+        />
+      </IntlTestProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete comment" }));
+    const confirm = screen.getByTestId("comment-delete-confirm-btn");
+    fireEvent.click(confirm);
+    fireEvent.click(confirm);
+    expect(onDelete).toHaveBeenCalledOnce();
+    expect(confirm).toBeDisabled();
+    resolveDelete?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.queryByTestId("comment-delete-confirm")).toBeNull();
+  });
+
+  it("keeps the confirmation open when deletion fails", async () => {
+    const onDelete = vi.fn(async () => {
+      throw new Error("delete failed");
+    });
+    render(
+      <IntlTestProvider>
+        <CommentCard
+          comment={COMMENT}
+          currentLogin="alice"
+          onSave={vi.fn()}
+          onDelete={onDelete}
+        />
+      </IntlTestProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete comment" }));
+    fireEvent.click(screen.getByTestId("comment-delete-confirm-btn"));
+
+    await waitFor(() => expect(onDelete).toHaveBeenCalledOnce());
+    expect(screen.getByTestId("comment-delete-confirm")).toBeInTheDocument();
+    expect(screen.getByTestId("comment-delete-confirm-btn")).toBeEnabled();
   });
 });

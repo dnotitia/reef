@@ -42,7 +42,9 @@ export {
 export {
   CommentCreateInputSchema,
   CommentUpdateInputSchema,
+  CommentDeletionResultSchema,
   type Comment,
+  type CommentDeletionResult,
 } from "./comment";
 
 export {

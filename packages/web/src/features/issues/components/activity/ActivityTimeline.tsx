@@ -2,6 +2,7 @@
 
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { useCreateComment } from "@/features/issues/hooks/mutations/useCreateComment";
+import { useDeleteComment } from "@/features/issues/hooks/mutations/useDeleteComment";
 import { useUpdateComment } from "@/features/issues/hooks/mutations/useUpdateComment";
 import { useUploadIssueAttachment } from "@/features/issues/hooks/mutations/useUploadIssueAttachment";
 import { useActivity } from "@/features/issues/hooks/queries/useActivity";
@@ -61,6 +62,7 @@ export function ActivityTimeline({
     vault,
   );
   const createComment = useCreateComment();
+  const deleteComment = useDeleteComment();
   const updateComment = useUpdateComment();
   const uploadAttachment = useUploadIssueAttachment();
   const [flashId, setFlashId] = useState<string | null>(null);
@@ -128,6 +130,15 @@ export function ActivityTimeline({
     }
   }
 
+  async function handleDelete(commentId: string) {
+    try {
+      await deleteComment.mutateAsync({ issueId, vault, commentId });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("commentDeleteError"));
+      throw err;
+    }
+  }
+
   async function handleUploadFiles(files: File[]) {
     return Promise.all(
       files.map((file) =>
@@ -171,6 +182,7 @@ export function ActivityTimeline({
                   members={vaultMembers}
                   flash={entry.comment.id === flashId}
                   onSave={(body) => handleEdit(entry.comment.id, body)}
+                  onDelete={() => handleDelete(entry.comment.id)}
                   onReply={() => setReplyTargetId(entry.comment.id)}
                   resolveMarkdownUrl={resolveMarkdownUrl}
                 />
@@ -205,6 +217,7 @@ export function ActivityTimeline({
                             undefined
                           }
                           onSave={(body) => handleEdit(reply.id, body)}
+                          onDelete={() => handleDelete(reply.id)}
                           onReply={() => setReplyTargetId(reply.id)}
                           resolveMarkdownUrl={resolveMarkdownUrl}
                         />

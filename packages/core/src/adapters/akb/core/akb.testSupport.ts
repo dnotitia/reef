@@ -33,6 +33,7 @@ export {
   composeActivitySuggestionDocumentBody,
   createAkbAdapter,
   createComment,
+  deleteComment,
   createIssueAttachmentRecord,
   createMilestone,
   createSprint,

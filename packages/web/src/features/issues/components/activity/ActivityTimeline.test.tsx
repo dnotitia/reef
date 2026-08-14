@@ -143,6 +143,19 @@ beforeEach(() => {
           comments = [...comments, created];
           return json({ comment: created }, 201);
         }
+        if (method === "DELETE") {
+          const deleted = comments
+            .filter(
+              (comment) =>
+                comment.id === ALICE_COMMENT.id ||
+                comment.parent_comment_id === ALICE_COMMENT.id,
+            )
+            .map((comment) => comment.id);
+          comments = comments.filter(
+            (comment) => !deleted.includes(comment.id),
+          );
+          return json({ deleted_comment_ids: deleted });
+        }
         return json({
           comment: {
             ...ALICE_COMMENT,
@@ -520,6 +533,49 @@ describe("ActivityTimeline — comment mutations", () => {
         ),
       ).toBe(true),
     );
+  });
+
+  it("removes the server-confirmed deleted comment subtree while retaining other threads", async () => {
+    const sibling: Comment = {
+      ...ALICE_COMMENT,
+      id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      body: "bob sibling",
+      author: "bob",
+      created_at: "2026-06-03T00:00:00.000Z",
+    };
+    const reply: Comment = {
+      ...ALICE_COMMENT,
+      id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+      body: "alice reply",
+      created_at: "2026-06-02T01:00:00.000Z",
+      parent_comment_id: ALICE_COMMENT.id,
+      thread_root_id: ALICE_COMMENT.id,
+    };
+    comments = [ALICE_COMMENT, reply, sibling];
+    renderTimeline();
+
+    await screen.findByText("alice reply");
+    const ownDelete = screen.getAllByRole("button", {
+      name: "Delete comment",
+    })[0];
+    fireEvent.click(ownDelete);
+    fireEvent.click(screen.getByTestId("comment-delete-confirm-btn"));
+
+    await waitFor(() =>
+      expect(screen.queryByText("alice reply")).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByText("alice comment")).not.toBeInTheDocument();
+    expect(screen.getByText("bob sibling")).toBeInTheDocument();
+    expect(
+      mockApiFetch.mock.calls.some(
+        ([url, init]) =>
+          String(url).includes(`/comments/${ALICE_COMMENT.id}?vault=v`) &&
+          init?.method === "DELETE",
+      ),
+    ).toBe(true);
+    expect(
+      screen.queryByRole("button", { name: "Delete comment" }),
+    ).not.toBeInTheDocument();
   });
 });
 
