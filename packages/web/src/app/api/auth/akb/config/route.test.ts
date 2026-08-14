@@ -19,7 +19,7 @@ describe("GET /api/auth/akb/config", () => {
     vi.restoreAllMocks();
   });
 
-  it("returns public Keycloak config without requiring a session", async () => {
+  it("does not advertise legacy delegated SSO while Reef is in local mode", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response(
         JSON.stringify({
@@ -38,8 +38,8 @@ describe("GET /api/auth/akb/config", () => {
     expect(await res.json()).toEqual({
       local_auth: { enabled: true },
       keycloak: {
-        enabled: true,
-        login_url: "/api/v1/auth/keycloak/login",
+        enabled: false,
+        login_url: null,
         sso_only: false,
       },
     });

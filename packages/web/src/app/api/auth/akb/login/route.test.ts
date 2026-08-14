@@ -34,6 +34,30 @@ describe("POST /api/auth/akb/login", () => {
     vi.stubEnv("NODE_ENV", "test");
   });
 
+  it("does not call local AKB login while Reef is in SSO mode", async () => {
+    vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("REEF_AUTH_MODE", "sso");
+    vi.stubEnv(
+      "REEF_KEYCLOAK_ISSUER",
+      "https://identity.example.com/realms/reef",
+    );
+    vi.stubEnv("REEF_KEYCLOAK_CLIENT_ID", "reef-web");
+    vi.stubEnv("REEF_AKB_API_AUDIENCE", "akb-api");
+    vi.stubEnv("REEF_PUBLIC_ORIGIN", "https://reef.example.com");
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    const response = await POST(
+      new Request("http://localhost/api/auth/akb/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "alice", password: "password" }),
+      }),
+    );
+
+    expect(response.status).toBe(404);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();

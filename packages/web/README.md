@@ -1,14 +1,15 @@
 # @reef/web
 
 Next.js App Router application package for reef. `@reef/web` renders the product
-UI and acts as a stateless Backend-for-Frontend over AKB-managed workspaces. It
+UI and acts as a mode-aware Backend-for-Frontend over AKB-managed workspaces. It
 owns server-only GitHub/LLM adapters and agent application code, while using
 `@reef/core` for domain schemas, models, errors, observability, and AKB access.
 
-reef-web persists no user-specific server state. The AKB session stays in the
-`__reef_session` httpOnly cookie, GitHub access is deployment-managed through a
-server GitHub App (with an optional server-side `REEF_GITHUB_PAT` fallback for
-local and CI), and LLM configuration is deployment-managed server environment.
+Local auth persists no user-specific server state: AKB's JWT stays in the
+`__reef_session` httpOnly cookie. SSO is the narrow exception: Reef owns OIDC
+Authorization Code + PKCE and keeps the encrypted, expiring token set in Redis;
+the browser receives only a random opaque httpOnly handle. GitHub and LLM
+credentials remain deployment-managed server configuration.
 
 ## Responsibilities
 
@@ -57,6 +58,7 @@ cp packages/web/.env.example packages/web/.env.local
 For local development, `packages/web/.env.local` should include:
 
 ```bash
+REEF_AUTH_MODE=local
 AKB_BACKEND_URL=http://localhost:8000
 REEF_LLM_API_KEY=
 REEF_LLM_BASE_URL=
@@ -78,7 +80,15 @@ variables for secrets.
 
 | Variable | Purpose |
 | --- | --- |
+| `REEF_AUTH_MODE` | Required explicit profile: `local` for AKB-issued JWT cookies or `sso` for Reef-owned OIDC and opaque sessions. |
 | `AKB_BACKEND_URL` | Base URL for the AKB backend. Local dev usually uses `http://localhost:8000`. |
+| `REEF_KEYCLOAK_ISSUER` | Exact Keycloak realm issuer in SSO mode. HTTPS outside loopback development. |
+| `REEF_KEYCLOAK_TRANSPORT_URL` | Production-required in-cluster Keycloak realm URL for token/JWKS/revocation and readiness calls; exact realm path must match the issuer. |
+| `REEF_KEYCLOAK_CLIENT_ID` | Reef's dedicated Keycloak client id in SSO mode. |
+| `REEF_AKB_API_AUDIENCE` | Required AKB API audience in every accepted Keycloak access token. |
+| `REEF_PUBLIC_ORIGIN` | Reef's bare public origin; required in SSO mode for callback/logout URLs. |
+| `REEF_SESSION_REDIS_URL` | Redis/Redis-TLS URL for encrypted SSO sessions; required for production SSO. |
+| `REEF_SESSION_ENCRYPTION_KEY` | Independent base64/base64url-encoded 32-byte AES key; required for production SSO. |
 | `REEF_LLM_API_KEY` | Server-side key for the configured OpenAI-compatible LLM endpoint. |
 | `REEF_LLM_BASE_URL` | Base URL for the configured OpenAI-compatible LLM endpoint. |
 | `REEF_LLM_MODEL` | Deployment-selected model for an enabled LLM capability. |
@@ -101,10 +111,12 @@ alone; the hermetic E2E harness mocks GitHub instead. See
 [`../../docs/deployment.md`](../../docs/deployment.md) for the full GitHub
 credential model.
 
-Keycloak SSO is configured on the AKB side. reef-web still only needs
-`AKB_BACKEND_URL`: AKB's `sso_only` and `local_auth.enabled` fields control the
-login surface, while `REEF_SSO_AUTO_REDIRECT` is only a hybrid-mode presentation
-override. See `../../docs/keycloak-sso.md` for the callback and account contract.
+In SSO mode, Reef is the OIDC client and AKB supplies only its public versioned
+auth/provider catalog plus the account/API authority. Reef never calls AKB's
+retired browser-login or JWT-exchange endpoints. Production SSO requires Redis,
+the independent encryption key, and a distinct in-cluster Keycloak transport;
+only tests and non-production development may use the in-memory store or public
+issuer transport. See `../../docs/keycloak-sso.md`.
 
 ## Layout
 
@@ -126,8 +138,9 @@ override. See `../../docs/keycloak-sso.md` for the callback and account contract
 - Dexie IndexedDB stores browser-local `config` only. The legacy `credentials`
   store was removed when the browser GitHub PAT path moved to deployment-managed
   GitHub App credentials.
-- The AKB session is not browser JavaScript state; it lives in the
-  `__reef_session` httpOnly cookie.
+- Authentication is not browser JavaScript state. In local mode
+  `__reef_session` contains AKB's JWT; in SSO mode it contains only a random
+  opaque handle and the encrypted token set stays server-side.
 - Monitored repos, project prefix, issue templates, and planning catalog data
   come from AKB through Route Handlers and `@reef/core`.
 
@@ -138,8 +151,9 @@ persisted query shape changes may need a TanStack Query buster bump.
 ## Route Handler rules
 
 - Validate request payloads and query params with Zod.
-- Extract the AKB session from the `__reef_session` cookie. GitHub and LLM
-  access is deployment-managed in `src/server/`; Route Handlers do not read
+- Resolve the mode-aware `__reef_session` carrier through shared auth helpers.
+  OIDC/token custody lives under `src/server/auth`; GitHub and LLM access is
+  deployment-managed in `src/server/`. Route Handlers do not read
   browser-supplied provider credentials.
 - Call the server application for GitHub/LLM/agent behavior and `@reef/core` for
   AKB/domain behavior.

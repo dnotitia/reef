@@ -1,3 +1,5 @@
+import { type AkbJsonBodyPolicy, readAkbJsonBody } from "./responseBody";
+
 export interface AkbErrorResponse {
   message: string;
   code?: string;
@@ -16,10 +18,11 @@ function nonEmptyString(value: unknown): string | undefined {
 /** Read the supported FastAPI and AKB error envelopes without losing `code`. */
 export async function readAkbErrorResponse(
   response: Response,
+  policy?: AkbJsonBodyPolicy,
 ): Promise<AkbErrorResponse> {
   let body: unknown;
   try {
-    body = await response.json();
+    body = await readAkbJsonBody(response, policy);
   } catch {
     return { message: response.statusText || "Unknown error" };
   }

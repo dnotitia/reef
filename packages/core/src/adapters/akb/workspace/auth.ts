@@ -3,7 +3,11 @@ import { AkbApiError, AuthError, isAkbAccountErrorCode } from "../../../errors";
 import { stripTrailingSlashes } from "../../url";
 import { readAkbErrorResponse } from "../core/errorResponse";
 import type { AkbAdapter } from "../core/http";
+import { readAkbJsonBody } from "../core/responseBody";
 import { withSpan } from "../core/shared";
+
+const AKB_AUTH_TIMEOUT_MS = 5_000;
+const MAX_AKB_AUTH_RESPONSE_BYTES = 2 * 1024 * 1024;
 
 // ─── Canonical akb auth response schemas (single core home) ───────────────────
 //
@@ -26,7 +30,7 @@ const AkbLoginResponseSchema = z.object({
   user: AkbUserSchema,
 });
 
-export const AkbAuthConfigSchema = z.object({
+const LegacyAkbAuthConfigSchema = z.object({
   local_auth: z
     .object({
       enabled: z.boolean(),
@@ -40,7 +44,32 @@ export const AkbAuthConfigSchema = z.object({
   }),
 });
 
+export const AkbSsoProviderSchema = z.object({
+  provider_type: z.literal("keycloak-oidc"),
+  alias: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,62}$/u),
+  display_name: z.string().min(1).max(255),
+  login_url: z.string().min(1).nullable(),
+});
+
+const VersionedAkbAuthConfigSchema = z.object({
+  schema_version: z.literal(2),
+  auth_mode: z.enum(["local", "sso"]),
+  local_auth: z.object({ enabled: z.boolean() }),
+  keycloak: z.object({
+    enabled: z.boolean(),
+    browser_session_ready: z.boolean(),
+  }),
+  providers: z.array(AkbSsoProviderSchema).max(32),
+  mcp_oauth: z.object({ enabled: z.boolean() }).optional(),
+});
+
+export const AkbAuthConfigSchema = z.union([
+  VersionedAkbAuthConfigSchema,
+  LegacyAkbAuthConfigSchema,
+]);
+
 export type AkbAuthConfig = z.infer<typeof AkbAuthConfigSchema>;
+export type AkbSsoProvider = z.infer<typeof AkbSsoProviderSchema>;
 
 const AkbKeycloakExchangeResponseSchema = z.object({
   token: z.string().min(1),
@@ -104,6 +133,7 @@ export function login(params: AkbLoginParams): Promise<AkbLoginResult> {
   const { baseUrl, username, password } = params;
   return withSpan("akb.auth.login", {}, async (span) => {
     const url = `${stripTrailingSlashes(baseUrl)}/api/v1/auth/login`;
+    const signal = AbortSignal.timeout(AKB_AUTH_TIMEOUT_MS);
     let response: Response;
     try {
       response = await fetch(url, {
@@ -113,6 +143,8 @@ export function login(params: AkbLoginParams): Promise<AkbLoginResult> {
           Accept: "application/json",
         },
         body: JSON.stringify({ username, password }),
+        redirect: "manual",
+        signal,
       });
     } catch (err) {
       throw new AkbApiError({
@@ -121,7 +153,10 @@ export function login(params: AkbLoginParams): Promise<AkbLoginResult> {
       });
     }
     if (!response.ok) {
-      const error = await readAkbErrorResponse(response);
+      const error = await readAkbErrorResponse(response, {
+        maxBytes: MAX_AKB_AUTH_RESPONSE_BYTES,
+        signal,
+      });
       if (
         response.status === 401 ||
         response.status === 403 ||
@@ -142,7 +177,10 @@ export function login(params: AkbLoginParams): Promise<AkbLoginResult> {
     }
     let payload: unknown;
     try {
-      payload = await response.json();
+      payload = await readAkbJsonBody(response, {
+        maxBytes: MAX_AKB_AUTH_RESPONSE_BYTES,
+        signal,
+      });
     } catch {
       throw new AkbApiError({ status: 502, message: "login_non_json" });
     }
@@ -234,11 +272,13 @@ export function startKeycloakLogin(
     url.searchParams.set("redirect", redirectPath);
 
     let response: Response;
+    const signal = AbortSignal.timeout(AKB_AUTH_TIMEOUT_MS);
     try {
       response = await fetch(url, {
         method: "GET",
         headers: { Accept: "text/html,application/xhtml+xml" },
         redirect: "manual",
+        signal,
       });
     } catch (err) {
       throw new AkbApiError({
@@ -319,6 +359,7 @@ export function startKeycloakLogout(
     const url = `${stripTrailingSlashes(baseUrl)}/api/v1/auth/keycloak/logout`;
 
     let response: Response;
+    const signal = AbortSignal.timeout(AKB_AUTH_TIMEOUT_MS);
     try {
       response = await fetch(url, {
         method: "POST",
@@ -328,6 +369,7 @@ export function startKeycloakLogout(
         },
         body: JSON.stringify({ id_token_hint: idTokenHint }),
         redirect: "manual",
+        signal,
       });
     } catch (err) {
       throw new AkbApiError({
@@ -427,11 +469,14 @@ async function fetchTokenlessJson(params: {
     serializedBody = JSON.stringify(body);
   }
   let response: Response;
+  const signal = AbortSignal.timeout(AKB_AUTH_TIMEOUT_MS);
   try {
     response = await fetch(url, {
       method,
       headers,
       body: serializedBody,
+      redirect: "manual",
+      signal,
     });
   } catch (err) {
     throw new AkbApiError({
@@ -440,7 +485,10 @@ async function fetchTokenlessJson(params: {
     });
   }
   if (!response.ok) {
-    const error = await readAkbErrorResponse(response);
+    const error = await readAkbErrorResponse(response, {
+      maxBytes: MAX_AKB_AUTH_RESPONSE_BYTES,
+      signal,
+    });
     if (
       authStatuses?.has(response.status) ||
       isAkbAccountErrorCode(error.code)
@@ -458,7 +506,10 @@ async function fetchTokenlessJson(params: {
     });
   }
   try {
-    return await response.json();
+    return await readAkbJsonBody(response, {
+      maxBytes: MAX_AKB_AUTH_RESPONSE_BYTES,
+      signal,
+    });
   } catch {
     throw new AkbApiError({ status: 502, message: nonJsonMessage });
   }

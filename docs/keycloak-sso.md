@@ -1,156 +1,174 @@
-# AKB Keycloak SSO Deployment Contract
+# Reef Keycloak SSO BFF Contract
 
-reef does not own a Keycloak client, realm, or client secret. For SSO, reef
-delegates login to AKB, exchanges AKB's one-time code server-side, and stores
-the returned AKB JWT in the same `__reef_session` httpOnly cookie used by
-password login.
+Reef has two explicit authentication profiles. `local` preserves AKB's
+username/password login and AKB-issued JWT cookie. `sso` makes reef-web the OIDC
+Backend-for-Frontend for a dedicated Keycloak client. SSO never calls AKB's
+retired Keycloak browser-login or JWT-exchange endpoints and never creates,
+stores, returns, or forwards an AKB user JWT.
 
-## Reef Environment
+## Reef environment
 
-reef-web needs only the AKB backend origin:
+Every deployment selects a mode:
 
 ```bash
+REEF_AUTH_MODE=sso
 AKB_BACKEND_URL=https://akb.example.com
+REEF_PUBLIC_ORIGIN=https://reef.example.com
+REEF_KEYCLOAK_ISSUER=https://identity.example.com/realms/reef
+REEF_KEYCLOAK_TRANSPORT_URL=http://keycloak.identity.svc.cluster.local:8080/realms/reef
+REEF_KEYCLOAK_CLIENT_ID=reef-web
+REEF_AKB_API_AUDIENCE=akb-api
+REEF_SESSION_REDIS_URL=rediss://redis.example.com:6380/0
+REEF_SESSION_ENCRYPTION_KEY=<base64-encoded-32-byte-random-key>
 ```
 
-Do not add `NEXT_PUBLIC_*` SSO variables. Browser code starts SSO through reef's
-same-origin Route Handlers; secrets and tokens stay server-side or in httpOnly
-cookies.
+`REEF_PUBLIC_ORIGIN` must be a bare HTTPS origin outside loopback development.
+The session key must be generated independently from Keycloak, AKB, Redis, and
+other application secrets; `openssl rand -base64 32` produces the required
+size. Keep both the Redis URL and encryption key in the deployment secret
+store. Do not expose any SSO setting through `NEXT_PUBLIC_*`.
 
-## AKB And Keycloak Configuration
+Production SSO fails at startup when Redis, the encryption key, or the internal
+Keycloak transport is absent or invalid. The transport URL must use a non-IP
+in-cluster DNS name, contain no credentials/query/fragment, use the exact realm
+path from `REEF_KEYCLOAK_ISSUER`, and be distinct from the public issuer host.
+Tests and non-production development may omit it and use the canonical issuer
+for transport; they may also omit Redis and the encryption key and use an
+in-memory store with a process-ephemeral key. That fallback is intentionally
+unsuitable for multiple replicas or durable login sessions.
 
-Keycloak should redirect back to AKB, not reef:
+## Dedicated Keycloak client
 
-```yaml
-keycloak_redirect_uri: https://akb.example.com/api/v1/auth/keycloak/callback
+Create a public OIDC client for Reef with Standard Flow enabled, PKCE S256, and
+no implicit or resource-owner-password flow. Register exactly:
+
+```text
+redirect URI:      https://reef.example.com/api/auth/akb/sso/callback
+post-logout URI:   https://reef.example.com/login
+back-channel URI:  https://reef.example.com/api/auth/akb/sso/backchannel-logout
 ```
 
-AKB should then send the reef product surface a one-time code by setting the
-post-login path to reef's callback:
+Browser authorization/logout endpoints and JWT `iss` verification stay pinned
+to `REEF_KEYCLOAK_ISSUER`. Token, JWKS, revocation, and readiness calls use only
+`REEF_KEYCLOAK_TRANSPORT_URL`; Reef never substitutes public ingress for that
+production transport. It accepts only RS256 JWTs from the transport's fixed
+JWKS endpoint and rejects token-directed `jku`, `jwk`, `x5u`, or `x5c` sources.
 
-```yaml
-keycloak_post_login_path: https://reef.example.com/api/auth/akb/sso/callback
-```
+The Keycloak client/audience configuration must make these claims true:
 
-If AKB and reef share an origin, this can be a safe same-site path. If they are
-on different origins, use the absolute reef URL. The Keycloak client must allow
-the AKB callback URL configured in `keycloak_redirect_uri`.
+- Access token: exact issuer, AKB API audience, `azp` equal to Reef's client id,
+  payload `typ=Bearer`, a non-empty subject, and `identity_provider` equal to the
+  selected provider alias.
+- Initial ID token: exact issuer, Reef client audience and `azp`, the
+  authorization nonce, the same subject, and a correct access-token hash when
+  that optional token-endpoint claim is present. A refreshed ID token may omit
+  `nonce` and `at_hash`; Reef requires the original nonce and current
+  access-token hash when the provider does include them.
 
-AKB's public auth config endpoint must return the nested shape used by reef:
+Configure a client scope/audience mapper for the AKB API and a provider-alias
+claim mapper when those claims are not emitted by default. AKB must accept this
+Keycloak access token as the bearer credential for its API.
+
+## AKB public provider catalog
+
+AKB remains the public provider-catalog and account authority. Its unauthenticated
+auth config response for SSO uses the versioned shape below:
 
 ```json
 {
-  "local_auth": {
-    "enabled": false
-  },
+  "schema_version": 2,
+  "auth_mode": "sso",
+  "local_auth": { "enabled": false },
   "keycloak": {
     "enabled": true,
-    "login_url": "/api/v1/auth/keycloak/login",
-    "sso_only": true,
-    "enrollment_mode": "invite_only"
-  }
+    "browser_session_ready": true
+  },
+  "providers": [
+    {
+      "provider_type": "keycloak-oidc",
+      "alias": "workforce",
+      "display_name": "Company SSO",
+      "login_url": "/api/v1/auth/sso/workforce/login"
+    }
+  ]
 }
 ```
 
-`login_url` must be the path-only AKB endpoint
-`/api/v1/auth/keycloak/login`. reef rejects absolute, protocol-relative, query,
-fragment, or non-Keycloak paths before making any server-side request.
+Reef requires its mode to agree with this catalog and uses only entries with a
+non-null `login_url`. It validates the alias, replaces the catalog URL with its
+own same-origin start route, and passes the alias only as `kc_idp_hint`. Reef
+never follows or relays the AKB `login_url`.
 
-`keycloak.sso_only=true` is the authoritative managed presentation policy: Reef
-redirects a clean `/login` entry server-side with no panel flash. The optional
-`REEF_SSO_AUTO_REDIRECT` variable only forces the same presentation for a hybrid
-AKB. `local_auth.enabled=false` hides the password form and cannot be bypassed by
-the `?password=1` / `?prompt=login` loop escape. Older AKB responses that omit
-these additive fields default to local auth enabled and SSO-only disabled. When
-Keycloak is disabled or the config request fails, Reef falls back to the panel;
-on a config failure it preserves the standalone password-compatible behavior.
+## Login and token custody
 
-## Login Success Flow
+1. `/login` reads the public AKB catalog. One enabled provider can redirect
+   directly; multiple providers render explicit choices.
+2. `/api/auth/akb/sso/start` validates the selected alias, creates PKCE, nonce,
+   state, and a separate browser binding, then stores the encrypted one-time
+   transaction server-side.
+3. Keycloak returns only an authorization code and state to Reef's callback.
+   Reef atomically consumes state, verifies the browser binding, exchanges the
+   code at Keycloak, and validates the complete token set.
+4. Reef projects the current Keycloak access token through `@reef/core` to AKB
+   `/api/v1/auth/me`. AKB account denial or 401 prevents session creation.
+5. Reef stores the token set in an AES-256-GCM encrypted Redis record and gives
+   the browser a random 256-bit `__reef_session` httpOnly, SameSite=Lax handle.
 
-1. The login page reads `GET /api/auth/akb/config`, which proxies AKB
-   `GET /api/v1/auth/config`.
-2. The SSO button points to
-   `/api/auth/akb/sso/start?redirect=<safe-reef-path>`.
-3. The start route creates a short-lived nonce, builds
-   `/login/sso-complete?state=<nonce>&next=<safe-reef-path>`, and sends the
-   browser through reef's `/api/auth/akb/sso/login` proxy.
-4. The login proxy calls AKB
-   `GET /api/v1/auth/keycloak/login?redirect=<safe-callback-path>` and relays
-   only AKB's public Keycloak redirect URL.
-5. After Keycloak login, AKB redirects to
-   `keycloak_post_login_path?code=<one-time-code>&redirect=<safe-path>`.
-6. reef exchanges the one-time code with AKB
-   `POST /api/v1/auth/keycloak/exchange` and receives `{ token, user,
-   kc_id_token? }`.
-7. reef sets `__reef_session`, marks the session as SSO-backed when applicable,
-   clears the start nonce, and routes through `/login/sso-complete` so the
-   client verifies the actor before going to the intended page.
+At login Reef records one immutable absolute server-session deadline. Refresh
+rotation can shorten storage TTL but cannot move that deadline, so copied
+handles expire with the original session. Access, refresh, and ID tokens never enter browser-visible JavaScript, response
+bodies, URLs, browser storage, or cookies. Redis keys contain only a hash of the
+handle; sid/sub indexes, replay-jti markers, and index metadata contain only
+hashes. Ciphertext is bound to its record key as GCM additional data.
 
-The AKB JWT is never exposed to browser JavaScript. The optional Keycloak ID
-token is stored only in httpOnly cookies for SSO logout continuation.
+Before forwarding an AKB request, Reef resolves the current access token. A
+near-expiry token is refreshed under a bounded distributed lock and persisted
+with an atomic revision compare-and-set, including rotated refresh credentials.
+A rejected refresh deletes the session. A transient Keycloak/JWKS failure keeps
+a still-valid session and access token; an expired token returns a bounded
+temporary failure without deleting its record.
 
-AKB remains the account authority after Keycloak authentication. When AKB
-returns `membership_required`, `account_suspended`, or `identity_conflict`, it
-may return that stable code to Reef's allowlisted callback. Reef validates the
-existing SSO nonce and completion path before accepting the code, shows curated
-product copy, and clears every established Reef auth cookie. The same mapping
-applies to password login and later `/auth/me` rejection, so a revoked or
-suspended account cannot continue through a stale local session. Protected Reef
-API responses also emit `X-Reef-Auth-Invalidated: 1`; the shared browser client
-uses that signal to clear persisted and in-memory AKB-account-scoped state while
-leaving ordinary permission denials intact.
+AKB remains the account authority. `membership_required`,
+`account_suspended`, `identity_conflict`, and an AKB 401 invalidate the Redis
+session and clear every established Reef auth cookie. Ordinary resource
+permission denials do not sign the user out.
 
-## Sign-Out Flow
+## Logout
 
-Password and local sign-out always clear `__reef_session` and AKB-scoped browser
-state. GitHub access is deployment-managed and is not affected by user sign-out.
+The logout POST deletes the server session before clearing the browser carrier
+and then best-effort revokes the refresh token. If authoritative Redis deletion
+fails, it returns a retryable 503 and retains the cookie. It returns only a
+fixed same-origin continuation path after success. The public follow-up GET is
+state-free and constructs navigation from the canonical issuer, client id, and
+Reef post-logout URI. Reef never puts `id_token_hint` or any token in a cookie,
+body, URL, redirect, or log-facing error.
 
-For SSO-backed sessions, reef also:
+OpenID Back-Channel Logout accepts a form-encoded `logout_token` at the URI
+above. Verification is pinned to RS256, the exact public issuer, and the
+dedicated Reef client audience. `iss`, `aud`, `iat`, `jti`, the exact
+`http://schemas.openid.net/event/backchannel-logout` event, and `sid` or `sub`
+are required; `nonce` is prohibited and token age is bounded. A replay-protected
+atomic Redis operation prefers `sid` when both identifiers exist, deletes all
+matching records, and cleans both hashed indexes. A valid token with no matching
+session still returns 200.
 
-- clears the long-lived local SSO cookies in the initial POST response;
-- moves the Keycloak ID token hint into a separate short-lived httpOnly
-  continuation cookie;
-- requires a matching one-time logout nonce on the follow-up GET route;
-- sends the ID token hint to AKB in a server-side POST body, never in the AKB
-  request URL;
-- performs a top-level browser navigation for the continuation route so the
-  browser can reach the external Keycloak logout URL.
+Changing `REEF_SESSION_ENCRYPTION_KEY` intentionally invalidates existing SSO
+sessions. Plan key rotation as a sign-in reset unless a future release adds a
+multi-key transition mechanism.
 
-If the AKB logout endpoint is unavailable or does not return a public redirect,
-reef still completes local cleanup and falls back to `/login`.
+## Focused regression coverage
 
-## Known Follow-Up
+The security contract is concentrated in:
 
-REEF-118 tracks the remaining AKB-side hooks for reef-returning SSO UX:
-
-- Keycloak post-logout redirect currently returns to AKB's auth surface unless
-  AKB adds a safe reef-returning hook such as an allowlisted parameter or
-  `keycloak_post_logout_path`.
-- Keycloak callback errors currently return to AKB's auth surface unless AKB
-  adds a safe reef login/error redirect hook.
-
-These are not blockers for the login success path. When REEF-118 lands, update
-this document with the exact endpoint, parameter or config names, allowlist
-semantics, and fallback behavior before wiring any additional reef UX.
-
-## Regression Coverage
-
-Focused coverage for this contract lives in:
-
-- `packages/core/src/adapters/akb/workspace/auth.test.ts`
-- `packages/web/src/app/api/auth/akb/config/route.test.ts`
-- `packages/web/src/app/api/auth/akb/sso/start/route.test.ts`
-- `packages/web/src/app/api/auth/akb/sso/login/route.test.ts`
-- `packages/web/src/app/api/auth/akb/sso/callback/route.test.ts`
+- `packages/web/src/server/auth/*.test.ts`
+- `packages/web/src/lib/api/requestHelpers.sso.test.ts`
+- `packages/web/src/app/api/auth/akb/sso/*/route.test.ts`
 - `packages/web/src/app/api/auth/akb/logout/route.test.ts`
-- `packages/web/src/app/api/auth/akb/sso/logout/route.test.ts`
-- `packages/web/src/app/login/page.test.tsx`
-- `packages/web/src/app/login/sso-complete/page.test.tsx`
-- `packages/web/src/features/auth/components/LoginPanel.test.tsx`
-- `packages/web/src/features/auth/components/SidebarAccount.test.tsx`
-- `packages/web/src/lib/akb/accountReconcile.test.ts`
+- `packages/web/src/lib/akb/loadAkbAuthConfig.test.ts`
+- `packages/core/src/adapters/akb/workspace/auth.test.ts`
 
-Before release, also smoke test a real AKB + Keycloak environment by completing
-a login from `/login`, confirming `/api/auth/akb/me` returns the new actor,
-checking that the intended `next` route is reached, then signing out from the
-sidebar.
+Platform readiness requires the dedicated client, exact callback/logout and
+back-channel URIs, RS256 realm signing, AKB audience/provider mappers, an enabled
+public AKB provider catalog, Redis connectivity, an independent encryption key,
+and reachable JWKS over the in-cluster transport. Kubernetes readiness checks
+these Redis/OIDC dependencies at `/api/readyz`; `/api/healthz` is liveness only.

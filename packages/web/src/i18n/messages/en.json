@@ -1296,7 +1296,7 @@
   "auth": {
     "login": {
       "intro": "Sign in with your workspace account to continue.",
-      "ssoError": "SSO could not complete. Try again or use password.",
+      "ssoError": "SSO could not complete. Please try again.",
       "membershipRequired": "This account does not have workspace access. Ask a workspace administrator for membership.",
       "accountSuspended": "This account is suspended. Contact a workspace administrator.",
       "identityConflict": "This sign-in identity conflicts with the account linked to this workspace. Contact a workspace administrator.",

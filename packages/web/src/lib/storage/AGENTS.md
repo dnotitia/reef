@@ -7,7 +7,7 @@
   while IndexedDB remains canonical. The store does not hold monitored repos,
   `project_prefix`, or LLM config.
 - GitHub access is deployment-managed through the server GitHub App or optional
-  server PAT fallback. The akb session lives in the `__reef_session` httpOnly
-  cookie.
+  server PAT fallback. `__reef_session` is httpOnly and contains a local AKB JWT
+  or an opaque SSO handle; browser storage never contains an auth token.
 - Store-layout changes require a Dexie version bump and migration closure; see
   `docs/migration-policy.md`.

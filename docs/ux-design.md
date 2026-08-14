@@ -1,6 +1,6 @@
 # UX Design Specification — reef
 
-reef is a stateless web application for AI-assisted project management. This
+reef is a mode-aware web application for AI-assisted project management. This
 document describes the user experience as it is implemented in `packages/web/` today:
 the surfaces a user touches, the interaction patterns they follow, the visual
 system that renders them, and the design principles those choices serve. It is
@@ -17,10 +17,10 @@ contract and this document explains the user-facing consequence.
 reef is a Next.js (App Router) application rendered with React 19. It runs
 in the browser; there is no desktop build, no native packaging, and no offline
 mode. The shell and shared empty-state surfaces also keep a narrow 390px
-viewport usable without clipping or overlap. The product is a stateless BFF in
-front of the akb backend —
-the server persists nothing that belongs to a user, so the entire experience
-is shaped around a strict state-owner split:
+viewport usable without clipping or overlap. The product is a BFF in front of
+the AKB backend. Local auth is stateless; SSO has one server-side exception for
+encrypted, expiring token custody behind an opaque browser handle. Product and
+UI state still follow a strict owner split:
 
 - **Zustand** holds UI state only — sidebar collapse, the active issue view,
   filters, the open/closed state of the New Issue and Ask AI dialogs, user
@@ -670,12 +670,15 @@ offers a "New chat" reset and Esc-to-close. Its empty state primes the user:
 
 ### Authentication & Onboarding
 
-reef is gated by an akb account. `/login` is a username/password form
-(`LoginForm`) that posts to `/api/auth/akb/login`; on success the akb session
-lives in the `__reef_session` httpOnly cookie (never mirrored into the
-browser's own storage), the previous account's workspace-scoped browser state
-is reconciled away, and the user enters the app. There is no GitHub-OAuth
-sign-in, no popup, and no management-repository selection.
+reef is gated by an AKB account. In local mode, `/login` presents `LoginForm`,
+posts to `/api/auth/akb/login`, and keeps AKB's JWT in the
+`__reef_session` httpOnly cookie. In SSO mode, the page renders AKB's enabled
+provider catalog (or directly enters the sole provider), then Reef completes
+OIDC Authorization Code + PKCE. The same cookie contains only a random opaque
+handle; OIDC tokens never enter browser JavaScript, storage, URLs, bodies, or
+cookies. After either mode succeeds, the previous account's workspace-scoped
+browser state is reconciled away. There is no GitHub-OAuth sign-in, popup, or
+management-repository selection.
 
 After session validation, reef checks the user's accessible workspaces before
 showing onboarding. If at least one already has reef configuration, the app
@@ -697,8 +700,9 @@ The authenticated onboarding and access-denied surfaces retain the shared
 account menu, including the current identity, theme shortcut, release notes,
 and the same sign-out flow used by the dashboard sidebar. The menu is absent
 while the session gate is checking, on unauthenticated surfaces, and on
-`/login`; signing out clears only AKB-scoped browser state and returns to
-`/login`.
+`/login`; signing out clears AKB-scoped browser state and returns to `/login`.
+SSO sign-out also deletes Reef's server session and best-effort revokes the
+refresh token before navigating through the configured Keycloak logout route.
 
 ### Planning, Reports, Settings
 

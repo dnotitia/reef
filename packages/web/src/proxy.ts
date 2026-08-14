@@ -124,12 +124,12 @@ export function proxy(request: NextRequest) {
   // value logging is opt-in. The redaction contract is enforced by proxy.test.ts,
   // which fails if a fake-token substring ever reaches stdout.
   if (path.startsWith("/api/")) {
-    // Stamp the request line with the akb actor (username) so an error can be
-    // tied to a user — "which user hit this 500?" (REEF-271).
+    // In local mode, stamp the request line with the claimed AKB actor so an
+    // error can be tied to a user — "which user hit this 500?" (REEF-271).
     //
     // TRUST BOUNDARY: this is the *claimed* session identity, not a verified one.
-    // reef-web is not the JWT signing authority — akb is, and it re-validates the
-    // forwarded token on every request (see `decodeJwtExp` / `extractAkbSession`).
+    // reef-web is not the local JWT signing authority — AKB is, and it
+    // re-validates the forwarded token on every request.
     // The proxy runs before that validation and does not check the signature, so a
     // forged cookie like `{"sub":"alice"}` would be logged as `actor: alice` even
     // though akb then rejects it (401/403) — the request fails, but the line is
@@ -140,10 +140,11 @@ export function proxy(request: NextRequest) {
     // whose semantic convention denotes a *verified* end user — setting it from an
     // unverified edge claim would overstate it in traces/cost dashboards.
     //
-    // The public identity claim is read; the token/PAT is not touched, so
-    // the credential-redaction invariant above is preserved.
-    const sessionJwt = request.cookies.get(SESSION_COOKIE)?.value;
-    const actor = sessionJwt ? decodeSessionActor(sessionJwt) : null;
+    // An SSO cookie is an opaque 256-bit handle, not a JWT, so decoding simply
+    // yields no actor and the handle is never logged. The token/PAT itself is
+    // not touched in either mode.
+    const sessionCarrier = request.cookies.get(SESSION_COOKIE)?.value;
+    const actor = sessionCarrier ? decodeSessionActor(sessionCarrier) : null;
     logger.info(
       {
         method: request.method,

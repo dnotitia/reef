@@ -25,6 +25,7 @@ function buildWebServerEnv(): Record<string, string> {
     // Hermetic E2E owns its auth backend; ambient deployment settings must not
     // replace the fixture that the browser login contract exercises.
     AKB_BACKEND_URL: `${E2E_MOCK_URL}/akb`,
+    REEF_AUTH_MODE: "local",
     // The E2E-only asset rewrite uses this loopback origin in both dev and
     // production-build harnesses; ordinary production has no fixture origin.
     REEF_E2E_MOCK_URL: E2E_MOCK_URL,
@@ -44,11 +45,6 @@ function buildWebServerEnv(): Record<string, string> {
       process.env.REEF_GITHUB_APP_INSTALLATION_ID ?? "789",
     REEF_GITHUB_APP_PRIVATE_KEY:
       process.env.REEF_GITHUB_APP_PRIVATE_KEY ?? E2E_GITHUB_APP_PRIVATE_KEY,
-    // SSO-first login (REEF-312). On under test so the auto-redirect path is
-    // exercised; the fixture keeps Keycloak DISABLED by default (so this is a
-    // no-op and existing specs render today's panel), and the SSO-first spec
-    // opts in per test via the /__e2e/keycloak toggle.
-    REEF_SSO_AUTO_REDIRECT: process.env.REEF_SSO_AUTO_REDIRECT ?? "1",
   };
 }
 

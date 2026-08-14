@@ -2,26 +2,14 @@
 import { describe, expect, it } from "vitest";
 import {
   SESSION_COOKIE,
-  SSO_ID_TOKEN_COOKIE,
-  SSO_LOGOUT_COOKIE,
-  SSO_LOGOUT_ID_TOKEN_COOKIE,
-  SSO_SESSION_COOKIE,
   SSO_START_COOKIE,
   buildClearedAuthCookies,
   buildClearedEstablishedAuthCookies,
-  buildClearedReefSessionCookies,
   buildClearedSessionCookie,
   buildClearedSsoCookies,
-  buildClearedSsoIdTokenCookie,
-  buildClearedSsoLogoutCookie,
-  buildClearedSsoLogoutIdTokenCookie,
-  buildClearedSsoSessionCookie,
   buildClearedSsoStartCookie,
   buildSessionCookie,
-  buildSsoIdTokenCookie,
-  buildSsoLogoutCookie,
-  buildSsoLogoutIdTokenCookie,
-  buildSsoSessionCookie,
+  buildSsoSessionHandleCookie,
   buildSsoStartCookie,
   decodeJwtExp,
   decodeSessionActor,
@@ -69,31 +57,32 @@ describe("buildClearedSessionCookie", () => {
   });
 });
 
+describe("buildSsoSessionHandleCookie", () => {
+  it("accepts only a random opaque handle, never JWT or token material", () => {
+    const handle = Buffer.alloc(32, 6).toString("base64url");
+    expect(
+      buildSsoSessionHandleCookie(handle, {
+        maxAgeSeconds: 300,
+        secure: false,
+      }),
+    ).toBe(
+      `${SESSION_COOKIE}=${handle}; HttpOnly; SameSite=Lax; Path=/; Max-Age=300`,
+    );
+    expect(() =>
+      buildSsoSessionHandleCookie("header.payload.signature"),
+    ).toThrowError("sso_session_handle_invalid");
+  });
+});
+
 describe("SSO cookie helpers", () => {
   it("serializes the short-lived SSO start cookie", () => {
-    const out = buildSsoStartCookie("nonce-1", { secure: false });
+    const binding = Buffer.alloc(32, 7).toString("base64url");
+    const out = buildSsoStartCookie(binding, { secure: false });
     expect(out).toBe(
-      `${SSO_START_COOKIE}=nonce-1; HttpOnly; SameSite=Lax; Path=/; Max-Age=600`,
+      `${SSO_START_COOKIE}=${binding}; HttpOnly; SameSite=Lax; Path=/; Max-Age=600`,
     );
-  });
-
-  it("serializes and clears the SSO session marker cookie", () => {
-    expect(buildSsoSessionCookie({ maxAgeSeconds: 300, secure: false })).toBe(
-      `${SSO_SESSION_COOKIE}=1; HttpOnly; SameSite=Lax; Path=/; Max-Age=300`,
-    );
-    expect(buildClearedSsoSessionCookie({ secure: false })).toBe(
-      `${SSO_SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
-    );
-  });
-
-  it("serializes and clears the optional SSO id token cookie", () => {
-    expect(
-      buildSsoIdTokenCookie("id-token", { maxAgeSeconds: 300, secure: false }),
-    ).toBe(
-      `${SSO_ID_TOKEN_COOKIE}=id-token; HttpOnly; SameSite=Lax; Path=/; Max-Age=300`,
-    );
-    expect(buildClearedSsoIdTokenCookie({ secure: false })).toBe(
-      `${SSO_ID_TOKEN_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
+    expect(() => buildSsoStartCookie("not-random")).toThrowError(
+      "sso_browser_binding_invalid",
     );
   });
 
@@ -103,61 +92,34 @@ describe("SSO cookie helpers", () => {
     );
   });
 
-  it("serializes and clears the short-lived SSO logout cookie", () => {
-    expect(buildSsoLogoutCookie("nonce-2", { secure: false })).toBe(
-      `${SSO_LOGOUT_COOKIE}=nonce-2; HttpOnly; SameSite=Lax; Path=/; Max-Age=60`,
-    );
-    expect(buildClearedSsoLogoutCookie({ secure: false })).toBe(
-      `${SSO_LOGOUT_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
-    );
-  });
-
-  it("serializes and clears the short-lived SSO logout id token cookie", () => {
-    expect(buildSsoLogoutIdTokenCookie("id-token", { secure: false })).toBe(
-      `${SSO_LOGOUT_ID_TOKEN_COOKIE}=id-token; HttpOnly; SameSite=Lax; Path=/; Max-Age=60`,
-    );
-    expect(buildClearedSsoLogoutIdTokenCookie({ secure: false })).toBe(
-      `${SSO_LOGOUT_ID_TOKEN_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
-    );
-  });
-
   it("clears the session and SSO cookies together", () => {
     expect(buildClearedAuthCookies({ secure: false })).toEqual([
       `${SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
-      `${SSO_SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
-      `${SSO_ID_TOKEN_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
+      `__reef_sso=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
+      `__reef_sso_id_token=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
       `${SSO_START_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
-      `${SSO_LOGOUT_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
-      `${SSO_LOGOUT_ID_TOKEN_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
+      `__reef_sso_logout=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
+      `__reef_sso_logout_id_token=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
     ]);
   });
 
   it("clears only SSO cookies for password-login transitions", () => {
     expect(buildClearedSsoCookies({ secure: false })).toEqual([
-      `${SSO_SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
-      `${SSO_ID_TOKEN_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
+      `__reef_sso=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
+      `__reef_sso_id_token=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
       `${SSO_START_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
-      `${SSO_LOGOUT_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
-      `${SSO_LOGOUT_ID_TOKEN_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
+      `__reef_sso_logout=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
+      `__reef_sso_logout_id_token=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
     ]);
   });
 
   it("clears established auth cookies without deleting an in-flight SSO nonce", () => {
     expect(buildClearedEstablishedAuthCookies({ secure: false })).toEqual([
       `${SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
-      `${SSO_SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
-      `${SSO_ID_TOKEN_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
-      `${SSO_LOGOUT_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
-      `${SSO_LOGOUT_ID_TOKEN_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
-    ]);
-  });
-
-  it("clears reef session cookies before issuing short-lived logout continuation cookies", () => {
-    expect(buildClearedReefSessionCookies({ secure: false })).toEqual([
-      `${SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
-      `${SSO_SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
-      `${SSO_ID_TOKEN_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
-      `${SSO_START_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
+      `__reef_sso=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
+      `__reef_sso_id_token=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
+      `__reef_sso_logout=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
+      `__reef_sso_logout_id_token=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
     ]);
   });
 });

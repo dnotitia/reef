@@ -55,6 +55,8 @@ describe("akb auth adapter", () => {
       expect(result).toEqual({ token, user: VALID_USER });
       expect(calls[0]?.url).toBe("https://akb.test/api/v1/auth/login");
       expect(calls[0]?.init?.method).toBe("POST");
+      expect(calls[0]?.init?.redirect).toBe("manual");
+      expect(calls[0]?.init?.signal).toBeInstanceOf(AbortSignal);
       expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
         username: "alice",
         password: "hunter2",
@@ -223,6 +225,47 @@ describe("akb auth adapter", () => {
       expect(calls[0]?.init?.method).toBe("GET");
     });
 
+    it("accepts the versioned enabled-provider catalog without trusting a provider secret", async () => {
+      setupFetch([
+        {
+          status: 200,
+          body: {
+            schema_version: 2,
+            auth_mode: "sso",
+            local_auth: { enabled: false },
+            keycloak: { enabled: true, browser_session_ready: true },
+            providers: [
+              {
+                provider_type: "keycloak-oidc",
+                alias: "workforce",
+                display_name: "Company SSO",
+                login_url: "/api/v1/auth/sso/workforce/login",
+              },
+            ],
+            mcp_oauth: { enabled: false },
+          },
+        },
+      ]);
+
+      await expect(getAuthConfig({ baseUrl: BASE_URL })).resolves.toEqual({
+        config: {
+          schema_version: 2,
+          auth_mode: "sso",
+          local_auth: { enabled: false },
+          keycloak: { enabled: true, browser_session_ready: true },
+          providers: [
+            {
+              provider_type: "keycloak-oidc",
+              alias: "workforce",
+              display_name: "Company SSO",
+              login_url: "/api/v1/auth/sso/workforce/login",
+            },
+          ],
+          mcp_oauth: { enabled: false },
+        },
+      });
+    });
+
     it("accepts disabled SSO with a null login_url", async () => {
       setupFetch([
         {
@@ -301,6 +344,8 @@ describe("akb auth adapter", () => {
         "https://akb.test/api/v1/auth/keycloak/exchange",
       );
       expect(calls[0]?.init?.method).toBe("POST");
+      expect(calls[0]?.init?.redirect).toBe("manual");
+      expect(calls[0]?.init?.signal).toBeInstanceOf(AbortSignal);
       expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
         code: "one-time-code",
       });
