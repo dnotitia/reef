@@ -55,11 +55,28 @@ jobs:
           ref: ${{ matrix.akb_ref }}
           path: .akb-live
 
+      - name: Setup Python for AKB bootstrap
+        if: matrix.akb_ref == 'main'
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Setup uv for AKB bootstrap
+        if: matrix.akb_ref == 'main'
+        uses: astral-sh/setup-uv@v10.0.0
+
       - name: Configure akb (local-dev defaults)
         working-directory: .akb-live
         run: |
           cp config/app.yaml.example config/app.yaml
           cp config/secret.yaml.example config/secret.yaml
+
+      - name: Generate AKB local-session keyset
+        if: matrix.akb_ref == 'main'
+        working-directory: .akb-live/backend
+        run: |
+          uv run --locked python -m app.cli generate-local-session-keyset \
+            --output-dir ../config/local-session
 
       # akb owns its compose topology (postgres + pgvector, minio); reef layers
       # only ci/akb-live.override.yml (a backend healthcheck so `--wait` blocks
