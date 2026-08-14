@@ -86,6 +86,14 @@ async function readMarkdownSurface(editor: Locator) {
         'ul[data-type="taskList"] input[type="checkbox"]',
       ),
     );
+    const normalLists = Array.from(
+      root.querySelectorAll<HTMLOListElement | HTMLUListElement>(
+        'ol:not([data-type="taskList"]), ul:not([data-type="taskList"])',
+      ),
+    );
+    const taskItems = Array.from(
+      root.querySelectorAll<HTMLElement>('ul[data-type="taskList"] > li'),
+    );
     const paragraph = root.querySelector<HTMLElement>("p");
     const heading = root.querySelector<HTMLElement>("h1");
     const link = root.querySelector<HTMLElement>("a");
@@ -119,6 +127,54 @@ async function readMarkdownSurface(editor: Locator) {
       const secondRect = second.getBoundingClientRect();
       return Math.round((secondRect.top - firstRect.bottom) * 100) / 100;
     };
+    const normalListMetrics = normalLists.map((list) => {
+      const firstItem = list.querySelector<HTMLElement>(":scope > li");
+      const secondItem = list.querySelector<HTMLElement>(":scope > li + li");
+      const firstParagraph =
+        firstItem?.querySelector<HTMLElement>(":scope > p");
+      const marker = firstItem
+        ? getComputedStyle(firstItem, "::marker").color
+        : "";
+      return {
+        tagName: list.tagName.toLowerCase(),
+        paddingInlineStart: getComputedStyle(list).paddingInlineStart,
+        marker,
+        directParagraphMargin: firstParagraph
+          ? getComputedStyle(firstParagraph).marginBlock
+          : "",
+        siblingGap:
+          firstItem && secondItem ? actualGap(firstItem, secondItem) : null,
+      };
+    });
+    const taskItemMetrics = taskItems.map((item) => {
+      const checkbox = item.querySelector<HTMLInputElement>(
+        ':scope > label > input[type="checkbox"]',
+      );
+      const paragraph = item.querySelector<HTMLElement>(":scope > div > p");
+      const checkboxRect = checkbox?.getBoundingClientRect();
+      const paragraphRect = paragraph?.getBoundingClientRect();
+      return {
+        checked: item.getAttribute("data-checked"),
+        checkboxWidth: checkbox ? getComputedStyle(checkbox).width : "",
+        checkboxHeight: checkbox ? getComputedStyle(checkbox).height : "",
+        accentColor: checkbox ? getComputedStyle(checkbox).accentColor : "",
+        bodyColor: paragraph ? getComputedStyle(paragraph).color : "",
+        bodyDecoration: paragraph
+          ? getComputedStyle(paragraph).textDecorationLine
+          : "",
+        firstRowCenterDelta:
+          checkboxRect && paragraphRect
+            ? Math.round(
+                Math.abs(
+                  checkboxRect.top +
+                    checkboxRect.height / 2 -
+                    (paragraphRect.top +
+                      Math.min(paragraphRect.height, 22) / 2),
+                ) * 100,
+              ) / 100
+            : null,
+      };
+    });
     const headingMetrics = Object.fromEntries(
       (["h1", "h2", "h3"] as const).map((level) => {
         const heading = findDirectChild(level);
@@ -306,9 +362,12 @@ async function readMarkdownSurface(editor: Locator) {
           : null,
         foreground: resolveColor("--foreground"),
         brand: resolveColor("--brand"),
+        mutedForeground: resolveColor("--muted-foreground"),
         borderSubtle: resolveColor("--border-subtle"),
         surfaceSubtle: resolveBackground("--surface-subtle"),
       },
+      normalListMetrics,
+      taskItemMetrics,
       proseVariables: {
         body: resolveProseColor("--tw-prose-body"),
         links: resolveProseColor("--tw-prose-links"),
@@ -456,11 +515,11 @@ test.describe("Hermetic Markdown editor fixture", () => {
         inlineCode: 1,
         strikethrough: 2,
         nestedStrikethrough: 1,
-        orderedLists: 2,
-        unorderedLists: 2,
-        taskLists: 1,
-        checkboxes: 2,
-        checkedCheckboxes: 1,
+        orderedLists: 4,
+        unorderedLists: 4,
+        taskLists: 2,
+        checkboxes: 3,
+        checkedCheckboxes: 2,
         quotes: 1,
         quoteParagraphs: 2,
         quoteLists: 1,
@@ -475,6 +534,47 @@ test.describe("Hermetic Markdown editor fixture", () => {
       expect(surface.colors.heading).toBe(surface.colors.foreground);
       expect(surface.colors.link).toBe(surface.colors.brand);
       expect(surface.colors.mention).toBe(surface.colors.brand);
+      expect(surface.normalListMetrics).toHaveLength(8);
+      for (const list of surface.normalListMetrics) {
+        expect(list.paddingInlineStart).toBe("20px");
+        expect(list.marker).toBe(surface.colors.mutedForeground);
+        expect(list.directParagraphMargin).toBe("0px");
+      }
+      expect(
+        surface.normalListMetrics
+          .filter((list) => list.siblingGap !== null)
+          .map((list) => list.siblingGap),
+      ).toEqual(expect.arrayContaining([4]));
+      expect(surface.taskItemMetrics).toHaveLength(3);
+      expect(surface.taskItemMetrics).toEqual([
+        expect.objectContaining({
+          checked: "true",
+          checkboxWidth: "16px",
+          checkboxHeight: "16px",
+          accentColor: surface.colors.brand,
+          bodyColor: surface.colors.mutedForeground,
+          bodyDecoration: "line-through",
+        }),
+        expect.objectContaining({
+          checked: "false",
+          checkboxWidth: "16px",
+          checkboxHeight: "16px",
+          accentColor: surface.colors.brand,
+          bodyColor: surface.colors.foreground,
+          bodyDecoration: "none",
+        }),
+        expect.objectContaining({
+          checked: "true",
+          checkboxWidth: "16px",
+          checkboxHeight: "16px",
+          accentColor: surface.colors.brand,
+          bodyColor: surface.colors.mutedForeground,
+          bodyDecoration: "line-through",
+        }),
+      ]);
+      for (const taskItem of surface.taskItemMetrics) {
+        expect(taskItem.firstRowCenterDelta).toBeLessThanOrEqual(4);
+      }
       expect(surface.colors.akbLinkHref).toBe(
         "akb://reef-e2e/coll/docs/doc/spec-overview.md",
       );
@@ -628,6 +728,9 @@ test.describe("Hermetic Markdown editor fixture", () => {
       expect(sourceMarkdown).toContain("A second quoted paragraph");
       expect(sourceMarkdown).toContain("Nested unordered item");
       expect(sourceMarkdown).toContain("Nested ordered child");
+      expect(sourceMarkdown).toContain("- [x] Completed parent");
+      expect(sourceMarkdown).toContain("- [ ] Open child");
+      expect(sourceMarkdown).toContain("- [x] Completed child");
       expect(sourceMarkdown).toContain("---");
       expect(sourceMarkdown).toContain("| Pattern | Meaning |");
       await page.screenshot({
@@ -650,14 +753,14 @@ test.describe("Hermetic Markdown editor fixture", () => {
         inlineCode: 1,
         strikethrough: 2,
         nestedStrikethrough: 1,
-        orderedLists: 2,
-        unorderedLists: 2,
+        orderedLists: 4,
+        unorderedLists: 4,
         quoteParagraphs: 2,
         quoteLists: 1,
         quoteNestedOrderedLists: 1,
-        taskLists: 1,
-        checkboxes: 2,
-        checkedCheckboxes: 1,
+        taskLists: 2,
+        checkboxes: 3,
+        checkedCheckboxes: 2,
         quotes: 1,
         codeBlocks: 1,
         rules: 1,
@@ -749,6 +852,82 @@ test.describe("Hermetic Markdown editor fixture", () => {
     });
   });
 
+  test("keeps independent task state through keyboard, Source, save, and re-entry", async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width: 720, height: 900 });
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    const editor = page.locator(".reef-markdown-editor");
+    const checkboxes = editor.locator(
+      'ul[data-type="taskList"] input[type="checkbox"]',
+    );
+    await expect(checkboxes).toHaveCount(3);
+    const parent = checkboxes.nth(0);
+    await expect(parent).toBeChecked();
+    await expect(checkboxes.nth(1)).not.toBeChecked();
+    await expect(checkboxes.nth(2)).toBeChecked();
+
+    await parent.focus();
+    await page.keyboard.press("Space");
+    await expect(parent).not.toBeChecked();
+    await expect(checkboxes.nth(1)).not.toBeChecked();
+    await expect(checkboxes.nth(2)).toBeChecked();
+
+    const sourceToggle = page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button");
+    await sourceToggle.click();
+    const source = page.getByTestId("markdown-source-textarea");
+    await expect(source).toBeVisible();
+    await expect(source).toHaveValue(/- \[ \] Completed parent/u);
+    await expect(source).toHaveValue(/- \[ \] Open child/u);
+    await expect(source).toHaveValue(/- \[x\] Completed child/u);
+
+    await sourceToggle.click();
+    await expect(editor).toBeVisible();
+    await page.getByTestId("issue-title-input").focus();
+
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        const vault = state.vaults.find(
+          (candidate) => candidate.name === REEF_E2E_VAULT,
+        );
+        return (
+          vault?.documents.find((document) =>
+            document.path.startsWith("issues/"),
+          )?.content ?? ""
+        );
+      })
+      .toContain("- [ ] Completed parent");
+
+    await page.getByTestId("issue-close").click();
+    await expect(page.getByTestId("issue-detail")).not.toBeVisible();
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    const reenteredCheckboxes = page
+      .locator(".reef-markdown-editor")
+      .locator('ul[data-type="taskList"] input[type="checkbox"]');
+    await expect(reenteredCheckboxes).toHaveCount(3);
+    await expect(reenteredCheckboxes.nth(0)).not.toBeChecked();
+    await expect(reenteredCheckboxes.nth(1)).not.toBeChecked();
+    await expect(reenteredCheckboxes.nth(2)).toBeChecked();
+
+    await page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+    await expect(page.getByTestId("markdown-source-textarea")).toHaveValue(
+      /- \[ \] Completed parent/u,
+    );
+  });
+
   test("tabs through Markdown links while skipping the mention", async ({
     page,
     request,
@@ -760,6 +939,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
 
     const editor = page.locator(".reef-markdown-editor");
     await expect(editor).toBeVisible();
+    const surface = await readMarkdownSurface(editor);
     const normalLink = editor.getByRole("link", { name: "reef link" });
     const akbLink = editor.getByRole("link", { name: "AKB report" });
     const mention = editor.locator('[data-reef-mention="true"]');
@@ -783,6 +963,11 @@ test.describe("Hermetic Markdown editor fixture", () => {
 
     await page.keyboard.press("Tab");
     await expect(firstTaskCheckbox).toBeFocused();
+    await expect(firstTaskCheckbox).toHaveCSS("outline-width", "2px");
+    await expect(firstTaskCheckbox).toHaveCSS(
+      "outline-color",
+      surface.colors.brand,
+    );
     await expect(mention).not.toBeFocused();
   });
 });

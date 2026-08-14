@@ -322,6 +322,60 @@ describe("MarkdownEditor Tiptap extensions", () => {
     },
   );
 
+  it("round-trips mixed nested list markers and independent task states", () => {
+    const markdown = [
+      "1. ordered parent",
+      "   - unordered child",
+      "     1. ordered grandchild",
+      "",
+      "- [x] parent complete",
+      "  - [ ] child open",
+      "  - [x] child complete",
+    ].join("\n");
+    const editor = createEditor(markdown);
+    const root = editor.view.dom;
+
+    expect(root.querySelector("ol > li > ul > li")).not.toBeNull();
+    expect(root.querySelector("ol > li > ol > li")).not.toBeNull();
+
+    const taskItems = Array.from(
+      root.querySelectorAll('ul[data-type="taskList"] > li'),
+    );
+    expect(taskItems).toHaveLength(3);
+    expect(taskItems.map((item) => item.getAttribute("data-checked"))).toEqual([
+      "true",
+      "false",
+      "true",
+    ]);
+    expect(
+      taskItems[0]?.querySelector(":scope > div > p")?.textContent,
+    ).toContain("parent complete");
+    expect(
+      taskItems[1]?.querySelector(":scope > div > p")?.textContent,
+    ).toContain("child open");
+    expect(
+      taskItems[2]?.querySelector(":scope > div > p")?.textContent,
+    ).toContain("child complete");
+
+    const serialized = editor.getMarkdown();
+    expect(serialized).toContain("ordered parent");
+    expect(serialized).toContain("unordered child");
+    expect(serialized).toContain("ordered grandchild");
+    expect(serialized).toContain("- [x] parent complete");
+    expect(serialized).toContain("- [ ] child open");
+    expect(serialized).toContain("- [x] child complete");
+
+    const reloaded = createEditor(serialized);
+    expect(reloaded.view.dom.querySelector("ol > li > ul > li")).not.toBeNull();
+    expect(reloaded.view.dom.querySelector("ol > li > ol > li")).not.toBeNull();
+    expect(
+      Array.from(
+        reloaded.view.dom.querySelectorAll('ul[data-type="taskList"] > li'),
+        (item) => item.getAttribute("data-checked"),
+      ),
+    ).toEqual(["true", "false", "true"]);
+  });
+
   it("parses image markdown while preserving the stored akb file URI", () => {
     const editor = createEditor(
       "![screen](akb://reef-test/issues/file/file-1)",

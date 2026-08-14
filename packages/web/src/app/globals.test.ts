@@ -337,6 +337,77 @@ describe("global focus styles", () => {
     );
   });
 
+  it("keeps normal lists dense while preserving the live task-list contract", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+
+    const normalListStart = css.indexOf(
+      '.reef-markdown-editor ol:not([data-type="taskList"]),',
+    );
+    expect(normalListStart).toBeGreaterThan(-1);
+    const normalListEnd = findCssBlockEnd(css, normalListStart);
+    expect(normalListEnd).toBeGreaterThan(normalListStart);
+    expect(css.slice(normalListStart, normalListEnd)).toContain(
+      "padding-inline-start: 1.25rem;",
+    );
+
+    for (const selector of [
+      '.reef-markdown-editor ol:not([data-type="taskList"]) > li > p',
+      '.reef-markdown-editor ul:not([data-type="taskList"]) > li > p',
+    ]) {
+      const start = css.indexOf(selector);
+      expect(start, selector).toBeGreaterThan(-1);
+      const end = findCssBlockEnd(css, start);
+      expect(css.slice(start, end)).toContain("margin-block: 0;");
+    }
+
+    const itemGapStart = css.indexOf(
+      '.reef-markdown-editor ol:not([data-type="taskList"]) > li + li,',
+    );
+    expect(itemGapStart).toBeGreaterThan(-1);
+    const itemGapEnd = findCssBlockEnd(css, itemGapStart);
+    expect(css.slice(itemGapStart, itemGapEnd)).toContain(
+      "margin-block-start: 4px;",
+    );
+
+    const markerStart = css.indexOf(
+      '.reef-markdown-editor ol:not([data-type="taskList"]) > li::marker,',
+    );
+    expect(markerStart).toBeGreaterThan(-1);
+    const markerEnd = findCssBlockEnd(css, markerStart);
+    expect(css.slice(markerStart, markerEnd)).toContain(
+      "color: var(--muted-foreground);",
+    );
+
+    const checkboxStart = css.indexOf(
+      '.reef-markdown-editor\n  ul[data-type="taskList"]\n  > li\n  > label\n  input[type="checkbox"] {',
+    );
+    expect(checkboxStart).toBeGreaterThan(-1);
+    const checkboxEnd = findCssBlockEnd(css, checkboxStart);
+    const checkboxBlock = css.slice(checkboxStart, checkboxEnd);
+    expect(checkboxBlock).toContain("width: 1rem;");
+    expect(checkboxBlock).toContain("height: 1rem;");
+    expect(checkboxBlock).toContain("accent-color: var(--brand);");
+
+    const focusStart = css.indexOf(
+      '.reef-markdown-editor\n  ul[data-type="taskList"]\n  > li\n  > label\n  input[type="checkbox"]:focus-visible {',
+    );
+    expect(focusStart).toBeGreaterThan(-1);
+    const focusEnd = findCssBlockEnd(css, focusStart);
+    const focusBlock = css.slice(focusStart, focusEnd);
+    expect(focusBlock).toContain("outline: 2px solid var(--brand);");
+    expect(focusBlock).toContain("outline-offset: 2px;");
+
+    const checkedStart = css.indexOf(
+      '.reef-markdown-editor\n  ul[data-type="taskList"]\n  > li[data-checked="true"]',
+    );
+    expect(checkedStart).toBeGreaterThan(-1);
+    const checkedEnd = findCssBlockEnd(css, checkedStart);
+    const checkedBlock = css.slice(checkedStart, checkedEnd);
+    expect(checkedBlock).toContain("color: var(--muted-foreground);");
+    expect(checkedBlock).toContain("text-decoration-line: line-through;");
+    expect(checkedBlock).toContain("text-decoration-thickness: 1px;");
+  });
+
   it("keeps block Markdown surfaces dense, scoped, and scroll-contained", () => {
     const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
 
