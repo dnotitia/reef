@@ -14,6 +14,10 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Comment authors can now permanently delete their own comment and every
+  reply below it** from the Activity timeline after confirmation; the server
+  removes matching comment-source notifications in the same cascade. (REEF-520)
+
 - **Authentication is now an explicit local-or-SSO deployment choice.** Local
   mode preserves AKB-issued JWT cookies. SSO mode makes Reef the dedicated
   Keycloak Authorization Code + PKCE BFF, stores the token set encrypted in

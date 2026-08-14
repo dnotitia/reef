@@ -56,6 +56,12 @@ export const CommentSchema = z.object({
 });
 export type Comment = z.infer<typeof CommentSchema>;
 
+/** Minimal server-confirmed result for an author-scoped comment deletion. */
+export const CommentDeletionResultSchema = z.object({
+  deleted_comment_ids: z.array(z.string().min(1)).min(1),
+});
+export type CommentDeletionResult = z.infer<typeof CommentDeletionResultSchema>;
+
 /** Upper bound on a stored comment body — keeps a single SQL statement and the
  * request payload bounded. */
 const COMMENT_BODY_MAX = 10_000;

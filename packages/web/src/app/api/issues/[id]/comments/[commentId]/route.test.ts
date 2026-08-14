@@ -23,13 +23,17 @@ vi.mock("@/lib/telemetry", () => ({
   },
 }));
 
-const { mockUpdateComment, mockGetActor, mockCreateAdapter } = vi.hoisted(
-  () => ({
-    mockUpdateComment: vi.fn(),
-    mockGetActor: vi.fn(),
-    mockCreateAdapter: vi.fn(),
-  }),
-);
+const {
+  mockUpdateComment,
+  mockDeleteComment,
+  mockGetActor,
+  mockCreateAdapter,
+} = vi.hoisted(() => ({
+  mockUpdateComment: vi.fn(),
+  mockDeleteComment: vi.fn(),
+  mockGetActor: vi.fn(),
+  mockCreateAdapter: vi.fn(),
+}));
 
 vi.mock("@reef/core", async () => {
   const actual =
@@ -37,6 +41,7 @@ vi.mock("@reef/core", async () => {
   return {
     ...actual,
     akbUpdateComment: mockUpdateComment,
+    akbDeleteComment: mockDeleteComment,
     akbGetCurrentActor: mockGetActor,
     createAkbAdapter: mockCreateAdapter,
   };
@@ -45,7 +50,7 @@ vi.mock("@reef/core", async () => {
 import { SESSION_COOKIE } from "@/lib/akb/sessionCookie";
 import { NotFoundError } from "@reef/core";
 import { VALID_JWT } from "../../../../__test-helpers__/jwt";
-import { PATCH } from "./route";
+import { DELETE, PATCH } from "./route";
 
 const COMMENT_ID = "11111111-1111-4111-8111-111111111111";
 const COMMENT = {
@@ -157,5 +162,59 @@ describe("PATCH /api/issues/[id]/comments/[commentId]", () => {
     );
     expect(res.status).toBe(400);
     expect(mockUpdateComment).not.toHaveBeenCalled();
+  });
+});
+
+describe("DELETE /api/issues/[id]/comments/[commentId]", () => {
+  it("deletes the comment as the session actor and returns only deleted ids", async () => {
+    const result = { deleted_comment_ids: [COMMENT_ID, "reply-id"] };
+    mockDeleteComment.mockResolvedValue(result);
+
+    const res = await DELETE(
+      new Request(
+        `http://localhost/api/issues/REEF-001/comments/${COMMENT_ID}?vault=v`,
+        { method: "DELETE", headers: authedHeaders() },
+      ),
+      params(),
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual(result);
+    expect(mockDeleteComment).toHaveBeenCalledWith(
+      expect.anything(),
+      "v",
+      "REEF-001",
+      COMMENT_ID,
+      "alice",
+    );
+  });
+
+  it("returns a generic 404 when core reports a missing or unauthorized comment", async () => {
+    mockDeleteComment.mockRejectedValue(
+      new NotFoundError({ resource: `comment ${COMMENT_ID}` }),
+    );
+
+    const res = await DELETE(
+      new Request(
+        `http://localhost/api/issues/REEF-001/comments/${COMMENT_ID}?vault=v`,
+        { method: "DELETE", headers: authedHeaders() },
+      ),
+      params(),
+    );
+
+    expect(res.status).toBe(404);
+  });
+
+  it("400s a malformed comment id without calling core", async () => {
+    const res = await DELETE(
+      new Request(
+        "http://localhost/api/issues/REEF-001/comments/nope?vault=v",
+        { method: "DELETE", headers: authedHeaders() },
+      ),
+      params("REEF-001", "nope"),
+    );
+
+    expect(res.status).toBe(400);
+    expect(mockDeleteComment).not.toHaveBeenCalled();
   });
 });

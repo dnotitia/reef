@@ -100,6 +100,7 @@ export {
 export {
   listComments,
   createComment,
+  deleteComment,
   reconcileJiraImportedComment,
   updateComment,
 } from "./issues/comments";

@@ -7,6 +7,8 @@ import {
 import { filterValidCommentThreadMembers } from "../../../models/commentThreads";
 import {
   type Comment,
+  type CommentDeletionResult,
+  CommentDeletionResultSchema,
   CommentMetaSchema,
   CommentSchema,
 } from "../../../schemas/issues/comment";
@@ -19,6 +21,7 @@ import {
   type AkbAdapter,
   REEF_COMMENTS_TABLE,
   REEF_ISSUES_TABLE,
+  REEF_NOTIFICATIONS_TABLE,
   decodeSettingsValue,
   ensureReefTables,
   isMissingTableError,
@@ -399,6 +402,77 @@ export async function updateComment(
         throw new NotFoundError({ resource: `comment ${commentId}` });
       }
       return rowToComment(row);
+    },
+  );
+}
+
+/**
+ * Permanently delete an authored comment and every reply below it. The target
+ * author check, recursive descendant walk, notification cleanup, and comment
+ * delete intentionally live in one data-modifying SQL statement so a failed
+ * authorization or a partial cascade cannot leave an orphaned reply or
+ * notification (REEF-520).
+ */
+export async function deleteComment(
+  adapter: AkbAdapter,
+  vault: string,
+  reefId: string,
+  commentId: string,
+  actor: string,
+): Promise<CommentDeletionResult> {
+  return withSpan(
+    "akb.delete_comment",
+    { vault, reef_id: reefId, comment_id: commentId },
+    async (span) => {
+      await ensureReefTables({ adapter, vault });
+      const result = await runSql(
+        adapter,
+        vault,
+        `WITH RECURSIVE target AS (SELECT id FROM ${tableRef(
+          REEF_COMMENTS_TABLE,
+        )} WHERE id = ${quoteText(
+          commentId,
+          "comment id",
+        )} AND reef_id = ${quoteText(
+          reefId,
+          "comment reef_id",
+        )} AND meta->>'author' = ${quoteText(
+          actor,
+          "comment actor",
+        )}), descendants AS (SELECT id FROM target UNION SELECT child.id FROM ${tableRef(
+          REEF_COMMENTS_TABLE,
+        )} child JOIN descendants parent ON child.meta->>'parent_comment_id' = parent.id::text WHERE child.reef_id = ${quoteText(
+          reefId,
+          "comment reef_id",
+        )}), deleted_notifications AS (DELETE FROM ${tableRef(
+          REEF_NOTIFICATIONS_TABLE,
+        )} WHERE reef_id = ${quoteText(
+          reefId,
+          "notification reef_id",
+        )} AND source_type = 'comment' AND source_ref IN (SELECT id::text FROM descendants) RETURNING source_ref), deleted_comments AS (DELETE FROM ${tableRef(
+          REEF_COMMENTS_TABLE,
+        )} WHERE reef_id = ${quoteText(
+          reefId,
+          "comment reef_id",
+        )} AND id IN (SELECT id FROM descendants) RETURNING id::text AS id) SELECT id FROM deleted_comments ORDER BY id`,
+      );
+      const deletedIds =
+        result.kind === "table_query"
+          ? result.items
+              .map((row) => row.id)
+              .filter((id): id is string => typeof id === "string")
+          : [];
+      if (deletedIds.length === 0) {
+        throw new NotFoundError({ resource: `comment ${commentId}` });
+      }
+      const deletion = CommentDeletionResultSchema.parse({
+        deleted_comment_ids: deletedIds,
+      });
+      span.setAttribute(
+        "deleted_comment_count",
+        deletion.deleted_comment_ids.length,
+      );
+      return deletion;
     },
   );
 }

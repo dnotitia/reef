@@ -6,6 +6,7 @@ import {
   REEF_COMMENTS_TABLE,
   SchemaValidationError,
   createComment,
+  deleteComment,
   listComments,
   makeAdapter,
   makeListTablesResponse,
@@ -630,6 +631,60 @@ describe("updateComment", () => {
     expect(sql).toContain('"edited_at":"2020-01-02T00:00:00.000Z"');
     expect(sql).toContain('"jira_idempotency_key":"jira:comment:10001"');
     expect(sql).toContain("meta::jsonb ||");
+  });
+});
+
+describe("deleteComment", () => {
+  it("deletes the authored subtree and its comment notifications in one recursive statement", async () => {
+    const { calls } = setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      {
+        body: makeSqlQueryResponse(
+          [{ id: "c-root" }, { id: "c-reply" }, { id: "c-nested" }],
+          ["id"],
+        ),
+      },
+    ]);
+
+    await expect(
+      deleteComment(
+        makeAdapter(),
+        "reef-sample",
+        "REEF-062",
+        "c-root",
+        "alice",
+      ),
+    ).resolves.toEqual({
+      deleted_comment_ids: ["c-root", "c-reply", "c-nested"],
+    });
+
+    const sql = lastSql(calls[1]?.init?.body);
+    expect(sql).toMatch(/^WITH RECURSIVE/u);
+    expect(sql).toContain("meta->>'author' = 'alice'");
+    expect(sql).toContain("source_type = 'comment'");
+    expect(sql).toContain("source_ref IN");
+    expect(sql).toContain(`DELETE FROM ${REEF_COMMENTS_TABLE}`);
+    expect(sql).toContain("DELETE FROM reef_notifications");
+    expect(sql).toContain("meta->>'parent_comment_id'");
+    expect(sql).toContain("RETURNING");
+    expect(sql).toContain("reef_id = 'REEF-062'");
+  });
+
+  it("raises the same not-found error for a missing or non-owned comment", async () => {
+    setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { body: makeSqlQueryResponse([], ["id"]) },
+    ]);
+
+    await expect(
+      deleteComment(
+        makeAdapter(),
+        "reef-sample",
+        "REEF-062",
+        "c-root",
+        "mallory",
+      ),
+    ).rejects.toBeInstanceOf(NotFoundError);
   });
 });
 

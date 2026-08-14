@@ -714,6 +714,7 @@
     "undoError": "실행 취소하지 못했습니다.",
     "commentAddError": "댓글을 추가하지 못했습니다. 다시 시도해 주세요.",
     "commentEditError": "수정 내용을 저장하지 못했습니다. 다시 시도해 주세요.",
+    "commentDeleteError": "댓글을 삭제하지 못했습니다. 다시 시도해 주세요.",
     "issueCreatedFromDraft": "초안에서 이슈 {id} 생성됨",
     "draftApproved": "초안 제안을 승인했습니다.",
     "approveDraftError": "초안을 승인하지 못했습니다.",
@@ -966,6 +967,10 @@
     },
     "comments": {
       "editComment": "댓글 수정",
+      "deleteComment": "댓글 삭제",
+      "deleteTitle": "이 댓글을 삭제할까요?",
+      "deleteDescription": "이 댓글과 아래의 모든 답글이 영구적으로 삭제됩니다.",
+      "deleting": "삭제 중…",
       "reply": "답글",
       "replyingTo": "<target>{author}</target>님에게 답글",
       "replyLabel": "{author}님에게 답글 작성",
