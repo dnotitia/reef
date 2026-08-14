@@ -34,20 +34,27 @@ function Harness() {
 
 function TableHarness({ onClick }: { onClick: () => void }) {
   return (
-    <ContextMenu>
-      <table>
-        <tbody>
-          <ContextMenuTrigger asChild portal>
-            <tr data-testid="table-trigger" tabIndex={0} onClick={onClick}>
-              <td>Table row</td>
-            </tr>
-          </ContextMenuTrigger>
-        </tbody>
-      </table>
-      <ContextMenuContent>
-        <ContextMenuItem data-testid="table-menu-item">Table menu</ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+    <>
+      <button type="button" data-testid="prior-focus">
+        Prior focus
+      </button>
+      <ContextMenu>
+        <table>
+          <tbody>
+            <ContextMenuTrigger asChild portal>
+              <tr data-testid="table-trigger" tabIndex={0} onClick={onClick}>
+                <td>Table row</td>
+              </tr>
+            </ContextMenuTrigger>
+          </tbody>
+        </table>
+        <ContextMenuContent>
+          <ContextMenuItem data-testid="table-menu-item">
+            Table menu
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+    </>
   );
 }
 
@@ -106,5 +113,25 @@ describe("ContextMenu", () => {
 
     fireEvent.contextMenu(row, { clientX: 20, clientY: 30 });
     expect(screen.getByTestId("table-menu-item")).toBeInTheDocument();
+  });
+
+  it("settles pointer focus restoration before reopening a table-row menu from the keyboard", async () => {
+    const user = userEvent.setup();
+    render(<TableHarness onClick={vi.fn()} />);
+    const priorFocus = screen.getByTestId("prior-focus");
+    const row = screen.getByTestId("table-trigger");
+    priorFocus.focus();
+
+    fireEvent.contextMenu(row, { clientX: 20, clientY: 30 });
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(priorFocus).toHaveFocus());
+
+    row.focus();
+    expect(row).toHaveFocus();
+    fireEvent.keyDown(row, { key: "F10", shiftKey: true });
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(row).toHaveFocus());
   });
 });

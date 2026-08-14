@@ -211,7 +211,7 @@ test.describe("Hermetic issue keyboard navigation", () => {
     await expect(page.getByTestId("issue-quick-edit-anchor")).toHaveCount(0);
   });
 
-  test("keeps List selection and row context chrome through pointer and keyboard menus", async ({
+  test("keeps List selection and row context chrome through pointer menus", async ({
     page,
   }) => {
     await openExistingWorkspace(page);
@@ -259,6 +259,7 @@ test.describe("Hermetic issue keyboard navigation", () => {
     await expect(copyLink).toHaveAttribute("data-highlighted");
     await expect(selectedRow).toHaveAttribute("data-context-open", "true");
     await page.keyboard.press("Escape");
+    await expect(page.getByRole("menu")).toHaveCount(0);
     await expect(selectedRow).not.toHaveAttribute("data-context-open", "true");
 
     await unselectedRow.click({ button: "right" });
@@ -270,15 +271,34 @@ test.describe("Hermetic issue keyboard navigation", () => {
     ).toHaveCount(1);
     await expect(unselectedRow).toHaveClass(/hover:bg-transparent/);
     await page.keyboard.press("Escape");
+    await expect(page.getByRole("menu")).toHaveCount(0);
     await expect(unselectedRow).not.toHaveAttribute(
       "data-context-open",
       "true",
     );
+  });
+
+  test("keeps List selection and row context chrome through pointer and keyboard menus", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+
+    const rows = await expectIssueListKeyboardReady(page);
+    const selectedRow = rows.filter({ hasText: "Initial issue Alpha" });
+    const unselectedRow = rows.filter({ hasText: "Initial issue Beta" });
+    await selectedRow.getByTestId("issue-row-checkbox").click();
+    await expect(selectedRow).toHaveAttribute("aria-selected", "true");
 
     await unselectedRow.focus();
+    await expect(unselectedRow).toBeFocused();
     await page.keyboard.press("Shift+F10");
     await expect(page.getByRole("menu")).toBeVisible();
     await expect(unselectedRow).toHaveAttribute("data-context-open", "true");
+    await expect(unselectedRow).not.toHaveAttribute("aria-selected");
+    await expect(
+      page.locator('[data-testid="issue-list-row"][aria-selected="true"]'),
+    ).toHaveCount(1);
     await page.keyboard.press("Escape");
     await expect(unselectedRow).toBeFocused();
     await expect(unselectedRow).not.toHaveAttribute(

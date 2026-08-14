@@ -28,6 +28,9 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Issue quick editors now close reliably with Escape immediately after a
+  viewport resize, and List context-menu keyboard coverage no longer races a
+  preceding pointer menu's focus restoration.**
 - **Issue detail assignee selection now exposes every assignable writer, admin,
   and owner with deterministic ordering and recent-success prioritization,
   while preserving long-list keyboard behavior and failed-save rollback.**
