@@ -420,6 +420,39 @@ describe("IssueListRow", () => {
     }
   });
 
+  it("closes the assignee quick editor on Escape from its list trigger without saving", async () => {
+    const user = userEvent.setup();
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    useIssueKeyboardStore
+      .getState()
+      .setVisibleOccurrences("list", [{ key: "row-1", issueId: mockIssue.id }]);
+    render(
+      <IssueListRow
+        issue={mockIssue}
+        vault="reef-test"
+        allIssues={[mockIssue]}
+        logicalIds={[mockIssue.id]}
+        occurrenceKey="row-1"
+      />,
+      { wrapper: createWrapper() },
+    );
+
+    const trigger = screen.getByTestId("issue-inline-edit-assignee");
+    await user.click(trigger);
+    expect(screen.getByTestId("issue-quick-edit-anchor")).toBeInTheDocument();
+
+    fireEvent.keyDown(trigger, { key: "Escape" });
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("issue-quick-edit-anchor")).toBeNull(),
+    );
+    expect(useIssueKeyboardStore.getState().quickEditRequest).toBeNull();
+    expect(
+      fetchSpy.mock.calls.some(([, init]) => init?.method === "PATCH"),
+    ).toBe(false);
+    fetchSpy.mockRestore();
+  });
+
   it("positions each quick editor from its active field trigger, not the ID cell", async () => {
     const user = userEvent.setup();
     const fieldRects = {

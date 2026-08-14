@@ -28,6 +28,9 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Issue List assignee quick editors now close on Escape even when focus stays
+  on the originating cell trigger, without changing the assignee or issuing a
+  save request.** (REEF-497)
 - **Issue quick editors now close reliably with Escape immediately after a
   viewport resize, and List context-menu keyboard coverage no longer races a
   preceding pointer menu's focus restoration.**
