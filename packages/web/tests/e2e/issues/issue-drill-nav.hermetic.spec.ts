@@ -335,6 +335,22 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
     page,
   }) => {
     await openRootFromList(page);
+
+    const overflowingChild = page.locator(
+      '[data-testid="issue-children"] a[data-issue-id="REEF-102"]',
+    );
+    await overflowingChild.hover();
+    await overflowingChild.focus();
+    await expect(page.getByRole("tooltip")).toContainText(
+      "Polish onboarding for existing AKB workspaces",
+    );
+
+    // An open title tooltip consumes the first Escape without closing the
+    // issue detail sheet.
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    await expect(page).toHaveURL(new RegExp(`/issues/${ROOT}`));
+
     await drillIntoChild(page, MID, ROOT);
 
     // Drilled in → Esc steps back to the root rather than closing.
@@ -342,6 +358,7 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
     await page.waitForURL(new RegExp(`/issues/${ROOT}`), { timeout: 10_000 });
     await expect(page.locator(drillBack)).toHaveCount(0);
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
 
     // No trail left → Esc closes to the list.
     await page.keyboard.press("Escape");

@@ -84,7 +84,21 @@ export function PlanningItemCombobox({
         value: item.id,
         label: item.name,
         content: (
-          <PlanningOption kind={kind} name={item.name} status={item.status} />
+          <PlanningOption
+            kind={kind}
+            name={item.name}
+            status={item.status}
+            overflowTooltip
+          />
+        ),
+        renderContent: ({ active }) => (
+          <PlanningOption
+            kind={kind}
+            name={item.name}
+            status={item.status}
+            overflowTooltip
+            active={active}
+          />
         ),
       })),
     [visibleItems, kind],
@@ -100,8 +114,11 @@ export function PlanningItemCombobox({
       options={options}
       loading={isPending}
       placeholder={resolvedPlaceholder}
-      renderValue={() => (
-        <span className="truncate">{selected?.name ?? value}</span>
+      triggerTooltipValue={selected?.name}
+      renderValue={(_, { textRef }) => (
+        <span ref={textRef} className="truncate">
+          {selected?.name ?? value}
+        </span>
       )}
       noneOption={showNoneOption ? { label: resolvedEmptyLabel } : undefined}
       emptyState={t("empty")}

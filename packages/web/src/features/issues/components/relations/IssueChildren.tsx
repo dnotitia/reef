@@ -17,22 +17,14 @@ import {
 } from "@reef/core";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import {
-  type ReactNode,
-  type RefObject,
-  memo,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, memo, useId, useMemo, useRef, useState } from "react";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useTextOverflow } from "@/components/ui/overflow-tooltip";
 import { IssueFormSection } from "../shared/IssueFormSection";
 
 /** Lifecycle order for sorting remaining children
@@ -47,48 +39,6 @@ const STATUS_ORDER: Record<Status, number> = {
 };
 
 type IssueDrillProps = ReturnType<typeof useIssueDrill>;
-
-function useTitleOverflow(
-  titleRef: RefObject<HTMLSpanElement | null>,
-  title: string,
-): boolean {
-  const [isOverflowing, setIsOverflowing] = useState(false);
-
-  useEffect(() => {
-    const element = titleRef.current;
-    if (!element) {
-      setIsOverflowing(false);
-      return;
-    }
-
-    let disposed = false;
-
-    const measure = () => {
-      if (disposed || element.textContent !== title) return;
-      const next = element.scrollWidth > element.clientWidth;
-      setIsOverflowing((previous) => (previous === next ? previous : next));
-    };
-
-    measure();
-    const frame = requestAnimationFrame(measure);
-    void document.fonts?.ready.then(measure);
-    const observer =
-      typeof ResizeObserver === "function"
-        ? new ResizeObserver(measure)
-        : undefined;
-    observer?.observe(element);
-    window.addEventListener("resize", measure);
-
-    return () => {
-      disposed = true;
-      cancelAnimationFrame(frame);
-      observer?.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, [titleRef, title]);
-
-  return isOverflowing;
-}
 
 function isAssigneeTarget(target: EventTarget | null): boolean {
   return (
@@ -114,7 +64,7 @@ function IssueChildRow({
 }: IssueChildRowProps) {
   const t = useTranslations("issues.relations");
   const titleRef = useRef<HTMLSpanElement>(null);
-  const isTitleOverflowing = useTitleOverflow(titleRef, child.title);
+  const isTitleOverflowing = useTextOverflow(titleRef, child.title);
   const titleDescriptionId = useId();
   const [activeTooltip, setActiveTooltip] = useState<
     "title" | "assignee" | null

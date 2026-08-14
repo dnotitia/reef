@@ -31,8 +31,13 @@ import { cn } from "@/lib/utils";
 import { Check, ChevronDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
+  OverflowTooltip,
+  useTextOverflow,
+} from "@/components/ui/overflow-tooltip";
+import {
   type KeyboardEvent,
   type PointerEvent,
+  type Ref,
   type ReactNode,
   useCallback,
   useEffect,
@@ -77,6 +82,18 @@ export interface ComboboxOption<T extends string> {
   /** The rendered row body (badge, avatar, …). The primitive adds the row
    *  chrome and the trailing selected check. */
   content: ReactNode;
+  /** Explicit opt-in seam for consumers that need active-row-aware content. */
+  renderContent?: (state: ComboboxOptionRenderState) => ReactNode;
+}
+
+export interface ComboboxOptionRenderState {
+  active: boolean;
+  selected: boolean;
+}
+
+export interface ComboboxRenderValueContext {
+  /** Ref for the actual selected-value text node used by overflow policy. */
+  textRef: Ref<HTMLSpanElement>;
 }
 
 interface ComboboxProps<T extends string> {
@@ -100,7 +117,9 @@ interface ComboboxProps<T extends string> {
   placeholder?: ReactNode;
   /** Trigger display for the selected value (field variant). Falls back to the
    *  matched option's label. */
-  renderValue?: (value: T) => ReactNode;
+  renderValue?: (value: T, context: ComboboxRenderValueContext) => ReactNode;
+  /** Opt-in full value used by planning's overflow-aware trigger. */
+  triggerTooltipValue?: string;
   triggerVariant?: "field" | "button";
   /** Full trigger body override (button variant / custom). Disables the chevron. */
   triggerContent?: ReactNode;
@@ -132,6 +151,7 @@ type Row<T extends string> = {
   testId?: string;
   disabled: boolean;
   muted: boolean;
+  renderContent?: (state: ComboboxOptionRenderState) => ReactNode;
 };
 
 export function Combobox<T extends string>({
@@ -148,6 +168,7 @@ export function Combobox<T extends string>({
   loading,
   placeholder,
   renderValue,
+  triggerTooltipValue,
   triggerVariant = "field",
   triggerContent,
   searchable,
@@ -175,6 +196,7 @@ export function Combobox<T extends string>({
   );
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
+  const [triggerTooltipDismissKey, setTriggerTooltipDismissKey] = useState(0);
   const [placement, setPlacement] = useState<PanelPlacement>({
     vertical: "down",
     horizontal: align,
@@ -186,6 +208,7 @@ export function Combobox<T extends string>({
 
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const triggerTextRef = useRef<HTMLSpanElement>(null);
   const pointerActivationRef = useRef(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -215,6 +238,7 @@ export function Combobox<T extends string>({
         value: o.value,
         label: o.label,
         content: o.content,
+        renderContent: o.renderContent,
         testId: o.testId,
         disabled: o.disabled ?? false,
         muted: false,
@@ -264,6 +288,11 @@ export function Combobox<T extends string>({
     () => options.find((o) => o.value === value) ?? null,
     [options, value],
   );
+  const isTriggerOverflowing = useTextOverflow(
+    triggerTextRef,
+    triggerTooltipValue ?? "",
+    Boolean(triggerTooltipValue),
+  );
 
   const initializeActiveIndex = useCallback(() => {
     // Highlight the current selection. When a non-null value is missing from the
@@ -277,6 +306,7 @@ export function Combobox<T extends string>({
   const close = useCallback(() => {
     setOpen(false);
     setQuery("");
+    setTriggerTooltipDismissKey((key) => key + 1);
     onQueryChange?.("");
   }, [onQueryChange, setOpen]);
 
@@ -501,14 +531,66 @@ export function Combobox<T extends string>({
   const triggerBody =
     triggerContent ??
     (value !== null && selectedOption ? (
-      (renderValue?.(value) ?? (
-        <span className="truncate">{selectedOption.label}</span>
+      (renderValue?.(value, { textRef: triggerTextRef }) ?? (
+        <span
+          ref={triggerTooltipValue ? triggerTextRef : undefined}
+          className="truncate"
+        >
+          {selectedOption.label}
+        </span>
       ))
     ) : value !== null ? (
-      (renderValue?.(value) ?? <span className="truncate">{value}</span>)
+      (renderValue?.(value, { textRef: triggerTextRef }) ?? (
+        <span
+          ref={triggerTooltipValue ? triggerTextRef : undefined}
+          className="truncate"
+        >
+          {value}
+        </span>
+      ))
     ) : (
       <span className="truncate text-muted-foreground">{placeholder}</span>
     ));
+
+  const trigger = (
+    <button
+      ref={triggerRef}
+      type="button"
+      id={id}
+      data-testid={triggerTestId}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      aria-labelledby={ariaLabelledby}
+      aria-haspopup="listbox"
+      aria-expanded={open}
+      aria-controls={open ? listId : undefined}
+      aria-activedescendant={!searchable && open ? activeRowId : undefined}
+      onPointerDown={handlePointerDown}
+      onPointerCancel={() => {
+        pointerActivationRef.current = false;
+      }}
+      onClick={(event) => {
+        // Pointer activation is handled on pointerdown so it cannot be lost
+        // to a document-level dismissal listener. Keyboard and programmatic
+        // clicks have no preceding pointer activation and use the fallback.
+        if (pointerActivationRef.current) {
+          pointerActivationRef.current = false;
+          return;
+        }
+        togglePanel();
+      }}
+      onKeyDown={handleKeyDown}
+      className={cn(
+        isButton ? CBX_TRIGGER_BUTTON : CBX_TRIGGER_FIELD,
+        !isButton && active && CBX_TRIGGER_ACTIVE,
+      )}
+    >
+      {triggerBody}
+      {!isButton && !triggerContent && (
+        <ChevronDown data-open={open} className={CBX_CHEVRON} />
+      )}
+    </button>
+  );
 
   return (
     <div
@@ -525,43 +607,17 @@ export function Combobox<T extends string>({
         className,
       )}
     >
-      <button
-        ref={triggerRef}
-        type="button"
-        id={id}
-        data-testid={triggerTestId}
-        disabled={disabled}
-        aria-label={ariaLabel}
-        aria-labelledby={ariaLabelledby}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={open ? listId : undefined}
-        aria-activedescendant={!searchable && open ? activeRowId : undefined}
-        onPointerDown={handlePointerDown}
-        onPointerCancel={() => {
-          pointerActivationRef.current = false;
-        }}
-        onClick={(event) => {
-          // Pointer activation is handled on pointerdown so it cannot be lost
-          // to a document-level dismissal listener. Keyboard and programmatic
-          // clicks have no preceding pointer activation and use the fallback.
-          if (pointerActivationRef.current) {
-            pointerActivationRef.current = false;
-            return;
-          }
-          togglePanel();
-        }}
-        onKeyDown={handleKeyDown}
-        className={cn(
-          isButton ? CBX_TRIGGER_BUTTON : CBX_TRIGGER_FIELD,
-          !isButton && active && CBX_TRIGGER_ACTIVE,
-        )}
-      >
-        {triggerBody}
-        {!isButton && !triggerContent && (
-          <ChevronDown data-open={open} className={CBX_CHEVRON} />
-        )}
-      </button>
+      {triggerTooltipValue && isTriggerOverflowing && !open ? (
+        <OverflowTooltip
+          value={triggerTooltipValue}
+          isOverflowing
+          dismissKey={triggerTooltipDismissKey}
+        >
+          {trigger}
+        </OverflowTooltip>
+      ) : (
+        trigger
+      )}
 
       {open && (
         <div
@@ -646,7 +702,8 @@ export function Combobox<T extends string>({
                       "disabled:pointer-events-none disabled:opacity-50",
                     )}
                   >
-                    {row.content}
+                    {row.renderContent?.({ active: isActive, selected }) ??
+                      row.content}
                     {selected && <Check className={CBX_CHECK} aria-hidden />}
                   </button>
               );
