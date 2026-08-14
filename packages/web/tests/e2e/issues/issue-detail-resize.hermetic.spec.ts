@@ -14,7 +14,7 @@ test.describe("Hermetic issue detail splitter", () => {
   test("supports pointer and keyboard resize, then restores the width after issue navigation", async ({
     page,
   }) => {
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.setViewportSize({ width: 1920, height: 1080 });
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/issues?view=list");
     await page.getByText("Initial issue Alpha").click();
@@ -26,9 +26,9 @@ test.describe("Hermetic issue detail splitter", () => {
     await expect(handle).toBeVisible();
     await expect(handle).toHaveAttribute("role", "separator");
     await expect(handle).toHaveAttribute("aria-orientation", "vertical");
-    await expect(handle).toHaveAttribute("aria-valuemin", "960");
-    await expect(handle).toHaveAttribute("aria-valuenow", "1200");
-    await expect(handle).toHaveAttribute("aria-valuetext", "1200px");
+    await expect(handle).toHaveAttribute("aria-valuemin", "1200");
+    await expect(handle).toHaveAttribute("aria-valuenow", "1440");
+    await expect(handle).toHaveAttribute("aria-valuetext", "1440px");
     await expect(handle).toHaveAttribute("aria-controls", "issue-detail-panel");
     await expect(handle).toHaveAttribute(
       "aria-describedby",
@@ -41,7 +41,7 @@ test.describe("Hermetic issue detail splitter", () => {
     await expect(
       page.locator("#issue-detail-resize-description"),
     ).toContainText(
-      "Vertical separator controls the issue detail panel. Current width 1200px; minimum 960px; maximum 1353.6px.",
+      "Vertical separator controls the issue detail panel. Current width 1440px; minimum 1200px; maximum 1680px.",
     );
 
     const widthToggle = page.getByRole("button", { name: expandWidthName });
@@ -53,10 +53,10 @@ test.describe("Hermetic issue detail splitter", () => {
     const expandedGeometry = await page
       .locator('[data-slot="sheet-content"]')
       .evaluate((el) => (el as HTMLElement).getBoundingClientRect().width);
-    expect(expandedGeometry).toBeCloseTo(1440 * 0.94, 1);
+    expect(expandedGeometry).toBe(1680);
     await page.getByRole("button", { name: restoreWidthName }).click();
     await expect(widthToggle).toHaveAttribute("aria-pressed", "false");
-    await expect(handle).toHaveAttribute("aria-valuenow", "1200");
+    await expect(handle).toHaveAttribute("aria-valuenow", "1440");
 
     const box = await handle.boundingBox();
     if (!box) throw new Error("Splitter is not laid out");
@@ -68,8 +68,8 @@ test.describe("Hermetic issue detail splitter", () => {
     await page.mouse.up();
 
     const draggedWidth = Number(await handle.getAttribute("aria-valuenow"));
-    expect(draggedWidth).toBeGreaterThan(1200);
-    expect(draggedWidth).toBeLessThanOrEqual(1440 * 0.94);
+    expect(draggedWidth).toBeGreaterThan(1440);
+    expect(draggedWidth).toBeLessThanOrEqual(1680);
 
     await handle.focus();
     await page.keyboard.press("ArrowRight");
@@ -82,9 +82,9 @@ test.describe("Hermetic issue detail splitter", () => {
       `${draggedWidth - 32}px`,
     );
     await page.keyboard.press("Home");
-    await expect(handle).toHaveAttribute("aria-valuenow", "960");
+    await expect(handle).toHaveAttribute("aria-valuenow", "1200");
     await page.keyboard.press("End");
-    await expect(handle).toHaveAttribute("aria-valuenow", "1353.6");
+    await expect(handle).toHaveAttribute("aria-valuenow", "1680");
 
     await page.getByRole("button", { name: expandWidthName }).click();
     await expect(
@@ -92,13 +92,13 @@ test.describe("Hermetic issue detail splitter", () => {
     ).toHaveAttribute("aria-pressed", "true");
     await handle.focus();
     await page.keyboard.press("ArrowRight");
-    await expect(handle).toHaveAttribute("aria-valuenow", "1321.6");
+    await expect(handle).toHaveAttribute("aria-valuenow", "1648");
     await expect(
       page.getByRole("button", { name: expandWidthName }),
     ).toHaveAttribute("aria-pressed", "false");
 
     await page.keyboard.press("End");
-    await expect(handle).toHaveAttribute("aria-valuenow", "1353.6");
+    await expect(handle).toHaveAttribute("aria-valuenow", "1680");
     await page.getByRole("button", { name: expandWidthName }).click();
     const expandedHandleBox = await handle.boundingBox();
     if (!expandedHandleBox)
@@ -114,13 +114,13 @@ test.describe("Hermetic issue detail splitter", () => {
       { steps: 2 },
     );
     await page.mouse.up();
-    await expect(handle).toHaveAttribute("aria-valuenow", "1313.6");
+    await expect(handle).toHaveAttribute("aria-valuenow", "1640");
     await expect(
       page.getByRole("button", { name: expandWidthName }),
     ).toHaveAttribute("aria-pressed", "false");
     await handle.focus();
     await page.keyboard.press("End");
-    await expect(handle).toHaveAttribute("aria-valuenow", "1353.6");
+    await expect(handle).toHaveAttribute("aria-valuenow", "1680");
 
     const geometry = await page
       .locator("#issue-detail-panel")
@@ -144,7 +144,7 @@ test.describe("Hermetic issue detail splitter", () => {
     });
     await expect(page.locator(splitter)).toHaveAttribute(
       "aria-valuenow",
-      "1353.6",
+      "1680",
     );
   });
 
@@ -169,7 +169,7 @@ test.describe("Hermetic issue detail splitter", () => {
             document.documentElement.clientWidth,
         };
       });
-    expect(narrowGeometry.width).toBeLessThanOrEqual(1200);
+    expect(narrowGeometry.width).toBeLessThanOrEqual(1279 * 0.94 + 1);
     expect(narrowGeometry.documentOverflow).toBe(false);
 
     await page.setViewportSize({ width: 390, height: 844 });

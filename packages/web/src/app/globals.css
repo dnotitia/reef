@@ -149,9 +149,9 @@
   --duration-slow: 500ms;
 
   /* issue detail — desktop splitter bounds (the sheet owns the live width) */
-  --issue-detail-width-default: 1200px;
-  --issue-detail-width-min: 960px;
-  --issue-detail-width-max: min(94vw, 1440px);
+  --issue-detail-width-default: 1440px;
+  --issue-detail-width-min: 1200px;
+  --issue-detail-width-max: min(94vw, 1680px);
 }
 
 /* Dark token overrides. Applied when `<html>` carries the `.dark` class;

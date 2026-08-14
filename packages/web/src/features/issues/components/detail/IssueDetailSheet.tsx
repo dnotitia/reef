@@ -47,15 +47,15 @@ interface IssueDetailSheetProps {
 const ISSUE_DETAIL_PANEL_ID = "issue-detail-panel";
 const ISSUE_DETAIL_RESIZE_DESCRIPTION_ID = "issue-detail-resize-description";
 const ISSUE_DETAIL_DESKTOP_MIN_WIDTH = 1280;
-export const ISSUE_DETAIL_DEFAULT_WIDTH = 1200;
-export const ISSUE_DETAIL_MIN_WIDTH = 960;
-export const ISSUE_DETAIL_MAX_WIDTH = 1440;
+export const ISSUE_DETAIL_DEFAULT_WIDTH = 1440;
+export const ISSUE_DETAIL_MIN_WIDTH = 1200;
+export const ISSUE_DETAIL_MAX_WIDTH = 1680;
 export const ISSUE_DETAIL_KEYBOARD_STEP = 32;
-export const ISSUE_DETAIL_SESSION_STORAGE_KEY = "reef:issue-detail-width:v1";
+export const ISSUE_DETAIL_SESSION_STORAGE_KEY = "reef:issue-detail-width:v2";
 export const ISSUE_DETAIL_EXPANDED_SESSION_STORAGE_KEY =
-  "reef:issue-detail-expanded:v1";
+  "reef:issue-detail-expanded:v2";
 export const ISSUE_DETAIL_RESTORE_WIDTH_SESSION_STORAGE_KEY =
-  "reef:issue-detail-restore-width:v1";
+  "reef:issue-detail-restore-width:v2";
 
 function subscribeToViewport(onStoreChange: () => void) {
   if (typeof window === "undefined") return () => {};

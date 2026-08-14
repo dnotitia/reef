@@ -407,10 +407,13 @@ fluid main column:
   layout: title, description, Sub-issues, linked documents, refs, and activity
   timeline on the left; a 400px Details/People/Planning/Parent/Relations
   property rail on the right. On desktop, the left splitter controls the panel
-  between 960px and `min(94vw, 1440px)`, while the header's width action toggles
-  the maximum width and restores the preceding splitter width. The width and
-  toggle state live for the current browser tab session; narrow viewports keep
-  the existing `min(94vw, 1200px)` layout without a splitter or width action.
+  between 1200px and `min(94vw, 1680px)`, with 1440px as the default working
+  canvas. The three 240px steps leave about 732px / 972px / 1212px for the main
+  editor after padding, gap, and the fixed property rail. The header's width
+  action toggles the maximum width and restores the preceding splitter width.
+  The width and toggle state live for the current browser tab session; narrow
+  viewports keep the existing responsive `min(94vw, 1440px)` layout without a
+  splitter or width action.
   Relation targets render as compact issue rows rather than pill chips.
 - **Ask AI** — a floating non-modal panel (≈420×560) anchored bottom-right,
   above its FAB.

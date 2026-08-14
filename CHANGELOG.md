@@ -21,6 +21,10 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Issue detail editing now uses a roomier three-step desktop width scale:**
+  1200px minimum, 1440px default, and 1680px maximum, while still capping the
+  panel at 94% of narrower viewports.
+
 - **Comment authors can now permanently delete their own comment and every
   reply below it** from the Activity timeline after confirmation; the server
   removes matching comment-source notifications in the same cascade. (REEF-520)

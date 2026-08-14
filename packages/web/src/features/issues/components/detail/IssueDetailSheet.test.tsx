@@ -339,11 +339,11 @@ describe("IssueDetailSheet", () => {
     });
   });
 
-  // REEF-375: the detail sheet uses a wider canvas (1200) so the 400px rail's
-  // property rows get full width, and `overscroll-contain` stops a scroll at the
-  // sheet edge from chaining to the page behind it.
+  // The 1440px default leaves a comfortable editor beside the 400px property
+  // rail, and `overscroll-contain` stops a scroll at the sheet edge from
+  // chaining to the page behind it.
   it("renders a widened, overscroll-contained canvas", () => {
-    setViewportWidth(1440);
+    setViewportWidth(1920);
     mockUseActiveVault.mockReturnValue({
       vault: "reef-acme",
       isLoading: false,
@@ -355,13 +355,13 @@ describe("IssueDetailSheet", () => {
     expect(content).not.toBeNull();
     expect(content?.className).toContain("issue-detail-sheet");
     expect(content?.getAttribute("style")).toContain(
-      "--issue-detail-width: 1200px",
+      "--issue-detail-width: 1440px",
     );
     expect(content?.className).toContain("overscroll-contain");
   });
 
   it("clamps resize values to the desktop bounds", () => {
-    const maxWidth = getIssueDetailMaxWidth(1440);
+    const maxWidth = getIssueDetailMaxWidth(1920);
     expect(clampIssueDetailWidth(1, maxWidth)).toBe(ISSUE_DETAIL_MIN_WIDTH);
     expect(clampIssueDetailWidth(Number.POSITIVE_INFINITY, maxWidth)).toBe(
       ISSUE_DETAIL_DEFAULT_WIDTH,
@@ -371,7 +371,7 @@ describe("IssueDetailSheet", () => {
 
   describe("desktop splitter", () => {
     function renderDesktop(locale: Locale = "en") {
-      setViewportWidth(1440);
+      setViewportWidth(1920);
       mockUseActiveVault.mockReturnValue({
         vault: "reef-acme",
         isLoading: false,
@@ -392,13 +392,13 @@ describe("IssueDetailSheet", () => {
         name: "Resize issue detail panel",
       });
       expect(splitter).toHaveAttribute("aria-orientation", "vertical");
-      expect(splitter).toHaveAttribute("aria-valuemin", "960");
+      expect(splitter).toHaveAttribute("aria-valuemin", "1200");
       expect(splitter).toHaveAttribute(
         "aria-valuemax",
-        String(getIssueDetailMaxWidth(1440)),
+        String(getIssueDetailMaxWidth(1920)),
       );
-      expect(splitter).toHaveAttribute("aria-valuenow", "1200");
-      expect(splitter).toHaveAttribute("aria-valuetext", "1200px");
+      expect(splitter).toHaveAttribute("aria-valuenow", "1440");
+      expect(splitter).toHaveAttribute("aria-valuetext", "1440px");
       expect(splitter).toHaveAttribute("aria-controls", "issue-detail-panel");
       expect(splitter).toHaveAttribute(
         "aria-describedby",
@@ -407,7 +407,7 @@ describe("IssueDetailSheet", () => {
       expect(
         document.getElementById("issue-detail-resize-description"),
       ).toHaveTextContent(
-        "Vertical separator controls the issue detail panel. Current width 1200px; minimum 960px; maximum 1353.6px.",
+        "Vertical separator controls the issue detail panel. Current width 1440px; minimum 1200px; maximum 1680px.",
       );
       expect(document.getElementById("issue-detail-panel")).toHaveAttribute(
         "role",
@@ -440,7 +440,7 @@ describe("IssueDetailSheet", () => {
         String(ISSUE_DETAIL_MIN_WIDTH),
       );
       await user.keyboard("{End}");
-      const maxWidth = getIssueDetailMaxWidth(1440);
+      const maxWidth = getIssueDetailMaxWidth(1920);
       expect(splitter).toHaveAttribute("aria-valuenow", String(maxWidth));
       expect(sessionStorage.getItem(ISSUE_DETAIL_SESSION_STORAGE_KEY)).toBe(
         JSON.stringify(maxWidth),
@@ -467,7 +467,7 @@ describe("IssueDetailSheet", () => {
         clientX: 200,
         pointerId: 7,
       });
-      expect(splitter).toHaveAttribute("aria-valuenow", "1300");
+      expect(splitter).toHaveAttribute("aria-valuenow", "1540");
 
       fireEvent.pointerUp(splitter, { pointerId: 7 });
       expect(releasePointerCapture).toHaveBeenCalledWith(7);
@@ -518,7 +518,7 @@ describe("IssueDetailSheet", () => {
 
       await user.click(expand);
 
-      const maxWidth = getIssueDetailMaxWidth(1440);
+      const maxWidth = getIssueDetailMaxWidth(1920);
       expect(splitter).toHaveAttribute("aria-valuenow", String(maxWidth));
       expect(expand).toHaveAttribute("aria-pressed", "true");
       expect(
@@ -578,7 +578,7 @@ describe("IssueDetailSheet", () => {
         await waitFor(() =>
           expect(splitter).toHaveAttribute(
             "aria-valuenow",
-            String(getIssueDetailMaxWidth(1440)),
+            String(getIssueDetailMaxWidth(1920)),
           ),
         );
 
@@ -613,7 +613,7 @@ describe("IssueDetailSheet", () => {
       await user.keyboard("{ArrowRight}");
 
       const adjustedWidth =
-        getIssueDetailMaxWidth(1440) - ISSUE_DETAIL_KEYBOARD_STEP;
+        getIssueDetailMaxWidth(1920) - ISSUE_DETAIL_KEYBOARD_STEP;
       expect(splitter).toHaveAttribute("aria-valuenow", String(adjustedWidth));
       expect(
         screen.getByRole("button", {
@@ -663,7 +663,7 @@ describe("IssueDetailSheet", () => {
 
       expect(splitter).toHaveAttribute(
         "aria-valuenow",
-        String(getIssueDetailMaxWidth(1440) - 40),
+        String(getIssueDetailMaxWidth(1920) - 40),
       );
       expect(
         screen.getByRole("button", {
@@ -678,14 +678,14 @@ describe("IssueDetailSheet", () => {
       sessionStorage.setItem(ISSUE_DETAIL_EXPANDED_SESSION_STORAGE_KEY, "true");
       sessionStorage.setItem(
         ISSUE_DETAIL_RESTORE_WIDTH_SESSION_STORAGE_KEY,
-        "1100",
+        "1320",
       );
       const first = renderDesktop("ko");
       const splitter = screen.getByRole("separator");
       await waitFor(() =>
         expect(splitter).toHaveAttribute(
           "aria-valuenow",
-          String(getIssueDetailMaxWidth(1440)),
+          String(getIssueDetailMaxWidth(1920)),
         ),
       );
       const toggle = screen.getByRole("button", {
@@ -700,7 +700,7 @@ describe("IssueDetailSheet", () => {
       await waitFor(() =>
         expect(screen.getByRole("separator")).toHaveAttribute(
           "aria-valuenow",
-          String(getIssueDetailMaxWidth(1440)),
+          String(getIssueDetailMaxWidth(1920)),
         ),
       );
       expect(
@@ -719,7 +719,7 @@ describe("IssueDetailSheet", () => {
       );
       expect(screen.getByRole("separator")).toHaveAttribute(
         "aria-valuenow",
-        "1100",
+        "1320",
       );
     });
 
