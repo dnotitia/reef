@@ -169,7 +169,11 @@ test.describe("Hermetic issue keyboard navigation", () => {
         field === "assignee"
           ? page.getByTestId("assignee-combobox").locator("button").first()
           : page.getByTestId(`issue-quick-edit-${field}`);
-      await editorTrigger.press("Escape");
+      if (field === "assignee") {
+        await page.keyboard.press("Escape");
+      } else {
+        await editorTrigger.press("Escape");
+      }
       await expect(anchor).toHaveCount(0);
     }
   });
