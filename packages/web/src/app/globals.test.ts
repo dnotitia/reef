@@ -398,6 +398,42 @@ describe("global focus styles", () => {
     expect(css).not.toContain('\na[data-reef-file-link="true"] {');
   });
 
+  it("keeps issue references bounded, keyboard-visible, and status-semantic", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const referenceStart = css.indexOf(
+      '.reef-markdown-editor [data-reef-issue-reference="true"] {',
+    );
+    expect(referenceStart).toBeGreaterThan(-1);
+    const referenceEnd = findCssBlockEnd(css, referenceStart);
+    const referenceBlock = css.slice(referenceStart, referenceEnd);
+    for (const declaration of [
+      "display: inline-flex;",
+      "min-width: 0;",
+      "max-width: 100%;",
+      "overflow: hidden;",
+      "background: var(--surface-subtle);",
+      "border: 1px solid var(--border-subtle);",
+      "text-decoration: none;",
+    ]) {
+      expect(referenceBlock, declaration).toContain(declaration);
+    }
+
+    expect(css).toContain(
+      '.reef-markdown-editor [data-reef-issue-reference="true"]:focus-visible {',
+    );
+    expect(css).toContain(".reef-markdown-editor [data-reef-issue-id-text] {");
+    expect(css).toContain("font-family: var(--font-mono-stack);");
+    expect(css).toContain("max-width: clamp(4rem, 35vw, 20rem);");
+    expect(css).toContain(
+      '.reef-markdown-editor [data-reef-status="in_progress"] {',
+    );
+    expect(css).toContain("color: var(--status-in-progress);");
+    expect(css).toContain(
+      '.reef-markdown-editor [data-reef-status="done"]::after {',
+    );
+    expect(referenceBlock).not.toContain("var(--ai");
+  });
+
   it("keeps normal lists dense while preserving the live task-list contract", () => {
     const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
 

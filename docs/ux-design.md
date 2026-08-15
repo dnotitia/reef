@@ -351,6 +351,17 @@ their sanitized `data-reef-mention` marker, brand/500 treatment, and no
 underline or link behavior. These rules are editor-scoped and do not alter
 fenced code blocks, comments, or AI Markdown.
 
+Known issue ids in the issue create/detail body are resolved only against the
+full issue list those callers already loaded. A resolved token keeps its
+authored, monospace id and gains the matching status glyph plus a muted,
+bounded title; the complete issue name is exposed through the focusable link
+label and a safe vault-scoped detail URL. Unknown or malformed ids, ids inside
+existing links or code, and escaped ids remain ordinary Markdown text. The
+visual hierarchy does not rely on color alone: status shape/color belongs to
+the glyph, while the id, title, and keyboard focus treatment remain distinct.
+The semantic decoration is WYSIWYG-only; Source mode, autosave, reload, and
+plain Markdown storage keep the authored token unchanged.
+
 Issue-body images are block evidence: they keep intrinsic width and height until
 the editor width or a `32rem` maximum height requires containment, use
 `object-fit: contain`, and receive a 16px block rhythm with the semantic subtle

@@ -6,6 +6,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { useEditor } from "@tiptap/react";
+import type { IssueListItem } from "@reef/core";
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import {
   EDITOR_BODY_FRAME_CLASS,
@@ -54,6 +55,7 @@ vi.mock("@tiptap/react", () => {
     chain: () => mockChain,
     commands: {
       setContent: vi.fn(),
+      setTextSelection: vi.fn(),
     },
     // Direct getMarkdown method (Tiptap v3 augments Editor interface directly)
     getMarkdown: vi.fn(() => ""),
@@ -64,7 +66,7 @@ vi.mock("@tiptap/react", () => {
     },
     isActive: vi.fn(() => false),
     getAttributes: vi.fn(() => ({}) as Record<string, unknown>),
-    state: { selection: { empty: true } },
+    state: { selection: { empty: true }, doc: { content: { size: 10 } } },
     isDestroyed: false,
     isEditable: true,
     setEditable: vi.fn((editable: boolean) => {
@@ -325,6 +327,105 @@ describe("MarkdownEditor", () => {
     expect(handledClick).toBe(true);
     expect(click.defaultPrevented).toBe(true);
     expect(open).toHaveBeenCalledOnce();
+  });
+
+  it("opens loaded issue references with mouse and keyboard semantics", () => {
+    const issue = {
+      id: "REEF-123",
+      title: "Semantic references",
+      status: "in_progress",
+    } as IssueListItem;
+    render(
+      <MarkdownEditor
+        value="REEF-123"
+        onChange={vi.fn()}
+        vault="reef-test"
+        issueReferences={[issue]}
+      />,
+    );
+    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
+      extensions?: readonly { name?: string }[];
+      editorProps?: {
+        handleDOMEvents?: {
+          mousedown?: (
+            view: { dom: HTMLElement },
+            event: MouseEvent,
+          ) => boolean;
+          mouseup?: (view: { dom: HTMLElement }, event: MouseEvent) => boolean;
+          keydown?: (
+            view: { dom: HTMLElement },
+            event: KeyboardEvent,
+          ) => boolean;
+        };
+        handleClick?: (
+          view: { dom: HTMLElement },
+          pos: number,
+          event: MouseEvent,
+        ) => boolean;
+      };
+    };
+    expect(
+      opts.extensions?.some(
+        (extension) => extension.name === "reefIssueReference",
+      ),
+    ).toBe(true);
+
+    const root = document.createElement("div");
+    root.innerHTML =
+      '<p><span data-reef-issue-reference="true" data-reef-issue-href="/workspace/reef-test/issues/REEF-123" role="link" tabindex="0"><span data-reef-issue-id-text="true">REEF-123</span></span></p>';
+    const idText = root.querySelector("[data-reef-issue-id-text]");
+    const open = vi
+      .spyOn(window, "open")
+      .mockReturnValue({ opener: window } as Window);
+
+    const mouseDown = new MouseEvent("mousedown", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    Object.defineProperty(mouseDown, "target", { value: idText });
+    expect(
+      opts.editorProps?.handleDOMEvents?.mousedown?.({ dom: root }, mouseDown),
+    ).toBe(true);
+    expect(mouseDown.defaultPrevented).toBe(true);
+
+    const mouseUp = new MouseEvent("mouseup", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    Object.defineProperty(mouseUp, "target", { value: idText });
+    expect(
+      opts.editorProps?.handleDOMEvents?.mouseup?.({ dom: root }, mouseUp),
+    ).toBe(true);
+    expect(open).toHaveBeenCalledWith(
+      "/workspace/reef-test/issues/REEF-123",
+      "_blank",
+      "noopener,noreferrer",
+    );
+
+    const click = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    Object.defineProperty(click, "target", { value: idText });
+    expect(opts.editorProps?.handleClick?.({ dom: root }, 1, click)).toBe(true);
+    expect(open).toHaveBeenCalledOnce();
+
+    const keydown = new KeyboardEvent("keydown", {
+      key: "Enter",
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(keydown, "target", {
+      value: root.querySelector("[data-reef-issue-reference]"),
+    });
+    expect(
+      opts.editorProps?.handleDOMEvents?.keydown?.({ dom: root }, keydown),
+    ).toBe(true);
+    expect(keydown.defaultPrevented).toBe(true);
+    expect(open).toHaveBeenCalledTimes(2);
   });
 
   it("leaves ordinary editor mouse down for ProseMirror selection handling", () => {
@@ -698,6 +799,51 @@ describe("MarkdownEditor", () => {
     );
 
     expect(editor.commands.setContent).not.toHaveBeenCalled();
+  });
+
+  it("refreshes issue-reference decorations without publishing a passive render", () => {
+    const onChange = vi.fn();
+    const onBlur = vi.fn();
+    const firstIssue = {
+      id: "REEF-123",
+      title: "First title",
+      status: "todo",
+    } as IssueListItem;
+    const secondIssue = {
+      ...firstIssue,
+      title: "Updated title",
+      status: "in_progress",
+    } as IssueListItem;
+    const { rerender } = render(
+      <MarkdownEditor
+        value="REEF-123"
+        onChange={onChange}
+        onBlur={onBlur}
+        vault="reef-test"
+        issueReferences={[firstIssue]}
+      />,
+    );
+    const editor = vi.mocked(useEditor).mock.results.at(-1)?.value as {
+      commands: { setContent: ReturnType<typeof vi.fn> };
+    };
+    editor.commands.setContent.mockClear();
+
+    rerender(
+      <MarkdownEditor
+        value="REEF-123"
+        onChange={onChange}
+        onBlur={onBlur}
+        vault="reef-test"
+        issueReferences={[secondIssue]}
+      />,
+    );
+
+    expect(editor.commands.setContent).toHaveBeenCalledWith(
+      "REEF-123",
+      expect.objectContaining({ contentType: "markdown", emitUpdate: false }),
+    );
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onBlur).not.toHaveBeenCalled();
   });
 
   it("passes the latest source markdown to onBlur", () => {

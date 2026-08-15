@@ -825,6 +825,152 @@ hr {
   letter-spacing: 0.04em;
 }
 
+/* Known issue ids are editor-only reference marks. The authored id remains the
+ * only Markdown text; the status glyph and muted title are a compact visual
+ * hierarchy layered around it. Keep the whole token bounded so a long title
+ * cannot widen a narrow create/detail column. */
+.reef-markdown-editor [data-reef-issue-reference="true"] {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.125rem 0.375rem;
+  overflow: hidden;
+  vertical-align: baseline;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.25rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.reef-markdown-editor [data-reef-issue-reference="true"]:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.reef-markdown-editor [data-reef-issue-id-text] {
+  flex: 0 0 auto;
+  color: var(--foreground);
+  font-family: var(--font-mono-stack);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.reef-markdown-editor
+  [data-reef-issue-reference="true"]
+  > [data-reef-issue-title] {
+  min-width: 0;
+  max-width: clamp(4rem, 35vw, 20rem);
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reef-markdown-editor [data-reef-status-glyph] {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 0.875rem;
+  width: 0.875rem;
+  height: 0.875rem;
+  color: var(--muted-foreground);
+  vertical-align: -0.1em;
+}
+
+.reef-markdown-editor [data-reef-status-glyph]::before,
+.reef-markdown-editor [data-reef-status-glyph]::after,
+.reef-markdown-editor [data-reef-status-half] {
+  position: absolute;
+  box-sizing: border-box;
+  content: "";
+}
+
+.reef-markdown-editor [data-reef-status-glyph]::before {
+  inset: 1px;
+  border: 1.25px solid currentColor;
+  border-radius: 999px;
+}
+
+.reef-markdown-editor [data-reef-status="backlog"] {
+  color: var(--status-backlog);
+}
+
+.reef-markdown-editor [data-reef-status="backlog"]::before {
+  border-style: dotted;
+}
+
+.reef-markdown-editor [data-reef-status="todo"] {
+  color: var(--status-open);
+}
+
+.reef-markdown-editor [data-reef-status="in_progress"] {
+  color: var(--status-in-progress);
+}
+
+.reef-markdown-editor [data-reef-status="in_progress"] [data-reef-status-half] {
+  inset: 1px;
+  border-radius: 0 999px 999px 0;
+  background: currentColor;
+  clip-path: inset(0 0 0 50%);
+}
+
+.reef-markdown-editor [data-reef-status="in_review"] {
+  color: var(--status-in-review);
+}
+
+.reef-markdown-editor [data-reef-status="in_review"]::before {
+  border-style: dashed;
+}
+
+.reef-markdown-editor [data-reef-status="done"],
+.reef-markdown-editor [data-reef-status="closed"] {
+  color: var(--status-done);
+}
+
+.reef-markdown-editor [data-reef-status="closed"] {
+  color: var(--status-closed);
+}
+
+.reef-markdown-editor [data-reef-status="done"]::before,
+.reef-markdown-editor [data-reef-status="closed"]::before {
+  inset: 0;
+  border: 0;
+  background: currentColor;
+}
+
+.reef-markdown-editor [data-reef-status="done"]::after {
+  inset: 3px 2px 2px 2px;
+  border-right: 1.5px solid white;
+  border-bottom: 1.5px solid white;
+  transform: rotate(45deg) scale(0.72);
+}
+
+.reef-markdown-editor [data-reef-status="closed"]::after {
+  inset: 2px;
+  background:
+    linear-gradient(
+      45deg,
+      transparent 44%,
+      white 45%,
+      white 55%,
+      transparent 56%
+    ),
+    linear-gradient(
+      -45deg,
+      transparent 44%,
+      white 45%,
+      white 55%,
+      transparent 56%
+    );
+}
+
 /* Tiptap's Placeholder extension owns the marker and localized text. During a
  * non-empty -> empty transaction, 3.29 can omit `is-editor-empty` while keeping
  * the empty-node decoration. The sole top-level empty block is the stable empty

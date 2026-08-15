@@ -1611,6 +1611,7 @@
     "uploadError": "파일을 업로드하지 못했습니다.",
     "mentionSuggestions": "멘션 추천",
     "mentionOption": "{username} 멘션",
+    "issueReference": "이슈 {id}: {title}",
     "slash": {
       "header": "블록 추가",
       "escapeHint": "Esc",

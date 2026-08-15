@@ -100,6 +100,9 @@ async function readMarkdownSurface(editor: Locator) {
     const akbLink = root.querySelector<HTMLElement>(
       'a[data-akb-uri], a[href^="akb://"], a[href*="spec-overview"]',
     );
+    const issueReference = root.querySelector<HTMLElement>(
+      '[data-reef-issue-reference="true"]',
+    );
     const mention = root.querySelector<HTMLElement>("[data-reef-mention]");
     const inlineCode = root.querySelector<HTMLElement>("p code");
     const strong = root.querySelector<HTMLElement>("strong");
@@ -246,8 +249,31 @@ async function readMarkdownSurface(editor: Locator) {
         fileLinks: root.querySelectorAll('a[data-reef-file-link="true"]')
           .length,
         mentions: root.querySelectorAll('[data-reef-mention="true"]').length,
+        issueReferences: root.querySelectorAll(
+          '[data-reef-issue-reference="true"]',
+        ).length,
         tables: root.querySelectorAll("table").length,
       },
+      issueReference: issueReference
+        ? {
+            id: issueReference.getAttribute("data-reef-issue-id"),
+            status: issueReference.getAttribute("data-reef-issue-status"),
+            title: issueReference.getAttribute("data-reef-issue-title"),
+            href: issueReference.getAttribute("data-reef-issue-href"),
+            role: issueReference.getAttribute("role"),
+            tabIndex: issueReference.getAttribute("tabindex"),
+            label: issueReference.getAttribute("aria-label"),
+            idText: issueReference.querySelector("[data-reef-issue-id-text]")
+              ?.textContent,
+            titleText: issueReference.querySelector(
+              ":scope > [data-reef-issue-title]",
+            )?.textContent,
+            glyphStatus: issueReference
+              .querySelector("[data-reef-status-glyph]")
+              ?.getAttribute("data-reef-status"),
+            insideLink: Boolean(issueReference.closest("a")),
+          }
+        : null,
       colors: {
         body: paragraph ? getComputedStyle(paragraph).color : "",
         heading: heading ? getComputedStyle(heading).color : "",
@@ -455,6 +481,13 @@ test.describe("Hermetic Markdown editor fixture", () => {
     );
     expect(fixtureDocument?.content).toContain("| Pattern | Meaning |");
     expect(fixtureDocument?.content).toContain("@alice");
+    expect(fixtureDocument?.content).toContain("Known REEF-001");
+    expect(fixtureDocument?.content).toContain("unknown REEF-999");
+    expect(fixtureDocument?.content).toContain(
+      "[REEF-001](https://example.com/reef-001)",
+    );
+    expect(fixtureDocument?.content).toContain("`REEF-001`");
+    expect(fixtureDocument?.content).toContain("\\REEF-001");
     expect(fixtureDocument?.content).toContain("```ts");
     expect(fixtureDocument?.content).toContain(
       `![Large fixture image](${MARKDOWN_FIXTURE_LARGE_IMAGE_PATH})`,
@@ -624,6 +657,52 @@ test.describe("Hermetic Markdown editor fixture", () => {
     );
     expect(await fileResponse.text()).toContain("fixture incident log");
 
+    const issueReference = editor.locator('[data-reef-issue-reference="true"]');
+    await expect(issueReference).toHaveCount(1);
+    await expect(issueReference).toHaveAttribute(
+      "data-reef-issue-id",
+      "REEF-001",
+    );
+    await expect(issueReference).toHaveAttribute(
+      "data-reef-issue-status",
+      "todo",
+    );
+    await expect(issueReference).toHaveAttribute(
+      "data-reef-issue-href",
+      "/workspace/reef-e2e/issues/REEF-001",
+    );
+    await expect(issueReference).toHaveAttribute("role", "link");
+    await expect(issueReference).toHaveAttribute("tabindex", "0");
+    await expect(issueReference).toHaveAttribute(
+      "aria-label",
+      "Issue REEF-001: Markdown reference",
+    );
+    await expect(
+      issueReference.locator("[data-reef-issue-id-text]"),
+    ).toHaveText("REEF-001");
+    await expect(
+      issueReference.locator(":scope > [data-reef-issue-title]"),
+    ).toHaveText("Markdown reference");
+    await expect(
+      issueReference.locator("[data-reef-status-glyph]"),
+    ).toHaveAttribute("data-reef-status", "todo");
+    await expect(
+      editor.locator("a").filter({ hasText: "REEF-001" }),
+    ).toHaveCount(1);
+    await expect(
+      editor.locator("code").filter({ hasText: "REEF-001" }),
+    ).toHaveCount(1);
+
+    await issueReference.focus();
+    const issuePopupPromise = page.waitForEvent("popup");
+    await issueReference.press("Enter");
+    const issuePopup = await issuePopupPromise;
+    await issuePopup.waitForLoadState("domcontentloaded");
+    expect(new URL(issuePopup.url()).pathname).toBe(
+      "/workspace/reef-e2e/issues/REEF-001",
+    );
+    await issuePopup.close();
+
     const themeCases: Array<{
       preference: ThemePreference;
       colorScheme: "light" | "dark";
@@ -646,7 +725,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
         emphasis: 2,
         links: 1,
         akbLinks: 1,
-        inlineCode: 1,
+        inlineCode: 2,
         strikethrough: 2,
         nestedStrikethrough: 1,
         orderedLists: 4,
@@ -663,7 +742,20 @@ test.describe("Hermetic Markdown editor fixture", () => {
         images: 4,
         fileLinks: 1,
         mentions: 1,
+        issueReferences: 1,
         tables: 1,
+      });
+      expect(surface.issueReference).toMatchObject({
+        id: "REEF-001",
+        status: "todo",
+        title: "Markdown reference",
+        href: "/workspace/reef-e2e/issues/REEF-001",
+        role: "link",
+        tabIndex: "0",
+        idText: "REEF-001",
+        titleText: "Markdown reference",
+        glyphStatus: "todo",
+        insideLink: false,
       });
       expect(surface.colors.body).toBe(surface.colors.foreground);
       expect(surface.colors.heading).toBe(surface.colors.foreground);
@@ -853,6 +945,13 @@ test.describe("Hermetic Markdown editor fixture", () => {
       expect(sourceMarkdown).toContain("## Structure");
       expect(sourceMarkdown).toContain("### Details");
       expect(sourceMarkdown).toContain("@alice");
+      expect(sourceMarkdown).toContain("Known REEF-001");
+      expect(sourceMarkdown).toContain("unknown REEF-999");
+      expect(sourceMarkdown).toContain(
+        "[REEF-001](https://example.com/reef-001)",
+      );
+      expect(sourceMarkdown).toContain("`REEF-001`");
+      expect(sourceMarkdown).toContain("\\REEF-001");
       expect(sourceMarkdown).toContain("~~strikethrough~~");
       expect(sourceMarkdown).toContain("nested emphasis");
       expect(sourceMarkdown).toContain(
@@ -891,7 +990,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
         emphasis: 2,
         links: 1,
         akbLinks: 1,
-        inlineCode: 1,
+        inlineCode: 2,
         strikethrough: 2,
         nestedStrikethrough: 1,
         orderedLists: 4,
@@ -908,6 +1007,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
         images: 4,
         fileLinks: 1,
         mentions: 1,
+        issueReferences: 1,
         tables: 1,
       });
       expect(roundTrip.text).toContain("@alice");
@@ -1201,6 +1301,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     const surface = await readMarkdownSurface(editor);
     const normalLink = editor.getByRole("link", { name: "reef link" });
     const akbLink = editor.getByRole("link", { name: "AKB report" });
+    const issueReference = editor.locator('[data-reef-issue-reference="true"]');
     const mention = editor.locator('[data-reef-mention="true"]');
     const firstTaskCheckbox = editor
       .locator('ul[data-type="taskList"] input[type="checkbox"]')
@@ -1208,6 +1309,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
 
     await expect(normalLink).toHaveAttribute("tabindex", "0");
     await expect(akbLink).toHaveAttribute("tabindex", "0");
+    await expect(issueReference).toHaveAttribute("tabindex", "0");
     await expect(mention).not.toHaveAttribute("tabindex");
     await expect(mention).not.toHaveRole("link");
 
@@ -1219,6 +1321,9 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await page.keyboard.press("Tab");
     await expect(akbLink).toBeFocused();
     await expect(akbLink).toHaveCSS("text-decoration-thickness", "2px");
+
+    await page.keyboard.press("Tab");
+    await expect(issueReference).toBeFocused();
 
     await page.keyboard.press("Tab");
     await expect(firstTaskCheckbox).toBeFocused();

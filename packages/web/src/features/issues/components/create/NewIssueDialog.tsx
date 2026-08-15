@@ -656,6 +656,7 @@ export function NewIssueDialog({
             onBodyChange={setBody}
             vault={vault ?? undefined}
             mentionConfig={issueBodyMentionConfig}
+            issueReferences={existingIssues ?? []}
             disabled={isSubmitting}
             renderField={renderEnrichable}
             titleId="new-issue-title"

@@ -21,7 +21,7 @@ import {
 } from "@/lib/akb/markdownDocumentLinks";
 import { cn } from "@/lib/utils";
 import { useAkbWebUrl } from "@/providers/AkbWebUrlProvider";
-import type { VaultMember } from "@reef/core";
+import type { IssueListItem, VaultMember } from "@reef/core";
 import { Extension, mergeAttributes } from "@tiptap/core";
 import Image from "@tiptap/extension-image";
 import LinkExtension from "@tiptap/extension-link";
@@ -78,6 +78,13 @@ import {
   prepareIssueBodyMentionMarkdown,
   type IssueBodyMentionExtensionOptions,
 } from "./issueBodyMentionExtension";
+import {
+  buildIssueReferenceMap,
+  createIssueReferenceExtension,
+  issueReferenceFingerprint,
+  stripIssueReferenceMarks,
+  type IssueReferenceExtensionOptions,
+} from "./issueReferenceExtension";
 import {
   createSlashCommandExtension,
   type SlashCommandMessages,
@@ -152,6 +159,12 @@ export interface MarkdownEditorProps {
    * shared editor keeps its existing schema and interaction contract.
    */
   mentionConfig?: MarkdownEditorMentionConfig;
+  /**
+   * Known issues for issue-body references. The create/detail callers already
+   * hold this list for their relation controls, so rendering never fetches or
+   * maintains a second issue store.
+   */
+  issueReferences?: readonly IssueListItem[];
 }
 
 export interface MarkdownEditorMentionConfig {
@@ -219,6 +232,19 @@ function createIssueAttachmentLinkExtension(
   resolveAttachmentHref?: (href: string) => string | undefined,
 ) {
   return LinkExtension.extend({
+    parseMarkdown(token, helpers) {
+      // Marked tokenizes link labels recursively. Issue references are an
+      // editor-only semantic mark, so an authored Markdown link must remain a
+      // normal link even when its label happens to contain a known REEF id.
+      return helpers.applyMark(
+        "link",
+        stripIssueReferenceMarks(helpers.parseInline(token.tokens ?? [])),
+        {
+          href: token.href,
+          title: token.title || null,
+        },
+      );
+    },
     renderHTML({ HTMLAttributes, mark }) {
       const attrs = { ...HTMLAttributes };
       const href = typeof attrs.href === "string" ? attrs.href : "";
@@ -289,6 +315,7 @@ export function createMarkdownEditorExtensions(
   mentionConfig?: IssueBodyMentionExtensionOptions,
   resolveAttachmentHref?: (href: string) => string | undefined,
   slashMessages?: SlashCommandMessages,
+  issueReferenceConfig?: IssueReferenceExtensionOptions,
 ) {
   const extensions: AnyExtension[] = [
     // StarterKit v3 bundles the Link extension; configure it here rather than
@@ -302,6 +329,9 @@ export function createMarkdownEditorExtensions(
     // display attributes at render time. The authored AKB URI remains the
     // mark's href and therefore remains the Markdown serialization value.
     createIssueAttachmentLinkExtension(resolveAttachmentHref),
+    ...(issueReferenceConfig
+      ? [createIssueReferenceExtension(issueReferenceConfig)]
+      : []),
     TaskList,
     TaskItem.configure({ nested: true }),
     Table.configure({
@@ -406,6 +436,89 @@ function openEditorLinkOnMouseUp(
   if (!openEditorLink(anchor)) return false;
 
   linksOpenedFromMouseUp.set(anchor, Date.now());
+  event.preventDefault();
+  return true;
+}
+
+function findClickedEditorIssueReference(
+  root: ParentNode,
+  event: MouseEvent,
+): HTMLElement | null {
+  const target = event.target instanceof Element ? event.target : null;
+  const reference =
+    target?.closest<HTMLElement>("[data-reef-issue-reference]") ?? null;
+  if (!reference || !root.contains(reference)) return null;
+  if (!reference.dataset.reefIssueHref) return null;
+  return reference;
+}
+
+function openEditorIssueReference(reference: HTMLElement): boolean {
+  const href = reference.dataset.reefIssueHref;
+  if (!href) return false;
+  const opened = window.open(href, "_blank", "noopener,noreferrer");
+  try {
+    if (opened) opened.opener = null;
+  } catch {
+    // The noopener feature is the primary protection for cross-origin windows.
+  }
+  return true;
+}
+
+function preventEditorSelectionOnIssueReferenceMouseDown(
+  root: ParentNode,
+  event: MouseEvent,
+): boolean {
+  if (event.button !== 0) return false;
+  const reference = findClickedEditorIssueReference(root, event);
+  if (!reference) return false;
+  event.preventDefault();
+  return true;
+}
+
+function openEditorIssueReferenceOnMouseUp(
+  root: ParentNode,
+  event: MouseEvent,
+  openedFromMouseUp: WeakMap<HTMLElement, number>,
+): boolean {
+  if (event.button !== 0) return false;
+  const reference = findClickedEditorIssueReference(root, event);
+  if (!reference || !openEditorIssueReference(reference)) return false;
+  openedFromMouseUp.set(reference, Date.now());
+  event.preventDefault();
+  return true;
+}
+
+function openClickedEditorIssueReference(
+  root: ParentNode,
+  event: MouseEvent,
+  openedFromMouseUp: WeakMap<HTMLElement, number>,
+): boolean {
+  if (event.button !== 0) return false;
+  const reference = findClickedEditorIssueReference(root, event);
+  if (!reference) return false;
+  const openedAt = openedFromMouseUp.get(reference);
+  if (
+    openedAt !== undefined &&
+    Date.now() - openedAt < LINK_CLICK_SUPPRESSION_MS
+  ) {
+    event.preventDefault();
+    return true;
+  }
+  if (!openEditorIssueReference(reference)) return false;
+  event.preventDefault();
+  return true;
+}
+
+function openEditorIssueReferenceOnKeyDown(
+  root: ParentNode,
+  event: KeyboardEvent,
+): boolean {
+  if (event.key !== "Enter" && event.key !== " ") return false;
+  const target = event.target instanceof Element ? event.target : null;
+  const reference =
+    target?.closest<HTMLElement>("[data-reef-issue-reference]") ?? null;
+  if (!reference || !root.contains(reference)) return false;
+  if (!openEditorIssueReference(reference)) return false;
   event.preventDefault();
   return true;
 }
@@ -544,6 +657,7 @@ export function MarkdownEditor({
   resolveImageSrc,
   resolveAttachmentHref,
   mentionConfig,
+  issueReferences,
 }: MarkdownEditorProps) {
   const t = useTranslations("markdownEditor");
   const c = useTranslations("common");
@@ -570,9 +684,22 @@ export function MarkdownEditor({
   const linksOpenedFromMouseUpRef = useRef(
     new WeakMap<HTMLAnchorElement, number>(),
   );
+  const issueReferencesOpenedFromMouseUpRef = useRef(
+    new WeakMap<HTMLElement, number>(),
+  );
   const linkSelectionRef = useRef<EditorSelectionRange | null>(null);
   const mentionMembersRef = useRef<readonly VaultMember[]>([]);
   const previousMentionRosterRef = useRef<string | null>(null);
+  const issueReferenceMapRef = useRef(
+    buildIssueReferenceMap(issueReferences ?? []),
+  );
+  const issueReferenceVaultRef = useRef(vault);
+  const issueReferenceLabelRef = useRef((issue: IssueListItem) =>
+    t("issueReference", { id: issue.id, title: issue.title }),
+  );
+  const previousIssueReferencesFingerprintRef = useRef(
+    issueReferenceFingerprint(issueReferences ?? []),
+  );
 
   const slashMessages = useMemo<SlashCommandMessages>(
     () => ({
@@ -638,10 +765,19 @@ export function MarkdownEditor({
   const mentionRosterFingerprint = mentionConfig
     ? mentionConfig.members.map((member) => member.username).join("\u0000")
     : null;
+  const issueReferencesListFingerprint = useMemo(
+    () => issueReferenceFingerprint(issueReferences ?? []),
+    [issueReferences],
+  );
 
   useEffect(() => {
     mentionMembersRef.current = mentionConfig?.members ?? [];
   }, [mentionConfig?.members]);
+
+  useEffect(() => {
+    issueReferenceLabelRef.current = (issue: IssueListItem) =>
+      t("issueReference", { id: issue.id, title: issue.title });
+  }, [t]);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -726,6 +862,13 @@ export function MarkdownEditor({
         : undefined,
       (href) => resolveAttachmentHrefRef.current?.(href),
       slashMessages,
+      issueReferences
+        ? {
+            issuesRef: issueReferenceMapRef,
+            vaultRef: issueReferenceVaultRef,
+            labelForRef: issueReferenceLabelRef,
+          }
+        : undefined,
     ),
     /* eslint-enable react-hooks/refs */
     content: mentionConfig
@@ -748,15 +891,28 @@ export function MarkdownEditor({
       },
       handleDOMEvents: {
         mousedown: (view, event) =>
+          preventEditorSelectionOnIssueReferenceMouseDown(view.dom, event) ||
           preventEditorSelectionOnLinkMouseDown(view.dom, event),
         mouseup: (view, event) =>
+          openEditorIssueReferenceOnMouseUp(
+            view.dom,
+            event,
+            issueReferencesOpenedFromMouseUpRef.current,
+          ) ||
           openEditorLinkOnMouseUp(
             view.dom,
             event,
             linksOpenedFromMouseUpRef.current,
           ),
+        keydown: (view, event) =>
+          openEditorIssueReferenceOnKeyDown(view.dom, event),
       },
       handleClick: (view, _pos, event) =>
+        openClickedEditorIssueReference(
+          view.dom,
+          event,
+          issueReferencesOpenedFromMouseUpRef.current,
+        ) ||
         openClickedEditorLink(
           view.dom,
           event,
@@ -793,6 +949,50 @@ export function MarkdownEditor({
       publishMarkdown(ed.getMarkdown(), ed);
     },
   });
+
+  useEffect(() => {
+    const issueReferencesEnabled = issueReferences !== undefined;
+    const issueListChanged =
+      issueReferencesEnabled &&
+      previousIssueReferencesFingerprintRef.current !==
+        issueReferencesListFingerprint;
+    const vaultChanged =
+      issueReferencesEnabled && issueReferenceVaultRef.current !== vault;
+    if (issueReferencesEnabled && (issueListChanged || vaultChanged)) {
+      issueReferenceMapRef.current = buildIssueReferenceMap(
+        issueReferences ?? [],
+      );
+    }
+    issueReferenceVaultRef.current = vault;
+    previousIssueReferencesFingerprintRef.current =
+      issueReferencesListFingerprint;
+    if (
+      !issueReferencesEnabled ||
+      !editor ||
+      (!issueListChanged && !vaultChanged)
+    )
+      return;
+
+    const selection = editor.state.selection;
+    setEditorMarkdown(
+      editor,
+      latestValueRef.current,
+      mentionConfig ? mentionMembersRef.current : undefined,
+    );
+    const documentSize = editor.state.doc.content.size;
+    if (documentSize > 0 && typeof selection.from === "number") {
+      editor.commands.setTextSelection({
+        from: Math.min(selection.from, documentSize),
+        to: Math.min(selection.to, documentSize),
+      });
+    }
+  }, [
+    editor,
+    issueReferences,
+    issueReferencesListFingerprint,
+    mentionConfig,
+    vault,
+  ]);
 
   useEffect(() => {
     uploadFilesRef.current = onUploadFiles;

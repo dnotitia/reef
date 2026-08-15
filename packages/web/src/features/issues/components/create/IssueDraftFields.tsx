@@ -9,6 +9,7 @@ import {
   useEnrichmentEmptyLabels,
   useFieldNameLabels,
 } from "@/i18n/fieldLabels";
+import type { IssueListItem } from "@reef/core";
 import { PRIORITY_OPTIONS } from "@reef/core/fields";
 import { NO_SELECTION } from "@reef/core/fields";
 import { useTranslations } from "next-intl";
@@ -40,6 +41,7 @@ interface IssueDraftFieldsProps {
   onBodyChange: (body: string) => void;
   vault?: string;
   mentionConfig?: ComponentProps<typeof MarkdownEditor>["mentionConfig"];
+  issueReferences?: readonly IssueListItem[];
   disabled?: boolean;
   titleAction?: ReactNode;
   titleBelow?: ReactNode;
@@ -91,6 +93,7 @@ export function IssueDraftFields({
   onBodyChange,
   vault,
   mentionConfig,
+  issueReferences,
   disabled = false,
   titleAction,
   titleBelow,
@@ -233,6 +236,7 @@ export function IssueDraftFields({
             ariaLabel={t("descriptionAriaLabel")}
             vault={vault}
             mentionConfig={mentionConfig}
+            issueReferences={issueReferences}
           />,
         )}
       </div>

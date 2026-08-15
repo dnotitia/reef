@@ -1,8 +1,9 @@
 import { Editor } from "@tiptap/react";
-import type { VaultMember } from "@reef/core";
+import type { IssueListItem, VaultMember } from "@reef/core";
 import { afterEach, describe, expect, it } from "vitest";
 import { createMarkdownEditorExtensions } from "./MarkdownEditorImpl";
 import { prepareIssueBodyMentionMarkdown } from "./issueBodyMentionExtension";
+import { buildIssueReferenceMap } from "./issueReferenceExtension";
 import {
   DEFAULT_SLASH_COMMAND_MESSAGES,
   SLASH_COMMAND_DEFINITIONS,
@@ -15,6 +16,8 @@ function createEditor(
   markdown: string,
   mentionMembers?: readonly VaultMember[],
   resolveAttachmentHref?: (href: string) => string,
+  issueReferences?: readonly IssueListItem[],
+  vault = "reef-test",
 ) {
   const element = document.createElement("div");
   document.body.appendChild(element);
@@ -32,6 +35,17 @@ function createEditor(
           }
         : undefined,
       resolveAttachmentHref,
+      undefined,
+      issueReferences
+        ? {
+            issuesRef: { current: buildIssueReferenceMap(issueReferences) },
+            vaultRef: { current: vault },
+            labelForRef: {
+              current: (issue: IssueListItem) =>
+                `Issue ${issue.id}: ${issue.title}`,
+            },
+          }
+        : undefined,
     ),
     content: mentionMembers
       ? prepareIssueBodyMentionMarkdown(markdown, mentionMembers)
@@ -143,6 +157,38 @@ describe("MarkdownEditor Tiptap extensions", () => {
     expect(withMentions.some((extension) => extension.name === "mention")).toBe(
       true,
     );
+  });
+
+  it("registers issue references only when the caller supplies its issue list", () => {
+    const withoutIssues = createMarkdownEditorExtensions(
+      "Describe the issue...",
+    );
+    const issue = {
+      id: "REEF-123",
+      title: "Semantic references",
+      status: "todo",
+    } as IssueListItem;
+    const withIssues = createMarkdownEditorExtensions(
+      "Describe the issue...",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {
+        issuesRef: { current: buildIssueReferenceMap([issue]) },
+        vaultRef: { current: "reef-test" },
+        labelForRef: { current: (value) => `${value.id}: ${value.title}` },
+      },
+    );
+
+    expect(
+      withoutIssues.some(
+        (extension) => extension.name === "reefIssueReference",
+      ),
+    ).toBe(false);
+    expect(
+      withIssues.some((extension) => extension.name === "reefIssueReference"),
+    ).toBe(true);
   });
 
   it("decorates an empty editor with the placeholder DOM contract", () => {
@@ -418,6 +464,103 @@ describe("MarkdownEditor Tiptap extensions", () => {
       editor.view.dom.querySelector('[data-reef-mention="true"]')?.textContent,
     ).toBe("@alice");
     expect(editor.view.dom.textContent).toContain("@missing");
+  });
+
+  it("renders only loaded issue ids as accessible semantic references", () => {
+    const issue = {
+      id: "REEF-123",
+      title: "Semantic references",
+      status: "in_progress",
+    } as IssueListItem;
+    const markdown = "See reef-123, REEF-999, and `REEF-123`.";
+    const editor = createEditor(markdown, undefined, undefined, [issue]);
+    const reference = editor.view.dom.querySelector<HTMLElement>(
+      '[data-reef-issue-reference="true"]',
+    );
+
+    expect(reference?.dataset.reefIssueId).toBe("REEF-123");
+    expect(reference?.getAttribute("id")).toBeNull();
+    expect(reference?.dataset.reefIssueStatus).toBe("in_progress");
+    expect(reference?.dataset.reefIssueHref).toBe(
+      "/workspace/reef-test/issues/REEF-123",
+    );
+    expect(reference?.getAttribute("role")).toBe("link");
+    expect(reference?.getAttribute("tabindex")).toBe("0");
+    expect(reference?.getAttribute("aria-label")).toBe(
+      "Issue REEF-123: Semantic references",
+    );
+    expect(
+      reference
+        ?.querySelector("[data-reef-status-glyph]")
+        ?.getAttribute("data-reef-status"),
+    ).toBe("in_progress");
+    expect(
+      reference?.querySelector("[data-reef-issue-id-text]")?.textContent,
+    ).toBe("reef-123");
+    expect(
+      reference?.querySelector("[data-reef-issue-title]")?.textContent,
+    ).toBe("Semantic references");
+    expect(
+      editor.view.dom.querySelectorAll('[data-reef-issue-reference="true"]'),
+    ).toHaveLength(1);
+    expect(editor.view.dom.querySelector("code")?.textContent).toBe("REEF-123");
+    expect(editor.view.dom.textContent).toContain("REEF-999");
+    expect(editor.getMarkdown()).toBe(markdown);
+
+    const reloaded = createEditor(editor.getMarkdown(), undefined, undefined, [
+      issue,
+    ]);
+    expect(
+      reloaded.view.dom.querySelector('[data-reef-issue-reference="true"]'),
+    ).not.toBeNull();
+    expect(reloaded.getMarkdown()).toBe(markdown);
+  });
+
+  it("keeps known ids plain inside links, escaped text, and fenced code", () => {
+    const issue = {
+      id: "REEF-123",
+      title: "Semantic references",
+      status: "todo",
+    } as IssueListItem;
+    const markdown = [
+      "[REEF-123](https://example.test/reef-123)",
+      "\\REEF-123",
+      "```text\nREEF-123\n```",
+    ].join("\n\n");
+    const editor = createEditor(markdown, undefined, undefined, [issue]);
+
+    expect(
+      editor.view.dom.querySelectorAll('[data-reef-issue-reference="true"]'),
+    ).toHaveLength(0);
+    expect(editor.view.dom.querySelector("a")?.textContent).toBe("REEF-123");
+    expect(editor.view.dom.querySelector("code")?.textContent).toBe("REEF-123");
+    expect(editor.view.dom.querySelector("pre")?.textContent).toContain(
+      "REEF-123",
+    );
+    expect(editor.getMarkdown()).toContain(
+      "[REEF-123](https://example.test/reef-123)",
+    );
+    expect(editor.getMarkdown()).toContain("REEF-123");
+  });
+
+  it("does not split a bare ordinary URL that contains a known id", () => {
+    const issue = {
+      id: "REEF-123",
+      title: "Semantic references",
+      status: "todo",
+    } as IssueListItem;
+    const markdown = "Visit https://example.test/path/REEF-123/details today.";
+    const editor = createEditor(markdown, undefined, undefined, [issue]);
+
+    expect(
+      editor.view.dom.querySelectorAll('[data-reef-issue-reference="true"]'),
+    ).toHaveLength(0);
+    expect(editor.view.dom.querySelector("a")?.textContent).toContain(
+      "REEF-123",
+    );
+    expect(editor.getMarkdown()).toContain(
+      "https://example.test/path/REEF-123/details",
+    );
   });
 
   it.each([

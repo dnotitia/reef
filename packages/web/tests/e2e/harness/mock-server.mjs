@@ -73,6 +73,7 @@ const MARKDOWN_FIXTURE = [
   "A second section paragraph explains the structure before the nested heading and keeps the blocks visibly separated.",
   "### Details",
   "A paragraph with **bold**, *italic*, ~~strikethrough~~, and **_~~nested emphasis~~_**; it includes a [reef link](https://example.com/reef), an [AKB report](akb://reef-e2e/coll/docs/doc/spec-overview.md), `inline code`, and @alice.",
+  "Known REEF-001 keeps its loaded issue semantics; unknown REEF-999 stays plain, [REEF-001](https://example.com/reef-001) stays a link, `REEF-001` stays code, and \\REEF-001 stays escaped.",
   "1. Ordered item one\n2. Ordered item two\n   - Nested unordered item\n     1. Nested ordered child",
   "- Unordered item one\n- Unordered item two\n  1. Nested ordered child\n     - Nested unordered grandchild",
   "- [x] Completed parent\n  - [ ] Open child\n  - [x] Completed child",
