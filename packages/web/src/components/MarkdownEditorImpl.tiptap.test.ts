@@ -543,7 +543,6 @@ describe("MarkdownEditor Tiptap extensions", () => {
       "```text\nREEF-123\n```",
     ].join("\n\n");
     const editor = createEditor(markdown, undefined, undefined, [issue]);
-
     expect(
       editor.view.dom.querySelectorAll('[data-reef-issue-reference="true"]'),
     ).toHaveLength(0);
@@ -555,7 +554,29 @@ describe("MarkdownEditor Tiptap extensions", () => {
     expect(editor.getMarkdown()).toContain(
       "[REEF-123](https://example.test/reef-123)",
     );
-    expect(editor.getMarkdown()).toContain("REEF-123");
+    const escapedIssue = editor.view.dom.querySelector(
+      "[data-reef-escaped-issue]",
+    );
+    expect(escapedIssue?.textContent).toBe("\\REEF-123");
+    expect(escapedIssue?.getAttribute("role")).toBeNull();
+    expect(escapedIssue?.getAttribute("tabindex")).toBeNull();
+    expect(escapedIssue?.closest("a")).toBeNull();
+    expect(editor.getMarkdown()).toBe(markdown);
+
+    const reloaded = createEditor(editor.getMarkdown(), undefined, undefined, [
+      issue,
+    ]);
+    expect(
+      reloaded.view.dom.querySelectorAll('[data-reef-issue-reference="true"]'),
+    ).toHaveLength(0);
+    const reloadedEscapedIssue = reloaded.view.dom.querySelector(
+      "[data-reef-escaped-issue]",
+    );
+    expect(reloadedEscapedIssue?.textContent).toBe("\\REEF-123");
+    expect(reloadedEscapedIssue?.getAttribute("role")).toBeNull();
+    expect(reloadedEscapedIssue?.getAttribute("tabindex")).toBeNull();
+    expect(reloadedEscapedIssue?.closest("a")).toBeNull();
+    expect(reloaded.getMarkdown()).toBe(markdown);
   });
 
   it("does not split a bare ordinary URL that contains a known id", () => {

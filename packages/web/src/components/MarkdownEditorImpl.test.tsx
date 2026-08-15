@@ -870,6 +870,58 @@ describe("MarkdownEditor", () => {
     expect(onBlur).not.toHaveBeenCalled();
   });
 
+  it("keeps escaped issue text unchanged during passive metadata refresh", () => {
+    const onChange = vi.fn();
+    const onBlur = vi.fn();
+    const firstIssue = {
+      id: "REEF-123",
+      title: "First title",
+      status: "todo",
+    } as IssueListItem;
+    const refreshedIssue = {
+      ...firstIssue,
+      title: "Updated title",
+      status: "in_progress",
+    } as IssueListItem;
+    const escapedMarkdown = "\\REEF-123";
+    const { rerender } = render(
+      <MarkdownEditor
+        value={escapedMarkdown}
+        onChange={onChange}
+        onBlur={onBlur}
+        vault="reef-test"
+        issueReferences={[firstIssue]}
+      />,
+    );
+    const editor = vi.mocked(useEditor).mock.results.at(-1)?.value as {
+      commands: { setContent: ReturnType<typeof vi.fn> };
+    };
+    editor.commands.setContent.mockClear();
+
+    rerender(
+      <MarkdownEditor
+        value={escapedMarkdown}
+        onChange={onChange}
+        onBlur={onBlur}
+        vault="reef-test"
+        issueReferences={[refreshedIssue]}
+      />,
+    );
+
+    expect(editor.commands.setContent).toHaveBeenCalledWith(
+      escapedMarkdown,
+      expect.objectContaining({ contentType: "markdown", emitUpdate: false }),
+    );
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onBlur).not.toHaveBeenCalled();
+    act(() => {
+      fireEvent.click(screen.getByTitle("Toggle source mode"));
+    });
+    expect(screen.getByTestId("markdown-source-textarea")).toHaveValue(
+      escapedMarkdown,
+    );
+  });
+
   it("passes the latest source markdown to onBlur", () => {
     const onBlur = vi.fn();
     render(<MarkdownEditor value="" onChange={vi.fn()} onBlur={onBlur} />);

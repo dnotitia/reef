@@ -74,8 +74,8 @@ function findKnownIssueStart(
   for (const match of source.matchAll(pattern)) {
     const raw = match[0];
     const index = match.index ?? -1;
-    if (index < 0 || isEscaped(source, index)) continue;
-    if (issues.has(issueReferenceMapKey(raw))) return index;
+    if (index < 0 || !issues.has(issueReferenceMapKey(raw))) continue;
+    return isEscaped(source, index) ? index - 1 : index;
   }
   return -1;
 }
@@ -88,19 +88,40 @@ function createIssueReferenceTokenizer(
     level: "inline",
     start: (source) => findKnownIssueStart(source, options.issuesRef.current),
     tokenize(source, tokens): MarkdownToken | undefined {
+      const escapedMatch = source.match(
+        new RegExp(`^\\\\(${REEF_ID_PATTERN.source})`, "i"),
+      );
+      if (escapedMatch) {
+        const raw = escapedMatch[1];
+        const issue = options.issuesRef.current.get(issueReferenceMapKey(raw));
+        if (issue) {
+          return {
+            type: ISSUE_REFERENCE_MARK,
+            raw: escapedMatch[0],
+            text: raw,
+            attributes: { id: issue.id, escaped: true },
+          };
+        }
+      }
+
       const previous = tokens.at(-1);
       const previousBackslashes =
         typeof previous?.text === "string"
           ? (previous.text.match(/\\+$/)?.[0].length ?? 0)
           : 0;
+      const previousEscapedBackslash =
+        previous?.type === "escape" && previous.text === "\\";
       if (
-        previous?.type === "text" &&
-        previousBackslashes > 0 &&
-        previousBackslashes % 2 === 1
+        (previous?.type === "text" &&
+          previousBackslashes > 0 &&
+          previousBackslashes % 2 === 1) ||
+        previousEscapedBackslash
       ) {
-        // Marked may split an escaped id into a preceding text token (`\\`)
-        // followed by this extension's source window. Return a plain token so
-        // the escape remains ordinary Markdown rather than a semantic mark.
+        // Marked may split an escaped id into a preceding text/escape token
+        // (`\\`) followed by this extension's source window. Return a plain
+        // token so the escape remains ordinary Markdown rather than a
+        // semantic mark. The escape token is retained in the surrounding
+        // parse, so serialization stays stable across a reparse.
         const raw = source.match(
           new RegExp(`^${REEF_ID_PATTERN.source}`, "i"),
         )?.[0];
@@ -126,12 +147,14 @@ function parseIssueReference(
   helpers: MarkdownParseHelpers,
 ) {
   const raw = typeof token.raw === "string" ? token.raw : (token.text ?? "");
+  const escaped = token.attributes?.escaped === true;
+  const text = escaped && raw.startsWith("\\") ? raw.slice(1) : raw;
   const encodedId =
     typeof token.attributes?.id === "string" ? token.attributes.id : raw;
   return helpers.applyMark(
     ISSUE_REFERENCE_MARK,
-    [helpers.createTextNode(raw)],
-    { id: encodedId },
+    [helpers.createTextNode(text)],
+    { id: encodedId, escaped },
   );
 }
 
@@ -158,7 +181,8 @@ function renderIssueReference(
   node: { attrs?: Record<string, unknown> },
   helpers: { renderChildren: (node: JSONContent) => string },
 ) {
-  return helpers.renderChildren(node);
+  const content = helpers.renderChildren(node);
+  return node.attrs?.escaped === true ? `\\${content}` : content;
 }
 
 export function createIssueReferenceExtension(
@@ -172,12 +196,22 @@ export function createIssueReferenceExtension(
     addAttributes() {
       return {
         id: { default: null },
+        escaped: { default: false },
       };
     },
     markdownTokenizer: createIssueReferenceTokenizer(options),
     parseMarkdown: parseIssueReference,
     renderMarkdown: renderIssueReference,
     renderHTML({ mark, HTMLAttributes }) {
+      if (mark.attrs.escaped === true) {
+        return [
+          "span",
+          { "data-reef-escaped-issue": "true" },
+          ["span", { "aria-hidden": "true" }, "\\"],
+          ["span", {}, 0],
+        ];
+      }
+
       const id = typeof mark.attrs.id === "string" ? mark.attrs.id : "";
       const issue = options.issuesRef.current.get(issueReferenceMapKey(id));
       if (!issue) return ["span", 0];
