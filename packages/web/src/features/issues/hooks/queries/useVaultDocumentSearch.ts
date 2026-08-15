@@ -4,6 +4,28 @@ import { useQuery } from "@tanstack/react-query";
 
 const SEARCH_LIMIT = 12;
 
+export async function fetchVaultDocumentSearch(
+  query: string,
+  vault: string,
+  signal?: AbortSignal,
+): Promise<DocumentSearchHit[]> {
+  const trimmed = query.trim();
+  if (!vault || !trimmed) return [];
+  const params = new URLSearchParams({
+    vault,
+    q: trimmed,
+    limit: String(SEARCH_LIMIT),
+  });
+  const res = await apiFetch(`/api/documents/search?${params.toString()}`, {
+    signal,
+  });
+  if (!res.ok) {
+    await throwHttpError(res, `Document search failed: ${res.status}`);
+  }
+  const body = (await res.json()) as { documents: DocumentSearchHit[] };
+  return body.documents;
+}
+
 /**
  * Look up akb documents in the active vault for the issue document-reference
  * picker (REEF-083).
@@ -18,19 +40,7 @@ export function useVaultDocumentSearch(query: string, vault: string) {
   const trimmed = query.trim();
   return useQuery({
     queryKey: ["document-search", vault, trimmed],
-    queryFn: async (): Promise<DocumentSearchHit[]> => {
-      const params = new URLSearchParams({
-        vault,
-        q: trimmed,
-        limit: String(SEARCH_LIMIT),
-      });
-      const res = await apiFetch(`/api/documents/search?${params.toString()}`);
-      if (!res.ok) {
-        await throwHttpError(res, `Document search failed: ${res.status}`);
-      }
-      const body = (await res.json()) as { documents: DocumentSearchHit[] };
-      return body.documents;
-    },
+    queryFn: () => fetchVaultDocumentSearch(trimmed, vault),
     enabled: !!vault && trimmed.length > 0,
     staleTime: 60_000,
   });

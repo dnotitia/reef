@@ -1,8 +1,12 @@
 import { Editor } from "@tiptap/react";
-import type { VaultMember } from "@reef/core";
+import type { DocumentSearchHit, IssueListItem, VaultMember } from "@reef/core";
 import { afterEach, describe, expect, it } from "vitest";
 import { createMarkdownEditorExtensions } from "./MarkdownEditorImpl";
-import { prepareIssueBodyMentionMarkdown } from "./issueBodyMentionExtension";
+import {
+  filterIssueBodyMentionCandidates,
+  insertIssueBodyReference,
+  prepareIssueBodyMentionMarkdown,
+} from "./issueBodyMentionExtension";
 import {
   DEFAULT_SLASH_COMMAND_MESSAGES,
   SLASH_COMMAND_DEFINITIONS,
@@ -15,6 +19,11 @@ function createEditor(
   markdown: string,
   mentionMembers?: readonly VaultMember[],
   resolveAttachmentHref?: (href: string) => string,
+  mentionIssues: readonly IssueListItem[] = [],
+  searchDocuments?: (
+    query: string,
+    signal: AbortSignal,
+  ) => Promise<readonly DocumentSearchHit[]>,
   placeholder = "Describe the issue...",
   editable = true,
 ) {
@@ -29,8 +38,18 @@ function createEditor(
       mentionMembers
         ? {
             membersRef: { current: mentionMembers },
+            issuesRef: { current: mentionIssues },
+            searchDocuments,
             suggestionsLabel: "Mention suggestions",
             mentionOptionLabel: (username) => `Mention @${username}`,
+            peopleSectionLabel: "People",
+            issuesSectionLabel: "Issues",
+            documentsSectionLabel: "Documents",
+            issueOptionLabel: (issue) => `${issue.id}: ${issue.title}`,
+            documentOptionLabel: (hit) => `Document: ${hit.title ?? hit.uri}`,
+            documentSearchLoadingLabel: "Searching documents…",
+            documentSearchErrorLabel: "Couldn't search documents.",
+            documentSearchEmptyLabel: "No matching documents.",
           }
         : undefined,
       resolveAttachmentHref,
@@ -137,6 +156,14 @@ describe("MarkdownEditor Tiptap extensions", () => {
         membersRef: { current: [{ username: "alice", role: "member" }] },
         suggestionsLabel: "Mention suggestions",
         mentionOptionLabel: (username) => `Mention @${username}`,
+        peopleSectionLabel: "People",
+        issuesSectionLabel: "Issues",
+        documentsSectionLabel: "Documents",
+        issueOptionLabel: (issue) => `${issue.id}: ${issue.title}`,
+        documentOptionLabel: (hit) => `Document: ${hit.title ?? hit.uri}`,
+        documentSearchLoadingLabel: "Searching documents…",
+        documentSearchErrorLabel: "Couldn't search documents.",
+        documentSearchEmptyLabel: "No matching documents.",
       },
     );
 
@@ -148,9 +175,94 @@ describe("MarkdownEditor Tiptap extensions", () => {
     );
   });
 
+  it("keeps people before ranked issues and excludes archived issues", () => {
+    const members = [
+      { username: "alice", display_name: "Alpha owner", role: "member" },
+      { username: "bob", display_name: "Beta owner", role: "member" },
+    ] as const;
+    const issues = [
+      { id: "REEF-009", title: "Alpha follow-up", status: "todo" },
+      {
+        id: "REEF-010",
+        title: "Archived Alpha issue",
+        status: "todo",
+        archived_at: "2026-06-01T00:00:00.000Z",
+      },
+    ] as unknown as readonly IssueListItem[];
+
+    expect(
+      filterIssueBodyMentionCandidates(members, issues, "alpha").map(
+        (candidate) =>
+          candidate.kind === "person"
+            ? candidate.member.username
+            : candidate.kind === "issue"
+              ? candidate.issue.id
+              : candidate.hit.uri,
+      ),
+    ).toEqual(["alice", "REEF-009"]);
+  });
+
+  it("inserts people, issues, and documents with their canonical Markdown forms", () => {
+    const uri = "akb://reef-test/coll/research/doc/alpha.md";
+    const editor = createEditor(
+      "",
+      [{ username: "alice", display_name: "Alpha owner", role: "member" }],
+      undefined,
+      [
+        {
+          id: "REEF-009",
+          title: "Alpha issue",
+          status: "todo",
+        } as IssueListItem,
+      ],
+    );
+    insertIssueBodyReference(
+      editor,
+      { from: 1, to: 1 },
+      { kind: "person", member: { username: "alice", role: "member" } },
+    );
+    insertIssueBodyReference(
+      editor,
+      {
+        from: editor.state.doc.content.size,
+        to: editor.state.doc.content.size,
+      },
+      {
+        kind: "issue",
+        issue: {
+          id: "REEF-009",
+          title: "Alpha issue",
+          status: "todo",
+        } as IssueListItem,
+      },
+    );
+    insertIssueBodyReference(
+      editor,
+      {
+        from: editor.state.doc.content.size,
+        to: editor.state.doc.content.size,
+      },
+      {
+        kind: "document",
+        hit: {
+          uri,
+          title: "Alpha document",
+          collection: "research",
+          doc_type: "document",
+        },
+      },
+    );
+
+    expect(editor.getMarkdown()).toContain("@alice ");
+    expect(editor.getMarkdown()).toContain("REEF-009 ");
+    expect(editor.getMarkdown()).toContain(`[Alpha document](${uri}) `);
+  });
+
   it("decorates an empty editor with the placeholder DOM contract", () => {
     const editor = createEditor(
       "",
+      undefined,
+      undefined,
       undefined,
       undefined,
       "Describe the issue or type / to insert a block…",
@@ -167,6 +279,8 @@ describe("MarkdownEditor Tiptap extensions", () => {
   it("does not show the WYSIWYG placeholder in a read-only editor", () => {
     const editor = createEditor(
       "",
+      undefined,
+      undefined,
       undefined,
       undefined,
       "Describe the issue or type / to insert a block…",

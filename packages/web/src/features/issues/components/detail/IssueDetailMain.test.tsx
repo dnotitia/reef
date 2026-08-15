@@ -8,20 +8,28 @@ import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Heavy / query-backed children aren't relevant to the clip-container contract.
+const { mockMarkdownMentionConfig } = vi.hoisted(() => ({
+  mockMarkdownMentionConfig: { current: null as unknown },
+}));
 vi.mock("@/components/MarkdownEditor", () => ({
   MarkdownEditor: ({
+    mentionConfig,
     placeholder,
     sourcePlaceholder,
   }: {
+    mentionConfig?: unknown;
     placeholder?: string;
     sourcePlaceholder?: string;
-  }) => (
-    <div
-      data-testid="issue-detail-markdown-editor"
-      data-wysiwyg-placeholder={placeholder}
-      data-source-placeholder={sourcePlaceholder}
-    />
-  ),
+  }) => {
+    mockMarkdownMentionConfig.current = mentionConfig;
+    return (
+      <div
+        data-testid="issue-detail-markdown-editor"
+        data-wysiwyg-placeholder={placeholder}
+        data-source-placeholder={sourcePlaceholder}
+      />
+    );
+  },
 }));
 vi.mock("../refs/IssueLinkedDocuments", () => ({
   IssueLinkedDocuments: () => null,
@@ -45,6 +53,7 @@ vi.mock("../relations/IssueRelationInput", () => ({
 import { IssueDetailMain } from "./IssueDetailMain";
 
 beforeEach(() => {
+  mockMarkdownMentionConfig.current = null;
   useViewStore.setState({
     sidebarCollapsed: false,
     newIssueDialogOpen: false,
@@ -134,6 +143,25 @@ describe("IssueDetailMain autosave boundaries", () => {
     fireEvent.blur(input);
 
     expect(commitTitle).toHaveBeenCalledWith("Renamed title");
+  });
+});
+
+describe("IssueDetailMain reference picker", () => {
+  it("passes the current issue list and document search to the body editor", () => {
+    const allIssues = [
+      { id: "REEF-009", title: "Alpha issue", status: "todo" },
+    ] as unknown as Parameters<typeof IssueDetailMain>[0]["allIssues"];
+    renderMain({ allIssues });
+
+    const config = mockMarkdownMentionConfig.current as {
+      issues: readonly { id: string }[];
+      searchDocuments?: (
+        query: string,
+        signal: AbortSignal,
+      ) => Promise<unknown>;
+    } | null;
+    expect(config?.issues).toEqual(allIssues);
+    expect(typeof config?.searchDocuments).toBe("function");
   });
 });
 

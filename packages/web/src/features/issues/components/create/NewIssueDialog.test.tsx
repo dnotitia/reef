@@ -38,29 +38,38 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
+const { mockMarkdownMentionConfig } = vi.hoisted(() => ({
+  mockMarkdownMentionConfig: { current: null as unknown },
+}));
+
 vi.mock("@/components/MarkdownEditor", () => ({
   MarkdownEditor: ({
     value,
     onChange,
+    mentionConfig,
     placeholder,
     sourcePlaceholder,
   }: {
     value: string;
     onChange: (value: string) => void;
+    mentionConfig?: unknown;
     placeholder?: string;
     sourcePlaceholder?: string;
-  }) => (
-    <>
-      <span data-testid="markdown-wysiwyg-placeholder">{placeholder}</span>
-      <button type="button">Source</button>
-      <textarea
-        data-testid="markdown-source-textarea"
-        value={value}
-        placeholder={sourcePlaceholder ?? placeholder}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </>
-  ),
+  }) => {
+    mockMarkdownMentionConfig.current = mentionConfig;
+    return (
+      <>
+        <span data-testid="markdown-wysiwyg-placeholder">{placeholder}</span>
+        <button type="button">Source</button>
+        <textarea
+          data-testid="markdown-source-textarea"
+          value={value}
+          placeholder={sourcePlaceholder ?? placeholder}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </>
+    );
+  },
 }));
 
 const { mockViewStore } = vi.hoisted(() => ({
@@ -277,6 +286,7 @@ function wrap(ui: ReactNode) {
 describe("NewIssueDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockMarkdownMentionConfig.current = null;
     mockViewStore.state.newIssueDialogOpen = false;
     mockViewStore.state.newIssueDialogContext = null;
     mockEnrichmentState.exposeParentOverride = false;
@@ -315,6 +325,30 @@ describe("NewIssueDialog", () => {
         .compareDocumentPosition(screen.getByText("Planning")) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("passes the unified reference search config to the issue body editor", async () => {
+    mockViewStore.state.newIssueDialogOpen = true;
+    render(wrap(<NewIssueDialog />));
+
+    await screen.findByText("New Issue");
+    const config = mockMarkdownMentionConfig.current as {
+      issues: readonly unknown[];
+      searchDocuments?: (
+        query: string,
+        signal: AbortSignal,
+      ) => Promise<unknown>;
+      peopleSectionLabel: string;
+      issuesSectionLabel: string;
+      documentsSectionLabel: string;
+    } | null;
+    expect(config?.issues).toEqual([]);
+    expect(typeof config?.searchDocuments).toBe("function");
+    expect(config).toMatchObject({
+      peopleSectionLabel: "People",
+      issuesSectionLabel: "Issues",
+      documentsSectionLabel: "Documents",
+    });
   });
 
   it.each([

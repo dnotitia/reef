@@ -5,8 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useViewStore } from "@/features/ui/stores/useViewStore";
 import { useVaultRoster } from "@/features/settings/hooks/useVaultRoster";
+import { fetchVaultDocumentSearch } from "@/features/issues/hooks/queries/useVaultDocumentSearch";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
+import { akbDocumentSlugTitle } from "@/lib/akb/documentUri";
 import type {
+  DocumentSearchHit,
   ExternalRef,
   ImplementationRef,
   IssueListItem,
@@ -82,11 +85,29 @@ export function IssueDetailMain({
   const issueBodyMentionConfig = useMemo(
     () => ({
       members: vaultMembers,
+      issues: allIssues,
+      searchDocuments: (query: string, signal: AbortSignal) =>
+        fetchVaultDocumentSearch(query, vault, signal),
       suggestionsLabel: markdownEditor("mentionSuggestions"),
       mentionOptionLabel: (username: string) =>
         markdownEditor("mentionOption", { username: `@${username}` }),
+      peopleSectionLabel: markdownEditor("peopleSection"),
+      issuesSectionLabel: markdownEditor("issuesSection"),
+      documentsSectionLabel: markdownEditor("documentsSection"),
+      issueOptionLabel: (candidate: IssueListItem) =>
+        markdownEditor("issueOption", {
+          id: candidate.id,
+          title: candidate.title,
+        }),
+      documentOptionLabel: (hit: DocumentSearchHit) =>
+        markdownEditor("documentOption", {
+          title: hit.title ?? akbDocumentSlugTitle(hit.uri),
+        }),
+      documentSearchLoadingLabel: markdownEditor("documentSearchLoading"),
+      documentSearchErrorLabel: markdownEditor("documentSearchError"),
+      documentSearchEmptyLabel: markdownEditor("documentSearchEmpty"),
     }),
-    [markdownEditor, vaultMembers],
+    [allIssues, markdownEditor, vault, vaultMembers],
   );
 
   function handleAddSubIssue() {

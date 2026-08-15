@@ -16,6 +16,7 @@ import { EnrichmentReviewBar } from "@/features/ai/components/EnrichmentReviewBa
 import { useCreateIssue } from "@/features/issues/hooks/mutations/useCreateIssue";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
+import { fetchVaultDocumentSearch } from "@/features/issues/hooks/queries/useVaultDocumentSearch";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useVaultRoster } from "@/features/settings/hooks/useVaultRoster";
 import {
@@ -27,9 +28,16 @@ import {
   useViewStore,
 } from "@/features/ui/stores/useViewStore";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
+import { akbDocumentSlugTitle } from "@/lib/akb/documentUri";
 import { withVault } from "@/lib/workspaceHref";
 import { DEFAULT_CONFIG } from "@reef/core";
-import type { IssueType, ReferenceSuggestion, Template } from "@reef/core";
+import type {
+  DocumentSearchHit,
+  IssueListItem,
+  IssueType,
+  ReferenceSuggestion,
+  Template,
+} from "@reef/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -217,12 +225,30 @@ export function NewIssueDialog({
       vault
         ? {
             members: vaultMembers,
+            issues: existingIssues ?? [],
+            searchDocuments: (query: string, signal: AbortSignal) =>
+              fetchVaultDocumentSearch(query, vault, signal),
             suggestionsLabel: markdownEditor("mentionSuggestions"),
             mentionOptionLabel: (username: string) =>
               markdownEditor("mentionOption", { username: `@${username}` }),
+            peopleSectionLabel: markdownEditor("peopleSection"),
+            issuesSectionLabel: markdownEditor("issuesSection"),
+            documentsSectionLabel: markdownEditor("documentsSection"),
+            issueOptionLabel: (issue: IssueListItem) =>
+              markdownEditor("issueOption", {
+                id: issue.id,
+                title: issue.title,
+              }),
+            documentOptionLabel: (hit: DocumentSearchHit) =>
+              markdownEditor("documentOption", {
+                title: hit.title ?? akbDocumentSlugTitle(hit.uri),
+              }),
+            documentSearchLoadingLabel: markdownEditor("documentSearchLoading"),
+            documentSearchErrorLabel: markdownEditor("documentSearchError"),
+            documentSearchEmptyLabel: markdownEditor("documentSearchEmpty"),
           }
         : undefined,
-    [markdownEditor, vault, vaultMembers],
+    [existingIssues, markdownEditor, vault, vaultMembers],
   );
 
   function resetForm() {
