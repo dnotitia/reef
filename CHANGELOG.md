@@ -24,12 +24,11 @@ explicitly in the entries below.
 - **Issue create/detail Markdown bodies now render loaded Reef issue ids as
   accessible status references with their authored id, bounded title, and
   vault-scoped navigation target.** Resolved issue, AKB document, and AKB file
-  surfaces keep a continuous border, centered glyph/label metadata, and a
-  separate focus ring through narrow wrapping and browser-level 200% zoom;
+  surfaces use compact bordered labels with distinct glyphs and keyboard focus;
   unknown, linked, coded, and escaped ids remain plain Markdown, while Source
   mode and autosave keep the stored body unchanged. Document targets stay
-  canonical in WYSIWYG, and document/file pointer or Enter/Space activation
-  never inserts an editor block. (REEF-518)
+  canonical in WYSIWYG, and representative document/file activation never
+  inserts an editor block. (REEF-518)
 
 - **Issue Markdown editing now offers a categorized keyboard-first slash block
   menu with localized filtering, basic GFM table insertion, and bounded

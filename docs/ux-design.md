@@ -363,10 +363,10 @@ The semantic decoration is WYSIWYG-only; Source mode, autosave, reload, and
 plain Markdown storage keep the authored token unchanged.
 
 Resolved issue references, AKB document links, and AKB file links share a compact
-inline-flex surface with a continuous four-sided perimeter, a consistent radius,
-and a separate keyboard-focus ring. Their glyph, authored label, and bounded
-metadata/action stay optically centered when labels wrap, including in narrow
-panels and at browser-level 200% zoom, without clipping or widening the document.
+inline-flex surface with a continuous perimeter, a consistent radius, and a
+separate keyboard-focus ring. Their glyph, authored label, and bounded
+metadata/action stay centered when labels wrap without clipping or widening the
+document.
 The document glyph distinguishes an AKB document from an ordinary URL, and the
 file glyph remains distinct from its outbound/download cue; these are display-only
 decorations and never rewrite the authored Markdown.

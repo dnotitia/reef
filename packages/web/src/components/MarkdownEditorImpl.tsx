@@ -212,7 +212,6 @@ const NO_ACTIVE: ActiveMarks = {
   link: false,
 };
 
-const LINK_CLICK_SUPPRESSION_MS = 1000;
 const SEMANTIC_EDITOR_LINK_SELECTOR =
   'a[data-reef-document-link="true"], a[data-reef-file-link="true"]';
 
@@ -389,16 +388,6 @@ export function createMarkdownEditorExtensions(
   return extensions;
 }
 
-function findClickedEditorLink(
-  root: ParentNode,
-  event: MouseEvent,
-): HTMLAnchorElement | null {
-  const target = event.target instanceof Element ? event.target : null;
-  const anchor = target?.closest<HTMLAnchorElement>("a[href]") ?? null;
-  if (!anchor || !root.contains(anchor)) return null;
-  return anchor;
-}
-
 function findEditorSemanticLink(
   root: ParentNode,
   target: EventTarget | null,
@@ -428,76 +417,30 @@ function openEditorLink(anchor: HTMLAnchorElement): boolean {
   return true;
 }
 
-function openClickedEditorLink(
-  root: ParentNode,
-  event: MouseEvent,
-  linksOpenedFromMouseUp: WeakMap<HTMLAnchorElement, number>,
-): boolean {
-  if (event.button !== 0) return false;
-  const anchor = findClickedEditorLink(root, event);
-  if (!anchor) return false;
-
-  const openedAt = linksOpenedFromMouseUp.get(anchor);
-  if (
-    openedAt !== undefined &&
-    Date.now() - openedAt < LINK_CLICK_SUPPRESSION_MS
-  ) {
-    event.preventDefault();
-    return true;
-  }
-
-  if (!openEditorLink(anchor)) return false;
-  event.preventDefault();
-  return true;
-}
-
-function preventEditorSelectionOnLinkMouseDown(
-  root: ParentNode,
-  event: MouseEvent,
-): boolean {
-  if (event.button !== 0) return false;
-  if (!findClickedEditorLink(root, event)) return false;
-
-  event.preventDefault();
-  return true;
-}
-
-function openEditorLinkOnMouseUp(
-  root: ParentNode,
-  event: MouseEvent,
-  linksOpenedFromMouseUp: WeakMap<HTMLAnchorElement, number>,
-): boolean {
-  if (event.button !== 0) return false;
-  const anchor = findClickedEditorLink(root, event);
-  if (!anchor) return false;
-  if (!openEditorLink(anchor)) return false;
-
-  linksOpenedFromMouseUp.set(anchor, Date.now());
-  event.preventDefault();
-  return true;
-}
-
 function openEditorSemanticLinkOnKeyDown(
   root: ParentNode,
   event: KeyboardEvent,
-  focusedLink: HTMLAnchorElement | null,
+  focusedLink: HTMLElement | null,
 ): boolean {
   if (event.key !== "Enter" && event.key !== " ") return false;
   const anchor =
     findEditorSemanticLink(root, event.target) ??
-    (focusedLink && root.contains(focusedLink) ? focusedLink : null);
+    (focusedLink?.matches(SEMANTIC_EDITOR_LINK_SELECTOR) &&
+    root.contains(focusedLink)
+      ? (focusedLink as HTMLAnchorElement)
+      : null);
   if (!anchor || !openEditorLink(anchor)) return false;
   event.preventDefault();
   return true;
 }
 
-function findClickedEditorIssueReference(
+function findEditorIssueReference(
   root: ParentNode,
-  event: MouseEvent,
+  target: EventTarget | null,
 ): HTMLElement | null {
-  const target = event.target instanceof Element ? event.target : null;
+  const element = target instanceof Element ? target : null;
   const reference =
-    target?.closest<HTMLElement>("[data-reef-issue-reference]") ?? null;
+    element?.closest<HTMLElement>("[data-reef-issue-reference]") ?? null;
   if (!reference || !root.contains(reference)) return null;
   if (!reference.dataset.reefIssueHref) return null;
   return reference;
@@ -515,47 +458,13 @@ function openEditorIssueReference(reference: HTMLElement): boolean {
   return true;
 }
 
-function preventEditorSelectionOnIssueReferenceMouseDown(
+function openEditorIssueReferenceOnClick(
   root: ParentNode,
   event: MouseEvent,
 ): boolean {
   if (event.button !== 0) return false;
-  const reference = findClickedEditorIssueReference(root, event);
-  if (!reference) return false;
-  event.preventDefault();
-  return true;
-}
-
-function openEditorIssueReferenceOnMouseUp(
-  root: ParentNode,
-  event: MouseEvent,
-  openedFromMouseUp: WeakMap<HTMLElement, number>,
-): boolean {
-  if (event.button !== 0) return false;
-  const reference = findClickedEditorIssueReference(root, event);
+  const reference = findEditorIssueReference(root, event.target);
   if (!reference || !openEditorIssueReference(reference)) return false;
-  openedFromMouseUp.set(reference, Date.now());
-  event.preventDefault();
-  return true;
-}
-
-function openClickedEditorIssueReference(
-  root: ParentNode,
-  event: MouseEvent,
-  openedFromMouseUp: WeakMap<HTMLElement, number>,
-): boolean {
-  if (event.button !== 0) return false;
-  const reference = findClickedEditorIssueReference(root, event);
-  if (!reference) return false;
-  const openedAt = openedFromMouseUp.get(reference);
-  if (
-    openedAt !== undefined &&
-    Date.now() - openedAt < LINK_CLICK_SUPPRESSION_MS
-  ) {
-    event.preventDefault();
-    return true;
-  }
-  if (!openEditorIssueReference(reference)) return false;
   event.preventDefault();
   return true;
 }
@@ -566,9 +475,8 @@ function openEditorIssueReferenceOnKeyDown(
   focusedReference: HTMLElement | null,
 ): boolean {
   if (event.key !== "Enter" && event.key !== " ") return false;
-  const target = event.target instanceof Element ? event.target : null;
   const reference =
-    target?.closest<HTMLElement>("[data-reef-issue-reference]") ??
+    findEditorIssueReference(root, event.target) ??
     (focusedReference && root.contains(focusedReference)
       ? focusedReference
       : null);
@@ -737,14 +645,7 @@ export function MarkdownEditor({
   const resolvedTitleMapRef = useRef(new Map<string, string | null>());
   const pendingTitleUrisRef = useRef(new Set<string>());
   const previousVaultRef = useRef(vault);
-  const linksOpenedFromMouseUpRef = useRef(
-    new WeakMap<HTMLAnchorElement, number>(),
-  );
-  const issueReferencesOpenedFromMouseUpRef = useRef(
-    new WeakMap<HTMLElement, number>(),
-  );
-  const focusedIssueReferenceRef = useRef<HTMLElement | null>(null);
-  const focusedSemanticLinkRef = useRef<HTMLAnchorElement | null>(null);
+  const focusedReferenceRef = useRef<HTMLElement | null>(null);
   const linkSelectionRef = useRef<EditorSelectionRange | null>(null);
   const mentionMembersRef = useRef<readonly VaultMember[]>([]);
   const previousMentionRosterRef = useRef<string | null>(null);
@@ -949,43 +850,20 @@ export function MarkdownEditor({
           : {}),
       },
       handleDOMEvents: {
-        mousedown: (view, event) =>
-          preventEditorSelectionOnIssueReferenceMouseDown(view.dom, event) ||
-          preventEditorSelectionOnLinkMouseDown(view.dom, event),
-        mouseup: (view, event) =>
-          openEditorIssueReferenceOnMouseUp(
-            view.dom,
-            event,
-            issueReferencesOpenedFromMouseUpRef.current,
-          ) ||
-          openEditorLinkOnMouseUp(
-            view.dom,
-            event,
-            linksOpenedFromMouseUpRef.current,
-          ),
         keydown: (view, event) =>
           openEditorSemanticLinkOnKeyDown(
             view.dom,
             event,
-            focusedSemanticLinkRef.current,
+            focusedReferenceRef.current,
           ) ||
           openEditorIssueReferenceOnKeyDown(
             view.dom,
             event,
-            focusedIssueReferenceRef.current,
+            focusedReferenceRef.current,
           ),
       },
       handleClick: (view, _pos, event) =>
-        openClickedEditorIssueReference(
-          view.dom,
-          event,
-          issueReferencesOpenedFromMouseUpRef.current,
-        ) ||
-        openClickedEditorLink(
-          view.dom,
-          event,
-          linksOpenedFromMouseUpRef.current,
-        ),
+        openEditorIssueReferenceOnClick(view.dom, event),
       handlePaste: (_view, event) => {
         const files = filesFromFileList(event.clipboardData?.files ?? null);
         if (
@@ -1158,7 +1036,7 @@ export function MarkdownEditor({
     if (rootRef.current) {
       retargetRenderedAkbDocumentLinks(rootRef.current, akbWebBase);
     }
-  });
+  }, [akbWebBase]);
 
   // Tiptap captures `editable` at creation and ignores later option changes, so
   // a readOnly toggle after mount (e.g. a save-pending lock) should be applied
@@ -1354,16 +1232,14 @@ export function MarkdownEditor({
             SEMANTIC_EDITOR_LINK_SELECTOR,
           ) ?? null;
         if (semanticLink) {
-          focusedSemanticLinkRef.current = semanticLink;
-          focusedIssueReferenceRef.current = null;
+          focusedReferenceRef.current = semanticLink;
           return;
         }
         const issueReference =
           targetElement?.closest<HTMLElement>("[data-reef-issue-reference]") ??
           null;
         if (issueReference) {
-          focusedIssueReferenceRef.current = issueReference;
-          focusedSemanticLinkRef.current = null;
+          focusedReferenceRef.current = issueReference;
           return;
         }
         // Chromium promotes focus to the contenteditable root while it
@@ -1374,14 +1250,12 @@ export function MarkdownEditor({
           e.target instanceof Element &&
           e.target.classList.contains("ProseMirror");
         if (!isEditorContent) {
-          focusedIssueReferenceRef.current = null;
-          focusedSemanticLinkRef.current = null;
+          focusedReferenceRef.current = null;
         }
       }}
       onBlurCapture={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
-          focusedIssueReferenceRef.current = null;
-          focusedSemanticLinkRef.current = null;
+          focusedReferenceRef.current = null;
         }
       }}
       className={`rounded-md border border-border bg-elevated transition-colors duration-150 focus-within:border-brand focus-within:ring-2 focus-within:ring-inset focus-within:ring-brand/30 ${className ?? ""}`}

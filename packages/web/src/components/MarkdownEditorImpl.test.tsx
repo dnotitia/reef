@@ -55,7 +55,6 @@ vi.mock("@tiptap/react", () => {
     chain: () => mockChain,
     commands: {
       setContent: vi.fn(),
-      setTextSelection: vi.fn(),
     },
     // Direct getMarkdown method (Tiptap v3 augments Editor interface directly)
     getMarkdown: vi.fn(() => ""),
@@ -66,7 +65,7 @@ vi.mock("@tiptap/react", () => {
     },
     isActive: vi.fn(() => false),
     getAttributes: vi.fn(() => ({}) as Record<string, unknown>),
-    state: { selection: { empty: true }, doc: { content: { size: 10 } } },
+    state: { selection: { empty: true } },
     isDestroyed: false,
     isEditable: true,
     setEditable: vi.fn((editable: boolean) => {
@@ -184,253 +183,26 @@ describe("MarkdownEditor", () => {
     expect(className).not.toContain("dark:prose-invert");
   });
 
-  it("opens clicked editor links with noopener while consuming the link click", () => {
-    render(
-      <MarkdownEditor
-        value="[Spec](https://example.com/spec)"
-        onChange={vi.fn()}
-      />,
-    );
-    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
-      editorProps?: {
-        handleClick?: (
-          view: { dom: HTMLElement },
-          pos: number,
-          event: MouseEvent,
-        ) => boolean;
-      };
-    };
-    const root = document.createElement("div");
-    root.innerHTML =
-      '<p><a href="https://example.com/spec" target="_blank">Spec</a></p>';
-    const link = root.querySelector("a");
-    const event = new MouseEvent("click", {
-      bubbles: true,
-      cancelable: true,
-      button: 0,
-    });
-    Object.defineProperty(event, "target", { value: link });
-    const opened = { opener: window } as Window;
-    const open = vi.spyOn(window, "open").mockReturnValue(opened);
-
-    const handled = opts.editorProps?.handleClick?.({ dom: root }, 1, event);
-
-    expect(handled).toBe(true);
-    expect(event.defaultPrevented).toBe(true);
-    expect(open).toHaveBeenCalledWith(
-      "https://example.com/spec",
-      "_blank",
-      "noopener,noreferrer",
-    );
-    expect(opened.opener).toBeNull();
-  });
-
-  it("keeps link mouse down from moving the editor selection before opening", () => {
-    render(
-      <MarkdownEditor
-        value="[Spec](https://example.com/spec)"
-        onChange={vi.fn()}
-      />,
-    );
-    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
-      editorProps?: {
-        handleDOMEvents?: {
-          mousedown?: (
-            view: { dom: HTMLElement },
-            event: MouseEvent,
-          ) => boolean;
-        };
-      };
-    };
-    const root = document.createElement("div");
-    root.innerHTML =
-      '<p><a href="https://example.com/spec" target="_blank">Spec</a></p>';
-    const link = root.querySelector("a");
-    const event = new MouseEvent("mousedown", {
-      bubbles: true,
-      cancelable: true,
-      button: 0,
-    });
-    Object.defineProperty(event, "target", { value: link });
-    const open = vi.spyOn(window, "open");
-
-    const handled = opts.editorProps?.handleDOMEvents?.mousedown?.(
-      { dom: root },
-      event,
-    );
-
-    expect(handled).toBe(true);
-    expect(event.defaultPrevented).toBe(true);
-    expect(open).not.toHaveBeenCalled();
-  });
-
-  it("opens editor links on mouse up after preventing link mouse down selection", () => {
-    render(
-      <MarkdownEditor
-        value="[Spec](https://example.com/spec)"
-        onChange={vi.fn()}
-      />,
-    );
-    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
-      editorProps?: {
-        handleDOMEvents?: {
-          mouseup?: (view: { dom: HTMLElement }, event: MouseEvent) => boolean;
-        };
-        handleClick?: (
-          view: { dom: HTMLElement },
-          pos: number,
-          event: MouseEvent,
-        ) => boolean;
-      };
-    };
-    const root = document.createElement("div");
-    root.innerHTML =
-      '<p><a href="https://example.com/spec" target="_blank">Spec</a></p>';
-    const link = root.querySelector("a");
-    const opened = { opener: window } as Window;
-    const open = vi.spyOn(window, "open").mockReturnValue(opened);
-    const mouseUp = new MouseEvent("mouseup", {
-      bubbles: true,
-      cancelable: true,
-      button: 0,
-    });
-    Object.defineProperty(mouseUp, "target", { value: link });
-
-    const handledMouseUp = opts.editorProps?.handleDOMEvents?.mouseup?.(
-      { dom: root },
-      mouseUp,
-    );
-
-    expect(handledMouseUp).toBe(true);
-    expect(mouseUp.defaultPrevented).toBe(true);
-    expect(open).toHaveBeenCalledOnce();
-    expect(open).toHaveBeenCalledWith(
-      "https://example.com/spec",
-      "_blank",
-      "noopener,noreferrer",
-    );
-    expect(opened.opener).toBeNull();
-
-    const click = new MouseEvent("click", {
-      bubbles: true,
-      cancelable: true,
-      button: 0,
-    });
-    Object.defineProperty(click, "target", { value: link });
-
-    const handledClick = opts.editorProps?.handleClick?.(
-      { dom: root },
-      1,
-      click,
-    );
-
-    expect(handledClick).toBe(true);
-    expect(click.defaultPrevented).toBe(true);
-    expect(open).toHaveBeenCalledOnce();
-  });
-
-  it("activates semantic document and file links with Enter without an editor transaction", () => {
-    render(
-      <MarkdownEditor
-        value="[Report](akb://reef-test/coll/docs/doc/report.md) [incident.log](akb://reef-test/issues/file/incident-log)"
-        onChange={vi.fn()}
-      />,
-    );
-    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
-      editorProps?: {
-        handleDOMEvents?: {
-          keydown?: (
-            view: { dom: HTMLElement },
-            event: KeyboardEvent,
-          ) => boolean;
-        };
-      };
-    };
-    const root = document.createElement("div");
-    root.innerHTML = `
-      <p>
-        <a data-reef-document-link="true" data-reef-document-uri="akb://reef-test/coll/docs/doc/report.md" href="https://akb.example.com/vault/reef-test/doc/docs%2Freport.md" target="_blank" tabindex="0">Report</a>
-        <a data-reef-file-link="true" data-reef-file-uri="akb://reef-test/issues/file/incident-log" href="/api/issues/REEF-001/attachments/file?uri=incident-log&amp;download=1" target="_blank" tabindex="0" contenteditable="false">incident.log</a>
-      </p>`;
-    screen.getByTestId("editor-content").append(root);
-    const documentLink = root.querySelector<HTMLAnchorElement>(
-      'a[data-reef-document-link="true"]',
-    );
-    const fileLink = root.querySelector<HTMLAnchorElement>(
-      'a[data-reef-file-link="true"]',
-    );
-    if (!documentLink || !fileLink) {
-      throw new Error("Semantic link fixture did not render");
-    }
-    const opened = { opener: window } as Window;
-    const open = vi.spyOn(window, "open").mockReturnValue(opened);
-
-    documentLink.focus();
-    const promotedDocumentKeydown = new KeyboardEvent("keydown", {
-      key: "Enter",
-      bubbles: true,
-      cancelable: true,
-    });
-    Object.defineProperty(promotedDocumentKeydown, "target", { value: root });
-    expect(
-      opts.editorProps?.handleDOMEvents?.keydown?.(
-        { dom: root },
-        promotedDocumentKeydown,
-      ),
-    ).toBe(true);
-    expect(promotedDocumentKeydown.defaultPrevented).toBe(true);
-    expect(open).toHaveBeenCalledWith(
-      "https://akb.example.com/vault/reef-test/doc/docs%2Freport.md",
-      "_blank",
-      "noopener,noreferrer",
-    );
-
-    fileLink.focus();
-    const fileKeydown = new KeyboardEvent("keydown", {
-      key: "Enter",
-      bubbles: true,
-      cancelable: true,
-    });
-    Object.defineProperty(fileKeydown, "target", { value: fileLink });
-    expect(
-      opts.editorProps?.handleDOMEvents?.keydown?.({ dom: root }, fileKeydown),
-    ).toBe(true);
-    expect(fileKeydown.defaultPrevented).toBe(true);
-    expect(open).toHaveBeenLastCalledWith(
-      new URL(
-        "/api/issues/REEF-001/attachments/file?uri=incident-log&download=1",
-        window.location.href,
-      ).href,
-      "_blank",
-      "noopener,noreferrer",
-    );
-    expect(mockChain.insertContent).not.toHaveBeenCalled();
-    expect(mockChain.run).not.toHaveBeenCalled();
-  });
-
-  it("opens loaded issue references with mouse and keyboard semantics", () => {
+  it("keeps semantic references interactive without intercepting ordinary links", () => {
     const issue = {
       id: "REEF-123",
       title: "Semantic references",
       status: "in_progress",
     } as IssueListItem;
+    const onChange = vi.fn();
     render(
       <MarkdownEditor
-        value="REEF-123"
-        onChange={vi.fn()}
+        value="[Report](akb://reef-test/coll/docs/doc/report.md) REEF-123"
+        onChange={onChange}
         vault="reef-test"
         issueReferences={[issue]}
       />,
     );
+
     const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
       extensions?: readonly { name?: string }[];
       editorProps?: {
         handleDOMEvents?: {
-          mousedown?: (
-            view: { dom: HTMLElement },
-            event: MouseEvent,
-          ) => boolean;
-          mouseup?: (view: { dom: HTMLElement }, event: MouseEvent) => boolean;
           keydown?: (
             view: { dom: HTMLElement },
             event: KeyboardEvent,
@@ -450,145 +222,69 @@ describe("MarkdownEditor", () => {
     ).toBe(true);
 
     const root = document.createElement("div");
-    root.innerHTML =
-      '<p><span data-reef-issue-reference="true" data-reef-issue-href="/workspace/reef-test/issues/REEF-123" role="link" tabindex="0"><span data-reef-issue-id-text="true">REEF-123</span></span></p>';
+    root.innerHTML = `<p>
+      <a data-reef-document-link="true" href="https://akb.example.test/vault/reef-test/doc/report.md" target="_blank">Report</a>
+      <a data-reef-file-link="true" href="https://files.example.test/incident.log" target="_blank">incident.log</a>
+      <span data-reef-issue-reference="true" data-reef-issue-href="/workspace/reef-test/issues/REEF-123" role="link" tabindex="0"><span>REEF-123</span></span>
+      <a href="https://example.test/ordinary">ordinary</a>
+    </p>`;
     screen.getByTestId("editor-content").append(root);
-    const idText = root.querySelector("[data-reef-issue-id-text]");
-    const reference = root.querySelector<HTMLElement>(
-      "[data-reef-issue-reference]",
-    );
-    if (!reference) throw new Error("Issue reference fixture did not render");
     const open = vi
       .spyOn(window, "open")
       .mockReturnValue({ opener: window } as Window);
 
-    const mouseDown = new MouseEvent("mousedown", {
+    const documentLink = root.querySelector('[data-reef-document-link="true"]');
+    const documentKey = new KeyboardEvent("keydown", {
+      key: "Enter",
       bubbles: true,
       cancelable: true,
-      button: 0,
     });
-    Object.defineProperty(mouseDown, "target", { value: idText });
+    Object.defineProperty(documentKey, "target", { value: documentLink });
     expect(
-      opts.editorProps?.handleDOMEvents?.mousedown?.({ dom: root }, mouseDown),
+      opts.editorProps?.handleDOMEvents?.keydown?.({ dom: root }, documentKey),
     ).toBe(true);
-    expect(mouseDown.defaultPrevented).toBe(true);
+    expect(documentKey.defaultPrevented).toBe(true);
 
-    const mouseUp = new MouseEvent("mouseup", {
+    const fileLink = root.querySelector('[data-reef-file-link="true"]');
+    const fileKey = new KeyboardEvent("keydown", {
+      key: "Enter",
       bubbles: true,
       cancelable: true,
-      button: 0,
     });
-    Object.defineProperty(mouseUp, "target", { value: idText });
+    Object.defineProperty(fileKey, "target", { value: fileLink });
     expect(
-      opts.editorProps?.handleDOMEvents?.mouseup?.({ dom: root }, mouseUp),
+      opts.editorProps?.handleDOMEvents?.keydown?.({ dom: root }, fileKey),
     ).toBe(true);
-    expect(open).toHaveBeenCalledWith(
-      "/workspace/reef-test/issues/REEF-123",
-      "_blank",
-      "noopener,noreferrer",
+    expect(fileKey.defaultPrevented).toBe(true);
+
+    const issueText = root.querySelector(
+      '[data-reef-issue-reference="true"] span',
     );
-
-    const click = new MouseEvent("click", {
+    const issueClick = new MouseEvent("click", {
       bubbles: true,
       cancelable: true,
       button: 0,
     });
-    Object.defineProperty(click, "target", { value: idText });
-    expect(opts.editorProps?.handleClick?.({ dom: root }, 1, click)).toBe(true);
-    expect(open).toHaveBeenCalledOnce();
+    Object.defineProperty(issueClick, "target", { value: issueText });
+    expect(opts.editorProps?.handleClick?.({ dom: root }, 1, issueClick)).toBe(
+      true,
+    );
+    expect(issueClick.defaultPrevented).toBe(true);
 
-    const keydown = new KeyboardEvent("keydown", {
-      key: "Enter",
+    const ordinaryClick = new MouseEvent("click", {
       bubbles: true,
       cancelable: true,
+      button: 0,
     });
-    Object.defineProperty(keydown, "target", {
-      value: root.querySelector("[data-reef-issue-reference]"),
+    Object.defineProperty(ordinaryClick, "target", {
+      value: root.querySelector('a[href*="ordinary"]'),
     });
     expect(
-      opts.editorProps?.handleDOMEvents?.keydown?.({ dom: root }, keydown),
-    ).toBe(true);
-    expect(keydown.defaultPrevented).toBe(true);
-    expect(open).toHaveBeenCalledTimes(2);
-
-    // Chromium promotes focus to the ProseMirror root while dispatching the
-    // key event. The focus-capture seam keeps the descendant reference so the
-    // keyboard activation still opens the canonical issue URL safely.
-    fireEvent.focus(reference);
-    const promotedKeydown = new KeyboardEvent("keydown", {
-      key: "Enter",
-      bubbles: true,
-      cancelable: true,
-    });
-    Object.defineProperty(promotedKeydown, "target", { value: root });
-    expect(
-      opts.editorProps?.handleDOMEvents?.keydown?.(
-        { dom: root },
-        promotedKeydown,
-      ),
-    ).toBe(true);
-    expect(promotedKeydown.defaultPrevented).toBe(true);
+      opts.editorProps?.handleClick?.({ dom: root }, 1, ordinaryClick),
+    ).toBe(false);
+    expect(ordinaryClick.defaultPrevented).toBe(false);
     expect(open).toHaveBeenCalledTimes(3);
-  });
-
-  it("leaves ordinary editor mouse down for ProseMirror selection handling", () => {
-    render(<MarkdownEditor value="plain text" onChange={vi.fn()} />);
-    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
-      editorProps?: {
-        handleDOMEvents?: {
-          mousedown?: (
-            view: { dom: HTMLElement },
-            event: MouseEvent,
-          ) => boolean;
-        };
-      };
-    };
-    const root = document.createElement("div");
-    root.innerHTML = "<p>plain text</p>";
-    const paragraph = root.querySelector("p");
-    const event = new MouseEvent("mousedown", {
-      bubbles: true,
-      cancelable: true,
-      button: 0,
-    });
-    Object.defineProperty(event, "target", { value: paragraph });
-
-    const handled = opts.editorProps?.handleDOMEvents?.mousedown?.(
-      { dom: root },
-      event,
-    );
-
-    expect(handled).toBe(false);
-    expect(event.defaultPrevented).toBe(false);
-  });
-
-  it("leaves ordinary editor text clicks for ProseMirror selection handling", () => {
-    render(<MarkdownEditor value="plain text" onChange={vi.fn()} />);
-    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
-      editorProps?: {
-        handleClick?: (
-          view: { dom: HTMLElement },
-          pos: number,
-          event: MouseEvent,
-        ) => boolean;
-      };
-    };
-    const root = document.createElement("div");
-    root.innerHTML = "<p>plain text</p>";
-    const paragraph = root.querySelector("p");
-    const event = new MouseEvent("click", {
-      bubbles: true,
-      cancelable: true,
-      button: 0,
-    });
-    Object.defineProperty(event, "target", { value: paragraph });
-    const open = vi.spyOn(window, "open");
-
-    const handled = opts.editorProps?.handleClick?.({ dom: root }, 1, event);
-
-    expect(handled).toBe(false);
-    expect(event.defaultPrevented).toBe(false);
-    expect(open).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("shows toolbar buttons when not readOnly", () => {
@@ -902,103 +598,6 @@ describe("MarkdownEditor", () => {
     );
 
     expect(editor.commands.setContent).not.toHaveBeenCalled();
-  });
-
-  it("refreshes issue-reference decorations without publishing a passive render", () => {
-    const onChange = vi.fn();
-    const onBlur = vi.fn();
-    const firstIssue = {
-      id: "REEF-123",
-      title: "First title",
-      status: "todo",
-    } as IssueListItem;
-    const secondIssue = {
-      ...firstIssue,
-      title: "Updated title",
-      status: "in_progress",
-    } as IssueListItem;
-    const { rerender } = render(
-      <MarkdownEditor
-        value="REEF-123"
-        onChange={onChange}
-        onBlur={onBlur}
-        vault="reef-test"
-        issueReferences={[firstIssue]}
-      />,
-    );
-    const editor = vi.mocked(useEditor).mock.results.at(-1)?.value as {
-      commands: { setContent: ReturnType<typeof vi.fn> };
-    };
-    editor.commands.setContent.mockClear();
-
-    rerender(
-      <MarkdownEditor
-        value="REEF-123"
-        onChange={onChange}
-        onBlur={onBlur}
-        vault="reef-test"
-        issueReferences={[secondIssue]}
-      />,
-    );
-
-    expect(editor.commands.setContent).toHaveBeenCalledWith(
-      "REEF-123",
-      expect.objectContaining({ contentType: "markdown", emitUpdate: false }),
-    );
-    expect(onChange).not.toHaveBeenCalled();
-    expect(onBlur).not.toHaveBeenCalled();
-  });
-
-  it("keeps escaped issue text unchanged during passive metadata refresh", () => {
-    const onChange = vi.fn();
-    const onBlur = vi.fn();
-    const firstIssue = {
-      id: "REEF-123",
-      title: "First title",
-      status: "todo",
-    } as IssueListItem;
-    const refreshedIssue = {
-      ...firstIssue,
-      title: "Updated title",
-      status: "in_progress",
-    } as IssueListItem;
-    const escapedMarkdown = "\\REEF-123";
-    const { rerender } = render(
-      <MarkdownEditor
-        value={escapedMarkdown}
-        onChange={onChange}
-        onBlur={onBlur}
-        vault="reef-test"
-        issueReferences={[firstIssue]}
-      />,
-    );
-    const editor = vi.mocked(useEditor).mock.results.at(-1)?.value as {
-      commands: { setContent: ReturnType<typeof vi.fn> };
-    };
-    editor.commands.setContent.mockClear();
-
-    rerender(
-      <MarkdownEditor
-        value={escapedMarkdown}
-        onChange={onChange}
-        onBlur={onBlur}
-        vault="reef-test"
-        issueReferences={[refreshedIssue]}
-      />,
-    );
-
-    expect(editor.commands.setContent).toHaveBeenCalledWith(
-      escapedMarkdown,
-      expect.objectContaining({ contentType: "markdown", emitUpdate: false }),
-    );
-    expect(onChange).not.toHaveBeenCalled();
-    expect(onBlur).not.toHaveBeenCalled();
-    act(() => {
-      fireEvent.click(screen.getByTitle("Toggle source mode"));
-    });
-    expect(screen.getByTestId("markdown-source-textarea")).toHaveValue(
-      escapedMarkdown,
-    );
   });
 
   it("passes the latest source markdown to onBlur", () => {

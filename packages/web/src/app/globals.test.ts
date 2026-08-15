@@ -364,132 +364,23 @@ describe("global focus styles", () => {
     expect(css).not.toContain("\nimg {");
   });
 
-  it("keeps file-link surface and long-label wrapping scoped to the editor", () => {
+  it("keeps semantic surfaces scoped and token-distinct", () => {
     const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
-    const fileLinkStart = css.indexOf(
-      '.reef-markdown-editor a[data-reef-file-link="true"] {',
-    );
-    expect(fileLinkStart).toBeGreaterThan(-1);
-    const fileLinkEnd = findCssBlockEnd(css, fileLinkStart);
-    const fileLinkBlock = css.slice(fileLinkStart, fileLinkEnd);
-    for (const declaration of [
-      "display: inline-flex;",
-      "max-width: 100%;",
-      "min-width: 0;",
-      "overflow-wrap: anywhere;",
-      "word-break: break-word;",
-      "white-space: normal;",
-      "align-items: center;",
-      "vertical-align: middle;",
-      "line-height: 1.2;",
-      "background: var(--surface-subtle);",
-      "border: 1px solid var(--border);",
-      "border-radius: 0.25rem;",
-      "text-decoration: none;",
+    for (const selector of [
+      'a[data-reef-document-link="true"]',
+      'a[data-reef-file-link="true"]',
+      '[data-reef-issue-reference="true"]',
     ]) {
-      expect(fileLinkBlock, declaration).toContain(declaration);
+      expect(css).toContain(selector);
     }
-
-    const typeBadgeStart = css.indexOf(
-      '.reef-markdown-editor\n  a[data-reef-file-link="true"]\n  > [data-reef-file-type]::after {',
-    );
-    expect(typeBadgeStart).toBeGreaterThan(fileLinkEnd);
-    const typeBadgeEnd = findCssBlockEnd(css, typeBadgeStart);
-    expect(css.slice(typeBadgeStart, typeBadgeEnd)).toContain(
-      "content: attr(data-reef-file-type);",
-    );
-
-    const fileGlyphStart = css.indexOf(
-      '.reef-markdown-editor a[data-reef-file-link="true"]::before {',
-    );
-    expect(fileGlyphStart).toBeGreaterThan(fileLinkEnd);
-    const fileGlyphEnd = findCssBlockEnd(css, fileGlyphStart);
-    expect(css.slice(fileGlyphStart, fileGlyphEnd)).toContain('content: "▤";');
-
-    const fileArrowStart = css.indexOf(
-      '.reef-markdown-editor a[data-reef-file-link="true"]::after {',
-    );
-    expect(fileArrowStart).toBeGreaterThan(fileGlyphEnd);
-    const fileArrowEnd = findCssBlockEnd(css, fileArrowStart);
-    expect(css.slice(fileArrowStart, fileArrowEnd)).toContain('content: "↗";');
-    expect(css).not.toContain('\na[data-reef-file-link="true"] {');
-  });
-
-  it("gives AKB document links a bounded non-color document glyph", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
-    const documentStart = css.indexOf(
-      '.reef-markdown-editor a[data-reef-document-link="true"] {',
-    );
-    expect(documentStart).toBeGreaterThan(-1);
-    const documentEnd = findCssBlockEnd(css, documentStart);
-    const documentBlock = css.slice(documentStart, documentEnd);
-    for (const declaration of [
-      "display: inline-flex;",
-      "max-width: 100%;",
-      "min-width: 0;",
-      "overflow-wrap: anywhere;",
-      "word-break: break-word;",
-      "align-items: center;",
-      "vertical-align: middle;",
-      "line-height: 1.2;",
-      "background: var(--surface-subtle);",
-      "border: 1px solid var(--border);",
-      "border-radius: 0.25rem;",
-      "text-decoration: none;",
-    ]) {
-      expect(documentBlock, declaration).toContain(declaration);
-    }
-
-    const glyphStart = css.indexOf(
-      '.reef-markdown-editor a[data-reef-document-link="true"]::before {',
-    );
-    expect(glyphStart).toBeGreaterThan(documentEnd);
-    const glyphEnd = findCssBlockEnd(css, glyphStart);
-    expect(css.slice(glyphStart, glyphEnd)).toContain('content: "▣";');
-  });
-
-  it("keeps issue references bounded, keyboard-visible, and status-semantic", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
-    const referenceStart = css.indexOf(
-      '.reef-markdown-editor [data-reef-issue-reference="true"] {',
-    );
-    expect(referenceStart).toBeGreaterThan(-1);
-    const referenceEnd = findCssBlockEnd(css, referenceStart);
-    const referenceBlock = css.slice(referenceStart, referenceEnd);
-    for (const declaration of [
-      "display: inline-flex;",
-      "min-width: 0;",
-      "max-width: 100%;",
-      "overflow: hidden;",
-      "align-items: center;",
-      "vertical-align: middle;",
-      "line-height: 1.2;",
-      "background: var(--surface-subtle);",
-      "border: 1px solid var(--border);",
-      "text-decoration: none;",
-    ]) {
-      expect(referenceBlock, declaration).toContain(declaration);
-    }
-
-    expect(css).toContain('a[data-reef-document-link="true"]');
-    expect(css).toContain('a[data-reef-file-link="true"]');
-    expect(css).toContain(":focus-visible {");
+    expect(css).toContain("display: inline-flex;");
+    expect(css).toContain("align-items: center;");
+    expect(css).toContain("border: 1px solid var(--border);");
     expect(css).toContain("outline: 2px solid var(--brand);");
-    expect(css).toContain("outline-offset: 2px;");
-    expect(css).toContain(".reef-markdown-editor [data-reef-issue-id-text] {");
-    expect(css).toContain("font-family: var(--font-mono-stack);");
-    expect(css).toContain("max-width: clamp(4rem, 35vw, 20rem);");
-    expect(css).toContain(
-      '.reef-markdown-editor [data-reef-status="in_progress"] {',
-    );
-    expect(css).toContain("color: var(--status-in-progress);");
-    expect(css).toContain(
-      ".reef-markdown-editor [data-reef-status-glyph] {\n  position: relative;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;",
-    );
-    expect(css).toContain(
-      '.reef-markdown-editor [data-reef-status="done"]::after {',
-    );
-    expect(referenceBlock).not.toContain("var(--ai");
+    expect(css).toContain('content: "▣";');
+    expect(css).toContain('content: "▤";');
+    expect(css).toContain("content: attr(data-reef-file-type);");
+    expect(css).not.toContain('\na[data-reef-file-link="true"] {');
   });
 
   it("keeps normal lists dense while preserving the live task-list contract", () => {

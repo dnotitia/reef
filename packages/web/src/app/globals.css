@@ -783,10 +783,15 @@ hr {
   text-decoration-thickness: 2px;
 }
 
-/* AKB document links have a bounded, document-specific surface. The authored
- * label remains the accessible anchor text; the document glyph is a separate
- * shape so link meaning survives color and underline changes. */
-.reef-markdown-editor a[data-reef-document-link="true"] {
+/* Semantic references share one compact surface so the perimeter belongs to
+ * the same element as the glyph and label. Ordinary Markdown links keep their
+ * existing underline treatment. */
+.reef-markdown-editor
+:is(
+  a[data-reef-document-link="true"],
+  a[data-reef-file-link="true"],
+  [data-reef-issue-reference="true"]
+) {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
@@ -813,26 +818,9 @@ hr {
   line-height: 1;
 }
 
-/* Explicit AKB file links are compact inline actions, distinct from ordinary
- * Markdown URLs. The filename remains the accessible anchor text; the file
- * glyph, type badge, and outbound cue are display-only affordances. */
+/* Explicit AKB file links add a file glyph, type badge, and download cue. */
 .reef-markdown-editor a[data-reef-file-link="true"] {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  box-sizing: border-box;
-  min-width: 0;
-  max-width: 100%;
-  padding: 0.125rem 0.375rem;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  white-space: normal;
-  vertical-align: middle;
-  line-height: 1.2;
-  background: var(--surface-subtle);
-  border: 1px solid var(--border);
-  border-radius: 0.25rem;
-  text-decoration: none;
+  cursor: pointer;
 }
 
 .reef-markdown-editor a[data-reef-file-link="true"]::before {
@@ -864,25 +852,11 @@ hr {
   letter-spacing: 0.04em;
 }
 
-/* Known issue ids are editor-only reference marks. The authored id remains the
- * only Markdown text; the status glyph and muted title are a compact visual
- * hierarchy layered around it. Keep the whole token bounded so a long title
- * cannot widen a narrow create/detail column. */
+/* Known issue ids are editor-only reference marks; the authored id is the
+ * only Markdown text while the title and status remain display metadata. */
 .reef-markdown-editor [data-reef-issue-reference="true"] {
-  display: inline-flex;
-  align-items: center;
   gap: 0.3rem;
-  box-sizing: border-box;
-  min-width: 0;
-  max-width: 100%;
-  padding: 0.125rem 0.375rem;
   overflow: hidden;
-  vertical-align: middle;
-  line-height: 1.2;
-  background: var(--surface-subtle);
-  border: 1px solid var(--border);
-  border-radius: 0.25rem;
-  text-decoration: none;
   cursor: pointer;
 }
 
