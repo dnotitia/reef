@@ -731,6 +731,26 @@ describe("MarkdownEditor", () => {
     expect(textarea).toHaveAttribute("placeholder", "Enter description");
   });
 
+  it("keeps the Source placeholder independent from the WYSIWYG hint", () => {
+    render(
+      <MarkdownEditor
+        value=""
+        onChange={vi.fn()}
+        placeholder="Describe the issue or type / to insert a block…"
+        sourcePlaceholder="Describe the issue…"
+      />,
+    );
+
+    act(() => {
+      fireEvent.click(screen.getByTitle("Toggle source mode"));
+    });
+
+    expect(screen.getByTestId("markdown-source-textarea")).toHaveAttribute(
+      "placeholder",
+      "Describe the issue…",
+    );
+  });
+
   it("disables toolbar buttons in source mode", () => {
     render(<MarkdownEditor value="" onChange={vi.fn()} />);
     act(() => {

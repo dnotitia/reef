@@ -125,6 +125,23 @@ describe("catalog parity (REEF-293 AC2 — missing-key check)", () => {
     expect(missingKoKeys).toEqual([]);
   });
 
+  it("keeps issue WYSIWYG slash and Source placeholders localized", () => {
+    expect(en.issues.create.descriptionWysiwygPlaceholder).toBe(
+      "Describe the issue or type / to insert a block…",
+    );
+    expect(en.issues.create.descriptionPlaceholder).toBe("Describe the issue…");
+    expect(ko.issues.create.descriptionWysiwygPlaceholder).toBe(
+      "이슈를 설명하거나 /를 입력해 블록을 추가하세요…",
+    );
+    expect(ko.issues.create.descriptionPlaceholder).toBe("이슈를 설명하세요…");
+    expect(en.issues.detail.descriptionWysiwygPlaceholder).toBe(
+      en.issues.create.descriptionWysiwygPlaceholder,
+    );
+    expect(ko.issues.detail.descriptionWysiwygPlaceholder).toBe(
+      ko.issues.create.descriptionWysiwygPlaceholder,
+    );
+  });
+
   it("every catalog leaf is a non-empty string", () => {
     for (const [label, catalog] of [
       ["en", en],

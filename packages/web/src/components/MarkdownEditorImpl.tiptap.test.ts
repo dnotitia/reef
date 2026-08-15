@@ -15,6 +15,8 @@ function createEditor(
   markdown: string,
   mentionMembers?: readonly VaultMember[],
   resolveAttachmentHref?: (href: string) => string,
+  placeholder = "Describe the issue...",
+  editable = true,
 ) {
   const element = document.createElement("div");
   document.body.appendChild(element);
@@ -22,7 +24,7 @@ function createEditor(
   const editor = new Editor({
     element,
     extensions: createMarkdownEditorExtensions(
-      "Describe the issue...",
+      placeholder,
       undefined,
       mentionMembers
         ? {
@@ -37,6 +39,7 @@ function createEditor(
       ? prepareIssueBodyMentionMarkdown(markdown, mentionMembers)
       : markdown,
     contentType: "markdown",
+    editable,
   });
 
   editors.push(editor);
@@ -146,14 +149,33 @@ describe("MarkdownEditor Tiptap extensions", () => {
   });
 
   it("decorates an empty editor with the placeholder DOM contract", () => {
-    const editor = createEditor("");
+    const editor = createEditor(
+      "",
+      undefined,
+      undefined,
+      "Describe the issue or type / to insert a block…",
+    );
     const empty = editor.view.dom.querySelector(
       "p.is-empty:only-child[data-placeholder]",
     );
 
     expect(empty?.getAttribute("data-placeholder")).toBe(
-      "Describe the issue...",
+      "Describe the issue or type / to insert a block…",
     );
+  });
+
+  it("does not show the WYSIWYG placeholder in a read-only editor", () => {
+    const editor = createEditor(
+      "",
+      undefined,
+      undefined,
+      "Describe the issue or type / to insert a block…",
+      false,
+    );
+
+    expect(
+      editor.view.dom.querySelector("p.is-empty:only-child[data-placeholder]"),
+    ).toBeNull();
   });
 
   it("keeps the placeholder after clearing a non-empty editor and blurring", () => {

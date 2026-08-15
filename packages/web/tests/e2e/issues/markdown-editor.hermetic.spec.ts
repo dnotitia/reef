@@ -1062,6 +1062,29 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await editor.click();
     await page.keyboard.press("Control+A");
     await page.keyboard.press("Backspace");
+
+    await expect(
+      editor.locator("p.is-empty:only-child[data-placeholder]"),
+    ).toHaveAttribute(
+      "data-placeholder",
+      "Describe the issue or type / to insert a block…",
+    );
+    const emptySourceToggle = page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button");
+    await emptySourceToggle.click();
+    const emptySource = page.getByTestId("markdown-source-textarea");
+    await expect(emptySource).toHaveValue("");
+    await expect(emptySource).toHaveAttribute(
+      "placeholder",
+      "Describe the issue…",
+    );
+    await expect(emptySource).not.toHaveAttribute(
+      "placeholder",
+      /type \/ to insert a block/u,
+    );
+    await emptySourceToggle.click();
+    await editor.click();
     await page.keyboard.type("/");
 
     const menu = page.getByTestId("slash-command-menu");
@@ -1109,6 +1132,52 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await expect(reopenedEditor.locator("table tr")).toHaveCount(3);
     await expect(reopenedEditor.locator("table th")).toHaveCount(2);
     await expect(reopenedEditor.locator("table td")).toHaveCount(4);
+  });
+
+  test("keeps the create surface placeholder discoverable without saving it", async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width: 1200, height: 900 });
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    await page.getByTestId("issue-close").click();
+    await expect(page.getByTestId("issue-detail")).not.toBeVisible();
+    await page.getByTestId("new-issue-trigger").click();
+    const dialog = page.getByTestId("new-issue-dialog");
+    await expect(dialog).toBeVisible();
+    const editor = dialog.locator(".reef-markdown-editor");
+    await expect(
+      editor.locator("p.is-empty:only-child[data-placeholder]"),
+    ).toHaveAttribute(
+      "data-placeholder",
+      "Describe the issue or type / to insert a block…",
+    );
+
+    const sourceToggle = dialog
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button");
+    await sourceToggle.click();
+    const source = dialog.getByTestId("markdown-source-textarea");
+    await expect(source).toHaveValue("");
+    await expect(source).toHaveAttribute("placeholder", "Describe the issue…");
+    await sourceToggle.click();
+
+    await editor.click();
+    await page.keyboard.type("Body authored in the editor");
+    await expect(
+      editor.locator("p.is-empty:only-child[data-placeholder]"),
+    ).toHaveCount(0);
+
+    await sourceToggle.click();
+    await expect(source).toHaveValue("Body authored in the editor");
+    await expect(source).not.toHaveValue(
+      /Describe the issue or type \/ to insert a block/u,
+    );
+    await dialog.getByTestId("new-issue-cancel").click();
   });
 
   test("keeps independent task state through keyboard, Source, save, and re-entry", async ({

@@ -119,7 +119,10 @@ export const EDITOR_CONTENT_CLASS = "reef-markdown-editor";
 export interface MarkdownEditorProps {
   value: string;
   onChange: (markdown: string) => void;
+  /** Placeholder rendered by the editable WYSIWYG surface. */
   placeholder?: string;
+  /** Placeholder rendered by the raw Markdown Source textarea. */
+  sourcePlaceholder?: string;
   className?: string;
   readOnly?: boolean;
   /**
@@ -535,6 +538,7 @@ export function MarkdownEditor({
   value,
   onChange,
   placeholder = "Describe the issue…",
+  sourcePlaceholder,
   className,
   readOnly = false,
   ariaLabel,
@@ -1352,7 +1356,7 @@ export function MarkdownEditor({
             // stays a manual vertical fallback where field-sizing is unavailable,
             // so the textarea is does not stuck at min-h on those browsers.
             className={`w-full field-sizing-content resize-y rounded-sm ${EDITOR_BODY_SIZING} bg-transparent px-3 py-2 text-sm font-mono focus:outline-none`}
-            placeholder={placeholder}
+            placeholder={sourcePlaceholder ?? placeholder}
             data-testid="markdown-source-textarea"
           />
         ) : (

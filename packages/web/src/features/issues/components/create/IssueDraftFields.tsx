@@ -73,6 +73,8 @@ interface IssueDraftFieldsProps {
   bodyTestId?: string;
   titlePlaceholder?: string;
   bodyPlaceholder?: string;
+  bodyWysiwygPlaceholder?: string;
+  bodySourcePlaceholder?: string;
 }
 
 /**
@@ -111,6 +113,8 @@ export function IssueDraftFields({
   bodyTestId,
   titlePlaceholder,
   bodyPlaceholder,
+  bodyWysiwygPlaceholder,
+  bodySourcePlaceholder,
 }: IssueDraftFieldsProps) {
   const priorityLabelId = useId();
   const fieldNames = useFieldNameLabels();
@@ -122,7 +126,9 @@ export function IssueDraftFields({
   // placeholder (the create dialog uses these; ActivityDraftCard passes its own).
   const resolvedTitlePlaceholder = titlePlaceholder ?? t("titlePlaceholder");
   const resolvedBodyPlaceholder =
-    bodyPlaceholder ?? t("descriptionPlaceholder");
+    bodyWysiwygPlaceholder ?? bodyPlaceholder ?? t("descriptionPlaceholder");
+  const resolvedBodySourcePlaceholder =
+    bodySourcePlaceholder ?? bodyPlaceholder ?? resolvedBodyPlaceholder;
   const wrap = (field: DraftFieldKey, control: ReactNode): ReactNode =>
     renderField ? renderField(field, control) : control;
   const fieldGridClass =
@@ -229,6 +235,7 @@ export function IssueDraftFields({
             value={body}
             onChange={onBodyChange}
             placeholder={resolvedBodyPlaceholder}
+            sourcePlaceholder={resolvedBodySourcePlaceholder}
             readOnly={disabled}
             ariaLabel={t("descriptionAriaLabel")}
             vault={vault}

@@ -1,4 +1,5 @@
 import { useViewStore } from "@/features/ui/stores/useViewStore";
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import type { IssueMetadata } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -7,7 +8,21 @@ import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Heavy / query-backed children aren't relevant to the clip-container contract.
-vi.mock("@/components/MarkdownEditor", () => ({ MarkdownEditor: () => null }));
+vi.mock("@/components/MarkdownEditor", () => ({
+  MarkdownEditor: ({
+    placeholder,
+    sourcePlaceholder,
+  }: {
+    placeholder?: string;
+    sourcePlaceholder?: string;
+  }) => (
+    <div
+      data-testid="issue-detail-markdown-editor"
+      data-wysiwyg-placeholder={placeholder}
+      data-source-placeholder={sourcePlaceholder}
+    />
+  ),
+}));
 vi.mock("../refs/IssueLinkedDocuments", () => ({
   IssueLinkedDocuments: () => null,
 }));
@@ -47,6 +62,22 @@ function renderMain(
     <QueryClientProvider client={queryClient}>
       {renderMainElement(overrides)}
     </QueryClientProvider>,
+  );
+}
+
+function renderMainForLocale(
+  locale: "en" | "ko",
+  overrides: Partial<Parameters<typeof IssueDetailMain>[0]> = {},
+) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <IntlTestProvider locale={locale}>
+      <QueryClientProvider client={queryClient}>
+        {renderMainElement(overrides)}
+      </QueryClientProvider>
+    </IntlTestProvider>,
   );
 }
 
@@ -104,6 +135,30 @@ describe("IssueDetailMain autosave boundaries", () => {
 
     expect(commitTitle).toHaveBeenCalledWith("Renamed title");
   });
+});
+
+describe("IssueDetailMain markdown placeholders", () => {
+  it.each([
+    {
+      locale: "en" as const,
+      wysiwyg: "Describe the issue or type / to insert a block…",
+      source: "Describe the issue…",
+    },
+    {
+      locale: "ko" as const,
+      wysiwyg: "이슈를 설명하거나 /를 입력해 블록을 추가하세요…",
+      source: "이슈를 설명하세요…",
+    },
+  ])(
+    "keeps localized WYSIWYG and Source placeholders separate ($locale)",
+    ({ locale, wysiwyg, source }) => {
+      renderMainForLocale(locale);
+
+      const editor = screen.getByTestId("issue-detail-markdown-editor");
+      expect(editor).toHaveAttribute("data-wysiwyg-placeholder", wysiwyg);
+      expect(editor).toHaveAttribute("data-source-placeholder", source);
+    },
+  );
 });
 
 describe("IssueDetailMain sub-issue creation entry point", () => {
