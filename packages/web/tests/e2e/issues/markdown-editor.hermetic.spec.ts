@@ -1221,8 +1221,10 @@ test.describe("Hermetic Markdown editor fixture", () => {
       .filter({ hasText: "inline code" });
     await expect(inlineCode).toBeVisible();
     await inlineCode.click();
-    await page.keyboard.press("End");
     await page.keyboard.type("@inline");
+    await expect(
+      editor.locator("code").filter({ hasText: "@inline" }),
+    ).toBeVisible();
     await expect(page.getByRole("listbox")).toHaveCount(0);
 
     await editor.click();
