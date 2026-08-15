@@ -416,6 +416,7 @@ async function readMarkdownSurface(editor: Locator) {
       documentLink: documentLink
         ? {
             uri: documentLink.getAttribute("data-reef-document-uri"),
+            href: documentLink.getAttribute("href"),
             glyph: documentLink.getAttribute("data-reef-document-glyph"),
             label: documentLink.textContent,
             display: getComputedStyle(documentLink).display,
@@ -602,6 +603,12 @@ const MARKDOWN_FIXTURE_LARGE_IMAGE_PATH =
 const MARKDOWN_FIXTURE_TRANSPARENT_IMAGE_PATH =
   "/api/e2e/assets/reef-markdown-editor-transparent.svg";
 const MARKDOWN_FIXTURE_FILE_URI = "akb://reef-e2e/issues/file/incident-log";
+const MARKDOWN_FIXTURE_DOCUMENT_URI =
+  "akb://reef-e2e/coll/docs/doc/spec-overview.md";
+const AKB_WEB_BASE = "https://akb.e2e.test";
+const MARKDOWN_FIXTURE_DOCUMENT_HREF = `${AKB_WEB_BASE}/vault/reef-e2e/doc/${encodeURIComponent(
+  "docs/spec-overview.md",
+)}`;
 
 test.describe("Hermetic Markdown editor fixture", () => {
   test.beforeEach(async ({ context, request }) => {
@@ -852,7 +859,11 @@ test.describe("Hermetic Markdown editor fixture", () => {
     );
     await expect(documentLink).toHaveAttribute(
       "data-reef-document-uri",
-      "akb://reef-e2e/coll/docs/doc/spec-overview.md",
+      MARKDOWN_FIXTURE_DOCUMENT_URI,
+    );
+    await expect(documentLink).toHaveAttribute(
+      "href",
+      MARKDOWN_FIXTURE_DOCUMENT_HREF,
     );
     await expect(documentLink).toHaveCSS("display", "inline-flex");
     await expect(documentLink).toHaveCSS("text-decoration-line", "none");
@@ -987,7 +998,8 @@ test.describe("Hermetic Markdown editor fixture", () => {
         insideLink: false,
       });
       expect(surface.documentLink).toMatchObject({
-        uri: "akb://reef-e2e/coll/docs/doc/spec-overview.md",
+        uri: MARKDOWN_FIXTURE_DOCUMENT_URI,
+        href: MARKDOWN_FIXTURE_DOCUMENT_HREF,
         glyph: "true",
         label: "AKB report",
         display: "inline-flex",
@@ -1257,7 +1269,8 @@ test.describe("Hermetic Markdown editor fixture", () => {
         tables: 1,
       });
       expect(roundTrip.documentLink).toMatchObject({
-        uri: "akb://reef-e2e/coll/docs/doc/spec-overview.md",
+        uri: MARKDOWN_FIXTURE_DOCUMENT_URI,
+        href: MARKDOWN_FIXTURE_DOCUMENT_HREF,
         glyph: "true",
         label: "AKB report",
       });
@@ -1363,6 +1376,9 @@ test.describe("Hermetic Markdown editor fixture", () => {
     const reopenedFileLink = reopenedEditor.getByRole("link", {
       name: "incident.log",
     });
+    await expect(
+      reopenedEditor.getByRole("link", { name: "AKB report" }),
+    ).toHaveAttribute("href", MARKDOWN_FIXTURE_DOCUMENT_HREF);
     await expect(reopenedFileLink).toHaveAttribute(
       "data-reef-file-link",
       "true",
@@ -1374,6 +1390,97 @@ test.describe("Hermetic Markdown editor fixture", () => {
 
     expect(consoleErrors).toEqual([]);
     expect(pageErrors).toEqual([]);
+  });
+
+  test("activates document and file references with pointer and Enter without inserting a block", async ({
+    page,
+    request,
+  }) => {
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    const editor = page.locator(".reef-markdown-editor");
+    await expect(editor).toBeVisible();
+    const documentLink = editor.getByRole("link", { name: "AKB report" });
+    const fileLink = editor.getByRole("link", { name: "incident.log" });
+    await expect(documentLink).toHaveAttribute(
+      "href",
+      MARKDOWN_FIXTURE_DOCUMENT_HREF,
+    );
+
+    await page.context().route(`${AKB_WEB_BASE}/**`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "text/html",
+        body: "<!doctype html><title>AKB document</title>",
+      });
+    });
+
+    const pointerPopupPromise = page.waitForEvent("popup");
+    await documentLink.click();
+    const pointerPopup = await pointerPopupPromise;
+    await expect(pointerPopup).toHaveURL(MARKDOWN_FIXTURE_DOCUMENT_HREF);
+    await pointerPopup.close();
+
+    await documentLink.focus();
+    const keyboardPopupPromise = page.waitForEvent("popup");
+    await page.keyboard.press("Enter");
+    const keyboardPopup = await keyboardPopupPromise;
+    await expect(keyboardPopup).toHaveURL(MARKDOWN_FIXTURE_DOCUMENT_HREF);
+    await keyboardPopup.close();
+
+    const sourceToggle = page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button");
+    await sourceToggle.click();
+    const source = page.getByTestId("markdown-source-textarea");
+    const authoredMarkdown = await source.inputValue();
+    expect(authoredMarkdown).toContain(
+      `[AKB report](${MARKDOWN_FIXTURE_DOCUMENT_URI})`,
+    );
+    expect(authoredMarkdown).toContain(
+      `[incident.log](${MARKDOWN_FIXTURE_FILE_URI})`,
+    );
+    await sourceToggle.click();
+
+    const pointerDownloadPromise = page.waitForEvent("download");
+    await fileLink.click();
+    const pointerDownload = await pointerDownloadPromise;
+    expect(pointerDownload.suggestedFilename()).toBe("incident.log");
+
+    await fileLink.focus();
+    const keyboardDownloadPromise = page.waitForEvent("download");
+    await page.keyboard.press("Enter");
+    const keyboardDownload = await keyboardDownloadPromise;
+    expect(keyboardDownload.suggestedFilename()).toBe("incident.log");
+
+    await sourceToggle.click();
+    await expect(source).toHaveValue(authoredMarkdown);
+    expect(await source.inputValue()).not.toContain("&nbsp;");
+    await sourceToggle.click();
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    const reloadedEditor = page.locator(".reef-markdown-editor");
+    await expect(reloadedEditor).toBeVisible();
+    await expect(
+      reloadedEditor.getByRole("link", { name: "AKB report" }),
+    ).toHaveAttribute("href", MARKDOWN_FIXTURE_DOCUMENT_HREF);
+    await expect(
+      reloadedEditor.getByRole("link", { name: "incident.log" }),
+    ).toHaveAttribute("data-reef-file-link", "true");
+    await page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+    await expect(page.getByTestId("markdown-source-textarea")).toHaveValue(
+      authoredMarkdown,
+    );
+    expect(
+      await page.getByTestId("markdown-source-textarea").inputValue(),
+    ).not.toContain("&nbsp;");
   });
 
   test("contains the long code line at browser-level 200% zoom", async ({

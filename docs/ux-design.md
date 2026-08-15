@@ -385,8 +385,11 @@ outside the bounded extension rule), and long labels wrap within narrow issue
 panels. In WYSIWYG mode the link opens the existing issue-scoped authenticated
 attachment proxy in a safe new window, while Source mode and saved Markdown keep
 the raw AKB URI. An explicit AKB document link uses the same bounded document
-surface and glyph, while ordinary URLs retain their existing underlined rendering;
-comments and AI Markdown retain their existing rendering.
+surface and glyph and renders its configured canonical AKB web target. Both
+semantic surfaces use the same safe pointer and Enter/Space activation path, so
+activating one never inserts an editor block; ordinary URLs retain their existing
+underlined rendering, and comments and AI Markdown retain their existing
+rendering.
 
 Block Markdown keeps the same controlled density. Fenced code uses the existing
 Geist Mono stack at `13px/20px` on `--surface-subtle`, with a

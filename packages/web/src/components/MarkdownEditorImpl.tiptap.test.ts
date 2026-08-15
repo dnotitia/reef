@@ -18,6 +18,7 @@ function createEditor(
   resolveAttachmentHref?: (href: string) => string,
   issueReferences?: readonly IssueListItem[],
   vault = "reef-test",
+  resolveAkbDocumentHref?: (href: string) => string | undefined,
 ) {
   const element = document.createElement("div");
   document.body.appendChild(element);
@@ -46,6 +47,7 @@ function createEditor(
             },
           }
         : undefined,
+      resolveAkbDocumentHref,
     ),
     content: mentionMembers
       ? prepareIssueBodyMentionMarkdown(markdown, mentionMembers)
@@ -300,6 +302,43 @@ describe("MarkdownEditor Tiptap extensions", () => {
 
     expect(fileLink?.getAttribute("href")).toBe(resolve(fileUri));
     expect(editor.getMarkdown()).toContain(`[incident.log](${fileUri})`);
+  });
+
+  it("renders document links at the canonical AKB URL without changing Markdown", () => {
+    const documentUri = "akb://reef-test/coll/research/doc/report.md";
+    const canonicalHref =
+      "https://akb.example.com/vault/reef-test/doc/research%2Freport.md";
+    const editor = createEditor(
+      `[Research report](${documentUri})`,
+      undefined,
+      undefined,
+      undefined,
+      "reef-test",
+      (uri) => (uri === documentUri ? canonicalHref : undefined),
+    );
+    const documentLink = editor.view.dom.querySelector<HTMLAnchorElement>(
+      'a[data-reef-document-link="true"]',
+    );
+
+    expect(documentLink?.getAttribute("href")).toBe(canonicalHref);
+    expect(documentLink?.getAttribute("data-akb-uri")).toBe(documentUri);
+    expect(documentLink?.getAttribute("target")).toBe("_blank");
+    expect(documentLink?.getAttribute("rel")).toBe("noreferrer");
+    expect(editor.getMarkdown()).toBe(`[Research report](${documentUri})`);
+
+    const reloaded = createEditor(
+      editor.getMarkdown(),
+      undefined,
+      undefined,
+      undefined,
+      "reef-test",
+      (uri) => (uri === documentUri ? canonicalHref : undefined),
+    );
+    const reloadedLink = reloaded.view.dom.querySelector<HTMLAnchorElement>(
+      'a[data-reef-document-link="true"]',
+    );
+    expect(reloadedLink?.getAttribute("href")).toBe(canonicalHref);
+    expect(reloaded.getMarkdown()).toBe(`[Research report](${documentUri})`);
   });
 
   it("round-trips list, task, link, and image markdown together", () => {

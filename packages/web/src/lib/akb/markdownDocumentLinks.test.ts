@@ -62,4 +62,19 @@ describe("retargetRenderedAkbDocumentLinks", () => {
     );
     expect(anchor?.getAttribute("target")).toBe("_blank");
   });
+
+  it("retargets rendered semantic document markers after an editor rerender", () => {
+    const root = document.createElement("div");
+    root.innerHTML = `<a data-reef-document-link="true" data-reef-document-uri="${URI}" href="${URI}">Research Report</a>`;
+
+    retargetRenderedAkbDocumentLinks(root, "https://akb.example.com/");
+
+    const anchor = root.querySelector("a");
+    expect(anchor?.dataset.akbUri).toBe(URI);
+    expect(anchor?.getAttribute("href")).toBe(
+      "https://akb.example.com/vault/reef-test/doc/research%2Freport.md",
+    );
+    expect(anchor?.getAttribute("target")).toBe("_blank");
+    expect(anchor?.getAttribute("rel")).toBe("noreferrer");
+  });
 });

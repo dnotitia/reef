@@ -132,9 +132,13 @@ export function retargetRenderedAkbDocumentLinks(
   akbWebBase: string | null | undefined,
 ): void {
   for (const anchor of root.querySelectorAll<HTMLAnchorElement>(
-    'a[href^="akb://"], a[data-akb-uri]',
+    'a[data-reef-document-link="true"], a[href^="akb://"], a[data-akb-uri]',
   )) {
-    const uri = anchor.dataset.akbUri ?? anchor.getAttribute("href") ?? "";
+    const uri =
+      anchor.dataset.reefDocumentUri ??
+      anchor.dataset.akbUri ??
+      anchor.getAttribute("href") ??
+      "";
     if (!isAkbDocumentUri(uri)) continue;
     anchor.dataset.akbUri = uri;
     anchor.setAttribute("href", buildAkbDocumentUrl(akbWebBase, uri) ?? uri);

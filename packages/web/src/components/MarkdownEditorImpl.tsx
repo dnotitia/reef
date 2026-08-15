@@ -13,7 +13,10 @@ import {
   filesFromFileList,
 } from "@/features/issues/lib/attachmentMarkdown";
 import { resolveAkbDocumentTitles } from "@/lib/akb/documentTitleResolver";
-import { parseAkbDocumentUri } from "@/lib/akb/documentUri";
+import {
+  buildAkbDocumentUrl,
+  parseAkbDocumentUri,
+} from "@/lib/akb/documentUri";
 import {
   extractAkbDocumentUris,
   normalizeAkbDocumentMarkdownLinks,
@@ -210,6 +213,8 @@ const NO_ACTIVE: ActiveMarks = {
 };
 
 const LINK_CLICK_SUPPRESSION_MS = 1000;
+const SEMANTIC_EDITOR_LINK_SELECTOR =
+  'a[data-reef-document-link="true"], a[data-reef-file-link="true"]';
 
 function createImageExtension(resolveImageSrc?: (src: string) => string) {
   return Image.extend({
@@ -230,6 +235,7 @@ function createImageExtension(resolveImageSrc?: (src: string) => string) {
 
 function createIssueAttachmentLinkExtension(
   resolveAttachmentHref?: (href: string) => string | undefined,
+  resolveAkbDocumentHref?: (href: string) => string | undefined,
 ) {
   return LinkExtension.extend({
     parseMarkdown(token, helpers) {
@@ -260,13 +266,19 @@ function createIssueAttachmentLinkExtension(
           attrs.rel = "noreferrer";
         }
       } else if (parseAkbDocumentUri(href)) {
-        // Keep the authored AKB URI on a dedicated marker before the passive
-        // retargeting effect swaps href to the configured AKB web URL. The
-        // marker gives the document link its own surface and glyph without
-        // changing the Markdown label or serialization.
+        // Keep the authored AKB URI on dedicated markers while rendering the
+        // configured web target. This only changes the DOM attrs; the link
+        // mark still owns the authored URI used by Markdown serialization.
         attrs["data-reef-document-link"] = "true";
         attrs["data-reef-document-uri"] = href;
         attrs["data-reef-document-glyph"] = "true";
+        attrs["data-akb-uri"] = href;
+        const resolvedHref = resolveAkbDocumentHref?.(href);
+        if (resolvedHref) {
+          attrs.href = resolvedHref;
+          attrs.target = "_blank";
+          attrs.rel = "noreferrer";
+        }
       }
       return (
         this.parent?.({ mark, HTMLAttributes: attrs }) ?? [
@@ -326,6 +338,7 @@ export function createMarkdownEditorExtensions(
   resolveAttachmentHref?: (href: string) => string | undefined,
   slashMessages?: SlashCommandMessages,
   issueReferenceConfig?: IssueReferenceExtensionOptions,
+  resolveAkbDocumentHref?: (href: string) => string | undefined,
 ) {
   const extensions: AnyExtension[] = [
     // StarterKit v3 bundles the Link extension; configure it here rather than
@@ -338,7 +351,10 @@ export function createMarkdownEditorExtensions(
     // Keep the shared Link behavior while adding issue-scoped file-link
     // display attributes at render time. The authored AKB URI remains the
     // mark's href and therefore remains the Markdown serialization value.
-    createIssueAttachmentLinkExtension(resolveAttachmentHref),
+    createIssueAttachmentLinkExtension(
+      resolveAttachmentHref,
+      resolveAkbDocumentHref,
+    ),
     ...(issueReferenceConfig
       ? [createIssueReferenceExtension(issueReferenceConfig)]
       : []),
@@ -379,6 +395,17 @@ function findClickedEditorLink(
 ): HTMLAnchorElement | null {
   const target = event.target instanceof Element ? event.target : null;
   const anchor = target?.closest<HTMLAnchorElement>("a[href]") ?? null;
+  if (!anchor || !root.contains(anchor)) return null;
+  return anchor;
+}
+
+function findEditorSemanticLink(
+  root: ParentNode,
+  target: EventTarget | null,
+): HTMLAnchorElement | null {
+  const element = target instanceof Element ? target : null;
+  const anchor =
+    element?.closest<HTMLAnchorElement>(SEMANTIC_EDITOR_LINK_SELECTOR) ?? null;
   if (!anchor || !root.contains(anchor)) return null;
   return anchor;
 }
@@ -446,6 +473,20 @@ function openEditorLinkOnMouseUp(
   if (!openEditorLink(anchor)) return false;
 
   linksOpenedFromMouseUp.set(anchor, Date.now());
+  event.preventDefault();
+  return true;
+}
+
+function openEditorSemanticLinkOnKeyDown(
+  root: ParentNode,
+  event: KeyboardEvent,
+  focusedLink: HTMLAnchorElement | null,
+): boolean {
+  if (event.key !== "Enter" && event.key !== " ") return false;
+  const anchor =
+    findEditorSemanticLink(root, event.target) ??
+    (focusedLink && root.contains(focusedLink) ? focusedLink : null);
+  if (!anchor || !openEditorLink(anchor)) return false;
   event.preventDefault();
   return true;
 }
@@ -691,6 +732,7 @@ export function MarkdownEditor({
   const readOnlyRef = useRef(readOnly);
   const resolveImageSrcRef = useRef(resolveImageSrc);
   const resolveAttachmentHrefRef = useRef(resolveAttachmentHref);
+  const akbWebBaseRef = useRef(akbWebBase);
   const editorRef = useRef<Editor | null>(null);
   const resolvedTitleMapRef = useRef(new Map<string, string | null>());
   const pendingTitleUrisRef = useRef(new Set<string>());
@@ -702,6 +744,7 @@ export function MarkdownEditor({
     new WeakMap<HTMLElement, number>(),
   );
   const focusedIssueReferenceRef = useRef<HTMLElement | null>(null);
+  const focusedSemanticLinkRef = useRef<HTMLAnchorElement | null>(null);
   const linkSelectionRef = useRef<EditorSelectionRange | null>(null);
   const mentionMembersRef = useRef<readonly VaultMember[]>([]);
   const previousMentionRosterRef = useRef<string | null>(null);
@@ -884,6 +927,7 @@ export function MarkdownEditor({
             labelForRef: issueReferenceLabelRef,
           }
         : undefined,
+      (uri) => buildAkbDocumentUrl(akbWebBaseRef.current, uri) ?? undefined,
     ),
     /* eslint-enable react-hooks/refs */
     content: mentionConfig
@@ -920,6 +964,11 @@ export function MarkdownEditor({
             linksOpenedFromMouseUpRef.current,
           ),
         keydown: (view, event) =>
+          openEditorSemanticLinkOnKeyDown(
+            view.dom,
+            event,
+            focusedSemanticLinkRef.current,
+          ) ||
           openEditorIssueReferenceOnKeyDown(
             view.dom,
             event,
@@ -1032,6 +1081,10 @@ export function MarkdownEditor({
   useEffect(() => {
     resolveAttachmentHrefRef.current = resolveAttachmentHref;
   }, [resolveAttachmentHref]);
+
+  useEffect(() => {
+    akbWebBaseRef.current = akbWebBase;
+  }, [akbWebBase]);
 
   // Subscribe to derived active-state booleans just, so the toolbar re-renders
   // when formatting under the cursor changes — not on every transaction. The
@@ -1295,12 +1348,22 @@ export function MarkdownEditor({
         }
       }}
       onFocusCapture={(e) => {
-        const target =
-          e.target instanceof Element
-            ? e.target.closest<HTMLElement>("[data-reef-issue-reference]")
-            : null;
-        if (target) {
-          focusedIssueReferenceRef.current = target;
+        const targetElement = e.target instanceof Element ? e.target : null;
+        const semanticLink =
+          targetElement?.closest<HTMLAnchorElement>(
+            SEMANTIC_EDITOR_LINK_SELECTOR,
+          ) ?? null;
+        if (semanticLink) {
+          focusedSemanticLinkRef.current = semanticLink;
+          focusedIssueReferenceRef.current = null;
+          return;
+        }
+        const issueReference =
+          targetElement?.closest<HTMLElement>("[data-reef-issue-reference]") ??
+          null;
+        if (issueReference) {
+          focusedIssueReferenceRef.current = issueReference;
+          focusedSemanticLinkRef.current = null;
           return;
         }
         // Chromium promotes focus to the contenteditable root while it
@@ -1310,11 +1373,15 @@ export function MarkdownEditor({
         const isEditorContent =
           e.target instanceof Element &&
           e.target.classList.contains("ProseMirror");
-        if (!isEditorContent) focusedIssueReferenceRef.current = null;
+        if (!isEditorContent) {
+          focusedIssueReferenceRef.current = null;
+          focusedSemanticLinkRef.current = null;
+        }
       }}
       onBlurCapture={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
           focusedIssueReferenceRef.current = null;
+          focusedSemanticLinkRef.current = null;
         }
       }}
       className={`rounded-md border border-border bg-elevated transition-colors duration-150 focus-within:border-brand focus-within:ring-2 focus-within:ring-inset focus-within:ring-brand/30 ${className ?? ""}`}

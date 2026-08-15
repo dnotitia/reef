@@ -329,6 +329,85 @@ describe("MarkdownEditor", () => {
     expect(open).toHaveBeenCalledOnce();
   });
 
+  it("activates semantic document and file links with Enter without an editor transaction", () => {
+    render(
+      <MarkdownEditor
+        value="[Report](akb://reef-test/coll/docs/doc/report.md) [incident.log](akb://reef-test/issues/file/incident-log)"
+        onChange={vi.fn()}
+      />,
+    );
+    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
+      editorProps?: {
+        handleDOMEvents?: {
+          keydown?: (
+            view: { dom: HTMLElement },
+            event: KeyboardEvent,
+          ) => boolean;
+        };
+      };
+    };
+    const root = document.createElement("div");
+    root.innerHTML = `
+      <p>
+        <a data-reef-document-link="true" data-reef-document-uri="akb://reef-test/coll/docs/doc/report.md" href="https://akb.example.com/vault/reef-test/doc/docs%2Freport.md" target="_blank" tabindex="0">Report</a>
+        <a data-reef-file-link="true" data-reef-file-uri="akb://reef-test/issues/file/incident-log" href="/api/issues/REEF-001/attachments/file?uri=incident-log&amp;download=1" target="_blank" tabindex="0" contenteditable="false">incident.log</a>
+      </p>`;
+    screen.getByTestId("editor-content").append(root);
+    const documentLink = root.querySelector<HTMLAnchorElement>(
+      'a[data-reef-document-link="true"]',
+    );
+    const fileLink = root.querySelector<HTMLAnchorElement>(
+      'a[data-reef-file-link="true"]',
+    );
+    if (!documentLink || !fileLink) {
+      throw new Error("Semantic link fixture did not render");
+    }
+    const opened = { opener: window } as Window;
+    const open = vi.spyOn(window, "open").mockReturnValue(opened);
+
+    documentLink.focus();
+    const promotedDocumentKeydown = new KeyboardEvent("keydown", {
+      key: "Enter",
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(promotedDocumentKeydown, "target", { value: root });
+    expect(
+      opts.editorProps?.handleDOMEvents?.keydown?.(
+        { dom: root },
+        promotedDocumentKeydown,
+      ),
+    ).toBe(true);
+    expect(promotedDocumentKeydown.defaultPrevented).toBe(true);
+    expect(open).toHaveBeenCalledWith(
+      "https://akb.example.com/vault/reef-test/doc/docs%2Freport.md",
+      "_blank",
+      "noopener,noreferrer",
+    );
+
+    fileLink.focus();
+    const fileKeydown = new KeyboardEvent("keydown", {
+      key: "Enter",
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(fileKeydown, "target", { value: fileLink });
+    expect(
+      opts.editorProps?.handleDOMEvents?.keydown?.({ dom: root }, fileKeydown),
+    ).toBe(true);
+    expect(fileKeydown.defaultPrevented).toBe(true);
+    expect(open).toHaveBeenLastCalledWith(
+      new URL(
+        "/api/issues/REEF-001/attachments/file?uri=incident-log&download=1",
+        window.location.href,
+      ).href,
+      "_blank",
+      "noopener,noreferrer",
+    );
+    expect(mockChain.insertContent).not.toHaveBeenCalled();
+    expect(mockChain.run).not.toHaveBeenCalled();
+  });
+
   it("opens loaded issue references with mouse and keyboard semantics", () => {
     const issue = {
       id: "REEF-123",
