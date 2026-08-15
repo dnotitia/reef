@@ -18,6 +18,7 @@ import {
   type MarkdownTokenizer,
   type Range,
 } from "@tiptap/core";
+import { PluginKey } from "@tiptap/pm/state";
 import Mention from "@tiptap/extension-mention";
 import { ReactRenderer } from "@tiptap/react";
 import type {
@@ -25,7 +26,7 @@ import type {
   SuggestionOptions,
   SuggestionProps,
 } from "@tiptap/suggestion";
-import { findSuggestionMatch } from "@tiptap/suggestion";
+import { exitSuggestion, findSuggestionMatch } from "@tiptap/suggestion";
 
 export type IssueBodyReferenceCandidate =
   | { kind: "person"; member: VaultMember }
@@ -36,6 +37,12 @@ export type IssueBodyDocumentSearch = (
   query: string,
   signal: AbortSignal,
 ) => Promise<readonly DocumentSearchHit[]>;
+
+// Mention creates a private key when it builds its Suggestion plugin. Keep an
+// explicit key so the Radix capture-phase Escape handoff can exit this picker.
+const ISSUE_BODY_MENTION_PLUGIN_KEY = new PluginKey(
+  "reefIssueBodyMentionSuggestion",
+);
 
 export interface IssueBodyMentionExtensionOptions {
   /** Mutable so the lazy editor can observe roster refreshes without rebuilding. */
@@ -56,6 +63,8 @@ export interface IssueBodyMentionExtensionOptions {
   documentSearchLoadingLabel: string;
   documentSearchErrorLabel: string;
   documentSearchEmptyLabel: string;
+  /** Keeps the surrounding Sheet/Dialog from dismissing an open picker. */
+  onOpenChange?: (open: boolean, dismiss?: () => void) => void;
 }
 
 type DocumentSearchStatus = "idle" | "loading" | "ready" | "empty" | "error";
@@ -541,6 +550,7 @@ function createIssueBodyMentionSuggestion(
   }
 
   return {
+    pluginKey: ISSUE_BODY_MENTION_PLUGIN_KEY,
     char: "@",
     allowedPrefixes: null,
     findSuggestionMatch: (config) => {
@@ -563,6 +573,11 @@ function createIssueBodyMentionSuggestion(
       return backslashes % 2 === 1 ? null : match;
     },
     decorationClass: "reef-issue-body-mention-suggestion",
+    // Resolve the active modal at mount time. Keeping the popup inside its
+    // Radix content avoids both outside-dismiss handling and equal-z-index
+    // hit-test races while retaining body mounting for non-modal editors.
+    container:
+      '[data-slot="sheet-content"][data-state="open"], [data-slot="dialog-content"][data-state="open"]',
     allow: ({ editor }) =>
       !editor.view.composing &&
       !editor.isActive("code") &&
@@ -604,6 +619,9 @@ function createIssueBodyMentionSuggestion(
     },
     render: () => ({
       onStart: (props) => {
+        options.onOpenChange?.(true, () =>
+          exitSuggestion(props.editor.view, ISSUE_BODY_MENTION_PLUGIN_KEY),
+        );
         selectedIndex = 0;
         previousQuery = props.query;
         candidates = getVisibleCandidates(props.query, props.items);
@@ -644,6 +662,7 @@ function createIssueBodyMentionSuggestion(
       },
       onUpdate: updateRenderer,
       onExit: ({ editor }) => {
+        options.onOpenChange?.(false);
         setEditorMentionAria(editor, listboxId, selectedIndex, false, false);
         unmount?.();
         unmount = undefined;

@@ -79,6 +79,7 @@ import {
   type IssueBodyDocumentSearch,
   type IssueBodyMentionExtensionOptions,
 } from "./issueBodyMentionExtension";
+import { useOverlayOpenRegistration } from "./ui/overlayDismiss";
 import {
   createSlashCommandExtension,
   type SlashCommandMessages,
@@ -560,6 +561,7 @@ export function MarkdownEditor({
   const c = useTranslations("common");
   const akbWebBase = useAkbWebUrl();
   const [sourceMode, setSourceMode] = useState(false);
+  const [mentionOpen, setMentionOpen] = useState(false);
   const [linkEditorOpen, setLinkEditorOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [uploadingFiles, setUploadingFiles] = useState(false);
@@ -587,7 +589,28 @@ export function MarkdownEditor({
   const mentionDocumentSearchRef = useRef<IssueBodyDocumentSearch | undefined>(
     undefined,
   );
+  const mentionDismissRef = useRef<(() => void) | null>(null);
   const previousMentionRosterRef = useRef<string | null>(null);
+
+  const dismissMention = useCallback(() => {
+    mentionDismissRef.current?.();
+  }, []);
+
+  const handleMentionOpenChange = useCallback(
+    (open: boolean, dismiss?: () => void) => {
+      mentionDismissRef.current = open ? (dismiss ?? null) : null;
+      setMentionOpen(open);
+    },
+    [],
+  );
+
+  // The picker is rendered by Tiptap rather than React, so bridge its open
+  // state into the shared Radix overlay registry. Escape then dismisses the
+  // picker before the surrounding Sheet/Dialog (REEF-524/DC-5).
+  useOverlayOpenRegistration(
+    Boolean(mentionConfig && mentionOpen),
+    dismissMention,
+  );
 
   const slashMessages = useMemo<SlashCommandMessages>(
     () => ({
@@ -754,6 +777,7 @@ export function MarkdownEditor({
               mentionConfig.documentSearchLoadingLabel,
             documentSearchErrorLabel: mentionConfig.documentSearchErrorLabel,
             documentSearchEmptyLabel: mentionConfig.documentSearchEmptyLabel,
+            onOpenChange: handleMentionOpenChange,
           }
         : undefined,
       (href) => resolveAttachmentHrefRef.current?.(href),

@@ -19,10 +19,11 @@
  * each open custom overlay registers with the nearest provider (mounted by
  * `SheetContent` / `DialogContent`), and the surrounding Sheet/Dialog consults it
  * in `onEscapeKeyDown` — when a child overlay is open it `preventDefault()`s so
- * Radix skips its dismiss, leaving the overlay's own Escape handler to close just
- * the overlay. Outside any dialog the context is a no-op default, so overlays on
- * plain pages (the issues-toolbar `SortControl`, sidebar menus) keep their
- * existing standalone Escape behavior untouched.
+ * Radix skips its dismiss, then invokes the registered top-overlay callback when
+ * one is supplied. Overlays with no callback keep handling Escape at their own
+ * target. Outside any dialog the context is a no-op default, so overlays on plain
+ * pages (the issues-toolbar `SortControl`, sidebar menus) keep their existing
+ * standalone Escape behavior untouched.
  */
 
 import {
@@ -37,14 +38,17 @@ import {
 
 export interface OverlayDismissRegistry {
   /** Mark an overlay open; returns a release to call when it closes. */
-  acquire: () => () => void;
+  acquire: (onDismiss?: () => void) => () => void;
   /** True while at least one registered overlay is open. */
   hasOpenOverlay: () => boolean;
+  /** Dismiss the top registered overlay when it owns the Escape handoff. */
+  dismissOpenOverlay: () => boolean;
 }
 
 const NOOP_REGISTRY: OverlayDismissRegistry = {
   acquire: () => () => {},
   hasOpenOverlay: () => false,
+  dismissOpenOverlay: () => false,
 };
 
 const OverlayDismissContext =
@@ -52,24 +56,32 @@ const OverlayDismissContext =
 
 /**
  * Create a registry instance. `SheetContent` / `DialogContent` create one,
- * consult it in their Escape handler, and provide it to their subtree. The count
- * lives in a ref so the (capture-phase) Escape handler can read it synchronously
- * without depending on a re-render having flushed.
+ * consult it in their Escape handler, and provide it to their subtree. The open
+ * entry stack lives in a ref so the (capture-phase) Escape handler can read it
+ * synchronously without depending on a re-render having flushed.
  */
 export function useOverlayDismissRegistry(): OverlayDismissRegistry {
-  const countRef = useRef(0);
+  const entriesRef = useRef<Array<{ onDismiss?: () => void }>>([]);
   return useMemo<OverlayDismissRegistry>(
     () => ({
-      acquire() {
-        countRef.current += 1;
+      acquire(onDismiss) {
+        const entry = { onDismiss };
+        entriesRef.current.push(entry);
         let released = false;
         return () => {
           if (released) return;
           released = true;
-          countRef.current -= 1;
+          const index = entriesRef.current.indexOf(entry);
+          if (index >= 0) entriesRef.current.splice(index, 1);
         };
       },
-      hasOpenOverlay: () => countRef.current > 0,
+      hasOpenOverlay: () => entriesRef.current.length > 0,
+      dismissOpenOverlay: () => {
+        const entry = entriesRef.current.at(-1);
+        if (!entry?.onDismiss) return false;
+        entry.onDismiss();
+        return true;
+      },
     }),
     [],
   );
@@ -93,13 +105,18 @@ export function OverlayDismissProvider({
  * Register a custom overlay as open for as long as `open` is true, so the
  * surrounding Sheet/Dialog's Escape handler defers to it. No-ops outside any
  * dialog (the default context). Call once alongside the overlay's `open` state.
+ * `onDismiss` is used by overlays whose native keydown handler cannot run after
+ * Radix's capture listener (e.g. Tiptap).
  */
-export function useOverlayOpenRegistration(open: boolean): void {
+export function useOverlayOpenRegistration(
+  open: boolean,
+  onDismiss?: () => void,
+): void {
   const registry = useContext(OverlayDismissContext);
   useEffect(() => {
     if (!open) return;
-    return registry.acquire();
-  }, [open, registry]);
+    return registry.acquire(onDismiss);
+  }, [open, onDismiss, registry]);
 }
 
 /**
@@ -116,6 +133,7 @@ export function useGuardedEscapeKeyDown(
     (event: KeyboardEvent) => {
       if (registry.hasOpenOverlay()) {
         event.preventDefault();
+        registry.dismissOpenOverlay();
         return;
       }
       onEscapeKeyDown?.(event);

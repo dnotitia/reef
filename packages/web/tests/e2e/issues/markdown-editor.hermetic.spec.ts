@@ -1154,6 +1154,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
       .filter({ hasText: "Alpha reference" })
       .click();
     await expect(editor).toHaveAttribute("aria-expanded", "false");
+    await expect(editor).toBeFocused();
     await page
       .getByTestId("markdown-source-toggle")
       .getByRole("button")
@@ -1175,6 +1176,34 @@ test.describe("Hermetic Markdown editor fixture", () => {
           call.method === "POST" && call.path.includes("/api/v1/relations"),
       ),
     ).toBe(false);
+  });
+
+  test("keeps the issue detail open when Escape dismisses the @ menu", async ({
+    page,
+    request,
+  }) => {
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    const editor = page.locator(".reef-markdown-editor");
+    await editor.click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("@");
+
+    const listbox = page.getByRole("listbox");
+    await expect(listbox).toBeVisible();
+    const bodyBeforeEscape = await editor.textContent();
+
+    await page.keyboard.press("Escape");
+
+    await expect(listbox).toHaveCount(0);
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await expect(editor).toBeFocused();
+    await expect(editor).toHaveAttribute("aria-expanded", "false");
+    await expect(editor).toHaveText(bodyBeforeEscape ?? "");
   });
 
   test("keeps independent task state through keyboard, Source, save, and re-entry", async ({
