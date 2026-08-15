@@ -128,13 +128,16 @@ test.describe("Hermetic issue description height resize", () => {
       "style",
       new RegExp(`height: ${MIN_HEIGHT}px`),
     );
+    await handle.scrollIntoViewIfNeeded();
+    await handle.hover();
     const box = await handle.boundingBox();
     if (!box) throw new Error("Description resize handle is not laid out");
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    const startX = box.x + box.width / 2;
+    const startY = box.y + box.height / 2;
+    await page.mouse.move(startX, startY);
     await page.mouse.down();
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 96, {
-      steps: 3,
-    });
+    await expect(handle).toHaveAttribute("data-resizing", "true");
+    await page.mouse.move(startX, startY + 96, { steps: 3 });
     await page.mouse.up();
     await expect(handle).toHaveAttribute(
       "aria-valuenow",
