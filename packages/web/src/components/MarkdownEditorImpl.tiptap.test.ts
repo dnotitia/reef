@@ -280,6 +280,10 @@ describe("MarkdownEditor Tiptap extensions", () => {
     expect(fileLink?.getAttribute("href")).toBe(resolve(fileUri));
     expect(fileLink?.getAttribute("target")).toBe("_blank");
     expect(fileLink?.getAttribute("rel")).toBe("noreferrer");
+    expect(fileLink?.getAttribute("tabindex")).toBe("0");
+    expect(fileLink?.getAttribute("contenteditable")).toBe("false");
+    fileLink?.focus();
+    expect(document.activeElement).toBe(fileLink);
 
     const documentLink = root.querySelector<HTMLAnchorElement>(
       `a[href="${documentUri}"]`,

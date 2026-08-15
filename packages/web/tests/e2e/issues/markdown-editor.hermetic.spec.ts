@@ -1539,21 +1539,29 @@ test.describe("Hermetic Markdown editor fixture", () => {
       .getByRole("button");
     await sourceToggle.click();
     const source = page.getByTestId("markdown-source-textarea");
+    const originalDocumentMarkdown =
+      "[AKB report](akb://reef-e2e/coll/docs/doc/spec-overview.md)";
+    const originalFileMarkdown = `[incident.log](${MARKDOWN_FIXTURE_FILE_URI})`;
+    await expect
+      .poll(() => source.inputValue())
+      .toContain(originalDocumentMarkdown);
+    await expect
+      .poll(() => source.inputValue())
+      .toContain(originalFileMarkdown);
     const sourceMarkdown = await source.inputValue();
     const longDocumentLabel =
       "AKB document label that wraps inside the compact editor surface";
     const longFileLabel = "incident-log-long-filename-that-wraps.log";
+    const wrappedDocumentMarkdown = `[${longDocumentLabel}](akb://reef-e2e/coll/docs/doc/spec-overview.md)`;
+    const wrappedFileMarkdown = `[${longFileLabel}](${MARKDOWN_FIXTURE_FILE_URI})`;
     const wrappedMarkdown = sourceMarkdown
-      .replace(
-        "[AKB report]",
-        `[${longDocumentLabel}](akb://reef-e2e/coll/docs/doc/spec-overview.md)`,
-      )
-      .replace(
-        "[incident.log]",
-        `[${longFileLabel}](${MARKDOWN_FIXTURE_FILE_URI})`,
-      );
+      .replace(originalDocumentMarkdown, wrappedDocumentMarkdown)
+      .replace(originalFileMarkdown, wrappedFileMarkdown);
     expect(wrappedMarkdown).not.toBe(sourceMarkdown);
+    expect(wrappedMarkdown).toContain(wrappedDocumentMarkdown);
+    expect(wrappedMarkdown).toContain(wrappedFileMarkdown);
     await source.fill(wrappedMarkdown);
+    await expect(source).toHaveValue(wrappedMarkdown);
     await sourceToggle.click();
     await expect(editor).toBeVisible();
 
@@ -1767,40 +1775,68 @@ test.describe("Hermetic Markdown editor fixture", () => {
     });
     const issueReference = editor.locator('[data-reef-issue-reference="true"]');
     const mention = editor.locator('[data-reef-mention="true"]');
+    const fileLink = editor.getByRole("link", { name: "incident.log" });
     const firstTaskCheckbox = editor
       .locator('ul[data-type="taskList"] input[type="checkbox"]')
       .first();
+    const lastTaskCheckbox = editor
+      .locator('ul[data-type="taskList"] input[type="checkbox"]')
+      .last();
 
-    await expect(normalLink).toHaveAttribute("tabindex", "0");
-    await expect(akbLink).toHaveAttribute("tabindex", "0");
-    await expect(linkedIssueId).toHaveAttribute("tabindex", "0");
-    await expect(issueReference).toHaveAttribute("tabindex", "0");
-    await expect(mention).not.toHaveAttribute("tabindex");
-    await expect(mention).not.toHaveRole("link");
+    const assertTabOrder = async () => {
+      await expect(normalLink).toHaveAttribute("tabindex", "0");
+      await expect(akbLink).toHaveAttribute("tabindex", "0");
+      await expect(linkedIssueId).toHaveAttribute("tabindex", "0");
+      await expect(issueReference).toHaveAttribute("tabindex", "0");
+      await expect(fileLink).toHaveAttribute("tabindex", "0");
+      await expect(fileLink).toHaveAttribute("contenteditable", "false");
+      await expect(mention).not.toHaveAttribute("tabindex");
+      await expect(mention).not.toHaveRole("link");
 
-    await editor.focus();
-    await page.keyboard.press("Tab");
-    await expect(normalLink).toBeFocused();
-    await expect(normalLink).toHaveCSS("text-decoration-thickness", "2px");
+      await editor.focus();
+      await page.keyboard.press("Tab");
+      await expect(normalLink).toBeFocused();
+      await expect(normalLink).toHaveCSS("text-decoration-thickness", "2px");
 
-    await page.keyboard.press("Tab");
-    await expect(akbLink).toBeFocused();
-    await expect(akbLink).toHaveCSS("outline-width", "2px");
+      await page.keyboard.press("Tab");
+      await expect(akbLink).toBeFocused();
+      await expect(akbLink).toHaveCSS("outline-width", "2px");
 
-    await page.keyboard.press("Tab");
-    await expect(issueReference).toBeFocused();
-    await expect(issueReference).toBeVisible();
+      await page.keyboard.press("Tab");
+      await expect(issueReference).toBeFocused();
+      await expect(issueReference).toBeVisible();
 
-    await page.keyboard.press("Tab");
-    await expect(linkedIssueId).toBeFocused();
+      await page.keyboard.press("Tab");
+      await expect(linkedIssueId).toBeFocused();
 
-    await page.keyboard.press("Tab");
-    await expect(firstTaskCheckbox).toBeFocused();
-    await expect(firstTaskCheckbox).toHaveCSS("outline-width", "2px");
-    await expect(firstTaskCheckbox).toHaveCSS(
-      "outline-color",
-      surface.colors.brand,
-    );
-    await expect(mention).not.toBeFocused();
+      await page.keyboard.press("Tab");
+      await expect(firstTaskCheckbox).toBeFocused();
+      await expect(firstTaskCheckbox).toHaveCSS("outline-width", "2px");
+      await expect(firstTaskCheckbox).toHaveCSS(
+        "outline-color",
+        surface.colors.brand,
+      );
+      await expect(mention).not.toBeFocused();
+
+      await page.keyboard.press("Tab");
+      await expect(
+        editor.locator('input[type="checkbox"]').nth(1),
+      ).toBeFocused();
+      await page.keyboard.press("Tab");
+      await expect(lastTaskCheckbox).toBeFocused();
+      // Leaving a native task checkbox returns focus to the editing host before
+      // the next browser Tab reaches the non-editable authored link.
+      await page.keyboard.press("Tab");
+      await page.keyboard.press("Tab");
+      await expect(fileLink).toBeFocused();
+      await expect(fileLink).toHaveCSS("outline-width", "2px");
+      await expect(fileLink).toHaveCSS("outline-color", surface.colors.brand);
+    };
+
+    await assertTabOrder();
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await expect(editor).toBeVisible();
+    await assertTabOrder();
   });
 });

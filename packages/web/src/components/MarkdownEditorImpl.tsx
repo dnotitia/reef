@@ -252,6 +252,7 @@ function createIssueAttachmentLinkExtension(
         attrs["data-reef-file-link"] = "true";
         attrs["data-reef-file-uri"] = href;
         attrs["data-reef-file-glyph"] = "true";
+        attrs.contenteditable = "false";
         const resolvedHref = resolveAttachmentHref?.(href);
         if (resolvedHref) {
           attrs.href = resolvedHref;
