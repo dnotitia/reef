@@ -3,6 +3,11 @@ import type { VaultMember } from "@reef/core";
 import { afterEach, describe, expect, it } from "vitest";
 import { createMarkdownEditorExtensions } from "./MarkdownEditorImpl";
 import { prepareIssueBodyMentionMarkdown } from "./issueBodyMentionExtension";
+import {
+  DEFAULT_SLASH_COMMAND_MESSAGES,
+  SLASH_COMMAND_DEFINITIONS,
+  createLocalizedSlashCommandRegistry,
+} from "./slashCommandExtension";
 
 const editors: Editor[] = [];
 
@@ -45,6 +50,79 @@ afterEach(() => {
 });
 
 describe("MarkdownEditor Tiptap extensions", () => {
+  it("parses and serializes a basic GFM table with a header row", () => {
+    const editor = createEditor(
+      "| Name | Status |\n| --- | --- |\n| Reef | Ready |\n| AKB | Draft |",
+    );
+
+    const table = editor.view.dom.querySelector("table");
+    expect(table?.querySelectorAll(":scope > tbody > tr")).toHaveLength(3);
+    expect(
+      table?.querySelectorAll(":scope > tbody > tr:first-child > th"),
+    ).toHaveLength(2);
+    expect(
+      table?.querySelectorAll(":scope > tbody > tr:nth-child(2) > td"),
+    ).toHaveLength(2);
+    expect(editor.getMarkdown()).toContain("| Name | Status |");
+    expect(editor.getMarkdown()).toMatch(/\| Reef\s+\| Ready\s+\|/);
+
+    const reloaded = createEditor(editor.getMarkdown());
+    expect(reloaded.view.dom.querySelectorAll("table tr")).toHaveLength(3);
+    expect(
+      reloaded.view.dom.querySelector("table tr:nth-child(3)")?.textContent,
+    ).toContain("AKB");
+  });
+
+  it("inserts the registry table command as a three-row, two-column table", () => {
+    const editor = createEditor("/");
+    const tableCommand = SLASH_COMMAND_DEFINITIONS.find(
+      (command) => command.id === "table",
+    );
+    expect(tableCommand).toBeDefined();
+    tableCommand?.action(editor, { from: 1, to: 2 });
+
+    expect(editor.view.dom.querySelectorAll("table tr")).toHaveLength(3);
+    expect(
+      editor.view.dom.querySelectorAll("table tr:first-child th"),
+    ).toHaveLength(2);
+    expect(editor.getMarkdown()).toMatch(/\|\s+\|\s+\|/);
+  });
+
+  it("highlights known fences and keeps unknown fences plain", () => {
+    const known = createEditor("```ts\nconst answer = 42\n```");
+    expect(known.view.dom.querySelector("pre code")?.className).toContain(
+      "language-ts",
+    );
+    expect(
+      known.view.dom.querySelector("pre code .hljs-keyword"),
+    ).not.toBeNull();
+
+    const unknown = createEditor("```reef-unknown\nconst answer = 42\n```");
+    expect(unknown.view.dom.querySelector("pre code")?.className).toContain(
+      "language-reef-unknown",
+    );
+    expect(
+      unknown.view.dom.querySelector("pre code [class*='hljs-']"),
+    ).toBeNull();
+    expect(unknown.getMarkdown()).toContain("```reef-unknown");
+  });
+
+  it("keeps the ten-command registry localized without introducing issue lookup", () => {
+    const registry = createLocalizedSlashCommandRegistry(
+      DEFAULT_SLASH_COMMAND_MESSAGES,
+    );
+    expect(registry).toHaveLength(10);
+    expect(new Set(registry.map((command) => command.category))).toEqual(
+      new Set(["text", "lists", "structure"]),
+    );
+    expect(
+      registry.every((command) => command.label && command.description),
+    ).toBe(true);
+    expect(registry.some((command) => command.keywords.includes("REEF"))).toBe(
+      false,
+    );
+  });
+
   it("registers issue-body mentions only for the opt-in editor surface", () => {
     const withoutMentions = createMarkdownEditorExtensions(
       "Describe the issue...",

@@ -663,7 +663,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
         images: 4,
         fileLinks: 1,
         mentions: 1,
-        tables: 0,
+        tables: 1,
       });
       expect(surface.colors.body).toBe(surface.colors.foreground);
       expect(surface.colors.heading).toBe(surface.colors.foreground);
@@ -908,6 +908,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
         images: 4,
         fileLinks: 1,
         mentions: 1,
+        tables: 1,
       });
       expect(roundTrip.text).toContain("@alice");
       expect(roundTrip.text).toContain("nested emphasis");
@@ -1044,6 +1045,70 @@ test.describe("Hermetic Markdown editor fixture", () => {
       codeBlockContained: true,
       document: true,
     });
+  });
+
+  test("opens the bounded categorized slash menu and round-trips a basic table", async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width: 1024, height: 800 });
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    const editor = page.locator(".reef-markdown-editor");
+    await expect(editor).toBeVisible();
+    await editor.click();
+    await page.keyboard.press("Control+A");
+    await page.keyboard.press("Backspace");
+    await page.keyboard.type("/");
+
+    const menu = page.getByTestId("slash-command-menu");
+    await expect(menu).toBeVisible();
+    await expect(menu.getByRole("option")).toHaveCount(10);
+    await expect(menu.locator("[data-slash-section]")).toHaveCount(3);
+    await expect(menu.locator("input")).toHaveCount(0);
+    await expect(page.locator('[data-slash-command*="reef" i]')).toHaveCount(0);
+    await expect(editor).toHaveAttribute("aria-expanded", "true");
+
+    await page.keyboard.type("table");
+    await expect(menu.getByRole("option")).toHaveCount(1);
+    await expect(menu.locator('[data-slash-command="table"]')).toBeVisible();
+    await menu.locator('[data-slash-command="table"]').click();
+    await expect(menu).toHaveCount(0);
+
+    await expect(editor.locator("table")).toHaveCount(1);
+    await expect(editor.locator("table tr")).toHaveCount(3);
+    await expect(editor.locator("table th")).toHaveCount(2);
+    await expect(editor.locator("table td")).toHaveCount(4);
+
+    const sourceToggle = page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button");
+    await sourceToggle.click();
+    const source = page.getByTestId("markdown-source-textarea");
+    await expect(source).toBeVisible();
+    await expect(source).toHaveValue(/\|/u);
+    await expect(source).not.toHaveValue(/\//u);
+
+    const saveResponse = page.waitForResponse(
+      (response) =>
+        response.url().includes("/api/issues/REEF-001") &&
+        response.request().method() === "PATCH" &&
+        response.status() === 200,
+    );
+    await page.getByTestId("issue-title-input").click();
+    await saveResponse;
+
+    await page.reload();
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    const reopenedEditor = page.locator(".reef-markdown-editor");
+    await expect(reopenedEditor).toBeVisible();
+    await expect(reopenedEditor.locator("table")).toHaveCount(1);
+    await expect(reopenedEditor.locator("table tr")).toHaveCount(3);
+    await expect(reopenedEditor.locator("table th")).toHaveCount(2);
+    await expect(reopenedEditor.locator("table td")).toHaveCount(4);
   });
 
   test("keeps independent task state through keyboard, Source, save, and re-entry", async ({

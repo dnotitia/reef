@@ -507,6 +507,162 @@ hr {
   white-space: inherit;
 }
 
+/* Bounded syntax paint stays inside the issue editor. The lowlight extension
+ * emits hljs-* decorations only for its registered common grammars; unknown
+ * and empty fences intentionally keep the inherited foreground color. */
+.reef-markdown-editor > pre > code .hljs-comment,
+.reef-markdown-editor > pre > code .hljs-quote {
+  color: var(--muted-foreground);
+}
+
+.reef-markdown-editor > pre > code .hljs-keyword,
+.reef-markdown-editor > pre > code .hljs-selector-tag,
+.reef-markdown-editor > pre > code .hljs-literal,
+.reef-markdown-editor > pre > code .hljs-name {
+  color: var(--brand);
+}
+
+.reef-markdown-editor > pre > code .hljs-string,
+.reef-markdown-editor > pre > code .hljs-regexp,
+.reef-markdown-editor > pre > code .hljs-symbol {
+  color: color-mix(in srgb, var(--brand) 72%, var(--foreground));
+}
+
+.reef-markdown-editor > pre > code .hljs-number,
+.reef-markdown-editor > pre > code .hljs-attr,
+.reef-markdown-editor > pre > code .hljs-variable,
+.reef-markdown-editor > pre > code .hljs-title,
+.reef-markdown-editor > pre > code .hljs-built_in {
+  color: color-mix(in srgb, var(--foreground) 78%, var(--brand));
+}
+
+/* The slash navigator is portaled by Tiptap's suggestion utility, so its
+ * class is self-scoped rather than nested under the editor root. Width is
+ * nominally 360px and clamps to the available viewport/editor inset. */
+.reef-slash-command-popup {
+  z-index: 60;
+  width: 360px;
+  max-width: calc(100vw - 16px);
+  min-width: 0;
+  pointer-events: auto;
+}
+
+.reef-slash-command-menu {
+  box-sizing: border-box;
+  width: 100%;
+  max-height: min(420px, calc(100vh - 16px));
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.5rem;
+  background: var(--surface-elevated);
+  color: var(--foreground);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--foreground) 14%, transparent);
+  font-size: 13px;
+}
+
+.reef-slash-command-header,
+.reef-slash-command-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 8px 10px;
+}
+
+.reef-slash-command-header {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.reef-slash-command-escape,
+.reef-slash-command-footer {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.reef-slash-command-escape {
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.25rem;
+  padding: 1px 4px;
+  font-family: var(--font-mono-stack);
+}
+
+.reef-slash-command-options {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px;
+  scrollbar-gutter: stable;
+}
+
+.reef-slash-command-section + .reef-slash-command-section {
+  margin-top: 4px;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 4px;
+}
+
+.reef-slash-command-section-label {
+  padding: 4px 8px 3px;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.reef-slash-command-option {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  padding: 6px 8px;
+  text-align: start;
+  color: var(--foreground);
+}
+
+.reef-slash-command-option:hover,
+.reef-slash-command-option-selected {
+  border-color: color-mix(in srgb, var(--brand) 35%, var(--border-subtle));
+  background: color-mix(in srgb, var(--brand) 10%, var(--surface-hover));
+}
+
+.reef-slash-command-option-selected {
+  outline: 2px solid color-mix(in srgb, var(--brand) 48%, transparent);
+  outline-offset: -1px;
+}
+
+.reef-slash-command-label,
+.reef-slash-command-description {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reef-slash-command-label {
+  font-weight: 500;
+}
+
+.reef-slash-command-description {
+  margin-top: 1px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.reef-slash-command-empty {
+  padding: 18px 10px;
+  color: var(--muted-foreground);
+  text-align: center;
+}
+
+.reef-slash-command-footer {
+  justify-content: flex-start;
+  gap: 12px;
+  border-top: 1px solid var(--border-subtle);
+  white-space: nowrap;
+}
+
 /* Tiptap's ProseMirror base stylesheet opts pre into wrapping. The editor
  * surface owns the stronger no-wrap contract so the scrollport remains local. */
 .reef-markdown-editor.ProseMirror > pre {
@@ -1069,6 +1225,37 @@ hr {
     [data-column-key="title"] {
     left: 152px !important;
   }
+}
+
+/* Basic GFM tables deliberately remain a small, editor-owned surface: no
+ * resize handles, alignment toolbar, merged-cell affordance, or global table
+ * prose changes. Long cell text wraps instead of widening the detail sheet. */
+.reef-markdown-editor > table {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  table-layout: fixed;
+  margin-block: 16px;
+  border-collapse: collapse;
+  color: var(--foreground);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.reef-markdown-editor > table th,
+.reef-markdown-editor > table td {
+  min-width: 0;
+  border: 1px solid var(--border-subtle);
+  padding: 6px 8px;
+  text-align: start;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.reef-markdown-editor > table th {
+  background: var(--surface-subtle);
+  font-weight: 600;
 }
 
 /* Indeterminate search progress — a thin brand (teal) hairline that sweeps

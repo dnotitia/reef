@@ -21,6 +21,12 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Issue Markdown editing now offers a categorized keyboard-first slash block
+  menu with localized filtering, basic GFM table insertion, and bounded
+  lowlight code highlighting.** The menu is editor-bound, clamps or flips at
+  narrow widths, and leaves direct REEF-id and relation behaviors unchanged.
+  (REEF-348)
+
 - **Issue detail editing now uses a roomier three-step desktop width scale:**
   1200px minimum, 1440px default, and 1680px maximum, while still capping the
   panel at 94% of narrower viewports.
