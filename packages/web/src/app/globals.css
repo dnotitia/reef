@@ -783,9 +783,38 @@ hr {
   text-decoration-thickness: 2px;
 }
 
+/* AKB document links have a bounded, document-specific surface. The authored
+ * label remains the accessible anchor text; the document glyph is a separate
+ * shape so link meaning survives color and underline changes. */
+.reef-markdown-editor a[data-reef-document-link="true"] {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.125rem 0.375rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+  vertical-align: baseline;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.25rem;
+  text-decoration: none;
+}
+
+.reef-markdown-editor a[data-reef-document-link="true"]::before {
+  content: "▣";
+  flex: 0 0 auto;
+  color: var(--muted-foreground);
+  font-size: 0.75em;
+  line-height: 1;
+}
+
 /* Explicit AKB file links are compact inline actions, distinct from ordinary
- * Markdown URLs. The filename remains the accessible anchor text; the small
- * type badge and outbound cue are display-only affordances. */
+ * Markdown URLs. The filename remains the accessible anchor text; the file
+ * glyph, type badge, and outbound cue are display-only affordances. */
 .reef-markdown-editor a[data-reef-file-link="true"] {
   display: inline-flex;
   align-items: baseline;
@@ -805,6 +834,14 @@ hr {
 }
 
 .reef-markdown-editor a[data-reef-file-link="true"]::before {
+  content: "▤";
+  flex: 0 0 auto;
+  color: var(--muted-foreground);
+  font-size: 0.75em;
+  line-height: 1;
+}
+
+.reef-markdown-editor a[data-reef-file-link="true"]::after {
   content: "↗";
   flex: 0 0 auto;
   color: var(--muted-foreground);

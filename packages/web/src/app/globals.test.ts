@@ -395,7 +395,51 @@ describe("global focus styles", () => {
     expect(css.slice(typeBadgeStart, typeBadgeEnd)).toContain(
       "content: attr(data-reef-file-type);",
     );
+
+    const fileGlyphStart = css.indexOf(
+      '.reef-markdown-editor a[data-reef-file-link="true"]::before {',
+    );
+    expect(fileGlyphStart).toBeGreaterThan(fileLinkEnd);
+    const fileGlyphEnd = findCssBlockEnd(css, fileGlyphStart);
+    expect(css.slice(fileGlyphStart, fileGlyphEnd)).toContain('content: "▤";');
+
+    const fileArrowStart = css.indexOf(
+      '.reef-markdown-editor a[data-reef-file-link="true"]::after {',
+    );
+    expect(fileArrowStart).toBeGreaterThan(fileGlyphEnd);
+    const fileArrowEnd = findCssBlockEnd(css, fileArrowStart);
+    expect(css.slice(fileArrowStart, fileArrowEnd)).toContain('content: "↗";');
     expect(css).not.toContain('\na[data-reef-file-link="true"] {');
+  });
+
+  it("gives AKB document links a bounded non-color document glyph", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const documentStart = css.indexOf(
+      '.reef-markdown-editor a[data-reef-document-link="true"] {',
+    );
+    expect(documentStart).toBeGreaterThan(-1);
+    const documentEnd = findCssBlockEnd(css, documentStart);
+    const documentBlock = css.slice(documentStart, documentEnd);
+    for (const declaration of [
+      "display: inline-flex;",
+      "max-width: 100%;",
+      "min-width: 0;",
+      "overflow-wrap: anywhere;",
+      "word-break: break-word;",
+      "background: var(--surface-subtle);",
+      "border: 1px solid var(--border-subtle);",
+      "border-radius: 0.25rem;",
+      "text-decoration: none;",
+    ]) {
+      expect(documentBlock, declaration).toContain(declaration);
+    }
+
+    const glyphStart = css.indexOf(
+      '.reef-markdown-editor a[data-reef-document-link="true"]::before {',
+    );
+    expect(glyphStart).toBeGreaterThan(documentEnd);
+    const glyphEnd = findCssBlockEnd(css, glyphStart);
+    expect(css.slice(glyphStart, glyphEnd)).toContain('content: "▣";');
   });
 
   it("keeps issue references bounded, keyboard-visible, and status-semantic", () => {

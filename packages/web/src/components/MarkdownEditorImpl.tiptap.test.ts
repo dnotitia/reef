@@ -272,6 +272,7 @@ describe("MarkdownEditor Tiptap extensions", () => {
       'a[data-reef-file-link="true"]',
     );
     expect(fileLink?.dataset.reefFileUri).toBe(fileUri);
+    expect(fileLink?.dataset.reefFileGlyph).toBe("true");
     expect(
       fileLink?.querySelector<HTMLElement>("[data-reef-file-type]")?.dataset
         .reefFileType,
@@ -284,6 +285,10 @@ describe("MarkdownEditor Tiptap extensions", () => {
       `a[href="${documentUri}"]`,
     );
     expect(documentLink?.dataset.reefFileLink).toBeUndefined();
+    expect(documentLink?.dataset.reefDocumentLink).toBe("true");
+    expect(documentLink?.dataset.reefDocumentUri).toBe(documentUri);
+    expect(documentLink?.dataset.reefDocumentGlyph).toBe("true");
+    expect(documentLink?.textContent).toBe("AKB report");
     expect(
       root.querySelector<HTMLAnchorElement>('a[href="https://example.com"]')
         ?.dataset.reefFileLink,
@@ -378,6 +383,16 @@ describe("MarkdownEditor Tiptap extensions", () => {
     expect(editor.getMarkdown()).toContain(`[Research Report](${uri})`);
     const link = editor.view.dom.querySelector("a");
     expect(link?.getAttribute("href")).toBe(uri);
+    expect(link?.dataset.reefDocumentLink).toBe("true");
+    expect(link?.dataset.reefDocumentUri).toBe(uri);
+    expect(link?.dataset.reefDocumentGlyph).toBe("true");
+    expect(link?.textContent).toBe("Research Report");
+
+    const reloaded = createEditor(editor.getMarkdown());
+    expect(reloaded.getMarkdown()).toContain(`[Research Report](${uri})`);
+    expect(reloaded.view.dom.querySelector("a")?.textContent).toBe(
+      "Research Report",
+    );
   });
 
   it("round-trips mixed inline marks, an AKB link, and a resolved mention", () => {

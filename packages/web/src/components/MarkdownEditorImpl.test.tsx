@@ -373,7 +373,12 @@ describe("MarkdownEditor", () => {
     const root = document.createElement("div");
     root.innerHTML =
       '<p><span data-reef-issue-reference="true" data-reef-issue-href="/workspace/reef-test/issues/REEF-123" role="link" tabindex="0"><span data-reef-issue-id-text="true">REEF-123</span></span></p>';
+    screen.getByTestId("editor-content").append(root);
     const idText = root.querySelector("[data-reef-issue-id-text]");
+    const reference = root.querySelector<HTMLElement>(
+      "[data-reef-issue-reference]",
+    );
+    if (!reference) throw new Error("Issue reference fixture did not render");
     const open = vi
       .spyOn(window, "open")
       .mockReturnValue({ opener: window } as Window);
@@ -426,6 +431,25 @@ describe("MarkdownEditor", () => {
     ).toBe(true);
     expect(keydown.defaultPrevented).toBe(true);
     expect(open).toHaveBeenCalledTimes(2);
+
+    // Chromium promotes focus to the ProseMirror root while dispatching the
+    // key event. The focus-capture seam keeps the descendant reference so the
+    // keyboard activation still opens the canonical issue URL safely.
+    fireEvent.focus(reference);
+    const promotedKeydown = new KeyboardEvent("keydown", {
+      key: "Enter",
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(promotedKeydown, "target", { value: root });
+    expect(
+      opts.editorProps?.handleDOMEvents?.keydown?.(
+        { dom: root },
+        promotedKeydown,
+      ),
+    ).toBe(true);
+    expect(promotedKeydown.defaultPrevented).toBe(true);
+    expect(open).toHaveBeenCalledTimes(3);
   });
 
   it("leaves ordinary editor mouse down for ProseMirror selection handling", () => {

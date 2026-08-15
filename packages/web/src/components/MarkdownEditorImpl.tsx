@@ -251,12 +251,21 @@ function createIssueAttachmentLinkExtension(
       if (isAkbFileUri(href)) {
         attrs["data-reef-file-link"] = "true";
         attrs["data-reef-file-uri"] = href;
+        attrs["data-reef-file-glyph"] = "true";
         const resolvedHref = resolveAttachmentHref?.(href);
         if (resolvedHref) {
           attrs.href = resolvedHref;
           attrs.target = "_blank";
           attrs.rel = "noreferrer";
         }
+      } else if (parseAkbDocumentUri(href)) {
+        // Keep the authored AKB URI on a dedicated marker before the passive
+        // retargeting effect swaps href to the configured AKB web URL. The
+        // marker gives the document link its own surface and glyph without
+        // changing the Markdown label or serialization.
+        attrs["data-reef-document-link"] = "true";
+        attrs["data-reef-document-uri"] = href;
+        attrs["data-reef-document-glyph"] = "true";
       }
       return (
         this.parent?.({ mark, HTMLAttributes: attrs }) ?? [
@@ -512,11 +521,15 @@ function openClickedEditorIssueReference(
 function openEditorIssueReferenceOnKeyDown(
   root: ParentNode,
   event: KeyboardEvent,
+  focusedReference: HTMLElement | null,
 ): boolean {
   if (event.key !== "Enter" && event.key !== " ") return false;
   const target = event.target instanceof Element ? event.target : null;
   const reference =
-    target?.closest<HTMLElement>("[data-reef-issue-reference]") ?? null;
+    target?.closest<HTMLElement>("[data-reef-issue-reference]") ??
+    (focusedReference && root.contains(focusedReference)
+      ? focusedReference
+      : null);
   if (!reference || !root.contains(reference)) return false;
   if (!openEditorIssueReference(reference)) return false;
   event.preventDefault();
@@ -687,6 +700,7 @@ export function MarkdownEditor({
   const issueReferencesOpenedFromMouseUpRef = useRef(
     new WeakMap<HTMLElement, number>(),
   );
+  const focusedIssueReferenceRef = useRef<HTMLElement | null>(null);
   const linkSelectionRef = useRef<EditorSelectionRange | null>(null);
   const mentionMembersRef = useRef<readonly VaultMember[]>([]);
   const previousMentionRosterRef = useRef<string | null>(null);
@@ -905,7 +919,11 @@ export function MarkdownEditor({
             linksOpenedFromMouseUpRef.current,
           ),
         keydown: (view, event) =>
-          openEditorIssueReferenceOnKeyDown(view.dom, event),
+          openEditorIssueReferenceOnKeyDown(
+            view.dom,
+            event,
+            focusedIssueReferenceRef.current,
+          ),
       },
       handleClick: (view, _pos, event) =>
         openClickedEditorIssueReference(
@@ -1273,6 +1291,29 @@ export function MarkdownEditor({
         // content) — relatedTarget still inside means an internal focus shift.
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
           onBlur?.(latestValueRef.current);
+        }
+      }}
+      onFocusCapture={(e) => {
+        const target =
+          e.target instanceof Element
+            ? e.target.closest<HTMLElement>("[data-reef-issue-reference]")
+            : null;
+        if (target) {
+          focusedIssueReferenceRef.current = target;
+          return;
+        }
+        // Chromium promotes focus to the contenteditable root while it
+        // dispatches a key event for a descendant with tabindex=0. Preserve
+        // the descendant identity through that short hand-off; other editor
+        // controls (links, toolbar buttons, source textarea) clear it.
+        const isEditorContent =
+          e.target instanceof Element &&
+          e.target.classList.contains("ProseMirror");
+        if (!isEditorContent) focusedIssueReferenceRef.current = null;
+      }}
+      onBlurCapture={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          focusedIssueReferenceRef.current = null;
         }
       }}
       className={`rounded-md border border-border bg-elevated transition-colors duration-150 focus-within:border-brand focus-within:ring-2 focus-within:ring-inset focus-within:ring-brand/30 ${className ?? ""}`}
