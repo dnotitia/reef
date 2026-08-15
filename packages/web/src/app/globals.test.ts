@@ -379,8 +379,11 @@ describe("global focus styles", () => {
       "overflow-wrap: anywhere;",
       "word-break: break-word;",
       "white-space: normal;",
+      "align-items: center;",
+      "vertical-align: middle;",
+      "line-height: 1.2;",
       "background: var(--surface-subtle);",
-      "border: 1px solid var(--border-subtle);",
+      "border: 1px solid var(--border);",
       "border-radius: 0.25rem;",
       "text-decoration: none;",
     ]) {
@@ -426,8 +429,11 @@ describe("global focus styles", () => {
       "min-width: 0;",
       "overflow-wrap: anywhere;",
       "word-break: break-word;",
+      "align-items: center;",
+      "vertical-align: middle;",
+      "line-height: 1.2;",
       "background: var(--surface-subtle);",
-      "border: 1px solid var(--border-subtle);",
+      "border: 1px solid var(--border);",
       "border-radius: 0.25rem;",
       "text-decoration: none;",
     ]) {
@@ -455,16 +461,21 @@ describe("global focus styles", () => {
       "min-width: 0;",
       "max-width: 100%;",
       "overflow: hidden;",
+      "align-items: center;",
+      "vertical-align: middle;",
+      "line-height: 1.2;",
       "background: var(--surface-subtle);",
-      "border: 1px solid var(--border-subtle);",
+      "border: 1px solid var(--border);",
       "text-decoration: none;",
     ]) {
       expect(referenceBlock, declaration).toContain(declaration);
     }
 
-    expect(css).toContain(
-      '.reef-markdown-editor [data-reef-issue-reference="true"]:focus-visible {',
-    );
+    expect(css).toContain('a[data-reef-document-link="true"]');
+    expect(css).toContain('a[data-reef-file-link="true"]');
+    expect(css).toContain(":focus-visible {");
+    expect(css).toContain("outline: 2px solid var(--brand);");
+    expect(css).toContain("outline-offset: 2px;");
     expect(css).toContain(".reef-markdown-editor [data-reef-issue-id-text] {");
     expect(css).toContain("font-family: var(--font-mono-stack);");
     expect(css).toContain("max-width: clamp(4rem, 35vw, 20rem);");
@@ -472,6 +483,9 @@ describe("global focus styles", () => {
       '.reef-markdown-editor [data-reef-status="in_progress"] {',
     );
     expect(css).toContain("color: var(--status-in-progress);");
+    expect(css).toContain(
+      ".reef-markdown-editor [data-reef-status-glyph] {\n  position: relative;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;",
+    );
     expect(css).toContain(
       '.reef-markdown-editor [data-reef-status="done"]::after {',
     );

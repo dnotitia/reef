@@ -362,6 +362,15 @@ the glyph, while the id, title, and keyboard focus treatment remain distinct.
 The semantic decoration is WYSIWYG-only; Source mode, autosave, reload, and
 plain Markdown storage keep the authored token unchanged.
 
+Resolved issue references, AKB document links, and AKB file links share a compact
+inline-flex surface with a continuous four-sided perimeter, a consistent radius,
+and a separate keyboard-focus ring. Their glyph, authored label, and bounded
+metadata/action stay optically centered when labels wrap, including in narrow
+panels and at browser-level 200% zoom, without clipping or widening the document.
+The document glyph distinguishes an AKB document from an ordinary URL, and the
+file glyph remains distinct from its outbound/download cue; these are display-only
+decorations and never rewrite the authored Markdown.
+
 Issue-body images are block evidence: they keep intrinsic width and height until
 the editor width or a `32rem` maximum height requires containment, use
 `object-fit: contain`, and receive a 16px block rhythm with the semantic subtle
@@ -375,8 +384,9 @@ the final alphanumeric extension is shown in uppercase (or `FILE` when absent or
 outside the bounded extension rule), and long labels wrap within narrow issue
 panels. In WYSIWYG mode the link opens the existing issue-scoped authenticated
 attachment proxy in a safe new window, while Source mode and saved Markdown keep
-the raw AKB URI. Ordinary URLs, AKB document links, comments, and AI Markdown
-retain their existing rendering.
+the raw AKB URI. An explicit AKB document link uses the same bounded document
+surface and glyph, while ordinary URLs retain their existing underlined rendering;
+comments and AI Markdown retain their existing rendering.
 
 Block Markdown keeps the same controlled density. Fenced code uses the existing
 Geist Mono stack at `13px/20px` on `--surface-subtle`, with a

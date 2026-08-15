@@ -63,6 +63,122 @@ async function setTheme(
     .toBe(colorScheme === "dark");
 }
 
+async function setBrowserZoom(page: Page, scale: number): Promise<void> {
+  const client = await page.context().newCDPSession(page);
+  await client.send("Emulation.setPageScaleFactor", {
+    pageScaleFactor: scale,
+  });
+  await expect
+    .poll(() => page.evaluate(() => window.visualViewport?.scale ?? 1))
+    .toBe(scale);
+}
+
+async function readSemanticReferenceGeometry(editor: Locator) {
+  return editor.evaluate((root: HTMLElement) => {
+    const readRect = (rect: DOMRect | DOMRectReadOnly) => {
+      return {
+        top: rect.top,
+        bottom: rect.bottom,
+        left: rect.left,
+        right: rect.right,
+        width: rect.width,
+        height: rect.height,
+        centerY: rect.top + rect.height / 2,
+      };
+    };
+    const readBox = (element: Element | null) =>
+      element ? readRect(element.getBoundingClientRect()) : null;
+    const readRangeBox = (element: Element | null) => {
+      if (!element) return null;
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      return readRect(range.getBoundingClientRect());
+    };
+    const readSurface = (selector: string) => {
+      const element = root.querySelector<HTMLElement>(selector);
+      if (!element) return null;
+      const styles = getComputedStyle(element);
+      const box = readBox(element);
+      if (!box) return null;
+      const border = Object.fromEntries(
+        (["top", "right", "bottom", "left"] as const).map((side) => [
+          side,
+          {
+            width: styles.getPropertyValue(`border-${side}-width`),
+            style: styles.getPropertyValue(`border-${side}-style`),
+            color: styles.getPropertyValue(`border-${side}-color`),
+          },
+        ]),
+      );
+      return {
+        box,
+        border,
+        borderRadius: styles.borderTopLeftRadius,
+        outline: {
+          width: styles.outlineWidth,
+          style: styles.outlineStyle,
+          color: styles.outlineColor,
+          offset: styles.outlineOffset,
+        },
+        parts: Array.from(element.children).map((part) => readBox(part)),
+        label: readRangeBox(element),
+        type: readRangeBox(element.querySelector("[data-reef-file-type]")),
+        before: {
+          content: getComputedStyle(element, "::before").content,
+          lineHeight: getComputedStyle(element, "::before").lineHeight,
+        },
+        after: {
+          content: getComputedStyle(element, "::after").content,
+          lineHeight: getComputedStyle(element, "::after").lineHeight,
+        },
+      };
+    };
+
+    return {
+      editor: {
+        left: root.getBoundingClientRect().left,
+        right: root.getBoundingClientRect().right,
+        clientWidth: root.clientWidth,
+        scrollWidth: root.scrollWidth,
+      },
+      document: readSurface('a[data-reef-document-link="true"]'),
+      file: readSurface('a[data-reef-file-link="true"]'),
+      issue: readSurface('[data-reef-issue-reference="true"]'),
+      documentOverflow:
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth,
+    };
+  });
+}
+
+type SemanticSurfaceGeometry = NonNullable<
+  Awaited<ReturnType<typeof readSemanticReferenceGeometry>>["document"]
+>;
+
+function assertSemanticSurfaceBorder(
+  surface: SemanticSurfaceGeometry,
+  borderColor: string,
+): void {
+  expect(surface.borderRadius).toBe("4px");
+  for (const side of ["top", "right", "bottom", "left"] as const) {
+    expect(surface.border[side]).toEqual({
+      width: "1px",
+      style: "solid",
+      color: borderColor,
+    });
+  }
+}
+
+function assertOpticalCenter(surface: SemanticSurfaceGeometry): void {
+  const partDeltas = surface.parts
+    .filter((part): part is NonNullable<typeof part> => part !== null)
+    .map((part) => Math.abs(part.centerY - surface.box.centerY));
+  const labelDelta = surface.label
+    ? Math.abs(surface.label.centerY - surface.box.centerY)
+    : 0;
+  expect(Math.max(...partDeltas, labelDelta)).toBeLessThanOrEqual(1);
+}
+
 async function readMarkdownSurface(editor: Locator) {
   return editor.evaluate((root: HTMLElement) => {
     const resolveColor = (property: string) => {
@@ -419,6 +535,7 @@ async function readMarkdownSurface(editor: Locator) {
         foreground: resolveColor("--foreground"),
         brand: resolveColor("--brand"),
         mutedForeground: resolveColor("--muted-foreground"),
+        border: resolveColor("--border"),
         borderSubtle: resolveColor("--border-subtle"),
         surfaceSubtle: resolveBackground("--surface-subtle"),
       },
@@ -846,7 +963,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
         label: "AKB report",
         display: "inline-flex",
         background: surface.colors.surfaceSubtle,
-        border: surface.colors.borderSubtle,
+        border: surface.colors.border,
         decoration: "none",
         glyphContent: '"▣"',
       });
@@ -1180,10 +1297,10 @@ test.describe("Hermetic Markdown editor fixture", () => {
     expect(pageErrors).toEqual([]);
   });
 
-  test("contains the long code line at an effective 200% viewport", async ({
+  test("contains the long code line at browser-level 200% zoom", async ({
     page,
     request,
-  }) => {
+  }, testInfo) => {
     await page.setViewportSize({ width: 720, height: 900 });
     const task = await readMarkdownFixtureTask(request);
     await openExistingWorkspace(page);
@@ -1192,6 +1309,83 @@ test.describe("Hermetic Markdown editor fixture", () => {
 
     const editor = page.locator(".reef-markdown-editor");
     await expect(editor).toBeVisible();
+    const semanticEntries = [
+      { selector: '[data-reef-issue-reference="true"]', key: "issue" },
+      { selector: 'a[data-reef-document-link="true"]', key: "document" },
+      { selector: 'a[data-reef-file-link="true"]', key: "file" },
+    ] as const;
+    const initialSurface = await readMarkdownSurface(editor);
+    const initialGeometry = await readSemanticReferenceGeometry(editor);
+    const borderColor = initialSurface.colors.border;
+    for (const entry of semanticEntries) {
+      const reference = editor.locator(entry.selector);
+      await expect(reference).toHaveCount(1);
+      await reference.hover();
+      const hovered = await readSemanticReferenceGeometry(editor);
+      const hoveredSurface = hovered[entry.key];
+      if (!hoveredSurface) throw new Error("Missing hovered surface");
+      assertSemanticSurfaceBorder(hoveredSurface, borderColor);
+
+      await reference.focus();
+      const focused = await readSemanticReferenceGeometry(editor);
+      const focusedSurface = focused[entry.key];
+      if (!focusedSurface) throw new Error("Missing focused surface");
+      assertSemanticSurfaceBorder(focusedSurface, borderColor);
+      assertOpticalCenter(focusedSurface);
+      expect(focusedSurface.outline).toMatchObject({
+        width: "2px",
+        style: "solid",
+        offset: "2px",
+      });
+    }
+    for (const semanticSurface of [
+      initialGeometry.issue,
+      initialGeometry.document,
+      initialGeometry.file,
+    ]) {
+      if (!semanticSurface) throw new Error("Missing semantic surface");
+      assertSemanticSurfaceBorder(semanticSurface, borderColor);
+      assertOpticalCenter(semanticSurface);
+    }
+
+    const sourceToggle = page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button");
+    await sourceToggle.click();
+    const source = page.getByTestId("markdown-source-textarea");
+    await expect(source).toBeVisible();
+    const sourceMarkdown = await source.inputValue();
+    expect(sourceMarkdown).toContain("```ts");
+    expect(sourceMarkdown).toContain("intentionallyLongLine");
+    expect(sourceMarkdown).toContain("Nested unordered item");
+    expect(sourceMarkdown).toContain("Nested ordered child");
+    expect(sourceMarkdown).toContain("---");
+    await sourceToggle.click();
+    await expect(editor).toBeVisible();
+    const roundTrip = await readMarkdownSurface(editor);
+    expect(roundTrip.counts).toMatchObject({
+      quotes: 1,
+      quoteParagraphs: 2,
+      quoteLists: 1,
+      quoteNestedOrderedLists: 1,
+      codeBlocks: 1,
+      rules: 1,
+    });
+    expect(roundTrip.overflow).toMatchObject({
+      editor: true,
+      codeBlock: true,
+      codeBlockContained: true,
+      document: true,
+    });
+
+    await setBrowserZoom(page, 2);
+    const zoomMetric = await page.evaluate(() => ({
+      scale: window.visualViewport?.scale ?? 1,
+      layoutWidth: document.documentElement.clientWidth,
+      visualWidth: window.visualViewport?.width ?? 0,
+    }));
+    expect(zoomMetric.scale).toBe(2);
+    expect(zoomMetric.visualWidth).toBeLessThan(zoomMetric.layoutWidth);
     const surface = await readMarkdownSurface(editor);
     expect(surface.overflow).toMatchObject({
       editor: true,
@@ -1221,39 +1415,93 @@ test.describe("Hermetic Markdown editor fixture", () => {
       geometry.documentClientWidth,
     );
 
-    await page
-      .getByTestId("markdown-source-toggle")
-      .getByRole("button")
-      .click();
-    const source = page.getByTestId("markdown-source-textarea");
-    await expect(source).toBeVisible();
-    const sourceMarkdown = await source.inputValue();
-    expect(sourceMarkdown).toContain("```ts");
-    expect(sourceMarkdown).toContain("intentionallyLongLine");
-    expect(sourceMarkdown).toContain("Nested unordered item");
-    expect(sourceMarkdown).toContain("Nested ordered child");
-    expect(sourceMarkdown).toContain("---");
+    const semanticGeometry = await readSemanticReferenceGeometry(editor);
+    expect(surface.colors.border).toBe(borderColor);
+    for (const semanticSurface of [
+      semanticGeometry.issue,
+      semanticGeometry.document,
+      semanticGeometry.file,
+    ]) {
+      if (!semanticSurface) throw new Error("Missing semantic surface");
+      assertSemanticSurfaceBorder(semanticSurface, borderColor);
+      assertOpticalCenter(semanticSurface);
+      expect(semanticSurface.box.left).toBeGreaterThanOrEqual(
+        semanticGeometry.editor.left - 1,
+      );
+      expect(semanticSurface.box.right).toBeLessThanOrEqual(
+        semanticGeometry.editor.right + 1,
+      );
+    }
+    expect(semanticGeometry.editor.scrollWidth).toBeLessThanOrEqual(
+      semanticGeometry.editor.clientWidth,
+    );
+    expect(semanticGeometry.documentOverflow).toBe(true);
+    await page.screenshot({
+      animations: "disabled",
+      fullPage: true,
+      path: testInfo.outputPath("semantic-references-200-percent.png"),
+    });
+  });
 
-    await page
-      .getByTestId("markdown-source-toggle")
-      .getByRole("button")
-      .click();
+  test("keeps semantic surfaces bordered and optically centered when wrapping", async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width: 480, height: 720 });
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    const editor = page.locator(".reef-markdown-editor");
     await expect(editor).toBeVisible();
-    const roundTrip = await readMarkdownSurface(editor);
-    expect(roundTrip.counts).toMatchObject({
-      quotes: 1,
-      quoteParagraphs: 2,
-      quoteLists: 1,
-      quoteNestedOrderedLists: 1,
-      codeBlocks: 1,
-      rules: 1,
-    });
-    expect(roundTrip.overflow).toMatchObject({
-      editor: true,
-      codeBlock: true,
-      codeBlockContained: true,
-      document: true,
-    });
+    const sourceToggle = page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button");
+    await sourceToggle.click();
+    const source = page.getByTestId("markdown-source-textarea");
+    const sourceMarkdown = await source.inputValue();
+    const longDocumentLabel =
+      "AKB document label that wraps inside the compact editor surface";
+    const longFileLabel = "incident-log-long-filename-that-wraps.log";
+    const wrappedMarkdown = sourceMarkdown
+      .replace(
+        "[AKB report]",
+        `[${longDocumentLabel}](akb://reef-e2e/coll/docs/doc/spec-overview.md)`,
+      )
+      .replace(
+        "[incident.log]",
+        `[${longFileLabel}](${MARKDOWN_FIXTURE_FILE_URI})`,
+      );
+    expect(wrappedMarkdown).not.toBe(sourceMarkdown);
+    await source.fill(wrappedMarkdown);
+    await sourceToggle.click();
+    await expect(editor).toBeVisible();
+
+    const surface = await readMarkdownSurface(editor);
+    const geometry = await readSemanticReferenceGeometry(editor);
+    const borderColor = surface.colors.border;
+    for (const semanticSurface of [
+      geometry.issue,
+      geometry.document,
+      geometry.file,
+    ]) {
+      if (!semanticSurface) throw new Error("Missing semantic surface");
+      assertSemanticSurfaceBorder(semanticSurface, borderColor);
+      assertOpticalCenter(semanticSurface);
+      expect(semanticSurface.box.left).toBeGreaterThanOrEqual(
+        geometry.editor.left - 1,
+      );
+      expect(semanticSurface.box.right).toBeLessThanOrEqual(
+        geometry.editor.right + 1,
+      );
+    }
+    expect(geometry.document?.label?.height ?? 0).toBeGreaterThan(16);
+    expect(geometry.file?.label?.height ?? 0).toBeGreaterThan(16);
+    expect(geometry.editor.scrollWidth).toBeLessThanOrEqual(
+      geometry.editor.clientWidth,
+    );
+    expect(geometry.documentOverflow).toBe(true);
   });
 
   test("opens the bounded categorized slash menu and round-trips a basic table", async ({
