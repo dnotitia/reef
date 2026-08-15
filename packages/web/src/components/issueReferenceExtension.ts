@@ -8,11 +8,10 @@ import {
   type MarkdownTokenizer,
 } from "@tiptap/core";
 
-import { REEF_ID_PATTERN } from "@/lib/markdown/remarkReefMentions";
 import { withVault } from "@/lib/workspaceHref";
 
 /** The mark name is intentionally private to the issue-body editor surface. */
-export const ISSUE_REFERENCE_MARK = "reefIssueReference";
+export const ISSUE_REFERENCE_MARK = "issueReference";
 
 export interface IssueReferenceExtensionOptions {
   /** The loaded issue list is supplied by the caller; no editor-side fetch is needed. */
@@ -66,18 +65,33 @@ function isEscaped(source: string, index: number): boolean {
   return backslashes % 2 === 1;
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function knownIssueAlternation(
+  issues: ReadonlyMap<string, IssueListItem>,
+): string | null {
+  const ids = [...issues.values()]
+    .map((issue) => issue.id)
+    .filter(Boolean)
+    .sort((left, right) => right.length - left.length)
+    .map(escapeRegExp);
+  return ids.length > 0 ? ids.join("|") : null;
+}
+
 function findKnownIssueStart(
   source: string,
   issues: ReadonlyMap<string, IssueListItem>,
 ): number {
-  const pattern = new RegExp(REEF_ID_PATTERN.source, "gi");
-  for (const match of source.matchAll(pattern)) {
-    const raw = match[0];
-    const index = match.index ?? -1;
-    if (index < 0 || !issues.has(issueReferenceMapKey(raw))) continue;
-    return isEscaped(source, index) ? index - 1 : index;
-  }
-  return -1;
+  const alternation = knownIssueAlternation(issues);
+  if (!alternation) return -1;
+  const match = new RegExp(
+    `(?<![\\p{L}\\p{N}_-])(?:${alternation})(?![\\p{L}\\p{N}_-])`,
+    "iu",
+  ).exec(source);
+  const index = match?.index ?? -1;
+  return index >= 0 && isEscaped(source, index) ? index - 1 : index;
 }
 
 function createIssueReferenceTokenizer(
@@ -88,8 +102,10 @@ function createIssueReferenceTokenizer(
     level: "inline",
     start: (source) => findKnownIssueStart(source, options.issuesRef.current),
     tokenize(source, tokens): MarkdownToken | undefined {
+      const alternation = knownIssueAlternation(options.issuesRef.current);
+      if (!alternation) return undefined;
       const escapedMatch = source.match(
-        new RegExp(`^\\\\(${REEF_ID_PATTERN.source})`, "i"),
+        new RegExp(`^\\\\(${alternation})(?![\\p{L}\\p{N}_-])`, "iu"),
       );
       if (escapedMatch) {
         const raw = escapedMatch[1];
@@ -123,11 +139,13 @@ function createIssueReferenceTokenizer(
         // semantic mark. The escape token is retained in the surrounding
         // parse, so serialization stays stable across a reparse.
         const raw = source.match(
-          new RegExp(`^${REEF_ID_PATTERN.source}`, "i"),
+          new RegExp(`^(?:${alternation})(?![\\p{L}\\p{N}_-])`, "iu"),
         )?.[0];
         return raw ? { type: "text", raw, text: raw } : undefined;
       }
-      const match = source.match(new RegExp(`^${REEF_ID_PATTERN.source}`, "i"));
+      const match = source.match(
+        new RegExp(`^(?:${alternation})(?![\\p{L}\\p{N}_-])`, "iu"),
+      );
       if (!match) return undefined;
       const raw = match[0];
       const issue = options.issuesRef.current.get(issueReferenceMapKey(raw));
@@ -206,7 +224,7 @@ export function createIssueReferenceExtension(
       if (mark.attrs.escaped === true) {
         return [
           "span",
-          { "data-reef-escaped-issue": "true" },
+          { "data-escaped-issue": "true" },
           ["span", { "aria-hidden": "true" }, "\\"],
           ["span", {}, 0],
         ];
@@ -226,13 +244,13 @@ export function createIssueReferenceExtension(
       // references to one issue must not create duplicate document ids.
       delete renderAttributes.id;
       const attrs = mergeAttributes(renderAttributes, {
-        "data-reef-issue-reference": "true",
-        "data-reef-issue-id": issue.id,
-        "data-reef-issue-status": issue.status,
-        "data-reef-issue-title": issue.title,
+        "data-issue-reference": "true",
+        "data-issue-id": issue.id,
+        "data-issue-status": issue.status,
+        "data-issue-title": issue.title,
         ...(href
           ? {
-              "data-reef-issue-href": href,
+              "data-issue-href": href,
               role: "link",
               tabindex: 0,
             }
@@ -247,16 +265,16 @@ export function createIssueReferenceExtension(
         [
           "span",
           {
-            "data-reef-status-glyph": "true",
-            "data-reef-status": issue.status,
+            "data-issue-status-glyph": "true",
+            "data-issue-status": issue.status,
             "aria-hidden": "true",
           },
-          ["span", { "data-reef-status-half": "true" }],
+          ["span", { "data-issue-status-half": "true" }],
         ],
-        ["span", { "data-reef-issue-id-text": "true", translate: "no" }, 0],
+        ["span", { "data-issue-id-text": "true", translate: "no" }, 0],
         [
           "span",
-          { "data-reef-issue-title": "true", "aria-hidden": "true" },
+          { "data-issue-title": "true", "aria-hidden": "true" },
           issue.title,
         ],
       ];

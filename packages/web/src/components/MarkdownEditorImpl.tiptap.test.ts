@@ -268,16 +268,16 @@ describe("MarkdownEditor Tiptap extensions", () => {
 
   it("keeps semantic boundaries and Markdown round-trip in one Tiptap proof", () => {
     const issue = {
-      id: "REEF-123",
+      id: "OPS-123",
       title: "Semantic references",
       status: "in_progress",
     } as IssueListItem;
     const documentUri = "akb://reef-test/coll/research/doc/report.md";
     const fileUri = "akb://reef-test/issues/file/incident-log";
     const markdown = [
-      "Known REEF-123, unknown REEF-999.",
-      "[REEF-123](https://example.test/reef-123) `REEF-123` \\REEF-123",
-      "```text\nREEF-123\n```",
+      "Known OPS-123, unknown OPS-999.",
+      "[OPS-123](https://example.test/ops-123) `OPS-123` \\OPS-123",
+      "```text\nOPS-123\n```",
       "[Research report](" + documentUri + ") [incident.log](" + fileUri + ")",
     ].join("\n");
     const editor = createEditor(
@@ -290,12 +290,12 @@ describe("MarkdownEditor Tiptap extensions", () => {
     );
 
     expect(
-      editor.view.dom.querySelectorAll('[data-reef-issue-reference="true"]'),
+      editor.view.dom.querySelectorAll('[data-issue-reference="true"]'),
     ).toHaveLength(1);
     expect(
-      editor.view.dom.querySelector('[data-reef-issue-reference="true"]')
+      editor.view.dom.querySelector('[data-issue-reference="true"]')
         ?.textContent,
-    ).toContain("REEF-123");
+    ).toContain("OPS-123");
     expect(
       editor.view.dom.querySelectorAll('a[data-reef-document-link="true"]'),
     ).toHaveLength(1);
@@ -312,13 +312,13 @@ describe("MarkdownEditor Tiptap extensions", () => {
     ).toBe("LOG");
     expect(
       editor.view.dom.querySelectorAll(
-        'a[href="https://example.test/reef-123"]',
+        'a[href="https://example.test/ops-123"]',
       ),
     ).toHaveLength(1);
     expect(editor.view.dom.querySelectorAll("p > code")).toHaveLength(1);
     expect(
-      editor.view.dom.querySelector("[data-reef-escaped-issue]")?.textContent,
-    ).toBe("\\REEF-123");
+      editor.view.dom.querySelector("[data-escaped-issue]")?.textContent,
+    ).toBe("\\OPS-123");
     expect(editor.getMarkdown()).toContain(
       "[Research report](" + documentUri + ")",
     );
@@ -333,11 +333,11 @@ describe("MarkdownEditor Tiptap extensions", () => {
       () => "https://akb.example.test/vault/reef-test/doc/research%2Freport.md",
     );
     expect(
-      reloaded.view.dom.querySelectorAll('[data-reef-issue-reference="true"]'),
+      reloaded.view.dom.querySelectorAll('[data-issue-reference="true"]'),
     ).toHaveLength(1);
     expect(
-      reloaded.view.dom.querySelector("[data-reef-escaped-issue]")?.textContent,
-    ).toBe("\\REEF-123");
+      reloaded.view.dom.querySelector("[data-escaped-issue]")?.textContent,
+    ).toBe("\\OPS-123");
     expect(reloaded.getMarkdown()).toBe(editor.getMarkdown());
   });
 

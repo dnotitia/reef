@@ -790,7 +790,7 @@ hr {
 :is(
   a[data-reef-document-link="true"],
   a[data-reef-file-link="true"],
-  [data-reef-issue-reference="true"]
+  [data-issue-reference="true"]
 ) {
   display: inline-flex;
   align-items: center;
@@ -854,7 +854,7 @@ hr {
 
 /* Known issue ids are editor-only reference marks; the authored id is the
  * only Markdown text while the title and status remain display metadata. */
-.reef-markdown-editor [data-reef-issue-reference="true"] {
+.reef-markdown-editor [data-issue-reference="true"] {
   gap: 0.3rem;
   overflow: hidden;
   cursor: pointer;
@@ -862,7 +862,7 @@ hr {
 
 .reef-markdown-editor
   :is(
-    [data-reef-issue-reference="true"],
+    [data-issue-reference="true"],
     a[data-reef-document-link="true"],
     a[data-reef-file-link="true"]
   ):focus-visible {
@@ -871,7 +871,7 @@ hr {
   border-radius: 0.25rem;
 }
 
-.reef-markdown-editor [data-reef-issue-id-text] {
+.reef-markdown-editor [data-issue-id-text] {
   flex: 0 0 auto;
   color: var(--foreground);
   font-family: var(--font-mono-stack);
@@ -881,9 +881,7 @@ hr {
   white-space: nowrap;
 }
 
-.reef-markdown-editor
-  [data-reef-issue-reference="true"]
-  > [data-reef-issue-title] {
+.reef-markdown-editor [data-issue-reference="true"] > [data-issue-title] {
   min-width: 0;
   max-width: clamp(4rem, 35vw, 20rem);
   overflow: hidden;
@@ -894,7 +892,7 @@ hr {
   white-space: nowrap;
 }
 
-.reef-markdown-editor [data-reef-status-glyph] {
+.reef-markdown-editor [data-issue-status-glyph] {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -905,75 +903,77 @@ hr {
   color: var(--muted-foreground);
 }
 
-.reef-markdown-editor [data-reef-status-glyph]::before,
-.reef-markdown-editor [data-reef-status-glyph]::after,
-.reef-markdown-editor [data-reef-status-half] {
+.reef-markdown-editor [data-issue-status-glyph]::before,
+.reef-markdown-editor [data-issue-status-glyph]::after,
+.reef-markdown-editor [data-issue-status-half] {
   position: absolute;
   box-sizing: border-box;
   content: "";
 }
 
-.reef-markdown-editor [data-reef-status-glyph]::before {
+.reef-markdown-editor [data-issue-status-glyph]::before {
   inset: 1px;
   border: 1.25px solid currentColor;
   border-radius: 999px;
 }
 
-.reef-markdown-editor [data-reef-status="backlog"] {
+.reef-markdown-editor [data-issue-status="backlog"] {
   color: var(--status-backlog);
 }
 
-.reef-markdown-editor [data-reef-status="backlog"]::before {
+.reef-markdown-editor [data-issue-status="backlog"]::before {
   border-style: dotted;
 }
 
-.reef-markdown-editor [data-reef-status="todo"] {
+.reef-markdown-editor [data-issue-status="todo"] {
   color: var(--status-open);
 }
 
-.reef-markdown-editor [data-reef-status="in_progress"] {
+.reef-markdown-editor [data-issue-status="in_progress"] {
   color: var(--status-in-progress);
 }
 
-.reef-markdown-editor [data-reef-status="in_progress"] [data-reef-status-half] {
+.reef-markdown-editor
+  [data-issue-status="in_progress"]
+  [data-issue-status-half] {
   inset: 1px;
   border-radius: 0 999px 999px 0;
   background: currentColor;
   clip-path: inset(0 0 0 50%);
 }
 
-.reef-markdown-editor [data-reef-status="in_review"] {
+.reef-markdown-editor [data-issue-status="in_review"] {
   color: var(--status-in-review);
 }
 
-.reef-markdown-editor [data-reef-status="in_review"]::before {
+.reef-markdown-editor [data-issue-status="in_review"]::before {
   border-style: dashed;
 }
 
-.reef-markdown-editor [data-reef-status="done"],
-.reef-markdown-editor [data-reef-status="closed"] {
+.reef-markdown-editor [data-issue-status="done"],
+.reef-markdown-editor [data-issue-status="closed"] {
   color: var(--status-done);
 }
 
-.reef-markdown-editor [data-reef-status="closed"] {
+.reef-markdown-editor [data-issue-status="closed"] {
   color: var(--status-closed);
 }
 
-.reef-markdown-editor [data-reef-status="done"]::before,
-.reef-markdown-editor [data-reef-status="closed"]::before {
+.reef-markdown-editor [data-issue-status="done"]::before,
+.reef-markdown-editor [data-issue-status="closed"]::before {
   inset: 0;
   border: 0;
   background: currentColor;
 }
 
-.reef-markdown-editor [data-reef-status="done"]::after {
+.reef-markdown-editor [data-issue-status="done"]::after {
   inset: 3px 2px 2px 2px;
   border-right: 1.5px solid white;
   border-bottom: 1.5px solid white;
   transform: rotate(45deg) scale(0.72);
 }
 
-.reef-markdown-editor [data-reef-status="closed"]::after {
+.reef-markdown-editor [data-issue-status="closed"]::after {
   inset: 2px;
   background:
     linear-gradient(

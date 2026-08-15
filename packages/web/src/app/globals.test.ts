@@ -369,7 +369,7 @@ describe("global focus styles", () => {
     for (const selector of [
       'a[data-reef-document-link="true"]',
       'a[data-reef-file-link="true"]',
-      '[data-reef-issue-reference="true"]',
+      '[data-issue-reference="true"]',
     ]) {
       expect(css).toContain(selector);
     }

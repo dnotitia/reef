@@ -1200,7 +1200,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await expect(page.getByTestId("issue-detail")).toBeVisible();
 
     const editor = page.locator(".reef-markdown-editor");
-    const issueReference = editor.locator('[data-reef-issue-reference="true"]');
+    const issueReference = editor.locator('[data-issue-reference="true"]');
     const documentLink = editor.getByRole("link", { name: "AKB report" });
     const fileLink = editor.getByRole("link", { name: "incident.log" });
     const mention = editor.locator('[data-reef-mention="true"]');
@@ -1217,10 +1217,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
       .last();
 
     await expect(issueReference).toHaveCount(1);
-    await expect(issueReference).toHaveAttribute(
-      "data-reef-issue-id",
-      "REEF-001",
-    );
+    await expect(issueReference).toHaveAttribute("data-issue-id", "REEF-001");
     await expect(issueReference).toHaveAttribute("role", "link");
     await expect(documentLink).toHaveAttribute(
       "data-reef-document-link",
@@ -1316,7 +1313,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
       page.getByTestId("markdown-source-toggle").getByRole("button"),
     ).toBeVisible();
     await expect(
-      reloadedEditor.locator('[data-reef-issue-reference="true"]'),
+      reloadedEditor.locator('[data-issue-reference="true"]'),
     ).toHaveCount(1);
     await expect(
       reloadedEditor.getByRole("link", { name: "AKB report" }),

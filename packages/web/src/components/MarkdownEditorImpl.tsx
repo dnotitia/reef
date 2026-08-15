@@ -481,14 +481,14 @@ function findEditorIssueReference(
 ): HTMLElement | null {
   const element = target instanceof Element ? target : null;
   const reference =
-    element?.closest<HTMLElement>("[data-reef-issue-reference]") ?? null;
+    element?.closest<HTMLElement>("[data-issue-reference]") ?? null;
   if (!reference || !root.contains(reference)) return null;
-  if (!reference.dataset.reefIssueHref) return null;
+  if (!reference.dataset.issueHref) return null;
   return reference;
 }
 
 function openEditorIssueReference(reference: HTMLElement): boolean {
-  const href = reference.dataset.reefIssueHref;
+  const href = reference.dataset.issueHref;
   if (!href) return false;
   const opened = window.open(href, "_blank", "noopener,noreferrer");
   try {
@@ -1282,8 +1282,7 @@ export function MarkdownEditor({
           return;
         }
         const issueReference =
-          targetElement?.closest<HTMLElement>("[data-reef-issue-reference]") ??
-          null;
+          targetElement?.closest<HTMLElement>("[data-issue-reference]") ?? null;
         if (issueReference) {
           focusedReferenceRef.current = issueReference;
           return;

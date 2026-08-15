@@ -185,14 +185,14 @@ describe("MarkdownEditor", () => {
 
   it("keeps semantic references interactive without intercepting ordinary links", () => {
     const issue = {
-      id: "REEF-123",
+      id: "OPS-123",
       title: "Semantic references",
       status: "in_progress",
     } as IssueListItem;
     const onChange = vi.fn();
     render(
       <MarkdownEditor
-        value="[Report](akb://reef-test/coll/docs/doc/report.md) REEF-123"
+        value="[Report](akb://reef-test/coll/docs/doc/report.md) OPS-123"
         onChange={onChange}
         vault="reef-test"
         issueReferences={[issue]}
@@ -217,16 +217,14 @@ describe("MarkdownEditor", () => {
       };
     };
     expect(
-      opts.extensions?.some(
-        (extension) => extension.name === "reefIssueReference",
-      ),
+      opts.extensions?.some((extension) => extension.name === "issueReference"),
     ).toBe(true);
 
     const root = document.createElement("div");
     root.innerHTML = `<p>
       <a data-reef-document-link="true" href="https://akb.example.test/vault/reef-test/doc/report.md" target="_blank">Report</a>
       <a data-reef-file-link="true" href="https://files.example.test/incident.log" target="_blank">incident.log</a>
-      <span data-reef-issue-reference="true" data-reef-issue-href="/workspace/reef-test/issues/REEF-123" role="link" tabindex="0"><span>REEF-123</span></span>
+      <span data-issue-reference="true" data-issue-href="/workspace/reef-test/issues/OPS-123" role="link" tabindex="0"><span>OPS-123</span></span>
       <a href="https://example.test/ordinary">ordinary</a>
     </p>`;
     screen.getByTestId("editor-content").append(root);
@@ -273,9 +271,7 @@ describe("MarkdownEditor", () => {
     ).toBe(true);
     expect(fileKey.defaultPrevented).toBe(true);
 
-    const issueText = root.querySelector(
-      '[data-reef-issue-reference="true"] span',
-    );
+    const issueText = root.querySelector('[data-issue-reference="true"] span');
     const issueClick = new MouseEvent("click", {
       bubbles: true,
       cancelable: true,
