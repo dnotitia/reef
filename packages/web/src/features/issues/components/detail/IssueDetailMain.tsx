@@ -164,6 +164,7 @@ export function IssueDetailMain({
           ariaLabel={t("descriptionAriaLabel")}
           vault={vault}
           mentionConfig={issueBodyMentionConfig}
+          enableHeightResize
         />
       </div>
 

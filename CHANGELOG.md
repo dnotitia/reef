@@ -31,6 +31,11 @@ explicitly in the entries below.
   1200px minimum, 1440px default, and 1680px maximum, while still capping the
   panel at 94% of narrower viewports.
 
+- **Issue detail Description editing now supports a quiet desktop height grip**
+  with pointer capture, keyboard and screen-reader controls, shared WYSIWYG /
+  Source sizing, and tab-session restoration; narrow layouts keep the existing
+  automatic editor height. (REEF-526)
+
 - **Comment authors can now permanently delete their own comment and every
   reply below it** from the Activity timeline after confirmation; the server
   removes matching comment-source notifications in the same cascade. (REEF-520)

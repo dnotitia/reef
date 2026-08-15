@@ -1422,6 +1422,8 @@
     "apply": "Apply",
     "uploading": "Uploading attachment…",
     "uploadError": "Couldn't upload that file.",
+    "resizeHandle": "Resize issue description editor",
+    "resizeHandleDescription": "Diagonal handle controls the issue description editor height. Current {current}px; minimum {min}px; maximum {max}px.",
     "mentionSuggestions": "Mention suggestions",
     "mentionOption": "Mention {username}",
     "slash": {

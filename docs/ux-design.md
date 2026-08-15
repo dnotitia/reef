@@ -340,6 +340,16 @@ block ends at 0. These overrides stay on direct children so list and checklist
 item paragraphs keep their own layout, and the global `prose-sm` defaults and
 other Markdown surfaces are unchanged.
 
+On the Issue Detail surface, the Description editor additionally exposes a
+quiet 32px hit area at its lower-right corner on viewports at least 1280px
+wide. The pointer-captured handle and its horizontal separator keyboard
+control share a 200px minimum, a 560px measurement fallback, and a maximum of
+`max(200px, min(960px, viewport height - 160px))`; WYSIWYG and Source use the
+same body frame and scroll owner. A finite user height is restored only for the
+current tab through `sessionStorage`, while missing or malformed values keep
+the existing automatic editor sizing. Narrow layouts omit the handle and keep
+the automatic responsive editor behavior.
+
 Inline marks inside the same scoped surface follow the same semantic hierarchy:
 links use the `--brand` foreground and keep a visible underline in default,
 hover, visited, and keyboard-focus states; inline code uses the existing Geist

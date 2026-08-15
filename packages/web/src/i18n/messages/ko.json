@@ -1609,6 +1609,8 @@
     "apply": "적용",
     "uploading": "첨부파일 업로드 중…",
     "uploadError": "파일을 업로드하지 못했습니다.",
+    "resizeHandle": "이슈 설명 편집기 높이 조절",
+    "resizeHandleDescription": "대각선 그립으로 이슈 설명 편집기 높이를 조절합니다. 현재 {current}px, 최소 {min}px, 최대 {max}px입니다.",
     "mentionSuggestions": "멘션 추천",
     "mentionOption": "{username} 멘션",
     "slash": {
