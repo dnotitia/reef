@@ -123,6 +123,11 @@ test.describe("Hermetic issue description height resize", () => {
 
     await handle.focus();
     await page.keyboard.press("Home");
+    await expect(handle).toHaveAttribute("aria-valuenow", String(MIN_HEIGHT));
+    await expect(frame).toHaveAttribute(
+      "style",
+      new RegExp(`height: ${MIN_HEIGHT}px`),
+    );
     const box = await handle.boundingBox();
     if (!box) throw new Error("Description resize handle is not laid out");
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -131,8 +136,10 @@ test.describe("Hermetic issue description height resize", () => {
       steps: 3,
     });
     await page.mouse.up();
-    const draggedHeight = Number(await handle.getAttribute("aria-valuenow"));
-    expect(draggedHeight).toBe(MIN_HEIGHT + 96);
+    await expect(handle).toHaveAttribute(
+      "aria-valuenow",
+      String(MIN_HEIGHT + 96),
+    );
     await expect(handle).toHaveAttribute("data-resizing", "false");
     await expect(
       page.locator("[data-testid='markdown-editor-resize-handle']"),
