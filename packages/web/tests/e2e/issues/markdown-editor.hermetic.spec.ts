@@ -1111,6 +1111,72 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await expect(reopenedEditor.locator("table td")).toHaveCount(4);
   });
 
+  test("uses one categorized @ menu for people, issues, and documents", async ({
+    page,
+    request,
+  }) => {
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    const editor = page.locator(".reef-markdown-editor");
+    await editor.click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("@a");
+
+    const listbox = page.getByRole("listbox");
+    await expect(listbox).toBeVisible();
+    await expect(editor).toHaveAttribute("aria-expanded", "true");
+    await expect(
+      listbox.locator('[data-reference-section="people"]'),
+    ).toBeVisible();
+    await expect(
+      listbox.locator('[data-reference-section="issues"]'),
+    ).toBeVisible();
+    await expect(
+      listbox.locator('[data-reference-section="documents"]'),
+    ).toBeVisible();
+
+    await expect(
+      listbox.getByRole("option").filter({ hasText: "alice" }),
+    ).toBeVisible();
+    await expect(
+      listbox.getByRole("option").filter({ hasText: "REEF-002" }),
+    ).toBeVisible();
+    await expect(
+      listbox.getByRole("option").filter({ hasText: "Alpha reference" }),
+    ).toBeVisible();
+
+    await listbox
+      .getByRole("option")
+      .filter({ hasText: "Alpha reference" })
+      .click();
+    await expect(editor).toHaveAttribute("aria-expanded", "false");
+    await page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+    const source = page.getByTestId("markdown-source-textarea");
+    await expect(source).toHaveValue(
+      /\[Alpha reference\]\(akb:\/\/reef-e2e\/coll\/docs\/doc\/alpha-reference\.md\) /u,
+    );
+    await page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+
+    const state = await readFixtureState(request);
+    const calls = state.calls ?? [];
+    expect(
+      calls.some(
+        (call) =>
+          call.method === "POST" && call.path.includes("/api/v1/relations"),
+      ),
+    ).toBe(false);
+  });
+
   test("keeps independent task state through keyboard, Source, save, and re-entry", async ({
     page,
     request,

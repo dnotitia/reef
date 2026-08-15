@@ -21,7 +21,7 @@ import {
 } from "@/lib/akb/markdownDocumentLinks";
 import { cn } from "@/lib/utils";
 import { useAkbWebUrl } from "@/providers/AkbWebUrlProvider";
-import type { VaultMember } from "@reef/core";
+import type { DocumentSearchHit, IssueListItem, VaultMember } from "@reef/core";
 import { Extension, mergeAttributes } from "@tiptap/core";
 import Image from "@tiptap/extension-image";
 import LinkExtension from "@tiptap/extension-link";
@@ -76,6 +76,7 @@ import {
 import {
   createIssueBodyMentionExtension,
   prepareIssueBodyMentionMarkdown,
+  type IssueBodyDocumentSearch,
   type IssueBodyMentionExtensionOptions,
 } from "./issueBodyMentionExtension";
 import {
@@ -156,8 +157,18 @@ export interface MarkdownEditorProps {
 
 export interface MarkdownEditorMentionConfig {
   members: readonly VaultMember[];
+  issues: readonly IssueListItem[];
+  searchDocuments?: IssueBodyDocumentSearch;
   suggestionsLabel: string;
   mentionOptionLabel: (username: string) => string;
+  peopleSectionLabel: string;
+  issuesSectionLabel: string;
+  documentsSectionLabel: string;
+  issueOptionLabel: (issue: IssueListItem) => string;
+  documentOptionLabel: (hit: DocumentSearchHit) => string;
+  documentSearchLoadingLabel: string;
+  documentSearchErrorLabel: string;
+  documentSearchEmptyLabel: string;
 }
 
 /** Active-state flags for every toolbar control, derived from the selection. */
@@ -572,6 +583,10 @@ export function MarkdownEditor({
   );
   const linkSelectionRef = useRef<EditorSelectionRange | null>(null);
   const mentionMembersRef = useRef<readonly VaultMember[]>([]);
+  const mentionIssuesRef = useRef<readonly IssueListItem[]>([]);
+  const mentionDocumentSearchRef = useRef<IssueBodyDocumentSearch | undefined>(
+    undefined,
+  );
   const previousMentionRosterRef = useRef<string | null>(null);
 
   const slashMessages = useMemo<SlashCommandMessages>(
@@ -641,7 +656,13 @@ export function MarkdownEditor({
 
   useEffect(() => {
     mentionMembersRef.current = mentionConfig?.members ?? [];
-  }, [mentionConfig?.members]);
+    mentionIssuesRef.current = mentionConfig?.issues ?? [];
+    mentionDocumentSearchRef.current = mentionConfig?.searchDocuments;
+  }, [
+    mentionConfig?.members,
+    mentionConfig?.issues,
+    mentionConfig?.searchDocuments,
+  ]);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -720,8 +741,19 @@ export function MarkdownEditor({
       mentionConfig
         ? {
             membersRef: mentionMembersRef,
+            issuesRef: mentionIssuesRef,
+            searchDocumentsRef: mentionDocumentSearchRef,
             suggestionsLabel: mentionConfig.suggestionsLabel,
             mentionOptionLabel: mentionConfig.mentionOptionLabel,
+            peopleSectionLabel: mentionConfig.peopleSectionLabel,
+            issuesSectionLabel: mentionConfig.issuesSectionLabel,
+            documentsSectionLabel: mentionConfig.documentsSectionLabel,
+            issueOptionLabel: mentionConfig.issueOptionLabel,
+            documentOptionLabel: mentionConfig.documentOptionLabel,
+            documentSearchLoadingLabel:
+              mentionConfig.documentSearchLoadingLabel,
+            documentSearchErrorLabel: mentionConfig.documentSearchErrorLabel,
+            documentSearchEmptyLabel: mentionConfig.documentSearchEmptyLabel,
           }
         : undefined,
       (href) => resolveAttachmentHrefRef.current?.(href),
