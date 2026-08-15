@@ -9,12 +9,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // Heavy / query-backed children aren't relevant to the clip-container contract,
 // but keep the opt-in boundary observable so other MarkdownEditor call sites
 // remain unaffected.
-const { markdownEditorProps } = vi.hoisted(() => ({
+const { markdownEditorProps, mockMarkdownMentionConfig } = vi.hoisted(() => ({
   markdownEditorProps: [] as Array<{ enableHeightResize?: boolean }>,
+  mockMarkdownMentionConfig: { current: null as unknown },
 }));
 vi.mock("@/components/MarkdownEditor", () => ({
-  MarkdownEditor: (props: { enableHeightResize?: boolean }) => {
+  MarkdownEditor: (props: {
+    enableHeightResize?: boolean;
+    mentionConfig?: unknown;
+  }) => {
     markdownEditorProps.push(props);
+    const { mentionConfig } = props;
+    mockMarkdownMentionConfig.current = mentionConfig;
     return null;
   },
 }));
@@ -41,6 +47,7 @@ import { IssueDetailMain } from "./IssueDetailMain";
 
 beforeEach(() => {
   markdownEditorProps.length = 0;
+  mockMarkdownMentionConfig.current = null;
   useViewStore.setState({
     sidebarCollapsed: false,
     newIssueDialogOpen: false,
@@ -120,6 +127,25 @@ describe("IssueDetailMain autosave boundaries", () => {
     fireEvent.blur(input);
 
     expect(commitTitle).toHaveBeenCalledWith("Renamed title");
+  });
+});
+
+describe("IssueDetailMain reference picker", () => {
+  it("passes the current issue list and document search to the body editor", () => {
+    const allIssues = [
+      { id: "REEF-009", title: "Alpha issue", status: "todo" },
+    ] as unknown as Parameters<typeof IssueDetailMain>[0]["allIssues"];
+    renderMain({ allIssues });
+
+    const config = mockMarkdownMentionConfig.current as {
+      issues: readonly { id: string }[];
+      searchDocuments?: (
+        query: string,
+        signal: AbortSignal,
+      ) => Promise<unknown>;
+    } | null;
+    expect(config?.issues).toEqual(allIssues);
+    expect(typeof config?.searchDocuments).toBe("function");
   });
 });
 

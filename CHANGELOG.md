@@ -21,6 +21,12 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Issue create and detail Markdown bodies now share one localized `@` reference
+  picker for people, issues, and AKB documents.** Person selections stay
+  canonical mentions, issue selections insert plain IDs, and document selections
+  insert ordinary Markdown links without changing Source mode or issue
+  relations. (REEF-524)
+
 - **Issue Markdown editing now offers a categorized keyboard-first slash block
   menu with localized filtering, basic GFM table insertion, and bounded
   lowlight code highlighting.** The menu is editor-bound, clamps or flips at

@@ -936,7 +936,10 @@ hr {
 }
 
 .reef-issue-body-mention-popup {
-  z-index: 50;
+  /* Keep the fallback body mount above Radix Sheet / Dialog content (both use
+   * z-50); modal editors additionally mount inside the active content. */
+  z-index: 60;
+  pointer-events: auto;
 }
 
 .reef-issue-body-mention-suggestion {
