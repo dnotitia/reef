@@ -203,6 +203,7 @@ describe("MarkdownEditor", () => {
       extensions?: readonly { name?: string }[];
       editorProps?: {
         handleDOMEvents?: {
+          mouseup?: (view: { dom: HTMLElement }, event: MouseEvent) => boolean;
           keydown?: (
             view: { dom: HTMLElement },
             event: KeyboardEvent,
@@ -234,6 +235,21 @@ describe("MarkdownEditor", () => {
       .mockReturnValue({ opener: window } as Window);
 
     const documentLink = root.querySelector('[data-reef-document-link="true"]');
+    const documentMouseUp = new MouseEvent("mouseup", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    Object.defineProperty(documentMouseUp, "target", {
+      value: documentLink,
+    });
+    expect(
+      opts.editorProps?.handleDOMEvents?.mouseup?.(
+        { dom: root },
+        documentMouseUp,
+      ),
+    ).toBe(true);
+    expect(documentMouseUp.defaultPrevented).toBe(true);
     const documentKey = new KeyboardEvent("keydown", {
       key: "Enter",
       bubbles: true,
@@ -283,7 +299,7 @@ describe("MarkdownEditor", () => {
       opts.editorProps?.handleClick?.({ dom: root }, 1, ordinaryClick),
     ).toBe(false);
     expect(ordinaryClick.defaultPrevented).toBe(false);
-    expect(open).toHaveBeenCalledTimes(3);
+    expect(open).toHaveBeenCalledTimes(4);
     expect(onChange).not.toHaveBeenCalled();
   });
 

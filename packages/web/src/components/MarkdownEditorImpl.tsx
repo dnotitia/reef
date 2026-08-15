@@ -417,6 +417,47 @@ function openEditorLink(anchor: HTMLAnchorElement): boolean {
   return true;
 }
 
+function findEditorDocumentLink(
+  root: ParentNode,
+  target: EventTarget | null,
+): HTMLAnchorElement | null {
+  const anchor = findEditorSemanticLink(root, target);
+  return anchor?.matches('a[data-reef-document-link="true"]') ? anchor : null;
+}
+
+function openEditorDocumentLinkOnMouseUp(
+  root: ParentNode,
+  event: MouseEvent,
+): boolean {
+  if (event.button !== 0) return false;
+  const anchor = findEditorDocumentLink(root, event.target);
+  if (!anchor || !openEditorLink(anchor)) return false;
+  event.preventDefault();
+  return true;
+}
+
+function consumeEditorDocumentLinkClick(
+  root: ParentNode,
+  event: MouseEvent,
+): boolean {
+  if (event.button !== 0) return false;
+  const anchor = findEditorDocumentLink(root, event.target);
+  if (!anchor) return false;
+  event.preventDefault();
+  return true;
+}
+
+function preventEditorDocumentSelectionOnMouseDown(
+  root: ParentNode,
+  event: MouseEvent,
+): boolean {
+  if (event.button !== 0) return false;
+  const anchor = findEditorDocumentLink(root, event.target);
+  if (!anchor) return false;
+  event.preventDefault();
+  return true;
+}
+
 function openEditorSemanticLinkOnKeyDown(
   root: ParentNode,
   event: KeyboardEvent,
@@ -850,6 +891,10 @@ export function MarkdownEditor({
           : {}),
       },
       handleDOMEvents: {
+        mousedown: (view, event) =>
+          preventEditorDocumentSelectionOnMouseDown(view.dom, event),
+        mouseup: (view, event) =>
+          openEditorDocumentLinkOnMouseUp(view.dom, event),
         keydown: (view, event) =>
           openEditorSemanticLinkOnKeyDown(
             view.dom,
@@ -863,7 +908,8 @@ export function MarkdownEditor({
           ),
       },
       handleClick: (view, _pos, event) =>
-        openEditorIssueReferenceOnClick(view.dom, event),
+        openEditorIssueReferenceOnClick(view.dom, event) ||
+        consumeEditorDocumentLinkClick(view.dom, event),
       handlePaste: (_view, event) => {
         const files = filesFromFileList(event.clipboardData?.files ?? null);
         if (
