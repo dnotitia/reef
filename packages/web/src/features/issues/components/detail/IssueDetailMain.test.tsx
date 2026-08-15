@@ -6,12 +6,20 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Heavy / query-backed children aren't relevant to the clip-container contract.
-const { mockMarkdownMentionConfig } = vi.hoisted(() => ({
+// Heavy / query-backed children aren't relevant to the clip-container contract,
+// but keep the opt-in boundary observable so other MarkdownEditor call sites
+// remain unaffected.
+const { markdownEditorProps, mockMarkdownMentionConfig } = vi.hoisted(() => ({
+  markdownEditorProps: [] as Array<{ enableHeightResize?: boolean }>,
   mockMarkdownMentionConfig: { current: null as unknown },
 }));
 vi.mock("@/components/MarkdownEditor", () => ({
-  MarkdownEditor: ({ mentionConfig }: { mentionConfig?: unknown }) => {
+  MarkdownEditor: (props: {
+    enableHeightResize?: boolean;
+    mentionConfig?: unknown;
+  }) => {
+    markdownEditorProps.push(props);
+    const { mentionConfig } = props;
     mockMarkdownMentionConfig.current = mentionConfig;
     return null;
   },
@@ -38,6 +46,7 @@ vi.mock("../relations/IssueRelationInput", () => ({
 import { IssueDetailMain } from "./IssueDetailMain";
 
 beforeEach(() => {
+  markdownEditorProps.length = 0;
   mockMarkdownMentionConfig.current = null;
   useViewStore.setState({
     sidebarCollapsed: false,
@@ -84,6 +93,12 @@ describe("IssueDetailMain focus-ring clipping (REEF-226)", () => {
 });
 
 describe("IssueDetailMain autosave boundaries", () => {
+  it("opts only the issue description into the shared height control", () => {
+    renderMain();
+
+    expect(markdownEditorProps.at(-1)?.enableHeightResize).toBe(true);
+  });
+
   it("exposes a stable issue description anchor", () => {
     renderMain();
 

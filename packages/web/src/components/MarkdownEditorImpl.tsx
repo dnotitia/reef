@@ -67,11 +67,15 @@ import { useTranslations } from "next-intl";
 import {
   type ClipboardEvent,
   type DragEvent,
+  type KeyboardEvent,
+  type PointerEvent,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import {
   createIssueBodyMentionExtension,
@@ -117,6 +121,21 @@ export const EDITOR_BODY_SIZING =
   "min-h-[200px] max-h-[clamp(200px,48vh,560px)] overflow-y-auto [scrollbar-gutter:stable]";
 export const EDITOR_BODY_FRAME_CLASS = "p-1";
 export const EDITOR_CONTENT_CLASS = "reef-markdown-editor";
+export const EDITOR_RESIZABLE_BODY_ID = "markdown-editor-body-frame";
+export const EDITOR_BODY_MIN_HEIGHT = 200;
+export const EDITOR_BODY_DEFAULT_HEIGHT = 560;
+export const EDITOR_BODY_MAX_HEIGHT = 960;
+export const EDITOR_BODY_KEYBOARD_STEP = 32;
+export const EDITOR_BODY_DESKTOP_MIN_WIDTH = 1280;
+export const EDITOR_BODY_VIEWPORT_RESERVATION = 160;
+export const EDITOR_BODY_SESSION_STORAGE_KEY =
+  "reef:issue-description-height:v1";
+export const EDITOR_RESIZE_DESCRIPTION_ID =
+  "markdown-editor-resize-description";
+
+/** The opt-in editor body keeps the frame as the sole scroll owner. */
+const EDITOR_MANUAL_BODY_CLASS =
+  "h-full min-h-0 max-h-none overflow-visible [scrollbar-gutter:stable]";
 
 export interface MarkdownEditorProps {
   value: string;
@@ -154,6 +173,8 @@ export interface MarkdownEditorProps {
    * shared editor keeps its existing schema and interaction contract.
    */
   mentionConfig?: MarkdownEditorMentionConfig;
+  /** Enables the issue-detail-only desktop description height control. */
+  enableHeightResize?: boolean;
 }
 
 export interface MarkdownEditorMentionConfig {
@@ -524,6 +545,298 @@ function setEditorMarkdown(
   );
 }
 
+function subscribeToEditorViewport(
+  enabled: boolean,
+  onStoreChange: () => void,
+) {
+  if (!enabled || typeof window === "undefined") return () => {};
+  window.addEventListener("resize", onStoreChange);
+  return () => window.removeEventListener("resize", onStoreChange);
+}
+
+function getEditorViewportSnapshot() {
+  if (typeof window === "undefined") return "0:0";
+  return `${window.innerWidth}:${window.innerHeight}`;
+}
+
+function getServerEditorViewportSnapshot() {
+  return "0:0";
+}
+
+function parseEditorViewportSnapshot(snapshot: string) {
+  const [width, height] = snapshot.split(":").map(Number);
+  return {
+    width: Number.isFinite(width) ? width : 0,
+    height: Number.isFinite(height) ? height : 0,
+  };
+}
+
+export function getEditorMaxHeight(viewportHeight: number) {
+  return Math.max(
+    EDITOR_BODY_MIN_HEIGHT,
+    Math.min(
+      EDITOR_BODY_MAX_HEIGHT,
+      viewportHeight - EDITOR_BODY_VIEWPORT_RESERVATION,
+    ),
+  );
+}
+
+export function clampEditorHeight(value: number, maxHeight: number) {
+  const safeMax = Math.max(EDITOR_BODY_MIN_HEIGHT, maxHeight);
+  if (!Number.isFinite(value)) {
+    return Math.min(EDITOR_BODY_DEFAULT_HEIGHT, safeMax);
+  }
+  return Math.min(Math.max(value, EDITOR_BODY_MIN_HEIGHT), safeMax);
+}
+
+function readStoredEditorHeight() {
+  try {
+    const raw = window.sessionStorage.getItem(EDITOR_BODY_SESSION_STORAGE_KEY);
+    if (raw === null) return null;
+    const parsed: unknown = JSON.parse(raw);
+    return typeof parsed === "number" && Number.isFinite(parsed)
+      ? parsed
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeEditorHeight(height: number) {
+  try {
+    window.sessionStorage.setItem(
+      EDITOR_BODY_SESSION_STORAGE_KEY,
+      JSON.stringify(height),
+    );
+  } catch {
+    // Private browsing and disabled storage should not block resizing.
+  }
+}
+
+function measureEditorBodyHeight(
+  body: HTMLDivElement | null,
+  maxHeight: number,
+) {
+  const measured = body
+    ? body.getBoundingClientRect().height ||
+      body.clientHeight ||
+      body.offsetHeight
+    : Number.NaN;
+  return clampEditorHeight(measured > 0 ? measured : Number.NaN, maxHeight);
+}
+
+interface MarkdownEditorHeightResizeHandlers {
+  isDesktop: boolean;
+  isManual: boolean;
+  isResizing: boolean;
+  maxHeight: number;
+  currentHeight: number;
+  bodyFrameStyle?: React.CSSProperties;
+  onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
+  onLostPointerCapture: (event: PointerEvent<HTMLDivElement>) => void;
+  onPointerCancel: (event: PointerEvent<HTMLDivElement>) => void;
+  onPointerDown: (event: PointerEvent<HTMLDivElement>) => void;
+  onPointerMove: (event: PointerEvent<HTMLDivElement>) => void;
+  onPointerUp: (event: PointerEvent<HTMLDivElement>) => void;
+  refreshAutoHeight: () => void;
+}
+
+function useMarkdownEditorHeightResize(
+  enabled: boolean,
+  bodyRef: React.RefObject<HTMLDivElement | null>,
+): MarkdownEditorHeightResizeHandlers {
+  const subscribe = useCallback(
+    (onStoreChange: () => void) =>
+      subscribeToEditorViewport(enabled, onStoreChange),
+    [enabled],
+  );
+  const viewportSnapshot = useSyncExternalStore(
+    subscribe,
+    getEditorViewportSnapshot,
+    getServerEditorViewportSnapshot,
+  );
+  const { width: viewportWidth, height: viewportHeight } =
+    parseEditorViewportSnapshot(viewportSnapshot);
+  const liveViewportWidth =
+    viewportWidth || (typeof window === "undefined" ? 0 : window.innerWidth);
+  const liveViewportHeight =
+    viewportHeight || (typeof window === "undefined" ? 0 : window.innerHeight);
+  const isDesktop =
+    enabled && liveViewportWidth >= EDITOR_BODY_DESKTOP_MIN_WIDTH;
+  const maxHeight = getEditorMaxHeight(liveViewportHeight);
+  const [manualHeight, setManualHeight] = useState<number | null>(null);
+  const [currentHeight, setCurrentHeight] = useState(
+    EDITOR_BODY_DEFAULT_HEIGHT,
+  );
+  const [isResizing, setIsResizing] = useState(false);
+  const manualHeightRef = useRef<number | null>(null);
+  const currentHeightRef = useRef(EDITOR_BODY_DEFAULT_HEIGHT);
+  const loadedSessionStateRef = useRef(false);
+  const dragRef = useRef<{
+    pointerId: number;
+    startY: number;
+    startHeight: number;
+  } | null>(null);
+
+  const refreshAutoHeight = useCallback(() => {
+    if (!isDesktop || manualHeightRef.current !== null) return;
+    const nextHeight = measureEditorBodyHeight(bodyRef.current, maxHeight);
+    currentHeightRef.current = nextHeight;
+    setCurrentHeight(nextHeight);
+  }, [bodyRef, isDesktop, maxHeight]);
+
+  useLayoutEffect(() => {
+    if (!isDesktop || liveViewportHeight <= 0) return;
+    if (manualHeightRef.current !== null) {
+      const nextHeight = clampEditorHeight(manualHeightRef.current, maxHeight);
+      currentHeightRef.current = nextHeight;
+      if (nextHeight !== manualHeightRef.current) {
+        manualHeightRef.current = nextHeight;
+        setManualHeight(nextHeight);
+        storeEditorHeight(nextHeight);
+      }
+      setCurrentHeight(nextHeight);
+      return;
+    }
+    refreshAutoHeight();
+  }, [isDesktop, liveViewportHeight, maxHeight, refreshAutoHeight]);
+
+  useEffect(() => {
+    if (!isDesktop || loadedSessionStateRef.current) return;
+    loadedSessionStateRef.current = true;
+    const storedHeight = readStoredEditorHeight();
+    if (storedHeight === null) return;
+
+    const nextHeight = clampEditorHeight(storedHeight, maxHeight);
+    manualHeightRef.current = nextHeight;
+    currentHeightRef.current = nextHeight;
+    setManualHeight(nextHeight);
+    setCurrentHeight(nextHeight);
+    if (nextHeight !== storedHeight) storeEditorHeight(nextHeight);
+  }, [isDesktop, maxHeight]);
+
+  function measureCurrentHeight() {
+    const nextHeight = measureEditorBodyHeight(bodyRef.current, maxHeight);
+    currentHeightRef.current = nextHeight;
+    setCurrentHeight(nextHeight);
+    return nextHeight;
+  }
+
+  function enterManualMode() {
+    if (!isDesktop) return null;
+    const existingHeight = manualHeightRef.current;
+    if (existingHeight !== null) {
+      const nextHeight = clampEditorHeight(existingHeight, maxHeight);
+      if (nextHeight !== existingHeight) {
+        manualHeightRef.current = nextHeight;
+        currentHeightRef.current = nextHeight;
+        setManualHeight(nextHeight);
+        setCurrentHeight(nextHeight);
+        storeEditorHeight(nextHeight);
+      }
+      return nextHeight;
+    }
+
+    const nextHeight = measureCurrentHeight();
+    manualHeightRef.current = nextHeight;
+    setManualHeight(nextHeight);
+    storeEditorHeight(nextHeight);
+    return nextHeight;
+  }
+
+  function updateHeight(value: number) {
+    if (!isDesktop) return;
+    const nextHeight = clampEditorHeight(value, maxHeight);
+    manualHeightRef.current = nextHeight;
+    currentHeightRef.current = nextHeight;
+    setManualHeight(nextHeight);
+    setCurrentHeight(nextHeight);
+    storeEditorHeight(nextHeight);
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (!isDesktop) return;
+    let nextHeight: number | null = null;
+    switch (event.key) {
+      case "ArrowDown":
+        nextHeight =
+          (enterManualMode() ?? currentHeightRef.current) +
+          EDITOR_BODY_KEYBOARD_STEP;
+        break;
+      case "ArrowUp":
+        nextHeight =
+          (enterManualMode() ?? currentHeightRef.current) -
+          EDITOR_BODY_KEYBOARD_STEP;
+        break;
+      case "Home":
+        enterManualMode();
+        nextHeight = EDITOR_BODY_MIN_HEIGHT;
+        break;
+      case "End":
+        enterManualMode();
+        nextHeight = maxHeight;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    if (nextHeight !== null) updateHeight(nextHeight);
+  }
+
+  function onPointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (!isDesktop || event.button !== 0) return;
+    const startHeight = enterManualMode();
+    if (startHeight === null) return;
+    event.preventDefault();
+    event.currentTarget.focus();
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      startHeight,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setIsResizing(true);
+  }
+
+  function onPointerMove(event: PointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    updateHeight(drag.startHeight + (event.clientY - drag.startY));
+  }
+
+  function finishPointerResize(event: PointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(drag.pointerId)) {
+      event.currentTarget.releasePointerCapture(drag.pointerId);
+    }
+    dragRef.current = null;
+    setIsResizing(false);
+  }
+
+  const isManual = enabled && isDesktop && manualHeight !== null;
+  const accessibleHeight = clampEditorHeight(
+    isManual ? manualHeight : currentHeight,
+    maxHeight,
+  );
+
+  return {
+    isDesktop,
+    isManual,
+    isResizing,
+    maxHeight,
+    currentHeight: accessibleHeight,
+    bodyFrameStyle: isManual ? { height: `${accessibleHeight}px` } : undefined,
+    onKeyDown,
+    onLostPointerCapture: finishPointerResize,
+    onPointerCancel: finishPointerResize,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp: finishPointerResize,
+    refreshAutoHeight,
+  };
+}
+
 /**
  * WYSIWYG markdown editor backed by Tiptap.
  *
@@ -556,6 +869,7 @@ export function MarkdownEditor({
   resolveImageSrc,
   resolveAttachmentHref,
   mentionConfig,
+  enableHeightResize = false,
 }: MarkdownEditorProps) {
   const t = useTranslations("markdownEditor");
   const c = useTranslations("common");
@@ -567,6 +881,22 @@ export function MarkdownEditor({
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [uploadError, setUploadError] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const bodyFrameRef = useRef<HTMLDivElement | null>(null);
+  const {
+    isDesktop: isHeightResizeDesktop,
+    isManual: isManualHeight,
+    isResizing: isHeightResizing,
+    maxHeight: editorMaxHeight,
+    currentHeight: editorCurrentHeight,
+    bodyFrameStyle,
+    onKeyDown: onHeightResizeKeyDown,
+    onLostPointerCapture: onHeightResizeLostPointerCapture,
+    onPointerCancel: onHeightResizePointerCancel,
+    onPointerDown: onHeightResizePointerDown,
+    onPointerMove: onHeightResizePointerMove,
+    onPointerUp: onHeightResizePointerUp,
+    refreshAutoHeight,
+  } = useMarkdownEditorHeightResize(enableHeightResize, bodyFrameRef);
   const latestValueRef = useRef(value);
   const lastSyncedValueRef = useRef(value);
   const onChangeRef = useRef(onChange);
@@ -610,6 +940,13 @@ export function MarkdownEditor({
   useOverlayOpenRegistration(
     Boolean(mentionConfig && mentionOpen),
     dismissMention,
+  );
+
+  const editorBodyClassName = cn(
+    EDITOR_CONTENT_CLASS,
+    "prose prose-sm focus:outline-none",
+    isManualHeight ? EDITOR_MANUAL_BODY_CLASS : EDITOR_BODY_SIZING,
+    "px-3 py-2 max-w-none",
   );
 
   const slashMessages = useMemo<SlashCommandMessages>(
@@ -791,12 +1128,7 @@ export function MarkdownEditor({
     editable: !readOnly,
     editorProps: {
       attributes: {
-        class: cn(
-          EDITOR_CONTENT_CLASS,
-          "prose prose-sm focus:outline-none",
-          EDITOR_BODY_SIZING,
-          "px-3 py-2 max-w-none",
-        ),
+        class: editorBodyClassName,
         ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
         ...(mentionConfig
           ? { "aria-autocomplete": "list", "aria-expanded": "false" }
@@ -862,6 +1194,16 @@ export function MarkdownEditor({
     editorRef.current = editor;
   }, [editor]);
 
+  // Tiptap keeps the contenteditable node alive across source-mode and height
+  // changes. Keep the shared body sizing class in sync without recreating the
+  // editor instance or disturbing its selection.
+  useEffect(() => {
+    if (sourceMode) return;
+    const content = editor?.view?.dom;
+    if (!content) return;
+    content.className = editorBodyClassName;
+  }, [editor, editorBodyClassName, sourceMode]);
+
   useEffect(() => {
     resolveImageSrcRef.current = resolveImageSrc;
   }, [resolveImageSrc]);
@@ -919,7 +1261,14 @@ export function MarkdownEditor({
     }
     lastSyncedValueRef.current = normalized;
     queueAkbTitleResolution(normalized, editor);
-  }, [editor, mentionConfig, queueAkbTitleResolution, value]);
+    refreshAutoHeight();
+  }, [
+    editor,
+    mentionConfig,
+    queueAkbTitleResolution,
+    refreshAutoHeight,
+    value,
+  ]);
 
   useEffect(() => {
     if (!mentionConfig || !editor) return;
@@ -1386,8 +1735,15 @@ export function MarkdownEditor({
       )}
 
       <div
+        ref={bodyFrameRef}
+        id={enableHeightResize ? EDITOR_RESIZABLE_BODY_ID : undefined}
         data-testid="markdown-editor-body-frame"
-        className={EDITOR_BODY_FRAME_CLASS}
+        className={cn(
+          EDITOR_BODY_FRAME_CLASS,
+          enableHeightResize && isHeightResizeDesktop && "relative",
+          isManualHeight && "overflow-auto",
+        )}
+        style={bodyFrameStyle}
       >
         {/* Editor area */}
         {sourceMode ? (
@@ -1407,14 +1763,59 @@ export function MarkdownEditor({
             // resize-y blocks horizontal drag (no dialog/sheet width overflow) and
             // stays a manual vertical fallback where field-sizing is unavailable,
             // so the textarea is does not stuck at min-h on those browsers.
-            className={`w-full field-sizing-content resize-y rounded-sm ${EDITOR_BODY_SIZING} bg-transparent px-3 py-2 text-sm font-mono focus:outline-none`}
+            className={cn(
+              "w-full field-sizing-content rounded-sm bg-transparent px-3 py-2 text-sm font-mono focus:outline-none",
+              enableHeightResize ? "resize-none" : "resize-y",
+              isManualHeight ? EDITOR_MANUAL_BODY_CLASS : EDITOR_BODY_SIZING,
+            )}
             placeholder={placeholder}
             data-testid="markdown-source-textarea"
           />
         ) : (
           <EditorContent editor={editor} />
         )}
+
+        {enableHeightResize && isHeightResizeDesktop ? (
+          <div
+            role="separator"
+            tabIndex={0}
+            aria-label={t("resizeHandle")}
+            aria-controls={EDITOR_RESIZABLE_BODY_ID}
+            aria-describedby={EDITOR_RESIZE_DESCRIPTION_ID}
+            aria-orientation="horizontal"
+            aria-valuemin={EDITOR_BODY_MIN_HEIGHT}
+            aria-valuemax={editorMaxHeight}
+            aria-valuenow={editorCurrentHeight}
+            aria-valuetext={`${editorCurrentHeight}px`}
+            data-testid="markdown-editor-resize-handle"
+            data-resizing={isHeightResizing ? "true" : "false"}
+            className="group absolute bottom-0 right-0 z-10 flex size-8 touch-none select-none cursor-se-resize items-end justify-end focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/60"
+            onKeyDown={onHeightResizeKeyDown}
+            onPointerCancel={onHeightResizePointerCancel}
+            onPointerDown={onHeightResizePointerDown}
+            onPointerMove={onHeightResizePointerMove}
+            onPointerUp={onHeightResizePointerUp}
+            onLostPointerCapture={onHeightResizeLostPointerCapture}
+          >
+            <span
+              aria-hidden="true"
+              className={cn(
+                "pointer-events-none mb-1 mr-1 size-4 border-b-2 border-r-2 border-border-subtle transition-colors group-hover:border-brand group-focus-visible:border-brand",
+                isHeightResizing && "border-brand",
+              )}
+            />
+          </div>
+        ) : null}
       </div>
+      {enableHeightResize && isHeightResizeDesktop ? (
+        <span id={EDITOR_RESIZE_DESCRIPTION_ID} className="sr-only">
+          {t("resizeHandleDescription", {
+            current: String(editorCurrentHeight),
+            min: String(EDITOR_BODY_MIN_HEIGHT),
+            max: String(editorMaxHeight),
+          })}
+        </span>
+      ) : null}
     </div>
   );
 }
