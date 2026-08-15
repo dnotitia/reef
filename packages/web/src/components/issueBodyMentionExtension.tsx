@@ -403,6 +403,29 @@ function mergeCandidates(
   return [...localCandidates, ...documentCandidates];
 }
 
+function trailingBackslashCount(value: string): number {
+  let count = 0;
+  for (let index = value.length - 1; index >= 0; index -= 1) {
+    if (value[index] !== "\\") break;
+    count += 1;
+  }
+  return count;
+}
+
+/**
+ * Reuse the plain-Markdown mention parser for the live trigger prefix. The
+ * editor may not have materialized an inline mark or code block yet while a
+ * user is typing its opening fence, so probing with a safe token also catches
+ * those incomplete Markdown-owned regions before the suggestion plugin opens.
+ */
+function isMentionTriggerAllowed(before: string): boolean {
+  if (trailingBackslashCount(before) > 0) return false;
+  const probe = `${before}@a`;
+  return parseMentionTokens(probe).some(
+    (token) => token.start === before.length,
+  );
+}
+
 /** Insert a selected reference while keeping the stored body plain Markdown. */
 export function insertIssueBodyReference(
   editor: Editor,
@@ -565,12 +588,8 @@ function createIssueBodyMentionSuggestion(
       const previous = Array.from(before).at(-1);
       if (previous && /[\p{L}\p{N}@]/u.test(previous)) return null;
 
-      let backslashes = 0;
-      for (let index = before.length - 1; index >= 0; index -= 1) {
-        if (before[index] !== "\\") break;
-        backslashes += 1;
-      }
-      return backslashes % 2 === 1 ? null : match;
+      if (!isMentionTriggerAllowed(before)) return null;
+      return match;
     },
     decorationClass: "reef-issue-body-mention-suggestion",
     // Resolve the active modal at mount time. Keeping the popup inside its

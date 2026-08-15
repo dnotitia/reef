@@ -1206,6 +1206,55 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await expect(editor).toHaveText(bodyBeforeEscape ?? "");
   });
 
+  test("does not open the @ menu inside inline code", async ({
+    page,
+    request,
+  }) => {
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    const editor = page.locator(".reef-markdown-editor");
+    const inlineCode = editor
+      .locator("p code")
+      .filter({ hasText: "inline code" });
+    await expect(inlineCode).toBeVisible();
+    await inlineCode.click();
+    await page.keyboard.press("End");
+    await page.keyboard.type("@inline");
+    await expect(page.getByRole("listbox")).toHaveCount(0);
+
+    await editor.click();
+    await page.keyboard.press("Control+A");
+    await page.keyboard.press("Backspace");
+    await page.keyboard.type("`@inline");
+    await expect(page.getByRole("listbox")).toHaveCount(0);
+  });
+
+  test("does not open the @ menu for escaped text", async ({
+    page,
+    request,
+  }) => {
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    const editor = page.locator(".reef-markdown-editor");
+    await editor.click();
+    await page.keyboard.press("Control+A");
+    await page.keyboard.press("Backspace");
+    await page.keyboard.type("\\@escaped");
+    await expect(page.getByRole("listbox")).toHaveCount(0);
+
+    await editor.click();
+    await page.keyboard.press("Control+A");
+    await page.keyboard.press("Backspace");
+    await page.keyboard.type("\\\\@escaped");
+    await expect(page.getByRole("listbox")).toHaveCount(0);
+  });
+
   test("keeps independent task state through keyboard, Source, save, and re-entry", async ({
     page,
     request,
