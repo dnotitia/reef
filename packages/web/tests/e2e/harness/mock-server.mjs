@@ -643,11 +643,18 @@ function makeState(scenario) {
 function markdownFixtureVault(name) {
   const vault = configuredVault(name);
   const issue = vault.issues[0];
-  if (!issue) throw new Error("Markdown fixture requires a seeded issue");
+  const secondIssue = vault.issues.find(
+    (candidate) => candidate.reef_id === "REEF-002",
+  );
+  if (!issue || !secondIssue) {
+    throw new Error("Markdown fixture requires two seeded issues");
+  }
 
   issue.title = "Markdown reference";
   issue.labels = ["markdown", "fixture"];
-  vault.issues = [issue];
+  secondIssue.title = "Alpha follow-up";
+  secondIssue.labels = ["markdown", "fixture"];
+  vault.issues = [issue, secondIssue];
   vault.documents = new Map();
   vault.comments = [];
   vault.activity = [];
@@ -685,6 +692,14 @@ function markdownFixtureVault(name) {
     },
   ];
   seedIssueDocument(vault, issue.reef_id, MARKDOWN_FIXTURE);
+  seedIssueDocument(vault, secondIssue.reef_id, "Alpha follow-up issue body.");
+  seedReferenceDocument(vault, "docs/alpha-reference.md", {
+    title: "Alpha reference",
+    type: "reference",
+    summary: "A normal vault document for inline reference suggestions.",
+    content: "Alpha reference notes for the unified issue-body picker.",
+    tags: ["markdown", "fixture"],
+  });
   return vault;
 }
 
