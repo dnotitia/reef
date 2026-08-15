@@ -381,6 +381,19 @@ inline marks, task lists, images, toolbar/Source controls, comments, AI
 Markdown, or other global `prose` surfaces; language fences remain serialized
 for the future syntax-highlighting boundary.
 
+The shared issue editor also exposes a keyboard-first slash navigator at the
+start of an empty line. `/` opens one categorized single-column listbox (TEXT,
+LISTS, STRUCTURE) with a nominal 360px width, localized labels and
+descriptions, and no separate search field; typing filters the same registry,
+Arrow keys wrap selection, Enter inserts, and Escape closes without changing
+the trigger. The popup is clamped and flips within the editor boundary, keeps
+its Lucide icon and semantic Reef surface tokens, and never resolves issue IDs
+or relation targets. The registry covers headings, quote, bullet/numbered/task
+lists, a fixed basic 3×2 GFM table, fenced code, and a divider. Tables stay
+editor-scoped with fixed layout and wrapped cells; known lowlight languages
+receive bounded token colors while unknown or empty fences remain readable
+plain code. Source mode and save/reload preserve the authored Markdown.
+
 ### Spacing, Layout & Density
 
 Layout follows Tailwind's spacing scale. The frame is a fixed sidebar plus a

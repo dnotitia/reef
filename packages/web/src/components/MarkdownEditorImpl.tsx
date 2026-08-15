@@ -26,6 +26,13 @@ import { Extension, mergeAttributes } from "@tiptap/core";
 import Image from "@tiptap/extension-image";
 import LinkExtension from "@tiptap/extension-link";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
+import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
+import {
+  Table,
+  TableCell,
+  TableHeader,
+  TableRow,
+} from "@tiptap/extension-table";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Markdown } from "@tiptap/markdown";
 import { Plugin } from "@tiptap/pm/state";
@@ -38,6 +45,7 @@ import {
   useEditorState,
 } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import { common, createLowlight } from "lowlight";
 import {
   Bold,
   Code,
@@ -61,6 +69,7 @@ import {
   type DragEvent,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -69,6 +78,20 @@ import {
   prepareIssueBodyMentionMarkdown,
   type IssueBodyMentionExtensionOptions,
 } from "./issueBodyMentionExtension";
+import {
+  createSlashCommandExtension,
+  type SlashCommandMessages,
+} from "./slashCommandExtension";
+
+const boundedLowlight = createLowlight(common);
+const scopedLowlight = {
+  ...boundedLowlight,
+  // Unknown and empty fences intentionally render as readable plain code. The
+  // lowlight extension calls highlightAuto for those languages; an empty
+  // subset keeps that fallback free of guessed token paint.
+  highlightAuto: (value: string) =>
+    boundedLowlight.highlightAuto(value, { subset: [] }),
+};
 
 /**
  * Shared height policy for both editor surfaces — the WYSIWYG body and the
@@ -265,18 +288,34 @@ export function createMarkdownEditorExtensions(
   resolveImageSrc?: (src: string) => string,
   mentionConfig?: IssueBodyMentionExtensionOptions,
   resolveAttachmentHref?: (href: string) => string | undefined,
+  slashMessages?: SlashCommandMessages,
 ) {
   const extensions: AnyExtension[] = [
     // StarterKit v3 bundles the Link extension; configure it here rather than
     // registering a second @tiptap/extension-link (which warns about a
     // duplicate 'link' extension and leaves link behavior ambiguous).
-    StarterKit.configure({ link: false }),
+    // CodeBlockLowlight owns the codeBlock node below; disabling StarterKit's
+    // copy avoids duplicate node names while preserving every other starter
+    // mark/block.
+    StarterKit.configure({ link: false, codeBlock: false }),
     // Keep the shared Link behavior while adding issue-scoped file-link
     // display attributes at render time. The authored AKB URI remains the
     // mark's href and therefore remains the Markdown serialization value.
     createIssueAttachmentLinkExtension(resolveAttachmentHref),
     TaskList,
     TaskItem.configure({ nested: true }),
+    Table.configure({
+      resizable: false,
+      renderWrapper: false,
+      HTMLAttributes: { class: "reef-markdown-table" },
+    }),
+    TableRow,
+    TableHeader,
+    TableCell,
+    CodeBlockLowlight.configure({
+      lowlight: scopedLowlight,
+      HTMLAttributes: { class: "reef-markdown-code-block" },
+    }),
     createImageExtension(resolveImageSrc),
     createIssueAttachmentLinkDecorationExtension(),
     Markdown,
@@ -286,6 +325,7 @@ export function createMarkdownEditorExtensions(
       // CSS limits painting to the sole top-level block of an empty document.
       showOnlyCurrent: false,
     }),
+    createSlashCommandExtension({ messages: slashMessages }),
   ];
   if (mentionConfig) {
     extensions.push(createIssueBodyMentionExtension(mentionConfig));
@@ -534,6 +574,67 @@ export function MarkdownEditor({
   const mentionMembersRef = useRef<readonly VaultMember[]>([]);
   const previousMentionRosterRef = useRef<string | null>(null);
 
+  const slashMessages = useMemo<SlashCommandMessages>(
+    () => ({
+      header: t("slash.header"),
+      escapeHint: t("slash.escapeHint"),
+      sections: {
+        text: t("slash.sections.text"),
+        lists: t("slash.sections.lists"),
+        structure: t("slash.sections.structure"),
+      },
+      footer: {
+        navigation: t("slash.footer.navigation"),
+        insert: t("slash.footer.insert"),
+        close: t("slash.footer.close"),
+      },
+      empty: t("slash.empty"),
+      commands: {
+        heading1: {
+          label: t("slash.commands.heading1.label"),
+          description: t("slash.commands.heading1.description"),
+        },
+        heading2: {
+          label: t("slash.commands.heading2.label"),
+          description: t("slash.commands.heading2.description"),
+        },
+        heading3: {
+          label: t("slash.commands.heading3.label"),
+          description: t("slash.commands.heading3.description"),
+        },
+        quote: {
+          label: t("slash.commands.quote.label"),
+          description: t("slash.commands.quote.description"),
+        },
+        bulletList: {
+          label: t("slash.commands.bulletList.label"),
+          description: t("slash.commands.bulletList.description"),
+        },
+        numberedList: {
+          label: t("slash.commands.numberedList.label"),
+          description: t("slash.commands.numberedList.description"),
+        },
+        taskList: {
+          label: t("slash.commands.taskList.label"),
+          description: t("slash.commands.taskList.description"),
+        },
+        table: {
+          label: t("slash.commands.table.label"),
+          description: t("slash.commands.table.description"),
+        },
+        codeBlock: {
+          label: t("slash.commands.codeBlock.label"),
+          description: t("slash.commands.codeBlock.description"),
+        },
+        divider: {
+          label: t("slash.commands.divider.label"),
+          description: t("slash.commands.divider.description"),
+        },
+      },
+    }),
+    [t],
+  );
+
   const mentionRosterFingerprint = mentionConfig
     ? mentionConfig.members.map((member) => member.username).join("\u0000")
     : null;
@@ -624,6 +725,7 @@ export function MarkdownEditor({
           }
         : undefined,
       (href) => resolveAttachmentHrefRef.current?.(href),
+      slashMessages,
     ),
     /* eslint-enable react-hooks/refs */
     content: mentionConfig
