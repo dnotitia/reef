@@ -1337,11 +1337,23 @@ test.describe("Hermetic Markdown editor fixture", () => {
       .click();
 
     await setTheme(page, "light", "light");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await expect(reloadedEditor).toBeVisible();
+    await expect(issueReference).toHaveCount(1);
+    await expect(documentLink).toHaveCount(1);
+    await expect(fileLink).toHaveCount(1);
+    await documentLink.scrollIntoViewIfNeeded();
     await page.screenshot({
       animations: "disabled",
       path: testInfo.outputPath("semantic-references-light.png"),
     });
     await setTheme(page, "dark", "dark");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await expect(reloadedEditor).toBeVisible();
+    await expect(issueReference).toHaveCount(1);
+    await expect(documentLink).toHaveCount(1);
+    await expect(fileLink).toHaveCount(1);
+    await documentLink.scrollIntoViewIfNeeded();
     await page.screenshot({
       animations: "disabled",
       path: testInfo.outputPath("semantic-references-dark.png"),
