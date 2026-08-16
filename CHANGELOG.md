@@ -21,6 +21,10 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Issue-body references now share distinct compact visuals for known issues,
+  documents, files, and resolved mentions while ordinary links retain their
+  existing styling.**
+
 - **Issue create and detail Markdown bodies now share one localized `@` reference
   picker for people, issues, and AKB documents.** Person selections stay
   canonical mentions, issue selections insert plain IDs, and document selections

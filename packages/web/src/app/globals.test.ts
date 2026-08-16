@@ -374,6 +374,7 @@ describe("global focus styles", () => {
     const fileLinkBlock = css.slice(fileLinkStart, fileLinkEnd);
     for (const declaration of [
       "display: inline-flex;",
+      "align-items: baseline;",
       "max-width: 100%;",
       "min-width: 0;",
       "overflow-wrap: anywhere;",
@@ -396,6 +397,62 @@ describe("global focus styles", () => {
       "content: attr(data-reef-file-type);",
     );
     expect(css).not.toContain('\na[data-reef-file-link="true"] {');
+  });
+
+  it("gives issue, document, and file references one compact semantic surface", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const surfaceStart = css.indexOf(
+      ".reef-markdown-editor [data-reference-kind] {",
+    );
+    expect(surfaceStart).toBeGreaterThan(-1);
+    const surfaceEnd = findCssBlockEnd(css, surfaceStart);
+    expect(surfaceEnd).toBeGreaterThan(surfaceStart);
+    const surfaceBlock = css.slice(surfaceStart, surfaceEnd);
+    for (const declaration of [
+      "display: inline-flex;",
+      "align-items: baseline;",
+      "border: 1px solid var(--border-subtle);",
+      "background: var(--surface-subtle);",
+      "vertical-align: baseline;",
+      "text-decoration: none;",
+    ]) {
+      expect(surfaceBlock, declaration).toContain(declaration);
+    }
+    expect(css).toContain(
+      '.reef-markdown-editor [data-reference-kind="issue"]',
+    );
+    expect(css).toContain("font-family: var(--font-mono-stack);");
+    expect(css).toContain(
+      '.reef-markdown-editor a[data-reference-kind="document"]::before',
+    );
+    const documentGlyphStart = css.indexOf(
+      '.reef-markdown-editor a[data-reference-kind="document"]::before',
+    );
+    const documentGlyphEnd = findCssBlockEnd(css, documentGlyphStart);
+    const fileGlyphStart = css.indexOf(
+      '.reef-markdown-editor a[data-reef-file-link="true"]::before',
+    );
+    const fileGlyphEnd = findCssBlockEnd(css, fileGlyphStart);
+    expect(documentGlyphStart).toBeGreaterThan(-1);
+    expect(fileGlyphStart).toBeGreaterThan(documentGlyphEnd);
+    expect(css.slice(documentGlyphStart, documentGlyphEnd)).toContain(
+      'content: "▤";',
+    );
+    expect(css.slice(fileGlyphStart, fileGlyphEnd)).toContain('content: "▱";');
+    expect(css.slice(documentGlyphStart, documentGlyphEnd)).toContain(
+      "align-self: center;",
+    );
+    expect(css.slice(fileGlyphStart, fileGlyphEnd)).toContain(
+      "align-self: center;",
+    );
+    expect(css.slice(documentGlyphStart, documentGlyphEnd)).not.toContain(
+      'content: "▱";',
+    );
+    expect(css.slice(fileGlyphStart, fileGlyphEnd)).not.toContain(
+      'content: "▤";',
+    );
+    expect(css).toContain(".reef-markdown-editor [data-reference-glyph],");
+    expect(css).not.toContain("\n[data-reference-kind] {");
   });
 
   it("keeps normal lists dense while preserving the live task-list contract", () => {

@@ -783,9 +783,66 @@ hr {
   text-decoration-thickness: 2px;
 }
 
+/* Issue, document, and file references share one compact surface while their
+ * neutral data markers keep ordinary Markdown links on the branded underline
+ * hierarchy above. The editor is the only renderer that owns this surface. */
+.reef-markdown-editor [data-reference-kind] {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.125rem 0.375rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+  vertical-align: baseline;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.25rem;
+  text-decoration: none;
+}
+
+.reef-markdown-editor [data-reference-glyph],
+.reef-markdown-editor [data-reference-id] {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  line-height: 1;
+}
+
+.reef-markdown-editor [data-reference-glyph] {
+  align-self: center;
+  font-size: 0.75em;
+}
+
+.reef-markdown-editor [data-reference-kind="issue"] > [data-reference-id] {
+  font-family: var(--font-mono-stack);
+  font-size: 0.8125em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.reef-markdown-editor [data-reference-title] {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reef-markdown-editor a[data-reference-kind="document"]::before {
+  content: "▤";
+  align-self: center;
+  flex: 0 0 auto;
+  color: var(--muted-foreground);
+  font-size: 0.75em;
+  line-height: 1;
+}
+
 /* Explicit AKB file links are compact inline actions, distinct from ordinary
  * Markdown URLs. The filename remains the accessible anchor text; the small
- * type badge and outbound cue are display-only affordances. */
+ * type badge and file glyph are display-only affordances. */
 .reef-markdown-editor a[data-reef-file-link="true"] {
   display: inline-flex;
   align-items: baseline;
@@ -805,7 +862,8 @@ hr {
 }
 
 .reef-markdown-editor a[data-reef-file-link="true"]::before {
-  content: "↗";
+  content: "▱";
+  align-self: center;
   flex: 0 0 auto;
   color: var(--muted-foreground);
   font-size: 0.75em;

@@ -462,6 +462,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     expect(fixtureDocument?.content).toContain(
       `[incident.log](${MARKDOWN_FIXTURE_FILE_URI})`,
     );
+    expect(fixtureDocument?.content).toContain("REEF-002");
 
     await openExistingWorkspace(page);
     const issueResponse = await page.goto(task.start_path ?? "");
@@ -606,6 +607,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     );
     await expect(fileLink).toHaveAttribute("target", "_blank");
     await expect(fileLink).toHaveAttribute("rel", "noreferrer");
+    await expect(fileLink).toHaveAttribute("data-reference-kind", "file");
     const fileProxyHref = await fileLink.getAttribute("href");
     if (!fileProxyHref)
       throw new Error("Markdown fixture file link has no href");
@@ -623,6 +625,36 @@ test.describe("Hermetic Markdown editor fixture", () => {
       "attachment",
     );
     expect(await fileResponse.text()).toContain("fixture incident log");
+
+    const issueReference = editor.getByRole("link", {
+      name: "REEF-002 Alpha follow-up",
+    });
+    await expect(issueReference).toHaveAttribute(
+      "data-reference-kind",
+      "issue",
+    );
+    await expect(issueReference).toHaveAttribute("data-issue-id", "REEF-002");
+    await expect(issueReference).toHaveAttribute(
+      "data-issue-status",
+      "in_progress",
+    );
+    await expect(issueReference.locator("[data-reference-id]")).toHaveText(
+      "REEF-002",
+    );
+    await expect(issueReference.locator("[data-reference-title]")).toHaveText(
+      "Alpha follow-up",
+    );
+    await expect(issueReference).toHaveAttribute(
+      "href",
+      "/workspace/reef-e2e/issues/REEF-002",
+    );
+    const documentReference = editor.locator(
+      'a[data-reference-kind="document"]',
+    );
+    await expect(documentReference).toHaveAttribute(
+      "data-document-uri",
+      "akb://reef-e2e/coll/docs/doc/spec-overview.md",
+    );
 
     const themeCases: Array<{
       preference: ThemePreference;
@@ -646,7 +678,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
         emphasis: 2,
         links: 1,
         akbLinks: 1,
-        inlineCode: 1,
+        inlineCode: 2,
         strikethrough: 2,
         nestedStrikethrough: 1,
         orderedLists: 4,
@@ -853,6 +885,9 @@ test.describe("Hermetic Markdown editor fixture", () => {
       expect(sourceMarkdown).toContain("## Structure");
       expect(sourceMarkdown).toContain("### Details");
       expect(sourceMarkdown).toContain("@alice");
+      expect(sourceMarkdown).toContain("REEF-002");
+      expect(sourceMarkdown).toContain("REEF-999");
+      expect(sourceMarkdown).toContain("\\REEF-002");
       expect(sourceMarkdown).toContain("~~strikethrough~~");
       expect(sourceMarkdown).toContain("nested emphasis");
       expect(sourceMarkdown).toContain(
@@ -891,7 +926,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
         emphasis: 2,
         links: 1,
         akbLinks: 1,
-        inlineCode: 1,
+        inlineCode: 2,
         strikethrough: 2,
         nestedStrikethrough: 1,
         orderedLists: 4,
@@ -950,6 +985,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     expect(reopenedMarkdown).toContain(MARKDOWN_FIXTURE_LARGE_IMAGE_PATH);
     expect(reopenedMarkdown).toContain(MARKDOWN_FIXTURE_TRANSPARENT_IMAGE_PATH);
     expect(reopenedMarkdown).toContain(MARKDOWN_FIXTURE_FILE_URI);
+    expect(reopenedMarkdown).toContain("REEF-002");
     await page
       .getByTestId("markdown-source-toggle")
       .getByRole("button")
@@ -963,6 +999,9 @@ test.describe("Hermetic Markdown editor fixture", () => {
       "true",
     );
     await expect(reopenedFileLink).toHaveAttribute("target", "_blank");
+    await expect(
+      reopenedEditor.locator('a[data-reference-kind="issue"]'),
+    ).toHaveAttribute("data-issue-id", "REEF-002");
     expect(await reopenedFileLink.getAttribute("href")).toContain(
       "/api/issues/REEF-001/attachments/file?",
     );
@@ -1393,6 +1432,9 @@ test.describe("Hermetic Markdown editor fixture", () => {
     const surface = await readMarkdownSurface(editor);
     const normalLink = editor.getByRole("link", { name: "reef link" });
     const akbLink = editor.getByRole("link", { name: "AKB report" });
+    const issueReference = editor.getByRole("link", {
+      name: "REEF-002 Alpha follow-up",
+    });
     const mention = editor.locator('[data-reef-mention="true"]');
     const firstTaskCheckbox = editor
       .locator('ul[data-type="taskList"] input[type="checkbox"]')
@@ -1411,6 +1453,10 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await page.keyboard.press("Tab");
     await expect(akbLink).toBeFocused();
     await expect(akbLink).toHaveCSS("text-decoration-thickness", "2px");
+
+    await page.keyboard.press("Tab");
+    await expect(issueReference).toBeFocused();
+    await expect(issueReference).toHaveCSS("border-top-width", "1px");
 
     await page.keyboard.press("Tab");
     await expect(firstTaskCheckbox).toBeFocused();

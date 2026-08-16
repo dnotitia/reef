@@ -361,6 +361,7 @@ describe("MarkdownEditor Tiptap extensions", () => {
     const fileLink = root.querySelector<HTMLAnchorElement>(
       'a[data-reef-file-link="true"]',
     );
+    expect(fileLink?.dataset.referenceKind).toBe("file");
     expect(fileLink?.dataset.reefFileUri).toBe(fileUri);
     expect(
       fileLink?.querySelector<HTMLElement>("[data-reef-file-type]")?.dataset
@@ -373,6 +374,8 @@ describe("MarkdownEditor Tiptap extensions", () => {
     const documentLink = root.querySelector<HTMLAnchorElement>(
       `a[href="${documentUri}"]`,
     );
+    expect(documentLink?.dataset.referenceKind).toBe("document");
+    expect(documentLink?.dataset.documentUri).toBe(documentUri);
     expect(documentLink?.dataset.reefFileLink).toBeUndefined();
     expect(
       root.querySelector<HTMLAnchorElement>('a[href="https://example.com"]')
@@ -381,6 +384,70 @@ describe("MarkdownEditor Tiptap extensions", () => {
 
     expect(fileLink?.getAttribute("href")).toBe(resolve(fileUri));
     expect(editor.getMarkdown()).toContain(`[incident.log](${fileUri})`);
+  });
+
+  it("renders only exact known issue ids as compact references", () => {
+    const knownIssue = {
+      id: "REEF-009",
+      title: "Alpha issue",
+      status: "in_progress",
+    } as IssueListItem;
+    const markdown = [
+      "Known REEF-009 beside unknown REEF-010 and a boundary XREEF-009.",
+      "[REEF-009](https://example.com/label) and `REEF-009` stay ordinary.",
+      "\\REEF-009 and a fenced value:",
+      "```text\nREEF-009\n```",
+    ].join("\n\n");
+    const editor = createEditor(
+      markdown,
+      [{ username: "alice", role: "member" }],
+      undefined,
+      [knownIssue],
+    );
+
+    const references = editor.view.dom.querySelectorAll(
+      '[data-reference-kind="issue"]',
+    );
+    expect(references).toHaveLength(1);
+    expect(references[0]?.getAttribute("data-issue-id")).toBe(knownIssue.id);
+    expect(references[0]?.getAttribute("data-issue-status")).toBe(
+      knownIssue.status,
+    );
+    expect(
+      references[0]?.querySelector('[data-reference-glyph="issue"]'),
+    ).toHaveAttribute("data-reference-status", knownIssue.status);
+    expect(
+      references[0]?.querySelector('[data-reference-glyph="issue"]'),
+    ).toHaveClass("text-status-in-progress");
+    expect(
+      references[0]?.querySelector("[data-reference-id]"),
+    ).toHaveTextContent(knownIssue.id);
+    expect(
+      references[0]?.querySelector("[data-reference-title]"),
+    ).toHaveTextContent(knownIssue.title);
+    expect(
+      editor.view.dom.querySelector('a[href="https://example.com/label"]'),
+    ).not.toHaveAttribute("data-reference-kind");
+    expect(editor.view.dom.querySelector("code")).toHaveTextContent(
+      knownIssue.id,
+    );
+    expect(editor.view.dom.querySelector("pre code")).toHaveTextContent(
+      knownIssue.id,
+    );
+    expect(editor.view.dom.textContent).toContain("XREEF-009");
+    const serialized = editor.getMarkdown();
+    expect(serialized).toContain(knownIssue.id);
+    expect(serialized).toContain("\\REEF-009");
+    expect(serialized).not.toContain("issueBodyReference");
+    const reloaded = createEditor(
+      serialized,
+      [{ username: "alice", role: "member" }],
+      undefined,
+      [knownIssue],
+    );
+    expect(
+      reloaded.view.dom.querySelector('[data-reference-kind="issue"]'),
+    ).toHaveAttribute("data-issue-id", knownIssue.id);
   });
 
   it("round-trips list, task, link, and image markdown together", () => {
