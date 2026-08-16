@@ -12,6 +12,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { remarkCommentMentions } from "@/lib/markdown/remarkCommentMentions";
+import { parseAkbDocumentUri } from "@/lib/akb/documentUri";
+import {
+  attachmentFileTypeLabel,
+  isAkbFileUri,
+} from "@/features/issues/lib/attachmentUrls";
 import { formatAbsoluteTime, formatRelativeTime } from "@/lib/relativeTime";
 import { cn } from "@/lib/utils";
 import type { Comment, VaultMember } from "@reef/core";
@@ -25,8 +30,8 @@ import {
   useState,
 } from "react";
 import {
-  type AllowedTags,
   defaultRemarkPlugins,
+  defaultRehypePlugins,
   Streamdown,
   type UrlTransform,
   defaultUrlTransform,
@@ -40,10 +45,119 @@ import {
 import { commentTargetId } from "../../lib/commentTarget";
 
 type RemarkPlugins = ComponentProps<typeof Streamdown>["remarkPlugins"];
+type RehypePlugins = ComponentProps<typeof Streamdown>["rehypePlugins"];
 
-const COMMENT_MENTION_ALLOWED_TAGS: AllowedTags = {
-  span: ["dataReefMention"],
-};
+interface SanitizerSchema {
+  attributes?: Record<string, readonly unknown[]>;
+  protocols?: Record<string, readonly string[]>;
+}
+
+const issueMarkdownRehypePlugins = (() => {
+  const [sanitize, schema] = defaultRehypePlugins.sanitize as unknown as [
+    NonNullable<RehypePlugins>[number],
+    SanitizerSchema,
+  ];
+
+  return [
+    defaultRehypePlugins.raw,
+    [
+      sanitize,
+      {
+        ...schema,
+        attributes: {
+          ...schema.attributes,
+          span: [...(schema.attributes?.span ?? []), "dataReefMention"],
+        },
+        protocols: {
+          ...schema.protocols,
+          href: [...(schema.protocols?.href ?? []), "akb"],
+        },
+      },
+    ],
+    defaultRehypePlugins.harden,
+  ] as NonNullable<RehypePlugins>;
+})();
+
+function isInternalMarkdownHref(href: string): boolean {
+  return (
+    (href.startsWith("/") && !href.startsWith("//")) ||
+    isAkbFileUri(href) ||
+    parseAkbDocumentUri(href) !== null
+  );
+}
+
+function isAttachmentProxyHref(href: string): boolean {
+  return href.startsWith("/api/issues/") && href.includes("/attachments/file?");
+}
+
+function attachmentUriFromProxyHref(href: string): string | null {
+  if (!isAttachmentProxyHref(href)) return null;
+  try {
+    return new URL(href, "https://reef.invalid").searchParams.get("uri");
+  } catch {
+    return null;
+  }
+}
+
+function CommentMarkdownLink({
+  children,
+  href,
+  ...rest
+}: ComponentProps<"a"> & { node?: unknown }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const safeHref = typeof href === "string" ? href : "";
+  const isInternal = safeHref ? isInternalMarkdownHref(safeHref) : true;
+  const shouldConfirm =
+    Boolean(safeHref) && !isInternal && linkSafetyConfig.enabled;
+  const fileUri = attachmentUriFromProxyHref(safeHref);
+  const onClose = () => setIsOpen(false);
+  const onConfirm = () => {
+    window.open(safeHref, "_blank", "noreferrer");
+  };
+
+  return (
+    <>
+      <a
+        {...rest}
+        href={href}
+        target={shouldConfirm || fileUri ? "_blank" : rest.target}
+        rel={shouldConfirm || fileUri ? "noreferrer" : rest.rel}
+        data-reference-kind={
+          fileUri
+            ? "file"
+            : parseAkbDocumentUri(safeHref)
+              ? "document"
+              : undefined
+        }
+        data-reef-file-link={fileUri ? "true" : undefined}
+        data-reef-file-uri={fileUri ?? undefined}
+        data-document-uri={parseAkbDocumentUri(safeHref) ? safeHref : undefined}
+        data-reef-file-type={
+          fileUri && typeof children === "string"
+            ? attachmentFileTypeLabel(children)
+            : undefined
+        }
+        onClick={(event) => {
+          if (!shouldConfirm) return;
+          event.preventDefault();
+          setIsOpen(true);
+        }}
+      >
+        {children}
+      </a>
+      {shouldConfirm
+        ? linkSafetyConfig.renderModal?.({
+            url: safeHref,
+            isOpen,
+            onClose,
+            onConfirm,
+          })
+        : null}
+    </>
+  );
+}
+
+const commentMarkdownComponents = { a: CommentMarkdownLink };
 
 interface CommentCardProps {
   comment: Comment;
@@ -157,11 +271,15 @@ export function CommentCard({
     }
   }
 
-  const urlTransform: UrlTransform = (url, key, node) => {
-    const resolved = resolveMarkdownUrl?.(url, key, node) ?? url;
-    if (resolved !== url) return resolved;
-    return defaultUrlTransform(url, key, node);
-  };
+  const urlTransform = useMemo<UrlTransform>(
+    () => (url, key, node) => {
+      const resolved = resolveMarkdownUrl?.(url, key, node) ?? url;
+      if (resolved !== url) return resolved;
+      if (isAkbFileUri(url) || parseAkbDocumentUri(url)) return url;
+      return defaultUrlTransform(url, key, node);
+    },
+    [resolveMarkdownUrl],
+  );
 
   return (
     <div
@@ -294,10 +412,11 @@ export function CommentCard({
           <Streamdown
             key={mentionFingerprint}
             className="reef-markdown-surface reef-markdown-comment comment-mention-renderer mt-1 w-full min-w-0 break-words text-[13px] text-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+            components={commentMarkdownComponents}
             linkSafety={linkSafetyConfig}
+            rehypePlugins={issueMarkdownRehypePlugins}
             urlTransform={urlTransform}
             remarkPlugins={remarkPlugins}
-            allowedTags={COMMENT_MENTION_ALLOWED_TAGS}
           >
             {comment.body}
           </Streamdown>

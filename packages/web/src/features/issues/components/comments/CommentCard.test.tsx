@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import type { Comment } from "@reef/core";
+import type { ReactNode } from "react";
 import {
   act,
   fireEvent,
@@ -12,14 +13,23 @@ import { describe, expect, it, vi } from "vitest";
 import { CommentCard } from "./CommentCard";
 
 vi.mock("streamdown", () => ({
+  defaultRehypePlugins: {
+    raw: () => undefined,
+    sanitize: [() => undefined, {}],
+    harden: () => undefined,
+  },
   defaultRemarkPlugins: { gfm: () => undefined },
   Streamdown: ({
     children,
     className,
+    components,
     urlTransform,
   }: {
     children: string;
     className?: string;
+    components?: {
+      a?: (props: { children?: ReactNode; href?: string }) => ReactNode;
+    };
     urlTransform?: (
       url: string,
       key: string,
@@ -27,9 +37,15 @@ vi.mock("streamdown", () => ({
     ) => string | null | undefined;
   }) => {
     const fileUri = "akb://reef-test/issues/file/file-1";
+    const Link =
+      components?.a ??
+      ((props: { children?: ReactNode; href?: string }) => <a {...props} />);
     return (
       <div className={className}>
-        <a href={urlTransform?.(fileUri, "href", {}) ?? fileUri}>download</a>
+        <Link href={urlTransform?.(fileUri, "href", {}) ?? fileUri}>
+          download
+        </Link>
+        <Link href="https://example.com/reef">reef link</Link>
         <img alt="inline" src={urlTransform?.(fileUri, "src", {}) ?? fileUri} />
         <span>{children}</span>
       </div>
@@ -96,7 +112,7 @@ describe("CommentCard", () => {
   it("passes markdown hrefs and image srcs distinctly to the URL resolver", () => {
     const resolveMarkdownUrl = vi.fn((url: string, key: string) =>
       key === "href"
-        ? `/download?uri=${encodeURIComponent(url)}`
+        ? `/api/issues/REEF-001/attachments/file?vault=reef-test&uri=${encodeURIComponent(url)}`
         : `/inline?uri=${encodeURIComponent(url)}`,
     );
 
@@ -114,7 +130,19 @@ describe("CommentCard", () => {
     const encoded = encodeURIComponent("akb://reef-test/issues/file/file-1");
     expect(screen.getByRole("link", { name: "download" })).toHaveAttribute(
       "href",
-      `/download?uri=${encoded}`,
+      `/api/issues/REEF-001/attachments/file?vault=reef-test&uri=${encoded}`,
+    );
+    expect(screen.getByRole("link", { name: "reef link" })).toHaveAttribute(
+      "href",
+      "https://example.com/reef",
+    );
+    expect(screen.getByRole("link", { name: "download" })).toHaveAttribute(
+      "target",
+      "_blank",
+    );
+    expect(screen.getByRole("link", { name: "download" })).toHaveAttribute(
+      "data-reef-file-uri",
+      "akb://reef-test/issues/file/file-1",
     );
     expect(screen.getByRole("img", { name: "inline" })).toHaveAttribute(
       "src",
@@ -130,6 +158,21 @@ describe("CommentCard", () => {
       "src",
       {},
     );
+  });
+
+  it("keeps ordinary links as anchors while preserving safe-link confirmation", () => {
+    render(
+      <IntlTestProvider>
+        <CommentCard comment={COMMENT} currentLogin="bob" onSave={vi.fn()} />
+      </IntlTestProvider>,
+    );
+
+    const link = screen.getByRole("link", { name: "reef link" });
+    expect(link).toHaveAttribute("href", "https://example.com/reef");
+    fireEvent.click(link);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("shows direct-parent context and exposes a semantic reply control", () => {

@@ -104,6 +104,28 @@ const scopedLowlight = {
 };
 
 /**
+ * Tiptap's task-item node view creates a native checkbox, but leaves its
+ * keyboard affordance implicit. Keep the browser's normal Tab order explicit
+ * so the checkbox remains reachable inside the contenteditable surface.
+ */
+const AccessibleTaskItem = TaskItem.extend({
+  addNodeView() {
+    const renderNodeView = this.parent?.();
+    if (!renderNodeView) return null;
+
+    return (props: Parameters<typeof renderNodeView>[0]) => {
+      const nodeView = renderNodeView(props);
+      if (nodeView.dom instanceof HTMLElement) {
+        nodeView.dom
+          .querySelector<HTMLInputElement>('input[type="checkbox"]')
+          ?.setAttribute("tabindex", "0");
+      }
+      return nodeView;
+    };
+  },
+});
+
+/**
  * Shared height policy for both editor surfaces — the WYSIWYG body and the
  * Source textarea. The body starts at a 200px floor so an empty description
  * reads as a real authoring canvas instead of a cramped box: on the create
@@ -365,7 +387,7 @@ export function createMarkdownEditorExtensions(
     // mark's href and therefore remains the Markdown serialization value.
     createIssueAttachmentLinkExtension(resolveAttachmentHref),
     TaskList,
-    TaskItem.configure({ nested: true }),
+    AccessibleTaskItem.configure({ nested: true }),
     Table.configure({
       resizable: false,
       renderWrapper: false,

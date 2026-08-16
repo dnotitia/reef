@@ -20,6 +20,11 @@ vi.mock("@/features/auth/hooks/useCurrentUserLogin", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 vi.mock("streamdown", () => ({
+  defaultRehypePlugins: {
+    raw: () => undefined,
+    sanitize: [() => undefined, {}],
+    harden: () => undefined,
+  },
   defaultRemarkPlugins: { gfm: () => undefined },
   Streamdown: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   defaultUrlTransform: (url: string) => url,

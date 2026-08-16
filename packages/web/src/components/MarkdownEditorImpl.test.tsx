@@ -127,7 +127,9 @@ vi.mock("@tiptap/extension-image", () => ({
 }));
 vi.mock("@tiptap/extension-list", () => ({
   TaskList: {},
-  TaskItem: { configure: () => ({}) },
+  TaskItem: {
+    extend: () => ({ configure: () => ({}) }),
+  },
 }));
 vi.mock("@tiptap/markdown", () => ({ Markdown: {} }));
 

@@ -621,6 +621,28 @@ test.describe("Hermetic Markdown editor fixture", () => {
       .locator('[data-streamdown="link"], a')
       .first();
     await expect(commentLink).toBeVisible();
+    await expect(
+      commentRenderer.getByRole("link", { name: "reef link" }),
+    ).toHaveAttribute("href", "https://example.com/reef");
+    await expect(
+      commentRenderer.getByRole("link", { name: "reef link" }),
+    ).toHaveAttribute("target", "_blank");
+    await expect(
+      commentRenderer.getByRole("link", { name: "AKB report" }),
+    ).toHaveAttribute("href", "akb://reef-e2e/coll/docs/doc/spec-overview.md");
+    const commentFileLink = commentRenderer.getByRole("link", {
+      name: "incident.log",
+    });
+    await expect(commentFileLink).toHaveAttribute(
+      "data-reef-file-uri",
+      MARKDOWN_FIXTURE_FILE_URI,
+    );
+    await expect(commentFileLink).toHaveAttribute("target", "_blank");
+    const commentFileHref = await commentFileLink.getAttribute("href");
+    expect(commentFileHref).toContain(
+      "/api/issues/REEF-001/attachments/file?vault=reef-e2e&uri=",
+    );
+    expect(commentFileHref).not.toContain("undefined");
     await commentLink.focus();
     expect(
       await commentLink.evaluate(
@@ -1852,7 +1874,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     page,
     request,
   }) => {
-    await page.setViewportSize({ width: 720, height: 900 });
+    await page.setViewportSize({ width: 720, height: 800 });
     const task = await readMarkdownFixtureTask(request);
     await openExistingWorkspace(page);
     await page.goto(task.start_path ?? "");
@@ -1868,7 +1890,12 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await expect(checkboxes.nth(1)).not.toBeChecked();
     await expect(checkboxes.nth(2)).toBeChecked();
 
-    await parent.focus();
+    await editor.focus();
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    await expect(parent).toBeFocused();
     await page.keyboard.press("Space");
     await expect(parent).not.toBeChecked();
     await expect(checkboxes.nth(1)).not.toBeChecked();
@@ -1928,6 +1955,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     page,
     request,
   }) => {
+    await page.setViewportSize({ width: 720, height: 800 });
     const task = await readMarkdownFixtureTask(request);
     await openExistingWorkspace(page);
     await page.goto(task.start_path ?? "");
