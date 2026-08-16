@@ -62,7 +62,7 @@ export const AddIssueReferenceRequestSchema = z.object({
  * snippet) and link it. The web search route projects `searchDocuments` hits
  * onto this shape so the client does not depends on the raw akb envelope.
  */
-export const DocumentSearchHitSchema = z.object({
+const DocumentSearchHitSchema = z.object({
   uri: z.string().min(1),
   title: z.string().nullable().optional(),
   collection: z.string().nullable().optional(),

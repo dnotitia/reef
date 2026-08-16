@@ -7,7 +7,7 @@ import { useIssueNavStack } from "@/features/issues/stores/useIssueNavStack";
 import { useHydrated } from "@/lib/useHydrated";
 import { withVault } from "@/lib/workspaceHref";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, use, useEffect, useState } from "react";
+import { Suspense, use } from "react";
 
 interface IssuePageProps {
   params: Promise<{ id: string; vault: string }>;
@@ -35,18 +35,15 @@ export default function IssuePage({ params }: IssuePageProps) {
   const { id, vault } = use(params);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const trailLength = useIssueNavStack((state) => state.trail.length);
-  // Route-local (never persisted): once this base page hands the session to
+  const hasDrilledInSession = useIssueNavStack(
+    (state) => state.hasDrilledInSession,
+  );
+  // Route-local (not persisted): once this base page hands the session to
   // the intercepting slot, it stays hidden even when Back unwinds to the
   // original issue, preventing the two parallel sheets from stacking again.
-  const [hasDrilledInSession, setHasDrilledInSession] = useState(false);
   const entryViewPath = searchParams.toString()
     ? `/issues?${searchParams.toString()}`
     : "/issues";
-
-  useEffect(() => {
-    if (trailLength > 0) setHasDrilledInSession(true);
-  }, [trailLength]);
 
   // The IssueDetailSheet is a modal Radix Dialog rendered open. On this cold-hit
   // route it shares the initial SSR/hydration pass with the IssuesWorkspace

@@ -70,7 +70,7 @@ describe("buildSsoSessionHandleCookie", () => {
     );
     expect(() =>
       buildSsoSessionHandleCookie("header.payload.signature"),
-    ).toThrowError("sso_session_handle_invalid");
+    ).toThrow("sso_session_handle_invalid");
   });
 });
 
@@ -81,7 +81,7 @@ describe("SSO cookie helpers", () => {
     expect(out).toBe(
       `${SSO_START_COOKIE}=${binding}; HttpOnly; SameSite=Lax; Path=/; Max-Age=600`,
     );
-    expect(() => buildSsoStartCookie("not-random")).toThrowError(
+    expect(() => buildSsoStartCookie("not-random")).toThrow(
       "sso_browser_binding_invalid",
     );
   });

@@ -13,7 +13,7 @@ export interface PlanningOptionProps {
   name: string;
   /** Null means the selected planning id is no longer in the loaded catalog. */
   status: string | null;
-  /** Opt in only for single planning combobox options (not multi-select). */
+  /** Opt in for single planning combobox options (not multi-select). */
   overflowTooltip?: boolean;
   /** Keyboard-active state supplied by the single-select combobox. */
   active?: boolean;

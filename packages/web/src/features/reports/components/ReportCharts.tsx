@@ -7,7 +7,7 @@ import type {
   AgingBucketKey,
   RiskBucket,
   RiskPriority,
-} from "../lib/aggregate";
+} from "../lib/aggregateModel";
 import { type PivotAxis, type PivotResult, pivotCell } from "../lib/pivot";
 export { NetThroughputChart } from "./ThroughputCharts";
 

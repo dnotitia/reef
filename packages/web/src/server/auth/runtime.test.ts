@@ -31,7 +31,7 @@ describe("SSO Redis runtime", () => {
     };
 
     const connecting = connectRedisClient(client, 50);
-    const rejected = expect(connecting).rejects.toThrowError(
+    const rejected = expect(connecting).rejects.toThrow(
       "sso_session_store_unavailable",
     );
     await vi.advanceTimersByTimeAsync(50);
@@ -50,7 +50,7 @@ describe("SSO Redis runtime", () => {
       ping: vi.fn(() => new Promise<never>(() => undefined)),
     };
     const checking = checkRedisClient(stalled, 50);
-    const rejected = expect(checking).rejects.toThrowError(
+    const rejected = expect(checking).rejects.toThrow(
       "sso_session_store_unavailable",
     );
     await vi.advanceTimersByTimeAsync(50);

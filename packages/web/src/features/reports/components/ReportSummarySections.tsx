@@ -9,7 +9,7 @@ import type {
   ReportAggregates,
   ReportMeasure,
   StatusCount,
-} from "../lib/aggregate";
+} from "../lib/aggregateModel";
 import { type Segment, SegmentedBar } from "./ReportCharts";
 import { Card } from "./ReportLayout";
 

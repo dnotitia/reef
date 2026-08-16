@@ -66,8 +66,7 @@ const provenanceSourceSchema = z
     "provenance source must not contain control characters",
   );
 
-const timestampSchema = z
-  .string()
+const timestampSchema = z.iso
   .datetime({ offset: true })
   .refine((value) => value.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(value), {
     message: "timestamp must include a UTC offset",

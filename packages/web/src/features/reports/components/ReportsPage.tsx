@@ -14,11 +14,8 @@ import { ACTIVE_STATUSES, type Status } from "@reef/core";
 import { Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useMemo, useState } from "react";
-import {
-  DEFAULT_REPORT_FILTERS,
-  type ReportFilters,
-  computeAggregates,
-} from "../lib/aggregate";
+import { DEFAULT_REPORT_FILTERS, computeAggregates } from "../lib/aggregate";
+import type { ReportFilters } from "../lib/aggregateModel";
 import type { RollupDimension } from "../lib/healthRollup";
 import {
   DEFAULT_FORECAST_HORIZON_WEEKS,

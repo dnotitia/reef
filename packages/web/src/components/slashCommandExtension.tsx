@@ -212,7 +212,7 @@ export const SLASH_COMMAND_DEFINITIONS: readonly SlashCommandDefinition[] = [
   },
 ] as const;
 
-export const SLASH_COMMAND_CATEGORY_ORDER: readonly SlashCommandCategory[] = [
+const SLASH_COMMAND_CATEGORY_ORDER: readonly SlashCommandCategory[] = [
   "text",
   "lists",
   "structure",
@@ -637,5 +637,3 @@ export function createSlashCommandExtension(
     },
   });
 }
-
-export { slashCommandPluginKey };

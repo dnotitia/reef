@@ -20,11 +20,11 @@ export type JiraMigrationPhase = (typeof JIRA_MIGRATION_PHASES)[number];
 export const JiraMigrationTargetSchema = z.discriminatedUnion("target_kind", [
   z.strictObject({
     target_kind: z.literal("release"),
-    target_id: z.string().uuid(),
+    target_id: z.uuid(),
   }),
   z.strictObject({
     target_kind: z.literal("sprint"),
-    target_id: z.string().uuid(),
+    target_id: z.uuid(),
   }),
   z.strictObject({
     target_kind: z.literal("issue"),
@@ -33,7 +33,7 @@ export const JiraMigrationTargetSchema = z.discriminatedUnion("target_kind", [
   }),
   z.strictObject({
     target_kind: z.literal("comment"),
-    comment_id: z.string().uuid(),
+    comment_id: z.uuid(),
   }),
   z.strictObject({
     target_kind: z.literal("attachment"),
@@ -85,7 +85,7 @@ export const expectedTargetKind: Record<
 };
 
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/u);
-const isoSchema = z.string().datetime({ offset: true });
+const isoSchema = z.iso.datetime({ offset: true });
 
 export const JiraMigrationBindingSchema = z.strictObject({
   source_key: z.string().min(1),

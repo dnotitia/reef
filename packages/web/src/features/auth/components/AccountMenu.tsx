@@ -38,7 +38,7 @@ function releaseVersionLabel(appVersion: string): string {
 }
 
 /**
- * Shared authenticated account interaction. Consumers own only the placement
+ * Shared authenticated account interaction. Consumers own the placement
  * adapter; identity, menu copy, sign-out mutation, and feedback stay here.
  */
 export function AccountMenu({

@@ -11,8 +11,8 @@ import type { JiraAttachmentActivityBinding } from "./changelog.js";
 /**
  * Build the attachment identities required by changelog activity planning.
  *
- * The attachment import stage records the authoritative file URI in the
- * migration ledger. Changelog planning must consume that same binding rather
+ * The attachment import stage records the file URI used by the migration
+ * ledger. Changelog planning should consume that same binding rather
  * than treating the current Jira attachment payload as a second import. A
  * source-fingerprint check prevents a stale ledger entry from being used for
  * a changed attachment.

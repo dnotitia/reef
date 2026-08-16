@@ -892,7 +892,7 @@ export const createRawArchive = (
  * Return the immutable creation timestamp of an existing run archive.
  *
  * A run can be interrupted after source archiving but before the ledger run
- * record is opened.  Callers must use the manifest timestamp when resuming so
+ * record is opened. Callers should use the manifest timestamp when resuming so
  * that the archive identity remains stable across process restarts.
  */
 export const readRawArchiveRunAt = async (input: {

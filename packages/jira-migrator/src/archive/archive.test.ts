@@ -485,10 +485,10 @@ describe("RawArchive", () => {
     }
 
     const dotSegmentRoot = `${base}/trusted/link/../nested-archive`;
-    expect(() => createRawArchive(options(dotSegmentRoot))).toThrowError(
+    expect(() => createRawArchive(options(dotSegmentRoot))).toThrow(
       expect.objectContaining({ code: "invalid_archive_configuration" }),
     );
-    expect(() => createRawArchive(options("C:..\\archive"))).toThrowError(
+    expect(() => createRawArchive(options("C:..\\archive"))).toThrow(
       expect.objectContaining({ code: "invalid_archive_configuration" }),
     );
   });

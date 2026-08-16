@@ -21,8 +21,8 @@ export const CommentMetaSchema = z
     author: z.string().min(1, "comment author is required"),
     created_at: IsoDateFieldSchema,
     edited_at: IsoDateFieldSchema.nullable().default(null),
-    parent_comment_id: z.string().uuid().nullable().default(null),
-    thread_root_id: z.string().uuid().nullable().default(null),
+    parent_comment_id: z.uuid().nullable().default(null),
+    thread_root_id: z.uuid().nullable().default(null),
   })
   .superRefine((meta, ctx) => {
     if ((meta.parent_comment_id === null) !== (meta.thread_root_id === null)) {
@@ -49,8 +49,8 @@ export const CommentSchema = z.object({
   author: z.string().min(1, "comment author is required"),
   created_at: IsoDateFieldSchema,
   edited_at: IsoDateFieldSchema.nullable().default(null),
-  parent_comment_id: z.string().uuid().nullable().optional(),
-  thread_root_id: z.string().uuid().nullable().optional(),
+  parent_comment_id: z.uuid().nullable().optional(),
+  thread_root_id: z.uuid().nullable().optional(),
   /** Older rows may omit this field; malformed persisted projections fail closed in the adapter. */
   mention_recipients: z.array(z.string().min(1)).optional(),
 });
@@ -79,7 +79,7 @@ const CommentBodySchema = z
  */
 export const CommentCreateInputSchema = z.object({
   body: CommentBodySchema,
-  parent_comment_id: z.string().uuid().optional(),
+  parent_comment_id: z.uuid().optional(),
 });
 
 /** Edit payload (web → core): the replacement body. */

@@ -29,7 +29,6 @@ import {
 } from "./github/repoReads";
 
 export type {
-  GitHubAuthenticatedRepository,
   ListAuthenticatedRepositoriesParams,
   ListAuthenticatedRepositoriesResult,
 } from "./github/authenticatedRepos";

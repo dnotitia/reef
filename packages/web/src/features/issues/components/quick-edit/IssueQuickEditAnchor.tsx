@@ -194,7 +194,7 @@ export function IssueQuickEditAnchor({
 
   const handleResize = useCallback(() => {
     // Radix Select closes its controlled content on resize. The quick editor
-    // must remain open so its portal can follow the active trigger. The close
+    // remains open so its portal can follow the active trigger. The close
     // callback can run before or after this listener, so track the viewport
     // size as well as the event ordering rather than relying on one microtask.
     noteViewportResize(true);
@@ -202,10 +202,7 @@ export function IssueQuickEditAnchor({
   }, [noteViewportResize, updateAnchorPosition]);
 
   useLayoutEffect(() => {
-    if (field === null) {
-      setAnchorPosition(null);
-      return;
-    }
+    if (field === null) return;
 
     if (typeof window !== "undefined") {
       viewportSizeRef.current = {
@@ -383,7 +380,7 @@ export function IssueQuickEditAnchor({
       </div>
     );
 
-  // The interactive panel lives under body so sticky table cells cannot clip
+  // The interactive panel lives under body so sticky table cells do not clip
   // its hit area. When supplied, its position follows the active trigger.
   const renderedAnchor =
     anchor === null

@@ -146,7 +146,7 @@ async function discardCompletedAuthorization(
   try {
     await runtime.oidc.revokeRefreshToken(refreshToken);
   } catch {
-    // The token never entered a Reef session; expiry is the final fallback.
+    // The token did not enter a Reef session; expiry is the final fallback.
   }
 }
 

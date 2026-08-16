@@ -75,9 +75,7 @@ describe("Jira runner report", () => {
         ],
         inputCount: 2,
       } as never),
-    ).toThrowError(
-      expect.objectContaining({ code: "report_conservation_failed" }),
-    );
+    ).toThrow(expect.objectContaining({ code: "report_conservation_failed" }));
   });
 
   it("counts failed entities marked retryable", () => {

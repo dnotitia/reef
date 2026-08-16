@@ -134,10 +134,10 @@ function MentionSuggestionList({
   const hasDocumentStatus = documentSearchStatus !== "idle";
   if (candidates.length === 0 && !hasDocumentStatus) return null;
 
-  let optionIndex = 0;
-  const renderCandidate = (candidate: IssueBodyReferenceCandidate) => {
-    const index = optionIndex;
-    optionIndex += 1;
+  const renderCandidate = (
+    candidate: IssueBodyReferenceCandidate,
+    index: number,
+  ) => {
     const selected = index === selectedIndex;
     const label = candidateLabel(candidate, {
       mentionOptionLabel,
@@ -201,7 +201,9 @@ function MentionSuggestionList({
           <div className="px-2 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             {issuesSectionLabel}
           </div>
-          {issues.map(renderCandidate)}
+          {issues.map((candidate, index) =>
+            renderCandidate(candidate, people.length + index),
+          )}
         </div>
       ) : null}
       {documents.length > 0 || hasDocumentStatus ? (
@@ -213,7 +215,9 @@ function MentionSuggestionList({
           <div className="px-2 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             {documentsSectionLabel}
           </div>
-          {documents.map(renderCandidate)}
+          {documents.map((candidate, index) =>
+            renderCandidate(candidate, people.length + issues.length + index),
+          )}
           {documentSearchStatus === "loading" ? (
             <div
               role="status"
@@ -320,9 +324,9 @@ function createIssueBodyMentionTokenizer(): MarkdownTokenizer {
 }
 
 /**
- * Marked recursively tokenizes link labels, so canonical `@...` syntax cannot
+ * Marked recursively tokenizes link labels, so canonical `@...` syntax does not
  * be recognized there without changing Markdown's link semantics. The core
- * parser already knows which regions are Markdown-owned; only its resolved
+ * parser already knows which regions are Markdown-owned; its resolved
  * tokens are converted to the official Mention shortcode before parsing.
  */
 export function prepareIssueBodyMentionMarkdown(

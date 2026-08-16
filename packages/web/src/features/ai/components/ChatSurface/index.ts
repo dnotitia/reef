@@ -1,1 +1,1 @@
-export { ChatSurface, type ChatSurfaceProps } from "./ChatSurface";
+export { ChatSurface } from "./ChatSurface";

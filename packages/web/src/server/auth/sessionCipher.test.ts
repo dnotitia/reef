@@ -30,10 +30,10 @@ describe("session token encryption", () => {
     parts[2] = `${parts[2]?.startsWith("A") ? "B" : "A"}${parts[2]?.slice(1)}`;
     const tampered = parts.join(".");
 
-    expect(() => cipher.open(tampered, "session:first")).toThrowError(
+    expect(() => cipher.open(tampered, "session:first")).toThrow(
       "sso_session_ciphertext_invalid",
     );
-    expect(() => cipher.open(sealed, "session:second")).toThrowError(
+    expect(() => cipher.open(sealed, "session:second")).toThrow(
       "sso_session_ciphertext_invalid",
     );
   });

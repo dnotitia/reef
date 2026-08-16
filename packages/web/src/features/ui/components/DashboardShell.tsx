@@ -101,13 +101,9 @@ function subscribeToMobileSidebar(onStoreChange: () => void) {
     return () => {};
 
   const mediaQuery = window.matchMedia(MOBILE_SIDEBAR_MEDIA_QUERY);
-  if (typeof mediaQuery.addEventListener === "function") {
-    mediaQuery.addEventListener("change", onStoreChange);
-    return () => mediaQuery.removeEventListener("change", onStoreChange);
-  }
-
-  mediaQuery.addListener(onStoreChange);
-  return () => mediaQuery.removeListener(onStoreChange);
+  if (typeof mediaQuery.addEventListener !== "function") return () => {};
+  mediaQuery.addEventListener("change", onStoreChange);
+  return () => mediaQuery.removeEventListener("change", onStoreChange);
 }
 
 function getMobileSidebarSnapshot(): boolean {
@@ -208,7 +204,7 @@ const cap = (n: number) => (n > 9 ? "9+" : String(n));
 
 export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   const hydrated = useHydrated();
-  const [interactionReady, setInteractionReady] = useState(false);
+  const interactionReady = hydrated;
   const storedSidebarCollapsed = useViewStore(
     (state) => state.sidebarCollapsed,
   );
@@ -242,12 +238,6 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   // mounted in the authenticated shell. Restores a persisted locale if the
   // cookie was cleared (REEF-291).
   useLocaleSync();
-  // `useHydrated` changes to its client snapshot during hydration. Keep one
-  // shell-local effect as the interaction boundary so the server-rendered
-  // controls never become visible/focusable ahead of their event wiring.
-  useEffect(() => {
-    if (hydrated) setInteractionReady(true);
-  }, [hydrated]);
   const t = useTranslations("nav");
   const pathname = usePathname();
   const router = useRouter();

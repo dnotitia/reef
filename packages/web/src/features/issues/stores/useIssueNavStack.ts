@@ -36,11 +36,13 @@ import { create } from "zustand";
 interface IssueNavStackState {
   /** Issue ids drilled *from*, oldest first. Top = immediate previous issue. */
   trail: string[];
+  /** Whether the current detail session has crossed into an intercepting drill route. */
+  hasDrilledInSession: boolean;
   /** Issue the trail currently expects on screen, or null before any open. */
   currentId: string | null;
   /**
    * Exit callback captured by the first sheet in the current detail session.
-   * Relation routes may remount the sheet through `@modal`, but they must not
+   * Relation routes may remount the sheet through `@modal`, but they do not
    * replace the entry route's Close destination.
    */
   exitOwner: (() => void) | null;
@@ -70,11 +72,16 @@ interface IssueNavStackState {
 
 export const useIssueNavStack = create<IssueNavStackState>((set, get) => ({
   trail: [],
+  hasDrilledInSession: false,
   currentId: null,
   exitOwner: null,
 
   drill: (fromId, toId) =>
-    set((state) => ({ trail: [...state.trail, fromId], currentId: toId })),
+    set((state) => ({
+      trail: [...state.trail, fromId],
+      hasDrilledInSession: true,
+      currentId: toId,
+    })),
 
   back: () => {
     const { trail } = get();
@@ -86,7 +93,12 @@ export const useIssueNavStack = create<IssueNavStackState>((set, get) => ({
 
   reconcile: (id) => {
     if (get().currentId === id) return;
-    set({ trail: [], currentId: id, exitOwner: null });
+    set({
+      trail: [],
+      hasDrilledInSession: false,
+      currentId: id,
+      exitOwner: null,
+    });
   },
 
   registerExitOwner: (onExit) => {
@@ -94,5 +106,11 @@ export const useIssueNavStack = create<IssueNavStackState>((set, get) => ({
     set({ exitOwner: onExit });
   },
 
-  clear: () => set({ trail: [], currentId: null, exitOwner: null }),
+  clear: () =>
+    set({
+      trail: [],
+      hasDrilledInSession: false,
+      currentId: null,
+      exitOwner: null,
+    }),
 }));

@@ -872,7 +872,7 @@ describe("MarkdownEditor", () => {
         fireEvent.mouseDown(linkButton);
       });
       // A real toolbar press can collapse the live ProseMirror selection before
-      // the click handler opens the URL input. The press-start range must win.
+      // the click handler opens the URL input. The press-start range wins.
       editor.state.selection = { empty: true, from: 10, to: 10 };
       act(() => {
         fireEvent.click(linkButton);

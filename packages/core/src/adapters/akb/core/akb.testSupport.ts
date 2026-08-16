@@ -81,7 +81,6 @@ export {
   writeIssue,
   writeMultipleIssues,
   writeTemplate,
-  type IssueBodyMentionsChangeEventInput,
 } from "../index";
 export * from "../activity/activityFixtures";
 export * from "./httpTestSupport";

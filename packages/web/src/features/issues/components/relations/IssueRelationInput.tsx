@@ -832,7 +832,7 @@ function RelationSelectedRow({
       titleRef={titleRef}
     />
   ) : (
-    // Relation target absent from allIssues (archived, etc.): keep an id-only
+    // Relation target absent from allIssues (archived, etc.): keep an id-based
     // fallback and leave it outside the title-overflow policy.
     <span
       translate="no"

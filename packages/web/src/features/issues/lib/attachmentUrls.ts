@@ -3,8 +3,8 @@ export function isAkbFileUri(url: string): boolean {
 }
 
 /**
- * Derive the small, display-only type marker used by an issue body file link.
- * The label is user-authored Markdown text; it is never used for MIME or
+ * Derive the small, display type marker used by an issue body file link.
+ * The label is user-authored Markdown text; it is not used for MIME or
  * download policy decisions.
  */
 export function attachmentFileTypeLabel(filename: string): string {

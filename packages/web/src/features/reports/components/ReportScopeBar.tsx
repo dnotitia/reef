@@ -12,7 +12,8 @@ import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { useTranslations } from "next-intl";
 import { useMemo } from "react";
-import { DEFAULT_REPORT_FILTERS, type ReportFilters } from "../lib/aggregate";
+import { DEFAULT_REPORT_FILTERS } from "../lib/aggregate";
+import type { ReportFilters } from "../lib/aggregateModel";
 import { useReportPeriodLabels } from "../lib/useReportPeriodLabels";
 
 /**

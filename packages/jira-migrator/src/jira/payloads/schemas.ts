@@ -5,11 +5,11 @@ const StringOrNumberAsStringSchema = z
   .transform((value) => String(value));
 
 export const JiraCommentParentIdSchema = z
-  .union([z.string().regex(/^\d+$/u), z.number().int().nonnegative().safe()])
+  .union([z.string().regex(/^\d+$/u), z.number().int().nonnegative()])
   .transform((value) => BigInt(String(value)).toString());
 
 const JiraCommentIdSchema = z
-  .union([z.string(), z.number().int().nonnegative().safe()])
+  .union([z.string(), z.number().int().nonnegative()])
   .transform((value) => {
     const stringValue = String(value);
     return /^\d+$/u.test(stringValue)

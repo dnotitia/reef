@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import type { IssueListItem, PlanningCatalog } from "@reef/core";
 import { useLocale, useTranslations } from "next-intl";
 import { memo, useMemo, useState } from "react";
-import type { ReportFilters } from "../lib/aggregate";
+import type { ReportFilters } from "../lib/aggregateModel";
 import { DAY_MS } from "../lib/aggregateModel";
 import {
   type HealthRollupRow,
@@ -225,7 +225,6 @@ function DimensionToggle({
   const t = useTranslations("reports.cards");
   const dimensionLabel = useDimensionLabels();
   return (
-    // biome-ignore lint/a11y/useSemanticElements: a header toggle group is not a form <fieldset>; role="group" + aria-label is the right semantics here (matches ViewSwitcher).
     <div
       role="group"
       aria-label={t("rollupDimension")}

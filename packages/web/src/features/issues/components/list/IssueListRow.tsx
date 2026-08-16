@@ -190,10 +190,10 @@ export const IssueListRow = memo(function IssueListRow({
     }
   }, []);
   // A selected row owns the strongest chrome. An open context menu and
-  // keyboard focus share the next tier, while pointer hover is only a
+  // keyboard focus share the next tier, while pointer hover is a
   // fallback. Keep this decision in one place so sticky cells and the row
-  // cannot drift. Context-open wins the tie so an unselected keyboard target
-  // remains outline-only while its menu is open.
+  // do not drift. Context-open wins the tie so an unselected keyboard target
+  // remains outline-focused while its menu is open.
   const visualState: IssueListRowVisualState = selected
     ? "selected"
     : contextOpen

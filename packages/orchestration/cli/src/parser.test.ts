@@ -31,7 +31,7 @@ describe("foreground invocation parser", () => {
     ],
     ["unknown option", ["run", "reef://reef-test/REEF-101", "--jwt", "secret"]],
   ])("rejects %s", (_label, argv) => {
-    expect(() => parseInvocationArguments(argv)).toThrowError("usage_invalid");
+    expect(() => parseInvocationArguments(argv)).toThrow("usage_invalid");
   });
 
   it("provides a package-contract help path", () => {

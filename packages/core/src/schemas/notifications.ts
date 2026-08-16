@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 const NonEmptyIdentitySchema = z.string().trim().min(1);
-const IsoDateTimeSchema = z.string().datetime({ offset: true });
+const IsoDateTimeSchema = z.iso.datetime({ offset: true });
 
 export const NotificationStateSchema = z.enum(["unread", "read", "archived"]);
 export const SubscriptionSourceSchema = z.enum([
@@ -47,7 +47,7 @@ export const NotificationStateUpdateInputSchema = z.strictObject({
 });
 
 export const NotificationRowSchema = z.looseObject({
-  id: z.string().uuid(),
+  id: z.uuid(),
   notification_key: NonEmptyIdentitySchema,
   recipient: NonEmptyIdentitySchema,
   reef_id: NonEmptyIdentitySchema,
@@ -83,7 +83,7 @@ export const SubscriptionListInputSchema = z.strictObject({
 });
 
 export const SubscriptionRowSchema = z.looseObject({
-  id: z.string().uuid(),
+  id: z.uuid(),
   subscription_key: NonEmptyIdentitySchema,
   reef_id: NonEmptyIdentitySchema,
   subscriber: NonEmptyIdentitySchema,

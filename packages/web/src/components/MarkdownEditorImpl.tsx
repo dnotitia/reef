@@ -176,11 +176,11 @@ export interface MarkdownEditorProps {
   /** Resolve explicit AKB file links for the issue-scoped authenticated proxy. */
   resolveAttachmentHref?: (href: string) => string;
   /**
-   * Enables issue-body-only member mentions. Omit this everywhere else so the
+   * Enables issue-body member mentions. Omit this elsewhere so the
    * shared editor keeps its existing schema and interaction contract.
    */
   mentionConfig?: MarkdownEditorMentionConfig;
-  /** Enables the issue-detail-only desktop description height control. */
+  /** Enables the issue-detail desktop description height control. */
   enableHeightResize?: boolean;
 }
 
@@ -622,11 +622,27 @@ export function clampEditorHeight(value: number, maxHeight: number) {
   return Math.min(Math.max(value, EDITOR_BODY_MIN_HEIGHT), safeMax);
 }
 
-function readStoredEditorHeight() {
+function subscribeToStoredEditorHeight(onStoreChange: () => void) {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener("storage", onStoreChange);
+  return () => window.removeEventListener("storage", onStoreChange);
+}
+
+function getStoredEditorHeightSnapshot() {
   try {
-    const raw = window.sessionStorage.getItem(EDITOR_BODY_SESSION_STORAGE_KEY);
-    if (raw === null) return null;
-    const parsed: unknown = JSON.parse(raw);
+    return window.sessionStorage.getItem(EDITOR_BODY_SESSION_STORAGE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function getServerStoredEditorHeightSnapshot() {
+  return "";
+}
+
+function parseStoredEditorHeight(snapshot: string) {
+  try {
+    const parsed: unknown = JSON.parse(snapshot);
     return typeof parsed === "number" && Number.isFinite(parsed)
       ? parsed
       : null;
@@ -690,6 +706,14 @@ function useMarkdownEditorHeightResize(
   );
   const { width: viewportWidth, height: viewportHeight } =
     parseEditorViewportSnapshot(viewportSnapshot);
+  const storedEditorHeightSnapshot = useSyncExternalStore(
+    subscribeToStoredEditorHeight,
+    getStoredEditorHeightSnapshot,
+    getServerStoredEditorHeightSnapshot,
+  );
+  const storedEditorHeight = parseStoredEditorHeight(
+    storedEditorHeightSnapshot,
+  );
   const liveViewportWidth =
     viewportWidth || (typeof window === "undefined" ? 0 : window.innerWidth);
   const liveViewportHeight =
@@ -697,26 +721,31 @@ function useMarkdownEditorHeightResize(
   const isDesktop =
     enabled && liveViewportWidth >= EDITOR_BODY_DESKTOP_MIN_WIDTH;
   const maxHeight = getEditorMaxHeight(liveViewportHeight);
-  const [manualHeight, setManualHeight] = useState<number | null>(null);
+  const [manualHeightState, setManualHeight] = useState<number | null>(null);
   const [currentHeight, setCurrentHeight] = useState(
     EDITOR_BODY_DEFAULT_HEIGHT,
   );
   const [isResizing, setIsResizing] = useState(false);
-  const manualHeightRef = useRef<number | null>(null);
+  const persistedManualHeight =
+    isDesktop && storedEditorHeight !== null
+      ? clampEditorHeight(storedEditorHeight, maxHeight)
+      : null;
+  const manualHeight = manualHeightState ?? persistedManualHeight;
+  const manualHeightRef = useRef<number | null>(manualHeight);
   const currentHeightRef = useRef(EDITOR_BODY_DEFAULT_HEIGHT);
-  const loadedSessionStateRef = useRef(false);
   const dragRef = useRef<{
     pointerId: number;
     startY: number;
     startHeight: number;
   } | null>(null);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: React Compiler requires the stable setter dependency for this callback.
   const refreshAutoHeight = useCallback(() => {
     if (!isDesktop || manualHeightRef.current !== null) return;
     const nextHeight = measureEditorBodyHeight(bodyRef.current, maxHeight);
     currentHeightRef.current = nextHeight;
     setCurrentHeight(nextHeight);
-  }, [bodyRef, isDesktop, maxHeight]);
+  }, [bodyRef, isDesktop, maxHeight, setCurrentHeight]);
 
   useLayoutEffect(() => {
     if (!isDesktop || liveViewportHeight <= 0) return;
@@ -734,19 +763,15 @@ function useMarkdownEditorHeightResize(
     refreshAutoHeight();
   }, [isDesktop, liveViewportHeight, maxHeight, refreshAutoHeight]);
 
-  useEffect(() => {
-    if (!isDesktop || loadedSessionStateRef.current) return;
-    loadedSessionStateRef.current = true;
-    const storedHeight = readStoredEditorHeight();
-    if (storedHeight === null) return;
-
-    const nextHeight = clampEditorHeight(storedHeight, maxHeight);
-    manualHeightRef.current = nextHeight;
-    currentHeightRef.current = nextHeight;
-    setManualHeight(nextHeight);
-    setCurrentHeight(nextHeight);
-    if (nextHeight !== storedHeight) storeEditorHeight(nextHeight);
-  }, [isDesktop, maxHeight]);
+  useLayoutEffect(() => {
+    if (!isDesktop || manualHeightState !== null) return;
+    if (persistedManualHeight === null) return;
+    manualHeightRef.current = persistedManualHeight;
+    currentHeightRef.current = persistedManualHeight;
+    if (persistedManualHeight !== storedEditorHeight) {
+      storeEditorHeight(persistedManualHeight);
+    }
+  }, [isDesktop, manualHeightState, persistedManualHeight, storedEditorHeight]);
 
   function measureCurrentHeight() {
     const nextHeight = measureEditorBodyHeight(bodyRef.current, maxHeight);
@@ -1228,16 +1253,6 @@ export function MarkdownEditor({
   useEffect(() => {
     editorRef.current = editor;
   }, [editor]);
-
-  // Tiptap keeps the contenteditable node alive across source-mode and height
-  // changes. Keep the shared body sizing class in sync without recreating the
-  // editor instance or disturbing its selection.
-  useEffect(() => {
-    if (sourceMode) return;
-    const content = editor?.view?.dom;
-    if (!content) return;
-    content.className = editorBodyClassName;
-  }, [editor, editorBodyClassName, sourceMode]);
 
   useEffect(() => {
     resolveImageSrcRef.current = resolveImageSrc;

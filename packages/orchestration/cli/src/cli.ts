@@ -33,7 +33,7 @@ class ProgressWriter {
     try {
       this.write(line);
     } catch {
-      // Diagnostics are best-effort and never change the execution result.
+      // Diagnostics are best-effort and do not change the execution result.
     }
   }
 }

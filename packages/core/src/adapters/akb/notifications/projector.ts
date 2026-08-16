@@ -27,7 +27,7 @@ import { createNotification } from "./notifications";
 
 const DEFAULT_BATCH_SIZE = 100;
 const MAX_BATCH_SIZE = 500;
-const IsoDateTimeSchema = z.string().datetime({ offset: true });
+const IsoDateTimeSchema = z.iso.datetime({ offset: true });
 
 const CursorSchema = z.strictObject({
   occurred_at: z.string().min(1),
@@ -35,7 +35,7 @@ const CursorSchema = z.strictObject({
 });
 
 const ProjectorCheckpointSchema = z.strictObject({
-  activated_at: z.string().datetime({ offset: true }),
+  activated_at: z.iso.datetime({ offset: true }),
   activity_cursor: CursorSchema.nullable(),
   comment_cursor: CursorSchema.nullable(),
 });
@@ -48,7 +48,7 @@ const RawActivitySourceSchema = z.strictObject({
   payload: z.unknown().nullable().optional(),
   meta: z.looseObject({
     actor: z.string().min(1),
-    at: z.string().datetime({ offset: true }),
+    at: z.iso.datetime({ offset: true }),
   }),
 });
 
@@ -57,7 +57,7 @@ const RawCommentSourceSchema = z.strictObject({
   reef_id: z.string().min(1),
   meta: z.looseObject({
     author: z.string().min(1),
-    created_at: z.string().datetime({ offset: true }),
+    created_at: z.iso.datetime({ offset: true }),
     edited_at: z.unknown().optional(),
     mention_recipients: z.unknown().optional(),
   }),

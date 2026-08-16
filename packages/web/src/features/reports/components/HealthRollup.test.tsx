@@ -7,7 +7,8 @@ import type {
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_REPORT_FILTERS, type ReportFilters } from "../lib/aggregate";
+import { DEFAULT_REPORT_FILTERS } from "../lib/aggregate";
+import type { ReportFilters } from "../lib/aggregateModel";
 import type { RollupDimension } from "../lib/healthRollup";
 import { HealthRollup } from "./HealthRollup";
 
@@ -170,7 +171,7 @@ describe("HealthRollup", () => {
       />,
     );
     // Parent is available because issues reference a parent; switch to it and
-    // verify the control's selected state, not only the resulting row.
+    // verify the control's selected state, not just the resulting row.
     const milestones = screen.getByTestId("health-rollup-dimension-milestone");
     const parent = screen.getByTestId("health-rollup-dimension-parent");
     expect(milestones).toHaveAttribute("aria-pressed", "true");

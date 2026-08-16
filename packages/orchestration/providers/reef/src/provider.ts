@@ -41,7 +41,6 @@ const ArtifactInputSchema = z.strictObject({
   kind: ArtifactKindSchema,
   ref: z.string().refine((value) => value.trim().length > 0),
   uri: z
-    .string()
     .url()
     .refine((value) => {
       const protocol = new URL(value).protocol;
@@ -67,8 +66,6 @@ export interface ReefWorkProviderOptions {
   readonly repository: string;
   readonly clock?: () => Date;
 }
-
-export type { ReefWorkUri };
 
 interface ReefWorkState {
   readonly parsed: ReefWorkUri;

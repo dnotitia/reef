@@ -3,7 +3,6 @@
 import { cn } from "@/lib/utils";
 import { AccountMenu } from "./AccountMenu";
 
-export type { AccountIdentity } from "./SidebarAccountIdentity";
 export { deriveIdentity } from "./SidebarAccountIdentity";
 export { releaseNotesUrl } from "./AccountMenu";
 

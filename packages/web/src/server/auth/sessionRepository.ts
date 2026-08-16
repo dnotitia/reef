@@ -285,7 +285,7 @@ interface MemoryIndex {
 }
 
 export interface MemorySessionBackend extends SessionStorageBackend {
-  /** Ciphertext-only test diagnostic; never returns plaintext token state. */
+  /** Ciphertext test diagnostic; does not return plaintext token state. */
   inspect(): string;
 }
 

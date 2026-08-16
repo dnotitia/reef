@@ -22,7 +22,8 @@
     "jscpd",
     "knip",
     "pino-pretty",
-    "tailwindcss"
+    "tailwindcss",
+    "tsx"
   ],
   "ignoreExportsUsedInFile": {
     "interface": true,
@@ -45,7 +46,6 @@
         "src/schemas/issues/fieldRegistry.ts",
         "src/schemas/planning/fieldRegistry.ts"
       ],
-      "includeEntryExports": true,
       "project": ["src/**/*.ts"]
     },
     "packages/jira-migrator": {

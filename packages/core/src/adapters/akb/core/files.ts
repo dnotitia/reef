@@ -4,7 +4,7 @@ import type { AkbAdapter } from "./http";
 
 const AkbFileUploadInitResponseSchema = z.looseObject({
   uri: z.string().min(1),
-  upload_url: z.string().url(),
+  upload_url: z.url(),
 });
 
 const AkbFileResponseSchema = z.looseObject({
@@ -16,7 +16,7 @@ const AkbFileResponseSchema = z.looseObject({
 
 const AkbFileDownloadResponseSchema = z.looseObject({
   name: z.string().min(1),
-  download_url: z.string().url(),
+  download_url: z.url(),
   mime_type: z.string().min(1),
   size_bytes: z.number().int().nonnegative(),
 });

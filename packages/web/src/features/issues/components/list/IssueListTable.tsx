@@ -320,7 +320,7 @@ export function IssueListTable({
     () => new Set(),
   );
   // Group collapse is intentionally reset when the view scope changes; it is
-  // UI-local state and must never follow a vault or group into persistence.
+  // UI-local state and does not follow a vault or group into persistence.
   // biome-ignore lint/correctness/useExhaustiveDependencies: groupBy and vault are the reset boundaries for this local state.
   useEffect(() => {
     setCollapsedGroupIds(new Set());

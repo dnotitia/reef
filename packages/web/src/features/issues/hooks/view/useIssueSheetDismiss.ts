@@ -12,7 +12,7 @@ interface UseIssueSheetDismissArgs {
   /**
    * Exit the sheet to its entry view — the list/board the user came from. The
    * first sheet in a detail session owns this callback; a relation drill can
-   * remount the sheet through the intercepting route, but it must not replace
+   * remount the sheet through the intercepting route, but it does not replace
    * the original Close destination.
    */
   onExit: () => void;
@@ -65,7 +65,7 @@ export function useIssueSheetDismiss({
   }, [issueId, reconcile]);
 
   // Keep the entry callback in a separate effect so a re-render of the outgoing
-  // sheet during a drill cannot reconcile its old route id back over the target
+  // sheet during a drill does not reconcile its old route id back over the target
   // that `drill()` just recorded. The first callback still wins; remounted
   // relation routes are ignored by the store.
   useEffect(() => {

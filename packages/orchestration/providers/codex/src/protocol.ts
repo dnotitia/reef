@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const requestIdSchema = z.union([z.string().min(1), z.number().finite()]);
+const requestIdSchema = z.union([z.string().min(1), z.number()]);
 const nonEmptyTextSchema = z.string().min(1);
 
 const messageObjectSchema = z
@@ -13,7 +13,7 @@ export const responseEnvelopeSchema = z
     result: z.unknown().optional(),
     error: z
       .looseObject({
-        code: z.union([z.string(), z.number().finite()]),
+        code: z.union([z.string(), z.number()]),
         message: z.string(),
       })
       .optional(),
@@ -114,7 +114,7 @@ export const userInputRequestParamsSchema = z.looseObject({
   turnId: nonEmptyTextSchema,
   itemId: nonEmptyTextSchema,
   questions: z.array(userInputQuestionSchema).min(1),
-  autoResolutionMs: z.number().finite().nullable(),
+  autoResolutionMs: z.number().nullable(),
 });
 
 export const approvalRequestParamsSchema = z.looseObject({

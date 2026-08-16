@@ -60,7 +60,7 @@ export default async function LoginPage({
   try {
     authMode = readAuthMode();
   } catch {
-    // An invalid deployment config must not expose either sign-in method.
+    // An invalid deployment config does not expose either sign-in method.
   }
 
   return (
@@ -85,7 +85,7 @@ export default async function LoginPage({
  *   bounce the user between reef and Keycloak forever.
  * - No explicit loop escape (`?password=1` / `?prompt=login`). In local mode
  *   this leaves password sign-in reachable; SSO mode still fails closed and
- *   never exposes the local credential flow.
+ *   does not expose the local credential flow.
  * - AKB reports its browser provider catalog ready. An unreachable or non-SSO
  *   backend leaves the panel in its mode-appropriate unavailable state.
  *

@@ -1204,7 +1204,7 @@ describe("GlobalSearchDialog", () => {
       await screen.findByTestId("global-search-content-item")
     ).querySelector("a");
     expect(anchor).not.toBeNull();
-    // Keep this event-only assertion on a hash target so jsdom does not try a
+    // Keep this event assertion on a hash target so jsdom does not try a
     // full document navigation while the component deliberately leaves
     // modified and middle clicks to the browser.
     (anchor as HTMLAnchorElement).setAttribute("href", "#content-click-test");

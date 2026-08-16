@@ -51,8 +51,7 @@ export const ControllerUriSchema = printableText("URI", 2048)
     "filesystem URIs are not allowed",
   );
 
-export const ControllerTimestampSchema = z
-  .string()
+export const ControllerTimestampSchema = z.iso
   .datetime({ offset: true })
   .refine(
     (value) => value.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(value),
@@ -511,14 +510,6 @@ export type ControllerClaimInput = {
   readonly runId: string;
   readonly plan: RunPlanInput | RunPlan;
 };
-
-export const ControllerCleanupInputSchema = z.strictObject({
-  workUri: ControllerUriSchema,
-});
-
-export type ControllerCleanupInput = z.infer<
-  typeof ControllerCleanupInputSchema
->;
 
 export const ControllerProviderKindSchema = z.enum(PROVIDER_KINDS);
 export type ControllerProviderKind = z.infer<

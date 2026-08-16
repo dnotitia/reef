@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /** UUIDs and lifecycle values are part of the AKB app-installation wire contract. */
-export const ControlPlaneIdSchema = z.string().uuid();
+export const ControlPlaneIdSchema = z.uuid();
 export const ControlPlaneDateTimeSchema = z.string().min(1);
 
 export const ControlPlaneInstallationLifecycleEnum = z.enum([
@@ -32,7 +32,7 @@ export const ControlPlaneObservedSchema = z.object({
   grantGeneration: z.number().int().nonnegative().nullable().optional(),
 });
 
-/** Public drift dimensions carry classification only, never expected/actual data. */
+/** Public drift dimensions carry classification, without expected/actual data. */
 export const ControlPlaneDriftDimensionSchema = z.object({
   status: z.enum(["in_sync", "mismatch", "unknown"]),
 });
@@ -47,8 +47,8 @@ export const ControlPlaneDriftSchema = z.object({
 });
 
 /**
- * The only public projection exposed by the app-scoped installation reader.
- * Unknown AKB fields are stripped by this schema and are never reachable from
+ * The public projection exposed by the app-scoped installation reader.
+ * Unknown AKB fields are stripped by this schema and stay out of
  * the returned object.
  */
 export const ControlPlaneInstallationSchema = z.object({

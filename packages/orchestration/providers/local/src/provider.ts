@@ -45,13 +45,13 @@ export type LocalBootstrapHook = (
 ) => Promise<void> | void;
 
 export interface LocalInfrastructureProviderOptions {
-  /** The only target string accepted by provision. */
+  /** The target string accepted by provision. */
   readonly target: string;
   /** The user's primary checkout. */
   readonly repositoryRoot: string;
   /** A provider-owned directory outside the primary checkout. */
   readonly managedWorkRoot: string;
-  /** A revision that must resolve to a local commit during provision. */
+  /** A revision expected to resolve to a local commit during provision. */
   readonly baseRevision: string;
   /** The complete environment passed to caller commands. */
   readonly environment: Readonly<Record<string, string>>;

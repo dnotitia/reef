@@ -217,7 +217,6 @@ export function PlanningPage() {
         }
       />
       <PageBody pad="compact">
-        {/* biome-ignore lint/a11y/useSemanticElements: a header toggle group is not a form <fieldset>; role="group" + aria-label matches ViewSwitcher. */}
         <div
           role="group"
           aria-label={tp("planningKind")}

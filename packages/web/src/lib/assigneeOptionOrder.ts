@@ -23,7 +23,7 @@ function compareCandidates(left: Collaborator, right: Collaborator): number {
 
 /**
  * Orders assignable people without mutating the server result. A login in the
- * recent list is promoted only when it is still present in the current
+ * recent list is promoted when it is still present in the current
  * assignable roster; every other candidate follows the deterministic
  * display-name/login order.
  */

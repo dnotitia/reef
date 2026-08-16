@@ -36,7 +36,7 @@ export async function POST(request: Request): Promise<Response> {
   try {
     await (await getSsoAuthRuntime()).sessions.logout(handle);
   } catch {
-    // Redis deletion is authoritative. Preserve the only browser handle so the
+    // Redis deletion is authoritative. Preserve the browser handle so the
     // user can retry rather than reporting a logout that did not happen.
     return new Response(null, { status: 503, headers });
   }

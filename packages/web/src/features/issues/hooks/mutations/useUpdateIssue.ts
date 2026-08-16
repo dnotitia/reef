@@ -245,7 +245,7 @@ export function useUpdateIssue(options: UseUpdateIssueOptions = {}) {
             recentLogins,
           );
         } catch {
-          // Browser storage failure must not turn a successful issue save into
+          // Browser storage failure does not turn a successful issue save into
           // an error or claim that the login was added to recents.
         }
       }

@@ -410,7 +410,7 @@ export async function updateComment(
  * Permanently delete an authored comment and every reply below it. The target
  * author check, recursive descendant walk, notification cleanup, and comment
  * delete intentionally live in one data-modifying SQL statement so a failed
- * authorization or a partial cascade cannot leave an orphaned reply or
+ * authorization or partial cascade does not leave an orphaned reply or
  * notification (REEF-520).
  */
 export async function deleteComment(

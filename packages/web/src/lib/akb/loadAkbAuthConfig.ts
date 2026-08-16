@@ -101,13 +101,13 @@ export async function loadAkbAuthConfig(): Promise<AkbAuthConfigResult> {
       ok: true,
       config: {
         ...config,
-        // Mode selection is Reef-owned. Never expose a password form while
-        // the BFF is configured to accept only opaque SSO sessions.
+        // Mode selection is Reef-owned. Do not expose a password form while
+        // the BFF is configured for opaque SSO sessions.
         local_auth: { enabled: false },
         providers: enabledProviders.map((provider) => ({
           ...provider,
-          // Never relay or call AKB's own browser login route. Reef owns its
-          // dedicated OIDC client and uses only the catalog-validated alias.
+          // Do not relay or call AKB's own browser login route. Reef owns its
+          // dedicated OIDC client and uses the catalog-validated alias.
           login_url: buildPathWithParams("/api/auth/akb/sso/start", {
             provider: provider.alias,
           }),

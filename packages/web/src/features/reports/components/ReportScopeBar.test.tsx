@@ -18,7 +18,8 @@ vi.mock("@/features/settings/hooks/useActiveVault", () => ({
 }));
 
 import { apiFetch } from "@/lib/apiClient";
-import { DEFAULT_REPORT_FILTERS, type ReportFilters } from "../lib/aggregate";
+import { DEFAULT_REPORT_FILTERS } from "../lib/aggregate";
+import type { ReportFilters } from "../lib/aggregateModel";
 import { ReportScopeBar } from "./ReportScopeBar";
 
 const mockApiFetch = vi.mocked(apiFetch);

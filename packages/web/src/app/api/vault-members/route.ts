@@ -16,7 +16,7 @@ const ASSIGNABLE_ROLES = new Set(["writer", "admin", "owner"]);
 /**
  * GET /api/vault-members?vault={vault}&q={query}
  *
- * Returns workspace members for the AssigneeCombobox typeahead. Only members
+ * Returns workspace members for the AssigneeCombobox typeahead. Members
  * that can receive issue assignments are returned. `q` filters by `username`
  * / `display_name` substring (case insensitive); an empty `q` returns the
  * complete assignable member list without a result cap.

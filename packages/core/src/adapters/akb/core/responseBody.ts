@@ -1,5 +1,5 @@
 export class AkbResponseDeadlineError extends Error {}
-export class AkbResponseLimitError extends Error {}
+class AkbResponseLimitError extends Error {}
 
 export interface AkbJsonBodyPolicy {
   maxBytes: number;

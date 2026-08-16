@@ -81,7 +81,7 @@ export const ensurePrivateDirectory = async (
   }
 };
 
-export const assertPrivateDirectory = async (
+const assertPrivateDirectory = async (
   root: string,
   path: string,
 ): Promise<void> => {
