@@ -12,11 +12,14 @@ import { describe, expect, it, vi } from "vitest";
 import { CommentCard } from "./CommentCard";
 
 vi.mock("streamdown", () => ({
+  defaultRemarkPlugins: { gfm: () => undefined },
   Streamdown: ({
     children,
+    className,
     urlTransform,
   }: {
     children: string;
+    className?: string;
     urlTransform?: (
       url: string,
       key: string,
@@ -25,7 +28,7 @@ vi.mock("streamdown", () => ({
   }) => {
     const fileUri = "akb://reef-test/issues/file/file-1";
     return (
-      <div>
+      <div className={className}>
         <a href={urlTransform?.(fileUri, "href", {}) ?? fileUri}>download</a>
         <img alt="inline" src={urlTransform?.(fileUri, "src", {}) ?? fileUri} />
         <span>{children}</span>
@@ -72,6 +75,22 @@ describe("CommentCard", () => {
     const card = screen.getByTestId("comment-card");
     expect(card).toHaveAttribute("id", `comment-${COMMENT.id}`);
     expect(card).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("uses the shared semantic surface and keeps the comment density marker", () => {
+    render(
+      <IntlTestProvider>
+        <CommentCard comment={COMMENT} currentLogin="bob" onSave={vi.fn()} />
+      </IntlTestProvider>,
+    );
+
+    const renderer = screen.getByText(COMMENT.body).parentElement;
+    expect(renderer).toHaveClass(
+      "reef-markdown-surface",
+      "reef-markdown-comment",
+      "comment-mention-renderer",
+      "text-[13px]",
+    );
   });
 
   it("passes markdown hrefs and image srcs distinctly to the URL resolver", () => {

@@ -125,6 +125,7 @@ export const EDITOR_BODY_SIZING =
   "min-h-[200px] max-h-[clamp(200px,48vh,560px)] overflow-y-auto [scrollbar-gutter:stable]";
 export const EDITOR_BODY_FRAME_CLASS = "p-1";
 export const EDITOR_CONTENT_CLASS = "reef-markdown-editor";
+export const MARKDOWN_SURFACE_CLASS = "reef-markdown-surface";
 export const EDITOR_RESIZABLE_BODY_ID = "markdown-editor-body-frame";
 export const EDITOR_BODY_MIN_HEIGHT = 200;
 export const EDITOR_BODY_DEFAULT_HEIGHT = 560;
@@ -1022,6 +1023,7 @@ export function MarkdownEditor({
 
   const editorBodyClassName = cn(
     EDITOR_CONTENT_CLASS,
+    MARKDOWN_SURFACE_CLASS,
     "prose prose-sm focus:outline-none",
     isManualHeight ? EDITOR_MANUAL_BODY_CLASS : EDITOR_BODY_SIZING,
     "px-3 py-2 max-w-none",

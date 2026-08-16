@@ -18,6 +18,7 @@ import {
   EDITOR_RESIZABLE_BODY_ID,
   getEditorMaxHeight,
   EDITOR_CONTENT_CLASS,
+  MARKDOWN_SURFACE_CLASS,
   MarkdownEditor,
 } from "./MarkdownEditorImpl";
 
@@ -205,6 +206,7 @@ describe("MarkdownEditor", () => {
     const className = opts.editorProps?.attributes?.class ?? "";
 
     expect(className).toContain(EDITOR_CONTENT_CLASS);
+    expect(className).toContain(MARKDOWN_SURFACE_CLASS);
     expect(className).toContain(EDITOR_BODY_SIZING);
     expect(className).toContain("prose prose-sm");
     expect(className).not.toContain("dark:prose-invert");
@@ -529,6 +531,26 @@ describe("MarkdownEditor", () => {
   it("hides toolbar when readOnly is true", () => {
     render(<MarkdownEditor value="" onChange={vi.fn()} readOnly />);
     expect(screen.queryByTitle("Bold")).not.toBeInTheDocument();
+  });
+
+  it("keeps the shared semantic surface on editable and readOnly WYSIWYG modes", () => {
+    const { rerender } = render(
+      <MarkdownEditor value="# Body" onChange={vi.fn()} />,
+    );
+    const editorOptions = () =>
+      vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
+        editorProps?: { attributes?: { class?: string } };
+      };
+
+    expect(editorOptions().editorProps?.attributes?.class).toContain(
+      MARKDOWN_SURFACE_CLASS,
+    );
+
+    rerender(<MarkdownEditor value="# Body" onChange={vi.fn()} readOnly />);
+    expect(editorOptions().editorProps?.attributes?.class).toContain(
+      MARKDOWN_SURFACE_CLASS,
+    );
+    expect(screen.queryByTestId("markdown-toolbar")).not.toBeInTheDocument();
   });
 
   it("hides the attachment insert control when readOnly is true", () => {

@@ -26,6 +26,7 @@ import {
 } from "react";
 import {
   type AllowedTags,
+  defaultRemarkPlugins,
   Streamdown,
   type UrlTransform,
   defaultUrlTransform,
@@ -105,6 +106,7 @@ export function CommentCard({
   );
   const remarkPlugins = useMemo<RemarkPlugins>(
     () => [
+      ...Object.values(defaultRemarkPlugins),
       [
         remarkCommentMentions,
         {
@@ -291,7 +293,7 @@ export function CommentCard({
         ) : (
           <Streamdown
             key={mentionFingerprint}
-            className="comment-mention-renderer mt-1 w-full min-w-0 break-words text-[13px] text-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+            className="reef-markdown-surface reef-markdown-comment comment-mention-renderer mt-1 w-full min-w-0 break-words text-[13px] text-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
             linkSafety={linkSafetyConfig}
             urlTransform={urlTransform}
             remarkPlugins={remarkPlugins}

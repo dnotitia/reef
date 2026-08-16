@@ -210,6 +210,37 @@ describe("global focus styles", () => {
     expect(css).toContain(".reef-markdown-editor a:focus-visible");
   });
 
+  it("defines one semantic token contract for the comment Streamdown scope", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const surfaceStart = css.indexOf(".reef-markdown-surface {");
+    expect(surfaceStart).toBeGreaterThan(-1);
+    const surfaceEnd = findCssBlockEnd(css, surfaceStart);
+    expect(surfaceEnd).toBeGreaterThan(surfaceStart);
+    const surfaceBlock = css.slice(surfaceStart, surfaceEnd);
+
+    for (const token of [
+      "--foreground",
+      "--muted-foreground",
+      "--brand",
+      "--surface-subtle",
+      "--border-subtle",
+    ]) {
+      expect(surfaceBlock).toContain(`var(${token})`);
+    }
+
+    expect(css).toContain(".reef-markdown-comment");
+    expect(css).toContain(
+      '.reef-markdown-comment [data-streamdown="code-block-body"]',
+    );
+    expect(css).toContain(
+      '.reef-markdown-comment [data-streamdown="table-wrapper"]',
+    );
+    expect(css).toContain('.reef-markdown-comment [data-streamdown="image"]');
+    expect(css).toContain(
+      '.reef-markdown-comment button[data-streamdown="link"]:focus-visible',
+    );
+  });
+
   it("gives inline marks an explicit Reef hierarchy without touching code blocks", () => {
     const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
 

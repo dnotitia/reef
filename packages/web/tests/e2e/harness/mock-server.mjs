@@ -691,6 +691,22 @@ function markdownFixtureVault(name) {
       meta: null,
     },
   ];
+  vault.comments = [
+    {
+      id: uuidFor(40),
+      reef_id: issue.reef_id,
+      body: MARKDOWN_FIXTURE,
+      meta: {
+        author: "bob",
+        created_at: "2026-06-15T01:00:00.000Z",
+        edited_at: null,
+        mention_recipients: ["alice"],
+      },
+      created_at: "2026-06-15T01:00:00.000Z",
+      updated_at: "2026-06-15T01:00:00.000Z",
+      created_by: "bob",
+    },
+  ];
   seedIssueDocument(vault, issue.reef_id, MARKDOWN_FIXTURE);
   seedIssueDocument(vault, secondIssue.reef_id, "Alpha follow-up issue body.");
   seedReferenceDocument(vault, "docs/alpha-reference.md", {
@@ -3902,6 +3918,15 @@ function publicState() {
         state: item.state,
         read_at: item.read_at,
         archived_at: item.archived_at,
+      })),
+      comments: (vault.comments ?? []).map((comment) => ({
+        id: comment.id,
+        reef_id: comment.reef_id,
+        body: comment.body,
+        author: comment.meta?.author ?? null,
+        created_at: comment.meta?.created_at ?? null,
+        edited_at: comment.meta?.edited_at ?? null,
+        mention_recipients: comment.meta?.mention_recipients ?? [],
       })),
       documents: [...vault.documents.values()].map((doc) => ({
         path: doc.path,
