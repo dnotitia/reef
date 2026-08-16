@@ -21,6 +21,10 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Core now exposes a credential-safe app-scoped AKB installation reader** for
+  lifecycle, release, observed, grant, and upstream drift projections without
+  exposing control-plane SDK operations or opaque response details. (REEF-417)
+
 - **Issue-body references now share distinct compact visuals for known issues,
   documents, files, and resolved mentions while ordinary links retain their
   existing styling.**

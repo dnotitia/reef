@@ -177,6 +177,13 @@ export {
   readAuthoringLanguage,
 } from "./workspace/config";
 export {
+  createAkbAppInstallationReader,
+  type AkbAppInstallationReader,
+  type AkbAppInstallationReaderConfig,
+  type ControlPlaneRequestPolicy,
+  type ControlPlaneTokenSource,
+} from "./controlPlane/installationReader";
+export {
   login,
   getAuthConfig,
   startKeycloakLogin,
