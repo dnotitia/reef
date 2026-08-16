@@ -860,7 +860,7 @@ hr {
 }
 
 .reef-markdown-editor a[data-reef-file-link="true"]::before {
-  content: "↗";
+  content: "▱";
   flex: 0 0 auto;
   color: var(--muted-foreground);
   font-size: 0.75em;

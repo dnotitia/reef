@@ -424,6 +424,26 @@ describe("global focus styles", () => {
     expect(css).toContain(
       '.reef-markdown-editor a[data-reference-kind="document"]::before',
     );
+    const documentGlyphStart = css.indexOf(
+      '.reef-markdown-editor a[data-reference-kind="document"]::before',
+    );
+    const documentGlyphEnd = findCssBlockEnd(css, documentGlyphStart);
+    const fileGlyphStart = css.indexOf(
+      '.reef-markdown-editor a[data-reef-file-link="true"]::before',
+    );
+    const fileGlyphEnd = findCssBlockEnd(css, fileGlyphStart);
+    expect(documentGlyphStart).toBeGreaterThan(-1);
+    expect(fileGlyphStart).toBeGreaterThan(documentGlyphEnd);
+    expect(css.slice(documentGlyphStart, documentGlyphEnd)).toContain(
+      'content: "▤";',
+    );
+    expect(css.slice(fileGlyphStart, fileGlyphEnd)).toContain('content: "▱";');
+    expect(css.slice(documentGlyphStart, documentGlyphEnd)).not.toContain(
+      'content: "▱";',
+    );
+    expect(css.slice(fileGlyphStart, fileGlyphEnd)).not.toContain(
+      'content: "▤";',
+    );
     expect(css).toContain(".reef-markdown-editor [data-reference-glyph],");
     expect(css).not.toContain("\n[data-reference-kind] {");
   });
