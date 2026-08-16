@@ -214,7 +214,7 @@ describe("MarkdownEditor", () => {
     expect(className).not.toContain("dark:prose-invert");
   });
 
-  it("opens clicked editor links with noopener while consuming the link click", () => {
+  it("confirms external editor links before opening with noopener", () => {
     render(
       <MarkdownEditor
         value="[Spec](https://example.com/spec)"
@@ -243,10 +243,19 @@ describe("MarkdownEditor", () => {
     const opened = { opener: window } as Window;
     const open = vi.spyOn(window, "open").mockReturnValue(opened);
 
-    const handled = opts.editorProps?.handleClick?.({ dom: root }, 1, event);
+    let handled: boolean | undefined;
+    act(() => {
+      handled = opts.editorProps?.handleClick?.({ dom: root }, 1, event);
+    });
 
     expect(handled).toBe(true);
     expect(event.defaultPrevented).toBe(true);
+    expect(open).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("dialog", { name: "Open external link" }),
+    ).toHaveTextContent("https://example.com/spec");
+
+    fireEvent.click(screen.getByRole("button", { name: "Open link" }));
     expect(open).toHaveBeenCalledWith(
       "https://example.com/spec",
       "_blank",
@@ -294,7 +303,7 @@ describe("MarkdownEditor", () => {
     expect(open).not.toHaveBeenCalled();
   });
 
-  it("opens editor links on mouse up after preventing link mouse down selection", () => {
+  it("shows one confirmation when mouse up is followed by a link click", () => {
     render(
       <MarkdownEditor
         value="[Spec](https://example.com/spec)"
@@ -326,20 +335,20 @@ describe("MarkdownEditor", () => {
     });
     Object.defineProperty(mouseUp, "target", { value: link });
 
-    const handledMouseUp = opts.editorProps?.handleDOMEvents?.mouseup?.(
-      { dom: root },
-      mouseUp,
-    );
+    let handledMouseUp: boolean | undefined;
+    act(() => {
+      handledMouseUp = opts.editorProps?.handleDOMEvents?.mouseup?.(
+        { dom: root },
+        mouseUp,
+      );
+    });
 
     expect(handledMouseUp).toBe(true);
     expect(mouseUp.defaultPrevented).toBe(true);
-    expect(open).toHaveBeenCalledOnce();
-    expect(open).toHaveBeenCalledWith(
-      "https://example.com/spec",
-      "_blank",
-      "noopener,noreferrer",
-    );
-    expect(opened.opener).toBeNull();
+    expect(open).not.toHaveBeenCalled();
+    expect(
+      screen.getAllByRole("dialog", { name: "Open external link" }),
+    ).toHaveLength(1);
 
     const click = new MouseEvent("click", {
       bubbles: true,
@@ -356,7 +365,61 @@ describe("MarkdownEditor", () => {
 
     expect(handledClick).toBe(true);
     expect(click.defaultPrevented).toBe(true);
+    expect(open).not.toHaveBeenCalled();
+    expect(
+      screen.getAllByRole("dialog", { name: "Open external link" }),
+    ).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open link" }));
     expect(open).toHaveBeenCalledOnce();
+    expect(open).toHaveBeenCalledWith(
+      "https://example.com/spec",
+      "_blank",
+      "noopener,noreferrer",
+    );
+    expect(opened.opener).toBeNull();
+  });
+
+  it("opens an in-app issue link directly without external confirmation", () => {
+    render(
+      <MarkdownEditor
+        value="[REEF-002](/issues/REEF-002)"
+        onChange={vi.fn()}
+      />,
+    );
+    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
+      editorProps?: {
+        handleClick?: (
+          view: { dom: HTMLElement },
+          pos: number,
+          event: MouseEvent,
+        ) => boolean;
+      };
+    };
+    const root = document.createElement("div");
+    root.innerHTML =
+      '<p><a href="/workspace/reef-test/issues/REEF-002" target="_blank">REEF-002</a></p>';
+    const link = root.querySelector("a");
+    const event = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    Object.defineProperty(event, "target", { value: link });
+    const opened = { opener: window } as Window;
+    const open = vi.spyOn(window, "open").mockReturnValue(opened);
+
+    const handled = opts.editorProps?.handleClick?.({ dom: root }, 1, event);
+
+    expect(handled).toBe(true);
+    expect(event.defaultPrevented).toBe(true);
+    expect(open).toHaveBeenCalledWith(
+      "http://localhost:3000/workspace/reef-test/issues/REEF-002",
+      "_blank",
+      "noopener,noreferrer",
+    );
+    expect(opened.opener).toBeNull();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("leaves ordinary editor mouse down for ProseMirror selection handling", () => {

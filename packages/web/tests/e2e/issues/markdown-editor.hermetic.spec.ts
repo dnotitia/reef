@@ -1272,6 +1272,59 @@ test.describe("Hermetic Markdown editor fixture", () => {
     expect(pageErrors).toEqual([]);
   });
 
+  test("aligns safe external links and known issue references across body and comments", async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    const editor = page.locator(".reef-markdown-editor");
+    const comment = page.locator(".reef-markdown-comment").first();
+    const bodyExternalLink = editor.getByRole("link", { name: "reef link" });
+    const commentExternalLink = comment.getByRole("link", {
+      name: "reef link",
+    });
+    const commentIssueReferences = comment.getByRole("link", {
+      name: "REEF-002",
+      exact: true,
+    });
+
+    await expect(bodyExternalLink).toHaveAttribute(
+      "href",
+      "https://example.com/reef",
+    );
+    await expect(commentExternalLink).toHaveAttribute(
+      "href",
+      "https://example.com/reef",
+    );
+    await expect(commentIssueReferences).toHaveCount(2);
+    for (const reference of await commentIssueReferences.all()) {
+      await expect(reference).toHaveAttribute(
+        "href",
+        "/workspace/reef-e2e/issues/REEF-002",
+      );
+      await expect(reference).toHaveAttribute("data-reference-kind", "issue");
+      await expect(reference).toHaveAttribute("data-issue-id", "REEF-002");
+    }
+
+    for (const link of [bodyExternalLink, commentExternalLink]) {
+      const pageCount = page.context().pages().length;
+      await link.click();
+      const dialog = page.getByRole("dialog", {
+        name: "Open external link",
+      });
+      await expect(dialog).toBeVisible();
+      await expect(dialog).toContainText("https://example.com/reef");
+      expect(page.context().pages()).toHaveLength(pageCount);
+      await dialog.getByRole("button", { name: "Cancel" }).click();
+      await expect(dialog).not.toBeVisible();
+    }
+  });
+
   test("contains the long code line at an effective 200% viewport", async ({
     page,
     request,

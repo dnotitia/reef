@@ -9,8 +9,12 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CommentCard } from "./CommentCard";
+
+const streamdownCapture = vi.hoisted(() => ({
+  remarkPlugins: undefined as unknown,
+}));
 
 vi.mock("streamdown", () => ({
   defaultRehypePlugins: {
@@ -23,6 +27,7 @@ vi.mock("streamdown", () => ({
     children,
     className,
     components,
+    remarkPlugins,
     urlTransform,
   }: {
     children: string;
@@ -30,12 +35,14 @@ vi.mock("streamdown", () => ({
     components?: {
       a?: (props: { children?: ReactNode; href?: string }) => ReactNode;
     };
+    remarkPlugins?: unknown;
     urlTransform?: (
       url: string,
       key: string,
       node: Record<string, unknown>,
     ) => string | null | undefined;
   }) => {
+    streamdownCapture.remarkPlugins = remarkPlugins;
     const fileUri = "akb://reef-test/issues/file/file-1";
     const Link =
       components?.a ??
@@ -46,6 +53,9 @@ vi.mock("streamdown", () => ({
           download
         </Link>
         <Link href="https://example.com/reef">reef link</Link>
+        {children.includes("REEF-002") ? (
+          <Link href="/workspace/reef-test/issues/REEF-002">REEF-002</Link>
+        ) : null}
         <img alt="inline" src={urlTransform?.(fileUri, "src", {}) ?? fileUri} />
         <span>{children}</span>
       </div>
@@ -81,6 +91,10 @@ const MEMBERS = [
 ] as const;
 
 describe("CommentCard", () => {
+  beforeEach(() => {
+    streamdownCapture.remarkPlugins = undefined;
+  });
+
   it("exposes a stable, focusable source target for hash navigation", () => {
     render(
       <IntlTestProvider>
@@ -173,6 +187,49 @@ describe("CommentCard", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("renders a known issue token as a navigable semantic issue reference", () => {
+    render(
+      <IntlTestProvider>
+        <CommentCard
+          comment={{ ...COMMENT, body: "Known issue REEF-002" }}
+          currentLogin="bob"
+          knownIssueIds={new Set(["REEF-002"])}
+          vault="reef-test"
+          onSave={vi.fn()}
+        />
+      </IntlTestProvider>,
+    );
+
+    const reference = screen.getByRole("link", { name: "REEF-002" });
+    expect(reference).toHaveAttribute(
+      "href",
+      "/workspace/reef-test/issues/REEF-002",
+    );
+    expect(reference).toHaveAttribute("target", "_blank");
+    expect(reference).toHaveAttribute("data-reference-kind", "issue");
+    expect(reference).toHaveAttribute("data-issue-id", "REEF-002");
+    expect(reference).toHaveAttribute("translate", "no");
+
+    const plugins = streamdownCapture.remarkPlugins as Array<
+      | unknown
+      | [
+          unknown,
+          {
+            isKnown?: (id: string) => boolean;
+            hrefFor?: (id: string) => string;
+          },
+        ]
+    >;
+    const issuePlugin = plugins.at(-1);
+    expect(Array.isArray(issuePlugin)).toBe(true);
+    if (!Array.isArray(issuePlugin)) throw new Error("Issue plugin is missing");
+    expect(issuePlugin[1].isKnown?.("REEF-002")).toBe(true);
+    expect(issuePlugin[1].isKnown?.("REEF-999")).toBe(false);
+    expect(issuePlugin[1].hrefFor?.("REEF-002")).toBe(
+      "/workspace/reef-test/issues/REEF-002",
+    );
   });
 
   it("shows direct-parent context and exposes a semantic reply control", () => {

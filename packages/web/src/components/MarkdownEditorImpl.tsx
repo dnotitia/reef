@@ -3,10 +3,12 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { linkSafetyConfig } from "@/components/markdown/linkSafety";
 import {
   attachmentFileTypeLabel,
   isAkbFileUri,
 } from "@/features/issues/lib/attachmentUrls";
+import { isDirectIssueMarkdownHref } from "@/features/issues/lib/markdownLinkPolicy";
 import {
   type AttachmentMarkdownUploadResult,
   appendMarkdownSnippets,
@@ -436,16 +438,11 @@ function findClickedEditorLink(
   return anchor;
 }
 
-function openEditorLink(anchor: HTMLAnchorElement): boolean {
-  const href = anchor.href || anchor.getAttribute("href");
+function openLinkWindow(href: string, target = "_blank"): boolean {
   if (!href) return false;
 
   // Tiptap's built-in openOnClick omits noopener for programmatic opens.
-  const opened = window.open(
-    href,
-    anchor.getAttribute("target") ?? "_blank",
-    "noopener,noreferrer",
-  );
+  const opened = window.open(href, target, "noopener,noreferrer");
   try {
     if (opened) opened.opener = null;
   } catch {
@@ -454,10 +451,27 @@ function openEditorLink(anchor: HTMLAnchorElement): boolean {
   return true;
 }
 
+function openEditorLink(
+  anchor: HTMLAnchorElement,
+  requestExternalConfirmation: (href: string) => void,
+): boolean {
+  const authoredHref = anchor.getAttribute("href") ?? "";
+  const href = anchor.href || authoredHref;
+  if (!href) return false;
+
+  if (linkSafetyConfig.enabled && !isDirectIssueMarkdownHref(authoredHref)) {
+    requestExternalConfirmation(href);
+    return true;
+  }
+
+  return openLinkWindow(href, anchor.getAttribute("target") ?? "_blank");
+}
+
 function openClickedEditorLink(
   root: ParentNode,
   event: MouseEvent,
   linksOpenedFromMouseUp: WeakMap<HTMLAnchorElement, number>,
+  requestExternalConfirmation: (href: string) => void,
 ): boolean {
   if (event.button !== 0) return false;
   const anchor = findClickedEditorLink(root, event);
@@ -472,7 +486,7 @@ function openClickedEditorLink(
     return true;
   }
 
-  if (!openEditorLink(anchor)) return false;
+  if (!openEditorLink(anchor, requestExternalConfirmation)) return false;
   event.preventDefault();
   return true;
 }
@@ -492,11 +506,12 @@ function openEditorLinkOnMouseUp(
   root: ParentNode,
   event: MouseEvent,
   linksOpenedFromMouseUp: WeakMap<HTMLAnchorElement, number>,
+  requestExternalConfirmation: (href: string) => void,
 ): boolean {
   if (event.button !== 0) return false;
   const anchor = findClickedEditorLink(root, event);
   if (!anchor) return false;
-  if (!openEditorLink(anchor)) return false;
+  if (!openEditorLink(anchor, requestExternalConfirmation)) return false;
 
   linksOpenedFromMouseUp.set(anchor, Date.now());
   event.preventDefault();
@@ -965,6 +980,7 @@ export function MarkdownEditor({
   const [slashOpen, setSlashOpen] = useState(false);
   const [linkEditorOpen, setLinkEditorOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
+  const [externalLinkHref, setExternalLinkHref] = useState<string | null>(null);
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [uploadError, setUploadError] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -1246,6 +1262,7 @@ export function MarkdownEditor({
             view.dom,
             event,
             linksOpenedFromMouseUpRef.current,
+            setExternalLinkHref,
           ),
       },
       handleClick: (view, _pos, event) =>
@@ -1253,6 +1270,7 @@ export function MarkdownEditor({
           view.dom,
           event,
           linksOpenedFromMouseUpRef.current,
+          setExternalLinkHref,
         ),
       handlePaste: (_view, event) => {
         const files = filesFromFileList(event.clipboardData?.files ?? null);
@@ -1910,6 +1928,14 @@ export function MarkdownEditor({
           })}
         </span>
       ) : null}
+      {externalLinkHref
+        ? linkSafetyConfig.renderModal?.({
+            url: externalLinkHref,
+            isOpen: true,
+            onClose: () => setExternalLinkHref(null),
+            onConfirm: () => openLinkWindow(externalLinkHref),
+          })
+        : null}
     </div>
   );
 }

@@ -181,7 +181,12 @@ function renderTimeline(issue = makeIssue()) {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <ActivityTimeline issueId="REEF-001" vault="v" issue={issue} />
+      <ActivityTimeline
+        issueId="REEF-001"
+        vault="v"
+        issue={issue}
+        knownIssues={[]}
+      />
     </QueryClientProvider>,
   );
 }
