@@ -8,8 +8,15 @@ import {
 import { useEditor } from "@tiptap/react";
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import {
+  clampEditorHeight,
   EDITOR_BODY_FRAME_CLASS,
+  EDITOR_BODY_DEFAULT_HEIGHT,
+  EDITOR_BODY_KEYBOARD_STEP,
+  EDITOR_BODY_MIN_HEIGHT,
   EDITOR_BODY_SIZING,
+  EDITOR_BODY_SESSION_STORAGE_KEY,
+  EDITOR_RESIZABLE_BODY_ID,
+  getEditorMaxHeight,
   EDITOR_CONTENT_CLASS,
   MarkdownEditor,
 } from "./MarkdownEditorImpl";
@@ -127,7 +134,28 @@ describe("MarkdownEditor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockMarkdownOverride = undefined;
+    sessionStorage.clear();
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 1024,
+    });
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      value: 768,
+    });
   });
+
+  function setViewport(width: number, height: number) {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: width,
+    });
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      value: height,
+    });
+    window.dispatchEvent(new Event("resize"));
+  }
 
   it("renders the editor container", () => {
     render(<MarkdownEditor value="" onChange={vi.fn()} />);
@@ -985,6 +1013,181 @@ describe("MarkdownEditor", () => {
     expect(textarea.className).toContain("resize-y");
     expect(textarea.className).toContain("max-h-[clamp(200px,48vh,560px)]");
     expect(textarea.className).toContain("overflow-y-auto");
+  });
+
+  describe("opt-in issue description height resize", () => {
+    it("owns one viewport-derived clamp policy", () => {
+      expect(getEditorMaxHeight(1_080)).toBe(920);
+      expect(getEditorMaxHeight(900)).toBe(740);
+      expect(getEditorMaxHeight(200)).toBe(EDITOR_BODY_MIN_HEIGHT);
+      expect(clampEditorHeight(Number.NaN, 740)).toBe(
+        EDITOR_BODY_DEFAULT_HEIGHT,
+      );
+      expect(clampEditorHeight(100, 740)).toBe(EDITOR_BODY_MIN_HEIGHT);
+      expect(clampEditorHeight(1_000, 740)).toBe(740);
+      expect(clampEditorHeight(444, 740)).toBe(444);
+    });
+
+    it("renders the desktop separator and complete ARIA contract", () => {
+      setViewport(1440, 900);
+      render(
+        <MarkdownEditor
+          value=""
+          onChange={vi.fn()}
+          ariaLabel="Issue description"
+          enableHeightResize
+        />,
+      );
+
+      const handle = screen.getByRole("separator", {
+        name: "Resize issue description editor",
+      });
+      expect(handle).toHaveAttribute("aria-orientation", "horizontal");
+      expect(handle).toHaveAttribute(
+        "aria-valuemin",
+        String(EDITOR_BODY_MIN_HEIGHT),
+      );
+      expect(handle).toHaveAttribute("aria-valuemax", "740");
+      expect(handle).toHaveAttribute("aria-valuenow", "560");
+      expect(handle).toHaveAttribute("aria-valuetext", "560px");
+      expect(handle).toHaveAttribute("aria-controls", EDITOR_RESIZABLE_BODY_ID);
+      expect(handle).toHaveAttribute(
+        "aria-describedby",
+        "markdown-editor-resize-description",
+      );
+      expect(
+        document.getElementById("markdown-editor-resize-description"),
+      ).toHaveTextContent(
+        "Diagonal handle controls the issue description editor height. Current 560px; minimum 200px; maximum 740px.",
+      );
+      expect(
+        document.getElementById(EDITOR_RESIZABLE_BODY_ID),
+      ).toBeInTheDocument();
+    });
+
+    it("changes by 32px with keyboard while preserving focus and session state", () => {
+      setViewport(1440, 900);
+      render(<MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />);
+      const handle = screen.getByRole("separator");
+
+      handle.focus();
+      fireEvent.keyDown(handle, { key: "ArrowDown" });
+      expect(handle).toHaveAttribute(
+        "aria-valuenow",
+        String(EDITOR_BODY_DEFAULT_HEIGHT + EDITOR_BODY_KEYBOARD_STEP),
+      );
+      fireEvent.keyDown(handle, { key: "ArrowUp" });
+      expect(handle).toHaveAttribute(
+        "aria-valuenow",
+        String(EDITOR_BODY_DEFAULT_HEIGHT),
+      );
+      fireEvent.keyDown(handle, { key: "Home" });
+      expect(handle).toHaveAttribute(
+        "aria-valuenow",
+        String(EDITOR_BODY_MIN_HEIGHT),
+      );
+      fireEvent.keyDown(handle, { key: "End" });
+      expect(handle).toHaveAttribute("aria-valuenow", "740");
+      expect(document.activeElement).toBe(handle);
+      expect(sessionStorage.getItem(EDITOR_BODY_SESSION_STORAGE_KEY)).toBe(
+        "740",
+      );
+    });
+
+    it("captures pointer movement, ignores another pointer, and cleans up", () => {
+      setViewport(1440, 900);
+      render(<MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />);
+      const frame = screen.getByTestId("markdown-editor-body-frame");
+      Object.defineProperty(frame, "clientHeight", {
+        configurable: true,
+        value: 340,
+      });
+      const handle = screen.getByRole("separator");
+      const setPointerCapture = vi.spyOn(handle, "setPointerCapture");
+      const releasePointerCapture = vi.spyOn(handle, "releasePointerCapture");
+      vi.spyOn(handle, "hasPointerCapture").mockReturnValue(true);
+
+      fireEvent.pointerDown(handle, {
+        button: 0,
+        clientY: 100,
+        pointerId: 3,
+      });
+      expect(setPointerCapture).toHaveBeenCalledWith(3);
+      expect(handle).toHaveAttribute("aria-valuenow", "340");
+      expect(handle).toHaveAttribute("data-resizing", "true");
+
+      fireEvent.pointerMove(handle, {
+        clientY: 180,
+        pointerId: 9,
+      });
+      expect(handle).toHaveAttribute("aria-valuenow", "340");
+      fireEvent.pointerMove(handle, {
+        clientY: 180,
+        pointerId: 3,
+      });
+      expect(handle).toHaveAttribute("aria-valuenow", "420");
+
+      fireEvent.pointerCancel(handle, { pointerId: 3 });
+      expect(releasePointerCapture).toHaveBeenCalledWith(3);
+      expect(handle).toHaveAttribute("data-resizing", "false");
+    });
+
+    it("restores finite heights, clamps them to the viewport, and ignores corrupt storage", async () => {
+      setViewport(1440, 900);
+      sessionStorage.setItem(EDITOR_BODY_SESSION_STORAGE_KEY, "420");
+      const first = render(
+        <MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />,
+      );
+      const handle = screen.getByRole("separator");
+      await waitFor(() =>
+        expect(handle).toHaveAttribute("aria-valuenow", "420"),
+      );
+
+      first.unmount();
+      sessionStorage.setItem(EDITOR_BODY_SESSION_STORAGE_KEY, "1200");
+      render(<MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />);
+      await waitFor(() =>
+        expect(screen.getByRole("separator")).toHaveAttribute(
+          "aria-valuenow",
+          "740",
+        ),
+      );
+      expect(sessionStorage.getItem(EDITOR_BODY_SESSION_STORAGE_KEY)).toBe(
+        "740",
+      );
+
+      document.body.innerHTML = "";
+      sessionStorage.setItem(EDITOR_BODY_SESSION_STORAGE_KEY, "not-json");
+      render(<MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />);
+      await waitFor(() =>
+        expect(screen.getAllByRole("separator").at(-1)).toHaveAttribute(
+          "aria-valuenow",
+          "560",
+        ),
+      );
+    });
+
+    it("shares the explicit frame with Source mode and opts out below desktop width", async () => {
+      setViewport(1440, 900);
+      sessionStorage.setItem(EDITOR_BODY_SESSION_STORAGE_KEY, "480");
+      render(<MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />);
+      const frame = screen.getByTestId("markdown-editor-body-frame");
+      expect(frame).toHaveStyle({ height: "480px" });
+      act(() => fireEvent.click(screen.getByTitle("Toggle source mode")));
+      expect(screen.getByTestId("markdown-source-textarea")).toHaveClass(
+        "resize-none",
+      );
+      expect(screen.getByTestId("markdown-source-textarea")).not.toHaveClass(
+        "resize-y",
+      );
+      expect(frame).toHaveStyle({ height: "480px" });
+
+      setViewport(1279, 900);
+      await waitFor(() => {
+        expect(screen.queryByRole("separator")).not.toBeInTheDocument();
+        expect(frame).not.toHaveStyle({ height: "480px" });
+      });
+    });
   });
 
   it("names the source-mode textarea via ariaLabel", () => {
