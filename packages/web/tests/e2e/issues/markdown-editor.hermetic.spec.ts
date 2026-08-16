@@ -1279,6 +1279,151 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await expect(page.getByTestId("discard-draft-confirm")).toHaveCount(0);
   });
 
+  test("keeps the slash menu visible, scrollable, and bounded in the create flow", async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 1280, height: 720 });
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    await page.getByTestId("issue-close").click();
+    await page.getByTestId("new-issue-trigger").click();
+    const dialog = page.getByTestId("new-issue-dialog");
+    await expect(dialog).toBeVisible();
+    const editor = dialog.locator(".reef-markdown-editor");
+    await editor.click();
+    await page.keyboard.type("/");
+
+    const menu = page.getByTestId("slash-command-menu");
+    await expect(menu).toBeVisible();
+    await expect(menu.getByRole("option")).toHaveCount(10);
+
+    const initialGeometry = await page.evaluate(() => {
+      const menu = document.querySelector<HTMLElement>(
+        '[data-testid="slash-command-menu"]',
+      );
+      const options = menu?.querySelector<HTMLElement>(
+        ".reef-slash-command-options",
+      );
+      const trigger = document.querySelector<HTMLElement>(
+        '[data-testid="new-issue-dialog"] .reef-markdown-editor p',
+      );
+      if (!menu || !options || !trigger) {
+        throw new Error("Slash menu geometry is unavailable");
+      }
+      const menuRect = menu.getBoundingClientRect();
+      const optionsRect = options.getBoundingClientRect();
+      const triggerRect = trigger.getBoundingClientRect();
+      const visibleOptions = Array.from(
+        menu.querySelectorAll<HTMLElement>('[role="option"]'),
+      ).filter((option) => {
+        const rect = option.getBoundingClientRect();
+        return rect.bottom > optionsRect.top && rect.top < optionsRect.bottom;
+      }).length;
+      return {
+        menuRect,
+        optionsRect,
+        triggerRect,
+        visibleOptions,
+        optionsOverflowY: getComputedStyle(options).overflowY,
+        documentWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth,
+      };
+    });
+    expect(initialGeometry.visibleOptions).toBeGreaterThanOrEqual(5);
+    expect(
+      initialGeometry.menuRect.bottom <= initialGeometry.triggerRect.top ||
+        initialGeometry.menuRect.top >= initialGeometry.triggerRect.bottom,
+    ).toBeTruthy();
+    expect(initialGeometry.optionsOverflowY).toBe("auto");
+    expect(initialGeometry.documentWidth).toBeLessThanOrEqual(
+      initialGeometry.viewportWidth,
+    );
+
+    const options = menu.locator(".reef-slash-command-options");
+    await options.hover();
+    const optionsBox = await options.boundingBox();
+    if (!optionsBox) throw new Error("Slash options geometry is unavailable");
+    await page.mouse.move(
+      optionsBox.x + optionsBox.width / 2,
+      optionsBox.y + optionsBox.height / 2,
+    );
+    await page.mouse.wheel(0, 600);
+    await expect
+      .poll(() => options.evaluate((element) => element.scrollTop))
+      .toBeGreaterThan(0);
+
+    for (let index = 0; index < 9; index += 1) {
+      await page.keyboard.press("ArrowDown");
+    }
+    const activeOption = menu.locator('[role="option"][aria-selected="true"]');
+    await expect(activeOption).toBeVisible();
+    await expect
+      .poll(async () =>
+        activeOption.evaluate((option) => {
+          const options = option.closest<HTMLElement>(
+            ".reef-slash-command-options",
+          );
+          if (!options) return false;
+          const optionRect = option.getBoundingClientRect();
+          const optionsRect = options.getBoundingClientRect();
+          return (
+            optionRect.top >= optionsRect.top &&
+            optionRect.bottom <= optionsRect.bottom
+          );
+        }),
+      )
+      .toBeTruthy();
+
+    const scrollBefore = await dialog.evaluate((element) => {
+      const scrollable = element as HTMLElement;
+      const maxScroll = scrollable.scrollHeight - scrollable.clientHeight;
+      const nextScroll = Math.min(maxScroll, 64);
+      scrollable.scrollTop = nextScroll;
+      return nextScroll;
+    });
+    if (scrollBefore > 0) {
+      await expect.poll(() => menu.count()).toBeLessThanOrEqual(1);
+      if (await menu.count()) {
+        await expect(activeOption).toBeVisible();
+      }
+    }
+
+    await page.setViewportSize({ width: 390, height: 720 });
+    await dialog.evaluate((element) => {
+      (element as HTMLElement).scrollTop = 0;
+    });
+    if (!(await menu.count())) {
+      await editor.click();
+      await page.keyboard.press("Control+A");
+      await page.keyboard.press("Backspace");
+      await page.keyboard.type("/");
+    }
+    await expect(menu).toBeVisible();
+    const narrowGeometry = await menu.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        left: rect.left,
+        right: rect.right,
+        documentWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth,
+      };
+    });
+    expect(narrowGeometry.left).toBeGreaterThanOrEqual(8);
+    expect(narrowGeometry.right).toBeLessThanOrEqual(
+      narrowGeometry.viewportWidth - 8,
+    );
+    expect(narrowGeometry.documentWidth).toBeLessThanOrEqual(
+      narrowGeometry.viewportWidth,
+    );
+
+    await dialog.getByTestId("new-issue-cancel").click();
+  });
+
   test("uses one categorized @ menu for people, issues, and documents", async ({
     page,
     request,
