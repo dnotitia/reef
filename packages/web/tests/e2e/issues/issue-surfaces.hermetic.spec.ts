@@ -455,6 +455,185 @@ test.describe("Hermetic issue route surfaces", () => {
       .not.toContain("REEF-004");
   });
 
+  test("keeps New Issue chrome contained across desktop, mobile, and reduced height", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await openExistingWorkspace(page);
+
+    for (const viewport of [
+      { width: 1280, height: 720 },
+      { width: 390, height: 844 },
+      { width: 390, height: 420 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+
+      const trigger = page.getByTestId("new-issue-trigger");
+      await expect(trigger).toBeVisible();
+      await trigger.click();
+
+      const dialog = page.getByTestId("new-issue-dialog");
+      const header = page.getByTestId("new-issue-dialog-header");
+      const actions = page.getByTestId("new-issue-dialog-actions");
+      const body = page.getByTestId("new-issue-dialog-body");
+      const footer = page.getByTestId("new-issue-dialog-footer");
+      const template = page.getByTestId("template-picker-trigger");
+      const enrich = page.getByTestId("enrich-trigger");
+      const title = page.getByTestId("new-issue-title-input");
+      const cancel = page.getByTestId("new-issue-cancel");
+      const submit = page.getByTestId("new-issue-submit");
+
+      await expect(dialog).toBeVisible();
+      await expect(header).toBeVisible();
+      await expect(actions).toBeVisible();
+      await expect(footer).toBeVisible();
+
+      const geometry = await dialog.evaluate((element) => {
+        const root = element as HTMLElement;
+        const header = root.querySelector(
+          '[data-testid="new-issue-dialog-header"]',
+        ) as HTMLElement | null;
+        const heading = root.querySelector(
+          '[data-testid="new-issue-dialog-heading"]',
+        ) as HTMLElement | null;
+        const actions = root.querySelector(
+          '[data-testid="new-issue-dialog-actions"]',
+        ) as HTMLElement | null;
+        const body = root.querySelector(
+          '[data-testid="new-issue-dialog-body"]',
+        ) as HTMLElement | null;
+        const footer = root.querySelector(
+          '[data-testid="new-issue-dialog-footer"]',
+        ) as HTMLElement | null;
+        const rect = (node: HTMLElement | null) => {
+          const value = node?.getBoundingClientRect();
+          return value
+            ? {
+                top: value.top,
+                right: value.right,
+                bottom: value.bottom,
+                left: value.left,
+                width: value.width,
+                height: value.height,
+              }
+            : null;
+        };
+        const rootRect = rect(root);
+        const headingRect = rect(heading);
+        const actionsRect = rect(actions);
+        const intersects =
+          headingRect && actionsRect
+            ? headingRect.left < actionsRect.right &&
+              headingRect.right > actionsRect.left &&
+              headingRect.top < actionsRect.bottom &&
+              headingRect.bottom > actionsRect.top
+            : false;
+
+        return {
+          root: rootRect,
+          header: rect(header),
+          actions: actionsRect,
+          body: rect(body),
+          footer: rect(footer),
+          headerActionOverlap: intersects,
+          rootOverflowY: getComputedStyle(root).overflowY,
+          bodyOverflowY: body ? getComputedStyle(body).overflowY : null,
+          bodyScrollHeight: body?.scrollHeight ?? 0,
+          bodyClientHeight: body?.clientHeight ?? 0,
+          bodyScrollTop: body?.scrollTop ?? 0,
+          rootScrollTop: root.scrollTop,
+          documentHorizontalOverflow:
+            document.documentElement.scrollWidth >
+            document.documentElement.clientWidth,
+        };
+      });
+
+      expect(geometry.root).not.toBeNull();
+      expect(geometry.header).not.toBeNull();
+      expect(geometry.actions).not.toBeNull();
+      expect(geometry.body).not.toBeNull();
+      expect(geometry.footer).not.toBeNull();
+      expect(geometry.headerActionOverlap).toBe(false);
+      expect(geometry.rootOverflowY).toBe("hidden");
+      expect(geometry.bodyOverflowY).toBe("auto");
+      expect(geometry.documentHorizontalOverflow).toBe(false);
+
+      for (const child of [geometry.header, geometry.footer]) {
+        expect(child?.top).toBeGreaterThanOrEqual(geometry.root?.top ?? 0);
+        expect(child?.right).toBeLessThanOrEqual(geometry.root?.right ?? 0);
+        expect(child?.bottom).toBeLessThanOrEqual(geometry.root?.bottom ?? 0);
+        expect(child?.left).toBeGreaterThanOrEqual(geometry.root?.left ?? 0);
+      }
+      expect(geometry.bodyScrollHeight).toBeGreaterThan(
+        geometry.bodyClientHeight,
+      );
+
+      await body.evaluate((element) => {
+        const root = element as HTMLElement;
+        root.scrollTop = Math.floor(
+          (root.scrollHeight - root.clientHeight) / 2,
+        );
+      });
+      await expect
+        .poll(() =>
+          body.evaluate((element) => (element as HTMLElement).scrollTop),
+        )
+        .toBeGreaterThan(0);
+      await expect
+        .poll(() =>
+          dialog.evaluate((element) => (element as HTMLElement).scrollTop),
+        )
+        .toBe(0);
+      await expect(header).toBeVisible();
+      await expect(cancel).toBeVisible();
+      await expect(submit).toBeVisible();
+
+      await template.focus();
+      await expect(template).toBeFocused();
+      await page.keyboard.press("Tab");
+      await expect(enrich).toBeFocused();
+      await page.keyboard.press("Tab");
+      await expect(title).toBeFocused();
+      await cancel.focus();
+      await expect(cancel).toBeFocused();
+      await page.keyboard.press("Tab");
+      await expect(submit).toBeFocused();
+      await title.focus();
+      await title.fill(`Responsive draft ${viewport.width}x${viewport.height}`);
+
+      await cancel.click();
+      await expect(page.getByTestId("discard-draft-confirm")).toBeVisible();
+      await page.getByTestId("discard-draft-cancel").click();
+      await expect(dialog).toBeVisible();
+      await cancel.click();
+      await page.getByTestId("discard-draft-confirm-button").click();
+      await expect(dialog).toBeHidden();
+    }
+  });
+
+  test("creates an issue from New Issue at a mobile viewport", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+
+    await page.getByTestId("new-issue-trigger").click();
+    const dialog = page.getByTestId("new-issue-dialog");
+    await expect(dialog).toBeVisible();
+    await dialog
+      .getByTestId("new-issue-title-input")
+      .fill("Created from mobile New Issue");
+    await dialog.getByTestId("new-issue-submit").click();
+
+    await page.waitForURL(/\/issues\/REEF-004$/, { timeout: 10_000 });
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await expect(page.getByTestId("issue-title-input")).toHaveValue(
+      "Created from mobile New Issue",
+    );
+  });
+
   test("keeps a created mention body visible after closing, reload, and sign-in", async ({
     context,
     page,

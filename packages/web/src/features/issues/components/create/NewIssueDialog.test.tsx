@@ -327,6 +327,46 @@ describe("NewIssueDialog", () => {
     ).toBeTruthy();
   });
 
+  it("keeps one scrollable form body and reflows header actions", async () => {
+    mockViewStore.state.newIssueDialogOpen = true;
+    render(wrap(<NewIssueDialog />));
+
+    await screen.findByText("New Issue");
+    const dialog = screen.getByTestId("new-issue-dialog");
+    const header = screen.getByTestId("new-issue-dialog-header");
+    const actions = screen.getByTestId("new-issue-dialog-actions");
+    const body = screen.getByTestId("new-issue-dialog-body");
+    const footer = screen.getByTestId("new-issue-dialog-footer");
+
+    expect(dialog).toHaveClass(
+      "grid",
+      "min-h-0",
+      "grid-rows-[auto_minmax(0,1fr)_auto]",
+      "max-h-[calc(100dvh-2rem)]",
+      "overflow-hidden",
+      "pb-[calc(1.25rem+env(safe-area-inset-bottom))]",
+    );
+    expect(dialog.querySelectorAll(".overflow-y-auto")).toHaveLength(1);
+    expect(body).toHaveClass(
+      "min-w-0",
+      "min-h-0",
+      "overflow-y-auto",
+      "overscroll-contain",
+    );
+    expect(header).toHaveClass("min-w-0");
+    expect(actions).toHaveClass(
+      "w-full",
+      "min-w-0",
+      "flex-wrap",
+      "sm:w-auto",
+      "sm:shrink-0",
+    );
+    expect(footer).toHaveClass("items-center", "sm:flex-row", "sm:justify-end");
+    expect(
+      body.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("passes the unified reference search config to the issue body editor", async () => {
     mockViewStore.state.newIssueDialogOpen = true;
     render(wrap(<NewIssueDialog />));

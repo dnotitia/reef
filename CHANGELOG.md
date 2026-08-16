@@ -50,6 +50,11 @@ explicitly in the entries below.
   Source sizing, and tab-session restoration; narrow layouts keep the existing
   automatic editor height. (REEF-526)
 
+- **New Issue now keeps its responsive writing flow intact on narrow and
+  reduced-height viewports.** Header actions reflow without clipping, the
+  title/Description column stays ahead of metadata, and only the form body
+  scrolls while the Cancel / Create issue footer remains reachable. (REEF-529)
+
 - **Comment authors can now permanently delete their own comment and every
   reply below it** from the Activity timeline after confirmation; the server
   removes matching comment-source notifications in the same cascade. (REEF-520)
