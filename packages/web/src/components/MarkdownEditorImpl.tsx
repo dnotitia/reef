@@ -83,6 +83,10 @@ import {
   type IssueBodyDocumentSearch,
   type IssueBodyMentionExtensionOptions,
 } from "./issueBodyMentionExtension";
+import {
+  createIssueBodyReferenceExtension,
+  ISSUE_REFERENCE_MARK,
+} from "./issueBodyReferenceExtension";
 import { useOverlayOpenRegistration } from "./ui/overlayDismiss";
 import {
   createSlashCommandExtension,
@@ -255,10 +259,26 @@ function createIssueAttachmentLinkExtension(
   resolveAttachmentHref?: (href: string) => string | undefined,
 ) {
   return LinkExtension.extend({
+    parseMarkdown(token, helpers) {
+      const content = helpers.parseInline(token.tokens ?? []).map((node) => {
+        if (!node.marks) return node;
+        return {
+          ...node,
+          marks: node.marks.filter(
+            (mark) => mark.type !== ISSUE_REFERENCE_MARK,
+          ),
+        };
+      });
+      return helpers.applyMark("link", content, {
+        href: token.href,
+        title: token.title || null,
+      });
+    },
     renderHTML({ HTMLAttributes, mark }) {
       const attrs = { ...HTMLAttributes };
       const href = typeof attrs.href === "string" ? attrs.href : "";
       if (isAkbFileUri(href)) {
+        attrs["data-reference-kind"] = "file";
         attrs["data-reef-file-link"] = "true";
         attrs["data-reef-file-uri"] = href;
         const resolvedHref = resolveAttachmentHref?.(href);
@@ -267,6 +287,9 @@ function createIssueAttachmentLinkExtension(
           attrs.target = "_blank";
           attrs.rel = "noreferrer";
         }
+      } else if (parseAkbDocumentUri(href)) {
+        attrs["data-reference-kind"] = "document";
+        attrs["data-document-uri"] = href;
       }
       return (
         this.parent?.({ mark, HTMLAttributes: attrs }) ?? [
@@ -325,6 +348,7 @@ export function createMarkdownEditorExtensions(
   mentionConfig?: IssueBodyMentionExtensionOptions,
   resolveAttachmentHref?: (href: string) => string | undefined,
   slashMessages?: SlashCommandMessages,
+  issueReferenceVault?: string,
 ) {
   const extensions: AnyExtension[] = [
     // StarterKit v3 bundles the Link extension; configure it here rather than
@@ -364,6 +388,12 @@ export function createMarkdownEditorExtensions(
     createSlashCommandExtension({ messages: slashMessages }),
   ];
   if (mentionConfig) {
+    extensions.push(
+      createIssueBodyReferenceExtension({
+        issuesRef: mentionConfig.issuesRef ?? { current: [] },
+        vault: issueReferenceVault,
+      }),
+    );
     extensions.push(createIssueBodyMentionExtension(mentionConfig));
   }
   return extensions;
@@ -1123,6 +1153,7 @@ export function MarkdownEditor({
         : undefined,
       (href) => resolveAttachmentHrefRef.current?.(href),
       slashMessages,
+      vault,
     ),
     /* eslint-enable react-hooks/refs */
     content: mentionConfig

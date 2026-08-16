@@ -398,6 +398,36 @@ describe("global focus styles", () => {
     expect(css).not.toContain('\na[data-reef-file-link="true"] {');
   });
 
+  it("gives issue, document, and file references one compact semantic surface", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const surfaceStart = css.indexOf(
+      ".reef-markdown-editor [data-reference-kind] {",
+    );
+    expect(surfaceStart).toBeGreaterThan(-1);
+    const surfaceEnd = findCssBlockEnd(css, surfaceStart);
+    expect(surfaceEnd).toBeGreaterThan(surfaceStart);
+    const surfaceBlock = css.slice(surfaceStart, surfaceEnd);
+    for (const declaration of [
+      "display: inline-flex;",
+      "align-items: center;",
+      "border: 1px solid var(--border-subtle);",
+      "background: var(--surface-subtle);",
+      "vertical-align: baseline;",
+      "text-decoration: none;",
+    ]) {
+      expect(surfaceBlock, declaration).toContain(declaration);
+    }
+    expect(css).toContain(
+      '.reef-markdown-editor [data-reference-kind="issue"]',
+    );
+    expect(css).toContain("font-family: var(--font-mono-stack);");
+    expect(css).toContain(
+      '.reef-markdown-editor a[data-reference-kind="document"]::before',
+    );
+    expect(css).toContain(".reef-markdown-editor [data-reference-glyph],");
+    expect(css).not.toContain("\n[data-reference-kind] {");
+  });
+
   it("keeps normal lists dense while preserving the live task-list contract", () => {
     const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
 
