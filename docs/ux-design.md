@@ -377,6 +377,11 @@ attachment proxy in a safe new window, while Source mode and saved Markdown keep
 the raw AKB URI. Ordinary URLs, AKB document links, comments, and AI Markdown
 retain their existing rendering.
 
+Persisted known issue IDs, AKB document/file links, and resolved mentions share
+one compact visual hierarchy in WYSIWYG through their semantic markers and
+labels; ordinary URLs keep their existing underlined treatment. Source mode and
+saved Markdown remain unchanged.
+
 Block Markdown keeps the same controlled density. Fenced code uses the existing
 Geist Mono stack at `13px/20px` on `--surface-subtle`, with a
 `--border-subtle` 1px boundary, restrained radius, and compact padding; its
