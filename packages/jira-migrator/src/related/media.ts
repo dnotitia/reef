@@ -195,7 +195,7 @@ const renderedAttachmentHints = (html: string): RenderedAttachmentHint[] => {
     const tag = html.slice(tagStart, tagEnd + 1);
     const attributes = parseQuotedHtmlAttributes(tag);
     // Media-service elements are validated by renderedHints above.  Do not
-    // let the legacy parser bypass an ambiguous or malformed media id.
+    // let the previous parser bypass an ambiguous or malformed media id.
     if (attributes.has("data-media-services-id")) continue;
     const href = attributes.get("src") ?? attributes.get("href");
     const attachmentId = attachmentIdFromHref(href);
@@ -230,9 +230,9 @@ const stripHtmlTags = (value: string): string => {
 };
 
 /**
- * Jira emits a wiki-style attachment error marker when it cannot render a
+ * Jira emits a wiki-style attachment error marker when it does not render a
  * file. It has no media-service id, but its text still carries the filename.
- * rewriteMedia consumes these names only when they form a complete, unique
+ * rewriteMedia consumes these names when they form a complete, unique
  * ordered crosswalk for the unresolved file media in the same document.
  */
 const renderedErrorAttachmentFilenames = (html: string): string[] => {

@@ -85,7 +85,7 @@ const normalizeAlias = (value: string): string =>
     .replace(/[_-]+/gu, " ")
     .replace(/\s+/gu, " ");
 
-const JiraFieldCatalogTimestampSchema = z.string().datetime({ offset: true });
+const JiraFieldCatalogTimestampSchema = z.iso.datetime({ offset: true });
 
 const fieldAliases = (field: JiraFieldPayload): string[] =>
   [field.name, ...(field.clauseNames ?? [])].map(normalizeAlias);
@@ -264,6 +264,6 @@ export const resolveJiraFields = (
 
 export const JiraFieldCatalogSnapshotSchema = z.strictObject({
   fields: JiraFieldCatalogSchema,
-  retrievedAt: z.string().datetime({ offset: true }),
+  retrievedAt: z.iso.datetime({ offset: true }),
   source: z.enum(["jira_field_api", "issue_expansion"]),
 });

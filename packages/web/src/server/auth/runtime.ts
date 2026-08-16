@@ -142,7 +142,7 @@ export async function connectRedisClient(
     try {
       client.destroy();
     } catch {
-      // The bounded error below is the only value that crosses this boundary.
+      // The bounded error below is the value that crosses this boundary.
     }
     throw new Error("sso_session_store_unavailable");
   } finally {

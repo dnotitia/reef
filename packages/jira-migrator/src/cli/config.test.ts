@@ -236,7 +236,7 @@ describe("loadJiraMigratorConfig", () => {
   });
 
   it("requires exactly one mode before any target can be constructed", () => {
-    expect(() => loadJiraMigratorConfig({ argv: [], env })).toThrowError(
+    expect(() => loadJiraMigratorConfig({ argv: [], env })).toThrow(
       expect.objectContaining({
         issues: expect.arrayContaining([
           "Exactly one of --dry-run or --apply is required",
@@ -248,7 +248,7 @@ describe("loadJiraMigratorConfig", () => {
         argv: ["--dry-run", "--apply"],
         env,
       }),
-    ).toThrowError(
+    ).toThrow(
       expect.objectContaining({
         issues: expect.arrayContaining([
           "Exactly one of --dry-run or --apply is required",
@@ -317,7 +317,7 @@ describe("loadJiraMigratorConfig", () => {
         argv: ["--apply"],
         env,
       }),
-    ).toThrowError(
+    ).toThrow(
       expect.objectContaining({
         issues: expect.arrayContaining([
           "--expected-plan-sha256 is required with --apply",

@@ -11,7 +11,7 @@ import {
 
 const ACCESS_REFRESH_SKEW_SECONDS = 30;
 // Covers the bounded Redis read/write plus token and fixed-JWKS calls with
-// margin, so a second request cannot rotate the same refresh token mid-flight.
+// margin, so a second request does not rotate the same refresh token mid-flight.
 const REFRESH_LOCK_TTL_MS = 30_000;
 const DEFAULT_REFRESH_POLL_MS = 25;
 const DEFAULT_REFRESH_WAIT_MS = 2_000;
@@ -59,7 +59,7 @@ export function createSsoSessionService(options: {
     try {
       await repository.deleteSession(handle);
     } catch {
-      // The browser carrier is still invalidated by the caller. Never replace a
+      // The browser carrier is still invalidated by the caller. Do not replace a
       // bounded auth result with Redis connection details.
     }
   }
@@ -244,7 +244,7 @@ export function createSsoSessionService(options: {
       try {
         await repository.releaseRefreshLock(handle, owner);
       } catch {
-        // The lock has a hard TTL. A release outage must not replace a bounded
+        // The lock has a hard TTL. A release outage does not replace a bounded
         // refresh result or expose store details to the request boundary.
       }
     }

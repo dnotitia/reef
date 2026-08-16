@@ -422,9 +422,7 @@ const makeTarget = () => {
 
 export {
   attachmentPolicy,
-  attachmentRowId,
   issueFixture,
-  json,
   makeClient,
   makeTarget,
   replyId,

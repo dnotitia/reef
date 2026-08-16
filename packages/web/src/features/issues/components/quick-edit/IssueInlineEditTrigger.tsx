@@ -19,7 +19,7 @@ interface IssueInlineEditTriggerProps {
 
 /**
  * Shared field trigger for the List and Backlog quick-edit surfaces. The
- * trigger owns only keyboard/focus intent; mutation and the portaled editor
+ * trigger owns keyboard/focus intent; mutation and the portaled editor
  * remain in IssueQuickEditAnchor so every surface shares one save path.
  */
 export function IssueInlineEditTrigger({

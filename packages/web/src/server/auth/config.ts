@@ -22,7 +22,7 @@ export interface SsoAuthRuntimeConfig {
 
 export type AuthRuntimeConfig = LocalAuthRuntimeConfig | SsoAuthRuntimeConfig;
 
-export class AuthConfigurationError extends Error {
+class AuthConfigurationError extends Error {
   constructor(readonly code: string) {
     super(code);
     this.name = "AuthConfigurationError";

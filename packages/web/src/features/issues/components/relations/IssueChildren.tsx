@@ -78,15 +78,15 @@ function IssueChildRow({
     <div
       className={cn(
         // The row owns layout and hover state while its title link and
-        // read-only assignee button remain separate interactive elements.
+        // non-editable assignee button remain separate interactive elements.
         "flex min-w-0 flex-1 touch-manipulation items-center gap-3 rounded-md px-1.5 py-1 transition-colors duration-150 @max-[40rem]:flex-wrap",
         "hover:bg-surface-hover focus-within:outline-none focus-within:ring-2 focus-within:ring-brand/40",
         resolved && "opacity-60 hover:opacity-100",
       )}
       onPointerMoveCapture={(event) => {
         // Pointer movement is the hover signal. A remounted row under a
-        // stationary pointer emits no movement, so a drill-back cannot reopen
-        // a tooltip that would consume the sheet's next Escape.
+        // stationary pointer emits no movement, so a drill-back leaves the
+        // tooltip closed and avoids consuming the sheet's next Escape.
         if (
           !event.defaultPrevented &&
           !isAssigneeTarget(event.target) &&
@@ -125,8 +125,8 @@ function IssueChildRow({
             });
           }}
         >
-          {/* The row owns hover state so Radix cannot reopen this title trigger
-            from a stationary pointer during an assignee → title focus move. */}
+          {/* The row owns hover state so Radix keeps this title trigger closed
+            for a stationary pointer during an assignee → title focus move. */}
           <TooltipTrigger asChild>
             <span
               className="flex min-w-0 flex-1 @max-[40rem]:basis-full"
@@ -243,7 +243,7 @@ export const IssueChildren = memo(function IssueChildren({
   }, [allIssues, issueId]);
 
   // Build the roster index once so every child resolves its display name in
-  // O(1), while the detail panel's existing roster query remains the only
+  // O(1), while the detail panel's existing roster query remains the
   // network source for member data.
   const membersByUsername = useMemo(
     () => new Map(members.map((member) => [member.username, member])),

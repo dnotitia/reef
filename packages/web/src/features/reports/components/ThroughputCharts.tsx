@@ -4,7 +4,7 @@ import { formatTimestampMonthDay } from "@/features/issues/lib/dateHelpers";
 import { cn } from "@/lib/utils";
 import { useLocale, useTranslations } from "next-intl";
 import { useId } from "react";
-import type { NetThroughputWeek, ReportMeasure } from "../lib/aggregate";
+import type { NetThroughputWeek, ReportMeasure } from "../lib/aggregateModel";
 
 export function NetThroughputChart({
   points,

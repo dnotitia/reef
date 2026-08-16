@@ -387,9 +387,9 @@ hr {
   border-color: var(--border-subtle);
 }
 
-/* Tailwind Typography's prose variables are owned by the issue WYSIWYG only.
+/* Tailwind Typography's prose variables are owned by the issue WYSIWYG.
  * The editor follows Reef's semantic tokens through the root `.dark` theme
- * boundary; it must not introduce a second dark-mode palette or invert class. */
+ * boundary; it does not introduce a second dark-mode palette or invert class. */
 .reef-markdown-editor {
   --tw-prose-body: var(--foreground);
   --tw-prose-headings: var(--foreground);
@@ -413,7 +413,7 @@ hr {
 
 /*
  * Keep the issue body compact without changing the global `prose-sm` rhythm.
- * These selectors intentionally address only direct children: paragraphs and
+ * These selectors intentionally address direct children: paragraphs and
  * headings nested in list items (including task-list node views) retain their
  * own layout contracts.
  */
@@ -474,7 +474,7 @@ hr {
 }
 
 /* Fenced code stays a compact, editor-scoped surface. Keep the pre box as the
- * only horizontal scrollport so a long line cannot widen the detail panel or
+ * single horizontal scrollport so a long line does not widen the detail panel or
  * the document; the code child inherits the same preserved whitespace. */
 .reef-markdown-editor > pre {
   box-sizing: border-box;
@@ -508,7 +508,7 @@ hr {
 }
 
 /* Bounded syntax paint stays inside the issue editor. The lowlight extension
- * emits hljs-* decorations only for its registered common grammars; unknown
+ * emits hljs-* decorations for its registered common grammars; unknown
  * and empty fences intentionally keep the inherited foreground color. */
 .reef-markdown-editor > pre > code .hljs-comment,
 .reef-markdown-editor > pre > code .hljs-quote {
@@ -670,7 +670,7 @@ hr {
 }
 
 /* Quotes are quiet block boundaries rather than typographic pull-quotes. The
- * direct-child selectors preserve nested list layout while resetting only the
+ * direct-child selectors preserve nested list layout while resetting the
  * first/last blocks that meet the quote surface. */
 .reef-markdown-editor > blockquote {
   box-sizing: border-box;
@@ -711,7 +711,7 @@ hr {
 }
 
 /* A divider is one editor-owned hairline with a predictable section rhythm;
- * the global hr rule above remains responsible only for its semantic color. */
+ * the global hr rule above remains responsible for its semantic color. */
 .reef-markdown-editor > hr {
   height: 0;
   margin-block: 24px;
@@ -785,7 +785,7 @@ hr {
 
 /* Issue, document, and file references share one compact surface while their
  * neutral data markers keep ordinary Markdown links on the branded underline
- * hierarchy above. The editor is the only renderer that owns this surface. */
+ * hierarchy above. The editor owns this surface. */
 .reef-markdown-editor [data-reference-kind] {
   display: inline-flex;
   align-items: baseline;
@@ -842,7 +842,7 @@ hr {
 
 /* Explicit AKB file links are compact inline actions, distinct from ordinary
  * Markdown URLs. The filename remains the accessible anchor text; the small
- * type badge and file glyph are display-only affordances. */
+ * type badge and file glyph are visual affordances. */
 .reef-markdown-editor a[data-reef-file-link="true"] {
   display: inline-flex;
   align-items: baseline;
@@ -985,7 +985,7 @@ hr {
 }
 
 /* Issue-body mentions use the same sanitized marker as comment mentions. The
- * node is intentionally display-only; the roster-backed suggestion menu owns
+ * node is intentionally visual; the roster-backed suggestion menu owns
  * selection and keyboard focus while the editor retains the caret. */
 .reef-markdown-editor [data-reef-mention] {
   color: var(--brand);
@@ -1018,7 +1018,7 @@ hr {
  * Tiptap task lists carry their own data attribute and are intentionally
  * excluded so the live label + content flex layout above remains authoritative.
  * Item paragraphs own no extra block margin; the 4px sibling rhythm is the
- * only spacing added between adjacent items. */
+ * spacing added between adjacent items. */
 .reef-markdown-editor ol:not([data-type="taskList"]),
 .reef-markdown-editor ul:not([data-type="taskList"]) {
   padding-inline-start: 1.25rem;
@@ -1152,7 +1152,7 @@ hr {
 }
 
 /* Sticky cells sit above ordinary columns while the List scrolls horizontally.
- * The selected/focused tint must stay opaque at that boundary; a translucent
+ * The selected/focused tint stays opaque at that boundary; a translucent
  * brand mix lets scrolled status or assignee content show through the title. */
 .reef-list-sticky-state {
   background-color: color-mix(in oklab, var(--brand) 5%, var(--background));

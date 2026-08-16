@@ -11,7 +11,7 @@ import {
  *
  * Public auth capability probe for the login page. This route is intentionally
  * sessionless: it exposes AKB's enabled provider catalog projected onto
- * Reef-owned OIDC start paths. It never relays an AKB browser-login URL. The
+ * Reef-owned OIDC start paths. It does not relay an AKB browser-login URL. The
  * AKB wire schema, fetch, and backend-url resolution live behind
  * {@link loadAkbAuthConfig} (shared with the /login server component).
  */

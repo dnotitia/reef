@@ -11,9 +11,9 @@
  * from a request host. The returned value is canonical `scheme://host[:port]`
  * (host lowercased, default ports dropped).
  *
- * This compatibility normalizer returns null when unset. The mode-aware auth
+ * This normalizer returns null when unset. The mode-aware auth
  * runtime applies the stricter rule: `REEF_PUBLIC_ORIGIN` is required in SSO
- * mode. A malformed value always throws.
+ * mode. A malformed value throws.
  */
 export function getReefPublicOrigin(): string | null {
   const raw = process.env.REEF_PUBLIC_ORIGIN;

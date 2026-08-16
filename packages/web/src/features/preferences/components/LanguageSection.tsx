@@ -43,7 +43,6 @@ export function LanguageSection() {
             <button
               key={opt.value}
               type="button"
-              // biome-ignore lint/a11y/useSemanticElements: matches the Appearance tiles — a styled tile, not a bare <input type="radio">; role="radio" inside an explicit radiogroup is the documented WAI-ARIA alternative.
               role="radio"
               aria-checked={isSelected}
               data-testid={`locale-option-${opt.value}`}

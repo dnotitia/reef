@@ -349,7 +349,7 @@ describe("IssueChildren", () => {
 
     // Cmd/Ctrl-click falls through to the anchor's native new-tab behavior, so
     // the in-panel drill should not fire and the trail stays empty.
-    // Use a hash target for this event-only assertion so jsdom does not try a
+    // Use a hash target for this event assertion so jsdom does not try a
     // full document navigation after the native-click path.
     (openLink as HTMLAnchorElement).setAttribute("href", "#child-native-click");
     fireEvent.click(openLink as HTMLElement, { button: 0, metaKey: true });

@@ -190,7 +190,7 @@ const scmProvider = z.strictObject({
     .array(z.enum(SCM_CAPABILITIES))
     .superRefine(uniqueStrings),
   options: z.strictObject({
-    api_base_url: z.string().url().optional(),
+    api_base_url: z.url().optional(),
     token_env: z.string().regex(ENVIRONMENT_NAME).optional(),
   }),
 });
@@ -248,7 +248,7 @@ const repository = z.strictObject({
 
 const controller = z.strictObject({
   state_root: absolutePath,
-  stale_after_ms: z.number().finite().positive(),
+  stale_after_ms: z.number().positive(),
 });
 
 export const CliConfigSchema = z.strictObject({

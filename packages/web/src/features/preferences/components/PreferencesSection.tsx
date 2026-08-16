@@ -37,7 +37,6 @@ export function PreferencesSection() {
             <button
               key={opt.value}
               type="button"
-              // biome-ignore lint/a11y/useSemanticElements: native <input type="radio"> does not host this tile's icon + heading + description layout; ARIA role="radio" inside an explicit radiogroup is the documented WAI-ARIA Authoring Practices alternative.
               role="radio"
               aria-checked={isSelected}
               data-testid={`theme-option-${opt.value}`}

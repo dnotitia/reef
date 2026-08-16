@@ -17,7 +17,7 @@ export const SearchIssuesInputSchema = z.object({
   limit: z.number().int().min(1).max(50).default(20),
 });
 
-export const SearchIssuesResultSchema = IssueSearchResultMetadataSchema.extend({
+const SearchIssuesResultSchema = IssueSearchResultMetadataSchema.extend({
   matched_section: z.string().nullable().optional(),
   score: z.number().nullable().optional(),
 });

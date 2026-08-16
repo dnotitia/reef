@@ -42,7 +42,7 @@ describe("IssueListSkeleton", () => {
     const row = screen.getByTestId("skeleton-row");
     const cells = row.querySelectorAll("td");
     // The skeleton receives the same resolved contract as the real header, so
-    // hydration cannot change the column count and re-layout the table.
+    // hydration does not change the column count or re-layout the table.
     expect(cells).toHaveLength(ISSUE_LIST_DEFAULT_COLUMNS.length);
     expect(cells.length).toBe(9);
   });

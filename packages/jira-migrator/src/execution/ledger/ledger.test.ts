@@ -306,7 +306,7 @@ describe("Jira migration ledger", () => {
         },
         readbackSucceeded: false,
       }),
-    ).toThrowError("target_readback_required");
+    ).toThrow("target_readback_required");
 
     for (const [sourceIdentity, target] of [
       [
@@ -331,7 +331,7 @@ describe("Jira migration ledger", () => {
           sourceIdentity,
           target,
         }),
-      ).toThrowError("target_scope_mismatch");
+      ).toThrow("target_scope_mismatch");
     }
   });
 
@@ -512,7 +512,7 @@ describe("Jira migration ledger", () => {
         planFingerprint: fingerprintJiraState({ plan: 2 }),
         at,
       }),
-    ).toThrowError("run_plan_conflict");
+    ).toThrow("run_plan_conflict");
   });
 
   it("persists distinct cross-project reconciliation states", () => {

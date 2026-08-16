@@ -103,9 +103,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.3
-      msw:
-        specifier: 'catalog:'
-        version: 2.15.0(@types/node@24.13.3)(typescript@6.0.2)
       typescript:
         specifier: 'catalog:'
         version: 6.0.2
@@ -5715,10 +5712,6 @@ packages:
     resolution: {integrity: sha512-5DXWzE4Vz7xNHsv+xQ+MGfJYyC78Aok3tEr0MNwHoRf7vZnga1mQXZ4/Nsodld4VR6Wd+VhfmqnNrsRJyYPfrQ==}
     engines: {node: '>=20'}
 
-  tough-cookie@6.0.1:
-    resolution: {integrity: sha512-LktZQb3IeoUWB9lqR5EWTHgW/VTITCXg4D21M+lvybRVdylLrRMnqaIONLVb5mav8vM19m44HIcGq4qASeu2Qw==}
-    engines: {node: '>=16'}
-
   tough-cookie@6.0.2:
     resolution: {integrity: sha512-exgYmnmL/sJpR3upZfXG5PoatXQii55xAiXGXzY+sROLZ/Y+SLcp9PgJNI9Vz37HpQ74WvDcLT8eqm+kV3FzrA==}
     engines: {node: '>=16'}
@@ -5794,6 +5787,7 @@ packages:
   tsx@4.23.9:
     resolution: {integrity: sha512-6q8uTORRGauQVjqMQnKUucLFoeXZAfw6zKvG35GLbdKWbLdeOtZ3H4mhyA5mxuUd2o2cRTskhj59nLLQseUvUw==}
     engines: {node: '>=18.0.0'}
+    hasBin: true
 
   turbo@2.10.8:
     resolution: {integrity: sha512-9+8YX5QOkGXzZxcIykTHgaooRHGMWO+jfdyRK0o+rN0U7hBIig2MrJ8r/aNzIPDPhdA73SGb0O+tIztaModTMg==}
@@ -10517,7 +10511,7 @@ snapshots:
       rettime: 0.11.11
       statuses: 2.0.2
       strict-event-emitter: 0.5.1
-      tough-cookie: 6.0.1
+      tough-cookie: 6.0.2
       type-fest: 5.5.0
       until-async: 3.0.2
       yargs: 17.7.2
@@ -11394,10 +11388,6 @@ snapshots:
       tldts-core: 7.0.28
 
   toad-cache@3.7.1: {}
-
-  tough-cookie@6.0.1:
-    dependencies:
-      tldts: 7.0.28
 
   tough-cookie@6.0.2:
     dependencies:

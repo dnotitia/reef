@@ -177,9 +177,9 @@ const AkbTableMigrationStepResultSchema = z.looseObject({
 
 const AkbTableMigrationResultSchema = z.looseObject({
   kind: z.literal("table_migration"),
-  id: z.string().uuid().optional(),
+  id: z.uuid().optional(),
   vault: NonEmptyStringSchema,
-  idempotency_key: z.string().uuid(),
+  idempotency_key: z.uuid(),
   checksum: NonEmptyStringSchema,
   applied: z.boolean(),
   applied_at: NonEmptyStringSchema.optional(),
@@ -307,7 +307,7 @@ export async function applyAkbTableMigration(
   const parsed = parseOrThrow(
     z.object({
       vault: NonEmptyStringSchema,
-      idempotencyKey: z.string().uuid(),
+      idempotencyKey: z.uuid(),
       operations: AkbTableMigrationOperationsSchema,
     }),
     params,

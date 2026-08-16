@@ -66,7 +66,7 @@ const GrantAccessResponseSchema = z.object({
   granted: z.boolean().optional(),
 });
 
-export const VaultSummarySchema = z.object({
+const VaultSummarySchema = z.object({
   id: z.string().min(1).optional(),
   name: z.string().min(1),
   description: z.string().nullable().optional(),

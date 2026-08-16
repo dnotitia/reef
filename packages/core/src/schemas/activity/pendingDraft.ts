@@ -14,7 +14,7 @@ export const ProvenanceSchema = z.object({
 });
 
 export const PendingDraftSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   proposal: z.object({
     operation: z.literal("create"),
     create: IssueCreateInputSchema,
@@ -36,7 +36,7 @@ export const StatusChangeEvidenceSchema = z.object({
 });
 
 export const PendingStatusChangeSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   proposal: z.object({
     operation: z.literal("update"),
     update: IssueUpdateInputSchema,

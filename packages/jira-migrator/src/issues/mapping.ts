@@ -314,7 +314,7 @@ export const buildJiraIssueImportPlan = (
     );
     const mappedLink = matchingLinkMappings.length === 1;
     // Related-data import owns the actual native relation/external-ref write.
-    // The issue plan should only defer a relation when the policy itself is
+    // The issue plan should defer a relation when the policy itself is
     // ambiguous; cross-project and unmapped links are deliberately preserved
     // as Jira external refs and therefore do not block the issue.
     fieldResults.push(

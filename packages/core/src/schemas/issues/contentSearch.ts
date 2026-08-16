@@ -28,7 +28,7 @@ const IssueContentSearchResultSchema = z.object({
   title: z.string().min(1),
   snippet: z.string().min(1).max(320),
   source: z.enum(["body", "comment"]),
-  score: z.number().finite().nullable(),
+  score: z.number().nullable(),
   match_id: z.string().min(1),
 });
 

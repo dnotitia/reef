@@ -11,8 +11,3 @@ export {
   type Release,
   type PlanningCatalog,
 } from "./catalog";
-export type {
-  SprintStatus,
-  MilestoneStatus,
-  ReleaseStatus,
-} from "./fieldRegistry";

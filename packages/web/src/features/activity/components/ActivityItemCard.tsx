@@ -12,8 +12,6 @@ import {
 } from "./ActivityDraftCard";
 import { StatusChangeCard } from "./StatusChangeCard";
 
-export type { ActivityDraftEditPatch };
-
 interface ActivityItemCardProps {
   item: ActivityFeedItem;
   onApproveDraft?: (draft: ActivityDraftSuggestion) => Promise<void>;

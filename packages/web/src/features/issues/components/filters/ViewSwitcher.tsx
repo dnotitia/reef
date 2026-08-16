@@ -80,7 +80,6 @@ export function ViewSwitcher({ activeView }: ViewSwitcherProps) {
   );
 
   return (
-    // biome-ignore lint/a11y/useSemanticElements: a header toggle group is not a form <fieldset>; role="group" + aria-label is the right semantics here.
     <div
       role="group"
       aria-label={t("issueView")}

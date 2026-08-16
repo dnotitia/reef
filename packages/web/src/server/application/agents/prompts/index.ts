@@ -38,23 +38,7 @@ export {
   buildProjectStateSystemPrompt,
   buildProjectStateUserPrompt,
 } from "./projectState";
-export {
-  buildWorkspaceChatSystemPrompt,
-  type WorkspaceChatSystemPromptOptions,
-} from "./workspaceChat";
-
-// Re-export Zod schema types from schemas/ai/prompts
-export type {
-  PrDetail,
-  CommitDetail,
-  EnrichmentUserPromptRequest,
-  AutoIssueUserPromptRequest,
-  ActivityIssueLinkUserPromptRequest,
-  ActivityIssueLinkDecision,
-  StatusRationaleUserPromptRequest,
-  ProjectStateSystemPromptOptions,
-  ProjectStateUserPromptRequest,
-} from "@reef/core";
+export { buildWorkspaceChatSystemPrompt } from "./workspaceChat";
 
 export {
   EnrichmentUserPromptRequestSchema,

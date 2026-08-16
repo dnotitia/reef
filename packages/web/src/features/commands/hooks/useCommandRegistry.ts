@@ -7,7 +7,6 @@ import {
 import {
   APP_ACTION_CATALOG,
   type AppActionDescriptor,
-  type PaletteFocusPolicy,
   getCommandPageDescriptor,
   getPaletteActions,
   getShortcutActions,
@@ -424,7 +423,7 @@ export function useCommandRegistry({
       const field = quickField[descriptor.id];
       if (field) {
         for (const scope of ["list", "board", "backlog"] as const) {
-          // Backlog exposes only the three triage fields; labels remain a List
+          // Backlog exposes the three triage fields; labels remain a List
           // surface even though the shared keyboard catalog covers all rows.
           if (scope === "backlog" && field === "labels") continue;
           bindings.push({
@@ -480,4 +479,4 @@ export function useCommandRegistry({
 }
 
 export type CommandRegistry = ReturnType<typeof useCommandRegistry>;
-export type { CommandIssueTarget, PaletteFocusPolicy };
+export type { CommandIssueTarget };

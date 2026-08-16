@@ -60,7 +60,7 @@ export interface GithubScmRepository {
 
 export interface GithubScmProviderOptions {
   readonly repository: GithubScmRepository;
-  /** Caller-owned Octokit client; credentials never enter provider artifacts. */
+  /** Caller-owned Octokit client; credentials stay out of provider artifacts. */
   readonly github: OctokitClient;
   /** Explicit Git transport environment, such as a caller-owned askpass seam. */
   readonly gitEnvironment?: Readonly<Record<string, string>>;

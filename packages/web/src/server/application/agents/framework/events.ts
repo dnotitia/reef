@@ -1,7 +1,5 @@
 export {
   AgentArtifactSchema,
-  AgentArtifactPersistenceSchema,
-  AgentErrorSchema,
   AgentFieldSuggestionArtifactSchema,
   AgentIssueCreateProposalArtifactSchema,
   AgentRunEnvelopeSchema,
@@ -9,13 +7,8 @@ export {
   AgentRunStatusEnum,
   AgentStatusChangeProposalArtifactSchema,
   type AgentArtifact,
-  type AgentArtifactEvidence,
-  type AgentArtifactType,
   type AgentError,
-  type AgentIssueCreateProposalArtifact,
-  type AgentIssueUpdateProposalArtifact,
   type AgentRunEnvelope,
   type AgentRunEvent,
   type AgentRunStatus,
-  type AgentStatusChangeProposalArtifact,
 } from "@reef/core";

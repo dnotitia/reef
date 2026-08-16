@@ -31,7 +31,7 @@ const IssueContextSchema = IssueListItemSchema.pick({
   related_to: true,
 });
 
-export const PrDetailSchema = z.object({
+const PrDetailSchema = z.object({
   number: z.number().int(),
   title: z.string(),
   headBranch: z.string(),
@@ -43,7 +43,7 @@ export const PrDetailSchema = z.object({
 });
 export type PrDetail = z.infer<typeof PrDetailSchema>;
 
-export const CommitDetailSchema = z.object({
+const CommitDetailSchema = z.object({
   hash: z.string(),
   message: z.string(),
   branch: z.string(),

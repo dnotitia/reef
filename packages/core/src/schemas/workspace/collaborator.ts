@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const CollaboratorSchema = z.object({
   login: z.string().min(1),
-  avatar_url: z.string().url().nullable(),
+  avatar_url: z.url().nullable(),
   name: z.string().nullable(),
 });
 

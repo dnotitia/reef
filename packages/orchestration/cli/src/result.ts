@@ -31,7 +31,7 @@ const providerFailure = z.strictObject({
 const artifact = z.strictObject({
   kind: z.enum(["branch", "commit", "file", "proof", "pull_request", "report"]),
   ref: z.string().min(1),
-  uri: z.string().url().optional(),
+  uri: z.url().optional(),
   title: z.string().optional(),
 });
 

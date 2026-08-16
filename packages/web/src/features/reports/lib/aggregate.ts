@@ -44,26 +44,6 @@ import {
 export {
   DEFAULT_REPORT_FILTERS,
   WEEK_MS,
-  type AggregateOptions,
-  type AgingBucketKey,
-  type AgingBuckets,
-  type DueHealth,
-  type NamedCount,
-  type NetThroughputWeek,
-  type PriorityCount,
-  type ReportAggregates,
-  type ReportFilters,
-  type ReportKpis,
-  type ReportMeasure,
-  type ReportPeriod,
-  type ReportScope,
-  type RiskBucket,
-  type RiskPriority,
-  type RiskSummary,
-  type SeverityCount,
-  type StatusCount,
-  type ThroughputWeek,
-  type TypeCount,
 } from "./aggregateModel";
 
 /** Single-pass aggregation. Every distribution bucket carries both an issue

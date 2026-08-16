@@ -21,7 +21,7 @@ const refineSprintDates = (
 };
 
 const SprintObject = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   name: z.string().min(1),
   status: SprintStatusEnum,
   start_date: optionalDateText,
@@ -39,7 +39,7 @@ export const SprintCreateSchema = SprintObject.omit({ id: true }).superRefine(
 );
 
 export const MilestoneSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   name: z.string().min(1),
   status: MilestoneStatusEnum,
   target_date: optionalDateText,
@@ -48,7 +48,7 @@ export const MilestoneSchema = z.object({
 export const MilestoneCreateSchema = MilestoneSchema.omit({ id: true });
 
 export const ReleaseSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   name: z.string().min(1),
   status: ReleaseStatusEnum,
   target_date: optionalDateText,

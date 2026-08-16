@@ -88,7 +88,7 @@ export const BACKLOG_COLUMNS = [
   "updated",
 ] as const satisfies readonly IssueTableColumnKey[];
 
-export const ISSUE_TABLE_STICKY_COLUMNS = [
+const ISSUE_TABLE_STICKY_COLUMNS = [
   "select",
   "id",
   "type",

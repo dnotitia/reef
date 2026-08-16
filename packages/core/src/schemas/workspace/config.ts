@@ -46,13 +46,10 @@ export const MonitoredRepoSchema = z.object({
  * handler layer; http is allowed here so local dev against localhost providers
  * (e.g. `http://localhost:11434` for Ollama) works without schema rejection.
  */
-const LlmBaseUrlSchema = z
-  .string()
-  .url("base_url must be a valid URL")
-  .refine((url) => {
-    const lower = url.toLowerCase();
-    return lower.startsWith("https://") || lower.startsWith("http://");
-  }, "base_url must use http or https");
+const LlmBaseUrlSchema = z.url("base_url must be a valid URL").refine((url) => {
+  const lower = url.toLowerCase();
+  return lower.startsWith("https://") || lower.startsWith("http://");
+}, "base_url must use http or https");
 
 export const LLMConfigSchema = z.object({
   api_key: z.string().min(1, "api_key is required"),

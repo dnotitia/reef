@@ -78,7 +78,7 @@ export async function PATCH(
 /**
  * Permanently delete one authored comment and its reply descendants. Core
  * performs the ownership check and the comment/notification cascade in one
- * SQL statement; this route only owns request validation and actor custody.
+ * SQL statement; this route owns request validation and actor custody.
  *
  * DELETE /api/issues/[id]/comments/[commentId]?vault={vault}
  */

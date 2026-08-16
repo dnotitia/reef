@@ -163,7 +163,7 @@ describe("SSO session refresh", () => {
       accessTokenExpiresAt: NOW_SECONDS - 1,
     });
 
-    await expect(service.resolveAccessToken(handle)).rejects.toThrowError(
+    await expect(service.resolveAccessToken(handle)).rejects.toThrow(
       "sso_session_expired",
     );
     await expect(repository.readSession(handle)).resolves.toBeNull();
@@ -333,7 +333,7 @@ describe("SSO session refresh", () => {
       accessTokenExpiresAt: NOW_SECONDS - 1,
     });
 
-    await expect(service.resolveAccessToken(handle)).rejects.toThrowError(
+    await expect(service.resolveAccessToken(handle)).rejects.toThrow(
       "sso_upstream_unavailable",
     );
     await expect(repository.readSession(handle)).resolves.not.toBeNull();

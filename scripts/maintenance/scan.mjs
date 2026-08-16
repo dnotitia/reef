@@ -99,10 +99,37 @@ const SLOW_TEST_SUPPRESSIONS = new Set([
   "IssueDetail asks for a close reason before closing from the detail panel",
   "i18n hardcoded-string guard matches the committed baseline (no new hardcoded JSX strings)",
   "Codex harness provider runs the fixed app-server protocol, emits a terminal event, and redacts raw data",
+  "Codex harness provider resumes an opaque thread reference on a new connection",
   "Codex harness provider validates policy combinations and maps explicit sandbox modes",
   "runJiraMigration runs dry-run then approved apply with the same plan and zero dry-run mutation",
   "portable E2E user-behavior runner packs one executable checkout-independent artifact",
   "NamedIssueFilterControl saves, applies, updates, renames, duplicates, and deletes a filter",
+  // Process-backed provider contracts intentionally exercise real git and
+  // subprocess lifecycles; split reusable setup when another provider
+  // suite can share the same fixture without weakening the boundary checks.
+  "GitHub SCM provider rejects missing, ambiguous-or-unsafe, non-commit refs and remote identity mismatch before mutation",
+  "GitHub SCM provider resolves the configured base and remote branch to full commits and canonical HTTPS commit URIs",
+  "GitHub SCM provider creates and checks out a deterministic branch, reuses its same-history local state, and fails closed on local-remote collision",
+  "GitHub SCM provider enforces commit permission, exact branch, clean control state, non-empty changes, and secret-safe messages",
+  "GitHub SCM provider commits one non-empty exact-branch change and returns only a full commit reference",
+  "GitHub SCM provider pushes only fast-forward branch refs, treats the same remote SHA as a no-op, and rejects default, tag, force, and refspec inputs",
+  "GitHub SCM provider creates one draft pull request, reuses an exact open draft, and leaves an existing ready PR unchanged",
+  "GitHub SCM provider does not reuse closed or mismatched pull requests and rejects multiple open candidates",
+  "GitHub SCM provider distinguishes cancellation and GitHub permission failures while redacting tokens, paths, and raw payloads",
+  "GitHub SCM provider runs the real fetch-branch-commit-push-draft-PR-artifact flow without external repository mutation",
+  "local infrastructure provider provisions an exact detached worktree, bootstraps once, executes with bounded explicit output, syncs, and cleans only its worktree",
+  "local infrastructure provider rejects unknown targets, forged references, invalid cwd paths, and symlink escapes before executing",
+  "local infrastructure provider does not inherit ambient secrets and cancels the process group before cleanup",
+  "local infrastructure provider cleans a failed bootstrap and rejects pre-aborted provision without creating a worktree",
+  "local validation provider returns a timed-out check and leaves no process-tree descendant",
+  "local validation provider distinguishes pre-abort and mid-run cancellation",
+  "local validation provider rejects candidate, dirty-worktree, symlink, and concurrent drift before validation commands",
+  // Multi-control UI contracts cover the complete interaction surface; split
+  // scenario fixtures when a focused renderer can replace the shared harness.
+  "KanbanBoard drag and status updates asks for a close reason before closing a card from the board",
+  "IssueContextMenu patches changed status, priority, assignee, and sprint values but not no-ops",
+  "IssueContextMenu preserves root chrome while sharing submenu panel and option chrome",
+  "IssueListTable adds and removes planning columns independently without changing the query",
 ]);
 
 const LARGE_FILE_EXTRA_ROOTS = ["scripts"];
@@ -312,6 +339,146 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
     "packages/web/src/app/globals.css",
     "Global Tailwind/theme token entrypoint; split when theme tokens or editor/task styles gain separate owners.",
   ],
+  [
+    "packages/orchestration/providers/local/src/provider.ts",
+    "Single local infrastructure provider boundary covering worktree lifecycle, bounded child processes, Git inspection, and cleanup; extract a lifecycle helper when another provider shares it.",
+  ],
+  [
+    "packages/web/tests/e2e/issues/markdown-editor.hermetic.spec.ts",
+    "Hermetic Markdown editor scenario suite sharing one seeded browser fixture; split scenario groups when another editor suite reuses the setup.",
+  ],
+  [
+    "packages/orchestration/providers/github/src/provider.ts",
+    "Single GitHub SCM provider boundary covering repository policy, Git transport, commits, and pull-request delivery; extract transport helpers when another SCM provider shares them.",
+  ],
+  [
+    "packages/web/tests/e2e/system/runtime-contract.hermetic.spec.ts",
+    "One hermetic runtime contract suite sharing fixture startup, auth, and cleanup; split a capability group when another runtime suite reuses it.",
+  ],
+  [
+    "packages/orchestration/controller/src/store.ts",
+    "Controller persistence boundary keeping state validation, file locking, atomic writes, and recovery rules together; extract a storage helper when another controller store consumes it.",
+  ],
+  [
+    "packages/orchestration/providers/local-validation/src/provider.ts",
+    "Single validation provider boundary covering command execution, bounded output, and result normalization; extract a process helper when another validation provider shares it.",
+  ],
+  [
+    "packages/core/src/adapters/akb/notifications/notifications-projector.test.ts",
+    "Notification projection contract suite sharing wire fixtures and cursor assertions; split fixtures when another projector suite reuses them.",
+  ],
+  [
+    "packages/orchestration/providers/github/src/provider.test.ts",
+    "GitHub provider contract suite sharing repository, Git, and API fakes across operation scenarios; split a fixture harness when another SCM suite reuses it.",
+  ],
+  [
+    "packages/web/src/features/issues/components/list/IssueListRow.test.tsx",
+    "Issue-row interaction matrix sharing one list fixture and visual-state assertions; split keyboard and pointer scenarios when another row suite reuses the harness.",
+  ],
+  [
+    "packages/web/src/components/MarkdownEditorImpl.tiptap.test.ts",
+    "Tiptap editor integration suite sharing one extension and transaction harness; split an extension family when another editor test reuses it.",
+  ],
+  [
+    "packages/web/src/server/auth/oidcClient.ts",
+    "Single OIDC client security boundary covering discovery, state, token exchange, and redacted error mapping; extract protocol helpers when another client shares them.",
+  ],
+  [
+    "packages/orchestration/controller/src/store.test.ts",
+    "Controller store contract suite sharing lock, atomic-write, and recovery fixtures; split a persistence scenario family when another store suite reuses it.",
+  ],
+  [
+    "packages/web/src/components/issueBodyMentionExtension.tsx",
+    "Single issue-body mention extension boundary combining candidate projection, async document search, suggestion rendering, and Tiptap lifecycle; extract a leaf when another mention surface shares it.",
+  ],
+  [
+    "packages/web/tests/e2e/issues/issue-keyboard.hermetic.spec.ts",
+    "Hermetic issue keyboard workflow suite sharing one browser fixture and focus contract; split a shortcut family when another keyboard suite reuses it.",
+  ],
+  [
+    "packages/web/src/features/issues/components/detail/IssueDetailSheet.test.tsx",
+    "Issue detail sheet workflow suite sharing query, dialog, and navigation fixtures; split a workflow family when another sheet suite reuses it.",
+  ],
+  [
+    "scripts/check-toolchain-policy.mjs",
+    "Single toolchain policy checker keeping manifest, catalog, workflow, and Docker validations in one release gate; extract a policy reader when another checker shares it.",
+  ],
+  [
+    "packages/web/src/features/issues/components/list/IssueListTable.tsx",
+    "Single issue table composition boundary keeping column layout, keyboard navigation, grouping, and row rendering aligned; extract a column model when another table shares it.",
+  ],
+  [
+    "packages/web/src/features/issues/hooks/mutations/useUpdateIssue.test.tsx",
+    "Issue mutation cache contract suite sharing query, optimistic, and persistence fixtures; split a cache scenario family when another mutation suite reuses it.",
+  ],
+  [
+    "packages/orchestration/cli/src/runner.ts",
+    "Single CLI runner boundary coordinating config, providers, lifecycle events, and terminal output; extract a phase when another CLI entrypoint shares it.",
+  ],
+  [
+    "packages/web/src/features/issues/components/detail/IssueDetailSheet.tsx",
+    "Single issue detail sheet composition keeping modal lifecycle, drill navigation, autosave, and field layout together; extract a section when another detail surface shares it.",
+  ],
+  [
+    "packages/web/src/components/slashCommandExtension.tsx",
+    "Single slash-command extension boundary combining command catalog, filtering, keyboard navigation, and Tiptap rendering; extract a command group when another editor shares it.",
+  ],
+  [
+    "packages/jira-migrator/src/related/media.ts",
+    "Single Jira media rewrite pipeline keeping ADF conversion, rendered hints, attachment binding, and conservation checks together; extract a resolver when another importer shares it.",
+  ],
+  [
+    "scripts/check-turbo-contract.mjs",
+    "Single Turbo contract checker keeping workspace discovery, affected selection, task graph, and release assertions together; extract a selector when another gate shares it.",
+  ],
+  [
+    "packages/core/src/errors/index.ts",
+    "Single core error taxonomy and serialization boundary; split domain families when another package consumes them independently.",
+  ],
+  [
+    "packages/core/src/adapters/akb/controlPlane/installationReader.ts",
+    "Single control-plane installation adapter keeping private wire validation, projection, request policy, and observability together; extract a projection helper when another reader shares it.",
+  ],
+  [
+    "packages/core/src/adapters/akb/issues/comments.ts",
+    "Single comment adapter boundary keeping ownership, notification cascade, projection, and SQL mutations aligned; extract a query phase when another comment surface shares it.",
+  ],
+  [
+    "packages/web/src/server/auth/sessionRepository.ts",
+    "Single SSO session repository boundary covering encrypted records, refresh locks, indexes, and TTL cleanup; extract a backend adapter when another repository shares it.",
+  ],
+  [
+    "packages/orchestration/controller/src/schema.ts",
+    "Single controller wire contract module keeping request, lifecycle, URI, and artifact schemas aligned; split a schema family when another controller consumes it.",
+  ],
+  [
+    "packages/jira-migrator/src/related/issueLinks.ts",
+    "Single related issue-link projection pipeline keeping mapping, dedupe, target validation, and report accounting together; extract a classifier when another relation source shares it.",
+  ],
+  [
+    "packages/core/src/adapters/akb/notifications/projector.ts",
+    "Single notification projector boundary keeping cursor validation, batching, lifecycle, and row projection together; extract a checkpoint helper when another projector shares it.",
+  ],
+  [
+    "packages/web/src/features/activity/components/ActivityFeed.tsx",
+    "Single activity feed composition keeping query state, scan controls, timeline grouping, and empty/error surfaces together; extract a feed section when another activity surface shares it.",
+  ],
+  [
+    "packages/web/src/features/issues/components/filters/FilterBar.tsx",
+    "Single issue filter composition keeping field controls, URL synchronization, and responsive layout together; extract a filter group when another view shares it.",
+  ],
+  [
+    "packages/orchestration/cli/src/delivery.ts",
+    "Single CLI delivery boundary keeping terminal rendering, event streaming, and bounded diagnostics together; extract a renderer when another caller shares it.",
+  ],
+  [
+    "packages/web/src/lib/api/requestHelpers.ts",
+    "Single request authentication and error-translation boundary keeping cookie custody, actor resolution, and PM-facing responses aligned; extract a route helper when another boundary shares it.",
+  ],
+  [
+    "packages/web/src/components/ui/context-menu.tsx",
+    "Shared context-menu primitive keeping trigger, portal, keyboard, and positioning behavior together; split a leaf when another menu primitive shares it.",
+  ],
 ]);
 
 const GLOBSTAR = "**";
@@ -335,6 +502,28 @@ const DUPLICATE_SCAN_IGNORES = [
   "packages/web/src/features/issues/components/relations/IssueChildren.test.tsx",
   "packages/web/src/features/settings/components/AuthoringLanguageSection.test.tsx",
   "packages/web/src/features/settings/components/RepoPickerSection.test.tsx",
+  // Focused contract suites keep local fixtures beside each scenario; their
+  // repeated setup is clearer than a cross-domain test harness.
+  "packages/core/src/adapters/akb/issues/issue-activity-events.test.ts",
+  "packages/core/src/adapters/akb/issues/issue-activity-fields.test.ts",
+  "packages/core/src/adapters/akb/issues/issues-backlog.test.ts",
+  "packages/core/src/adapters/akb/issues/issues-update.test.ts",
+  "packages/core/src/test-support/akb/fetchMock.ts",
+  "packages/web/src/server/application/agents/tools/__test-helpers__/fetchMock.ts",
+  "packages/core/src/test-support/akb/otelMock.ts",
+  "packages/web/src/server/application/agents/tools/__test-helpers__/otelMock.ts",
+  "packages/jira-migrator/src/runner/runner-apply.test.ts",
+  "packages/jira-migrator/src/runner/runner-plan.test.ts",
+  "packages/jira-migrator/src/runner/targetAdapter-issues.test.ts",
+  "packages/jira-migrator/src/runner/targetAdapter-readback.test.ts",
+  "packages/jira-migrator/src/runner/targetAdapter-related.test.ts",
+  // Artifact approval and dismissal are parallel thin Route Handlers with the
+  // same auth/error envelope; their action calls remain distinct.
+  "packages/web/src/app/api/agents/artifacts/**",
+  "packages/web/src/server/adapters/githubCredentials/resolveGitHubAdapter.test.ts",
+  "packages/web/src/server/adapters/githubCredentials/resolveGroundingGitHubAdapter.test.ts",
+  "packages/web/src/server/adapters/githubCredentials/resolveScanGitHubAdapter.test.ts",
+  "packages/web/src/server/auth/ssoSessionService.test.ts",
 ];
 
 const EXCLUDED_DIRS = new Set([
@@ -721,17 +910,6 @@ function matchingClaimIds(text) {
   );
 }
 
-function findLineCommentIndex(line) {
-  let fromIndex = 0;
-  while (fromIndex < line.length) {
-    const index = line.indexOf("//", fromIndex);
-    if (index < 0) return -1;
-    if (index === 0 || line[index - 1] !== ":") return index;
-    fromIndex = index + 2;
-  }
-  return -1;
-}
-
 function pushCandidate(candidates, filePath, line, text) {
   const matches = matchingClaimIds(text);
   if (matches.length === 0) return;
@@ -748,54 +926,82 @@ function scanCommentText(filePath, content) {
   const lines = content.split(/\r?\n/);
   let inBlock = false;
   let blockStart = 0;
-  let blockLines = [];
+  let blockText = "";
+  let quote = null;
+  let escaped = false;
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
     const lineNumber = index + 1;
-
-    if (inBlock) {
-      blockLines.push(line);
-      if (line.includes("*/")) {
-        pushCandidate(candidates, filePath, blockStart, blockLines.join("\n"));
+    let cursor = 0;
+    while (cursor < line.length) {
+      if (inBlock) {
+        const closeIndex = line.indexOf("*/", cursor);
+        if (closeIndex < 0) {
+          blockText += `${line.slice(cursor)}\n`;
+          break;
+        }
+        blockText += line.slice(cursor, closeIndex + 2);
+        pushCandidate(candidates, filePath, blockStart, blockText);
+        blockText = "";
         inBlock = false;
-        blockLines = [];
+        quote = null;
+        escaped = false;
+        cursor = closeIndex + 2;
+        continue;
       }
-      continue;
-    }
 
-    const lineCommentIndex = findLineCommentIndex(line);
-    const blockCommentIndex = line.indexOf("/*");
-    const hasLineComment = lineCommentIndex >= 0;
-    const hasBlockComment = blockCommentIndex >= 0;
+      const char = line[cursor];
+      const next = line[cursor + 1];
 
-    if (
-      hasBlockComment &&
-      (!hasLineComment || blockCommentIndex < lineCommentIndex)
-    ) {
-      const blockRemainder = line.slice(blockCommentIndex);
-      if (blockRemainder.includes("*/")) {
-        pushCandidate(candidates, filePath, lineNumber, blockRemainder);
-      } else {
+      if (quote !== null) {
+        if (escaped) {
+          escaped = false;
+        } else if (char === "\\") {
+          escaped = true;
+        } else if (char === quote) {
+          quote = null;
+        }
+        cursor += 1;
+        continue;
+      }
+
+      if (char === '"' || char === "'" || char === "`") {
+        quote = char;
+        escaped = false;
+        cursor += 1;
+        continue;
+      }
+
+      if (char === "/" && next === "/") {
+        pushCandidate(candidates, filePath, lineNumber, line.slice(cursor));
+        break;
+      }
+
+      if (char === "/" && next === "*") {
+        const closeIndex = line.indexOf("*/", cursor + 2);
+        if (closeIndex >= 0) {
+          pushCandidate(
+            candidates,
+            filePath,
+            lineNumber,
+            line.slice(cursor, closeIndex + 2),
+          );
+          cursor += closeIndex + 2;
+          continue;
+        }
         inBlock = true;
         blockStart = lineNumber;
-        blockLines = [blockRemainder];
+        blockText = line.slice(cursor);
+        break;
       }
-      continue;
-    }
 
-    if (hasLineComment) {
-      pushCandidate(
-        candidates,
-        filePath,
-        lineNumber,
-        line.slice(lineCommentIndex),
-      );
+      cursor += 1;
     }
   }
 
   if (inBlock) {
-    pushCandidate(candidates, filePath, blockStart, blockLines.join("\n"));
+    pushCandidate(candidates, filePath, blockStart, blockText);
   }
 
   return candidates;

@@ -276,7 +276,7 @@ describe("Keycloak OIDC profile", () => {
         },
         { nonce, providerAlias: PROVIDER },
       ),
-    ).rejects.toThrowError("oidc_token_invalid");
+    ).rejects.toThrow("oidc_token_invalid");
   });
 
   it("rejects algorithm and token-directed key-source confusion", async () => {
@@ -310,7 +310,7 @@ describe("Keycloak OIDC profile", () => {
           },
           { nonce: NONCE, providerAlias: PROVIDER },
         ),
-      ).rejects.toThrowError("oidc_token_invalid");
+      ).rejects.toThrow("oidc_token_invalid");
     }
   });
 
@@ -536,7 +536,7 @@ describe("Keycloak OIDC profile", () => {
         nonce: NONCE,
         providerAlias: PROVIDER,
       }),
-    ).rejects.toThrowError("oidc_token_invalid");
+    ).rejects.toThrow("oidc_token_invalid");
   });
 
   it("never follows a refresh-token revocation redirect", async () => {
@@ -603,7 +603,7 @@ describe("Keycloak OIDC profile", () => {
         state: authorizationUrl.searchParams.get("state") ?? "",
         browserBinding: started.browserBinding,
       }),
-    ).rejects.toThrowError("oidc_state_invalid");
+    ).rejects.toThrow("oidc_state_invalid");
     expect(fetchImpl).toHaveBeenCalledOnce();
     expect(fetchImpl).toHaveBeenCalledWith(
       `${TRANSPORT}/protocol/openid-connect/token`,

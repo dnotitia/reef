@@ -372,8 +372,9 @@ export function getAkbAdapter(
  * each mutating request via akb `/auth/me` (through core `akbGetCurrentActor`),
  * then use the public username for `Issue.created_by` / `Issue.updated_by`. A
  * local AKB JWT claim is just a fallback for older AKB deployments that do not
- * return the expected public profile shape. SSO never falls back to Keycloak
- * claims because AKB remains the account and canonical-actor authority.
+ * return the expected public profile shape. SSO does not fall back to Keycloak
+ * claims because AKB remains the account and canonical-actor authority; no
+ * Keycloak claim fallback is used in SSO mode.
  *
  * REEF-052: the akb wire call, schema, and claim-decode now live in `core`.
  * This helper keeps cookie decode (web-owned) and the PM-facing error mapping.

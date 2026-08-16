@@ -49,7 +49,7 @@ describe("mode-aware AKB bearer adapter", () => {
         jwt: "akb-jwt",
         accessToken: "keycloak-access-token",
       }),
-    ).toThrowError("Exactly one AKB bearer credential is required");
+    ).toThrow("Exactly one AKB bearer credential is required");
   });
 
   it("does not replay a token-bearing POST across redirects", async () => {

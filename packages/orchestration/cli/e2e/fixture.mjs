@@ -19,9 +19,7 @@ import { resolveProviders } from "../dist/index.js";
 
 const execFileAsync = promisify(execFile);
 const packageRoot = dirname(fileURLToPath(import.meta.url));
-export const CLI_PATH = fileURLToPath(
-  new URL("../dist/cli.js", import.meta.url),
-);
+const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 const TEST_PATH = process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin";
 const VAULT = "fixture-vault";
 const ACTOR = "fixture-actor";
@@ -768,7 +766,7 @@ const parseProgressLine = (line) => {
   }
 };
 
-export const spawnCli = (
+const spawnCli = (
   fixture,
   { configPath = fixture.configPath, environment = fixture.environment } = {},
 ) => {
@@ -842,7 +840,7 @@ export const spawnCli = (
   };
 };
 
-export const directCommand = (fixture, configPath = fixture.configPath) => {
+const directCommand = (fixture, configPath = fixture.configPath) => {
   const environment = Object.entries(fixture.environment)
     .map(([name, value]) => `${name}=${shellQuote(value)}`)
     .join(" ");
@@ -858,7 +856,7 @@ export const directCommand = (fixture, configPath = fixture.configPath) => {
   ].join(" ");
 };
 
-export const exerciseGithubAdapter = async (fixture) => {
+const exerciseGithubAdapter = async (fixture) => {
   const branch = `feat/github-fixture-${fixture.identity}`;
   await runGit(fixture.repositoryRoot, [
     "switch",

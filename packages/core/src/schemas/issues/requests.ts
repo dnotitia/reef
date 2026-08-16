@@ -212,7 +212,7 @@ export type IssueListResponse = z.infer<typeof IssueListResponseSchema>;
 export const BacklogReorderRequestSchema = z.object({
   vault: z.string().min(1),
   assignments: z
-    .array(z.object({ id: z.string().min(1), rank: z.number().finite() }))
+    .array(z.object({ id: z.string().min(1), rank: z.number() }))
     .min(1)
     .max(MAX_REORDER_WRITES),
 });

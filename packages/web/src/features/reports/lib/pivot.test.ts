@@ -3,7 +3,7 @@
 import type { IssueMetadata } from "@reef/core";
 import { ISSUE_FIELD_MESSAGES_EN } from "@reef/core/fields";
 import { describe, expect, it } from "vitest";
-import type { ReportFilters } from "./aggregate";
+import type { ReportFilters } from "./aggregateModel";
 import {
   PIVOT_FIELD_KEYS,
   type PivotResult,

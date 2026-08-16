@@ -106,7 +106,6 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
 
   return (
     <div
-      // biome-ignore lint/a11y/useSemanticElements: native <dialog> would imply modal semantics + Escape-to-close handled by the platform — we want non-modal floating behavior with our own ESC handler so the panel does not trap the page underneath.
       role="dialog"
       aria-label={t("title")}
       aria-modal="false"

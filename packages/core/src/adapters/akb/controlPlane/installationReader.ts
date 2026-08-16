@@ -48,7 +48,7 @@ export interface AkbAppInstallationReader {
 /*
  * These are private wire schemas. They accept future AKB fields, while every
  * field that crosses the public boundary is named explicitly in the mapper
- * below. In particular, checkpoint/error/resource/replay fields never escape.
+ * below. In particular, checkpoint/error/resource/replay fields stay private.
  */
 const WireReleaseReferenceSchema = z.looseObject({
   id: ControlPlaneIdSchema.nullable().optional(),
@@ -67,7 +67,7 @@ const WireObservedSchema = z.looseObject({
   release: WireReleaseReferenceSchema.nullable().optional(),
   schema_fingerprint: z.string().nullable().optional(),
   grant_generation: z.number().int().nonnegative().nullable().optional(),
-  // Validated only as opaque private data; neither field is projected.
+  // Validated as opaque private data; neither field is projected.
   checkpoint: z.unknown().optional(),
   recent_error: z.unknown().nullable().optional(),
 });

@@ -296,7 +296,6 @@ export function CommentMentionTextarea({
         <div
           id={mentionListboxId}
           tabIndex={-1}
-          // biome-ignore lint/a11y/useSemanticElements: keyboard-owned autocomplete list.
           role="listbox"
           aria-label={t("mentionSuggestions")}
           className="mx-2 mb-2 overflow-hidden rounded-md border border-border bg-background shadow-sm"
@@ -307,7 +306,6 @@ export function CommentMentionTextarea({
               id={`${mentionListboxId}-${index}`}
               type="button"
               tabIndex={-1}
-              // biome-ignore lint/a11y/useSemanticElements: focus stays on the textarea while options are keyboard-owned.
               role="option"
               aria-selected={index === selectedMentionIndex}
               aria-label={t("mentionOption", {

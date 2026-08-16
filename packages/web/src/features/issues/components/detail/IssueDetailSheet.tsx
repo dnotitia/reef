@@ -49,7 +49,7 @@ const ISSUE_DETAIL_RESIZE_DESCRIPTION_ID = "issue-detail-resize-description";
 const ISSUE_DETAIL_DESKTOP_MIN_WIDTH = 1280;
 export const ISSUE_DETAIL_DEFAULT_WIDTH = 1440;
 export const ISSUE_DETAIL_MIN_WIDTH = 1200;
-export const ISSUE_DETAIL_MAX_WIDTH = 1680;
+const ISSUE_DETAIL_MAX_WIDTH = 1680;
 export const ISSUE_DETAIL_KEYBOARD_STEP = 32;
 export const ISSUE_DETAIL_SESSION_STORAGE_KEY = "reef:issue-detail-width:v2";
 export const ISSUE_DETAIL_EXPANDED_SESSION_STORAGE_KEY =
@@ -506,7 +506,7 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
           }}
           // Wider canvas (REEF-149) so the rail's property rows get full width
           // and Planning dates / Relationship inputs stop truncating. The
-          // inline width is desktop-only; the CSS fallback keeps the existing
+          // inline width is desktop-specific; the CSS fallback keeps the existing
           // narrow responsive sheet geometry. `overscroll-contain` keeps a
           // scroll at the sheet's edge from chaining to the page behind it.
           className="issue-detail-sheet min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain"

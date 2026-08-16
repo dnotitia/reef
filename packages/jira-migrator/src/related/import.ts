@@ -37,7 +37,6 @@ import { importRemoteLinks } from "./remoteLinks.js";
 import { failure, reportTemplate } from "./reporting.js";
 
 export type {
-  JiraAttachmentActivityActorReconciliation,
   JiraImportedAttachmentInput,
   JiraImportedCommentInput,
   JiraLinkMapping,
@@ -48,10 +47,7 @@ export type {
   JiraRelatedImportTarget,
   JiraRelationKind,
 } from "./contracts.js";
-export {
-  resolveJiraMediaReference,
-  type JiraMediaResolutionStrategy,
-} from "./media.js";
+export { resolveJiraMediaReference } from "./media.js";
 export { canonicalizeJiraRelation } from "./links.js";
 
 export async function importJiraRelatedData(

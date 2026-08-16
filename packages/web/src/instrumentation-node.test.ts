@@ -35,24 +35,30 @@ const mocks = vi.hoisted(() => {
       warn: vi.fn(),
       debug: vi.fn(),
     },
+    // biome-ignore lint/complexity/useArrowFunction: this mock is instantiated with new.
     NodeSDK: vi.fn(function () {
       return sdk;
     }),
+    // biome-ignore lint/complexity/useArrowFunction: this mock is instantiated with new.
     OTLPTraceExporter: vi.fn(function () {
       return exporter;
     }),
+    // biome-ignore lint/complexity/useArrowFunction: this mock is instantiated with new.
     BatchSpanProcessor: vi.fn(function () {
       return batchSpanProcessor;
     }),
+    // biome-ignore lint/complexity/useArrowFunction: this mock is instantiated with new.
     RequestLogSpanProcessor: vi.fn(function () {
       return requestLogSpanProcessor;
     }),
+    // biome-ignore lint/complexity/useArrowFunction: this mock is instantiated with new.
     PinoInstrumentation: vi.fn(function () {
       return pinoInstrumentation;
     }),
     resourceFromAttributes: vi.fn(() => resource),
     responseLoggingEnabled: vi.fn<() => boolean>(),
     setCoreLogger: vi.fn(),
+    // biome-ignore lint/complexity/useArrowFunction: this mock is instantiated with new.
     OpenTelemetry: vi.fn(function () {
       return openTelemetry;
     }),

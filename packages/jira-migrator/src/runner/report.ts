@@ -15,7 +15,7 @@ import { canonicalizeJson } from "../archive/canonicalJson.js";
 import { JiraMigrationActionSchema } from "../ledger.js";
 import { finalizeJiraCleanup } from "./cleanup.js";
 
-const iso = z.string().datetime({ offset: true });
+const iso = z.iso.datetime({ offset: true });
 const sha256 = z.string().regex(/^[a-f0-9]{64}$/u);
 
 const TerminalClassificationSchema = z.strictObject({

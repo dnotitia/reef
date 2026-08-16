@@ -11,7 +11,7 @@ import {
 import type { IssueListItem } from "@reef/core";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
-import type { ReportFilters } from "../lib/aggregate";
+import type { ReportFilters } from "../lib/aggregateModel";
 import {
   PIVOT_FIELD_KEYS,
   type PivotFieldKey,

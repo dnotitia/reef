@@ -80,7 +80,7 @@ export const JiraIssueImportPlanSchema = z.strictObject({
     issueKey: z.string().min(1),
     issueUrl: z.string().nullable(),
     fieldCatalog: z.strictObject({
-      retrievedAt: z.string().datetime({ offset: true }),
+      retrievedAt: z.iso.datetime({ offset: true }),
       source: z.enum(["jira_field_api", "issue_expansion"]),
     }),
   }),

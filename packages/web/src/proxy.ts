@@ -67,8 +67,8 @@ function e2eMarkdownAssetDestination(request: NextRequest): URL | undefined {
 
 function e2eAssetRequestHeaders(request: NextRequest): Headers {
   const headers = new Headers(request.headers);
-  // The fixture server is local and fixed, but it still must not receive
-  // browser credentials when Proxy performs the E2E-only rewrite.
+  // The fixture server is local and fixed, but it should not receive
+  // browser credentials when Proxy performs the E2E-specific rewrite.
   for (const name of [
     "authorization",
     "cookie",
@@ -158,7 +158,7 @@ export function proxy(request: NextRequest) {
     // unverified edge claim would overstate it in traces/cost dashboards.
     //
     // An SSO cookie is an opaque 256-bit handle, not a JWT, so decoding simply
-    // yields no actor and the handle is never logged. The token/PAT itself is
+    // yields no actor and the handle is not logged. The token/PAT itself is
     // not touched in either mode.
     const sessionCarrier = request.cookies.get(SESSION_COOKIE)?.value;
     const actor = sessionCarrier ? decodeSessionActor(sessionCarrier) : null;

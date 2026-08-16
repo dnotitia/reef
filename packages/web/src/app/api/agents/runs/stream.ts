@@ -143,7 +143,7 @@ export function createChatRunEventBridge(
   let taskId = "chat.workspace";
   let seq = 0;
   let terminalEvent: AgentRunEvent | null = null;
-  // Tool output chunks carry only the call id. The v7 input chunks establish
+  // Tool output chunks carry the call id. The v7 input chunks establish
   // the name before the output is emitted, so retain that pairing here.
   const toolNames = new Map<string, string>();
 
@@ -240,7 +240,7 @@ export function createChatRunEventBridge(
         return;
       case "tool-output-available":
         // Preliminary output is an intermediate update in the v7 contract,
-        // not the terminal result of the tool execution.
+        // not the final result of the tool execution.
         if (chunk.preliminary) return;
         emitBridgeEvent({
           type: "tool.completed",

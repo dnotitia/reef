@@ -250,7 +250,7 @@ export function statusChangeEventKey(
   );
 }
 
-export interface StatusChangeEventInput {
+interface StatusChangeEventInput {
   reefId: string;
   from: Status;
   to: Status;
@@ -262,7 +262,7 @@ export interface StatusChangeEventInput {
   source?: string | null;
 }
 
-export interface IssueBodyMentionsChangeEventInput {
+interface IssueBodyMentionsChangeEventInput {
   reefId: string;
   recipients: string[];
   added: string[];
@@ -366,7 +366,7 @@ export async function appendStatusChangeEvent(
 /**
  * Append the internal issue-body mention precursor event. This is deliberately
  * a strict append path: callers use a failure to compensate the document and
- * row projection, so a recipient delta can never be acknowledged without its
+ * row projection, so a recipient delta is not acknowledged without its
  * commit-bound event.
  */
 export async function appendIssueBodyMentionsChangeEvent(
@@ -546,7 +546,7 @@ export async function reconcileJiraChangelogActivityEvents(
   );
 }
 
-export interface JiraImportedAttachmentActivityActorInput {
+interface JiraImportedAttachmentActivityActorInput {
   reefId: string;
   eventKey: string;
   fromActor: string;

@@ -59,7 +59,6 @@ export function MyWorkQueue({ items, mode, onModeChange }: MyWorkQueueProps) {
             {items.length}
           </span>
         </div>
-        {/* biome-ignore lint/a11y/useSemanticElements: a header toggle group is not a form <fieldset>; role="group" + aria-label is the right semantics here. */}
         <div
           role="group"
           aria-label={t("groupAriaLabel")}

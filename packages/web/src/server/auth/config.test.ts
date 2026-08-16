@@ -29,7 +29,7 @@ describe("readAuthRuntimeConfig", () => {
       readAuthRuntimeConfig(
         ssoEnvironment({ REEF_KEYCLOAK_TRANSPORT_URL: undefined }),
       ),
-    ).toThrowError("sso_keycloak_transport_required");
+    ).toThrow("sso_keycloak_transport_required");
     expect(() =>
       readAuthRuntimeConfig(
         ssoEnvironment({
@@ -37,7 +37,7 @@ describe("readAuthRuntimeConfig", () => {
             "https://identity.example.com/realms/reef",
         }),
       ),
-    ).toThrowError("sso_keycloak_transport_invalid");
+    ).toThrow("sso_keycloak_transport_invalid");
   });
 
   it("keeps the canonical issuer separate from the exact-realm transport URL", () => {
@@ -64,7 +64,7 @@ describe("readAuthRuntimeConfig", () => {
       readAuthRuntimeConfig(
         ssoEnvironment({ REEF_KEYCLOAK_TRANSPORT_URL: transport }),
       ),
-    ).toThrowError("sso_keycloak_transport_invalid");
+    ).toThrow("sso_keycloak_transport_invalid");
   });
 
   it("fails closed when production SSO has no Redis URL", () => {
@@ -72,7 +72,7 @@ describe("readAuthRuntimeConfig", () => {
       readAuthRuntimeConfig(
         ssoEnvironment({ REEF_SESSION_REDIS_URL: undefined }),
       ),
-    ).toThrowError("sso_session_redis_required");
+    ).toThrow("sso_session_redis_required");
   });
 
   it("fails closed when the production encryption key is missing or malformed", () => {
@@ -80,14 +80,14 @@ describe("readAuthRuntimeConfig", () => {
       readAuthRuntimeConfig(
         ssoEnvironment({ REEF_SESSION_ENCRYPTION_KEY: undefined }),
       ),
-    ).toThrowError("sso_session_encryption_key_required");
+    ).toThrow("sso_session_encryption_key_required");
     expect(() =>
       readAuthRuntimeConfig(
         ssoEnvironment({
           REEF_SESSION_ENCRYPTION_KEY: Buffer.alloc(31).toString("base64url"),
         }),
       ),
-    ).toThrowError("sso_session_encryption_key_invalid");
+    ).toThrow("sso_session_encryption_key_invalid");
   });
 
   it("allows an ephemeral in-memory store only outside production", () => {
@@ -111,10 +111,10 @@ describe("readAuthRuntimeConfig", () => {
   });
 
   it("rejects missing or unknown modes instead of falling back", () => {
-    expect(() => readAuthRuntimeConfig({})).toThrowError("auth_mode_invalid");
-    expect(() =>
-      readAuthRuntimeConfig({ REEF_AUTH_MODE: "hybrid" }),
-    ).toThrowError("auth_mode_invalid");
+    expect(() => readAuthRuntimeConfig({})).toThrow("auth_mode_invalid");
+    expect(() => readAuthRuntimeConfig({ REEF_AUTH_MODE: "hybrid" })).toThrow(
+      "auth_mode_invalid",
+    );
   });
 
   it("keeps local mode independent from SSO configuration", () => {
@@ -130,12 +130,12 @@ describe("readAuthRuntimeConfig", () => {
           REEF_KEYCLOAK_ISSUER: "http://identity.example.com/realms/reef",
         }),
       ),
-    ).toThrowError("sso_issuer_invalid");
+    ).toThrow("sso_issuer_invalid");
     expect(() =>
       readAuthRuntimeConfig(
         ssoEnvironment({ REEF_PUBLIC_ORIGIN: "https://reef.example.com/app" }),
       ),
-    ).toThrowError("sso_public_origin_invalid");
+    ).toThrow("sso_public_origin_invalid");
   });
 
   it("rejects a canonical issuer that is not an exact realm URL", () => {
@@ -145,6 +145,6 @@ describe("readAuthRuntimeConfig", () => {
           REEF_KEYCLOAK_ISSUER: "https://identity.example.com/realms/reef/sub",
         }),
       ),
-    ).toThrowError("sso_issuer_invalid");
+    ).toThrow("sso_issuer_invalid");
   });
 });

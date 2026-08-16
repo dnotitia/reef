@@ -433,7 +433,6 @@ export const ValidationCheckSchema = z.strictObject({
   command: validationCommandSchema,
   timeoutMs: z
     .number()
-    .finite()
     .int()
     .positive()
     .max(

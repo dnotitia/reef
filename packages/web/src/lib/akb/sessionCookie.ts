@@ -1,9 +1,9 @@
 /** Mode-aware Reef authentication cookie helpers.
  *
  * Local mode keeps AKB's JWT in `__reef_session`. SSO mode uses the same cookie
- * name for a random opaque handle; its OIDC token set exists only in the
- * encrypted server-side session repository. The legacy SSO cookie names below
- * are write-disabled and retained only so a cutover clears old deployments.
+ * name for a random opaque handle; its OIDC token set exists in the encrypted
+ * server-side session repository. The previous SSO cookie names below are
+ * write-disabled and retained so a cutover clears old deployments.
  */
 
 export const SESSION_COOKIE = "__reef_session";
@@ -42,7 +42,7 @@ export function buildSessionCookie(
   return parts.join("; ");
 }
 
-/** Serialize only a repository-issued 256-bit opaque SSO session handle. */
+/** Serialize a repository-issued 256-bit opaque SSO session handle. */
 export function buildSsoSessionHandleCookie(
   handle: string,
   options: BuildSessionCookieOptions = {},
