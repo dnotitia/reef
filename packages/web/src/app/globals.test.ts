@@ -374,6 +374,7 @@ describe("global focus styles", () => {
     const fileLinkBlock = css.slice(fileLinkStart, fileLinkEnd);
     for (const declaration of [
       "display: inline-flex;",
+      "align-items: baseline;",
       "max-width: 100%;",
       "min-width: 0;",
       "overflow-wrap: anywhere;",
@@ -409,7 +410,7 @@ describe("global focus styles", () => {
     const surfaceBlock = css.slice(surfaceStart, surfaceEnd);
     for (const declaration of [
       "display: inline-flex;",
-      "align-items: center;",
+      "align-items: baseline;",
       "border: 1px solid var(--border-subtle);",
       "background: var(--surface-subtle);",
       "vertical-align: baseline;",
@@ -438,6 +439,12 @@ describe("global focus styles", () => {
       'content: "▤";',
     );
     expect(css.slice(fileGlyphStart, fileGlyphEnd)).toContain('content: "▱";');
+    expect(css.slice(documentGlyphStart, documentGlyphEnd)).toContain(
+      "align-self: center;",
+    );
+    expect(css.slice(fileGlyphStart, fileGlyphEnd)).toContain(
+      "align-self: center;",
+    );
     expect(css.slice(documentGlyphStart, documentGlyphEnd)).not.toContain(
       'content: "▱";',
     );
