@@ -242,6 +242,60 @@ async function assertInstalledArtifact(packageDir, packageName) {
   }
 }
 
+async function proveCoreInstallationConsumer(consumerDir) {
+  const consumerSource = `import {
+  ControlPlaneError,
+  ControlPlaneInstallationSchema,
+  createAkbAppInstallationReader,
+  type ControlPlaneInstallation,
+  type ControlPlaneRequestPolicy,
+} from "@reef/core";
+
+const requestPolicy: ControlPlaneRequestPolicy = {
+  timeoutMs: 1_000,
+  maxJsonResponseBytes: 64_000,
+};
+const reader = createAkbAppInstallationReader({
+  baseUrl: "https://akb.example.test",
+  appToken: "deployment-managed-app-token",
+  requestPolicy,
+});
+const installation: Promise<ControlPlaneInstallation> = reader.getInstallation(
+  "22222222-2222-4222-8222-222222222222",
+);
+const isControlPlaneError = (error: unknown): error is ControlPlaneError =>
+  error instanceof ControlPlaneError;
+const validateInstallation = (value: unknown): ControlPlaneInstallation =>
+  ControlPlaneInstallationSchema.parse(value);
+void isControlPlaneError;
+void validateInstallation;
+void installation;
+`;
+  const sourcePath = path.join(consumerDir, "core-installation-consumer.ts");
+  await writeFile(sourcePath, consumerSource);
+  const tscPath = path.join(root, "packages/core/node_modules/.bin/tsc");
+  const tscStats = await stat(tscPath).catch(() => null);
+  if (!tscStats?.isFile()) {
+    throw new Error("@reef/core package consumer proof could not find tsc");
+  }
+  run(
+    tscPath,
+    [
+      "--noEmit",
+      "--strict",
+      "--skipLibCheck",
+      "--target",
+      "ES2022",
+      "--module",
+      "NodeNext",
+      "--moduleResolution",
+      "NodeNext",
+      sourcePath,
+    ],
+    { cwd: consumerDir },
+  );
+}
+
 async function packArtifactPackages(packRoot, packages, version, catalog) {
   const tarballs = new Map();
   const stageRoot = path.join(packRoot, "stage");
@@ -390,6 +444,8 @@ async function runSmoke() {
       ],
       { cwd: consumerDir },
     );
+
+    await proveCoreInstallationConsumer(consumerDir);
 
     if (cliPackage) {
       const bin = cliPackage.manifest.bin;

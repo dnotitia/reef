@@ -1,5 +1,10 @@
 export {
   createAkbAdapter,
+  createAkbAppInstallationReader,
+  type AkbAppInstallationReader,
+  type AkbAppInstallationReaderConfig,
+  type ControlPlaneRequestPolicy,
+  type ControlPlaneTokenSource,
   createNotification as akbCreateNotification,
   listNotifications as akbListNotifications,
   updateNotificationState as akbUpdateNotificationState,
