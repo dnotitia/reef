@@ -312,7 +312,7 @@ function SlashCommandMenu({
                         "reef-slash-command-option-selected",
                     )}
                     onMouseDown={(event) => event.preventDefault()}
-                    onMouseEnter={() => onActiveChange(itemIndex)}
+                    onPointerMove={() => onActiveChange(itemIndex)}
                     onClick={() => onSelect(items[itemIndex] ?? item)}
                   >
                     <Icon className="size-4 shrink-0" aria-hidden="true" />

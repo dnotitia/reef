@@ -265,7 +265,7 @@ describe("slashCommandExtension", () => {
         (option) => option.getAttribute("aria-selected") === "true",
       );
 
-    fireEvent.mouseEnter(options()[3] as HTMLElement);
+    fireEvent.pointerMove(options()[3] as HTMLElement);
     await waitFor(() => {
       expect(selected()).toHaveLength(1);
       expect(selected()[0]).toBe(options()[3]);
@@ -297,7 +297,7 @@ describe("slashCommandExtension", () => {
     );
     expect(optionsViewport.scrollTop).toBe(20);
 
-    fireEvent.mouseEnter(options()[1] as HTMLElement);
+    fireEvent.pointerMove(options()[1] as HTMLElement);
     await waitFor(() => {
       expect(selected()).toHaveLength(1);
       expect(selected()[0]).toBe(options()[1]);
