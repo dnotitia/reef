@@ -442,7 +442,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   const editFocusedIssue = useCallback(
     (scope: IssueKeyboardScope, field: IssueQuickEditField) => {
       if (selectionActive) return;
-      requestQuickEdit(scope, field);
+      requestQuickEdit(scope, field, { requestDomFocus: false });
     },
     [requestQuickEdit, selectionActive],
   );
