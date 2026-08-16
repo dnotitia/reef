@@ -589,6 +589,7 @@ hr {
 .reef-slash-command-options {
   max-height: 320px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 4px;
   scrollbar-gutter: stable;
 }

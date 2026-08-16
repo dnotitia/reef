@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { scrollOptionIntoView } from "@/lib/scrollOptionIntoView";
 import { Extension, type Editor, type Range } from "@tiptap/core";
 import { PluginKey } from "@tiptap/pm/state";
 import { ReactRenderer } from "@tiptap/react";
@@ -19,9 +20,11 @@ import type { LucideIcon } from "lucide-react";
 import type {
   SuggestionKeyDownProps,
   SuggestionOptions,
+  SuggestionPositionData,
   SuggestionProps,
 } from "@tiptap/suggestion";
 import { findSuggestionMatch } from "@tiptap/suggestion";
+import { useEffect, useRef } from "react";
 
 export type SlashCommandCategory = "text" | "lists" | "structure";
 
@@ -243,7 +246,18 @@ function SlashCommandMenu({
   messages,
   onSelect,
 }: SlashCommandMenuProps) {
+  const optionsRef = useRef<HTMLDivElement>(null);
   const selectedId = items[selectedIndex]?.id;
+
+  useEffect(() => {
+    const options = optionsRef.current;
+    if (!options) return;
+    // Dialog scroll locks listen on document and cancel wheel events from
+    // portaled children. Keep the options viewport as the sole wheel owner.
+    const stopWheelPropagation = (event: WheelEvent) => event.stopPropagation();
+    options.addEventListener("wheel", stopWheelPropagation);
+    return () => options.removeEventListener("wheel", stopWheelPropagation);
+  }, []);
 
   return (
     <div
@@ -258,7 +272,7 @@ function SlashCommandMenu({
         <kbd className="reef-slash-command-escape">{messages.escapeHint}</kbd>
       </div>
 
-      <div className="reef-slash-command-options">
+      <div ref={optionsRef} className="reef-slash-command-options">
         {SLASH_COMMAND_CATEGORY_ORDER.map((category) => {
           const categoryItems = items.filter(
             (item) => item.category === category,
@@ -376,66 +390,285 @@ export function filterSlashCommands(
   });
 }
 
+const SLASH_MENU_VIEWPORT_INSET = 8;
+const SLASH_MENU_OFFSET = 4;
+const SLASH_MENU_NOMINAL_WIDTH = 360;
+const SLASH_MENU_DEFAULT_HEIGHT = 280;
+const SLASH_MENU_MAX_HEIGHT = 420;
+const SLASH_MENU_OPTIONS_MAX_HEIGHT = 320;
+
+export interface SlashMenuBoundary {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+interface ResolvedSlashMenuPosition {
+  visible: boolean;
+  left: number;
+  top: number;
+}
+
+function isClippingOverflow(value: string): boolean {
+  return ["auto", "clip", "hidden", "overlay", "scroll"].includes(value);
+}
+
+function hasPositiveArea(
+  rect: Pick<DOMRect, "left" | "right" | "top" | "bottom">,
+) {
+  return rect.right > rect.left && rect.bottom > rect.top;
+}
+
+function hasAnchorArea(
+  rect: Pick<DOMRect, "left" | "right" | "top" | "bottom">,
+) {
+  return rect.right > rect.left || rect.bottom > rect.top;
+}
+
+function intersectBoundary(
+  boundary: SlashMenuBoundary,
+  rect: Pick<DOMRect, "left" | "right" | "top" | "bottom">,
+) {
+  if (!hasPositiveArea(rect)) return;
+  boundary.left = Math.max(
+    boundary.left,
+    rect.left + SLASH_MENU_VIEWPORT_INSET,
+  );
+  boundary.right = Math.min(
+    boundary.right,
+    rect.right - SLASH_MENU_VIEWPORT_INSET,
+  );
+  boundary.top = Math.max(boundary.top, rect.top + SLASH_MENU_VIEWPORT_INSET);
+  boundary.bottom = Math.min(
+    boundary.bottom,
+    rect.bottom - SLASH_MENU_VIEWPORT_INSET,
+  );
+}
+
+/**
+ * Resolve the visible editor/dialog clipping rectangle for the portaled menu.
+ * Only elements that actually clip or scroll their contents are boundaries;
+ * layout wrappers around the editor must not shrink the menu to their height.
+ * Every clipping ancestor is intersected so a dialog that is being scrolled
+ * cannot leave a stale popup behind.
+ */
+export function getSlashMenuBoundary(
+  editorRoot: HTMLElement,
+): SlashMenuBoundary {
+  const boundary: SlashMenuBoundary = {
+    left: SLASH_MENU_VIEWPORT_INSET,
+    right: Math.max(
+      SLASH_MENU_VIEWPORT_INSET,
+      window.innerWidth - SLASH_MENU_VIEWPORT_INSET,
+    ),
+    top: SLASH_MENU_VIEWPORT_INSET,
+    bottom: Math.max(
+      SLASH_MENU_VIEWPORT_INSET,
+      window.innerHeight - SLASH_MENU_VIEWPORT_INSET,
+    ),
+  };
+
+  let current: HTMLElement | null = editorRoot;
+  while (current && current !== document.body) {
+    const styles = getComputedStyle(current);
+    if (
+      isClippingOverflow(styles.overflowX) ||
+      isClippingOverflow(styles.overflowY)
+    ) {
+      intersectBoundary(boundary, current.getBoundingClientRect());
+    }
+    current = current.parentElement;
+  }
+
+  return boundary;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+/**
+ * Compute placement in the same coordinate space as Floating UI's strategy.
+ * The trigger is kept clear when either side has room; if neither side fits,
+ * the menu is clamped to the available boundary and its own options scroll.
+ */
+export function resolveSlashMenuPosition({
+  anchor,
+  boundary,
+  menuWidth,
+  menuHeight,
+  data,
+}: {
+  anchor: DOMRect | null;
+  boundary: SlashMenuBoundary;
+  menuWidth: number;
+  menuHeight: number;
+  data: SuggestionPositionData;
+}): ResolvedSlashMenuPosition {
+  const width = Math.max(0, menuWidth);
+  const height = Math.max(0, menuHeight);
+  const scrollX = data.strategy === "absolute" ? window.scrollX : 0;
+  const scrollY = data.strategy === "absolute" ? window.scrollY : 0;
+  const boundaryLeft = boundary.left + scrollX;
+  const boundaryRight = boundary.right + scrollX;
+  const boundaryTop = boundary.top + scrollY;
+  const boundaryBottom = boundary.bottom + scrollY;
+  const maxLeft = Math.max(boundaryLeft, boundaryRight - width);
+  const maxTop = Math.max(boundaryTop, boundaryBottom - height);
+  const left = clamp(data.x, boundaryLeft, maxLeft);
+
+  // jsdom and a few browser layout transitions can briefly expose a zero-area
+  // caret rect. Keep the managed popup alive for that frame and let the next
+  // Floating UI update supply the real anchor; a null rect still closes it.
+  if (!anchor) {
+    return { visible: false, left, top: clamp(data.y, boundaryTop, maxTop) };
+  }
+  if (!hasAnchorArea(anchor)) {
+    return { visible: true, left, top: clamp(data.y, boundaryTop, maxTop) };
+  }
+
+  const anchorVisible =
+    anchor.right >= boundary.left &&
+    anchor.left <= boundary.right &&
+    anchor.bottom > boundary.top &&
+    anchor.top < boundary.bottom;
+  if (!anchorVisible) {
+    return { visible: false, left, top: clamp(data.y, boundaryTop, maxTop) };
+  }
+
+  const anchorTop = anchor.top + scrollY;
+  const anchorBottom = anchor.bottom + scrollY;
+  const belowTop = anchorBottom + SLASH_MENU_OFFSET;
+  const aboveTop = anchorTop - height - SLASH_MENU_OFFSET;
+  const belowFits = belowTop + height <= boundaryBottom;
+  const aboveFits = aboveTop >= boundaryTop;
+  const belowSpace = Math.max(0, boundaryBottom - belowTop);
+  const aboveSpace = Math.max(0, aboveTop + height - boundaryTop);
+
+  let top: number;
+  if (belowFits) {
+    top = belowTop;
+  } else if (aboveFits) {
+    top = aboveTop;
+  } else {
+    top = belowSpace >= aboveSpace ? belowTop : aboveTop;
+    top = clamp(top, boundaryTop, maxTop);
+  }
+
+  return { visible: true, left, top };
+}
+
+export function ensureSlashOptionVisible(
+  listboxId: string,
+  selectedId: SlashCommandId | undefined,
+) {
+  if (!selectedId) return;
+  const option = document.getElementById(`${listboxId}-${selectedId}`);
+  const options = option?.closest<HTMLElement>(".reef-slash-command-options");
+  if (!option || !options) return;
+  scrollOptionIntoView(options, option);
+}
+
+function getSlashAnchorRect(
+  editor: Editor,
+  fallback: (() => DOMRect | null) | null | undefined,
+): DOMRect | null {
+  const decoration = editor.view.dom.querySelector<HTMLElement>(
+    ".reef-slash-command-suggestion[data-decoration-id]",
+  );
+  const decorationRect = decoration?.getBoundingClientRect();
+  if (decorationRect && hasAnchorArea(decorationRect)) {
+    return decorationRect;
+  }
+  return fallback?.() ?? null;
+}
+
 function positionSlashMenu(
   menu: HTMLElement,
   editor: Editor,
-  data: { x: number; y: number; strategy: "absolute" | "fixed" },
+  data: SuggestionPositionData,
   anchor: DOMRect | null,
-) {
+): boolean {
   const editorRoot =
     editor.view.dom.closest<HTMLElement>('[data-testid="markdown-editor"]') ??
     editor.view.dom;
-  const editorRect = editorRoot.getBoundingClientRect();
-  const viewportInset = 8;
-  const boundaryLeft = Math.max(viewportInset, editorRect.left + viewportInset);
-  const boundaryRight = Math.min(
-    window.innerWidth - viewportInset,
-    editorRect.right - viewportInset,
+  const boundary = getSlashMenuBoundary(editorRoot);
+  const availableWidth = Math.max(0, boundary.right - boundary.left);
+  const availableHeight = Math.max(0, boundary.bottom - boundary.top);
+  const measuredRect = menu.getBoundingClientRect();
+  const belowSpace = anchor
+    ? Math.max(0, boundary.bottom - anchor.bottom - SLASH_MENU_OFFSET)
+    : availableHeight;
+  const aboveSpace = anchor
+    ? Math.max(0, anchor.top - boundary.top - SLASH_MENU_OFFSET)
+    : availableHeight;
+  const sideHeight =
+    anchor && hasAnchorArea(anchor)
+      ? Math.max(belowSpace, aboveSpace)
+      : availableHeight;
+  const maxMenuHeight = Math.min(
+    SLASH_MENU_MAX_HEIGHT,
+    availableHeight || SLASH_MENU_MAX_HEIGHT,
+    sideHeight || availableHeight || SLASH_MENU_MAX_HEIGHT,
   );
-  const boundaryTop = Math.max(viewportInset, editorRect.top + viewportInset);
-  const boundaryBottom = Math.min(
-    window.innerHeight - viewportInset,
-    editorRect.bottom - viewportInset,
-  );
-  const menuRect = menu.getBoundingClientRect();
-  const availableWidth = Math.max(0, boundaryRight - boundaryLeft);
-  const width = Math.min(
-    menuRect.width || 360,
-    availableWidth > 0 ? availableWidth : 360,
-  );
+  const nominalWidth =
+    measuredRect.width ||
+    Number.parseFloat(getComputedStyle(menu).width) ||
+    SLASH_MENU_NOMINAL_WIDTH;
+  const width = Math.min(nominalWidth, availableWidth || nominalWidth);
   if (availableWidth > 0) {
     menu.style.width = `${width}px`;
   }
-  const availableHeight = Math.max(0, boundaryBottom - boundaryTop);
-  const height = Math.min(
-    menuRect.height || 280,
-    availableHeight > 0 ? availableHeight : 280,
-  );
+
   if (availableHeight > 0) {
-    menu.style.maxHeight = `${availableHeight}px`;
+    menu.style.maxHeight = `${maxMenuHeight}px`;
     const options = menu.querySelector<HTMLElement>(
       ".reef-slash-command-options",
     );
     if (options) {
-      options.style.maxHeight = `${Math.max(64, availableHeight - 92)}px`;
+      const headerHeight =
+        menu
+          .querySelector<HTMLElement>(".reef-slash-command-header")
+          ?.getBoundingClientRect().height || 36;
+      const footerHeight =
+        menu
+          .querySelector<HTMLElement>(".reef-slash-command-footer")
+          ?.getBoundingClientRect().height || 30;
+      options.style.maxHeight = `${Math.min(
+        SLASH_MENU_OPTIONS_MAX_HEIGHT,
+        Math.max(0, maxMenuHeight - headerHeight - footerHeight),
+      )}px`;
     }
   }
-  const maxLeft = Math.max(boundaryLeft, boundaryRight - width);
-  const left = Math.min(Math.max(data.x, boundaryLeft), maxLeft);
 
-  let top = data.y;
-  if (top + height > boundaryBottom && anchor) {
-    top = anchor.top - height - 4;
+  // Re-measure after applying the boundary-owned dimensions so the flip/clamp
+  // decision reflects the actual bounded menu rather than its natural height.
+  const boundedRect = menu.getBoundingClientRect();
+  const height = Math.min(
+    boundedRect.height || measuredRect.height || SLASH_MENU_DEFAULT_HEIGHT,
+    availableHeight || SLASH_MENU_MAX_HEIGHT,
+  );
+  const resolved = resolveSlashMenuPosition({
+    anchor,
+    boundary,
+    menuWidth: width,
+    menuHeight: height,
+    data,
+  });
+
+  if (!resolved.visible) {
+    menu.style.visibility = "hidden";
+    return false;
   }
-  const maxTop = Math.max(boundaryTop, boundaryBottom - height);
-  top = Math.min(Math.max(top, boundaryTop), maxTop);
 
   Object.assign(menu.style, {
     position: data.strategy,
-    left: `${left}px`,
-    top: `${top}px`,
+    left: `${resolved.left}px`,
+    top: `${resolved.top}px`,
     visibility: "visible",
   });
+  return true;
 }
 
 export interface SlashCommandExtensionOptions {
@@ -478,6 +711,13 @@ function createSlashSuggestion(
       messages,
       onSelect: (item: LocalizedSlashCommand) => command?.(item),
     });
+    const options = renderer?.element.querySelector<HTMLElement>(
+      ".reef-slash-command-options",
+    );
+    if (options) options.scrollTop = 0;
+    queueMicrotask(() =>
+      ensureSlashOptionVisible(listboxId, items[selectedIndex]?.id),
+    );
   }
 
   return {
@@ -546,13 +786,17 @@ function createSlashSuggestion(
         });
         renderer.element.dataset.testid = "slash-command-popup";
         unmount = props.mount(renderer.element, {
-          onPosition: (data) =>
-            positionSlashMenu(
+          onPosition: (data) => {
+            const positioned = positionSlashMenu(
               renderer?.element ?? document.body,
               props.editor,
               data,
-              props.clientRect?.() ?? null,
-            ),
+              getSlashAnchorRect(props.editor, props.clientRect),
+            );
+            if (!positioned) {
+              exitSuggestion(props.editor.view, slashCommandPluginKey);
+            }
+          },
         });
         setSlashAria(
           props.editor,
@@ -582,6 +826,9 @@ function createSlashSuggestion(
           event.preventDefault();
           selectedIndex = (selectedIndex + 1) % items.length;
           renderer?.updateProps({ selectedIndex });
+          queueMicrotask(() =>
+            ensureSlashOptionVisible(listboxId, items[selectedIndex]?.id),
+          );
           if (activeEditor) {
             setSlashAria(
               activeEditor,
@@ -597,6 +844,9 @@ function createSlashSuggestion(
           event.preventDefault();
           selectedIndex = (selectedIndex - 1 + items.length) % items.length;
           renderer?.updateProps({ selectedIndex });
+          queueMicrotask(() =>
+            ensureSlashOptionVisible(listboxId, items[selectedIndex]?.id),
+          );
           if (activeEditor) {
             setSlashAria(
               activeEditor,
