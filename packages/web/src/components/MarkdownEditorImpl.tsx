@@ -140,7 +140,10 @@ const EDITOR_MANUAL_BODY_CLASS =
 export interface MarkdownEditorProps {
   value: string;
   onChange: (markdown: string) => void;
+  /** Placeholder rendered by the editable WYSIWYG surface. */
   placeholder?: string;
+  /** Placeholder rendered by the raw Markdown Source textarea. */
+  sourcePlaceholder?: string;
   className?: string;
   readOnly?: boolean;
   /**
@@ -860,6 +863,7 @@ export function MarkdownEditor({
   value,
   onChange,
   placeholder = "Describe the issue…",
+  sourcePlaceholder,
   className,
   readOnly = false,
   ariaLabel,
@@ -1768,7 +1772,7 @@ export function MarkdownEditor({
               enableHeightResize ? "resize-none" : "resize-y",
               isManualHeight ? EDITOR_MANUAL_BODY_CLASS : EDITOR_BODY_SIZING,
             )}
-            placeholder={placeholder}
+            placeholder={sourcePlaceholder ?? placeholder}
             data-testid="markdown-source-textarea"
           />
         ) : (

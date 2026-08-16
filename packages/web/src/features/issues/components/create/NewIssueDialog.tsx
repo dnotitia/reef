@@ -682,6 +682,8 @@ export function NewIssueDialog({
             onBodyChange={setBody}
             vault={vault ?? undefined}
             mentionConfig={issueBodyMentionConfig}
+            bodyWysiwygPlaceholder={tc("descriptionWysiwygPlaceholder")}
+            bodySourcePlaceholder={tc("descriptionPlaceholder")}
             disabled={isSubmitting}
             renderField={renderEnrichable}
             titleId="new-issue-title"

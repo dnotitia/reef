@@ -1111,6 +1111,52 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await expect(reopenedEditor.locator("table td")).toHaveCount(4);
   });
 
+  test("keeps the create surface placeholder discoverable without saving it", async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width: 1200, height: 900 });
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    await page.getByTestId("issue-close").click();
+    await expect(page.getByTestId("issue-detail")).not.toBeVisible();
+    await page.getByTestId("new-issue-trigger").click();
+    const dialog = page.getByTestId("new-issue-dialog");
+    await expect(dialog).toBeVisible();
+    const editor = dialog.locator(".reef-markdown-editor");
+    await expect(
+      editor.locator("p.is-empty:only-child[data-placeholder]"),
+    ).toHaveAttribute(
+      "data-placeholder",
+      "Describe the issue or type / to insert a block…",
+    );
+
+    const sourceToggle = dialog
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button");
+    await sourceToggle.click();
+    const source = dialog.getByTestId("markdown-source-textarea");
+    await expect(source).toHaveValue("");
+    await expect(source).toHaveAttribute("placeholder", "Describe the issue…");
+    await sourceToggle.click();
+
+    await editor.click();
+    await page.keyboard.type("Body authored in the editor");
+    await expect(
+      editor.locator("p.is-empty:only-child[data-placeholder]"),
+    ).toHaveCount(0);
+
+    await sourceToggle.click();
+    await expect(source).toHaveValue("Body authored in the editor");
+    await expect(source).not.toHaveValue(
+      /Describe the issue or type \/ to insert a block/u,
+    );
+    await dialog.getByTestId("new-issue-cancel").click();
+  });
+
   test("uses one categorized @ menu for people, issues, and documents", async ({
     page,
     request,

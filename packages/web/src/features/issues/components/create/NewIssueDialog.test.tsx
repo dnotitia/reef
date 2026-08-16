@@ -9,6 +9,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 
 vi.mock("@/lib/apiClient", async () => {
   const actual =
@@ -46,18 +47,24 @@ vi.mock("@/components/MarkdownEditor", () => ({
     value,
     onChange,
     mentionConfig,
+    placeholder,
+    sourcePlaceholder,
   }: {
     value: string;
     onChange: (value: string) => void;
     mentionConfig?: unknown;
+    placeholder?: string;
+    sourcePlaceholder?: string;
   }) => {
     mockMarkdownMentionConfig.current = mentionConfig;
     return (
       <>
+        <span data-testid="markdown-wysiwyg-placeholder">{placeholder}</span>
         <button type="button">Source</button>
         <textarea
           data-testid="markdown-source-textarea"
           value={value}
+          placeholder={sourcePlaceholder ?? placeholder}
           onChange={(event) => onChange(event.target.value)}
         />
       </>
@@ -343,6 +350,38 @@ describe("NewIssueDialog", () => {
       documentsSectionLabel: "Documents",
     });
   });
+
+  it.each([
+    {
+      locale: "en" as const,
+      wysiwyg: "Describe the issue or type / to insert a block…",
+      source: "Describe the issue…",
+    },
+    {
+      locale: "ko" as const,
+      wysiwyg: "이슈를 설명하거나 /를 입력해 블록을 추가하세요…",
+      source: "이슈를 설명하세요…",
+    },
+  ])(
+    "passes separate localized WYSIWYG and Source placeholders ($locale)",
+    async ({ locale, wysiwyg, source }) => {
+      mockViewStore.state.newIssueDialogOpen = true;
+      render(
+        <IntlTestProvider locale={locale}>
+          {wrap(<NewIssueDialog />)}
+        </IntlTestProvider>,
+      );
+
+      await screen.findByText(locale === "en" ? "New Issue" : "새 이슈");
+      expect(
+        screen.getByTestId("markdown-wysiwyg-placeholder"),
+      ).toHaveTextContent(wysiwyg);
+      expect(screen.getByTestId("markdown-source-textarea")).toHaveAttribute(
+        "placeholder",
+        source,
+      );
+    },
+  );
 
   it("creates a parent-locked sub-issue with inherited defaults and keeps adding", async () => {
     mockViewStore.state.newIssueDialogOpen = true;

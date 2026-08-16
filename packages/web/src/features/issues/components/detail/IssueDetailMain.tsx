@@ -181,7 +181,8 @@ export function IssueDetailMain({
           onUploadFiles={onUploadBodyFiles}
           resolveImageSrc={resolveBodyImageSrc}
           resolveAttachmentHref={resolveBodyAttachmentHref}
-          placeholder={t("descriptionPlaceholder")}
+          placeholder={t("descriptionWysiwygPlaceholder")}
+          sourcePlaceholder={t("descriptionPlaceholder")}
           ariaLabel={t("descriptionAriaLabel")}
           vault={vault}
           mentionConfig={issueBodyMentionConfig}
