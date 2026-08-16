@@ -1196,6 +1196,89 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await dialog.getByTestId("new-issue-cancel").click();
   });
 
+  test("converges slash selection, keeps keyboard options visible, and layers Escape in New Issue", async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width: 1024, height: 800 });
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await page.getByTestId("issue-close").click();
+
+    await page.getByTestId("new-issue-trigger").click();
+    const dialog = page.getByTestId("new-issue-dialog");
+    await expect(dialog).toBeVisible();
+    const title = dialog.getByTestId("new-issue-title-input");
+    await title.fill("Draft slash behavior");
+
+    const editor = dialog.locator(".reef-markdown-editor");
+    await editor.click();
+    await page.keyboard.type("/");
+    const menu = page.getByTestId("slash-command-menu");
+    await expect(menu).toBeVisible();
+
+    const options = menu.getByRole("option");
+    const optionsViewport = menu.locator(".reef-slash-command-options");
+    const selectedCount = () =>
+      menu.locator('[role="option"][aria-selected="true"]').count();
+    const isSelectedVisible = () =>
+      optionsViewport.evaluate((root) => {
+        const selected = root.querySelector<HTMLElement>(
+          '[role="option"][aria-selected="true"]',
+        );
+        if (!selected) return false;
+        const rootRect = root.getBoundingClientRect();
+        const selectedRect = selected.getBoundingClientRect();
+        return (
+          selectedRect.top >= rootRect.top - 1 &&
+          selectedRect.bottom <= rootRect.bottom + 1
+        );
+      });
+
+    const table = menu.locator('[data-slash-command="table"]');
+    await table.hover();
+    await expect(table).toHaveAttribute("aria-selected", "true");
+    await expect.poll(selectedCount).toBe(1);
+    const tableId = await table.getAttribute("id");
+    expect(tableId).toBeTruthy();
+    await expect(editor).toHaveAttribute(
+      "aria-activedescendant",
+      tableId as string,
+    );
+
+    const optionCount = await options.count();
+    for (let index = 0; index <= optionCount; index += 1) {
+      await page.keyboard.press("ArrowDown");
+      await expect.poll(selectedCount).toBe(1);
+      await expect.poll(isSelectedVisible).toBe(true);
+      await expect
+        .poll(async () => {
+          const activeId = await editor.getAttribute("aria-activedescendant");
+          if (!activeId) return null;
+          return menu
+            .locator(`[id="${activeId}"]`)
+            .getAttribute("aria-selected");
+        })
+        .toBe("true");
+      const activeId = await editor.getAttribute("aria-activedescendant");
+      expect(activeId).toBeTruthy();
+    }
+
+    const bodyBeforeEscape = await editor.textContent();
+    await editor.press("Escape");
+    await expect(menu).toHaveCount(0);
+    await expect(page.getByTestId("discard-draft-confirm")).toHaveCount(0);
+    await expect(title).toHaveValue("Draft slash behavior");
+    await expect(editor).toHaveText(bodyBeforeEscape ?? "");
+
+    await dialog.press("Escape");
+    await expect(page.getByTestId("discard-draft-confirm")).toBeVisible();
+    await page.getByTestId("discard-draft-cancel").click();
+    await expect(page.getByTestId("discard-draft-confirm")).toHaveCount(0);
+  });
+
   test("uses one categorized @ menu for people, issues, and documents", async ({
     page,
     request,

@@ -349,6 +349,7 @@ export function createMarkdownEditorExtensions(
   resolveAttachmentHref?: (href: string) => string | undefined,
   slashMessages?: SlashCommandMessages,
   issueReferenceVault?: string,
+  slashOnOpenChange?: (open: boolean, dismiss?: () => void) => void,
 ) {
   const extensions: AnyExtension[] = [
     // StarterKit v3 bundles the Link extension; configure it here rather than
@@ -385,7 +386,10 @@ export function createMarkdownEditorExtensions(
       // CSS limits painting to the sole top-level block of an empty document.
       showOnlyCurrent: false,
     }),
-    createSlashCommandExtension({ messages: slashMessages }),
+    createSlashCommandExtension({
+      messages: slashMessages,
+      onOpenChange: slashOnOpenChange,
+    }),
   ];
   if (mentionConfig) {
     extensions.push(
@@ -935,6 +939,7 @@ export function MarkdownEditor({
   const akbWebBase = useAkbWebUrl();
   const [sourceMode, setSourceMode] = useState(false);
   const [mentionOpen, setMentionOpen] = useState(false);
+  const [slashOpen, setSlashOpen] = useState(false);
   const [linkEditorOpen, setLinkEditorOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [uploadingFiles, setUploadingFiles] = useState(false);
@@ -979,6 +984,7 @@ export function MarkdownEditor({
     undefined,
   );
   const mentionDismissRef = useRef<(() => void) | null>(null);
+  const slashDismissRef = useRef<(() => void) | null>(null);
   const previousMentionRosterRef = useRef<string | null>(null);
 
   const dismissMention = useCallback(() => {
@@ -993,6 +999,18 @@ export function MarkdownEditor({
     [],
   );
 
+  const dismissSlash = useCallback(() => {
+    slashDismissRef.current?.();
+  }, []);
+
+  const handleSlashOpenChange = useCallback(
+    (open: boolean, dismiss?: () => void) => {
+      slashDismissRef.current = open ? (dismiss ?? null) : null;
+      setSlashOpen(open);
+    },
+    [],
+  );
+
   // The picker is rendered by Tiptap rather than React, so bridge its open
   // state into the shared Radix overlay registry. Escape then dismisses the
   // picker before the surrounding Sheet/Dialog (REEF-524/DC-5).
@@ -1000,6 +1018,7 @@ export function MarkdownEditor({
     Boolean(mentionConfig && mentionOpen),
     dismissMention,
   );
+  useOverlayOpenRegistration(slashOpen, dismissSlash);
 
   const editorBodyClassName = cn(
     EDITOR_CONTENT_CLASS,
@@ -1179,6 +1198,7 @@ export function MarkdownEditor({
       (href) => resolveAttachmentHrefRef.current?.(href),
       slashMessages,
       vault,
+      handleSlashOpenChange,
     ),
     /* eslint-enable react-hooks/refs */
     content: mentionConfig

@@ -7,7 +7,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMarkdownEditorExtensions } from "./MarkdownEditorImpl";
 import {
   DEFAULT_SLASH_COMMAND_MESSAGES,
@@ -166,5 +166,90 @@ describe("slashCommandExtension", () => {
       expect(editor.view.dom.querySelector("h1")).not.toBeNull();
     });
     expect(editor.getMarkdown()).not.toContain("/");
+  });
+
+  it("converges pointer and keyboard active state and scrolls the active option", async () => {
+    const editor = mountEditor("");
+    await act(async () => {
+      editor.commands.insertContent("/");
+    });
+    const menu = await screen.findByTestId("slash-command-menu");
+    const optionsViewport = menu.querySelector(
+      ".reef-slash-command-options",
+    ) as HTMLElement;
+    const options = () =>
+      Array.from(menu.querySelectorAll<HTMLElement>('[role="option"]'));
+    const selected = () =>
+      options().filter(
+        (option) => option.getAttribute("aria-selected") === "true",
+      );
+
+    fireEvent.mouseEnter(options()[3] as HTMLElement);
+    await waitFor(() => {
+      expect(selected()).toHaveLength(1);
+      expect(selected()[0]).toBe(options()[3]);
+    });
+    expect(editor.view.dom.getAttribute("aria-activedescendant")).toBe(
+      options()[3]?.id,
+    );
+
+    const activeOption = options()[4] as HTMLElement;
+    Object.defineProperty(optionsViewport, "getBoundingClientRect", {
+      configurable: true,
+      value: vi.fn(() => ({ top: 0, bottom: 100 }) as DOMRect),
+    });
+    Object.defineProperty(activeOption, "getBoundingClientRect", {
+      configurable: true,
+      value: vi.fn(() => ({ top: 80, bottom: 120 }) as DOMRect),
+    });
+    optionsViewport.scrollTop = 0;
+
+    await act(async () => {
+      dispatchKey(editor, "ArrowDown");
+    });
+    await waitFor(() => {
+      expect(selected()).toHaveLength(1);
+      expect(selected()[0]).toBe(activeOption);
+    });
+    expect(editor.view.dom.getAttribute("aria-activedescendant")).toBe(
+      activeOption.id,
+    );
+    expect(optionsViewport.scrollTop).toBe(20);
+
+    fireEvent.mouseEnter(options()[1] as HTMLElement);
+    await waitFor(() => {
+      expect(selected()).toHaveLength(1);
+      expect(selected()[0]).toBe(options()[1]);
+    });
+    expect(editor.view.dom.getAttribute("aria-activedescendant")).toBe(
+      options()[1]?.id,
+    );
+  });
+
+  it("consumes Escape while the slash menu is open", async () => {
+    const editor = mountEditor("");
+    await act(async () => {
+      editor.commands.insertContent("/");
+    });
+    await screen.findByTestId("slash-command-menu");
+
+    const event = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "Escape",
+    });
+    const handled = editor.view.someProp("handleKeyDown", (handler) =>
+      handler(editor.view, event),
+    );
+
+    expect(handled).toBe(true);
+    expect(event.defaultPrevented).toBe(true);
+    expect(event.cancelBubble).toBe(true);
+    await waitFor(() => {
+      expect(
+        document.querySelector('[data-testid="slash-command-menu"]'),
+      ).toBeNull();
+    });
+    expect(editor.getMarkdown()).toContain("/");
   });
 });

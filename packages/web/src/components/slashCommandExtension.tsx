@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { scrollOptionIntoView } from "@/lib/scrollOptionIntoView";
 import { Extension, type Editor, type Range } from "@tiptap/core";
 import { PluginKey } from "@tiptap/pm/state";
 import { ReactRenderer } from "@tiptap/react";
@@ -22,6 +23,7 @@ import type {
   SuggestionProps,
 } from "@tiptap/suggestion";
 import { findSuggestionMatch } from "@tiptap/suggestion";
+import { useLayoutEffect, useRef } from "react";
 
 export type SlashCommandCategory = "text" | "lists" | "structure";
 
@@ -233,6 +235,7 @@ interface SlashCommandMenuProps {
   selectedIndex: number;
   listboxId: string;
   messages: SlashCommandMessages;
+  onActiveChange: (index: number) => void;
   onSelect: (command: LocalizedSlashCommand) => void;
 }
 
@@ -241,9 +244,19 @@ function SlashCommandMenu({
   selectedIndex,
   listboxId,
   messages,
+  onActiveChange,
   onSelect,
 }: SlashCommandMenuProps) {
   const selectedId = items[selectedIndex]?.id;
+  const optionsRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!selectedId) return;
+    const selectedOption = optionsRef.current?.querySelector<HTMLElement>(
+      `[role="option"][data-slash-command="${selectedId}"]`,
+    );
+    scrollOptionIntoView(optionsRef.current, selectedOption);
+  }, [selectedId]);
 
   return (
     <div
@@ -258,7 +271,7 @@ function SlashCommandMenu({
         <kbd className="reef-slash-command-escape">{messages.escapeHint}</kbd>
       </div>
 
-      <div className="reef-slash-command-options">
+      <div ref={optionsRef} className="reef-slash-command-options">
         {SLASH_COMMAND_CATEGORY_ORDER.map((category) => {
           const categoryItems = items.filter(
             (item) => item.category === category,
@@ -296,6 +309,7 @@ function SlashCommandMenu({
                         "reef-slash-command-option-selected",
                     )}
                     onMouseDown={(event) => event.preventDefault()}
+                    onMouseEnter={() => onActiveChange(itemIndex)}
                     onClick={() => onSelect(items[itemIndex] ?? item)}
                   >
                     <Icon className="size-4 shrink-0" aria-hidden="true" />
@@ -440,6 +454,8 @@ function positionSlashMenu(
 
 export interface SlashCommandExtensionOptions {
   messages?: SlashCommandMessages;
+  /** Keeps a surrounding Dialog/Sheet open while the menu consumes Escape. */
+  onOpenChange?: (open: boolean, dismiss?: () => void) => void;
 }
 
 function createSlashSuggestion(
@@ -478,6 +494,21 @@ function createSlashSuggestion(
       messages,
       onSelect: (item: LocalizedSlashCommand) => command?.(item),
     });
+  }
+
+  function setActiveIndex(nextIndex: number) {
+    if (nextIndex < 0 || nextIndex >= items.length) return;
+    selectedIndex = nextIndex;
+    renderer?.updateProps({ selectedIndex });
+    if (activeEditor) {
+      setSlashAria(
+        activeEditor,
+        listboxId,
+        items[selectedIndex]?.id,
+        items.length,
+        true,
+      );
+    }
   }
 
   return {
@@ -529,6 +560,9 @@ function createSlashSuggestion(
       onStart: (
         props: SuggestionProps<LocalizedSlashCommand, LocalizedSlashCommand>,
       ) => {
+        options.onOpenChange?.(true, () =>
+          exitSuggestion(props.editor.view, slashCommandPluginKey),
+        );
         activeEditor = props.editor;
         selectedIndex = 0;
         items = props.items;
@@ -541,6 +575,7 @@ function createSlashSuggestion(
             selectedIndex,
             listboxId,
             messages,
+            onActiveChange: setActiveIndex,
             onSelect: (item: LocalizedSlashCommand) => command?.(item),
           },
         });
@@ -566,6 +601,7 @@ function createSlashSuggestion(
       onExit: ({
         editor,
       }: SuggestionProps<LocalizedSlashCommand, LocalizedSlashCommand>) => {
+        options.onOpenChange?.(false);
         setSlashAria(editor, listboxId, undefined, items.length, false);
         unmount?.();
         unmount = undefined;
@@ -580,32 +616,12 @@ function createSlashSuggestion(
         if (event.isComposing) return false;
         if (event.key === "ArrowDown" && items.length > 0) {
           event.preventDefault();
-          selectedIndex = (selectedIndex + 1) % items.length;
-          renderer?.updateProps({ selectedIndex });
-          if (activeEditor) {
-            setSlashAria(
-              activeEditor,
-              listboxId,
-              items[selectedIndex]?.id,
-              items.length,
-              true,
-            );
-          }
+          setActiveIndex((selectedIndex + 1) % items.length);
           return true;
         }
         if (event.key === "ArrowUp" && items.length > 0) {
           event.preventDefault();
-          selectedIndex = (selectedIndex - 1 + items.length) % items.length;
-          renderer?.updateProps({ selectedIndex });
-          if (activeEditor) {
-            setSlashAria(
-              activeEditor,
-              listboxId,
-              items[selectedIndex]?.id,
-              items.length,
-              true,
-            );
-          }
+          setActiveIndex((selectedIndex - 1 + items.length) % items.length);
           return true;
         }
         if (event.key === "Enter" && items.length > 0) {
@@ -617,6 +633,7 @@ function createSlashSuggestion(
         }
         if (event.key === "Escape") {
           event.preventDefault();
+          event.stopPropagation();
           exitSuggestion(view, slashCommandPluginKey);
           return true;
         }
