@@ -621,7 +621,6 @@ hr {
   color: var(--foreground);
 }
 
-.reef-slash-command-option:hover,
 .reef-slash-command-option-selected {
   border-color: color-mix(in srgb, var(--brand) 35%, var(--border-subtle));
   background: color-mix(in srgb, var(--brand) 10%, var(--surface-hover));

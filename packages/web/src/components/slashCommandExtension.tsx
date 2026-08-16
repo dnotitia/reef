@@ -236,6 +236,7 @@ interface SlashCommandMenuProps {
   selectedIndex: number;
   listboxId: string;
   messages: SlashCommandMessages;
+  onActiveChange: (index: number) => void;
   onSelect: (command: LocalizedSlashCommand) => void;
 }
 
@@ -244,6 +245,7 @@ function SlashCommandMenu({
   selectedIndex,
   listboxId,
   messages,
+  onActiveChange,
   onSelect,
 }: SlashCommandMenuProps) {
   const optionsRef = useRef<HTMLDivElement>(null);
@@ -310,6 +312,7 @@ function SlashCommandMenu({
                         "reef-slash-command-option-selected",
                     )}
                     onMouseDown={(event) => event.preventDefault()}
+                    onPointerMove={() => onActiveChange(itemIndex)}
                     onClick={() => onSelect(items[itemIndex] ?? item)}
                   >
                     <Icon className="size-4 shrink-0" aria-hidden="true" />
@@ -673,6 +676,8 @@ function positionSlashMenu(
 
 export interface SlashCommandExtensionOptions {
   messages?: SlashCommandMessages;
+  /** Keeps a surrounding Dialog/Sheet open while the menu consumes Escape. */
+  onOpenChange?: (open: boolean, dismiss?: () => void) => void;
 }
 
 function createSlashSuggestion(
@@ -709,6 +714,7 @@ function createSlashSuggestion(
       selectedIndex,
       listboxId,
       messages,
+      onActiveChange: setActiveIndex,
       onSelect: (item: LocalizedSlashCommand) => command?.(item),
     });
     const options = renderer?.element.querySelector<HTMLElement>(
@@ -718,6 +724,24 @@ function createSlashSuggestion(
     queueMicrotask(() =>
       ensureSlashOptionVisible(listboxId, items[selectedIndex]?.id),
     );
+  }
+
+  function setActiveIndex(nextIndex: number) {
+    if (nextIndex < 0 || nextIndex >= items.length) return;
+    selectedIndex = nextIndex;
+    renderer?.updateProps({ selectedIndex });
+    queueMicrotask(() =>
+      ensureSlashOptionVisible(listboxId, items[selectedIndex]?.id),
+    );
+    if (activeEditor) {
+      setSlashAria(
+        activeEditor,
+        listboxId,
+        items[selectedIndex]?.id,
+        items.length,
+        true,
+      );
+    }
   }
 
   return {
@@ -769,6 +793,9 @@ function createSlashSuggestion(
       onStart: (
         props: SuggestionProps<LocalizedSlashCommand, LocalizedSlashCommand>,
       ) => {
+        options.onOpenChange?.(true, () =>
+          exitSuggestion(props.editor.view, slashCommandPluginKey),
+        );
         activeEditor = props.editor;
         selectedIndex = 0;
         items = props.items;
@@ -781,6 +808,7 @@ function createSlashSuggestion(
             selectedIndex,
             listboxId,
             messages,
+            onActiveChange: setActiveIndex,
             onSelect: (item: LocalizedSlashCommand) => command?.(item),
           },
         });
@@ -810,6 +838,7 @@ function createSlashSuggestion(
       onExit: ({
         editor,
       }: SuggestionProps<LocalizedSlashCommand, LocalizedSlashCommand>) => {
+        options.onOpenChange?.(false);
         setSlashAria(editor, listboxId, undefined, items.length, false);
         unmount?.();
         unmount = undefined;
@@ -824,38 +853,12 @@ function createSlashSuggestion(
         if (event.isComposing) return false;
         if (event.key === "ArrowDown" && items.length > 0) {
           event.preventDefault();
-          selectedIndex = (selectedIndex + 1) % items.length;
-          renderer?.updateProps({ selectedIndex });
-          queueMicrotask(() =>
-            ensureSlashOptionVisible(listboxId, items[selectedIndex]?.id),
-          );
-          if (activeEditor) {
-            setSlashAria(
-              activeEditor,
-              listboxId,
-              items[selectedIndex]?.id,
-              items.length,
-              true,
-            );
-          }
+          setActiveIndex((selectedIndex + 1) % items.length);
           return true;
         }
         if (event.key === "ArrowUp" && items.length > 0) {
           event.preventDefault();
-          selectedIndex = (selectedIndex - 1 + items.length) % items.length;
-          renderer?.updateProps({ selectedIndex });
-          queueMicrotask(() =>
-            ensureSlashOptionVisible(listboxId, items[selectedIndex]?.id),
-          );
-          if (activeEditor) {
-            setSlashAria(
-              activeEditor,
-              listboxId,
-              items[selectedIndex]?.id,
-              items.length,
-              true,
-            );
-          }
+          setActiveIndex((selectedIndex - 1 + items.length) % items.length);
           return true;
         }
         if (event.key === "Enter" && items.length > 0) {
@@ -867,6 +870,7 @@ function createSlashSuggestion(
         }
         if (event.key === "Escape") {
           event.preventDefault();
+          event.stopPropagation();
           exitSuggestion(view, slashCommandPluginKey);
           return true;
         }
