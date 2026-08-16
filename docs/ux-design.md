@@ -829,6 +829,16 @@ Enrichment is always explicitly triggered (never on keystroke), always
 reviewable, and always optional — an issue can be created with no AI
 involvement at all, and a missing AI deployment simply disables the button.
 
+The New Issue dialog keeps its writing chrome predictable at every supported
+viewport. On desktop, the title and workspace context share a row with the
+Template and Enrich with AI actions. At narrow widths, those actions reflow
+below the context and retain their full labels and hit targets. The title and
+Description remain the first, readable column; metadata follows as a single
+rail below it. The dialog stays within the dynamic viewport and its bottom
+safe area, while only the form body scrolls. Header context and the Cancel /
+Create issue footer remain visible and keyboard reachable throughout a long
+draft, including when the viewport height is reduced.
+
 ### Journey 2 — Morning Suggestions Review
 
 1. The PM returns and sees the **Suggestions** nav item carrying the total

@@ -551,7 +551,7 @@ export function NewIssueDialog({
         onCloseAutoFocus={handleCloseAutoFocus}
         // Canvas matches the issue detail sheet (REEF-167) so the widened rail
         // doesn't steal width from the main column.
-        className="max-h-[88vh] max-w-[min(94vw,1200px)] gap-5 overflow-y-auto overscroll-contain"
+        className="grid max-h-[calc(100dvh-2rem)] min-h-0 max-w-[min(94vw,1200px)] grid-rows-[auto_minmax(0,1fr)_auto] gap-5 overflow-hidden pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
         onInteractOutside={(e) => {
           // The relation picker renders its dropdown in a body portal, so Radix
           // sees a click on one of its options as "outside" the dialog. That is
@@ -579,9 +579,12 @@ export function NewIssueDialog({
           }
         }}
       >
-        <DialogHeader>
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
+        <DialogHeader data-testid="new-issue-dialog-header" className="min-w-0">
+          <div className="flex min-w-0 flex-wrap items-start gap-3">
+            <div
+              data-testid="new-issue-dialog-heading"
+              className="min-w-0 flex-1 basis-0 break-words"
+            >
               <DialogTitle>
                 {subIssueContext ? tc("subIssueHeading") : tc("heading")}
               </DialogTitle>
@@ -625,7 +628,10 @@ export function NewIssueDialog({
                 </div>
               ) : null}
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            <div
+              data-testid="new-issue-dialog-actions"
+              className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:shrink-0"
+            >
               <TemplatePicker
                 vault={vault ?? ""}
                 onSelect={handleApplyTemplate}
@@ -648,106 +654,117 @@ export function NewIssueDialog({
           </div>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4" ref={formBodyRef}>
-          {showEnrichmentBar && (
-            <EnrichmentReviewBar
-              pending={enrichment.counts.pending}
-              accepted={enrichment.counts.accepted}
-              onAcceptAll={handleAcceptAll}
-              onDismissAll={enrichment.dismissAll}
-              isLoading={enrichMutation.isPending}
-              isEmpty={enrichIsEmpty}
-              error={enrichError?.message}
-              onRetry={() => {
-                const enrichmentRequest = buildEnrichmentRequest();
-                if (enrichmentRequest) enrichMutation.mutate(enrichmentRequest);
-              }}
-              onClose={() => enrichMutation.reset()}
+        <div
+          data-testid="new-issue-dialog-body"
+          className="min-w-0 min-h-0 overflow-y-auto overscroll-contain"
+          ref={formBodyRef}
+        >
+          <div className="flex flex-col gap-4">
+            {showEnrichmentBar && (
+              <EnrichmentReviewBar
+                pending={enrichment.counts.pending}
+                accepted={enrichment.counts.accepted}
+                onAcceptAll={handleAcceptAll}
+                onDismissAll={enrichment.dismissAll}
+                isLoading={enrichMutation.isPending}
+                isEmpty={enrichIsEmpty}
+                error={enrichError?.message}
+                onRetry={() => {
+                  const enrichmentRequest = buildEnrichmentRequest();
+                  if (enrichmentRequest)
+                    enrichMutation.mutate(enrichmentRequest);
+                }}
+                onClose={() => enrichMutation.reset()}
+              />
+            )}
+
+            <IssueDraftFields
+              layout="split"
+              titleInputRef={titleInputRef}
+              title={title}
+              onTitleChange={setTitle}
+              titleBelow={
+                <SimilarIssuesSection title={title} vault={vault ?? ""} />
+              }
+              priority={priority}
+              onPriorityChange={setPriority}
+              labels={labels}
+              onLabelsChange={setLabels}
+              body={body}
+              onBodyChange={setBody}
+              vault={vault ?? undefined}
+              mentionConfig={issueBodyMentionConfig}
+              bodyWysiwygPlaceholder={tc("descriptionWysiwygPlaceholder")}
+              bodySourcePlaceholder={tc("descriptionPlaceholder")}
+              disabled={isSubmitting}
+              renderField={renderEnrichable}
+              titleId="new-issue-title"
+              labelsId="new-issue-labels"
+              titleTestId="new-issue-title-input"
+              priorityTestId="new-issue-priority-select"
+              labelsTestId="new-issue-labels-input"
+              railSlot={
+                <>
+                  {railFields}
+                  {relationFields}
+                </>
+              }
+              mainExtra={externalRefFields}
+              primaryField={
+                // A row-shaped Type so split Details reads as a property list
+                // (REEF-167), matching the issue detail rail.
+                <IssueFieldRow
+                  label={fieldNames.type}
+                  labelId="new-issue-type-label"
+                >
+                  {renderEnrichable(
+                    "issue_type",
+                    <EnumSelectField
+                      value={issueType}
+                      onValueChange={(value) =>
+                        setIssueType(value as IssueType)
+                      }
+                      options={ISSUE_TYPE_OPTIONS}
+                      renderItem={(type) => (
+                        <TypePill type={type} variant="badge" />
+                      )}
+                      placeholder={fieldNames.type}
+                      ariaLabelledby="new-issue-type-label"
+                      disabled={isSubmitting}
+                    />,
+                  )}
+                </IssueFieldRow>
+              }
             />
-          )}
 
-          <IssueDraftFields
-            layout="split"
-            titleInputRef={titleInputRef}
-            title={title}
-            onTitleChange={setTitle}
-            titleBelow={
-              <SimilarIssuesSection title={title} vault={vault ?? ""} />
-            }
-            priority={priority}
-            onPriorityChange={setPriority}
-            labels={labels}
-            onLabelsChange={setLabels}
-            body={body}
-            onBodyChange={setBody}
-            vault={vault ?? undefined}
-            mentionConfig={issueBodyMentionConfig}
-            bodyWysiwygPlaceholder={tc("descriptionWysiwygPlaceholder")}
-            bodySourcePlaceholder={tc("descriptionPlaceholder")}
-            disabled={isSubmitting}
-            renderField={renderEnrichable}
-            titleId="new-issue-title"
-            labelsId="new-issue-labels"
-            titleTestId="new-issue-title-input"
-            priorityTestId="new-issue-priority-select"
-            labelsTestId="new-issue-labels-input"
-            railSlot={
-              <>
-                {railFields}
-                {relationFields}
-              </>
-            }
-            mainExtra={externalRefFields}
-            primaryField={
-              // A row-shaped Type so split Details reads as a property list
-              // (REEF-167), matching the issue detail rail.
-              <IssueFieldRow
-                label={fieldNames.type}
-                labelId="new-issue-type-label"
+            <EnrichmentReferencesPanel
+              candidates={candidateReferences}
+              confirmed={references}
+              disabled={isSubmitting}
+              onAdd={(uri) => setReferences([...references, uri])}
+              onDismiss={(uri) =>
+                setDismissedRefs((prev) => new Set(prev).add(uri))
+              }
+              onRemove={(uri) =>
+                setReferences(references.filter((existing) => existing !== uri))
+              }
+            />
+            {submitError ? (
+              <p
+                role="alert"
+                data-testid="new-issue-error"
+                className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
               >
-                {renderEnrichable(
-                  "issue_type",
-                  <EnumSelectField
-                    value={issueType}
-                    onValueChange={(value) => setIssueType(value as IssueType)}
-                    options={ISSUE_TYPE_OPTIONS}
-                    renderItem={(type) => (
-                      <TypePill type={type} variant="badge" />
-                    )}
-                    placeholder={fieldNames.type}
-                    ariaLabelledby="new-issue-type-label"
-                    disabled={isSubmitting}
-                  />,
-                )}
-              </IssueFieldRow>
-            }
-          />
-
-          <EnrichmentReferencesPanel
-            candidates={candidateReferences}
-            confirmed={references}
-            disabled={isSubmitting}
-            onAdd={(uri) => setReferences([...references, uri])}
-            onDismiss={(uri) =>
-              setDismissedRefs((prev) => new Set(prev).add(uri))
-            }
-            onRemove={(uri) =>
-              setReferences(references.filter((existing) => existing !== uri))
-            }
-          />
+                {submitError}
+              </p>
+            ) : null}
+          </div>
         </div>
 
-        {submitError ? (
-          <p
-            role="alert"
-            data-testid="new-issue-error"
-            className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
-          >
-            {submitError}
-          </p>
-        ) : null}
-
-        <DialogFooter className="items-center">
+        <DialogFooter
+          data-testid="new-issue-dialog-footer"
+          className="min-w-0 items-center gap-2 sm:flex-row sm:justify-end"
+        >
           {subIssueContext ? (
             <label className="mr-auto flex items-center gap-2 text-xs text-muted-foreground">
               <input
