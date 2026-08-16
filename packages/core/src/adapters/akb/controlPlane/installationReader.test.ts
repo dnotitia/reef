@@ -55,6 +55,13 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+function rawJsonResponse(body: string, status = 200): Response {
+  return new Response(body, {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
 function installationFixture(
   overrides: Record<string, unknown> = {},
 ): Record<string, unknown> {
@@ -320,6 +327,87 @@ describe("createAkbAppInstallationReader", () => {
     expect(spans[0].recordException).toHaveBeenCalledWith(
       expect.objectContaining({ message: expect.not.stringContaining(SECRET) }),
     );
+    expect(spans[0].end).toHaveBeenCalledTimes(1);
+  });
+
+  it("aborts a stalled fetch at the request timeout", async () => {
+    let capturedSignal: AbortSignal | null | undefined;
+    const fetch = vi.fn(
+      (
+        _input: RequestInfo | URL,
+        init: RequestInit = {},
+      ): Promise<Response> => {
+        const signal = init.signal;
+        capturedSignal = signal;
+        if (!signal) return Promise.reject(new Error("missing abort signal"));
+        return new Promise<Response>((_, reject) => {
+          if (signal.aborted) {
+            reject(signal.reason ?? new Error("aborted"));
+            return;
+          }
+          signal.addEventListener(
+            "abort",
+            () => reject(signal.reason ?? new Error("aborted")),
+            { once: true },
+          );
+        });
+      },
+    );
+    const reader = createAkbAppInstallationReader({
+      baseUrl: "https://akb.example.test",
+      appToken: "app-token",
+      fetch,
+      requestPolicy: { timeoutMs: 25, maxJsonResponseBytes: 2_000_000 },
+    });
+
+    const thrown = await reader
+      .getInstallation(VAULT_ID)
+      .catch((error) => error);
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(capturedSignal).toBeInstanceOf(AbortSignal);
+    expect(capturedSignal?.aborted).toBe(true);
+    expect(thrown).toMatchObject({
+      category: "unavailable",
+      upstreamStatus: 0,
+      httpStatus: 503,
+      retryable: true,
+      upstreamCode: "response_timeout",
+    });
+    expect(spans[0].end).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps an empty 200 JSON response to a bounded invalid-response error", async () => {
+    const { reader } = makeReader(rawJsonResponse(""));
+
+    const thrown = await reader
+      .getInstallation(VAULT_ID)
+      .catch((error) => error);
+
+    expect(thrown).toMatchObject({
+      category: "invalid_response",
+      upstreamStatus: 200,
+      httpStatus: 502,
+      retryable: true,
+      upstreamCode: "invalid_response",
+    });
+    expect(spans[0].end).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps syntactically invalid JSON to a bounded invalid-response error", async () => {
+    const { reader } = makeReader(rawJsonResponse('{"lifecycle":"active"'));
+
+    const thrown = await reader
+      .getInstallation(VAULT_ID)
+      .catch((error) => error);
+
+    expect(thrown).toMatchObject({
+      category: "invalid_response",
+      upstreamStatus: 200,
+      httpStatus: 502,
+      retryable: true,
+      upstreamCode: "invalid_response",
+    });
     expect(spans[0].end).toHaveBeenCalledTimes(1);
   });
 
