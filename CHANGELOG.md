@@ -12,6 +12,8 @@ explicitly in the entries below.
 
 ## Unreleased
 
+## v0.11.0 - 2026-08-18
+
 ### Security
 
 - **LLM JSON and activity-content parsing now avoid polynomial-time regular
