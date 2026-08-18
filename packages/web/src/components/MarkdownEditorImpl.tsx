@@ -158,7 +158,14 @@ export const EDITOR_BODY_MIN_HEIGHT = 200;
 export const EDITOR_BODY_DEFAULT_HEIGHT = 560;
 export const EDITOR_BODY_MAX_HEIGHT = 960;
 export const EDITOR_BODY_KEYBOARD_STEP = 32;
-export const EDITOR_BODY_DESKTOP_MIN_WIDTH = 1280;
+/**
+ * The height control is useful once the editor has enough room for a stable
+ * writing surface. This is intentionally narrower than the Issue Detail
+ * sheet's desktop breakpoint so browser zoom and split-window layouts do not
+ * make a mouse-accessible control disappear.
+ */
+export const EDITOR_BODY_RESIZE_MIN_WIDTH = 1024;
+export const EDITOR_BODY_FINE_POINTER_MEDIA_QUERY = "(pointer: fine)";
 export const EDITOR_BODY_VIEWPORT_RESERVATION = 160;
 export const EDITOR_BODY_SESSION_STORAGE_KEY =
   "reef:issue-description-height:v1";
@@ -208,7 +215,7 @@ export interface MarkdownEditorProps {
    * shared editor keeps its existing schema and interaction contract.
    */
   mentionConfig?: MarkdownEditorMentionConfig;
-  /** Enables the issue-detail desktop description height control. */
+  /** Enables the issue-detail description height control when the input surface supports it. */
   enableHeightResize?: boolean;
 }
 
@@ -661,6 +668,20 @@ function subscribeToEditorViewport(
   return () => window.removeEventListener("resize", onStoreChange);
 }
 
+function subscribeToEditorPointer(enabled: boolean, onStoreChange: () => void) {
+  if (
+    !enabled ||
+    typeof window === "undefined" ||
+    typeof window.matchMedia !== "function"
+  ) {
+    return () => {};
+  }
+
+  const mediaQuery = window.matchMedia(EDITOR_BODY_FINE_POINTER_MEDIA_QUERY);
+  mediaQuery.addEventListener("change", onStoreChange);
+  return () => mediaQuery.removeEventListener("change", onStoreChange);
+}
+
 function getEditorViewportSnapshot() {
   if (typeof window === "undefined") return "0:0";
   return `${window.innerWidth}:${window.innerHeight}`;
@@ -668,6 +689,22 @@ function getEditorViewportSnapshot() {
 
 function getServerEditorViewportSnapshot() {
   return "0:0";
+}
+
+function getEditorPointerSnapshot() {
+  if (
+    typeof window === "undefined" ||
+    typeof window.matchMedia !== "function"
+  ) {
+    return "0";
+  }
+  return window.matchMedia(EDITOR_BODY_FINE_POINTER_MEDIA_QUERY).matches
+    ? "1"
+    : "0";
+}
+
+function getServerEditorPointerSnapshot() {
+  return "0";
 }
 
 function parseEditorViewportSnapshot(snapshot: string) {
@@ -749,7 +786,7 @@ function measureEditorBodyHeight(
 }
 
 interface MarkdownEditorHeightResizeHandlers {
-  isDesktop: boolean;
+  isResizeAvailable: boolean;
   isManual: boolean;
   isResizing: boolean;
   maxHeight: number;
@@ -773,10 +810,20 @@ function useMarkdownEditorHeightResize(
       subscribeToEditorViewport(enabled, onStoreChange),
     [enabled],
   );
+  const subscribeToPointer = useCallback(
+    (onStoreChange: () => void) =>
+      subscribeToEditorPointer(enabled, onStoreChange),
+    [enabled],
+  );
   const viewportSnapshot = useSyncExternalStore(
     subscribe,
     getEditorViewportSnapshot,
     getServerEditorViewportSnapshot,
+  );
+  const pointerSnapshot = useSyncExternalStore(
+    subscribeToPointer,
+    getEditorPointerSnapshot,
+    getServerEditorPointerSnapshot,
   );
   const { width: viewportWidth, height: viewportHeight } =
     parseEditorViewportSnapshot(viewportSnapshot);
@@ -792,8 +839,10 @@ function useMarkdownEditorHeightResize(
     viewportWidth || (typeof window === "undefined" ? 0 : window.innerWidth);
   const liveViewportHeight =
     viewportHeight || (typeof window === "undefined" ? 0 : window.innerHeight);
-  const isDesktop =
-    enabled && liveViewportWidth >= EDITOR_BODY_DESKTOP_MIN_WIDTH;
+  const isResizeAvailable =
+    enabled &&
+    pointerSnapshot === "1" &&
+    liveViewportWidth >= EDITOR_BODY_RESIZE_MIN_WIDTH;
   const maxHeight = getEditorMaxHeight(liveViewportHeight);
   const [manualHeightState, setManualHeight] = useState<number | null>(null);
   const [currentHeight, setCurrentHeight] = useState(
@@ -801,7 +850,7 @@ function useMarkdownEditorHeightResize(
   );
   const [isResizing, setIsResizing] = useState(false);
   const persistedManualHeight =
-    isDesktop && storedEditorHeight !== null
+    isResizeAvailable && storedEditorHeight !== null
       ? clampEditorHeight(storedEditorHeight, maxHeight)
       : null;
   const manualHeight = manualHeightState ?? persistedManualHeight;
@@ -815,14 +864,14 @@ function useMarkdownEditorHeightResize(
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: React Compiler requires the stable setter dependency for this callback.
   const refreshAutoHeight = useCallback(() => {
-    if (!isDesktop || manualHeightRef.current !== null) return;
+    if (!isResizeAvailable || manualHeightRef.current !== null) return;
     const nextHeight = measureEditorBodyHeight(bodyRef.current, maxHeight);
     currentHeightRef.current = nextHeight;
     setCurrentHeight(nextHeight);
-  }, [bodyRef, isDesktop, maxHeight, setCurrentHeight]);
+  }, [bodyRef, isResizeAvailable, maxHeight, setCurrentHeight]);
 
   useLayoutEffect(() => {
-    if (!isDesktop || liveViewportHeight <= 0) return;
+    if (!isResizeAvailable || liveViewportHeight <= 0) return;
     if (manualHeightRef.current !== null) {
       const nextHeight = clampEditorHeight(manualHeightRef.current, maxHeight);
       currentHeightRef.current = nextHeight;
@@ -835,17 +884,22 @@ function useMarkdownEditorHeightResize(
       return;
     }
     refreshAutoHeight();
-  }, [isDesktop, liveViewportHeight, maxHeight, refreshAutoHeight]);
+  }, [isResizeAvailable, liveViewportHeight, maxHeight, refreshAutoHeight]);
 
   useLayoutEffect(() => {
-    if (!isDesktop || manualHeightState !== null) return;
+    if (!isResizeAvailable || manualHeightState !== null) return;
     if (persistedManualHeight === null) return;
     manualHeightRef.current = persistedManualHeight;
     currentHeightRef.current = persistedManualHeight;
     if (persistedManualHeight !== storedEditorHeight) {
       storeEditorHeight(persistedManualHeight);
     }
-  }, [isDesktop, manualHeightState, persistedManualHeight, storedEditorHeight]);
+  }, [
+    isResizeAvailable,
+    manualHeightState,
+    persistedManualHeight,
+    storedEditorHeight,
+  ]);
 
   function measureCurrentHeight() {
     const nextHeight = measureEditorBodyHeight(bodyRef.current, maxHeight);
@@ -855,7 +909,7 @@ function useMarkdownEditorHeightResize(
   }
 
   function enterManualMode() {
-    if (!isDesktop) return null;
+    if (!isResizeAvailable) return null;
     const existingHeight = manualHeightRef.current;
     if (existingHeight !== null) {
       const nextHeight = clampEditorHeight(existingHeight, maxHeight);
@@ -877,7 +931,7 @@ function useMarkdownEditorHeightResize(
   }
 
   function updateHeight(value: number) {
-    if (!isDesktop) return;
+    if (!isResizeAvailable) return;
     const nextHeight = clampEditorHeight(value, maxHeight);
     manualHeightRef.current = nextHeight;
     currentHeightRef.current = nextHeight;
@@ -887,7 +941,7 @@ function useMarkdownEditorHeightResize(
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (!isDesktop) return;
+    if (!isResizeAvailable) return;
     let nextHeight: number | null = null;
     switch (event.key) {
       case "ArrowDown":
@@ -916,7 +970,7 @@ function useMarkdownEditorHeightResize(
   }
 
   function onPointerDown(event: PointerEvent<HTMLDivElement>) {
-    if (!isDesktop || event.button !== 0) return;
+    if (!isResizeAvailable || event.button !== 0) return;
     const startHeight = enterManualMode();
     if (startHeight === null) return;
     event.preventDefault();
@@ -946,14 +1000,14 @@ function useMarkdownEditorHeightResize(
     setIsResizing(false);
   }
 
-  const isManual = enabled && isDesktop && manualHeight !== null;
+  const isManual = isResizeAvailable && manualHeight !== null;
   const accessibleHeight = clampEditorHeight(
     isManual ? manualHeight : currentHeight,
     maxHeight,
   );
 
   return {
-    isDesktop,
+    isResizeAvailable,
     isManual,
     isResizing,
     maxHeight,
@@ -1018,7 +1072,7 @@ export function MarkdownEditor({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const bodyFrameRef = useRef<HTMLDivElement | null>(null);
   const {
-    isDesktop: isHeightResizeDesktop,
+    isResizeAvailable: isHeightResizeAvailable,
     isManual: isManualHeight,
     isResizing: isHeightResizing,
     maxHeight: editorMaxHeight,
@@ -1886,7 +1940,7 @@ export function MarkdownEditor({
         data-testid="markdown-editor-body-frame"
         className={cn(
           EDITOR_BODY_FRAME_CLASS,
-          enableHeightResize && isHeightResizeDesktop && "relative",
+          enableHeightResize && isHeightResizeAvailable && "relative",
           isManualHeight && "overflow-auto",
         )}
         style={bodyFrameStyle}
@@ -1911,7 +1965,7 @@ export function MarkdownEditor({
             // so the textarea is does not stuck at min-h on those browsers.
             className={cn(
               "w-full field-sizing-content rounded-sm bg-transparent px-3 py-2 text-sm font-mono focus:outline-none",
-              enableHeightResize ? "resize-none" : "resize-y",
+              isHeightResizeAvailable ? "resize-none" : "resize-y",
               isManualHeight ? EDITOR_MANUAL_BODY_CLASS : EDITOR_BODY_SIZING,
             )}
             placeholder={sourcePlaceholder ?? placeholder}
@@ -1921,7 +1975,7 @@ export function MarkdownEditor({
           <EditorContent editor={editor} />
         )}
 
-        {enableHeightResize && isHeightResizeDesktop ? (
+        {enableHeightResize && isHeightResizeAvailable ? (
           <div
             role="separator"
             tabIndex={0}
@@ -1953,7 +2007,7 @@ export function MarkdownEditor({
           </div>
         ) : null}
       </div>
-      {enableHeightResize && isHeightResizeDesktop ? (
+      {enableHeightResize && isHeightResizeAvailable ? (
         <span id={EDITOR_RESIZE_DESCRIPTION_ID} className="sr-only">
           {t("resizeHandleDescription", {
             current: String(editorCurrentHeight),

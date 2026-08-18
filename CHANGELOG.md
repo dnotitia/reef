@@ -45,10 +45,11 @@ explicitly in the entries below.
   1200px minimum, 1440px default, and 1680px maximum, while still capping the
   panel at 94% of narrower viewports.
 
-- **Issue detail Description editing now supports a quiet desktop height grip**
-  with pointer capture, keyboard and screen-reader controls, shared WYSIWYG /
-  Source sizing, and tab-session restoration; narrow layouts keep the existing
-  automatic editor height. (REEF-526)
+- **Issue detail Description editing now supports a quiet fine-pointer height
+  grip from 1024px upward** with pointer capture, keyboard and screen-reader
+  controls, shared WYSIWYG / Source sizing, and tab-session restoration.
+  Coarse-pointer and narrower layouts omit the focusable grip; Source mode
+  keeps its native vertical resize fallback. (REEF-526)
 
 - **New Issue now keeps its responsive writing flow intact on narrow and
   reduced-height viewports.** Header actions reflow without clipping, the

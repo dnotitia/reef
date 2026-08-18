@@ -14,6 +14,8 @@ import {
   EDITOR_BODY_DEFAULT_HEIGHT,
   EDITOR_BODY_KEYBOARD_STEP,
   EDITOR_BODY_MIN_HEIGHT,
+  EDITOR_BODY_FINE_POINTER_MEDIA_QUERY,
+  EDITOR_BODY_RESIZE_MIN_WIDTH,
   EDITOR_BODY_SIZING,
   EDITOR_BODY_SESSION_STORAGE_KEY,
   EDITOR_RESIZABLE_BODY_ID,
@@ -135,10 +137,27 @@ vi.mock("@tiptap/extension-list", () => ({
 vi.mock("@tiptap/markdown", () => ({ Markdown: {} }));
 
 describe("MarkdownEditor", () => {
+  function setPointerCapability(fine: boolean) {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: vi.fn((query: string) => ({
+        matches: query === EDITOR_BODY_FINE_POINTER_MEDIA_QUERY && fine,
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(() => false),
+      })),
+    });
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockMarkdownOverride = undefined;
     sessionStorage.clear();
+    setPointerCapability(true);
     Object.defineProperty(window, "innerWidth", {
       configurable: true,
       value: 1024,
@@ -1343,7 +1362,7 @@ describe("MarkdownEditor", () => {
       );
     });
 
-    it("shares the explicit frame with Source mode and opts out below desktop width", async () => {
+    it("shares the explicit frame with Source mode and opts out below the resize width", async () => {
       setViewport(1440, 900);
       sessionStorage.setItem(EDITOR_BODY_SESSION_STORAGE_KEY, "480");
       render(<MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />);
@@ -1358,11 +1377,37 @@ describe("MarkdownEditor", () => {
       );
       expect(frame).toHaveStyle({ height: "480px" });
 
-      setViewport(1279, 900);
+      setViewport(EDITOR_BODY_RESIZE_MIN_WIDTH - 1, 900);
       await waitFor(() => {
         expect(screen.queryByRole("separator")).not.toBeInTheDocument();
         expect(frame).not.toHaveStyle({ height: "480px" });
       });
+      expect(screen.getByTestId("markdown-source-textarea")).toHaveClass(
+        "resize-y",
+      );
+    });
+
+    it("omits the focusable handle for coarse pointers", () => {
+      setPointerCapability(false);
+      setViewport(1440, 900);
+      render(<MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />);
+
+      expect(
+        screen.queryByTestId("markdown-editor-resize-handle"),
+      ).not.toBeInTheDocument();
+      act(() => fireEvent.click(screen.getByTitle("Toggle source mode")));
+      expect(screen.getByTestId("markdown-source-textarea")).toHaveClass(
+        "resize-y",
+      );
+    });
+
+    it("keeps the control available in a zoomed desktop viewport", () => {
+      setViewport(EDITOR_BODY_RESIZE_MIN_WIDTH, 900);
+      render(<MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />);
+
+      expect(
+        screen.getByTestId("markdown-editor-resize-handle"),
+      ).toBeInTheDocument();
     });
   });
 
