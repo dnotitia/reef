@@ -1888,6 +1888,10 @@ export function MarkdownEditor({
           EDITOR_BODY_FRAME_CLASS,
           enableHeightResize && isHeightResizeDesktop && "relative",
           isManualHeight && "overflow-auto",
+          // The manual-height frame is the scroll owner. Keep its scrollbar
+          // paint area off the rounded root's right/bottom focus chrome; the
+          // editor surface itself already has an inset gutter in auto mode.
+          isManualHeight && "mr-1 mb-1",
         )}
         style={bodyFrameStyle}
       >
