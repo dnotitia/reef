@@ -6,6 +6,7 @@ import {
   ACTIVITY_EVENT_PRIORITY_CHANGE,
   type ActivityEvent,
   type Comment,
+  type IssueBodyHistoryEvent,
   type IssueMetadata,
   type Status,
 } from "@reef/core";
@@ -57,6 +58,20 @@ function activity(
     actor: "bob",
     at,
     source: null,
+  };
+}
+
+function bodyUpdate(
+  id: string,
+  at: string,
+  actor: string | null = "alice",
+): IssueBodyHistoryEvent {
+  return {
+    id: `body-update:${id}`,
+    hash: id,
+    at,
+    actor,
+    kind: "body_update",
   };
 }
 
@@ -273,6 +288,27 @@ describe("buildEntries — merge-sort (AC1)", () => {
       to: "2026-07-21",
     });
   });
+
+  it("merges read-time body history and de-dupes repeated hashes", () => {
+    const history = [
+      bodyUpdate("h1", "2026-06-02T12:00:00.000Z"),
+      bodyUpdate("h1", "2026-06-02T12:00:00.000Z"),
+    ];
+    const entries = buildEntries([], [], makeIssue(), history).filter(
+      (entry) => entry.type === "system",
+    );
+
+    expect(entries).toHaveLength(2); // created + one body update
+    expect(entries[1]).toMatchObject({
+      type: "system",
+      event: {
+        id: "body-update:h1",
+        hash: "h1",
+        actor: "alice",
+        kind: "body_update",
+      },
+    });
+  });
 });
 
 describe("reconstructEvents (AC5)", () => {
@@ -423,6 +459,44 @@ describe("collapseRuns (AC3)", () => {
     // s1 alone (1) + comment + s2,s3 (2) — none reaches the threshold.
     expect(entries.every((e) => e.type !== "collapsed")).toBe(true);
     expect(entries).toHaveLength(4);
+  });
+
+  it("folds three consecutive body updates, but keeps status and body runs separate", () => {
+    const body = (
+      id: string,
+      at: string,
+    ): ReturnType<typeof buildEntries>[number] => ({
+      type: "system",
+      at,
+      event: bodyUpdate(id, at),
+    });
+    const entries = collapseRuns([
+      body("b1", "2026-06-02T00:00:00.000Z"),
+      body("b2", "2026-06-03T00:00:00.000Z"),
+      body("b3", "2026-06-04T00:00:00.000Z"),
+      sys("s1", "2026-06-05T00:00:00.000Z"),
+      sys("s2", "2026-06-06T00:00:00.000Z"),
+      sys("s3", "2026-06-07T00:00:00.000Z"),
+    ]);
+
+    expect(entries).toHaveLength(2);
+    expect(entries).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "collapsed" })]),
+    );
+    expect(
+      entries.filter(
+        (entry) =>
+          entry.type === "collapsed" &&
+          entry.events[0]?.event.kind === "body_update",
+      ),
+    ).toHaveLength(1);
+    expect(
+      entries.filter(
+        (entry) =>
+          entry.type === "collapsed" &&
+          entry.events[0]?.event.kind === "status_change",
+      ),
+    ).toHaveLength(1);
   });
 });
 

@@ -656,6 +656,7 @@ function markdownFixtureVault(name) {
   secondIssue.labels = ["markdown", "fixture"];
   vault.issues = [issue, secondIssue];
   vault.documents = new Map();
+  vault.documentHistory = new Map();
   vault.comments = [];
   vault.activity = [];
   vault.notifications = [];
@@ -789,6 +790,7 @@ function configuredVault(name) {
     monitoredRepos: [],
     issues,
     documents: new Map(),
+    documentHistory: new Map(),
     members: [
       {
         username: "alice",
@@ -914,6 +916,7 @@ function configuredVault(name) {
   seedIssueDocument(vault, "REEF-001", "Alpha description from fixture.");
   seedIssueDocument(vault, "REEF-002", "Beta description from fixture.");
   seedIssueDocument(vault, "REEF-003", "Gamma backlog description.");
+  seedIssueHistory(vault, "REEF-001");
   seedReferenceDocument(vault, "docs/spec-overview.md", {
     title: "Spec overview",
     type: "reference",
@@ -929,6 +932,7 @@ function configuredEmptyVault(name) {
   const vault = configuredVault(name);
   vault.issues = [];
   vault.documents = new Map();
+  vault.documentHistory = new Map();
   vault.sprints = [];
   vault.milestones = [];
   vault.releases = [];
@@ -1396,6 +1400,7 @@ function rawVault(name) {
     monitoredRepos: [],
     issues: [],
     documents: new Map(),
+    documentHistory: new Map(),
     members: [],
     sprints: [],
     milestones: [],
@@ -1847,6 +1852,25 @@ async function handleAkb(req, res, url) {
     if (!vault) return;
     const stored = putDocument(vault, body);
     return json(res, 200, documentPutResponse(vault, stored));
+  }
+
+  const historyMatch = path.match(/^\/api\/v1\/history\/([^/]+)\/(.+)$/);
+  if (historyMatch && req.method === "GET") {
+    const vault = getVault(decodeURIComponent(historyMatch[1]), res);
+    if (!vault) return;
+    const docPath = decodeURIComponent(historyMatch[2]);
+    const parsedLimit = Number.parseInt(
+      url.searchParams.get("limit") ?? "100",
+      10,
+    );
+    const limit = Number.isFinite(parsedLimit)
+      ? Math.min(Math.max(parsedLimit, 1), 100)
+      : 100;
+    return json(res, 200, {
+      kind: "document_history",
+      uri: docUri(vault.name, docPath),
+      history: (vault.documentHistory?.get(docPath) ?? []).slice(0, limit),
+    });
   }
 
   const docMatch = path.match(/^\/api\/v1\/documents\/([^/]+)\/(.+)$/);
@@ -3447,6 +3471,48 @@ function seedIssueDocument(vault, id, content) {
     updated_at: NOW,
     current_commit: `e2e-seed-${slugify(id)}`,
   });
+}
+
+function seedIssueHistory(vault, id) {
+  const path = issuePathFor(id);
+  vault.documentHistory.set(path, [
+    {
+      hash: "e2e-body-update-1",
+      message: "Update issue body\n\naction: update\nagent: codex",
+      author: "00000000-0000-4000-8000-000000000101",
+      author_name: "alice",
+      date: "2026-06-17T09:00:00.000Z",
+    },
+    {
+      hash: "e2e-body-update-2",
+      message: "Update issue body\n\naction: update\nagent: codex",
+      author: "00000000-0000-4000-8000-000000000102",
+      author_name: null,
+      date: "2026-06-17T09:01:00.000Z",
+    },
+    {
+      hash: "e2e-body-update-3",
+      message: "Update issue body\n\naction: update\nagent: codex",
+      author: "00000000-0000-4000-8000-000000000103",
+      author_name: "alice",
+      date: "2026-06-17T09:02:00.000Z",
+    },
+    {
+      hash: "e2e-body-update-4",
+      message: "Update issue body\n\naction: update\nagent: codex",
+      author: "00000000-0000-4000-8000-000000000104",
+      author_name: "alice",
+      date: "2026-06-17T09:03:00.000Z",
+    },
+    {
+      hash: "e2e-body-create",
+      message: "Create issue\n\naction: create",
+      author: "00000000-0000-4000-8000-000000000105",
+      author_name: "alice",
+      date: "2026-06-17T08:59:00.000Z",
+    },
+    { hash: "e2e-body-malformed", message: "invalid" },
+  ]);
 }
 
 function seedReferenceDocument(

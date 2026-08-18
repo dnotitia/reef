@@ -127,6 +127,11 @@ export {
   statusChangeEventKey,
   type ActivityEventInput,
 } from "./issues/activity";
+export {
+  listIssueBodyHistory,
+  parseHistoryTrailers,
+  projectIssueBodyHistoryEntry,
+} from "./issues/history";
 export { ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE } from "../../schemas/issues/activity";
 export {
   composeActivitySuggestionDocumentBody,

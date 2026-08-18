@@ -31,6 +31,7 @@ vi.mock("@/lib/storage/assigneeRecents", () => ({
 
 import { apiFetch } from "@/lib/apiClient";
 import type { IssueMetadata } from "@reef/core";
+import { issueBodyHistoryKey } from "../queries/useIssueBodyHistory";
 import { useUpdateIssue } from "./useUpdateIssue";
 
 const mockApiFetch = vi.mocked(apiFetch);
@@ -189,7 +190,9 @@ describe("useUpdateIssue", () => {
         status: 200,
       }),
     );
-    const { result } = renderUseUpdateIssue();
+    const queryClient = makeTestQueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderUseUpdateIssue(queryClient);
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -210,6 +213,9 @@ describe("useUpdateIssue", () => {
         },
       },
     );
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: issueBodyHistoryKey("reef-acme", "REEF-001"),
+    });
   });
 
   it("omits content key from body when undefined", async () => {

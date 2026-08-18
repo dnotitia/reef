@@ -20,6 +20,7 @@ import {
 } from "../../lib/issueListMembership";
 import { toListItem } from "../../lib/toListItem";
 import { activityKey } from "../queries/useActivity";
+import { issueBodyHistoryKey } from "../queries/useIssueBodyHistory";
 
 export interface UpdateIssueInput {
   id: string;
@@ -185,7 +186,7 @@ export function useUpdateIssue(options: UseUpdateIssueOptions = {}) {
         context ? { previousDetail: context.previousDetail } : undefined,
       );
     },
-    onSuccess: async (data, { id, vault, patch }) => {
+    onSuccess: async (data, { id, vault, patch, content }) => {
       const item = toListItem(data.issue);
       // The server response is authoritative — write it straight into the
       // detail and every list-variant cache (ref-preserving for unchanged
@@ -228,6 +229,11 @@ export function useUpdateIssue(options: UseUpdateIssueOptions = {}) {
       if (patchAffectsActivityTimeline(patch)) {
         void queryClient.invalidateQueries({
           queryKey: activityKey(vault, id),
+        });
+      }
+      if (content !== undefined) {
+        void queryClient.invalidateQueries({
+          queryKey: issueBodyHistoryKey(vault, id),
         });
       }
 
