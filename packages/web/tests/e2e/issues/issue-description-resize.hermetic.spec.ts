@@ -9,7 +9,7 @@ const HEIGHT_KEY = "reef:issue-description-height:v1";
 const MIN_HEIGHT = 200;
 const MAX_HEIGHT = 960;
 const VIEWPORT_RESERVATION = 160;
-const DESKTOP_MIN_WIDTH = 1280;
+const RESIZE_MIN_WIDTH = 1024;
 const KEYBOARD_STEP = 32;
 
 interface MarkdownFixtureTask {
@@ -198,7 +198,15 @@ test.describe("Hermetic issue description height resize", () => {
       page.getByTestId("markdown-editor-resize-handle"),
     ).toHaveAttribute("aria-valuenow", "420");
 
-    await page.setViewportSize({ width: DESKTOP_MIN_WIDTH - 1, height: 900 });
+    // A Retina/zoomed desktop can expose a CSS viewport below the sheet's
+    // 1280px breakpoint while still leaving the description editor wide enough
+    // for a mouse resize affordance.
+    await page.setViewportSize({ width: 1237, height: 900 });
+    await expect(
+      page.getByTestId("markdown-editor-resize-handle"),
+    ).toBeVisible();
+
+    await page.setViewportSize({ width: RESIZE_MIN_WIDTH - 1, height: 900 });
     await expect(page.getByTestId("markdown-editor-resize-handle")).toHaveCount(
       0,
     );
