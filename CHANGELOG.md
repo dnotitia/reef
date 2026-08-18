@@ -12,34 +12,39 @@ explicitly in the entries below.
 
 ## Unreleased
 
+## v0.11.0 - 2026-08-18
+
 ### Security
 
-- **LLM JSON and activity-content parsing now avoid polynomial-time regular
-  expressions, the live AKB drift workflow no longer exposes a shared package
-  cache while executing the upstream moving branch, and vulnerable transitive
-  `DOMPurify` and `nanoid` releases are replaced with patched versions.**
+- **LLM JSON and activity-content parsing no longer rely on polynomial-time
+  regular expressions.** Patched `DOMPurify` and `nanoid` versions also address
+  known transitive dependency vulnerabilities.
 
-### Changed
-
-- **Core now exposes a credential-safe app-scoped AKB installation reader** for
-  lifecycle, release, observed, grant, and upstream drift projections without
-  exposing control-plane SDK operations or opaque response details. (REEF-417)
-
-- **Issue-body references now share distinct compact visuals for known issues,
-  documents, files, and resolved mentions while ordinary links retain their
-  existing styling.**
+### Added
 
 - **Issue create and detail Markdown bodies now share one localized `@` reference
   picker for people, issues, and AKB documents.** Person selections stay
   canonical mentions, issue selections insert plain IDs, and document selections
   insert ordinary Markdown links without changing Source mode or issue
-  relations. (REEF-524)
+  relations.
 
 - **Issue Markdown editing now offers a categorized keyboard-first slash block
   menu with localized filtering, basic GFM table insertion, and bounded
   lowlight code highlighting.** The menu is editor-bound, clamps or flips at
   narrow widths, and leaves direct REEF-id and relation behaviors unchanged.
-  (REEF-348)
+
+- **Comment authors can now permanently delete their own comment and every
+  reply below it** from the Activity timeline after confirmation; the server
+  removes matching comment-source notifications in the same cascade.
+
+### Changed
+
+- **AKB installation status reads are now scoped to Reef's application context
+  and redact credentials and opaque upstream responses.**
+
+- **Issue-body references now share distinct compact visuals for known issues,
+  documents, files, and resolved mentions while ordinary links retain their
+  existing styling.**
 
 - **Issue detail editing now uses a roomier three-step desktop width scale:**
   1200px minimum, 1440px default, and 1680px maximum, while still capping the
@@ -49,28 +54,30 @@ explicitly in the entries below.
   grip from 1024px upward** with pointer capture, keyboard and screen-reader
   controls, shared WYSIWYG / Source sizing, and tab-session restoration.
   Coarse-pointer and narrower layouts omit the focusable grip; Source mode
-  keeps its native vertical resize fallback. (REEF-526)
+  keeps its native vertical resize fallback.
 
 - **New Issue now keeps its responsive writing flow intact on narrow and
   reduced-height viewports.** Header actions reflow without clipping, the
   title/Description column stays ahead of metadata, and only the form body
-  scrolls while the Cancel / Create issue footer remains reachable. (REEF-529)
-
-- **Comment authors can now permanently delete their own comment and every
-  reply below it** from the Activity timeline after confirmation; the server
-  removes matching comment-source notifications in the same cascade. (REEF-520)
+  scrolls while the Cancel / Create issue footer remains reachable.
 
 - **Authentication is now an explicit local-or-SSO deployment choice.** Local
-  mode preserves AKB-issued JWT cookies. SSO mode makes Reef the dedicated
-  Keycloak Authorization Code + PKCE BFF, stores the token set encrypted in
-  Redis behind an opaque browser handle, rotates refresh credentials with
-  distributed concurrency control, and retires Reef's AKB JWT-exchange path.
-  Production SSO now requires its Redis URL and an independent 32-byte session
-  encryption key. Session lifetimes now have immutable login-time deadlines;
-  OpenID Back-Channel Logout atomically invalidates hashed sid/sub indexes with
-  replay protection; token/JWKS/revocation traffic uses an explicit in-cluster
-  Keycloak transport; and dependency-aware readiness proves Redis and OIDC
-  reachability without routing internal calls through public ingress.
+  mode preserves AKB-issued JWT cookies. SSO mode uses Keycloak Authorization
+  Code + PKCE with encrypted Redis-backed sessions, refresh-credential rotation,
+  back-channel logout, and dependency-aware readiness.
+
+### Migration
+
+- **SSO deployments must provide `REEF_SESSION_REDIS_URL` and an independent
+  32-byte `REEF_SESSION_ENCRYPTION_KEY` before rollout.** Local-auth deployments
+  require no authentication migration. No browser-storage or AKB schema
+  migration is required for this release.
+
+### Operational
+
+- **SSO readiness now verifies Redis and Keycloak reachability before serving
+  traffic.** Confirm both dependencies and the required session variables during
+  rollout; local mode does not require these SSO dependencies.
 
 ### Fixed
 
@@ -80,22 +87,21 @@ explicitly in the entries below.
 - **Priority selectors now render the unset label with the same typography as
   real priority options while keeping it free of a priority color dot.** The
   shared treatment covers List and Backlog quick edit, issue creation, issue
-  detail, and bulk edit. (REEF-521)
+  detail, and bulk edit.
 - **Issue List assignee quick editors now close on Escape even when focus stays
   on the originating cell trigger, without changing the assignee or issuing a
-  save request.** (REEF-497)
+  save request.**
 - **Issue quick editors now close reliably with Escape immediately after a
   viewport resize, and List context-menu keyboard coverage no longer races a
   preceding pointer menu's focus restoration.**
 - **Issue detail assignee selection now exposes every assignable writer, admin,
   and owner with deterministic ordering and recent-success prioritization,
-  while preserving long-list keyboard behavior and failed-save rollback.**
-  (REEF-501)
+  while preserving long-list keyboard behavior and failed-save rollback.
 - **Issue-list assignee cells now resolve the current vault display name from
   the stable username, with refresh-on-mount roster revalidation and login
-  fallbacks for missing names or members.** (REEF-504)
-- **Truncated sub-issue titles now expose the full title on hover and keyboard focus without changing the existing row metadata layout.** (REEF-507)
-- **Truncated relation titles and single planning selector values now expose the full value on hover and keyboard focus without changing selection or navigation behavior.** (REEF-509)
+  fallbacks for missing names or members.**
+- **Truncated sub-issue titles now expose the full title on hover and keyboard focus without changing the existing row metadata layout.**
+- **Truncated relation titles and single planning selector values now expose the full value on hover and keyboard focus without changing selection or navigation behavior.**
 - **Issue detail panels can now be resized on desktop** with a pointer or
   keyboard splitter, while preserving the width for the current tab session
   and keeping the existing narrow-screen layout.
