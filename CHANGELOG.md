@@ -77,7 +77,7 @@ explicitly in the entries below.
 
 - **SSO readiness now verifies Redis and Keycloak reachability before serving
   traffic.** Confirm both dependencies and the required session variables during
-  rollout; local mode remains dependency-free.
+  rollout; local mode does not require these SSO dependencies.
 
 ### Fixed
 
