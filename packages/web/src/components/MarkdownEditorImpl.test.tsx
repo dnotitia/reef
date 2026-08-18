@@ -1349,6 +1349,7 @@ describe("MarkdownEditor", () => {
       render(<MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />);
       const frame = screen.getByTestId("markdown-editor-body-frame");
       expect(frame).toHaveStyle({ height: "480px" });
+      expect(frame).toHaveClass("overflow-auto", "mr-1", "mb-1");
       act(() => fireEvent.click(screen.getByTitle("Toggle source mode")));
       expect(screen.getByTestId("markdown-source-textarea")).toHaveClass(
         "resize-none",

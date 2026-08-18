@@ -67,6 +67,7 @@ test.describe("Hermetic issue description height resize", () => {
 
     const frame = page.getByTestId("markdown-editor-body-frame");
     const handle = page.getByTestId("markdown-editor-resize-handle");
+    const editor = page.getByTestId("markdown-editor");
     await expect(frame).toBeVisible();
     await expect(handle).toBeVisible();
     await expect(handle).toHaveAttribute("role", "separator");
@@ -100,6 +101,46 @@ test.describe("Hermetic issue description height resize", () => {
         Math.min(initialHeight + KEYBOARD_STEP, getMaxHeight(viewport.height)),
       ),
     );
+
+    const edgeGeometry = await editor.evaluate((root) => {
+      const frame = root.querySelector<HTMLElement>(
+        '[data-testid="markdown-editor-body-frame"]',
+      );
+      const handle = root.querySelector<HTMLElement>(
+        '[data-testid="markdown-editor-resize-handle"]',
+      );
+      if (!frame || !handle) {
+        throw new Error("Markdown editor resize geometry is not mounted");
+      }
+      const rootRect = root.getBoundingClientRect();
+      const frameRect = frame.getBoundingClientRect();
+      const handleRect = handle.getBoundingClientRect();
+      return {
+        rootRightGap: rootRect.right - frameRect.right,
+        rootBottomGap: rootRect.bottom - frameRect.bottom,
+        verticalScrollbarWidth: frame.offsetWidth - frame.clientWidth,
+        horizontalScrollbarHeight: frame.offsetHeight - frame.clientHeight,
+        handleRight: handleRect.right,
+        handleBottom: handleRect.bottom,
+        frameRight: frameRect.right,
+        frameBottom: frameRect.bottom,
+        handleWidth: handleRect.width,
+        handleHeight: handleRect.height,
+      };
+    });
+    // The manual frame owns scrolling, so its classic scrollbar must stop
+    // before the rounded root's focus chrome. The handle remains inside the
+    // frame's client area (before any scrollbar track) with a real hit box.
+    expect(edgeGeometry.rootRightGap).toBeGreaterThanOrEqual(4);
+    expect(edgeGeometry.rootBottomGap).toBeGreaterThanOrEqual(4);
+    expect(edgeGeometry.handleRight).toBeLessThanOrEqual(
+      edgeGeometry.frameRight - edgeGeometry.verticalScrollbarWidth + 0.5,
+    );
+    expect(edgeGeometry.handleBottom).toBeLessThanOrEqual(
+      edgeGeometry.frameBottom - edgeGeometry.horizontalScrollbarHeight + 0.5,
+    );
+    expect(edgeGeometry.handleWidth).toBeGreaterThanOrEqual(32);
+    expect(edgeGeometry.handleHeight).toBeGreaterThanOrEqual(32);
     await page.keyboard.press("Home");
     await expect(handle).toHaveAttribute("aria-valuenow", String(MIN_HEIGHT));
     await page.keyboard.press("End");
