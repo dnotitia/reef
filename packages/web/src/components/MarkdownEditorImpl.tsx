@@ -3,17 +3,22 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { linkSafetyConfig } from "@/components/markdown/linkSafety";
 import {
   attachmentFileTypeLabel,
   isAkbFileUri,
 } from "@/features/issues/lib/attachmentUrls";
+import { isDirectIssueMarkdownHref } from "@/features/issues/lib/markdownLinkPolicy";
 import {
   type AttachmentMarkdownUploadResult,
   appendMarkdownSnippets,
   filesFromFileList,
 } from "@/features/issues/lib/attachmentMarkdown";
 import { resolveAkbDocumentTitles } from "@/lib/akb/documentTitleResolver";
-import { parseAkbDocumentUri } from "@/lib/akb/documentUri";
+import {
+  buildAkbDocumentUrl,
+  parseAkbDocumentUri,
+} from "@/lib/akb/documentUri";
 import {
   extractAkbDocumentUris,
   normalizeAkbDocumentMarkdownLinks,
@@ -104,6 +109,28 @@ const scopedLowlight = {
 };
 
 /**
+ * Tiptap's task-item node view creates a native checkbox, but leaves its
+ * keyboard affordance implicit. Keep the browser's normal Tab order explicit
+ * so the checkbox remains reachable inside the contenteditable surface.
+ */
+const AccessibleTaskItem = TaskItem.extend({
+  addNodeView() {
+    const renderNodeView = this.parent?.();
+    if (!renderNodeView) return null;
+
+    return (props: Parameters<typeof renderNodeView>[0]) => {
+      const nodeView = renderNodeView(props);
+      if (nodeView.dom instanceof HTMLElement) {
+        nodeView.dom
+          .querySelector<HTMLInputElement>('input[type="checkbox"]')
+          ?.setAttribute("tabindex", "0");
+      }
+      return nodeView;
+    };
+  },
+});
+
+/**
  * Shared height policy for both editor surfaces — the WYSIWYG body and the
  * Source textarea. The body starts at a 200px floor so an empty description
  * reads as a real authoring canvas instead of a cramped box: on the create
@@ -125,6 +152,7 @@ export const EDITOR_BODY_SIZING =
   "min-h-[200px] max-h-[clamp(200px,48vh,560px)] overflow-y-auto [scrollbar-gutter:stable]";
 export const EDITOR_BODY_FRAME_CLASS = "p-1";
 export const EDITOR_CONTENT_CLASS = "reef-markdown-editor";
+export const MARKDOWN_SURFACE_CLASS = "reef-markdown-surface";
 export const EDITOR_RESIZABLE_BODY_ID = "markdown-editor-body-frame";
 export const EDITOR_BODY_MIN_HEIGHT = 200;
 export const EDITOR_BODY_DEFAULT_HEIGHT = 560;
@@ -364,7 +392,7 @@ export function createMarkdownEditorExtensions(
     // mark's href and therefore remains the Markdown serialization value.
     createIssueAttachmentLinkExtension(resolveAttachmentHref),
     TaskList,
-    TaskItem.configure({ nested: true }),
+    AccessibleTaskItem.configure({ nested: true }),
     Table.configure({
       resizable: false,
       renderWrapper: false,
@@ -413,16 +441,11 @@ function findClickedEditorLink(
   return anchor;
 }
 
-function openEditorLink(anchor: HTMLAnchorElement): boolean {
-  const href = anchor.href || anchor.getAttribute("href");
+function openLinkWindow(href: string, target = "_blank"): boolean {
   if (!href) return false;
 
   // Tiptap's built-in openOnClick omits noopener for programmatic opens.
-  const opened = window.open(
-    href,
-    anchor.getAttribute("target") ?? "_blank",
-    "noopener,noreferrer",
-  );
+  const opened = window.open(href, target, "noopener,noreferrer");
   try {
     if (opened) opened.opener = null;
   } catch {
@@ -431,10 +454,53 @@ function openEditorLink(anchor: HTMLAnchorElement): boolean {
   return true;
 }
 
+function isDirectEditorLink(
+  anchor: HTMLAnchorElement,
+  renderedHref: string,
+  akbWebBase: string | null,
+): boolean {
+  if (isDirectIssueMarkdownHref(renderedHref)) return true;
+
+  // Runtime AKB_WEB_URL retargeting replaces the rendered href but preserves
+  // the validated Markdown source in both renderer-owned attributes. Require
+  // that pair to agree so an ordinary external href cannot opt itself out of
+  // confirmation with a single arbitrary data attribute.
+  const documentUri = anchor.getAttribute("data-document-uri");
+  const retargetedDocumentUri = anchor.getAttribute("data-akb-uri");
+  return (
+    documentUri !== null &&
+    retargetedDocumentUri === documentUri &&
+    parseAkbDocumentUri(documentUri) !== null &&
+    buildAkbDocumentUrl(akbWebBase, documentUri) === renderedHref
+  );
+}
+
+function openEditorLink(
+  anchor: HTMLAnchorElement,
+  requestExternalConfirmation: (href: string) => void,
+  akbWebBase: string | null,
+): boolean {
+  const authoredHref = anchor.getAttribute("href") ?? "";
+  const href = anchor.href || authoredHref;
+  if (!href) return false;
+
+  if (
+    linkSafetyConfig.enabled &&
+    !isDirectEditorLink(anchor, authoredHref, akbWebBase)
+  ) {
+    requestExternalConfirmation(href);
+    return true;
+  }
+
+  return openLinkWindow(href, anchor.getAttribute("target") ?? "_blank");
+}
+
 function openClickedEditorLink(
   root: ParentNode,
   event: MouseEvent,
   linksOpenedFromMouseUp: WeakMap<HTMLAnchorElement, number>,
+  requestExternalConfirmation: (href: string) => void,
+  akbWebBase: string | null,
 ): boolean {
   if (event.button !== 0) return false;
   const anchor = findClickedEditorLink(root, event);
@@ -449,7 +515,8 @@ function openClickedEditorLink(
     return true;
   }
 
-  if (!openEditorLink(anchor)) return false;
+  if (!openEditorLink(anchor, requestExternalConfirmation, akbWebBase))
+    return false;
   event.preventDefault();
   return true;
 }
@@ -469,11 +536,14 @@ function openEditorLinkOnMouseUp(
   root: ParentNode,
   event: MouseEvent,
   linksOpenedFromMouseUp: WeakMap<HTMLAnchorElement, number>,
+  requestExternalConfirmation: (href: string) => void,
+  akbWebBase: string | null,
 ): boolean {
   if (event.button !== 0) return false;
   const anchor = findClickedEditorLink(root, event);
   if (!anchor) return false;
-  if (!openEditorLink(anchor)) return false;
+  if (!openEditorLink(anchor, requestExternalConfirmation, akbWebBase))
+    return false;
 
   linksOpenedFromMouseUp.set(anchor, Date.now());
   event.preventDefault();
@@ -942,6 +1012,7 @@ export function MarkdownEditor({
   const [slashOpen, setSlashOpen] = useState(false);
   const [linkEditorOpen, setLinkEditorOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
+  const [externalLinkHref, setExternalLinkHref] = useState<string | null>(null);
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [uploadError, setUploadError] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -1022,6 +1093,7 @@ export function MarkdownEditor({
 
   const editorBodyClassName = cn(
     EDITOR_CONTENT_CLASS,
+    MARKDOWN_SURFACE_CLASS,
     "prose prose-sm focus:outline-none",
     isManualHeight ? EDITOR_MANUAL_BODY_CLASS : EDITOR_BODY_SIZING,
     "px-3 py-2 max-w-none",
@@ -1222,6 +1294,8 @@ export function MarkdownEditor({
             view.dom,
             event,
             linksOpenedFromMouseUpRef.current,
+            setExternalLinkHref,
+            akbWebBase,
           ),
       },
       handleClick: (view, _pos, event) =>
@@ -1229,6 +1303,8 @@ export function MarkdownEditor({
           view.dom,
           event,
           linksOpenedFromMouseUpRef.current,
+          setExternalLinkHref,
+          akbWebBase,
         ),
       handlePaste: (_view, event) => {
         const files = filesFromFileList(event.clipboardData?.files ?? null);
@@ -1886,6 +1962,14 @@ export function MarkdownEditor({
           })}
         </span>
       ) : null}
+      {externalLinkHref
+        ? linkSafetyConfig.renderModal?.({
+            url: externalLinkHref,
+            isOpen: true,
+            onClose: () => setExternalLinkHref(null),
+            onConfirm: () => openLinkWindow(externalLinkHref),
+          })
+        : null}
     </div>
   );
 }

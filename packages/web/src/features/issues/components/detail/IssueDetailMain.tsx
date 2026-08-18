@@ -223,7 +223,12 @@ export function IssueDetailMain({
           status changes, and reconstructed events merge into one chronological
           thread after the structured fields. */}
       {issue ? (
-        <ActivityTimeline issueId={issueId} vault={vault} issue={issue} />
+        <ActivityTimeline
+          issueId={issueId}
+          vault={vault}
+          issue={issue}
+          knownIssues={allIssues}
+        />
       ) : null}
     </main>
   );

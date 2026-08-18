@@ -12,8 +12,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { remarkCommentMentions } from "@/lib/markdown/remarkCommentMentions";
+import { parseAkbDocumentUri } from "@/lib/akb/documentUri";
+import {
+  attachmentFileTypeLabel,
+  isAkbFileUri,
+} from "@/features/issues/lib/attachmentUrls";
+import {
+  isDirectIssueMarkdownHref,
+  issueIdFromIssueMarkdownHref,
+} from "@/features/issues/lib/markdownLinkPolicy";
+import { remarkReefMentions } from "@/lib/markdown/remarkReefMentions";
 import { formatAbsoluteTime, formatRelativeTime } from "@/lib/relativeTime";
 import { cn } from "@/lib/utils";
+import { withVault } from "@/lib/workspaceHref";
 import type { Comment, VaultMember } from "@reef/core";
 import { Pencil, Reply, Trash2 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -25,7 +36,8 @@ import {
   useState,
 } from "react";
 import {
-  type AllowedTags,
+  defaultRemarkPlugins,
+  defaultRehypePlugins,
   Streamdown,
   type UrlTransform,
   defaultUrlTransform,
@@ -39,10 +51,125 @@ import {
 import { commentTargetId } from "../../lib/commentTarget";
 
 type RemarkPlugins = ComponentProps<typeof Streamdown>["remarkPlugins"];
+type RehypePlugins = ComponentProps<typeof Streamdown>["rehypePlugins"];
 
-const COMMENT_MENTION_ALLOWED_TAGS: AllowedTags = {
-  span: ["dataReefMention"],
-};
+interface SanitizerSchema {
+  attributes?: Record<string, readonly unknown[]>;
+  protocols?: Record<string, readonly string[]>;
+}
+
+const issueMarkdownRehypePlugins = (() => {
+  const [sanitize, schema] = defaultRehypePlugins.sanitize as unknown as [
+    NonNullable<RehypePlugins>[number],
+    SanitizerSchema,
+  ];
+
+  return [
+    defaultRehypePlugins.raw,
+    [
+      sanitize,
+      {
+        ...schema,
+        attributes: {
+          ...schema.attributes,
+          span: [...(schema.attributes?.span ?? []), "dataReefMention"],
+        },
+        protocols: {
+          ...schema.protocols,
+          href: [...(schema.protocols?.href ?? []), "akb"],
+        },
+      },
+    ],
+    defaultRehypePlugins.harden,
+  ] as NonNullable<RehypePlugins>;
+})();
+
+function isAttachmentProxyHref(href: string): boolean {
+  return href.startsWith("/api/issues/") && href.includes("/attachments/file?");
+}
+
+function attachmentUriFromProxyHref(href: string): string | null {
+  if (!isAttachmentProxyHref(href)) return null;
+  try {
+    return new URL(href, "https://reef.invalid").searchParams.get("uri");
+  } catch {
+    return null;
+  }
+}
+
+function CommentMarkdownLink({
+  children,
+  href,
+  "data-reef-id": reefIssueId,
+  ...rest
+}: ComponentProps<"a"> & { node?: unknown; "data-reef-id"?: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const safeHref = typeof href === "string" ? href : "";
+  const isInternal = safeHref ? isDirectIssueMarkdownHref(safeHref) : true;
+  const shouldConfirm =
+    Boolean(safeHref) && !isInternal && linkSafetyConfig.enabled;
+  const fileUri = attachmentUriFromProxyHref(safeHref);
+  const issueReferenceId =
+    reefIssueId ?? issueIdFromIssueMarkdownHref(safeHref);
+  const isIssueReference = Boolean(issueReferenceId);
+  const onClose = () => setIsOpen(false);
+  const onConfirm = () => {
+    window.open(safeHref, "_blank", "noreferrer");
+  };
+
+  return (
+    <>
+      <a
+        {...rest}
+        href={href}
+        target={
+          shouldConfirm || fileUri || isIssueReference ? "_blank" : rest.target
+        }
+        rel={
+          shouldConfirm || fileUri || isIssueReference ? "noreferrer" : rest.rel
+        }
+        translate={isIssueReference ? "no" : rest.translate}
+        data-reef-id={issueReferenceId ?? undefined}
+        data-reference-kind={
+          fileUri
+            ? "file"
+            : isIssueReference
+              ? "issue"
+              : parseAkbDocumentUri(safeHref)
+                ? "document"
+                : undefined
+        }
+        data-issue-id={issueReferenceId ?? undefined}
+        data-reef-file-link={fileUri ? "true" : undefined}
+        data-reef-file-uri={fileUri ?? undefined}
+        data-document-uri={parseAkbDocumentUri(safeHref) ? safeHref : undefined}
+        data-reef-file-type={
+          fileUri && typeof children === "string"
+            ? attachmentFileTypeLabel(children)
+            : undefined
+        }
+        onClick={(event) => {
+          if (!shouldConfirm) return;
+          event.preventDefault();
+          setIsOpen(true);
+        }}
+      >
+        {children}
+      </a>
+      {shouldConfirm
+        ? linkSafetyConfig.renderModal?.({
+            url: safeHref,
+            isOpen,
+            onClose,
+            onConfirm,
+          })
+        : null}
+    </>
+  );
+}
+
+const commentMarkdownComponents = { a: CommentMarkdownLink };
+const NO_KNOWN_ISSUE_IDS: ReadonlySet<string> = new Set();
 
 interface CommentCardProps {
   comment: Comment;
@@ -57,6 +184,10 @@ interface CommentCardProps {
   onReply?: () => void;
   replyToAuthor?: string;
   resolveMarkdownUrl?: UrlTransform;
+  /** Known issue ids shared with the body renderer's reference context. */
+  knownIssueIds?: ReadonlySet<string>;
+  /** Active vault used to build navigable known-issue hrefs. */
+  vault?: string;
   /** Current vault roster used by the edit-mode mention autocomplete. */
   members?: readonly VaultMember[];
 }
@@ -76,6 +207,8 @@ export function CommentCard({
   onReply,
   replyToAuthor,
   resolveMarkdownUrl,
+  knownIssueIds = NO_KNOWN_ISSUE_IDS,
+  vault = "",
   members = [],
 }: CommentCardProps) {
   const isOwn = !!currentLogin && comment.author === currentLogin;
@@ -98,23 +231,45 @@ export function CommentCard({
   const locale = useLocale();
   const t = useTranslations("issues.comments");
   const c = useTranslations("common");
-  const mentionFingerprint = useMemo(
-    () =>
-      `${comment.id}:${comment.body}:${[...mentionUsernames].sort().join(",")}`,
-    [comment.body, comment.id, mentionUsernames],
+  const knownIssueFingerprint = useMemo(
+    () => [...knownIssueIds].sort().join("\u0000"),
+    [knownIssueIds],
   );
-  const remarkPlugins = useMemo<RemarkPlugins>(
-    () => [
+  const markdownFingerprint = useMemo(
+    () =>
+      `${comment.id}:${comment.body}:${[...mentionUsernames].sort().join(",")}:${vault}:${knownIssueFingerprint}`,
+    [comment.body, comment.id, knownIssueFingerprint, mentionUsernames, vault],
+  );
+  const remarkPlugins = useMemo<RemarkPlugins>(() => {
+    const plugins: NonNullable<RemarkPlugins> = [
+      ...Object.values(defaultRemarkPlugins),
       [
         remarkCommentMentions,
         {
           knownUsernames: mentionUsernames,
-          cacheFingerprint: mentionFingerprint,
+          cacheFingerprint: markdownFingerprint,
         },
       ],
-    ],
-    [mentionFingerprint, mentionUsernames],
-  );
+    ];
+    if (knownIssueIds.size > 0) {
+      plugins.push([
+        remarkReefMentions,
+        {
+          isKnown: (id: string) => knownIssueIds.has(id),
+          hrefFor: (id: string) =>
+            withVault(vault, `/issues/${encodeURIComponent(id)}`),
+          cacheFingerprint: knownIssueFingerprint,
+        },
+      ]);
+    }
+    return plugins;
+  }, [
+    knownIssueFingerprint,
+    knownIssueIds,
+    markdownFingerprint,
+    mentionUsernames,
+    vault,
+  ]);
 
   function startEditing() {
     const nextDraft = draftFromPersistedComment(comment.body, mentionUsernames);
@@ -155,11 +310,15 @@ export function CommentCard({
     }
   }
 
-  const urlTransform: UrlTransform = (url, key, node) => {
-    const resolved = resolveMarkdownUrl?.(url, key, node) ?? url;
-    if (resolved !== url) return resolved;
-    return defaultUrlTransform(url, key, node);
-  };
+  const urlTransform = useMemo<UrlTransform>(
+    () => (url, key, node) => {
+      const resolved = resolveMarkdownUrl?.(url, key, node) ?? url;
+      if (resolved !== url) return resolved;
+      if (isAkbFileUri(url) || parseAkbDocumentUri(url)) return url;
+      return defaultUrlTransform(url, key, node);
+    },
+    [resolveMarkdownUrl],
+  );
 
   return (
     <div
@@ -290,12 +449,13 @@ export function CommentCard({
           </div>
         ) : (
           <Streamdown
-            key={mentionFingerprint}
-            className="comment-mention-renderer mt-1 w-full min-w-0 break-words text-[13px] text-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+            key={markdownFingerprint}
+            className="reef-markdown-surface reef-markdown-comment comment-mention-renderer mt-1 w-full min-w-0 break-words text-[13px] text-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+            components={commentMarkdownComponents}
             linkSafety={linkSafetyConfig}
+            rehypePlugins={issueMarkdownRehypePlugins}
             urlTransform={urlTransform}
             remarkPlugins={remarkPlugins}
-            allowedTags={COMMENT_MENTION_ALLOWED_TAGS}
           >
             {comment.body}
           </Streamdown>

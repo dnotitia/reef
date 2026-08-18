@@ -764,9 +764,11 @@ describe("MarkdownEditor Tiptap extensions", () => {
       const items = root.querySelectorAll('ul[data-type="taskList"] > li');
       expect(items.length).toBe(3);
       for (const li of items) {
-        expect(
-          li.querySelector(':scope > label > input[type="checkbox"]'),
-        ).not.toBeNull();
+        const checkbox = li.querySelector<HTMLInputElement>(
+          ':scope > label > input[type="checkbox"]',
+        );
+        expect(checkbox).not.toBeNull();
+        expect(checkbox).toHaveAttribute("tabindex", "0");
         expect(li.querySelector(":scope > div")).not.toBeNull();
       }
 

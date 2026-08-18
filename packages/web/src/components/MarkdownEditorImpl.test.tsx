@@ -7,6 +7,7 @@ import {
 } from "@testing-library/react";
 import { useEditor } from "@tiptap/react";
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { AkbWebUrlProvider } from "@/providers/AkbWebUrlProvider";
 import {
   clampEditorHeight,
   EDITOR_BODY_FRAME_CLASS,
@@ -18,6 +19,7 @@ import {
   EDITOR_RESIZABLE_BODY_ID,
   getEditorMaxHeight,
   EDITOR_CONTENT_CLASS,
+  MARKDOWN_SURFACE_CLASS,
   MarkdownEditor,
 } from "./MarkdownEditorImpl";
 
@@ -126,7 +128,9 @@ vi.mock("@tiptap/extension-image", () => ({
 }));
 vi.mock("@tiptap/extension-list", () => ({
   TaskList: {},
-  TaskItem: { configure: () => ({}) },
+  TaskItem: {
+    extend: () => ({ configure: () => ({}) }),
+  },
 }));
 vi.mock("@tiptap/markdown", () => ({ Markdown: {} }));
 
@@ -205,12 +209,13 @@ describe("MarkdownEditor", () => {
     const className = opts.editorProps?.attributes?.class ?? "";
 
     expect(className).toContain(EDITOR_CONTENT_CLASS);
+    expect(className).toContain(MARKDOWN_SURFACE_CLASS);
     expect(className).toContain(EDITOR_BODY_SIZING);
     expect(className).toContain("prose prose-sm");
     expect(className).not.toContain("dark:prose-invert");
   });
 
-  it("opens clicked editor links with noopener while consuming the link click", () => {
+  it("confirms external editor links before opening with noopener", () => {
     render(
       <MarkdownEditor
         value="[Spec](https://example.com/spec)"
@@ -239,10 +244,19 @@ describe("MarkdownEditor", () => {
     const opened = { opener: window } as Window;
     const open = vi.spyOn(window, "open").mockReturnValue(opened);
 
-    const handled = opts.editorProps?.handleClick?.({ dom: root }, 1, event);
+    let handled: boolean | undefined;
+    act(() => {
+      handled = opts.editorProps?.handleClick?.({ dom: root }, 1, event);
+    });
 
     expect(handled).toBe(true);
     expect(event.defaultPrevented).toBe(true);
+    expect(open).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("dialog", { name: "Open external link" }),
+    ).toHaveTextContent("https://example.com/spec");
+
+    fireEvent.click(screen.getByRole("button", { name: "Open link" }));
     expect(open).toHaveBeenCalledWith(
       "https://example.com/spec",
       "_blank",
@@ -290,7 +304,7 @@ describe("MarkdownEditor", () => {
     expect(open).not.toHaveBeenCalled();
   });
 
-  it("opens editor links on mouse up after preventing link mouse down selection", () => {
+  it("shows one confirmation when mouse up is followed by a link click", () => {
     render(
       <MarkdownEditor
         value="[Spec](https://example.com/spec)"
@@ -322,20 +336,20 @@ describe("MarkdownEditor", () => {
     });
     Object.defineProperty(mouseUp, "target", { value: link });
 
-    const handledMouseUp = opts.editorProps?.handleDOMEvents?.mouseup?.(
-      { dom: root },
-      mouseUp,
-    );
+    let handledMouseUp: boolean | undefined;
+    act(() => {
+      handledMouseUp = opts.editorProps?.handleDOMEvents?.mouseup?.(
+        { dom: root },
+        mouseUp,
+      );
+    });
 
     expect(handledMouseUp).toBe(true);
     expect(mouseUp.defaultPrevented).toBe(true);
-    expect(open).toHaveBeenCalledOnce();
-    expect(open).toHaveBeenCalledWith(
-      "https://example.com/spec",
-      "_blank",
-      "noopener,noreferrer",
-    );
-    expect(opened.opener).toBeNull();
+    expect(open).not.toHaveBeenCalled();
+    expect(
+      screen.getAllByRole("dialog", { name: "Open external link" }),
+    ).toHaveLength(1);
 
     const click = new MouseEvent("click", {
       bubbles: true,
@@ -352,7 +366,149 @@ describe("MarkdownEditor", () => {
 
     expect(handledClick).toBe(true);
     expect(click.defaultPrevented).toBe(true);
+    expect(open).not.toHaveBeenCalled();
+    expect(
+      screen.getAllByRole("dialog", { name: "Open external link" }),
+    ).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open link" }));
     expect(open).toHaveBeenCalledOnce();
+    expect(open).toHaveBeenCalledWith(
+      "https://example.com/spec",
+      "_blank",
+      "noopener,noreferrer",
+    );
+    expect(opened.opener).toBeNull();
+  });
+
+  it("opens an in-app issue link directly without external confirmation", () => {
+    render(
+      <MarkdownEditor
+        value="[REEF-002](/issues/REEF-002)"
+        onChange={vi.fn()}
+      />,
+    );
+    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
+      editorProps?: {
+        handleClick?: (
+          view: { dom: HTMLElement },
+          pos: number,
+          event: MouseEvent,
+        ) => boolean;
+      };
+    };
+    const root = document.createElement("div");
+    root.innerHTML =
+      '<p><a href="/workspace/reef-test/issues/REEF-002" target="_blank">REEF-002</a></p>';
+    const link = root.querySelector("a");
+    const event = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    Object.defineProperty(event, "target", { value: link });
+    const opened = { opener: window } as Window;
+    const open = vi.spyOn(window, "open").mockReturnValue(opened);
+
+    const handled = opts.editorProps?.handleClick?.({ dom: root }, 1, event);
+
+    expect(handled).toBe(true);
+    expect(event.defaultPrevented).toBe(true);
+    expect(open).toHaveBeenCalledWith(
+      "http://localhost:3000/workspace/reef-test/issues/REEF-002",
+      "_blank",
+      "noopener,noreferrer",
+    );
+    expect(opened.opener).toBeNull();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("opens a validated AKB_WEB_URL-retargeted document link directly", () => {
+    render(
+      <AkbWebUrlProvider value="https://akb.example.test">
+        <MarkdownEditor
+          value="[Spec](akb://reef-test/coll/docs/doc/spec.md)"
+          onChange={vi.fn()}
+        />
+      </AkbWebUrlProvider>,
+    );
+    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
+      editorProps?: {
+        handleClick?: (
+          view: { dom: HTMLElement },
+          pos: number,
+          event: MouseEvent,
+        ) => boolean;
+      };
+    };
+    const root = document.createElement("div");
+    root.innerHTML = [
+      '<p><a href="https://akb.example.test/vault/reef-test/doc/docs%2Fspec.md"',
+      ' target="_blank" data-reference-kind="document"',
+      ' data-document-uri="akb://reef-test/coll/docs/doc/spec.md"',
+      ' data-akb-uri="akb://reef-test/coll/docs/doc/spec.md">Spec</a></p>',
+    ].join("");
+    const link = root.querySelector("a");
+    const event = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    Object.defineProperty(event, "target", { value: link });
+    const opened = { opener: window } as Window;
+    const open = vi.spyOn(window, "open").mockReturnValue(opened);
+
+    const handled = opts.editorProps?.handleClick?.({ dom: root }, 1, event);
+
+    expect(handled).toBe(true);
+    expect(event.defaultPrevented).toBe(true);
+    expect(open).toHaveBeenCalledWith(
+      "https://akb.example.test/vault/reef-test/doc/docs%2Fspec.md",
+      "_blank",
+      "noopener,noreferrer",
+    );
+    expect(opened.opener).toBeNull();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("does not let unvalidated link metadata bypass external confirmation", () => {
+    render(
+      <MarkdownEditor
+        value="[Spec](https://example.com/spec)"
+        onChange={vi.fn()}
+      />,
+    );
+    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
+      editorProps?: {
+        handleClick?: (
+          view: { dom: HTMLElement },
+          pos: number,
+          event: MouseEvent,
+        ) => boolean;
+      };
+    };
+    const root = document.createElement("div");
+    root.innerHTML =
+      '<p><a href="https://example.com/spec" data-document-uri="akb://reef-test/coll/docs/doc/spec.md" data-akb-uri="akb://reef-test/coll/docs/doc/spec.md">Spec</a></p>';
+    const link = root.querySelector("a");
+    const event = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    Object.defineProperty(event, "target", { value: link });
+    const open = vi.spyOn(window, "open");
+
+    let handled: boolean | undefined;
+    act(() => {
+      handled = opts.editorProps?.handleClick?.({ dom: root }, 1, event);
+    });
+
+    expect(handled).toBe(true);
+    expect(open).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("dialog", { name: "Open external link" }),
+    ).toHaveTextContent("https://example.com/spec");
   });
 
   it("leaves ordinary editor mouse down for ProseMirror selection handling", () => {
@@ -529,6 +685,26 @@ describe("MarkdownEditor", () => {
   it("hides toolbar when readOnly is true", () => {
     render(<MarkdownEditor value="" onChange={vi.fn()} readOnly />);
     expect(screen.queryByTitle("Bold")).not.toBeInTheDocument();
+  });
+
+  it("keeps the shared semantic surface on editable and readOnly WYSIWYG modes", () => {
+    const { rerender } = render(
+      <MarkdownEditor value="# Body" onChange={vi.fn()} />,
+    );
+    const editorOptions = () =>
+      vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
+        editorProps?: { attributes?: { class?: string } };
+      };
+
+    expect(editorOptions().editorProps?.attributes?.class).toContain(
+      MARKDOWN_SURFACE_CLASS,
+    );
+
+    rerender(<MarkdownEditor value="# Body" onChange={vi.fn()} readOnly />);
+    expect(editorOptions().editorProps?.attributes?.class).toContain(
+      MARKDOWN_SURFACE_CLASS,
+    );
+    expect(screen.queryByTestId("markdown-toolbar")).not.toBeInTheDocument();
   });
 
   it("hides the attachment insert control when readOnly is true", () => {

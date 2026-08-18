@@ -102,6 +102,15 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
       read_at: string | null;
       archived_at: string | null;
     }>;
+    comments: Array<{
+      id: string;
+      reef_id: string;
+      body: string;
+      author: string | null;
+      created_at: string | null;
+      edited_at: string | null;
+      mention_recipients: string[];
+    }>;
     documents: Array<{
       path: string;
       title: string;

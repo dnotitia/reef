@@ -340,6 +340,26 @@ block ends at 0. These overrides stay on direct children so list and checklist
 item paragraphs keep their own layout, and the global `prose-sm` defaults and
 other Markdown surfaces are unchanged.
 
+Issue descriptions and issue comments use one semantic Markdown contract. The
+Tiptap WYSIWYG editor (editable and read-only) carries
+`.reef-markdown-surface reef-markdown-editor`; the comment Streamdown instance
+carries `.reef-markdown-surface reef-markdown-comment`. Both scopes resolve
+foreground, muted foreground, brand, subtle surface, and subtle border from
+the Reef tokens above. Headings, links, emphasis, inline and fenced code,
+quotes, dividers, lists/checklists, tables, images, mentions, and focus states
+therefore keep the same semantic roles without sharing a renderer or changing
+the stored plain Markdown. The issue body remains 14px/22px; comments remain
+the denser 13px/20px projection.
+
+The contract is checked in Light, Dark, and both System outcomes at 1440×900
+and 1024×800. At the 720px CSS viewport (the 200% equivalent), the document
+must not widen: long URLs wrap, fenced code owns its horizontal scrollport,
+table cells wrap, and images stay contained. Keyboard focus must remain
+visible on ordinary links, task checkboxes, and the editor's edit/Source
+controls. The markdown fixture screenshot evidence keeps the Tiptap body and
+the comparable Streamdown comment in the same issue detail, while Source ↔
+WYSIWYG and save/reload preserve the authored block order and supported syntax.
+
 On the Issue Detail surface, the Description editor additionally exposes a
 quiet 32px hit area at its lower-right corner on viewports at least 1280px
 wide. The pointer-captured handle and its horizontal separator keyboard

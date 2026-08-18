@@ -9,7 +9,12 @@ import { useActivity } from "@/features/issues/hooks/queries/useActivity";
 import { useComments } from "@/features/issues/hooks/queries/useComments";
 import { resolveIssueAttachmentUrl } from "@/features/issues/lib/attachmentUrls";
 import { useVaultRoster } from "@/features/settings/hooks/useVaultRoster";
-import type { ActivityEvent, Comment, IssueMetadata } from "@reef/core";
+import type {
+  ActivityEvent,
+  Comment,
+  IssueListItem,
+  IssueMetadata,
+} from "@reef/core";
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -25,6 +30,8 @@ interface ActivityTimelineProps {
   vault: string;
   /** The loaded issue — source of the reconstructed events (created/delivery/closed). */
   issue: IssueMetadata;
+  /** Same loaded issue context the body renderer uses for known references. */
+  knownIssues: readonly IssueListItem[];
 }
 
 // Stable empty defaults so the `buildTimeline` memo isn't re-run on every render
@@ -47,6 +54,7 @@ export function ActivityTimeline({
   issueId,
   vault,
   issue,
+  knownIssues,
 }: ActivityTimelineProps) {
   const t = useTranslations("toasts");
   const nav = useTranslations("nav");
@@ -75,6 +83,10 @@ export function ActivityTimeline({
   const commentIds = useMemo(
     () => new Set(comments.map((comment) => comment.id)),
     [comments],
+  );
+  const knownIssueIds = useMemo(
+    () => new Set(knownIssues.map((candidate) => candidate.id)),
+    [knownIssues],
   );
 
   useEffect(() => {
@@ -185,6 +197,8 @@ export function ActivityTimeline({
                   onDelete={() => handleDelete(entry.comment.id)}
                   onReply={() => setReplyTargetId(entry.comment.id)}
                   resolveMarkdownUrl={resolveMarkdownUrl}
+                  knownIssueIds={knownIssueIds}
+                  vault={vault}
                 />
                 {entry.replies.length > 0 || replyTarget ? (
                   <div className="ml-11 flex min-w-0 flex-col gap-3 border-l border-border-subtle pl-3 sm:ml-12">
@@ -220,6 +234,8 @@ export function ActivityTimeline({
                           onDelete={() => handleDelete(reply.id)}
                           onReply={() => setReplyTargetId(reply.id)}
                           resolveMarkdownUrl={resolveMarkdownUrl}
+                          knownIssueIds={knownIssueIds}
+                          vault={vault}
                         />
                         {replyTarget?.id === reply.id ? (
                           <CommentComposer

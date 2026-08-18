@@ -410,6 +410,139 @@ function imageSourcesFromCsp(csp: string): string[] {
   return csp.match(/img-src\s+([^;]+)/u)?.[1]?.split(/\s+/u) ?? [];
 }
 
+async function readCommentMarkdownSurface(comment: Locator) {
+  return comment.evaluate((root: HTMLElement) => {
+    const paragraph = root.querySelector<HTMLElement>("p");
+    const heading = root.querySelector<HTMLElement>(
+      '[data-streamdown^="heading-"], h1, h2, h3',
+    );
+    const link = root.querySelector<HTMLElement>('[data-streamdown="link"], a');
+    const mention = root.querySelector<HTMLElement>("[data-reef-mention]");
+    const inlineCode = root.querySelector<HTMLElement>(
+      '[data-streamdown="inline-code"], p code',
+    );
+    const codeBlock = root.querySelector<HTMLElement>(
+      '[data-streamdown="code-block"]',
+    );
+    const codeBlockBody = root.querySelector<HTMLElement>(
+      '[data-streamdown="code-block-body"], pre',
+    );
+    const tableWrapper = root.querySelector<HTMLElement>(
+      '[data-streamdown="table-wrapper"]',
+    );
+    const rootStyles = getComputedStyle(root);
+    const resolveColor = (property: string) => {
+      const probe = document.createElement("span");
+      probe.style.setProperty("color", `var(${property})`);
+      root.append(probe);
+      const color = getComputedStyle(probe).color;
+      probe.remove();
+      return color;
+    };
+    const resolveBackground = (property: string) => {
+      const probe = document.createElement("span");
+      probe.style.setProperty("background-color", `var(${property})`);
+      root.append(probe);
+      const color = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return color;
+    };
+
+    return {
+      counts: {
+        headings: root.querySelectorAll(
+          '[data-streamdown^="heading-"], h1, h2, h3',
+        ).length,
+        paragraphs: root.querySelectorAll("p").length,
+        strong: root.querySelectorAll('strong, [data-streamdown="strong"]')
+          .length,
+        emphasis: root.querySelectorAll("em").length,
+        links: root.querySelectorAll('[data-streamdown="link"], a').length,
+        inlineCode: root.querySelectorAll(
+          '[data-streamdown="inline-code"], p code',
+        ).length,
+        strikethrough: root.querySelectorAll("s, del").length,
+        orderedLists: root.querySelectorAll(
+          '[data-streamdown="ordered-list"], ol',
+        ).length,
+        unorderedLists: root.querySelectorAll(
+          '[data-streamdown="unordered-list"], ul',
+        ).length,
+        taskLists:
+          root.querySelectorAll("li.task-list-item").length > 0 ? 1 : 0,
+        checkboxes: root.querySelectorAll('input[type="checkbox"]').length,
+        checkedCheckboxes: root.querySelectorAll(
+          'input[type="checkbox"]:checked',
+        ).length,
+        quotes: root.querySelectorAll(
+          '[data-streamdown="blockquote"], blockquote',
+        ).length,
+        codeBlocks: codeBlock ? 1 : codeBlockBody ? 1 : 0,
+        rules: root.querySelectorAll('[data-streamdown="horizontal-rule"], hr')
+          .length,
+        images: root.querySelectorAll('[data-streamdown="image"], img').length,
+        tables: root.querySelectorAll('[data-streamdown="table"], table')
+          .length,
+        mentions: root.querySelectorAll("[data-reef-mention]").length,
+      },
+      colors: {
+        body: paragraph ? getComputedStyle(paragraph).color : "",
+        heading: heading ? getComputedStyle(heading).color : "",
+        link: link ? getComputedStyle(link).color : "",
+        linkDecoration: link ? getComputedStyle(link).textDecorationColor : "",
+        mention: mention ? getComputedStyle(mention).color : "",
+        inlineCode: inlineCode ? getComputedStyle(inlineCode).color : "",
+        inlineCodeBackground: inlineCode
+          ? getComputedStyle(inlineCode).backgroundColor
+          : "",
+        inlineCodeBorder: inlineCode
+          ? getComputedStyle(inlineCode).borderTopColor
+          : "",
+        codeBackground: codeBlockBody
+          ? getComputedStyle(codeBlockBody).backgroundColor
+          : "",
+        codeBorder: codeBlock ? getComputedStyle(codeBlock).borderTopColor : "",
+        codeOverflowX: codeBlockBody
+          ? getComputedStyle(codeBlockBody).overflowX
+          : "",
+        codeWhiteSpace: codeBlockBody
+          ? getComputedStyle(codeBlockBody).whiteSpace
+          : "",
+        tableBorder: tableWrapper
+          ? getComputedStyle(tableWrapper).borderTopColor
+          : "",
+        foreground: resolveColor("--foreground"),
+        brand: resolveColor("--brand"),
+        borderSubtle: resolveColor("--border-subtle"),
+        surfaceSubtle: resolveBackground("--surface-subtle"),
+      },
+      typography: {
+        fontSize: rootStyles.fontSize,
+        lineHeight: rootStyles.lineHeight,
+      },
+      overflow: {
+        comment: root.scrollWidth <= root.clientWidth,
+        codeBlock: codeBlockBody
+          ? codeBlockBody.scrollWidth > codeBlockBody.clientWidth
+          : false,
+        codeBlockContained: codeBlockBody
+          ? codeBlockBody.scrollWidth > codeBlockBody.clientWidth &&
+            root.scrollWidth <= root.clientWidth
+          : false,
+        table: tableWrapper
+          ? tableWrapper.scrollWidth >= tableWrapper.clientWidth
+          : false,
+        images: Array.from(root.querySelectorAll("img")).every(
+          (image) => image.getBoundingClientRect().width <= root.clientWidth,
+        ),
+        document:
+          document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth,
+      },
+    };
+  });
+}
+
 const MARKDOWN_FIXTURE_IMAGE_PATH =
   "/api/e2e/assets/reef-markdown-editor-image.png";
 const MARKDOWN_FIXTURE_LARGE_IMAGE_PATH =
@@ -463,6 +596,14 @@ test.describe("Hermetic Markdown editor fixture", () => {
       `[incident.log](${MARKDOWN_FIXTURE_FILE_URI})`,
     );
     expect(fixtureDocument?.content).toContain("REEF-002");
+    const fixtureComment = fixtureVault?.comments.find(
+      (comment) => comment.reef_id === "REEF-001",
+    );
+    expect(fixtureComment).toMatchObject({
+      body: fixtureDocument?.content,
+      author: "bob",
+      mention_recipients: ["alice"],
+    });
 
     await openExistingWorkspace(page);
     const issueResponse = await page.goto(task.start_path ?? "");
@@ -470,6 +611,47 @@ test.describe("Hermetic Markdown editor fixture", () => {
 
     const editor = page.locator(".reef-markdown-editor");
     await expect(editor).toBeVisible();
+    const commentRenderer = page.locator(".reef-markdown-comment").first();
+    await expect(commentRenderer).toBeVisible();
+    await expect(
+      commentRenderer.locator('[data-streamdown="heading-1"], h1'),
+    ).toHaveCount(1);
+    await commentRenderer.scrollIntoViewIfNeeded();
+    const commentLink = commentRenderer
+      .locator('[data-streamdown="link"], a')
+      .first();
+    await expect(commentLink).toBeVisible();
+    await expect(
+      commentRenderer.getByRole("link", { name: "reef link" }),
+    ).toHaveAttribute("href", "https://example.com/reef");
+    await expect(
+      commentRenderer.getByRole("link", { name: "reef link" }),
+    ).toHaveAttribute("target", "_blank");
+    await expect(
+      commentRenderer.getByRole("link", { name: "AKB report" }),
+    ).toHaveAttribute("href", "akb://reef-e2e/coll/docs/doc/spec-overview.md");
+    const commentFileLink = commentRenderer.getByRole("link", {
+      name: "incident.log",
+    });
+    await expect(commentFileLink).toHaveAttribute(
+      "data-reef-file-uri",
+      MARKDOWN_FIXTURE_FILE_URI,
+    );
+    await expect(commentFileLink).toHaveAttribute("target", "_blank");
+    const commentFileHref = await commentFileLink.getAttribute("href");
+    expect(commentFileHref).toContain(
+      "/api/issues/REEF-001/attachments/file?vault=reef-e2e&uri=",
+    );
+    expect(commentFileHref).not.toContain("undefined");
+    await commentLink.focus();
+    expect(
+      await commentLink.evaluate(
+        (element) => document.activeElement === element,
+      ),
+    ).toBe(true);
+    await page.evaluate(() => {
+      (document.activeElement as HTMLElement | null)?.blur();
+    });
     const fixtureImage = editor.getByRole("img", {
       name: "Fixture image",
       exact: true,
@@ -669,8 +851,10 @@ test.describe("Hermetic Markdown editor fixture", () => {
     for (const { preference, colorScheme } of themeCases) {
       await setTheme(page, preference, colorScheme);
       await expect(editor).toBeVisible();
+      await expect(commentRenderer).toBeVisible();
 
       const surface = await readMarkdownSurface(editor);
+      const commentSurface = await readCommentMarkdownSurface(commentRenderer);
       expect(surface.counts).toMatchObject({
         headings: 3,
         paragraphs: expect.any(Number),
@@ -701,6 +885,67 @@ test.describe("Hermetic Markdown editor fixture", () => {
       expect(surface.colors.heading).toBe(surface.colors.foreground);
       expect(surface.colors.link).toBe(surface.colors.brand);
       expect(surface.colors.mention).toBe(surface.colors.brand);
+      expect(commentSurface.counts).toMatchObject({
+        headings: 3,
+        paragraphs: expect.any(Number),
+        strong: expect.any(Number),
+        emphasis: expect.any(Number),
+        links: expect.any(Number),
+        inlineCode: expect.any(Number),
+        strikethrough: expect.any(Number),
+        orderedLists: expect.any(Number),
+        unorderedLists: expect.any(Number),
+        taskLists: 1,
+        checkboxes: 3,
+        checkedCheckboxes: 2,
+        quotes: 1,
+        codeBlocks: 1,
+        rules: 1,
+        images: 4,
+        tables: 1,
+        mentions: 1,
+      });
+      expect(commentSurface.colors.body).toBe(commentSurface.colors.foreground);
+      expect(commentSurface.colors.heading).toBe(
+        commentSurface.colors.foreground,
+      );
+      expect(commentSurface.colors.link).toBe(commentSurface.colors.brand);
+      expect(commentSurface.colors.linkDecoration).toBe(
+        commentSurface.colors.brand,
+      );
+      expect(commentSurface.colors.mention).toBe(commentSurface.colors.brand);
+      expect(commentSurface.colors.inlineCode).toBe(
+        commentSurface.colors.foreground,
+      );
+      expect(commentSurface.colors.inlineCodeBackground).toBe(
+        commentSurface.colors.surfaceSubtle,
+      );
+      expect(commentSurface.colors.inlineCodeBorder).toBe(
+        commentSurface.colors.borderSubtle,
+      );
+      expect(commentSurface.colors.codeBackground).toBe(
+        commentSurface.colors.surfaceSubtle,
+      );
+      expect(commentSurface.colors.codeBorder).toBe(
+        commentSurface.colors.borderSubtle,
+      );
+      expect(commentSurface.colors.codeOverflowX).toBe("auto");
+      expect(commentSurface.colors.codeWhiteSpace).toBe("pre");
+      expect(commentSurface.colors.tableBorder).toBe(
+        commentSurface.colors.borderSubtle,
+      );
+      expect(commentSurface.typography).toEqual({
+        fontSize: "13px",
+        lineHeight: "20px",
+      });
+      expect(commentSurface.overflow).toMatchObject({
+        comment: true,
+        codeBlock: true,
+        codeBlockContained: true,
+        table: true,
+        images: true,
+        document: true,
+      });
       expect(surface.normalListMetrics).toHaveLength(8);
       for (const list of surface.normalListMetrics) {
         expect(list.paddingInlineStart).toBe("20px");
@@ -950,6 +1195,23 @@ test.describe("Hermetic Markdown editor fixture", () => {
       expect(roundTrip.blockOrder).toEqual(surface.blockOrder);
     }
 
+    await commentRenderer.scrollIntoViewIfNeeded();
+    await expect(commentRenderer).toBeVisible();
+    await page.screenshot({
+      animations: "disabled",
+      fullPage: true,
+      path: testInfo.outputPath("desktop-1440x900-body-comment.png"),
+    });
+    await page.setViewportSize({ width: 1024, height: 800 });
+    await commentRenderer.scrollIntoViewIfNeeded();
+    await expect(commentRenderer).toBeVisible();
+    await page.screenshot({
+      animations: "disabled",
+      fullPage: true,
+      path: testInfo.outputPath("narrow-1024x800-body-comment.png"),
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
+
     // Commit a harmless source-only marker, reload the real issue detail, and
     // verify the media/file source and rendered affordances survive the server
     // round-trip. This exercises the existing body autosave boundary without
@@ -1010,6 +1272,59 @@ test.describe("Hermetic Markdown editor fixture", () => {
     expect(pageErrors).toEqual([]);
   });
 
+  test("aligns safe external links and known issue references across body and comments", async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    const editor = page.locator(".reef-markdown-editor");
+    const comment = page.locator(".reef-markdown-comment").first();
+    const bodyExternalLink = editor.getByRole("link", { name: "reef link" });
+    const commentExternalLink = comment.getByRole("link", {
+      name: "reef link",
+    });
+    const commentIssueReferences = comment.getByRole("link", {
+      name: "REEF-002",
+      exact: true,
+    });
+
+    await expect(bodyExternalLink).toHaveAttribute(
+      "href",
+      "https://example.com/reef",
+    );
+    await expect(commentExternalLink).toHaveAttribute(
+      "href",
+      "https://example.com/reef",
+    );
+    await expect(commentIssueReferences).toHaveCount(2);
+    for (const reference of await commentIssueReferences.all()) {
+      await expect(reference).toHaveAttribute(
+        "href",
+        "/workspace/reef-e2e/issues/REEF-002",
+      );
+      await expect(reference).toHaveAttribute("data-reference-kind", "issue");
+      await expect(reference).toHaveAttribute("data-issue-id", "REEF-002");
+    }
+
+    for (const link of [bodyExternalLink, commentExternalLink]) {
+      const pageCount = page.context().pages().length;
+      await link.click();
+      const dialog = page.getByRole("dialog", {
+        name: "Open external link",
+      });
+      await expect(dialog).toBeVisible();
+      await expect(dialog).toContainText("https://example.com/reef");
+      expect(page.context().pages()).toHaveLength(pageCount);
+      await dialog.getByRole("button", { name: "Cancel" }).click();
+      await expect(dialog).not.toBeVisible();
+    }
+  });
+
   test("contains the long code line at an effective 200% viewport", async ({
     page,
     request,
@@ -1050,6 +1365,44 @@ test.describe("Hermetic Markdown editor fixture", () => {
     expect(geometry.documentScrollWidth).toBeLessThanOrEqual(
       geometry.documentClientWidth,
     );
+
+    const commentRenderer = page.locator(".reef-markdown-comment").first();
+    await expect(commentRenderer).toBeVisible();
+    await commentRenderer.scrollIntoViewIfNeeded();
+    await expect(
+      commentRenderer.locator('[data-streamdown="code-block-body"]'),
+    ).toHaveCount(1);
+    await expect
+      .poll(() =>
+        commentRenderer
+          .locator('[data-streamdown="code-block-body"]')
+          .evaluate(
+            (element: HTMLElement) => element.scrollWidth > element.clientWidth,
+          ),
+      )
+      .toBe(true);
+    const commentSurface = await readCommentMarkdownSurface(commentRenderer);
+    expect(commentSurface.typography).toEqual({
+      fontSize: "13px",
+      lineHeight: "20px",
+    });
+    expect(commentSurface.overflow).toMatchObject({
+      comment: true,
+      codeBlock: true,
+      codeBlockContained: true,
+      table: true,
+      images: true,
+      document: true,
+    });
+    const commentLink = commentRenderer
+      .locator('[data-streamdown="link"], a')
+      .first();
+    await commentLink.focus();
+    expect(
+      await commentLink.evaluate(
+        (element) => document.activeElement === element,
+      ),
+    ).toBe(true);
 
     await page
       .getByTestId("markdown-source-toggle")
@@ -1574,7 +1927,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     page,
     request,
   }) => {
-    await page.setViewportSize({ width: 720, height: 900 });
+    await page.setViewportSize({ width: 720, height: 800 });
     const task = await readMarkdownFixtureTask(request);
     await openExistingWorkspace(page);
     await page.goto(task.start_path ?? "");
@@ -1590,7 +1943,12 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await expect(checkboxes.nth(1)).not.toBeChecked();
     await expect(checkboxes.nth(2)).toBeChecked();
 
-    await parent.focus();
+    await editor.focus();
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    await expect(parent).toBeFocused();
     await page.keyboard.press("Space");
     await expect(parent).not.toBeChecked();
     await expect(checkboxes.nth(1)).not.toBeChecked();
@@ -1650,6 +2008,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     page,
     request,
   }) => {
+    await page.setViewportSize({ width: 720, height: 800 });
     const task = await readMarkdownFixtureTask(request);
     await openExistingWorkspace(page);
     await page.goto(task.start_path ?? "");
