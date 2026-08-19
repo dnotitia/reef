@@ -99,6 +99,37 @@ non-null `login_url`. It validates the alias, replaces the catalog URL with its
 own same-origin start route, and passes the alias only as `kc_idp_hint`. Reef
 never follows or relays the AKB `login_url`.
 
+### Legacy AKB config during the v2 rollout
+
+The v0.11 BFF also accepts the older single-provider response while AKB is being
+upgraded:
+
+```json
+{
+  "local_auth": { "enabled": false },
+  "keycloak": {
+    "enabled": true,
+    "login_url": "/api/v1/auth/keycloak/login",
+    "sso_only": true,
+    "enrollment_mode": "invite_only"
+  }
+}
+```
+
+This is a capability signal only. Reef requires the exact canonical legacy path,
+projects the response to a one-provider v2 view with the fixed alias `legacy`,
+and starts the same Reef-owned Authorization Code + PKCE flow as a native v2
+catalog. It never calls the legacy AKB browser-login or JWT-exchange endpoints,
+and it always disables the local password surface when `REEF_AUTH_MODE=sso`.
+
+The legacy shape cannot identify a provider alias or report AKB browser
+readiness. The compatibility projection therefore remains conservative: the
+OIDC validator still requires `identity_provider=legacy` in the access token,
+alongside every existing issuer, audience, `azp`, bearer-type, subject, and ID
+token check. A deployment whose Keycloak token omits that claim or uses another
+alias fails closed during token validation and must move to the versioned v2
+catalog; Reef does not fall back to AKB's retired exchange flow.
+
 ## Login and token custody
 
 1. `/login` reads the public AKB catalog. One enabled provider can redirect

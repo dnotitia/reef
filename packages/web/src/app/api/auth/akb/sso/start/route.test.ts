@@ -83,6 +83,37 @@ describe("GET /api/auth/akb/sso/start", () => {
     );
   });
 
+  it("uses the legacy projection without calling AKB browser auth", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        local_auth: { enabled: false },
+        keycloak: {
+          enabled: true,
+          login_url: "/api/v1/auth/keycloak/login",
+          sso_only: true,
+        },
+      }),
+    );
+
+    const response = await GET(
+      makeRequest("/api/auth/akb/sso/start?redirect=/issues"),
+    );
+
+    expect(response.status).toBe(302);
+    const location = new URL(response.headers.get("location") ?? "");
+    expect(location.searchParams.get("kc_idp_hint")).toBe("legacy");
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toContain(
+      "/api/v1/auth/config",
+    );
+    expect(fetchSpy.mock.calls.flat().join(" ")).not.toContain(
+      "/auth/keycloak/login",
+    );
+    expect(fetchSpy.mock.calls.flat().join(" ")).not.toContain(
+      "/auth/keycloak/exchange",
+    );
+  });
+
   it("rejects an alias absent from AKB's enabled catalog", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       Response.json(versionedCatalog()),

@@ -50,6 +50,47 @@ describe("GET /api/auth/akb/config", () => {
     );
   });
 
+  it("projects the legacy AKB catalog onto Reef-owned SSO paths", async () => {
+    vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("REEF_AUTH_MODE", "sso");
+    vi.stubEnv(
+      "REEF_KEYCLOAK_ISSUER",
+      "https://identity.example.com/realms/reef",
+    );
+    vi.stubEnv("REEF_KEYCLOAK_CLIENT_ID", "reef-web");
+    vi.stubEnv("REEF_AKB_API_AUDIENCE", "akb-api");
+    vi.stubEnv("REEF_PUBLIC_ORIGIN", "https://reef.example.com");
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        local_auth: { enabled: false },
+        keycloak: {
+          enabled: true,
+          login_url: "/api/v1/auth/keycloak/login",
+          sso_only: true,
+          enrollment_mode: "invite_only",
+        },
+      }),
+    );
+
+    const res = await GET(makeRequest());
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      schema_version: 2,
+      auth_mode: "sso",
+      local_auth: { enabled: false },
+      keycloak: { enabled: true, browser_session_ready: true },
+      providers: [
+        {
+          provider_type: "keycloak-oidc",
+          alias: "legacy",
+          display_name: "SSO",
+          login_url: "/api/auth/akb/sso/start?provider=legacy",
+        },
+      ],
+    });
+  });
+
   it("consumes a callback invalidation marker into the browser cleanup contract", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response(

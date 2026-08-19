@@ -4,6 +4,13 @@ import { readAuthRuntimeConfig } from "@/server/auth/config";
 import { AkbApiError, type AkbAuthConfig, akbGetAuthConfig } from "@reef/core";
 import { buildPathWithParams } from "./safeRedirect";
 
+const LEGACY_KEYCLOAK_LOGIN_PATH = "/api/v1/auth/keycloak/login";
+const LEGACY_SSO_PROVIDER_ALIAS = "legacy";
+const LEGACY_SSO_PROVIDER_DISPLAY_NAME = "SSO";
+
+type VersionedAkbAuthConfig = Extract<AkbAuthConfig, { schema_version: 2 }>;
+type LegacyAkbAuthConfig = Exclude<AkbAuthConfig, VersionedAkbAuthConfig>;
+
 /**
  * Outcome of the server-side akb auth capability probe. Either the parsed
  * Keycloak config, or a coarse failure reason the caller maps to its own
@@ -55,10 +62,7 @@ export async function loadAkbAuthConfig(): Promise<AkbAuthConfigResult> {
   try {
     const { config } = await akbGetAuthConfig({ baseUrl: backendUrl });
     const versioned = "schema_version" in config;
-    if (
-      (versioned && config.auth_mode !== reefAuth.mode) ||
-      (!versioned && reefAuth.mode === "sso")
-    ) {
+    if (versioned && config.auth_mode !== reefAuth.mode) {
       logger.error(
         { reef_mode: reefAuth.mode },
         "akb_auth_config: Reef and AKB auth modes disagree",
@@ -89,7 +93,15 @@ export async function loadAkbAuthConfig(): Promise<AkbAuthConfigResult> {
           };
     }
     if (!("schema_version" in config)) {
-      return { ok: false, reason: "mode_mismatch" };
+      const projected = projectLegacySsoConfig(config);
+      if (!projected) {
+        logger.error(
+          {},
+          "akb_auth_config: legacy SSO catalog cannot be projected safely",
+        );
+        return { ok: false, reason: "mode_mismatch" };
+      }
+      return { ok: true, config: projected };
     }
     if (!config.keycloak.enabled || !config.keycloak.browser_session_ready) {
       return { ok: false, reason: "mode_mismatch" };
@@ -124,4 +136,45 @@ export async function loadAkbAuthConfig(): Promise<AkbAuthConfigResult> {
     }
     throw err;
   }
+}
+
+/**
+ * Project the pre-v2, single-provider AKB catalog onto Reef's BFF contract.
+ *
+ * The old response only tells us that AKB's canonical Keycloak entry point is
+ * enabled; it does not provide an arbitrary redirect target or a provider
+ * alias. The fixed `legacy` alias is therefore the only value Reef can safely
+ * bind to the OIDC transaction. The OIDC client still requires the resulting
+ * access token's `identity_provider` claim to equal this alias, so deployments
+ * whose Keycloak claim does not match fail closed during token validation.
+ */
+function projectLegacySsoConfig(
+  config: LegacyAkbAuthConfig,
+): VersionedAkbAuthConfig | null {
+  if (
+    !config.keycloak.enabled ||
+    config.keycloak.login_url !== LEGACY_KEYCLOAK_LOGIN_PATH
+  ) {
+    return null;
+  }
+
+  return {
+    schema_version: 2,
+    auth_mode: "sso",
+    local_auth: { enabled: false },
+    // Legacy AKB has no readiness field. Reef performs its own OIDC
+    // reachability and token checks; a failed check redirects to the existing
+    // fail-closed SSO error path.
+    keycloak: { enabled: true, browser_session_ready: true },
+    providers: [
+      {
+        provider_type: "keycloak-oidc",
+        alias: LEGACY_SSO_PROVIDER_ALIAS,
+        display_name: LEGACY_SSO_PROVIDER_DISPLAY_NAME,
+        login_url: buildPathWithParams("/api/auth/akb/sso/start", {
+          provider: LEGACY_SSO_PROVIDER_ALIAS,
+        }),
+      },
+    ],
+  };
 }

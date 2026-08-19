@@ -110,6 +110,112 @@ describe("loadAkbAuthConfig", () => {
     });
   });
 
+  it("projects the legacy single-provider catalog onto Reef-owned OIDC", async () => {
+    vi.stubEnv("REEF_AUTH_MODE", "sso");
+    vi.stubEnv(
+      "REEF_KEYCLOAK_ISSUER",
+      "https://identity.example.com/realms/reef",
+    );
+    vi.stubEnv("REEF_KEYCLOAK_CLIENT_ID", "reef-web");
+    vi.stubEnv("REEF_AKB_API_AUDIENCE", "akb-api");
+    vi.stubEnv("REEF_PUBLIC_ORIGIN", "https://reef.example.com");
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        local_auth: { enabled: false },
+        keycloak: {
+          enabled: true,
+          login_url: "/api/v1/auth/keycloak/login",
+          sso_only: true,
+          enrollment_mode: "invite_only",
+        },
+      }),
+    );
+
+    await expect(loadAkbAuthConfig()).resolves.toEqual({
+      ok: true,
+      config: {
+        schema_version: 2,
+        auth_mode: "sso",
+        local_auth: { enabled: false },
+        keycloak: { enabled: true, browser_session_ready: true },
+        providers: [
+          {
+            provider_type: "keycloak-oidc",
+            alias: "legacy",
+            display_name: "SSO",
+            login_url: "/api/auth/akb/sso/start?provider=legacy",
+          },
+        ],
+      },
+    });
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "http://akb.test/api/v1/auth/config",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchSpy.mock.calls.flat().join(" ")).not.toContain(
+      "/auth/keycloak/login",
+    );
+    expect(fetchSpy.mock.calls.flat().join(" ")).not.toContain(
+      "/auth/keycloak/exchange",
+    );
+  });
+
+  it.each([
+    ["disabled Keycloak", { enabled: false, login_url: null }],
+    [
+      "non-canonical login path",
+      {
+        enabled: true,
+        login_url: "/api/v1/auth/keycloak/login?redirect=https://evil.test",
+      },
+    ],
+  ])(
+    "fails closed for an unsafe legacy SSO catalog (%s)",
+    async (_label, keycloak) => {
+      vi.stubEnv("REEF_AUTH_MODE", "sso");
+      vi.stubEnv(
+        "REEF_KEYCLOAK_ISSUER",
+        "https://identity.example.com/realms/reef",
+      );
+      vi.stubEnv("REEF_KEYCLOAK_CLIENT_ID", "reef-web");
+      vi.stubEnv("REEF_AKB_API_AUDIENCE", "akb-api");
+      vi.stubEnv("REEF_PUBLIC_ORIGIN", "https://reef.example.com");
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        Response.json({ local_auth: { enabled: false }, keycloak }),
+      );
+
+      await expect(loadAkbAuthConfig()).resolves.toEqual({
+        ok: false,
+        reason: "mode_mismatch",
+      });
+    },
+  );
+
+  it("preserves v2 mode mismatch checks", async () => {
+    vi.stubEnv("REEF_AUTH_MODE", "sso");
+    vi.stubEnv(
+      "REEF_KEYCLOAK_ISSUER",
+      "https://identity.example.com/realms/reef",
+    );
+    vi.stubEnv("REEF_KEYCLOAK_CLIENT_ID", "reef-web");
+    vi.stubEnv("REEF_AKB_API_AUDIENCE", "akb-api");
+    vi.stubEnv("REEF_PUBLIC_ORIGIN", "https://reef.example.com");
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        schema_version: 2,
+        auth_mode: "local",
+        local_auth: { enabled: true },
+        keycloak: { enabled: false, browser_session_ready: false },
+        providers: [],
+      }),
+    );
+
+    await expect(loadAkbAuthConfig()).resolves.toEqual({
+      ok: false,
+      reason: "mode_mismatch",
+    });
+  });
+
   it("fails closed when the SSO provider catalog is not browser-ready", async () => {
     vi.stubEnv("REEF_AUTH_MODE", "sso");
     vi.stubEnv(
