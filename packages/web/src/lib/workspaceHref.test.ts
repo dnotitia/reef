@@ -24,16 +24,11 @@ describe("withVault (REEF-315)", () => {
     );
   });
 
-  it("returns the bare path when the vault is empty (falls through to the legacy shim)", () => {
-    expect(withVault("", "/issues")).toBe("/issues");
-    expect(withVault("", "issues")).toBe("/issues");
-  });
-
-  it("returns the bare path for a malformed vault name", () => {
-    // Uppercase / illegal chars do not name a real akb vault, so skip building a
-    // bogus /workspace/{bad}/… URL.
-    expect(withVault("Bad_Vault", "/issues")).toBe("/issues");
-    expect(withVault("has space", "/issues")).toBe("/issues");
+  it("sends callers without a valid vault to onboarding", () => {
+    expect(withVault("", "/issues")).toBe("/onboarding");
+    expect(withVault("/issues", "issues")).toBe("/onboarding");
+    expect(withVault("Bad_Vault", "/issues")).toBe("/onboarding");
+    expect(withVault("has space", "/issues")).toBe("/onboarding");
   });
 
   it("exposes the fixed prefix constant", () => {

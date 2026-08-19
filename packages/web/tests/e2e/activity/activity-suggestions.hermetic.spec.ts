@@ -382,17 +382,12 @@ test.describe("Hermetic activity suggestion workflows", () => {
     ).toContainText("Suggestions");
   });
 
-  test("preserves repeated and empty query values through scoped and flat compatibility URLs", async ({
+  test("preserves repeated and empty query values through the scoped activity URL", async ({
     page,
   }) => {
     await openExistingWorkspace(page);
 
     await page.goto("/workspace/reef-e2e/activity?tag=a&tag=b&empty=");
-    await expect(page).toHaveURL(
-      "/workspace/reef-e2e/suggestions?tag=a&tag=b&empty=",
-    );
-
-    await page.goto("/activity?tag=a&tag=b&empty=");
     await expect(page).toHaveURL(
       "/workspace/reef-e2e/suggestions?tag=a&tag=b&empty=",
     );

@@ -25,9 +25,9 @@ describe("buildOpenIssueHref", () => {
     ).toBe("/workspace/reef-acme/issues/REEF-9");
   });
 
-  it("falls back to the bare path when the vault is not yet resolved (REEF-315)", () => {
+  it("sends an unresolved vault to onboarding", () => {
     expect(buildOpenIssueHref("", "REEF-9", new URLSearchParams())).toBe(
-      "/issues/REEF-9",
+      "/onboarding",
     );
   });
 });

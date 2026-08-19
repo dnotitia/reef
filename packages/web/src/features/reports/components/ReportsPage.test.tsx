@@ -125,7 +125,7 @@ describe("ReportsPage", () => {
       refetch: () => Promise.resolve(),
     });
     render(wrap(<ReportsPage />));
-    expect(screen.getByText(/Pick a workspace/i)).toBeInTheDocument();
+    expect(screen.getByText(/Choose a workspace/i)).toBeInTheDocument();
   });
 
   it("names the active workspace in the Reports header subtitle, like its peer pages (REEF-260)", async () => {

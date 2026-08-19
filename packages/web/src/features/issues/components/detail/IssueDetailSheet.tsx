@@ -437,7 +437,7 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
           className="p-6 text-sm text-muted-foreground"
         >
           {t.rich("noVaultPrompt", {
-            settings: nav("settings"),
+            onboarding: nav("onboarding"),
             link: (chunks) => (
               <Link
                 href={withVault(vault, "/settings")}

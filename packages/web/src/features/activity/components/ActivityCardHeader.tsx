@@ -71,14 +71,19 @@ export function ActivityCardHeader({
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex min-w-0 items-center gap-2">
           <SuggestionProvenanceBadge>{badge}</SuggestionProvenanceBadge>
-          {issueId && (
-            <Link
-              href={withVault(vault, `/issues/${issueId}`)}
-              className="shrink-0 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:underline"
-            >
-              {issueId}
-            </Link>
-          )}
+          {issueId &&
+            (vault ? (
+              <Link
+                href={withVault(vault, `/issues/${issueId}`)}
+                className="shrink-0 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:underline"
+              >
+                {issueId}
+              </Link>
+            ) : (
+              <span className="shrink-0 text-[11px] font-medium text-muted-foreground">
+                {issueId}
+              </span>
+            ))}
           {issueTitle && (
             <span className="truncate text-xs text-muted-foreground">
               {issueTitle}

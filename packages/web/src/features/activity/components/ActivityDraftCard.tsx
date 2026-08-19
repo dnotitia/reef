@@ -322,15 +322,17 @@ export function ActivityDraftCard({
                   </span>
                 );
               })}
-            {relationLinks.map(({ kind, label, id }) => (
-              <Link
-                key={`${kind}:${id}`}
-                href={withVault(vault ?? "", `/issues/${id}`)}
-                className={LINK_CHIP_CLASS}
-              >
-                {label} <span className="font-mono">{id}</span>
-              </Link>
-            ))}
+            {vault
+              ? relationLinks.map(({ kind, label, id }) => (
+                  <Link
+                    key={`${kind}:${id}`}
+                    href={withVault(vault, `/issues/${id}`)}
+                    className={LINK_CHIP_CLASS}
+                  >
+                    {label} <span className="font-mono">{id}</span>
+                  </Link>
+                ))
+              : null}
           </div>
         )}
       </ActivityCardHeader>

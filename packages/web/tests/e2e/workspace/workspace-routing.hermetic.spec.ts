@@ -78,31 +78,14 @@ test.describe("workspace URL routing (REEF-315)", () => {
       .toBe(REEF_E2E_VAULT);
   });
 
-  test("AC4: a legacy flat link redirects to its vault-scoped path, preserving the query", async ({
+  test("AC4: vault-less dashboard links are no longer compatibility routes", async ({
     page,
   }) => {
-    // openExistingWorkspace leaves reef-e2e as the remembered default.
     await openExistingWorkspace(page);
 
-    await page.goto("/issues/REEF-001?view=list");
+    const response = await page.goto("/issues/REEF-001?view=list");
 
-    await page.waitForURL(
-      /\/workspace\/reef-e2e\/issues\/REEF-001\?view=list$/,
-      { timeout: 10_000 },
-    );
-    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
-  });
-
-  test("AC4: a legacy link with no remembered workspace goes to onboarding", async ({
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "empty");
-    await signInAsAlice(page);
-    await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
-    // No workspace selected yet → no Dexie default.
-    await page.goto("/issues");
-    await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+    expect(response?.status()).toBe(404);
   });
 
   test("AC5: a malformed workspace segment returns 404", async ({ page }) => {

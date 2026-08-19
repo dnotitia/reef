@@ -63,7 +63,7 @@ export interface CreateWorkspaceChatAgentResponseParams
   /** Validated AI SDK UI messages from the BFF boundary. */
   messages: UIMessage[];
   /**
-   * The app route the user is chatting from (e.g. "/reef-e2e/issues"), when the
+   * The app route the user is chatting from (e.g. "/workspace/reef-e2e/issues"), when the
    * client sends it. Grounds the assistant in where the PM is (REEF-360 AC2).
    */
   route?: string | null;

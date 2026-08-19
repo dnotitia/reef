@@ -33,8 +33,8 @@ UI state still follow a strict owner split:
 - **Dexie (IndexedDB)** holds per-user persisted browser state with no akb home
   — the *last viewed workspace* default (since REEF-315 the active workspace is
   the `/workspace/[vault]` URL segment, source of truth; Dexie is only the
-  per-browser fallback the root redirector and the `(legacy)` flat-link shim use
-  to choose a workspace), theme preference, UI locale (mirrored to a
+  per-browser fallback the root redirector uses to choose a workspace), theme
+  preference, UI locale (mirrored to a
   non-httpOnly `NEXT_LOCALE` cookie so SSR can resolve it on the first request),
   per-vault issue filters, the currently selected activity-scan repo, last
   visit/scan markers, and the previously signed-in akb user id used for account
@@ -538,9 +538,9 @@ visible hover and focus affordance.
 via `?view=` and a ViewSwitcher in the page header. Every dashboard surface is
 vault-scoped under `/workspace/{vault}/…` (REEF-315): a malformed vault segment
 404s, a well-formed vault the signed-in user cannot access shows an explicit
-access-denied surface (with their own workspaces to switch to), and old flat
-links (`/issues`, `/settings/…`) redirect through the `(legacy)` shim to the
-remembered workspace's equivalent path. Board, List, and Timeline render the active
+access-denied surface (with their own workspaces to switch to). Vault-less
+dashboard paths are not part of the route tree; use the explicit workspace URL
+or the root workspace picker. Board, List, and Timeline render the active
 workflow collection; Backlog is a dedicated triage lens over the `backlog`
 status. They share one route, one header, one Zustand filter scope, and one
 filter toolbar, with the backlog view hiding facets that are pinned or
@@ -550,7 +550,8 @@ The workspace roots follow the same URL-first contract (REEF-424).
 `/workspace` is the only workspace route that consults the remembered Dexie
 default: it opens that vault's Issues surface or sends a signed-in browser with
 no default to onboarding. `/workspace/{vault}` keeps the explicit vault,
-preserves all query values, and redirects to that vault's `/issues` surface.
+preserves all query values, and redirects to that vault's
+`/workspace/{vault}/issues` surface.
 Malformed, inaccessible, and Reef-unconfigured vault roots never fall back to a
 different remembered vault or overwrite the browser default.
 
@@ -723,11 +724,10 @@ notification unread state. It remains visible on the active route, uses a
 numbered pill in the expanded sidebar and an equivalently named dot in the
 collapsed rail, and decreases only when a review action changes queue state.
 
-`/workspace/{vault}/activity` remains a replace-style compatibility redirect to
-Suggestions and preserves single, repeated, and empty query values. The legacy
-flat `/activity` route still resolves the remembered, accessible workspace
-before following the same redirect. The issue-detail **Activity** timeline is a
-separate immutable audit surface and keeps its name and behavior.
+`/workspace/{vault}/activity` remains a replace-style redirect to Suggestions
+and preserves single, repeated, and empty query values. The issue-detail
+**Activity** timeline is a separate immutable audit surface and keeps its name
+and behavior.
 
 The feed is a list of purple-tinted AI cards in two variants, each
 human-in-the-loop:

@@ -7,9 +7,9 @@ import { useWorkspaceAutoResume } from "@/features/onboarding/hooks/useWorkspace
 
 /**
  * Root route — gates on akb session and active workspace, then sends the
- * user to `/login`, `/onboarding`, or `/issues`. See `useAuthRedirect` for
- * the full decision tree. While the redirect resolves, paint the board app
- * shell instead of a bare "Loading…" line (REEF-097 AC2).
+ * user to `/login`, `/onboarding`, or `/workspace/{vault}/issues`. See
+ * `useAuthRedirect` for the full decision tree. While the redirect resolves,
+ * paint the board app shell instead of a bare "Loading…" line (REEF-097 AC2).
  */
 export default function RootPage() {
   const authStatus = useAuthRedirect("root");
