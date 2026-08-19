@@ -36,6 +36,7 @@ describe("MonitoredRepoSelector accessibility (REEF-151)", () => {
     fireEvent.click(screen.getByTestId("monitored-repos-trigger"));
     const search = screen.getByRole("textbox", { name: "Search repositories" });
     expect(search).toHaveAttribute("placeholder", "Search repositories…");
+    expect(search).toHaveFocus();
   });
 
   it("draws the search input's ring on keyboard focus only (REEF-226)", () => {

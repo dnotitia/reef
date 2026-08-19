@@ -11,11 +11,16 @@ type ButtonVariant =
   | "ghost"
   | "link";
 type ButtonSize = "default" | "sm" | "lg" | "icon" | "icon-sm";
+type ButtonHitTarget = "coarse" | "compact";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
   asChild?: boolean;
+  /** Keep compact row actions compact on coarse pointers. */
+  hitTarget?: ButtonHitTarget;
+  /** Prevent duplicate activation while the owning action is in flight. */
+  busy?: boolean;
 }
 
 const variantClasses: Record<ButtonVariant, string> = {
@@ -44,22 +49,45 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       variant = "default",
       size = "default",
       asChild = false,
+      hitTarget,
+      busy = false,
+      disabled = false,
+      onClick,
       ...props
     },
     ref,
   ) => {
     const Comp = asChild ? Slot : "button";
+    const resolvedHitTarget =
+      hitTarget ?? (size === "sm" || size === "icon-sm" ? "compact" : "coarse");
+    const isDisabled = disabled || busy;
+
+    const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+      if (isDisabled) {
+        event.preventDefault();
+        return;
+      }
+      onClick?.(event);
+    };
+
     return (
       <Comp
         ref={ref}
         data-slot="button"
+        data-busy={busy ? "true" : undefined}
         className={cn(
-          "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-1 disabled:pointer-events-none disabled:opacity-50",
+          "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-1 disabled:pointer-events-none disabled:opacity-50 [touch-action:manipulation]",
           variantClasses[variant],
           sizeClasses[size],
+          resolvedHitTarget === "coarse" &&
+            "[@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11",
           className,
         )}
         {...props}
+        aria-busy={busy || props["aria-busy"]}
+        aria-disabled={asChild && isDisabled ? true : props["aria-disabled"]}
+        disabled={isDisabled}
+        onClick={handleClick}
       />
     );
   },
@@ -67,4 +95,4 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 Button.displayName = "Button";
 
 export { Button };
-export type { ButtonProps };
+export type { ButtonHitTarget, ButtonProps };

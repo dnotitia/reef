@@ -100,6 +100,7 @@ export function MonitoredRepoSelector({
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
           data-testid={`${testIdPrefix}-trigger`}
+          aria-haspopup="dialog"
           disabled={disabled}
           className="inline-flex h-8 w-64 items-center justify-between rounded-md border border-border bg-elevated px-2.5 text-[13px] text-foreground transition-colors duration-150 hover:bg-surface-hover disabled:opacity-50"
           aria-label={
@@ -118,7 +119,11 @@ export function MonitoredRepoSelector({
             className="ml-2 h-3.5 w-3.5 shrink-0 text-muted-foreground"
           />
         </PopoverTrigger>
-        <PopoverContent className="w-64 p-2">
+        <PopoverContent
+          role="dialog"
+          aria-label={t("searchReposLabel")}
+          className="w-64 p-2"
+        >
           <input
             type="text"
             className="mb-2 w-full rounded-md border border-border bg-elevated px-2 py-1 text-[13px] text-foreground outline-none transition-colors focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/30"

@@ -131,6 +131,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
       <Popover open={open} onOpenChange={setOpen} className="w-full">
         <PopoverTrigger
           data-testid="sidebar-workspace-trigger"
+          aria-haspopup="dialog"
           aria-label={
             activeVault
               ? tw("workspaceAria", { name: activeVault })
@@ -178,6 +179,8 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
         <PopoverContent
           side="top"
           align="start"
+          role="dialog"
+          aria-label={tw("selectWorkspaceAria")}
           data-testid="workspace-switcher"
           className="w-56 p-2"
         >
