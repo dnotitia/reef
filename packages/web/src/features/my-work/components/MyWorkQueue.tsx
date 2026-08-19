@@ -87,7 +87,7 @@ export function MyWorkQueue({ items, mode, onModeChange }: MyWorkQueueProps) {
         </div>
       </header>
 
-      <div className="overflow-hidden rounded-xl border border-border-subtle bg-background">
+      <div className="min-w-0 overflow-hidden rounded-xl border border-border-subtle bg-background">
         {mode === "priority" ? (
           items.map((item) => (
             <MyWorkRow

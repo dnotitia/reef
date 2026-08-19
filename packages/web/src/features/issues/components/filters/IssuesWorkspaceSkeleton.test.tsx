@@ -11,6 +11,11 @@ describe("IssuesWorkspaceSkeleton", () => {
     // the board".
     expect(screen.getByTestId("issues-skeleton")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Issues" })).toBeInTheDocument();
+    expect(screen.getByTestId("issues-skeleton")).toHaveClass("min-w-0");
+    expect(screen.getByTestId("board-columns-skeleton")).toHaveClass(
+      "min-w-0",
+      "overflow-x-auto",
+    );
   });
 
   it("reserves the toolbar's two rows so it does not grow on hydration (REEF-258)", () => {

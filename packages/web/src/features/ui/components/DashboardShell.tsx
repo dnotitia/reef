@@ -685,13 +685,13 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
         <SidebarAccount appVersion={appVersion} collapsed={sidebarCollapsed} />
       </aside>
 
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <OfflineBanner />
         <main
           ref={commandDestinationRef}
           tabIndex={-1}
           data-command-focus-destination=""
-          className="flex-1 overflow-auto bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/40"
+          className="min-w-0 flex-1 overflow-auto bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/40"
         >
           {children}
         </main>

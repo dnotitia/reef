@@ -65,40 +65,60 @@ export const MyWorkRow = memo(function MyWorkRow({
     <Link
       href={href}
       data-testid={`my-work-row-${issue.id}`}
-      className="group flex items-center gap-3 border-t border-border-subtle px-3 py-2 transition-colors duration-150 first:border-t-0 hover:bg-surface-hover focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+      className="group flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 border-t border-border-subtle px-3 py-2 transition-colors duration-150 first:border-t-0 hover:bg-surface-hover focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
     >
-      {issue.priority ? (
-        <PriorityDot priority={issue.priority} decorative />
-      ) : (
-        <span
-          className="inline-block size-2 shrink-0 rounded-full bg-border-subtle"
-          aria-hidden="true"
+      <span
+        data-testid="my-work-row-identity"
+        className="flex shrink-0 items-center gap-x-2"
+      >
+        {issue.priority ? (
+          <PriorityDot priority={issue.priority} decorative />
+        ) : (
+          <span
+            className="inline-block size-2 shrink-0 rounded-full bg-border-subtle"
+            aria-hidden="true"
+          />
+        )}
+
+        {showStatus ? (
+          <StatusIcon status={issue.status} size={14} decorative />
+        ) : null}
+
+        <span className="w-[64px] shrink-0 truncate font-mono text-xs tabular-nums text-muted-foreground">
+          {issue.id}
+        </span>
+
+        <TypePill
+          type={issue.issue_type}
+          variant="kanban"
+          className="shrink-0"
         />
-      )}
-
-      {showStatus ? (
-        <StatusIcon status={issue.status} size={14} decorative />
-      ) : null}
-
-      <span className="w-[64px] shrink-0 truncate font-mono text-xs tabular-nums text-muted-foreground">
-        {issue.id}
       </span>
 
-      <TypePill type={issue.issue_type} variant="kanban" className="shrink-0" />
-
-      <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
+      <span
+        data-testid="my-work-row-title"
+        title={issue.title}
+        className="min-w-0 basis-full break-words text-[13px] text-foreground sm:flex-1 sm:basis-auto sm:truncate sm:whitespace-nowrap"
+      >
         {issue.title}
       </span>
 
-      {item.blocked ? (
-        <BlockedBadge
-          variant="list"
-          count={item.blockerCount}
-          className="shrink-0"
-        />
-      ) : null}
+      {item.blocked || issue.due_date ? (
+        <span
+          data-testid="my-work-row-meta"
+          className="flex w-full shrink-0 flex-wrap items-center gap-x-2 gap-y-1 sm:w-auto"
+        >
+          {item.blocked ? (
+            <BlockedBadge
+              variant="list"
+              count={item.blockerCount}
+              className="shrink-0"
+            />
+          ) : null}
 
-      <DueMeta item={item} />
+          <DueMeta item={item} />
+        </span>
+      ) : null}
     </Link>
   );
 });
