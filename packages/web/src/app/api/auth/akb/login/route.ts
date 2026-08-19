@@ -1,4 +1,5 @@
 import { getAkbBackendUrl } from "@/lib/akb/akbBackendUrl";
+import { loadAkbAuthConfig } from "@/lib/akb/loadAkbAuthConfig";
 import {
   DEFAULT_SESSION_MAX_AGE_SECONDS,
   buildClearedAuthInvalidationCookie,
@@ -39,17 +40,33 @@ const LoginRequestSchema = z.object({
 });
 
 export async function POST(request: Request): Promise<Response> {
+  let authConfig: ReturnType<typeof readAuthRuntimeConfig>;
   try {
-    // Both explicit auth profiles support the legacy AKB credential exchange.
-    // In SSO mode the resulting JWT is handled by the hybrid session carrier;
-    // the public AKB capability catalog still controls whether the password
-    // form is shown (for example, an explicit SSO-only policy hides it).
-    readAuthRuntimeConfig();
+    authConfig = readAuthRuntimeConfig();
   } catch {
     return Response.json(
       { error: "Authentication is not configured." },
       { status: 503 },
     );
+  }
+
+  if (authConfig.mode === "sso") {
+    // The UI is not an authorization boundary. Re-read AKB's capability
+    // catalog before accepting credentials so an explicit SSO-only policy (or
+    // an unavailable/mismatched catalog) cannot be bypassed by a direct POST.
+    const capability = await loadAkbAuthConfig();
+    if (!capability.ok) {
+      return Response.json(
+        { error: "Authentication capability is unavailable." },
+        { status: 503 },
+      );
+    }
+    if (!capability.config.local_auth.enabled) {
+      return Response.json(
+        { error: "Sign-in method is unavailable." },
+        { status: 404 },
+      );
+    }
   }
 
   let rawBody: unknown;

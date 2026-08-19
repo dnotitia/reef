@@ -134,8 +134,11 @@ catalog; Reef does not fall back to AKB's retired exchange flow.
 
 ## Login and token custody
 
-1. `/login` reads the public AKB catalog. One enabled provider can redirect
-   directly; multiple providers render explicit choices.
+1. `/login` reads the public AKB catalog. A single enabled provider redirects
+   automatically only when AKB explicitly sets `sso_only` or the deployment
+   opts into `REEF_SSO_AUTO_REDIRECT`; otherwise the default hybrid panel
+   renders both SSO and username/password. Multiple providers always render
+   explicit choices.
 2. `/api/auth/akb/sso/start` validates the selected alias, creates PKCE, nonce,
    state, and a separate browser binding, then stores the encrypted one-time
    transaction server-side.
