@@ -6,8 +6,8 @@
 
 import { getAkbBackendUrl } from "@/lib/akb/akbBackendUrl";
 import {
+  extractAuthSessionCarrier,
   extractAkbSession,
-  extractSsoSessionHandle,
 } from "@/lib/akb/extractAkbSession";
 import {
   AUTH_ACCOUNT_ERROR_HEADER,
@@ -266,7 +266,8 @@ export async function respondWithError(
 /**
  * Build a per-request AKB adapter from the selected auth profile. Local mode
  * closes over AKB's cookie JWT; SSO resolves the current server-held Keycloak
- * access token lazily from the opaque handle.
+ * access token lazily from an opaque handle while retaining the legacy JWT
+ * carrier for the hybrid username/password surface.
  *
  * The adapter is scoped to one request — does not cached at module scope.
  */
@@ -281,9 +282,9 @@ export function getAkbAdapter(
   }
 
   if (authConfig.mode === "sso") {
-    let handle: string;
+    let session: ReturnType<typeof extractAuthSessionCarrier>;
     try {
-      handle = extractSsoSessionHandle(request);
+      session = extractAuthSessionCarrier(request);
     } catch {
       return {
         response: authErrorResponse({ clearEstablishedAuth: true }),
@@ -295,6 +296,12 @@ export function getAkbAdapter(
     } catch {
       return { response: backendErrorResponse() };
     }
+    if (session.kind === "local") {
+      return {
+        adapter: createAkbAdapter({ baseUrl: backendUrl, jwt: session.jwt }),
+      };
+    }
+    const handle = session.handle;
     let accessTokenPromise: Promise<string> | null = null;
     const adapter: AkbAdapter = {
       request: async (path, init) => {
@@ -372,9 +379,9 @@ export function getAkbAdapter(
  * each mutating request via akb `/auth/me` (through core `akbGetCurrentActor`),
  * then use the public username for `Issue.created_by` / `Issue.updated_by`. A
  * local AKB JWT claim is just a fallback for older AKB deployments that do not
- * return the expected public profile shape. SSO does not fall back to Keycloak
- * claims because AKB remains the account and canonical-actor authority; no
- * Keycloak claim fallback is used in SSO mode.
+ * return the expected public profile shape. Opaque SSO sessions do not fall
+ * back to Keycloak claims; a legacy JWT in the hybrid SSO profile follows the
+ * normal AKB username fallback.
  *
  * REEF-052: the akb wire call, schema, and claim-decode now live in `core`.
  * This helper keeps cookie decode (web-owned) and the PM-facing error mapping.
@@ -405,7 +412,8 @@ export async function getAkbCurrentActor(
     if (authMode === "local") {
       actorFallbackJwt = extractAkbSession(request);
     } else {
-      actorFallbackJwt = "";
+      const session = extractAuthSessionCarrier(request);
+      actorFallbackJwt = session.kind === "local" ? session.jwt : "";
     }
   } catch (err) {
     return {

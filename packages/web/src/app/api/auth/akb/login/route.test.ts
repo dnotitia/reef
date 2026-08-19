@@ -28,23 +28,50 @@ function makeLoginRequest(body: unknown): Request {
   });
 }
 
+function configureSsoMode(): void {
+  vi.stubEnv("REEF_AUTH_MODE", "sso");
+  vi.stubEnv(
+    "REEF_KEYCLOAK_ISSUER",
+    "https://identity.example.com/realms/reef",
+  );
+  vi.stubEnv("REEF_KEYCLOAK_CLIENT_ID", "reef-web");
+  vi.stubEnv("REEF_AKB_API_AUDIENCE", "akb-api");
+  vi.stubEnv("REEF_PUBLIC_ORIGIN", "https://reef.example.com");
+}
+
+function legacyAuthConfig(options: {
+  localAuth: boolean;
+  ssoOnly: boolean;
+}): Response {
+  return Response.json({
+    local_auth: { enabled: options.localAuth },
+    keycloak: {
+      enabled: true,
+      login_url: "/api/v1/auth/keycloak/login",
+      sso_only: options.ssoOnly,
+    },
+  });
+}
+
 describe("POST /api/auth/akb/login", () => {
   beforeEach(() => {
     vi.stubEnv("AKB_BACKEND_URL", "http://akb.test");
     vi.stubEnv("NODE_ENV", "test");
   });
 
-  it("does not call local AKB login while Reef is in SSO mode", async () => {
-    vi.stubEnv("NODE_ENV", "test");
-    vi.stubEnv("REEF_AUTH_MODE", "sso");
-    vi.stubEnv(
-      "REEF_KEYCLOAK_ISSUER",
-      "https://identity.example.com/realms/reef",
-    );
-    vi.stubEnv("REEF_KEYCLOAK_CLIENT_ID", "reef-web");
-    vi.stubEnv("REEF_AKB_API_AUDIENCE", "akb-api");
-    vi.stubEnv("REEF_PUBLIC_ORIGIN", "https://reef.example.com");
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
+  it("keeps the local AKB login route available in SSO mode", async () => {
+    configureSsoMode();
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        legacyAuthConfig({ localAuth: true, ssoOnly: false }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: VALID_JWT, user: VALID_USER }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
 
     const response = await POST(
       new Request("http://localhost/api/auth/akb/login", {
@@ -54,8 +81,88 @@ describe("POST /api/auth/akb/login", () => {
       }),
     );
 
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ user: VALID_USER });
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "http://akb.test/api/v1/auth/login",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it.each([
+    ["legacy sso_only", legacyAuthConfig({ localAuth: true, ssoOnly: true })],
+    [
+      "versioned local_auth=false",
+      Response.json({
+        schema_version: 2,
+        auth_mode: "sso",
+        local_auth: { enabled: false },
+        keycloak: { enabled: true, browser_session_ready: true },
+        providers: [
+          {
+            provider_type: "keycloak-oidc",
+            alias: "workforce",
+            display_name: "Workforce SSO",
+            login_url: "/api/auth/akb/sso/start?provider=workforce",
+          },
+        ],
+      }),
+    ],
+  ])("rejects direct credentials when %s", async (_label, authConfig) => {
+    configureSsoMode();
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(authConfig);
+
+    const response = await POST(
+      makeLoginRequest({ username: "alice", password: "password" }),
+    );
+
     expect(response.status).toBe(404);
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(await response.json()).toEqual({
+      error: "Sign-in method is unavailable.",
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails closed when the SSO capability cannot be read", async () => {
+    configureSsoMode();
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response("upstream down", { status: 503 }));
+
+    const response = await POST(
+      makeLoginRequest({ username: "alice", password: "password" }),
+    );
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error: "Authentication capability is unavailable.",
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails closed when the AKB catalog auth mode mismatches Reef", async () => {
+    configureSsoMode();
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        schema_version: 2,
+        auth_mode: "local",
+        local_auth: { enabled: true },
+        keycloak: { enabled: false, browser_session_ready: false },
+        providers: [],
+      }),
+    );
+
+    const response = await POST(
+      makeLoginRequest({ username: "alice", password: "password" }),
+    );
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error: "Authentication capability is unavailable.",
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
   afterEach(() => {

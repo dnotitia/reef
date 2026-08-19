@@ -1,4 +1,4 @@
-import { extractSsoSessionHandle } from "@/lib/akb/extractAkbSession";
+import { extractAuthSessionCarrier } from "@/lib/akb/extractAkbSession";
 import { buildClearedAuthCookies } from "@/lib/akb/sessionCookie";
 import { readAuthRuntimeConfig } from "@/server/auth/config";
 import { getSsoAuthRuntime } from "@/server/auth/runtime";
@@ -21,9 +21,9 @@ export async function POST(request: Request): Promise<Response> {
     return new Response(null, { status: 204, headers });
   }
 
-  let handle: string;
+  let session: ReturnType<typeof extractAuthSessionCarrier>;
   try {
-    handle = extractSsoSessionHandle(request);
+    session = extractAuthSessionCarrier(request);
   } catch {
     appendClearedAuthCookies(headers);
     headers.set("Content-Type", "application/json");
@@ -33,8 +33,13 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
+  if (session.kind === "local") {
+    appendClearedAuthCookies(headers);
+    return new Response(null, { status: 204, headers });
+  }
+
   try {
-    await (await getSsoAuthRuntime()).sessions.logout(handle);
+    await (await getSsoAuthRuntime()).sessions.logout(session.handle);
   } catch {
     // Redis deletion is authoritative. Preserve the browser handle so the
     // user can retry rather than reporting a logout that did not happen.

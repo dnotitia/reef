@@ -154,6 +154,8 @@ export function LoginPanel({
         if (!res.ok) {
           setCapabilities({
             providers: [],
+            // A failed SSO capability probe must not expose a password form;
+            // local mode retains its standalone password fallback.
             localAuthEnabled: authMode === "local",
           });
           return;

@@ -24,6 +24,12 @@ function requestWithSession(): Request {
   });
 }
 
+function requestWithJwt(): Request {
+  return new Request("https://reef.example.com/api/issues", {
+    headers: { cookie: "__reef_session=header.payload.signature" },
+  });
+}
+
 describe("getAkbAdapter in SSO mode", () => {
   beforeEach(() => {
     vi.stubEnv("NODE_ENV", "test");
@@ -108,6 +114,26 @@ describe("getAkbAdapter in SSO mode", () => {
     });
     expect(JSON.stringify(error)).not.toContain("session-password");
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps accepting a legacy AKB JWT alongside opaque SSO handles", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({}));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = getAkbAdapter(requestWithJwt());
+    if (!("adapter" in result)) throw new Error("expected hybrid adapter");
+
+    await result.adapter.request("/api/v1/issues");
+
+    expect(mocks.getRuntime).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://akb.example.com/api/v1/issues",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer header.payload.signature",
+        }),
+      }),
+    );
   });
 
   it("maps an actor lookup store outage to a backend failure, not a 401", async () => {

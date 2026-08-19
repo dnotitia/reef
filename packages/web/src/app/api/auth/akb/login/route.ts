@@ -1,4 +1,5 @@
 import { getAkbBackendUrl } from "@/lib/akb/akbBackendUrl";
+import { loadAkbAuthConfig } from "@/lib/akb/loadAkbAuthConfig";
 import {
   DEFAULT_SESSION_MAX_AGE_SECONDS,
   buildClearedAuthInvalidationCookie,
@@ -39,18 +40,33 @@ const LoginRequestSchema = z.object({
 });
 
 export async function POST(request: Request): Promise<Response> {
+  let authConfig: ReturnType<typeof readAuthRuntimeConfig>;
   try {
-    if (readAuthRuntimeConfig().mode !== "local") {
-      return Response.json(
-        { error: "Sign-in method is unavailable." },
-        { status: 404 },
-      );
-    }
+    authConfig = readAuthRuntimeConfig();
   } catch {
     return Response.json(
       { error: "Authentication is not configured." },
       { status: 503 },
     );
+  }
+
+  if (authConfig.mode === "sso") {
+    // The UI is not an authorization boundary. Re-read AKB's capability
+    // catalog before accepting credentials so an explicit SSO-only policy (or
+    // an unavailable/mismatched catalog) cannot be bypassed by a direct POST.
+    const capability = await loadAkbAuthConfig();
+    if (!capability.ok) {
+      return Response.json(
+        { error: "Authentication capability is unavailable." },
+        { status: 503 },
+      );
+    }
+    if (!capability.config.local_auth.enabled) {
+      return Response.json(
+        { error: "Sign-in method is unavailable." },
+        { status: 404 },
+      );
+    }
   }
 
   let rawBody: unknown;

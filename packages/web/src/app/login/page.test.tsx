@@ -51,13 +51,13 @@ function localConfig(keycloakEnabled = false) {
   };
 }
 
-function versionedSsoConfig(providerCount = 1) {
+function versionedSsoConfig(providerCount = 1, localAuth = false) {
   return {
     ok: true as const,
     config: {
       schema_version: 2 as const,
       auth_mode: "sso" as const,
-      local_auth: { enabled: false },
+      local_auth: { enabled: localAuth },
       keycloak: { enabled: true, browser_session_ready: true },
       providers: Array.from({ length: providerCount }, (_, index) => ({
         provider_type: "keycloak-oidc" as const,
@@ -189,6 +189,29 @@ describe("LoginPage", () => {
       ).rejects.toThrow(
         "REDIRECT:/api/auth/akb/sso/start?redirect=%2Fissues%3Fstatus%3Dopen&provider=workforce",
       );
+    });
+
+    it("keeps the hybrid panel for a single provider by default", async () => {
+      configureSsoMode();
+      loadAkbAuthConfigMock.mockResolvedValue(versionedSsoConfig(1, true));
+
+      const view = await LoginPage({ searchParams: Promise.resolve({}) });
+      render(<IntlTestProvider>{view}</IntlTestProvider>);
+
+      expect(screen.getByTestId("login-panel")).toHaveAttribute(
+        "data-auth-mode",
+        "sso",
+      );
+    });
+
+    it("honors the explicit SSO-first environment opt-in for hybrid auth", async () => {
+      configureSsoMode();
+      vi.stubEnv("REEF_SSO_AUTO_REDIRECT", "1");
+      loadAkbAuthConfigMock.mockResolvedValue(versionedSsoConfig(1, true));
+
+      await expect(
+        LoginPage({ searchParams: Promise.resolve({}) }),
+      ).rejects.toThrow("REDIRECT:/api/auth/akb/sso/start");
     });
 
     it("keeps the SSO panel for multiple provider choices", async () => {

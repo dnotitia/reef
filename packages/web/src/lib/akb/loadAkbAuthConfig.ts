@@ -113,9 +113,10 @@ export async function loadAkbAuthConfig(): Promise<AkbAuthConfigResult> {
       ok: true,
       config: {
         ...config,
-        // Mode selection is Reef-owned. Do not expose a password form while
-        // the BFF is configured for opaque SSO sessions.
-        local_auth: { enabled: false },
+        // SSO is the session transport, not a password-policy override. Keep
+        // AKB's local-auth capability so the pre-v0.11 hybrid surface remains
+        // available; an explicit SSO-only catalog continues to disable it at
+        // the projection boundary below.
         providers: enabledProviders.map((provider) => ({
           ...provider,
           // Do not relay or call AKB's own browser login route. Reef owns its
@@ -161,7 +162,12 @@ function projectLegacySsoConfig(
   return {
     schema_version: 2,
     auth_mode: "sso",
-    local_auth: { enabled: false },
+    // Preserve the legacy hybrid policy. `sso_only` is the explicit opt-out
+    // from the password surface; otherwise AKB's local-auth capability stays
+    // visible in the projected v2 contract.
+    local_auth: {
+      enabled: config.local_auth.enabled && !config.keycloak.sso_only,
+    },
     // Legacy AKB has no readiness field. Reef performs its own OIDC
     // reachability and token checks; a failed check redirects to the existing
     // fail-closed SSO error path.

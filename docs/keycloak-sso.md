@@ -120,7 +120,9 @@ This is a capability signal only. Reef requires the exact canonical legacy path,
 projects the response to a one-provider v2 view with the fixed alias `legacy`,
 and starts the same Reef-owned Authorization Code + PKCE flow as a native v2
 catalog. It never calls the legacy AKB browser-login or JWT-exchange endpoints,
-and it always disables the local password surface when `REEF_AUTH_MODE=sso`.
+and preserves the legacy `local_auth` capability in the projected view. This
+keeps the pre-v0.11 hybrid password+SSO surface when `sso_only` is false; an
+explicit `sso_only: true` response still hides the password surface.
 
 The legacy shape cannot identify a provider alias or report AKB browser
 readiness. The compatibility projection therefore remains conservative: the
@@ -132,8 +134,11 @@ catalog; Reef does not fall back to AKB's retired exchange flow.
 
 ## Login and token custody
 
-1. `/login` reads the public AKB catalog. One enabled provider can redirect
-   directly; multiple providers render explicit choices.
+1. `/login` reads the public AKB catalog. A single enabled provider redirects
+   automatically only when AKB explicitly sets `sso_only` or the deployment
+   opts into `REEF_SSO_AUTO_REDIRECT`; otherwise the default hybrid panel
+   renders both SSO and username/password. Multiple providers always render
+   explicit choices.
 2. `/api/auth/akb/sso/start` validates the selected alias, creates PKCE, nonce,
    state, and a separate browser binding, then stores the encrypted one-time
    transaction server-side.
