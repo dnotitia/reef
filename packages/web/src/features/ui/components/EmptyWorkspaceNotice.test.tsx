@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 // The notice now resolves the active vault (REEF-315) via useActiveVault, which
 // calls useQuery. This is the "no workspace selected" surface, so resolve it to
-// the empty vault — withVault("", "/settings") stays the bare "/settings" link.
+// the empty vault — links without a selected workspace go to onboarding.
 vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   useActiveVault: () => ({ vault: "", isLoading: false, refetch: vi.fn() }),
 }));
@@ -13,7 +13,7 @@ import { EmptyWorkspaceNotice } from "./EmptyWorkspaceNotice";
 
 describe("EmptyWorkspaceNotice", () => {
   // The done-check for REEF-259: the five no-vault surfaces share one notice, so
-  // the canonical copy, the brand Settings link, and the testid the callers gate
+  // the canonical copy, the brand Onboarding link, and the testid the callers gate
   // on all live here in one place.
   it("renders the single canonical copy under the shared testid", () => {
     render(
@@ -35,25 +35,25 @@ describe("EmptyWorkspaceNotice", () => {
     expect(notice.tagName).toBe("DIV");
     expect(notice).not.toHaveAttribute("role", "region");
     expect(notice).not.toHaveClass("rounded-lg", "border-dashed");
-    expect(screen.getByText(/Pick a workspace/i)).toBeInTheDocument();
+    expect(screen.getByText(/Choose a workspace/i)).toBeInTheDocument();
     expect(screen.getByText(/to get started\./i)).toBeInTheDocument();
   });
 
-  it("links to Settings as a brand-styled client link", () => {
+  it("links to Onboarding as a brand-styled client link", () => {
     render(
       <IntlTestProvider>
         <EmptyWorkspaceNotice />
       </IntlTestProvider>,
     );
 
-    const link = screen.getByRole("link", { name: "Settings" });
-    expect(link).toHaveAttribute("href", "/settings");
+    const link = screen.getByRole("link", { name: "Onboarding" });
+    expect(link).toHaveAttribute("href", "/onboarding");
     expect(link.className).toContain("text-brand");
   });
 
   // REEF-293 AC1: the same notice renders in Korean under the ko catalog, with
-  // the embedded Settings link preserved (t.rich) and reordered to the front.
-  it("renders the Korean copy and a translated Settings link under ko", () => {
+  // the embedded Onboarding link preserved (t.rich) and reordered to the front.
+  it("renders the Korean copy and a translated Onboarding link under ko", () => {
     render(
       <IntlTestProvider locale="ko">
         <EmptyWorkspaceNotice />
@@ -61,9 +61,9 @@ describe("EmptyWorkspaceNotice", () => {
     );
 
     expect(screen.getByTestId("empty-workspace-notice")).toHaveTextContent(
-      "설정에서 워크스페이스를 선택해 시작하세요.",
+      "온보딩에서 워크스페이스를 선택해 시작하세요.",
     );
-    const link = screen.getByRole("link", { name: "설정" });
-    expect(link).toHaveAttribute("href", "/settings");
+    const link = screen.getByRole("link", { name: "온보딩" });
+    expect(link).toHaveAttribute("href", "/onboarding");
   });
 });

@@ -16,6 +16,7 @@
     "activity": "활동",
     "reports": "리포트",
     "settings": "설정",
+    "onboarding": "온보딩",
     "newIssue": "새 이슈",
     "newIssueAriaLabel": "새 이슈 ({shortcut})",
     "newIssueTitle": "새 이슈 ({shortcut})",
@@ -191,7 +192,7 @@
   },
   "emptyState": {
     "workspace": {
-      "prompt": "<link>설정</link>에서 워크스페이스를 선택해 시작하세요."
+      "prompt": "<link>온보딩</link>에서 워크스페이스를 선택해 시작하세요."
     }
   },
   "workspace": {
@@ -1086,7 +1087,7 @@
       "descriptionPlaceholder": "이슈를 설명하세요…",
       "descriptionWysiwygPlaceholder": "이슈를 설명하거나 /를 입력해 블록을 추가하세요…",
       "descriptionAriaLabel": "이슈 설명",
-      "noVaultPrompt": "<link>{settings}</link>에서 워크스페이스를 설정해 이 이슈를 확인하세요.",
+      "noVaultPrompt": "<link>{onboarding}</link>에서 워크스페이스를 선택해 이 이슈를 확인하세요.",
       "srTitle": "이슈 {issueId}",
       "srDescription": "이슈 {issueId}의 세부 정보를 편집합니다.",
       "resizeHandle": "이슈 상세 패널 크기 조절",

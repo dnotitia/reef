@@ -29,7 +29,6 @@ describe("isDirectIssueMarkdownHref", () => {
 
 describe("issueIdFromIssueMarkdownHref", () => {
   it.each([
-    ["/issues/REEF-002", "REEF-002"],
     ["/workspace/reef-test/issues/REEF-002", "REEF-002"],
     ["/workspace/reef-test/issues/TEAM_2-7?view=list", "TEAM_2-7"],
   ])("reads the issue id from %s", (href, issueId) => {
@@ -37,6 +36,7 @@ describe("issueIdFromIssueMarkdownHref", () => {
   });
 
   it.each([
+    "/issues/REEF-002",
     "https://example.com/issues/REEF-002",
     "/workspace/reef-test/planning/REEF-002",
     "/issues/%E0%A4%A",

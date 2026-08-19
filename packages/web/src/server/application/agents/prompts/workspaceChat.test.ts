@@ -73,9 +73,9 @@ describe("buildWorkspaceChatSystemPrompt", () => {
   it("includes the route hint when provided", () => {
     const prompt = buildWorkspaceChatSystemPrompt({
       summary,
-      route: "/reef-e2e/issues",
+      route: "/workspace/reef-e2e/issues",
     });
-    expect(prompt).toContain("/reef-e2e/issues");
+    expect(prompt).toContain("/workspace/reef-e2e/issues");
   });
 
   it("without issue context: has no Current issue section", () => {

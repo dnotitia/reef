@@ -16,6 +16,7 @@
     "activity": "Activity",
     "reports": "Reports",
     "settings": "Settings",
+    "onboarding": "Onboarding",
     "newIssue": "New issue",
     "newIssueAriaLabel": "New issue ({shortcut})",
     "newIssueTitle": "New issue ({shortcut})",
@@ -191,7 +192,7 @@
   },
   "emptyState": {
     "workspace": {
-      "prompt": "Pick a workspace in <link>Settings</link> to get started."
+      "prompt": "Choose a workspace in <link>Onboarding</link> to get started."
     }
   },
   "workspace": {
@@ -899,7 +900,7 @@
       "descriptionPlaceholder": "Describe the issue…",
       "descriptionWysiwygPlaceholder": "Describe the issue or type / to insert a block…",
       "descriptionAriaLabel": "Issue description",
-      "noVaultPrompt": "Configure a workspace in <link>{settings}</link> to view this issue.",
+      "noVaultPrompt": "Choose a workspace in <link>{onboarding}</link> to view this issue.",
       "srTitle": "Issue {issueId}",
       "srDescription": "Edit details for issue {issueId}.",
       "resizeHandle": "Resize issue detail panel",

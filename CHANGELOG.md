@@ -12,6 +12,13 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Changed
+
+- **Removed the vault-less dashboard compatibility routes.** Dashboard links now
+  require the canonical `/workspace/{vault}/...` form; old flat paths such as
+  `/issues`, `/planning`, and `/settings/...` no longer redirect through the
+  remembered workspace.
+
 ## v0.11.0 - 2026-08-18
 
 ### Security

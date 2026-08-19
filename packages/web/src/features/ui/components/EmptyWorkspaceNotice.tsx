@@ -21,7 +21,7 @@ import Link from "next/link";
  * rows yet" — so the lighter, centered prompt is the canonical treatment
  * rather than a boxed card.
  *
- * The Settings link is a Next `Link` (client navigation) rather than a raw
+ * The Onboarding link is a Next `Link` (client navigation) rather than a raw
  * `<a>`, keeping it consistent with the in-app navigation REEF-262 unifies.
  */
 export function EmptyWorkspaceNotice() {
@@ -32,7 +32,7 @@ export function EmptyWorkspaceNotice() {
       variant="structure"
       data-testid="empty-workspace-notice"
       description={
-        /* `t.rich` keeps the Settings link embedded in the sentence while letting
+        /* `t.rich` keeps the Onboarding link embedded in the sentence while letting
             each locale own word order — ko moves the link to the front (REEF-293,
             epic UX: copy length/order varies without breaking layout). */
         t.rich("prompt", {

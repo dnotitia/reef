@@ -67,8 +67,8 @@ function AuthenticatedWorkspaceGuard({
   // One-way URL→Dexie sync: remember this vault as the "last viewed" default —
   // but for a confirmed member. Persisting before the membership check let
   // a well-formed but denied deep link (`/workspace/someone-else/...`) overwrite
-  // the browser default, after which `/` and the flat-route shim would keep
-  // redirecting into the inaccessible workspace. Passing "" while membership is
+  // the browser default, after which `/` would keep redirecting into the
+  // inaccessible workspace. Passing "" while membership is
   // unknown or denied makes the sync a no-op.
   useSyncActiveVaultFromUrl(isMember ? vault : "");
 

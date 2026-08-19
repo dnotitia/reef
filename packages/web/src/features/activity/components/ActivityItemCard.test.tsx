@@ -272,7 +272,7 @@ describe("ActivityItemCard", () => {
         },
       };
 
-      render(wrap(<ActivityItemCard item={item} />));
+      render(wrap(<ActivityItemCard item={item} vault="reef-test" />));
 
       expect(
         screen.getByRole("link", { name: "commit abc123" }),
@@ -293,16 +293,16 @@ describe("ActivityItemCard", () => {
       expect(screen.getByText("branch feature/from-fork")).toBeInTheDocument();
       expect(
         screen.getByRole("link", { name: "parent REEF-100" }),
-      ).toHaveAttribute("href", "/issues/REEF-100");
+      ).toHaveAttribute("href", "/workspace/reef-test/issues/REEF-100");
       expect(
         screen.getByRole("link", { name: "depends REEF-101" }),
-      ).toHaveAttribute("href", "/issues/REEF-101");
+      ).toHaveAttribute("href", "/workspace/reef-test/issues/REEF-101");
       expect(
         screen.getByRole("link", { name: "blocks REEF-102" }),
-      ).toHaveAttribute("href", "/issues/REEF-102");
+      ).toHaveAttribute("href", "/workspace/reef-test/issues/REEF-102");
       expect(
         screen.getByRole("link", { name: "related REEF-103" }),
-      ).toHaveAttribute("href", "/issues/REEF-103");
+      ).toHaveAttribute("href", "/workspace/reef-test/issues/REEF-103");
     });
 
     it("edits drafts with the shared issue draft field syntax", async () => {

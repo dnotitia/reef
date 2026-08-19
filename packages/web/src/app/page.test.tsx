@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 // Redirect contract (post-lean-onboarding):
 //   - no akb session    → /login
 //   - session, no vault → /onboarding
-//   - session + vault   → /issues
+//   - session + vault   → /workspace/{vault}/issues
 const useAuthRedirect = vi.hoisted(() => vi.fn());
 vi.mock("@/features/auth/hooks/useAuthRedirect", () => ({ useAuthRedirect }));
 const useWorkspaceAutoResume = vi.hoisted(() =>

@@ -20,12 +20,12 @@ export const WORKSPACE_PREFIX = "/workspace";
  * URL (REEF-315).
  *
  * `path` is the leading-slash dashboard path (a query string may ride along).
- * When `vault` is empty — a not-yet-resolved pointer, or a caller outside the
- * `[vault]` segment — the bare path is returned unchanged so it falls through
- * to the `(flat-route)` redirect shim rather than producing `/workspace//issues`.
+ * A dashboard URL cannot be built without a valid vault. Callers that render
+ * before a workspace is selected therefore land on the workspace picker rather
+ * than emitting a vault-less dashboard path.
  */
 export function withVault(vault: string, path: string): string {
   const normalized = path.startsWith("/") ? path : `/${path}`;
-  if (!vault || !VAULT_NAME_RE.test(vault)) return normalized;
+  if (!VAULT_NAME_RE.test(vault)) return "/onboarding";
   return `${WORKSPACE_PREFIX}/${vault}${normalized}`;
 }

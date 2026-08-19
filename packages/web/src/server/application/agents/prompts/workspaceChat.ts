@@ -35,7 +35,7 @@ function sanitizeInline(value: string): string {
 export interface WorkspaceChatSystemPromptOptions {
   /** Compact workspace summary (vault, active sprint, open counts). */
   summary: WorkspaceSummary;
-  /** The app route the user is on, when known (e.g. "/reef-e2e/issues"). */
+  /** The app route the user is on, when known (e.g. "/workspace/reef-e2e/issues"). */
   route?: string | null;
   /** Prefetched current-issue context, or null when there is none / it failed. */
   issueContext?: ChatIssueContext | null;

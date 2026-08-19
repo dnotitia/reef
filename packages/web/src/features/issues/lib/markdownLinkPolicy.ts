@@ -15,12 +15,11 @@ export function isDirectIssueMarkdownHref(href: string): boolean {
   );
 }
 
-/** Returns the issue id carried by Reef's flat or vault-scoped issue route. */
+/** Returns the issue id carried by Reef's vault-scoped issue route. */
 export function issueIdFromIssueMarkdownHref(href: string): string | null {
-  const match =
-    /^\/(?:issues|workspace\/[^/?#]+\/issues)\/([^/?#]+)\/?(?:[?#].*)?$/u.exec(
-      href,
-    );
+  const match = /^\/workspace\/[^/?#]+\/issues\/([^/?#]+)\/?(?:[?#].*)?$/u.exec(
+    href,
+  );
   if (!match) return null;
   try {
     return decodeURIComponent(match[1]);

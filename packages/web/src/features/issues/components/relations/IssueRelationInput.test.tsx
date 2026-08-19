@@ -14,7 +14,7 @@ import { IssueRelationInput } from "./IssueRelationInput";
 
 // Navigable rows drill in place through `useIssueDrill` (REEF-284), which reads
 // the router + live query, so stub both navigation primitives. An empty
-// `useSearchParams` keeps relation hrefs bare (`/issues/REEF-001`).
+// `useSearchParams` keeps relation hrefs free of query parameters.
 const { mockReplace } = vi.hoisted(() => ({ mockReplace: vi.fn() }));
 
 vi.mock("next/navigation", () => ({
