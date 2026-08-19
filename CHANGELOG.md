@@ -19,6 +19,12 @@ explicitly in the entries below.
   `/issues`, `/planning`, and `/settings/...` no longer redirect through the
   remembered workspace.
 
+- **The SSO BFF now accepts the legacy AKB auth-config shape during the v2
+  rollout.** It projects only the exact canonical legacy Keycloak capability
+  onto Reef's own OIDC start route with a fixed `legacy` provider binding; AKB's
+  browser-login and JWT-exchange endpoints remain unused, and token validation
+  stays fail-closed.
+
 ## v0.11.0 - 2026-08-18
 
 ### Security
