@@ -319,6 +319,7 @@ export function IssueBulkActionBar({
                         <Button
                           type="button"
                           size="sm"
+                          hitTarget="compact"
                           variant="outline"
                           disabled={runner.running}
                           onClick={() => runner.dismissFailure(failure.id)}
@@ -329,6 +330,7 @@ export function IssueBulkActionBar({
                         <Button
                           type="button"
                           size="sm"
+                          hitTarget="compact"
                           variant="outline"
                           disabled={runner.running}
                           onClick={() => void retryFailure(failure)}

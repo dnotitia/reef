@@ -14,26 +14,41 @@ describe("Button focus indicator", () => {
     );
   });
 
-  it("keeps independent controls at a coarse-pointer hit target", () => {
+  it("keeps independent controls coarse and makes compact ownership explicit", () => {
     render(
       <>
         <Button>Save</Button>
+        <Button size="sm">New issue</Button>
         <Button size="icon" aria-label="More" />
-        <Button size="icon-sm" aria-label="Compact" />
+        <Button size="icon-sm" aria-label="Independent icon action" />
+        <Button
+          size="icon-sm"
+          hitTarget="compact"
+          aria-label="Dense row action"
+        />
       </>,
     );
 
-    expect(screen.getByRole("button", { name: "Save" })).toHaveClass(
-      "[@media(pointer:coarse)]:min-h-11",
-      "[@media(pointer:coarse)]:min-w-11",
-    );
-    expect(screen.getByRole("button", { name: "More" })).toHaveClass(
-      "[@media(pointer:coarse)]:min-h-11",
-      "[@media(pointer:coarse)]:min-w-11",
-    );
-    expect(screen.getByRole("button", { name: "Compact" })).not.toHaveClass(
-      "[@media(pointer:coarse)]:min-w-11",
-    );
+    for (const name of [
+      "Save",
+      "New issue",
+      "More",
+      "Independent icon action",
+    ]) {
+      expect(screen.getByRole("button", { name })).toHaveClass(
+        "[@media(pointer:coarse)]:min-h-11",
+        "[@media(pointer:coarse)]:min-w-11",
+      );
+    }
+    expect(
+      screen.getByRole("button", { name: "New issue" }),
+    ).toHaveClass("h-7");
+    expect(
+      screen.getByRole("button", { name: "Independent icon action" }),
+    ).toHaveClass("h-7", "w-7");
+    expect(
+      screen.getByRole("button", { name: "Dense row action" }),
+    ).not.toHaveClass("[@media(pointer:coarse)]:min-w-11");
   });
 
   it("blocks duplicate activation while busy and keeps its accessible name", async () => {

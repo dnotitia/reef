@@ -167,6 +167,7 @@ function NotificationItem({
               type="button"
               variant="ghost"
               size="icon-sm"
+              hitTarget="compact"
               className="touch-manipulation"
               disabled={busy}
               onClick={() => void updateStateAndRefresh("unread")}
@@ -180,6 +181,7 @@ function NotificationItem({
             type="button"
             variant="ghost"
             size="icon-sm"
+            hitTarget="compact"
             className="touch-manipulation"
             disabled={busy}
             onClick={() => void updateStateAndRefresh("archived")}

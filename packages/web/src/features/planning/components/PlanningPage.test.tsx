@@ -521,6 +521,19 @@ describe("PlanningPage", () => {
     expect(params.get("detail")).toBe(SPRINT_ID);
   });
 
+  it("keeps adjacent table-row actions explicitly compact", async () => {
+    render(wrap(<PlanningPage />));
+    await screen.findByText("Sprint One");
+
+    const row = screen.getByText("Sprint One").closest("tr") as HTMLElement;
+    for (const name of ["Edit Sprint One", "Delete Sprint One"]) {
+      expect(within(row).getByRole("button", { name })).not.toHaveClass(
+        "[@media(pointer:coarse)]:min-w-11",
+      );
+      expect(within(row).getByRole("button", { name })).toHaveClass("h-7");
+    }
+  });
+
   it("renders a row without a detail body as plain text, not a toggle (REEF-264)", async () => {
     navigationState.searchParams = new URLSearchParams("kind=milestones");
     render(wrap(<PlanningPage />));

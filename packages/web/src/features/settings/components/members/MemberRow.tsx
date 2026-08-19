@@ -99,6 +99,7 @@ export const MemberRow = memo(function MemberRow({
           <Button
             variant="ghost"
             size="icon-sm"
+            hitTarget="compact"
             aria-label={t("removeMemberLabel", { name: displayName })}
             data-testid={`member-remove-${member.username}`}
             onClick={() => onRequestRemove(member)}

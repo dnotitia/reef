@@ -182,6 +182,7 @@ export function PlanningTable({
                     <Button
                       type="button"
                       size="sm"
+                      hitTarget="compact"
                       variant="ghost"
                       onClick={() => onEdit(kind, item)}
                       aria-label={t("editItem", { name: item.name })}
@@ -191,6 +192,7 @@ export function PlanningTable({
                     <Button
                       type="button"
                       size="sm"
+                      hitTarget="compact"
                       variant="ghost"
                       onClick={() => onRequestDelete(kind, item)}
                       disabled={count > 0 || isDeleting}

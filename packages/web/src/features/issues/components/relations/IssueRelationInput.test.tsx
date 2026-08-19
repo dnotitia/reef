@@ -86,9 +86,10 @@ describe("IssueRelationInput", () => {
     );
 
     expect(screen.getByLabelText("Parent")).toHaveValue("REEF-001");
-    expect(
-      screen.getByRole("button", { name: "Clear Parent" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear Parent" })).toHaveClass(
+      "[@media(pointer:coarse)]:min-h-11",
+      "[@media(pointer:coarse)]:min-w-11",
+    );
     expect(
       screen.queryByRole("button", { name: "Remove REEF-001" }),
     ).not.toBeInTheDocument();

@@ -58,8 +58,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     ref,
   ) => {
     const Comp = asChild ? Slot : "button";
-    const resolvedHitTarget =
-      hitTarget ?? (size === "sm" || size === "icon-sm" ? "compact" : "coarse");
+    const resolvedHitTarget = hitTarget ?? "coarse";
     const isDisabled = disabled || busy;
 
     const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {

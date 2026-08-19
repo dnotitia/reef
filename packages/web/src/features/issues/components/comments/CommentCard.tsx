@@ -364,6 +364,7 @@ export function CommentCard({
                   type="button"
                   variant="ghost"
                   size="sm"
+                  hitTarget="compact"
                   onClick={onReply}
                   className="h-7 gap-1 px-2 text-xs text-muted-foreground opacity-100 motion-safe:transition-opacity motion-safe:duration-150 motion-safe:ease-[var(--ease-signature)] hover:text-foreground focus-visible:opacity-100 sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100"
                 >
@@ -376,6 +377,7 @@ export function CommentCard({
                   type="button"
                   variant="ghost"
                   size="icon-sm"
+                  hitTarget="compact"
                   aria-label={t("editComment")}
                   title={t("editComment")}
                   onClick={startEditing}
@@ -389,6 +391,7 @@ export function CommentCard({
                   type="button"
                   variant="ghost"
                   size="icon-sm"
+                  hitTarget="compact"
                   aria-label={t("deleteComment")}
                   title={t("deleteComment")}
                   onClick={() => setDeleteOpen(true)}

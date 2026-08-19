@@ -60,6 +60,7 @@ export function ReferenceSuggestionCard({
           type="button"
           variant="outline"
           size="sm"
+          hitTarget="compact"
           className="h-7 gap-1 px-2 text-xs"
           disabled={disabled}
           onClick={onAdd}

@@ -226,6 +226,16 @@ describe("NotificationInboxPage", () => {
   it("offers mark unread and archive as server state actions", async () => {
     renderPage();
 
+    for (const name of [
+      "Mark REEF-002 unread",
+      "Archive notification for REEF-001",
+      "Archive notification for REEF-002",
+    ]) {
+      expect(screen.getByRole("button", { name })).not.toHaveClass(
+        "[@media(pointer:coarse)]:min-w-11",
+      );
+    }
+
     fireEvent.click(
       screen.getByRole("button", { name: "Mark REEF-002 unread" }),
     );
