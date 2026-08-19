@@ -121,6 +121,36 @@ test.describe("Hermetic issue activity timeline (REEF-277)", () => {
     ).toBeVisible();
   });
 
+  test("merges document body history and collapses repeated updates", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues/REEF-001");
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+
+    const collapsed = page.getByRole("button", { name: "4 body updates" });
+    await expect(collapsed).toBeVisible();
+    await expect(collapsed).toHaveAttribute("aria-expanded", "false");
+
+    await collapsed.click();
+    await expect(collapsed).toHaveAttribute("aria-expanded", "true");
+    await expect(
+      page
+        .locator('[data-testid="activity-event"]')
+        .filter({ hasText: "alice updated the issue body" }),
+    ).toHaveCount(3);
+    await expect(
+      page
+        .locator('[data-testid="activity-event"]')
+        .filter({ hasText: "codex updated the issue body" }),
+    ).toHaveCount(1);
+    await expect(
+      page.locator(
+        '[data-testid="activity-event"] time[datetime="2026-06-17T09:00:00.000Z"]',
+      ),
+    ).toBeVisible();
+  });
+
   test("persists root → reply → reply-to-reply as one-depth threads", async ({
     page,
   }) => {

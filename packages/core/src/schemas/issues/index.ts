@@ -137,6 +137,15 @@ export {
 } from "./persistedIssueFilter";
 
 export {
+  AkbDocumentHistoryEntrySchema,
+  AkbDocumentHistoryResponseSchema,
+  IssueBodyHistoryEventSchema,
+  type AkbDocumentHistoryEntry,
+  type AkbDocumentHistoryResponse,
+  type IssueBodyHistoryEvent,
+} from "./history";
+
+export {
   buildNamedIssueFilterEnvelope,
   canonicalizeNamedIssueFilterName,
   hasNamedIssueFilterPayload,

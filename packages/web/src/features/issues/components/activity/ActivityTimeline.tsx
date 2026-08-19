@@ -7,6 +7,7 @@ import { useUpdateComment } from "@/features/issues/hooks/mutations/useUpdateCom
 import { useUploadIssueAttachment } from "@/features/issues/hooks/mutations/useUploadIssueAttachment";
 import { useActivity } from "@/features/issues/hooks/queries/useActivity";
 import { useComments } from "@/features/issues/hooks/queries/useComments";
+import { useIssueBodyHistory } from "@/features/issues/hooks/queries/useIssueBodyHistory";
 import { resolveIssueAttachmentUrl } from "@/features/issues/lib/attachmentUrls";
 import { useVaultRoster } from "@/features/settings/hooks/useVaultRoster";
 import type {
@@ -38,17 +39,19 @@ interface ActivityTimelineProps {
 // while a query is still loading (referential stability).
 const NO_COMMENTS: Comment[] = [];
 const NO_ACTIVITY: ActivityEvent[] = [];
+const NO_BODY_HISTORY: never[] = [];
 const NO_VAULT_MEMBERS: never[] = [];
 
 /**
  * The issue detail's unified "Activity" section (REEF-064). It owns its own data
- * + comment mutations (like the comments section it replaces) and merges three
- * sources at render time — comments, status-change activity, and events
- * reconstructed from the issue's own fields — into one chronological feed.
- * Comments render as avatar-gutter cards; system and reconstructed events render
- * as a lighter glyph-node line. Every node (avatar, glyph, composer) shares one
- * left gutter so the feed reads as a single column, with no connecting rail. No
- * new storage and no unified table — the merge is pure (AC4).
+ * + comment mutations (like the comments section it replaces) and merges four
+ * sources at render time — comments, activity, read-time document body history,
+ * and events reconstructed from the issue's own fields — into one chronological
+ * feed. Comments render as avatar-gutter cards; system and reconstructed events
+ * render as a lighter glyph-node line. Every node (avatar, glyph, composer)
+ * shares one left gutter so the feed reads as a single column, with no
+ * connecting rail. No new storage and no unified table — the merge is pure
+ * (AC4).
  */
 export function ActivityTimeline({
   issueId,
@@ -69,6 +72,8 @@ export function ActivityTimeline({
     issueId,
     vault,
   );
+  const { data: bodyHistory = NO_BODY_HISTORY, isError: bodyHistoryError } =
+    useIssueBodyHistory(issueId, vault);
   const createComment = useCreateComment();
   const deleteComment = useDeleteComment();
   const updateComment = useUpdateComment();
@@ -77,8 +82,8 @@ export function ActivityTimeline({
   const [replyTargetId, setReplyTargetId] = useState<string | null>(null);
 
   const timeline = useMemo(
-    () => buildTimeline(comments, activity, issue),
-    [comments, activity, issue],
+    () => buildTimeline(comments, activity, issue, bodyHistory),
+    [comments, activity, issue, bodyHistory],
   );
   const commentIds = useMemo(
     () => new Set(comments.map((comment) => comment.id)),
@@ -290,7 +295,9 @@ export function ActivityTimeline({
         aria-live="polite"
         className="text-xs text-destructive empty:hidden"
       >
-        {commentsError || activityError ? ta("loadError") : null}
+        {commentsError || activityError || bodyHistoryError
+          ? ta("loadError")
+          : null}
       </output>
     </section>
   );

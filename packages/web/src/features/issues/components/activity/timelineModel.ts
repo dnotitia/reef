@@ -21,6 +21,7 @@ import {
   type Comment,
   type ImplementationRef,
   type IssueMetadata,
+  type IssueBodyHistoryEvent,
   type IssueType,
   type PlanningLinkField,
   type Priority,
@@ -225,6 +226,13 @@ export type TimelineSystemEvent =
       kind: "start_date_change";
       from: string | null;
       to: string | null;
+    }
+  | {
+      id: string;
+      hash: string;
+      at: string;
+      actor: string | null;
+      kind: "body_update";
     };
 
 export interface CommentEntry {
@@ -242,7 +250,7 @@ export interface SystemEntry {
   event: TimelineSystemEvent;
 }
 
-/** A folded run of ≥ COLLAPSE_THRESHOLD consecutive status-change events. */
+/** A folded run of ≥ COLLAPSE_THRESHOLD consecutive foldable events. */
 export interface CollapsedEntry {
   type: "collapsed";
   at: string;
@@ -252,10 +260,9 @@ export interface CollapsedEntry {
 export type TimelineEntry = CommentEntry | SystemEntry | CollapsedEntry;
 
 /**
- * A run of this many consecutive `status_change` events between comments folds
- * into a single expandable row. MVP keeps the rule deliberately simple: just
- * same-kind status-change runs collapse (AC3); `created` / `delivery` / `closed`
- * each carry unique information and does not fold.
+ * A run of this many consecutive same-kind status/body-update events between
+ * comments folds into a single expandable row. Created, delivery, closed, and
+ * field-change events carry unique information and do not fold.
  */
 const COLLAPSE_THRESHOLD = 3;
 
@@ -395,6 +402,18 @@ function fromActivityEvent(event: ActivityEvent): TimelineSystemEvent | null {
       // auditability, not a user-visible activity timeline row.
       return null;
   }
+}
+
+function fromBodyHistoryEvent(
+  event: IssueBodyHistoryEvent,
+): TimelineSystemEvent {
+  return {
+    id: event.id,
+    hash: event.hash,
+    at: event.at,
+    actor: event.actor,
+    kind: "body_update",
+  };
 }
 
 /** Stable de-dupe key for a delivery ref (vault-skill `type:repo:ref`). */
@@ -550,14 +569,15 @@ export function groupCommentThreads(
 }
 
 /**
- * Merge comments + activity + reconstructed events into one ascending feed
- * (oldest first, AC1). Ties break by kind rank then id so the order is total
- * and deterministic under test.
+ * Merge comments + activity + read-time body history + reconstructed events into
+ * one ascending feed (oldest first, AC1). Ties break by kind rank then id so the
+ * order is total and deterministic under test.
  */
 export function buildEntries(
   comments: readonly Comment[],
   activity: readonly ActivityEvent[],
   issue: IssueMetadata,
+  bodyHistory: readonly IssueBodyHistoryEvent[] = [],
 ): Array<CommentEntry | SystemEntry> {
   const entries: Array<CommentEntry | SystemEntry> = [];
 
@@ -601,6 +621,13 @@ export function buildEntries(
     }
     entries.push({ type: "system", at: event.at, event: systemEvent });
   }
+  const seenBodyHistory = new Set<string>();
+  for (const event of bodyHistory) {
+    if (seenBodyHistory.has(event.hash)) continue;
+    seenBodyHistory.add(event.hash);
+    const systemEvent = fromBodyHistoryEvent(event);
+    entries.push({ type: "system", at: event.at, event: systemEvent });
+  }
   for (const event of reconstructEvents(issue, activity)) {
     entries.push({ type: "system", at: event.at, event });
   }
@@ -620,11 +647,15 @@ export function buildEntries(
   });
 }
 
-/** True when this system entry is a foldable status-change event. */
-function isStatusChange(
+/** Return the foldable event kind, or null for an event that must stay alone. */
+function foldableKind(
   entry: CommentEntry | SystemEntry,
-): entry is SystemEntry {
-  return entry.type === "system" && entry.event.kind === "status_change";
+): "status_change" | "body_update" | null {
+  if (entry.type !== "system") return null;
+  return entry.event.kind === "status_change" ||
+    entry.event.kind === "body_update"
+    ? entry.event.kind
+    : null;
 }
 
 /**
@@ -636,6 +667,7 @@ export function collapseRuns(
 ): TimelineEntry[] {
   const out: TimelineEntry[] = [];
   let run: SystemEntry[] = [];
+  let runKind: "status_change" | "body_update" | null = null;
 
   const flush = () => {
     if (run.length >= COLLAPSE_THRESHOLD) {
@@ -644,11 +676,15 @@ export function collapseRuns(
       out.push(...run);
     }
     run = [];
+    runKind = null;
   };
 
   for (const entry of entries) {
-    if (isStatusChange(entry)) {
+    const kind = foldableKind(entry);
+    if (entry.type === "system" && kind !== null) {
+      if (runKind !== null && runKind !== kind) flush();
       run.push(entry);
+      runKind = kind;
       continue;
     }
     flush();
@@ -666,6 +702,7 @@ export function buildTimeline(
   comments: readonly Comment[],
   activity: readonly ActivityEvent[],
   issue: IssueMetadata,
+  bodyHistory: readonly IssueBodyHistoryEvent[] = [],
 ): TimelineEntry[] {
-  return collapseRuns(buildEntries(comments, activity, issue));
+  return collapseRuns(buildEntries(comments, activity, issue, bodyHistory));
 }

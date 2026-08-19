@@ -725,7 +725,9 @@
     "activity": {
       "loadError": "Couldn't load the full activity. Try again.",
       "statusChanges": "{count, plural, one {# status change} other {# status changes}}",
+      "bodyUpdates": "{count, plural, one {# body update} other {# body updates}}",
       "created": "{hasActor, select, true {<actor></actor> created this issue} other {Issue created}}",
+      "bodyUpdated": "{hasActor, select, true {<actor></actor> updated the issue body} other {Issue body updated}}",
       "statusMoved": "{hasActor, select, true {<actor></actor> moved {from} → {to}} other {Status moved {from} → {to}}}",
       "statusSet": "{hasActor, select, true {<actor></actor> set to {to}} other {Status set to {to}}}",
       "closed": "{hasActor, select, true {<actor></actor> closed this issue} other {Closed}}",

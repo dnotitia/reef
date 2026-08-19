@@ -912,7 +912,9 @@
     "activity": {
       "loadError": "전체 활동을 불러오지 못했습니다. 다시 시도해 주세요.",
       "statusChanges": "{count, plural, other {상태 변경 #건}}",
+      "bodyUpdates": "{count, plural, other {본문 수정 #건}}",
       "created": "{hasActor, select, true {<actor></actor>님이 이 이슈를 생성했습니다} other {이슈가 생성되었습니다}}",
+      "bodyUpdated": "{hasActor, select, true {<actor></actor>님이 본문을 수정했습니다} other {본문 수정됨}}",
       "statusMoved": "{hasActor, select, true {<actor></actor>님이 상태를 {from} → {to}(으)로 변경했습니다} other {상태가 {from} → {to}(으)로 변경되었습니다}}",
       "statusSet": "{hasActor, select, true {<actor></actor>님이 상태를 {to}(으)로 설정했습니다} other {상태가 {to}(으)로 설정되었습니다}}",
       "closed": "{hasActor, select, true {<actor></actor>님이 이 이슈를 종료했습니다} other {종료됨}}",

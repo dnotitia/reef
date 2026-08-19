@@ -19,11 +19,15 @@ function fromStatus(entry: SystemEntry | undefined) {
   return entry.event.from ?? entry.event.to;
 }
 
+function isBodyUpdate(entry: SystemEntry | undefined): boolean {
+  return entry?.event.kind === "body_update";
+}
+
 /**
- * A folded run of consecutive status changes (REEF-064 AC3). Collapsed by
- * default to a single line — "N status changes · from → to" — and expands inline
- * to the individual events. The toggle is one button (chevron node + label) so
- * the whole row is one accessible control with `aria-expanded`.
+ * A folded run of consecutive status or body updates (REEF-064 AC3 / REEF-127).
+ * Collapsed by default to a single line and expands inline to the individual
+ * events. The toggle is one button (chevron node + label) so the whole row is
+ * one accessible control with `aria-expanded`.
  */
 export function CollapsedEventsRow({
   events,
@@ -37,6 +41,7 @@ export function CollapsedEventsRow({
   const [expanded, setExpanded] = useState(false);
   const from = fromStatus(events[0]);
   const to = toStatus(events[events.length - 1]);
+  const bodyUpdates = events.every(isBodyUpdate);
 
   return (
     <div className="flex flex-col gap-3">
@@ -59,8 +64,10 @@ export function CollapsedEventsRow({
             focus-visible state) so keyboard focus is shown without a full-width
             ring — canonical ring-brand/40, matching the other buttons. */}
         <span className="rounded-full border border-border bg-surface-subtle px-2 py-0.5 text-xs text-muted-foreground transition-colors group-hover/collapse:bg-surface-hover group-focus-visible/collapse:ring-2 group-focus-visible/collapse:ring-brand/40">
-          {t("statusChanges", { count: events.length })}
-          {!expanded && from && to ? (
+          {t(bodyUpdates ? "bodyUpdates" : "statusChanges", {
+            count: events.length,
+          })}
+          {!expanded && !bodyUpdates && from && to ? (
             <span className="text-muted-foreground">
               {" "}
               · {statusLabels[from]} → {statusLabels[to]}
