@@ -28,6 +28,7 @@ import {
   ArchiveRestore,
   CalendarClock,
   CircleDot,
+  FilePenLine,
   Flag,
   GaugeCircle,
   GitBranch,
@@ -193,7 +194,9 @@ function glyphFor(event: TimelineSystemEvent): ReactNode {
         <CircleDot className="size-3.5 text-muted-foreground" aria-hidden />
       );
     case "body_update":
-      return <Type className="size-3.5 text-muted-foreground" aria-hidden />;
+      return (
+        <FilePenLine className="size-3.5 text-muted-foreground" aria-hidden />
+      );
     case "status_change":
       // unfilled status glyph in the to-status color (the single encoding of
       // the new state; the inline labels stay plain).

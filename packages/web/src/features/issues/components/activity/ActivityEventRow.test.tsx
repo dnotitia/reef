@@ -90,6 +90,32 @@ describe("ActivityEventRow — identifier i18n (REEF-287)", () => {
   });
 });
 
+describe("ActivityEventRow — body history", () => {
+  it("uses a document-edit glyph distinct from title changes", () => {
+    const body = renderEvent({
+      id: "body",
+      hash: "abc123",
+      at: AT,
+      actor: "alice",
+      kind: "body_update",
+    });
+    const bodyGlyph = body.container.querySelector("svg");
+    expect(bodyGlyph).toHaveClass("lucide-file-pen-line");
+    body.unmount();
+
+    const title = renderEvent({
+      id: "title",
+      at: AT,
+      actor: "alice",
+      kind: "title_change",
+      from: "Old name",
+      to: "New name",
+    });
+    const titleGlyph = title.container.querySelector("svg");
+    expect(titleGlyph).toHaveClass("lucide-type");
+  });
+});
+
 describe("ActivityEventRow — REEF-277 field-change rows", () => {
   it("renders a title rename with both ends, kept translatable", () => {
     const { getByText, container } = renderEvent({
