@@ -61,6 +61,9 @@ async function setTheme(
         .evaluate((element) => element.classList.contains("dark")),
     )
     .toBe(colorScheme === "dark");
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+  });
 }
 
 async function readMarkdownSurface(editor: Locator) {
@@ -447,6 +450,10 @@ async function readCommentMarkdownSurface(comment: Locator) {
       probe.remove();
       return color;
     };
+    const commentContained = root.scrollWidth <= root.clientWidth;
+    const codeBlockOverflows = codeBlockBody
+      ? codeBlockBody.scrollWidth > codeBlockBody.clientWidth
+      : false;
 
     return {
       counts: {
@@ -521,14 +528,9 @@ async function readCommentMarkdownSurface(comment: Locator) {
         lineHeight: rootStyles.lineHeight,
       },
       overflow: {
-        comment: root.scrollWidth <= root.clientWidth,
-        codeBlock: codeBlockBody
-          ? codeBlockBody.scrollWidth > codeBlockBody.clientWidth
-          : false,
-        codeBlockContained: codeBlockBody
-          ? codeBlockBody.scrollWidth > codeBlockBody.clientWidth &&
-            root.scrollWidth <= root.clientWidth
-          : false,
+        comment: commentContained,
+        codeBlock: codeBlockOverflows,
+        codeBlockContained: codeBlockOverflows && commentContained,
         table: tableWrapper
           ? tableWrapper.scrollWidth >= tableWrapper.clientWidth
           : false,
