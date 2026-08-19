@@ -67,7 +67,7 @@ export const KanbanColumn = memo(function KanbanColumn({
       data-group-value={bucket.value ?? "none"}
       aria-label={`${bucket.label}, ${issues.length}`}
       className={cn(
-        "flex h-full w-80 shrink-0 flex-col rounded-lg border border-border bg-surface-subtle p-2",
+        "flex h-full min-w-0 w-full flex-col rounded-lg border border-border bg-surface-subtle p-2 lg:w-80 lg:shrink-0",
         "transition-colors duration-150",
         isOver &&
           "border-brand-focus bg-surface-hover ring-2 ring-brand-focus/30",

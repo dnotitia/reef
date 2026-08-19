@@ -178,7 +178,7 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
         ref={ref}
         data-testid="kanban-card"
         className={cn(
-          "group relative rounded-md border border-border bg-surface-elevated px-3 py-2.5",
+          "group relative min-w-0 rounded-md border border-border bg-surface-elevated px-3 py-2.5",
           "cursor-pointer select-none transition-colors duration-[var(--duration-base)] ease-[var(--ease-signature)]",
           "hover:border-border hover:bg-surface-hover",
           "focus-visible:outline-none focus-visible:border-brand-focus/60 focus-visible:bg-brand-fill/5",
@@ -202,7 +202,7 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
         ) : null}
         {quickEditAnchor}
         {/* Row 1 — header: status · id · type · (blocked, right) */}
-        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        <div className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
           <StatusIcon status={issue.status} size={12} />
           <span className="font-mono tabular-nums shrink-0">{issue.id}</span>
           <TypePill type={issue.issue_type} variant="kanban" />
@@ -210,7 +210,7 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
         </div>
 
         {/* Row 2 — title: standalone, 2-line clamp, the visual anchor */}
-        <h4 className="mt-1.5 line-clamp-2 text-[13.5px] leading-snug font-medium text-foreground">
+        <h4 className="mt-1.5 min-w-0 line-clamp-2 text-[13.5px] leading-snug font-medium text-foreground">
           {issue.title}
         </h4>
 
@@ -219,7 +219,7 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
             it lands at the same x on every card, independent of which other
             fields are present (REEF-128). */}
         {hasPrimaryMeta && (
-          <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
+          <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
             {issue.priority && (
               <span className="inline-flex items-center gap-1 shrink-0">
                 <PriorityDot priority={issue.priority as Priority} size={7} />
@@ -229,7 +229,7 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
               </span>
             )}
             {(issue.start_date || issue.due_date || issue.assigned_to) && (
-              <div className="ml-auto flex shrink-0 items-center gap-2">
+              <div className="ml-auto flex min-w-0 max-w-full shrink items-center gap-2">
                 {(issue.start_date || issue.due_date) && (
                   <span className="inline-flex shrink-0 items-center gap-1.5 font-mono tabular-nums text-[10.5px]">
                     {issue.start_date && (

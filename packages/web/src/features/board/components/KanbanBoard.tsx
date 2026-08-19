@@ -383,7 +383,7 @@ export function KanbanBoard({ vault, groupBy = "status" }: KanbanBoardProps) {
       >
         <div
           data-testid="kanban-board-body"
-          className="relative flex min-h-0 flex-1 gap-3 overflow-x-auto px-6 py-4"
+          className="relative grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-x-hidden overflow-y-auto px-6 py-4 md:grid-cols-2 lg:flex lg:flex-nowrap lg:overflow-x-auto lg:overflow-y-hidden"
         >
           {issueGroups.map(({ bucket, issues }) => (
             <KanbanColumn
