@@ -14,7 +14,7 @@ test.describe("Hermetic issue detail splitter", () => {
   test("supports pointer and keyboard resize, then restores the width after issue navigation", async ({
     page,
   }) => {
-    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.setViewportSize({ width: 1920, height: 720 });
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/issues?view=list");
     await page.getByText("Initial issue Alpha").click();
@@ -43,6 +43,27 @@ test.describe("Hermetic issue detail splitter", () => {
     ).toContainText(
       "Vertical separator controls the issue detail panel. Current width 1440px; minimum 1200px; maximum 1680px.",
     );
+
+    const handleBeforeBodyScroll = await handle.boundingBox();
+    if (!handleBeforeBodyScroll) throw new Error("Splitter is not laid out");
+    const panel = page.getByTestId("issue-detail-scroll");
+    const panelScroll = await panel.evaluate((element) => {
+      const panel = element as HTMLElement;
+      const maxScrollTop = Math.max(0, panel.scrollHeight - panel.clientHeight);
+      panel.scrollTop = Math.min(160, maxScrollTop);
+      return {
+        scrollTop: panel.scrollTop,
+        scrollHeight: panel.scrollHeight,
+        clientHeight: panel.clientHeight,
+      };
+    });
+    expect(panelScroll.scrollHeight).toBeGreaterThan(panelScroll.clientHeight);
+    expect(panelScroll.scrollTop).toBeGreaterThan(0);
+    const handleAfterBodyScroll = await handle.boundingBox();
+    if (!handleAfterBodyScroll)
+      throw new Error("Splitter disappeared after scrolling");
+    expect(handleAfterBodyScroll.x).toBeCloseTo(handleBeforeBodyScroll.x, 1);
+    expect(handleAfterBodyScroll.y).toBeCloseTo(handleBeforeBodyScroll.y, 1);
 
     const widthToggle = page.getByRole("button", { name: expandWidthName });
     await expect(widthToggle).toHaveAttribute("aria-pressed", "false");

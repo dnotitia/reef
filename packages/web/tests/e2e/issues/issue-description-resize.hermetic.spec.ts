@@ -102,6 +102,50 @@ test.describe("Hermetic issue description height resize", () => {
       ),
     );
 
+    const handleBeforeBodyScroll = await handle.boundingBox();
+    if (!handleBeforeBodyScroll) {
+      throw new Error("Description resize handle is not laid out");
+    }
+    const bodyScroll = await frame.evaluate((frame) => {
+      const editable = frame.querySelector<HTMLElement>(
+        '[contenteditable="true"]',
+      );
+      const contentSurface = editable?.parentElement;
+      const scrollOwner = [contentSurface, editable, frame].find(
+        (candidate) => {
+          if (!candidate) return false;
+          const { overflow, overflowY } = getComputedStyle(candidate);
+          const canScroll =
+            overflow === "auto" ||
+            overflow === "scroll" ||
+            overflowY === "auto" ||
+            overflowY === "scroll";
+          return canScroll && candidate.scrollHeight > candidate.clientHeight;
+        },
+      );
+      if (!scrollOwner) {
+        throw new Error("Markdown editor body has no scroll owner");
+      }
+      const maxScrollTop = Math.max(
+        0,
+        scrollOwner.scrollHeight - scrollOwner.clientHeight,
+      );
+      scrollOwner.scrollTop = Math.min(160, maxScrollTop);
+      return {
+        scrollTop: scrollOwner.scrollTop,
+        scrollHeight: scrollOwner.scrollHeight,
+        clientHeight: scrollOwner.clientHeight,
+      };
+    });
+    expect(bodyScroll.scrollHeight).toBeGreaterThan(bodyScroll.clientHeight);
+    expect(bodyScroll.scrollTop).toBeGreaterThan(0);
+    const handleAfterBodyScroll = await handle.boundingBox();
+    if (!handleAfterBodyScroll) {
+      throw new Error("Description resize handle disappeared after scrolling");
+    }
+    expect(handleAfterBodyScroll.x).toBeCloseTo(handleBeforeBodyScroll.x, 1);
+    expect(handleAfterBodyScroll.y).toBeCloseTo(handleBeforeBodyScroll.y, 1);
+
     const edgeGeometry = await editor.evaluate((root) => {
       const frame = root.querySelector<HTMLElement>(
         '[data-testid="markdown-editor-body-frame"]',
@@ -128,9 +172,8 @@ test.describe("Hermetic issue description height resize", () => {
         handleHeight: handleRect.height,
       };
     });
-    // The manual frame owns scrolling, so its classic scrollbar must stop
-    // before the rounded root's focus chrome. The handle remains inside the
-    // frame's client area (before any scrollbar track) with a real hit box.
+    // The fixed frame keeps the resize chrome aligned with its bottom-right
+    // edge while the editor body owns scrolling inside the frame.
     expect(edgeGeometry.rootRightGap).toBeGreaterThanOrEqual(4);
     expect(edgeGeometry.rootBottomGap).toBeGreaterThanOrEqual(4);
     expect(edgeGeometry.handleRight).toBeLessThanOrEqual(
