@@ -507,9 +507,13 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
           // Wider canvas (REEF-149) so the rail's property rows get full width
           // and Planning dates / Relationship inputs stop truncating. The
           // inline width is desktop-specific; the CSS fallback keeps the existing
-          // narrow responsive sheet geometry. `overscroll-contain` keeps a
-          // scroll at the sheet's edge from chaining to the page behind it.
-          className="issue-detail-sheet min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain"
+          // narrow responsive sheet geometry. The issue body below owns the
+          // scroll and uses `overscroll-contain` to stop chaining to the page.
+          // Keep the sheet viewport fixed while the issue body owns vertical
+          // scrolling. The resize splitter is anchored to this viewport; if
+          // the sheet itself scrolls, its absolute handle scrolls away with the
+          // issue content.
+          className="issue-detail-sheet min-w-0 overflow-hidden"
           style={
             {
               "--issue-detail-width": `${panelWidth}px`,
@@ -586,7 +590,7 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
               id={ISSUE_DETAIL_PANEL_ID}
               role="region"
               aria-label={t("srTitle", { issueId })}
-              className="flex min-w-0 flex-col"
+              className="flex min-h-0 min-w-0 flex-1 flex-col"
             >
               <div
                 data-testid="issue-detail-chrome"
@@ -630,7 +634,12 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
                   <IssueDetailCloseButton onClose={exit} />
                 </div>
               </div>
-              {renderBody()}
+              <div
+                data-testid="issue-detail-scroll"
+                className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain"
+              >
+                {renderBody()}
+              </div>
             </div>
           </IssueChromeSlotProvider>
         </SheetContent>

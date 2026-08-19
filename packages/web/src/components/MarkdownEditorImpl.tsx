@@ -172,9 +172,18 @@ export const EDITOR_BODY_SESSION_STORAGE_KEY =
 export const EDITOR_RESIZE_DESCRIPTION_ID =
   "markdown-editor-resize-description";
 
-/** The opt-in editor body keeps the frame as the sole scroll owner. */
+/**
+ * Manual height uses a scrollable content surface inside a non-scrolling frame.
+ * Keeping the scroll owner below the frame lets the resize chrome stay pinned
+ * to the frame's bottom-right edge instead of becoming part of the scrollable
+ * content and moving out of view.
+ */
 const EDITOR_MANUAL_BODY_CLASS =
   "h-full min-h-0 max-h-none overflow-visible [scrollbar-gutter:stable]";
+const EDITOR_MANUAL_SCROLL_SURFACE_CLASS =
+  "h-full min-h-0 overflow-auto [scrollbar-gutter:stable]";
+const EDITOR_MANUAL_SOURCE_CLASS =
+  "h-full min-h-0 max-h-none overflow-auto [scrollbar-gutter:stable]";
 
 export interface MarkdownEditorProps {
   value: string;
@@ -1941,11 +1950,7 @@ export function MarkdownEditor({
         className={cn(
           EDITOR_BODY_FRAME_CLASS,
           enableHeightResize && isHeightResizeAvailable && "relative",
-          isManualHeight && "overflow-auto",
-          // The manual-height frame is the scroll owner. Keep its scrollbar
-          // paint area off the rounded root's right/bottom focus chrome; the
-          // editor surface itself already has an inset gutter in auto mode.
-          isManualHeight && "mr-1 mb-1",
+          isManualHeight && "min-h-0 overflow-hidden mr-1 mb-1",
         )}
         style={bodyFrameStyle}
       >
@@ -1970,13 +1975,18 @@ export function MarkdownEditor({
             className={cn(
               "w-full field-sizing-content rounded-sm bg-transparent px-3 py-2 text-sm font-mono focus:outline-none",
               isHeightResizeAvailable ? "resize-none" : "resize-y",
-              isManualHeight ? EDITOR_MANUAL_BODY_CLASS : EDITOR_BODY_SIZING,
+              isManualHeight ? EDITOR_MANUAL_SOURCE_CLASS : EDITOR_BODY_SIZING,
             )}
             placeholder={sourcePlaceholder ?? placeholder}
             data-testid="markdown-source-textarea"
           />
         ) : (
-          <EditorContent editor={editor} />
+          <EditorContent
+            editor={editor}
+            className={
+              isManualHeight ? EDITOR_MANUAL_SCROLL_SURFACE_CLASS : undefined
+            }
+          />
         )}
 
         {enableHeightResize && isHeightResizeAvailable ? (

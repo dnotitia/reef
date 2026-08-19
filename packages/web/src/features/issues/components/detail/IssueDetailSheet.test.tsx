@@ -340,8 +340,8 @@ describe("IssueDetailSheet", () => {
   });
 
   // The 1440px default leaves a comfortable editor beside the 400px property
-  // rail, and `overscroll-contain` stops a scroll at the sheet edge from
-  // chaining to the page behind it.
+  // rail. The issue body owns scrolling so the splitter stays pinned to the
+  // sheet viewport, and `overscroll-contain` stops chaining to the page behind it.
   it("renders a widened, overscroll-contained canvas", () => {
     setViewportWidth(1920);
     mockUseActiveVault.mockReturnValue({
@@ -357,7 +357,10 @@ describe("IssueDetailSheet", () => {
     expect(content?.getAttribute("style")).toContain(
       "--issue-detail-width: 1440px",
     );
-    expect(content?.className).toContain("overscroll-contain");
+    expect(content?.className).toContain("overflow-hidden");
+    expect(screen.getByTestId("issue-detail-scroll").className).toContain(
+      "overscroll-contain",
+    );
   });
 
   it("clamps resize values to the desktop bounds", () => {
@@ -412,6 +415,9 @@ describe("IssueDetailSheet", () => {
       expect(document.getElementById("issue-detail-panel")).toHaveAttribute(
         "role",
         "region",
+      );
+      expect(screen.getByTestId("issue-detail-scroll")).not.toContainElement(
+        splitter,
       );
       expect(document.getElementById("issue-detail-panel")).toContainElement(
         screen.getByTestId("issue-detail-chrome"),

@@ -110,10 +110,17 @@ vi.mock("@tiptap/react", () => {
         }) => unknown;
       }) => opts.selector({ editor: mockEditor, transactionNumber: 0 }),
     ),
-    EditorContent: ({ editor }: { editor: unknown }) => (
+    EditorContent: ({
+      editor,
+      className,
+    }: {
+      editor: unknown;
+      className?: string;
+    }) => (
       <div
         data-testid="editor-content"
         data-editor={editor ? "loaded" : "null"}
+        className={className}
       />
     ),
   };
@@ -1368,7 +1375,8 @@ describe("MarkdownEditor", () => {
       render(<MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />);
       const frame = screen.getByTestId("markdown-editor-body-frame");
       expect(frame).toHaveStyle({ height: "480px" });
-      expect(frame).toHaveClass("overflow-auto", "mr-1", "mb-1");
+      expect(frame).toHaveClass("overflow-hidden", "mr-1", "mb-1");
+      expect(screen.getByTestId("editor-content")).toHaveClass("overflow-auto");
       act(() => fireEvent.click(screen.getByTitle("Toggle source mode")));
       expect(screen.getByTestId("markdown-source-textarea")).toHaveClass(
         "resize-none",
