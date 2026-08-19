@@ -31,7 +31,7 @@ export function IssueSelectionCheckbox({
   return (
     <label
       className={cn(
-        "group/checkbox relative -m-2 inline-flex size-8 shrink-0 touch-manipulation cursor-pointer items-center justify-center rounded-md focus-within:ring-2 focus-within:ring-brand/40",
+        "group/checkbox relative -m-2 inline-flex size-8 shrink-0 touch-manipulation cursor-pointer items-center justify-center rounded-md focus-within:ring-2 focus-within:ring-brand-focus/40",
         disabled && "cursor-not-allowed opacity-50",
         className,
       )}
@@ -57,9 +57,9 @@ export function IssueSelectionCheckbox({
         aria-hidden="true"
         data-slot="selection-checkbox-indicator"
         className={cn(
-          "pointer-events-none flex size-3.5 shrink-0 items-center justify-center rounded-[4px] border bg-elevated transition-[border-color,background-color,color,box-shadow] duration-150",
+          "pointer-events-none flex size-3.5 shrink-0 items-center justify-center rounded-[4px] border bg-surface-elevated transition-[border-color,background-color,color,box-shadow] duration-150",
           checked || indeterminate
-            ? "border-brand bg-brand text-brand-foreground"
+            ? "border-brand-focus bg-brand-fill text-brand-on-fill"
             : "border-input text-transparent group-hover/checkbox:border-muted-foreground/70",
         )}
       >

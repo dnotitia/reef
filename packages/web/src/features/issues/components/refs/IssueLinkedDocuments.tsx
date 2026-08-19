@@ -77,7 +77,7 @@ export function IssueLinkedDocuments({
       />
 
       {addReference.isError ? (
-        <p className="text-xs text-destructive">{t("linkError")}</p>
+        <p className="text-xs text-destructive-text">{t("linkError")}</p>
       ) : null}
     </section>
   );

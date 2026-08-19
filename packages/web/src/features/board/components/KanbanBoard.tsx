@@ -370,7 +370,7 @@ export function KanbanBoard({ vault, groupBy = "status" }: KanbanBoardProps) {
   return (
     <div data-testid="kanban-board" className="flex h-full min-h-0 flex-col">
       {isError && (
-        <div className="mx-6 mt-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+        <div className="mx-6 mt-4 rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text">
           {t("loadError")}
         </div>
       )}
@@ -402,7 +402,7 @@ export function KanbanBoard({ vault, groupBy = "status" }: KanbanBoardProps) {
           ))}
           {showNoMatch && (
             <div className="pointer-events-none absolute inset-x-6 top-16 z-10 flex justify-center">
-              <div className="pointer-events-none flex max-w-md flex-col items-center rounded-lg border border-border-subtle bg-background/95 px-5 py-4 text-center backdrop-blur-sm">
+              <div className="pointer-events-none flex max-w-md flex-col items-center rounded-lg border border-border-subtle bg-surface-page/95 px-5 py-4 text-center backdrop-blur-sm">
                 <section
                   data-testid="kanban-no-matches"
                   className="pointer-events-none flex flex-col items-center"

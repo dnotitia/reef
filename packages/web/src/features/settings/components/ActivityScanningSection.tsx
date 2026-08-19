@@ -49,7 +49,7 @@ export function ActivityScanningSection({
     return (
       <p
         role="alert"
-        className="text-sm text-destructive"
+        className="text-sm text-destructive-text"
         data-testid="activity-scanning-load-error"
       >
         {t("loadError")} {configQuery.error.message}
@@ -111,7 +111,7 @@ export function ActivityScanningSection({
       {error && (
         <p
           role="alert"
-          className="text-xs text-destructive"
+          className="text-xs text-destructive-text"
           data-testid="activity-scanning-error"
         >
           {error}

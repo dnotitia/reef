@@ -38,7 +38,7 @@ export function PageHeader({
     <header
       data-slot="page-header"
       className={cn(
-        "sticky top-0 z-20 flex h-12 shrink-0 items-center justify-between gap-4 border-b border-border-subtle bg-background/80 px-6 backdrop-blur-md",
+        "sticky top-0 z-20 flex h-12 shrink-0 items-center justify-between gap-4 border-b border-border-subtle bg-surface-page/80 px-6 backdrop-blur-md",
         className,
       )}
     >

@@ -25,7 +25,7 @@ describe("PersonAvatar", () => {
       <PersonAvatar identityKey="홍길동" tone="brand" />,
     );
     const cls = container.firstElementChild?.getAttribute("class") ?? "";
-    expect(cls).toContain("bg-brand");
+    expect(cls).toContain("bg-brand-fill");
     expect(/\bbg-av-\d\b/.test(cls)).toBe(false);
     expect(screen.getByRole("img")).toHaveTextContent("홍");
   });

@@ -20,11 +20,11 @@ export function ErrorSurface({
   actions,
 }: ErrorSurfaceProps) {
   return (
-    <main className="flex min-h-svh flex-1 items-center justify-center bg-background px-6 py-12 text-foreground">
+    <main className="flex min-h-svh flex-1 items-center justify-center bg-surface-page px-6 py-12 text-foreground">
       <section
         aria-labelledby="error-surface-title"
         aria-describedby="error-surface-description"
-        className="flex w-full max-w-md flex-col rounded-xl border border-border bg-elevated p-6 sm:p-8"
+        className="flex w-full max-w-md flex-col rounded-xl border border-border bg-surface-elevated p-6 sm:p-8"
       >
         <div className="flex items-center gap-2.5 border-b border-border-subtle pb-5">
           <ReefMark className="size-8" decorative />
@@ -38,7 +38,7 @@ export function ErrorSurface({
 
         <div className="flex flex-col gap-3 pt-6">
           {code ? (
-            <p className="font-mono text-xs font-medium tracking-[0.16em] text-brand">
+            <p className="font-mono text-xs font-medium tracking-[0.16em] text-brand-text">
               {code}
             </p>
           ) : null}

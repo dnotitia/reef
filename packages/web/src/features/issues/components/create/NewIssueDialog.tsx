@@ -753,7 +753,7 @@ export function NewIssueDialog({
               <p
                 role="alert"
                 data-testid="new-issue-error"
-                className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+                className="rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text"
               >
                 {submitError}
               </p>

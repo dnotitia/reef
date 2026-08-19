@@ -36,7 +36,7 @@ export function WorkspaceAccessDenied({
 
   return (
     <div
-      className="relative flex h-screen flex-col items-center justify-center bg-background px-6"
+      className="relative flex h-screen flex-col items-center justify-center bg-surface-page px-6"
       data-testid="workspace-access-denied"
     >
       <div
@@ -83,7 +83,7 @@ export function WorkspaceAccessDenied({
             <Link
               href="/onboarding"
               data-testid="access-denied-onboarding"
-              className="rounded-md bg-brand px-3 py-1.5 text-[13px] font-medium text-brand-foreground transition-colors hover:bg-brand/90"
+              className="rounded-md bg-brand-fill px-3 py-1.5 text-[13px] font-medium text-brand-on-fill transition-colors hover:bg-brand-fill/90"
             >
               {t("onboardingCta")}
             </Link>

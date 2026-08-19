@@ -44,7 +44,7 @@ import { ActivityDraftEditMetadataFields } from "./ActivityDraftEditMetadataFiel
 
 const FIELD_LABEL_CLASS = "text-xs font-medium text-muted-foreground";
 const LINK_CHIP_CLASS =
-  "rounded-full bg-background/70 px-2 py-0.5 hover:text-foreground hover:underline";
+  "rounded-full bg-surface-page/70 px-2 py-0.5 hover:text-foreground hover:underline";
 
 function uniqueIssueIds(ids: (string | null | undefined)[]): string[] {
   return [
@@ -266,32 +266,32 @@ export function ActivityDraftCard({
           <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
             <TypePill type={fields.issue_type} variant="activity" />
             {fields.severity && (
-              <span className="rounded-full bg-background/70 px-2 py-0.5">
+              <span className="rounded-full bg-surface-page/70 px-2 py-0.5">
                 {severityLabels[fields.severity]}
               </span>
             )}
             {fields.start_date && (
-              <span className="rounded-full bg-background/70 px-2 py-0.5">
+              <span className="rounded-full bg-surface-page/70 px-2 py-0.5">
                 {t("chipStart", { date: fields.start_date.slice(0, 10) })}
               </span>
             )}
             {fields.due_date && (
-              <span className="rounded-full bg-background/70 px-2 py-0.5">
+              <span className="rounded-full bg-surface-page/70 px-2 py-0.5">
                 {t("chipDue", { date: fields.due_date.slice(0, 10) })}
               </span>
             )}
             {sprintName && (
-              <span className="rounded-full bg-background/70 px-2 py-0.5">
+              <span className="rounded-full bg-surface-page/70 px-2 py-0.5">
                 {t("chipSprint", { name: sprintName })}
               </span>
             )}
             {milestoneName && (
-              <span className="rounded-full bg-background/70 px-2 py-0.5">
+              <span className="rounded-full bg-surface-page/70 px-2 py-0.5">
                 {t("chipMilestone", { name: milestoneName })}
               </span>
             )}
             {releaseName && (
-              <span className="rounded-full bg-background/70 px-2 py-0.5">
+              <span className="rounded-full bg-surface-page/70 px-2 py-0.5">
                 {t("chipRelease", { name: releaseName })}
               </span>
             )}
@@ -316,7 +316,7 @@ export function ActivityDraftCard({
                 ) : (
                   <span
                     key={key}
-                    className="rounded-full bg-background/70 px-2 py-0.5"
+                    className="rounded-full bg-surface-page/70 px-2 py-0.5"
                   >
                     {label}
                   </span>

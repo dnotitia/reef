@@ -26,7 +26,7 @@ interface SidebarWorkspaceProps {
 }
 
 /**
- * Workspace identity monogram — a square `bg-elevated` tile with a font-mono
+ * Workspace identity monogram — a square `bg-surface-elevated` tile with a font-mono
  * initial. Deliberately *not* a PersonAvatar: a square neutral tile reads as a
  * place, the round tinted avatar as a person, so the workspace row and the
  * account row below it stay distinct ("place vs person", REEF-146 / REEF-093).
@@ -38,7 +38,7 @@ function WorkspaceMonogram({ name, large }: { name: string; large?: boolean }) {
       aria-hidden="true"
       data-testid="workspace-monogram"
       className={cn(
-        "inline-flex shrink-0 select-none items-center justify-center rounded-md bg-elevated font-mono font-medium leading-none text-foreground ring-1 ring-border",
+        "inline-flex shrink-0 select-none items-center justify-center rounded-md bg-surface-elevated font-mono font-medium leading-none text-foreground ring-1 ring-border",
         large ? "size-9 text-[12px]" : "size-7 text-[11px]",
       )}
     >
@@ -138,7 +138,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
           }
           title={collapsed ? label : undefined}
           className={cn(
-            "w-full gap-2 rounded-md text-left [touch-action:manipulation] transition-colors hover:bg-surface-hover aria-expanded:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
+            "w-full gap-2 rounded-md text-left [touch-action:manipulation] transition-colors hover:bg-surface-hover aria-expanded:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
             collapsed ? "justify-center px-0 py-1" : "px-2 py-1.5",
           )}
         >
@@ -183,7 +183,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
         >
           <input
             type="text"
-            className="mb-2 w-full rounded-md border border-border bg-elevated px-2 py-1 text-[13px] text-foreground outline-none transition-colors focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/30"
+            className="mb-2 w-full rounded-md border border-border bg-surface-elevated px-2 py-1 text-[13px] text-foreground outline-none transition-colors focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30"
             placeholder={tw("searchPlaceholder")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -197,7 +197,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
             {vaultsQuery.isError ? (
               <li
                 role="alert"
-                className="px-2 py-1.5 text-[13px] text-destructive"
+                className="px-2 py-1.5 text-[13px] text-destructive-text"
                 data-testid="workspace-switcher-error"
               >
                 {tw("loadError")}
@@ -228,7 +228,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
                     {isCurrent && (
                       <span
                         aria-hidden="true"
-                        className="absolute left-0 top-1 bottom-1 w-0.5 rounded-full bg-brand"
+                        className="absolute left-0 top-1 bottom-1 w-0.5 rounded-full bg-brand-fill"
                       />
                     )}
                     <button
@@ -246,7 +246,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
                       <Check
                         aria-hidden="true"
                         className={cn(
-                          "size-3.5 shrink-0 text-brand",
+                          "size-3.5 shrink-0 text-brand-text",
                           isCurrent ? "opacity-100" : "opacity-0",
                         )}
                       />

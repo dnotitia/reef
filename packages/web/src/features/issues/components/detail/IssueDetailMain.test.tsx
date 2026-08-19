@@ -118,7 +118,7 @@ describe("IssueDetailMain focus-ring clipping (REEF-226)", () => {
     const input = screen.getByTestId("issue-title-input");
     expect(input.className).toContain("focus-visible:ring-2");
     expect(input.className).toContain("focus-visible:ring-inset");
-    expect(input.className).toContain("focus-visible:ring-brand/30");
+    expect(input.className).toContain("focus-visible:ring-brand-focus/30");
   });
 });
 

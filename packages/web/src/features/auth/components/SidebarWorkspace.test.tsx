@@ -269,7 +269,7 @@ describe("SidebarWorkspace", () => {
 
     await user.click(await screen.findByTestId("sidebar-workspace-trigger"));
     const search = await screen.findByTestId("workspace-switcher-search");
-    expect(search.className).toContain("focus-visible:ring-brand/30");
+    expect(search.className).toContain("focus-visible:ring-brand-focus/30");
     expect(search.className).not.toContain("focus:ring");
   });
 
@@ -283,7 +283,7 @@ describe("SidebarWorkspace", () => {
     // guards the focus-visible token (the canonical button ring) the fix adds so
     // the trigger no longer focuses invisibly for Tab users.
     const trigger = await screen.findByTestId("sidebar-workspace-trigger");
-    expect(trigger.className).toContain("focus-visible:ring-brand/40");
+    expect(trigger.className).toContain("focus-visible:ring-brand-focus/40");
     expect(trigger.className).toContain("focus-visible:outline-none");
   });
 

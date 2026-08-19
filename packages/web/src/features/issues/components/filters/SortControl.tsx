@@ -112,8 +112,8 @@ export function SortControl({
       className={cn(
         "inline-flex h-8 items-center rounded-md border transition-colors duration-150",
         isDefault
-          ? "border-border bg-elevated"
-          : "border-brand bg-brand/10 ring-1 ring-brand/30",
+          ? "border-border bg-surface-elevated"
+          : "border-brand-focus bg-brand-fill/10 ring-1 ring-brand-focus/30",
       )}
       data-testid="sort-control"
     >
@@ -172,7 +172,9 @@ export function SortControl({
                 <Check
                   className={cn(
                     "h-3.5 w-3.5",
-                    rankOrderActive ? "text-brand opacity-100" : "opacity-0",
+                    rankOrderActive
+                      ? "text-brand-text opacity-100"
+                      : "opacity-0",
                   )}
                   aria-hidden="true"
                 />
@@ -199,7 +201,7 @@ export function SortControl({
                   className={cn(
                     "h-3.5 w-3.5",
                     sortField === field
-                      ? "text-brand opacity-100"
+                      ? "text-brand-text opacity-100"
                       : "opacity-0",
                   )}
                   aria-hidden="true"

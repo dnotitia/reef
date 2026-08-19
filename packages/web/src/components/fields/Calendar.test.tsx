@@ -24,7 +24,7 @@ describe("Calendar", () => {
     );
     const selected = screen.getByTestId("calendar-day-2026-06-15");
     expect(selected).toHaveAttribute("aria-pressed", "true");
-    expect(selected.className).toContain("bg-brand");
+    expect(selected.className).toContain("bg-brand-fill");
   });
 
   it("marks today with a brand ring (no fill) via tokens", () => {
@@ -33,8 +33,8 @@ describe("Calendar", () => {
     );
     const today = screen.getByTestId("calendar-day-2026-06-09");
     expect(today).toHaveAttribute("aria-current", "date");
-    expect(today.className).toContain("ring-brand");
-    expect(today.className).not.toContain("bg-brand");
+    expect(today.className).toContain("ring-brand-focus");
+    expect(today.className).not.toContain("bg-brand-fill");
   });
 
   it("calls onSelect with the clicked day's ISO date", async () => {

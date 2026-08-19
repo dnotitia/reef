@@ -178,10 +178,10 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
         ref={ref}
         data-testid="kanban-card"
         className={cn(
-          "group relative rounded-md border border-border bg-elevated px-3 py-2.5",
+          "group relative rounded-md border border-border bg-surface-elevated px-3 py-2.5",
           "cursor-pointer select-none transition-colors duration-[var(--duration-base)] ease-[var(--ease-signature)]",
           "hover:border-border hover:bg-surface-hover",
-          "focus-visible:outline-none focus-visible:border-brand/60 focus-visible:bg-brand/5",
+          "focus-visible:outline-none focus-visible:border-brand-focus/60 focus-visible:bg-brand-fill/5",
           isDragging && "opacity-50 cursor-grabbing shadow-md",
           readOnlyReason && "cursor-not-allowed",
           className,
@@ -195,7 +195,7 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
           <span
             id={readOnlyTooltipId}
             role="tooltip"
-            className="pointer-events-none absolute left-1/2 top-0 z-20 w-max max-w-[16rem] -translate-x-1/2 -translate-y-[calc(100%+0.35rem)] rounded-md border border-border bg-popover px-2 py-1 text-[11px] font-medium text-popover-foreground opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
+            className="pointer-events-none absolute left-1/2 top-0 z-20 w-max max-w-[16rem] -translate-x-1/2 -translate-y-[calc(100%+0.35rem)] rounded-md border border-border bg-surface-popover px-2 py-1 text-[11px] font-medium text-foreground opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
           >
             {readOnlyReason}
           </span>
@@ -366,7 +366,7 @@ export const KanbanCard = memo(function KanbanCard({
           .focusOccurrence("board", keyboardOccurrenceKey, issue.id)
       }
       className={cn(
-        focused && "border-brand/60 bg-brand/5",
+        focused && "border-brand-focus/60 bg-brand-fill/5",
         isFlashing && "reef-flash-card",
       )}
       role="button"

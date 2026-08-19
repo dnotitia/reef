@@ -46,7 +46,7 @@ async function exerciseCommentMention(page: Page) {
     const computed = getComputedStyle(element);
     const root = element.closest(".comment-mention-renderer");
     const probe = document.createElement("span");
-    probe.style.color = "var(--brand)";
+    probe.style.color = "var(--brand-text)";
     root?.append(probe);
     const brandColor = getComputedStyle(probe).color;
     probe.remove();

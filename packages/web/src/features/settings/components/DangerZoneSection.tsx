@@ -41,11 +41,11 @@ export function DangerZoneSection({ vault }: DangerZoneSectionProps) {
 
   return (
     <section className="flex flex-col gap-3" data-testid="danger-zone-section">
-      <h3 className="font-display text-[13px] font-semibold uppercase tracking-wider text-destructive">
+      <h3 className="font-display text-[13px] font-semibold uppercase tracking-wider text-destructive-text">
         {t("title")}
       </h3>
 
-      <div className="flex flex-col rounded-lg border border-destructive/30 bg-surface-subtle/40">
+      <div className="flex flex-col rounded-lg border border-destructive-focus/30 bg-surface-subtle/40">
         <div className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <div className="flex flex-col gap-1">
             <p className="text-sm font-medium text-foreground">

@@ -25,7 +25,7 @@ export function IssueFilterToolbar({
 }: IssueFilterToolbarProps) {
   return (
     <div
-      className="flex flex-col gap-2 border-b border-border-subtle bg-background px-6 py-2.5"
+      className="flex flex-col gap-2 border-b border-border-subtle bg-surface-page px-6 py-2.5"
       data-testid="issue-filter-toolbar"
     >
       <SearchBar />

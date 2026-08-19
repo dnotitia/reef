@@ -38,8 +38,8 @@ export function TimelineRow({
         type="button"
         onClick={() => onIssueClick(item.issue.id)}
         className={cn(
-          "sticky left-0 z-20 flex min-w-0 items-center gap-2 border-r border-border-subtle bg-background px-3 text-left",
-          "transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
+          "sticky left-0 z-20 flex min-w-0 items-center gap-2 border-r border-border-subtle bg-surface-page px-3 text-left",
+          "transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
         )}
         style={{ gridColumn: 1, gridRow: 1 }}
       >

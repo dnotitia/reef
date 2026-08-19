@@ -23,14 +23,22 @@ export {
 
 /** Tailwind text-color classes for the status indicator. */
 export const STATUS_COLORS: Record<Status, string> = {
-  backlog: "text-status-backlog",
-  // `todo` keeps the shared `--status-open` token (also used by reports);
-  // the status key is renamed (REEF-139).
-  todo: "text-status-open",
-  in_progress: "text-status-in-progress",
-  in_review: "text-status-in-review",
-  done: "text-status-done",
-  closed: "text-status-closed",
+  backlog: "text-status-backlog-glyph",
+  todo: "text-status-open-glyph",
+  in_progress: "text-status-in-progress-glyph",
+  in_review: "text-status-in-review-glyph",
+  done: "text-status-done-glyph",
+  closed: "text-status-closed-glyph",
+};
+
+/** Tailwind text-color classes for a labelled issue status. */
+export const STATUS_TEXT_COLORS: Record<Status, string> = {
+  backlog: "text-status-backlog-text",
+  todo: "text-status-open-text",
+  in_progress: "text-status-in-progress-text",
+  in_review: "text-status-in-review-text",
+  done: "text-status-done-text",
+  closed: "text-status-closed-text",
 };
 
 /** Tailwind background-color classes for the priority dot. */
@@ -96,4 +104,4 @@ export const AVATAR_TONES = [
 export const AVATAR_FG = "text-av-fg";
 
 /** "You" tone — the current user's avatar stays brand teal (REEF-068). */
-export const AVATAR_BRAND = "bg-brand text-brand-foreground";
+export const AVATAR_BRAND = "bg-brand-fill text-brand-on-fill";

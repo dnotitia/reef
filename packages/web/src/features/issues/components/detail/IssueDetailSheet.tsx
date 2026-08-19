@@ -441,7 +441,7 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
             link: (chunks) => (
               <Link
                 href={withVault(vault, "/settings")}
-                className="text-brand underline"
+                className="text-brand-text underline"
               >
                 {chunks}
               </Link>
@@ -541,7 +541,7 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
                 aria-valuetext={`${panelWidth}px`}
                 data-testid="issue-detail-resize-handle"
                 data-resizing={isResizing ? "true" : "false"}
-                className="group absolute inset-y-0 left-0 z-10 flex w-3 touch-none select-none cursor-col-resize items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60"
+                className="group absolute inset-y-0 left-0 z-10 flex w-3 touch-none select-none cursor-col-resize items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/60"
                 onKeyDown={onKeyDown}
                 onPointerCancel={onPointerCancel}
                 onPointerDown={onPointerDown}
@@ -553,8 +553,8 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
                   aria-hidden="true"
                   className={
                     isResizing
-                      ? "h-full w-px bg-brand"
-                      : "h-full w-px bg-border-subtle transition-colors group-hover:bg-brand group-focus-visible:bg-brand"
+                      ? "h-full w-px bg-brand-fill"
+                      : "h-full w-px bg-border-subtle transition-colors group-hover:bg-brand-fill group-focus-visible:bg-brand-fill"
                   }
                 />
               </div>
@@ -622,7 +622,7 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
                       )}
                       aria-pressed={isExpanded}
                       onClick={onToggleExpanded}
-                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
                     >
                       {isExpanded ? (
                         <Minimize2 className="h-4 w-4" aria-hidden="true" />

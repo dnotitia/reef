@@ -63,7 +63,7 @@ function SafeExternalAnchor({
     <>
       <button
         type="button"
-        className="wrap-anywhere font-medium text-brand underline hover:text-brand/80"
+        className="wrap-anywhere font-medium text-brand-text underline hover:text-brand-text/80"
         onClick={() => setOpen(true)}
       >
         {children}
@@ -94,7 +94,7 @@ function ChatAnchor({
         href={href}
         prefetch={false}
         translate="no"
-        className="font-medium text-foreground underline decoration-brand/50 decoration-1 underline-offset-2 transition-colors hover:decoration-brand"
+        className="font-medium text-foreground underline decoration-brand-text/50 decoration-1 underline-offset-2 transition-colors hover:decoration-brand-text"
       >
         {children}
       </Link>

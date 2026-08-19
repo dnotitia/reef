@@ -147,7 +147,7 @@ function LoginView({
   })();
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-background p-6">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-surface-page p-6">
       <div className="flex w-full max-w-[420px] flex-col items-center gap-5 text-center">
         <div className="flex flex-col items-center gap-3 pb-1">
           <ReefMark className="size-11" decorative />
@@ -164,7 +164,7 @@ function LoginView({
           <p
             role="alert"
             data-testid="login-error-alert"
-            className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+            className="rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-4 py-3 text-sm text-destructive-text"
           >
             {errorMessage}
           </p>

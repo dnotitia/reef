@@ -23,13 +23,14 @@ const phaseLabelKey = {
 } satisfies Record<AgentRunState["phase"], string>;
 
 const phaseClass = {
-  idle: "border-border bg-elevated text-muted-foreground",
+  idle: "border-border bg-surface-elevated text-muted-foreground",
   running: "border-ai-border bg-ai-subtle text-ai-subtle-foreground",
   completed:
     "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300",
-  empty: "border-border bg-elevated text-muted-foreground",
-  error: "border-destructive/30 bg-destructive/10 text-destructive",
-  cancelled: "border-border bg-elevated text-muted-foreground",
+  empty: "border-border bg-surface-elevated text-muted-foreground",
+  error:
+    "border-destructive-focus/30 bg-destructive-fill/10 text-destructive-text",
+  cancelled: "border-border bg-surface-elevated text-muted-foreground",
 } satisfies Record<AgentRunState["phase"], string>;
 
 export function RunStatusIndicator({
@@ -78,7 +79,7 @@ export function RunStatusIndicator({
           </span>
         )}
         {state.error && (
-          <span className="min-w-0 break-words text-xs text-destructive">
+          <span className="min-w-0 break-words text-xs text-destructive-text">
             {state.error.message}
           </span>
         )}

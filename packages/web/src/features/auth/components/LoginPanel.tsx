@@ -210,9 +210,9 @@ export function LoginPanel({
   }
 
   return (
-    <div className="w-full rounded-lg border border-border bg-elevated/70 p-4 shadow-sm">
+    <div className="w-full rounded-lg border border-border bg-surface-elevated/70 p-4 shadow-sm">
       <div className="flex items-center gap-2 border-b border-border pb-3 text-left">
-        <div className="flex size-8 items-center justify-center rounded-md border border-border bg-background text-brand">
+        <div className="flex size-8 items-center justify-center rounded-md border border-border bg-surface-page text-brand-text">
           <Building2 className="size-4" aria-hidden="true" />
         </div>
         <div className="min-w-0">
@@ -234,7 +234,7 @@ export function LoginPanel({
           <div
             aria-hidden="true"
             data-testid="sso-config-loading"
-            className="h-[70px] rounded-md border border-border bg-background/70"
+            className="h-[70px] rounded-md border border-border bg-surface-page/70"
           />
         )}
 
@@ -245,7 +245,7 @@ export function LoginPanel({
                 key={provider.alias}
                 href={`${provider.loginUrl}${provider.loginUrl.includes("?") ? "&" : "?"}redirect=${encodeURIComponent(safeRedirect)}`}
                 className={cn(
-                  "inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-brand px-4 font-medium text-brand-foreground text-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
+                  "inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-brand-fill px-4 font-medium text-brand-on-fill text-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
                 )}
               >
                 <KeyRound className="size-4" aria-hidden="true" />
@@ -262,7 +262,7 @@ export function LoginPanel({
         )}
 
         {capabilities && !ssoEnabled && !localAuthEnabled && (
-          <p role="alert" className="text-sm text-destructive">
+          <p role="alert" className="text-sm text-destructive-text">
             {t("unavailable")}
           </p>
         )}

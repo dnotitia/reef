@@ -366,7 +366,7 @@ async function readMarkdownSurface(editor: Locator) {
             }
           : null,
         foreground: resolveColor("--foreground"),
-        brand: resolveColor("--brand"),
+        brand: resolveColor("--brand-text"),
         mutedForeground: resolveColor("--muted-foreground"),
         borderSubtle: resolveColor("--border-subtle"),
         surfaceSubtle: resolveBackground("--surface-subtle"),
@@ -519,7 +519,7 @@ async function readCommentMarkdownSurface(comment: Locator) {
           ? getComputedStyle(tableWrapper).borderTopColor
           : "",
         foreground: resolveColor("--foreground"),
-        brand: resolveColor("--brand"),
+        brand: resolveColor("--brand-text"),
         borderSubtle: resolveColor("--border-subtle"),
         surfaceSubtle: resolveBackground("--surface-subtle"),
       },

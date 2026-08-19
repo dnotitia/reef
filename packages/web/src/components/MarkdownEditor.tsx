@@ -34,7 +34,7 @@ function MarkdownEditorSkeleton() {
     <div
       aria-hidden="true"
       data-testid="markdown-editor-skeleton"
-      className="rounded-md border border-border bg-elevated"
+      className="rounded-md border border-border bg-surface-elevated"
     >
       <div className="flex items-center gap-1 border-b border-border-subtle px-2 py-1">
         <Skeleton className="h-7 w-32" />

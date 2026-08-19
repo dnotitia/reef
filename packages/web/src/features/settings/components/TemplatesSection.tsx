@@ -223,7 +223,7 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
           <li
             key={template.name}
             data-testid={`templates-row-${template.name}`}
-            className="flex items-start justify-between gap-3 rounded-md border border-border bg-elevated px-3 py-2"
+            className="flex items-start justify-between gap-3 rounded-md border border-border bg-surface-elevated px-3 py-2"
           >
             <div className="flex min-w-0 flex-col gap-0.5">
               <p className="text-sm font-medium text-foreground">
@@ -293,7 +293,7 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
     return (
       <p
         role="alert"
-        className="text-sm text-destructive"
+        className="text-sm text-destructive-text"
         data-testid="templates-section-load-error"
       >
         {tt("loadError")} {query.error.message}
@@ -343,7 +343,7 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
                   htmlFor="templates-name"
                   className="text-muted-foreground"
                 >
-                  {tt("name")} <span className="text-destructive">*</span>
+                  {tt("name")} <span className="text-destructive-text">*</span>
                 </label>
                 <Input
                   id="templates-name"
@@ -363,7 +363,7 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
                   htmlFor="templates-label"
                   className="text-muted-foreground"
                 >
-                  {tt("label")} <span className="text-destructive">*</span>
+                  {tt("label")} <span className="text-destructive-text">*</span>
                 </label>
                 <Input
                   id="templates-label"
@@ -493,7 +493,7 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
           {error && (
             <p
               role="alert"
-              className="text-xs text-destructive"
+              className="text-xs text-destructive-text"
               data-testid="templates-editor-error"
             >
               {error}

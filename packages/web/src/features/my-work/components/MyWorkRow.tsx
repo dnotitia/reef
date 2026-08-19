@@ -65,7 +65,7 @@ export const MyWorkRow = memo(function MyWorkRow({
     <Link
       href={href}
       data-testid={`my-work-row-${issue.id}`}
-      className="group flex items-center gap-3 border-t border-border-subtle px-3 py-2 transition-colors duration-150 first:border-t-0 hover:bg-surface-hover focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+      className="group flex items-center gap-3 border-t border-border-subtle px-3 py-2 transition-colors duration-150 first:border-t-0 hover:bg-surface-hover focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
     >
       {issue.priority ? (
         <PriorityDot priority={issue.priority} decorative />

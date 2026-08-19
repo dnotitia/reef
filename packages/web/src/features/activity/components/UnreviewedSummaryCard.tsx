@@ -35,7 +35,7 @@ export function UnreviewedSummaryCard({
   return (
     <div
       data-testid="unreviewed-summary-card"
-      className="rounded-md border border-brand/30 bg-brand/5 px-4 py-3 flex items-center justify-between gap-4"
+      className="rounded-md border border-brand-focus/30 bg-brand-fill/5 px-4 py-3 flex items-center justify-between gap-4"
     >
       <p className="text-sm text-foreground">
         <span className="font-semibold">{t("summaryLabel")}</span>{" "}
@@ -44,7 +44,7 @@ export function UnreviewedSummaryCard({
       <button
         type="button"
         onClick={onDismiss}
-        className="shrink-0 rounded-md bg-brand px-3 py-1 text-xs font-medium text-brand-foreground transition-colors duration-150 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+        className="shrink-0 rounded-md bg-brand-fill px-3 py-1 text-xs font-medium text-brand-on-fill transition-colors duration-150 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
       >
         {t("gotIt")}
       </button>

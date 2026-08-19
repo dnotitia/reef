@@ -11,7 +11,7 @@
  * Pure strings, no React — the same shape as `fieldKit.ts` (colors) and
  * FilterBar's local `TRIGGER_BASE`. Each conflicting axis resolves to ONE
  * winner, drawn from the existing design tokens:
- *   - trigger:    h-8 · border-border · bg-elevated · text-[13px] · hover:bg-surface-hover
+ *   - trigger:    h-8 · border-border · bg-surface-elevated · text-[13px] · hover:bg-surface-hover
  *   - active:     brand ring (filter "this is set" affordance)
  *   - chevron:    h-3.5 (14px) · text-muted-foreground · always present · rotates on open
  *   - option:     text-[13px] · px-2 py-1.5 · bg-surface-hover highlight
@@ -21,20 +21,20 @@
 /** Field-style trigger (Assignee / Planning / Period / Scope / Status …). */
 export const CBX_TRIGGER_FIELD =
   "flex h-8 w-full min-w-0 items-center justify-between gap-2 rounded-md border " +
-  "border-border bg-elevated px-2.5 text-left text-[13px] text-foreground " +
+  "border-border bg-surface-elevated px-2.5 text-left text-[13px] text-foreground " +
   "transition-colors duration-150 hover:bg-surface-hover " +
-  "focus-visible:outline-none focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/30 " +
+  "focus-visible:outline-none focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30 " +
   "disabled:cursor-not-allowed disabled:opacity-50";
 
 /** Action-style trigger (e.g. the Template apply button) — same height + hover. */
 export const CBX_TRIGGER_BUTTON =
   "inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-secondary px-3 " +
   "text-xs font-medium text-secondary-foreground transition-colors duration-150 " +
-  "hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 " +
+  "hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/30 " +
   "disabled:cursor-not-allowed disabled:opacity-50";
 
 /** Layered onto a field trigger when the control holds a non-default filter value. */
-export const CBX_TRIGGER_ACTIVE = "border-brand bg-brand/10 ring-1 ring-brand/30";
+export const CBX_TRIGGER_ACTIVE = "border-brand-focus bg-brand-fill/10 ring-1 ring-brand-focus/30";
 
 /**
  * Facet "chip" trigger (multi-select filter facets: Status / Type / Priority /
@@ -46,12 +46,12 @@ export const CBX_TRIGGER_ACTIVE = "border-brand bg-brand/10 ring-1 ring-brand/30
 export const CBX_TRIGGER_CHIP =
   "inline-flex h-8 items-center gap-1 rounded-md border px-2.5 text-[13px] " +
   "transition-colors duration-150 focus-visible:outline-none " +
-  "focus-visible:ring-2 focus-visible:ring-brand/30 " +
+  "focus-visible:ring-2 focus-visible:ring-brand-focus/30 " +
   "disabled:cursor-not-allowed disabled:opacity-50";
 
 /** Chip with no active filter — muted label, like an unset combobox placeholder. */
 export const CBX_TRIGGER_CHIP_INACTIVE =
-  "border-border bg-elevated text-muted-foreground hover:bg-surface-hover";
+  "border-border bg-surface-elevated text-muted-foreground hover:bg-surface-hover";
 
 /** Chip holding a non-default facet selection. Reuses CBX_TRIGGER_ACTIVE's brand
  *  ring so a set facet and a set field combobox read identically; adds
@@ -72,7 +72,7 @@ export const CBX_CHEVRON =
  */
 export const CBX_PANEL =
   "z-50 rounded-md border border-border " +
-  "bg-popover p-1 shadow-lg shadow-foreground/5 outline-none " +
+  "bg-surface-popover p-1 shadow-lg shadow-foreground/5 outline-none " +
   "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95";
 
 /** Positioning for the non-portaled combobox panel. */
@@ -117,13 +117,13 @@ export const CBX_OPTION_MUTED = "text-muted-foreground";
  * — it never shares a line with the caller's right-aligned meta (REEF-144).
  */
 export const CBX_CHECK =
-  "pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-brand";
+  "pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-brand-text";
 
 /** In-panel search input (searchable comboboxes). */
 export const CBX_SEARCH =
-  "mb-1 h-8 w-full rounded-md border border-border bg-elevated px-2.5 text-[13px] " +
+  "mb-1 h-8 w-full rounded-md border border-border bg-surface-elevated px-2.5 text-[13px] " +
   "text-foreground outline-none transition-colors placeholder:text-muted-foreground " +
-  "focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/30";
+  "focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30";
 
 /** Empty / loading row text. */
 export const CBX_EMPTY = "px-2 py-1.5 text-[13px] text-muted-foreground";

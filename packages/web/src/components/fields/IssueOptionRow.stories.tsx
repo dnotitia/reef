@@ -9,7 +9,7 @@ const meta = {
   component: IssueOptionRow,
   decorators: [
     (Story) => (
-      <div className="w-[420px] rounded-md border border-border bg-popover p-1 shadow-lg">
+      <div className="w-[420px] rounded-md border border-border bg-surface-popover p-1 shadow-lg">
         <div className="flex items-center gap-2 rounded-sm px-2 py-1.5 data-[active=true]:bg-accent">
           <Story />
         </div>

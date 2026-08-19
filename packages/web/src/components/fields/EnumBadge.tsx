@@ -4,7 +4,7 @@ interface EnumBadgeProps {
   /** Human-readable label (does not the raw enum identifier). */
   label: string;
   /**
-   * Tailwind text-color token for the indicator dot (e.g. "text-status-open").
+   * Tailwind text-color token for the indicator dot (e.g. "text-status-open-glyph").
    * The dot uses `bg-current`, so this class drives its fill via currentColor.
    */
   colorClass: string;

@@ -64,7 +64,7 @@ export function VaultPickerInput({
     return (
       <p
         role="alert"
-        className="text-xs text-destructive"
+        className="text-xs text-destructive-text"
         data-testid="vault-picker-load-error"
       >
         {t("workspacesLoadError")}
@@ -86,7 +86,7 @@ export function VaultPickerInput({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         data-testid={`${testIdPrefix}-trigger`}
-        className="inline-flex h-8 w-64 items-center justify-between rounded-md border border-border bg-elevated px-2.5 text-[13px] text-foreground transition-colors duration-150 hover:bg-surface-hover"
+        className="inline-flex h-8 w-64 items-center justify-between rounded-md border border-border bg-surface-elevated px-2.5 text-[13px] text-foreground transition-colors duration-150 hover:bg-surface-hover"
         aria-label={
           value ? t("activeWorkspace", { value }) : resolvedPlaceholder
         }
@@ -102,7 +102,7 @@ export function VaultPickerInput({
       <PopoverContent className="w-64 p-2">
         <input
           type="text"
-          className="mb-2 w-full rounded-md border border-border bg-elevated px-2 py-1 text-[13px] text-foreground outline-none transition-colors focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/30"
+          className="mb-2 w-full rounded-md border border-border bg-surface-elevated px-2 py-1 text-[13px] text-foreground outline-none transition-colors focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30"
           placeholder={t("searchWorkspacesPlaceholder")}
           aria-label={t("searchWorkspacesLabel")}
           value={search}

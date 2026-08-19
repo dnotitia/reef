@@ -122,7 +122,7 @@ export function IssueOptionRow({
         />
         {selected ? (
           <Check
-            className="size-3.5 shrink-0 text-brand"
+            className="size-3.5 shrink-0 text-brand-text"
             aria-label={t("selected")}
           />
         ) : null}

@@ -19,14 +19,14 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantClasses: Record<ButtonVariant, string> = {
-  default: "bg-foreground text-background hover:bg-foreground/90",
-  brand: "bg-brand text-brand-foreground hover:opacity-90",
-  destructive: "bg-destructive text-destructive-foreground hover:opacity-90",
+  default: "bg-foreground text-surface-page hover:bg-foreground/90",
+  brand: "bg-brand-fill text-brand-on-fill hover:opacity-90",
+  destructive: "bg-destructive-fill text-destructive-on-fill hover:opacity-90",
   outline:
-    "border border-border bg-elevated text-foreground hover:bg-surface-hover",
+    "border border-border bg-surface-elevated text-foreground hover:bg-surface-hover",
   secondary: "bg-secondary text-secondary-foreground hover:bg-surface-hover",
   ghost: "text-foreground hover:bg-surface-hover",
-  link: "text-brand underline-offset-4 hover:underline",
+  link: "text-brand-text underline-offset-4 hover:underline",
 };
 
 const sizeClasses: Record<ButtonSize, string> = {

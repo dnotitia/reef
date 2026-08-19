@@ -12,7 +12,7 @@ describe("BlockedBadge", () => {
     const el = screen.getByText("Blocked");
     expect(el).toBeInTheDocument();
     expect(el.className).toContain("uppercase");
-    expect(el.className).toContain("bg-destructive/10");
+    expect(el.className).toContain("bg-destructive-fill/10");
     expect(el.getAttribute("title")).toBe("Blocked");
   });
 
