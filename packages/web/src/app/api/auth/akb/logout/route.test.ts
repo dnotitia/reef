@@ -83,6 +83,17 @@ describe("POST /api/auth/akb/logout", () => {
     expect(exposed).toContain("Max-Age=0");
   });
 
+  it("clears a legacy JWT without touching the SSO session store", async () => {
+    configureSso();
+
+    const response = await POST(makeRequest("__reef_session=jwt.payload.sig"));
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
+    expect(mocks.logout).not.toHaveBeenCalled();
+    expect(mocks.getRuntime).not.toHaveBeenCalled();
+  });
+
   it("returns a retryable failure and retains the browser carrier when authoritative deletion fails", async () => {
     configureSso();
     mocks.logout.mockRejectedValue(

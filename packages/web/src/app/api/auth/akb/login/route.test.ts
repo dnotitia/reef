@@ -34,7 +34,7 @@ describe("POST /api/auth/akb/login", () => {
     vi.stubEnv("NODE_ENV", "test");
   });
 
-  it("does not call local AKB login while Reef is in SSO mode", async () => {
+  it("keeps the local AKB login route available in SSO mode", async () => {
     vi.stubEnv("NODE_ENV", "test");
     vi.stubEnv("REEF_AUTH_MODE", "sso");
     vi.stubEnv(
@@ -44,7 +44,12 @@ describe("POST /api/auth/akb/login", () => {
     vi.stubEnv("REEF_KEYCLOAK_CLIENT_ID", "reef-web");
     vi.stubEnv("REEF_AKB_API_AUDIENCE", "akb-api");
     vi.stubEnv("REEF_PUBLIC_ORIGIN", "https://reef.example.com");
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ token: VALID_JWT, user: VALID_USER }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
 
     const response = await POST(
       new Request("http://localhost/api/auth/akb/login", {
@@ -54,8 +59,12 @@ describe("POST /api/auth/akb/login", () => {
       }),
     );
 
-    expect(response.status).toBe(404);
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ user: VALID_USER });
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "http://akb.test/api/v1/auth/login",
+      expect.objectContaining({ method: "POST" }),
+    );
   });
 
   afterEach(() => {

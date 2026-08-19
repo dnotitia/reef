@@ -40,12 +40,11 @@ const LoginRequestSchema = z.object({
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    if (readAuthRuntimeConfig().mode !== "local") {
-      return Response.json(
-        { error: "Sign-in method is unavailable." },
-        { status: 404 },
-      );
-    }
+    // Both explicit auth profiles support the legacy AKB credential exchange.
+    // In SSO mode the resulting JWT is handled by the hybrid session carrier;
+    // the public AKB capability catalog still controls whether the password
+    // form is shown (for example, an explicit SSO-only policy hides it).
+    readAuthRuntimeConfig();
   } catch {
     return Response.json(
       { error: "Authentication is not configured." },

@@ -6,6 +6,7 @@ import {
   normalizeSafeRedirect,
 } from "@/lib/akb/safeRedirect";
 import { readAuthMode } from "@/server/auth/config";
+import { ssoAutoRedirectEnabled } from "@/lib/akb/ssoAutoRedirect";
 import { type AkbAccountErrorCode, isAkbAccountErrorCode } from "@reef/core";
 import { useTranslations } from "next-intl";
 import { redirect } from "next/navigation";
@@ -21,7 +22,8 @@ type LoginSearchParams = { [key: string]: string | string[] | undefined };
  * is retired). We still read it so older bookmarks carrying ?error= land
  * on a sensible message.
  *
- * SSO mode skips the panel when AKB publishes exactly one enabled provider; see
+ * An explicit SSO-only catalog policy or the deployment opt-in can skip the
+ * panel when AKB publishes exactly one enabled provider; see
  * {@link resolveSsoAutoRedirect}. When that does not fire, the page is async (it
  * awaits `searchParams`), so it delegates instead of calling the
  * `useTranslations` hook directly. It resolves the error *kind* and delegates
@@ -78,14 +80,14 @@ export default async function LoginPage({
  * Returns the same-origin `/api/auth/akb/sso/start` path to redirect to, or
  * null to render the panel. It fires for a *clean* entry into `/login`:
  *
- * - Reef and AKB are both in versioned SSO mode and exactly one enabled
- *   provider alias is available.
+ * - The deployment opts in with `REEF_SSO_AUTO_REDIRECT`, or AKB explicitly
+ *   disables local auth (`sso_only` in the legacy projection), and exactly one
+ *   enabled provider alias is available.
  * - No SSO/session error is present (`?sso_error=` / `?error=`). This is the
  *   loop guard: an SSO failure returns here, so auto-redirecting again would
  *   bounce the user between reef and Keycloak forever.
- * - No explicit loop escape (`?password=1` / `?prompt=login`). In local mode
- *   this leaves password sign-in reachable; SSO mode still fails closed and
- *   does not expose the local credential flow.
+ * - No explicit loop escape (`?password=1` / `?prompt=login`), which keeps
+ *   password sign-in reachable when an SSO round-trip fails.
  * - AKB reports its browser provider catalog ready. An unreachable or non-SSO
  *   backend leaves the panel in its mode-appropriate unavailable state.
  *
@@ -104,9 +106,11 @@ async function resolveSsoAutoRedirect({
 }): Promise<string | null> {
   if (errorKind !== null) return null;
   if (params.password === "1" || params.prompt === "login") return null;
+  const autoRedirect = ssoAutoRedirectEnabled();
 
   const result = await loadAkbAuthConfig();
   if (!result.ok || !("schema_version" in result.config)) return null;
+  if (!autoRedirect && result.config.local_auth.enabled) return null;
   const provider =
     result.config.providers.length === 1
       ? result.config.providers[0]

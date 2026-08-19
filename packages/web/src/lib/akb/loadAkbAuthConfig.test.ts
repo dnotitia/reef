@@ -62,7 +62,7 @@ describe("loadAkbAuthConfig", () => {
     expect(result).toEqual({ ok: false, reason: "backend_rejected" });
   });
 
-  it("projects only enabled SSO catalog aliases onto Reef-owned start paths", async () => {
+  it("projects only enabled SSO catalog aliases and preserves hybrid local auth", async () => {
     vi.stubEnv("REEF_AUTH_MODE", "sso");
     vi.stubEnv(
       "REEF_KEYCLOAK_ISSUER",
@@ -99,7 +99,7 @@ describe("loadAkbAuthConfig", () => {
     expect(result).toMatchObject({
       ok: true,
       config: {
-        local_auth: { enabled: false },
+        local_auth: { enabled: true },
         providers: [
           {
             alias: "workforce",
@@ -158,6 +158,35 @@ describe("loadAkbAuthConfig", () => {
     expect(fetchSpy.mock.calls.flat().join(" ")).not.toContain(
       "/auth/keycloak/exchange",
     );
+  });
+
+  it("preserves legacy password auth when sso_only is false", async () => {
+    vi.stubEnv("REEF_AUTH_MODE", "sso");
+    vi.stubEnv(
+      "REEF_KEYCLOAK_ISSUER",
+      "https://identity.example.com/realms/reef",
+    );
+    vi.stubEnv("REEF_KEYCLOAK_CLIENT_ID", "reef-web");
+    vi.stubEnv("REEF_AKB_API_AUDIENCE", "akb-api");
+    vi.stubEnv("REEF_PUBLIC_ORIGIN", "https://reef.example.com");
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        local_auth: { enabled: true },
+        keycloak: {
+          enabled: true,
+          login_url: "/api/v1/auth/keycloak/login",
+          sso_only: false,
+        },
+      }),
+    );
+
+    await expect(loadAkbAuthConfig()).resolves.toMatchObject({
+      ok: true,
+      config: {
+        local_auth: { enabled: true },
+        providers: [{ alias: "legacy" }],
+      },
+    });
   });
 
   it.each([

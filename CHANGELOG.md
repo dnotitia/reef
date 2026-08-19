@@ -25,6 +25,14 @@ explicitly in the entries below.
   browser-login and JWT-exchange endpoints remain unused, and token validation
   stays fail-closed.
 
+### Fixed
+
+- **SSO mode now restores the pre-v0.11 hybrid login surface.** AKB's local-auth
+  capability controls whether username/password is shown beside Reef-owned SSO,
+  and the credential route plus JWT session carrier remain usable in SSO mode.
+  Explicit SSO-only policy and `REEF_SSO_AUTO_REDIRECT` still opt into the
+  button-free SSO path; local mode remains password-only.
+
 ## v0.11.0 - 2026-08-18
 
 ### Security

@@ -7,6 +7,11 @@ import {
 } from "./sessionCookie";
 
 const OPAQUE_SESSION_HANDLE_RE = /^[A-Za-z0-9_-]{43}$/u;
+const JWT_SESSION_RE = /^[^.]+\.[^.]+\.[^.]+$/u;
+
+export type AuthSessionCarrier =
+  | { kind: "sso"; handle: string }
+  | { kind: "local"; jwt: string };
 
 /**
  * Extract the akb session JWT from the `__reef_session` cookie.
@@ -44,4 +49,24 @@ export function extractSsoSessionHandle(
     throw new AuthError({ message: "missing_sso_session" });
   }
   return handle;
+}
+
+/**
+ * Resolve the dual login carrier used by the hybrid SSO deployment profile.
+ * Opaque handles remain server-side SSO sessions; a JWT is the legacy
+ * username/password session accepted alongside them.
+ */
+export function extractAuthSessionCarrier(
+  source: Request | ReadonlyHeaders,
+): AuthSessionCarrier {
+  try {
+    return { kind: "sso", handle: extractSsoSessionHandle(source) };
+  } catch {
+    const headers = source instanceof Request ? source.headers : source;
+    const raw = parseCookieHeader(headers.get("cookie"))[SESSION_COOKIE];
+    if (!raw || !JWT_SESSION_RE.test(raw)) {
+      throw new AuthError({ message: "missing_session_cookie" });
+    }
+    return { kind: "local", jwt: extractAkbSession(source) };
+  }
 }

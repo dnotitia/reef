@@ -91,6 +91,33 @@ describe("GET /api/auth/akb/config", () => {
     });
   });
 
+  it("keeps the legacy password capability in the SSO projection", async () => {
+    vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("REEF_AUTH_MODE", "sso");
+    vi.stubEnv(
+      "REEF_KEYCLOAK_ISSUER",
+      "https://identity.example.com/realms/reef",
+    );
+    vi.stubEnv("REEF_KEYCLOAK_CLIENT_ID", "reef-web");
+    vi.stubEnv("REEF_AKB_API_AUDIENCE", "akb-api");
+    vi.stubEnv("REEF_PUBLIC_ORIGIN", "https://reef.example.com");
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        local_auth: { enabled: true },
+        keycloak: {
+          enabled: true,
+          login_url: "/api/v1/auth/keycloak/login",
+          sso_only: false,
+        },
+      }),
+    );
+
+    const res = await GET(makeRequest());
+
+    expect(res.status).toBe(200);
+    expect((await res.json()).local_auth).toEqual({ enabled: true });
+  });
+
   it("consumes a callback invalidation marker into the browser cleanup contract", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response(

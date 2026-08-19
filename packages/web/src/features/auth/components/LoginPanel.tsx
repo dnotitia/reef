@@ -154,7 +154,9 @@ export function LoginPanel({
         if (!res.ok) {
           setCapabilities({
             providers: [],
-            localAuthEnabled: authMode === "local",
+            // The SSO profile still supports the legacy credential exchange;
+            // only an AKB catalog can explicitly hide that surface.
+            localAuthEnabled: authMode !== null,
           });
           return;
         }
@@ -191,7 +193,7 @@ export function LoginPanel({
         if (!controller.signal.aborted) {
           setCapabilities({
             providers: [],
-            localAuthEnabled: authMode === "local",
+            localAuthEnabled: authMode !== null,
           });
         }
       }
