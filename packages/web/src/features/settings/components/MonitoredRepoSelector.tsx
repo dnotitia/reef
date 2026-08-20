@@ -4,6 +4,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
+  usePopoverContext,
 } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { RepoListItem } from "@/features/settings/hooks/useRepos";
@@ -22,6 +23,51 @@ interface MonitoredRepoSelectorProps {
   /** Shown when `isError` and not loading; a node so callers can link out. */
   errorMessage?: ReactNode;
   testIdPrefix?: string;
+}
+
+interface MonitoredRepoOptionProps {
+  repo: RepoListItem;
+  checked: boolean;
+  disabled: boolean;
+  onToggle: (repo: string) => void;
+  testIdPrefix: string;
+}
+
+function MonitoredRepoOption({
+  repo,
+  checked,
+  disabled,
+  onToggle,
+  testIdPrefix,
+}: MonitoredRepoOptionProps) {
+  const { close } = usePopoverContext();
+
+  return (
+    <li>
+      <button
+        type="button"
+        data-testid={`${testIdPrefix}-option-${repo.full_name}`}
+        disabled={disabled}
+        aria-label={repo.full_name}
+        aria-pressed={checked}
+        className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+        onClick={() => {
+          onToggle(repo.full_name);
+          close("select");
+        }}
+      >
+        <input
+          type="checkbox"
+          readOnly
+          checked={checked}
+          className="h-3.5 w-3.5 rounded"
+          tabIndex={-1}
+          aria-hidden
+        />
+        <span className="truncate">{repo.full_name}</span>
+      </button>
+    </li>
+  );
 }
 
 /**
@@ -147,27 +193,14 @@ export function MonitoredRepoSelector({
             {filteredRepos.map((repo) => {
               const checked = selectedRepos.has(repo.full_name);
               return (
-                <li key={repo.id}>
-                  <button
-                    type="button"
-                    data-testid={`${testIdPrefix}-option-${repo.full_name}`}
-                    disabled={disabled}
-                    aria-label={repo.full_name}
-                    aria-pressed={checked}
-                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
-                    onClick={() => onToggle(repo.full_name)}
-                  >
-                    <input
-                      type="checkbox"
-                      readOnly
-                      checked={checked}
-                      className="h-3.5 w-3.5 rounded"
-                      tabIndex={-1}
-                      aria-hidden
-                    />
-                    <span className="truncate">{repo.full_name}</span>
-                  </button>
-                </li>
+                <MonitoredRepoOption
+                  key={repo.id}
+                  repo={repo}
+                  checked={checked}
+                  disabled={disabled}
+                  onToggle={onToggle}
+                  testIdPrefix={testIdPrefix}
+                />
               );
             })}
           </ul>

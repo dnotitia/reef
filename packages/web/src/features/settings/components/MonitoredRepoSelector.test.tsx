@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { MonitoredRepoSelector } from "./MonitoredRepoSelector";
 
@@ -62,6 +63,31 @@ describe("MonitoredRepoSelector accessibility (REEF-151)", () => {
     const option = screen.getByRole("button", { name: "acme/app" });
     expect(option).toHaveAttribute("aria-label", "acme/app");
     expect(option).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("closes after selecting an option and restores focus to the trigger", async () => {
+    const user = userEvent.setup();
+    const onToggle = vi.fn();
+    render(
+      <MonitoredRepoSelector
+        availableRepos={repos}
+        selectedRepos={new Set()}
+        onToggle={onToggle}
+        isLoading={false}
+        isError={false}
+      />,
+    );
+
+    const trigger = screen.getByTestId("monitored-repos-trigger");
+    await user.click(trigger);
+    await user.click(screen.getByRole("button", { name: "acme/app" }));
+
+    expect(onToggle).toHaveBeenCalledWith("acme/app");
+    expect(
+      screen.queryByRole("dialog", { name: "Search repositories" }),
+    ).not.toBeInTheDocument();
+    await new Promise((resolve) => window.requestAnimationFrame(resolve));
+    expect(trigger).toHaveFocus();
   });
 
   it("keeps long selected repository chips shrinkable with a persistent remove action", () => {

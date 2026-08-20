@@ -170,6 +170,37 @@ test.describe("Hermetic onboarding flow", () => {
     }
   });
 
+  test("closes the repository popover and restores trigger focus after keyboard selection", async ({
+    page,
+  }) => {
+    await signInAsAlice(page);
+    await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+
+    const trigger = page.getByTestId("greenfield-monitored-repos-trigger");
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+
+    const dialog = page.getByRole("dialog", { name: "Search repositories" });
+    const search = page.getByTestId("greenfield-monitored-repos-search");
+    await expect(dialog).toBeVisible();
+    await expect(search).toBeFocused();
+
+    await page.keyboard.press("Tab");
+    const option = page.locator(
+      '[data-testid="greenfield-monitored-repos-option-octo/reef"]',
+    );
+    await expect(option).toBeFocused();
+    await page.keyboard.press("Space");
+
+    await expect(option).toHaveCount(0);
+    await expect(dialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+    await expect(trigger).toHaveAttribute("aria-label", "1 repo(s) selected");
+    await expect(
+      page.getByRole("button", { name: "Remove octo/reef" }),
+    ).toBeVisible();
+  });
+
   test("keeps the account menu on authenticated onboarding and signs out", async ({
     page,
   }) => {
