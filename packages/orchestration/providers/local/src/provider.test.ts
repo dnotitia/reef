@@ -350,11 +350,30 @@ describe("local infrastructure provider", () => {
     const controller = new AbortController();
     const childPidFile = "child.pid";
     const childReadyFile = "child.ready";
-    const descendantScript = `const fs = require('node:fs'); process.on('SIGTERM', () => {}); fs.writeFileSync(${JSON.stringify(childReadyFile)}, 'ready'); setTimeout(() => process.exit(0), 5000); setInterval(() => {}, 1000);`;
-    const childScript = `const fs = require('node:fs'); const child = require('node:child_process').spawn(process.execPath, ['-e', ${JSON.stringify(descendantScript)}]); fs.writeFileSync('child.pid', String(child.pid)); setInterval(() => {}, 1000);`;
-    const command = `${shellQuote(process.execPath)} -e ${shellQuote(childScript)}`;
     const [directory] = await worktreeDirectories(fixture.workRoot);
     const worktree = join(fixture.workRoot, directory);
+    await writeFile(
+      join(worktree, "descendant.js"),
+      [
+        "const fs = require('node:fs');",
+        "process.on('SIGTERM', () => {});",
+        "fs.writeFileSync('child.ready', 'ready');",
+        "setTimeout(() => process.exit(0), 5000);",
+        "setInterval(() => {}, 1000);",
+        "",
+      ].join("\n"),
+    );
+    await writeFile(
+      join(worktree, "child.js"),
+      [
+        "const fs = require('node:fs');",
+        "const child = require('node:child_process').spawn(process.execPath, ['descendant.js']);",
+        "fs.writeFileSync('child.pid', String(child.pid));",
+        "setInterval(() => {}, 1000);",
+        "",
+      ].join("\n"),
+    );
+    const command = `${shellQuote(process.execPath)} child.js`;
     const childPidPath = join(worktree, childPidFile);
     const childReadyPath = join(worktree, childReadyFile);
     const execution = provider.exec(
