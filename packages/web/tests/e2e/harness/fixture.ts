@@ -20,7 +20,8 @@ export type FixtureScenario =
   | "skill_outdated"
   | "comment_mentions"
   | "large_vault"
-  | "markdown_fixture";
+  | "markdown_fixture"
+  | "status_quick_edit";
 export const REEF_E2E_VAULT = "reef-e2e";
 
 function escapeRegExp(value: string): string {
@@ -40,6 +41,7 @@ export async function resetFixture(
 export async function readFixtureState(request: APIRequestContext): Promise<{
   scenario: string;
   calls: Array<{ method: string; path: string }>;
+  issue_update_calls: Record<string, number>;
   vaults: Array<{
     name: string;
     tables: string[];
@@ -163,6 +165,31 @@ export async function setVaultListControl(
       data: {
         delay_ms: control.delayMs ?? 0,
         failures: control.failures ?? 0,
+      },
+    },
+  );
+  expect(response.ok()).toBeTruthy();
+}
+
+export async function setIssueUpdateControl(
+  request: APIRequestContext,
+  controls: Array<{
+    issueId: string;
+    delayMs?: number;
+    failures?: number;
+  }>,
+  vault = REEF_E2E_VAULT,
+): Promise<void> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/issue-update-control`,
+    {
+      data: {
+        vault,
+        updates: controls.map((control) => ({
+          issue_id: control.issueId,
+          delay_ms: control.delayMs ?? 0,
+          failures: control.failures ?? 0,
+        })),
       },
     },
   );

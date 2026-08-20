@@ -156,7 +156,7 @@ test.describe("Hermetic runtime discovery", () => {
     const contract = await response.json();
 
     expect(contract).toMatchObject({
-      schema_version: 1,
+      schema_version: 2,
       status: "ready",
       operations: {
         health: { method: "GET", path: "/__e2e/health" },
@@ -179,6 +179,16 @@ test.describe("Hermetic runtime discovery", () => {
         },
       },
       tasks: {
+        status_quick_edit: {
+          scenario: "status_quick_edit",
+          workspace: "reef-e2e",
+          start_path: "/workspace/reef-e2e/issues?view=list",
+          interaction: {
+            type: "status_quick_edit",
+            operation:
+              "configure delayed status updates for two issues, observe optimistic status changes and per-row pending state, repeat the same activation while pending, and verify independent delayed success or failure with retry",
+          },
+        },
         assignee_picker: {
           scenario: "assignee_picker",
           workspace: "reef-e2e",
@@ -337,6 +347,7 @@ test.describe("Hermetic runtime discovery", () => {
         "content_search",
         "large_vault",
         "markdown_fixture",
+        "status_quick_edit",
       ]),
     );
 

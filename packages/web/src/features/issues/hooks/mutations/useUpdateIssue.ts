@@ -8,11 +8,16 @@ import {
 } from "@/lib/storage/assigneeRecents";
 import type { IssueDocument, IssueUpdatePatch } from "@reef/core";
 import {
+  type QueryClient,
   type QueryKey,
   useMutation,
+  useMutationState,
   useQueryClient,
 } from "@tanstack/react-query";
-import { updateIssueListCaches } from "../../lib/issueListCache";
+import {
+  restoreIssueListCacheItems,
+  updateIssueListCaches,
+} from "../../lib/issueListCache";
 import {
   listInvalidationPredicate,
   patchAffectsActivityTimeline,
@@ -30,6 +35,14 @@ export interface UpdateIssueInput {
 }
 
 export type UpdateIssueResult = IssueDocument;
+
+export const UPDATE_ISSUE_MUTATION_KEY = ["issues", "update"] as const;
+
+export type IssueStatusUpdateState = {
+  status: "idle" | "pending" | "success" | "error";
+  error: Error | null;
+  submittedAt: number;
+};
 
 export interface UpdateIssueRollbackContext {
   previousDetail?: UpdateIssueResult;
@@ -52,6 +65,83 @@ export interface UseUpdateIssueOptions {
 
 interface UpdateIssueMutationContext extends UpdateIssueRollbackContext {
   previousLists?: Array<[QueryKey, unknown]>;
+}
+
+function isStatusUpdateInput(value: unknown): value is UpdateIssueInput {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const candidate = value as {
+    id?: unknown;
+    vault?: unknown;
+    patch?: unknown;
+  };
+  if (
+    typeof candidate.id !== "string" ||
+    typeof candidate.vault !== "string" ||
+    !candidate.patch ||
+    typeof candidate.patch !== "object" ||
+    Array.isArray(candidate.patch)
+  ) {
+    return false;
+  }
+  return typeof (candidate.patch as { status?: unknown }).status === "string";
+}
+
+function matchesStatusUpdate(
+  value: unknown,
+  vault: string,
+  issueId: string,
+): value is UpdateIssueInput {
+  return (
+    isStatusUpdateInput(value) && value.vault === vault && value.id === issueId
+  );
+}
+
+export function hasPendingIssueStatusUpdate(
+  queryClient: QueryClient,
+  vault: string,
+  issueId: string,
+): boolean {
+  return (
+    queryClient.isMutating({
+      mutationKey: UPDATE_ISSUE_MUTATION_KEY,
+      predicate: (mutation) =>
+        mutation.state.status === "pending" &&
+        matchesStatusUpdate(mutation.state.variables, vault, issueId),
+    }) > 0
+  );
+}
+
+export function useIssueStatusUpdateState(
+  vault: string,
+  issueId: string,
+): IssueStatusUpdateState {
+  const states = useMutationState({
+    filters: {
+      mutationKey: UPDATE_ISSUE_MUTATION_KEY,
+      predicate: (mutation) =>
+        matchesStatusUpdate(mutation.state.variables, vault, issueId),
+    },
+    select: (mutation) => ({
+      status: mutation.state.status,
+      error:
+        mutation.state.error instanceof Error ? mutation.state.error : null,
+      submittedAt: mutation.state.submittedAt,
+    }),
+  });
+  const latest = states.reduce<IssueStatusUpdateState | undefined>(
+    (current, candidate) =>
+      current === undefined || candidate.submittedAt >= current.submittedAt
+        ? candidate
+        : current,
+    undefined,
+  );
+  return (
+    latest ?? {
+      status: "idle",
+      error: null,
+      submittedAt: 0,
+    }
+  );
 }
 
 /**
@@ -82,6 +172,7 @@ export function useUpdateIssue(options: UseUpdateIssueOptions = {}) {
     UpdateIssueInput,
     UpdateIssueMutationContext
   >({
+    mutationKey: UPDATE_ISSUE_MUTATION_KEY,
     mutationFn: async ({
       id,
       vault,
@@ -157,9 +248,7 @@ export function useUpdateIssue(options: UseUpdateIssueOptions = {}) {
     },
     onError: (err, { id, vault, ...input }, context) => {
       if (context?.previousLists) {
-        for (const [key, data] of context.previousLists) {
-          queryClient.setQueryData(key, data);
-        }
+        restoreIssueListCacheItems(queryClient, context.previousLists, id);
       }
       if (context?.previousDetail) {
         queryClient.setQueryData(

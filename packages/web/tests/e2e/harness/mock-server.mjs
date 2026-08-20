@@ -104,6 +104,7 @@ const SUPPORTED_SCENARIOS = [
   "comment_mentions",
   "large_vault",
   "markdown_fixture",
+  "status_quick_edit",
 ];
 const SUPPORTED_SCENARIO_SET = new Set(SUPPORTED_SCENARIOS);
 const ACCOUNT_DENIAL_CODES = new Set([
@@ -184,6 +185,27 @@ const server = createServer(async (req, res) => {
         delay_ms: state.vaultListDelayMs,
         failures: state.vaultListFailures,
       });
+    }
+    if (
+      url.pathname === "/__e2e/issue-update-control" &&
+      req.method === "POST"
+    ) {
+      const body = await readJson(req);
+      const vault = String(body?.vault ?? REEF_VAULT);
+      const updates = Array.isArray(body?.updates) ? body.updates : [];
+      const controls = [];
+      for (const update of updates) {
+        const issueId = String(update?.issue_id ?? "");
+        if (!issueId) continue;
+        const key = issueUpdateKey(vault, issueId);
+        const delayMs = Math.max(0, Number(update?.delay_ms ?? 0));
+        const failures = Math.max(0, Number(update?.failures ?? 0));
+        state.issueUpdateDelays.set(key, delayMs);
+        if (failures > 0) state.issueUpdateFailures.set(key, "once");
+        else state.issueUpdateFailures.delete(key);
+        controls.push({ issue_id: issueId, delay_ms: delayMs, failures });
+      }
+      return json(res, 200, { ok: true, vault, updates: controls });
     }
     if (
       url.pathname === "/__e2e/content-search-control" &&
@@ -348,6 +370,10 @@ function normalizeScenario(value) {
   return SUPPORTED_SCENARIO_SET.has(value) ? value : "configured";
 }
 
+function issueUpdateKey(vault, issueId) {
+  return `${vault}:${issueId}`;
+}
+
 function markdownFixtureStartPath() {
   const issue = state.vaults.get(REEF_VAULT)?.issues[0];
   return issue
@@ -357,7 +383,7 @@ function markdownFixtureStartPath() {
 
 function runtimeDiscovery() {
   return {
-    schema_version: 1,
+    schema_version: 2,
     status: "ready",
     scenario: state.scenario,
     operations: {
@@ -367,6 +393,21 @@ function runtimeDiscovery() {
         path: "/__e2e/reset",
         content_type: "application/json",
         body: { scenario: "<supported_scenario>" },
+      },
+      issue_update_control: {
+        method: "POST",
+        path: "/__e2e/issue-update-control",
+        content_type: "application/json",
+        body: {
+          vault: "<vault>",
+          updates: [
+            {
+              issue_id: "<issue_id>",
+              delay_ms: "<milliseconds>",
+              failures: "<count>",
+            },
+          ],
+        },
       },
     },
     fixture_login: {
@@ -398,6 +439,16 @@ function runtimeDiscovery() {
         scenario: "demo_board",
         workspace: "reef-e2e",
         start_path: "/workspace/reef-e2e/issues?view=list",
+      },
+      status_quick_edit: {
+        scenario: "status_quick_edit",
+        workspace: "reef-e2e",
+        start_path: "/workspace/reef-e2e/issues?view=list",
+        interaction: {
+          type: "status_quick_edit",
+          operation:
+            "configure delayed status updates for two issues, observe optimistic status changes and per-row pending state, repeat the same activation while pending, and verify independent delayed success or failure with retry",
+        },
       },
       named_issue_filters: {
         scenario: "configured_multi",
@@ -536,6 +587,8 @@ function makeState(scenario) {
     vaultListDelayMs: 0,
     vaultListFailures: 0,
     issueUpdateFailures: new Map(),
+    issueUpdateDelays: new Map(),
+    issueUpdateCalls: new Map(),
     keycloakEnabled: false,
     localAuthEnabled: true,
     ssoOnly: false,
@@ -573,7 +626,8 @@ function makeState(scenario) {
     scenario === "notifications" ||
     scenario === "skill_outdated" ||
     scenario === "comment_mentions" ||
-    scenario === "large_vault"
+    scenario === "large_vault" ||
+    scenario === "status_quick_edit"
   ) {
     const vault =
       scenario === "large_vault"
@@ -614,10 +668,16 @@ function makeState(scenario) {
       successfulIssue.rank = 2000;
       failedIssue.status = "backlog";
       failedIssue.rank = 1000;
-      next.issueUpdateFailures.set(failedIssue.reef_id, "once");
+      next.issueUpdateFailures.set(
+        issueUpdateKey(REEF_VAULT, failedIssue.reef_id),
+        "once",
+      );
     }
     if (scenario === "assignee_picker") {
-      next.issueUpdateFailures.set("REEF-002", "once");
+      next.issueUpdateFailures.set(
+        issueUpdateKey(REEF_VAULT, "REEF-002"),
+        "once",
+      );
     }
     next.vaults.set("raw-vault", rawVault("raw-vault"));
     if (scenario === "configured_multi") {
@@ -1843,7 +1903,15 @@ async function handleAkb(req, res, url) {
     const vault = getVault(decodeURIComponent(sqlMatch[1]), res);
     if (!vault) return;
     const body = await readJson(req);
-    return json(res, 200, handleSql(vault, String(body?.sql ?? "")));
+    const sql = String(body?.sql ?? "");
+    const issueId =
+      /^\s*update\s+reef_issues\b/i.test(sql) &&
+      matchSqlString(sql, /where "?reef_id"?\s*=\s*'([^']+)'/i);
+    const delayMs = issueId
+      ? (state.issueUpdateDelays.get(issueUpdateKey(vault.name, issueId)) ?? 0)
+      : 0;
+    if (delayMs > 0) await sleep(delayMs);
+    return json(res, 200, handleSql(vault, sql));
   }
 
   if (path === "/api/v1/documents" && req.method === "POST") {
@@ -2345,9 +2413,14 @@ function handleSql(vault, sql) {
         normalized,
         /where "?reef_id"?\s*=\s*'([^']+)'/i,
       );
-      const failureMode = state.issueUpdateFailures.get(id);
+      const key = issueUpdateKey(vault.name, id);
+      state.issueUpdateCalls.set(
+        key,
+        (state.issueUpdateCalls.get(key) ?? 0) + 1,
+      );
+      const failureMode = state.issueUpdateFailures.get(key);
       if (failureMode) {
-        if (failureMode === "once") state.issueUpdateFailures.delete(id);
+        if (failureMode === "once") state.issueUpdateFailures.delete(key);
         return { error: `e2e forced issue update failure for ${id}` };
       }
       const row = vault.issues.find((issue) => issue.reef_id === id);
@@ -3918,6 +3991,7 @@ function publicState() {
   return {
     scenario: state.scenario,
     calls: state.calls,
+    issue_update_calls: Object.fromEntries(state.issueUpdateCalls),
     github_repos: state.githubRepos.map((repo) => ({
       id: repo.id,
       full_name: repo.full_name,

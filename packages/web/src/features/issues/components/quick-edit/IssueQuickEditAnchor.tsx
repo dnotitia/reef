@@ -14,7 +14,11 @@ import {
   kanbanToastId,
   notifyRetryableError,
 } from "@/components/ui/toastFeedback";
-import { useUpdateIssue } from "@/features/issues/hooks/mutations/useUpdateIssue";
+import {
+  hasPendingIssueStatusUpdate,
+  useIssueStatusUpdateState,
+  useUpdateIssue,
+} from "@/features/issues/hooks/mutations/useUpdateIssue";
 import { buildStatusPatch } from "@/features/issues/lib/statusPatch";
 import { useFlashStore } from "@/features/issues/stores/useFlashStore";
 import {
@@ -43,6 +47,7 @@ import { useTranslations } from "next-intl";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { CloseIssueDialog } from "../detail/CloseIssueDialog";
 
 interface IssueQuickEditAnchorProps {
@@ -109,6 +114,9 @@ export function IssueQuickEditAnchor({
   }, []);
 
   const resolvedOccurrenceKey = occurrenceKey ?? issue.id;
+  const queryClient = useQueryClient();
+  const statusUpdate = useIssueStatusUpdateState(vault, issue.id);
+  const statusPending = statusUpdate.status === "pending";
   const field =
     request?.scope === scope &&
     request.issueId === issue.id &&
@@ -229,6 +237,12 @@ export function IssueQuickEditAnchor({
   ]);
 
   function commitPatch(patch: IssueUpdatePatch) {
+    if (
+      patch.status !== undefined &&
+      hasPendingIssueStatusUpdate(queryClient, vault, issue.id)
+    ) {
+      return;
+    }
     mutation.mutateAsync({ id: issue.id, vault, patch }).then(
       () => {
         toast.dismiss(kanbanToastId(issue.id));
@@ -304,7 +318,7 @@ export function IssueQuickEditAnchor({
             testId="issue-quick-edit-status"
             open
             onOpenChange={closeOpenField}
-            disabled={mutation.isPending}
+            disabled={mutation.isPending || statusPending}
             triggerClassName="bg-surface-popover shadow-lg shadow-foreground/10"
             contentClassName={COMPACT_QUICK_EDIT_WIDTH}
           />
@@ -403,7 +417,7 @@ export function IssueQuickEditAnchor({
       <CloseIssueDialog
         open={pendingClose}
         issueId={issue.id}
-        disabled={mutation.isPending}
+        disabled={mutation.isPending || statusPending}
         onOpenChange={(open) => {
           if (!open) setPendingClose(false);
         }}

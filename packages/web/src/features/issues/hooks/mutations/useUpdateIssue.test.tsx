@@ -32,7 +32,7 @@ vi.mock("@/lib/storage/assigneeRecents", () => ({
 import { apiFetch } from "@/lib/apiClient";
 import type { IssueMetadata } from "@reef/core";
 import { issueBodyHistoryKey } from "../queries/useIssueBodyHistory";
-import { useUpdateIssue } from "./useUpdateIssue";
+import { useIssueStatusUpdateState, useUpdateIssue } from "./useUpdateIssue";
 
 const mockApiFetch = vi.mocked(apiFetch);
 
@@ -554,6 +554,113 @@ describe("useUpdateIssue", () => {
 
     expect(list?.[0]).toEqual(ORIGINAL);
     expect(detail).toEqual({ issue: ORIGINAL, content: "old body" });
+  });
+
+  it("rolls back only the failed issue when sibling updates are pending", async () => {
+    const issueA = { ...ORIGINAL, id: "REEF-001" };
+    const issueB = { ...ORIGINAL, id: "REEF-002" };
+    const pendingResponses = new Map<string, (response: Response) => void>();
+    mockApiFetch.mockImplementation((url) => {
+      const id = String(url).split("/").pop() ?? "";
+      return new Promise<Response>((resolve) => {
+        pendingResponses.set(id, resolve);
+      });
+    });
+
+    const queryClient = makeTestQueryClient();
+    queryClient.setQueryData(["issues", "list", "reef-acme"], [issueA, issueB]);
+    const { result } = renderUseUpdateIssue(queryClient);
+
+    act(() => {
+      result.current.mutate({
+        id: issueA.id,
+        vault: "reef-acme",
+        patch: { status: "in_progress" },
+      });
+      result.current.mutate({
+        id: issueB.id,
+        vault: "reef-acme",
+        patch: { status: "done" },
+      });
+    });
+
+    await waitFor(() => {
+      const list = queryClient.getQueryData<(typeof ORIGINAL)[]>([
+        "issues",
+        "list",
+        "reef-acme",
+      ]);
+      expect(list?.map((issue) => issue.status)).toEqual([
+        "in_progress",
+        "done",
+      ]);
+    });
+
+    await act(async () => {
+      pendingResponses.get(issueA.id)?.(
+        new Response(JSON.stringify({ error: "failed" }), { status: 500 }),
+      );
+    });
+    await waitFor(() => {
+      const list = queryClient.getQueryData<(typeof ORIGINAL)[]>([
+        "issues",
+        "list",
+        "reef-acme",
+      ]);
+      expect(list?.map((issue) => issue.status)).toEqual(["todo", "done"]);
+    });
+
+    await act(async () => {
+      pendingResponses.get(issueB.id)?.(
+        new Response(
+          JSON.stringify({
+            issue: { ...issueB, status: "done" },
+            content: "",
+          }),
+          { status: 200 },
+        ),
+      );
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  });
+
+  it("exposes pending and settled status mutation state per vault and issue", async () => {
+    let resolveResponse: (response: Response) => void = () => {};
+    mockApiFetch.mockReturnValue(
+      new Promise<Response>((resolve) => {
+        resolveResponse = resolve;
+      }),
+    );
+    const queryClient = makeTestQueryClient();
+    const update = renderUseUpdateIssue(queryClient);
+    const status = renderHook(
+      () => useIssueStatusUpdateState("reef-acme", "REEF-001"),
+      { wrapper: makeWrapper(queryClient) },
+    );
+    const sibling = renderHook(
+      () => useIssueStatusUpdateState("reef-acme", "REEF-002"),
+      { wrapper: makeWrapper(queryClient) },
+    );
+
+    act(() => {
+      update.result.current.mutate({
+        id: "REEF-001",
+        vault: "reef-acme",
+        patch: { status: "in_progress" },
+      });
+    });
+    await waitFor(() => expect(status.result.current.status).toBe("pending"));
+    expect(sibling.result.current.status).toBe("idle");
+
+    await act(async () => {
+      resolveResponse(
+        new Response(JSON.stringify({ issue: UPDATED, content: "" }), {
+          status: 200,
+        }),
+      );
+    });
+    await waitFor(() => expect(status.result.current.status).toBe("success"));
+    expect(sibling.result.current.status).toBe("idle");
   });
 
   it("notifies callers with the restored detail snapshot after a failure", async () => {
