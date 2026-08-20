@@ -91,7 +91,7 @@ describe("IssueInlineEditTrigger", () => {
       screen.getByTestId("start-status-update").click();
     });
     await waitFor(() => expect(trigger).toHaveAttribute("aria-busy", "true"));
-    expect(trigger).toHaveAccessibleName("Status, Updating status…");
+    expect(trigger).toHaveAccessibleName("Status");
     expect(screen.getByRole("status")).toHaveTextContent("Updating status…");
 
     await act(async () => {
@@ -113,10 +113,29 @@ describe("IssueInlineEditTrigger", () => {
         ),
       );
     });
-    await waitFor(() =>
-      expect(trigger).toHaveAccessibleName("Status, Status updated."),
-    );
+    await waitFor(() => expect(trigger).toHaveAccessibleName("Status"));
     expect(trigger).not.toHaveAttribute("aria-busy");
     expect(screen.getByRole("status")).toHaveTextContent("Status updated.");
+  });
+
+  it("keeps failure retry feedback out of the trigger action name", async () => {
+    mockApiFetch.mockRejectedValueOnce(new Error("save failed"));
+    renderHarness();
+
+    const trigger = screen.getByTestId("issue-inline-edit-status");
+    await act(async () => {
+      screen.getByTestId("start-status-update").click();
+    });
+
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Status update failed. Retry is available.",
+      ),
+    );
+    expect(trigger).toHaveAccessibleName("Status");
+    expect(trigger).not.toHaveAttribute("aria-busy");
+    expect(
+      screen.queryByRole("button", { name: "Retry" }),
+    ).not.toBeInTheDocument();
   });
 });

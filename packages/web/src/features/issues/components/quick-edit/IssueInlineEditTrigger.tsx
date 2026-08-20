@@ -48,8 +48,6 @@ export function IssueInlineEditTrigger({
           : statusUpdate.status === "error"
             ? quickEdit("statusUpdateFailed")
             : "";
-  const accessibleLabel = statusMessage ? `${label}, ${statusMessage}` : label;
-
   function requestEdit() {
     const keyboard = useIssueKeyboardStore.getState();
     keyboard.focusOccurrence(scope, occurrenceKey, issueId);
@@ -57,36 +55,38 @@ export function IssueInlineEditTrigger({
   }
 
   return (
-    <button
-      ref={anchorRef}
-      type="button"
-      disabled={field === "status" && statusUpdate.status === "pending"}
-      className="inline-flex h-full max-w-full min-w-0 items-center rounded-sm text-left outline-none transition-colors duration-150 hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:ring-2 focus-visible:ring-brand-focus/40"
-      aria-label={accessibleLabel}
-      aria-busy={
-        field === "status" && statusUpdate.status === "pending"
-          ? true
-          : undefined
-      }
-      data-testid={`issue-inline-edit-${field}`}
-      onClick={(event) => {
-        event.stopPropagation();
-        requestEdit();
-      }}
-      onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => {
-        if (event.key !== "Enter") return;
-        event.preventDefault();
-        event.stopPropagation();
-        requestEdit();
-      }}
-    >
-      {children}
-      {field === "status" && statusUpdate.status === "pending" && (
-        <LoaderCircle
-          className="ml-1.5 size-3.5 shrink-0 animate-spin"
-          aria-hidden="true"
-        />
-      )}
+    <>
+      <button
+        ref={anchorRef}
+        type="button"
+        disabled={field === "status" && statusUpdate.status === "pending"}
+        className="inline-flex h-full max-w-full min-w-0 items-center rounded-sm text-left outline-none transition-colors duration-150 hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+        aria-label={label}
+        aria-busy={
+          field === "status" && statusUpdate.status === "pending"
+            ? true
+            : undefined
+        }
+        data-testid={`issue-inline-edit-${field}`}
+        onClick={(event) => {
+          event.stopPropagation();
+          requestEdit();
+        }}
+        onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => {
+          if (event.key !== "Enter") return;
+          event.preventDefault();
+          event.stopPropagation();
+          requestEdit();
+        }}
+      >
+        {children}
+        {field === "status" && statusUpdate.status === "pending" && (
+          <LoaderCircle
+            className="ml-1.5 size-3.5 shrink-0 animate-spin"
+            aria-hidden="true"
+          />
+        )}
+      </button>
       {field === "status" && statusMessage && (
         <span
           role="status"
@@ -97,6 +97,6 @@ export function IssueInlineEditTrigger({
           {statusMessage}
         </span>
       )}
-    </button>
+    </>
   );
 }
