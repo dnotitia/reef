@@ -399,7 +399,10 @@ export function BacklogView({ vault }: BacklogViewProps) {
           t("reorderHintDrag");
 
   return (
-    <PageBody pad="compact">
+    <PageBody
+      pad="compact"
+      className="flex h-full min-h-0 flex-col overflow-hidden"
+    >
       {/* Refetch hairline pinned to the list's top edge. The skeleton owns the
           first-load signal; this appears during refetches (REEF-369). */}
       <div className="pointer-events-none sticky top-0 z-10 h-0 overflow-visible">
@@ -409,23 +412,44 @@ export function BacklogView({ vault }: BacklogViewProps) {
         />
       </div>
       {isPending ? (
-        <Table
-          className="table-fixed"
-          data-testid="backlog-table"
-          style={{ minWidth: BACKLOG_TABLE_WIDTH }}
+        <div
+          className="min-h-0 flex-1 overflow-hidden"
+          role="status"
+          aria-live="polite"
         >
-          <BacklogColumnGroup />
-          <BacklogTableHeader
-            reorderHint={reorderHint}
-            visibleIssueIds={[]}
-            disabled
-          />
-          <TableBody>
-            <BacklogSkeleton />
-          </TableBody>
-        </Table>
+          <span className="sr-only">{t("loading")}</span>
+          <div
+            className="min-h-0 h-full min-w-0 overflow-auto overscroll-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/30"
+            role="region"
+            // biome-ignore lint/a11y/noNoninteractiveTabindex: The labeled overflow region is the keyboard scrollport.
+            tabIndex={0}
+            aria-label={t("scrollRegion")}
+            data-testid="backlog-scroll-container"
+          >
+            <Table
+              className="table-fixed"
+              data-testid="backlog-table"
+              style={{ minWidth: BACKLOG_TABLE_WIDTH }}
+              containerClassName="overflow-visible"
+            >
+              <BacklogColumnGroup />
+              <BacklogTableHeader
+                reorderHint={reorderHint}
+                visibleIssueIds={[]}
+                disabled
+              />
+              <TableBody>
+                <BacklogSkeleton />
+              </TableBody>
+            </Table>
+          </div>
+        </div>
       ) : isError ? (
-        <div className="flex flex-col items-center justify-center gap-3 py-12">
+        <div
+          className="flex flex-col items-center justify-center gap-3 py-12"
+          role="alert"
+          aria-live="assertive"
+        >
           <p className="text-sm text-muted-foreground">{t("loadError")}</p>
           <button
             type="button"
@@ -442,47 +466,57 @@ export function BacklogView({ vault }: BacklogViewProps) {
           <BacklogEmptyState vault={vault} />
         )
       ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          accessibility={{ announcements }}
-          onDragEnd={handleDragEnd}
+        <div
+          className="min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/30"
+          role="region"
+          // biome-ignore lint/a11y/noNoninteractiveTabindex: The labeled overflow region is the keyboard scrollport.
+          tabIndex={0}
+          aria-label={t("scrollRegion")}
+          data-testid="backlog-scroll-container"
         >
-          <Table
-            className="table-fixed"
-            data-testid="backlog-table"
-            style={{ minWidth: BACKLOG_TABLE_WIDTH }}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            accessibility={{ announcements }}
+            onDragEnd={handleDragEnd}
           >
-            <BacklogColumnGroup />
-            <BacklogTableHeader
-              reorderHint={reorderHint}
-              visibleIssueIds={sortableIds}
-            />
-            <TableBody ref={canReorder ? undefined : rowsRef}>
-              <SortableContext
-                items={sortableIds}
-                strategy={verticalListSortingStrategy}
-              >
-                {visibleIssues.map((issue, index) => (
-                  <Fragment key={issue.id}>
-                    {showDivider && index === firstUnrankedIndex && (
-                      <BacklogUnrankedDivider />
-                    )}
-                    <BacklogRow
-                      issue={issue}
-                      vault={vault}
-                      href={issueHref(issue.id)}
-                      logicalIds={sortableIds}
-                      sortable={canReorder}
-                      reorderHint={reorderHint}
-                      onOpen={openIssue}
-                    />
-                  </Fragment>
-                ))}
-              </SortableContext>
-            </TableBody>
-          </Table>
-        </DndContext>
+            <Table
+              className="table-fixed"
+              data-testid="backlog-table"
+              style={{ minWidth: BACKLOG_TABLE_WIDTH }}
+              containerClassName="overflow-visible"
+            >
+              <BacklogColumnGroup />
+              <BacklogTableHeader
+                reorderHint={reorderHint}
+                visibleIssueIds={sortableIds}
+              />
+              <TableBody ref={canReorder ? undefined : rowsRef}>
+                <SortableContext
+                  items={sortableIds}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {visibleIssues.map((issue, index) => (
+                    <Fragment key={issue.id}>
+                      {showDivider && index === firstUnrankedIndex && (
+                        <BacklogUnrankedDivider />
+                      )}
+                      <BacklogRow
+                        issue={issue}
+                        vault={vault}
+                        href={issueHref(issue.id)}
+                        logicalIds={sortableIds}
+                        sortable={canReorder}
+                        reorderHint={reorderHint}
+                        onOpen={openIssue}
+                      />
+                    </Fragment>
+                  ))}
+                </SortableContext>
+              </TableBody>
+            </Table>
+          </DndContext>
+        </div>
       )}
     </PageBody>
   );

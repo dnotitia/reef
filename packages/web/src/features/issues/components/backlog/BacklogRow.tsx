@@ -25,7 +25,14 @@ import type { IssueListItem } from "@reef/core";
 import { GripVertical } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
-import { type MouseEvent, memo, useCallback, useEffect, useRef } from "react";
+import {
+  type KeyboardEvent,
+  type MouseEvent,
+  memo,
+  useCallback,
+  useEffect,
+  useRef,
+} from "react";
 
 interface BacklogRowProps {
   issue: IssueListItem;
@@ -43,6 +50,17 @@ interface BacklogRowProps {
 }
 
 const BACKLOG_QUICK_EDIT_FIELDS = ["status", "priority", "assignee"] as const;
+
+function isInteractiveRowTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    Boolean(
+      target.closest(
+        "button,a,input,select,textarea,[role=button],[role=checkbox]",
+      ),
+    )
+  );
+}
 
 function backlogCellClass(column: IssueTableColumnKey) {
   return cn(
@@ -154,6 +172,18 @@ export const BacklogRow = memo(function BacklogRow({
       tabIndex={focused || tabStopped ? 0 : -1}
       aria-selected={selected || undefined}
       onFocus={() => focusIssue("backlog", issue.id)}
+      onKeyDown={(event: KeyboardEvent<HTMLTableRowElement>) => {
+        if (
+          event.defaultPrevented ||
+          isInteractiveRowTarget(event.target) ||
+          (event.key !== "Enter" && event.key !== " ")
+        ) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        onOpen(issue.id);
+      }}
       onClick={(event: MouseEvent<HTMLTableRowElement>) => {
         if (event.shiftKey) {
           event.preventDefault();
@@ -176,10 +206,7 @@ export const BacklogRow = memo(function BacklogRow({
           checked={selected}
           disabled={selectionRunning}
           label={bulk("selectIssue", { id: issue.id })}
-          className={cn(
-            "opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100",
-            selected && "opacity-100",
-          )}
+          className="transition-opacity group-hover:opacity-100 focus-within:opacity-100"
           testId="backlog-row-checkbox"
           onChange={(event) => {
             if ((event.nativeEvent as globalThis.MouseEvent).shiftKey) {

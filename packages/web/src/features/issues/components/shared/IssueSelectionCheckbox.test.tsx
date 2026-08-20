@@ -67,4 +67,25 @@ describe("IssueSelectionCheckbox", () => {
       screen.getByRole("checkbox", { name: "Select all loaded issues" }),
     ).toHaveAttribute("aria-checked", "mixed");
   });
+
+  it("toggles from both Enter and Space without bubbling to the row", async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <IssueSelectionCheckbox
+        checked={false}
+        label="Select REEF-101"
+        onChange={onChange}
+      />,
+    );
+
+    const checkbox = screen.getByRole("checkbox", {
+      name: "Select REEF-101",
+    });
+    checkbox.focus();
+    await user.keyboard("{Enter}");
+    await user.keyboard(" ");
+
+    expect(onChange).toHaveBeenCalledTimes(2);
+  });
 });

@@ -880,6 +880,8 @@
     },
     "backlog": {
       "loadError": "백로그를 불러오지 못했습니다.",
+      "loading": "백로그 이슈를 불러오는 중…",
+      "scrollRegion": "백로그 이슈",
       "noMatches": "필터와 일치하는 백로그 이슈가 없습니다.",
       "emptyTitle": "백로그가 비어 있습니다",
       "emptyDescription": "새 이슈는 할 일에 추가됩니다. 나중으로 미룰 작업을 여기로 보내 활성 보드에서 빼두세요.",
@@ -1111,8 +1113,10 @@
       "activeCount": "필터 {count}개",
       "clearMilestone": "마일스톤 필터 해제",
       "searchPlaceholder": "이슈 검색…",
+      "searchLabel": "이슈 검색",
       "clearSearch": "검색 지우기",
       "issueView": "이슈 보기 방식",
+      "filterScrollRegion": "이슈 필터",
       "view": {
         "board": "보드",
         "list": "목록",
@@ -1231,6 +1235,8 @@
     },
     "list": {
       "loadError": "이슈를 불러오지 못했습니다.",
+      "loading": "이슈를 불러오는 중…",
+      "scrollRegion": "이슈 목록",
       "loadingMore": "이슈를 더 불러오는 중…",
       "loadMoreError": "이슈를 더 불러오지 못했습니다.",
       "noMatches": "필터와 일치하는 이슈가 없습니다.",
@@ -1480,6 +1486,8 @@
   },
   "timeline": {
     "loadError": "일부 이슈를 불러오지 못했습니다. 캐시된 데이터가 있으면 표시합니다.",
+    "loading": "타임라인을 불러오는 중…",
+    "scrollRegion": "타임라인",
     "noMatch": "필터와 일치하는 이슈가 없습니다.",
     "empty": "타임라인이 비어 있습니다. 시작일 또는 마감일을 추가해 계획을 시작하세요.",
     "today": "오늘",

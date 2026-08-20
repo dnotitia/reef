@@ -231,9 +231,17 @@ export function FilterBar({
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-2",
-        backlogScope && "flex-nowrap overflow-x-auto [&>*]:shrink-0",
+        "min-w-0 max-w-full flex flex-wrap items-center gap-2",
+        backlogScope &&
+          "flex-nowrap overflow-x-auto overscroll-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/30 [&>*]:shrink-0",
       )}
+      {...(backlogScope
+        ? {
+            role: "region" as const,
+            tabIndex: 0,
+            "aria-label": t("filterScrollRegion"),
+          }
+        : {})}
       data-testid="filter-bar"
     >
       {/* Status filter — omitted in the backlog view, which pins status itself */}

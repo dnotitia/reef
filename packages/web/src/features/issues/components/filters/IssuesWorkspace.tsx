@@ -59,8 +59,9 @@ export function IssuesWorkspace() {
       <PageHeader
         title={nav("issues")}
         description={vault || undefined}
+        className="h-auto min-h-12 flex-wrap py-2 [&>div:last-child]:basis-full [&>div:last-child]:max-w-full [&>div:last-child]:flex-wrap sm:[&>div:last-child]:basis-auto"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex w-full min-w-0 max-w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
             {/* Timeline is date-ordered, so the field/direction sort does not
                 apply there. Board, list, and backlog share the control; board
                 and backlog surface their pristine `rank` order here, while the

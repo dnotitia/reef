@@ -568,42 +568,62 @@ export function IssueListTable({
         />
       </div>
       {isPending ? (
-        <Table
-          className={tableClassName}
-          style={{ minWidth: tableWidth }}
-          containerClassName="overflow-visible"
+        <div
+          className="min-h-0 min-w-0 flex-1 overflow-hidden"
+          role="status"
+          aria-live="polite"
         >
-          <IssueListColumnGroup columns={columns} />
-          <TableHeader>
-            <TableRow>
-              {columns.map((column) => (
-                <TableHead
-                  key={column}
-                  className={issueTableColumnClass(column, "header")}
-                  style={issueTableColumnStyle(columns, column)}
-                  data-column-key={column}
-                >
-                  {column === "select" ? (
-                    <IssueSelectionCheckbox
-                      checked={false}
-                      indeterminate={false}
-                      disabled
-                      label={bulk("selectAllLoaded")}
-                      onChange={() => {}}
-                    />
-                  ) : (
-                    columnLabels[column]
-                  )}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <IssueListSkeleton columns={columns} />
-          </TableBody>
-        </Table>
+          <span className="sr-only">{t("loading")}</span>
+          <div
+            className="min-h-0 h-full min-w-0 overflow-auto overscroll-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/30"
+            role="region"
+            // biome-ignore lint/a11y/noNoninteractiveTabindex: The labeled overflow region is the keyboard scrollport.
+            tabIndex={0}
+            aria-label={t("scrollRegion")}
+            data-testid="issue-list-scroll-container"
+          >
+            <Table
+              className={tableClassName}
+              style={{ minWidth: tableWidth }}
+              containerClassName="overflow-visible"
+            >
+              <IssueListColumnGroup columns={columns} />
+              <TableHeader>
+                <TableRow>
+                  {columns.map((column) => (
+                    <TableHead
+                      key={column}
+                      className={issueTableColumnClass(column, "header")}
+                      style={issueTableColumnStyle(columns, column)}
+                      data-column-key={column}
+                    >
+                      {column === "select" ? (
+                        <IssueSelectionCheckbox
+                          checked={false}
+                          indeterminate={false}
+                          disabled
+                          label={bulk("selectAllLoaded")}
+                          onChange={() => {}}
+                        />
+                      ) : (
+                        columnLabels[column]
+                      )}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <IssueListSkeleton columns={columns} />
+              </TableBody>
+            </Table>
+          </div>
+        </div>
       ) : initialLoadError ? (
-        <div className="flex flex-col items-center justify-center gap-3 py-12">
+        <div
+          className="flex flex-col items-center justify-center gap-3 py-12"
+          role="alert"
+          aria-live="assertive"
+        >
           <p className="text-sm text-muted-foreground">{t("loadError")}</p>
           <button
             type="button"
@@ -637,7 +657,11 @@ export function IssueListTable({
       ) : (
         <div
           ref={scrollElementRef}
-          className="min-h-0 h-full min-w-0 flex-1 overflow-auto overscroll-contain"
+          className="min-h-0 h-full min-w-0 flex-1 overflow-auto overscroll-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/30"
+          role="region"
+          // biome-ignore lint/a11y/noNoninteractiveTabindex: The labeled overflow region is the keyboard scrollport.
+          tabIndex={0}
+          aria-label={t("scrollRegion")}
           data-testid="issue-list-scroll-container"
         >
           <Table

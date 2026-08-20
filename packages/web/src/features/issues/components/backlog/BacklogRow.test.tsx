@@ -133,6 +133,32 @@ describe("BacklogRow", () => {
     );
   });
 
+  it.each(["Enter", " "])(
+    "opens the row with %s without relying on the global shortcut",
+    (key) => {
+      const onOpen = vi.fn();
+      renderRow(onOpen);
+
+      fireEvent.keyDown(screen.getByTestId("backlog-row"), { key });
+
+      expect(onOpen).toHaveBeenCalledWith("REEF-007");
+    },
+  );
+
+  it("leaves links and triage controls to their native keyboard behavior", () => {
+    const onOpen = vi.fn();
+    renderRow(onOpen);
+
+    fireEvent.keyDown(screen.getByRole("link", { name: "REEF-007" }), {
+      key: "Enter",
+    });
+    fireEvent.keyDown(screen.getByTestId("issue-inline-edit-status"), {
+      key: " ",
+    });
+
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
   it("opens the shared quick editor from every triage field without opening detail", async () => {
     const user = userEvent.setup();
     const onOpen = vi.fn();

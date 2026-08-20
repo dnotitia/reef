@@ -20,6 +20,7 @@ describe("SearchBar", () => {
     const input = screen.getByTestId("search-input");
     expect(input).toBeTruthy();
     expect((input as HTMLInputElement).placeholder).toBe("Search issues...");
+    expect(input).toHaveAccessibleName("Search issues");
   });
 
   it("typing updates local value immediately", async () => {

@@ -639,6 +639,15 @@ Labels and planning fields are not exposed in this triage lens. Empty and
 no-match states are distinct: an empty backlog explains how deferred work
 arrives there, while filtered-out results offer a Clear filters action.
 
+At narrow widths (320–768px), the Issues header wraps its title and actions
+without hiding controls. List, Backlog, and Timeline keep wide data inside
+named, keyboard-focusable scroll regions rather than expanding the document;
+the Board keeps its existing mobile grid containment. List and Backlog rows
+open on Enter or Space, while links, quick-edit buttons, and checkboxes retain
+their own native keyboard behavior. Search has an explicit accessible name,
+selection controls remain visible without hover, and loading or retryable
+errors are announced through live status surfaces.
+
 The board shows a column-skeleton while loading, the list and backlog show row
 skeletons, and timeline/settings have route-level skeletons shaped to their
 content. A soft inline notice appears if some issues fail to load (cached data

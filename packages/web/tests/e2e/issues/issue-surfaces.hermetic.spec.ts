@@ -109,6 +109,99 @@ test.describe("Hermetic issue route surfaces", () => {
     }
   });
 
+  test("keeps narrow Issues chrome and data scrollports contained", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    for (const viewport of [
+      { width: 320, height: 844 },
+      { width: 375, height: 844 },
+      { width: 414, height: 844 },
+      { width: 768, height: 844 },
+    ]) {
+      await page.setViewportSize(viewport);
+
+      for (const view of ["list", "backlog", "timeline"] as const) {
+        await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=${view}`);
+        await expect(
+          page.getByRole("textbox", { name: "Search issues" }),
+        ).toBeVisible();
+        await expect(page.getByTestId("view-switcher")).toBeVisible();
+        if (view !== "timeline") {
+          await expect(page.getByTestId("sort-control-trigger")).toBeVisible();
+        }
+
+        const headerGeometry = await page
+          .locator('[data-slot="page-header"]')
+          .evaluate((element) => {
+            const root = element as HTMLElement;
+            const rootRect = root.getBoundingClientRect();
+            return {
+              actionsContained: Array.from(
+                root.querySelectorAll("button"),
+              ).every((button) => {
+                const rect = button.getBoundingClientRect();
+                return (
+                  rect.left >= rootRect.left - 1 &&
+                  rect.right <= rootRect.right + 1
+                );
+              }),
+              documentOverflow:
+                document.documentElement.scrollWidth >
+                document.documentElement.clientWidth,
+              mainOverflow: (() => {
+                const main = document.querySelector("main");
+                return main instanceof HTMLElement
+                  ? main.scrollWidth > main.clientWidth
+                  : false;
+              })(),
+            };
+          });
+        expect(
+          headerGeometry.actionsContained,
+          `${view} ${viewport.width}px header`,
+        ).toBe(true);
+        expect(
+          headerGeometry.documentOverflow,
+          `${view} ${viewport.width}px document`,
+        ).toBe(false);
+        expect(
+          headerGeometry.mainOverflow,
+          `${view} ${viewport.width}px main`,
+        ).toBe(false);
+
+        const scroll = page.getByTestId(
+          view === "list"
+            ? "issue-list-scroll-container"
+            : view === "backlog"
+              ? "backlog-scroll-container"
+              : "timeline-grid",
+        );
+        await expect(scroll).toHaveAttribute("role", "region");
+        await expect(scroll).toHaveAttribute("tabindex", "0");
+        await expect(scroll).toBeVisible();
+        const scrollGeometry = await scroll.evaluate((element) => {
+          const root = element as HTMLElement;
+          return {
+            hasOverflow: root.scrollWidth > root.clientWidth,
+            documentOverflow:
+              document.documentElement.scrollWidth >
+              document.documentElement.clientWidth,
+          };
+        });
+        expect(
+          scrollGeometry.hasOverflow,
+          `${view} ${viewport.width}px scroll`,
+        ).toBe(true);
+        expect(
+          scrollGeometry.documentOverflow,
+          `${view} ${viewport.width}px scroll`,
+        ).toBe(false);
+      }
+    }
+  });
+
   test("keeps List and Backlog table geometry and controls aligned on desktop", async ({
     page,
   }) => {
