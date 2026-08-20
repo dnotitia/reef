@@ -562,6 +562,11 @@
       "total": "합계",
       "noDataToCrossTabulate": "교차 집계할 데이터가 없습니다.",
       "issueCountByCaption": "{row}(행)과 {col}(열)별 이슈 수.",
+      "netTooltip": "{date}: 순증 {value}",
+      "unassigned": "미지정",
+      "unlabeled": "라벨 없음",
+      "none": "없음",
+      "other": "기타",
       "riskCaption": "우선순위(행)와 마지막 업데이트 이후 경과 시간(열)별 진행 중 이슈 수.",
       "created": "생성",
       "closed": "완료",
@@ -1459,6 +1464,8 @@
     "phaseError": "확인 필요",
     "phaseCancelled": "취소됨",
     "artifactCount": "{count, plural, other {아티팩트 #개}}",
+    "confidenceLabel": "신뢰도 {pct}%",
+    "evidenceItems": "증거 {count}개",
     "chatThinking": "생각하는 중…",
     "chatSources": {
       "heading": "출처"

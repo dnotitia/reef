@@ -9,6 +9,7 @@ import type {
   RiskPriority,
 } from "../lib/aggregateModel";
 import { type PivotAxis, type PivotResult, pivotCell } from "../lib/pivot";
+import type { PivotFieldKey } from "../lib/pivot";
 export { NetThroughputChart } from "./ThroughputCharts";
 
 /**
@@ -87,16 +88,21 @@ export interface RankedBarRow {
 
 export function RankedBarList({
   rows,
-  emptyLabel = "No data in this category.",
+  emptyLabel,
 }: {
   rows: ReadonlyArray<RankedBarRow>;
   emptyLabel?: string;
 }) {
+  const t = useTranslations("reports.page");
   const visible = rows.filter((row) => row.value > 0);
   const max = Math.max(...visible.map((row) => row.value), 1);
 
   if (visible.length === 0) {
-    return <p className="text-xs text-muted-foreground">{emptyLabel}</p>;
+    return (
+      <p className="text-xs text-muted-foreground">
+        {emptyLabel ?? t("noData")}
+      </p>
+    );
   }
 
   return (
@@ -266,7 +272,13 @@ export function RiskMatrix({
 // values are free text), and the trailing Total row/column are marginals, not
 // heat cells.
 
-export function PivotMatrix({ result }: { result: PivotResult }) {
+export function PivotMatrix({
+  result,
+  fieldLabels,
+}: {
+  result: PivotResult;
+  fieldLabels: Record<PivotFieldKey, string>;
+}) {
   const { rows, cols, max } = result;
   const t = useTranslations("reports.cards");
   if (rows.length === 0 || cols.length === 0) {
@@ -281,8 +293,8 @@ export function PivotMatrix({ result }: { result: PivotResult }) {
       <table className="w-full min-w-[480px] table-fixed border-separate [border-spacing:6px]">
         <caption className="sr-only">
           {t("issueCountByCaption", {
-            row: result.rowField,
-            col: result.colField,
+            row: fieldLabels[result.rowField],
+            col: fieldLabels[result.colField],
           })}
         </caption>
         <colgroup>

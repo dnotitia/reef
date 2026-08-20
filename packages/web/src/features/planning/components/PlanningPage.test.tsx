@@ -390,6 +390,63 @@ describe("PlanningPage", () => {
     });
   });
 
+  it("returns focus to the invoking delete action when cancellation closes the dialog", async () => {
+    const user = userEvent.setup();
+    render(wrap(<PlanningPage />));
+    await screen.findByText("Sprint One");
+
+    const trigger = screen.getByRole("button", { name: "Delete Sprint One" });
+    trigger.focus();
+    await user.keyboard("{Enter}");
+
+    const dialog = await screen.findByTestId("planning-delete-confirm");
+    const cancel = within(dialog).getByTestId("planning-delete-cancel");
+    cancel.focus();
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("planning-delete-confirm"),
+      ).not.toBeInTheDocument();
+      expect(trigger).toHaveFocus();
+    });
+  });
+
+  it("keeps planning metadata and row actions available in the compact presentation", async () => {
+    const matchMedia = vi.spyOn(window, "matchMedia").mockImplementation(
+      (query) =>
+        ({
+          matches: true,
+          media: query,
+          onchange: null,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          addListener: () => {},
+          removeListener: () => {},
+          dispatchEvent: () => false,
+        }) as unknown as MediaQueryList,
+    );
+    const view = render(wrap(<PlanningPage />));
+
+    try {
+      const compact = await screen.findByTestId("planning-compact-list");
+      expect(compact).toHaveTextContent("Sprint One");
+      expect(compact).toHaveTextContent("Active");
+      expect(compact).toHaveTextContent("2026-06-01");
+      expect(compact).toHaveTextContent("2026-06-14");
+      expect(
+        within(compact).getByRole("button", { name: "Edit Sprint One" }),
+      ).toBeInTheDocument();
+      expect(
+        within(compact).getByRole("button", { name: "Delete Sprint One" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    } finally {
+      view.unmount();
+      matchMedia.mockRestore();
+    }
+  });
+
   it("saves an open editor against its original kind after URL kind changes", async () => {
     navigationState.searchParams = new URLSearchParams("kind=milestones");
     const user = userEvent.setup();

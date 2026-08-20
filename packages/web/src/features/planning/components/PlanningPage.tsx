@@ -72,6 +72,7 @@ export function PlanningPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const editorFocusOriginRef = useRef<HTMLElement | null>(null);
+  const deleteFocusOriginRef = useRef<HTMLElement | null>(null);
   const catalogQuery = usePlanningCatalog(vault);
   const issueQuery = useIssueList(vault);
   const createMutation = useCreatePlanningItem(vault);
@@ -125,6 +126,13 @@ export function PlanningPage() {
     setEditor({ mode: "edit", kind, item: { ...item } });
   }
 
+  function startDelete(kind: PlanningKind, item: PlanningItem) {
+    const active = document.activeElement;
+    deleteFocusOriginRef.current =
+      active instanceof HTMLElement && active !== document.body ? active : null;
+    setDeleteTarget({ kind, item });
+  }
+
   function captureEditorFocusOrigin() {
     const active = document.activeElement;
     editorFocusOriginRef.current =
@@ -170,6 +178,10 @@ export function PlanningPage() {
       toast.success(
         t("planningDeleted", { kind: planningKindSingular[target.kind] }),
       );
+      // A successful delete removes the invoking row, so do not ask Radix to
+      // restore focus to a detached action. Cancellation/close keeps this ref
+      // intact for PlanningDeleteDialog's close-autofocus handler.
+      deleteFocusOriginRef.current = null;
       setDeleteTarget(null);
     } catch {
       toast.error(t("planningDeleteError"));
@@ -243,7 +255,7 @@ export function PlanningPage() {
           expandedId={expandedId}
           onEdit={startEdit}
           onExpandedIdChange={setExpandedId}
-          onRequestDelete={(kind, item) => setDeleteTarget({ kind, item })}
+          onRequestDelete={startDelete}
           deletingId={
             deleteMutation.isPending &&
             deleteMutation.variables?.kind === activeKind
@@ -278,6 +290,7 @@ export function PlanningPage() {
             : planningKindSingular[activeKind]
         }
         isDeleting={deleteMutation.isPending}
+        focusOriginRef={deleteFocusOriginRef}
         onCancel={() => setDeleteTarget(null)}
         onConfirm={() => void confirmDelete()}
       />

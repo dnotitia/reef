@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 /**
  * Renders an AI suggestion's confidence as a small dot + percentage, using the
@@ -18,6 +19,7 @@ export function ConfidenceBadge({
   /** Render the dot + "NN%" — for tight inline contexts. */
   compact?: boolean;
 }) {
+  const t = useTranslations("ai");
   const pct = Math.round(confidence * 100);
   const isHigh = pct >= 80;
   return (
@@ -32,7 +34,7 @@ export function ConfidenceBadge({
         style={{ opacity: isHigh ? 1 : 0.6 }}
         aria-hidden="true"
       />
-      {compact ? `${pct}%` : `${pct}% confidence`}
+      {compact ? `${pct}%` : t("confidenceLabel", { pct })}
     </span>
   );
 }

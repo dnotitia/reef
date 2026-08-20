@@ -519,6 +519,11 @@
       "total": "Total",
       "noDataToCrossTabulate": "No data to cross-tabulate.",
       "issueCountByCaption": "Issue count by {row} (rows) and {col} (columns).",
+      "netTooltip": "{date}: net {value}",
+      "unassigned": "Unassigned",
+      "unlabeled": "Unlabeled",
+      "none": "None",
+      "other": "Other",
       "riskCaption": "Open-work issue count by priority (rows) and time since last update (columns).",
       "created": "Created",
       "closed": "Closed",
@@ -1272,6 +1277,8 @@
     "phaseError": "Needs attention",
     "phaseCancelled": "Cancelled",
     "artifactCount": "{count, plural, one {# artifact} other {# artifacts}}",
+    "confidenceLabel": "{pct}% confidence",
+    "evidenceItems": "{count, plural, one {# evidence item} other {# evidence items}}",
     "chatThinking": "Thinking…",
     "chatSources": {
       "heading": "Sources"

@@ -93,7 +93,9 @@ export function NetThroughputChart({
               }
               opacity={0.32}
             >
-              <title>{`${tickLabel(p.start)}: net ${value}`}</title>
+              <title>
+                {t("netTooltip", { date: tickLabel(p.start), value })}
+              </title>
             </rect>
           );
         })}

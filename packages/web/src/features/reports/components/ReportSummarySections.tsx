@@ -278,6 +278,7 @@ export function NamedRows({
   rows: ReadonlyArray<NamedCount>;
   measure?: ReportMeasure;
 }) {
+  const empty = useEnrichmentEmptyLabels();
   const value = (r: NamedCount) => (measure === "points" ? r.points : r.count);
   const max = Math.max(...rows.map(value), 1);
   return (
@@ -292,9 +293,9 @@ export function NamedRows({
         >
           <span
             className="truncate text-xs text-foreground/90"
-            title={row.name}
+            title={row.name === "Unassigned" ? empty.unassigned : row.name}
           >
-            {row.name}
+            {row.name === "Unassigned" ? empty.unassigned : row.name}
           </span>
           <Bar value={value(row)} max={max} />
           <span className="text-right text-xs font-mono tabular-nums text-muted-foreground">

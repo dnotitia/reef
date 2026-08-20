@@ -68,8 +68,12 @@ export function PivotCard({
       type: issueTypeLabels,
       priority: priorityLabels,
       severity: severityLabels,
+      unassigned: t("unassigned"),
+      unlabeled: t("unlabeled"),
+      none: t("none"),
+      other: t("other"),
     }),
-    [statusLabels, issueTypeLabels, priorityLabels, severityLabels],
+    [statusLabels, issueTypeLabels, priorityLabels, severityLabels, t],
   );
 
   const result = useMemo(
@@ -131,7 +135,7 @@ export function PivotCard({
           testId="pivot-col-field"
         />
       </div>
-      <PivotMatrix result={result} />
+      <PivotMatrix result={result} fieldLabels={fieldLabels} />
       {foldedText && (
         <p className="text-[11px] text-muted-foreground">
           {t("foldedNote", { folded: foldedText })}

@@ -66,6 +66,9 @@ describe("PivotCard (REEF-189)", () => {
     ).toBeInTheDocument();
     expect(screen.getByTitle("alice × Todo: 1").textContent).toBe("1");
     expect(screen.getByTitle("alice × Done: 1").textContent).toBe("1");
+    expect(
+      screen.getByRole("table").querySelector("caption"),
+    ).toHaveTextContent("Issue count by Assignee (rows) and Status (columns).");
   });
 
   it("shows empty cells and consistent row/column totals (AC3)", () => {
