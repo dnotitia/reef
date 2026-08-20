@@ -524,6 +524,46 @@ describe("IssueRelationInput", () => {
     );
   });
 
+  it("does not create a tooltip or description for a fitting relation title", async () => {
+    const user = userEvent.setup();
+    const shortIssue: IssueMetadata = {
+      ...RICH[0],
+      id: "REEF-003",
+      title: "Short relation title",
+    };
+    render(
+      <IssueRelationInput
+        id="depends-on"
+        label="Depends on"
+        value={[]}
+        allIssues={[shortIssue]}
+        onChange={() => {}}
+      />,
+    );
+
+    const field = screen.getByLabelText("Depends on");
+    await user.type(field, "REEF-003");
+    const titleElement = screen.getByText("Short relation title");
+    Object.defineProperty(titleElement, "clientWidth", {
+      configurable: true,
+      value: 240,
+    });
+    Object.defineProperty(titleElement, "scrollWidth", {
+      configurable: true,
+      value: 120,
+    });
+    await act(async () => {
+      fireEvent(window, new Event("resize"));
+    });
+
+    const candidate = document.querySelector(
+      '[data-issue-id="REEF-003"]',
+    ) as HTMLElement;
+    await user.hover(candidate);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    expect(candidate).not.toHaveAttribute("aria-describedby");
+  });
+
   it("adds a candidate chosen from the dropdown", async () => {
     const onChange = vi.fn();
     const user = userEvent.setup();
