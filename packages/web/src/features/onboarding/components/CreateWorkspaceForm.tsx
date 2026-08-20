@@ -40,6 +40,11 @@ const CreateVaultResponseSchema = z.object({
 /** Radix Select forbids an empty-string item value, so "unset" needs a sentinel. */
 const NONE_VALUE = "__none__";
 
+interface FieldErrors {
+  name?: string;
+  prefix?: string;
+}
+
 export interface CreateWorkspaceFormProps {
   /**
    * Prefix for field ids and `data-testid`s so two mounts does not collide and
@@ -96,8 +101,23 @@ export function CreateWorkspaceForm({
   const [authoringLanguage, setAuthoringLanguage] =
     useState<AuthoringLanguage | null>(null);
   const [selectedRepos, setSelectedRepos] = useState<Set<string>>(new Set());
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [createError, setCreateError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+
+  const nameId = `${idPrefix}-vault-name-input`;
+  const nameErrorId = `${idPrefix}-vault-name-error`;
+  const prefixId = `${idPrefix}-project-prefix-input`;
+  const prefixErrorId = `${idPrefix}-project-prefix-error`;
+  const descriptionId = `${idPrefix}-description-input`;
+  const languageId = `${idPrefix}-authoring-language-select`;
+
+  function clearFieldError(field: keyof FieldErrors) {
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      return { ...current, [field]: undefined };
+    });
+  }
 
   function toggleRepo(repo: string) {
     setSelectedRepos((current) => {
@@ -116,12 +136,17 @@ export function CreateWorkspaceForm({
     const trimmedDescription = description.trim();
     const trimmedPrefix = projectPrefix.trim().toUpperCase();
 
-    if (!CREATE_VAULT_NAME_PATTERN.test(trimmedName)) {
-      setCreateError(t("nameError"));
-      return;
-    }
-    if (!PROJECT_PREFIX_PATTERN.test(trimmedPrefix)) {
-      setCreateError(t("prefixError"));
+    const nameError = CREATE_VAULT_NAME_PATTERN.test(trimmedName)
+      ? undefined
+      : t("nameError");
+    const prefixError = PROJECT_PREFIX_PATTERN.test(trimmedPrefix)
+      ? undefined
+      : t("prefixError");
+    setFieldErrors({ name: nameError, prefix: prefixError });
+
+    if (nameError || prefixError) {
+      const firstInvalidId = nameError ? nameId : prefixId;
+      document.getElementById(firstInvalidId)?.focus();
       return;
     }
 
@@ -175,13 +200,8 @@ export function CreateWorkspaceForm({
     }
   }
 
-  const nameId = `${idPrefix}-vault-name-input`;
-  const prefixId = `${idPrefix}-project-prefix-input`;
-  const descriptionId = `${idPrefix}-description-input`;
-  const languageId = `${idPrefix}-authoring-language-select`;
-
   return (
-    <form className="flex flex-col gap-4" onSubmit={handleCreate}>
+    <form className="flex flex-col gap-4" noValidate onSubmit={handleCreate}>
       <div className="grid gap-4 sm:grid-cols-[1fr_10rem]">
         <label htmlFor={nameId} className="flex flex-col gap-1">
           <span className="text-sm font-medium text-foreground/90">
@@ -190,12 +210,28 @@ export function CreateWorkspaceForm({
           <Input
             id={nameId}
             value={vaultName}
-            onChange={(e) => setVaultName(e.target.value.trim().toLowerCase())}
+            onChange={(e) => {
+              setVaultName(e.target.value.trim().toLowerCase());
+              clearFieldError("name");
+            }}
             placeholder={/* i18n-exempt: example vault name */ "reef-acme"}
             data-testid={nameId}
             className="font-mono"
             autoComplete="off"
+            required
+            aria-invalid={fieldErrors.name ? true : undefined}
+            aria-describedby={fieldErrors.name ? nameErrorId : undefined}
           />
+          {fieldErrors.name && (
+            <p
+              id={nameErrorId}
+              role="alert"
+              className="text-xs text-destructive-text"
+              data-testid={nameErrorId}
+            >
+              {fieldErrors.name}
+            </p>
+          )}
         </label>
 
         <label htmlFor={prefixId} className="flex flex-col gap-1">
@@ -205,14 +241,28 @@ export function CreateWorkspaceForm({
           <Input
             id={prefixId}
             value={projectPrefix}
-            onChange={(e) =>
-              setProjectPrefix(e.target.value.trim().toUpperCase())
-            }
+            onChange={(e) => {
+              setProjectPrefix(e.target.value.trim().toUpperCase());
+              clearFieldError("prefix");
+            }}
             placeholder={/* i18n-exempt: example issue prefix (brand) */ "REEF"}
             data-testid={prefixId}
             className="font-mono uppercase"
             autoComplete="off"
+            required
+            aria-invalid={fieldErrors.prefix ? true : undefined}
+            aria-describedby={fieldErrors.prefix ? prefixErrorId : undefined}
           />
+          {fieldErrors.prefix && (
+            <p
+              id={prefixErrorId}
+              role="alert"
+              className="text-xs text-destructive-text"
+              data-testid={prefixErrorId}
+            >
+              {fieldErrors.prefix}
+            </p>
+          )}
         </label>
       </div>
 
@@ -255,7 +305,7 @@ export function CreateWorkspaceForm({
           }
         >
           <SelectTrigger
-            className="mt-1 w-56"
+            className="mt-1 w-full max-w-56"
             data-testid={languageId}
             aria-label={t("authoringLanguage")}
           >
@@ -307,7 +357,7 @@ export function CreateWorkspaceForm({
       <div className="flex items-center gap-2">
         <button
           type="submit"
-          disabled={creating || !vaultName.trim() || !projectPrefix.trim()}
+          disabled={creating}
           data-testid={`${idPrefix}-create-btn`}
           className="w-fit rounded-md bg-foreground px-6 py-2 text-sm font-medium text-surface-page transition-colors duration-150 hover:bg-foreground/90 disabled:opacity-50"
         >
