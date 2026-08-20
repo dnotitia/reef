@@ -90,6 +90,9 @@ test.describe("Hermetic issue keyboard navigation", () => {
       await expect(rows.first()).toBeVisible({ timeout: 15_000 });
 
       const row = rows.first();
+      const issueId = await row.getAttribute("data-issue-id");
+      expect(issueId).toBeTruthy();
+      if (!issueId) throw new Error(`Missing issue id for ${view} row`);
       const checkbox = row.getByRole("checkbox").first();
       await checkbox.focus();
       await page.keyboard.press("Space");
@@ -99,9 +102,12 @@ test.describe("Hermetic issue keyboard navigation", () => {
 
       await row.focus();
       await page.keyboard.press("Space");
-      await page.waitForURL(/\/issues\/REEF-00[17]\?view=/, {
-        timeout: 10_000,
-      });
+      await page.waitForURL(
+        (url) =>
+          url.pathname === `/workspace/${REEF_E2E_VAULT}/issues/${issueId}` &&
+          url.searchParams.get("view") === view,
+        { timeout: 10_000 },
+      );
       await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
     }
   });
