@@ -25,10 +25,6 @@ const noopHandlers = Object.fromEntries(
 describe("agent task registry", () => {
   it("declares the initial REEF-024 task taxonomy", () => {
     expect(Object.keys(DEFAULT_AGENT_TASK_REGISTRY).sort()).toEqual([
-      "activity.draft",
-      "activity.issue-link",
-      "activity.scan",
-      "activity.status-change",
       "chat.workspace",
       "issue.enrichment",
     ]);

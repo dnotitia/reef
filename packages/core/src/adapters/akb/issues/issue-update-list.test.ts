@@ -584,5 +584,3 @@ describe("writeMultipleIssues", () => {
     expect(result.results[1]?.error).toBeDefined();
   });
 });
-
-// ── Activity suggestions ────────────────────────────────────────────────────

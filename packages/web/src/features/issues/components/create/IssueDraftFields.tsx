@@ -48,7 +48,7 @@ interface IssueDraftFieldsProps {
   /**
    * Layout of the draft fields.
    * - `stack` (default): one column — Details, then `beforeDescription`, then
-   *   Description. The AI draft review surface uses this.
+   *   Description. The issue create surface uses this.
    * - `split` (REEF-075): a main column (Title + Description + `mainExtra`)
    *   beside a right rail (Details + `railSlot`), mirroring the issue detail
    *   screen so metadata does not pushes the description down the page.
@@ -123,7 +123,7 @@ export function IssueDraftFields({
   const common = useTranslations("common");
   const t = useTranslations("issues.create");
   // Fall back to the catalog defaults when a caller doesn't supply its own
-  // placeholder (the create dialog uses these; ActivityDraftCard passes its own).
+  // placeholder.
   const resolvedTitlePlaceholder = titlePlaceholder ?? t("titlePlaceholder");
   const resolvedBodyPlaceholder =
     bodyWysiwygPlaceholder ?? bodyPlaceholder ?? t("descriptionPlaceholder");

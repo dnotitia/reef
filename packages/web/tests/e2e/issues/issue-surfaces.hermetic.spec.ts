@@ -5,7 +5,6 @@ import {
   openExistingWorkspace,
   readFixtureState,
   resetFixture,
-  writeIndexedDbConfig,
 } from "../harness/fixture";
 
 function reefVault(
@@ -489,25 +488,10 @@ test.describe("Hermetic issue route surfaces", () => {
   }) => {
     await resetFixture(request, "demo_board");
     await openExistingWorkspace(page);
-    await writeIndexedDbConfig(
-      page,
-      "last_visit_at",
-      "2026-06-01T00:00:00.000Z",
-    );
-
     await clearPersistedQueryCacheOnLoad(page);
     await page.goto("/workspace/reef-e2e/issues?view=board");
     await expect(page.locator('[data-testid="kanban-board"]')).toBeVisible();
     await expect(page.locator('[data-testid="kanban-card"]')).toHaveCount(11);
-    await expect(
-      page.locator('[data-testid="suggestions-pending-badge"]'),
-    ).toHaveText("3");
-    await expect(
-      page.getByText("Triage GitHub activity into draft issues"),
-    ).toBeVisible();
-    await expect(
-      page.getByText("Review activity-scan status proposals"),
-    ).toBeVisible();
     await expect(
       page.getByText("Ship stateless BFF route handlers"),
     ).toBeVisible();

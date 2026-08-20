@@ -10,7 +10,6 @@ const {
   mockGetAkbAdapter,
   mockGetAkbCurrentActor,
   mockReadAuthoringLanguage,
-  mockScanAndPersistActivitySuggestions,
 } = vi.hoisted(() => ({
   mockCreateGitHubAdapter: vi.fn(),
   mockCreateGitHubAppInstallationTokenProvider: vi.fn(),
@@ -20,7 +19,6 @@ const {
   mockGetAkbAdapter: vi.fn(),
   mockGetAkbCurrentActor: vi.fn(),
   mockReadAuthoringLanguage: vi.fn(),
-  mockScanAndPersistActivitySuggestions: vi.fn(),
 }));
 
 vi.mock("@reef/core", async (importOriginal) => {
@@ -38,7 +36,6 @@ vi.mock("@/server/application/agents", async (importOriginal) => {
     ...original,
     createWorkspaceChatAgentResponse: mockCreateWorkspaceChatAgentResponse,
     enrichIssue: mockEnrichIssue,
-    scanAndPersistActivitySuggestions: mockScanAndPersistActivitySuggestions,
   };
 });
 
@@ -168,16 +165,6 @@ export const enrichmentRunBody = {
   },
 };
 
-export const activityRunBody = {
-  task_id: "activity.scan",
-  input: {
-    owner: "acme",
-    repo: "reef",
-    vault: "reef-test",
-    projectPrefix: "REEF",
-  },
-};
-
 export function makeRequest(
   body: unknown,
   headers: Record<string, string | null> = {},
@@ -248,39 +235,6 @@ export function runError(taskId: string): AgentRunEvent {
   };
 }
 
-export function childArtifactFinal(): AgentRunEvent {
-  return {
-    event_id: "activity.draft:artifact",
-    run_id: "activity.draft:run",
-    task_id: "activity.draft",
-    seq: 1,
-    created_at: "2026-06-04T00:00:01.000Z",
-    type: "artifact.final",
-    artifact: {
-      artifact_id: "artifact-draft-1",
-      run_id: "activity.draft:run",
-      task_id: "activity.draft",
-      type: "chat_message",
-      status: "pending",
-      title: null,
-      confidence: null,
-      reasoning: null,
-      evidence: [],
-      warnings: [],
-      created_at: "2026-06-04T00:00:01.000Z",
-      updated_at: null,
-      metadata: {},
-      payload: {
-        message_id: "message-1",
-        role: "assistant",
-        text: "Draft created.",
-        parts: [],
-      },
-    },
-    metadata: {},
-  };
-}
-
 export function parseSseEvents(text: string): AgentRunEvent[] {
   return text
     .split("\n\n")
@@ -317,7 +271,6 @@ export {
   mockGetAkbAdapter,
   mockGetAkbCurrentActor,
   mockReadAuthoringLanguage,
-  mockScanAndPersistActivitySuggestions,
 };
 
 export async function POST(request: Request) {
@@ -339,15 +292,6 @@ export function resetAgentRunsRouteMocks() {
   );
   mockCreateLlmAdapter.mockReturnValue({ model: vi.fn() });
   mockReadAuthoringLanguage.mockResolvedValue(null);
-  mockScanAndPersistActivitySuggestions.mockResolvedValue({
-    status: "completed",
-    drafts: [],
-    statusChanges: [],
-    persistedSuggestions: [],
-    addedDrafts: 0,
-    addedStatusChanges: 0,
-    scannedAt: "2026-06-04T00:00:00.000Z",
-  });
   mockCreateWorkspaceChatAgentResponse.mockImplementation(
     async (params: { onEvent?: (event: AgentRunEvent) => void }) => {
       params.onEvent?.(runStarted("chat.workspace"));

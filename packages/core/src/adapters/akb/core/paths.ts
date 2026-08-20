@@ -1,4 +1,4 @@
-import { ACTIVITY_INBOX_COLLECTION, ISSUES_COLLECTION } from "./constants";
+import { ISSUES_COLLECTION } from "./constants";
 
 /**
  * Mirror of akb's `_slugify` (`backend/app/services/document_service.py`).
@@ -21,11 +21,6 @@ function slugifyAkbTitle(title: string): string {
 /** Deterministic akb path for a reef issue, derived from issue.id alone. */
 export function issuePathFor(id: string): string {
   return `${ISSUES_COLLECTION}/${slugifyAkbTitle(id)}.md`;
-}
-
-/** Deterministic akb path for a reef activity suggestion. */
-export function activitySuggestionPathFor(id: string): string {
-  return `${ACTIVITY_INBOX_COLLECTION}/${slugifyAkbTitle(id)}.md`;
 }
 
 /**

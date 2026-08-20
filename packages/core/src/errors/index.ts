@@ -102,15 +102,6 @@ export const ERROR_MESSAGES_EN = {
     unknown:
       "An error occurred while communicating with the workspace backend. Please try again.",
   },
-  activitySuggestion: {
-    dismissed: "This suggestion has already been dismissed.",
-    prefixRequired: "Project prefix is required to approve a draft.",
-    statusMissing: "Status-change suggestion is missing patch.status.",
-    closedTarget:
-      "Closing an issue requires a reason. Close it from the issue's close dialog instead.",
-    stale:
-      "This suggestion is out of date — the issue's status has already changed. Dismiss it and rescan.",
-  },
 };
 
 /**
@@ -488,46 +479,6 @@ export class NotFoundError extends ReefError {
   }
 }
 
-/**
- * The distinct ways approving an activity-inbox suggestion can be rejected,
- * each with its canonical PM-facing message code and HTTP status. Carried on the
- * error so a thin Route Handler can translate without re-deriving the status
- * or code from the failure site.
- */
-export type ActivitySuggestionErrorReason =
-  | "dismissed"
-  | "prefix_required"
-  | "status_missing"
-  | "closed_target"
-  | "stale";
-
-const ACTIVITY_SUGGESTION_ERROR_SPECS: Record<
-  ActivitySuggestionErrorReason,
-  { status: number; code: ErrorCode }
-> = {
-  dismissed: { status: 409, code: "activitySuggestion.dismissed" },
-  prefix_required: { status: 400, code: "activitySuggestion.prefixRequired" },
-  status_missing: { status: 400, code: "activitySuggestion.statusMissing" },
-  closed_target: { status: 400, code: "activitySuggestion.closedTarget" },
-  stale: { status: 409, code: "activitySuggestion.stale" },
-};
-
-export class ActivitySuggestionError extends ReefError {
-  readonly reason: ActivitySuggestionErrorReason;
-  readonly httpStatus: number;
-
-  constructor(reason: ActivitySuggestionErrorReason) {
-    super(resolveEnMessage(ACTIVITY_SUGGESTION_ERROR_SPECS[reason].code));
-    this.name = "ActivitySuggestionError";
-    this.reason = reason;
-    this.httpStatus = ACTIVITY_SUGGESTION_ERROR_SPECS[reason].status;
-  }
-
-  toUserMessage(): string {
-    return this.message;
-  }
-}
-
 // ─── Error description (the AC4 web-localization seam) ──────────────────────────
 
 const GITHUB_PASS_THROUGH_STATUSES = new Set([401, 403, 404, 409]);
@@ -552,12 +503,6 @@ function resolveApiHttpStatus(
  *  - carries no message text, just a stable code the locale resolves
  */
 export function describeError(err: unknown): ErrorDescriptor {
-  if (err instanceof ActivitySuggestionError) {
-    return {
-      code: ACTIVITY_SUGGESTION_ERROR_SPECS[err.reason].code,
-      status: err.httpStatus,
-    };
-  }
   if (err instanceof ConflictError) return { code: "conflict", status: 409 };
   if (err instanceof ControlPlaneError) {
     return {

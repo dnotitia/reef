@@ -369,7 +369,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     await expect(page.getByText(/^Jun \d{4}$/)).toHaveCount(0);
   });
 
-  test("renders migrated Suggestions + planning body strings in the active locale (REEF-305)", async ({
+  test("renders migrated planning body strings in the active locale (REEF-305)", async ({
     page,
   }) => {
     await openExistingWorkspace(page);
@@ -380,20 +380,6 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
       .getByTestId("locale-option-ko")
       .click();
     await expect(page.locator("html")).toHaveAttribute("lang", "ko");
-
-    await page.goto("/workspace/reef-e2e/suggestions");
-    await expect(
-      page.getByRole("heading", { name: "검토할 제안" }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "이슈 초안" }).first(),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "상태 변경" }).first(),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Draft issues" }),
-    ).toHaveCount(0);
 
     // The planning page's kind toggle follows the locale too (REEF-305).
     await page.goto("/workspace/reef-e2e/planning");

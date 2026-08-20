@@ -288,7 +288,7 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
     ).toBeVisible();
     const todoCard = page
       .getByTestId("kanban-card")
-      .filter({ hasText: "Triage GitHub activity into draft issues" });
+      .filter({ hasText: "Review monitored-repo findings" });
     await dragCardToColumn(
       page,
       todoCard,

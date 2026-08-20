@@ -57,22 +57,6 @@ describe("agentArtifactCommandErrorResponse — code → locale (REEF-308 AC3/AC
     expect(body.runtime_error.message).toBe("이미 검토한 아티팩트입니다.");
   });
 
-  it("maps a multi-underscore code to its camelCase catalog key", async () => {
-    cookieLocale.current = "ko";
-    const res = await (agentArtifactCommandErrorResponse(
-      new AgentArtifactCommandError(
-        "Artifact command could not find the derived activity suggestion.",
-        409,
-        "activity_suggestion_not_found",
-      ),
-    ) as Promise<Response>);
-    // Both the "referenced" and "derived" sources share one code, so the
-    // PM-facing message unifies under the single localized key (AC3).
-    expect((await agentBodyOf(res)).error).toBe(
-      "아티팩트 명령이 참조된 활동 제안을 찾지 못했습니다.",
-    );
-  });
-
   it("falls back to en for the catalog when no locale is set", async () => {
     const res = await (agentArtifactCommandErrorResponse(
       new AgentArtifactCommandError(

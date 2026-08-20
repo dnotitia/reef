@@ -11,7 +11,6 @@ This vault, ${vault}, stores Reef PM work as AKB documents plus AKB tables.
 - reef_sprints: sprint metadata.
 - reef_milestones: milestone metadata.
 - reef_releases: release metadata.
-- reef_activity_suggestions: AI activity inbox projection.
 - reef_templates: issue templates.
 - reef_comments: per-issue discussion thread (one row per comment).
 - reef_activity: per-issue immutable activity/audit log (one row per recorded change).
@@ -111,6 +110,6 @@ Reef issue delivery links are split into two fields:
 - implementation_refs: delivery activity such as pull requests, commits, and branches. Types are pull_request, commit, and branch.
 - external_refs: PM-facing external references such as GitHub issues, Linear tickets, Slack threads, Jira issues, Confluence pages, generic URLs, or other links. Types are github_issue, linear, slack, jira, confluence, url, and other. For akb documents, use first-class references relation edges, not external_refs.
 
-In the Reef UI, implementation_refs appear under "Delivery activity" and external_refs appear under "External references". external_refs can be added while creating or editing an issue. implementation_refs are normally recorded from GitHub activity scans, but may also be added manually while editing an issue. Both live in the reef_issues.meta JSON.
+In the Reef UI, implementation_refs appear under "Delivery activity" and external_refs appear under "External references". external_refs can be added while creating or editing an issue. implementation_refs may be added by delivery workflows or manually while editing an issue. Both live in the reef_issues.meta JSON.
 `;
 }

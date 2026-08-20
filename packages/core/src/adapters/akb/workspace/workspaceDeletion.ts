@@ -1,11 +1,10 @@
 import { NotFoundError } from "../../../errors";
 import {
-  ACTIVITY_INBOX_COLLECTION,
   REEF_ATTACHMENTS_TABLE,
   REEF_SETTINGS_TABLE,
   REEF_TABLE_NAMES,
 } from "../core/constants";
-import { deleteCollection, deleteDocument } from "../core/documents";
+import { deleteDocument } from "../core/documents";
 import { deleteAkbFile } from "../core/files";
 import type { AkbAdapter } from "../core/http";
 import { issuePathFor } from "../core/paths";
@@ -99,8 +98,8 @@ export async function deleteVault(params: DeleteVaultParams): Promise<void> {
  *  - issue documents — by their deterministic id→path (reef's docs in the
  *    shared-name `issues/` collection);
  *  - vault-skill documents — by the exact paths reef installed;
- *  - the AI activity inbox — recursively, because it lives under reef's private
- *    `_reef/` namespace, which does not hold non-reef documents.
+ *  - no private activity collection — legacy activity documents are deliberately
+ *    left untouched because the removed surface has no active ownership path.
  *
  * Then every reef table is dropped, `reef_settings` LAST so `has_reef_config`
  * flips to false once the rest of the teardown has already succeeded. Every
@@ -121,12 +120,6 @@ export async function detachReef(params: DetachReefParams): Promise<void> {
         ignoreMissing(deleteDocument(adapter, vault, path)),
       ),
     );
-    // The activity inbox is reef-private (`_reef/`), so the whole collection is
-    // safe to sweep recursively.
-    await ignoreMissing(
-      deleteCollection(adapter, vault, ACTIVITY_INBOX_COLLECTION, true),
-    );
-
     // 2. reef-owned attachment files, while the table still holds their URIs.
     const attachmentFileUris = await reefAttachmentFileUris(adapter, vault);
     await Promise.all(

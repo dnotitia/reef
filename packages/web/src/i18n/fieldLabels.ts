@@ -114,8 +114,8 @@ export const useSeverityLabels = (): Record<Severity, string> =>
 /**
  * Field-NAME labels keyed by field id ("assignee" → "Assignee"/"담당자"),
  * distinct from the field-VALUE hooks above. One shared source for the header
- * words the issue rail, filter bar, report scope bar, create dialog, and
- * activity draft editor render, so a field's name is localized alongside its
+ * words the issue rail, filter bar, report scope bar, and create dialog render,
+ * so a field's name is localized alongside its
  * already-localized values (REEF-301 / REEF-298 AC2/AC4).
  */
 export const useFieldNameLabels = (): Record<FieldNameKey, string> =>

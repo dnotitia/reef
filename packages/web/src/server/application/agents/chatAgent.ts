@@ -92,8 +92,8 @@ export interface CreateWorkspaceChatAgentResponseParams
  *      read a repository the vault does not monitor.
  *
  * No vault-mutating tools are registered here. Issue creation and edits go
- * through dedicated Route Handlers (`/api/issues`, `/api/issues/[id]`,
- * `/api/drafts/approve`) with their own confirmation UI, not the chat loop.
+ * through dedicated Route Handlers (`/api/issues`, `/api/issues/[id]`, and
+ * AgentArtifact review) with their own confirmation UI, not the chat loop.
  *
  * Both adapters and `vault` are bound for the lifetime of one Route Handler
  * request. The akb-scoped tools does not expose `vault` in their inputSchemas —

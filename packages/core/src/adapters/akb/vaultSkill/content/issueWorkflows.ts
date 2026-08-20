@@ -35,7 +35,7 @@ The row is the source of truth for status, every queryable field, and all four r
 
 ## reef_issues INSERT skeleton
 
-Reference the table unquoted. Empty list columns are '[]'::json, never NULL. author and last_editor must be non-empty strings or the read path rejects the row. requester is the acting user (ACTOR in the example) on a conversational create, or NULL for an automated scan create. parent_id is the parent issue's plain reef id (REEF-012) when this issue hangs under an epic, or NULL for a top-level issue -- see "Default issue fields" for when to fill it. Example:
+Reference the table unquoted. Empty list columns are '[]'::json, never NULL. author and last_editor must be non-empty strings or the read path rejects the row. requester is the acting user (ACTOR in the example) on a conversational create. parent_id is the parent issue's plain reef id (REEF-012) when this issue hangs under an epic, or NULL for a top-level issue -- see "Default issue fields" for when to fill it. Example:
 
 INSERT INTO reef_issues
   (document_uri, reef_id, title, status, issue_type, priority, assigned_to,
@@ -68,9 +68,9 @@ Use the document_uri returned by akb_put verbatim; do not hand-build it. Do NOT 
 - priority: follow the field precedence below -- an explicit user value, else a value inferred from urgency signals, else the issue_type template's default, else unset; it may be cleared to NULL
 - severity: unset; for a bug you may set blocker, critical, major, minor, or trivial (impact, distinct from priority's urgency)
 - assigned_to: the owner of the work -- propose at create time, reconfirm when the issue is pulled into active work, and let it stay unset (NULL) until then. See the Assignee rule in conversational-playbook.md.
-- requester: the person who asked for the work. On a conversational create default it to the acting user (ACTOR above); leave it NULL for an automated scan create. See the Requester rule in conversational-playbook.md.
-- meta.author: the current acting user for user-driven creates, or ai-agent for automated agent-originated creates (the Issue schema's created_by field projects from this)
-- meta.last_editor: the current acting user for user-driven creates, or ai-agent for automated agent-originated creates (the Issue schema's updated_by field projects from this)
+- requester: the person who asked for the work. On a conversational create default it to the acting user (ACTOR above). See the Requester rule in conversational-playbook.md.
+- meta.author: the current acting user (the Issue schema's created_by field projects from this)
+- meta.last_editor: the current acting user (the Issue schema's updated_by field projects from this)
 - meta.source: ai-agent:user_request unless a more specific source applies
 
 Field precedence when a template default and inference disagree: an explicit user value wins; else a value inferred from the description's signals (conversational-playbook.md); else the issue_type template's default; else unset. The template is authoritative for the body skeleton but only a weak fallback for field values -- a signal always overrides a template default (a low-urgency bug stays low even though the bug template defaults to high).
@@ -122,10 +122,10 @@ implementation_refs is for delivery activity. Each item has:
 
 - type: pull_request, commit, or branch
 - ref: PR number, commit SHA, or branch name
-- repo: owner/name of the repository the ref lives in, when known; activity-scan refs always carry it, and it is the key that de-dupes refs by type:repo:ref
+- repo: owner/name of the repository the ref lives in, when known; it is the key that de-dupes refs by type:repo:ref
 - url: optional link
 - title: optional display title
-- actor and detected_at: optional provenance fields for activity-scan generated refs
+- actor and detected_at: optional provenance fields for delivery integrations
 
 ## Update an issue
 
@@ -209,9 +209,9 @@ Do not set closed_at or closed_reason for "done" unless the user explicitly asks
 
 ## Record a delivery ref
 
-A done -- and a close with reason completed -- is normally delivered by a merged PR or commit. Record it on the issue in the SAME update that changes status, so the issue's Delivery section is populated. The activity-scan approve path already does this automatically ("Approve a status change" in activity-inbox-workflows.md); manual completion and scan-approve completion must leave the same trace, so do not skip it here.
+A done -- and a close with reason completed -- is normally delivered by a merged PR or commit. Record it on the issue in the SAME update that changes status, so the issue's Delivery section is populated.
 
-- When the user names the delivering PR/commit, or it is clear from the conversation, build an implementation_ref using the "Delivery links" shape: type pull_request for a PR or commit for a commit; ref is the PR number or commit SHA; repo is the owner/name the PR or commit lives in whenever it is known (from a pasted GitHub URL, or from monitored_repos when the workspace tracks a single repo) -- record it so the ref de-dupes against scan-approve refs, which always carry repo, and so PR numbers from different repos never collide; url is the GitHub link when known (https://github.com/{repo}/pull/{ref} for a PR, https://github.com/{repo}/commit/{ref} for a commit); title is the PR or commit title when known. actor and detected_at stay unset -- unlike scan evidence, a hand-recorded ref has no scan provenance.
+- When the user names the delivering PR/commit, or it is clear from the conversation, build an implementation_ref using the "Delivery links" shape: type pull_request for a PR or commit for a commit; ref is the PR number or commit SHA; repo is the owner/name the PR or commit lives in whenever it is known; url is the GitHub link when known (https://github.com/{repo}/pull/{ref} for a PR, https://github.com/{repo}/commit/{ref} for a commit); title is the PR or commit title when known.
 - Merge into the issue's existing meta.implementation_refs, de-duplicating on type:repo:ref (fall back to type:ref only when the repo is genuinely unknowable) so re-recording the same PR never doubles an entry, and leave any unrelated refs already there untouched.
 - If the issue is being completed but no delivering PR/commit is apparent, ask the user for the PR number rather than leaving the ref blank. A process or docs task that has no delivering artifact may skip the ref -- only the existence of a delivering PR/commit makes it required.
 

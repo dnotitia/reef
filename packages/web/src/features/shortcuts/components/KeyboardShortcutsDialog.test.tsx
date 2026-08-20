@@ -42,7 +42,6 @@ describe("KeyboardShortcutsDialog", () => {
       expect.arrayContaining([
         "palette.open",
         "shortcuts.open",
-        "navigation.suggestions",
         "issue.new",
         "ai.toggle",
       ]),

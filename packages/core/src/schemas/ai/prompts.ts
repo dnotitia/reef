@@ -1,11 +1,9 @@
 import { z } from "zod";
 import { IssueListItemSchema } from "../issues/metadata";
-import { PlanningCatalogSchema } from "../planning/catalog";
 import {
   EnrichmentContextSchema,
   EnrichmentDraftSchema,
   EnrichmentRepoContextSchema,
-  EnrichmentTemplateSummarySchema,
 } from "./enrichment";
 
 // ─── Shared sub-schemas ──────────────────────────────────────────────────────
@@ -31,28 +29,6 @@ const IssueContextSchema = IssueListItemSchema.pick({
   related_to: true,
 });
 
-const PrDetailSchema = z.object({
-  number: z.number().int(),
-  title: z.string(),
-  headBranch: z.string(),
-  body: z.string().optional(),
-  createdAt: z.string().optional(),
-  updatedAt: z.string().optional(),
-  mergedAt: z.string().nullable().optional(),
-  commitMessages: z.array(z.string()),
-});
-export type PrDetail = z.infer<typeof PrDetailSchema>;
-
-const CommitDetailSchema = z.object({
-  hash: z.string(),
-  message: z.string(),
-  branch: z.string(),
-  authoredDate: z.string().optional(),
-  committedDate: z.string().optional(),
-  changedFiles: z.array(z.string()),
-});
-export type CommitDetail = z.infer<typeof CommitDetailSchema>;
-
 const MonitoredRepoInfoSchema = z.object({
   owner: z.string(),
   name: z.string(),
@@ -69,61 +45,6 @@ export const EnrichmentUserPromptRequestSchema = z.object({
 });
 export type EnrichmentUserPromptRequest = z.infer<
   typeof EnrichmentUserPromptRequestSchema
->;
-
-// ─── auto-issue generation ───────────────────────────────────────────────────
-
-const AutoIssueActivitySchema = z.object({
-  eventType: z.string(),
-  actor: z.string(),
-  sourceRepo: z.string().optional(),
-  pr: PrDetailSchema.optional(),
-  commit: CommitDetailSchema.optional(),
-});
-
-export const AutoIssueUserPromptRequestSchema = z.object({
-  activity: AutoIssueActivitySchema,
-  templateCatalog: z.array(EnrichmentTemplateSummarySchema).optional(),
-  planningCatalog: PlanningCatalogSchema.optional(),
-});
-export type AutoIssueUserPromptRequest = z.infer<
-  typeof AutoIssueUserPromptRequestSchema
->;
-
-// ─── activity issue linking ──────────────────────────────────────────────────
-
-export const ActivityIssueLinkUserPromptRequestSchema = z.object({
-  activity: AutoIssueActivitySchema,
-  projectPrefix: z.string(),
-});
-export type ActivityIssueLinkUserPromptRequest = z.infer<
-  typeof ActivityIssueLinkUserPromptRequestSchema
->;
-
-export const ActivityIssueLinkDecisionSchema = z.strictObject({
-  decision: z.enum(["linked", "possible_link", "no_link"]),
-  issue_id: z.string().nullable(),
-  confidence: z.number().min(0).max(1),
-  rationale: z.string(),
-});
-export type ActivityIssueLinkDecision = z.infer<
-  typeof ActivityIssueLinkDecisionSchema
->;
-
-// ─── status-change rationale ──────────────────────────────────────────────────
-
-export const StatusRationaleUserPromptRequestSchema = z.object({
-  issueId: z.string(),
-  issueTitle: z.string(),
-  fromStatus: z.string(),
-  toStatus: z.string(),
-  actor: z.string(),
-  sourceRepo: z.string().optional(),
-  pr: PrDetailSchema.optional(),
-  commits: z.array(CommitDetailSchema).optional(),
-});
-export type StatusRationaleUserPromptRequest = z.infer<
-  typeof StatusRationaleUserPromptRequestSchema
 >;
 
 // ─── project state Q&A ───────────────────────────────────────────────────────

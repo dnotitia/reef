@@ -1,7 +1,6 @@
 import { z } from "zod";
 import {
   MONITORED_REPOS_TABLE,
-  REEF_ACTIVITY_SUGGESTIONS_TABLE,
   REEF_ACTIVITY_TABLE,
   REEF_ATTACHMENTS_TABLE,
   REEF_COMMENTS_TABLE,
@@ -64,7 +63,6 @@ export interface ReefTableManifest extends AkbCreateTableRequest {
     | typeof REEF_MILESTONES_TABLE
     | typeof REEF_RELEASES_TABLE
     | typeof REEF_TEMPLATES_TABLE
-    | typeof REEF_ACTIVITY_SUGGESTIONS_TABLE
     | typeof REEF_COMMENTS_TABLE
     | typeof REEF_ATTACHMENTS_TABLE
     | typeof REEF_ACTIVITY_TABLE
@@ -73,7 +71,7 @@ export interface ReefTableManifest extends AkbCreateTableRequest {
   columns: AkbTableColumn[];
 }
 
-export const REEF_SCHEMA_VERSION = 2;
+export const REEF_SCHEMA_VERSION = 3;
 
 /** Columns injected and owned by AKB for every dynamic table. */
 export const AKB_MANAGED_TABLE_COLUMNS = [
@@ -205,29 +203,6 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
       { name: "priority", type: "text" },
       { name: "default_labels", type: "json" },
       { name: "body", type: "text" },
-      { name: "meta", type: "json" },
-    ],
-  },
-  {
-    name: REEF_ACTIVITY_SUGGESTIONS_TABLE,
-    description:
-      "Queryable read projection of reef AI activity inbox documents",
-    columns: [
-      { name: "document_uri", type: "text", required: true },
-      { name: "suggestion_id", type: "text", required: true },
-      { name: "kind", type: "text", required: true },
-      { name: "status", type: "text", required: true },
-      { name: "fingerprint", type: "text", required: true },
-      { name: "repo", type: "text", required: true },
-      { name: "issue_id", type: "text" },
-      { name: "title", type: "text" },
-      { name: "summary", type: "text" },
-      { name: "source_type", type: "text" },
-      { name: "source_ref", type: "text" },
-      { name: "actor", type: "text" },
-      { name: "detected_at", type: "text", required: true },
-      { name: "reviewed_at", type: "text" },
-      { name: "reviewed_by", type: "text" },
       { name: "meta", type: "json" },
     ],
   },

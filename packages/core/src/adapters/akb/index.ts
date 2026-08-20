@@ -24,7 +24,6 @@ export {
   MONITORED_REPOS_TABLE,
   REEF_ISSUES_TABLE,
   REEF_TEMPLATES_TABLE,
-  REEF_ACTIVITY_SUGGESTIONS_TABLE,
   REEF_COMMENTS_TABLE,
   REEF_ATTACHMENTS_TABLE,
   REEF_ACTIVITY_TABLE,
@@ -133,14 +132,6 @@ export {
   projectIssueBodyHistoryEntry,
 } from "./issues/history";
 export { ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE } from "../../schemas/issues/activity";
-export {
-  composeActivitySuggestionDocumentBody,
-  writeActivitySuggestion,
-  listActivitySuggestions,
-  readActivitySuggestion,
-  updateActivitySuggestion,
-  updateActivitySuggestionStatus,
-} from "./activity/activitySuggestions";
 export {
   readTemplate,
   writeTemplate,

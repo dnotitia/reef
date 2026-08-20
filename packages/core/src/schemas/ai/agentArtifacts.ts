@@ -1,6 +1,4 @@
 import { z } from "zod";
-import { StatusChangeEvidenceSchema } from "../activity/pendingDraft";
-import { ActivitySuggestionIdSchema } from "../activity/suggestion";
 import { IsoDateFieldSchema } from "../common/date";
 import { HttpUrlSchema } from "../common/url";
 import {
@@ -36,9 +34,8 @@ export const AgentArtifactTypeEnum = z.enum([
 export type AgentArtifactType = z.infer<typeof AgentArtifactTypeEnum>;
 
 export const AgentArtifactPersistenceSchema = z.strictObject({
-  source_of_truth: z.enum(["client_ephemeral", "akb_activity_suggestion"]),
-  activity_suggestion_id: ActivitySuggestionIdSchema.nullable().default(null),
-  retention: z.enum(["browser_session", "akb_review_history"]),
+  source_of_truth: z.literal("client_ephemeral"),
+  retention: z.literal("browser_session"),
 });
 
 export const AgentErrorSchema = z.object({
@@ -84,7 +81,8 @@ const AgentIssueUpdateChangeProposalSchema = z.strictObject({
   update: AgentIssueUpdateInputSchema,
 });
 
-const AgentStatusChangeEvidenceSchema = StatusChangeEvidenceSchema.extend({
+const AgentStatusChangeEvidenceSchema = z.object({
+  type: z.enum(["commit", "pr"]),
   ref: z.string().min(1, "String must contain at least 1 character"),
   repo: z.string().min(1, "String must contain at least 1 character"),
   actor: z.string().min(1, "String must contain at least 1 character"),

@@ -17,6 +17,7 @@ import {
 } from "@/features/ai/lib/enrichmentFieldDescriptors";
 import type {
   EnrichmentField,
+  EnrichmentRepoContext,
   EnrichmentRequest,
   EnrichmentSuggestion,
   IssueCreateFields,
@@ -29,7 +30,7 @@ const FIELD_LABEL_CLASS = "text-xs font-medium text-muted-foreground";
 export function useNewIssueEnrichment({
   vault,
   prefix,
-  scanRepo,
+  repoContext,
   title,
   body,
   estimatePoints,
@@ -40,7 +41,7 @@ export function useNewIssueEnrichment({
 }: {
   vault: string | null | undefined;
   prefix: string;
-  scanRepo: string;
+  repoContext?: EnrichmentRepoContext;
   title: string;
   body: string;
   estimatePoints: string;
@@ -60,11 +61,6 @@ export function useNewIssueEnrichment({
 
   function buildEnrichmentRequest(): EnrichmentRequest | null {
     if (!vault) return null;
-    const parts = scanRepo.split("/");
-    const repoContext =
-      parts.length === 2 && parts[0] && parts[1]
-        ? { owner: parts[0], repo: parts[1] }
-        : undefined;
     return {
       issueId: `${prefix}-PENDING`,
       vault,

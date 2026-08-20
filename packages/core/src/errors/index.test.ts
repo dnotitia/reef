@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  ActivitySuggestionError,
   AkbApiError,
   AuthError,
   ConflictError,
@@ -390,16 +389,6 @@ describe("describeError", () => {
     expect(JSON.stringify(descriptor)).not.toContain("postgres");
   });
 
-  it("ActivitySuggestionError → its code + httpStatus", () => {
-    expect(describeError(new ActivitySuggestionError("dismissed"))).toEqual({
-      code: "activitySuggestion.dismissed",
-      status: 409,
-    });
-    expect(
-      describeError(new ActivitySuggestionError("prefix_required")),
-    ).toEqual({ code: "activitySuggestion.prefixRequired", status: 400 });
-  });
-
   it("SchemaValidationError omits details by default (akb-origin issues stay log-only)", () => {
     const descriptor = describeError(
       new SchemaValidationError({ issues: ["raw fastapi text"] }),
@@ -449,7 +438,6 @@ describe("describeError", () => {
       new LlmError({ message: "" }),
       new GitHubApiError({ status: 500, message: "" }),
       new AkbApiError({ status: 404, message: "" }),
-      new ActivitySuggestionError("stale"),
       new Error("boom"),
     ];
     for (const err of errors) {

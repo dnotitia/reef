@@ -235,7 +235,7 @@ Treat changes to these documents as a migration-affecting change when they alter
 
 - Agent-visible workflows or hard rules.
 - Table, document, or field semantics.
-- Allowed status, issue type, planning, activity-inbox, or relationship values.
+- Allowed status, issue type, planning, notification, or relationship values.
 - The set of installed skill/runbook document paths.
 - Instructions that need to be present in existing vaults for safe agent
   operation.

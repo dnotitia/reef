@@ -25,15 +25,6 @@ vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   })),
 }));
 
-vi.mock("@/features/activity/hooks/useActivityRepo", () => ({
-  useActivityRepo: vi.fn(() => ({
-    repo: "octo/cat",
-    monitoredRepos: ["octo/cat"],
-    setRepo: () => Promise.resolve(),
-    isLoading: false,
-  })),
-}));
-
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));

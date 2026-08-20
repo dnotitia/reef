@@ -49,9 +49,8 @@ export function useMyWorkAttention(): MyWorkAttention {
   // The dashboard shell hosting this badge does not unmount, so a once-captured
   // `now` would freeze the deadline clock — an item crossing into the due-soon
   // window or past its deadline would not flip the badge tone until reload.
-  // Re-read the clock on a coarse minute tick (deadlines are day-granular, and
-  // this mirrors ActivityRefreshButton's relative-time clock) so the badge stays
-  // correct while the app is open without per-render churn.
+  // Re-read the clock on a coarse minute tick (deadlines are day-granular) so
+  // the badge stays correct while the app is open without per-render churn.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 60_000);

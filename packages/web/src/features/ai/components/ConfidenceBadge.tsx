@@ -6,8 +6,7 @@ import { useTranslations } from "next-intl";
  * shared `ai-*` design tokens. The dot dims below the high-confidence
  * threshold (80%) so low-confidence suggestions read as less assertive.
  *
- * Shared between the Activity Hub draft cards and the inline issue-enrichment
- * review UI — keep it presentation.
+ * Shared by the inline issue-enrichment review UI — keep it presentation.
  */
 export function ConfidenceBadge({
   confidence,

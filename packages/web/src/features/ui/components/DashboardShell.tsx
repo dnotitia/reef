@@ -2,13 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import { ReefMark } from "@/components/ui/reef-mark";
-import { ACTIVITY_SUGGESTIONS_QUERY_KEY } from "@/features/activity/hooks/useActivityFeed";
-import { useActivityRepo } from "@/features/activity/hooks/useActivityRepo";
-import { usePendingSuggestionsCount } from "@/features/activity/hooks/usePendingSuggestionsCount";
-import {
-  useScanActivity,
-  useScanAutoTrigger,
-} from "@/features/activity/hooks/useScanActivity";
 import { AskAiFab } from "@/features/ai/components/AskAiFab";
 import { useAskAiStore } from "@/features/ai/stores/useAskAiStore";
 import { SidebarAccount } from "@/features/auth/components/SidebarAccount";
@@ -46,13 +39,11 @@ import { useViewStore } from "@/features/ui/stores/useViewStore";
 import { useHydrated } from "@/lib/useHydrated";
 import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   BarChart3,
   Bell,
   ChevronLeft,
   CircleUser,
-  ListChecks,
   ListTodo,
   type LucideIcon,
   Milestone,
@@ -128,14 +119,7 @@ interface DashboardShellProps {
 // anchor stays stable across active locales.
 const navLinks: ReadonlyArray<{
   href: string;
-  labelKey:
-    | "issues"
-    | "myWork"
-    | "inbox"
-    | "planning"
-    | "suggestions"
-    | "reports"
-    | "settings";
+  labelKey: "issues" | "myWork" | "inbox" | "planning" | "reports" | "settings";
   testId: string;
   icon: LucideIcon;
 }> = [
@@ -150,12 +134,6 @@ const navLinks: ReadonlyArray<{
     testId: "planning",
     icon: Milestone,
   },
-  {
-    href: "/suggestions",
-    labelKey: "suggestions",
-    testId: "suggestions",
-    icon: ListChecks,
-  },
   { href: "/reports", labelKey: "reports", testId: "reports", icon: BarChart3 },
   {
     href: "/settings",
@@ -165,8 +143,8 @@ const navLinks: ReadonlyArray<{
   },
 ] as const;
 
-/** A sidebar nav badge: Suggestions pending, My Work attention, and Settings
- * drift share one render path, differing in tone.
+/** A sidebar nav badge: My Work attention and Settings drift share one render
+ * path, differing in tone.
  * Filled-pill + white foreground is the sidebar's badge vocabulary (the count is
  * also carried by an aria-label, so the small chip is not the signal). */
 type NavBadgeTone = "brand" | "danger" | "warn";
@@ -184,8 +162,8 @@ const NAV_BADGE_DOT: Record<NavBadgeTone, string> = {
 };
 
 interface NavBadge {
-  /** "count" → a numeric pill when expanded, a dot when collapsed (Suggestions,
-   * My Work). "state" → a dot in both layouts: a binary signal that carries no
+  /** "count" → a numeric pill when expanded, a dot when collapsed (My Work).
+   * "state" → a dot in both layouts: a binary signal that carries no
    * quantity, so a counting pill would be the wrong vocabulary (REEF-257 — the
    * workspace skill is either drifted or not). */
   kind: "count" | "state";
@@ -271,39 +249,14 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
     ? t("newIssueAriaLabel", { shortcut: newIssueShortcut })
     : t("newIssue");
 
-  // Auto-detection trigger lives at the shell so it fires regardless of which
-  // page the user is on — Board / List / Settings all benefit. The Suggestions
-  // queue keeps its own mutation for the manual refresh button (separate
-  // instance, same persisted queue and invalidation channel).
+  // The active vault scopes the shared config and retained workspace surfaces.
   const { vault } = useActiveVault();
-  const queryClient = useQueryClient();
 
   // Prime the `['config', vault]` query cache for the active vault. Other
-  // features (NewIssueDialog, AskAiDialog, detection) call `ensureProjectConfig`
+  // features (NewIssueDialog, AskAiDialog, enrichment) call `ensureProjectConfig`
   // against the same cache key and dedupe to this fetch instead of issuing
   // their own.
   useProjectConfig(vault);
-  // The auto-trigger needs a GitHub `owner/name`, not the vault — passing the
-  // vault here is what made detection silently no-op before. `useActivityRepo`
-  // returns the user's persisted scan target (or first monitored repo) and
-  // empty-string when the vault has no monitored repos at all; the trigger
-  // already gates on `!repo` so the empty case naturally suppresses scans.
-  const { repo: scanRepo } = useActivityRepo(vault);
-  const scan = useScanActivity({
-    onSuccess: (result) => {
-      if (result.addedDrafts + result.addedStatusChanges > 0) {
-        void queryClient.invalidateQueries({
-          queryKey: ACTIVITY_SUGGESTIONS_QUERY_KEY,
-        });
-      }
-    },
-  });
-  useScanAutoTrigger(vault, scanRepo, scan.mutate);
-
-  // Suggestions are actionable queue state, not a visit marker. Keep the
-  // actual pending total visible even while the user is reviewing the queue.
-  const pendingSuggestionsCount = usePendingSuggestionsCount(vault);
-
   // Inbox unread state is an account-scoped persisted notification list. The
   // hook reads the bounded unread list itself; there is deliberately no count
   // endpoint and no browser visit marker in this path.
@@ -326,22 +279,8 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   // badge stays dark (REEF-257 AC3).
   const skillOutdated = skillStatus.data?.up_to_date === false;
 
-  // Resolve the badge a nav link shows, if any. Suggestions is intentionally
-  // handled first because its actionable count remains visible on the active
-  // page; other destinations own their signal while active.
+  // Resolve the badge a nav link shows, if any.
   function navBadgeFor(href: string, isActive: boolean): NavBadge | null {
-    if (href === "/suggestions" && pendingSuggestionsCount > 0) {
-      return {
-        kind: "count",
-        display: cap(pendingSuggestionsCount),
-        label: t("badge.pendingSuggestions", {
-          count: pendingSuggestionsCount,
-        }),
-        tone: "brand",
-        badgeTestId: "suggestions-pending-badge",
-        dotTestId: "suggestions-pending-dot",
-      };
-    }
     if (href === "/inbox" && unreadNotificationCount > 0) {
       return {
         kind: "count",
@@ -644,7 +583,6 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                             // A count-less state shows the same dot as the
                             // collapsed layout, parked in the badge gutter where
                             // the count pills sit so the right edge stays a single
-                            // scan column (REEF-257).
                             <output
                               data-testid={badge.badgeTestId}
                               aria-live="polite"

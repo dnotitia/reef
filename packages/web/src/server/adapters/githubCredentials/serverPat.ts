@@ -4,8 +4,8 @@
  * Mirrors `serverAppConfig.ts`: the token is server state injected from infra
  * env (not a per-user browser PAT, not committed to the akb vault). It exists
  * for local development and CI, where a full GitHub App is not configured but a
- * real read scoped GitHub I/O path is still needed for grounding, the activity
- * scan, and the monitored-repo picker (REEF-290).
+ * real read-scoped GitHub I/O path is still needed for grounding and the
+ * monitored-repo picker (REEF-290).
  *
  * Credential precedence is App → server PAT: the App is the production path,
  * and the server PAT is an interim/dev tier that is **disabled unless

@@ -76,12 +76,7 @@ test.describe("Hermetic workspace skill update workflow", () => {
           (doc) => doc.path,
         ),
       )
-      .toEqual(
-        expect.arrayContaining([
-          "overview/vault-skill.md",
-          "overview/reef/activity-inbox-workflows.md",
-        ]),
-      );
+      .toEqual(expect.arrayContaining(["overview/vault-skill.md"]));
 
     // REEF-257 AC2: once the workspace is up to date, the sidebar badge is gone.
     // Checked off the settings route (where the active state would hide it

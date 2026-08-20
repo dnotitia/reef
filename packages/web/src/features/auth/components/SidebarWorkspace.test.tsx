@@ -201,7 +201,7 @@ describe("SidebarWorkspace", () => {
   });
 
   it("navigates to the new workspace's board on switch, unmounting vault-scoped pages", async () => {
-    navState.pathname = "/activity";
+    navState.pathname = "/issues";
     await setActiveVault("reef-acme");
     setupVaults([
       { name: "reef-acme", has_reef_config: true },
@@ -222,7 +222,7 @@ describe("SidebarWorkspace", () => {
   });
 
   it("does not navigate when re-picking the already-active workspace", async () => {
-    navState.pathname = "/activity";
+    navState.pathname = "/issues";
     await setActiveVault("reef-acme");
     setupVaults([{ name: "reef-acme", has_reef_config: true }]);
     const user = userEvent.setup();

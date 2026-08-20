@@ -10,6 +10,6 @@
   `@reef/core/fields`; keep it pure TypeScript, with no React or Tailwind.
 - When adding or changing issue fields, audit the full field pipeline: core
   schemas and akb storage, Route Handler contracts, field display metadata and
-  web leaves, AI draft/enrichment schemas and prompts, activity-scan
+  web leaves, AI draft/enrichment schemas and prompts,
   suggestion/approval paths, chat/tool descriptors, fixtures/evals, and the
   workspace vault-skill when authoring conventions or SQL runbooks change.

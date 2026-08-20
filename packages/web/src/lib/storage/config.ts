@@ -111,92 +111,12 @@ export async function getActiveVault(): Promise<string> {
   return (await getConfigValue("vault")) ?? "";
 }
 
-/**
- * Matches a GitHub "owner/repo" full_name per GitHub's allowed character set:
- *   - owner: letters, digits, hyphens, underscores (no leading hyphen); max 39 chars.
- *     Underscores appear in Enterprise Managed Users (EMU) login names
- *     (`<shortcode>_<enterprise>`), so they should be allowed here.
- *   - repo: letters, digits, hyphens, underscores, dots; max 100 chars
- * We keep the regex intentionally tight enough to reject invalid inputs but
- * permissive enough to avoid rejecting valid edge cases (e.g. trailing dots
- * are rejected in practice, but we don't enforce that here — GitHub's API
- * will reject such inputs at the point of use).
- */
-const REPO_FULL_NAME_RE =
-  /^[A-Za-z0-9](?:[A-Za-z0-9_-]{0,38})\/[A-Za-z0-9._-]{1,100}$/;
-
-/**
- * Validates a single "owner/repo" string. Throws a TypeError when the input
- * is not a string or does not match the expected full_name format. An empty
- * string is intentionally rejected here — callers that need to clear a repo
- * should use the dedicated clear path (empty string is just valid for the
- * management repo and is handled explicitly in its setter).
- */
-function assertValidRepoFullName(repo: string, context: string): void {
-  if (typeof repo !== "string") {
-    throw new TypeError(`${context}: expected string, got ${typeof repo}`);
-  }
-  if (!REPO_FULL_NAME_RE.test(repo)) {
-    throw new TypeError(
-      `${context}: "${repo}" is not a valid "owner/repo" full_name`,
-    );
-  }
-}
-
-/**
- * Per-vault "which monitored repo am I scanning right now" pointer. The
- * Activity tab's auto-detection scan + manual refresh both operate on a
- * single GitHub repo, but a workspace can monitor several. We persist the
- * choice keyed by vault so switching workspaces doesn't drag the previous
- * vault's pick along.
- *
- * The Activity hook auto-falls back to `monitored_repos[0]` when no pointer
- * is saved, so first-run just works without the user touching the picker.
- */
-function activityRepoStorageKey(vault: string): string {
-  return `activity_repo:${vault}`;
-}
-
-/**
- * Returns the user's saved scan target for the given vault, or undefined when
- * no choice has been persisted yet. Empty string is a valid stored value
- * (older clears) and is returned as-is — callers treat it the same as
- * undefined.
- */
-export async function getActivityRepo(
-  vault: string,
-): Promise<string | undefined> {
-  if (!vault) return undefined;
-  return getConfigValue(activityRepoStorageKey(vault));
-}
-
-/**
- * Persists the chosen scan target for a vault. Pass an empty string to clear
- * the pointer (so the consumer falls back to `monitored_repos[0]`). Throws
- * TypeError on malformed `owner/name` input.
- */
-export async function setActivityRepo(
-  vault: string,
-  repo: string,
-): Promise<void> {
-  if (typeof vault !== "string" || !vault) {
-    throw new TypeError("setActivityRepo: vault is required");
-  }
-  if (typeof repo !== "string") {
-    throw new TypeError(`setActivityRepo: expected string, got ${typeof repo}`);
-  }
-  if (repo !== "") {
-    assertValidRepoFullName(repo, "setActivityRepo");
-  }
-  return setConfigValue(activityRepoStorageKey(vault), repo);
-}
-
 // ─── Per-vault issue filter persistence (REEF-009) ───────────────────────────
 //
 // The user's last-applied issue filter + sort, persisted per vault so a reload
 // or revisit restores their working scope. Stored as a versioned JSON envelope
-// under `filter:{vault}`, mirroring the `activity_repo:{vault}` per-vault key
-// pattern. Browser-local preference just — does not server-side (stateless BFF).
+// under `filter:{vault}`. Browser-local preference just — does not server-side
+// (stateless BFF).
 // `searchQuery` and view mode are intentionally NOT persisted (see the filter
 // store + the persisted schema in core).
 
@@ -281,24 +201,6 @@ export async function clearPersistedIssueFilter(vault: string): Promise<void> {
  */
 export async function clearAllIssueFilters(): Promise<void> {
   return clearConfigByPrefix("filter:");
-}
-
-/**
- * Deletes every persisted scan-target pointer (`activity_repo:*`) across all
- * vaults. Account-scoped (a different account sees different vaults), so the
- * sign-out / account-switch wipe should clear it or the next user inherits the
- * previous user's selected scan repo.
- */
-export async function clearAllActivityRepos(): Promise<void> {
-  return clearConfigByPrefix("activity_repo:");
-}
-
-/**
- * Clears the activity-inbox read marker (`last_visit_at`). Per-user state, so
- * leaving it after sign-out would skew the next user's unread count.
- */
-export async function clearLastVisitAt(): Promise<void> {
-  return clearConfigKey("last_visit_at");
 }
 
 /**

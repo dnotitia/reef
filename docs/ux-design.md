@@ -24,8 +24,8 @@ experience follows a strict state-owner split:
 - **Zustand** holds UI state only — sidebar collapse, the active issue view,
   filters, the open/closed state of the New Issue and Ask AI dialogs, user
   preferences. Components read it through granular selectors.
-- **TanStack Query** holds server state — issues, planning catalog, activity
-  inbox, linked documents, refs, activity timelines, and workspace config —
+- **TanStack Query** holds server state — issues, planning catalog, Notification
+  Inbox, linked documents, refs, activity timelines, and workspace config —
   fetched through Route Handlers via `apiFetch`. All loading and error
   affordances derive from its per-query `isPending` / `isError`; there is no
   global loading flag.
@@ -35,9 +35,8 @@ experience follows a strict state-owner split:
   per-browser fallback the root redirector uses to choose a workspace), theme
   preference, UI locale (mirrored to a
   non-httpOnly `NEXT_LOCALE` cookie so SSR can resolve it on the first request),
-  per-vault issue filters, the currently selected activity-scan repo, last
-  visit/scan markers, and the previously signed-in akb user id used for account
-  reconciliation.
+  per-vault issue filters, and the previously signed-in akb user id used for
+  account reconciliation.
 - **akb-backed workspace config** holds team-shared project state — the project
   prefix, monitored repositories, issue templates, and default authoring
   language. It is read and mutated through Route Handlers, not stored as a
@@ -54,9 +53,9 @@ language, never in Git terms.
 
 reef's premise is that project-management metadata should be a by-product of
 real work, not a separate clerical task. An AI agent reads the actual codebase
-and the existing issue set, then proposes structured issues and status
-movements that a human reviews. The human stays the author and the decider;
-the machine handles the tedium of structure and tracking.
+and the existing issue set when requested, then proposes structured issue edits
+that a human reviews. The human stays the author and the decider; the machine
+handles the tedium of structure.
 
 reef serves two personas on one data source:
 
@@ -66,14 +65,14 @@ project-management product, not a developer console. Never wants to fill a
 ten-field form, and needs to trust automated changes — which means always
 being able to see *why* something changed.
 
-**민수 — the developer (secondary).** Works in the codebase. reef observes
-monitored repositories read-only and turns that activity into proposed status
-changes and draft issues, so the developer's progress is reflected without the
-developer maintaining tickets by hand.
+**민수 — the developer (secondary).** Works in the codebase. reef reads
+monitored repositories read-only when an on-demand AI request needs grounding,
+so the developer can ask about implementation without exposing credentials.
 
 The design challenge is to give these two audiences a coherent shared surface:
 the PM gets a visual, conversational, transparent experience; the developer's
-work flows in through grounding and detection rather than data entry.
+work is available through explicit read-only grounding rather than background
+automation.
 
 ## The Defining Experience
 
@@ -103,27 +102,23 @@ advisory, opens matches in a new tab for
 inspection, can be dismissed as a contextual group for the current writing
 session, and never blocks creating or approving an issue.
 
-The same human-in-the-loop pattern governs the second AI surface:
-**Suggestions**, where the agent's autonomously detected proposals —
-new-issue drafts and status changes inferred from repo activity — wait for the
-PM's Approve / Edit / Dismiss. And a third surface, the **Ask AI** panel, lets
-the PM interrogate the codebase conversationally with the same read-only
-grounding agent.
+The same human-in-the-loop pattern governs the **Ask AI** panel, which lets the
+PM interrogate the codebase conversationally with the same read-only grounding
+agent. Issue enrichment and other artifact reviews remain on-demand and
+client-ephemeral until the PM applies them.
 
-Across all three, the design rule is identical and load-bearing: **show the
-why, not just the what.** A suggestion carries its reasoning and confidence; a
-detected status change carries its rationale and the count of commits/PRs that
-evidence it; an issue detail panel keeps the connected context visible through
+Across these surfaces, the design rule is identical and load-bearing: **show the
+why, not just the what.** A suggestion carries its reasoning and confidence; an
+issue detail panel keeps the connected context visible through
 linked documents, implementation refs, and the activity timeline. AI is
 positioned as a transparent collaborator, never a black box.
 
 ### Experience Principles
 
-1. **Creation is human, tracking is assisted.** People author and decide; the
-   agent proposes structure and detects progress. Human effort goes to
-   judgment.
-2. **Show the why, not just the what.** Every AI proposal and every detected
-   change carries its reasoning, confidence, or evidence. Unexplained change
+1. **Creation is human, assistance is explicit.** People author and decide; the
+   agent proposes structure only when asked. Human effort goes to judgment.
+2. **Show the why, not just the what.** Every AI proposal carries its
+   reasoning, confidence, or evidence. Unexplained change
    erodes trust.
 3. **Human-in-the-loop by default.** No AI proposal mutates user-visible state
    without an explicit Apply / Approve. The chat agent is read-only grounding
@@ -461,7 +456,7 @@ fluid main column:
 - **Sidebar** — collapsible between an expanded `w-60` and a `w-14` icon rail;
   narrow viewports use the icon rail so the main column remains usable. It holds
   the reef wordmark, a prominent New Issue button, the primary nav (Issues / My
-  Work / Inbox / Planning / Suggestions / Reports / Settings), a footer utility
+  Work / Inbox / Planning / Reports / Settings), a footer utility
   row for keyboard shortcuts, and the workspace/account identity block.
   App-version context lives in the account menu as a release-notes link.
 - **Main column** — a per-page header and the page body. The Issues page body
@@ -724,63 +719,12 @@ maximum query of 100 rows: the visible pill caps at `9+`, while assistive text
 announces `100 or more unread notifications` (or the equivalent localized
 wording) when the boundary is reached.
 
-The Inbox list is independent from the AI Suggestions queue. Each row shows
+The Inbox list is independent from the on-demand AI surfaces. Each row shows
 the event type, actor, related issue, occurred time, and read state. Opening a
 row marks an unread notification read before navigating to the issue Activity
 section when that issue is available. Mark unread and Archive are server
 state transitions; the browser does not persist notification data or a
 last-visit marker. Empty, loading, and fetch-failure states remain distinct.
-
-### Suggestions Review Queue
-
-`/workspace/{vault}/suggestions` is the PM's single review queue for proposals
-detected by the agent. A background scan of the configured monitored
-repositories (auto-triggered from the shell and manually refreshable here)
-feeds the existing akb suggestion storage. The sidebar badge is the total
-number of `pending` suggestions, independent of page visits or future
-notification unread state. It remains visible on the active route, uses a
-numbered pill in the expanded sidebar and an equivalently named dot in the
-collapsed rail, and decreases only when a review action changes queue state.
-
-`/workspace/{vault}/activity` remains a replace-style redirect to Suggestions
-and preserves single, repeated, and empty query values. The issue-detail
-**Activity** timeline is a separate immutable audit surface and keeps its name
-and behavior.
-
-The feed is a list of purple-tinted AI cards in two variants, each
-human-in-the-loop:
-
-- **AI Draft** — a proposed new issue. The card shows the title, a confidence
-  reading, and a compact metadata preview, with **Approve / Edit / Dismiss**.
-  Edit expands the full draft form (the same field controls as creation) so
-  the PM can adjust before approving; approving creates the real issue and
-  navigates to it.
-- **AI Status Change** — a proposed status movement for an existing issue. The
-  card shows the from→to transition, the agent's rationale, a confidence
-  reading, and the count of commits/PRs that evidence it, with **Approve /
-  Edit / Dismiss**. Edit lets the PM pick a different target status (Closed is
-  excluded — closing needs a reason and stays in the close dialog).
-
-When the PM returns after an absence with new items waiting, a brand-tinted
-**"New since your last review"** summary card can still orient them without
-changing the pending badge. Type filters (All / Draft issues / Status Changes)
-sit above the queue. Each purple card carries a text AI provenance badge, so
-the source is not conveyed by color alone or promoted into the page title.
-Dismissed and approved suggestions persist as akb suggestion state so they
-don't reappear for the workspace.
-
-Suggestions empty states distinguish the cause while keeping recovery controls
-in the surrounding composition. With no monitored repository and no pending
-items, the section frame explains that repository setup is needed; the existing
-Settings navigation remains outside the frame and the separate Check now
-control is disabled. With a monitored repository but no pending items, the
-framed state is passive: it says **"No suggestions to review"** and keeps the
-existing Check now control outside the frame. If pending items exist but the
-active type filter excludes all of them, the frame says **"No matching
-suggestions"** and one standard outline **Clear filters** control sits below
-the frame. Clearing the filter restores the pending cards from the same loaded
-queue. Existing pending cards remain visible even if a monitored repository is
-later removed, and the scanning-off state continues to hide Check now.
 
 ### Ask AI
 
@@ -883,22 +827,14 @@ safe area, while only the form body scrolls. Header context and the Cancel /
 Create issue footer remain visible and keyboard reachable throughout a long
 draft, including when the viewport height is reduced.
 
-### Journey 2 — Morning Suggestions Review
+### Journey 2 — Ask AI with monitored-repository grounding
 
-1. The PM returns and sees the **Suggestions** nav item carrying the total
-   pending count.
-2. They open `/workspace/{vault}/suggestions`. The queue title says
-   "Suggestions to review"; visiting does not change the pending count.
-3. They scan the purple cards. For each **AI Status Change**, the from→to
-   transition, rationale, and evidence count tell them why the agent thinks the
-   work moved; for each **AI Draft**, the title, preview, and confidence tell
-   them what the agent caught that they'd have missed.
-4. They **Approve** (the change lands on akb and the board/list refresh; or the
-   draft becomes a real issue), **Edit** (adjust target status, or open the
-   full draft form), or **Dismiss** (it's gone and won't return).
-
-Every item is a proposal with its evidence attached — nothing changed the board
-without the PM's review.
+1. The PM opens the Ask AI panel and asks a question about an issue or the
+   codebase.
+2. Reef reads the workspace and, when configured, the monitored repository
+   read-only for grounding.
+3. The panel streams the answer and shows its context; no background scan or
+   issue mutation runs.
 
 ## Component Strategy
 
@@ -918,9 +854,7 @@ that exist and define the experience:
   linked documents, the activity timeline, and the relations/refs editors.
 - **AI surfaces.** `EnrichmentReviewBar` (the purple strip with loading/empty/
   error/progress states), `FieldSuggestion` (the inline per-field review card),
-  `ConfidenceBadge`, `TextDiff` (word/line diffs), the Suggestions
-  `ActivityFeed`
-  / `ActivityItemCard` / `UnreviewedSummaryCard`, and the Ask AI
+  `ConfidenceBadge`, `TextDiff` (word/line diffs), and the Ask AI
   `AskAiFab` / `AskAiDialog` / `ChatSurface`.
 - **Shell.** `DashboardShell` (sidebar, nav, account/release context, global
   dialogs), page header/body, the global search palette, the keyboard-shortcuts
@@ -945,9 +879,7 @@ Three feedback sources are treated distinctly:
   inline edits in the detail panel are silent except for the header Saving…/
   Saved indicator; filters/sorts re-render silently.
 - **AI actions** — always purple. Enrichment shows a loading strip, then
-  per-field review cards; the Suggestions queue shows purple proposal cards
-  with text provenance;
-  confidence is always visible.
+  per-field review cards with visible provenance and confidence.
 - **System errors** — translated to PM vocabulary, shown inline with
   `role="alert"` or as a toast, never as Git or raw backend errors.
 
@@ -969,7 +901,7 @@ CTA placement belongs to the surrounding page composition, not to the shared
 | My Work: populated | None | Existing summary and queue only | Open work is available |
 | Planning: true empty | Primary create/continue | One existing filled `PageHeader` New button | The selected planning kind has no entries |
 | Reports: true empty | Primary create/continue | One filled `PageHeader` New issue button opens the shared issue creation flow; the section frame remains passive | Reports has no active issues |
-| Board / Suggestions: filtered no-match | Recovery | Existing outline control outside the section frame | Active filters produce no matches; Suggestions uses Clear filters |
+| Board: filtered no-match | Recovery | Existing outline control outside the section frame | Active filters produce no matches |
 | Inbox: normal empty | Passive | No CTA | There is no notification to review |
 | Workspace navigation | Navigation | Existing sidebar Issues link and Issues view switcher | All My Work states; navigation is not duplicated in an empty frame |
 
@@ -981,18 +913,16 @@ or Board navigation, and keyboard focus follows the remaining visual order.
 
 Loading uses TanStack Query's `isPending` with shadcn `<Skeleton>` placeholders
 shaped like the content they replace (column skeletons on the board, table rows
-for list/backlog, a structured skeleton in the detail panel, settings group
-skeletons, row skeletons in the Suggestions queue), plus a slow shimmer. The **AI
-enrichment loading state is purple-tinted** — the
-`EnrichmentReviewBar`'s "Analyzing fields…" strip uses the `--ai-subtle`
-surface with a spinning indicator, matching the purple of the suggestions it
-precedes — so AI work is visually distinct from neutral content loading.
+for list/backlog, a structured skeleton in the detail panel, and settings group
+skeletons), plus a slow shimmer. The **AI enrichment loading state is purple-tinted** — the
+  `EnrichmentReviewBar`'s "Analyzing fields…" strip uses the `--ai-subtle`
+  surface with a spinning indicator, so AI work is visually distinct from
+  neutral content loading.
 
 Empty states explain the state and offer a next step where one exists: an
-unconfigured workspace points to Settings; an empty Suggestions queue says
-there's nothing to review; an enrichment that returns nothing says "No
-additional suggestions." Passive states still provide their explanation, so a
-screen is never left blank.
+unconfigured workspace points to Settings; an enrichment that returns nothing
+says "No additional suggestions." Passive states still provide their
+explanation, so a screen is never left blank.
 
 The shared `EmptyState` uses two deliberate presentation variants. The
 `structure` variant is an unboxed, centered prompt for a page that cannot be
@@ -1022,7 +952,6 @@ reference pattern while preserving its column canvas and non-modal recovery.
 | Reports true empty / no-match | Named region; one PageHeader create action or outside-frame recovery | Header wrapping and focus remain inside the viewport |
 | Planning kind empty | Named region; one PageHeader create action and dialog focus return | Kind switching, keyboard activation, and narrow wrapping |
 | Board no-match | Named overlay, keyboard Clear filters, columns and internal canvas preserved | Page chrome and recovery stay in view; canvas may scroll horizontally |
-| Suggestions unconfigured / passive / filtered | Named region; Settings, Check now, and Clear filters remain outside the frame | Korean wrapping, focus order, and no document-level horizontal scroll |
 | Loading / error / populated | No empty region is rendered; existing loading, error, and content semantics remain | Existing width and recovery behavior remain unchanged |
 
 The proof uses real rendered Light/Dark colors for text, muted copy, borders,

@@ -29,8 +29,6 @@ export interface ConfigPatch {
   authoring_language?: AuthoringLanguage | null;
   stale_hide_completed_days?: number;
   stale_hide_canceled_days?: number;
-  /** Workspace AI-activity-scanning kill switch (REEF-313). */
-  ai_scanning_enabled?: boolean;
 }
 
 const STALE_TIME_MS = 60_000;
@@ -65,14 +63,14 @@ export function useProjectConfig(
 
   // Keep a restored ["config", vault] snapshot out of the first hydration
   // render. The server begins in pending state, while PersistQueryClientProvider
-  // can otherwise make settings and activity consumers render loaded state
+  // can otherwise make settings consumers render loaded state
   // immediately in the browser, changing both permission-gated controls and
   // non-editable empty states before React has matched the server HTML.
   return holdQueryUntilHydrated(result, hydrated);
 }
 
 /**
- * Imperative variant of `useProjectConfig` for async handlers (submit, scan).
+ * Imperative variant of `useProjectConfig` for async handlers (submit).
  * Shares the same `['config', vault]` cache so a fresh page mount's pending
  * query and a submit handler's `ensureProjectConfig` deduplicate to one fetch.
  */

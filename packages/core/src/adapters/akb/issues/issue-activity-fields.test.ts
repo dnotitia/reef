@@ -20,9 +20,7 @@ import {
   statusChangeEventKey,
 } from "../core/akb.testSupport";
 
-// REEF-063: the immutable ISSUE activity log (reef_activity), distinct from the
-// GitHub activity-scan inbox (reef_activity_suggestions) tested in
-// akb.activity.test.ts.
+// REEF-063: the immutable issue activity log (reef_activity).
 
 const ACTIVITY_ROW_COLUMNS = [
   "id",

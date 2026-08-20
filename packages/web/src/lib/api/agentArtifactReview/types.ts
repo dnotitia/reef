@@ -1,4 +1,4 @@
-import type { ActivitySuggestion, AgentArtifact, AkbAdapter } from "@reef/core";
+import type { AgentArtifact, AkbAdapter } from "@reef/core";
 
 export class AgentArtifactCommandError extends Error {
   readonly status: number;
@@ -33,24 +33,14 @@ export interface ApproveAgentArtifactParams extends AgentArtifactReviewContext {
 export interface EditAgentArtifactParams {
   artifact: AgentArtifact;
   patch: Record<string, unknown>;
-  context?: AgentArtifactReviewContext | null;
 }
 
 export interface DismissAgentArtifactParams {
   artifact: AgentArtifact;
-  context?: AgentArtifactReviewContext | null;
 }
 
 export interface AgentArtifactCommandResult {
   artifact: AgentArtifact;
   issueId?: string;
   commit_hash?: string;
-  suggestion?: ActivitySuggestion;
 }
-
-export type ActivitySuggestionLookup = {
-  id: string;
-  suggestion: ActivitySuggestion | null;
-  explicit: boolean;
-  expectedPersistence: boolean;
-};

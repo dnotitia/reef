@@ -1,6 +1,5 @@
 "use client";
 
-import { ActivityScanningSection } from "@/features/settings/components/ActivityScanningSection";
 import { AuthoringLanguageSection } from "@/features/settings/components/AuthoringLanguageSection";
 import { DangerZoneSection } from "@/features/settings/components/DangerZoneSection";
 import { ProjectSection } from "@/features/settings/components/ProjectSection";
@@ -57,14 +56,6 @@ export default function WorkspaceGeneralPage() {
           {t("general.monitoredRepositories")}
         </h3>
         <RepoPickerSection canEdit={canEditWorkspace} />
-      </section>
-
-      {/* Activity Scanning — AI scan kill switch over the monitored repos */}
-      <section className="flex flex-col gap-3">
-        <h3 className="font-display text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {t("general.activityScanning")}
-        </h3>
-        <ActivityScanningSection canEdit={canEditWorkspace} />
       </section>
 
       {/* Project — project_prefix for issue IDs */}

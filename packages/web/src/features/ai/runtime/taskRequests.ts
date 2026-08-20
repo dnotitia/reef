@@ -1,5 +1,4 @@
 import type {
-  ActivityScanAgentInput,
   AgentRunRequest,
   EnrichmentRequest,
   WorkspaceChatAgentInput,
@@ -13,10 +12,4 @@ export function chatWorkspaceRun(
 
 export function issueEnrichmentRun(input: EnrichmentRequest): AgentRunRequest {
   return { task_id: "issue.enrichment", input };
-}
-
-export function activityScanRun(
-  input: ActivityScanAgentInput,
-): AgentRunRequest {
-  return { task_id: "activity.scan", input };
 }

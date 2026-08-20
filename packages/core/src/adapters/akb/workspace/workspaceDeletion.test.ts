@@ -30,7 +30,6 @@ const ALL_REEF_TABLES = [
   "monitored_repos",
   "reef_issues",
   "reef_templates",
-  "reef_activity_suggestions",
   "reef_comments",
   "reef_attachments",
   "reef_activity",
@@ -94,14 +93,15 @@ describe("deleteVault", () => {
 
 describe("detachReef", () => {
   it("deletes only reef-owned documents/files and drops every table, settings last", async () => {
-    // 8 vault-skill docs + 2 issue docs + 1 activity-inbox collection
-    // + attachment URI query + 2 attachment files + 13 tables.
+    // 6 vault-skill docs + 2 issue docs + attachment URI query + 2 attachment
+    // files + 12 tables. Legacy activity-inbox documents and rows are left
+    // untouched because this obsolete surface has no active ownership path.
     const { calls } = setupFetch([
-      ...Array.from({ length: 11 }, () => ({ status: 204 })),
+      ...Array.from({ length: 8 }, () => ({ status: 204 })),
       { body: ATTACHMENT_QUERY },
       { status: 204 },
       { status: 204 },
-      ...Array.from({ length: 13 }, () => ({ status: 204 })),
+      ...Array.from({ length: 12 }, () => ({ status: 204 })),
     ]);
 
     await detachReef({
@@ -147,18 +147,10 @@ describe("detachReef", () => {
     expect(docDeletes).toContain(
       "/api/v1/documents/reef-sample/overview/vault-skill.md",
     );
-    // 8 vault-skill docs + 2 issue docs.
-    expect(docDeletes).toHaveLength(10);
-
-    // The reef-private `_reef/` namespace is swept by collection (recursive).
-    expect(collectionDeletes).toEqual([
-      "/api/v1/collections/reef-sample/_reef/activity-inbox",
-    ]);
-    for (const call of calls) {
-      if (pathname(call.url).startsWith("/api/v1/collections/")) {
-        expect(new URL(call.url).searchParams.get("recursive")).toBe("true");
-      }
-    }
+    // 6 vault-skill docs + 2 issue docs. No activity-inbox collection is
+    // deleted: previously stored legacy documents remain inertly available.
+    expect(docDeletes).toHaveLength(8);
+    expect(collectionDeletes).toEqual([]);
 
     expect(fileDeletes).toEqual([
       "/api/v1/files/reef-sample/file-1",
@@ -179,15 +171,15 @@ describe("detachReef", () => {
   });
 
   it("treats an already-gone resource (404) as success — retry-safe", async () => {
-    // 8 skill docs + 2 issue docs + 1 collection, attachment table already gone,
-    // then all tables already gone.
+    // 6 skill docs + 2 issue docs, attachment table already gone, then all
+    // active tables already gone.
     setupFetch([
-      ...Array.from({ length: 11 }, () => ({
+      ...Array.from({ length: 8 }, () => ({
         status: 404,
         body: { detail: "gone" },
       })),
       { body: { error: 'relation "reef_attachments" does not exist' } },
-      ...Array.from({ length: 13 }, () => ({
+      ...Array.from({ length: 12 }, () => ({
         status: 404,
         body: { detail: "gone" },
       })),
@@ -203,9 +195,9 @@ describe("detachReef", () => {
   });
 
   it("propagates a non-404 failure (e.g. 403 on a table drop)", async () => {
-    // documents + collection + attachment query succeed; a table drop is forbidden.
+    // documents + attachment query succeed; a table drop is forbidden.
     setupFetch([
-      ...Array.from({ length: 11 }, () => ({ status: 204 })),
+      ...Array.from({ length: 8 }, () => ({ status: 204 })),
       { body: EMPTY_ATTACHMENT_QUERY },
       { status: 403, body: { detail: "Requires 'admin' role" } },
       ...Array.from({ length: 11 }, () => ({ status: 204 })),

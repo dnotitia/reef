@@ -11,7 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useActivityRepo } from "@/features/activity/hooks/useActivityRepo";
 import { EnrichmentReviewBar } from "@/features/ai/components/EnrichmentReviewBar";
 import { useCreateIssue } from "@/features/issues/hooks/mutations/useCreateIssue";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
@@ -33,6 +32,7 @@ import { withVault } from "@/lib/workspaceHref";
 import { DEFAULT_CONFIG } from "@reef/core";
 import type {
   DocumentSearchHit,
+  EnrichmentRepoContext,
   IssueListItem,
   IssueType,
   ReferenceSuggestion,
@@ -181,8 +181,15 @@ export function NewIssueDialog({
   // Whole-vault relation graph for accurate blocked badges in the relation dropdowns.
   const { data: relations } = useIssueRelations(vault ?? "");
   // Optional GitHub grounding for enrichment code tools. Labels come from AKB
-  // vault context instead; the monitored repo just enables code search/read.
-  const { repo: scanRepo } = useActivityRepo(vault ?? "");
+  // vault context; the first deployment-managed monitored repository enables
+  // read-only code search.
+  const repoContext: EnrichmentRepoContext | undefined = configQuery.data
+    ?.config.monitored_repos[0]
+    ? {
+        owner: configQuery.data.config.monitored_repos[0].owner,
+        repo: configQuery.data.config.monitored_repos[0].name,
+      }
+    : undefined;
 
   const {
     enrichment,
@@ -198,7 +205,7 @@ export function NewIssueDialog({
   } = useNewIssueEnrichment({
     vault,
     prefix,
-    scanRepo,
+    repoContext,
     title,
     body,
     estimatePoints,

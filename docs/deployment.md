@@ -253,7 +253,7 @@ the `reef-web-config` ConfigMap plus the optional `reef-web-secret` Secret).
 | `REEF_LLM_MODEL` | for enabled AI | Deployment-selected model id passed to the configured endpoint. |
 | `OPENROUTER_API_KEY` | compatibility alias | Alias for `REEF_LLM_API_KEY`; prefer the provider-neutral name in new deployments. If both are set, their values must match. |
 | `OPENROUTER_BASE_URL` | compatibility alias | Alias for `REEF_LLM_BASE_URL`; prefer the provider-neutral name in new deployments. If both are set, their normalized values must match. |
-| `REEF_GITHUB_APP_ID` | yes for GitHub features | GitHub App id used to mint server-side installation tokens for monitored-repo listing, grounding, and activity scans. |
+| `REEF_GITHUB_APP_ID` | yes for GitHub features | GitHub App id used to mint server-side installation tokens for monitored-repo listing and read-only grounding. |
 | `REEF_GITHUB_APP_INSTALLATION_ID` | yes for GitHub features | Installation id for the repository/org installation reef should read from. |
 | `REEF_GITHUB_APP_PRIVATE_KEY` | yes for GitHub features | PEM private key for the GitHub App. Keep it in a Secret; literal `\\n` escapes are accepted and normalized at runtime. |
 | `REEF_GITHUB_PAT` | no | Optional server-managed read-only PAT fallback for local development and CI when no GitHub App is configured. Keep it in a Secret; it is not a browser token and must not be used as the production primary credential. |
@@ -265,7 +265,7 @@ Optional tracing/observability:
 | --- | --- |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP HTTP base endpoint for trace export (the instrumentation appends `/v1/traces`). No-op when unset / nothing is listening. |
 | `OTEL_EXPORTER_OTLP_HEADERS` | Comma-separated `key=value` headers for authenticating to the trace backend. Read once at startup; never logged. |
-| `REEF_RESPONSE_LOG` | Set to `1` to emit the per-request `response` access line (status + duration) and the backend `core` observability lines (scan checkpoints, LLM token usage) on stdout in **any** environment. On by default only in development. See the access-line policy below. |
+| `REEF_RESPONSE_LOG` | Set to `1` to emit the per-request `response` access line (status + duration) and the backend `core` observability lines (LLM token usage) on stdout in **any** environment. On by default only in development. See the access-line policy below. |
 | `REEF_SLOW_REQUEST_MS` | Threshold in milliseconds at/above which a `response` line is logged at WARN instead of INFO, so a slow request stands out. Defaults to `1000`; a non-positive or non-numeric value falls back to the default. |
 | `LOG_LEVEL` | pino level for backend stdout logs (`debug`/`info`/`warn`/`error`). Defaults to `debug` in development and `info` otherwise. |
 | `NEXT_PUBLIC_AKB_WEB_URL` | Public URL of the akb web app, used to open a linked akb document in a new tab from an issue. Optional; when unset that action is hidden. |
@@ -299,8 +299,8 @@ deliberately not emitted as the OTel `enduser.id` attribute (which denotes a
 verified end user).
 
 This leaves one gap: a deployment that runs **without a trace backend** would see
-no response status/duration anywhere, and the richer backend signals (activity-
-scan checkpoints, LLM token usage, upstream latency) — which are emitted as span
+no response status/duration anywhere, and the richer backend signals (agent
+lifecycle checkpoints, LLM token usage, upstream latency) — which are emitted as span
 attributes for the trace backend — would be invisible. For that case, set
 `REEF_RESPONSE_LOG=1`. It turns on the stdout `response` access line **and** wires
 the backend `core` observability lines, so the same data that would otherwise only

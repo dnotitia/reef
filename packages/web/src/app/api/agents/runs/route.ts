@@ -5,7 +5,6 @@ import { getAkbAdapter, getAkbCurrentActor } from "@/lib/api/requestHelpers";
 import { logger } from "@/lib/logging/logger";
 import type { GitHubAdapter } from "@/server/adapters/githubAdapter";
 import { resolveGroundingGitHubAdapter } from "@/server/adapters/githubCredentials/resolveGroundingGitHubAdapter";
-import { resolveScanGitHubAdapter } from "@/server/adapters/githubCredentials/resolveScanGitHubAdapter";
 import {
   ServerLlmConfigError,
   createServerLlmAdapter,
@@ -14,20 +13,17 @@ import {
 import {
   createWorkspaceChatAgentResponse,
   enrichIssue,
-  scanAndPersistActivitySuggestions,
 } from "@/server/application/agents";
 import {
   AgentRunRequestSchema,
   AuthError,
   akbReadAuthoringLanguage,
-  describeError,
 } from "@reef/core";
 import type { UIMessage } from "ai";
 import { z } from "zod";
 import {
   createAgentEventStream,
   createChatRunEventBridge,
-  createTopLevelRunEmitter,
   drainUiMessageStream,
 } from "./stream";
 
@@ -67,8 +63,8 @@ async function agentAccountError(response: Response): Promise<Response> {
  *
  * Accepts `{ task_id, input }`, validates task-specific input through
  * `AgentRunRequestSchema`, invokes the matching core task, and streams typed
- * `AgentRunEvent` SSE frames. Existing feature routes remain as compat
- * wrappers; this route is the common contract for framework-driven runs.
+ * `AgentRunEvent` SSE frames. This route is the common contract for
+ * framework-driven runs.
  */
 export async function POST(request: Request): Promise<Response> {
   let rawBody: unknown;
@@ -234,96 +230,9 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  const { owner, repo, vault, since, projectPrefix } = runRequest.input;
-  // Same credential selection as POST /api/activity/scan: deployment-managed
-  // GitHub App just (REEF-244). Resolved before the stream opens, so a
-  // credential failure surfaces as a structured agent error rather than
-  // mid-stream.
-  const github = await resolveScanGitHubAdapter(request);
-  if (github.kind === "session_invalid") {
-    return agentAccountError(github.response);
-  }
-  if (github.kind === "github_app_unconfigured") {
-    return localizedAgentError(
-      "githubAppUnconfigured",
-      503,
-      "github_unavailable",
-    );
-  }
-  if (github.kind === "github_error") {
-    logger.error(
-      { err: github.error, owner, repo, vault },
-      "activity_scan_agent_run github credential failed",
-    );
-    // Keep the structured agent-error contract the rest of this route uses,
-    // mapping the GitHub mint failure through the same status ladder as the
-    // manual scan route (describeError) so a revoked/rate-limited App is
-    // reported with the right status and recoverable flag.
-    return localizedAgentError(
-      "agent.githubCredentialUnavailable",
-      describeError(github.error).status,
-      "github_unavailable",
-    );
-  }
-  const githubAdapter = github.adapter;
-  return createAgentEventStream(
-    "activity.scan",
-    request.signal,
-    async (writeEvent, signal) => {
-      const activityRun = createTopLevelRunEmitter("activity.scan", writeEvent);
-      activityRun.started({
-        owner,
-        repo,
-        vault,
-        since,
-        projectPrefix,
-      });
-
-      try {
-        if (signal.aborted) {
-          activityRun.cancelled("aborted");
-          return;
-        }
-        const result = await scanAndPersistActivitySuggestions({
-          adapter: githubAdapter,
-          akbAdapter: akb.adapter,
-          vault,
-          llmAdapter,
-          owner,
-          repo,
-          ...(since ? { since } : {}),
-          projectPrefix,
-          onEvent: (event) => {
-            if (!signal.aborted) activityRun.childEvent(event);
-          },
-          isAborted: () => signal.aborted,
-        });
-        if (result.status === "aborted") {
-          activityRun.cancelled("aborted");
-          return;
-        }
-        const artifactCount =
-          result.drafts.length + result.statusChanges.length;
-        if (artifactCount > 0) {
-          activityRun.completed({
-            draft_count: result.drafts.length,
-            status_change_count: result.statusChanges.length,
-            persisted_suggestion_count: result.persistedSuggestions.length,
-          });
-        } else {
-          activityRun.empty("No activity suggestions were produced.");
-        }
-      } catch (err) {
-        if (signal.aborted) {
-          activityRun.cancelled("aborted");
-          return;
-        }
-        activityRun.error(err);
-        logger.error(
-          { err, owner, repo, vault },
-          "activity_scan_agent_run_failed",
-        );
-      }
-    },
+  return localizedAgentError(
+    "agent.runRequestInvalid",
+    400,
+    "unsupported_agent_task",
   );
 }

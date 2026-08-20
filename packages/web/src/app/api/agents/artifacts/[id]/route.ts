@@ -1,7 +1,4 @@
-import {
-  editAgentArtifact,
-  isActivitySuggestionBackedArtifact,
-} from "@/lib/api/agentArtifactReview";
+import { editAgentArtifact } from "@/lib/api/agentArtifactReview";
 import { localizedAgentError } from "@/lib/api/errorLocalization";
 import { logger } from "@/lib/logging/logger";
 import { AgentArtifactEditRequestSchema } from "@reef/core";
@@ -9,7 +6,6 @@ import { z } from "zod";
 import {
   agentArtifactCommandErrorResponse,
   artifactIdMismatchResponse,
-  getAgentArtifactReviewContext,
   readJsonBody,
   reefAgentErrorResponse,
   validateAgentArtifactId,
@@ -45,33 +41,10 @@ export async function PATCH(
       bodyArtifactId: parsed.data.artifact.artifact_id,
     });
   }
-  if (
-    !parsed.data.vault &&
-    isActivitySuggestionBackedArtifact(parsed.data.artifact)
-  ) {
-    return localizedAgentError(
-      "agent.artifactEditMissingVault",
-      400,
-      "missing_vault",
-      { artifact_id: id },
-    );
-  }
-
-  let context = null;
-  if (parsed.data.vault) {
-    const contextResult = await getAgentArtifactReviewContext(
-      request,
-      parsed.data.vault,
-    );
-    if ("response" in contextResult) return contextResult.response;
-    context = contextResult.context;
-  }
-
   try {
     const result = await editAgentArtifact({
       artifact: parsed.data.artifact,
       patch: parsed.data.patch,
-      context,
     });
     return Response.json(result, { status: 200 });
   } catch (err) {
@@ -81,8 +54,8 @@ export async function PATCH(
       { err, artifact_id: id, vault: parsed.data.vault },
       "edit_agent_artifact failed",
     );
-    // akb-origin errors (context ops) get their canonical status via core,
-    // wrapped back into the agent error envelope the artifact client reads.
+    // Core errors retain their canonical status inside the agent error
+    // envelope consumed by the artifact client.
     const reefError = await reefAgentErrorResponse(
       err,
       "edit_agent_artifact_failed",

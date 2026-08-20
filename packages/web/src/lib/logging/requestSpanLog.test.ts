@@ -198,7 +198,7 @@ describe("RequestLogSpanProcessor", () => {
     // 2s ≥ the 1000ms default threshold → level 40 (warn), not 30 (info).
     await new RequestLogSpanProcessor().logResponse(
       fakeSpan({
-        route: "/api/activity/scan",
+        route: "/api/agents/runs",
         method: "POST",
         status: 200,
         duration: [2, 0],

@@ -15,7 +15,6 @@ export type FixtureScenario =
   | "backlog_bulk_partial_failure"
   | "demo_board"
   | "raw_only"
-  | "activity_suggestions"
   | "notifications"
   | "skill_outdated"
   | "comment_mentions"
@@ -69,16 +68,6 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
     milestones: Array<{ id: string; name: string; status: string }>;
     releases: Array<{ id: string; name: string; status: string }>;
     templates: Array<{ name: string; label: string }>;
-    activity_suggestions: Array<{
-      id: string;
-      kind: string;
-      status: string;
-      title: string | null;
-      issue_id: string | null;
-      reviewed_at: string | null;
-      approved_issue_id?: string;
-      proposal?: unknown;
-    }>;
     activity: Array<{
       reef_id: string;
       event_type: string;

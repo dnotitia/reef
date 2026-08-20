@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import type { IssueCreateInput } from "../schemas/issues/metadata";
 import {
   ACTIVE_STATUSES,
   DEFAULT_STALE_HIDE_CANCELED_DAYS,
@@ -7,11 +6,9 @@ import {
   STALE_CANCELED_WINDOW_MS,
   STALE_COMPLETED_WINDOW_MS,
   canTransition,
-  inferStatusFromCodeSignal,
   isForwardStatus,
   isResolvedStatus,
   isStaleResolved,
-  withRecoveredDraftStatus,
 } from "./status";
 
 describe("canTransition", () => {
@@ -96,18 +93,6 @@ describe("canTransition", () => {
   });
 });
 
-describe("inferStatusFromCodeSignal", () => {
-  it("branch_created → in_progress", () => {
-    expect(inferStatusFromCodeSignal("branch_created")).toBe("in_progress");
-  });
-  it("pr_created → in_review", () => {
-    expect(inferStatusFromCodeSignal("pr_created")).toBe("in_review");
-  });
-  it("pr_merged → done", () => {
-    expect(inferStatusFromCodeSignal("pr_merged")).toBe("done");
-  });
-});
-
 describe("isForwardStatus", () => {
   it("allows single-step forward moves", () => {
     expect(isForwardStatus("todo", "in_progress")).toBe(true);
@@ -175,34 +160,6 @@ describe("ACTIVE_STATUSES (REEF-109)", () => {
     expect(ACTIVE_STATUSES).not.toContain("backlog");
     expect(ACTIVE_STATUSES).not.toContain("done");
     expect(ACTIVE_STATUSES).not.toContain("closed");
-  });
-});
-
-describe("withRecoveredDraftStatus (REEF-130)", () => {
-  const draftCreate = (
-    status?: "backlog" | "todo" | "done",
-  ): IssueCreateInput => ({
-    fields: { title: "Draft", ...(status ? { status } : {}) },
-    content: "",
-  });
-
-  it("recovers in_progress from a commit provenance when status is absent", () => {
-    expect(
-      withRecoveredDraftStatus(draftCreate(), "commit").fields.status,
-    ).toBe("in_progress");
-  });
-
-  it("recovers in_review from a pr provenance when status is absent", () => {
-    expect(withRecoveredDraftStatus(draftCreate(), "pr").fields.status).toBe(
-      "in_review",
-    );
-  });
-
-  it("leaves an explicit status untouched and returns the same payload", () => {
-    const input = draftCreate("done");
-    const out = withRecoveredDraftStatus(input, "pr");
-    expect(out.fields.status).toBe("done");
-    expect(out).toBe(input);
   });
 });
 

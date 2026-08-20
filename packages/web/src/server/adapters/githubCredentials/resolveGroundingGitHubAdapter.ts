@@ -9,21 +9,21 @@ import {
  * monitored-repo `search_code` / `dev_read_file` tools wired into Ask AI
  * (`/api/agents/runs`), enrich (`/api/enrich`), and other agent runs.
  *
- * Credential selection is shared with the scan and repo-list callers through
+ * Credential selection is shared with repo-list callers through
  * `resolveGitHubAdapter` (REEF-290 AC2): server-managed GitHub App, then the
  * dev/CI server PAT fallback. Both are deployment credentials, so both are
  * validated against akb (`/auth/me`) before use. Browser PAT collection,
  * IndexedDB storage, and request `Authorization` forwarding were removed in
  * REEF-244.
  *
- * Unlike the scan resolver, grounding is an *enhancement*: it should avoid blocking
- * the AI request. So every way it can fail to obtain a GitHub adapter — no
+ * Grounding is an *enhancement*: it should avoid blocking the AI request. So
+ * every way it can fail to obtain a GitHub adapter — no
  * credential at all, an unverified session on a deployment credential, or a
  * mint failure (revoked / rate-limited App, missing permission) — collapses to
  * a single `degraded` outcome, and the caller continues AKB scoped. This is what
  * keeps REEF-089's AKB scoped fallback intact (REEF-243 AC1 / AC3) and is why a
- * bad session degrades here rather than returning a 401 the way the scan
- * resolver does: a forged session should not use the deployment credential, but
+ * bad session degrades here rather than returning a 401: a forged session
+ * should not use the deployment credential, but
  * it also should not newly break a chat request that previously answered
  * AKB scoped.
  *

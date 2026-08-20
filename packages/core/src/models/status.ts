@@ -1,8 +1,4 @@
-import type {
-  ClosedReason,
-  IssueCreateInput,
-  Status,
-} from "../schemas/issues/metadata";
+import type { ClosedReason, Status } from "../schemas/issues/metadata";
 import {
   DEFAULT_STALE_HIDE_CANCELED_DAYS,
   DEFAULT_STALE_HIDE_COMPLETED_DAYS,
@@ -12,8 +8,6 @@ export {
   DEFAULT_STALE_HIDE_CANCELED_DAYS,
   DEFAULT_STALE_HIDE_COMPLETED_DAYS,
 } from "../schemas/workspace/config";
-
-export type CodeSignal = "branch_created" | "pr_created" | "pr_merged";
 
 /**
  * Template-literal type tying the Set element type to the `Status` union.
@@ -57,7 +51,7 @@ export function canTransition(from: Status, to: Status): boolean {
 /**
  * Linear lifecycle ordering for "forward progress" checks. `closed` is final
  * and ranks highest; it is reachable just via the explicit close flow (which
- * records a reason), does not via AI status-change suggestions.
+ * records a reason).
  */
 const STATUS_RANK: Record<Status, number> = {
   backlog: 0,
@@ -91,8 +85,7 @@ export const ACTIVE_STATUSES: readonly Status[] = [
  * The lifecycle stage a newly created issue lands in by default (REEF-130). New
  * issues arrive in the pre-commitment `backlog` queue — excluded from the
  * default landing view (see `ACTIVE_STATUSES`) — until they are deliberately
- * pulled forward into `todo`. The human create path inherits this default; the
- * AI activity-scan draft path overrides it with a code-signal-inferred status.
+ * pulled forward into `todo`.
  */
 export const DEFAULT_NEW_ISSUE_STATUS: Status = "backlog";
 
@@ -174,67 +167,12 @@ export function isStaleResolved(params: {
  * rank). Unlike `canTransition`, this permits multi-step forward jumps
  * (e.g. `in_progress -> done` when a PR is merged).
  *
- * Used by AI status-change suggestions, which apply the target status directly
- * rather than stepping the board one column at a time — so a merged-PR signal
- * should advance an in-progress issue straight to `done` instead of being
- * dropped. reverse moves and self-transitions return false.
+ * Used by status-change proposals, which apply the target status directly
+ * rather than stepping the board one column at a time. Reverse moves and
+ * self-transitions return false.
  *
  * Pure function — no side effects, no I/O.
  */
 export function isForwardStatus(from: Status, to: Status): boolean {
   return STATUS_RANK[to] > STATUS_RANK[from];
-}
-
-/**
- * Maps a code signal (from CLI or GitHub webhook) to the implied target status.
- * Used by the sync engine to determine which status to apply.
- *
- * Exhaustive over `CodeSignal` — the `default` branch assigns to `does not`, so
- * adding a new variant to `CodeSignal` without handling it here becomes a
- * compile-time error.
- *
- * Pure function — no side effects, no I/O.
- */
-export function inferStatusFromCodeSignal(
-  signal: CodeSignal,
-): "in_progress" | "in_review" | "done" {
-  switch (signal) {
-    case "branch_created":
-      return "in_progress";
-    case "pr_created":
-      return "in_review";
-    case "pr_merged":
-      return "done";
-    default: {
-      const _exhaustive: never = signal;
-      return _exhaustive;
-    }
-  }
-}
-
-/**
- * Recover a code-signal lifecycle status onto a draft create payload that has
- * none. Activity-scan drafts captured before REEF-130 — and any edit path that
- * rebuilds `fields` without carrying `status` forward — lack a status, so
- * approving them would inherit the human default (`backlog`) and drop
- * already-in-flight work out of the active view. Provenance carries no merge
- * state, so a PR maps to `in_review` (not `done`); a create that already has a
- * status is returned unchanged. Shared by both activity-draft approval paths.
- *
- * Pure function — no side effects, no I/O.
- */
-export function withRecoveredDraftStatus(
-  create: IssueCreateInput,
-  provenanceType: "commit" | "pr",
-): IssueCreateInput {
-  if (create.fields.status) return create;
-  return {
-    ...create,
-    fields: {
-      ...create.fields,
-      status: inferStatusFromCodeSignal(
-        provenanceType === "pr" ? "pr_created" : "branch_created",
-      ),
-    },
-  };
 }

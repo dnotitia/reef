@@ -15,15 +15,7 @@ export {
   isForwardStatus,
   isResolvedStatus,
   isStaleResolved,
-  inferStatusFromCodeSignal,
-  withRecoveredDraftStatus,
   ACTIVE_STATUSES,
 } from "./status";
-export type { CodeSignal } from "./status";
 export { buildIssueUpdateMetadataPatch } from "./issueUpdate";
 export { filterValidCommentThreadMembers } from "./commentThreads";
-export {
-  activitySuggestionId,
-  draftToActivitySuggestion,
-  statusChangeToActivitySuggestion,
-} from "./activitySuggestion";

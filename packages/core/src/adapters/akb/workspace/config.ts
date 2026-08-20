@@ -16,7 +16,6 @@ import {
 import {
   type AkbSqlResponse,
   MONITORED_REPOS_TABLE,
-  REEF_SETTINGS_AI_SCANNING_ENABLED_KEY,
   REEF_SETTINGS_AUTHORING_LANGUAGE_KEY,
   REEF_SETTINGS_PROJECT_PREFIX_KEY,
   REEF_SETTINGS_STALE_HIDE_CANCELED_DAYS_KEY,
@@ -103,16 +102,6 @@ function parseStaleHideDays(
   return parsed.success ? parsed.data : fallback;
 }
 
-/**
- * Read the AI-scanning kill switch (REEF-313). An unset key — or any value that
- * is not the JSON boolean `true` — reads as `false`, so a missing row and a
- * stale/corrupt value both leave scanning off (the safe default for a switch
- * that gates writes into the shared activity inbox).
- */
-function parseAiScanningEnabled(settings: Map<string, unknown>): boolean {
-  return settings.get(REEF_SETTINGS_AI_SCANNING_ENABLED_KEY) === true;
-}
-
 function parseMonitoredRepoRow(raw: Record<string, unknown>): MonitoredRepo {
   const result = MonitoredRepoSchema.safeParse({
     github_id:
@@ -155,9 +144,6 @@ export async function readConfig(
             "settings key",
           )}, ${quoteText(
             REEF_SETTINGS_STALE_HIDE_CANCELED_DAYS_KEY,
-            "settings key",
-          )}, ${quoteText(
-            REEF_SETTINGS_AI_SCANNING_ENABLED_KEY,
             "settings key",
           )})`,
         ),
@@ -206,7 +192,6 @@ export async function readConfig(
         REEF_SETTINGS_STALE_HIDE_CANCELED_DAYS_KEY,
         DEFAULT_STALE_HIDE_CANCELED_DAYS,
       ),
-      ai_scanning_enabled: parseAiScanningEnabled(settings),
     });
     return { config, exists: true };
   });
@@ -321,28 +306,7 @@ export async function writeConfig(params: WriteConfigParams): Promise<void> {
       )}, ${quoteJson(config.stale_hide_canceled_days)})`,
     );
 
-    // (4) Replace the ai_scanning_enabled row (REEF-313). Unlike
-    // authoring_language, this boolean setting is represented by an explicit
-    // DELETE + INSERT row update instead of using row absence for one state.
-    span.setAttribute("ai_scanning_enabled", config.ai_scanning_enabled);
-    await runSql(
-      adapter,
-      vault,
-      `DELETE FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key = ${quoteText(
-        REEF_SETTINGS_AI_SCANNING_ENABLED_KEY,
-        "settings key",
-      )}`,
-    );
-    await runSql(
-      adapter,
-      vault,
-      `INSERT INTO ${tableRef(REEF_SETTINGS_TABLE)} (key, value) VALUES (${quoteText(
-        REEF_SETTINGS_AI_SCANNING_ENABLED_KEY,
-        "settings key",
-      )}, ${quoteJson(config.ai_scanning_enabled)})`,
-    );
-
-    // (5) Replace all monitored_repos rows.
+    // (4) Replace all monitored_repos rows.
     await runSql(
       adapter,
       vault,

@@ -11,7 +11,7 @@ GitHub, LLM, and agent application code.
 ## Responsibilities
 
 - Define the Zod schemas for data that crosses package and API boundaries.
-- Model issue IDs, status transitions, activity suggestions, and update
+- Model issue IDs, status transitions, and update
   metadata.
 - Read and write reef workspace data through the AKB adapter.
 - Publish provider-neutral AI request, event, artifact, prompt, and tool schemas.
@@ -22,9 +22,9 @@ GitHub, LLM, and agent application code.
 
 | Path | Purpose |
 | --- | --- |
-| `src/schemas/` | Boundary schemas for issues, planning, workspace config, activity suggestions, and AI requests/results. `IssueMetadataSchema` is canonical for issue metadata. |
-| `src/models/` | Pure domain logic: issue IDs, status transitions, code-signal inference, issue-update metadata, and activity suggestion fingerprints. |
-| `src/adapters/akb/` | Managed-workspace reads and writes for issues, templates, planning, config, activity inbox, provenance, vault provisioning, and Reef vault skill installation. |
+| `src/schemas/` | Boundary schemas for issues, planning, workspace config, and AI requests/results. `IssueMetadataSchema` is canonical for issue metadata. |
+| `src/models/` | Pure domain logic: issue IDs, status transitions, issue-update metadata, and provenance. |
+| `src/adapters/akb/` | Managed-workspace reads and writes for issues, templates, planning, config, provenance, vault provisioning, and Reef vault skill installation. |
 | `src/schemas/ai/` | Provider-neutral agent-run, artifact, prompt, enrichment, grounding, and tool schemas. |
 | `src/errors/` | `ReefError` subclasses and error translation helpers. |
 | `src/utils/` | Small parsing and error-detail helpers. |

@@ -11,8 +11,7 @@ const DAY = 24 * HOUR;
  * Minute-resolution: `now` / `5m ago` / `3h ago` / `2d ago` (and their locale
  * equivalents `지금` / `5분 전` / `3시간 전` / `그저께`), falling back to a
  * localized calendar date past a week. This is the compact granularity the
- * comment header, the issue activity timeline, and the GitHub-scan activity
- * feed all share — it is intentionally distinct from the day-resolution
+ * comment header and issue activity timeline share — it is intentionally distinct from the day-resolution
  * `features/issues/lib/formatRelativeTime.ts` used by issue list/detail rows,
  * which collapses anything under a day to the locale's "today".
  */

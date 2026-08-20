@@ -2,14 +2,11 @@ import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { clearAuthScopedClientCache } from "@/lib/storage/clientCache";
 import {
   clearAkbUserId,
-  clearAllActivityRepos,
   clearAllIssueFilters,
-  clearLastVisitAt,
   getAkbUserId,
   setActiveVault,
   setAkbUserId,
 } from "@/lib/storage/config";
-import { clearAllLastScans } from "@/lib/storage/lastScan";
 import { clearAllNamedIssueFilters } from "@/lib/storage/namedIssueFilter";
 
 /**
@@ -34,17 +31,14 @@ export async function wipeAkbScopedBrowserState(): Promise<void> {
   useIssueStore.getState().resetFilterScope();
   // Clear EVERY akb-account-scoped key in the Dexie `config` store. The
   // canonical inventory lives in db.ts (config store doc): active `vault`,
-  // `activity_repo:*`, `filter:*`, `last_visit_at`, `last_scan_at:*`, and
-  // `akb_user_id`. just `theme` is device-scoped and intentionally preserved.
+  // `filter:*`, and `akb_user_id`. just `theme` is device-scoped and
+  // intentionally preserved.
   // When a new account-scoped config key is added, clear it here too (REEF-068).
   await Promise.all([
     setActiveVault(""),
     clearAllIssueFilters(),
     clearAllNamedIssueFilters(),
     clearAkbUserId(),
-    clearAllActivityRepos(),
-    clearLastVisitAt(),
-    clearAllLastScans(),
   ]);
 }
 

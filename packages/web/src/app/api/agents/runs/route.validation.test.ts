@@ -2,21 +2,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   POST,
-  activityRunBody,
   chatRunBody,
-  childArtifactFinal,
   cleanupAgentRunsRouteMocks,
   enrichmentRunBody,
   makeRequest,
   mockCreateWorkspaceChatAgentResponse,
   mockEnrichIssue,
   mockGetAkbAdapter,
-  mockScanAndPersistActivitySuggestions,
   parseSseEvents,
   resetAgentRunsRouteMocks,
-  runCompleted,
-  runError,
-  runStarted,
 } from "./route.testSupport";
 
 describe("POST /api/agents/runs validation", () => {
@@ -37,18 +31,6 @@ describe("POST /api/agents/runs validation", () => {
       error: "Agent run request is missing or invalid.",
       runtime_error: { code: "invalid_agent_run_request" },
     });
-  });
-
-  it("rejects malformed activity scan vault ids before AKB calls", async () => {
-    const res = await POST(
-      makeRequest({
-        ...activityRunBody,
-        input: { ...activityRunBody.input, vault: "../reef-test" },
-      }),
-    );
-
-    expect(res.status).toBe(400);
-    expect(mockScanAndPersistActivitySuggestions).not.toHaveBeenCalled();
   });
 
   it("rejects malformed issue enrichment vault ids before enrichment calls", async () => {

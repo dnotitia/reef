@@ -334,7 +334,7 @@ function lineFor(
           </span>
         );
       const title = () => (ref.title ? <span> — {ref.title}</span> : null);
-      // Lead with the actor when the ref carries provenance (activity-scan refs
+      // Lead with the actor when the ref carries provenance (automation refs
       // record the PR/commit author), matching the other system rows (AC2). A
       // hand-recorded ref may have no actor — the system arm drops the lead.
       return t.rich("deliveryAdded", { hasActor, actor, link, title });

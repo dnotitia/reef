@@ -55,7 +55,7 @@ metadata.
 - The akb session is the `__reef_session` httpOnly cookie; decode it read-only
   per request and forward the AKB-issued JWT to akb as
   `Authorization: Bearer <akb-jwt>`.
-- GitHub access for monitored-repo grounding and activity scans is deployment
+- GitHub access for monitored-repo grounding is deployment
   managed through `REEF_GITHUB_APP_ID`, `REEF_GITHUB_APP_INSTALLATION_ID`, and
   `REEF_GITHUB_APP_PRIVATE_KEY`, with `REEF_GITHUB_PAT` allowed only as a
   deployment-managed dev/CI fallback; reef-web must not collect, store, or
