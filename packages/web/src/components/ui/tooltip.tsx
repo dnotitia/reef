@@ -109,7 +109,7 @@ const TooltipContent = React.forwardRef<
         side={side}
         sideOffset={sideOffset}
         className={cn(
-          "pointer-events-none z-50 max-w-[calc(100vw-1rem)] break-words rounded-md border border-border bg-surface-popover px-2.5 py-1.5 text-xs text-foreground shadow-md shadow-foreground/10",
+          "pointer-events-none z-[110] max-w-[calc(100vw-1rem)] break-words rounded-md border border-border bg-surface-popover px-2.5 py-1.5 text-xs text-foreground shadow-md shadow-foreground/10",
           "data-[state=open]:motion-safe:animate-in data-[state=open]:motion-safe:fade-in-0 data-[state=open]:motion-safe:zoom-in-95 motion-reduce:animate-none",
           className,
         )}

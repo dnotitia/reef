@@ -90,4 +90,17 @@ describe("overflow tooltip policy", () => {
     );
     expect(screen.getByRole("button")).toHaveAttribute("aria-describedby");
   });
+
+  it("keeps the shared tooltip above the relation dropdown overlay", async () => {
+    render(
+      <div className="z-[100]">
+        <OverflowTooltip value="Full source value" isOverflowing active>
+          <button type="button">Visible value</button>
+        </OverflowTooltip>
+      </div>,
+    );
+
+    const tooltip = await screen.findByRole("tooltip");
+    expect(tooltip).toHaveClass("z-[110]");
+  });
 });
