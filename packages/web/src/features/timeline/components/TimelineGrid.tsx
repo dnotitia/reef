@@ -213,7 +213,11 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
             scroller rather than being buried under the sticky header. */}
         <div
           ref={scrollRef}
-          className="isolate h-full overflow-auto overscroll-x-contain"
+          className="isolate h-full overflow-auto overscroll-x-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/30"
+          role="region"
+          // biome-ignore lint/a11y/noNoninteractiveTabindex: The labeled overflow region is the keyboard scrollport.
+          tabIndex={0}
+          aria-label={t("scrollRegion")}
           data-testid="timeline-grid"
         >
           <div

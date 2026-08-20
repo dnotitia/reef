@@ -214,6 +214,29 @@ describe("IssueListRow", () => {
     expect(onClick).toHaveBeenCalledWith("REEF-001");
   });
 
+  it.each(["Enter", " "])(
+    "opens the row with %s without relying on the global shortcut",
+    (key) => {
+      const onClick = vi.fn();
+      renderRow(mockIssue, [mockIssue], onClick);
+
+      fireEvent.keyDown(screen.getByTestId("issue-list-row"), { key });
+
+      expect(onClick).toHaveBeenCalledWith("REEF-001");
+    },
+  );
+
+  it("leaves links and quick-edit controls to their native keyboard behavior", () => {
+    const onClick = vi.fn();
+    renderRow(mockIssue, [mockIssue], onClick);
+
+    fireEvent.keyDown(screen.getByTestId("issue-inline-edit-status"), {
+      key: " ",
+    });
+
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
   it("opens the context menu without opening the issue detail", () => {
     const onClick = vi.fn();
     renderRow(mockIssue, [mockIssue], onClick);

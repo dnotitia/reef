@@ -76,6 +76,36 @@ test.describe("Hermetic issue keyboard navigation", () => {
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
   });
 
+  test("opens List and Backlog rows with Space and keeps checkbox keyboard semantics", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    for (const view of ["list", "backlog"] as const) {
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=${view}`);
+      const rows =
+        view === "list"
+          ? await expectIssueListKeyboardReady(page)
+          : page.locator('[data-testid="backlog-row"]');
+      await expect(rows.first()).toBeVisible({ timeout: 15_000 });
+
+      const row = rows.first();
+      const checkbox = row.getByRole("checkbox").first();
+      await checkbox.focus();
+      await page.keyboard.press("Space");
+      await expect(row).toHaveAttribute("aria-selected", "true");
+      await page.keyboard.press("Enter");
+      await expect(row).not.toHaveAttribute("aria-selected", "true");
+
+      await row.focus();
+      await page.keyboard.press("Space");
+      await page.waitForURL(/\/issues\/REEF-00[17]\?view=/, {
+        timeout: 10_000,
+      });
+      await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+    }
+  });
+
   test("does not hijack Enter from focused issue-page controls", async ({
     page,
   }) => {

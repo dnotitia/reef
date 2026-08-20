@@ -59,12 +59,16 @@ export function SearchBar() {
   );
 
   return (
-    <div className="relative flex items-center" data-testid="search-bar">
+    <div
+      className="relative flex w-full min-w-0 items-center"
+      data-testid="search-bar"
+    >
       <Search className="absolute left-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
       <Input
         ref={inputRef}
         className="pl-9 pr-8 h-9"
         placeholder={t("searchPlaceholder")}
+        aria-label={t("searchLabel")}
         value={localValue}
         onChange={(e) => handleChange(e.target.value)}
         onKeyDown={handleKeyDown}

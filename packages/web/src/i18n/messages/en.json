@@ -693,6 +693,8 @@
     },
     "backlog": {
       "loadError": "Failed to load the backlog.",
+      "loading": "Loading backlog issues…",
+      "scrollRegion": "Backlog issues",
       "noMatches": "No backlog issues match your filters.",
       "emptyTitle": "Your backlog is empty",
       "emptyDescription": "New issues arrive in Todo. Send work you want to defer here to keep it out of the active board.",
@@ -924,8 +926,10 @@
       "activeCount": "{count, plural, one {# filter} other {# filters}}",
       "clearMilestone": "Clear milestone filter",
       "searchPlaceholder": "Search issues...",
+      "searchLabel": "Search issues",
       "clearSearch": "Clear search",
       "issueView": "Issue view",
+      "filterScrollRegion": "Issue filters",
       "view": {
         "board": "Board",
         "list": "List",
@@ -1044,6 +1048,8 @@
     },
     "list": {
       "loadError": "Failed to load issues.",
+      "loading": "Loading issues…",
+      "scrollRegion": "Issue list",
       "loadingMore": "Loading more issues…",
       "loadMoreError": "More issues could not be loaded.",
       "noMatches": "No issues match your filters.",
@@ -1293,6 +1299,8 @@
   },
   "timeline": {
     "loadError": "Failed to load some issues. Displaying cached data if available.",
+    "loading": "Loading timeline…",
+    "scrollRegion": "Timeline",
     "noMatch": "No issues match your filters.",
     "empty": "Your timeline is empty. Add start or due dates to begin planning.",
     "today": "Today",

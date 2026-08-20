@@ -32,6 +32,7 @@ import type { Collaborator, IssueListItem, PlanningCatalog } from "@reef/core";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { useLocale, useTranslations } from "next-intl";
 import {
+  type KeyboardEvent,
   type MouseEvent,
   memo,
   useCallback,
@@ -68,6 +69,17 @@ interface IssueListRowProps {
 }
 
 type IssueListRowVisualState = "idle" | "focused" | "context-open" | "selected";
+
+function isInteractiveRowTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    Boolean(
+      target.closest(
+        "button,a,input,select,textarea,[role=button],[role=checkbox]",
+      ),
+    )
+  );
+}
 
 function issueListCellClass(
   column: IssueListColumnKey,
@@ -267,6 +279,18 @@ export const IssueListRow = memo(function IssueListRow({
         tabIndex={focused || tabStopped ? 0 : -1}
         aria-selected={selected || undefined}
         onFocus={() => focusOccurrence("list", keyboardOccurrenceKey, issue.id)}
+        onKeyDown={(event: KeyboardEvent<HTMLTableRowElement>) => {
+          if (
+            event.defaultPrevented ||
+            isInteractiveRowTarget(event.target) ||
+            (event.key !== "Enter" && event.key !== " ")
+          ) {
+            return;
+          }
+          event.preventDefault();
+          event.stopPropagation();
+          onClick?.(issue.id);
+        }}
         onClick={(event: MouseEvent<HTMLTableRowElement>) => {
           if (event.shiftKey) {
             event.preventDefault();
@@ -292,8 +316,7 @@ export const IssueListRow = memo(function IssueListRow({
             disabled={selectionRunning}
             label={bulk("selectIssue", { id: issue.id })}
             className={cn(
-              "opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100",
-              selected && "opacity-100",
+              "transition-opacity group-hover:opacity-100 focus-within:opacity-100",
             )}
             testId="issue-row-checkbox"
             onChange={(event) => {

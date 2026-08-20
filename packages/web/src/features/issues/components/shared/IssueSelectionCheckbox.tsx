@@ -47,7 +47,13 @@ export function IssueSelectionCheckbox({
         data-testid={testId}
         className="absolute inset-0 size-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
         onClick={(event) => event.stopPropagation()}
-        onKeyDown={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          event.stopPropagation();
+          if (event.key === "Enter" && !disabled) {
+            event.preventDefault();
+            event.currentTarget.click();
+          }
+        }}
         onChange={(event) => {
           event.stopPropagation();
           onChange(event);

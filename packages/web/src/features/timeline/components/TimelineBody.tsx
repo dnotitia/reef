@@ -154,27 +154,38 @@ export function TimelineBody({ vault }: TimelineBodyProps) {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 min-w-0 flex-col">
       {/* Timeline-specific sub-toolbar: range label + quarter navigation. */}
-      <div className="flex shrink-0 items-center justify-between gap-4 border-b border-border-subtle px-6 py-2">
-        <span className="text-[12px] text-muted-foreground">{range.label}</span>
-        <TimelineControls
-          range={range}
-          onPrevious={() =>
-            setQuarterReference((prev) => shiftQuarter(prev, -1))
-          }
-          onNext={() => setQuarterReference((prev) => shiftQuarter(prev, 1))}
-          onToday={handleToday}
-        />
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border-subtle px-6 py-2">
+        <span className="min-w-0 truncate text-[12px] text-muted-foreground">
+          {range.label}
+        </span>
+        <div className="shrink-0">
+          <TimelineControls
+            range={range}
+            onPrevious={() =>
+              setQuarterReference((prev) => shiftQuarter(prev, -1))
+            }
+            onNext={() => setQuarterReference((prev) => shiftQuarter(prev, 1))}
+            onToday={handleToday}
+          />
+        </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
         {isPending ? (
-          <TimelineSkeleton />
+          <div role="status" aria-live="polite" className="h-full">
+            <span className="sr-only">{t("loading")}</span>
+            <TimelineSkeleton />
+          </div>
         ) : (
           <>
             {isError && (
-              <div className="mx-6 mt-4 rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text">
+              <div
+                className="mx-6 mt-4 rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text"
+                role="alert"
+                aria-live="assertive"
+              >
                 {t("loadError")}{" "}
                 <Button
                   type="button"
