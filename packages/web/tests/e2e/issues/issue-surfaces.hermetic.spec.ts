@@ -370,6 +370,18 @@ test.describe("Hermetic issue route surfaces", () => {
       await direction.hover();
       await expect(tooltip).toBeVisible();
       await expect(tooltip).toHaveText("Direction: Newest");
+      await page.waitForTimeout(250);
+      await expect(tooltip).toBeVisible();
+      await expect(tooltip).toHaveText("Direction: Newest");
+
+      await page.getByTestId("sort-control-trigger").focus();
+      await page.mouse.move(8, 8);
+      await expect(tooltip).toBeHidden();
+      await direction.hover();
+      await expect(tooltip).toBeVisible();
+      await page.waitForTimeout(250);
+      await expect(tooltip).toBeVisible();
+      await expect(tooltip).toHaveText("Direction: Newest");
 
       await direction.focus();
       await expect(tooltip).toBeVisible();
@@ -378,6 +390,14 @@ test.describe("Hermetic issue route surfaces", () => {
       await direction.press("Space");
       await expect(direction).toHaveAttribute("aria-label", /Oldest/);
       await expect(tooltip).toBeVisible();
+      await expect(tooltip).toHaveText("Direction: Oldest");
+
+      await page.getByTestId("sort-control-trigger").focus();
+      await page.mouse.move(8, 8);
+      await expect(tooltip).toBeHidden();
+      await direction.hover();
+      await expect(tooltip).toBeVisible();
+      await page.waitForTimeout(250);
       await expect(tooltip).toHaveText("Direction: Oldest");
     }
   });

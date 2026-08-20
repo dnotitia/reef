@@ -40,7 +40,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 // Module-level: a stable reference, does not recreated per render.
 const SORT_OPTIONS = USER_SORT_FIELDS;
@@ -162,9 +162,11 @@ export function SortControl({
     : DEFAULT_ISSUE_SORT_ORDER;
   const effectiveDirection = directionLabel(effectiveField, effectiveOrder);
   const sortIsActive = rankOrderActive || !isDefault;
-  const [directionPointerInside, setDirectionPointerInside] = useState(false);
-  const [directionFocused, setDirectionFocused] = useState(false);
-  const directionTooltipOpen = directionPointerInside || directionFocused;
+  // Radix owns pointer hover/open timing. Keeping a second pointer flag here
+  // races its delayed open callback; focus is the only local pin needed to
+  // keep the tooltip visible through a keyboard or pointer click.
+  const directionFocusedRef = useRef(false);
+  const [directionTooltipOpen, setDirectionTooltipOpen] = useState(false);
 
   // Picking a field lands on its intuitive direction; the toggle flips from there.
   const selectField = (field: UserSortField) => {
@@ -284,29 +286,26 @@ export function SortControl({
         <TooltipProvider>
           <Tooltip
             open={directionTooltipOpen}
+            disableHoverableContent
             onOpenChange={(nextOpen) => {
-              if (!nextOpen && !directionFocused) {
-                setDirectionPointerInside(false);
+              if (nextOpen || !directionFocusedRef.current) {
+                setDirectionTooltipOpen(nextOpen);
               }
             }}
           >
             <TooltipTrigger
               asChild
-              onPointerEnter={() => setDirectionPointerInside(true)}
-              onPointerMove={(event) => {
-                if (event.pointerType !== "touch") {
-                  setDirectionPointerInside(true);
-                }
+              onFocus={() => {
+                directionFocusedRef.current = true;
               }}
-              onPointerLeave={() => setDirectionPointerInside(false)}
-              onFocus={() => setDirectionFocused(true)}
               onBlur={(event) => {
                 if (
                   !event.currentTarget.contains(
                     event.relatedTarget as Node | null,
                   )
                 ) {
-                  setDirectionFocused(false);
+                  directionFocusedRef.current = false;
+                  setDirectionTooltipOpen(false);
                 }
               }}
             >

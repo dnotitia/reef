@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -81,7 +87,7 @@ describe("SortControl", () => {
     expect(direction).toHaveAttribute("title", "Direction: High → Low");
   });
 
-  it("shows the current direction in a visible tooltip on hover and focus", async () => {
+  it("keeps the current direction tooltip through hover re-entry and toggles", async () => {
     const user = userEvent.setup();
     useIssueStore.setState({
       filter: { sortField: "priority", sortOrder: "desc" },
@@ -90,13 +96,28 @@ describe("SortControl", () => {
 
     const direction = screen.getByTestId("sort-direction-toggle");
     fireEvent.pointerMove(direction, { pointerType: "mouse" });
-    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+    await waitFor(() =>
+      expect(screen.getByRole("tooltip")).toHaveTextContent(
+        "Direction: High → Low",
+      ),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
       "Direction: High → Low",
     );
 
     await user.unhover(direction);
+    fireEvent.pointerLeave(direction);
+    await waitFor(() => expect(screen.queryByRole("tooltip")).toBeNull());
+    fireEvent.pointerMove(direction, { pointerType: "mouse" });
+    await waitFor(() =>
+      expect(screen.getByRole("tooltip")).toHaveTextContent(
+        "Direction: High → Low",
+      ),
+    );
+
     direction.focus();
-    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
       "Direction: High → Low",
     );
 
@@ -106,13 +127,21 @@ describe("SortControl", () => {
       expect.stringContaining("Low → High"),
     );
     expect(direction).toHaveAttribute("title", "Direction: Low → High");
-    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
       "Direction: Low → High",
     );
 
     fireEvent.blur(direction);
+    fireEvent.pointerLeave(direction);
+    await waitFor(() => expect(screen.queryByRole("tooltip")).toBeNull());
     fireEvent.pointerMove(direction, { pointerType: "mouse" });
-    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+    await waitFor(() =>
+      expect(screen.getByRole("tooltip")).toHaveTextContent(
+        "Direction: Low → High",
+      ),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
       "Direction: Low → High",
     );
   });
