@@ -48,12 +48,15 @@ export default async function LoginPage({
       : legacyError
         ? "legacy"
         : null;
+  const requestHeaders = process.env.REEF_E2E_MOCK_URL
+    ? e2eWorkerHeaders(await getRequestHeaders())
+    : undefined;
 
   const ssoStartPath = await resolveSsoAutoRedirect({
     errorKind,
     params,
     redirectTo,
-    requestHeaders: e2eWorkerHeaders(await getRequestHeaders()),
+    requestHeaders,
   });
   if (ssoStartPath) {
     redirect(ssoStartPath);
