@@ -42,7 +42,7 @@ function similarResponse() {
         },
         {
           id: "REEF-023",
-          title: "Duplicate issue review in activity drafts",
+          title: "Duplicate issue review in monitored-repo drafts",
           status: "in_progress",
           issue_type: "story",
           score: 0.031,

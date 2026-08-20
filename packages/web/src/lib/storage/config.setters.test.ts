@@ -6,15 +6,13 @@ import "fake-indexeddb/auto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   getActiveVault,
-  getActivityRepo,
   getConfigValue,
   setActiveVault,
-  setActivityRepo,
   setConfigValue,
 } from "./config";
 import { db } from "./db";
 
-describe("config setters — vault + activityRepo (akb pivot)", () => {
+describe("config setters — vault + key-value bag", () => {
   beforeEach(async () => {
     await db.config.clear();
   });
@@ -53,46 +51,6 @@ describe("config setters — vault + activityRepo (akb pivot)", () => {
       await expect(setActiveVault("Bad/Vault")).rejects.toBeInstanceOf(
         TypeError,
       );
-    });
-  });
-
-  describe("setActivityRepo / getActivityRepo (per-vault pointer)", () => {
-    it("scopes the activityRepo by vault — distinct vaults have distinct pointers", async () => {
-      await setActivityRepo("reef-acme", "octo/cat");
-      await setActivityRepo("reef-zen", "moshi/koi");
-      expect(await getActivityRepo("reef-acme")).toBe("octo/cat");
-      expect(await getActivityRepo("reef-zen")).toBe("moshi/koi");
-    });
-
-    it("returns undefined when no pointer is saved yet", async () => {
-      expect(await getActivityRepo("reef-acme")).toBeUndefined();
-    });
-
-    it("returns undefined when vault is empty", async () => {
-      expect(await getActivityRepo("")).toBeUndefined();
-    });
-
-    it("accepts an empty string to clear the pointer (so consumers fall back to monitored_repos[0])", async () => {
-      await setActivityRepo("reef-acme", "octo/cat");
-      await setActivityRepo("reef-acme", "");
-      expect(await getActivityRepo("reef-acme")).toBe("");
-    });
-
-    it("throws TypeError on a malformed `owner/repo`", async () => {
-      await expect(
-        setActivityRepo("reef-acme", "no-slash"),
-      ).rejects.toBeInstanceOf(TypeError);
-    });
-
-    it("throws TypeError when vault is empty", async () => {
-      await expect(setActivityRepo("", "octo/cat")).rejects.toBeInstanceOf(
-        TypeError,
-      );
-    });
-
-    it("uses the canonical `activity_repo:{vault}` key in the config store", async () => {
-      await setActivityRepo("reef-acme", "octo/cat");
-      expect(await getConfigValue("activity_repo:reef-acme")).toBe("octo/cat");
     });
   });
 

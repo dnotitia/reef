@@ -98,7 +98,6 @@ const SUPPORTED_SCENARIOS = [
   "demo_board",
   "content_search",
   "raw_only",
-  "activity_suggestions",
   "notifications",
   "skill_outdated",
   "comment_mentions",
@@ -480,16 +479,6 @@ function runtimeDiscovery() {
           query: "issue title, body, or comment phrase",
         },
       },
-      activity_suggestions: {
-        scenario: "activity_suggestions",
-        workspace: "reef-e2e",
-        start_path: "/workspace/reef-e2e/suggestions",
-        interaction: {
-          type: "activity_review",
-          operation:
-            "review a pending suggestion, approve it, inspect the created issue, and add a comment",
-        },
-      },
       chat: {
         scenario: "configured",
         workspace: "reef-e2e",
@@ -622,7 +611,6 @@ function makeState(scenario) {
     scenario === "configured_multi" ||
     scenario === "assignee_picker" ||
     scenario === "backlog_bulk_partial_failure" ||
-    scenario === "activity_suggestions" ||
     scenario === "notifications" ||
     scenario === "skill_outdated" ||
     scenario === "comment_mentions" ||
@@ -639,7 +627,6 @@ function makeState(scenario) {
             : scenario === "assignee_picker"
               ? assigneePickerVault(REEF_VAULT)
               : configuredVault(REEF_VAULT);
-    if (scenario === "activity_suggestions") seedActivitySuggestions(vault);
     if (scenario === "notifications") seedNotifications(vault);
     if (scenario === "skill_outdated") seedOutdatedVaultSkill(vault);
     if (scenario === "comment_mentions") {
@@ -830,7 +817,6 @@ function configuredVault(name) {
       "monitored_repos",
       "reef_issues",
       "reef_templates",
-      "reef_activity_suggestions",
       "reef_comments",
       "reef_attachments",
       "reef_activity",
@@ -840,13 +826,7 @@ function configuredVault(name) {
       "reef_milestones",
       "reef_releases",
     ]),
-    // ai_scanning_enabled defaults off (REEF-313); the hermetic "configured"
-    // workspace turns it on so the scan affordances (manual Refresh, auto-scan)
-    // behave like a workspace that has opted into AI activity scanning.
-    settings: new Map([
-      ["project_prefix", "REEF"],
-      ["ai_scanning_enabled", true],
-    ]),
+    settings: new Map([["project_prefix", "REEF"]]),
     monitoredRepos: [],
     issues,
     documents: new Map(),
@@ -895,7 +875,6 @@ function configuredVault(name) {
       },
     ],
     templates: [],
-    activitySuggestions: [],
     notifications: [],
     subscriptions: [],
     attachments: [],
@@ -1219,7 +1198,7 @@ function demoBoardVault(name) {
   const issues = [
     issueRow({
       id: "REEF-101",
-      title: "Triage GitHub activity into draft issues",
+      title: "Review monitored-repo findings",
       status: "todo",
       issue_type: "story",
       priority: "critical",
@@ -1230,7 +1209,7 @@ function demoBoardVault(name) {
       milestone_id: milestoneId,
       release_id: releaseId,
       estimate_points: 5,
-      labels: ["activity", "ai", "github"],
+      labels: ["ai", "github", "review"],
     }),
     issueRow({
       id: "REEF-102",
@@ -1298,7 +1277,7 @@ function demoBoardVault(name) {
     }),
     issueRow({
       id: "REEF-106",
-      title: "Review activity-scan status proposals",
+      title: "Review monitored-repo enrichment results",
       status: "in_review",
       issue_type: "task",
       priority: "high",
@@ -1309,7 +1288,7 @@ function demoBoardVault(name) {
       milestone_id: milestoneId,
       release_id: releaseId,
       estimate_points: 2,
-      labels: ["activity", "review"],
+      labels: ["ask-ai", "review"],
     }),
     issueRow({
       id: "REEF-107",
@@ -1443,7 +1422,6 @@ function demoBoardVault(name) {
       `## Demo note\n\n${issue.title} is part of the English README demo board.`,
     );
   }
-  seedDemoBoardActivitySuggestions(vault);
   return vault;
 }
 
@@ -1466,7 +1444,6 @@ function rawVault(name) {
     milestones: [],
     releases: [],
     templates: [],
-    activitySuggestions: [],
     notifications: [],
     subscriptions: [],
     attachments: [],
@@ -2503,32 +2480,6 @@ function handleSql(vault, sql) {
     }
   }
 
-  if (lower.startsWith("select * from reef_activity_suggestions")) {
-    const rows = filterActivityRows(vault.activitySuggestions, normalized);
-    return tableQuery(activityColumns(), rows);
-  }
-  if (lower.startsWith("insert into reef_activity_suggestions")) {
-    const insert = parseInsert(normalized);
-    if (insert) {
-      vault.activitySuggestions.push(
-        objectFromColumns(insert.columns, insert.values),
-      );
-    }
-    return tableSql();
-  }
-  if (lower.startsWith("update reef_activity_suggestions")) {
-    const update = parseUpdate(normalized);
-    const id = matchSqlString(
-      normalized,
-      /where "?suggestion_id"?\s*=\s*'([^']+)'/i,
-    );
-    const row = vault.activitySuggestions.find(
-      (item) => item.suggestion_id === id,
-    );
-    if (row && update) Object.assign(row, update.values);
-    return tableSql();
-  }
-
   if (
     lower.startsWith("select id, reef_id, body") &&
     lower.includes("from reef_comments")
@@ -2733,8 +2684,7 @@ function handleSql(vault, sql) {
     return tableQuery(attachmentColumns(), [row]);
   }
 
-  // REEF-277: the issue activity timeline (reef_activity), distinct from the
-  // activity-scan inbox (reef_activity_suggestions) handled above.
+  // REEF-277: the issue activity timeline (reef_activity).
   if (lower.startsWith("select * from reef_activity where")) {
     const reefId = matchSqlString(normalized, /reef_id\s*=\s*'([^']+)'/i);
     const rows = vault.activity
@@ -3067,7 +3017,6 @@ function tableNamesInSql(lowerSql) {
     "reef_issues",
     "reef_comments",
     "reef_templates",
-    "reef_activity_suggestions",
     "reef_attachments",
     "reef_notifications",
     "reef_subscriptions",
@@ -3684,70 +3633,6 @@ function searchScore(doc, query) {
   );
 }
 
-function seedActivitySuggestions(vault) {
-  for (const [index, suggestion] of [
-    draftSuggestion({
-      id: "reef-draft-1111111111111111",
-      title: "Draft API rate limit issue",
-      content: "A public API endpoint was added without rate limiting.",
-      ref: "abc111",
-    }),
-    draftSuggestion({
-      id: "reef-draft-2222222222222222",
-      title: "Dismiss stale draft",
-      content: "This draft duplicates an existing investigation.",
-      ref: "abc222",
-    }),
-    statusSuggestion({
-      id: "reef-status-3333333333333333",
-      issueId: "REEF-001",
-      issueTitle: "Initial issue Alpha",
-      fromStatus: "todo",
-      toStatus: "in_progress",
-      ref: "43",
-    }),
-    statusSuggestion({
-      id: "reef-status-4444444444444444",
-      issueId: "REEF-002",
-      issueTitle: "Initial issue Beta",
-      fromStatus: "in_progress",
-      toStatus: "done",
-      ref: "44",
-    }),
-  ].entries()) {
-    seedActivitySuggestion(vault, suggestion, index + 1);
-  }
-}
-
-function seedDemoBoardActivitySuggestions(vault) {
-  for (const [index, suggestion] of [
-    draftSuggestion({
-      id: "reef-draft-aa11bb22cc33dd44",
-      title: "Draft README screenshot follow-up",
-      content:
-        "The README preview should show the Activity inbox badge alongside the board.",
-      ref: "demo111",
-    }),
-    statusSuggestion({
-      id: "reef-status-bb22cc33dd44ee55",
-      issueId: "REEF-106",
-      issueTitle: "Review activity-scan status proposals",
-      fromStatus: "in_review",
-      toStatus: "done",
-      ref: "106",
-    }),
-    draftSuggestion({
-      id: "reef-draft-cc33dd44ee55ff66",
-      title: "Draft board density polish task",
-      content:
-        "The demo board needs enough screen width to show workflow columns clearly.",
-      ref: "demo222",
-    }),
-  ].entries()) {
-    seedActivitySuggestion(vault, suggestion, index + 1);
-  }
-}
-
 function seedOutdatedVaultSkill(vault) {
   vault.settings.set("vault_skill", {
     version: 9,
@@ -3768,151 +3653,6 @@ function seedOutdatedVaultSkill(vault) {
     updated_at: NOW,
     current_commit: "e2e-seed-outdated-vault-skill",
   });
-}
-
-function seedActivitySuggestion(vault, suggestion, id) {
-  const path = activitySuggestionPathFor(suggestion.id);
-  vault.documents.set(path, {
-    uri: docUri(vault.name, path),
-    vault: vault.name,
-    path,
-    title: suggestion.id,
-    type: "reference",
-    status: "active",
-    summary: activitySuggestionSummary(suggestion),
-    content: `${activitySuggestionBody(suggestion)}\n`,
-    tags: [
-      "reef-activity-suggestion",
-      suggestion.kind === "draft" ? "reef-ai-draft" : "reef-ai-status-change",
-    ],
-    created_at: NOW,
-    updated_at: NOW,
-    current_commit: `e2e-seed-${slugify(suggestion.id)}`,
-  });
-  vault.activitySuggestions.push(activitySuggestionRow(vault, suggestion, id));
-}
-
-function draftSuggestion({ id, title, content, ref }) {
-  return {
-    id,
-    kind: "draft",
-    status: "pending",
-    fingerprint: `octo/reef:commit:${ref}`,
-    repo: "octo/reef",
-    created_at: NOW,
-    detected_at: NOW,
-    proposal: {
-      operation: "create",
-      create: {
-        fields: {
-          title,
-          issue_type: "task",
-          status: "todo",
-          priority: "high",
-          assigned_to: "alice",
-          labels: ["activity", "e2e"],
-          implementation_refs: [
-            {
-              type: "commit",
-              repo: "octo/reef",
-              ref,
-              actor: "dev",
-              detected_at: NOW,
-              url: `https://github.com/octo/reef/commit/${ref}`,
-            },
-          ],
-        },
-        content,
-      },
-    },
-    provenance: {
-      type: "commit",
-      ref,
-      repo: "octo/reef",
-      actor: "dev",
-      detectedAt: NOW,
-    },
-    confidence: 0.82,
-    reasoning: "The activity suggests product follow-up.",
-  };
-}
-
-function statusSuggestion({
-  id,
-  issueId,
-  issueTitle,
-  fromStatus,
-  toStatus,
-  ref,
-}) {
-  return {
-    id,
-    kind: "status_change",
-    status: "pending",
-    fingerprint: `${issueId}|${toStatus}|octo/reef:pr:${ref}`,
-    repo: "octo/reef",
-    created_at: NOW,
-    detected_at: NOW,
-    proposal: {
-      operation: "update",
-      update: {
-        issue_id: issueId,
-        patch: { status: toStatus },
-      },
-    },
-    issue_title: issueTitle,
-    from_status: fromStatus,
-    rationale: `PR #${ref} indicates the work is ready to move.`,
-    evidence: [{ type: "pr", ref, repo: "octo/reef", actor: "dev" }],
-    confidence: 0.9,
-  };
-}
-
-function activitySuggestionRow(vault, suggestion, id) {
-  const source =
-    suggestion.kind === "draft"
-      ? suggestion.provenance
-      : suggestion.evidence[0];
-  return {
-    id,
-    document_uri: docUri(vault.name, activitySuggestionPathFor(suggestion.id)),
-    suggestion_id: suggestion.id,
-    kind: suggestion.kind,
-    status: suggestion.status,
-    fingerprint: suggestion.fingerprint,
-    repo: suggestion.repo,
-    issue_id:
-      suggestion.kind === "status_change"
-        ? suggestion.proposal.update.issue_id
-        : null,
-    title:
-      suggestion.kind === "draft"
-        ? suggestion.proposal.create.fields.title
-        : suggestion.issue_title,
-    summary: activitySuggestionSummary(suggestion),
-    source_type: source?.type ?? "commit",
-    source_ref: source?.ref ?? "",
-    actor: source?.actor ?? "",
-    detected_at: suggestion.detected_at,
-    reviewed_at: suggestion.reviewed_at ?? null,
-    reviewed_by: suggestion.reviewed_by ?? null,
-    meta: suggestion,
-    created_at: suggestion.created_at,
-    updated_at: suggestion.created_at,
-    created_by: "alice",
-  };
-}
-
-function activitySuggestionSummary(suggestion) {
-  return suggestion.kind === "draft"
-    ? suggestion.proposal.create.content.slice(0, 500)
-    : suggestion.rationale;
-}
-
-function activitySuggestionBody(suggestion) {
-  return suggestion.kind === "draft"
-    ? suggestion.proposal.create.content
-    : suggestion.rationale;
 }
 
 function documentPutResponse(vault, doc) {
@@ -4018,22 +3758,6 @@ function publicState() {
       milestones: vault.milestones,
       releases: vault.releases,
       templates: vault.templates,
-      activity_suggestions: vault.activitySuggestions.map((item) => ({
-        id: item.suggestion_id,
-        kind: item.kind,
-        status: item.status,
-        title: item.title,
-        issue_id: item.issue_id,
-        reviewed_at: item.reviewed_at,
-        approved_issue_id:
-          item.kind === "draft" && item.meta && typeof item.meta === "object"
-            ? item.meta.approved_issue_id
-            : undefined,
-        proposal:
-          item.meta && typeof item.meta === "object"
-            ? item.meta.proposal
-            : undefined,
-      })),
       activity: (vault.activity ?? []).map((item) => ({
         reef_id: item.reef_id,
         event_type: item.event_type,
@@ -4412,10 +4136,6 @@ function uuidFor(value) {
 
 function issuePathFor(id) {
   return `issues/${slugify(id)}.md`;
-}
-
-function activitySuggestionPathFor(id) {
-  return `_reef/activity-inbox/${id}.md`;
 }
 
 function issueDocumentUri(vault, id) {

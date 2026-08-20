@@ -96,7 +96,6 @@ describe("AKB Jira migration target", () => {
             authoring_language: "ko" as const,
             stale_hide_completed_days: 28,
             stale_hide_canceled_days: 7,
-            ai_scanning_enabled: false,
           },
         })),
         listPlanningCatalog: vi.fn(async () => ({

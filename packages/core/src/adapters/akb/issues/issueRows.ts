@@ -117,7 +117,7 @@ export function quoteOptionalText(
  * Validate a `meta`-sourced array of refined ref objects (`implementation_refs`
  * / `external_refs`), keeping the entries that parse and dropping the ones that
  * do not. These two fields live in the ad-hoc `meta` JSON, which an external
- * writer (a code-activity scan, a sibling dev automation) can fill with a shape
+ * writer (a sibling automation) can fill with a shape
  * the ref schema rejects — a `branch` entry keyed by `name` with no required
  * `ref`, or an unknown `type` like `evidence`. Validating the whole issue
  * against `IssueMetadataSchema` would then throw, and every `rowToIssue` caller

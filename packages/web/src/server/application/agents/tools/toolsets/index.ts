@@ -23,7 +23,7 @@ export interface WorkspaceReadToolsetParams {
   /**
    * Include `search_documents` so answers can cite akb workspace documents
    * (REEF-361 AC4). Off by default so issue-focused read-toolset consumers
-   * (e.g. the activity-scan semantic linker) are unaffected; the chat agent opts
+   * (e.g. issue-enrichment semantic linking) are unaffected; the chat agent opts
    * in.
    */
   includeDocuments?: boolean;

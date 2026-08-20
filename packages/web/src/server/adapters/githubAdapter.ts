@@ -1,11 +1,5 @@
-import { graphql } from "@octokit/graphql";
 import { Octokit } from "@octokit/rest";
 import { stripTrailingSlashes } from "@reef/core";
-import {
-  type ListRecentActivityParams,
-  type ListRecentActivityResult,
-  listRecentActivity,
-} from "./github/activity";
 import {
   type ListAuthenticatedRepositoriesParams,
   type ListAuthenticatedRepositoriesResult,
@@ -37,12 +31,6 @@ export type {
   ListInstallationRepositoriesResult,
 } from "./github/installationRepos";
 export type {
-  GitHubCommitNode,
-  GitHubPullRequestNode,
-  ListRecentActivityParams,
-  ListRecentActivityResult,
-} from "./github/activity";
-export type {
   GitHubCodeSearchResult,
   GitHubFileContent,
   ListRepoLabelsParams,
@@ -58,9 +46,6 @@ export interface GitHubAdapter {
   listInstallationRepositories: (
     params?: ListInstallationRepositoriesParams,
   ) => Promise<ListInstallationRepositoriesResult>;
-  listRecentActivity: (
-    params: ListRecentActivityParams,
-  ) => Promise<ListRecentActivityResult>;
   searchCode: (
     params: SearchGitHubCodeParams,
   ) => Promise<GitHubCodeSearchResult[]>;
@@ -86,19 +71,11 @@ export function createGitHubAdapter({
     auth: token,
     ...(normalizedBaseUrl ? { baseUrl: normalizedBaseUrl } : {}),
   });
-  const graphqlClient = graphql.defaults({
-    ...(normalizedBaseUrl ? { baseUrl: normalizedBaseUrl } : {}),
-    headers: {
-      authorization: `token ${token}`,
-    },
-  });
   return {
     listAuthenticatedRepositories: (params) =>
       listAuthenticatedRepositories({ rest, ...params }),
     listInstallationRepositories: (params) =>
       listInstallationRepositories({ rest, ...params }),
-    listRecentActivity: (params) =>
-      listRecentActivity({ graphqlClient, ...params }),
     searchCode: (params) => searchCode({ rest, ...params }),
     readFile: (params) => readFile({ rest, ...params }),
     listRepoLabels: (params) => listRepoLabels({ rest, ...params }),

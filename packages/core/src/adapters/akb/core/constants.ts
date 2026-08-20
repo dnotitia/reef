@@ -6,7 +6,6 @@
 // it without a cycle.
 
 export const ISSUES_COLLECTION = "issues";
-export const ACTIVITY_INBOX_COLLECTION = "_reef/activity-inbox";
 
 /**
  * Names of the structured-data tables reef writes into an akb vault. Tables
@@ -48,7 +47,6 @@ export const REEF_SETTINGS_TABLE = "reef_settings";
 export const MONITORED_REPOS_TABLE = "monitored_repos";
 export const REEF_ISSUES_TABLE = "reef_issues";
 export const REEF_TEMPLATES_TABLE = "reef_templates";
-export const REEF_ACTIVITY_SUGGESTIONS_TABLE = "reef_activity_suggestions";
 export const REEF_COMMENTS_TABLE = "reef_comments";
 export const REEF_ATTACHMENTS_TABLE = "reef_attachments";
 export const REEF_ACTIVITY_TABLE = "reef_activity";
@@ -79,13 +77,6 @@ export const REEF_SETTINGS_STALE_HIDE_COMPLETED_DAYS_KEY =
 export const REEF_SETTINGS_STALE_HIDE_CANCELED_DAYS_KEY =
   "stale_hide_canceled_days";
 /**
- * `reef_settings` key holding the workspace AI-activity-scanning kill switch
- * (REEF-313). Value is a JSON boolean. A vault with no row reads as `false`
- * (the first-run default) — scanning stays off until a workspace admin turns it
- * on, because a scan writes AI suggestions into the team-shared activity inbox.
- */
-export const REEF_SETTINGS_AI_SCANNING_ENABLED_KEY = "ai_scanning_enabled";
-/**
  * JSON envelope for the notification projector's activation boundary and its
  * independent activity/comment cursors. It deliberately stays in
  * `reef_settings` so the projector does not require a schema migration.
@@ -105,7 +96,6 @@ export const REEF_TABLE_NAMES = [
   MONITORED_REPOS_TABLE,
   REEF_ISSUES_TABLE,
   REEF_TEMPLATES_TABLE,
-  REEF_ACTIVITY_SUGGESTIONS_TABLE,
   REEF_COMMENTS_TABLE,
   REEF_ATTACHMENTS_TABLE,
   REEF_ACTIVITY_TABLE,

@@ -1,12 +1,4 @@
-import type {
-  ActivitySuggestion,
-  ActivitySuggestionStatus,
-} from "../../../schemas/activity/suggestion";
-import type {
-  IssueCreateInput,
-  IssueMetadata,
-  IssueUpdateInput,
-} from "../../../schemas/issues/metadata";
+import type { IssueMetadata } from "../../../schemas/issues/metadata";
 import type { IssueListQuery } from "../../../schemas/issues/requests";
 import type { Template } from "../../../schemas/issues/template";
 import type {
@@ -179,54 +171,6 @@ export interface AllocateNextIssueIdParams {
   adapter: AkbAdapter;
   vault: string;
   prefix: string;
-}
-
-export interface WriteActivitySuggestionParams {
-  adapter: AkbAdapter;
-  vault: string;
-  suggestion: ActivitySuggestion;
-}
-
-export interface WriteActivitySuggestionResult {
-  path: string;
-  commit_hash: string;
-}
-
-export interface ListActivitySuggestionsParams {
-  adapter: AkbAdapter;
-  vault: string;
-  status?: ActivitySuggestionStatus;
-}
-
-export interface ReadActivitySuggestionParams {
-  adapter: AkbAdapter;
-  vault: string;
-  id: string;
-}
-
-export interface ReadActivitySuggestionResult {
-  suggestion: ActivitySuggestion;
-}
-
-export type UpdateActivitySuggestionPatch =
-  | { create: IssueCreateInput }
-  | { update: IssueUpdateInput; rationale?: string };
-
-export interface UpdateActivitySuggestionParams {
-  adapter: AkbAdapter;
-  vault: string;
-  id: string;
-  patch: UpdateActivitySuggestionPatch;
-}
-
-export interface UpdateActivitySuggestionStatusParams {
-  adapter: AkbAdapter;
-  vault: string;
-  id: string;
-  status: ActivitySuggestionStatus;
-  reviewed_by?: string;
-  reviewed_at?: string;
-  approved_issue_id?: string;
 }
 
 export interface WriteMultipleIssuesInput {

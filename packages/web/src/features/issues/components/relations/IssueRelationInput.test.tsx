@@ -191,7 +191,7 @@ describe("IssueRelationInput", () => {
   ];
 
   // REEF-268/375: detail-panel relation targets are navigable,
-  // self-describing rows; create dialog / activity-draft editor targets use the
+  // self-describing rows; create-dialog targets use the
   // same row rhythm without links.
   describe("navigable rows (REEF-268)", () => {
     it("renders each row as a link to the issue with id + title", () => {

@@ -108,9 +108,8 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
     // Switching is reachable from any route, so it can fire while a page holds
     // vault-scoped local React state that survives an in-place vault change —
     // e.g. the issue-detail form (re-syncs on issue id, not vault) or the
-    // activity feed (removed/dismissed/edit state keyed by deterministic ids
-    // that collide across workspaces on the same repo). Navigate to the new
-    // workspace's board (now a distinct `/workspace/{next}/issues` URL, so the
+    // workspace-scoped query and form state. Navigate to the new workspace's
+    // board (now a distinct `/workspace/{next}/issues` URL, so the
     // whole subtree remounts) and the URL→Dexie sync records it as the new
     // "last viewed" default (REEF-315 AC6). Query-driven surfaces refetch under
     // the rekeyed vault.

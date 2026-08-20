@@ -124,14 +124,8 @@ test.describe("Hermetic settings workflows", () => {
     page,
     request,
   }) => {
-    // Drop the persisted React Query snapshot on every navigation so the
-    // `/activity` mount below always fetches `['config', vault]` fresh. Without
-    // this, navigating away from Settings can rehydrate a stale-but-still-fresh
-    // (within the 60s staleTime) config snapshot whose `monitored_repos` is
-    // empty — written before the repo we just added had flushed to localStorage.
-    // That makes `/activity` render the empty-state branch (no
-    // `activity-scan-target-single`) instead of the single-repo target, which
-    // shows up as a flaky 15s timeout on the assertion below. (REEF-220 race)
+    // Drop the persisted React Query snapshot so the settings page observes
+    // the repository written by the config route immediately.
     await clearPersistedQueryCacheOnLoad(page);
     await openExistingWorkspace(page);
 
@@ -169,15 +163,6 @@ test.describe("Hermetic settings workflows", () => {
         );
       })
       .toContain("octo/reef");
-
-    await page.goto("/workspace/reef-e2e/suggestions");
-    await expect(
-      page.locator('[data-testid="activity-scan-target-single"]'),
-    ).toHaveText("octo/reef");
-    await page.locator('[data-testid="activity-refresh"]').click();
-    await expect(
-      page.locator('[data-testid="activity-last-scan"]'),
-    ).toContainText("Checked");
   });
 
   test("restores the repository trigger focus after pointer and keyboard saves", async ({

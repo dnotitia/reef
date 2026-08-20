@@ -38,8 +38,6 @@ Creating an issue needs two runbooks, not one: conversational-playbook.md (what 
 - Reading an issue's activity history and its comments: akb://${vault}/doc/overview/reef/comments-and-activity.md
 - Acting like a PM (deciding fields, asking, confirming): akb://${vault}/doc/overview/reef/conversational-playbook.md
 - Sprints, milestones, and releases: akb://${vault}/doc/overview/reef/planning-workflows.md
-- AI drafts and status-change approval: akb://${vault}/doc/overview/reef/activity-inbox-workflows.md
-- GitHub activity scanning: akb://${vault}/doc/overview/reef/github-activity-scan.md
 
 ## Intent router
 
@@ -51,18 +49,16 @@ Match the request to one path. Requests arrive in any language; route by meaning
 - Read an issue's history ("Show the history of REEF-012", "What changed on this issue", "Who moved it to in_review") means read comments-and-activity.md and query the reef_activity timeline.
 - Read or write comments ("Show the comments on REEF-012", "Add a comment saying ...", "Reply on this issue") means read comments-and-activity.md for the reef_comments read, write, and edit rules.
 - Plan ("create Sprint 5", "move these into the 0.4 milestone") means read planning-workflows.md.
-- Review the AI inbox ("Show pending AI drafts", "Approve this draft", "Dismiss that suggestion") means read activity-inbox-workflows.md.
-- Scan code activity ("Scan recent GitHub activity and create pending drafts") means read github-activity-scan.md.
 
 ## Before any write, always
 
 - Resolve the acting user once with akb_whoami and use it as the semantic actor (meta.author / meta.last_editor). Never guess the actor from existing rows.
 - Before creating an issue, search for an existing one (akb_search, or a SQL title match on reef_issues) so you do not file a duplicate.
-- Honor the workspace authoring language for prose you generate. Before writing any generated prose -- an issue title, a body, or a status-change rationale, whether from a conversation or a code-activity scan -- read \`SELECT value FROM reef_settings WHERE key = 'authoring_language' LIMIT 1\`. If it is set (a JSON string code such as "ko" or "en"), write that prose in that language; if the row is missing, match the language of the existing issues. Translate prose only -- keep reef ids, enum values, labels, code identifiers, and URLs as-is, and never translate the user's own words back to them. (conversational-playbook.md)
+- Honor the workspace authoring language for prose you generate. Before writing any generated prose -- an issue title or body -- read \`SELECT value FROM reef_settings WHERE key = 'authoring_language' LIMIT 1\`. If it is set (a JSON string code such as "ko" or "en"), write that prose in that language; if the row is missing, match the language of the existing issues. Translate prose only -- keep reef ids, enum values, labels, code identifiers, and URLs as-is, and never translate the user's own words back to them. (conversational-playbook.md)
 - Apply the Non-negotiable invariants above, and state anything you inferred (issue_type, priority, assignee, planning links, a status side effect) in one short proposal the user can correct before you write. Do not interrogate field by field.
 - After a write, read the result back in PM vocabulary with the reef id and the akb:// URI.
 
-The intent router above is the single source of routing truth; the example phrasings ("Create an issue for the broken login redirect", "Mark REEF-001 as done", "Show pending AI drafts", "Approve this draft", "Scan recent GitHub activity and create pending drafts") are illustrative, not an exhaustive list.
+The intent router above is the single source of routing truth; the example phrasings ("Create an issue for the broken login redirect", "Mark REEF-001 as done") are illustrative, not an exhaustive list.
 
 ## Hard rules
 

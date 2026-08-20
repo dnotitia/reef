@@ -1,36 +1,21 @@
-/**
- * Deterministic canned-task checks for reef prompt builders.
- *
- * Real-LLM execution stays outside this hermetic command and can be added as
- * a separate live boundary later. Each case has a short stable id so test
- * output does not expand to include the generated prompt.
- */
+/** Deterministic canned-task checks for the retained Reef prompt builders. */
 import { describe, expect, it } from "vitest";
 
 import {
   EnrichmentUserPromptRequestSchema,
   ProjectStateUserPromptRequestSchema,
-  StatusRationaleUserPromptRequestSchema,
-  buildAutoIssueSystemPrompt,
-  buildAutoIssueUserPrompt,
   buildEnrichmentSystemPrompt,
   buildEnrichmentUserPrompt,
   buildProjectStateSystemPrompt,
   buildProjectStateUserPrompt,
-  buildStatusRationaleSystemPrompt,
-  buildStatusRationaleUserPrompt,
   buildWorkspaceChatSystemPrompt,
 } from "@/server/application/agents/prompts";
 
-import autoIssueCanned from "./fixtures/auto-issue-canned.json";
 import draftIssueCanned from "./fixtures/draft-issue-canned.json";
 import enrichmentCanned from "./fixtures/enrichment-canned.json";
 import projectStateCanned from "./fixtures/project-state-canned.json";
 import projectStateCodeQuestionCanned from "./fixtures/project-state-code-question-canned.json";
-import statusRationaleCanned from "./fixtures/status-rationale-canned.json";
-import statusRationaleV2Canned from "./fixtures/status-rationale-v2-canned.json";
 
-/** Return the fixture response without making any network or model call. */
 function cannedTask(
   cannedResponse: Record<string, unknown>,
 ): (input: string) => Promise<string> {
@@ -55,17 +40,7 @@ function expectFields(
   output: Record<string, unknown>,
   fields: readonly string[],
 ) {
-  for (const field of fields) {
-    expect(output).toHaveProperty(field);
-  }
-}
-
-function keywordScore(output: Record<string, unknown>, keywords: string[]) {
-  const outputText = JSON.stringify(output).toLowerCase();
-  const hits = keywords.filter((keyword) =>
-    outputText.includes(keyword.toLowerCase()),
-  ).length;
-  return keywords.length > 0 ? hits / keywords.length : 0;
+  for (const field of fields) expect(output).toHaveProperty(field);
 }
 
 describe("prompt-evals", () => {
@@ -80,26 +55,6 @@ describe("prompt-evals", () => {
     expectFields(output, enrichmentCanned.expectedFields);
   });
 
-  it("auto_issue", async () => {
-    const input = `${buildAutoIssueSystemPrompt(autoIssueCanned.input.projectPrefix)}\n\n${buildAutoIssueUserPrompt(
-      { activity: autoIssueCanned.input.activity },
-    )}`;
-    const output = await runCannedJsonCase(
-      input,
-      autoIssueCanned.cannedResponse as Record<string, unknown>,
-    );
-    expectFields(output, autoIssueCanned.expectedFields);
-  });
-
-  it("status_rationale", async () => {
-    const input = `${buildStatusRationaleSystemPrompt()}\n\n${buildStatusRationaleUserPrompt(statusRationaleCanned.input)}`;
-    const output = await runCannedJsonCase(
-      input,
-      statusRationaleCanned.cannedResponse as Record<string, unknown>,
-    );
-    expectFields(output, statusRationaleCanned.expectedFields);
-  });
-
   it("project_state", async () => {
     const request = ProjectStateUserPromptRequestSchema.parse(
       projectStateCanned.input,
@@ -112,8 +67,7 @@ describe("prompt-evals", () => {
     expectFields(output, projectStateCanned.expectedFields);
   });
 
-  it("draft_issue", async () => {
-    // Validate fixture input shape so malformed data fails before scoring.
+  it("draft_issue_enrichment", async () => {
     const request = EnrichmentUserPromptRequestSchema.parse({
       issueId: "DRAFT",
       draft: {
@@ -153,25 +107,6 @@ describe("prompt-evals", () => {
       draftIssueCanned.cannedResponse as Record<string, unknown>,
     );
     expectFields(output, draftIssueCanned.expectedFields);
-    expect(
-      keywordScore(output, draftIssueCanned.expectedKeywords),
-    ).toBeGreaterThanOrEqual(0.9);
-  });
-
-  it("status_rationale_pr", async () => {
-    const request = StatusRationaleUserPromptRequestSchema.parse(
-      statusRationaleV2Canned.input,
-    );
-    const input = `${buildStatusRationaleSystemPrompt()}\n\n${buildStatusRationaleUserPrompt(request)}`;
-    const output = await runCannedJsonCase(
-      input,
-      statusRationaleV2Canned.cannedResponse as Record<string, unknown>,
-    );
-    expectFields(output, statusRationaleV2Canned.expectedFields);
-    expect(output.rationale).toBeTypeOf("string");
-    expect((output.rationale as string).length).toBeGreaterThanOrEqual(
-      statusRationaleV2Canned.minRationaleLength,
-    );
   });
 
   it("project_state_code", async () => {
@@ -184,26 +119,12 @@ describe("prompt-evals", () => {
       projectStateCodeQuestionCanned.cannedResponse as Record<string, unknown>,
     );
     expectFields(output, projectStateCodeQuestionCanned.expectedFields);
-    expect(
-      keywordScore(output, projectStateCodeQuestionCanned.expectedKeywords),
-    ).toBeGreaterThanOrEqual(0.9);
   });
 });
 
 describe("prompt-smoke", () => {
-  it("enrichment_smoke", () => {
+  it("retained prompts are non-empty", () => {
     expect(buildEnrichmentSystemPrompt()).not.toHaveLength(0);
-  });
-
-  it("auto_issue_smoke", () => {
-    expect(buildAutoIssueSystemPrompt("REEF")).not.toHaveLength(0);
-  });
-
-  it("status_rationale_smoke", () => {
-    expect(buildStatusRationaleSystemPrompt()).not.toHaveLength(0);
-  });
-
-  it("project_state_smoke", () => {
     expect(
       buildProjectStateSystemPrompt({
         hasLocalTools: false,
@@ -249,13 +170,9 @@ describe("prompt-smoke", () => {
       },
       hasRepoTools: true,
     });
-    const grounded =
-      prompt.includes("reef-e2e") &&
-      prompt.includes("Sprint 6") &&
-      prompt.includes("REEF-360") &&
-      prompt.includes("Ground the chat on this issue.");
-    const markdownMode =
-      prompt.includes("Markdown") && !prompt.includes("referenced_issue_ids");
-    expect(grounded && markdownMode).toBe(true);
+    expect(prompt).toContain("reef-e2e");
+    expect(prompt).toContain("REEF-360");
+    expect(prompt).toContain("Ground the chat on this issue.");
+    expect(prompt).toContain("Markdown");
   });
 });

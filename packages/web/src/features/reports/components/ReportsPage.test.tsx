@@ -472,7 +472,7 @@ describe("ReportsPage", () => {
     mockApi([
       {
         id: "E1",
-        title: "Triage GitHub activity into draft issues",
+        title: "Review monitored-repo findings",
         status: "todo",
         created_at: "2026-05-01T00:00:00.000Z",
         created_by: "alice",

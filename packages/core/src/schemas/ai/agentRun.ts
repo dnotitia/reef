@@ -71,17 +71,6 @@ export type WorkspaceChatAgentInput = z.infer<
   typeof WorkspaceChatAgentInputSchema
 >;
 
-export const ActivityScanAgentInputSchema = z.strictObject({
-  owner: z.string().min(1),
-  repo: z.string().min(1),
-  vault: VaultNameSchema,
-  since: z.string().min(1).nullable().default(null),
-  projectPrefix: z.string().min(1),
-});
-export type ActivityScanAgentInput = z.infer<
-  typeof ActivityScanAgentInputSchema
->;
-
 const WorkspaceChatAgentRunRequestSchema = z.strictObject({
   task_id: z.literal("chat.workspace"),
   input: WorkspaceChatAgentInputSchema,
@@ -92,15 +81,9 @@ const IssueEnrichmentAgentRunRequestSchema = z.strictObject({
   input: EnrichmentRequestSchema,
 });
 
-const ActivityScanAgentRunRequestSchema = z.strictObject({
-  task_id: z.literal("activity.scan"),
-  input: ActivityScanAgentInputSchema,
-});
-
 export const AgentRunRequestSchema = z.discriminatedUnion("task_id", [
   WorkspaceChatAgentRunRequestSchema,
   IssueEnrichmentAgentRunRequestSchema,
-  ActivityScanAgentRunRequestSchema,
 ]);
 export type AgentRunRequest = z.infer<typeof AgentRunRequestSchema>;
 

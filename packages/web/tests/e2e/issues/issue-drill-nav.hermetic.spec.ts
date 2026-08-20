@@ -25,7 +25,7 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
   async function openRootFromList(page: import("@playwright/test").Page) {
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/issues?view=list");
-    await page.getByText("Triage GitHub activity into draft issues").click();
+    await page.getByText("Review monitored-repo findings").click();
     await page.waitForURL(new RegExp(`/issues/${ROOT}`), { timeout: 10_000 });
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
     // Entry point: no drill trail yet (depth 0), so no Back.
@@ -70,7 +70,7 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
     await page.locator(drillBack).click();
     await page.waitForURL(new RegExp(`/issues/${ROOT}`), { timeout: 10_000 });
     await expect(page.locator('[data-testid="issue-title-input"]')).toHaveValue(
-      "Triage GitHub activity into draft issues",
+      "Review monitored-repo findings",
     );
     await expect(page.locator(drillBack)).toHaveCount(0);
   });

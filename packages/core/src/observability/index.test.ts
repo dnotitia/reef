@@ -61,14 +61,14 @@ describe("observe — emit once, shape twice", () => {
     const { logger, calls } = fakeLogger();
     setCoreLogger(logger);
 
-    observe(span, { commits_scanned: 3, repo: "o/r" }, "scan_activity fetched");
+    observe(span, { search_results: 3, repo: "o/r" }, "repo_grounding fetched");
 
-    expect(attributes).toEqual({ commits_scanned: 3, repo: "o/r" });
+    expect(attributes).toEqual({ search_results: 3, repo: "o/r" });
     expect(calls).toHaveLength(1);
     expect(calls[0]).toEqual({
       level: "info",
-      fields: { commits_scanned: 3, repo: "o/r" },
-      msg: "scan_activity fetched",
+      fields: { search_results: 3, repo: "o/r" },
+      msg: "repo_grounding fetched",
     });
   });
 

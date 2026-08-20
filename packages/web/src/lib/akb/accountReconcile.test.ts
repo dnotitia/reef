@@ -13,18 +13,13 @@ vi.mock("@/lib/storage/clientCache", () => ({
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import {
   getActiveVault,
-  getActivityRepo,
   getAkbUserId,
-  getConfigValue,
   getPersistedIssueFilter,
   setActiveVault,
-  setActivityRepo,
   setAkbUserId,
-  setConfigValue,
   setPersistedIssueFilter,
 } from "@/lib/storage/config";
 import { db } from "@/lib/storage/db";
-import { getLastScanAt, setLastScanAt } from "@/lib/storage/lastScan";
 import {
   createNamedIssueFilter,
   listNamedIssueFilters,
@@ -162,20 +157,5 @@ describe("wipeAkbScopedBrowserState", () => {
     expect(await listNamedIssueFilters("reef-acme")).toEqual([]);
     expect(useIssueStore.getState().filter).toEqual({});
     expect(useIssueStore.getState().filterVault).toBeNull();
-  });
-
-  it("clears activity scan repo, read marker, and scan watermarks, but keeps the device theme", async () => {
-    await setActivityRepo("reef-acme", "octo/cat");
-    await setConfigValue("last_visit_at", "2026-06-01T00:00:00Z");
-    await setLastScanAt("octo/cat", "2026-06-02T00:00:00Z");
-    // theme is device-scoped, not account-scoped — it should survive the wipe.
-    await setConfigValue("theme", "dark");
-
-    await wipeAkbScopedBrowserState();
-
-    expect(await getActivityRepo("reef-acme")).toBeUndefined();
-    expect(await getConfigValue("last_visit_at")).toBeUndefined();
-    expect(await getLastScanAt("octo/cat")).toBeUndefined();
-    expect(await getConfigValue("theme")).toBe("dark");
   });
 });

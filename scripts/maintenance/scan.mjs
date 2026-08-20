@@ -61,7 +61,6 @@ const LARGE_FILE_THRESHOLDS = {
 const SLOW_TEST_THRESHOLD_MS = 300;
 
 const SLOW_TEST_SUPPRESSIONS = new Set([
-  "ActivityItemCard ai_draft edits drafts with the shared issue draft field syntax",
   "RawArchive preserves prior versions and converges entry ordering",
   "useIssueFilterPersistence skips the restore's own marked write but saves the next user edit",
   "useIssueFilterPersistence scopes saves per vault",
@@ -272,7 +271,6 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
     "Single CLI scanner orchestrator; split when a category grows its own configuration surface.",
   ],
   [
-    "packages/web/src/server/application/agents/approveActivitySuggestion.test.ts",
     "Approval policy matrix; extract fixtures when another approval suite reuses them.",
   ],
   [
@@ -452,10 +450,6 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
     "Single notification projector boundary keeping cursor validation, batching, lifecycle, and row projection together; extract a checkpoint helper when another projector shares it.",
   ],
   [
-    "packages/web/src/features/activity/components/ActivityFeed.tsx",
-    "Single activity feed composition keeping query state, scan controls, timeline grouping, and empty/error surfaces together; extract a feed section when another activity surface shares it.",
-  ],
-  [
     "packages/web/src/features/issues/components/filters/FilterBar.tsx",
     "Single issue filter composition keeping field controls, URL synchronization, and responsive layout together; extract a filter group when another view shares it.",
   ],
@@ -514,7 +508,6 @@ const DUPLICATE_SCAN_IGNORES = [
   "packages/web/src/app/api/agents/artifacts/**",
   "packages/web/src/server/adapters/githubCredentials/resolveGitHubAdapter.test.ts",
   "packages/web/src/server/adapters/githubCredentials/resolveGroundingGitHubAdapter.test.ts",
-  "packages/web/src/server/adapters/githubCredentials/resolveScanGitHubAdapter.test.ts",
 ];
 
 const EXCLUDED_DIRS = new Set([

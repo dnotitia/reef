@@ -2,11 +2,8 @@ import { describe, expect, it } from "vitest";
 import { rootSkillContent } from "./rootSkill";
 
 // REEF-136 AC3: prose-generating vault-skill paths should honor the workspace
-// authoring language. The conversational-create path and the GitHub
-// activity-scan path both author prose (titles, bodies, rationales), so the
-// directive lives in the loaded root skill — not just in the
-// conversational playbook — so a scan agent that does not open the playbook still
-// gets it. These assertions pin that placement.
+// authoring language. The directive lives in the loaded root skill so every
+// retained generated-prose path sees the same setting.
 describe("root skill — authoring language (REEF-136)", () => {
   const content = rootSkillContent("reef-test");
 
@@ -17,9 +14,8 @@ describe("root skill — authoring language (REEF-136)", () => {
     );
   });
 
-  it("covers both conversation and code-activity scan prose", () => {
-    expect(content.toLowerCase()).toContain("code-activity scan");
-    expect(content.toLowerCase()).toContain("status-change rationale");
+  it("covers the retained generated-prose path", () => {
+    expect(content.toLowerCase()).toContain("generated prose");
   });
 
   it("keeps symbols untranslated and the user's words intact", () => {

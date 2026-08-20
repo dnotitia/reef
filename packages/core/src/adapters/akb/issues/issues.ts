@@ -795,7 +795,7 @@ export async function updateIssue(
 
     // Record the status transition as an immutable activity event (REEF-063).
     // This is the reef-web code funnel: every code path that changes status
-    // (PATCH route, activity-inbox approve, agent-artifact approve) flows
+    // (PATCH route, agent-artifact approve) flows
     // through here. Best-effort — the row UPDATE above already committed the
     // change, so a failed append should not fail the issue update; the row's own
     // `last_status_change` stays the single-event safety net (AC5).
@@ -828,7 +828,7 @@ export async function updateIssue(
           actor: mergedIssue.updated_by,
           // This update's provenance, not the issue's stale stored source: a
           // manual web move (no source on the patch) records null, an
-          // approve/scan move records its `ai-agent:*` source. Using
+          // an AI approval records its `ai-agent:*` source. Using
           // `mergedIssue.source` would stamp an AI-created issue's old source
           // onto a later manual transition.
           source: partial.source ?? null,

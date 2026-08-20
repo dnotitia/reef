@@ -58,8 +58,7 @@ export interface RepoParts {
  * Returns `null` when missing or malformed — callers translate `null` into a
  * 400 response with their preferred wording.
  *
- * Kept for monitored-repo routes (activity/detect, repos, etc.) that still
- * talk to GitHub directly.
+ * Kept for monitored-repository routes that still talk to GitHub directly.
  */
 function parseRepoParam(request: Request): RepoParts | null {
   const { searchParams } = new URL(request.url);

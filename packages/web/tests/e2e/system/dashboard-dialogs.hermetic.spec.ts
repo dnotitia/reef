@@ -22,9 +22,7 @@ test.describe("Hermetic dashboard surfaces and global dialogs", () => {
     await resetFixture(request, "configured");
   });
 
-  test("renders reports and Suggestions review pages through Route Handlers", async ({
-    page,
-  }) => {
+  test("renders the reports page through Route Handlers", async ({ page }) => {
     await openExistingWorkspace(page);
 
     await page.goto("/workspace/reef-e2e/reports");
@@ -33,15 +31,6 @@ test.describe("Hermetic dashboard surfaces and global dialogs", () => {
       page.locator('[data-testid="report-scope-bar"]'),
     ).toBeVisible();
     await expect(page.getByText("Workflow")).toBeVisible();
-
-    await page.goto("/workspace/reef-e2e/suggestions");
-    await expect(page.locator('[data-testid="activity-feed"]')).toBeVisible();
-    await expect(
-      page.locator('[data-testid="activity-scan-target-empty"]'),
-    ).toBeVisible();
-    await expect(
-      page.locator('[data-testid="activity-refresh"]'),
-    ).toBeDisabled();
   });
 
   test("opens global search, shortcuts, Ask AI, and workspace dialogs from the dashboard shell", async ({

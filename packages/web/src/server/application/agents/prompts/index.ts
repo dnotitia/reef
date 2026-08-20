@@ -27,14 +27,6 @@ export {
   buildEnrichmentUserPrompt,
 } from "./enrichment";
 export {
-  buildAutoIssueSystemPrompt,
-  buildAutoIssueUserPrompt,
-} from "./autoIssue";
-export {
-  buildStatusRationaleSystemPrompt,
-  buildStatusRationaleUserPrompt,
-} from "./statusRationale";
-export {
   buildProjectStateSystemPrompt,
   buildProjectStateUserPrompt,
 } from "./projectState";
@@ -42,6 +34,5 @@ export { buildWorkspaceChatSystemPrompt } from "./workspaceChat";
 
 export {
   EnrichmentUserPromptRequestSchema,
-  StatusRationaleUserPromptRequestSchema,
   ProjectStateUserPromptRequestSchema,
 } from "@reef/core";

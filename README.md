@@ -9,11 +9,10 @@ knowledge, tables for queryable product state, HTTP APIs for the web app, and an
 agent-friendly data model that coding agents can operate on.
 
 In reef, that AKB-backed workspace becomes issue tracking for teams using GitHub
-and coding agents. reef reads monitored repositories, compares that evidence
-with the team's AKB issue workspace, and proposes draft issues, status
-transitions, and grounded AI answers. People stay in control: AI enrichment,
-activity-scan drafts, and status changes are suggestions until a user approves
-them.
+and coding agents. reef reads monitored repositories for read-only grounding
+alongside the team's AKB issue workspace and provides grounded AI answers and
+on-demand issue enrichment. People stay in control: AI proposals remain
+client-ephemeral until the user explicitly applies or approves them.
 
 > **Stability:** reef is currently a pre-1.0 reference product. Until a 1.0
 > release, user-facing workflows, storage shape, API responses, and deployment
@@ -30,12 +29,12 @@ them.
   tier stateless.
 - **Documents and tables work together.** Issue bodies live as AKB task
   documents, while board/list/report fields live in typed `reef_issues` rows.
-- **Agentic workflows can stay reviewable.** Enrichment and activity detection
-  show their rationale before changing issue fields, so the human remains the
-  author and decision maker.
-- **Project state can follow real work.** reef reads commits, pull requests,
-  branches, and code search results from monitored GitHub repositories to
-  identify work that moved forward or was never tracked.
+- **Agentic workflows can stay reviewable.** Enrichment and on-demand issue
+  actions show their rationale before changing issue fields, so the human
+  remains the author and decision maker.
+- **Project state can be grounded in real work.** On-demand AI reads commits,
+  pull requests, branches, and code search results from monitored GitHub
+  repositories when a user asks for repository context.
 - **Credentials stay out of browser storage.** The AKB session is an httpOnly
   cookie, and GitHub access is read-only through a deployment-managed GitHub App
   rather than a browser-stored token.
@@ -108,7 +107,7 @@ akb-platform gateway. Leaving all three unset keeps AI disabled.
 | Surface | What it provides |
 | --- | --- |
 | Issues | Board, list, timeline, backlog, detail editing, relations, labels, and filters. |
-| Activity Hub | Reviewable draft issues and status-change proposals inferred from monitored repo activity. |
+| Notification Inbox and Activity | Collaboration notifications and the immutable issue activity timeline. |
 | Ask AI | Read-only, code-grounded answers about the workspace and monitored repositories. |
 | Planning and reports | Planning catalog, release/milestone/sprint context, health summaries, and risk views. |
 | Workspace settings | Workspace membership, monitored repositories, preferences, and deployment status. |

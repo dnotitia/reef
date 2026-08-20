@@ -49,7 +49,7 @@ describe("GitHubAdapter surface", () => {
     expect(adapter).toEqual(
       expect.objectContaining({
         listAuthenticatedRepositories: expect.any(Function),
-        listRecentActivity: expect.any(Function),
+        listInstallationRepositories: expect.any(Function),
         searchCode: expect.any(Function),
         readFile: expect.any(Function),
         listRepoLabels: expect.any(Function),
@@ -278,76 +278,6 @@ describe("listInstallationRepositories", () => {
   });
 });
 
-// ─── listRecentActivity ──────────────────────────────────────────────────────
-
-describe("listRecentActivity", () => {
-  it("returns commit nodes and since-filtered PR nodes through one activity surface", async () => {
-    server.use(
-      http.post(`${GITHUB_API}/graphql`, async ({ request }) => {
-        const body = (await request.json()) as {
-          query: string;
-          variables: { since?: string | null };
-        };
-        if (body.query.includes("RecentCommits")) {
-          expect(body.variables.since).toBe("2026-04-07T10:00:00Z");
-          return HttpResponse.json({
-            data: {
-              repository: {
-                defaultBranchRef: {
-                  target: {
-                    history: {
-                      nodes: [
-                        {
-                          oid: "abc123",
-                          message: "feat: scanned commit",
-                          authoredDate: "2026-04-07T09:00:00Z",
-                          committedDate: "2026-04-07T10:30:00Z",
-                          author: {
-                            name: "Alice",
-                            user: { login: "alice" },
-                          },
-                          changedFilesIfAvailable: 2,
-                          associatedPullRequests: { nodes: [] },
-                        },
-                      ],
-                    },
-                  },
-                },
-              },
-            },
-          });
-        }
-        if (body.query.includes("RecentPullRequests")) {
-          return HttpResponse.json({
-            data: {
-              repository: {
-                pullRequests: {
-                  nodes: [
-                    buildPrNode(7, "Old PR", "2026-04-07T09:30:00Z"),
-                    buildPrNode(8, "Fresh PR", "2026-04-07T10:30:00Z"),
-                  ],
-                },
-              },
-            },
-          });
-        }
-        return HttpResponse.json({ message: "unknown query" }, { status: 500 });
-      }),
-    );
-    const adapter = createGitHubAdapter({ token: "test" });
-
-    const result = await adapter.listRecentActivity({
-      owner: "owner",
-      repo: "repo",
-      since: "2026-04-07T10:00:00Z",
-    });
-
-    expect(result.commits).toHaveLength(1);
-    expect(result.commits[0]?.oid).toBe("abc123");
-    expect(result.pullRequests.map((pr) => pr.number)).toEqual([8]);
-  });
-});
-
 // ─── listLabelsForRepo ────────────────────────────────────────────────────────
 
 describe("listLabelsForRepo", () => {
@@ -446,19 +376,3 @@ describe("listLabelsForRepo", () => {
     ).rejects.toBeInstanceOf(GitHubApiError);
   });
 });
-
-function buildPrNode(number: number, title: string, updatedAt: string) {
-  return {
-    number,
-    title,
-    body: "",
-    headRefName: `feat/${number}`,
-    author: { login: "alice" },
-    updatedAt,
-    createdAt: "2026-04-07T08:00:00Z",
-    mergedAt: null,
-    commits: {
-      nodes: [{ commit: { message: "feat: step" } }],
-    },
-  };
-}

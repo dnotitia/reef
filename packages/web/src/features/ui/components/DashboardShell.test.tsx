@@ -34,24 +34,6 @@ vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   useSetActiveVault: () => ({ mutate: vi.fn(), mutateAsync: vi.fn() }),
 }));
 
-vi.mock("@/features/activity/hooks/useActivityRepo", () => ({
-  useActivityRepo: () => ({
-    repo: "octo/cat",
-    monitoredRepos: ["octo/cat"],
-    setRepo: vi.fn(),
-    isLoading: false,
-  }),
-}));
-
-vi.mock("@/features/activity/hooks/useScanActivity", () => ({
-  useScanActivity: () => ({ mutate: vi.fn(), isPending: false }),
-  useScanAutoTrigger: vi.fn(),
-}));
-
-vi.mock("@/features/activity/hooks/usePendingSuggestionsCount", () => ({
-  usePendingSuggestionsCount: () => pendingSuggestionsState.count,
-}));
-
 vi.mock("@/features/inbox/hooks/useInboxNotifications", () => ({
   useUnreadNotificationCount: () => unreadNotificationState.count,
 }));
@@ -79,7 +61,6 @@ vi.mock("@/features/preferences/hooks/useLocaleSync", () => ({
 const {
   navigationState,
   hydrationState,
-  pendingSuggestionsState,
   unreadNotificationState,
   myWorkAttentionState,
   skillStatusState,
@@ -90,9 +71,6 @@ const {
   },
   hydrationState: {
     ready: true,
-  },
-  pendingSuggestionsState: {
-    count: 0,
   },
   unreadNotificationState: {
     count: 0,
@@ -158,7 +136,6 @@ describe("DashboardShell", () => {
     vi.clearAllMocks();
     navigationState.pathname = "/workspace/reef-acme/issues";
     hydrationState.ready = true;
-    pendingSuggestionsState.count = 0;
     unreadNotificationState.count = 0;
     myWorkAttentionState.attention = 0;
     myWorkAttentionState.overdue = 0;
@@ -277,7 +254,7 @@ describe("DashboardShell", () => {
     );
   });
 
-  it("renders the navigation links (Issues, Planning, Suggestions, Reports, Settings)", () => {
+  it("renders the retained navigation links", () => {
     render(
       wrap(
         <DashboardShell appVersion="0.0.0">
@@ -287,10 +264,6 @@ describe("DashboardShell", () => {
     );
     expect(screen.getByRole("link", { name: "Issues" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Planning" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Suggestions" })).toHaveAttribute(
-      "href",
-      "/workspace/reef-acme/suggestions",
-    );
     expect(screen.getByRole("link", { name: "Reports" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
   });
@@ -450,7 +423,6 @@ describe("DashboardShell", () => {
     expect(screen.getByRole("link", { name: "Issues" })).toBeInTheDocument();
     expect(screen.getByTestId("sidebar-nav-icon-issues")).toBeVisible();
     expect(screen.getByTestId("sidebar-nav-icon-planning")).toBeVisible();
-    expect(screen.getByTestId("sidebar-nav-icon-suggestions")).toBeVisible();
     expect(screen.getByTestId("sidebar-nav-icon-reports")).toBeVisible();
     expect(screen.getByTestId("sidebar-nav-icon-settings")).toBeVisible();
   });
@@ -696,127 +668,6 @@ describe("DashboardShell", () => {
     expect(utility.compareDocumentPosition(workspace)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
-  });
-
-  it("shows the real pending Suggestions count in the expanded sidebar", () => {
-    pendingSuggestionsState.count = 12;
-
-    render(
-      wrap(
-        <DashboardShell appVersion="0.0.0">
-          <div>children</div>
-        </DashboardShell>,
-      ),
-    );
-
-    const badge = screen.getByTestId("suggestions-pending-badge");
-    expect(badge).toHaveTextContent("9+");
-    expect(badge).toHaveAccessibleName("12 pending suggestions");
-  });
-
-  it("keeps the pending Suggestions badge visible on the active route", () => {
-    navigationState.pathname = "/workspace/reef-acme/suggestions";
-    pendingSuggestionsState.count = 3;
-
-    render(
-      wrap(
-        <DashboardShell appVersion="0.0.0">
-          <div>children</div>
-        </DashboardShell>,
-      ),
-    );
-
-    expect(screen.getByRole("link", { name: /Suggestions/ })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-    expect(screen.getByTestId("suggestions-pending-badge")).toBeVisible();
-  });
-
-  it("keeps the collapsed Suggestions pending dot visible and named", () => {
-    useViewStore.setState({ sidebarCollapsed: true });
-    pendingSuggestionsState.count = 3;
-
-    render(
-      wrap(
-        <DashboardShell appVersion="0.0.0">
-          <div>children</div>
-        </DashboardShell>,
-      ),
-    );
-
-    const dot = screen.getByTestId("suggestions-pending-dot");
-    expect(dot).toBeVisible();
-    expect(dot).toHaveAccessibleName("3 pending suggestions");
-  });
-
-  it("uses the Korean Suggestions label and pending-count name", () => {
-    pendingSuggestionsState.count = 2;
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-
-    render(
-      <QueryClientProvider client={queryClient}>
-        <IntlTestProvider locale="ko">
-          <DashboardShell appVersion="0.0.0">
-            <div>children</div>
-          </DashboardShell>
-        </IntlTestProvider>
-      </QueryClientProvider>,
-    );
-
-    expect(screen.getByRole("link", { name: /제안/ })).toHaveAttribute(
-      "href",
-      "/workspace/reef-acme/suggestions",
-    );
-    expect(
-      screen.getByTestId("suggestions-pending-badge"),
-    ).toHaveAccessibleName("미처리 제안 2개");
-  });
-
-  it("navigates to Suggestions with G S and leaves G A unbound", () => {
-    render(
-      wrap(
-        <DashboardShell appVersion="0.0.0">
-          <div>children</div>
-        </DashboardShell>,
-      ),
-    );
-
-    fireEvent.keyDown(window, { key: "g" });
-    fireEvent.keyDown(window, { key: "s" });
-    expect(navigationState.push).toHaveBeenCalledWith(
-      "/workspace/reef-acme/suggestions",
-    );
-
-    navigationState.push.mockClear();
-    fireEvent.keyDown(window, { key: "g" });
-    fireEvent.keyDown(window, { key: "a" });
-    expect(navigationState.push).not.toHaveBeenCalled();
-  });
-
-  it("advertises the Suggestions name and G S chord in shortcut help", async () => {
-    const user = userEvent.setup();
-    render(
-      wrap(
-        <DashboardShell appVersion="0.0.0">
-          <div>children</div>
-        </DashboardShell>,
-      ),
-    );
-
-    await user.click(
-      screen.getByRole("button", { name: "Keyboard shortcuts" }),
-    );
-    const dialog = screen.getByTestId("keyboard-shortcuts-dialog");
-    expect(within(dialog).getByText("Go to Suggestions")).toBeVisible();
-    const row = within(dialog).getByText("Go to Suggestions").closest("li");
-    expect(row).toHaveTextContent("G");
-    expect(row).toHaveTextContent("S");
-    expect(
-      within(dialog).queryByText("Go to Activity"),
-    ).not.toBeInTheDocument();
   });
 
   it("shows the Settings skill-update dot when the active workspace skill is outdated (REEF-257)", () => {

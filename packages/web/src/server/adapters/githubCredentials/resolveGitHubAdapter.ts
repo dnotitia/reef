@@ -17,7 +17,7 @@ export type GitHubCredentialSource = "app" | "server-pat";
 
 /**
  * Outcome of resolving a GitHub adapter for a server-side request. One shared
- * shape so the grounding, scan, and repo-list callers each map a single
+ * shape so the grounding and repo-list callers each map a single
  * resolution to their own contract (REEF-290 AC2).
  */
 export type ResolveGitHubAdapterResult =
@@ -35,9 +35,9 @@ export type ResolveGitHubAdapterResult =
 
 /**
  * Resolve the GitHub adapter for a server-side request, choosing the credential
- * in one place so the three call sites stay consistent (REEF-290 AC2). It was
+ * in one place so the call sites stay consistent (REEF-290 AC2). It was
  * extracted from the duplicated selection logic that lived in
- * `resolveGroundingGitHubAdapter`, `resolveScanGitHubAdapter`, and the
+ * `resolveGroundingGitHubAdapter` and the
  * `GET /api/repos` route inline.
  *
  * Precedence — App → server PAT:

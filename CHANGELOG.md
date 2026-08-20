@@ -14,6 +14,18 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Breaking: removed the obsolete AI activity-scanning and Suggestions
+  vertical slice from MVP.** The Suggestions and activity-scan pages, routes,
+  APIs, task, prompts, scan persistence, workspace setting, browser target and
+  watermark state, and generated runbooks are gone. Existing legacy AKB rows
+  and documents are left untouched; fresh workspaces no longer create them.
+  Dexie/IndexedDB no longer reads or writes the removed activity target and
+  watermark keys; existing browser values remain inert and require no destructive
+  migration.
+  On-demand Ask AI, issue enrichment, monitored-repository read-only grounding,
+  Notification Inbox, issue Activity, implementation references, and generic
+  client-ephemeral AgentArtifact review remain available.
+
 - **Removed the vault-less dashboard compatibility routes.** Dashboard links now
   require the canonical `/workspace/{vault}/...` form; old flat paths such as
   `/issues`, `/planning`, and `/settings/...` no longer redirect through the

@@ -81,8 +81,6 @@ interface RegistryOptions {
 const NAVIGATION_HREFS: Readonly<Record<string, string>> = {
   "navigation.issues": "/issues",
   "navigation.myWork": "/my-work",
-  "navigation.activity": "/activity",
-  "navigation.suggestions": "/suggestions",
   "navigation.reports": "/reports",
   "navigation.planning": "/planning",
   "navigation.settings": "/settings",

@@ -14,7 +14,7 @@ const tracer = trace.getTracer("@reef/web");
  *
  * No GitHub writes. Pure suggestion — caller (agent or UI) decides what to
  * apply. Returns structured suggestions that the PM can accept, reject, or
- * edit in the Draft Review UI.
+ * edit in the issue review UI.
  */
 export const suggestLabelsTool = tool({
   description:

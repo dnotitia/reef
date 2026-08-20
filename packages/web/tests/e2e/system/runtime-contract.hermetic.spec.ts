@@ -234,16 +234,6 @@ test.describe("Hermetic runtime discovery", () => {
             query: "issue title, body, or comment phrase",
           },
         },
-        activity_suggestions: {
-          scenario: "activity_suggestions",
-          workspace: "reef-e2e",
-          start_path: "/workspace/reef-e2e/suggestions",
-          interaction: {
-            type: "activity_review",
-            operation:
-              "review a pending suggestion, approve it, inspect the created issue, and add a comment",
-          },
-        },
         chat: {
           scenario: "configured",
           workspace: "reef-e2e",
@@ -425,16 +415,6 @@ test.describe("Hermetic runtime discovery", () => {
           .getByRole("button", { name: "New issue", exact: true }),
         testInfo,
         `${colorScheme}-true-empty`,
-      );
-
-      await resetFixture(request, "activity_suggestions");
-      await openExistingWorkspace(page);
-      await page.goto("/workspace/reef-e2e/suggestions");
-      await expectVisibleFocus(
-        page,
-        page.getByRole("button", { name: "All", exact: true }),
-        testInfo,
-        `${colorScheme}-suggestions-filter`,
       );
 
       await resetFixture(request, "configured");

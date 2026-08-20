@@ -9,9 +9,8 @@ overview, see the [root README](../README.md).
 reef is an agentic, AKB-backed issue tracker. Teams work in issues, priorities,
 statuses, plans, and reports; developers and coding agents leave evidence in
 commits, pull requests, branches, and code changes. reef reads monitored GitHub
-repositories read-only and turns that activity into reviewable signal — draft
-issues for untracked work, proposed status transitions, and grounded AI answers
-about the workspace. Every write stays human-reviewed.
+repositories read-only when a user requests grounded AI answers or issue
+enrichment. Every write stays human-reviewed.
 
 ## Overview
 
@@ -191,8 +190,8 @@ credentials the web product needs are each placed deliberately:
 - **GitHub credentials** — deployment-managed server environment:
   `REEF_GITHUB_APP_ID`, `REEF_GITHUB_APP_INSTALLATION_ID`, and
   `REEF_GITHUB_APP_PRIVATE_KEY`. reef-web mints per-request installation tokens
-  server-side for read-only monitored-repo grounding, repository listing, and
-  activity scans. Local development and CI may set `REEF_GITHUB_PAT` as a
+  server-side for read-only monitored-repo grounding and repository listing.
+  Local development and CI may set `REEF_GITHUB_PAT` as a
   server-managed fallback when no App is configured. Browser clients do not
   collect or forward GitHub tokens.
 - **LLM configuration** — deployment-managed server environment through
@@ -211,7 +210,7 @@ GitHub and LLM credentials out of browser storage.
 
 ## The AI layer
 
-reef runs bounded agent loops (issue enrichment, activity scan, chat) and
+reef runs bounded agent loops (issue enrichment and chat) and
 streams chat to the browser. The AI layer is built on the **Vercel AI SDK**:
 
 - Chat streaming is assembled in the web server application
@@ -228,8 +227,8 @@ streams chat to the browser. The AI layer is built on the **Vercel AI SDK**:
   `.default(value)`. AI tool names are `snake_case`.
 - **The chat tool catalog is read-only**, so there is no approval-gating surface
   to maintain, and the vault is closure-bound into the AKB tools so a
-  prompt-injection attempt cannot reach another vault. Enrichment and activity
-  scan are separate bounded agents whose outputs are *proposals* gated by human
+  prompt-injection attempt cannot reach another vault. Enrichment is a bounded
+  agent whose field and reference outputs are *proposals* gated by human
   approval. If a mutating chat tool is ever added, it must set
   `needsApproval: true` and `web` must wire a client approval flow.
 
@@ -238,14 +237,13 @@ streams chat to the browser. The AI layer is built on the **Vercel AI SDK**:
 reef grounds its agents in the team's monitored repositories: it needs to read
 code reality, but it must never become a writer or commit under a user's
 identity. The GitHub adapter in `web` is intentionally thin and scoped to
-monitored repos: activity detection (commits, pull requests), code search, file
-reads, and repository labels, via Octokit REST and GraphQL.
+monitored repos: code search, file reads, and repository labels, via Octokit REST.
 
 It is strictly **read-only** — no managed-repo writes, no local Git, no clones.
 Consequently the GitHub credential's blast radius is read-only, core issue CRUD
 does not depend on GitHub (a grounding failure degrades only grounding
-features), and code reality is pulled by user-initiated scans rather than pushed
-from repos.
+features), and code reality is pulled by user-initiated requests rather than
+pushed from repos.
 
 ## Browser state: Zustand, TanStack Query, Dexie
 
@@ -260,7 +258,7 @@ emerge:
   loading flag.
 - **Dexie / IndexedDB** — per-user persistent browser state only, in one live
   store. `config` holds the active `vault`, theme, AKB user id, and per-vault UI
-  preferences (active scan repo, saved issue filters). Monitored repos,
+  preferences (saved issue filters). Monitored repos,
   `project_prefix`, GitHub credentials, and LLM settings are *not* in
   `config` — they are AKB or deployment state. The AKB session is not browser
   JavaScript state at all; it is the `__reef_session` cookie.
@@ -319,7 +317,7 @@ provider errors.
   the canonical place that classifies boundary failures (especially AKB) into
   typed reef errors carrying fields such as `resourceKind`. Subclasses include
   `SchemaValidationError`, `AkbApiError`, `GitHubApiError`, `LlmError`,
-  `AuthError`, `NotFoundError`, `ConflictError`, and `ActivitySuggestionError`.
+  `AuthError`, `NotFoundError`, and `ConflictError`.
 - **Route Handlers translate `ReefError`** into PM-facing language and an
   appropriate HTTP status (via a shared `translateError` helper); they do not
   invent their own ad-hoc error mappings.
@@ -360,12 +358,12 @@ preserves Server-Sent Events.
 
 | Area | Location |
 | --- | --- |
-| Boundary schemas | `packages/core/src/schemas/` (`issues`, `planning`, `workspace`, `activity`, `ai`, `common`) |
-| Domain models | `packages/core/src/models/` (issue ids, status transitions, code-signal inference) |
-| AKB adapter | `packages/core/src/adapters/akb/` (`issues`, `planning`, `workspace`, `activity`, `vaultSkill`, `core`) |
+| Boundary schemas | `packages/core/src/schemas/` (`issues`, `planning`, `workspace`, `ai`, `common`) |
+| Domain models | `packages/core/src/models/` (issue ids and status transitions) |
+| AKB adapter | `packages/core/src/adapters/akb/` (`issues`, `planning`, `workspace`, `vaultSkill`, `core`) |
 | GitHub adapter and credential resolution | `packages/web/src/server/adapters/githubAdapter.ts`, `github/`, and `githubCredentials/` (read-only monitored-repo access) |
 | LLM adapter and configuration | `packages/web/src/server/adapters/llmAdapter.ts` and `llmConfig/` |
-| AI agents and tools | `packages/web/src/server/application/agents/` (`chatAgent`, `enrichIssue`, `scanActivity`, `framework`, `prompts`, `tools`) |
+| AI agents and tools | `packages/web/src/server/application/agents/` (`chatAgent`, `enrichIssue`, `framework`, `prompts`, `tools`) |
 | Core observability seam | `packages/core/src/observability/index.ts` |
 | Error types | `packages/core/src/errors/` |
 | Route Handlers (BFF) | `packages/web/src/app/api/*/route.ts` |

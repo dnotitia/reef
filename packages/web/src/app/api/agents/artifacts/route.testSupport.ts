@@ -8,11 +8,8 @@ const {
   mockGetAkbAdapter,
   mockGetAkbCurrentActor,
   mockListIssues,
-  mockReadActivitySuggestion,
   mockReadIssue,
   mockRespondWithError,
-  mockUpdateActivitySuggestion,
-  mockUpdateActivitySuggestionStatus,
   mockUpdateIssue,
   mockWriteIssue,
 } = vi.hoisted(() => ({
@@ -22,11 +19,8 @@ const {
   mockGetAkbAdapter: vi.fn(),
   mockGetAkbCurrentActor: vi.fn(),
   mockListIssues: vi.fn(),
-  mockReadActivitySuggestion: vi.fn(),
   mockReadIssue: vi.fn(),
   mockRespondWithError: vi.fn(),
-  mockUpdateActivitySuggestion: vi.fn(),
-  mockUpdateActivitySuggestionStatus: vi.fn(),
   mockUpdateIssue: vi.fn(),
   mockWriteIssue: vi.fn(),
 }));
@@ -38,10 +32,7 @@ vi.mock("@reef/core", async (importOriginal) => {
     akbAllocateNextIssueId: mockAllocateNextIssueId,
     akbEnsureReefTables: mockEnsureReefTables,
     akbListIssues: mockListIssues,
-    akbReadActivitySuggestion: mockReadActivitySuggestion,
     akbReadIssue: mockReadIssue,
-    akbUpdateActivitySuggestion: mockUpdateActivitySuggestion,
-    akbUpdateActivitySuggestionStatus: mockUpdateActivitySuggestionStatus,
     akbUpdateIssue: mockUpdateIssue,
     akbWriteIssue: mockWriteIssue,
     buildIssueMetadataFromCreateInput: mockBuildIssueMetadataFromCreateInput,
@@ -100,13 +91,13 @@ export const chatArtifact = {
 
 export const createIssueArtifact = {
   artifact_id: "artifact-create",
-  run_id: "activity.draft:run",
-  task_id: "activity.draft",
+  run_id: "issue.enrichment:run",
+  task_id: "issue.enrichment",
   type: "issue_create_proposal",
   status: "pending",
   title: "Create unified route",
   confidence: 0.8,
-  reasoning: "Activity suggests a new task.",
+  reasoning: "Enrichment suggests a new task.",
   evidence: [],
   warnings: [],
   created_at: "2026-06-04T00:00:00.000Z",
@@ -125,8 +116,8 @@ export const createIssueArtifact = {
 
 export const updateIssueArtifact = {
   artifact_id: "artifact-update",
-  run_id: "activity.update:run",
-  task_id: "activity.update",
+  run_id: "issue.enrichment:update:run",
+  task_id: "issue.enrichment",
   type: "issue_update_proposal",
   status: "pending",
   title: "Update unified route",
@@ -151,8 +142,8 @@ export const updateIssueArtifact = {
 
 export const statusChangeArtifact = {
   artifact_id: "artifact-status",
-  run_id: "activity.status-change:run",
-  task_id: "activity.status-change",
+  run_id: "issue.enrichment:status-change:run",
+  task_id: "issue.enrichment",
   type: "status_change_proposal",
   status: "pending",
   title: "Unified route",
@@ -221,11 +212,8 @@ export {
   mockGetAkbAdapter,
   mockGetAkbCurrentActor,
   mockListIssues,
-  mockReadActivitySuggestion,
   mockReadIssue,
   mockRespondWithError,
-  mockUpdateActivitySuggestion,
-  mockUpdateActivitySuggestionStatus,
   mockUpdateIssue,
   mockWriteIssue,
 };
@@ -240,11 +228,6 @@ export function resetArtifactRouteMocks() {
   mockEnsureReefTables.mockResolvedValue(undefined);
   mockAllocateNextIssueId.mockResolvedValue("REEF-099");
   mockListIssues.mockResolvedValue({ issues: [] });
-  mockReadActivitySuggestion.mockRejectedValue(
-    new (class extends Error {
-      name = "NotFoundError";
-    })(),
-  );
   mockBuildIssueMetadataFromCreateInput.mockReturnValue({
     id: "REEF-099",
     title: "Create unified route",
@@ -260,11 +243,5 @@ export function resetArtifactRouteMocks() {
   mockReadIssue.mockResolvedValue({
     issue: { id: "REEF-043", status: "todo", source: "manual" },
     content: "Issue body",
-  });
-  mockUpdateActivitySuggestion.mockResolvedValue({
-    suggestion: { id: "reef-draft-1111111111111111", status: "pending" },
-  });
-  mockUpdateActivitySuggestionStatus.mockResolvedValue({
-    suggestion: { id: "reef-draft-1111111111111111", status: "approved" },
   });
 }

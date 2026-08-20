@@ -37,12 +37,12 @@ const issueDraftFields = {
 const artifact = AgentArtifactSchema.parse({
   artifact_id: "artifact-1",
   run_id: "run-1",
-  task_id: "activity.scan",
+  task_id: "issue.enrichment",
   type: "issue_create_proposal",
   status: "pending",
   title: "Create stream client",
   confidence: 0.9,
-  reasoning: "Activity suggests a web runtime.",
+  reasoning: "The issue needs a web runtime.",
   evidence: [],
   warnings: [],
   created_at: "2026-06-04T00:00:04.000Z",
@@ -63,7 +63,7 @@ function event(input: Record<string, unknown>): AgentRunEvent {
   return AgentRunEventSchema.parse({
     event_id: `event-${input.seq}`,
     run_id: "run-1",
-    task_id: "activity.scan",
+    task_id: "issue.enrichment",
     created_at: `2026-06-04T00:00:0${input.seq}.000Z`,
     metadata: {},
     ...input,
@@ -77,7 +77,7 @@ describe("agentRunReducer", () => {
       event({
         seq: 1,
         type: "stage.started",
-        stage: { stage_id: "scan", name: "Scan activity" },
+        stage: { stage_id: "enrich", name: "Enrich issue" },
       }),
       event({
         seq: 2,
@@ -115,14 +115,14 @@ describe("agentRunReducer", () => {
     const replay = () =>
       events.reduce(
         (state, next) => agentRunReducer(state, { type: "event", event: next }),
-        createInitialAgentRunState("activity.scan"),
+        createInitialAgentRunState("issue.enrichment"),
       );
 
     const state = replay();
     expect(state).toEqual(replay());
     expect(state.phase).toBe("completed");
     expect(state.text).toBe("Hello ");
-    expect(state.progress.stages.scan?.status).toBe("running");
+    expect(state.progress.stages.enrich?.status).toBe("running");
     expect(state.progress.tools["tool-1"]?.input).toEqual({ query: "stream" });
     expect(state.artifact_order).toEqual(["artifact-1"]);
     expect(state.artifacts["artifact-1"]).toMatchObject({

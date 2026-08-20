@@ -68,7 +68,7 @@ export async function listIssueRelations(
 /**
  * Compute the next sequential ID in a vault by taking the max-allocated number
  * across the `reef_issues` table. A single `SELECT reef_id` — no document body
- * fetch. Shared by the two POST endpoints (`/api/issues`, `/api/drafts/approve`).
+ * fetch. Shared by issue-create flows.
  */
 export async function allocateNextIssueId(
   params: AllocateNextIssueIdParams,

@@ -796,7 +796,6 @@ test.describe("Hermetic issue keyboard navigation", () => {
     for (const [key, pattern, heading] of [
       ["i", /\/issues$/, "Issues"],
       ["m", /\/my-work$/, "My Work"],
-      ["s", /\/suggestions$/, "Suggestions to review"],
       ["r", /\/reports$/, "Reports"],
     ] as const) {
       await page.keyboard.press("g");

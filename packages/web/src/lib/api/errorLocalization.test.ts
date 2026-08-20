@@ -121,8 +121,6 @@ describe("localizedErrorResponse — web-boundary keys (AC1)", () => {
     expect((await bodyOf(unconfigured)).error).toBe(
       "이 배포에는 GitHub App이 설정되어 있지 않습니다.",
     );
-    const invalidId = await localizedErrorResponse("invalidSuggestionId", 400);
-    expect((await bodyOf(invalidId)).error).toBe("잘못된 제안 ID입니다.");
   });
 });
 

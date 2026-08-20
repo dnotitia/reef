@@ -107,7 +107,7 @@ export function naturalSortOrder(field: UserSortField): SortOrder {
 // itself ("Assignee", "Due", "Priority"), distinct from the VALUE labels below
 // (the "High" / "Low" a priority can take). These header words were duplicated
 // as hardcoded literals across the issue detail rail, filter bar, report scope
-// bar, new-issue dialog, and activity draft editor; the `name` catalog group
+// bar, and new-issue dialog; the `name` catalog group
 // gives those surfaces one shared source and removes the half-translated header
 // REEF-292 left (a field's values localized but its name still English —
 // REEF-298 AC2/AC4). Keyed by a field id rather than an enum value, so this
@@ -232,7 +232,7 @@ export const ISSUE_FIELD_MESSAGES_EN = {
   } satisfies Record<UserSortField, Record<SortOrder, string>>,
   // Field-NAME labels (REEF-301): the word that labels a field, keyed by field
   // id (see FIELD_NAME_KEYS). Shared by the property rail, filter bar, report
-  // scope bar, create dialog, and activity draft editor.
+  // scope bar, and create dialog.
   name: {
     type: "Type",
     status: "Status",

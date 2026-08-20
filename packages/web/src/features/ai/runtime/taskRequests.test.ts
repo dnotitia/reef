@@ -1,11 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
-import {
-  activityScanRun,
-  chatWorkspaceRun,
-  issueEnrichmentRun,
-} from "./taskRequests";
+import { chatWorkspaceRun, issueEnrichmentRun } from "./taskRequests";
 
 const issueDraftFields = {
   title: "Create stream client",
@@ -30,7 +26,7 @@ const issueDraftFields = {
 };
 
 describe("agent run task request builders", () => {
-  it("lets chat, enrichment, and activity presenters share the run hook", () => {
+  it("builds the retained chat and enrichment requests", () => {
     expect(
       chatWorkspaceRun({
         messages: [
@@ -53,15 +49,5 @@ describe("agent run task request builders", () => {
         },
       }).task_id,
     ).toBe("issue.enrichment");
-
-    expect(
-      activityScanRun({
-        owner: "acme",
-        repo: "reef",
-        vault: "reef-test",
-        since: null,
-        projectPrefix: "REEF",
-      }).task_id,
-    ).toBe("activity.scan");
   });
 });

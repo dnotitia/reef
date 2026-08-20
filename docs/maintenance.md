@@ -221,8 +221,8 @@ current behavior, then narrow the comment, delete it, add the missing guard, or
 escalate. Treat as `needs-human` only when the claim depends on product or
 architecture intent that code cannot answer.
 
-Example: lifecycle comments must distinguish AI status suggestions from manual
-issue edits. AI status-change suggestions are forward-only at approval time, but
+Example: lifecycle comments must distinguish AI status proposals from manual
+issue edits. AI status-change proposals are forward-only at approval time, but
 direct row updates are last-write-wins, and manual reopen/backward movement is a
 deliberate exception. A comment that says status can never move backward is
 therefore too broad.

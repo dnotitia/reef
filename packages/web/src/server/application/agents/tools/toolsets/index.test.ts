@@ -39,7 +39,7 @@ describe("agent toolsets", () => {
     const adapter = makeTestAkbAdapter();
 
     // Default: no document search — keeps issue-just read-toolset consumers
-    // (e.g. the activity-scan semantic linker) unchanged.
+    // (e.g. the issue-enrichment semantic linker) unchanged.
     expect(
       Object.keys(createWorkspaceReadToolset({ adapter, vault: "reef-test" })),
     ).not.toContain("search_documents");

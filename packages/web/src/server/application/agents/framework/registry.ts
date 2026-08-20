@@ -9,14 +9,7 @@ import {
   type AgentTaskStage,
 } from "./runtime";
 
-export const AgentTaskIdEnum = z.enum([
-  "chat.workspace",
-  "issue.enrichment",
-  "activity.scan",
-  "activity.issue-link",
-  "activity.draft",
-  "activity.status-change",
-]);
+export const AgentTaskIdEnum = z.enum(["chat.workspace", "issue.enrichment"]);
 export type AgentTaskId = z.infer<typeof AgentTaskIdEnum>;
 
 export const AgentExecutionModeEnum = z.enum([
@@ -41,7 +34,6 @@ const AgentToolsetPolicyEnum = z.enum([
   "workspace-read",
   "repo-read",
   "issue-authoring",
-  "activity-scan",
 ]);
 type AgentToolsetPolicy = z.infer<typeof AgentToolsetPolicyEnum>;
 
@@ -104,58 +96,6 @@ export const DEFAULT_AGENT_TASK_REGISTRY = AgentTaskRegistrySchema.parse({
     outputSchema: "field_suggestion",
     repairPolicy: "json-repair",
     toolsetPolicy: ["workspace-read", "repo-read"],
-    stages: STANDARD_STAGES,
-  },
-  "activity.scan": {
-    taskId: "activity.scan",
-    functionId: "reef.agent.activity.scan",
-    spanName: "reef.agent.activity_scan",
-    executionMode: "deterministic",
-    maxSteps: null,
-    tokenLimit: null,
-    temperature: null,
-    outputSchema: "activity_suggestion_batch",
-    repairPolicy: "drop-invalid",
-    toolsetPolicy: ["workspace-read", "repo-read", "activity-scan"],
-    stages: STANDARD_STAGES,
-  },
-  "activity.issue-link": {
-    taskId: "activity.issue-link",
-    functionId: "reef.agent.activity.issue_link",
-    spanName: "reef.agent.activity_issue_link",
-    executionMode: "one-shot-json",
-    maxSteps: 6,
-    tokenLimit: 2000,
-    temperature: 0,
-    outputSchema: "activity_issue_link_decision",
-    repairPolicy: "schema-retry",
-    toolsetPolicy: ["workspace-read"],
-    stages: STANDARD_STAGES,
-  },
-  "activity.draft": {
-    taskId: "activity.draft",
-    functionId: "reef.agent.activity.draft",
-    spanName: "reef.agent.activity_draft",
-    executionMode: "one-shot-json",
-    maxSteps: 6,
-    tokenLimit: 3000,
-    temperature: 0.1,
-    outputSchema: "issue_create_proposal",
-    repairPolicy: "json-repair",
-    toolsetPolicy: ["workspace-read", "repo-read", "issue-authoring"],
-    stages: STANDARD_STAGES,
-  },
-  "activity.status-change": {
-    taskId: "activity.status-change",
-    functionId: "reef.agent.activity.status_change",
-    spanName: "reef.agent.activity_status_change",
-    executionMode: "deterministic",
-    maxSteps: null,
-    tokenLimit: null,
-    temperature: null,
-    outputSchema: "status_change_proposal",
-    repairPolicy: "none",
-    toolsetPolicy: ["workspace-read", "activity-scan"],
     stages: STANDARD_STAGES,
   },
 });

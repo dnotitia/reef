@@ -63,7 +63,7 @@ interface IssueRelationInputProps {
    * Make multi-mode relation rows navigable (REEF-268): each selected target
    * becomes a link to `/issues/{id}` rendered in the Sub-issues-style
    * `IssueOptionRow` rhythm, with the remove `X` kept as a separate hit target.
-   * The create dialog and activity-draft editor leave this `false` so selecting
+   * The create dialog leaves this `false` so selecting
    * a target does not navigate away from an unsaved issue. No effect in single
    * mode (parent uses a field).
    */
@@ -690,7 +690,7 @@ export function IssueRelationInput({
               onRemove={removeRelation}
             />
           ) : (
-            // Create dialog / activity-draft editor: selected targets use the
+            // Create dialog: selected targets use the
             // same compact issue-row rhythm, but without links so clicking does
             // not leave an unsaved issue.
             <StaticRelationRows

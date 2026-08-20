@@ -48,20 +48,17 @@ describe("agent artifact schemas", () => {
   it("defines the artifact persistence boundary contract", () => {
     expect(
       AgentArtifactPersistenceSchema.parse({
-        source_of_truth: "akb_activity_suggestion",
-        activity_suggestion_id: "reef-draft-0123456789abcdef",
-        retention: "akb_review_history",
+        source_of_truth: "client_ephemeral",
+        retention: "browser_session",
       }),
-    ).toMatchObject({
-      source_of_truth: "akb_activity_suggestion",
-      retention: "akb_review_history",
+    ).toEqual({
+      source_of_truth: "client_ephemeral",
+      retention: "browser_session",
     });
-
     expect(
       AgentArtifactPersistenceSchema.safeParse({
-        source_of_truth: "akb_activity_suggestion",
-        activity_suggestion_id: "draft-1",
-        retention: "akb_review_history",
+        source_of_truth: "server",
+        retention: "persistent",
       }).success,
     ).toBe(false);
   });
@@ -97,7 +94,7 @@ describe("agent artifact schemas", () => {
         ...baseArtifact,
         artifact_id: "artifact-3",
         type: "issue_create_proposal",
-        task_id: "activity.draft",
+        task_id: "issue.enrichment",
         payload: {
           proposal: {
             operation: "create",
@@ -112,7 +109,7 @@ describe("agent artifact schemas", () => {
         ...baseArtifact,
         artifact_id: "artifact-4",
         type: "status_change_proposal",
-        task_id: "activity.status-change",
+        task_id: "issue.enrichment",
         payload: {
           proposal: {
             operation: "update",
@@ -147,7 +144,7 @@ describe("agent artifact schemas", () => {
       AgentArtifactSchema.parse({
         ...baseArtifact,
         type: "issue_update_proposal",
-        task_id: "activity.draft",
+        task_id: "issue.enrichment",
         payload: {
           proposal: {
             operation: "update",

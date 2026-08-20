@@ -22,8 +22,8 @@ type RepoListResult = Awaited<
  * 304 with ETag). `id` is GitHub's stable numeric repo id — the logical PK for
  * `monitored_repos` rows (REEF-239 AC4).
  *
- * Credential selection (App → server PAT) is shared with the grounding and scan
- * callers via `resolveGitHubAdapter` (REEF-290 AC2). The route just branches on
+ * Credential selection (App → server PAT) is shared with grounding callers via
+ * `resolveGitHubAdapter` (REEF-290 AC2). The route just branches on
  * which credential served the adapter: an App installation token lists the
  * *installation's* repositories, while the dev/CI server PAT lists the
  * *authenticated* account's repositories. Both credentials are session-gated

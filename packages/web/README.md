@@ -12,13 +12,13 @@ local and CI), and LLM configuration is deployment-managed server environment.
 
 ## Responsibilities
 
-- Render the issues workspace, board, list, timeline, planning, activity,
-  reports, settings, onboarding, and login views.
+- Render the issues workspace, board, list, timeline, Notification Inbox,
+  planning, reports, settings, onboarding, and login views.
 - Expose Route Handlers under `src/app/api/*` that validate inputs, extract
   credentials, resolve server application use cases, call `@reef/core` for AKB
   and domain behavior, and translate errors into PM-facing HTTP responses.
 - Own deployment-managed GitHub and LLM adapters under `src/server/adapters/`.
-- Own chat, enrichment, activity scanning, prompts, and AI SDK tools under
+- Own chat, on-demand enrichment, prompts, and AI SDK tools under
   `src/server/application/agents/`.
 - Manage browser-local UI state through Dexie, localStorage, and TanStack Query
   persistence where appropriate.
@@ -92,7 +92,7 @@ provider or deployment mode. LLM state does not affect AKB or Keycloak
 authentication. Canonical and compatibility alias values may be set together
 only when they agree.
 
-GitHub features (monitored repositories, activity scan, and code grounding) are
+GitHub features (monitored repositories and read-only code grounding) are
 deployment-managed through `REEF_GITHUB_APP_ID`,
 `REEF_GITHUB_APP_INSTALLATION_ID`, and `REEF_GITHUB_APP_PRIVATE_KEY`, with an
 optional read-only `REEF_GITHUB_PAT` fallback for local development and CI. When
@@ -111,7 +111,7 @@ override. See `../../docs/keycloak-sso.md` for the callback and account contract
 | Path | Purpose |
 | --- | --- |
 | `src/app/` | App Router pages, layouts, modal routes, and Route Handlers. |
-| `src/features/` | Product feature areas: issues, board, timeline, planning, activity, AI, reports, settings, onboarding, auth, search, preferences, and shared UI state. |
+| `src/features/` | Product feature areas: issues, board, timeline, planning, AI, reports, settings, onboarding, auth, search, preferences, and shared UI state. |
 | `src/components/` | Shared UI components and field leaves used across features. |
 | `src/lib/` | Browser/API helpers, AKB/session helpers, logging, metrics, telemetry, and browser storage helpers. |
 | `src/server/` | Server-only provider adapters, credential resolution, agent application code, and prompts/tools. |

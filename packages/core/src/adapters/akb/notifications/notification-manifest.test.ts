@@ -8,7 +8,7 @@ import {
 
 describe("notification storage manifest", () => {
   it("preserves the existing table names and order before the additive tables", () => {
-    expect(REEF_DESIRED_TABLES.slice(0, 11).map((table) => table.name)).toEqual(
+    expect(REEF_DESIRED_TABLES.slice(0, 10).map((table) => table.name)).toEqual(
       [
         "reef_settings",
         "monitored_repos",
@@ -17,7 +17,6 @@ describe("notification storage manifest", () => {
         "reef_milestones",
         "reef_releases",
         "reef_templates",
-        "reef_activity_suggestions",
         "reef_comments",
         "reef_attachments",
         "reef_activity",
@@ -26,8 +25,8 @@ describe("notification storage manifest", () => {
   });
 
   it("declares the additive schema version and both complete create-time tables", () => {
-    expect(REEF_SCHEMA_VERSION).toBe(2);
-    expect(REEF_DESIRED_TABLES).toHaveLength(13);
+    expect(REEF_SCHEMA_VERSION).toBe(3);
+    expect(REEF_DESIRED_TABLES).toHaveLength(12);
 
     const notifications = REEF_DESIRED_TABLES.find(
       (table) => table.name === REEF_NOTIFICATIONS_TABLE,

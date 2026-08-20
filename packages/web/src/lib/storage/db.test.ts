@@ -39,16 +39,16 @@ describe("Dexie schema — reef IndexedDB (akb pivot)", () => {
       ).toBe("reef-acme");
     });
 
-    it("supports per-vault scoped keys (activity_repo:{vault})", async () => {
+    it("supports per-vault scoped issue filter keys", async () => {
       await db.config.add({
-        key: "activity_repo:reef-acme",
-        value: "octo/cat",
+        key: "filter:reef-acme",
+        value: "{}",
       });
       const row = await db.config
         .where("key")
-        .equals("activity_repo:reef-acme")
+        .equals("filter:reef-acme")
         .first();
-      expect(row?.value).toBe("octo/cat");
+      expect(row?.value).toBe("{}");
     });
   });
 

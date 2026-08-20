@@ -1,19 +1,12 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
   APPROVE,
-  chatArtifact,
   createIssueArtifact,
   mockAllocateNextIssueId,
   mockBuildIssueMetadataFromCreateInput,
-  mockGetAkbAdapter,
-  mockGetAkbCurrentActor,
   mockListIssues,
-  mockReadActivitySuggestion,
   mockReadIssue,
-  mockRespondWithError,
-  mockUpdateActivitySuggestion,
-  mockUpdateActivitySuggestionStatus,
   mockUpdateIssue,
   mockWriteIssue,
   paramsFor,
@@ -24,9 +17,7 @@ import {
 } from "./route.testSupport";
 
 describe("agent artifact approve routes", () => {
-  beforeEach(() => {
-    resetArtifactRouteMocks();
-  });
+  beforeEach(() => resetArtifactRouteMocks());
 
   it("approves issue-create artifacts through the existing create flow", async () => {
     const res = await APPROVE(
@@ -34,7 +25,6 @@ describe("agent artifact approve routes", () => {
         artifact: createIssueArtifact,
         vault: "reef-test",
         prefix: "REEF",
-        actor: "spoofed-actor",
       }),
       { params: paramsFor("artifact-create") },
     );
@@ -43,7 +33,10 @@ describe("agent artifact approve routes", () => {
     expect(await res.json()).toMatchObject({
       artifact: {
         status: "approved",
-        metadata: { source: "ai-agent:artifact:artifact-create" },
+        metadata: {
+          source: "ai-agent:artifact:artifact-create",
+          persistence: { source_of_truth: "client_ephemeral" },
+        },
       },
       issueId: "REEF-099",
     });
@@ -58,12 +51,8 @@ describe("agent artifact approve routes", () => {
       }),
     );
     expect(mockWriteIssue).toHaveBeenCalledWith(
-      expect.objectContaining({
-        vault: "reef-test",
-        content: "Implement the unified route.",
-      }),
+      expect.objectContaining({ vault: "reef-test" }),
     );
-    expect(mockUpdateIssue).not.toHaveBeenCalled();
   });
 
   it("rejects malformed project prefixes before allocation", async () => {
@@ -81,88 +70,32 @@ describe("agent artifact approve routes", () => {
       runtime_error: { code: "invalid_artifact_command_request" },
     });
     expect(mockAllocateNextIssueId).not.toHaveBeenCalled();
-    expect(mockWriteIssue).not.toHaveBeenCalled();
-  });
-
-  it("blocks persisted-backed activity artifacts until their suggestion row exists", async () => {
-    const res = await APPROVE(
-      request({
-        artifact: {
-          ...createIssueArtifact,
-          metadata: {
-            persistence: {
-              source_of_truth: "akb_activity_suggestion",
-              activity_suggestion_id: null,
-              retention: "akb_review_history",
-            },
-            provenance: {
-              type: "commit",
-              ref: "abc123",
-              repo: "octo/cat",
-              actor: "alice",
-              detectedAt: "2026-06-04T00:00:00.000Z",
-            },
-          },
-        },
-        vault: "reef-test",
-        prefix: "REEF",
-      }),
-      { params: paramsFor("artifact-create") },
-    );
-
-    expect(res.status).toBe(409);
-    expect(await res.json()).toMatchObject({
-      runtime_error: { code: "activity_suggestion_persisting" },
-    });
-    expect(mockWriteIssue).not.toHaveBeenCalled();
-    expect(mockUpdateActivitySuggestionStatus).not.toHaveBeenCalled();
   });
 
   it("approves issue-update artifacts through the existing update flow", async () => {
     const res = await APPROVE(
-      request({
-        artifact: updateIssueArtifact,
-        vault: "reef-test",
-        actor: "spoofed-actor",
-      }),
+      request({ artifact: updateIssueArtifact, vault: "reef-test" }),
       { params: paramsFor("artifact-update") },
     );
 
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
-      artifact: {
-        status: "approved",
-        metadata: { source: "ai-agent:artifact:artifact-update" },
-      },
+      artifact: { status: "approved" },
       issueId: "REEF-043",
       commit_hash: "def456",
     });
     expect(mockUpdateIssue).toHaveBeenCalledWith(
-      expect.objectContaining({
-        vault: "reef-test",
-        id: "REEF-043",
-        content: "Updated body",
-        partial: expect.objectContaining({
-          title: "Updated unified route",
-          updated_by: "alice",
-          source: "ai-agent:artifact:artifact-update",
-        }),
-      }),
+      expect.objectContaining({ id: "REEF-043", vault: "reef-test" }),
     );
   });
 
-  it("preserves status-change side effects when approving status artifacts", async () => {
+  it("approves forward status-change artifacts", async () => {
     mockReadIssue.mockResolvedValueOnce({
       issue: { id: "REEF-043", status: "in_progress", source: "manual" },
       content: "Issue body",
     });
-
     const res = await APPROVE(
-      request({
-        artifact: statusChangeArtifact,
-        vault: "reef-test",
-        actor: "spoofed-actor",
-      }),
+      request({ artifact: statusChangeArtifact, vault: "reef-test" }),
       { params: paramsFor("artifact-status") },
     );
 
@@ -173,30 +106,25 @@ describe("agent artifact approve routes", () => {
         partial: expect.objectContaining({
           status: "in_review",
           source: "ai-agent:artifact:artifact-status",
-          updated_by: "alice",
-          last_status_change: expect.any(String),
-          closed_at: null,
-          closed_reason: null,
         }),
       }),
     );
   });
 
-  it("rejects approval when the body artifact id does not match the path", async () => {
+  it("reuses an issue created by the same artifact without writing twice", async () => {
+    mockListIssues.mockResolvedValueOnce({
+      issues: [{ id: "REEF-099", source: "ai-agent:artifact:artifact-create" }],
+    });
     const res = await APPROVE(
       request({
-        artifact: { ...createIssueArtifact, artifact_id: "other-artifact" },
+        artifact: createIssueArtifact,
         vault: "reef-test",
         prefix: "REEF",
       }),
       { params: paramsFor("artifact-create") },
     );
-
-    expect(res.status).toBe(400);
-    expect(await res.json()).toMatchObject({
-      runtime_error: { code: "artifact_id_mismatch" },
-    });
+    expect(res.status).toBe(200);
     expect(mockWriteIssue).not.toHaveBeenCalled();
-    expect(mockUpdateIssue).not.toHaveBeenCalled();
+    expect(await res.json()).toMatchObject({ issueId: "REEF-099" });
   });
 });

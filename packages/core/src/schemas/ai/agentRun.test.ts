@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  ActivityScanAgentInputSchema,
   AgentArtifactCommandRequestSchema,
   AgentArtifactEditRequestSchema,
   AgentRunRequestSchema,
@@ -87,34 +86,9 @@ describe("agent run request schemas", () => {
     ).toThrow();
   });
 
-  it("validates activity scan task input and normalizes omitted since", () => {
-    expect(
-      AgentRunRequestSchema.parse({
-        task_id: "activity.scan",
-        input: {
-          owner: "acme",
-          repo: "reef",
-          vault: "reef-test",
-          projectPrefix: "REEF",
-        },
-      }),
-    ).toMatchObject({
-      task_id: "activity.scan",
-      input: { since: null },
-    });
-  });
-
-  it("rejects malformed activity scan vault ids", () => {
+  it("rejects the removed activity scan task", () => {
     expect(() =>
-      AgentRunRequestSchema.parse({
-        task_id: "activity.scan",
-        input: {
-          owner: "acme",
-          repo: "reef",
-          vault: "../reef-test",
-          projectPrefix: "REEF",
-        },
-      }),
+      AgentRunRequestSchema.parse({ task_id: "activity.scan", input: {} }),
     ).toThrow();
   });
 
@@ -234,17 +208,5 @@ describe("agent run request schemas", () => {
       vault: "reef-test",
       patch: { title: "Reviewed" },
     });
-  });
-
-  it("accepts nullable activity scan since values", () => {
-    expect(
-      ActivityScanAgentInputSchema.parse({
-        owner: "acme",
-        repo: "reef",
-        vault: "reef-test",
-        since: null,
-        projectPrefix: "REEF",
-      }),
-    ).toMatchObject({ since: null });
   });
 });

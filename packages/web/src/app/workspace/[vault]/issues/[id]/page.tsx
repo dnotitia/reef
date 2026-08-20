@@ -17,7 +17,7 @@ interface IssuePageProps {
  * Base route for /workspace/[vault]/issues/[id] — reached on hard navigation
  * (refresh, paste-into-address-bar, deep link from Slack/email).
  *
- * Soft navigation from the issues list (any view) or /activity is intercepted
+ * Soft navigation from the issues list (any view) is intercepted
  * by the sibling `@modal/(.)issues/[id]/page.tsx` instead, so this file just
  * runs when the URL was hit cold.
  *

@@ -1,7 +1,5 @@
-import { activityInboxWorkflowsContent } from "./content/activityInboxWorkflows";
 import { commentsAndActivityContent } from "./content/commentsAndActivity";
 import { conversationalPlaybookContent } from "./content/conversationalPlaybook";
-import { githubActivityScanContent } from "./content/githubActivityScan";
 import { issueWorkflowsContent } from "./content/issueWorkflows";
 import { planningWorkflowsContent } from "./content/planningWorkflows";
 import { pmModelContent } from "./content/pmModel";
@@ -96,26 +94,6 @@ export function buildReefVaultSkillDocuments(
       summary:
         "How to manage sprints, milestones, releases, and issue planning links.",
       content: planningWorkflowsContent(),
-    },
-    {
-      path: docPath(runbookCollection, "activity-inbox-workflows"),
-      collection: runbookCollection,
-      slug: "activity-inbox-workflows",
-      title: "Reef Activity Inbox Workflows",
-      type: "reference",
-      tags: RUNBOOK_TAGS,
-      summary: "How to review, approve, and dismiss AI activity suggestions.",
-      content: activityInboxWorkflowsContent(),
-    },
-    {
-      path: docPath(runbookCollection, "github-activity-scan"),
-      collection: runbookCollection,
-      slug: "github-activity-scan",
-      title: "Reef GitHub Activity Scan",
-      type: "reference",
-      tags: RUNBOOK_TAGS,
-      summary: "How to scan GitHub activity into pending Reef suggestions.",
-      content: githubActivityScanContent(),
     },
   ];
 }

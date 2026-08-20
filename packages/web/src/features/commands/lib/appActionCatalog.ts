@@ -108,8 +108,6 @@ export function getCommandPageDescriptor(
 const NAVIGATION_SEARCH_ALIASES = {
   issues: ["issues", "이슈"],
   myWork: ["my work", "내 작업"],
-  activity: ["activity", "활동"],
-  suggestions: ["suggestions", "제안"],
   reports: ["reports", "리포트", "보고서"],
   planning: ["planning", "플래닝", "계획"],
   settings: ["settings", "설정"],
@@ -211,8 +209,6 @@ export const APP_ACTION_CATALOG: ReadonlyArray<AppActionDescriptor> = [
   ...[
     ["navigation.issues", "issues", "i"],
     ["navigation.myWork", "myWork", "m"],
-    ["navigation.activity", "activity", null],
-    ["navigation.suggestions", "suggestions", "s"],
     ["navigation.reports", "reports", "r"],
     ["navigation.planning", "planning", null],
     ["navigation.settings", "settings", null],

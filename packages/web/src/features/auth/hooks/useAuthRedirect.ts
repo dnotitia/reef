@@ -30,7 +30,7 @@ export type AuthGateStatus = "checking" | "active" | "inactive";
  *      validated downstream by `WorkspaceGuard`.
  *
  * GitHub App and LLM config are NOT login gates - they are deployment
- * capabilities surfaced on the GitHub / activity / AI surfaces.
+ * capabilities surfaced on the monitored-repository / AI surfaces.
  */
 export function useAuthRedirect(mode: AuthGateMode): AuthGateStatus {
   const router = useRouter();

@@ -2,7 +2,7 @@ import Dexie, { type EntityTable } from "dexie";
 
 interface ConfigEntry {
   id?: number;
-  key: string; // e.g. 'vault', 'theme', 'activity_repo:{vault}'
+  key: string; // e.g. 'vault', 'theme', 'filter:{vault}'
   value: string; // JSON-serialized for complex values
 }
 
@@ -11,11 +11,10 @@ interface ConfigEntry {
  *
  * One live store:
  *  - `config` (key-value bag): client workspace state with no akb backend home
- *    — the active `vault`, `theme`, `activity_repo:{vault}`, `filter:{vault}`
+ *    — the active `vault`, `theme`, `filter:{vault}`
  *    (the per-vault last-used issue filter, REEF-009),
  *    `named_filter:{vault}:{id}` (browser-local named issue filter envelopes),
- *    `last_visit_at`,
- *    `last_scan:{repo}`, and `akb_user_id` (the previously-signed-in account,
+ *    `akb_user_id` (the previously-signed-in account,
  *    read by `accountReconcile` to detect an account switch).
  *
  * ## Versioning
@@ -57,17 +56,8 @@ class ReefDatabase extends Dexie {
       dismissed_suggestions: "++id, ref",
       cache: "id, fetchedAt",
     });
-    // v10: drop the three removed stores. This is cleanup, NOT a data-loss
-    // migration: nothing has read or written these stores since the
-    // activity-draft + dismiss flow moved server-side to the akb
-    // reef_activity_suggestions table — their sole accessor (storage/drafts.ts)
-    // had zero callers, and dismiss suppression is now sourced server-side in
-    // scan/route.ts. So any rows left in a pre-cutover browser are unread
-    // orphans; deleting them is the right thing (don't leave stale per-user data
-    // on disk), not a regression. The bump to v10 is required so a browser
-    // already at v9 runs a versionchange transaction and actually deletes the
-    // stores — a same-version open does not would. A fresh install skips creating
-    // them.
+    // v10: drop the three obsolete draft/cache stores. They have no live
+    // accessors; a fresh install skips creating them.
     this.version(10).stores({
       auto_issue_drafts: null,
       dismissed_suggestions: null,

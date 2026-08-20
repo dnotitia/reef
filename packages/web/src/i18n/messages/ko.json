@@ -12,7 +12,6 @@
     "myWork": "내 작업",
     "inbox": "받은 알림",
     "planning": "플래닝",
-    "suggestions": "제안",
     "activity": "활동",
     "reports": "리포트",
     "settings": "설정",
@@ -25,7 +24,6 @@
     "sidebarLandmark": "사이드바",
     "mainNavLandmark": "메인 내비게이션",
     "badge": {
-      "pendingSuggestions": "미처리 제안 {count}개",
       "unreadNotifications": "읽지 않은 알림 {count}개",
       "unreadNotificationsAtLeast100": "읽지 않은 알림 100개 이상",
       "overdue": "기한 초과 {count}개",
@@ -81,8 +79,6 @@
       "navigation": "탐색",
       "issues": "이슈로 이동",
       "myWork": "내 작업으로 이동",
-      "activity": "활동으로 이동",
-      "suggestions": "제안으로 이동",
       "reports": "리포트로 이동",
       "planning": "플래닝으로 이동",
       "settings": "설정으로 이동",
@@ -129,8 +125,6 @@
       "hotkeys": "단축키",
       "goIssues": "이슈로 이동",
       "goMyWork": "내 작업으로 이동",
-      "goActivity": "활동으로 이동",
-      "goSuggestions": "제안으로 이동",
       "goReports": "리포트로 이동",
       "goPlanning": "플래닝으로 이동",
       "goSettings": "설정으로 이동",
@@ -250,9 +244,6 @@
     },
     "config": {
       "loadError": "워크스페이스 구성을 불러오지 못했습니다:",
-      "save": "저장",
-      "saving": "저장 중…",
-      "saved": "저장했습니다.",
       "activeWorkspace": {
         "heading": "활성 워크스페이스",
         "description": "reef가 이슈를 읽고 쓰는 akb 워크스페이스입니다. 이 선택은 개인적인 설정으로, 사용자의 기기에 저장되며 본인의 보기에만 적용됩니다. 아래의 워크스페이스 설정 범위를 지정합니다.",
@@ -282,7 +273,7 @@
       "repos": {
         "heading": "모니터링 코드 저장소",
         "empty": "모니터링 중인 저장소가 없습니다.",
-        "description": "reef가 활동(PR, 커밋)을 감시하는 GitHub 저장소입니다. 활성 워크스페이스의 <code></code> 테이블에 저장되며 팀 전체와 공유됩니다.",
+        "description": "reef가 필요할 때 AI 근거로 읽을 수 있는 GitHub 저장소입니다. 활성 워크스페이스의 <code></code> 테이블에 저장되며 팀 전체와 공유됩니다.",
         "selectWorkspaceFirst": "먼저 워크스페이스를 선택하세요.",
         "configLoadError": "워크스페이스 구성을 불러오지 못했습니다. 다시 시도하세요.",
         "saveSuccess": "모니터링 저장소를 저장했습니다.",
@@ -299,16 +290,9 @@
         "invalid": "{label}은(는) 0 이상의 정수 일수여야 합니다.",
         "saveError": "완료된 이슈 표시 설정을 저장하지 못했습니다."
       },
-      "activityScanning": {
-        "label": "AI 활동 스캐닝",
-        "description": "켜면 reef가 모니터링 저장소를 스캔해 이슈 초안과 상태 변경 제안을 제안 화면에 올립니다. 기본값은 꺼짐입니다.",
-        "toggleLabel": "AI 활동 스캐닝 켜기/끄기",
-        "on": "켜짐",
-        "off": "꺼짐",
-        "noVault": "AI 활동 스캐닝을 구성하기 전에 위에서 워크스페이스를 선택하세요.",
-        "saveError": "AI 스캐닝 설정을 저장하지 못했습니다.",
-        "saveSuccess": "AI 활동 스캐닝 설정을 저장했습니다."
-      }
+      "save": "저장",
+      "saving": "저장 중…",
+      "saved": "저장했습니다."
     },
     "members": {
       "addMember": "멤버 추가",
@@ -390,7 +374,6 @@
         "title": "일반",
         "description": "선택한 워크스페이스의 모든 멤버와 공유됩니다. 쓰기 권한이 있는 멤버는 이 항목을 변경할 수 있고, 읽기 권한 멤버에게는 읽기 전용으로 표시됩니다.",
         "monitoredRepositories": "모니터링 저장소",
-        "activityScanning": "활동 스캐닝",
         "project": "프로젝트",
         "authoringLanguage": "작성 언어",
         "completedIssues": "완료된 이슈",
@@ -464,13 +447,6 @@
       "conflict": "저장 충돌이 발생했습니다 — 새로고침 후 다시 시도해 주세요.",
       "unknown": "워크스페이스 백엔드와 통신하는 중 오류가 발생했습니다. 다시 시도해 주세요."
     },
-    "activitySuggestion": {
-      "dismissed": "이미 무시한 제안입니다.",
-      "prefixRequired": "초안을 승인하려면 프로젝트 프리픽스가 필요합니다.",
-      "statusMissing": "상태 변경 제안에 patch.status가 없습니다.",
-      "closedTarget": "이슈를 닫으려면 사유가 필요합니다. 이슈의 닫기 대화상자에서 닫아 주세요.",
-      "stale": "이 제안은 최신 상태가 아닙니다 — 이슈 상태가 이미 변경되었습니다. 제안을 무시하고 다시 스캔해 주세요."
-    },
     "sessionExpired": "세션이 만료되었습니다. 다시 로그인해 주세요.",
     "invalidJsonBody": "잘못된 JSON 본문입니다.",
     "invalidBody": "잘못된 요청 본문입니다.",
@@ -481,8 +457,6 @@
     "backend": "워크스페이스 백엔드 오류입니다.",
     "workspaceOwnerRequired": "워크스페이스 소유자만 할 수 있습니다.",
     "githubAppUnconfigured": "이 배포에는 GitHub App이 설정되어 있지 않습니다.",
-    "invalidSuggestionId": "잘못된 제안 ID입니다.",
-    "invalidSuggestionStatus": "잘못된 제안 상태입니다.",
     "invalidNotificationState": "잘못된 알림 상태입니다.",
     "invalidNotificationLimit": "알림 개수는 1개에서 100개 사이여야 합니다.",
     "invalidNotificationKey": "잘못된 알림 키입니다.",
@@ -490,10 +464,6 @@
     "invalidSprintId": "잘못된 스프린트 ID입니다.",
     "invalidReleaseId": "잘못된 릴리스 ID입니다.",
     "invalidCommentId": "잘못된 댓글 ID입니다.",
-    "suggestionAlreadyReviewed": "이미 검토한 제안입니다.",
-    "suggestionDraftRequiresCreate": "초안 제안은 생성 제안 업데이트가 필요합니다.",
-    "suggestionStatusRequiresUpdate": "상태 변경 제안은 업데이트 제안 또는 사유 업데이트가 필요합니다.",
-    "suggestionCannotRetarget": "상태 변경 제안은 대상 이슈를 변경할 수 없습니다.",
     "requestBodyInvalid": "요청 본문이 없거나 올바르지 않습니다",
     "vaultHeaderInvalid": "X-Reef-Vault 헤더가 없거나 올바르지 않습니다",
     "workspaceSessionInvalid": "워크스페이스 세션이 없거나 올바르지 않습니다",
@@ -510,24 +480,18 @@
       "invalidArtifactId": "잘못된 아티팩트 ID입니다.",
       "artifactIdMismatch": "아티팩트 ID가 요청 경로와 일치하지 않습니다.",
       "artifactEditRequestInvalid": "아티팩트 편집 요청이 없거나 올바르지 않습니다.",
-      "artifactEditMissingVault": "저장된 활동 제안을 편집하려면 워크스페이스가 필요합니다.",
       "artifactEditInvalid": "아티팩트 편집 결과가 올바르지 않습니다.",
       "artifactApprovalRequestInvalid": "아티팩트 승인 요청이 없거나 올바르지 않습니다.",
       "artifactApprovalMissingArtifact": "아티팩트 승인에는 아티팩트 페이로드가 필요합니다.",
       "artifactApprovalMissingVault": "아티팩트 승인에는 워크스페이스가 필요합니다.",
       "artifactDismissalRequestInvalid": "아티팩트 무시 요청이 없거나 올바르지 않습니다.",
       "artifactDismissalMissingArtifact": "아티팩트 무시에는 아티팩트 페이로드가 필요합니다.",
-      "artifactDismissalMissingVault": "저장된 활동 제안을 무시하려면 워크스페이스가 필요합니다.",
       "unexpectedError": "예기치 않은 오류가 발생했습니다.",
       "artifactTypeNotApprovable": "이 아티팩트 유형은 서버 측 승인 동작을 정의하지 않습니다.",
       "artifactAlreadyReviewed": "이미 검토한 아티팩트입니다.",
       "statusChangeRetargetForbidden": "상태 변경 아티팩트는 대상 이슈를 변경할 수 없습니다.",
       "closeRequiresReason": "이슈를 닫으려면 사유가 필요합니다. 이슈의 닫기 대화상자에서 닫아 주세요.",
       "invalidStatusChangeTarget": "백로그는 유효한 상태 변경 대상이 아닙니다. 백로그로 이동은 이슈에서 직접 해 주세요.",
-      "activitySuggestionKindMismatch": "아티팩트 유형이 저장된 활동 제안과 일치하지 않습니다.",
-      "activitySuggestionNotFound": "아티팩트 명령이 참조된 활동 제안을 찾지 못했습니다.",
-      "activitySuggestionPersisting": "활동 제안이 아직 저장 중입니다. 스캔이 완료된 후 다시 시도해 주세요.",
-      "invalidActivitySuggestionId": "아티팩트 메타데이터에 잘못된 활동 제안 ID가 있습니다.",
       "artifactAlreadyDismissed": "이미 무시한 아티팩트입니다.",
       "missingProjectPrefix": "이슈 생성 아티팩트를 승인하려면 프로젝트 프리픽스가 필요합니다.",
       "missingStatusPatch": "상태 변경 아티팩트에 patch.status가 없습니다.",
@@ -591,11 +555,6 @@
       "total": "합계",
       "noDataToCrossTabulate": "교차 집계할 데이터가 없습니다.",
       "issueCountByCaption": "{row}(행)과 {col}(열)별 이슈 수.",
-      "netTooltip": "{date}: 순증 {value}",
-      "unassigned": "미지정",
-      "unlabeled": "라벨 없음",
-      "none": "없음",
-      "other": "기타",
       "riskCaption": "우선순위(행)와 마지막 업데이트 이후 경과 시간(열)별 진행 중 이슈 수.",
       "created": "생성",
       "closed": "완료",
@@ -654,7 +613,12 @@
         "backlogOver": "백로그 +{count}",
         "onTrack": "정상 진행",
         "shipped": "출고됨"
-      }
+      },
+      "netTooltip": "{date}: 순증 {value}",
+      "unassigned": "미지정",
+      "unlabeled": "라벨 없음",
+      "none": "없음",
+      "other": "기타"
     },
     "page": {
       "snapshot": "스냅샷",
@@ -701,7 +665,6 @@
       "noMatchingDataDescription": "리포트 범위를 조정해 보기를 넓혀 보세요.",
       "failedToLoad": "이슈를 불러오지 못했습니다.",
       "clearParentFilter": "상위 필터 해제",
-      "clearParentFilterFor": "상위 필터 해제: {name}",
       "period": "기간",
       "scope": "범위",
       "measure": "측정 기준",
@@ -713,7 +676,8 @@
       "anySprint": "모든 스프린트",
       "anyMilestone": "모든 마일스톤",
       "anyRelease": "모든 릴리스",
-      "anyAssignee": "모든 담당자"
+      "anyAssignee": "모든 담당자",
+      "clearParentFilterFor": "상위 필터 해제: {name}"
     },
     "period": {
       "4w": "최근 4주",
@@ -731,12 +695,6 @@
     "templateDeleted": "\"{label}\" 템플릿을 삭제했습니다.",
     "templateDeleteError": "템플릿을 삭제하지 못했습니다.",
     "skillUpdated": "워크스페이스 안내를 업데이트했습니다.",
-    "noNewActivity": "마지막 스캔 이후 새 활동이 없습니다.",
-    "scanError": "새 활동을 스캔하지 못했습니다.",
-    "scanDrafts": "초안 {count}개",
-    "scanStatusChanges": "상태 변경 {count}개",
-    "scanSeparator": " + ",
-    "scanSummary": "최근 활동에서 {parts}",
     "issueCreated": "이슈 {id} 생성됨",
     "issueAddedToBacklog": "이슈 {id} 백로그에 추가됨",
     "issueAddedToBacklogDescription": "기본 보드에는 할 일로 옮기기 전까지 표시되지 않습니다.",
@@ -752,23 +710,14 @@
     "commentAddError": "댓글을 추가하지 못했습니다. 다시 시도해 주세요.",
     "commentEditError": "수정 내용을 저장하지 못했습니다. 다시 시도해 주세요.",
     "commentDeleteError": "댓글을 삭제하지 못했습니다. 다시 시도해 주세요.",
-    "issueCreatedFromDraft": "초안에서 이슈 {id} 생성됨",
-    "draftApproved": "초안 제안을 승인했습니다.",
-    "approveDraftError": "초안을 승인하지 못했습니다.",
-    "dismissDraftError": "초안을 무시하지 못했습니다.",
     "issueMoved": "{id} 이동됨 → {status}",
     "issueMovedFallbackStatus": "새 상태",
     "statusChangeError": "이슈 상태를 변경하지 못했습니다.",
-    "dismissStatusChangeError": "상태 변경을 무시하지 못했습니다.",
     "planningCreated": "{kind} 생성됨",
     "planningSaved": "{kind} 저장됨",
     "planningSaveError": "저장하지 못했습니다.",
     "planningDeleted": "{kind} 삭제됨",
     "planningDeleteError": "삭제하지 못했습니다.",
-    "suggestionDismissed": "제안을 무시했습니다.",
-    "scanAuthError": "제안을 확인하려면 다시 로그인하세요.",
-    "scanUnavailable": "이 배포에서는 제안 스캔을 사용할 수 없습니다.",
-    "scanRequestError": "제안을 확인하지 못했습니다. 다시 시도하세요.",
     "retrying": "다시 시도하는 중…",
     "retry": "다시 시도",
     "undo": "실행 취소"
@@ -1325,56 +1274,6 @@
     "groupNone": "없음",
     "groupReadOnly": "라벨 그룹은 읽기 전용입니다. 이슈 상세에서 라벨을 변경하세요."
   },
-  "activity": {
-    "pageTitle": "검토할 제안",
-    "chipStart": "시작 {date}",
-    "chipDue": "마감 {date}",
-    "chipSprint": "스프린트 {name}",
-    "chipMilestone": "마일스톤 {name}",
-    "chipRelease": "릴리스 {name}",
-    "relParent": "상위",
-    "relDepends": "의존",
-    "relBlocks": "차단",
-    "relRelated": "관련",
-    "noRequester": "요청자 없음",
-    "noReporter": "보고자 없음",
-    "filterSuggestions": "제안 필터",
-    "filterAll": "전체",
-    "filterAiDrafts": "이슈 초안",
-    "filterStatusChanges": "상태 변경",
-    "addMonitoredRepo": "제안을 찾으려면 <settingsLink></settingsLink>에서 모니터링 저장소를 추가하세요.",
-    "scanningOff": "제안 스캔이 꺼져 있습니다. <settingsLink></settingsLink>에서 켜세요.",
-    "scanning": "제안을 확인할 저장소",
-    "monitoredRepoToScan": "제안을 확인할 모니터링 저장소",
-    "noMonitoredRepoTitle": "모니터링 저장소를 설정하세요",
-    "noMonitoredRepoDescription": "모니터링 저장소를 추가하면 제안을 확인할 수 있습니다.",
-    "emptyFeed": "검토할 제안이 없습니다",
-    "emptyFeedDescription": "확인할 제안이 생기면 여기에 표시됩니다.",
-    "noMatchingTitle": "일치하는 제안이 없습니다",
-    "noMatchingDescription": "다른 필터를 선택하거나 현재 필터를 지워 더 많은 제안을 확인하세요.",
-    "scanned": "{time}에 확인함",
-    "scanForNewActivity": "새 제안 확인",
-    "refresh": "지금 확인",
-    "targetStatus": "대상 상태",
-    "scanningNow": "확인하는 중…",
-    "saveError": "제안을 저장하지 못했습니다. 다시 시도하세요.",
-    "invalidEstimate": "올바른 예상치를 입력하세요.",
-    "dismissError": "제안을 무시하지 못했습니다. 다시 시도하세요.",
-    "approveError": "제안을 승인하지 못했습니다. 다시 시도하세요.",
-    "statusSaveError": "상태 변경을 저장하지 못했습니다. 다시 시도하세요.",
-    "statusDismissError": "상태 변경을 무시하지 못했습니다. 다시 시도하세요.",
-    "statusApproveError": "상태 변경을 승인하지 못했습니다. 다시 시도하세요.",
-    "evidenceCommit": "커밋",
-    "evidencePullRequest": "PR",
-    "evidenceBranch": "브랜치",
-    "evidenceRef": "{kind} {ref}",
-    "evidenceSummary": "커밋 {commits}개 / PR {pullRequests}개",
-    "summarySeparator": ", ",
-    "summaryText": "마지막 검토 이후 새 제안: {parts}.",
-    "gotIt": "확인",
-    "newDraftsPart": "{count, plural, other {이슈 초안 제안 #건}}",
-    "statusChangesPart": "{count, plural, other {상태 변경 #건}}"
-  },
   "inbox": {
     "pageTitle": "받은 알림",
     "loading": "알림을 불러오는 중…",
@@ -1392,6 +1291,11 @@
     "markUnreadFor": "{issue} 읽지 않음으로 표시",
     "archive": "보관",
     "archiveFor": "{issue} 알림 보관",
+    "state": {
+      "unread": "읽지 않음",
+      "read": "읽음",
+      "archived": "보관됨"
+    },
     "archiveSuccess": "{issue} 알림을 보관했습니다.",
     "event": {
       "comment_created": "댓글 생성",
@@ -1417,11 +1321,6 @@
       "validation_proof_refreshed": "검증 증거 갱신",
       "contract_amended": "계약 수정",
       "issue_contract_updated": "이슈 계약 갱신"
-    },
-    "state": {
-      "unread": "읽지 않음",
-      "read": "읽음",
-      "archived": "보관됨"
     }
   },
   "planning": {
@@ -1499,8 +1398,6 @@
     "phaseError": "확인 필요",
     "phaseCancelled": "취소됨",
     "artifactCount": "{count, plural, other {아티팩트 #개}}",
-    "confidenceLabel": "신뢰도 {pct}%",
-    "evidenceItems": "증거 {count}개",
     "chatThinking": "생각하는 중…",
     "chatSources": {
       "heading": "출처"
@@ -1547,7 +1444,9 @@
           "done": "도구 실행함"
         }
       }
-    }
+    },
+    "confidenceLabel": "신뢰도 {pct}%",
+    "evidenceItems": "증거 {count}개"
   },
   "myWork": {
     "emptyTitle": "아직 할당된 작업이 없습니다",

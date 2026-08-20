@@ -243,12 +243,11 @@ export const IssueCreateFieldsSchema = z
   .strictObject(IssueCreateFieldsBaseSchema.shape)
   .extend({
     // New issues land in `backlog` by default (REEF-130). The create input may
-    // carry an explicit status so the AI activity-scan draft path can persist a
-    // code-signal-inferred status; the human create path omits it and inherits
-    // the default in `buildIssueMetadataFromCreateInput`. `closed` is excluded
-    // here: closing requires a reason and timestamp via the dedicated close
-    // flow, so a create should not persist a closed issue at this trust
-    // boundary.
+    // carry an explicit non-closed status when a caller has already made that
+    // decision; omitted status inherits the default in
+    // `buildIssueMetadataFromCreateInput`. `closed` is excluded here: closing
+    // requires a reason and timestamp via the dedicated close flow, so a create
+    // should not persist a closed issue at this trust boundary.
     status: StatusEnum.exclude(["closed"]).optional(),
   });
 
