@@ -34,13 +34,13 @@ function SelectTrigger({
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "flex w-full items-center justify-between gap-2 whitespace-nowrap rounded-md border border-border bg-elevated px-2.5 py-1 text-[13px] text-foreground transition-colors duration-150 hover:bg-surface-hover",
+        "flex w-full items-center justify-between gap-2 whitespace-nowrap rounded-md border border-border bg-surface-elevated px-2.5 py-1 text-[13px] text-foreground transition-colors duration-150 hover:bg-surface-hover",
         "data-[size=default]:h-8 data-[size=sm]:h-7",
         "data-[placeholder]:text-muted-foreground",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5 [&_svg:not([class*='text-'])]:text-muted-foreground",
         "*:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2",
-        "outline-none focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/30",
-        "aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/30",
+        "outline-none focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30",
+        "aria-invalid:border-destructive-focus aria-invalid:ring-2 aria-invalid:ring-destructive-focus/30",
         "disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
@@ -101,7 +101,7 @@ function SelectContent({
       <SelectPrimitive.Content
         data-slot="select-content"
         className={cn(
-          "relative z-50 max-h-96 min-w-[10rem] overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-lg shadow-foreground/5",
+          "relative z-50 max-h-96 min-w-[10rem] overflow-hidden rounded-md border border-border bg-surface-popover text-foreground shadow-lg shadow-foreground/5",
           "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 motion-reduce:animate-none",
           position === "popper" &&
             "data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1",
@@ -160,7 +160,7 @@ function SelectItem({
       )}
       {...props}
       >
-        <span className="absolute right-2 flex size-3 items-center justify-center text-brand">
+        <span className="absolute right-2 flex size-3 items-center justify-center text-brand-text">
           <SelectPrimitive.ItemIndicator>
             <CheckIcon aria-hidden="true" className="size-3" />
           </SelectPrimitive.ItemIndicator>

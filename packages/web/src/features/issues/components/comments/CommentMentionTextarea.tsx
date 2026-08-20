@@ -298,7 +298,7 @@ export function CommentMentionTextarea({
           tabIndex={-1}
           role="listbox"
           aria-label={t("mentionSuggestions")}
-          className="mx-2 mb-2 overflow-hidden rounded-md border border-border bg-background shadow-sm"
+          className="mx-2 mb-2 overflow-hidden rounded-md border border-border bg-surface-page shadow-sm"
         >
           {mentionSuggestions.map((member, index) => (
             <button

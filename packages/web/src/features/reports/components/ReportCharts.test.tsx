@@ -48,7 +48,7 @@ describe("RankedBarList composited bars (REEF-097 AC3)", () => {
     // Every value bar uses the single brand value-token; no semantic/identity
     // color leaks into a ranked breakdown.
     expect(
-      container.querySelectorAll("[style*='var(--brand)']").length,
+      container.querySelectorAll("[style*='var(--brand-chart)']").length,
     ).toBeGreaterThan(0);
     for (const token of ["--ai", "--priority", "--status", "--type"]) {
       expect(container.querySelector(`[style*='${token}']`)).toBeNull();
@@ -89,6 +89,8 @@ describe("RiskMatrix (REEF-248 AC3/AC4)", () => {
     ).toBeGreaterThan(0);
     // ...and not the destructive/brand fills the old hot/cool ramp used.
     expect(container.querySelector("td[style*='--destructive']")).toBeNull();
-    expect(container.querySelector("td[style*='var(--brand)']")).toBeNull();
+    expect(
+      container.querySelector("td[style*='var(--brand-chart)']"),
+    ).toBeNull();
   });
 });

@@ -16,7 +16,7 @@
  * reef — dense, keyboard-first design tokens
  *
  * Three-tier system:
- *   1. Raw HSL values per mode  (`--background`, `--surface-sidebar`, ...)
+ *   1. Raw HSL values per mode  (`--surface-page`, `--surface-sidebar`, ...)
  *   2. Semantic tokens for status / planning / priority / brand
  *   3. `@theme inline` mapping into Tailwind v4 utility tokens
  *      (consumed via `bg-foo`, `text-foo`, `border-foo`)
@@ -27,19 +27,18 @@
 :root {
   color-scheme: light;
 
-  /* base surfaces */
-  --background: hsl(0 0% 100%);
+  /* base surfaces — page, elevated, card, and popover are intentionally
+   * distinct so adjacent containers remain legible in both themes. */
+  --surface-page: hsl(220 18% 98%);
   --foreground: hsl(220 13% 13%);
   --surface-sidebar: hsl(220 13% 97%);
   --surface-elevated: hsl(0 0% 100%);
+  --surface-card: hsl(220 18% 99%);
+  --surface-popover: hsl(220 18% 97%);
   --surface-hover: hsl(220 13% 95%);
   --surface-subtle: hsl(220 13% 98%);
 
-  /* shadcn-compat aliases */
-  --card: hsl(0 0% 100%);
-  --card-foreground: hsl(220 13% 13%);
-  --popover: hsl(0 0% 100%);
-  --popover-foreground: hsl(220 13% 13%);
+  /* shadcn interaction roles */
   --primary: hsl(220 13% 13%);
   --primary-foreground: hsl(0 0% 100%);
   --secondary: hsl(220 13% 96%);
@@ -48,18 +47,31 @@
   --muted-foreground: hsl(220 9% 46%);
   --accent: hsl(220 13% 95%);
   --accent-foreground: hsl(220 13% 13%);
-  --destructive: hsl(0 75% 55%);
-  --destructive-foreground: hsl(0 0% 100%);
 
   /* hairlines */
   --border: hsl(220 13% 91%);
   --border-subtle: hsl(220 13% 93%);
   --input: hsl(220 13% 91%);
-  --ring: hsl(173 80% 40%);
+  --focus-ring: hsl(173 80% 25%);
 
-  /* brand — teal, reef-coded, distinct from AI purple */
-  --brand: hsl(173 80% 40%);
-  --brand-foreground: hsl(0 0% 100%);
+  /* brand — teal, reef-coded, distinct from AI purple. Identity and render
+   * roles are deliberately separate: text/glyph/chart need contrast on a
+   * surface, while fill/on-fill is a component pair. */
+  --brand-text: hsl(173 80% 27%);
+  --brand-fill: hsl(173 80% 35%);
+  --brand-glyph: hsl(173 80% 30%);
+  --brand-focus: hsl(173 80% 25%);
+  --brand-chart: hsl(173 80% 32%);
+  --brand-on-fill: hsl(0 0% 100%);
+
+  /* destructive — red identity with independent text, fill, glyph, focus,
+   * and chart roles. */
+  --destructive-text: hsl(0 75% 36%);
+  --destructive-fill: hsl(0 75% 43%);
+  --destructive-glyph: hsl(0 75% 38%);
+  --destructive-focus: hsl(0 75% 32%);
+  --destructive-chart: hsl(0 75% 40%);
+  --destructive-on-fill: hsl(0 0% 100%);
 
   /* AI track — purple, reserved for AI drafts / enrichment */
   --ai: hsl(260 70% 60%);
@@ -68,24 +80,49 @@
   --ai-subtle-foreground: hsl(260 70% 35%);
   --ai-border: hsl(260 60% 88%);
 
-  /* status — semantic icon colors, is not used as fill backgrounds */
+  /* status — issue lifecycle. Each identity has independent text, fill,
+   * glyph, focus, and chart roles; planning keeps its own family below. */
   /* backlog reads one tone fainter and cooler than `open` (Todo): an
    * uncommitted queue recedes behind committed work (REEF-109). On light it
    * goes lighter to recede on white; the dark pair below goes darker to recede
    * on black. */
-  --status-backlog: hsl(222 11% 64%);
-  --status-open: hsl(220 9% 60%);
-  --status-in-progress: hsl(40 90% 50%);
-  --status-in-review: hsl(260 70% 60%);
-  --status-done: hsl(150 65% 42%);
-  --status-closed: hsl(220 9% 50%);
+  --status-backlog-text: hsl(222 11% 45%);
+  --status-backlog-fill: hsl(222 11% 55%);
+  --status-backlog-glyph: hsl(222 11% 42%);
+  --status-backlog-focus: hsl(222 11% 38%);
+  --status-backlog-chart: hsl(222 11% 48%);
+  --status-open-text: hsl(220 9% 44%);
+  --status-open-fill: hsl(220 9% 54%);
+  --status-open-glyph: hsl(220 9% 42%);
+  --status-open-focus: hsl(220 9% 37%);
+  --status-open-chart: hsl(220 9% 47%);
+  --status-in-progress-text: hsl(40 90% 30%);
+  --status-in-progress-fill: hsl(40 90% 39%);
+  --status-in-progress-glyph: hsl(40 90% 28%);
+  --status-in-progress-focus: hsl(40 90% 24%);
+  --status-in-progress-chart: hsl(40 90% 34%);
+  --status-in-review-text: hsl(260 70% 42%);
+  --status-in-review-fill: hsl(260 70% 50%);
+  --status-in-review-glyph: hsl(260 70% 39%);
+  --status-in-review-focus: hsl(260 70% 35%);
+  --status-in-review-chart: hsl(260 70% 46%);
+  --status-done-text: hsl(150 65% 30%);
+  --status-done-fill: hsl(150 65% 38%);
+  --status-done-glyph: hsl(150 65% 28%);
+  --status-done-focus: hsl(150 65% 24%);
+  --status-done-chart: hsl(150 65% 34%);
+  --status-closed-text: hsl(220 9% 40%);
+  --status-closed-fill: hsl(220 9% 48%);
+  --status-closed-glyph: hsl(220 9% 37%);
+  --status-closed-focus: hsl(220 9% 33%);
+  --status-closed-chart: hsl(220 9% 44%);
 
   /* planning status — sprint/milestone/release lifecycle colors */
-  --planning-pending: hsl(220 9% 60%);
-  --planning-open: hsl(184 64% 38%);
-  --planning-active: hsl(40 90% 50%);
-  --planning-closed: hsl(220 9% 50%);
-  --planning-released: hsl(150 65% 42%);
+  --planning-pending: hsl(220 9% 56%);
+  --planning-open: hsl(184 64% 34%);
+  --planning-active: hsl(40 90% 38%);
+  --planning-closed: hsl(220 9% 45%);
+  --planning-released: hsl(150 65% 35%);
 
   /* priority — dots just, is not used as fill backgrounds */
   --priority-critical: hsl(0 75% 55%);
@@ -162,17 +199,15 @@
 :root.dark {
   color-scheme: dark;
 
-  --background: hsl(220 14% 8%);
+  --surface-page: hsl(220 14% 8%);
   --foreground: hsl(220 13% 95%);
   --surface-sidebar: hsl(220 14% 6%);
-  --surface-elevated: hsl(220 14% 11%);
+  --surface-elevated: hsl(220 14% 12%);
+  --surface-card: hsl(220 14% 10%);
+  --surface-popover: hsl(220 14% 14%);
   --surface-hover: hsl(220 13% 14%);
   --surface-subtle: hsl(220 14% 10%);
 
-  --card: hsl(220 14% 10%);
-  --card-foreground: hsl(220 13% 95%);
-  --popover: hsl(220 14% 11%);
-  --popover-foreground: hsl(220 13% 95%);
   --primary: hsl(220 13% 95%);
   --primary-foreground: hsl(220 14% 8%);
   --secondary: hsl(220 13% 14%);
@@ -181,16 +216,25 @@
   --muted-foreground: hsl(220 9% 65%);
   --accent: hsl(220 13% 16%);
   --accent-foreground: hsl(220 13% 95%);
-  --destructive: hsl(0 60% 55%);
-  --destructive-foreground: hsl(0 0% 100%);
 
   --border: hsl(220 13% 18%);
   --border-subtle: hsl(220 13% 15%);
   --input: hsl(220 13% 20%);
-  --ring: hsl(173 70% 45%);
+  --focus-ring: hsl(173 70% 78%);
 
-  --brand: hsl(173 70% 45%);
-  --brand-foreground: hsl(0 0% 100%);
+  --brand-text: hsl(173 70% 70%);
+  --brand-fill: hsl(173 70% 45%);
+  --brand-glyph: hsl(173 70% 72%);
+  --brand-focus: hsl(173 70% 78%);
+  --brand-chart: hsl(173 70% 65%);
+  --brand-on-fill: hsl(220 14% 8%);
+
+  --destructive-text: hsl(0 70% 72%);
+  --destructive-fill: hsl(0 60% 52%);
+  --destructive-glyph: hsl(0 70% 74%);
+  --destructive-focus: hsl(0 70% 80%);
+  --destructive-chart: hsl(0 70% 68%);
+  --destructive-on-fill: hsl(220 14% 8%);
 
   --ai: hsl(260 70% 70%);
   --ai-foreground: hsl(0 0% 100%);
@@ -198,12 +242,36 @@
   --ai-subtle-foreground: hsl(260 70% 85%);
   --ai-border: hsl(260 30% 30%);
 
-  --status-backlog: hsl(222 10% 50%);
-  --status-open: hsl(220 9% 65%);
-  --status-in-progress: hsl(40 90% 60%);
-  --status-in-review: hsl(260 70% 70%);
-  --status-done: hsl(150 60% 50%);
-  --status-closed: hsl(220 9% 55%);
+  --status-backlog-text: hsl(222 10% 72%);
+  --status-backlog-fill: hsl(222 10% 55%);
+  --status-backlog-glyph: hsl(222 10% 75%);
+  --status-backlog-focus: hsl(222 10% 80%);
+  --status-backlog-chart: hsl(222 10% 68%);
+  --status-open-text: hsl(220 9% 75%);
+  --status-open-fill: hsl(220 9% 58%);
+  --status-open-glyph: hsl(220 9% 78%);
+  --status-open-focus: hsl(220 9% 82%);
+  --status-open-chart: hsl(220 9% 70%);
+  --status-in-progress-text: hsl(40 90% 72%);
+  --status-in-progress-fill: hsl(40 90% 58%);
+  --status-in-progress-glyph: hsl(40 90% 75%);
+  --status-in-progress-focus: hsl(40 90% 82%);
+  --status-in-progress-chart: hsl(40 90% 68%);
+  --status-in-review-text: hsl(260 70% 78%);
+  --status-in-review-fill: hsl(260 70% 68%);
+  --status-in-review-glyph: hsl(260 70% 80%);
+  --status-in-review-focus: hsl(260 70% 84%);
+  --status-in-review-chart: hsl(260 70% 75%);
+  --status-done-text: hsl(150 60% 68%);
+  --status-done-fill: hsl(150 60% 55%);
+  --status-done-glyph: hsl(150 60% 72%);
+  --status-done-focus: hsl(150 60% 78%);
+  --status-done-chart: hsl(150 60% 64%);
+  --status-closed-text: hsl(220 9% 70%);
+  --status-closed-fill: hsl(220 9% 55%);
+  --status-closed-glyph: hsl(220 9% 73%);
+  --status-closed-focus: hsl(220 9% 78%);
+  --status-closed-chart: hsl(220 9% 66%);
 
   --planning-pending: hsl(220 9% 65%);
   --planning-open: hsl(184 60% 56%);
@@ -251,17 +319,15 @@
 
 @theme inline {
   /* surfaces */
-  --color-background: var(--background);
+  --color-surface-page: var(--surface-page);
   --color-foreground: var(--foreground);
-  --color-sidebar: var(--surface-sidebar);
-  --color-elevated: var(--surface-elevated);
+  --color-surface-sidebar: var(--surface-sidebar);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-card: var(--surface-card);
+  --color-surface-popover: var(--surface-popover);
   --color-surface-hover: var(--surface-hover);
   --color-surface-subtle: var(--surface-subtle);
 
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
@@ -270,17 +336,26 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-
   --color-border: var(--border);
   --color-border-subtle: var(--border-subtle);
   --color-input: var(--input);
-  --color-ring: var(--ring);
+  --color-focus-ring: var(--focus-ring);
 
   /* brand */
-  --color-brand: var(--brand);
-  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-text: var(--brand-text);
+  --color-brand-fill: var(--brand-fill);
+  --color-brand-glyph: var(--brand-glyph);
+  --color-brand-focus: var(--brand-focus);
+  --color-brand-chart: var(--brand-chart);
+  --color-brand-on-fill: var(--brand-on-fill);
+
+  /* destructive */
+  --color-destructive-text: var(--destructive-text);
+  --color-destructive-fill: var(--destructive-fill);
+  --color-destructive-glyph: var(--destructive-glyph);
+  --color-destructive-focus: var(--destructive-focus);
+  --color-destructive-chart: var(--destructive-chart);
+  --color-destructive-on-fill: var(--destructive-on-fill);
 
   /* AI */
   --color-ai: var(--ai);
@@ -290,12 +365,36 @@
   --color-ai-border: var(--ai-border);
 
   /* status */
-  --color-status-backlog: var(--status-backlog);
-  --color-status-open: var(--status-open);
-  --color-status-in-progress: var(--status-in-progress);
-  --color-status-in-review: var(--status-in-review);
-  --color-status-done: var(--status-done);
-  --color-status-closed: var(--status-closed);
+  --color-status-backlog-text: var(--status-backlog-text);
+  --color-status-backlog-fill: var(--status-backlog-fill);
+  --color-status-backlog-glyph: var(--status-backlog-glyph);
+  --color-status-backlog-focus: var(--status-backlog-focus);
+  --color-status-backlog-chart: var(--status-backlog-chart);
+  --color-status-open-text: var(--status-open-text);
+  --color-status-open-fill: var(--status-open-fill);
+  --color-status-open-glyph: var(--status-open-glyph);
+  --color-status-open-focus: var(--status-open-focus);
+  --color-status-open-chart: var(--status-open-chart);
+  --color-status-in-progress-text: var(--status-in-progress-text);
+  --color-status-in-progress-fill: var(--status-in-progress-fill);
+  --color-status-in-progress-glyph: var(--status-in-progress-glyph);
+  --color-status-in-progress-focus: var(--status-in-progress-focus);
+  --color-status-in-progress-chart: var(--status-in-progress-chart);
+  --color-status-in-review-text: var(--status-in-review-text);
+  --color-status-in-review-fill: var(--status-in-review-fill);
+  --color-status-in-review-glyph: var(--status-in-review-glyph);
+  --color-status-in-review-focus: var(--status-in-review-focus);
+  --color-status-in-review-chart: var(--status-in-review-chart);
+  --color-status-done-text: var(--status-done-text);
+  --color-status-done-fill: var(--status-done-fill);
+  --color-status-done-glyph: var(--status-done-glyph);
+  --color-status-done-focus: var(--status-done-focus);
+  --color-status-done-chart: var(--status-done-chart);
+  --color-status-closed-text: var(--status-closed-text);
+  --color-status-closed-fill: var(--status-closed-fill);
+  --color-status-closed-glyph: var(--status-closed-glyph);
+  --color-status-closed-focus: var(--status-closed-focus);
+  --color-status-closed-chart: var(--status-closed-chart);
 
   /* planning status */
   --color-planning-pending: var(--planning-pending);
@@ -353,7 +452,7 @@
 }
 
 body {
-  background: var(--background);
+  background: var(--surface-page);
   color: var(--foreground);
   font-family: var(--font-body);
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
@@ -376,7 +475,7 @@ body {
 
   /* Fallback just: component focus utilities can opt into ring chrome. */
   *:focus-visible {
-    outline: 2px solid var(--ring);
+    outline: 2px solid var(--focus-ring);
     outline-offset: 1px;
     border-radius: 2px;
   }
@@ -400,7 +499,7 @@ hr {
   --tw-prose-bullets: var(--muted-foreground);
   --tw-prose-hr: var(--border-subtle);
   --tw-prose-quotes: var(--foreground);
-  --tw-prose-quote-borders: var(--brand);
+  --tw-prose-quote-borders: var(--brand-focus);
   --tw-prose-captions: var(--muted-foreground);
   --tw-prose-kbd: var(--foreground);
   --tw-prose-kbd-shadows: var(--border-subtle);
@@ -426,7 +525,7 @@ hr {
   --tw-prose-bullets: var(--muted-foreground);
   --tw-prose-hr: var(--border-subtle);
   --tw-prose-quotes: var(--foreground);
-  --tw-prose-quote-borders: var(--brand);
+  --tw-prose-quote-borders: var(--brand-focus);
   --tw-prose-captions: var(--muted-foreground);
   --tw-prose-kbd: var(--foreground);
   --tw-prose-kbd-shadows: var(--border-subtle);
@@ -524,10 +623,10 @@ hr {
   box-sizing: border-box;
   max-width: 100%;
   overflow-wrap: anywhere;
-  color: var(--brand);
+  color: var(--brand-text);
   font: inherit;
   text-align: start;
-  text-decoration-color: var(--brand);
+  text-decoration-color: var(--brand-text);
   text-decoration-line: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
@@ -543,13 +642,13 @@ hr {
 .reef-markdown-comment a:focus-visible,
 .reef-markdown-comment button[data-streamdown="link"]:hover,
 .reef-markdown-comment button[data-streamdown="link"]:focus-visible {
-  color: var(--brand);
-  text-decoration-color: var(--brand);
+  color: var(--brand-text);
+  text-decoration-color: var(--brand-text);
   text-decoration-thickness: 2px;
 }
 
 .reef-markdown-comment [data-reef-mention] {
-  color: var(--brand);
+  color: var(--brand-text);
   font-weight: 500;
   text-decoration-line: none;
 }
@@ -578,7 +677,7 @@ hr {
 .reef-markdown-comment [data-streamdown="blockquote"] {
   box-sizing: border-box;
   margin-block: 16px;
-  border-inline-start: 2px solid var(--brand);
+  border-inline-start: 2px solid var(--brand-focus);
   background: var(--surface-subtle);
   color: var(--foreground);
   font-style: normal;
@@ -687,13 +786,13 @@ hr {
   height: 16px;
   flex: 0 0 auto;
   margin-top: 2px;
-  accent-color: var(--brand);
+  accent-color: var(--brand-glyph);
 }
 
 .reef-markdown-comment
   li.task-list-item
   > input[type="checkbox"]:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--brand-focus);
   outline-offset: 2px;
   border-radius: 2px;
 }
@@ -865,13 +964,13 @@ hr {
 .reef-markdown-editor > pre > code .hljs-selector-tag,
 .reef-markdown-editor > pre > code .hljs-literal,
 .reef-markdown-editor > pre > code .hljs-name {
-  color: var(--brand);
+  color: var(--brand-text);
 }
 
 .reef-markdown-editor > pre > code .hljs-string,
 .reef-markdown-editor > pre > code .hljs-regexp,
 .reef-markdown-editor > pre > code .hljs-symbol {
-  color: color-mix(in srgb, var(--brand) 72%, var(--foreground));
+  color: color-mix(in srgb, var(--brand-text) 72%, var(--foreground));
 }
 
 .reef-markdown-editor > pre > code .hljs-number,
@@ -879,7 +978,7 @@ hr {
 .reef-markdown-editor > pre > code .hljs-variable,
 .reef-markdown-editor > pre > code .hljs-title,
 .reef-markdown-editor > pre > code .hljs-built_in {
-  color: color-mix(in srgb, var(--foreground) 78%, var(--brand));
+  color: color-mix(in srgb, var(--foreground) 78%, var(--brand-text));
 }
 
 /* The slash navigator is portaled by Tiptap's suggestion utility, so its
@@ -968,12 +1067,16 @@ hr {
 }
 
 .reef-slash-command-option-selected {
-  border-color: color-mix(in srgb, var(--brand) 35%, var(--border-subtle));
-  background: color-mix(in srgb, var(--brand) 10%, var(--surface-hover));
+  border-color: color-mix(
+    in srgb,
+    var(--brand-focus) 35%,
+    var(--border-subtle)
+  );
+  background: color-mix(in srgb, var(--brand-fill) 10%, var(--surface-hover));
 }
 
 .reef-slash-command-option-selected {
-  outline: 2px solid color-mix(in srgb, var(--brand) 48%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--brand-focus) 48%, transparent);
   outline-offset: -1px;
 }
 
@@ -1021,7 +1124,7 @@ hr {
 .reef-markdown-editor > blockquote {
   box-sizing: border-box;
   margin-block: 16px;
-  border-inline-start: 2px solid var(--brand);
+  border-inline-start: 2px solid var(--brand-focus);
   background: var(--surface-subtle);
   color: var(--foreground);
   font-style: normal;
@@ -1115,9 +1218,9 @@ hr {
  * location, so the two affordances do not compete. */
 .reef-markdown-editor a,
 .reef-markdown-editor a:visited {
-  color: var(--brand);
+  color: var(--brand-text);
   text-decoration-line: underline;
-  text-decoration-color: var(--brand);
+  text-decoration-color: var(--brand-text);
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
   transition: text-decoration-color 150ms ease;
@@ -1125,7 +1228,7 @@ hr {
 
 .reef-markdown-editor a:hover,
 .reef-markdown-editor a:focus-visible {
-  text-decoration-color: var(--brand);
+  text-decoration-color: var(--brand-text);
   text-decoration-thickness: 2px;
 }
 
@@ -1288,7 +1391,7 @@ hr {
   width: 1rem;
   height: 1rem;
   margin: 0;
-  accent-color: var(--brand);
+  accent-color: var(--brand-glyph);
 }
 
 .reef-markdown-editor
@@ -1296,7 +1399,7 @@ hr {
   > li
   > label
   input[type="checkbox"]:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--brand-focus);
   outline-offset: 2px;
   border-radius: 2px;
 }
@@ -1326,7 +1429,7 @@ hr {
  * this keeps the marker non-clickable while making the persisted projection
  * visibly distinct in both themes. */
 .comment-mention-renderer [data-reef-mention] {
-  color: var(--brand);
+  color: var(--brand-text);
   font-weight: 500;
 }
 
@@ -1334,7 +1437,7 @@ hr {
  * node is intentionally visual; the roster-backed suggestion menu owns
  * selection and keyboard focus while the editor retains the caret. */
 .reef-markdown-editor [data-reef-mention] {
-  color: var(--brand);
+  color: var(--brand-text);
   font-weight: 500;
   text-decoration-line: none;
 }
@@ -1347,7 +1450,7 @@ hr {
 }
 
 .reef-issue-body-mention-suggestion {
-  background: color-mix(in srgb, var(--brand) 12%, transparent);
+  background: color-mix(in srgb, var(--brand-fill) 12%, transparent);
   border-radius: 0.125rem;
 }
 
@@ -1442,7 +1545,7 @@ hr {
 
 @keyframes reef-flash-row {
   0% {
-    background-color: color-mix(in oklab, var(--brand) 20%, transparent);
+    background-color: color-mix(in oklab, var(--brand-fill) 20%, transparent);
   }
   100% {
     background-color: transparent;
@@ -1463,8 +1566,9 @@ hr {
    * critically, when reduced-motion disables the animation entirely — the tint
    * and ring are  revealed by the keyframe, does not left painted. */
   opacity: 0;
-  background: color-mix(in oklab, var(--brand) 16%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--brand) 45%, transparent);
+  background: color-mix(in oklab, var(--brand-fill) 16%, transparent);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in oklab, var(--brand-focus) 45%, transparent);
   animation: reef-flash-overlay var(--duration-slow) var(--ease-signature)
     forwards;
 }
@@ -1480,7 +1584,7 @@ hr {
   --reef-list-focus-width: 100%;
   --reef-issue-list-row-ring: color-mix(
     in oklab,
-    var(--brand) 38%,
+    var(--brand-focus) 38%,
     transparent
   );
   border-radius: 0.375rem;
@@ -1501,12 +1605,16 @@ hr {
  * The selected/focused tint stays opaque at that boundary; a translucent
  * brand mix lets scrolled status or assignee content show through the title. */
 .reef-list-sticky-state {
-  background-color: color-mix(in oklab, var(--brand) 5%, var(--background));
+  background-color: color-mix(
+    in oklab,
+    var(--brand-fill) 5%,
+    var(--surface-page)
+  );
 }
 
 .reef-issue-list-row:focus-visible,
 .reef-issue-list-row[data-keyboard-focused="true"] {
-  background-color: color-mix(in oklab, var(--brand) 5%, transparent);
+  background-color: color-mix(in oklab, var(--brand-fill) 5%, transparent);
   outline: none;
   z-index: 1;
 }
@@ -1682,7 +1790,7 @@ hr {
 }
 
 .reef-search-progress {
-  background-color: color-mix(in oklab, var(--brand) 18%, transparent);
+  background-color: color-mix(in oklab, var(--brand-fill) 18%, transparent);
 }
 
 .reef-search-progress::after {
@@ -1690,7 +1798,7 @@ hr {
   position: absolute;
   inset: 0;
   width: 40%;
-  background: var(--brand);
+  background: var(--brand-chart);
   animation: reef-search-progress 1.1s var(--ease-signature) infinite;
 }
 
@@ -1710,6 +1818,6 @@ hr {
   .reef-search-progress::after {
     animation: none;
     width: 100%;
-    background: color-mix(in oklab, var(--brand) 55%, transparent);
+    background: color-mix(in oklab, var(--brand-chart) 55%, transparent);
   }
 }

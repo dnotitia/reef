@@ -379,7 +379,7 @@ function ActivityFeedContent({
               className={[
                 "shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-1",
                 activityTypeFilter === value
-                  ? "bg-foreground text-background"
+                  ? "bg-foreground text-surface-page"
                   : "bg-secondary text-muted-foreground hover:bg-surface-hover hover:text-foreground",
               ].join(" ")}
             >
@@ -452,7 +452,7 @@ function ActivityFeedContent({
               data-testid="activity-scan-target-select"
               value={scanRepo}
               onChange={(e) => void setScanRepo(e.target.value)}
-              className="rounded-md border border-border bg-elevated px-2 py-1 font-mono text-[11px] text-foreground outline-none transition-colors focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/30"
+              className="rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-[11px] text-foreground outline-none transition-colors focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30"
             >
               {monitoredRepos.map((r) => (
                 <option key={r} value={r}>
@@ -468,7 +468,7 @@ function ActivityFeedContent({
         <div
           role="alert"
           data-testid="activity-approve-error"
-          className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive"
+          className="rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-4 py-2 text-sm text-destructive-text"
         >
           {approveError}
         </div>

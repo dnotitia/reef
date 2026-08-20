@@ -39,9 +39,9 @@ type LooseT = (key: string, values?: Record<string, string | number>) => string;
  *  The verdict *labels* are locale-aware and resolved from `reports.cards.rag.*`
  *  at render (REEF-304), not hardcoded here. */
 const RAG_COLOR: Record<RagLevel, string> = {
-  on_track: "var(--status-done)",
+  on_track: "var(--status-done-chart)",
   at_risk: "var(--priority-medium)",
-  off_track: "var(--destructive)",
+  off_track: "var(--destructive-chart)",
 };
 
 /** Dimension display labels keyed `{dim}.{one|many}`, resolved at render from the
@@ -153,7 +153,7 @@ export function HealthRollup({
   return (
     <section
       data-testid="health-rollup"
-      className="flex flex-col gap-3 rounded-lg border border-border-subtle bg-surface-subtle p-4"
+      className="flex flex-col gap-3 rounded-lg border border-border-subtle bg-surface-card p-4"
     >
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-baseline gap-2">
@@ -174,7 +174,7 @@ export function HealthRollup({
               onClick={() => setShowShipped((s) => !s)}
               data-testid="health-rollup-show-shipped"
               className={cn(
-                "rounded-md border border-border-subtle px-2 py-1 text-[11px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
+                "rounded-md border border-border-subtle px-2 py-1 text-[11px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
                 showShipped
                   ? "bg-surface-hover text-foreground"
                   : "text-muted-foreground hover:text-foreground",
@@ -229,7 +229,7 @@ function DimensionToggle({
       role="group"
       aria-label={t("rollupDimension")}
       data-testid="health-rollup-dimension"
-      className="inline-flex items-center gap-0.5 rounded-md border border-border-subtle bg-elevated p-0.5"
+      className="inline-flex items-center gap-0.5 rounded-md border border-border-subtle bg-surface-elevated p-0.5"
     >
       {dims.map((dim) => {
         const isActive = dim === active;
@@ -241,7 +241,7 @@ function DimensionToggle({
             onClick={() => onSelect(dim)}
             data-testid={`health-rollup-dimension-${dim}`}
             className={cn(
-              "rounded-[5px] px-2 py-1 text-[12px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
+              "rounded-[5px] px-2 py-1 text-[12px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
               isActive
                 ? "bg-surface-hover text-foreground"
                 : "text-muted-foreground hover:text-foreground",
@@ -286,8 +286,8 @@ const HealthRow = memo(function HealthRow({
         onClick={() => onDrill(row.kind, row.id)}
         data-testid={`health-rollup-row-${row.id}`}
         className={cn(
-          "relative grid w-full grid-cols-1 items-center gap-2 rounded-md border border-border-subtle bg-background py-2.5 pr-3 pl-4 text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-4",
-          active && "ring-1 ring-brand/40",
+          "relative grid w-full grid-cols-1 items-center gap-2 rounded-md border border-border-subtle bg-surface-page py-2.5 pr-3 pl-4 text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-4",
+          active && "ring-1 ring-brand-focus/40",
         )}
       >
         {/* Verdict rail — the at-a-glance scan signal, paired with
@@ -387,7 +387,7 @@ function CompletionBar({ value }: { value: number }) {
           className="h-full w-full origin-left rounded-full ease-out motion-safe:transition-transform motion-safe:duration-500"
           style={{
             transform: `scaleX(${Math.max(0.02, value)})`,
-            backgroundColor: "var(--brand)",
+            backgroundColor: "var(--brand-chart)",
             opacity: 0.7,
           }}
         />

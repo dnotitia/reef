@@ -337,14 +337,14 @@ describe("Combobox", () => {
   });
 
   it("paints the brand ring only when active", () => {
-    // `bg-brand/10` is unique to the active token — the base trigger already
-    // carries focus-visible:border-brand, so match on the fill instead.
+    // `bg-brand-fill/10` is unique to the active token — the base trigger already
+    // carries focus-visible:border-brand-focus, so match on the fill instead.
     const { rerender } = render(<Controlled active={false} />);
     expect(screen.getByLabelText("Fruit").className).not.toContain(
-      "bg-brand/10",
+      "bg-brand-fill/10",
     );
     rerender(<Controlled active />);
-    expect(screen.getByLabelText("Fruit").className).toContain("bg-brand/10");
+    expect(screen.getByLabelText("Fruit").className).toContain("bg-brand-fill/10");
   });
 
   it("scrolls only its own list, never an ancestor, when opening and navigating (REEF-145)", async () => {

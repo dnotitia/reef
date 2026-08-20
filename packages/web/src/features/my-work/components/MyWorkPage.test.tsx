@@ -279,6 +279,16 @@ describe("MyWorkPage", () => {
         .getAllByTestId(/^my-work-row-/)
         .map((el) => el.getAttribute("data-testid"));
       expect(order[0]).toBe("my-work-row-REEF-1");
+
+      const firstRow = screen.getByTestId("my-work-row-REEF-1");
+      expect(
+        within(firstRow).getByTestId("my-work-row-identity"),
+      ).toBeInTheDocument();
+      expect(within(firstRow).getByTestId("my-work-row-title")).toHaveAttribute(
+        "title",
+        "Issue REEF-1",
+      );
+      expect(within(firstRow).getByTestId("my-work-row-meta")).toBeVisible();
     });
 
     it("opens an issue via an href that carries the current query (REEF-222)", () => {

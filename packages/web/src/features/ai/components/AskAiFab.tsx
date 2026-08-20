@@ -67,9 +67,9 @@ export function AskAiFab({ messageCount = 0, onPreload }: AskAiFabProps) {
       className={cn(
         "fixed bottom-5 right-5 z-40",
         "inline-flex h-11 w-11 items-center justify-center rounded-full",
-        "bg-brand text-brand-foreground shadow-lg shadow-brand/30",
-        "transition-[transform,box-shadow,opacity] duration-[var(--duration-base)] ease-[var(--ease-signature)] motion-reduce:transition-none hover:shadow-brand/40 hover:shadow-lg",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
+        "bg-brand-fill text-brand-on-fill shadow-lg shadow-brand-fill/30",
+        "transition-[transform,box-shadow,opacity] duration-[var(--duration-base)] ease-[var(--ease-signature)] motion-reduce:transition-none hover:shadow-brand-fill/40 hover:shadow-lg",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
         isOpen && "scale-95 opacity-90",
       )}
     >
@@ -78,7 +78,7 @@ export function AskAiFab({ messageCount = 0, onPreload }: AskAiFabProps) {
         <span
           data-testid="ask-ai-unread-dot"
           aria-label={t("unreadMessages")}
-          className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-brand-foreground ring-2 ring-background"
+          className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-brand-on-fill ring-2 ring-surface-page"
         />
       )}
       <span className="sr-only">{t("fabLabel", { shortcut })}</span>

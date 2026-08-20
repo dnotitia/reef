@@ -102,7 +102,7 @@ export function MonitoredRepoSelector({
           data-testid={`${testIdPrefix}-trigger`}
           aria-haspopup="dialog"
           disabled={disabled}
-          className="inline-flex h-8 w-64 items-center justify-between rounded-md border border-border bg-elevated px-2.5 text-[13px] text-foreground transition-colors duration-150 hover:bg-surface-hover disabled:opacity-50"
+          className="inline-flex h-8 w-64 items-center justify-between rounded-md border border-border bg-surface-elevated px-2.5 text-[13px] text-foreground transition-colors duration-150 hover:bg-surface-hover disabled:opacity-50"
           aria-label={
             selectedRepos.size > 0
               ? t("reposSelected", { count: selectedRepos.size })
@@ -126,7 +126,7 @@ export function MonitoredRepoSelector({
         >
           <input
             type="text"
-            className="mb-2 w-full rounded-md border border-border bg-elevated px-2 py-1 text-[13px] text-foreground outline-none transition-colors focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/30"
+            className="mb-2 w-full rounded-md border border-border bg-surface-elevated px-2 py-1 text-[13px] text-foreground outline-none transition-colors focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30"
             placeholder={t("searchReposPlaceholder")}
             aria-label={t("searchReposLabel")}
             value={searchQuery}

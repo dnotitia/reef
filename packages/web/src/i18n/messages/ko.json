@@ -1261,6 +1261,7 @@
   },
   "board": {
     "loadError": "일부 이슈를 불러오지 못했습니다. 캐시된 데이터가 있으면 표시합니다.",
+    "columnsScrollRegion": "보드 열",
     "updateErrorTitle": "이슈를 업데이트하지 못했습니다",
     "updateErrorDescription": "보드가 되돌려졌습니다. 다시 이동하려면 재시도하세요.",
     "noMatchTitle": "일치하는 이슈가 없습니다",

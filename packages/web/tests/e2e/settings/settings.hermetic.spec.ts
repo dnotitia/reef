@@ -23,6 +23,53 @@ test.describe("Hermetic settings workflows", () => {
     await resetFixture(request, "configured");
   });
 
+  test("contains the active-workspace selector and keyboard focus ring at narrow widths", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    for (const viewport of [
+      { width: 320, height: 844 },
+      { width: 375, height: 844 },
+      { width: 414, height: 844 },
+      { width: 768, height: 844 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/settings/workspace`);
+
+      const selector = page.getByTestId("active-vault-trigger");
+      await expect(selector).toBeVisible();
+      await selector.focus();
+      const geometry = await selector.evaluate((element) => {
+        const node = element as HTMLElement;
+        const rect = node.getBoundingClientRect();
+        const styles = getComputedStyle(node);
+        const outlineWidth = Number.parseFloat(styles.outlineWidth) || 0;
+        const outlineOffset = Number.parseFloat(styles.outlineOffset) || 0;
+        const outline = outlineWidth + outlineOffset;
+        return {
+          left: rect.left - outline,
+          right: rect.right + outline,
+          viewportWidth: window.innerWidth,
+          documentOverflow:
+            document.documentElement.scrollWidth >
+            document.documentElement.clientWidth,
+        };
+      });
+
+      expect(geometry.left, `${viewport.width}px left`).toBeGreaterThanOrEqual(
+        -1,
+      );
+      expect(
+        geometry.right,
+        `${viewport.width}px focus right`,
+      ).toBeLessThanOrEqual(geometry.viewportWidth + 1);
+      expect(geometry.documentOverflow, `${viewport.width}px document`).toBe(
+        false,
+      );
+    }
+  });
+
   test("persists monitored repositories through GitHub App-backed config routes", async ({
     page,
     request,

@@ -365,7 +365,7 @@ describe("DashboardShell", () => {
     const badge = screen.getByTestId("my-work-attention-badge");
     // overdue + due-soon, capped past 9.
     expect(badge).toHaveTextContent("9+");
-    expect(badge).toHaveClass("bg-destructive");
+    expect(badge).toHaveClass("bg-destructive-fill");
     expect(badge).toHaveAccessibleName("4 overdue, 8 due soon");
   });
 
@@ -431,7 +431,7 @@ describe("DashboardShell", () => {
     );
     const dot = screen.getByTestId("my-work-attention-dot");
     expect(dot).toBeVisible();
-    expect(dot).toHaveClass("bg-destructive");
+    expect(dot).toHaveClass("bg-destructive-fill");
     // The full count is still announced even though a dot shows.
     expect(dot).toHaveAccessibleName("1 overdue, 1 due soon");
   });

@@ -202,7 +202,7 @@ describe("ReportsPage", () => {
     const card = await screen.findByTestId("report-card-by-type");
     // The breakdown bar uses the single brand value-token, matching By severity /
     // Top assignees / Top labels...
-    expect(card.querySelector("[style*='var(--brand)']")).not.toBeNull();
+    expect(card.querySelector("[style*='var(--brand-chart)']")).not.toBeNull();
     // ...and no longer leaks a per-type identity color (task → status-open,
     // bug → priority-critical, epic → ai, ...) into the card.
     for (const token of ["--type", "--ai", "--priority", "--status"]) {

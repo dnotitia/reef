@@ -74,9 +74,9 @@ export function MyWorkQueue({ items, mode, onModeChange }: MyWorkQueueProps) {
                 onClick={() => onModeChange(option.value)}
                 data-testid={`my-work-group-${option.value}`}
                 className={cn(
-                  "rounded-md px-2.5 py-1 text-xs font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
+                  "rounded-md px-2.5 py-1 text-xs font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
                   active
-                    ? "bg-background text-foreground shadow-sm"
+                    ? "bg-surface-page text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
@@ -87,7 +87,7 @@ export function MyWorkQueue({ items, mode, onModeChange }: MyWorkQueueProps) {
         </div>
       </header>
 
-      <div className="overflow-hidden rounded-xl border border-border-subtle bg-background">
+      <div className="min-w-0 overflow-hidden rounded-xl border border-border-subtle bg-surface-page">
         {mode === "priority" ? (
           items.map((item) => (
             <MyWorkRow

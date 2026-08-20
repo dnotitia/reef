@@ -1074,6 +1074,7 @@
   },
   "board": {
     "loadError": "Failed to load some issues. Displaying cached data if available.",
+    "columnsScrollRegion": "Board columns",
     "updateErrorTitle": "Couldn't update issue",
     "updateErrorDescription": "The board was reverted. Retry to move it again.",
     "noMatchTitle": "No matching issues",

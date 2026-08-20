@@ -110,7 +110,7 @@ export function LoginForm({ redirectTo = "/" }: LoginFormProps) {
         <p
           role="alert"
           aria-live="polite"
-          className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+          className="rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text"
         >
           {error}
         </p>

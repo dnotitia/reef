@@ -32,7 +32,7 @@ describe("IssueSelectionCheckbox", () => {
     );
     expect(
       container.querySelector('[data-slot="selection-checkbox-indicator"]'),
-    ).toHaveClass("size-3.5", "bg-elevated", "border-input");
+    ).toHaveClass("size-3.5", "bg-surface-elevated", "border-input");
 
     await user.click(hitTarget as HTMLLabelElement);
     expect(onChange).toHaveBeenCalledTimes(1);
@@ -50,7 +50,7 @@ describe("IssueSelectionCheckbox", () => {
     );
     expect(
       container.querySelector('[data-slot="selection-checkbox-indicator"]'),
-    ).toHaveClass("border-brand", "bg-brand", "text-brand-foreground");
+    ).toHaveClass("border-brand-focus", "bg-brand-fill", "text-brand-on-fill");
   });
 
   it("exposes the mixed state on the native checkbox", () => {

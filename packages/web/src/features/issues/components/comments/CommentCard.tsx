@@ -395,7 +395,7 @@ export function CommentCard({
                   aria-label={t("deleteComment")}
                   title={t("deleteComment")}
                   onClick={() => setDeleteOpen(true)}
-                  className="text-muted-foreground opacity-0 motion-safe:transition-opacity motion-safe:duration-150 motion-safe:ease-[var(--ease-signature)] hover:text-destructive focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
+                  className="text-muted-foreground opacity-0 motion-safe:transition-opacity motion-safe:duration-150 motion-safe:ease-[var(--ease-signature)] hover:text-destructive-text focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
                 >
                   <Trash2 className="size-3.5" aria-hidden="true" />
                 </Button>
@@ -414,7 +414,7 @@ export function CommentCard({
         ) : null}
 
         {editing ? (
-          <div className="mt-1 flex flex-col rounded-md border border-brand bg-elevated ring-2 ring-inset ring-brand/30">
+          <div className="mt-1 flex flex-col rounded-md border border-brand-focus bg-surface-elevated ring-2 ring-inset ring-brand-focus/30">
             <CommentMentionTextarea
               draft={draft}
               members={members}

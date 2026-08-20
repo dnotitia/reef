@@ -76,7 +76,7 @@ export function ToolStepTrace({
         type="button"
         aria-expanded={showSteps}
         onClick={() => setExpanded((v) => !v)}
-        className="group/trace flex w-full items-center gap-2.5 px-2.5 py-2 text-left transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+        className="group/trace flex w-full items-center gap-2.5 px-2.5 py-2 text-left transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
       >
         <Sparkles
           aria-hidden="true"
@@ -161,13 +161,13 @@ function ToolStepRow({
         type="button"
         aria-expanded={isOpen}
         onClick={onToggle}
-        className="flex w-full items-center gap-2.5 px-2.5 py-1.5 text-left transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+        className="flex w-full items-center gap-2.5 px-2.5 py-1.5 text-left transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
       >
         <span className="flex size-4 shrink-0 items-center justify-center">
           {isError ? (
             <AlertCircle
               aria-hidden="true"
-              className="size-3.5 text-destructive"
+              className="size-3.5 text-destructive-text"
             />
           ) : (
             <ToolIcon toolName={step.toolName} />
@@ -191,7 +191,7 @@ function ToolStepRow({
       </button>
 
       {isOpen && (
-        <dl className="flex flex-col gap-1.5 bg-elevated px-2.5 pb-2.5 pl-9 pt-0.5 text-xs">
+        <dl className="flex flex-col gap-1.5 bg-surface-elevated px-2.5 pb-2.5 pl-9 pt-0.5 text-xs">
           <div className="flex gap-2">
             <dt className="w-14 shrink-0 text-muted-foreground">
               {t("chatSteps.detailTool")}
@@ -218,7 +218,7 @@ function ToolStepRow({
               <dt className="w-14 shrink-0 text-muted-foreground">
                 {t("chatSteps.detailError")}
               </dt>
-              <dd className="min-w-0 break-words text-[11px] text-destructive">
+              <dd className="min-w-0 break-words text-[11px] text-destructive-text">
                 {step.errorMessage}
               </dd>
             </div>

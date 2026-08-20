@@ -49,7 +49,7 @@ export function ProjectSection({ canEdit = true }: { canEdit?: boolean }) {
     return (
       <p
         role="alert"
-        className="text-sm text-destructive"
+        className="text-sm text-destructive-text"
         data-testid="project-section-load-error"
       >
         {t("loadError")} {configQuery.error.message}
@@ -179,7 +179,7 @@ function ProjectPrefixEditor({
       {error && (
         <p
           role="alert"
-          className="text-xs text-destructive"
+          className="text-xs text-destructive-text"
           data-testid="project-prefix-error"
         >
           {error}

@@ -68,6 +68,21 @@ function contrastRatio(first: Rgb, second: Rgb): number {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
+const STATUS_IDENTITIES = [
+  "backlog",
+  "open",
+  "in-progress",
+  "in-review",
+  "done",
+  "closed",
+] as const;
+
+const ROLE_SUFFIXES = ["text", "fill", "glyph", "focus", "chart"] as const;
+
+function tokenRgb(css: string, selector: string, token: string): Rgb {
+  return readHslToken(css, selector, token);
+}
+
 describe("global focus styles", () => {
   it("keeps the fallback focus-visible outline in the base layer", () => {
     const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
@@ -106,15 +121,15 @@ describe("global focus styles", () => {
   it("styles comment mentions from the sanitized renderer marker", () => {
     const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
     expect(css).toContain(".comment-mention-renderer [data-reef-mention]");
-    expect(css).toContain("color: var(--brand);");
+    expect(css).toContain("color: var(--brand-text);");
     expect(css).toContain("font-weight: 500;");
   });
 
   it("keeps the Settings link's foreground text and focus outline accessible", () => {
     const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
-    const lightBackground = readHslToken(css, ":root {", "--background");
+    const lightBackground = readHslToken(css, ":root {", "--surface-page");
     const lightForeground = readHslToken(css, ":root {", "--foreground");
-    const darkBackground = readHslToken(css, ":root.dark", "--background");
+    const darkBackground = readHslToken(css, ":root.dark", "--surface-page");
     const darkForeground = readHslToken(css, ":root.dark", "--foreground");
 
     expect(
@@ -125,15 +140,15 @@ describe("global focus styles", () => {
     ).toBeGreaterThanOrEqual(4.5);
   });
 
-  it("keeps the shared focus token visible across light/dark surfaces without changing brand declarations", () => {
+  it("keeps role-specific focus tokens visible across light/dark surfaces", () => {
     const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
-    expect(css).toContain("--brand: hsl(173 80% 40%);");
-    expect(css).toContain("--brand: hsl(173 70% 45%);");
-    expect(css).toContain("--brand-foreground: hsl(0 0% 100%);");
+    expect(css).toContain("--brand-focus: hsl(173 80% 25%);");
+    expect(css).toContain("--brand-focus: hsl(173 70% 78%);");
+    expect(css).toContain("--brand-on-fill: hsl(0 0% 100%);");
 
     for (const selector of [":root {", ":root.dark"]) {
       const foreground = readHslToken(css, selector, "--foreground");
-      const background = readHslToken(css, selector, "--background");
+      const background = readHslToken(css, selector, "--surface-page");
       const subtleSurface = readHslToken(css, selector, "--surface-subtle");
 
       expect(contrastRatio(foreground, background)).toBeGreaterThanOrEqual(3);
@@ -141,6 +156,143 @@ describe("global focus styles", () => {
         3,
       );
     }
+  });
+
+  it("keeps page/elevated/card/popover surfaces distinct and role contrast AA-safe", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const surfaces = [
+      "--surface-page",
+      "--surface-elevated",
+      "--surface-card",
+      "--surface-popover",
+    ] as const;
+    const identities = ["brand", "destructive", ...STATUS_IDENTITIES] as const;
+
+    for (const selector of [":root {", ":root.dark"]) {
+      const surfaceColors = surfaces.map((token) =>
+        tokenRgb(css, selector, token),
+      );
+      expect(new Set(surfaceColors.map((color) => color.join(","))).size).toBe(
+        surfaces.length,
+      );
+
+      for (const identity of identities) {
+        const prefix =
+          identity === "brand" || identity === "destructive"
+            ? `--${identity}`
+            : `--status-${identity}`;
+        const colorPrefix =
+          identity === "brand" || identity === "destructive"
+            ? identity
+            : `status-${identity}`;
+        for (const role of ROLE_SUFFIXES) {
+          expect(css).toContain(`${prefix}-${role}:`);
+          expect(css).toContain(
+            `--color-${colorPrefix}-${role}: var(${prefix}-${role});`,
+          );
+        }
+
+        const text = tokenRgb(css, selector, `${prefix}-text`);
+        const glyph = tokenRgb(css, selector, `${prefix}-glyph`);
+        const focus = tokenRgb(css, selector, `${prefix}-focus`);
+        const chart = tokenRgb(css, selector, `${prefix}-chart`);
+        const fill = tokenRgb(css, selector, `${prefix}-fill`);
+
+        for (const surface of surfaceColors) {
+          expect(
+            contrastRatio(text, surface),
+            `${selector} ${identity} text`,
+          ).toBeGreaterThanOrEqual(4.5);
+          expect(
+            contrastRatio(glyph, surface),
+            `${selector} ${identity} glyph`,
+          ).toBeGreaterThanOrEqual(3);
+          expect(
+            contrastRatio(focus, surface),
+            `${selector} ${identity} focus`,
+          ).toBeGreaterThanOrEqual(3);
+          expect(
+            contrastRatio(chart, surface),
+            `${selector} ${identity} chart`,
+          ).toBeGreaterThanOrEqual(3);
+          expect(
+            contrastRatio(fill, surface),
+            `${selector} ${identity} fill`,
+          ).toBeGreaterThanOrEqual(3);
+        }
+      }
+    }
+  });
+
+  it("keeps the planning family distinct while meeting non-text contrast", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const planningTokens = [
+      "--planning-pending",
+      "--planning-open",
+      "--planning-active",
+      "--planning-closed",
+      "--planning-released",
+    ] as const;
+    const surfaces = [
+      "--surface-page",
+      "--surface-elevated",
+      "--surface-card",
+      "--surface-popover",
+    ] as const;
+
+    for (const selector of [":root {", ":root.dark"]) {
+      for (const token of planningTokens) {
+        const planningColor = tokenRgb(css, selector, token);
+        expect(css).toContain(`--color-${token.slice(2)}: var(${token});`);
+        for (const surface of surfaces) {
+          expect(
+            contrastRatio(planningColor, tokenRgb(css, selector, surface)),
+          ).toBeGreaterThanOrEqual(3);
+        }
+      }
+    }
+  });
+
+  it("does not reintroduce removed neutral aliases or collapse semantic roles", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    for (const obsolete of [
+      "--background:",
+      "--card:",
+      "--card-foreground:",
+      "--popover:",
+      "--popover-foreground:",
+      "--brand:",
+      "--brand-foreground:",
+      "--destructive:",
+      "--destructive-foreground:",
+      "--ring:",
+      "--status-open:",
+    ]) {
+      expect(css).not.toContain(obsolete);
+    }
+
+    for (const identity of ["brand", "destructive", ...STATUS_IDENTITIES]) {
+      const prefix =
+        identity === "brand" || identity === "destructive"
+          ? identity
+          : `status-${identity}`;
+      const roleValues = ROLE_SUFFIXES.map(
+        (role) =>
+          css.match(new RegExp(`--${prefix}-${role}: hsl\\([^;]+\\);`))?.[0],
+      );
+      expect(new Set(roleValues).size).toBe(ROLE_SUFFIXES.length);
+    }
+  });
+
+  it("keeps Inter as the single display/body sans fallback contract", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    expect(css).toContain(
+      "--font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;",
+    );
+    expect(css).toContain(
+      "--font-body: var(--font-inter), ui-sans-serif, system-ui, sans-serif;",
+    );
+    expect(css).toContain("--font-sans: var(--font-body);");
   });
 
   it("renders the Tiptap empty-editor placeholder marker", () => {
@@ -170,7 +322,7 @@ describe("global focus styles", () => {
       "--tw-prose-bullets": "--muted-foreground",
       "--tw-prose-hr": "--border-subtle",
       "--tw-prose-quotes": "--foreground",
-      "--tw-prose-quote-borders": "--brand",
+      "--tw-prose-quote-borders": "--brand-focus",
       "--tw-prose-captions": "--muted-foreground",
       "--tw-prose-kbd": "--foreground",
       "--tw-prose-kbd-shadows": "--border-subtle",
@@ -190,9 +342,9 @@ describe("global focus styles", () => {
     const linkEnd = findCssBlockEnd(css, linkStart);
     expect(linkEnd).toBeGreaterThan(linkStart);
     const linkBlock = css.slice(linkStart, linkEnd);
-    expect(linkBlock).toContain("color: var(--brand);");
+    expect(linkBlock).toContain("color: var(--brand-text);");
     expect(linkBlock).toContain("text-decoration-line: underline;");
-    expect(linkBlock).toContain("text-decoration-color: var(--brand);");
+    expect(linkBlock).toContain("text-decoration-color: var(--brand-text);");
     expect(linkBlock).toContain("text-decoration-thickness: 1px;");
     expect(linkBlock).toContain("text-underline-offset: 2px;");
     expect(css).toContain(".reef-markdown-editor a:visited");
@@ -202,7 +354,7 @@ describe("global focus styles", () => {
     const interactiveLinkEnd = findCssBlockEnd(css, interactiveLinkStart);
     expect(interactiveLinkEnd).toBeGreaterThan(interactiveLinkStart);
     expect(css.slice(interactiveLinkStart, interactiveLinkEnd)).toContain(
-      "text-decoration-color: var(--brand);",
+      "text-decoration-color: var(--brand-text);",
     );
     expect(css.slice(interactiveLinkStart, interactiveLinkEnd)).toContain(
       "text-decoration-thickness: 2px;",
@@ -221,7 +373,7 @@ describe("global focus styles", () => {
     for (const token of [
       "--foreground",
       "--muted-foreground",
-      "--brand",
+      "--brand-focus",
       "--surface-subtle",
       "--border-subtle",
     ]) {
@@ -304,7 +456,7 @@ describe("global focus styles", () => {
     const mentionEnd = findCssBlockEnd(css, mentionStart);
     expect(mentionEnd).toBeGreaterThan(mentionStart);
     const mentionBlock = css.slice(mentionStart, mentionEnd);
-    expect(mentionBlock).toContain("color: var(--brand);");
+    expect(mentionBlock).toContain("color: var(--brand-text);");
     expect(mentionBlock).toContain("font-weight: 500;");
     expect(mentionBlock).toContain("text-decoration-line: none;");
   });
@@ -535,7 +687,7 @@ describe("global focus styles", () => {
     const checkboxBlock = css.slice(checkboxStart, checkboxEnd);
     expect(checkboxBlock).toContain("width: 1rem;");
     expect(checkboxBlock).toContain("height: 1rem;");
-    expect(checkboxBlock).toContain("accent-color: var(--brand);");
+    expect(checkboxBlock).toContain("accent-color: var(--brand-glyph);");
 
     const focusStart = css.indexOf(
       '.reef-markdown-editor\n  ul[data-type="taskList"]\n  > li\n  > label\n  input[type="checkbox"]:focus-visible {',
@@ -543,7 +695,7 @@ describe("global focus styles", () => {
     expect(focusStart).toBeGreaterThan(-1);
     const focusEnd = findCssBlockEnd(css, focusStart);
     const focusBlock = css.slice(focusStart, focusEnd);
-    expect(focusBlock).toContain("outline: 2px solid var(--brand);");
+    expect(focusBlock).toContain("outline: 2px solid var(--brand-focus);");
     expect(focusBlock).toContain("outline-offset: 2px;");
 
     const checkedStart = css.indexOf(
@@ -588,7 +740,7 @@ describe("global focus styles", () => {
     expect(quoteEnd).toBeGreaterThan(quoteStart);
     const quoteBlock = css.slice(quoteStart, quoteEnd);
     for (const declaration of [
-      "border-inline-start: 2px solid var(--brand);",
+      "border-inline-start: 2px solid var(--brand-focus);",
       "background: var(--surface-subtle);",
       "font-style: normal;",
       "quotes: none;",

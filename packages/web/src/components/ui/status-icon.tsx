@@ -1,4 +1,7 @@
-import { STATUS_COLORS } from "@/components/fields/fieldKit";
+import {
+  STATUS_COLORS,
+  STATUS_TEXT_COLORS,
+} from "@/components/fields/fieldKit";
 import { useStatusLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { Status } from "@reef/core";
@@ -123,7 +126,8 @@ export function StatusBadge({ status, size, className }: StatusBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 text-xs text-foreground/80",
+        "inline-flex items-center gap-1.5 text-xs",
+        STATUS_TEXT_COLORS[status],
         className,
       )}
     >

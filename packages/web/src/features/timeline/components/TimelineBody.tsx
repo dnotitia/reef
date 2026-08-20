@@ -174,12 +174,12 @@ export function TimelineBody({ vault }: TimelineBodyProps) {
         ) : (
           <>
             {isError && (
-              <div className="mx-6 mt-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              <div className="mx-6 mt-4 rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text">
                 {t("loadError")}{" "}
                 <Button
                   type="button"
                   variant="link"
-                  className="h-auto px-0 text-destructive"
+                  className="h-auto px-0 text-destructive-text"
                   onClick={() => refetch()}
                 >
                   {c("retry")}

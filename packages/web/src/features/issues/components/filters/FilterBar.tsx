@@ -429,7 +429,7 @@ export function FilterBar({
               title={t("clearMilestone")}
               data-testid="milestone-clear-button"
               onClick={() => setFilter({ milestone_id: undefined })}
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-elevated text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/30"
+              className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface-elevated text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30"
             >
               <X className="size-3.5" aria-hidden="true" />
             </button>
@@ -498,11 +498,11 @@ export function FilterBar({
       {hasActiveFilters && (
         <div className="flex items-center gap-2">
           <span
-            className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-medium text-foreground/80"
+            className="inline-flex items-center gap-1.5 rounded-full bg-brand-fill/10 px-2 py-0.5 text-[11px] font-medium text-foreground/80"
             data-testid="active-filter-count"
           >
             <span
-              className="inline-block h-1.5 w-1.5 rounded-full bg-brand"
+              className="inline-block h-1.5 w-1.5 rounded-full bg-brand-fill"
               aria-hidden="true"
             />
             {t("activeCount", { count: activeCount })}

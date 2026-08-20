@@ -25,14 +25,14 @@ describe("comboboxChrome focus contract (REEF-226)", () => {
   for (const [name, value] of Object.entries(chrome)) {
     it(`${name} keys its ring off focus-visible, never bare focus`, () => {
       expect(value).toContain("focus-visible:ring-2");
-      expect(value).toContain("focus-visible:ring-brand/30");
+      expect(value).toContain("focus-visible:ring-brand-focus/30");
       // `focus:` (followed by `:`) would also trigger on mouse click — the bug.
       expect(value).not.toMatch(/(?:^|\s)focus:/);
     });
   }
 
   it("the in-panel search input shares the field trigger's brand border ring", () => {
-    expect(CBX_SEARCH).toContain("focus-visible:border-brand");
-    expect(CBX_SEARCH).toContain("focus-visible:ring-brand/30");
+    expect(CBX_SEARCH).toContain("focus-visible:border-brand-focus");
+    expect(CBX_SEARCH).toContain("focus-visible:ring-brand-focus/30");
   });
 });

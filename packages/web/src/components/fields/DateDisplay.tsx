@@ -69,12 +69,14 @@ export function DateDisplay({
       title={titlePrefix ? `${titlePrefix} ${date}` : undefined}
       className={
         overdue
-          ? "rounded-sm bg-destructive/10 px-1 py-0.5 font-semibold text-destructive"
+          ? "rounded-sm bg-destructive-fill/10 px-1 py-0.5 font-semibold text-destructive-text"
           : undefined
       }
     >
       <span
-        className={overdue ? "text-destructive/70" : "text-muted-foreground/70"}
+        className={
+          overdue ? "text-destructive-text/70" : "text-muted-foreground/70"
+        }
       >
         {label}
       </span>{" "}

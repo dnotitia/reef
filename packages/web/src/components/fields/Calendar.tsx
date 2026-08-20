@@ -188,9 +188,9 @@ function CalendarComponent({
               className={cn(
                 "flex h-8 w-8 items-center justify-center rounded-md font-mono text-[13px] tabular-nums transition-colors duration-150",
                 isSelected
-                  ? "bg-brand text-brand-foreground"
+                  ? "bg-brand-fill text-brand-on-fill"
                   : isToday
-                    ? "text-brand ring-1 ring-inset ring-brand/50 hover:bg-surface-hover"
+                    ? "text-brand-text ring-1 ring-inset ring-brand-focus/50 hover:bg-surface-hover"
                     : cell.inCurrentMonth
                       ? "text-foreground hover:bg-surface-hover"
                       : "text-muted-foreground/40 hover:bg-surface-hover",

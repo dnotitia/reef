@@ -62,7 +62,7 @@ export const HighlightText = forwardRef<HTMLSpanElement, HighlightTextProps>(
             <mark
               key={key}
               className={cn(
-                "bg-brand/20 text-foreground rounded-sm px-0.5",
+                "bg-brand-fill/20 text-foreground rounded-sm px-0.5",
                 "[font-weight:inherit]",
               )}
             >

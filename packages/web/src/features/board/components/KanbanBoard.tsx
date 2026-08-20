@@ -63,13 +63,25 @@ import type {
 } from "@reef/core";
 import { usePriorityLabels, useStatusLabels } from "@/i18n/fieldLabels";
 import { useTranslations } from "next-intl";
-import { useEffect, useId, useMemo, useState } from "react";
+import { type KeyboardEvent, useEffect, useId, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useBoardStore } from "../stores/useBoardStore";
 import { KanbanCardPreview } from "./KanbanCard";
 import { KanbanColumn } from "./KanbanColumn";
 
 const EMPTY_ISSUES: IssueListItem[] = [];
+
+function handleBoardScrollKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+  event.preventDefault();
+  event.currentTarget.scrollBy({
+    left:
+      event.key === "ArrowRight"
+        ? event.currentTarget.clientWidth
+        : -event.currentTarget.clientWidth,
+    behavior: "smooth",
+  });
+}
 
 // Drop settle — the drag overlay eases into the card's resting slot on the
 // signature curve instead of snapping away (REEF-121). dnd-kit measures the
@@ -364,13 +376,13 @@ export function KanbanBoard({ vault, groupBy = "status" }: KanbanBoardProps) {
   const activeIssue = activeIssueId ? issueMap.get(activeIssueId) : undefined;
 
   if (isPending) {
-    return <BoardColumnsSkeleton />;
+    return <BoardColumnsSkeleton ariaLabel={t("columnsScrollRegion")} />;
   }
 
   return (
     <div data-testid="kanban-board" className="flex h-full min-h-0 flex-col">
       {isError && (
-        <div className="mx-6 mt-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+        <div className="mx-6 mt-4 rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text">
           {t("loadError")}
         </div>
       )}
@@ -383,7 +395,12 @@ export function KanbanBoard({ vault, groupBy = "status" }: KanbanBoardProps) {
       >
         <div
           data-testid="kanban-board-body"
-          className="relative flex min-h-0 flex-1 gap-3 overflow-x-auto px-6 py-4"
+          role="region"
+          aria-label={t("columnsScrollRegion")}
+          // biome-ignore lint/a11y/noNoninteractiveTabindex: The labeled overflow region is the keyboard scrollport.
+          tabIndex={0}
+          onKeyDown={handleBoardScrollKeyDown}
+          className="relative grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-3 overflow-x-hidden overflow-y-auto px-6 py-4 md:grid-cols-2 lg:flex lg:flex-nowrap lg:overflow-x-auto lg:overflow-y-hidden"
         >
           {issueGroups.map(({ bucket, issues }) => (
             <KanbanColumn
@@ -402,7 +419,7 @@ export function KanbanBoard({ vault, groupBy = "status" }: KanbanBoardProps) {
           ))}
           {showNoMatch && (
             <div className="pointer-events-none absolute inset-x-6 top-16 z-10 flex justify-center">
-              <div className="pointer-events-none flex max-w-md flex-col items-center rounded-lg border border-border-subtle bg-background/95 px-5 py-4 text-center backdrop-blur-sm">
+              <div className="pointer-events-none flex max-w-md flex-col items-center rounded-lg border border-border-subtle bg-surface-page/95 px-5 py-4 text-center backdrop-blur-sm">
                 <section
                   data-testid="kanban-no-matches"
                   className="pointer-events-none flex flex-col items-center"

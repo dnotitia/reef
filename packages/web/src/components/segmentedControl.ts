@@ -1,6 +1,6 @@
 /**
  * Shared class vocabulary for the segmented-control family (REEF-261): the
- * bordered `bg-elevated` track with a `bg-surface-hover` active fill used by the
+ * bordered `bg-surface-elevated` track with a `bg-surface-hover` active fill used by the
  * issue {@link ViewSwitcher}, the {@link SettingsTabs} navigation, and the
  * Planning kind toggle.
  *
@@ -14,17 +14,17 @@
  * `mb-4`) and any control-specific state (pending/`aria-busy`) via {@link cn}.
  *
  * Dimensions follow the canonical ViewSwitcher (`text-[12px]`, `px-2 py-1`); the
- * focus ring is the app-wide canonical `ring-brand`. ViewSwitcher previously
+ * focus ring is the app-wide canonical `ring-brand-focus`. ViewSwitcher previously
  * carried no focus-visible indicator at all (the a11y gap closed here).
  */
 
 /** Bordered track wrapping the segments. */
 export const SEGMENTED_CONTROL_TRACK =
-  "inline-flex items-center gap-0.5 rounded-md border border-border-subtle bg-elevated p-0.5";
+  "inline-flex items-center gap-0.5 rounded-md border border-border-subtle bg-surface-elevated p-0.5";
 
 /** A single segment (button or link). Includes the canonical focus-visible ring. */
 export const SEGMENTED_CONTROL_ITEM =
-  "inline-flex items-center gap-1.5 rounded-[5px] px-2 py-1 text-[12px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand";
+  "inline-flex items-center gap-1.5 rounded-[5px] px-2 py-1 text-[12px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus";
 
 /** Active-segment fill. */
 export const SEGMENTED_CONTROL_ITEM_ACTIVE = "bg-surface-hover text-foreground";

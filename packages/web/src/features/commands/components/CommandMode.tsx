@@ -285,7 +285,7 @@ function ActionRow({
       ) : null}
       {action.current ? (
         <Check
-          className="ml-auto size-4 text-brand"
+          className="ml-auto size-4 text-brand-text"
           aria-label={t("current")}
         />
       ) : descriptor.shortcut ? (

@@ -381,7 +381,7 @@ const PopoverContent = React.forwardRef<HTMLDivElement, PopoverContentProps>(
         aria-labelledby={ariaLabelledBy}
         tabIndex={tabIndex ?? -1}
         className={cn(
-          "absolute z-50 min-w-[200px] rounded-md border border-border bg-popover p-1 shadow-lg shadow-foreground/5 outline-none",
+          "absolute z-50 min-w-[200px] rounded-md border border-border bg-surface-popover p-1 shadow-lg shadow-foreground/5 outline-none",
           side === "top" ? "bottom-full mb-1" : "top-full mt-1",
           alignClass,
           sideOffset === 0 ? undefined : side === "top" ? "mb-1" : "mt-1",

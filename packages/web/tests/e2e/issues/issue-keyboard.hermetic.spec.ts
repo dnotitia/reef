@@ -251,7 +251,7 @@ test.describe("Hermetic issue keyboard navigation", () => {
         stickyClass: stickyId?.className ?? "",
       };
     });
-    expect(selectedChrome.rowClass).toContain("bg-brand/5");
+    expect(selectedChrome.rowClass).toContain("bg-brand-fill/5");
     expect(selectedChrome.rowClass).not.toContain("hover:bg-surface-hover");
     expect(selectedChrome.stickyClass).toContain("reef-list-sticky-state");
     expect(selectedChrome.stickyClass).not.toContain(

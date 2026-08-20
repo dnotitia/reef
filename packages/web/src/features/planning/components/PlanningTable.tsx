@@ -145,7 +145,7 @@ export function PlanningTable({
                           ? t("collapseDetails", { name: item.name })
                           : t("expandDetails", { name: item.name })
                       }
-                      className="group/disclosure flex w-full min-w-0 items-center gap-1.5 rounded text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="group/disclosure flex w-full min-w-0 items-center gap-1.5 rounded text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                       <span className="flex h-5 w-5 shrink-0 items-center justify-center text-muted-foreground transition-colors group-hover/disclosure:text-foreground">
                         <ChevronRight

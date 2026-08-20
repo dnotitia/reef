@@ -135,7 +135,7 @@ function NamedFilterMenu({
 
       {loadError ? (
         <>
-          <div className="px-2 py-2 text-xs text-destructive" role="alert">
+          <div className="px-2 py-2 text-xs text-destructive-text" role="alert">
             {t("loadError")}
           </div>
           <DropdownMenuItem onSelect={onRetry}>{t("retry")}</DropdownMenuItem>
@@ -173,7 +173,7 @@ function NamedFilterMenu({
                           "text-[11px] font-medium",
                           activeChanged
                             ? "text-amber-700 dark:text-amber-300"
-                            : "text-brand",
+                            : "text-brand-text",
                         )}
                       >
                         {activeChanged ? t("changed") : t("active")}
@@ -238,7 +238,7 @@ function NamedFilterMenu({
       )}
 
       {actionError ? (
-        <div className="px-2 py-2 text-xs text-destructive" role="alert">
+        <div className="px-2 py-2 text-xs text-destructive-text" role="alert">
           {actionError}
         </div>
       ) : null}
@@ -296,7 +296,7 @@ function NamedFilterTrigger({
         <span
           className={cn(
             "size-1.5 shrink-0 rounded-full",
-            activeChanged ? "bg-amber-500" : "bg-brand",
+            activeChanged ? "bg-amber-500" : "bg-brand-fill",
           )}
           aria-hidden="true"
           data-testid={
@@ -609,7 +609,7 @@ export function NamedIssueFilterControl() {
             >
               {t("nameLabel")}
               <input
-                className="h-9 rounded-md border border-border bg-background px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+                className="h-9 rounded-md border border-border bg-surface-page px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
                 id="named-filter-name"
                 maxLength={80}
                 onChange={(event) => setDraftName(event.target.value)}
@@ -625,7 +625,7 @@ export function NamedIssueFilterControl() {
             </label>
             {dialogError ? (
               <p
-                className="mt-2 text-xs text-destructive"
+                className="mt-2 text-xs text-destructive-text"
                 id="named-filter-dialog-error"
                 role="alert"
               >
@@ -679,7 +679,7 @@ export function NamedIssueFilterControl() {
             </DialogDescription>
           </DialogHeader>
           {deleteError ? (
-            <p className="text-xs text-destructive" role="alert">
+            <p className="text-xs text-destructive-text" role="alert">
               {deleteError}
             </p>
           ) : null}

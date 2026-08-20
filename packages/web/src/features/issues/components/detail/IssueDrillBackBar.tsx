@@ -46,7 +46,7 @@ export function IssueDrillBackBar({
         data-back-to={backTo}
         onClick={onBack}
         aria-label={t("backTo", { id: backTo })}
-        className="-ml-1.5 inline-flex touch-manipulation items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+        className="-ml-1.5 inline-flex touch-manipulation items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
       >
         <ArrowLeft className="size-3.5 shrink-0" aria-hidden />
         <span translate="no" className="font-mono tabular-nums">

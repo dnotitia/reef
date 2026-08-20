@@ -17,15 +17,18 @@ export function AppShellSkeleton() {
   const c = useTranslations("common");
   return (
     <div
-      className="flex h-screen overflow-hidden bg-background"
+      className="flex h-screen overflow-hidden bg-surface-page"
       data-testid="app-shell-skeleton"
     >
       <output className="sr-only">{c("loading")}</output>
 
       {/* Decorative shell — sidebar rail + board column frame. */}
-      <div className="flex flex-1 overflow-hidden" aria-hidden="true">
-        <aside className="flex w-60 shrink-0 flex-col gap-4 border-r border-border-subtle bg-sidebar p-3">
-          <Skeleton className="h-8 w-28" />
+      <div className="flex min-w-0 flex-1 overflow-hidden" aria-hidden="true">
+        <aside
+          data-testid="app-shell-skeleton-sidebar"
+          className="flex w-14 shrink-0 flex-col gap-4 border-r border-border-subtle bg-surface-sidebar p-3 md:w-60"
+        >
+          <Skeleton className="size-8 md:h-8 md:w-28" />
           <Skeleton className="h-9 w-full" />
           <div className="flex flex-col gap-1.5 pt-1">
             {["a", "b", "c", "d", "e"].map((key) => (
@@ -34,7 +37,14 @@ export function AppShellSkeleton() {
           </div>
         </aside>
 
-        <BoardColumnsSkeleton className="flex-1 overflow-hidden" />
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <main
+            data-testid="app-shell-skeleton-main"
+            className="flex min-h-0 min-w-0 flex-1 overflow-hidden"
+          >
+            <BoardColumnsSkeleton />
+          </main>
+        </div>
       </div>
     </div>
   );

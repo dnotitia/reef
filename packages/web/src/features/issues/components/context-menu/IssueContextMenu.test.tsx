@@ -185,7 +185,7 @@ describe("IssueContextMenu", () => {
     const priorityParent = screen.getByRole("menuitem", { name: "Priority" });
     expect(rootContent.className).toContain("min-w-[180px]");
     expect(rootContent.className).toContain(
-      "rounded-md border border-border bg-popover p-1",
+      "rounded-md border border-border bg-surface-popover p-1",
     );
     expect(rootContent.className).not.toContain(
       "motion-safe:animate-in motion-safe:fade-in-0",

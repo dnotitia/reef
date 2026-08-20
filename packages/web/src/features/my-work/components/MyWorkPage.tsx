@@ -42,7 +42,7 @@ function Shell({
 }) {
   const nav = useTranslations("nav");
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-w-0 flex-col">
       <PageHeader title={nav("myWork")} description={description} />
       <PageBody width="wide" className="flex flex-col gap-6">
         {children}
@@ -173,7 +173,7 @@ export function MyWorkPage() {
           data-testid="my-work-error"
           className="flex flex-col items-start gap-2"
         >
-          <p className="text-sm text-destructive">
+          <p className="text-sm text-destructive-text">
             {issuesQuery.error instanceof Error
               ? issuesQuery.error.message
               : t("loadError")}

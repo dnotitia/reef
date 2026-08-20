@@ -159,7 +159,7 @@ describe("MultiSelectCombobox", () => {
     expect(checkClass).toContain("absolute");
     expect(checkClass).toContain("right-2");
     expect(checkClass).not.toContain("ml-auto");
-    expect(checkClass).toContain("text-brand");
+    expect(checkClass).toContain("text-brand-text");
     // The old facet drew a leading literal "✓"; it must be gone.
     expect(option.textContent ?? "").not.toContain("✓");
   });
@@ -182,7 +182,7 @@ describe("MultiSelectCombobox", () => {
     const trigger = screen.getByTestId("fruit-trigger");
 
     // Active facet draws the SAME brand ring token as the field comboboxes.
-    expect(trigger.className).toContain("ring-brand/30");
+    expect(trigger.className).toContain("ring-brand-focus/30");
 
     const chevron = trigger.querySelector("svg");
     expect(chevron?.getAttribute("class") ?? "").toContain(

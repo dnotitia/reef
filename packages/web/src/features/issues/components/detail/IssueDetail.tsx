@@ -73,7 +73,7 @@ export function IssueDetail({ issueId, vault, onClose }: IssueDetailProps) {
   if (isError) {
     return (
       <div data-testid="issue-detail-error" className="p-6 flex flex-col gap-4">
-        <p className="text-sm text-destructive">
+        <p className="text-sm text-destructive-text">
           {error instanceof Error ? error.message : t("loadError")}
         </p>
         <Button variant="outline" size="sm" onClick={() => void refetch()}>

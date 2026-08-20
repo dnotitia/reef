@@ -86,8 +86,8 @@ export function WorkspaceDestructiveDialog({
         </DialogHeader>
 
         {isDelete ? (
-          <div className="flex flex-col gap-1.5 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2.5 text-xs text-foreground/80">
-            <p className="font-medium text-destructive">
+          <div className="flex flex-col gap-1.5 rounded-md border border-destructive-focus/20 bg-destructive-fill/5 px-3 py-2.5 text-xs text-foreground/80">
+            <p className="font-medium text-destructive-text">
               {t("delete.removesHeading")}
             </p>
             <ul className="list-disc space-y-0.5 pl-4 leading-relaxed">

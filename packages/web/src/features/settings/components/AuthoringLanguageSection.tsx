@@ -87,7 +87,7 @@ export function AuthoringLanguageSection({
     return (
       <p
         role="alert"
-        className="text-sm text-destructive"
+        className="text-sm text-destructive-text"
         data-testid="authoring-language-load-error"
       >
         {t("loadError")} {configQuery.error.message}
@@ -146,7 +146,7 @@ export function AuthoringLanguageSection({
       {error && canEdit && (
         <p
           role="alert"
-          className="text-xs text-destructive"
+          className="text-xs text-destructive-text"
           data-testid="authoring-language-error"
         >
           {error}

@@ -37,7 +37,7 @@ const VARIANT_CLASS: Record<TypePillVariant, string> = {
   detail:
     "inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 text-[11px] font-medium text-foreground",
   activity:
-    "inline-flex items-center gap-1 rounded-full bg-background/70 px-2 py-0.5",
+    "inline-flex items-center gap-1 rounded-full bg-surface-page/70 px-2 py-0.5",
   // Chrome-less: mirrors the StatusBadge / PriorityBadge / SeverityBadge leaves
   // so all four fields speak one glyph+label language inside dropdown rows.
   badge: "inline-flex items-center gap-1.5 text-xs text-foreground/80",
