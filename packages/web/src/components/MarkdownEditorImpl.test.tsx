@@ -497,6 +497,75 @@ describe("MarkdownEditor", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("retargets AKB links added while remounting WYSIWYG after Source input", async () => {
+    const uri = "akb://reef-test/coll/docs/doc/spec.md";
+    const sourceMarkdown = String.raw`[\[Plan\] 260811 - 전체](${uri})`;
+    const onChange = vi.fn();
+
+    render(
+      <AkbWebUrlProvider value="https://akb.example.test">
+        <MarkdownEditor value="" onChange={onChange} />
+      </AkbWebUrlProvider>,
+    );
+
+    fireEvent.click(screen.getByTitle("Toggle source mode"));
+    fireEvent.change(screen.getByTestId("markdown-source-textarea"), {
+      target: { value: sourceMarkdown },
+    });
+    fireEvent.click(screen.getByTitle("Toggle source mode"));
+
+    const editorContent = screen.getByTestId("editor-content");
+    editorContent.innerHTML = `<p><a href="${uri}">[Plan] 260811 - 전체</a></p>`;
+
+    const link = editorContent.querySelector("a");
+    await waitFor(() => {
+      expect(link).toHaveAttribute(
+        "href",
+        "https://akb.example.test/vault/reef-test/doc/docs%2Fspec.md",
+      );
+    });
+    expect(link).toHaveAttribute("data-akb-uri", uri);
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noreferrer");
+    expect(onChange).toHaveBeenCalledWith(sourceMarkdown);
+  });
+
+  it("keeps the authored AKB URI when retargeted WYSIWYG markup is serialized", () => {
+    const uri = "akb://reef-test/coll/docs/doc/spec.md";
+    const renderedHref =
+      "https://akb.example.test/vault/reef-test/doc/docs%2Fspec.md";
+    const sourceMarkdown = String.raw`[\[Plan\] 260811 - 전체](${uri})`;
+    const renderedMarkdown = String.raw`[\[Plan\] 260811 - 전체](${renderedHref})`;
+    const onChange = vi.fn();
+
+    render(
+      <AkbWebUrlProvider value="https://akb.example.test">
+        <MarkdownEditor value="" onChange={onChange} />
+      </AkbWebUrlProvider>,
+    );
+
+    fireEvent.click(screen.getByTitle("Toggle source mode"));
+    fireEvent.change(screen.getByTestId("markdown-source-textarea"), {
+      target: { value: sourceMarkdown },
+    });
+    fireEvent.click(screen.getByTitle("Toggle source mode"));
+
+    const editorContent = screen.getByTestId("editor-content");
+    editorContent.innerHTML = `<p><a href="${renderedHref}" data-akb-uri="${uri}">[Plan] 260811 - 전체</a></p>`;
+    mockMarkdownOverride = renderedMarkdown;
+
+    const editor = vi.mocked(useEditor).mock.results.at(-1)?.value;
+    const options = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
+      onUpdate?: (args: { editor: typeof editor }) => void;
+    };
+    act(() => {
+      options.onUpdate?.({ editor });
+    });
+
+    expect(onChange).toHaveBeenCalledWith(sourceMarkdown);
+    expect(onChange).not.toHaveBeenCalledWith(renderedMarkdown);
+  });
+
   it("does not let unvalidated link metadata bypass external confirmation", () => {
     render(
       <MarkdownEditor
