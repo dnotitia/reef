@@ -63,13 +63,25 @@ import type {
 } from "@reef/core";
 import { usePriorityLabels, useStatusLabels } from "@/i18n/fieldLabels";
 import { useTranslations } from "next-intl";
-import { useEffect, useId, useMemo, useState } from "react";
+import { type KeyboardEvent, useEffect, useId, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useBoardStore } from "../stores/useBoardStore";
 import { KanbanCardPreview } from "./KanbanCard";
 import { KanbanColumn } from "./KanbanColumn";
 
 const EMPTY_ISSUES: IssueListItem[] = [];
+
+function handleBoardScrollKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+  event.preventDefault();
+  event.currentTarget.scrollBy({
+    left:
+      event.key === "ArrowRight"
+        ? event.currentTarget.clientWidth
+        : -event.currentTarget.clientWidth,
+    behavior: "smooth",
+  });
+}
 
 // Drop settle — the drag overlay eases into the card's resting slot on the
 // signature curve instead of snapping away (REEF-121). dnd-kit measures the
@@ -364,7 +376,7 @@ export function KanbanBoard({ vault, groupBy = "status" }: KanbanBoardProps) {
   const activeIssue = activeIssueId ? issueMap.get(activeIssueId) : undefined;
 
   if (isPending) {
-    return <BoardColumnsSkeleton />;
+    return <BoardColumnsSkeleton ariaLabel={t("columnsScrollRegion")} />;
   }
 
   return (
@@ -383,7 +395,12 @@ export function KanbanBoard({ vault, groupBy = "status" }: KanbanBoardProps) {
       >
         <div
           data-testid="kanban-board-body"
-          className="relative grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-x-hidden overflow-y-auto px-6 py-4 md:grid-cols-2 lg:flex lg:flex-nowrap lg:overflow-x-auto lg:overflow-y-hidden"
+          role="region"
+          aria-label={t("columnsScrollRegion")}
+          // biome-ignore lint/a11y/noNoninteractiveTabindex: The labeled overflow region is the keyboard scrollport.
+          tabIndex={0}
+          onKeyDown={handleBoardScrollKeyDown}
+          className="relative grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-3 overflow-x-hidden overflow-y-auto px-6 py-4 md:grid-cols-2 lg:flex lg:flex-nowrap lg:overflow-x-auto lg:overflow-y-hidden"
         >
           {issueGroups.map(({ bucket, issues }) => (
             <KanbanColumn

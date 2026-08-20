@@ -7,9 +7,26 @@ import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
  * board's pending state (KanbanBoard) and the first-paint app shell
  * (AppShellSkeleton) so both render the same column frame. (REEF-097)
  */
-export function BoardColumnsSkeleton({ className }: { className?: string }) {
+interface BoardColumnsSkeletonProps {
+  className?: string;
+  ariaLabel?: string;
+}
+
+export function BoardColumnsSkeleton({
+  ariaLabel,
+  className,
+}: BoardColumnsSkeletonProps) {
   return (
-    <div className={cn("flex gap-3 px-6 py-4", className)}>
+    <div
+      data-testid="board-columns-skeleton"
+      className={cn(
+        "relative flex min-h-0 min-w-0 flex-1 gap-3 overflow-x-auto px-6 py-4",
+        className,
+      )}
+      role={ariaLabel ? "region" : undefined}
+      aria-label={ariaLabel}
+      tabIndex={ariaLabel ? 0 : undefined}
+    >
       {WORKFLOW_STATUS_OPTIONS.map((status) => (
         <Skeleton key={status} className="h-64 w-80 shrink-0" />
       ))}

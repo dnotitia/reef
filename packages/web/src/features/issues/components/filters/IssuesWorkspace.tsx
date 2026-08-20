@@ -55,7 +55,7 @@ export function IssuesWorkspace() {
   }, [clearSelectionForContextChange, selectionContext]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 min-w-0 flex-col">
       <PageHeader
         title={nav("issues")}
         description={vault || undefined}
@@ -102,8 +102,8 @@ export function IssuesWorkspace() {
           <div
             className={
               view === "list"
-                ? "flex min-h-48 flex-1 flex-col"
-                : "flex flex-1 min-h-0 flex-col"
+                ? "flex min-h-48 min-w-0 flex-1 flex-col"
+                : "flex min-h-0 min-w-0 flex-1 flex-col"
             }
           >
             {view === "board" ? (

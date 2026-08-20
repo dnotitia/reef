@@ -53,7 +53,10 @@ export function IssuesWorkspaceSkeleton() {
   const nav = useTranslations("nav");
   const c = useTranslations("common");
   return (
-    <div className="flex h-full min-h-0 flex-col" data-testid="issues-skeleton">
+    <div
+      className="flex h-full min-h-0 min-w-0 flex-col"
+      data-testid="issues-skeleton"
+    >
       {/* screen-reader loading announcement (REEF-281). Sibling to the decorative body
           so it is NOT under aria-hidden; PageHeader's h1 stays a real heading. */}
       <output className="sr-only">{c("loading")}</output>
@@ -61,7 +64,7 @@ export function IssuesWorkspaceSkeleton() {
       {/* The placeholder body is decorative: aria-hidden keeps assistive tech
           from traversing the empty toolbar/board DOM. The wrapper inherits the
           column's flex sizing so the board still fills the remaining height. */}
-      <div className="flex min-h-0 flex-1 flex-col" aria-hidden="true">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col" aria-hidden="true">
         {/* Mirrors IssueFilterToolbar's outer bar (border-b · px-6 · py-2.5) and
             its SearchBar-over-FilterBar two-row stack so the toolbar appearing on
             hydration is not a vertical jump. */}
@@ -82,7 +85,7 @@ export function IssuesWorkspaceSkeleton() {
             ))}
           </div>
         </div>
-        <BoardColumnsSkeleton className="flex-1 overflow-hidden" />
+        <BoardColumnsSkeleton />
       </div>
     </div>
   );

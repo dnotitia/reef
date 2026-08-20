@@ -102,6 +102,90 @@ test.describe("Route skeleton layout stability (REEF-258)", () => {
     expect(await cumulativeLayoutShift(page)).toBeLessThan(CLS_BUDGET);
   });
 
+  test("issues board: columns stay contained and keep desktop overflow inside the board region", async ({
+    page,
+    request,
+  }, testInfo) => {
+    await resetFixture(request, "demo_board");
+    await openExistingWorkspace(page);
+
+    for (const width of [320, 375, 414, 768, 1280]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto("/workspace/reef-e2e/issues?view=board");
+
+      const board = page.getByTestId("kanban-board-body");
+      await expect(board).toBeVisible();
+      const geometry = await page.evaluate(() => {
+        const main = document.querySelector<HTMLElement>("main");
+        const board = document.querySelector<HTMLElement>(
+          '[data-testid="kanban-board-body"]',
+        );
+        const rect = (element: HTMLElement | null) => {
+          if (!element) return null;
+          const bounds = element.getBoundingClientRect();
+          return {
+            clientWidth: element.clientWidth,
+            scrollWidth: element.scrollWidth,
+            left: bounds.left,
+            right: bounds.right,
+            overflowX: getComputedStyle(element).overflowX,
+            tabIndex: element.tabIndex,
+          };
+        };
+        return {
+          documentWidth: document.documentElement.scrollWidth,
+          bodyWidth: document.body.scrollWidth,
+          viewportWidth: window.innerWidth,
+          main: rect(main),
+          board: rect(board),
+        };
+      });
+
+      expect(geometry.bodyWidth).toBeLessThanOrEqual(geometry.viewportWidth);
+      expect(geometry.documentWidth).toBeLessThanOrEqual(
+        geometry.viewportWidth,
+      );
+      expect(geometry.main).not.toBeNull();
+      expect(geometry.board).not.toBeNull();
+      expect(geometry.main?.right).toBeLessThanOrEqual(geometry.viewportWidth);
+      expect(geometry.board?.left).toBeGreaterThanOrEqual(
+        geometry.main?.left ?? 0,
+      );
+      expect(geometry.board?.right).toBeLessThanOrEqual(
+        geometry.main?.right ?? width,
+      );
+      expect(geometry.board?.tabIndex).toBe(0);
+
+      await board.focus();
+      await expect(board).toBeFocused();
+      const screenshot = await page.screenshot({
+        animations: "disabled",
+        path: testInfo.outputPath(`board-viewport-${width}.png`),
+      });
+      expect(screenshot.byteLength).toBeGreaterThan(0);
+
+      if (width < 1024) {
+        expect(geometry.board?.scrollWidth).toBeLessThanOrEqual(
+          geometry.board?.clientWidth ?? 0,
+        );
+        expect(geometry.board?.overflowX).toBe("hidden");
+      } else {
+        expect(geometry.board?.scrollWidth).toBeGreaterThan(
+          geometry.board?.clientWidth ?? 0,
+        );
+        expect(geometry.board?.overflowX).toBe("auto");
+
+        const initialScroll = await board.evaluate(
+          (element) => element.scrollLeft,
+        );
+        await page.keyboard.press("ArrowRight");
+        await expect
+          .poll(() => board.evaluate((element) => element.scrollLeft))
+          .toBeGreaterThan(initialScroll);
+      }
+    }
+  });
+
   test("issues timeline: toolbar + timeline skeleton holds through hydration", async ({
     page,
   }) => {

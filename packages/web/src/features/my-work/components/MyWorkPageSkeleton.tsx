@@ -28,7 +28,7 @@ export function MyWorkSkeleton({ hasSprint = false }: { hasSprint?: boolean }) {
     ? ["wip", "due", "overdue", "sprint"]
     : ["wip", "due", "overdue"];
   return (
-    <div className="flex flex-col gap-6" data-testid="my-work-skeleton">
+    <div className="flex min-w-0 flex-col gap-6" data-testid="my-work-skeleton">
       {/* Single per-surface loading announcement (REEF-281). It lives on the
           body-level leaf so the full-page MyWorkPageSkeleton (and MyWorkPage's
           in-flight branches) inherit exactly one — not a doubled notification.
@@ -105,7 +105,7 @@ export function MyWorkSkeleton({ hasSprint = false }: { hasSprint?: boolean }) {
 export function MyWorkPageSkeleton() {
   const nav = useTranslations("nav");
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-w-0 flex-col">
       <PageHeader title={nav("myWork")} />
       <PageBody width="wide" className="flex flex-col gap-6">
         <MyWorkSkeleton />
