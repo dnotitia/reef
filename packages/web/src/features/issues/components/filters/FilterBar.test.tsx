@@ -274,12 +274,17 @@ describe("FilterBar", () => {
     expect(screen.getByTestId("labels-input")).toBeTruthy();
   });
 
-  it("keeps backlog controls on one row with local overflow", () => {
+  it("wraps backlog controls inside the keyboard-labeled filter region", () => {
     const { getByTestId } = renderFilterBar({ backlogScope: true });
     const filterBar = getByTestId("filter-bar");
-    expect(filterBar.className).toContain("flex-nowrap");
-    expect(filterBar.className).toContain("overflow-x-auto");
-    expect(filterBar.className).toContain("[&>*]:shrink-0");
+    expect(filterBar.className).toContain("flex-wrap");
+    expect(filterBar.className).not.toContain("flex-nowrap");
+    expect(filterBar.className).not.toContain("overflow-x-auto");
+    expect(filterBar.className).not.toContain("[&>*]:shrink-0");
+    expect(filterBar).toHaveAttribute("role", "region");
+    expect(filterBar).toHaveAttribute("tabindex", "0");
+    expect(filterBar).toHaveAttribute("aria-label", "Issue filters");
+    expect(screen.getByTestId("sort-control")).toBeInTheDocument();
   });
 
   it("ignores stray status/sprint/release/due values in the backlog active count (REEF-109, REEF-177)", () => {

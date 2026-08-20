@@ -15,6 +15,12 @@ import {
   DropdownMenuTrigger,
   useDropdownMenu,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { useDirectionLabel, useSortFieldLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
@@ -34,6 +40,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useState } from "react";
 
 // Module-level: a stable reference, does not recreated per render.
 const SORT_OPTIONS = USER_SORT_FIELDS;
@@ -155,6 +162,9 @@ export function SortControl({
     : DEFAULT_ISSUE_SORT_ORDER;
   const effectiveDirection = directionLabel(effectiveField, effectiveOrder);
   const sortIsActive = rankOrderActive || !isDefault;
+  const [directionPointerInside, setDirectionPointerInside] = useState(false);
+  const [directionFocused, setDirectionFocused] = useState(false);
+  const directionTooltipOpen = directionPointerInside || directionFocused;
 
   // Picking a field lands on its intuitive direction; the toggle flips from there.
   const selectField = (field: UserSortField) => {
@@ -271,27 +281,57 @@ export function SortControl({
       {/* Rank-backed pristine orders have no user-controlled asc/desc, so the
           direction toggle is hidden in those modes. */}
       {!rankOrderActive && (
-        <button
-          type="button"
-          onClick={toggleDirection}
-          className={cn(
-            "inline-flex h-8 shrink-0 items-center rounded-r-md border border-l-0 px-2.5 text-[13px] transition-colors duration-150 hover:bg-surface-hover focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/30",
-            sortIsActive
-              ? "border-brand-focus bg-brand-fill/10 text-foreground ring-1 ring-brand-focus/30"
-              : "border-border bg-surface-elevated text-muted-foreground",
-          )}
-          data-testid="sort-direction-toggle"
-          title={t("directionTitle", { direction: effectiveDirection })}
-          aria-label={t("toggleDirectionAria", {
-            direction: effectiveDirection,
-          })}
-        >
-          {effectiveOrder === "desc" ? (
-            <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
-          ) : (
-            <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
-          )}
-        </button>
+        <TooltipProvider>
+          <Tooltip
+            open={directionTooltipOpen}
+            onOpenChange={(nextOpen) => {
+              if (!nextOpen && !directionFocused) {
+                setDirectionPointerInside(false);
+              }
+            }}
+          >
+            <TooltipTrigger
+              asChild
+              onPointerEnter={() => setDirectionPointerInside(true)}
+              onPointerLeave={() => setDirectionPointerInside(false)}
+              onFocus={() => setDirectionFocused(true)}
+              onBlur={(event) => {
+                if (
+                  !event.currentTarget.contains(
+                    event.relatedTarget as Node | null,
+                  )
+                ) {
+                  setDirectionFocused(false);
+                }
+              }}
+            >
+              <button
+                type="button"
+                onClick={toggleDirection}
+                className={cn(
+                  "inline-flex h-8 shrink-0 items-center rounded-r-md border border-l-0 px-2.5 text-[13px] transition-colors duration-150 hover:bg-surface-hover focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/30",
+                  sortIsActive
+                    ? "border-brand-focus bg-brand-fill/10 text-foreground ring-1 ring-brand-focus/30"
+                    : "border-border bg-surface-elevated text-muted-foreground",
+                )}
+                data-testid="sort-direction-toggle"
+                title={t("directionTitle", { direction: effectiveDirection })}
+                aria-label={t("toggleDirectionAria", {
+                  direction: effectiveDirection,
+                })}
+              >
+                {effectiveOrder === "desc" ? (
+                  <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
+                ) : (
+                  <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {t("directionTitle", { direction: effectiveDirection })}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       )}
     </div>
   );

@@ -81,6 +81,35 @@ describe("SortControl", () => {
     expect(direction).toHaveAttribute("title", "Direction: High → Low");
   });
 
+  it("shows the current direction in a visible tooltip on hover and focus", async () => {
+    const user = userEvent.setup();
+    useIssueStore.setState({
+      filter: { sortField: "priority", sortOrder: "desc" },
+    });
+    render(<SortControl />);
+
+    const direction = screen.getByTestId("sort-direction-toggle");
+    await user.hover(direction);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "Direction: High → Low",
+    );
+
+    await user.unhover(direction);
+    direction.focus();
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "Direction: High → Low",
+    );
+
+    await user.keyboard("{Enter}");
+    expect(direction).toHaveAttribute(
+      "aria-label",
+      expect.stringContaining("Low → High"),
+    );
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "Direction: Low → High",
+    );
+  });
+
   it("shows the pristine default (Priority · High → Low) without writing it to the store", () => {
     render(<SortControl />);
     const trigger = screen.getByTestId("sort-control-trigger");

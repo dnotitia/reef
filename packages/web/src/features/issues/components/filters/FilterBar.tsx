@@ -244,7 +244,7 @@ export function FilterBar({
       className={cn(
         "min-w-0 max-w-full flex flex-wrap items-center gap-2",
         backlogScope &&
-          "flex-nowrap overflow-x-auto overscroll-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/30 [&>*]:shrink-0",
+          "overscroll-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/30",
       )}
       {...(backlogScope
         ? {
