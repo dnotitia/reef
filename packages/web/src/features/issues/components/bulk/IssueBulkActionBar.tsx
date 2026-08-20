@@ -88,6 +88,7 @@ function LabelBulkAction({
     <Popover open={open} onOpenChange={setPopoverOpen} className="shrink-0">
       <PopoverTrigger
         disabled={disabled}
+        aria-haspopup="dialog"
         className="h-8 gap-1.5 rounded-md border border-border bg-surface-elevated px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40 disabled:pointer-events-none disabled:opacity-50"
         data-testid={testId}
       >
@@ -98,6 +99,7 @@ function LabelBulkAction({
         />
       </PopoverTrigger>
       <PopoverContent
+        role="dialog"
         className="w-72 space-y-2 p-2"
         align="start"
         aria-label={label}
@@ -291,10 +293,14 @@ export function IssueBulkActionBar({
 
           {runner.failures.length > 0 && (
             <Popover>
-              <PopoverTrigger className="h-7 rounded-md bg-destructive-fill px-2.5 text-xs font-medium text-destructive-on-fill hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40">
+              <PopoverTrigger
+                aria-haspopup="dialog"
+                className="h-7 rounded-md bg-destructive-fill px-2.5 text-xs font-medium text-destructive-on-fill hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+              >
                 {bulk("failedCount", { count: runner.failures.length })}
               </PopoverTrigger>
               <PopoverContent
+                role="dialog"
                 className="w-80 p-2"
                 align="start"
                 aria-label={bulk("failureList")}
@@ -316,6 +322,7 @@ export function IssueBulkActionBar({
                         <Button
                           type="button"
                           size="sm"
+                          hitTarget="compact"
                           variant="outline"
                           disabled={runner.running}
                           onClick={() => runner.dismissFailure(failure.id)}
@@ -326,6 +333,7 @@ export function IssueBulkActionBar({
                         <Button
                           type="button"
                           size="sm"
+                          hitTarget="compact"
                           variant="outline"
                           disabled={runner.running}
                           onClick={() => void retryFailure(failure)}

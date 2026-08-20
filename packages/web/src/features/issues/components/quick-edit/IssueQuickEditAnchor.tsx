@@ -358,10 +358,17 @@ export function IssueQuickEditAnchor({
 
         {field === "labels" && (
           <Popover open onOpenChange={closeOpenField}>
-            <PopoverTrigger className="h-8 w-full justify-start rounded-md border border-border bg-surface-popover px-2.5 text-[13px] text-foreground shadow-lg shadow-foreground/10">
+            <PopoverTrigger
+              aria-haspopup="dialog"
+              className="h-8 w-full justify-start rounded-md border border-border bg-surface-popover px-2.5 text-[13px] text-foreground shadow-lg shadow-foreground/10"
+            >
               {fieldNames.labels}
             </PopoverTrigger>
-            <PopoverContent className="w-72 p-2">
+            <PopoverContent
+              role="dialog"
+              aria-label={fieldNames.labels}
+              className="w-72 p-2"
+            >
               <LabelChipInput
                 value={issue.labels ?? []}
                 onChange={(next) => {

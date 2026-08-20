@@ -127,6 +127,7 @@ describe("IssueBulkActionBar", () => {
     const input = screen.getByRole("textbox", { name: "Add labels" });
     expect(dialog).toContainElement(input);
     expect(input).toHaveAttribute("name", "bulk-add-labels-input");
+    expect(input).toHaveFocus();
     await user.type(input, "frontend");
     await user.click(screen.getAllByRole("button", { name: "Add labels" })[1]);
 

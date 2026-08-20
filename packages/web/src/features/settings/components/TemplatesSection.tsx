@@ -243,6 +243,7 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
                 <Button
                   type="button"
                   size="sm"
+                  hitTarget="compact"
                   variant="ghost"
                   onClick={() => startEdit(template)}
                   disabled={saving || deleting}
@@ -253,6 +254,7 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
                 <Button
                   type="button"
                   size="sm"
+                  hitTarget="compact"
                   variant="ghost"
                   onClick={() => void confirmDelete(template)}
                   disabled={saving || deleting}
@@ -265,6 +267,7 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
               <Button
                 type="button"
                 size="sm"
+                hitTarget="compact"
                 variant="ghost"
                 onClick={() => startEdit(template)}
                 data-testid={`templates-view-${template.name}`}

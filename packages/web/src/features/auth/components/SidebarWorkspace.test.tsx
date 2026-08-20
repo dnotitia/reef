@@ -167,6 +167,7 @@ describe("SidebarWorkspace", () => {
     await user.click(await screen.findByTestId("sidebar-workspace-trigger"));
 
     const popover = await screen.findByTestId("workspace-switcher");
+    expect(screen.getByTestId("workspace-switcher-search")).toHaveFocus();
     // Opens upward — the side="top" content anchors to the trigger's top edge.
     expect(popover).toHaveClass("bottom-full");
     expect(

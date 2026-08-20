@@ -80,7 +80,7 @@ export function IssueAttachments({
                   {formatAbsoluteTime(attachment.created_at, locale)}
                 </p>
               </div>
-              <Button asChild variant="ghost" size="sm">
+              <Button asChild variant="ghost" size="sm" hitTarget="compact">
                 <a href={href}>{t("download")}</a>
               </Button>
             </article>

@@ -215,6 +215,10 @@ describe("DashboardShell", () => {
     expect(
       screen.getByRole("button", { name: "Expand sidebar" }),
     ).toBeInTheDocument();
+    expect(screen.getByTestId("new-issue-trigger")).toHaveClass(
+      "[@media(pointer:coarse)]:min-h-11",
+      "[@media(pointer:coarse)]:min-w-11",
+    );
   });
 
   it("collapses the sidebar on narrow viewports to keep the content column usable", () => {

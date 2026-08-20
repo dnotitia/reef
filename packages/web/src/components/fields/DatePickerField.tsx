@@ -5,6 +5,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
+  type PopoverDismissReason,
 } from "@/components/ui/popover";
 import {
   formatDisplayDate,
@@ -127,7 +128,7 @@ export function DatePickerField({
   }, [draft, normalized, onChange]);
 
   const handleOpenChange = useCallback(
-    (next: boolean) => {
+    (next: boolean, reason?: PopoverDismissReason) => {
       if (next) {
         // Fresh session: seed the typed-entry buffer and clear commit guards.
         committedRef.current = null;
@@ -137,7 +138,11 @@ export function DatePickerField({
         // Dismiss (mouse click-away / trigger toggle): commit any pending typed
         // value before the panel unmounts, since the closing mousedown can drop
         // the input before its blur fires and silently lose a typed date.
-        commitDraft();
+        if (reason === "escape" || reason === "select") {
+          skipBlurCommitRef.current = true;
+        } else {
+          commitDraft();
+        }
       }
       setOpen(next);
     },
@@ -235,6 +240,7 @@ export function DatePickerField({
           ref={triggerRef}
           id={id}
           disabled={disabled}
+          aria-haspopup="dialog"
           aria-label={
             normalized ? `${resolvedLabel}: ${displayValue}` : resolvedLabel
           }
@@ -270,6 +276,8 @@ export function DatePickerField({
           ref={panelRef}
           align={panelAlign}
           side={panelSide}
+          role="dialog"
+          aria-label={resolvedLabel}
           data-testid="date-picker-panel"
           className="w-64 p-2"
         >

@@ -91,6 +91,7 @@ describe("DatePickerField", () => {
       />,
     );
     await user.click(screen.getByTestId("date-picker-trigger"));
+    expect(screen.getByTestId("date-picker-input")).toHaveFocus();
     expect(screen.getByText("June 2026")).toBeInTheDocument();
     await user.click(screen.getByTestId("calendar-day-2026-06-20"));
     expect(onChange).toHaveBeenCalledTimes(1);
