@@ -10,6 +10,12 @@ import {
 } from "./config";
 
 const VALID_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString("base64url");
+const TRANSPORT_WITH_CREDENTIALS = (() => {
+  const url = new URL("http://keycloak:8080/realms/reef");
+  url.username = "user";
+  url.password = "pass";
+  return url.toString();
+})();
 
 function enabledEnvironment(
   overrides: Record<string, string | undefined> = {},
@@ -78,7 +84,7 @@ describe("readAuthV2RuntimeConfig", () => {
   it.each([
     ["realm mismatch", "http://keycloak:8080/realms/other"],
     ["extra path", "http://keycloak:8080/realms/reef/extra"],
-    ["credentials", "http://user:pass@keycloak:8080/realms/reef"],
+    ["credentials", TRANSPORT_WITH_CREDENTIALS],
     ["query", "http://keycloak:8080/realms/reef?internal=true"],
     ["fragment", "http://keycloak:8080/realms/reef#internal"],
     ["IPv4 literal", "http://10.0.0.10:8080/realms/reef"],
