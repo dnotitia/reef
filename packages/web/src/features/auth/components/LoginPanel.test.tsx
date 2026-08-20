@@ -1,4 +1,5 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
+import type { AkbAuthV2Config } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
@@ -62,6 +63,38 @@ function configResponse(
     { status: 200, headers: { "content-type": "application/json" } },
   );
 }
+
+const authV2SsoConfig: Extract<AkbAuthV2Config, { auth_mode: "sso" }> = {
+  schema_version: 2,
+  auth_mode: "sso",
+  local_auth: { enabled: true },
+  canonical_issuer: "https://identity.example.com/realms/reef",
+  accepted_audiences: ["akb-api"],
+  accepted_clients: ["reef-web"],
+  token_validation: {
+    algorithms: ["RS256"],
+    access_token_type: "Bearer",
+    provider_claim: "identity_provider",
+  },
+  account_validation: {
+    endpoint: "/api/v2/auth/account-validation",
+    credential: "bearer_access_token",
+    requires_subject_binding: true,
+    denial_codes: [
+      "membership_required",
+      "account_suspended",
+      "identity_conflict",
+    ],
+  },
+  keycloak: { enabled: true, browser_session_ready: true },
+  providers: [
+    {
+      provider_type: "keycloak-oidc",
+      alias: "workforce",
+      display_name: "Company SSO",
+    },
+  ],
+};
 
 describe("LoginPanel", () => {
   afterEach(() => {
@@ -305,7 +338,7 @@ describe("LoginPanel", () => {
     consumePendingAkbAccountErrorIfUnchanged(liveSnapshot);
   });
 
-  it("keeps password fields visible while auth policy is loading", () => {
+  it("does not flash password fields while auth policy is loading", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(() => new Promise(() => undefined)),
@@ -319,8 +352,8 @@ describe("LoginPanel", () => {
       "polite",
     );
     expect(screen.getByTestId("sso-config-loading")).toBeInTheDocument();
-    expect(screen.getByTestId("login-username")).toBeVisible();
-    expect(screen.getByTestId("login-password")).toBeVisible();
+    expect(screen.queryByTestId("login-username")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("login-password")).not.toBeInTheDocument();
   });
 
   it("renders the workspace SSO action when Keycloak is enabled", async () => {
@@ -411,5 +444,29 @@ describe("LoginPanel", () => {
     expect(screen.queryByText("Workspace identity")).not.toBeInTheDocument();
     expect(screen.queryByTestId("sso-option-region")).not.toBeInTheDocument();
     expect(screen.getByTestId("login-password")).toBeInTheDocument();
+  });
+
+  it("keeps future auth-v2 hybrid presentation separate from v1", async () => {
+    renderWithQueryClient(
+      <LoginPanel authV2 authV2Config={authV2SsoConfig} redirectTo="/issues" />,
+    );
+
+    const ssoLink = await screen.findByRole("link", {
+      name: /continue with workspace sso/i,
+    });
+    expect(ssoLink).toHaveAttribute(
+      "href",
+      "/api/auth/v2/start?redirect=%2Fissues&provider=workforce",
+    );
+    expect(screen.getByTestId("login-username")).toBeInTheDocument();
+    expect(screen.getByTestId("login-password")).toBeInTheDocument();
+  });
+
+  it("keeps the future password surface visible while the v2 catalog loads", () => {
+    renderWithQueryClient(<LoginPanel authV2 redirectTo="/issues" />);
+
+    expect(screen.getByTestId("login-username")).toBeInTheDocument();
+    expect(screen.getByTestId("login-password")).toBeInTheDocument();
+    expect(screen.getByTestId("sso-config-loading")).toBeInTheDocument();
   });
 });

@@ -214,7 +214,6 @@ export {
   AkbAuthV2AccountDenialCodeSchema,
   AkbAuthV2IdentifierSchema,
   AkbAuthV2CanonicalIssuerSchema,
-  AkbAuthV2ProviderLoginUrlSchema,
   AkbAuthV2ProviderAliasSchema,
   AkbAuthV2ProviderSchema,
   AkbAuthV2ProviderCatalogSchema,

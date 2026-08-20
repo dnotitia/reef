@@ -7,8 +7,9 @@ It owns server-only GitHub/LLM adapters and agent application code, while using
 
 The current/default profile is stateless: AKB owns login and the AKB-issued JWT
 stays in the `__reef_session` httpOnly cookie. A future Reef-owned auth-v2
-profile is reserved behind `REEF_AUTH_V2_ENABLED=1`; its route cutover is not
-wired in this release. It will store OIDC credentials only in
+profile is reserved behind `REEF_AUTH_V2_ENABLED=1`; its separate
+`/api/auth/v2/*` handlers fail closed until AKB's v2 contract is live. It stores
+OIDC credentials only in
 AES-256-GCM-encrypted Redis behind a random opaque cookie handle. It never
 changes product-state ownership. GitHub access remains
 deployment-managed through a server GitHub App (with an optional server-side
@@ -88,8 +89,8 @@ variables for secrets.
 | `REEF_PUBLIC_ORIGIN` | Canonical Reef origin for delegated SSO callbacks and auth-v2 callback/logout URIs. Bare origin only. |
 | `REEF_KEYCLOAK_ISSUER` | Auth-v2 canonical Keycloak realm issuer used for browser redirects and JWT `iss` verification. |
 | `REEF_KEYCLOAK_TRANSPORT_URL` | Auth-v2 production-only in-cluster Keycloak realm URL for token/JWKS/revocation/readiness traffic; exact realm path must match issuer. |
-| `REEF_KEYCLOAK_CLIENT_ID` | Auth-v2 dedicated OIDC client id; accepted `azp` values come from the AKB catalog. |
-| `REEF_AKB_API_AUDIENCE` | Auth-v2 access-token audience required before account validation. |
+| `REEF_KEYCLOAK_CLIENT_ID` | Auth-v2 dedicated OIDC client id; the validator pins `azp` to this runtime value after the AKB catalog confirms it. |
+| `REEF_AKB_API_AUDIENCE` | Auth-v2 access-token audience pinned to this runtime value after the AKB catalog confirms it. |
 | `REEF_SESSION_REDIS_URL` | Auth-v2 production Redis/Redis-TLS URL for encrypted sessions, refresh locks, and replay indexes. |
 | `REEF_SESSION_ENCRYPTION_KEY` | Auth-v2 production independent base64/base64url 32-byte AES key. |
 | `REEF_SSO_AUTO_REDIRECT` | Explicit SSO-first presentation opt-in. Without it the login surface remains hybrid when AKB enables both methods. |
@@ -116,15 +117,15 @@ alone; the hermetic E2E harness mocks GitHub instead. See
 credential model.
 
 Current Keycloak SSO is configured on the AKB side; reef-web still only needs
-`AKB_BACKEND_URL` plus the optional callback origin. When AKB advertises both
-methods, the default login surface is hybrid (password + SSO). The server-only
-`REEF_SSO_AUTO_REDIRECT=1` variable is the explicit SSO-first opt-in;
-`sso_only` alone does not redirect, and `local_auth.enabled=false` is the
-explicit capability that removes the password form.
+`AKB_BACKEND_URL` plus the optional callback origin. With auth-v2 disabled, the
+#357 login page keeps AKB's `sso_only` redirect and capability-loading behavior.
+`REEF_SSO_AUTO_REDIRECT=1` is only the explicit SSO-first opt-in for the future
+auth-v2 hybrid surface; v1 `local_auth.enabled=false` remains the capability
+that removes the password form.
 
-Auth-v2 is a separate future profile. `REEF_AUTH_V2_ENABLED=1` is reserved for
-the follow-up route cutover; this release keeps the current delegated routes in
-place. The cutover will require the canonical issuer, distinct Keycloak
+Auth-v2 is a separate profile. `REEF_AUTH_V2_ENABLED=1` enables only the
+separate `/api/auth/v2/*` handlers; the current delegated routes remain in
+place and never fall back to auth-v2. It requires the canonical issuer, distinct Keycloak
 transport, dedicated client, `REEF_AKB_API_AUDIENCE`, `REEF_PUBLIC_ORIGIN`,
 Redis URL, and independent 32-byte encryption key. Reef will validate the OIDC
 token locally, then call AKB's exact `POST /api/v2/auth/account-validation`
@@ -167,12 +168,11 @@ persisted query shape changes may need a TanStack Query buster bump.
 ## Route Handler rules
 
 - Validate request payloads and query params with Zod.
-- Extract the current AKB session from the `__reef_session` cookie. The future
-  auth-v2 cutover will resolve its opaque handle through the server-only session
-  repository; until then, OIDC protocol, token validation, and Redis custody
-  remain unused by the live routes. GitHub and LLM access is deployment-managed
-  in `src/server/`; Route Handlers do not read browser-supplied provider
-  credentials.
+- Extract the current AKB session from the `__reef_session` cookie. Auth-v2
+  handlers resolve only their separate opaque handle through the server-only
+  session repository; the two dispatch paths have no carrier fallback. GitHub
+  and LLM access is deployment-managed in `src/server/`; Route Handlers do not
+  read browser-supplied provider credentials.
 - Call the server application for GitHub/LLM/agent behavior and `@reef/core` for
   AKB/domain behavior.
 - Use the redacting logger for request and error logging.

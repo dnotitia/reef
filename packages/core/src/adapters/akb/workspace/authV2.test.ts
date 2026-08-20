@@ -50,7 +50,6 @@ function validSsoConfig() {
         provider_type: "keycloak-oidc",
         alias: "workforce",
         display_name: "Company SSO",
-        login_url: "/api/v2/auth/providers/workforce/login",
       },
     ],
   } as const;
@@ -94,19 +93,6 @@ describe("AKB auth-v2 contract", () => {
         },
       },
     ],
-    [
-      "absolute provider login URL",
-      {
-        providers: [
-          {
-            provider_type: "keycloak-oidc",
-            alias: "workforce",
-            display_name: "Company SSO",
-            login_url: "https://evil.example/login",
-          },
-        ],
-      },
-    ],
   ])("rejects %s", (_label, override) => {
     const value = { ...validSsoConfig(), ...override };
     expect(() => AkbAuthV2ConfigSchema.parse(value)).toThrow();
@@ -114,15 +100,27 @@ describe("AKB auth-v2 contract", () => {
 
   it("requires an explicit empty OIDC contract for local mode", () => {
     const local = {
-      ...validSsoConfig(),
+      schema_version: 2,
       auth_mode: "local",
-      canonical_issuer: null,
-      accepted_audiences: [],
-      accepted_clients: [],
-      providers: [],
+      local_auth: { enabled: true },
       keycloak: { enabled: false, browser_session_ready: false },
     };
     expect(AkbAuthV2ConfigSchema.parse(local)).toEqual(local);
+  });
+
+  it("does not force SSO-only policy fields onto local mode", () => {
+    const local = {
+      schema_version: 2,
+      auth_mode: "local",
+      local_auth: { enabled: true },
+      keycloak: { enabled: false, browser_session_ready: false },
+      token_validation: {
+        algorithms: ["RS256"],
+        access_token_type: "Bearer",
+        provider_claim: "identity_provider",
+      },
+    };
+    expect(() => AkbAuthV2ConfigSchema.parse(local)).toThrow();
   });
 
   it("fetches only the v2 config endpoint", async () => {

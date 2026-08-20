@@ -9,6 +9,7 @@ const SESSION_KEY_PREFIX = "reef:auth-v2:session:";
 const AuthV2SessionRecordSchema = z.object({
   provider_alias: z.string().min(1).max(63),
   subject: z.string().min(1).max(512),
+  session_id: z.string().min(1).max(2_048).nullable().optional(),
   access_token: z
     .string()
     .min(1)

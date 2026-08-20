@@ -9,14 +9,12 @@
 ## Implementation status and activation boundary
 
 This change adds the versioned core contract, server-only OIDC/PKCE and Redis
-primitives, and their fail-closed tests. It deliberately does not cut the
-current `/api/auth/akb/*` Route Handlers over to those primitives: mainline
-authentication remains the AKB-owned browser login, one-time-code exchange,
-and AKB JWT cookie restored by #357. `REEF_AUTH_V2_ENABLED` is therefore a
-reserved rollout gate in this release, not a switch that silently changes the
-live routes. A follow-up cutover must wire the route/session boundary, pass the
-AKB contract tests below, and be canaried before the flag is enabled. There is
-no temporary fallback between the two profiles.
+primitives, and the explicit `/api/auth/v2/*` Route Handler boundary with
+fail-closed tests. The current `/api/auth/akb/*` Route Handlers remain exactly
+the AKB-owned browser login, one-time-code exchange, and AKB JWT cookie
+restored by #357. `REEF_AUTH_V2_ENABLED` is the only switch for the new route
+set; it is disabled by default and never falls back to v1. A deployment must
+pass the AKB contract and readiness gates below before enabling it.
 
 ## Current contract: AKB-delegated authentication
 
@@ -76,15 +74,12 @@ AKB's public auth config endpoint must return the nested shape used by reef:
 `/api/v1/auth/keycloak/login`. reef rejects absolute, protocol-relative, query,
 fragment, or non-Keycloak paths before making any server-side request.
 
-`local_auth.enabled` controls whether the password form is available. When AKB
-advertises both local authentication and Keycloak, Reef renders the hybrid
-password + SSO panel by default. A clean `/login` entry redirects to SSO only
-when the deployment explicitly sets `REEF_SSO_AUTO_REDIRECT=1`; the
-`keycloak.sso_only` capability flag alone does not grant Reef permission to
-redirect. `local_auth.enabled=false` means AKB has deliberately disabled the
-password method; the `?password=1` / `?prompt=login` parameters cannot bypass
-that capability decision. When Keycloak is disabled or the config request fails,
-Reef keeps the panel and the standalone password path available.
+`local_auth.enabled` controls whether the password form is available. The
+current #357 login page keeps its existing capability-loading and
+`keycloak.sso_only` behavior; this PR does not change that v1 surface. The
+future auth-v2 surface is separate and, when its v2 catalog honestly advertises
+both methods, renders the hybrid password + SSO panel while loading. Its clean
+entry auto-redirect is controlled only by `REEF_SSO_AUTO_REDIRECT=1`.
 
 ## Login Success Flow
 
@@ -159,9 +154,9 @@ substitute for that AKB-side boundary.
 
 Auth-v2 makes Reef the OIDC authorization-code + PKCE client while AKB remains
 the account authority. It is intentionally a new contract, not a compatibility
-projection of the legacy AKB login/exchange endpoints. The future route cutover
-is allowed only when every required setting is present and
-`REEF_AUTH_V2_ENABLED=1`; this release keeps the gate off:
+projection of the legacy AKB login/exchange endpoints. The separate auth-v2
+handlers are activated only when every required setting is present and
+`REEF_AUTH_V2_ENABLED=1`; the default deployment keeps the gate off:
 
 ```bash
 REEF_AUTH_V2_ENABLED=1
@@ -212,8 +207,7 @@ this strict shape (unknown or missing contract fields are configuration errors):
     {
       "provider_type": "keycloak-oidc",
       "alias": "workforce",
-      "display_name": "Company SSO",
-      "login_url": "/api/v2/auth/providers/workforce/login"
+      "display_name": "Company SSO"
     }
   ]
 }
@@ -221,32 +215,37 @@ this strict shape (unknown or missing contract fields are configuration errors):
 
 `canonical_issuer`, `accepted_audiences`, `accepted_clients`, and the
 `token_validation` object are the shared Reef/AKB validation contract; Reef
-must not infer them from a request or a token. Provider aliases are bounded
-identifiers. `providers[].login_url` is a path-only capability declaration;
-the future route cutover validates the alias and starts its own same-origin
-auth-v2 route rather than following or relaying an AKB URL. The catalog's
-`local_auth.enabled=true` is the normal hybrid presentation: password and SSO
-are both visible. An explicit SSO-first redirect still requires
-`REEF_SSO_AUTO_REDIRECT=1`; `sso_only` by itself is not an auto-redirect
-instruction in auth-v2. If AKB sets `local_auth.enabled=false`, that is an
-explicit deployment prerequisite to hide password login, not a Reef fallback or
-an implicit mode switch.
+must not infer them from a request or a token. The selected deployment's
+`REEF_AKB_API_AUDIENCE` and `REEF_KEYCLOAK_CLIENT_ID` must each appear in the
+corresponding catalog, and the verifier pins `aud`/`azp` to those scalar runtime
+values rather than trusting every catalog entry. Provider aliases are bounded
+identifiers; no provider URL is consumed from the catalog. The auth-v2 route
+constructs the authorization URL from the selected provider alias and the
+deployment's canonical issuer. The catalog's `local_auth.enabled=true` is the
+normal future hybrid presentation: password and SSO are both visible. An
+explicit SSO-first redirect still requires `REEF_SSO_AUTO_REDIRECT=1` in
+auth-v2. If AKB sets `local_auth.enabled=false`, that is an explicit deployment
+prerequisite to hide password login, not a Reef fallback or an implicit mode
+switch.
 
 The same schema has a local-only discriminant for an AKB deployment that has no
-OIDC provider: `auth_mode` is `"local"`, `canonical_issuer` is `null`,
-`accepted_audiences` and `accepted_clients` are empty arrays, `providers` is an
-empty array, and `keycloak.enabled` is `false`. Reef does not project a legacy
-response into this shape, and a v2 deployment must keep the catalog's
+OIDC provider: `auth_mode` is `"local"`, the common `local_auth` capability is
+present, and `keycloak.enabled` is `false`. SSO-only fields such as the issuer,
+audience/client catalog, token policy, account-validation policy, and providers
+are absent rather than represented by empty placeholders. Reef does not project
+a legacy response into this shape, and a v2 deployment must keep the catalog's
 `auth_mode` and provider capabilities aligned with its chosen login surface.
 
 ### Authentication and account-validation boundary
 
 The auth-v2 flow is deliberately split into two checks:
 
-1. Reef creates one-time state, nonce, PKCE, and browser binding, then exchanges
-   the authorization code at Keycloak. It validates the returned token set
-   locally: exact `iss` equal to `canonical_issuer`, RS256 with a required key
-   id, an accepted access-token audience, an accepted client (`azp`), bearer
+1. `/api/auth/v2/start` creates one-time state, nonce, PKCE, and browser
+   binding, then sends the browser to Keycloak. `/api/auth/v2/callback`
+   exchanges the authorization code at Keycloak. It validates the returned
+   token set locally: exact `iss` equal to `canonical_issuer`, RS256 with a
+   required key id, the exact deployment-selected access-token audience, the
+   exact deployment-selected client (`azp`), bearer
    type, non-empty subject, provider claim (`identity_provider`) equal to the
    selected provider alias, and bounded time claims. Token-directed `jku`,
    `jwk`, `x5u`, and `x5c` sources are rejected.
@@ -269,7 +268,7 @@ not sign the user out.
 
 After account validation succeeds, Reef stores the access/refresh/ID token set
 only in an AES-256-GCM encrypted Redis record and gives the browser a random
-opaque `__reef_session` handle. The encryption key is an independent 32-byte
+opaque `__reef_auth_v2` handle. The encryption key is an independent 32-byte
 deployment secret. Redis keys are hashes, ciphertext is bound to its record key
 as additional authenticated data, and refresh rotation uses bounded locking
 plus an atomic compare-and-set. The follow-up route cutover must add hashed
@@ -291,6 +290,9 @@ issuer and which must not be public ingress, an IP literal, or a URL carrying
 credentials/query/fragment. Readiness fails closed if these dependencies are
 missing or unreachable. There is no in-memory or legacy fallback for a
 production auth-v2 deployment.
+The dedicated `GET /api/auth/v2/readyz` endpoint exposes this check for a
+future rollout probe; the current `/api/healthz` liveness/readiness path remains
+unchanged for the delegated profile.
 
 ### AKB prerequisites and rollout guard
 
@@ -344,7 +346,7 @@ Focused coverage for this contract lives in:
 Auth-v2 contract coverage is separate and must remain fail-closed:
 
 - `packages/core/src/adapters/akb/workspace/authV2.test.ts` validates the strict
-  v2 catalog, provider URLs, denial-code set, and exact account-validation wire
+  v2 catalog, provider fields, denial-code set, and exact account-validation wire
   request; legacy `/api/v1/auth/config` responses are rejected rather than
   projected.
 - `packages/web/src/lib/akb/loadAkbAuthV2Config.test.ts` validates the AKB
@@ -354,8 +356,11 @@ Auth-v2 contract coverage is separate and must remain fail-closed:
   configuration, canonical issuer/transport separation, accepted audience and
   client claims, RS256/JWK pinning, provider binding, and bounded clock skew.
 - `packages/web/src/server/auth-v2/oidcProtocol.test.ts` covers the complete
-  code-to-account-validation boundary, PKCE state binding, token checks, and
-  account-validation-before-result behavior.
+  code-to-account-validation boundary, PKCE state binding, Keycloak metadata
+  tolerance, token checks, and account-validation-before-result behavior.
+- `packages/web/src/app/api/auth/v2/auth-v2.integration.test.ts` drives the
+  real start/callback/session/refresh/logout Route Handler boundary with a
+  hermetic Keycloak/Redis/account fixture, including denial and cookie cleanup.
 - `packages/web/src/server/auth-v2/loginStateStore.test.ts`,
   `sessionStore.test.ts`, `redisBackend.test.ts`, `redisRuntime.test.ts`,
   `refreshLock.test.ts`, and `readiness.test.ts` cover encrypted one-time

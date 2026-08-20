@@ -1,6 +1,7 @@
 // @vitest-environment node
 
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+import { exportJWK, generateKeyPair } from "jose";
 import {
   type AuthV2EnabledRuntimeConfig,
   readAuthV2RuntimeConfig,
@@ -40,13 +41,23 @@ function jwksResponse(body: unknown, status = 200): Response {
   });
 }
 
+let usableKey: Record<string, unknown>;
+
+beforeAll(async () => {
+  const pair = await generateKeyPair("RS256", { modulusLength: 2048 });
+  usableKey = {
+    ...(await exportJWK(pair.publicKey)),
+    alg: "RS256",
+    use: "sig",
+    kid: "reef-key",
+  };
+});
+
 describe("auth-v2 readiness", () => {
   it("probes only the in-cluster JWKS transport and Redis", async () => {
     const fetchImpl = vi
       .fn()
-      .mockResolvedValue(
-        jwksResponse({ keys: [{ kty: "RSA", kid: "reef-key" }] }),
-      );
+      .mockResolvedValue(jwksResponse({ keys: [usableKey] }));
     const ping = vi.fn(async () => "PONG");
 
     await expect(
@@ -65,7 +76,7 @@ describe("auth-v2 readiness", () => {
   it("fails closed when Redis is not wired or does not answer PONG", async () => {
     const fetchImpl = vi
       .fn()
-      .mockImplementation(async () => jwksResponse({ keys: [{}] }));
+      .mockImplementation(async () => jwksResponse({ keys: [usableKey] }));
     await expect(
       checkAuthV2Readiness(enabled(), { fetch: fetchImpl }),
     ).rejects.toMatchObject({
@@ -96,6 +107,24 @@ describe("auth-v2 readiness", () => {
     await expect(
       checkAuthV2Readiness(enabled(), {
         redis: redisClient,
+        fetch: vi.fn().mockResolvedValue(jwksResponse({ keys: [] })),
+      }),
+    ).rejects.toMatchObject({
+      code: "auth_v2_keyset_invalid",
+    });
+
+    await expect(
+      checkAuthV2Readiness(enabled(), {
+        redis: redisClient,
+        fetch: vi.fn().mockResolvedValue(jwksResponse({ keys: [{}] })),
+      }),
+    ).rejects.toMatchObject({
+      code: "auth_v2_keyset_invalid",
+    });
+
+    await expect(
+      checkAuthV2Readiness(enabled(), {
+        redis: redisClient,
         fetch: vi.fn().mockRejectedValue(new Error("down")),
       }),
     ).rejects.toMatchObject({
@@ -114,7 +143,7 @@ describe("auth-v2 readiness", () => {
     });
     await expect(
       checkAuthV2Readiness(development, {
-        fetch: vi.fn().mockResolvedValue(jwksResponse({ keys: [] })),
+        fetch: vi.fn().mockResolvedValue(jwksResponse({ keys: [usableKey] })),
       }),
     ).resolves.toBeUndefined();
   });

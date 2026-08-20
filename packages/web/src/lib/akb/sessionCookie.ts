@@ -1,12 +1,13 @@
 /**
  * akb session cookie helpers.
  *
- * Stores the akb-issued JWT as the cookie value. akb signs the JWT with HS256
+ * Stores the v1 akb-issued JWT as the cookie value. akb signs the JWT with HS256
  * and verifies it on every API call, so reef-web not add a second
  * signature layer — variant tokens are rejected at the akb backend, not by us.
  *
- * This cookie is the just persistence of user state across requests. reef-web
- * Pods do not hold a session table.
+ * This helper belongs only to the current AKB-delegated profile. Auth-v2 uses
+ * a separately named opaque handle and encrypted server-side session store so
+ * its flag cannot change this v1 dispatch contract.
  */
 
 export const SESSION_COOKIE = "__reef_session";

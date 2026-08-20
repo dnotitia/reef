@@ -20,7 +20,7 @@ mode. The shell and shared empty-state surfaces also keep a narrow 390px
 viewport usable without clipping or overlap. The current/default product is a
 stateless BFF in front of the AKB backend: the server persists no per-user
 session table. A future auth-v2 deployment may use an encrypted Redis session
-store for OIDC credentials only after its guarded route cutover enables
+store for OIDC credentials only when its guarded route set is enabled by
 `REEF_AUTH_V2_ENABLED=1`; that ephemeral store is not product state and is never
 visible to the browser. The experience
 follows a strict state-owner split:
@@ -809,15 +809,15 @@ AKB-issued JWT in the `__reef_session` httpOnly cookie; Reef keeps no
 server-side session table. There is no GitHub-OAuth sign-in, popup, or
 management-repository selection.
 
-After the future auth-v2 route cutover is enabled, the same login surface will
-be backed by Reef's authorization-code + PKCE flow. The unauthenticated AKB v2
+When the future auth-v2 profile is enabled, the separate auth-v2 login surface
+is backed by Reef's authorization-code + PKCE flow. The unauthenticated AKB v2
 catalog determines which provider buttons are available, but the default
 presentation is hybrid:
 when `local_auth.enabled` is true, the username/password form and SSO option are
 visible together. A clean `/login` entry never hides the password form or
 redirects automatically unless the deployment explicitly sets
-`REEF_SSO_AUTO_REDIRECT=1`; the catalog's `sso_only` flag alone is not an
-auto-redirect command. An AKB catalog with `local_auth.enabled=false` is an
+`REEF_SSO_AUTO_REDIRECT=1`; the v2 catalog has no `sso_only` override. An AKB
+catalog with `local_auth.enabled=false` is an
 explicit statement that the password method is unavailable, not a Reef-side
 fallback. SSO failures return to the panel with a bounded, translated error and
 leave the password path reachable whenever AKB advertises it.

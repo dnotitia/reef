@@ -49,3 +49,8 @@ server-only `packages/web/src/server/` tree and must not be reintroduced here.
   `Authorization: Bearer <akb-jwt>` to `AKB_BACKEND_URL`. Operator and worker
   runtimes may construct the same public adapter from deployment-managed
   credentials; they must not import web cookie helpers.
+- The future auth-v2 account-validation adapter is a separate proof boundary:
+  it sends only the validated Keycloak bearer token plus the
+  `provider_alias`/`subject` binding to AKB's versioned endpoint. It does not
+  read or issue the v1 `__reef_session` cookie and must not be used as a
+  legacy `/auth/me` fallback.

@@ -30,7 +30,6 @@ const VALID_CONFIG = {
       alias: "keycloak",
       display_name: "Workspace SSO",
       provider_type: "keycloak-oidc",
-      login_url: "/api/v2/auth/providers/keycloak/login",
     },
   ],
 };

@@ -27,9 +27,9 @@ reef has three runtime tiers:
   runtime dependencies.
 - **reef-web** — a Next.js App Router application that renders the product UI and
   acts as the AKB-facing Backend-for-Frontend (BFF). The current/default profile
-  is stateless and delegates authentication to AKB. A future auth-v2 profile is
-  reserved behind `REEF_AUTH_V2_ENABLED=1`; the route cutover is not wired in
-  this release. It adds only an encrypted, expiring Redis session store for OIDC
+  is stateless and delegates authentication to AKB. The auth-v2 profile is
+  reserved behind `REEF_AUTH_V2_ENABLED=1`; its separate `/api/auth/v2/*`
+  Route Handlers add only an encrypted, expiring Redis session store for OIDC
   credentials, not product state. Its
   server-only adapters own GitHub/LLM I/O and its application tree owns agents;
   Route Handlers validate input, resolve those use cases, call core for
@@ -198,15 +198,16 @@ httpOnly cookie, is decoded read-only per request, and is forwarded to AKB as
 `Authorization: Bearer …`. It is never mirrored to server memory or disk, and
 `httpOnly` keeps it out of browser JavaScript.
 
-The **future auth-v2 profile** is reserved behind `REEF_AUTH_V2_ENABLED=1`.
-Its route cutover will add a bounded authentication exception: the browser gets
-only a random opaque `__reef_session` handle while access, refresh, and ID
+The **auth-v2 profile** is reserved behind `REEF_AUTH_V2_ENABLED=1`.
+Its Route Handlers add a bounded authentication exception: the browser gets
+only a random opaque `__reef_auth_v2` handle while access, refresh, and ID
 tokens live in AES-256-GCM-encrypted Redis. This ephemeral credential store is
 not product state, but production requires Redis and an independent 32-byte
 encryption key; there is no legacy or in-memory fallback. Auth-v2 validates the
-OIDC token locally against the catalog's canonical issuer, accepted audiences,
-accepted clients, RS256, bearer type, subject, and provider alias, then calls
-AKB account validation. Reef never derives account membership from token claims.
+OIDC token locally against the catalog's canonical issuer and the selected
+runtime audience/client pair, RS256, bearer type, subject, and provider alias,
+then calls AKB account validation. Reef never derives account membership from
+token claims.
 
 Both profiles keep the remaining credentials deliberately placed:
 

@@ -1,12 +1,17 @@
 import { ReefMark } from "@/components/ui/reef-mark";
 import { LoginPanel } from "@/features/auth/components/LoginPanel";
 import { loadAkbAuthConfig } from "@/lib/akb/loadAkbAuthConfig";
+import { loadAkbAuthV2Config } from "@/lib/akb/loadAkbAuthV2Config";
 import {
   buildPathWithParams,
   normalizeSafeRedirect,
 } from "@/lib/akb/safeRedirect";
 import { ssoAutoRedirectEnabled } from "@/lib/akb/ssoAutoRedirect";
-import { type AkbAccountErrorCode, isAkbAccountErrorCode } from "@reef/core";
+import {
+  type AkbAccountErrorCode,
+  type AkbAuthV2Config,
+  isAkbAccountErrorCode,
+} from "@reef/core";
 import { useTranslations } from "next-intl";
 import { redirect } from "next/navigation";
 
@@ -47,6 +52,26 @@ export default async function LoginPage({
         ? "legacy"
         : null;
 
+  if (authV2OptInEnabled()) {
+    const authV2Result = await loadAkbAuthV2Config();
+    const authV2Config = authV2Result.ok ? authV2Result.config : null;
+    const authV2StartPath = resolveAuthV2AutoRedirect({
+      errorKind,
+      params,
+      redirectTo,
+      config: authV2Config,
+    });
+    if (authV2StartPath) redirect(authV2StartPath);
+    return (
+      <LoginView
+        errorKind={errorKind}
+        redirectTo={redirectTo}
+        authV2
+        authV2Config={authV2Config}
+      />
+    );
+  }
+
   const ssoStartPath = await resolveSsoAutoRedirect({
     errorKind,
     params,
@@ -59,15 +84,48 @@ export default async function LoginPage({
   return <LoginView errorKind={errorKind} redirectTo={redirectTo} />;
 }
 
+function authV2OptInEnabled(): boolean {
+  const value = process.env.REEF_AUTH_V2_ENABLED?.trim().toLowerCase();
+  return value === "1" || value === "true";
+}
+
+function resolveAuthV2AutoRedirect({
+  errorKind,
+  params,
+  redirectTo,
+  config,
+}: {
+  errorKind: LoginErrorKind;
+  params: LoginSearchParams;
+  redirectTo: string;
+  config: AkbAuthV2Config | null;
+}): string | null {
+  if (errorKind !== null) return null;
+  if (params.password === "1" || params.prompt === "login") return null;
+  if (
+    !config ||
+    config.auth_mode !== "sso" ||
+    !config.keycloak.enabled ||
+    !config.keycloak.browser_session_ready ||
+    config.providers.length === 0 ||
+    !ssoAutoRedirectEnabled()
+  ) {
+    return null;
+  }
+  return buildPathWithParams("/api/auth/v2/start", {
+    provider: config.providers[0].alias,
+    redirect: redirectTo,
+  });
+}
+
 /**
  * SSO-first auto-redirect decision (REEF-312).
  *
  * Returns the same-origin `/api/auth/akb/sso/start` path to redirect to, or
  * null to render the panel. It fires for a *clean* entry into `/login`:
  *
- * - The deployment explicitly opted in (`REEF_SSO_AUTO_REDIRECT`). AKB's
- *   `keycloak.sso_only` flag describes the available presentation policy but
- *   does not grant Reef permission to redirect a clean login entry by itself.
+ * - The deployment opted in (`REEF_SSO_AUTO_REDIRECT`) or AKB declares its
+ *   authoritative `keycloak.sso_only` presentation policy.
  * - No SSO/session error is present (`?sso_error=` / `?error=`). This is the
  *   loop guard: an SSO failure returns here, so auto-redirecting again would
  *   bounce the user between reef and Keycloak forever.
@@ -97,7 +155,7 @@ async function resolveSsoAutoRedirect({
   if (!result.config.keycloak.enabled || !result.config.keycloak.login_url) {
     return null;
   }
-  if (!ssoAutoRedirectEnabled()) {
+  if (!ssoAutoRedirectEnabled() && !result.config.keycloak.sso_only) {
     return null;
   }
 
@@ -109,9 +167,13 @@ async function resolveSsoAutoRedirect({
 function LoginView({
   errorKind,
   redirectTo,
+  authV2 = false,
+  authV2Config,
 }: {
   errorKind: LoginErrorKind;
   redirectTo: string;
+  authV2?: boolean;
+  authV2Config?: AkbAuthV2Config | null;
 }) {
   const t = useTranslations("auth.login");
   const errorMessage = (() => {
@@ -155,7 +217,11 @@ function LoginView({
           </p>
         )}
 
-        <LoginPanel redirectTo={redirectTo} />
+        <LoginPanel
+          redirectTo={redirectTo}
+          authV2={authV2}
+          authV2Config={authV2Config}
+        />
       </div>
     </main>
   );

@@ -5,6 +5,10 @@ import {
   type JWTPayload,
   type JWTVerifyGetKey,
 } from "jose";
+import {
+  AKB_AUTH_V2_ACCOUNT_DENIAL_CODES,
+  type AkbAuthV2AccountDenialCode,
+} from "@reef/core";
 
 /**
  * The clock skew accepted by the auth-v2 contract.  A deployment may tighten
@@ -20,16 +24,16 @@ const PROVIDER_ALIAS_PATTERN = /^[a-z0-9][a-z0-9._-]{0,62}$/u;
 const REALM_PATH_PATTERN = /^\/realms\/[A-Za-z0-9._~-]+$/u;
 
 /**
- * Values from the validated auth-v2 provider entry.  `canonicalIssuer` is
- * deliberately supplied by configuration, never read from a token or a
- * token-directed key source.  The arrays allow one validator to represent the
- * accepted AKB API/client catalog while `providerAlias` pins this instance to
- * one provider entry.
+ * Values from the validated auth-v2 provider entry. `canonicalIssuer`,
+ * `audience`, and `clientId` are deliberately supplied by the selected Reef
+ * runtime, never read from a token or a token-directed key source. The AKB
+ * catalog may advertise several values for other deployments, but this
+ * validator receives exactly one runtime audience/client pair.
  */
 export interface OidcTokenValidatorConfig {
   canonicalIssuer: string;
-  acceptedAudiences: readonly string[];
-  acceptedClients: readonly string[];
+  audience: string;
+  clientId: string;
   providerAlias: string;
   /** A fixed JWKS resolver owned by Reef configuration. */
   jwks: JWTVerifyGetKey;
@@ -76,14 +80,8 @@ export interface OidcTokenValidator {
   validate(accessToken: string): Promise<ValidatedOidcToken>;
 }
 
-/** Stable AKB account-denial values. */
-export const ACCOUNT_DENIAL_CODES = [
-  "membership_required",
-  "account_suspended",
-  "identity_conflict",
-] as const;
-
-export type AccountDenialCode = (typeof ACCOUNT_DENIAL_CODES)[number];
+/** Stable AKB account-denial values owned by the core contract. */
+export type AccountDenialCode = AkbAuthV2AccountDenialCode;
 
 export type AccountValidationResult<Account> =
   | { outcome: "accepted"; account: Account }
@@ -135,7 +133,7 @@ export interface OidcAuthenticatedPrincipal<Account> {
 }
 
 /**
- * Construct a validator with a fixed issuer, audience/client catalog, and
+ * Construct a validator with a fixed issuer and runtime audience/client pair,
  * provider alias.  The key resolver is injected so the caller can pin it to a
  * configured JWKS URL; this module never follows `jku`, `jwk`, `x5u`, or `x5c`
  * values from a token header.
@@ -159,7 +157,7 @@ export function createOidcTokenValidator(
         ({ payload } = await jwtVerify(accessToken, config.jwks, {
           algorithms: ["RS256"],
           issuer: validated.canonicalIssuer,
-          audience: [...validated.acceptedAudiences],
+          audience: validated.audience,
           clockTolerance: clockToleranceSeconds,
           currentDate,
         }));
@@ -242,8 +240,8 @@ function validateConfig(
   }
 
   const canonicalIssuer = validateCanonicalIssuer(config.canonicalIssuer);
-  const acceptedAudiences = validateCatalog(config.acceptedAudiences);
-  const acceptedClients = validateCatalog(config.acceptedClients);
+  const audience = validateIdentifier(config.audience);
+  const clientId = validateIdentifier(config.clientId);
   const providerAlias = config.providerAlias;
   if (
     typeof providerAlias !== "string" ||
@@ -283,8 +281,8 @@ function validateConfig(
   return {
     ...config,
     canonicalIssuer,
-    acceptedAudiences,
-    acceptedClients,
+    audience,
+    clientId,
     providerAlias,
     clockToleranceSeconds,
   };
@@ -323,34 +321,19 @@ function validateCanonicalIssuer(value: string): string {
   return parsed.toString();
 }
 
-function validateCatalog(value: readonly string[]): readonly string[] {
-  if (!Array.isArray(value) || value.length === 0 || value.length > 32) {
+function validateIdentifier(value: string): string {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > MAX_CLAIM_BYTES ||
+    containsControlCharacter(value)
+  ) {
     throw new OidcTokenValidationError(
       "oidc_validator_config_invalid",
       "invalid",
     );
   }
-  const result = value.map((entry) => {
-    if (
-      typeof entry !== "string" ||
-      entry.length === 0 ||
-      entry.length > MAX_CLAIM_BYTES ||
-      containsControlCharacter(entry)
-    ) {
-      throw new OidcTokenValidationError(
-        "oidc_validator_config_invalid",
-        "invalid",
-      );
-    }
-    return entry;
-  });
-  if (new Set(result).size !== result.length) {
-    throw new OidcTokenValidationError(
-      "oidc_validator_config_invalid",
-      "invalid",
-    );
-  }
-  return result;
+  return value;
 }
 
 function assertTokenInput(accessToken: string): void {
@@ -402,11 +385,11 @@ function parseValidatedClaims(
 
   if (
     issuer !== config.canonicalIssuer ||
-    !isAudience(audience, config.acceptedAudiences) ||
+    !isAudience(audience, config.audience) ||
     typeof subject !== "string" ||
     !isBoundedClaim(subject) ||
     typeof authorizedParty !== "string" ||
-    !config.acceptedClients.includes(authorizedParty) ||
+    authorizedParty !== config.clientId ||
     typeof providerAlias !== "string" ||
     providerAlias !== config.providerAlias ||
     tokenType !== "Bearer" ||
@@ -444,14 +427,14 @@ function parseValidatedClaims(
 
 function isAudience(
   value: JWTPayload["aud"],
-  accepted: readonly string[],
+  accepted: string,
 ): value is string | string[] {
-  if (typeof value === "string") return accepted.includes(value);
+  if (typeof value === "string") return value === accepted;
   return (
     Array.isArray(value) &&
     value.length > 0 &&
     value.every((entry) => typeof entry === "string") &&
-    value.some((entry) => accepted.includes(entry))
+    value.some((entry) => entry === accepted)
   );
 }
 
@@ -525,7 +508,7 @@ function isAccountValidationResult<Account>(
     const code = (value as { code?: unknown }).code;
     return (
       typeof code === "string" &&
-      (ACCOUNT_DENIAL_CODES as readonly string[]).includes(code)
+      (AKB_AUTH_V2_ACCOUNT_DENIAL_CODES as readonly string[]).includes(code)
     );
   }
   return outcome === "unavailable";

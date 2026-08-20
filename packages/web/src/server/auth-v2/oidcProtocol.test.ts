@@ -77,7 +77,6 @@ const CONTRACT: Extract<AkbAuthV2Config, { auth_mode: "sso" }> = {
       provider_type: "keycloak-oidc",
       alias: "workforce",
       display_name: "Company SSO",
-      login_url: "/api/v2/auth/providers/workforce/login",
     },
   ],
 };
@@ -146,6 +145,9 @@ async function makeTokens(nonce: string) {
     token_type: "Bearer",
     expires_in: 300,
     refresh_expires_in: 3_600,
+    "not-before-policy": 0,
+    session_state: "fixture-session-state",
+    scope: "openid profile",
   } as const;
 }
 
@@ -241,6 +243,45 @@ describe("auth-v2 OIDC protocol", () => {
       code: "auth_v2_state_invalid",
     });
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("accepts Keycloak metadata on refresh responses while validating consumed fields", async () => {
+    const backend = new MemoryBackend();
+    const { store: stateStore } = makeStateStore(backend);
+    const tokenSet = await makeTokens("fixture-nonce");
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            access_token: tokenSet.access_token,
+            refresh_token: "rotated-refresh-secret",
+            token_type: "Bearer",
+            expires_in: 300,
+            refresh_expires_in: 3_600,
+            "not-before-policy": 0,
+            session_state: "fixture-session-state",
+            scope: "openid profile",
+          }),
+          { status: 200 },
+        ),
+    );
+    const protocol = createAuthV2OidcProtocol({
+      runtime: runtime(),
+      contract: CONTRACT,
+      providerAlias: "workforce",
+      jwks,
+      fetch: fetchImpl,
+      now: () => NOW,
+    });
+
+    const refreshed = await protocol.refresh({
+      refreshToken: "old-refresh-secret",
+      providerAlias: "workforce",
+      subject: "kc-subject-1",
+      previousIdToken: tokenSet.id_token,
+    });
+    expect(refreshed.refreshToken).toBe("rotated-refresh-secret");
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it("rejects a provider not advertised by the AKB catalog", () => {

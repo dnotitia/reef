@@ -121,10 +121,6 @@ test.describe("SSO-first login auto-redirect", () => {
         page.locator('[data-testid="akb-login-form"]'),
         `query ${query}`,
       ).toBeVisible();
-      await expect(
-        page.getByRole("link", { name: /continue with workspace sso/i }),
-        `query ${query}`,
-      ).toBeVisible();
     }
   });
 

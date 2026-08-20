@@ -180,10 +180,12 @@ describe("OnboardingPanel", () => {
     await user.click(
       await screen.findByTestId("greenfield-monitored-repos-option-octo/cat"),
     );
-    await user.type(
-      screen.getByTestId("greenfield-vault-name-input"),
-      "reef-new",
+    const vaultNameInput = await screen.findByTestId(
+      "greenfield-vault-name-input",
     );
+    await user.clear(vaultNameInput);
+    await user.type(vaultNameInput, "reef-new");
+    expect(vaultNameInput).toHaveValue("reef-new");
     await user.click(screen.getByTestId("greenfield-create-btn"));
 
     await waitFor(() =>

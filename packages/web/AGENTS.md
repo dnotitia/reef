@@ -20,6 +20,11 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   verification.
 - Business logic and external I/O stay in `@reef/core`; `web` composes them
   through thin Route Handlers and browser-facing UI.
+- The default web profile is stateless and uses AKB's `__reef_session` JWT
+  contract. The only persistence exception is the explicitly enabled auth-v2
+  Route Handler profile, which stores encrypted OIDC credentials in Redis and
+  exposes only the separate opaque `__reef_auth_v2` cookie. Keep these profiles
+  disjoint; auth-v2 must not change v1 routes or add a carrier fallback.
 - Preserve `next.config.ts` `output: "standalone"` for Docker.
 
 ## UX Contract

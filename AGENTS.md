@@ -50,11 +50,17 @@ metadata.
 
 ## Core Invariants
 
-- reef-web persists nothing that belongs to a specific user: no database,
-  server-side session store, Redis, KMS, or per-user cache.
-- The akb session is the `__reef_session` httpOnly cookie; decode it read-only
-  per request and forward the AKB-issued JWT to akb as
-  `Authorization: Bearer <akb-jwt>`.
+- The current/default reef-web profile persists nothing that belongs to a
+  specific user: no database, server-side session store, Redis, KMS, or
+  per-user cache. Its only auth carrier is the AKB-issued JWT in the
+  `__reef_session` httpOnly cookie; decode it read-only per request and forward
+  it to AKB as `Authorization: Bearer <akb-jwt>`.
+- The explicitly enabled auth-v2 profile is the single documented exception:
+  its server-only OIDC credential custody uses encrypted Redis records and the
+  browser receives only an opaque `__reef_auth_v2` handle. This exception is
+  active only for auth-v2 Route Handlers after the versioned AKB contract has
+  passed readiness and contract tests; it never changes the current/default
+  stateless profile or makes the v1 cookie/API dispatch ambiguous.
 - GitHub access for monitored-repo grounding and activity scans is deployment
   managed through `REEF_GITHUB_APP_ID`, `REEF_GITHUB_APP_INSTALLATION_ID`, and
   `REEF_GITHUB_APP_PRIVATE_KEY`, with `REEF_GITHUB_PAT` allowed only as a
@@ -72,15 +78,17 @@ metadata.
   cookie before returning. A resource-level permission denial must not sign the
   user out.
 - `core` is the only place where Reef product AKB I/O and AKB auth/session calls
-  (`login`, `getMe`, `getCurrentActor`) originate. The server-only `web`
+  (`login`, `getMe`, `getCurrentActor`, and the explicit auth-v2 account
+  validation boundary) originate. The server-only `web`
   application owns monitored-repository GitHub I/O, deployment-managed LLM I/O,
   and agent execution; it consumes core's public schemas, errors, models, and
   AKB adapter. Separate orchestration provider packages own only provider I/O
   explicitly granted by their provider-neutral contracts, such as SCM Git
   transport and GitHub pull-request delivery. Route Handlers remain thin: they
-  own session/cookie lifecycle (set/clear the `__reef_session` cookie, decode
-  it, translate `ReefError` to PM-facing language), never an inline `fetch` or
-  an inline AKB wire schema.
+  own v1 session/cookie lifecycle (set/clear the `__reef_session` cookie,
+  decode it) or the separately named auth-v2 opaque-handle lifecycle, and
+  translate `ReefError` to PM-facing language. Route Handlers never contain an
+  inline `fetch` or an inline AKB wire schema.
 
 ## TypeScript And Boundaries
 

@@ -13,7 +13,11 @@ import {
 import { normalizeSafeRedirect } from "@/lib/akb/safeRedirect";
 import { apiFetch } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
-import { AkbAuthConfigSchema, isAkbAccountErrorCode } from "@reef/core";
+import {
+  AkbAuthConfigSchema,
+  type AkbAuthV2Config,
+  isAkbAccountErrorCode,
+} from "@reef/core";
 import { Building2, KeyRound, ShieldCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -21,18 +25,27 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 export interface LoginPanelProps {
   redirectTo?: string;
+  /** Enables the separately routed future auth-v2 presentation. */
+  authV2?: boolean;
+  /** Server-loaded public v2 catalog; null means the v2 contract is unavailable. */
+  authV2Config?: AkbAuthV2Config | null;
 }
 
 interface AuthCapabilities {
   ssoEnabled: boolean;
   localAuthEnabled: boolean;
+  providerAlias?: string;
 }
 
 function akbPlatformToken(chunks: ReactNode) {
   return <span translate="no">{chunks}</span>;
 }
 
-export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
+export function LoginPanel({
+  redirectTo = "/",
+  authV2 = false,
+  authV2Config,
+}: LoginPanelProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const safeRedirect = normalizeSafeRedirect(redirectTo);
@@ -136,6 +149,29 @@ export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
   }, [router, searchParams]);
 
   useEffect(() => {
+    if (authV2) {
+      if (authV2Config === undefined) return;
+      if (authV2Config?.auth_mode === "sso") {
+        setCapabilities({
+          ssoEnabled: Boolean(
+            authV2Config.keycloak.enabled &&
+              authV2Config.keycloak.browser_session_ready &&
+              authV2Config.providers.length > 0,
+          ),
+          localAuthEnabled: authV2Config.local_auth.enabled,
+          providerAlias: authV2Config.providers[0]?.alias,
+        });
+      } else if (authV2Config?.auth_mode === "local") {
+        setCapabilities({
+          ssoEnabled: false,
+          localAuthEnabled: authV2Config.local_auth.enabled,
+        });
+      } else {
+        setCapabilities({ ssoEnabled: false, localAuthEnabled: false });
+      }
+      return;
+    }
+
     const controller = new AbortController();
 
     async function loadConfig() {
@@ -164,21 +200,26 @@ export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
 
     void loadConfig();
     return () => controller.abort();
-  }, []);
+  }, [authV2, authV2Config]);
 
   const ssoStartUrl = useMemo(() => {
     const params = new URLSearchParams({ redirect: safeRedirect });
+    if (authV2) {
+      const providerAlias = capabilities?.providerAlias;
+      if (providerAlias) params.set("provider", providerAlias);
+      return `/api/auth/v2/start?${params.toString()}`;
+    }
     return `/api/auth/akb/sso/start?${params.toString()}`;
-  }, [safeRedirect]);
+  }, [authV2, capabilities?.providerAlias, safeRedirect]);
 
   const ssoEnabled = capabilities?.ssoEnabled ?? false;
-  // Keep the password form available until AKB's capability response says
-  // otherwise. This avoids hiding the primary escape hatch during a slow
-  // probe and makes the hybrid surface usable while capabilities settle.
-  const localAuthEnabled = capabilities?.localAuthEnabled ?? true;
+  // The future auth-v2 surface keeps the password field present while its
+  // public catalog is loading. The v1 default remains byte-for-byte governed
+  // by the existing capability probe below.
+  const localAuthEnabled = capabilities?.localAuthEnabled ?? authV2;
 
   if (capabilities && !ssoEnabled && localAuthEnabled) {
-    return <LoginForm redirectTo={safeRedirect} />;
+    return <LoginForm redirectTo={safeRedirect} authV2={authV2} />;
   }
 
   return (
@@ -243,7 +284,9 @@ export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
         </div>
       )}
 
-      {localAuthEnabled && <LoginForm redirectTo={safeRedirect} />}
+      {localAuthEnabled && (
+        <LoginForm redirectTo={safeRedirect} authV2={authV2} />
+      )}
     </div>
   );
 }

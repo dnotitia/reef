@@ -1,5 +1,7 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { loadAkbAuthConfig } from "@/lib/akb/loadAkbAuthConfig";
+import { loadAkbAuthV2Config } from "@/lib/akb/loadAkbAuthV2Config";
+import type { AkbAuthV2Config } from "@reef/core";
 import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -25,9 +27,14 @@ vi.mock("@/lib/akb/loadAkbAuthConfig", () => ({
   loadAkbAuthConfig: vi.fn(),
 }));
 
+vi.mock("@/lib/akb/loadAkbAuthV2Config", () => ({
+  loadAkbAuthV2Config: vi.fn(),
+}));
+
 import LoginPage from "./page";
 
 const loadAkbAuthConfigMock = vi.mocked(loadAkbAuthConfig);
+const loadAkbAuthV2ConfigMock = vi.mocked(loadAkbAuthV2Config);
 
 function ssoEnabledConfig(options: { ssoOnly?: boolean } = {}) {
   return {
@@ -47,6 +54,7 @@ describe("LoginPage", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     loadAkbAuthConfigMock.mockReset();
+    loadAkbAuthV2ConfigMock.mockReset();
   });
 
   it("renders a PM-friendly SSO error without backend details", async () => {
@@ -133,17 +141,14 @@ describe("LoginPage", () => {
       expect(loadAkbAuthConfigMock).toHaveBeenCalledTimes(1);
     });
 
-    it("does not redirect when AKB declares an SSO-only policy without an env override", async () => {
+    it("redirects when AKB declares an SSO-only policy without an env override", async () => {
       loadAkbAuthConfigMock.mockResolvedValue(
         ssoEnabledConfig({ ssoOnly: true }),
       );
 
-      const view = await LoginPage({
-        searchParams: Promise.resolve({ redirect: "/issues" }),
-      });
-      render(<IntlTestProvider>{view}</IntlTestProvider>);
-
-      expect(screen.getByTestId("login-panel")).toBeInTheDocument();
+      await expect(
+        LoginPage({ searchParams: Promise.resolve({ redirect: "/issues" }) }),
+      ).rejects.toThrow("REDIRECT:/api/auth/akb/sso/start?redirect=%2Fissues");
     });
 
     it("redirects to SSO start, preserving the redirect destination", async () => {
@@ -239,6 +244,58 @@ describe("LoginPage", () => {
       render(<IntlTestProvider>{view}</IntlTestProvider>);
 
       expect(screen.getByTestId("login-panel")).toBeInTheDocument();
+    });
+  });
+
+  describe("future auth-v2 presentation", () => {
+    const config: Extract<AkbAuthV2Config, { auth_mode: "sso" }> = {
+      schema_version: 2,
+      auth_mode: "sso",
+      local_auth: { enabled: true },
+      canonical_issuer: "https://identity.example.com/realms/reef",
+      accepted_audiences: ["akb-api"],
+      accepted_clients: ["reef-web"],
+      token_validation: {
+        algorithms: ["RS256"],
+        access_token_type: "Bearer",
+        provider_claim: "identity_provider",
+      },
+      account_validation: {
+        endpoint: "/api/v2/auth/account-validation",
+        credential: "bearer_access_token",
+        requires_subject_binding: true,
+        denial_codes: [
+          "membership_required",
+          "account_suspended",
+          "identity_conflict",
+        ],
+      },
+      keycloak: { enabled: true, browser_session_ready: true },
+      providers: [
+        {
+          provider_type: "keycloak-oidc",
+          alias: "workforce",
+          display_name: "Company SSO",
+        },
+      ],
+    };
+
+    it("keeps hybrid panel by default and only redirects with explicit opt-in", async () => {
+      vi.stubEnv("REEF_AUTH_V2_ENABLED", "1");
+      loadAkbAuthV2ConfigMock.mockResolvedValue({ ok: true, config });
+
+      const view = await LoginPage({
+        searchParams: Promise.resolve({ redirect: "/issues" }),
+      });
+      render(<IntlTestProvider>{view}</IntlTestProvider>);
+      expect(screen.getByTestId("login-panel")).toBeInTheDocument();
+
+      vi.stubEnv("REEF_SSO_AUTO_REDIRECT", "1");
+      await expect(
+        LoginPage({ searchParams: Promise.resolve({ redirect: "/issues" }) }),
+      ).rejects.toThrow(
+        "REDIRECT:/api/auth/v2/start?provider=workforce&redirect=%2Fissues",
+      );
     });
   });
 });

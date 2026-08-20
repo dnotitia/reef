@@ -1,4 +1,5 @@
 import type { AuthV2EnabledRuntimeConfig, AuthV2RuntimeConfig } from "./config";
+import { importJWK, type JWK } from "jose";
 
 const READINESS_TIMEOUT_MS = 5_000;
 const MAX_JWKS_BYTES = 2 * 1024 * 1024;
@@ -43,10 +44,11 @@ export async function checkAuthV2Readiness(
     throw new AuthV2ReadinessError("auth_v2_readiness_disabled");
   }
 
-  await Promise.all([
-    checkRedis(config, dependencies.redis),
-    checkKeycloak(config, dependencies.fetch ?? fetch),
-  ]);
+  // Keep the failure order deterministic. Redis is the session dependency and
+  // must be reachable before a keyset can make the profile ready; concurrent
+  // probes otherwise race and obscure the actionable readiness code.
+  await checkRedis(config, dependencies.redis);
+  await checkKeycloak(config, dependencies.fetch ?? fetch);
 }
 
 async function checkRedis(
@@ -90,11 +92,27 @@ async function checkKeycloak(
       throw new Error("keycloak readiness body too large");
     }
     const payload: unknown = JSON.parse(new TextDecoder().decode(body));
-    if (
-      !payload ||
-      typeof payload !== "object" ||
-      !Array.isArray((payload as { keys?: unknown }).keys)
-    ) {
+    if (!payload || typeof payload !== "object") {
+      throw new AuthV2ReadinessError("auth_v2_keyset_invalid");
+    }
+    const keys = (payload as { keys?: unknown }).keys;
+    if (!Array.isArray(keys) || keys.length === 0) {
+      throw new AuthV2ReadinessError("auth_v2_keyset_invalid");
+    }
+
+    let usableSigningKey = false;
+    for (const candidate of keys) {
+      if (!isUsableRsaSigningKey(candidate)) continue;
+      try {
+        await importJWK(candidate, "RS256");
+        usableSigningKey = true;
+        break;
+      } catch {
+        // Try the next advertised key. A JWKS is ready only when at least one
+        // key can actually be imported for the pinned RS256 verifier.
+      }
+    }
+    if (!usableSigningKey) {
       throw new AuthV2ReadinessError("auth_v2_keyset_invalid");
     }
   } catch (error) {
@@ -105,6 +123,23 @@ async function checkKeycloak(
         : "auth_v2_keycloak_unavailable",
     );
   }
+}
+
+function isUsableRsaSigningKey(value: unknown): value is JWK {
+  if (!value || typeof value !== "object") return false;
+  const key = value as Partial<JWK>;
+  return (
+    key.kty === "RSA" &&
+    key.alg === "RS256" &&
+    key.use === "sig" &&
+    typeof key.kid === "string" &&
+    key.kid.length > 0 &&
+    key.kid.length <= 255 &&
+    typeof key.n === "string" &&
+    key.n.length > 0 &&
+    typeof key.e === "string" &&
+    key.e.length > 0
+  );
 }
 
 async function withDeadline<T>(promise: Promise<T>): Promise<T> {

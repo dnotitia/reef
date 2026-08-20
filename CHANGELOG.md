@@ -22,17 +22,18 @@ explicitly in the entries below.
 - **Workspace SSO once again delegates browser login and the one-time code
   exchange to AKB.** Reef stores the resulting AKB-issued JWT in its httpOnly
   session cookie and no longer treats a Keycloak access token as an AKB API
-  credential or requires Redis-backed OIDC token custody. The login page remains
-  hybrid whenever AKB enables both local authentication and Keycloak.
+  credential or requires Redis-backed OIDC token custody. The #357 login page,
+  including its `sso_only` redirect and capability-loading behavior, is
+  unchanged.
 
-- **The future auth-v2 contract is now explicit but remains opt-in and
-  unreleased.** `REEF_AUTH_V2_ENABLED=1` is reserved for a Reef-owned
-  Authorization Code + PKCE flow with canonical issuer/audience/client checks,
-  encrypted Redis token custody, and the exact AKB
-  `POST /api/v2/auth/account-validation` boundary. The current/default delegated
-  path is unchanged; auth-v2 has no legacy fallback and cannot roll out until
-  AKB publishes and contract-tests its v2 config/provider catalog and account
-  validation response.
+- **The future auth-v2 contract is now explicit and remains opt-in.**
+  `REEF_AUTH_V2_ENABLED=1` enables only the separate `/api/auth/v2/*` Route
+  Handlers: Authorization Code + PKCE with canonical issuer and exact runtime
+  audience/client checks, encrypted Redis token custody, and the exact AKB
+  `POST /api/v2/auth/account-validation` boundary. The current/default
+  delegated path is unchanged; auth-v2 has no legacy fallback and cannot roll
+  out until AKB publishes and contract-tests its v2 config/provider catalog and
+  account validation response.
 
 ### Fixed
 

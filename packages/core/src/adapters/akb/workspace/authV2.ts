@@ -94,31 +94,6 @@ export const AkbAuthV2CanonicalIssuerSchema = z
     }
   }, "canonical_issuer must be an HTTPS URL without credentials, query, or fragment");
 
-/**
- * Provider login links are AKB-owned paths.  Requiring an auth-v2 path keeps a
- * config response from becoming an open redirect when the value is later used
- * by the login surface.  The loader never follows this link server-side.
- */
-export const AkbAuthV2ProviderLoginUrlSchema = z
-  .string()
-  .min(1)
-  .max(2_048)
-  .refine((value) => {
-    let url: URL;
-    try {
-      url = new URL(value, "https://reef.invalid");
-    } catch {
-      return false;
-    }
-    return (
-      url.origin === "https://reef.invalid" &&
-      url.pathname.startsWith("/api/v2/auth/") &&
-      url.search === "" &&
-      url.hash === "" &&
-      !url.pathname.includes("\\")
-    );
-  }, "login_url must be a path-only AKB auth-v2 endpoint");
-
 export type AkbAuthV2ProviderType = "keycloak-oidc";
 
 export const AkbAuthV2ProviderAliasSchema = z.string().regex(PROVIDER_ALIAS_RE);
@@ -136,7 +111,6 @@ export const AkbAuthV2ProviderSchema = z
         message: "display_name must not contain control characters",
       }),
     provider_type: z.literal("keycloak-oidc"),
-    login_url: AkbAuthV2ProviderLoginUrlSchema,
   })
   .strict();
 
@@ -271,8 +245,6 @@ export type AkbAuthV2LocalAuthConfig = z.infer<
 const authV2CommonShape = {
   schema_version: z.literal(2),
   local_auth: AkbAuthV2LocalAuthSchema,
-  token_validation: AkbAuthV2TokenValidationPolicySchema,
-  account_validation: AkbAuthV2AccountValidationSchema,
   keycloak: AkbAuthV2KeycloakSchema,
 };
 
@@ -281,10 +253,6 @@ const AkbAuthV2LocalConfigSchema = z
   .object({
     ...authV2CommonShape,
     auth_mode: z.literal("local"),
-    canonical_issuer: z.null(),
-    accepted_audiences: z.array(AkbAuthV2IdentifierSchema).length(0),
-    accepted_clients: z.array(AkbAuthV2IdentifierSchema).length(0),
-    providers: z.array(AkbAuthV2ProviderSchema).length(0),
   })
   .strict()
   .superRefine((config, context) => {
@@ -313,6 +281,8 @@ const AkbAuthV2SsoConfigSchema = z
       .min(1)
       .max(MAX_AUTH_V2_CATALOG_ENTRIES)
       .superRefine(rejectDuplicateIdentifiers),
+    token_validation: AkbAuthV2TokenValidationPolicySchema,
+    account_validation: AkbAuthV2AccountValidationSchema,
     providers: AkbAuthV2ProviderCatalogSchema.min(1),
   })
   .strict()
@@ -387,7 +357,10 @@ export function getAuthV2Config(
     }
     span.setAttribute("auth_mode", parsed.data.auth_mode);
     span.setAttribute("keycloak_enabled", parsed.data.keycloak.enabled);
-    span.setAttribute("provider_count", parsed.data.providers.length);
+    span.setAttribute(
+      "provider_count",
+      parsed.data.auth_mode === "sso" ? parsed.data.providers.length : 0,
+    );
     return { config: parsed.data };
   });
 }

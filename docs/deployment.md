@@ -25,9 +25,9 @@ one-time AKB code server-side, and Reef stores the resulting AKB JWT in the
 custody, or Reef-side account-validation endpoint. Keep
 `REEF_AUTH_V2_ENABLED` unset (or `0`) for this profile.
 
-Auth-v2 is a future, explicit opt-in. `REEF_AUTH_V2_ENABLED=1` is a reserved
-rollout gate for the follow-up route cutover; this release does not replace the
-current Route Handlers when the variable is present. That cutover requires all
+Auth-v2 is a future, explicit opt-in. `REEF_AUTH_V2_ENABLED=1` enables only the
+separate `/api/auth/v2/*` handlers; it never replaces the current Route
+Handlers or falls back between profiles. The opt-in requires all
 of the following as one atomic deployment contract: the canonical Keycloak
 issuer, a distinct internal Keycloak transport, the dedicated client id, the
 AKB API audience, the public Reef origin, a Redis URL, and an independent
@@ -42,14 +42,16 @@ algorithm, bearer type, subject, and provider alias before calling AKB's exact
 `provider_alias` + `subject` binding. AKB remains the membership, suspension,
 identity-conflict, and account-projection authority. See
 [`keycloak-sso.md`](keycloak-sso.md) for the wire schema, boundaries, and
-security invariants. The AKB prerequisite includes advertising
-`local_auth.enabled=true` when the product is expected to show the default
-hybrid password + SSO panel; `sso_only` alone never authorizes an automatic
-redirect. `REEF_SSO_AUTO_REDIRECT=1` is the explicit redirect opt-in.
+security invariants. The current v1 behavior is unchanged: AKB's `sso_only`
+may authorize its existing automatic redirect and capability loading controls
+the password escape. The auth-v2 catalog must advertise
+`local_auth.enabled=true` when its future product surface is expected to show
+the hybrid password + SSO panel; only `REEF_SSO_AUTO_REDIRECT=1` authorizes
+auth-v2's automatic redirect.
 
 This work is intentionally deploy-neutral: do not enable auth-v2 in production
-until the follow-up route cutover exists, AKB's config and account-validation
-contract is live and contract-tested, and the Draft PR's rollout gates have
+until AKB's config and account-validation contract is live and contract-tested,
+the auth-v2 readiness endpoint is green, and the Draft PR's rollout gates have
 passed.
 
 ---
@@ -295,11 +297,11 @@ the `reef-web-config` ConfigMap plus the optional `reef-web-secret` Secret).
 | `REEF_PUBLIC_ORIGIN` | current delegated SSO / auth-v2 | Reef's canonical external origin — bare `scheme://host[:port]`, no path. The current delegated flow sends it to AKB as the callback base; auth-v2 uses it for exact callback, post-logout, and back-channel URIs. Must match the ingress/public host. `https` except for localhost dev. |
 | `REEF_KEYCLOAK_ISSUER` | auth-v2 only | Exact canonical Keycloak realm issuer used for browser authorization/logout and JWT `iss` verification. Production uses HTTPS. |
 | `REEF_KEYCLOAK_TRANSPORT_URL` | auth-v2 production | Distinct in-cluster Keycloak realm URL for token, JWKS, revocation, and readiness calls. Its realm path must exactly match the issuer; public ingress, IP literals, credentials, query, and fragment are rejected. |
-| `REEF_KEYCLOAK_CLIENT_ID` | auth-v2 only | Dedicated Reef OIDC client id. Accepted tokens must carry an accepted client in the configured client claim (`azp`); the AKB catalog owns the accepted-client set. |
-| `REEF_AKB_API_AUDIENCE` | auth-v2 only | Audience that must be present in the Keycloak access token before Reef sends it to AKB account validation. |
+| `REEF_KEYCLOAK_CLIENT_ID` | auth-v2 only | Dedicated Reef OIDC client id. The AKB catalog must include this value; the validator pins `azp` to this runtime value rather than trusting the catalog's other deployment entries. |
+| `REEF_AKB_API_AUDIENCE` | auth-v2 only | Audience the AKB catalog must include and the validator pins in the Keycloak access token before Reef sends it to account validation. |
 | `REEF_SESSION_REDIS_URL` | auth-v2 production | Redis/Redis-TLS URL for encrypted auth-v2 sessions, refresh locks, and replay indexes. Keep credentials in `reef-web-secret`; no container-local or in-memory fallback is supported. |
 | `REEF_SESSION_ENCRYPTION_KEY` | auth-v2 production | Independent base64/base64url-encoded 32-byte AES key. Generate and store it in `reef-web-secret`; never reuse an AKB, Keycloak, or Redis credential. |
-| `REEF_SSO_AUTO_REDIRECT` | no | Explicit SSO-first presentation opt-in for a hybrid catalog. Without this variable `/login` keeps the password + SSO panel. `sso_only` alone does not redirect; `local_auth.enabled=false` is the only catalog signal that the password capability is unavailable. SSO/session errors suppress automatic redirects as the loop guard. |
+| `REEF_SSO_AUTO_REDIRECT` | no | Explicit SSO-first presentation opt-in for the future auth-v2 hybrid catalog. It does not alter current #357 behavior: v1 `sso_only` remains authoritative, and v1 `local_auth.enabled=false` suppresses password login. |
 | `REEF_LLM_API_KEY` | for enabled AI | Key for the configured OpenAI-compatible endpoint. Keep it in a Secret; never inline it in manifests or commit it. |
 | `REEF_LLM_BASE_URL` | for enabled AI | OpenAI-compatible endpoint base URL. It may target OpenRouter or an akb-platform gateway. |
 | `REEF_LLM_MODEL` | for enabled AI | Deployment-selected model id passed to the configured endpoint. |

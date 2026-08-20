@@ -190,8 +190,9 @@ reef has three runtime tiers:
   observability, and typed errors. It is the only product owner of AKB I/O.
 - **reef web** is the Next.js application package, named `@reef/web` in the
   workspace. It renders the product UI and acts as the AKB-facing
-  Backend-for-Frontend. The current/default profile is stateless; a future
-  auth-v2 route cutover may add encrypted Redis custody for OIDC credentials.
+  Backend-for-Frontend. The current/default profile is stateless; the
+  explicitly enabled auth-v2 route set adds encrypted Redis custody for OIDC
+  credentials only.
   Its server-only tree owns GitHub/LLM adapters and agent application code.
 
 Provider-neutral one-run execution lives separately in `@reef/orchestrator`; a
@@ -212,8 +213,8 @@ runs it as a non-root user. Kubernetes manifests live under `deploy/k8s`.
 
 Production deployments provide `AKB_BACKEND_URL` and deployment-managed LLM
 environment variables server-side. The current/default SSO path is delegated
-through AKB; the future auth-v2 flag is reserved for a separately reviewed
-route cutover and must remain disabled until AKB's v2 contract is live. See
+through AKB; the auth-v2 flag enables only its separately routed future profile
+and must remain disabled until AKB's v2 contract is live. See
 [docs/deployment.md](docs/deployment.md) and
 [docs/keycloak-sso.md](docs/keycloak-sso.md).
 

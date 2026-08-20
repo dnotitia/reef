@@ -47,7 +47,10 @@ const AuthorizationTokenResponseSchema = z
       .positive()
       .max(MAX_REFRESH_TOKEN_SECONDS),
   })
-  .strict();
+  // Keycloak adds standards-defined metadata such as `session_state`,
+  // `scope`, and `not-before-policy`.  Validate the fields Reef consumes and
+  // strip the rest so harmless provider evolution does not break login.
+  .strip();
 
 const RefreshTokenResponseSchema = z
   .object({
@@ -63,7 +66,7 @@ const RefreshTokenResponseSchema = z
       .max(MAX_REFRESH_TOKEN_SECONDS)
       .optional(),
   })
-  .strict();
+  .strip();
 
 export interface AuthV2OidcTokenSet {
   accessToken: string;
@@ -171,8 +174,11 @@ export function createAuthV2OidcProtocol(params: {
   const endpoints = keycloakEndpoints(params.runtime);
   const validator = createOidcTokenValidator({
     canonicalIssuer: params.contract.canonical_issuer,
-    acceptedAudiences: params.contract.accepted_audiences,
-    acceptedClients: params.contract.accepted_clients,
+    // The AKB catalog is an allowlist of possible deployments.  This Reef
+    // runtime pins validation to the one audience/client selected by its
+    // deployment environment; another catalog entry must not widen trust.
+    audience: params.runtime.audience,
+    clientId: params.runtime.clientId,
     providerAlias: params.providerAlias,
     jwks: params.jwks,
     now: () => new Date(now() * 1_000),

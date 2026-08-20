@@ -9,5 +9,11 @@
 - Keep credentials in request-scoped server adapters or the httpOnly AKB
   session boundary. Do not log tokens, raw cookies, prompt text, or upstream
   response bodies.
+- The ordinary server boundary is stateless and uses the AKB-issued
+  `__reef_session` cookie. Auth-v2 Route Handlers are an explicit, separate
+  exception: they may use the encrypted Redis session primitives in this
+  directory, but only with `REEF_AUTH_V2_ENABLED=1`, the strict AKB v2 catalog,
+  and the opaque `__reef_auth_v2` cookie. Never let that exception alter or
+  fall back into the v1 cookie/API path.
 - Wrap async provider boundaries in OpenTelemetry spans and use the shared web
   logger for request/server diagnostics.

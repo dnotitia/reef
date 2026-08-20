@@ -9,7 +9,6 @@ import {
 } from "jose";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
-  ACCOUNT_DENIAL_CODES,
   AccountValidationError,
   createOidcTokenValidator,
   DEFAULT_OIDC_CLOCK_TOLERANCE_SECONDS,
@@ -17,6 +16,7 @@ import {
   validateOidcTokenAndAccount,
   type OidcTokenValidator,
 } from "./oidcValidator";
+import { AKB_AUTH_V2_ACCOUNT_DENIAL_CODES } from "@reef/core";
 
 const ISSUER = "https://identity.example.com/realms/reef";
 const AUDIENCE = "akb-api";
@@ -41,8 +41,8 @@ function validator(
 ): OidcTokenValidator {
   return createOidcTokenValidator({
     canonicalIssuer: ISSUER,
-    acceptedAudiences: [AUDIENCE],
-    acceptedClients: [CLIENT],
+    audience: AUDIENCE,
+    clientId: CLIENT,
     providerAlias: PROVIDER,
     jwks,
     now: () => new Date(NOW_SECONDS * 1_000),
@@ -95,12 +95,10 @@ describe("auth-v2 OIDC token validator", () => {
     ).rejects.toMatchObject({ code: "oidc_token_invalid", kind: "invalid" });
   });
 
-  it("accepts an audience from the configured catalog", async () => {
+  it("rejects a token for another AKB catalog audience", async () => {
     await expect(
-      validator({ acceptedAudiences: ["other-api", AUDIENCE] }).validate(
-        await token(),
-      ),
-    ).resolves.toBeDefined();
+      validator({ audience: "other-api" }).validate(await token()),
+    ).rejects.toMatchObject({ code: "oidc_token_invalid" });
   });
 
   it("accepts a configured audience alongside another recipient", async () => {
@@ -153,7 +151,7 @@ describe("auth-v2 OIDC token validator", () => {
   });
 
   it("rejects invalid validator configuration instead of widening trust", () => {
-    expect(() => validator({ acceptedAudiences: [] })).toThrow(
+    expect(() => validator({ audience: "" })).toThrow(
       "oidc_validator_config_invalid",
     );
     expect(() =>
@@ -179,7 +177,7 @@ describe("auth-v2 OIDC token validator", () => {
     ).resolves.toMatchObject({ account: { id: "akb-1" } });
   });
 
-  it.each(ACCOUNT_DENIAL_CODES)(
+  it.each(AKB_AUTH_V2_ACCOUNT_DENIAL_CODES)(
     "surfaces the AKB denial %s without a claim fallback",
     async (code) => {
       const oidc = validator();

@@ -14,9 +14,14 @@ import { CURRENT_USER_QUERY_KEY } from "../hooks/useCurrentUser";
 export interface LoginFormProps {
   /** Where to send the browser after a successful login. */
   redirectTo?: string;
+  /** Use the explicitly gated auth-v2 local-login handler. */
+  authV2?: boolean;
 }
 
-export function LoginForm({ redirectTo = "/" }: LoginFormProps) {
+export function LoginForm({
+  redirectTo = "/",
+  authV2 = false,
+}: LoginFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const t = useTranslations("auth.form");
@@ -31,12 +36,15 @@ export function LoginForm({ redirectTo = "/" }: LoginFormProps) {
     setError(null);
     setIsSubmitting(true);
     try {
-      const res = await apiFetch("/api/auth/akb/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ username, password }),
-      });
+      const res = await apiFetch(
+        authV2 ? "/api/auth/v2/login" : "/api/auth/akb/login",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ username, password }),
+        },
+      );
 
       if (res.ok) {
         // AKB is the auth boundary — clear the previous account's
