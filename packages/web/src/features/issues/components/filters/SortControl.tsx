@@ -293,6 +293,11 @@ export function SortControl({
             <TooltipTrigger
               asChild
               onPointerEnter={() => setDirectionPointerInside(true)}
+              onPointerMove={(event) => {
+                if (event.pointerType !== "touch") {
+                  setDirectionPointerInside(true);
+                }
+              }}
               onPointerLeave={() => setDirectionPointerInside(false)}
               onFocus={() => setDirectionFocused(true)}
               onBlur={(event) => {

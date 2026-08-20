@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -89,7 +89,7 @@ describe("SortControl", () => {
     render(<SortControl />);
 
     const direction = screen.getByTestId("sort-direction-toggle");
-    await user.hover(direction);
+    fireEvent.pointerMove(direction, { pointerType: "mouse" });
     expect(await screen.findByRole("tooltip")).toHaveTextContent(
       "Direction: High → Low",
     );
@@ -105,6 +105,13 @@ describe("SortControl", () => {
       "aria-label",
       expect.stringContaining("Low → High"),
     );
+    expect(direction).toHaveAttribute("title", "Direction: Low → High");
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "Direction: Low → High",
+    );
+
+    fireEvent.blur(direction);
+    fireEvent.pointerMove(direction, { pointerType: "mouse" });
     expect(await screen.findByRole("tooltip")).toHaveTextContent(
       "Direction: Low → High",
     );

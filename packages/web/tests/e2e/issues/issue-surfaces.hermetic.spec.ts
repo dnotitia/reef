@@ -353,25 +353,33 @@ test.describe("Hermetic issue route surfaces", () => {
   test("shows the direction tooltip on hover, focus, and after toggling", async ({
     page,
   }) => {
-    await page.setViewportSize({ width: 768, height: 844 });
     await openExistingWorkspace(page);
-    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
-    await expect(page.getByTestId("sort-direction-toggle")).toBeVisible();
 
-    const direction = page.getByTestId("sort-direction-toggle");
-    const tooltip = page.getByRole("tooltip");
-    await direction.hover();
-    await expect(tooltip).toBeVisible();
-    await expect(tooltip).toHaveText("Direction: High → Low");
+    for (const width of [320, 768]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+      await expect(page.getByTestId("sort-direction-toggle")).toBeVisible();
 
-    await direction.focus();
-    await expect(tooltip).toBeVisible();
-    await expect(tooltip).toHaveText("Direction: High → Low");
+      // Selecting a date sort exercises the same long-lived direction state
+      // that the narrow and desktop route checks share.
+      await page.getByTestId("sort-control-trigger").click();
+      await page.getByTestId("sort-option-created_at").click();
 
-    await direction.press("Enter");
-    await expect(direction).toHaveAttribute("aria-label", /Low → High/);
-    await expect(tooltip).toBeVisible();
-    await expect(tooltip).toHaveText("Direction: Low → High");
+      const direction = page.getByTestId("sort-direction-toggle");
+      const tooltip = page.getByRole("tooltip");
+      await direction.hover();
+      await expect(tooltip).toBeVisible();
+      await expect(tooltip).toHaveText("Direction: Newest");
+
+      await direction.focus();
+      await expect(tooltip).toBeVisible();
+      await expect(tooltip).toHaveText("Direction: Newest");
+
+      await direction.press("Space");
+      await expect(direction).toHaveAttribute("aria-label", /Oldest/);
+      await expect(tooltip).toBeVisible();
+      await expect(tooltip).toHaveText("Direction: Oldest");
+    }
   });
 
   test("keeps List and Backlog table geometry and controls aligned on desktop", async ({
