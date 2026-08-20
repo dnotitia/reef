@@ -5,10 +5,7 @@
  */
 
 import { getAkbBackendUrl } from "@/lib/akb/akbBackendUrl";
-import {
-  extractAuthSessionCarrier,
-  extractAkbSession,
-} from "@/lib/akb/extractAkbSession";
+import { extractAkbSession } from "@/lib/akb/extractAkbSession";
 import {
   AUTH_ACCOUNT_ERROR_HEADER,
   AUTH_INVALIDATED_HEADER,
@@ -21,7 +18,6 @@ import {
   type AkbAccountErrorCode,
   type AkbAdapter,
   type AkbResourceLabel,
-  AkbApiError,
   AuthError,
   ISSUE_ID_PATTERN,
   NotFoundError,
@@ -33,9 +29,6 @@ import {
   createAkbAdapter,
   isAkbAccountErrorCode,
 } from "@reef/core";
-import { readAuthRuntimeConfig } from "@/server/auth/config";
-import { getSsoAuthRuntime } from "@/server/auth/runtime";
-import { SsoSessionError } from "@/server/auth/ssoSessionService";
 import { z } from "zod";
 import { localizeError, localizedErrorResponse } from "./errorLocalization";
 
@@ -181,10 +174,6 @@ function isExpiredLocalSession(err: unknown): boolean {
   );
 }
 
-function isInvalidSsoSession(err: unknown): boolean {
-  return err instanceof SsoSessionError && err.kind !== "transient";
-}
-
 export function invalidJsonBodyResponse(): Promise<Response> {
   return localizedErrorResponse("invalidJsonBody", 400);
 }
@@ -264,98 +253,14 @@ export async function respondWithError(
 // ─── Adapter construction ────────────────────────────────────────────────────
 
 /**
- * Build a per-request AKB adapter from the selected auth profile. Local mode
- * closes over AKB's cookie JWT; SSO resolves the current server-held Keycloak
- * access token lazily from an opaque handle while retaining the legacy JWT
- * carrier for the hybrid username/password surface.
+ * Build a per-request akb adapter from the session cookie. Returns the
+ * adapter on success, or a 401 Response when the cookie is missing/expired.
  *
  * The adapter is scoped to one request — does not cached at module scope.
  */
 export function getAkbAdapter(
   request: Request,
 ): { adapter: AkbAdapter } | { response: Promise<Response> } {
-  let authConfig: ReturnType<typeof readAuthRuntimeConfig>;
-  try {
-    authConfig = readAuthRuntimeConfig();
-  } catch {
-    return { response: backendErrorResponse() };
-  }
-
-  if (authConfig.mode === "sso") {
-    let session: ReturnType<typeof extractAuthSessionCarrier>;
-    try {
-      session = extractAuthSessionCarrier(request);
-    } catch {
-      return {
-        response: authErrorResponse({ clearEstablishedAuth: true }),
-      };
-    }
-    let backendUrl: string;
-    try {
-      backendUrl = getAkbBackendUrl();
-    } catch {
-      return { response: backendErrorResponse() };
-    }
-    if (session.kind === "local") {
-      return {
-        adapter: createAkbAdapter({ baseUrl: backendUrl, jwt: session.jwt }),
-      };
-    }
-    const handle = session.handle;
-    let accessTokenPromise: Promise<string> | null = null;
-    const adapter: AkbAdapter = {
-      request: async (path, init) => {
-        let runtime: Awaited<ReturnType<typeof getSsoAuthRuntime>>;
-        let accessToken: string;
-        try {
-          runtime = await getSsoAuthRuntime();
-          accessTokenPromise ??= runtime.sessions.resolveAccessToken(handle);
-          accessToken = await accessTokenPromise;
-        } catch (error) {
-          if (isInvalidSsoSession(error)) {
-            throw new AuthError({
-              origin: "akb",
-              status: 401,
-              message: "sso_session_expired",
-            });
-          }
-          if (error instanceof SsoSessionError) {
-            throw new AkbApiError({
-              status: 503,
-              message: "sso_session_upstream_unavailable",
-            });
-          }
-          throw new AkbApiError({
-            status: 503,
-            message: "sso_session_upstream_unavailable",
-          });
-        }
-        try {
-          return await createAkbAdapter({
-            baseUrl: backendUrl,
-            accessToken,
-          }).request(path, init);
-        } catch (error) {
-          const invalidated =
-            error instanceof AuthError &&
-            error.context.origin === "akb" &&
-            (error.context.status === 401 ||
-              isAkbAccountErrorCode(error.context.code));
-          if (invalidated) {
-            try {
-              await runtime.sessions.invalidate(handle);
-            } catch {
-              // Preserve AKB's account/session denial so the response clears
-              // the opaque browser carrier even if Redis is unavailable.
-            }
-          }
-          throw error;
-        }
-      },
-    };
-    return { adapter };
-  }
-
   let jwt: string;
   try {
     jwt = extractAkbSession(request);
@@ -378,10 +283,8 @@ export function getAkbAdapter(
  * The actor is not persisted server-side. We validate the httpOnly session on
  * each mutating request via akb `/auth/me` (through core `akbGetCurrentActor`),
  * then use the public username for `Issue.created_by` / `Issue.updated_by`. A
- * local AKB JWT claim is just a fallback for older AKB deployments that do not
- * return the expected public profile shape. Opaque SSO sessions do not fall
- * back to Keycloak claims; a legacy JWT in the hybrid SSO profile follows the
- * normal AKB username fallback.
+ * JWT claim is just a fallback for older akb deployments that do not return the
+ * expected public profile shape.
  *
  * REEF-052: the akb wire call, schema, and claim-decode now live in `core`.
  * This helper keeps cookie decode (web-owned) and the PM-facing error mapping.
@@ -395,26 +298,9 @@ export async function getAkbCurrentActor(
   // This helper is already async, so it awaits the localized error responses to
   // a settled `Response` — the GitHub credential resolvers read `.status` off
   // this `response` arm, so it needs to be settled.
-  const adapterResult = getAkbAdapter(request);
-  if ("response" in adapterResult) {
-    return { response: await adapterResult.response };
-  }
-
-  let authMode: "local" | "sso";
+  let jwt: string;
   try {
-    authMode = readAuthRuntimeConfig().mode;
-  } catch {
-    return { response: await backendErrorResponse() };
-  }
-
-  let actorFallbackJwt: string;
-  try {
-    if (authMode === "local") {
-      actorFallbackJwt = extractAkbSession(request);
-    } else {
-      const session = extractAuthSessionCarrier(request);
-      actorFallbackJwt = session.kind === "local" ? session.jwt : "";
-    }
+    jwt = extractAkbSession(request);
   } catch (err) {
     return {
       response: await authErrorResponse({
@@ -423,11 +309,18 @@ export async function getAkbCurrentActor(
     };
   }
 
+  let backendUrl: string;
+  try {
+    backendUrl = getAkbBackendUrl();
+  } catch {
+    return { response: await backendErrorResponse() };
+  }
+
   let actor: string | null;
   try {
     ({ actor } = await akbGetCurrentActor({
-      adapter: adapterResult.adapter,
-      jwt: actorFallbackJwt,
+      adapter: createAkbAdapter({ baseUrl: backendUrl, jwt }),
+      jwt,
     }));
   } catch (err) {
     if (err instanceof AuthError) {
@@ -467,14 +360,6 @@ export async function getAkbCurrentActor(
 export async function resolveOptionalActor(
   request: Request,
 ): Promise<string | null> {
-  try {
-    if (readAuthRuntimeConfig().mode === "sso") {
-      const result = await getAkbCurrentActor(request);
-      return "response" in result ? null : result.actor;
-    }
-  } catch {
-    return null;
-  }
   let jwt: string;
   try {
     jwt = extractAkbSession(request);

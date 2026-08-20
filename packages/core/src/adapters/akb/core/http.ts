@@ -310,24 +310,17 @@ function makeRequest(
 // ─── Factory ──────────────────────────────────────────────────────────────────
 
 /**
- * Factory: create a per-request adapter scoped to one trusted bearer
- * credential. Local mode passes AKB's session JWT; SSO BFFs pass the current
- * OIDC access token intended for the AKB API.
+ * Factory: create a per-request adapter scoped to a single AKB-issued JWT.
  *
  * Callers should instantiate the adapter inside the request handler and let it be
- * GC'd on return — does not cache at module scope. The bearer credential is held
- * in the closure only for the lifetime of the request.
+ * GC'd on return — does not cache at module scope. The JWT is held in the
+ * closure only for the lifetime of the request.
  */
 export function createAkbAdapter(input: {
   baseUrl: string;
-  jwt?: string;
-  accessToken?: string;
+  jwt: string;
   requestPolicy?: AkbRequestPolicy;
 }): AkbAdapter {
-  const bearerToken = input.accessToken ?? input.jwt;
-  if (!bearerToken || (input.accessToken && input.jwt)) {
-    throw new Error("Exactly one AKB bearer credential is required");
-  }
   if (
     input.requestPolicy &&
     (!Number.isSafeInteger(input.requestPolicy.timeoutMs) ||
@@ -338,6 +331,6 @@ export function createAkbAdapter(input: {
     throw new Error("AKB request policy must use positive integer bounds");
   }
   return {
-    request: makeRequest(input.baseUrl, bearerToken, input.requestPolicy),
+    request: makeRequest(input.baseUrl, input.jwt, input.requestPolicy),
   };
 }

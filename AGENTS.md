@@ -50,20 +50,11 @@ metadata.
 
 ## Core Invariants
 
-- Reef product state remains in AKB. Local auth stays stateless: the AKB-issued
-  JWT is the `__reef_session` httpOnly cookie and is forwarded to AKB per
-  request. SSO is the one intentional ephemeral secret-state exception:
-  reef-web owns Authorization Code + PKCE, gives the browser only a random
-  opaque `__reef_session` handle, and keeps the Keycloak token set encrypted
-  with AES-256-GCM in Redis.
-- Production SSO fails closed without `REEF_SESSION_REDIS_URL` and an
-  independent 32-byte `REEF_SESSION_ENCRYPTION_KEY`, plus a distinct explicit
-  in-cluster Keycloak transport whose exact realm path matches the canonical
-  issuer. An in-memory session backend, ephemeral key, and issuer transport are
-  allowed only in tests or non-production development. Session TTLs never pass
-  their immutable login-time deadline; back-channel logout keeps only hashed
-  sid/sub/jti index metadata. Access, refresh, and ID tokens must never enter
-  browser-visible JavaScript, bodies, URLs, storage, cookies, logs, or span attributes.
+- reef-web persists nothing that belongs to a specific user: no database,
+  server-side session store, Redis, KMS, or per-user cache.
+- The akb session is the `__reef_session` httpOnly cookie; decode it read-only
+  per request and forward the AKB-issued JWT to akb as
+  `Authorization: Bearer <akb-jwt>`.
 - GitHub access for monitored-repo grounding and activity scans is deployment
   managed through `REEF_GITHUB_APP_ID`, `REEF_GITHUB_APP_INSTALLATION_ID`, and
   `REEF_GITHUB_APP_PRIVATE_KEY`, with `REEF_GITHUB_PAT` allowed only as a
@@ -87,9 +78,9 @@ metadata.
   AKB adapter. Separate orchestration provider packages own only provider I/O
   explicitly granted by their provider-neutral contracts, such as SCM Git
   transport and GitHub pull-request delivery. Route Handlers remain thin: they
-  own cookie lifecycle, delegate OIDC/session custody to
-  `packages/web/src/server/auth/`, translate `ReefError` to PM-facing language,
-  and never own an inline AKB `fetch` or wire schema.
+  own session/cookie lifecycle (set/clear the `__reef_session` cookie, decode
+  it, translate `ReefError` to PM-facing language), never an inline `fetch` or
+  an inline AKB wire schema.
 
 ## TypeScript And Boundaries
 

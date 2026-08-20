@@ -6,10 +6,8 @@
   errors to PM-facing language, and return the response.
 - No business logic in Route Handlers. All user-initiated mutations go through
   Route Handlers via `apiFetch`; Next.js Server Actions are not used.
-- Local AKB JWTs stay in the httpOnly cookie. SSO access, refresh, and ID tokens
-  stay encrypted under `server/auth`; Route Handlers resolve only the opaque
-  cookie handle and current server-held access token. Token material never
-  enters URL query strings, response bodies, browser storage, or cookies.
+- Credentials stay in request headers or the httpOnly cookie, never URL query
+  strings.
 - The Ask AI chat runs on `POST /api/agents/runs` with `task_id:
   "chat.workspace"`. The route builds per-request AKB/GitHub/LLM adapters and
   delegates streaming to `createWorkspaceChatAgentResponse` from the server

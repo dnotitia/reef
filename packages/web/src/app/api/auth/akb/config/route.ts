@@ -10,31 +10,25 @@ import {
  * GET /api/auth/akb/config
  *
  * Public auth capability probe for the login page. This route is intentionally
- * sessionless: it exposes AKB's enabled provider catalog projected onto
- * Reef-owned OIDC start paths. It also projects the exact legacy single-provider
- * capability onto that same shape during the v2 rollout. It does not relay an
- * AKB browser-login URL. The AKB wire schema, fetch, and backend-url resolution
- * live behind {@link loadAkbAuthConfig} (shared with the /login server component).
+ * sessionless: it exposes whether akb has Keycloak SSO enabled and the
+ * akb-owned login start URL. The akb wire schema, fetch, and backend-url
+ * resolution live behind {@link loadAkbAuthConfig} (shared with the /login
+ * server component's SSO-first auto-redirect, REEF-312).
  */
 export async function GET(request: Request): Promise<Response> {
   const result = await loadAkbAuthConfig();
 
   if (!result.ok) {
     const response =
-      result.reason === "backend_rejected"
+      result.reason === "backend_unconfigured"
         ? Response.json(
+            { error: "The workspace backend is not configured." },
+            { status: 503 },
+          )
+        : Response.json(
             { error: "The workspace backend rejected the request." },
             { status: 502 },
-          )
-        : result.reason === "backend_unconfigured"
-          ? Response.json(
-              { error: "The workspace backend is not configured." },
-              { status: 503 },
-            )
-          : Response.json(
-              { error: "Authentication is not configured." },
-              { status: 503 },
-            );
+          );
     return consumePendingAuthInvalidation(request, response);
   }
 

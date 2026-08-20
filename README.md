@@ -26,9 +26,8 @@ them.
 ## What reef shows about AKB
 
 - **AKB can back a full product surface.** reef stores workspaces, issue bodies,
-  planning data, templates, settings, and membership in AKB. Local auth keeps
-  the web tier stateless; SSO adds only an encrypted, ephemeral token-custody
-  session in Redis.
+  planning data, templates, settings, and membership in AKB while keeping the web
+  tier stateless.
 - **Documents and tables work together.** Issue bodies live as AKB task
   documents, while board/list/report fields live in typed `reef_issues` rows.
 - **Agentic workflows can stay reviewable.** Enrichment and activity detection
@@ -37,10 +36,9 @@ them.
 - **Project state can follow real work.** reef reads commits, pull requests,
   branches, and code search results from monitored GitHub repositories to
   identify work that moved forward or was never tracked.
-- **Credentials stay out of browser storage.** Local mode uses an httpOnly AKB
-  JWT cookie. SSO exposes only a random opaque httpOnly handle while Reef keeps
-  the Keycloak token set encrypted server-side. GitHub access is read-only
-  through a deployment-managed GitHub App.
+- **Credentials stay out of browser storage.** The AKB session is an httpOnly
+  cookie, and GitHub access is read-only through a deployment-managed GitHub App
+  rather than a browser-stored token.
 
 ## Try reef locally
 
@@ -91,7 +89,6 @@ build the image and run it on port `3000`:
 ```bash
 docker build -t reef-web:local .
 docker run --rm -p 3000:3000 \
-  -e REEF_AUTH_MODE=local \
   -e AKB_BACKEND_URL=http://host.docker.internal:8000 \
   reef-web:local
 ```
@@ -99,8 +96,8 @@ docker run --rm -p 3000:3000 \
 Open [http://localhost:3000](http://localhost:3000). If AKB runs in the same
 Docker Compose network as reef-web, use the AKB service name in
 `AKB_BACKEND_URL` instead, for example `http://akb-backend:8000`. Add
-See the [SSO deployment contract](docs/keycloak-sso.md) before switching the
-container to `REEF_AUTH_MODE=sso`.
+`REEF_PUBLIC_ORIGIN=http://localhost:3000` when testing AKB-delegated SSO
+locally.
 
 AI is optional. To enable it, pass `REEF_LLM_API_KEY`, `REEF_LLM_BASE_URL`,
 and `REEF_LLM_MODEL` together; the endpoint can be OpenRouter or any compatible
@@ -125,7 +122,7 @@ inside this repository.
 | Path | Purpose |
 | --- | --- |
 | `packages/core` | Framework-agnostic TypeScript library (`@reef/core`) for schemas, models, AKB access, observability, and errors. |
-| `packages/web` | Next.js App Router application package (`@reef/web`) and mode-aware Backend-for-Frontend. Its server-only auth layer owns ephemeral SSO token custody, its adapters own GitHub/LLM I/O, and Route Handlers remain thin. |
+| `packages/web` | Next.js App Router application package (`@reef/web`) and stateless Backend-for-Frontend. Its server-only adapters own GitHub/LLM I/O and its application tree owns agents; Route Handlers remain thin. |
 | `packages/orchestration/runtime` | Provider-neutral execution core (`@reef/orchestrator`) for registry preflight, lifecycle, cancellation, cleanup, terminal results, and graceful shutdown outside the web process. |
 | `packages/orchestration/cli` | Private foreground work-URI invocation adapter (`@reef/orchestration-cli`) for strict config resolution, controller binding, bounded progress, cancellation, and terminal results. |
 | `packages/orchestration/providers/codex` | Private Codex App Server harness adapter (`@reef/harness-provider-codex`) for stdio lifecycle, policy enforcement, and secret-free harness events. |
@@ -190,10 +187,9 @@ reef has three runtime tiers:
   workspace as `@reef/core`. It owns schemas, domain models, the AKB adapter,
   observability, and typed errors. It is the only product owner of AKB I/O.
 - **reef web** is the Next.js application package, named `@reef/web` in the
-  workspace. It renders the product UI and acts as a mode-aware
-  Backend-for-Frontend. Local auth remains stateless; SSO stores only encrypted,
-  expiring token sessions in Redis. Its server-only tree also owns GitHub/LLM
-  adapters and agent application code.
+  workspace. It renders the product UI and acts as a stateless
+  Backend-for-Frontend; its server-only tree owns GitHub/LLM adapters and agent
+  application code.
 
 Provider-neutral one-run execution lives separately in `@reef/orchestrator`; a
 caller may schedule it outside the web process. The private
@@ -211,11 +207,10 @@ The root `Dockerfile` uses the repository-pinned Turbo dependency to prune the
 `@reef/web` workspace, builds its Next.js standalone output on Node 24, and
 runs it as a non-root user. Kubernetes manifests live under `deploy/k8s`.
 
-Production deployments provide an explicit `REEF_AUTH_MODE` and
-`AKB_BACKEND_URL`. SSO mode additionally configures Reef's dedicated Keycloak
-client, AKB API audience, public origin, Redis session store, and independent
-encryption key, plus a distinct in-cluster Keycloak transport for token/JWKS/
-revocation traffic. See [docs/deployment.md](docs/deployment.md) and
+Production deployments provide `AKB_BACKEND_URL` and deployment-managed LLM
+environment variables server-side. SSO is delegated through AKB; reef itself
+still only needs the AKB backend origin and, for cross-origin SSO, the public
+reef origin. See [docs/deployment.md](docs/deployment.md) and
 [docs/keycloak-sso.md](docs/keycloak-sso.md).
 
 ## Documentation

@@ -157,11 +157,10 @@ export function proxy(request: NextRequest) {
     // whose semantic convention denotes a *verified* end user — setting it from an
     // unverified edge claim would overstate it in traces/cost dashboards.
     //
-    // An SSO cookie is an opaque 256-bit handle, not a JWT, so decoding simply
-    // yields no actor and the handle is not logged. The token/PAT itself is
-    // not touched in either mode.
-    const sessionCarrier = request.cookies.get(SESSION_COOKIE)?.value;
-    const actor = sessionCarrier ? decodeSessionActor(sessionCarrier) : null;
+    // The public identity claim is read; the AKB JWT itself is not logged or
+    // forwarded from this edge-only access-line enrichment.
+    const sessionJwt = request.cookies.get(SESSION_COOKIE)?.value;
+    const actor = sessionJwt ? decodeSessionActor(sessionJwt) : null;
     logger.info(
       {
         method: request.method,

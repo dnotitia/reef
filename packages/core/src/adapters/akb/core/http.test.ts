@@ -30,33 +30,26 @@ describe("AkbSearchHitSchema", () => {
   });
 });
 
-describe("mode-aware AKB bearer adapter", () => {
-  it("forwards an SSO access token and requires exactly one credential", async () => {
+describe("bounded AKB JWT adapter", () => {
+  it("forwards the AKB-issued JWT", async () => {
     const { calls } = setupFetch([{ status: 204, empty: true }]);
     const adapter = createAkbAdapter({
       baseUrl: "https://akb.test",
-      accessToken: "keycloak-access-token",
+      jwt: "akb-jwt",
     });
 
     await adapter.request("/api/v1/auth/me");
 
     expect(calls[0]?.init?.headers).toMatchObject({
-      Authorization: "Bearer keycloak-access-token",
+      Authorization: "Bearer akb-jwt",
     });
-    expect(() =>
-      createAkbAdapter({
-        baseUrl: "https://akb.test",
-        jwt: "akb-jwt",
-        accessToken: "keycloak-access-token",
-      }),
-    ).toThrow("Exactly one AKB bearer credential is required");
   });
 
   it("does not replay a token-bearing POST across redirects", async () => {
     const { calls } = setupFetch([{ status: 204, empty: true }]);
     const adapter = createAkbAdapter({
       baseUrl: "https://akb.test",
-      accessToken: "keycloak-access-token",
+      jwt: "akb-jwt",
     });
 
     await adapter.request("/api/v1/project", {
@@ -67,11 +60,11 @@ describe("mode-aware AKB bearer adapter", () => {
     expect(calls[0]?.init?.redirect).toBe("manual");
   });
 
-  it("bounds an SSO projection response body", async () => {
+  it("bounds an AKB response body", async () => {
     setupFetch([{ body: { username: "alice", padding: "x".repeat(128) } }]);
     const adapter = createAkbAdapter({
       baseUrl: "https://akb.test",
-      accessToken: "keycloak-access-token",
+      jwt: "akb-jwt",
       requestPolicy: { maxJsonResponseBytes: 64, timeoutMs: 1_000 },
     });
 
@@ -99,7 +92,7 @@ describe("mode-aware AKB bearer adapter", () => {
     );
     const adapter = createAkbAdapter({
       baseUrl: "https://akb.test",
-      accessToken: "keycloak-access-token",
+      jwt: "akb-jwt",
       requestPolicy: { maxJsonResponseBytes: 64, timeoutMs: 20 },
     });
 

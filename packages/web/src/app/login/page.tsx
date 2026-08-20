@@ -5,7 +5,6 @@ import {
   buildPathWithParams,
   normalizeSafeRedirect,
 } from "@/lib/akb/safeRedirect";
-import { readAuthMode } from "@/server/auth/config";
 import { ssoAutoRedirectEnabled } from "@/lib/akb/ssoAutoRedirect";
 import { type AkbAccountErrorCode, isAkbAccountErrorCode } from "@reef/core";
 import { useTranslations } from "next-intl";
@@ -22,12 +21,11 @@ type LoginSearchParams = { [key: string]: string | string[] | undefined };
  * is retired). We still read it so older bookmarks carrying ?error= land
  * on a sensible message.
  *
- * An explicit SSO-only catalog policy or the deployment opt-in can skip the
- * panel when AKB publishes exactly one enabled provider; see
- * {@link resolveSsoAutoRedirect}. When that does not fire, the page is async (it
- * awaits `searchParams`), so it delegates instead of calling the
+ * SSO-first deployments (REEF-312) may opt into skipping the panel entirely:
+ * see {@link resolveSsoAutoRedirect}. When that does not fire, the page is async
+ * (it awaits `searchParams`), so it delegates instead of calling the
  * `useTranslations` hook directly. It resolves the error *kind* and delegates
- * localized rendering to the non-async {@link LoginView} server component.
+ * the localized rendering to the non-async {@link LoginView} server component.
  */
 export default async function LoginPage({
   searchParams,
@@ -58,38 +56,24 @@ export default async function LoginPage({
     redirect(ssoStartPath);
   }
 
-  let authMode: "local" | "sso" | null = null;
-  try {
-    authMode = readAuthMode();
-  } catch {
-    // An invalid deployment config does not expose either sign-in method.
-  }
-
-  return (
-    <LoginView
-      authMode={authMode}
-      errorKind={errorKind}
-      redirectTo={redirectTo}
-    />
-  );
+  return <LoginView errorKind={errorKind} redirectTo={redirectTo} />;
 }
 
 /**
- * Mode-aware SSO auto-redirect decision.
+ * SSO-first auto-redirect decision (REEF-312).
  *
  * Returns the same-origin `/api/auth/akb/sso/start` path to redirect to, or
  * null to render the panel. It fires for a *clean* entry into `/login`:
  *
- * - The deployment opts in with `REEF_SSO_AUTO_REDIRECT`, or AKB explicitly
- *   disables local auth (`sso_only` in the legacy projection), and exactly one
- *   enabled provider alias is available.
+ * - The deployment opted in (`REEF_SSO_AUTO_REDIRECT`) or AKB declares its
+ *   authoritative `keycloak.sso_only` presentation policy.
  * - No SSO/session error is present (`?sso_error=` / `?error=`). This is the
  *   loop guard: an SSO failure returns here, so auto-redirecting again would
  *   bounce the user between reef and Keycloak forever.
- * - No explicit loop escape (`?password=1` / `?prompt=login`), which keeps
- *   password sign-in reachable when an SSO round-trip fails.
- * - AKB reports its browser provider catalog ready. An unreachable or non-SSO
- *   backend leaves the panel in its mode-appropriate unavailable state.
+ * - No password escape hatch (`?password=1` / `?prompt=login`, AC3) so password
+ *   sign-in stays reachable when akb SSO is misconfigured or down.
+ * - akb actually reports Keycloak enabled with a login URL. An unreachable or
+ *   non-SSO backend falls back to the panel rather than a broken redirect.
  *
  * The original `?redirect=` destination is preserved into the SSO start so the
  * post-login landing is unchanged (AC4). A server-side redirect (vs the client
@@ -106,29 +90,25 @@ async function resolveSsoAutoRedirect({
 }): Promise<string | null> {
   if (errorKind !== null) return null;
   if (params.password === "1" || params.prompt === "login") return null;
-  const autoRedirect = ssoAutoRedirectEnabled();
 
   const result = await loadAkbAuthConfig();
-  if (!result.ok || !("schema_version" in result.config)) return null;
-  if (!autoRedirect && result.config.local_auth.enabled) return null;
-  const provider =
-    result.config.providers.length === 1
-      ? result.config.providers[0]
-      : undefined;
-  if (!result.config.keycloak.enabled || !provider?.login_url) return null;
+  if (!result.ok) return null;
+  if (!result.config.keycloak.enabled || !result.config.keycloak.login_url) {
+    return null;
+  }
+  if (!ssoAutoRedirectEnabled() && !result.config.keycloak.sso_only) {
+    return null;
+  }
 
   return buildPathWithParams("/api/auth/akb/sso/start", {
     redirect: redirectTo,
-    provider: provider.alias,
   });
 }
 
 function LoginView({
-  authMode,
   errorKind,
   redirectTo,
 }: {
-  authMode: "local" | "sso" | null;
   errorKind: LoginErrorKind;
   redirectTo: string;
 }) {
@@ -174,7 +154,7 @@ function LoginView({
           </p>
         )}
 
-        <LoginPanel authMode={authMode} redirectTo={redirectTo} />
+        <LoginPanel redirectTo={redirectTo} />
       </div>
     </main>
   );

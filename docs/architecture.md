@@ -26,12 +26,10 @@ reef has three runtime tiers:
   has no Next.js, React, DOM, browser-storage, GitHub SDK, LLM client, or AI SDK
   runtime dependencies.
 - **reef-web** — a Next.js App Router application that renders the product UI and
-  acts as a **mode-aware Backend-for-Frontend (BFF)** over the AKB vault. Local
-  auth is stateless. SSO adds one bounded exception: encrypted, expiring OIDC
-  token sessions in Redis behind opaque browser handles. Its server-only
-  adapters own GitHub/LLM I/O and its application tree owns agents; Route
-  Handlers validate input, resolve those use cases, call core for AKB/domain
-  behavior, and translate errors.
+  acts as a **stateless Backend-for-Frontend (BFF)** over the AKB vault. Its
+  server-only adapters own GitHub/LLM I/O and its application tree owns agents;
+  Route Handlers validate input, resolve those use cases, call core for AKB/domain
+  behavior, and translate errors. It persists no user-specific server state.
 
 Two auxiliary runtimes stay outside the interactive web request path:
 
@@ -70,9 +68,8 @@ Two auxiliary runtimes stay outside the interactive web request path:
 ```
 Browser (React UI, Zustand, TanStack Query, Dexie)
    │  apiFetch → /api/* Route Handlers
-reef-web (mode-aware Next.js BFF)
+reef-web (stateless Next.js BFF)
   ├── @reef/core AKB adapter + domain contracts
-  ├── server/auth (SSO OIDC + encrypted Redis token custody)
   └── server-only adapters/application
        ├── GitHub (monitored repos)                         — read-only grounding
        └── OpenAI-compatible LLM endpoint                    — chat + agents
@@ -111,19 +108,17 @@ across the app.
 
 - **`core` owns AKB product I/O** — data-plane reads and writes plus auth/session
   calls (`login`, `getMe`, `getCurrentActor`). The AKB adapter is constructed per
-  request and forwards the mode-selected credential (AKB JWT locally, current
-  Keycloak access token in SSO) as `Authorization: Bearer …` to
+  request and forwards an `Authorization: Bearer <pat>` header to
   `AKB_BACKEND_URL`.
 - **`web` owns provider and agent application I/O** under
   `packages/web/src/server/`. GitHub credential resolution, GitHub transport,
   LLM configuration, LLM transport, agent tools, and agent use cases stay out of
   core and are consumed by routes through the server application barrel.
 - **Route Handlers** under `packages/web/src/app/api/*/route.ts` remain thin. A
-  handler validates the request with a Zod schema, resolves the mode-aware
-  session carrier, resolves server application dependencies, calls core for
-  AKB/domain behavior, and translates errors into PM-facing language and HTTP
-  status. It owns no inline provider fetch, business logic, OIDC protocol, or
-  inline AKB wire schema.
+  handler validates the request with a Zod schema, extracts the AKB session
+  cookie, resolves server application dependencies, calls core for AKB/domain
+  behavior, and translates errors into PM-facing language and HTTP status. It
+  owns no inline provider fetch, business logic, or inline AKB wire schema.
 - **All user mutations flow through `apiFetch`** in client `.actions.ts` files,
   which call the Route Handlers. **Server Actions are not used**, so reads,
   mutations, and chat streaming all travel the same `apiFetch` → Route Handler →
@@ -180,28 +175,19 @@ retryable `ConflictError` instead of a silent overwrite. There is no diff/merge
 UI. This keeps queryable PM metadata fast while protecting externally editable
 document content from known stale-base writes.
 
-## Mode-aware web tier and credential placement
+## Stateless web tier and credential placement
 
 reef-web is Reef's interactive server; the optional orchestrator is a separate
-worker process and the Jira migrator is an operator-run process. Product state
-and account authority remain in AKB. Authentication has two explicit profiles:
+worker process and the Jira migrator is an operator-run process. To keep data
+ownership with the team and avoid per-user storage, **reef-web persists nothing
+that belongs to a specific user**: no database, no server-side session store, no
+Redis, no per-user cache, no KMS. Per-user state lives at the edges. The three
+credentials the web product needs are each placed deliberately:
 
-- **Local auth** — AKB's JWT is the `__reef_session` httpOnly cookie. Reef
-  decodes only its expiry/actor hints and forwards the JWT to AKB for validation.
-  No local session table exists.
-- **SSO auth** — Reef owns Authorization Code + PKCE for its dedicated Keycloak
-  client. The browser receives a random 256-bit `__reef_session` handle; access,
-  refresh, and ID tokens remain in an AES-256-GCM encrypted Redis record keyed by
-  a hash of that handle. Login state is one-time, encrypted, browser-bound, and
-  replay-safe. Refresh uses a bounded distributed lock plus atomic revision
-  compare-and-set capped by an immutable login-time deadline. Hashed Keycloak
-  sid/sub indexes support replay-protected OpenID Back-Channel Logout without
-  exposing identifiers in Redis metadata. Browser redirects and JWT issuer
-  checks use the canonical issuer; token/JWKS/revocation traffic uses a distinct
-  production-required in-cluster transport. This ephemeral secret-session store is not product state.
-  Production fails closed without Redis and an independent 32-byte encryption
-  key; only tests and non-production development may use memory with an
-  ephemeral key.
+- **AKB session** — a JWT inside the `__reef_session` httpOnly cookie. It is
+  decoded read-only per request and forwarded to AKB as
+  `Authorization: Bearer <pat>`. It is never mirrored to server memory or disk,
+  and `httpOnly` keeps it out of browser JavaScript.
 - **GitHub credentials** — deployment-managed server environment:
   `REEF_GITHUB_APP_ID`, `REEF_GITHUB_APP_INSTALLATION_ID`, and
   `REEF_GITHUB_APP_PRIVATE_KEY`. reef-web mints per-request installation tokens
@@ -219,10 +205,9 @@ and account authority remain in AKB. Authentication has two explicit profiles:
   or headers.
 
 A redacting logger masks `Authorization`, `Cookie`, `Set-Cookie`, and the
-LLM-config header in request and error logs. OIDC errors are reduced to bounded
-codes before logging, and tests assert that token material never enters a body,
-URL, cookie, or log argument. Browser-side token exposure is minimized by
-keeping OIDC, GitHub, and LLM credentials out of browser storage.
+LLM-config header in request and error logs; if a known token substring appears
+in output, tests fail. Browser-side token exposure is minimized by keeping
+GitHub and LLM credentials out of browser storage.
 
 ## The AI layer
 
@@ -277,9 +262,8 @@ emerge:
   store. `config` holds the active `vault`, theme, AKB user id, and per-vault UI
   preferences (active scan repo, saved issue filters). Monitored repos,
   `project_prefix`, GitHub credentials, and LLM settings are *not* in
-  `config` — they are AKB or deployment state. Authentication is not browser
-  JavaScript state: `__reef_session` is either the local AKB JWT or an opaque SSO
-  handle, and no OIDC token is persisted in browser storage.
+  `config` — they are AKB or deployment state. The AKB session is not browser
+  JavaScript state at all; it is the `__reef_session` cookie.
 
 Changing a Dexie store layout requires a version bump plus a migration closure,
 and changing a persisted query shape may require a TanStack Query buster bump.

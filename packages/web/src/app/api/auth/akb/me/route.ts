@@ -1,26 +1,28 @@
+import { getAkbBackendUrl } from "@/lib/akb/akbBackendUrl";
+import { extractAkbSession } from "@/lib/akb/extractAkbSession";
 import {
   AUTH_ACCOUNT_ERROR_HEADER,
   AUTH_INVALIDATED_HEADER,
 } from "@/lib/akb/headers";
 import { buildClearedEstablishedAuthCookies } from "@/lib/akb/sessionCookie";
 import { localizeError } from "@/lib/api/errorLocalization";
-import { getAkbAdapter } from "@/lib/api/requestHelpers";
 import { logger } from "@/lib/logging/logger";
 import {
   type AkbAccountErrorCode,
   AuthError,
   ReefError,
   akbGetMe,
+  createAkbAdapter,
   isAkbAccountErrorCode,
 } from "@reef/core";
 
 /**
  * GET /api/auth/akb/me
  *
- * Resolve the mode-aware `__reef_session` carrier and current AKB user through
- * `core` (`akbGetMe`), returning the public profile. A 401 means the selected
- * bearer credential is no longer valid, so Reef invalidates server state when
- * applicable and clears the browser carrier.
+ * Decode the `__reef_session` cookie and resolve the current akb user through
+ * `core` (`akbGetMe`), returning the public profile. A 401 from akb means the
+ * JWT is no longer valid (expired or revoked) — we clear the cookie defensively
+ * so the client falls back to /login on the next render.
  *
  * REEF-052: the akb `/auth/me` wire call + schema live in `core`; this Route
  * Handler owns just cookie decode/clear and the PM-facing status matrix.
@@ -29,34 +31,35 @@ import {
  * session into a 5xx — just an akb 401 (→ clear) or 5xx/network (→ 502) does.
  */
 export async function GET(request: Request): Promise<Response> {
-  const adapterResult = getAkbAdapter(request);
-  if ("response" in adapterResult) {
-    const response = await adapterResult.response;
-    if (
-      response.status === 401 &&
-      response.headers.get(AUTH_INVALIDATED_HEADER) !== "1"
-    ) {
-      const body = (await response
-        .clone()
-        .json()
-        .catch(() => null)) as { error?: unknown } | null;
-      return clearedSessionResponse(
-        typeof body?.error === "string"
-          ? body.error
-          : "Your session has expired. Please sign in again.",
-      );
+  let jwt: string;
+  try {
+    jwt = extractAkbSession(request);
+  } catch (err) {
+    if (err instanceof AuthError) {
+      return clearedSessionResponse(err.toUserMessage());
     }
-    return response;
+    throw err;
+  }
+
+  let backendUrl: string;
+  try {
+    backendUrl = getAkbBackendUrl();
+  } catch (err) {
+    logger.error({ err }, "akb_me: backend url missing");
+    return Response.json(
+      { error: "The workspace backend is not configured." },
+      { status: 503 },
+    );
   }
 
   let profile: unknown;
   try {
     ({ profile } = await akbGetMe({
-      adapter: adapterResult.adapter,
+      adapter: createAkbAdapter({ baseUrl: backendUrl, jwt }),
     }));
   } catch (err) {
     if (err instanceof AuthError) {
-      // AKB rejected the current bearer — clear the browser carrier.
+      // akb rejected the JWT (expired/revoked) — clear the cookie defensively.
       if (
         err.context.origin === "akb" &&
         isAkbAccountErrorCode(err.context.code)
