@@ -905,6 +905,7 @@
       "drag": "드래그",
       "resetToDefault": "기본값으로 재설정",
       "toggleDirection": "정렬 방향 전환",
+      "toggleDirectionAria": "{direction}에서 정렬 방향 전환",
       "rankOrder": "Rank 기준",
       "orderAria": "이슈 순서: {label}",
       "sortAria": "{field} 기준으로 이슈 정렬, {direction}",

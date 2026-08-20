@@ -725,6 +725,7 @@
       "drag": "Drag",
       "resetToDefault": "Reset to default",
       "toggleDirection": "Toggle sort direction",
+      "toggleDirectionAria": "Toggle sort direction from {direction}",
       "rankOrder": "Rank order",
       "orderAria": "Order issues: {label}",
       "sortAria": "Sort issues by {field}, {direction}",

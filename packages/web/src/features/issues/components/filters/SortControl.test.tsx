@@ -1,6 +1,19 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  CBX_CHEVRON,
+  CBX_TRIGGER_CHIP,
+  CBX_TRIGGER_CHIP_ACTIVE,
+  CBX_TRIGGER_CHIP_INACTIVE,
+} from "@/components/ui/comboboxChrome";
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { useIssueStore } from "../../stores/useIssueStore";
 import { SortControl } from "./SortControl";
 
@@ -15,6 +28,124 @@ beforeEach(() => {
 });
 
 describe("SortControl", () => {
+  it("uses the shared filter chip chrome and exposes chevron state", async () => {
+    const user = userEvent.setup();
+    render(<SortControl />);
+
+    const trigger = screen.getByTestId("sort-control-trigger");
+    expect(trigger.className).toContain(CBX_TRIGGER_CHIP);
+    expect(trigger.className).toContain(CBX_TRIGGER_CHIP_INACTIVE);
+    expect(screen.getByTestId("sort-control")).not.toHaveClass(
+      "border-brand-focus",
+    );
+
+    const chevron = trigger.querySelector("svg.lucide-chevron-down");
+    expect(chevron).not.toBeNull();
+    expect(chevron).toHaveAttribute("data-open", "false");
+    if (chevron) {
+      for (const token of CBX_CHEVRON.split(/\s+/u).filter(Boolean)) {
+        expect(chevron).toHaveClass(token);
+      }
+    }
+
+    await user.click(trigger);
+    expect(
+      screen
+        .getByTestId("sort-control-trigger")
+        .querySelector("svg.lucide-chevron-down"),
+    ).toHaveAttribute("data-open", "true");
+  });
+
+  it("marks explicit sorting active across the split control", () => {
+    useIssueStore.setState({
+      filter: { sortField: "priority", sortOrder: "desc" },
+    });
+    render(<SortControl />);
+
+    const trigger = screen.getByTestId("sort-control-trigger");
+    expect(trigger.className).toContain(CBX_TRIGGER_CHIP);
+    expect(trigger.className).toContain(CBX_TRIGGER_CHIP_ACTIVE);
+    expect(screen.getByTestId("sort-direction-toggle")).toHaveClass(
+      "border-brand-focus",
+      "bg-brand-fill/10",
+      "ring-1",
+      "ring-brand-focus/30",
+    );
+  });
+
+  it("names the current direction in the button label and tooltip", () => {
+    useIssueStore.setState({
+      filter: { sortField: "priority", sortOrder: "desc" },
+    });
+    render(<SortControl />);
+
+    const direction = screen.getByTestId("sort-direction-toggle");
+    expect(direction).toHaveAttribute(
+      "aria-label",
+      expect.stringContaining("High → Low"),
+    );
+    expect(direction).toHaveAttribute("title", "Direction: High → Low");
+  });
+
+  it("keeps the current direction tooltip through hover re-entry and toggles", async () => {
+    const user = userEvent.setup();
+    useIssueStore.setState({
+      filter: { sortField: "priority", sortOrder: "desc" },
+    });
+    render(<SortControl />);
+
+    const direction = screen.getByTestId("sort-direction-toggle");
+    fireEvent.pointerMove(direction, { pointerType: "mouse" });
+    await waitFor(() =>
+      expect(screen.getByRole("tooltip")).toHaveTextContent(
+        "Direction: High → Low",
+      ),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "Direction: High → Low",
+    );
+
+    await user.unhover(direction);
+    fireEvent.pointerLeave(direction);
+    await waitFor(() => expect(screen.queryByRole("tooltip")).toBeNull());
+    fireEvent.pointerMove(direction, { pointerType: "mouse" });
+    await waitFor(() =>
+      expect(screen.getByRole("tooltip")).toHaveTextContent(
+        "Direction: High → Low",
+      ),
+    );
+
+    direction.focus();
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "Direction: High → Low",
+    );
+
+    await user.keyboard("{Enter}");
+    expect(direction).toHaveAttribute(
+      "aria-label",
+      expect.stringContaining("Low → High"),
+    );
+    expect(direction).toHaveAttribute("title", "Direction: Low → High");
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "Direction: Low → High",
+    );
+
+    fireEvent.blur(direction);
+    fireEvent.pointerLeave(direction);
+    await waitFor(() => expect(screen.queryByRole("tooltip")).toBeNull());
+    fireEvent.pointerMove(direction, { pointerType: "mouse" });
+    await waitFor(() =>
+      expect(screen.getByRole("tooltip")).toHaveTextContent(
+        "Direction: Low → High",
+      ),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "Direction: Low → High",
+    );
+  });
+
   it("shows the pristine default (Priority · High → Low) without writing it to the store", () => {
     render(<SortControl />);
     const trigger = screen.getByTestId("sort-control-trigger");
@@ -88,6 +219,23 @@ describe("SortControl", () => {
   // REEF-169 — on the backlog the pristine state is `rank` order, and
   // this control is the single place that names it.
   describe("backlog rank order (supportsRankOrder)", () => {
+    it("keeps Rank 기준 as the shared label and 드래그 as backlog-only copy", async () => {
+      const user = userEvent.setup();
+      render(
+        <IntlTestProvider locale="ko">
+          <SortControl supportsRankOrder showsBacklogReorderHint />
+        </IntlTestProvider>,
+      );
+
+      expect(screen.getByTestId("sort-control-trigger")).toHaveTextContent(
+        "Rank 기준",
+      );
+      await user.click(screen.getByTestId("sort-control-trigger"));
+      expect(screen.getByTestId("sort-option-rank")).toHaveTextContent(
+        "드래그",
+      );
+    });
+
     it("shows Rank order — not the muted Priority default — when pristine", () => {
       render(<SortControl supportsRankOrder showsBacklogReorderHint />);
       const trigger = screen.getByTestId("sort-control-trigger");

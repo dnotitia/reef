@@ -12,6 +12,12 @@ interface IssueFilterToolbarProps {
   /** Forwarded to FilterBar to restrict the Status facet per view. */
   statusOptions?: readonly Status[];
   view?: IssueWorkspaceView;
+  /** Render the shared field/direction sort for views that support it. */
+  showSortControl?: boolean;
+  /** Treat the pristine shared sort state as Jira rank order. */
+  supportsRankOrder?: boolean;
+  /** Add the backlog-only drag affordance to the rank option. */
+  showsBacklogReorderHint?: boolean;
   groupBy?: IssueGroupBy;
   setGroupBy?: (groupBy: IssueGroupBy) => void;
 }
@@ -20,6 +26,9 @@ export function IssueFilterToolbar({
   backlogScope = false,
   statusOptions,
   view,
+  showSortControl,
+  supportsRankOrder = false,
+  showsBacklogReorderHint = false,
   groupBy,
   setGroupBy,
 }: IssueFilterToolbarProps) {
@@ -33,6 +42,9 @@ export function IssueFilterToolbar({
         backlogScope={backlogScope}
         statusOptions={statusOptions}
         view={view}
+        showSortControl={showSortControl}
+        supportsRankOrder={supportsRankOrder}
+        showsBacklogReorderHint={showsBacklogReorderHint}
         groupBy={groupBy}
         setGroupBy={setGroupBy}
       />

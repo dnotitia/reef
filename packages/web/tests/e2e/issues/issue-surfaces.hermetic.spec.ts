@@ -5,6 +5,7 @@ import {
   openExistingWorkspace,
   readFixtureState,
   resetFixture,
+  writeIndexedDbConfig,
 } from "../harness/fixture";
 
 function reefVault(
@@ -121,14 +122,88 @@ test.describe("Hermetic issue route surfaces", () => {
     ]) {
       await page.setViewportSize(viewport);
 
-      for (const view of ["list", "backlog", "timeline"] as const) {
+      for (const view of ["board", "list", "backlog", "timeline"] as const) {
         await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=${view}`);
         await expect(
           page.getByRole("textbox", { name: "Search issues" }),
         ).toBeVisible();
         await expect(page.getByTestId("view-switcher")).toBeVisible();
+        if (view === "backlog") {
+          const filterGeometry = await page
+            .getByTestId("filter-bar")
+            .evaluate((element) => {
+              const root = element as HTMLElement;
+              const rootRect = root.getBoundingClientRect();
+              const controls = [
+                '[data-testid="severity-dropdown-trigger"]',
+                '[data-testid="sort-control"]',
+              ].map((selector) =>
+                root
+                  .querySelector<HTMLElement>(selector)
+                  ?.getBoundingClientRect(),
+              );
+              return {
+                flexWrap: getComputedStyle(root).flexWrap,
+                filterOverflow: root.scrollWidth > root.clientWidth + 1,
+                controlsContained: controls.every(
+                  (rect) =>
+                    rect !== undefined &&
+                    rect.left >= rootRect.left - 1 &&
+                    rect.right <= rootRect.right + 1 &&
+                    rect.bottom <= rootRect.bottom + 1,
+                ),
+                documentOverflow:
+                  document.documentElement.scrollWidth >
+                  document.documentElement.clientWidth,
+              };
+            });
+          expect(
+            filterGeometry.flexWrap,
+            `${viewport.width}px filter wrap`,
+          ).toBe("wrap");
+          expect(
+            filterGeometry.filterOverflow,
+            `${viewport.width}px filter overflow`,
+          ).toBe(false);
+          expect(
+            filterGeometry.controlsContained,
+            `${viewport.width}px filter controls`,
+          ).toBe(true);
+          expect(
+            filterGeometry.documentOverflow,
+            `${viewport.width}px filter document overflow`,
+          ).toBe(false);
+        }
         if (view !== "timeline") {
           await expect(page.getByTestId("sort-control-trigger")).toBeVisible();
+          await expect(
+            page.locator(
+              '[data-slot="page-header"] [data-testid="sort-control"]',
+            ),
+          ).toHaveCount(0);
+          await expect(page.getByTestId("sort-control")).toHaveCount(1);
+          const sortPlacement = await page
+            .getByTestId("filter-bar")
+            .evaluate((root) => {
+              const display = root.querySelector(
+                '[data-testid="display-options-trigger"]',
+              );
+              const sort = root.querySelector('[data-testid="sort-control"]');
+              return {
+                directlyAfterDisplay:
+                  display?.parentElement?.nextElementSibling === sort,
+                toolbarOwnsSort: sort?.parentElement === root,
+              };
+            });
+          expect(sortPlacement.directlyAfterDisplay).toBe(true);
+          expect(sortPlacement.toolbarOwnsSort).toBe(true);
+        } else {
+          await expect(
+            page.locator(
+              '[data-slot="page-header"] [data-testid="sort-control"]',
+            ),
+          ).toHaveCount(0);
+          await expect(page.getByTestId("sort-control")).toHaveCount(0);
         }
 
         const headerGeometry = await page
@@ -170,6 +245,14 @@ test.describe("Hermetic issue route surfaces", () => {
           `${view} ${viewport.width}px main`,
         ).toBe(false);
 
+        if (view === "board") {
+          const boardScroll = page.getByTestId("kanban-board-body");
+          await expect(boardScroll).toHaveAttribute("role", "region");
+          await expect(boardScroll).toHaveAttribute("tabindex", "0");
+          await expect(boardScroll).toBeVisible();
+          continue;
+        }
+
         const scroll = page.getByTestId(
           view === "list"
             ? "issue-list-scroll-container"
@@ -198,6 +281,124 @@ test.describe("Hermetic issue route surfaces", () => {
           `${view} ${viewport.width}px scroll`,
         ).toBe(false);
       }
+    }
+  });
+
+  test("wraps Backlog filters inside a 320px dark viewport", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 320, height: 844 });
+    await openExistingWorkspace(page);
+    await writeIndexedDbConfig(page, "theme", "dark");
+    await page.emulateMedia({ colorScheme: "dark" });
+    await page.evaluate(() => {
+      window.localStorage.setItem("reef.theme", "dark");
+    });
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=backlog`);
+    await expect(page.locator("html")).toHaveClass(/dark/);
+    await expect(page.getByTestId("backlog-table")).toBeVisible();
+
+    const filterBar = page.getByTestId("filter-bar");
+    await expect(filterBar).toHaveAttribute("role", "region");
+    await expect(page.getByTestId("severity-dropdown-trigger")).toBeVisible();
+    await expect(page.getByTestId("sort-control-trigger")).toBeVisible();
+
+    const geometry = await filterBar.evaluate((element) => {
+      const root = element as HTMLElement;
+      const rootRect = root.getBoundingClientRect();
+      const controlSelectors = [
+        '[data-testid="severity-dropdown-trigger"]',
+        '[data-testid="sort-control"]',
+      ];
+      const controls = controlSelectors.map((selector) => {
+        const control = root.querySelector<HTMLElement>(selector);
+        const rect = control?.getBoundingClientRect();
+        return {
+          right: rect?.right ?? Number.POSITIVE_INFINITY,
+          bottom: rect?.bottom ?? Number.NEGATIVE_INFINITY,
+          visible: Boolean(rect && rect.width > 0 && rect.height > 0),
+        };
+      });
+      const dataScrollport = document.querySelector<HTMLElement>(
+        '[data-testid="backlog-scroll-container"]',
+      );
+      return {
+        flexWrap: getComputedStyle(root).flexWrap,
+        filterOverflow: root.scrollWidth > root.clientWidth + 1,
+        documentOverflow:
+          document.documentElement.scrollWidth >
+          document.documentElement.clientWidth,
+        controlsContained: controls.every(
+          (control) =>
+            control.visible &&
+            control.right <= rootRect.right + 1 &&
+            control.right >= rootRect.left - 1 &&
+            control.bottom <= rootRect.bottom + 1,
+        ),
+        dataScrollportPreserved:
+          dataScrollport !== null &&
+          dataScrollport.getAttribute("role") === "region" &&
+          dataScrollport.tabIndex === 0 &&
+          dataScrollport.scrollWidth > dataScrollport.clientWidth,
+      };
+    });
+
+    expect(geometry.flexWrap).toBe("wrap");
+    expect(geometry.filterOverflow).toBe(false);
+    expect(geometry.documentOverflow).toBe(false);
+    expect(geometry.controlsContained).toBe(true);
+    expect(geometry.dataScrollportPreserved).toBe(true);
+  });
+
+  test("shows the direction tooltip on hover, focus, and after toggling", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    for (const width of [320, 768]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+      await expect(page.getByTestId("sort-direction-toggle")).toBeVisible();
+
+      // Selecting a date sort exercises the same long-lived direction state
+      // that the narrow and desktop route checks share.
+      await page.getByTestId("sort-control-trigger").click();
+      await page.getByTestId("sort-option-created_at").click();
+
+      const direction = page.getByTestId("sort-direction-toggle");
+      const tooltip = page.getByRole("tooltip");
+      await direction.hover();
+      await expect(tooltip).toBeVisible();
+      await expect(tooltip).toHaveText("Direction: Newest");
+      await page.waitForTimeout(250);
+      await expect(tooltip).toBeVisible();
+      await expect(tooltip).toHaveText("Direction: Newest");
+
+      await page.getByTestId("sort-control-trigger").focus();
+      await page.mouse.move(8, 8);
+      await expect(tooltip).toBeHidden();
+      await direction.hover();
+      await expect(tooltip).toBeVisible();
+      await page.waitForTimeout(250);
+      await expect(tooltip).toBeVisible();
+      await expect(tooltip).toHaveText("Direction: Newest");
+
+      await direction.focus();
+      await expect(tooltip).toBeVisible();
+      await expect(tooltip).toHaveText("Direction: Newest");
+
+      await direction.press("Space");
+      await expect(direction).toHaveAttribute("aria-label", /Oldest/);
+      await expect(tooltip).toBeVisible();
+      await expect(tooltip).toHaveText("Direction: Oldest");
+
+      await page.getByTestId("sort-control-trigger").focus();
+      await page.mouse.move(8, 8);
+      await expect(tooltip).toBeHidden();
+      await direction.hover();
+      await expect(tooltip).toBeVisible();
+      await page.waitForTimeout(250);
+      await expect(tooltip).toHaveText("Direction: Oldest");
     }
   });
 
@@ -329,16 +530,38 @@ test.describe("Hermetic issue route surfaces", () => {
       "updated",
     ]);
 
-    const filterTops = await Promise.all(
-      ["type-dropdown-trigger", "display-options-trigger"].map(async (id) =>
-        page
-          .getByTestId(id)
-          .evaluate((element) => element.getBoundingClientRect().top),
-      ),
-    );
-    expect(
-      Math.max(...filterTops) - Math.min(...filterTops),
-    ).toBeLessThanOrEqual(1);
+    const filterGeometry = await page
+      .getByTestId("filter-bar")
+      .evaluate((element) => {
+        const root = element as HTMLElement;
+        const rootRect = root.getBoundingClientRect();
+        const display = root.querySelector<HTMLElement>(
+          '[data-testid="display-options-trigger"]',
+        );
+        const sort = root.querySelector<HTMLElement>(
+          '[data-testid="sort-control"]',
+        );
+        return {
+          sortImmediatelyAfterDisplay:
+            display?.parentElement?.nextElementSibling === sort,
+          controlsContained: Array.from(
+            root.querySelectorAll<HTMLElement>(
+              '[data-testid$="-dropdown-trigger"], [data-testid="sort-control"], [data-testid="milestone-filter"], [data-testid="labels-filter"], [data-testid="display-options-trigger"], [data-testid="named-filter-trigger"]',
+            ),
+          ).every((control) => {
+            const rect = control.getBoundingClientRect();
+            return (
+              rect.left >= rootRect.left - 1 && rect.right <= rootRect.right + 1
+            );
+          }),
+          documentOverflow:
+            document.documentElement.scrollWidth >
+            document.documentElement.clientWidth,
+        };
+      });
+    expect(filterGeometry.sortImmediatelyAfterDisplay).toBe(true);
+    expect(filterGeometry.controlsContained).toBe(true);
+    expect(filterGeometry.documentOverflow).toBe(false);
 
     const grip = page.locator('[data-testid^="backlog-grip-"]').first();
     await expect(grip).toBeVisible();
@@ -462,23 +685,26 @@ test.describe("Hermetic issue route surfaces", () => {
         '[data-testid="display-options-trigger"]',
         '[data-testid="named-filter-trigger"]',
       ];
-      const tops = selectors.map((selector) => {
-        const control = root.querySelector(selector);
-        return Math.round(control?.getBoundingClientRect().top ?? 0);
-      });
+      const rootRect = root.getBoundingClientRect();
       return {
-        filterBarHeight: Math.round(root.getBoundingClientRect().height),
-        tops,
+        flexWrap: getComputedStyle(root).flexWrap,
+        filterOverflow: root.scrollWidth > root.clientWidth + 1,
+        controlsContained: selectors.every((selector) => {
+          const control = root.querySelector<HTMLElement>(selector);
+          if (!control) return false;
+          const rect = control.getBoundingClientRect();
+          return (
+            rect.left >= rootRect.left - 1 && rect.right <= rootRect.right + 1
+          );
+        }),
         documentOverflow:
           document.documentElement.scrollWidth >
           document.documentElement.clientWidth,
       };
     });
-    expect(
-      Math.max(...backlogFilterGeometry.tops) -
-        Math.min(...backlogFilterGeometry.tops),
-    ).toBeLessThanOrEqual(1);
-    expect(backlogFilterGeometry.filterBarHeight).toBeLessThanOrEqual(40);
+    expect(backlogFilterGeometry.flexWrap).toBe("wrap");
+    expect(backlogFilterGeometry.filterOverflow).toBe(false);
+    expect(backlogFilterGeometry.controlsContained).toBe(true);
     expect(backlogFilterGeometry.documentOverflow).toBe(false);
   });
 

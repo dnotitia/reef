@@ -1,13 +1,26 @@
 "use client";
 
 import {
+  CBX_CHEVRON,
+  CBX_TRIGGER_CHIP,
+  CBX_TRIGGER_CHIP_ACTIVE,
+  CBX_TRIGGER_CHIP_INACTIVE,
+} from "@/components/ui/comboboxChrome";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  useDropdownMenu,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { useDirectionLabel, useSortFieldLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
@@ -27,6 +40,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useRef, useState } from "react";
 
 // Module-level: a stable reference, does not recreated per render.
 const SORT_OPTIONS = USER_SORT_FIELDS;
@@ -44,11 +58,64 @@ interface SortControlProps {
   showsBacklogReorderHint?: boolean;
 }
 
+interface SortControlTriggerProps {
+  rankOrderActive: boolean;
+  isDefault: boolean;
+  rankOrderLabel: string;
+  sortFieldLabel: string;
+  direction: string;
+  ariaLabel: string;
+}
+
+function SortControlTrigger({
+  rankOrderActive,
+  isDefault,
+  rankOrderLabel,
+  sortFieldLabel,
+  direction,
+  ariaLabel,
+}: SortControlTriggerProps) {
+  const { open } = useDropdownMenu();
+
+  return (
+    <DropdownMenuTrigger
+      className={cn(
+        CBX_TRIGGER_CHIP,
+        rankOrderActive || !isDefault
+          ? CBX_TRIGGER_CHIP_ACTIVE
+          : CBX_TRIGGER_CHIP_INACTIVE,
+        rankOrderActive
+          ? "shrink-0 whitespace-nowrap rounded-md"
+          : "shrink-0 whitespace-nowrap rounded-l-md rounded-r-none border-r-0",
+      )}
+      data-testid="sort-control-trigger"
+      aria-label={ariaLabel}
+    >
+      {rankOrderActive ? (
+        <ListOrdered className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      ) : (
+        <ArrowUpDown className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      )}
+      <span className="font-medium">
+        {rankOrderActive ? rankOrderLabel : sortFieldLabel}
+      </span>
+      {!rankOrderActive && (
+        <span className="text-muted-foreground">{direction}</span>
+      )}
+      <ChevronDown
+        data-open={open ? "true" : "false"}
+        aria-hidden="true"
+        className={CBX_CHEVRON}
+      />
+    </DropdownMenuTrigger>
+  );
+}
+
 /**
  * Shared sort control for the board, list, and backlog views (REEF-059). Mounted
- * once in the workspace header so every view reads the same `useIssueStore` sort
- * slot — a single mount structurally guarantees the "consistent across views"
- * contract rather than syncing parallel controls.
+ * once in the shared filter toolbar so every view reads the same
+ * `useIssueStore` sort slot — a single mount structurally guarantees the
+ * "consistent across views" contract rather than syncing parallel controls.
  *
  * Pristine-default behavior (REEF-057): with no explicit user choice the control
  * *displays* the default sort (Priority · High → Low) in a muted state but does
@@ -93,6 +160,13 @@ export function SortControl({
   const effectiveOrder = sortField
     ? (sortOrder ?? naturalSortOrder(sortField))
     : DEFAULT_ISSUE_SORT_ORDER;
+  const effectiveDirection = directionLabel(effectiveField, effectiveOrder);
+  const sortIsActive = rankOrderActive || !isDefault;
+  // Radix owns pointer hover/open timing. Keeping a second pointer flag here
+  // races its delayed open callback; focus is the only local pin needed to
+  // keep the tooltip visible through a keyboard or pointer click.
+  const directionFocusedRef = useRef(false);
+  const [directionTooltipOpen, setDirectionTooltipOpen] = useState(false);
 
   // Picking a field lands on its intuitive direction; the toggle flips from there.
   const selectField = (field: UserSortField) => {
@@ -109,55 +183,26 @@ export function SortControl({
 
   return (
     <div
-      className={cn(
-        "inline-flex h-8 items-center rounded-md border transition-colors duration-150",
-        isDefault
-          ? "border-border bg-surface-elevated"
-          : "border-brand-focus bg-brand-fill/10 ring-1 ring-brand-focus/30",
-      )}
+      className="inline-flex shrink-0 items-stretch"
       data-testid="sort-control"
     >
       <DropdownMenu>
-        <DropdownMenuTrigger
-          className={cn(
-            "inline-flex h-full items-center gap-1.5 px-2.5 text-[13px] transition-colors duration-150 hover:bg-surface-hover",
-            // No direction toggle in rank order, so the trigger is fully rounded.
-            rankOrderActive ? "rounded-md" : "rounded-l-md",
-            // Muted for the board/list implicit default; rank order and
-            // explicit sorts read as active foreground state.
-            isDefault && !rankOrderActive
-              ? "text-muted-foreground"
-              : "text-foreground",
-          )}
-          data-testid="sort-control-trigger"
-          aria-label={
+        <SortControlTrigger
+          rankOrderActive={rankOrderActive}
+          isDefault={isDefault}
+          rankOrderLabel={rankOrderLabel}
+          sortFieldLabel={sortFieldLabels[effectiveField]}
+          direction={effectiveDirection}
+          ariaLabel={
             rankOrderActive
               ? t("orderAria", { label: rankOrderLabel })
               : t("sortAria", {
                   field: sortFieldLabels[effectiveField],
-                  direction: directionLabel(effectiveField, effectiveOrder),
+                  direction: effectiveDirection,
                 })
           }
-        >
-          {rankOrderActive ? (
-            <ListOrdered className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          ) : (
-            <ArrowUpDown className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          )}
-          <span className="font-medium">
-            {rankOrderActive ? rankOrderLabel : sortFieldLabels[effectiveField]}
-          </span>
-          {!rankOrderActive && (
-            <span className="text-muted-foreground">
-              {directionLabel(effectiveField, effectiveOrder)}
-            </span>
-          )}
-          <ChevronDown
-            className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-            aria-hidden="true"
-          />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" data-testid="sort-control-content">
+        />
+        <DropdownMenuContent align="start" data-testid="sort-control-content">
           <DropdownMenuLabel>{t("sortBy")}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           {supportsRankOrder && (
@@ -238,22 +283,59 @@ export function SortControl({
       {/* Rank-backed pristine orders have no user-controlled asc/desc, so the
           direction toggle is hidden in those modes. */}
       {!rankOrderActive && (
-        <button
-          type="button"
-          onClick={toggleDirection}
-          className="inline-flex h-full items-center rounded-r-md border-l border-border-subtle px-2 text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground"
-          data-testid="sort-direction-toggle"
-          title={t("directionTitle", {
-            direction: directionLabel(effectiveField, effectiveOrder),
-          })}
-          aria-label={t("toggleDirection")}
-        >
-          {effectiveOrder === "desc" ? (
-            <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
-          ) : (
-            <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
-          )}
-        </button>
+        <TooltipProvider>
+          <Tooltip
+            open={directionTooltipOpen}
+            disableHoverableContent
+            onOpenChange={(nextOpen) => {
+              if (nextOpen || !directionFocusedRef.current) {
+                setDirectionTooltipOpen(nextOpen);
+              }
+            }}
+          >
+            <TooltipTrigger
+              asChild
+              onFocus={() => {
+                directionFocusedRef.current = true;
+              }}
+              onBlur={(event) => {
+                if (
+                  !event.currentTarget.contains(
+                    event.relatedTarget as Node | null,
+                  )
+                ) {
+                  directionFocusedRef.current = false;
+                  setDirectionTooltipOpen(false);
+                }
+              }}
+            >
+              <button
+                type="button"
+                onClick={toggleDirection}
+                className={cn(
+                  "inline-flex h-8 shrink-0 items-center rounded-r-md border border-l-0 px-2.5 text-[13px] transition-colors duration-150 hover:bg-surface-hover focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/30",
+                  sortIsActive
+                    ? "border-brand-focus bg-brand-fill/10 text-foreground ring-1 ring-brand-focus/30"
+                    : "border-border bg-surface-elevated text-muted-foreground",
+                )}
+                data-testid="sort-direction-toggle"
+                title={t("directionTitle", { direction: effectiveDirection })}
+                aria-label={t("toggleDirectionAria", {
+                  direction: effectiveDirection,
+                })}
+              >
+                {effectiveOrder === "desc" ? (
+                  <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
+                ) : (
+                  <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {t("directionTitle", { direction: effectiveDirection })}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       )}
     </div>
   );

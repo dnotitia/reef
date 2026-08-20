@@ -550,6 +550,13 @@ status. They share one route, one header, one Zustand filter scope, and one
 filter toolbar, with the backlog view hiding facets that are pinned or
 irrelevant there.
 
+The Issues page header keeps only the compact ViewSwitcher in its action slot.
+Board, List, and Backlog render one shared sort split-control in the filter
+toolbar immediately after Display options, so sorting stays in the same
+collection-tool group and joins its responsive wrapping flow. Timeline remains
+date-ordered and therefore omits the field/direction sort while preserving the
+same shared filter and view state.
+
 The workspace roots follow the same URL-first contract (REEF-424).
 `/workspace` is the only workspace route that consults the remembered Dexie
 default: it opens that vault's Issues surface or sends a signed-in browser with
