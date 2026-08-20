@@ -6,13 +6,6 @@ import {
   parseCookieHeader,
 } from "./sessionCookie";
 
-const OPAQUE_SESSION_HANDLE_RE = /^[A-Za-z0-9_-]{43}$/u;
-const JWT_SESSION_RE = /^[^.]+\.[^.]+\.[^.]+$/u;
-
-export type AuthSessionCarrier =
-  | { kind: "sso"; handle: string }
-  | { kind: "local"; jwt: string };
-
 /**
  * Extract the akb session JWT from the `__reef_session` cookie.
  *
@@ -37,36 +30,4 @@ export function extractAkbSession(source: Request | ReadonlyHeaders): string {
     throw new AuthError({ message: "expired_session_cookie" });
   }
   return jwt;
-}
-
-/** Extract the random server-side SSO session handle from the same cookie. */
-export function extractSsoSessionHandle(
-  source: Request | ReadonlyHeaders,
-): string {
-  const headers = source instanceof Request ? source.headers : source;
-  const handle = parseCookieHeader(headers.get("cookie"))[SESSION_COOKIE];
-  if (!handle || !OPAQUE_SESSION_HANDLE_RE.test(handle)) {
-    throw new AuthError({ message: "missing_sso_session" });
-  }
-  return handle;
-}
-
-/**
- * Resolve the dual login carrier used by the hybrid SSO deployment profile.
- * Opaque handles remain server-side SSO sessions; a JWT is the legacy
- * username/password session accepted alongside them.
- */
-export function extractAuthSessionCarrier(
-  source: Request | ReadonlyHeaders,
-): AuthSessionCarrier {
-  try {
-    return { kind: "sso", handle: extractSsoSessionHandle(source) };
-  } catch {
-    const headers = source instanceof Request ? source.headers : source;
-    const raw = parseCookieHeader(headers.get("cookie"))[SESSION_COOKIE];
-    if (!raw || !JWT_SESSION_RE.test(raw)) {
-      throw new AuthError({ message: "missing_session_cookie" });
-    }
-    return { kind: "local", jwt: extractAkbSession(source) };
-  }
 }

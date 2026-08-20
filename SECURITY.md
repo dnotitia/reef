@@ -1,11 +1,10 @@
 # Security Policy
 
 reef sits on the credential path for a team: it brokers deployment-managed
-GitHub credentials, the `__reef_session` httpOnly cookie that carries either a
-local AKB JWT or an opaque SSO handle, encrypted server-side OIDC sessions, and
-optional server-side LLM credentials, and it proxies configured requests to an
-LLM. Because of that, we take security reports seriously and ask that they be
-disclosed privately.
+GitHub credentials, the `__reef_session` httpOnly cookie that carries an AKB
+session, and optional server-side LLM credentials, and it proxies configured
+requests to an LLM. Because of that, we take security reports seriously and ask
+that they be disclosed privately.
 
 ## Reporting a vulnerability
 
@@ -39,16 +38,12 @@ upgrade to the most recent release before reporting, and report against it.
 
 ## Scope notes
 
-- Local-auth per-user secrets stay out of server storage: the AKB JWT is an
-  httpOnly cookie forwarded to AKB per request. SSO is the one intentional
-  exception: Reef stores access, refresh, and ID tokens only in AES-256-GCM
-  encrypted, expiring Redis records and gives the browser a random opaque
-  handle. Production SSO requires Redis and an independent 32-byte encryption
-  key. GitHub access is deployment-managed through a server-side GitHub App
-  (with an optional `REEF_GITHUB_PAT` fallback for local and CI), never a
-  browser token. Reports that demonstrate a leak of any of these credentials
-  to logs, LLM prompts, browser-visible bodies/storage/cookies, URLs, or another
-  user are in scope.
+- Per-user secrets are intentionally kept out of server storage: the AKB
+  session is an httpOnly cookie decoded read-only per request, and GitHub access
+  is deployment-managed through a server-side GitHub App (with an optional
+  `REEF_GITHUB_PAT` fallback for local and CI) rather than a browser-stored
+  token. Reports that demonstrate a leak of these credentials (to logs, LLM
+  prompts, the URL, or another user) are in scope.
 - LLM configuration (`REEF_LLM_API_KEY`, `REEF_LLM_BASE_URL`, and
   `REEF_LLM_MODEL`) is deployment-managed server state and must never be
   exposed to clients or included in prompts. All three values enable the LLM

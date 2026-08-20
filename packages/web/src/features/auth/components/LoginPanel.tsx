@@ -10,25 +10,21 @@ import {
   subscribeAkbAccountDenialCleared,
   subscribeAkbAccountDenied,
 } from "@/lib/akb/accountDenialClient";
-import {
-  isSafeSameOriginPath,
-  normalizeSafeRedirect,
-} from "@/lib/akb/safeRedirect";
+import { normalizeSafeRedirect } from "@/lib/akb/safeRedirect";
 import { apiFetch } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
 import { AkbAuthConfigSchema, isAkbAccountErrorCode } from "@reef/core";
 import { Building2, KeyRound, ShieldCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 export interface LoginPanelProps {
   redirectTo?: string;
-  authMode?: "local" | "sso" | null;
 }
 
 interface AuthCapabilities {
-  providers: Array<{ alias: string; displayName: string; loginUrl: string }>;
+  ssoEnabled: boolean;
   localAuthEnabled: boolean;
 }
 
@@ -36,10 +32,7 @@ function akbPlatformToken(chunks: ReactNode) {
   return <span translate="no">{chunks}</span>;
 }
 
-export function LoginPanel({
-  redirectTo = "/",
-  authMode = "local",
-}: LoginPanelProps) {
+export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const safeRedirect = normalizeSafeRedirect(redirectTo);
@@ -152,59 +145,33 @@ export function LoginPanel({
           signal: controller.signal,
         });
         if (!res.ok) {
-          setCapabilities({
-            providers: [],
-            // A failed SSO capability probe must not expose a password form;
-            // local mode retains its standalone password fallback.
-            localAuthEnabled: authMode === "local",
-          });
+          setCapabilities({ ssoEnabled: false, localAuthEnabled: true });
           return;
         }
         const config = AkbAuthConfigSchema.parse(await res.json());
-        const providers =
-          "schema_version" in config
-            ? config.providers.flatMap((provider) =>
-                provider.login_url && isSafeSameOriginPath(provider.login_url)
-                  ? [
-                      {
-                        alias: provider.alias,
-                        displayName: provider.display_name,
-                        loginUrl: provider.login_url,
-                      },
-                    ]
-                  : [],
-              )
-            : config.keycloak.enabled &&
-                config.keycloak.login_url &&
-                isSafeSameOriginPath(config.keycloak.login_url)
-              ? [
-                  {
-                    alias: "legacy",
-                    displayName: "SSO",
-                    loginUrl: "/api/auth/akb/sso/start",
-                  },
-                ]
-              : [];
         setCapabilities({
-          providers,
+          ssoEnabled: Boolean(
+            config.keycloak.enabled && config.keycloak.login_url,
+          ),
           localAuthEnabled: config.local_auth.enabled,
         });
       } catch {
         if (!controller.signal.aborted) {
-          setCapabilities({
-            providers: [],
-            localAuthEnabled: authMode === "local",
-          });
+          setCapabilities({ ssoEnabled: false, localAuthEnabled: true });
         }
       }
     }
 
     void loadConfig();
     return () => controller.abort();
-  }, [authMode]);
+  }, []);
 
-  const providers = capabilities?.providers ?? [];
-  const ssoEnabled = providers.length > 0;
+  const ssoStartUrl = useMemo(() => {
+    const params = new URLSearchParams({ redirect: safeRedirect });
+    return `/api/auth/akb/sso/start?${params.toString()}`;
+  }, [safeRedirect]);
+
+  const ssoEnabled = capabilities?.ssoEnabled ?? false;
   const localAuthEnabled = capabilities?.localAuthEnabled ?? false;
 
   if (capabilities && !ssoEnabled && localAuthEnabled) {
@@ -242,20 +209,15 @@ export function LoginPanel({
 
         {ssoEnabled && (
           <div className="flex flex-col gap-2">
-            {providers.map((provider) => (
-              <a
-                key={provider.alias}
-                href={`${provider.loginUrl}${provider.loginUrl.includes("?") ? "&" : "?"}redirect=${encodeURIComponent(safeRedirect)}`}
-                className={cn(
-                  "inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-brand-fill px-4 font-medium text-brand-on-fill text-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
-                )}
-              >
-                <KeyRound className="size-4" aria-hidden="true" />
-                {providers.length === 1
-                  ? t("continueWithSso")
-                  : provider.displayName}
-              </a>
-            ))}
+            <a
+              href={ssoStartUrl}
+              className={cn(
+                "inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-brand-fill px-4 font-medium text-brand-on-fill text-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
+              )}
+            >
+              <KeyRound className="size-4" aria-hidden="true" />
+              {t("continueWithSso")}
+            </a>
             <div className="flex items-center justify-center gap-1.5 text-muted-foreground text-xs">
               <ShieldCheck className="size-3.5" aria-hidden="true" />
               <span>{t.rich("useAkbIdentity", { akb: akbPlatformToken })}</span>

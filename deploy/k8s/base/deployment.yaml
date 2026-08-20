@@ -3,8 +3,8 @@ kind: Deployment
 metadata:
   name: reef-web
 spec:
-  # The base starts one replica. SSO deployments may scale replicas because
-  # encrypted session state and refresh coordination are shared through Redis.
+  # Single replica — reef-web is stateless (FR48) but traffic is flat
+  # (TanStack Query polling, no spiky load), so one pod suffices.
   replicas: 1
   selector:
     matchLabels:
@@ -36,8 +36,8 @@ spec:
                 name: reef-web-config
             - secretRef:
                 name: reef-web-secret
-                # GitHub and LLM capabilities are optional. Production SSO also
-                # supplies its Redis URL and independent encryption key here.
+                # GitHub and LLM capabilities are optional. Deployments that
+                # only use AKB/Keycloak do not need an otherwise empty Secret.
                 optional: true
           resources:
             requests:
@@ -54,7 +54,7 @@ spec:
             periodSeconds: 20
           readinessProbe:
             httpGet:
-              path: /api/readyz
+              path: /api/healthz
               port: 3000
             initialDelaySeconds: 5
             periodSeconds: 10

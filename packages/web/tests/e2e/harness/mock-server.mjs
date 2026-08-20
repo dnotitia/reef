@@ -267,8 +267,8 @@ const server = createServer(async (req, res) => {
         code: state.accountDenialCode,
       });
     }
-    // Legacy AKB Keycloak start retained as a negative cutover fixture. The
-    // default local-mode Reef runtime must not call or relay this endpoint.
+    // AKB's Keycloak login start. Reef calls this server-side and relays only
+    // the resulting public authorization redirect to the browser.
     if (
       url.pathname === "/api/v1/auth/keycloak/login" &&
       req.method === "GET"
@@ -282,8 +282,8 @@ const server = createServer(async (req, res) => {
       });
       return res.end();
     }
-    // Fixture stand-in for an external Keycloak authorize page. A dedicated SSO
-    // harness may use it; the default hermetic runtime stays in local mode.
+    // Fixture stand-in for the external Keycloak authorize page so the
+    // delegated SSO start can be exercised end to end.
     if (url.pathname === "/keycloak/authorize") {
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       return res.end(

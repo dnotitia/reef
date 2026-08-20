@@ -380,10 +380,6 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
     "Tiptap editor integration suite sharing one extension and transaction harness; split an extension family when another editor test reuses it.",
   ],
   [
-    "packages/web/src/server/auth/oidcClient.ts",
-    "Single OIDC client security boundary covering discovery, state, token exchange, and redacted error mapping; extract protocol helpers when another client shares them.",
-  ],
-  [
     "packages/orchestration/controller/src/store.test.ts",
     "Controller store contract suite sharing lock, atomic-write, and recovery fixtures; split a persistence scenario family when another store suite reuses it.",
   ],
@@ -442,10 +438,6 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
   [
     "packages/core/src/adapters/akb/issues/comments.ts",
     "Single comment adapter boundary keeping ownership, notification cascade, projection, and SQL mutations aligned; extract a query phase when another comment surface shares it.",
-  ],
-  [
-    "packages/web/src/server/auth/sessionRepository.ts",
-    "Single SSO session repository boundary covering encrypted records, refresh locks, indexes, and TTL cleanup; extract a backend adapter when another repository shares it.",
   ],
   [
     "packages/orchestration/controller/src/schema.ts",
@@ -523,7 +515,6 @@ const DUPLICATE_SCAN_IGNORES = [
   "packages/web/src/server/adapters/githubCredentials/resolveGitHubAdapter.test.ts",
   "packages/web/src/server/adapters/githubCredentials/resolveGroundingGitHubAdapter.test.ts",
   "packages/web/src/server/adapters/githubCredentials/resolveScanGitHubAdapter.test.ts",
-  "packages/web/src/server/auth/ssoSessionService.test.ts",
 ];
 
 const EXCLUDED_DIRS = new Set([

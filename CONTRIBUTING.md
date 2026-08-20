@@ -34,11 +34,9 @@ reef is a monorepo with nine private, non-published packages:
   behavior that touches schemas, adapters, agents, or shared contracts starts
   in `core`.
 - **`packages/web` (`@reef/web`)** — the Next.js App Router application and its
-  mode-aware BFF. Local auth is stateless; SSO is the bounded exception that
-  keeps encrypted, expiring OIDC token sets in Redis behind opaque browser
-  handles. Route Handlers under `src/app/api/*` remain thin wrappers that
-  validate requests, resolve the selected session mode, call `core`, and
-  translate errors.
+  stateless BFF. Route Handlers under `src/app/api/*` are thin wrappers that
+  validate requests, manage the session cookie, call `core`, and translate
+  errors.
 - **`packages/orchestration/runtime` (`@reef/orchestrator`)** — the long-running
   background runtime for worker scheduling, polling, and graceful shutdown
   outside the web process.

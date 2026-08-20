@@ -11,13 +11,12 @@ export interface SignOutResult {
 /**
  * Sign out of the akb workspace (REEF-068).
  *
- * This ends the selected Reef/AKB auth session just. GitHub access is
+ * This ends the active AKB workspace session. GitHub access is
  * deployment-managed and is not connected to this browser action. Two steps:
  *
  *  1. POST `/api/auth/akb/logout` expires the `__reef_session` cookie (AC2).
- *     Local mode is stateless. SSO mode first deletes the encrypted Reef
- *     session and best-effort revokes its refresh token, then returns a
- *     validated same-origin navigation path.
+ *     SSO logout also clears the optional Keycloak ID-token cookie and returns
+ *     a validated same-origin navigation path when AKB provides one.
  *  2. `wipeAkbScopedBrowserState` drops the akb-scoped client cache (persisted
  *     query snapshot + in-memory QueryClient, AC5) and the akb-scoped IndexedDB
  *     config — active vault, saved `filter:*`, `akb_user_id` (AC6). The wipe

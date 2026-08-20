@@ -33,10 +33,8 @@ RUN corepack enable
 COPY --from=deps /app/ ./
 COPY --from=pruner /app/out/full/ ./
 
-# Build with the stateless local profile so Next can evaluate instrumentation.
-# Authentication is read from the runner's environment again at process start;
-# this scoped value is not a runtime default.
-RUN REEF_AUTH_MODE=local pnpm run build
+# Build the pruned web workspace through the canonical root task.
+RUN pnpm run build
 
 
 # Stage 4: runner — minimal runtime image.

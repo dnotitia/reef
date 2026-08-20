@@ -2,8 +2,8 @@
  * Client-side probe for an active akb workspace session.
  *
  * The `__reef_session` cookie is httpOnly, so the browser does not read it
- * directly. We instead call `/api/auth/akb/me`, which resolves a local JWT or
- * opaque SSO handle server-side. A 2xx means the session is valid. A stable AKB account
+ * directly. We instead call `/api/auth/akb/me`, which resolves the AKB-issued
+ * JWT from the cookie. A 2xx means the session is valid. A stable AKB account
  * denial remains attached to the inactive result so the login surface can
  * explain a removal or suspension; unknown failures stay generic.
  *
