@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 import {
   readFixtureState,
   resetFixture,
@@ -6,6 +6,38 @@ import {
   waitForPasswordLogin,
   writeIndexedDbConfig,
 } from "../harness/fixture";
+
+async function expectContained(container: Locator, child: Locator) {
+  const [containerBox, childBox] = await Promise.all([
+    container.boundingBox(),
+    child.boundingBox(),
+  ]);
+  expect(containerBox, "container should be measurable").not.toBeNull();
+  expect(childBox, "child should be measurable").not.toBeNull();
+  if (!containerBox || !childBox) return;
+  expect(childBox.x).toBeGreaterThanOrEqual(containerBox.x - 1);
+  expect(childBox.y).toBeGreaterThanOrEqual(containerBox.y - 1);
+  expect(childBox.x + childBox.width).toBeLessThanOrEqual(
+    containerBox.x + containerBox.width + 1,
+  );
+  expect(childBox.y + childBox.height).toBeLessThanOrEqual(
+    containerBox.y + containerBox.height + 1,
+  );
+}
+
+async function expectWidthContained(container: Locator, child: Locator) {
+  const [containerBox, childBox] = await Promise.all([
+    container.boundingBox(),
+    child.boundingBox(),
+  ]);
+  expect(containerBox, "container should be measurable").not.toBeNull();
+  expect(childBox, "child should be measurable").not.toBeNull();
+  if (!containerBox || !childBox) return;
+  expect(childBox.x).toBeGreaterThanOrEqual(containerBox.x - 1);
+  expect(childBox.x + childBox.width).toBeLessThanOrEqual(
+    containerBox.x + containerBox.width + 1,
+  );
+}
 
 test.describe("Hermetic onboarding flow", () => {
   test.beforeEach(async ({ context, request }) => {
@@ -19,6 +51,10 @@ test.describe("Hermetic onboarding flow", () => {
   }) => {
     await signInAsAlice(page);
     await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+    await expect(
+      page.getByText("Create a project workspace to get started."),
+    ).toBeVisible();
+    await expect(page.getByText(/pick an existing workspace/i)).toHaveCount(0);
 
     await page
       .locator('[data-testid="greenfield-vault-name-input"]')
@@ -47,7 +83,7 @@ test.describe("Hermetic onboarding flow", () => {
     ).toBe(true);
   });
 
-  test("shows the existing-workspace empty state when no vault has reef config", async ({
+  test("shows the create form when no vault has reef config", async ({
     page,
     request,
   }) => {
@@ -58,6 +94,80 @@ test.describe("Hermetic onboarding flow", () => {
     await expect(
       page.locator('[data-testid="greenfield-vault-name-input"]'),
     ).toBeVisible();
+  });
+
+  test("announces required field errors and returns focus to the first error", async ({
+    page,
+  }) => {
+    await signInAsAlice(page);
+    await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+
+    const nameInput = page.getByTestId("greenfield-vault-name-input");
+    const prefixInput = page.getByTestId("greenfield-project-prefix-input");
+    await prefixInput.fill("");
+    await page.getByTestId("greenfield-create-btn").click();
+
+    await expect(nameInput).toHaveAttribute("required", "");
+    await expect(nameInput).toHaveAttribute("aria-invalid", "true");
+    await expect(nameInput).toHaveAttribute(
+      "aria-describedby",
+      "greenfield-vault-name-error",
+    );
+    await expect(page.getByTestId("greenfield-vault-name-error")).toBeVisible();
+    await expect(prefixInput).toHaveAttribute("aria-invalid", "true");
+    await expect(
+      page.getByTestId("greenfield-project-prefix-error"),
+    ).toBeVisible();
+    await expect(nameInput).toBeFocused();
+
+    await nameInput.fill("reef-new");
+    await expect(nameInput).not.toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByTestId("greenfield-vault-name-error")).toHaveCount(
+      0,
+    );
+  });
+
+  test("keeps onboarding controls and repository popover inside narrow forms", async ({
+    page,
+  }) => {
+    await signInAsAlice(page);
+    await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+
+    const panel = page.getByTestId("onboarding-panel");
+    const form = panel.locator("form");
+    const language = page.getByTestId("greenfield-authoring-language-select");
+    const repoTrigger = page.getByTestId("greenfield-monitored-repos-trigger");
+    await expect(repoTrigger).toBeVisible();
+
+    for (const width of [320, 375, 414, 768]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expectContained(panel, form);
+      await expectContained(form, language);
+      await expectContained(form, repoTrigger);
+
+      await repoTrigger.click();
+      const popover = page.getByRole("dialog", {
+        name: "Search repositories",
+      });
+      await expect(popover).toBeVisible();
+      await expectWidthContained(form, popover);
+      await expect(
+        page.getByTestId("greenfield-monitored-repos-search"),
+      ).toBeFocused();
+      await expect(
+        page.locator(
+          '[data-testid="greenfield-monitored-repos-option-octo/reef"]',
+        ),
+      ).toHaveAttribute("aria-label", "octo/reef");
+      await page.keyboard.press("Escape");
+      await expect(repoTrigger).toBeFocused();
+
+      const overflow = await page.evaluate(() => ({
+        clientWidth: document.documentElement.clientWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+      }));
+      expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth);
+    }
   });
 
   test("keeps the account menu on authenticated onboarding and signs out", async ({

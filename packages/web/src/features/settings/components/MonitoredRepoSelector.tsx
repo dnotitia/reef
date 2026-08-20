@@ -92,17 +92,22 @@ export function MonitoredRepoSelector({
   }
 
   if (isLoading) {
-    return <Skeleton className="h-9 w-64" />;
+    return (
+      <Skeleton
+        className="h-9 w-full max-w-64"
+        data-testid={`${testIdPrefix}-loading`}
+      />
+    );
   }
 
   return (
     <div className="flex flex-col gap-2">
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={setOpen} className="w-full max-w-64">
         <PopoverTrigger
           data-testid={`${testIdPrefix}-trigger`}
           aria-haspopup="dialog"
           disabled={disabled}
-          className="inline-flex h-8 w-64 items-center justify-between rounded-md border border-border bg-surface-elevated px-2.5 text-[13px] text-foreground transition-colors duration-150 hover:bg-surface-hover disabled:opacity-50"
+          className="inline-flex h-8 w-full max-w-full min-w-0 items-center justify-between rounded-md border border-border bg-surface-elevated px-2.5 text-[13px] text-foreground transition-colors duration-150 hover:bg-surface-hover disabled:opacity-50"
           aria-label={
             selectedRepos.size > 0
               ? t("reposSelected", { count: selectedRepos.size })
@@ -122,7 +127,7 @@ export function MonitoredRepoSelector({
         <PopoverContent
           role="dialog"
           aria-label={t("searchReposLabel")}
-          className="w-64 p-2"
+          className="w-full max-w-64 min-w-0 p-2"
         >
           <input
             type="text"
@@ -147,6 +152,8 @@ export function MonitoredRepoSelector({
                     type="button"
                     data-testid={`${testIdPrefix}-option-${repo.full_name}`}
                     disabled={disabled}
+                    aria-label={repo.full_name}
+                    aria-pressed={checked}
                     className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
                     onClick={() => onToggle(repo.full_name)}
                   >
@@ -172,13 +179,15 @@ export function MonitoredRepoSelector({
           {Array.from(selectedRepos).map((repo) => (
             <span
               key={repo}
-              className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs text-foreground"
+              className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs text-foreground"
             >
-              {repo}
+              <span className="min-w-0 truncate" title={repo}>
+                {repo}
+              </span>
               <button
                 type="button"
                 disabled={disabled}
-                className="text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground"
+                className="shrink-0 text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground"
                 aria-label={t("removeRepo", { repo })}
                 onClick={() => onToggle(repo)}
               >

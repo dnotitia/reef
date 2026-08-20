@@ -1530,7 +1530,7 @@
     }
   },
   "onboarding": {
-    "pageSubtitle": "Create a project workspace or pick an existing one.",
+    "pageSubtitle": "Create a project workspace to get started.",
     "newWorkspaceTitle": "New workspace",
     "newWorkspaceDescription": "Create a new akb vault and a reef project prefix.",
     "createWorkspaceTitle": "Create a project workspace",

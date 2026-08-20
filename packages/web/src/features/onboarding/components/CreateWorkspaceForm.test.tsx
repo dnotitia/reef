@@ -182,9 +182,49 @@ describe("CreateWorkspaceForm", () => {
     await user.click(screen.getByTestId("create-workspace-create-btn"));
 
     expect(
-      await screen.findByTestId("create-workspace-create-error"),
+      await screen.findByTestId("create-workspace-vault-name-error"),
     ).toBeInTheDocument();
     expect(postVaultCall()).toBeUndefined();
+  });
+
+  it("connects required field errors and focuses the first invalid field", async () => {
+    setupMockApi();
+    const user = userEvent.setup();
+
+    render(wrap(<CreateWorkspaceForm idPrefix="create-workspace" />));
+
+    const nameInput = screen.getByTestId("create-workspace-vault-name-input");
+    const prefixInput = screen.getByTestId(
+      "create-workspace-project-prefix-input",
+    );
+    await user.clear(prefixInput);
+    await user.click(screen.getByTestId("create-workspace-create-btn"));
+
+    expect(nameInput).toHaveAttribute("required");
+    expect(nameInput).toHaveAttribute("aria-invalid", "true");
+    expect(nameInput).toHaveAttribute(
+      "aria-describedby",
+      "create-workspace-vault-name-error",
+    );
+    expect(
+      screen.getByTestId("create-workspace-vault-name-error"),
+    ).toHaveTextContent(/workspace name/i);
+    expect(prefixInput).toHaveAttribute("aria-invalid", "true");
+    expect(prefixInput).toHaveAttribute(
+      "aria-describedby",
+      "create-workspace-project-prefix-error",
+    );
+    expect(
+      screen.getByTestId("create-workspace-project-prefix-error"),
+    ).toHaveTextContent(/project prefix/i);
+    expect(nameInput).toHaveFocus();
+    expect(postVaultCall()).toBeUndefined();
+
+    await user.type(nameInput, "reef-new");
+    expect(nameInput).not.toHaveAttribute("aria-invalid", "true");
+    expect(
+      screen.queryByTestId("create-workspace-vault-name-error"),
+    ).not.toBeInTheDocument();
   });
 
   it("renders the authoring-language picker unset by default, between description and repos (REEF-160 / AC2,3)", () => {

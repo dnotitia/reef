@@ -54,6 +54,51 @@ describe("MonitoredRepoSelector accessibility (REEF-151)", () => {
       .querySelector("svg");
     expect(removeIcon).toHaveAttribute("aria-hidden", "true");
   });
+
+  it("exposes each repository option name and pressed state", () => {
+    renderSelector(["acme/app"]);
+    fireEvent.click(screen.getByTestId("monitored-repos-trigger"));
+
+    const option = screen.getByRole("button", { name: "acme/app" });
+    expect(option).toHaveAttribute("aria-label", "acme/app");
+    expect(option).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("keeps long selected repository chips shrinkable with a persistent remove action", () => {
+    const fullName = "very-long-organization-name/very-long-repository-name";
+    render(
+      <MonitoredRepoSelector
+        availableRepos={[{ full_name: fullName, id: 1 }]}
+        selectedRepos={new Set([fullName])}
+        onToggle={vi.fn()}
+        isLoading={false}
+        isError={false}
+      />,
+    );
+
+    const remove = screen.getByRole("button", { name: `Remove ${fullName}` });
+    const chip = remove.parentElement;
+    expect(chip).toHaveClass("min-w-0", "max-w-full");
+    expect(remove).toHaveClass("shrink-0");
+    expect(screen.getByText(fullName)).toHaveClass("truncate");
+  });
+
+  it("contains the loading skeleton to the available width", () => {
+    render(
+      <MonitoredRepoSelector
+        availableRepos={repos}
+        selectedRepos={new Set()}
+        onToggle={vi.fn()}
+        isLoading
+        isError={false}
+      />,
+    );
+
+    expect(screen.getByTestId("monitored-repos-loading")).toHaveClass(
+      "w-full",
+      "max-w-64",
+    );
+  });
 });
 
 /**

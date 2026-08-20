@@ -1717,7 +1717,7 @@
     }
   },
   "onboarding": {
-    "pageSubtitle": "프로젝트 워크스페이스를 만들거나 기존 워크스페이스를 선택하세요.",
+    "pageSubtitle": "프로젝트 워크스페이스를 만들어 시작하세요.",
     "newWorkspaceTitle": "새 워크스페이스",
     "newWorkspaceDescription": "새 akb 볼트와 reef 프로젝트 접두사를 만듭니다.",
     "createWorkspaceTitle": "프로젝트 워크스페이스 만들기",

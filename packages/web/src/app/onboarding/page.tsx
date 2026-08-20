@@ -2,9 +2,8 @@
  * /onboarding — Single-screen project onboarding.
  *
  * The page is intentionally a thin Server Component shell so it can render
- * the heading SSR-first; the actual panel (new workspace form, existing
- * workspace picker, and optional tiles) is a Client Component owning all
- * client-side state.
+ * the heading SSR-first; the actual create-workspace panel is a Client
+ * Component owning all client-side state.
  *
  * No user data is accessed server-side.
  */
