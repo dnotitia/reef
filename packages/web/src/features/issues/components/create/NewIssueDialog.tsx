@@ -12,6 +12,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EnrichmentReviewBar } from "@/features/ai/components/EnrichmentReviewBar";
+import { ChatSurface } from "@/features/ai/components/ChatSurface";
+import { useWorkspaceChat } from "@/features/ai/hooks/useWorkspaceChat";
+import type { AgentRunFetch } from "@/features/ai/runtime/types";
 import { useCreateIssue } from "@/features/issues/hooks/mutations/useCreateIssue";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
@@ -28,18 +31,21 @@ import {
 } from "@/features/ui/stores/useViewStore";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { akbDocumentSlugTitle } from "@/lib/akb/documentUri";
+import { VAULT_HEADER } from "@/lib/akb/headers";
+import { apiFetch } from "@/lib/apiClient";
 import { withVault } from "@/lib/workspaceHref";
 import { DEFAULT_CONFIG } from "@reef/core";
 import type {
   DocumentSearchHit,
   EnrichmentRepoContext,
+  IssueCreateInput,
   IssueListItem,
   IssueType,
   ReferenceSuggestion,
   Template,
 } from "@reef/core";
 import { useQueryClient } from "@tanstack/react-query";
-import { Sparkles } from "lucide-react";
+import { MessageCircle, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -105,6 +111,8 @@ export function NewIssueDialog({
   const prefix =
     configQuery.data?.config.project_prefix ?? DEFAULT_CONFIG.project_prefix;
   const { data: vaultMembers = [] } = useVaultRoster(vault ?? "");
+  const subIssueContext =
+    dialogContext?.kind === "subIssue" ? dialogContext : null;
 
   const {
     title,
@@ -169,6 +177,7 @@ export function NewIssueDialog({
   const [referenceCandidates, setReferenceCandidates] = useState<
     ReferenceSuggestion[]
   >([]);
+  const [chatOpen, setChatOpen] = useState(false);
   // Focus target for the first invalid field on a failed submit (validation is
   // surfaced inline, not as a toast — see handleSubmit).
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -180,6 +189,35 @@ export function NewIssueDialog({
   const { data: existingIssues } = useIssueList(vault ?? "");
   // Whole-vault relation graph for accurate blocked badges in the relation dropdowns.
   const { data: relations } = useIssueRelations(vault ?? "");
+  const chatFetch = useMemo<AgentRunFetch>(
+    () => (input, init) =>
+      apiFetch(input, {
+        ...init,
+        headers: {
+          ...((init?.headers as Record<string, string> | undefined) ?? {}),
+          ...(vault ? { [VAULT_HEADER]: vault } : {}),
+        },
+      }),
+    [vault],
+  );
+  const chatDraft: IssueCreateInput = (() => {
+    const fields = buildCreateFields({
+      fallbackTitle: "(untitled)",
+      status: subIssueContext && sprintId ? "todo" : undefined,
+    });
+    if (subIssueContext) fields.parent_id = subIssueContext.parent.id;
+    return { fields, content: body };
+  })();
+  const knownIssueIds = useMemo(
+    () => new Set((existingIssues ?? []).map((issue) => issue.id)),
+    [existingIssues],
+  );
+  const workspaceChat = useWorkspaceChat({
+    fetch: chatFetch,
+    route: null,
+    reefId: null,
+    draft: chatDraft,
+  });
   // Optional GitHub grounding for enrichment code tools. Labels come from AKB
   // vault context; the first deployment-managed monitored repository enables
   // read-only code search.
@@ -225,8 +263,6 @@ export function NewIssueDialog({
       ),
     [referenceCandidates, references, dismissedRefs],
   );
-  const subIssueContext =
-    dialogContext?.kind === "subIssue" ? dialogContext : null;
   const issueBodyMentionConfig = useMemo(
     () =>
       vault
@@ -261,6 +297,8 @@ export function NewIssueDialog({
   function resetForm() {
     resetFields();
     setSubmitError(null);
+    setChatOpen(false);
+    workspaceChat.clear();
     setCreateAnother(false);
     setDismissedRefs(new Set());
     setReferenceCandidates([]);
@@ -281,8 +319,10 @@ export function NewIssueDialog({
         : undefined,
     );
     setSubmitError(null);
+    setChatOpen(false);
+    workspaceChat.clear();
     seededContextRef.current = dialogContext;
-  }, [dialogContext, open, resetFields]);
+  }, [dialogContext, open, resetFields, workspaceChat.clear]);
 
   function handleApplyTemplate(template: Template) {
     // Prefix the existing title when the user hasn't typed one yet —
@@ -657,6 +697,19 @@ export function NewIssueDialog({
                   ? tc("enriching")
                   : tc("enrichWithAi")}
               </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={chatOpen ? "secondary" : "outline"}
+                className="h-8 gap-1.5 px-3 text-xs"
+                onClick={() => setChatOpen((openState) => !openState)}
+                disabled={isSubmitting || noVault}
+                aria-expanded={chatOpen}
+                data-testid="new-issue-chat-trigger"
+              >
+                <MessageCircle className="h-3.5 w-3.5" />
+                {chatOpen ? tc("closeAiChat") : tc("openAiChat")}
+              </Button>
             </div>
           </div>
         </DialogHeader>
@@ -667,6 +720,53 @@ export function NewIssueDialog({
           ref={formBodyRef}
         >
           <div className="flex flex-col gap-4">
+            {chatOpen && (
+              <section
+                data-testid="new-issue-chat-panel"
+                aria-label={tc("aiChatHeading")}
+                className="flex h-[360px] min-h-[280px] flex-col overflow-hidden rounded-lg border border-border bg-surface-elevated"
+              >
+                <div className="flex shrink-0 items-center justify-between border-b border-border-subtle px-3 py-2">
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">
+                      {tc("aiChatHeading")}
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      {tc("aiChatDescription")}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setChatOpen(false)}
+                    data-testid="new-issue-chat-close"
+                  >
+                    {common("close")}
+                  </Button>
+                </div>
+                <ChatSurface
+                  messages={workspaceChat.messages}
+                  sendMessage={workspaceChat.sendMessage}
+                  status={workspaceChat.status}
+                  stop={workspaceChat.stop}
+                  retry={workspaceChat.retry}
+                  vault={vault ?? ""}
+                  knownIssueIds={knownIssueIds}
+                  emptyState={
+                    <p className="pt-8 text-center text-sm text-muted-foreground">
+                      {tc("aiChatEmptyState")}
+                    </p>
+                  }
+                  composerPlaceholder={tc("aiChatPlaceholder")}
+                  composerDisabled={isSubmitting || noVault}
+                  inputTestId="new-issue-chat-input"
+                  submitTestId="new-issue-chat-send"
+                  retryTestId="new-issue-chat-retry"
+                />
+              </section>
+            )}
             {showEnrichmentBar && (
               <EnrichmentReviewBar
                 pending={enrichment.counts.pending}

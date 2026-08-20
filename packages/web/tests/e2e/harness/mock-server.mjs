@@ -235,6 +235,19 @@ const server = createServer(async (req, res) => {
         delay_ms: state.contentSearchDelayMs,
       });
     }
+    if (url.pathname === "/__e2e/llm-control" && req.method === "POST") {
+      const body = await readJson(req);
+      state.llmFailures = Math.max(0, Number(body?.failures ?? 0));
+      state.llmDelayMs = Math.max(
+        0,
+        Math.min(Number(body?.delay_ms ?? 0), 2_000),
+      );
+      return json(res, 200, {
+        ok: true,
+        failures: state.llmFailures,
+        delay_ms: state.llmDelayMs,
+      });
+    }
     if (url.pathname === "/__e2e/remove-issue" && req.method === "POST") {
       const body = await readJson(req);
       const vault = state.vaults.get(String(body?.vault ?? REEF_VAULT));
@@ -571,6 +584,8 @@ function makeState(scenario) {
     vaults: new Map(),
     issueListFailure: false,
     issueListNextPageFailures: 0,
+    llmFailures: 0,
+    llmDelayMs: 0,
     contentSearchMode: "healthy",
     contentSearchDelayMs: 0,
     vaultListDelayMs: 0,
@@ -3042,17 +3057,22 @@ function tableSql() {
 async function handleOpenRouter(req, res) {
   if (req.method === "POST") {
     const body = await readJson(req);
+    if (state.llmFailures > 0) {
+      state.llmFailures -= 1;
+      return json(res, 503, { error: "e2e forced llm failure" });
+    }
+    const llmDelayMs = state.llmDelayMs;
     if (body?.stream === true) {
       const created = Math.floor(new Date(NOW).getTime() / 1000);
       if (isToolLoopResultTurn(body)) {
         await streamOpenRouterChunks(res, finalToolLoopChunks(created), {
-          delayBeforeTextDeltaMs: 250,
+          delayBeforeTextDeltaMs: Math.max(250, llmDelayMs),
         });
         return;
       }
       if (isToolLoopPromptTurn(body)) {
         await streamOpenRouterChunks(res, initialToolLoopChunks(created), {
-          delayAfterFunctionCallMs: 180,
+          delayAfterFunctionCallMs: Math.max(180, llmDelayMs),
         });
         return;
       }
@@ -3061,7 +3081,7 @@ async function handleOpenRouter(req, res) {
         await streamOpenRouterChunks(
           res,
           finalIssueQuestionChunks(created, issueQuestion.output),
-          { delayBeforeTextDeltaMs: 250 },
+          { delayBeforeTextDeltaMs: Math.max(250, llmDelayMs) },
         );
         return;
       }
@@ -3071,12 +3091,14 @@ async function handleOpenRouter(req, res) {
           res,
           initialIssueQuestionChunks(created, issueId),
           {
-            delayAfterFunctionCallMs: 180,
+            delayAfterFunctionCallMs: Math.max(180, llmDelayMs),
           },
         );
         return;
       }
-      await streamOpenRouterChunks(res, basicTextChunks(created, body));
+      await streamOpenRouterChunks(res, basicTextChunks(created, body), {
+        delayBeforeTextDeltaMs: llmDelayMs,
+      });
       return;
     }
     return json(res, 200, {

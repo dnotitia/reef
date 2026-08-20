@@ -12,6 +12,12 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Added
+
+- **New Issue now offers an optional AI enrich chat** that grounds each turn in
+  the latest unsaved draft and conversation history while keeping suggestions
+  request-scoped and manual issue creation independent.
+
 ### Changed
 
 - **Breaking: removed the obsolete AI activity-scanning and Suggestions

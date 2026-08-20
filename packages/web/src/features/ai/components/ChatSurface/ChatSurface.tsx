@@ -30,6 +30,8 @@ export interface ChatSurfaceProps {
   status: ChatStatus;
   /** Aborts an in-flight stream — wired to the submit button while busy. */
   stop?: () => void;
+  /** Re-runs the failed turn without changing the caller-owned draft. */
+  retry?: () => void;
 
   /** Active workspace, used to build vault-scoped issue deep links. */
   vault: string;
@@ -47,6 +49,7 @@ export interface ChatSurfaceProps {
 
   inputTestId?: string;
   submitTestId?: string;
+  retryTestId?: string;
 
   className?: string;
 }
@@ -63,6 +66,7 @@ export function ChatSurface({
   sendMessage,
   status,
   stop,
+  retry,
   vault,
   knownIssueIds,
   emptyState,
@@ -71,6 +75,7 @@ export function ChatSurface({
   composerDisabled,
   inputTestId,
   submitTestId,
+  retryTestId,
   className,
 }: ChatSurfaceProps) {
   const isBusy = status === "submitted" || status === "streaming";
@@ -96,6 +101,8 @@ export function ChatSurface({
                     turn={m}
                     vault={vault}
                     knownIssueIds={knownIssueIds}
+                    retry={retry}
+                    retryTestId={retryTestId}
                   />
                 </MessageContent>
               </Message>
@@ -146,10 +153,14 @@ function AssistantTurn({
   turn,
   vault,
   knownIssueIds,
+  retry,
+  retryTestId,
 }: {
   turn: ChatAssistantTurn;
   vault: string;
   knownIssueIds: ReadonlySet<string>;
+  retry?: () => void;
+  retryTestId?: string;
 }) {
   const t = useTranslations("ai");
 
@@ -190,9 +201,21 @@ function AssistantTurn({
       )}
 
       {turn.errorMessage && (
-        <p role="alert" className="text-xs text-destructive-text">
-          {turn.errorMessage}
-        </p>
+        <div className="flex items-center gap-2">
+          <p role="alert" className="text-xs text-destructive-text">
+            {turn.errorMessage}
+          </p>
+          {retry ? (
+            <button
+              type="button"
+              className="text-xs font-medium text-foreground underline underline-offset-2"
+              onClick={retry}
+              data-testid={retryTestId}
+            >
+              {t("tryAgain")}
+            </button>
+          ) : null}
+        </div>
       )}
 
       <ChatCitations citations={turn.citations} />

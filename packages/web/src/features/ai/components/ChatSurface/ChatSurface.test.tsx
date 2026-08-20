@@ -219,6 +219,17 @@ describe("ChatSurface", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("upstream timeout");
   });
 
+  it("renders a retry action for an assistant error when supplied", () => {
+    const retry = vi.fn();
+    renderSurface({
+      retry,
+      retryTestId: "surface-retry",
+      messages: [assistantTurn("2", { errorMessage: "upstream timeout" })],
+    });
+    fireEvent.click(screen.getByTestId("surface-retry"));
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
   it("disables the composer textarea while streaming", () => {
     renderSurface({ status: "streaming", inputTestId: "surface-input" });
     expect(screen.getByTestId("surface-input")).toBeDisabled();

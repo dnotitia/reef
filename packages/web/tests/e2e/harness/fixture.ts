@@ -144,6 +144,20 @@ export async function setContentSearchMode(
   expect(response.ok()).toBeTruthy();
 }
 
+/** Configure the fixture's fake LLM to delay or fail the next requests. */
+export async function setLlmControl(
+  request: APIRequestContext,
+  control: { delayMs?: number; failures?: number },
+): Promise<void> {
+  const response = await request.post(`${E2E_MOCK_URL}/__e2e/llm-control`, {
+    data: {
+      delay_ms: control.delayMs ?? 0,
+      failures: control.failures ?? 0,
+    },
+  });
+  expect(response.ok()).toBeTruthy();
+}
+
 export async function setVaultListControl(
   request: APIRequestContext,
   control: { delayMs?: number; failures?: number },

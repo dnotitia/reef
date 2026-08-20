@@ -1,6 +1,6 @@
 import type { ChatAssistantTurn } from "@/features/ai/chat/chatTypes";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { useWorkspaceChat } from "./useWorkspaceChat";
 
 // A frame carries an agent-run event; the client parses `data:` SSE lines.
@@ -91,6 +91,47 @@ describe("useWorkspaceChat", () => {
     expect(turn.referencedIssueIds).toContain("REEF-1");
   });
 
+  it("sends the latest unsaved draft snapshot with every turn and full history", async () => {
+    const requests: Array<Record<string, unknown>> = [];
+    const fetch = vi.fn((_: RequestInfo | URL, init?: RequestInit) => {
+      requests.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      return Promise.resolve(sseResponse(HAPPY_EVENTS));
+    });
+    const firstDraft = {
+      fields: { title: "First title", issue_type: "task" as const },
+      content: "First body",
+    };
+    const secondDraft = {
+      fields: { title: "Edited title", issue_type: "task" as const },
+      content: "Edited body",
+    };
+    const { result, rerender } = renderHook(
+      ({ draft }) =>
+        useWorkspaceChat({ fetch, route: null, reefId: null, draft }),
+      { initialProps: { draft: firstDraft } },
+    );
+
+    act(() => result.current.sendMessage({ text: "first" }));
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    rerender({ draft: secondDraft });
+    act(() => result.current.sendMessage({ text: "second" }));
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+
+    expect(requests).toHaveLength(2);
+    expect((requests[0]?.input as Record<string, unknown>).draft).toEqual(
+      firstDraft,
+    );
+    const secondInput = requests[1]?.input as Record<string, unknown>;
+    expect(secondInput.draft).toEqual(secondDraft);
+    expect(secondInput.messages).toHaveLength(3);
+    expect(result.current.messages.map((message) => message.text)).toEqual([
+      "first",
+      "Found REEF-1.",
+      "second",
+      "Found REEF-1.",
+    ]);
+  });
+
   it("commits an assistant turn carrying the error when the run fails", async () => {
     const fetch = () =>
       Promise.resolve(
@@ -104,10 +145,49 @@ describe("useWorkspaceChat", () => {
       result.current.sendMessage({ text: "hi" });
     });
 
-    await waitFor(() => expect(result.current.status).toBe("ready"));
+    await waitFor(() =>
+      expect(assistant(result.current.messages[1]).errorMessage).toBeTruthy(),
+    );
     expect(result.current.messages).toHaveLength(2);
     const turn = assistant(result.current.messages[1]);
     expect(turn.errorMessage).toBeTruthy();
+  });
+
+  it("blocks overlapping sends and retries the failed turn", async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({ error: "AI unavailable" }, { status: 503 }),
+      )
+      .mockResolvedValueOnce(sseResponse(HAPPY_EVENTS));
+    const { result } = renderHook(() =>
+      useWorkspaceChat({
+        fetch,
+        route: null,
+        reefId: null,
+        draft: {
+          fields: { title: "Retry draft", issue_type: "task" as const },
+          content: "Body",
+        },
+      }),
+    );
+
+    act(() => {
+      result.current.sendMessage({ text: "first" });
+      result.current.sendMessage({ text: "overlap" });
+    });
+    await waitFor(() =>
+      expect(assistant(result.current.messages[1]).errorMessage).toBeTruthy(),
+    );
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(result.current.messages.map((message) => message.text)).toEqual([
+      "first",
+      "Found REEF-1.",
+    ]);
   });
 
   it("clear() resets the conversation", async () => {

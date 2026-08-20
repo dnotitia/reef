@@ -153,6 +153,59 @@ vi.mock("./useNewIssueEnrichment", async () => {
   };
 });
 
+// Keep this integration test focused on New Issue ownership and request
+// grounding; ChatSurface's rendering and retry affordance have their own
+// component tests.
+vi.mock("@/features/ai/components/ChatSurface", async () => {
+  const React = await vi.importActual<typeof import("react")>("react");
+  interface Props {
+    messages: readonly { role: string; text: string }[];
+    sendMessage: (input: { text: string }) => void;
+    inputTestId?: string;
+    submitTestId?: string;
+  }
+  return {
+    ChatSurface: ({
+      messages,
+      sendMessage,
+      inputTestId,
+      submitTestId,
+    }: Props) => {
+      const [text, setText] = React.useState("");
+      return React.createElement(
+        "div",
+        { "data-testid": "mock-new-issue-chat-surface" },
+        React.createElement(
+          "div",
+          { "data-testid": "mock-new-issue-chat-messages" },
+          messages.map((message, index) =>
+            React.createElement(
+              "span",
+              { key: `${message.role}-${index}` },
+              message.text,
+            ),
+          ),
+        ),
+        React.createElement("textarea", {
+          "data-testid": inputTestId,
+          value: text,
+          onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) =>
+            setText(event.target.value),
+        }),
+        React.createElement(
+          "button",
+          {
+            type: "button",
+            "data-testid": submitTestId,
+            onClick: () => sendMessage({ text }),
+          },
+          "Send chat",
+        ),
+      );
+    },
+  };
+});
+
 const { toastDefault, toastSuccess, toastError } = vi.hoisted(() => ({
   toastDefault: vi.fn(),
   toastSuccess: vi.fn(),
@@ -199,6 +252,53 @@ function installDefaultApiMocks() {
         new Response(JSON.stringify({ issue: CREATED_SUB_ISSUE }), {
           status: 201,
         }),
+      );
+    }
+    if (url === "/api/agents/runs" && init?.method === "POST") {
+      const events = [
+        {
+          event_id: "chat:started",
+          run_id: "chat:run",
+          task_id: "chat.workspace",
+          seq: 0,
+          created_at: "2026-07-07T00:00:00.000Z",
+          metadata: {},
+          type: "run.started",
+          run_status: "running",
+          input: {},
+        },
+        {
+          event_id: "chat:delta",
+          run_id: "chat:run",
+          task_id: "chat.workspace",
+          seq: 1,
+          created_at: "2026-07-07T00:00:00.000Z",
+          metadata: {},
+          type: "model.delta",
+          delta: "Advice",
+          channel: "text",
+        },
+        {
+          event_id: "chat:completed",
+          run_id: "chat:run",
+          task_id: "chat.workspace",
+          seq: 2,
+          created_at: "2026-07-07T00:00:01.000Z",
+          metadata: {},
+          type: "run.completed",
+          run_status: "completed",
+          artifact_ids: [],
+          usage: {},
+        },
+      ];
+      return Promise.resolve(
+        new Response(
+          events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(""),
+          {
+            status: 200,
+            headers: { "content-type": "text/event-stream" },
+          },
+        ),
       );
     }
     if (typeof url === "string" && url.startsWith("/api/config")) {
@@ -656,6 +756,98 @@ describe("NewIssueDialog", () => {
     expect(toastError).not.toHaveBeenCalled();
     expect(toastSuccess).not.toHaveBeenCalled();
     expect(toastDefault).not.toHaveBeenCalled();
+  });
+
+  it("grounds each chat turn in the latest draft while manual create stays independent", async () => {
+    const user = userEvent.setup();
+    mockViewStore.state.newIssueDialogOpen = true;
+    render(wrap(<NewIssueDialog />));
+    await screen.findByText("New Issue");
+
+    await user.type(
+      screen.getByTestId("new-issue-title-input"),
+      "First draft title",
+    );
+    await user.click(screen.getByTestId("new-issue-chat-trigger"));
+    await user.type(
+      screen.getByTestId("markdown-source-textarea"),
+      "First draft body",
+    );
+    await user.type(
+      screen.getByTestId("new-issue-chat-input"),
+      "What should I improve?",
+    );
+    await user.click(screen.getByTestId("new-issue-chat-send"));
+
+    await waitFor(() => {
+      expect(
+        mockApiFetch.mock.calls.filter(
+          ([url, init]) =>
+            url === "/api/agents/runs" && init?.method === "POST",
+        ),
+      ).toHaveLength(1);
+    });
+    const firstRun = JSON.parse(
+      mockApiFetch.mock.calls.find(
+        ([url, init]) => url === "/api/agents/runs" && init?.method === "POST",
+      )?.[1]?.body as string,
+    );
+    expect(firstRun.input.draft).toMatchObject({
+      fields: { title: "First draft title" },
+      content: "First draft body",
+    });
+
+    await user.clear(screen.getByTestId("new-issue-title-input"));
+    await user.type(
+      screen.getByTestId("new-issue-title-input"),
+      "Edited draft title",
+    );
+    await user.clear(screen.getByTestId("markdown-source-textarea"));
+    await user.type(
+      screen.getByTestId("markdown-source-textarea"),
+      "Edited draft body",
+    );
+    await user.clear(screen.getByTestId("new-issue-chat-input"));
+    await user.type(screen.getByTestId("new-issue-chat-input"), "And now?");
+    await user.click(screen.getByTestId("new-issue-chat-send"));
+
+    await waitFor(() => {
+      expect(
+        mockApiFetch.mock.calls.filter(
+          ([url, init]) =>
+            url === "/api/agents/runs" && init?.method === "POST",
+        ),
+      ).toHaveLength(2);
+    });
+    const runBodies = mockApiFetch.mock.calls
+      .filter(
+        ([url, init]) => url === "/api/agents/runs" && init?.method === "POST",
+      )
+      .map(([, init]) => JSON.parse(init?.body as string));
+    expect(runBodies[1]?.input.draft).toMatchObject({
+      fields: { title: "Edited draft title" },
+      content: "Edited draft body",
+    });
+    expect(runBodies[1]?.input.messages).toHaveLength(3);
+
+    await user.click(screen.getByTestId("new-issue-submit"));
+    await waitFor(() => {
+      expect(
+        mockApiFetch.mock.calls.some(
+          ([url, init]) => url === "/api/issues" && init?.method === "POST",
+        ),
+      ).toBe(true);
+    });
+    const createCall = mockApiFetch.mock.calls.find(
+      ([url, init]) => url === "/api/issues" && init?.method === "POST",
+    );
+    const createBody = JSON.parse(createCall?.[1]?.body as string);
+    expect(createBody.create).toMatchObject({
+      content: "Edited draft body",
+      fields: { title: "Edited draft title" },
+    });
+    expect(createBody).not.toHaveProperty("chat");
+    expect(createBody).not.toHaveProperty("draft");
   });
 
   it("suppresses the shared dialog close X while keeping Cancel as a dismiss path (REEF-111)", async () => {

@@ -42,12 +42,48 @@ describe("agent run request schemas", () => {
               parts: [{ type: "text", text: "Show project status" }],
             },
           ],
+          draft: {
+            fields: {
+              title: "Draft issue",
+              issue_type: "story",
+              labels: ["ai"],
+            },
+            content: "Draft body",
+          },
         },
       }),
     ).toMatchObject({
       task_id: "chat.workspace",
-      input: { messages: expect.any(Array) },
+      input: {
+        messages: expect.any(Array),
+        draft: {
+          fields: { title: "Draft issue" },
+          content: "Draft body",
+        },
+      },
     });
+  });
+
+  it("rejects credentials embedded in the unsaved draft snapshot", () => {
+    expect(
+      AgentRunRequestSchema.safeParse({
+        task_id: "chat.workspace",
+        input: {
+          messages: [
+            {
+              id: "m-1",
+              role: "user",
+              parts: [{ type: "text", text: "Help" }],
+            },
+          ],
+          draft: {
+            fields: { title: "Draft issue" },
+            content: "Draft body",
+            apiKey: "should-not-be-here",
+          },
+        },
+      }).success,
+    ).toBe(false);
   });
 
   it("validates issue enrichment task input", () => {

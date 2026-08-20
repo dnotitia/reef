@@ -615,6 +615,7 @@ test.describe("Hermetic issue route surfaces", () => {
       const footer = page.getByTestId("new-issue-dialog-footer");
       const template = page.getByTestId("template-picker-trigger");
       const enrich = page.getByTestId("enrich-trigger");
+      const chat = page.getByTestId("new-issue-chat-trigger");
       const title = page.getByTestId("new-issue-title-input");
       const cancel = page.getByTestId("new-issue-cancel");
       const submit = page.getByTestId("new-issue-submit");
@@ -728,6 +729,8 @@ test.describe("Hermetic issue route surfaces", () => {
       await expect(template).toBeFocused();
       await page.keyboard.press("Tab");
       await expect(enrich).toBeFocused();
+      await page.keyboard.press("Tab");
+      await expect(chat).toBeFocused();
       await page.keyboard.press("Tab");
       await expect(title).toBeFocused();
       await cancel.focus();

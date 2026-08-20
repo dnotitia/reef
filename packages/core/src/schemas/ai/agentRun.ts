@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { PROJECT_PREFIX_PATTERN, VaultNameSchema } from "../workspace";
+import { IssueCreateInputSchema } from "../issues/metadata";
 import { AgentArtifactSchema } from "./agents";
 import { EnrichmentRequestSchema } from "./enrichment";
 
@@ -45,6 +46,12 @@ const AgentUIMessageSchema = CompatibleUIMessageSchema.extend({
 const ChatGroundingFieldsSchema = {
   route: z.string().nullable().optional(),
   reefId: z.string().nullable().optional(),
+  /**
+   * Credential-free snapshot of the unsaved New Issue draft. It is derived
+   * from the canonical create input so the chat and create paths cannot drift.
+   * The snapshot is request-scoped only; the server never persists it.
+   */
+  draft: IssueCreateInputSchema.nullable().optional(),
 };
 
 export const WorkspaceChatRequestBodySchema = z

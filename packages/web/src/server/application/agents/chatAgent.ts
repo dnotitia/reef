@@ -11,6 +11,7 @@ import { ISSUE_ID_PATTERN } from "@reef/core";
 import {
   type ChatIssueContext,
   ChatIssueContextIssueSchema,
+  type IssueCreateInput,
   type WorkspaceSummary,
 } from "@reef/core";
 import {
@@ -74,6 +75,12 @@ export interface CreateWorkspaceChatAgentResponseParams
    * (REEF-360 AC2 / AC4).
    */
   currentIssueId?: string | null;
+  /**
+   * Request-scoped, credential-free snapshot of an unsaved New Issue draft.
+   * It is reference data for prompt grounding only; this agent never mutates
+   * or persists it.
+   */
+  draft?: IssueCreateInput | null;
   onStepEnd?: (summary: WorkspaceChatStepSummary) => void;
   onEnd?: () => void;
   onError?: (error: unknown) => string;
@@ -150,6 +157,7 @@ export async function createWorkspaceChatAgentResponse(
     summary,
     route: params.route ?? null,
     issueContext,
+    draft: params.draft ?? null,
     hasRepoTools,
   });
 

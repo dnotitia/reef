@@ -168,6 +168,7 @@ export async function POST(request: Request): Promise<Response> {
             // hints when the caller supplies them.
             route: runRequest.input.route,
             currentIssueId: runRequest.input.reefId,
+            draft: runRequest.input.draft,
             onEvent: chatEvents.onLifecycleEvent,
             onError: (error) =>
               error instanceof Error ? error.message : "stream error",

@@ -60,6 +60,16 @@ const message = {
   parts: [{ type: "text" as const, text: "What changed?" }],
 };
 
+const draft = {
+  fields: {
+    title: "Unsaved issue",
+    issue_type: "story" as const,
+    priority: "high" as const,
+    labels: ["ai"],
+  },
+  content: "Latest draft content",
+};
+
 const baseParams = () => ({
   adapter: { request: vi.fn() } as unknown as AkbAdapter,
   githubAdapter: {} as GitHubAdapter,
@@ -220,6 +230,20 @@ describe("workspace chat agent task", () => {
     expect(instructions).toContain("## Current issue");
     expect(instructions).toContain("SAASV31-360");
     expect(instructions).toContain("Ground the chat in this issue.");
+  });
+
+  it("grounds instructions in the request-time unsaved draft without persistence fields", async () => {
+    await createWorkspaceChatAgentResponse({
+      ...createParams(),
+      draft,
+    });
+
+    const { instructions } = getAgentSettings();
+    expect(instructions).toContain("## Unsaved issue draft");
+    expect(instructions).toContain("title: Unsaved issue");
+    expect(instructions).toContain("Latest draft content");
+    expect(instructions).not.toContain("apiKey");
+    expect(instructions).not.toContain("Bearer");
   });
 
   it("degrades to no issue context when the prefetch fails (AC4)", async () => {
