@@ -564,6 +564,7 @@ describe("Keycloak OIDC profile", () => {
     const oidc = client(fetchImpl);
     const started = await oidc.beginAuthorization(repository, {
       providerAlias: PROVIDER,
+      identityProviderHint: PROVIDER,
       redirectPath: "/workspace/example/issues",
     });
     const authorizationUrl = new URL(started.location);
@@ -609,5 +610,28 @@ describe("Keycloak OIDC profile", () => {
       `${TRANSPORT}/protocol/openid-connect/token`,
       expect.objectContaining({ redirect: "manual" }),
     );
+  });
+
+  it("omits an external IdP hint for a direct realm login", async () => {
+    const repository = createEncryptedSessionRepository({
+      backend: createMemorySessionBackend(),
+      cipher: createSessionCipher(new Uint8Array(Buffer.alloc(32, 5))),
+    });
+    const oidc = client(vi.fn<typeof fetch>());
+
+    const started = await oidc.beginAuthorization(repository, {
+      providerAlias: "legacy",
+      identityProviderHint: null,
+      redirectPath: "/issues",
+    });
+    const authorizationUrl = new URL(started.location);
+
+    expect(authorizationUrl.searchParams.has("kc_idp_hint")).toBe(false);
+    await expect(
+      repository.consumeLoginTransaction(
+        authorizationUrl.searchParams.get("state") ?? "",
+        started.browserBinding,
+      ),
+    ).resolves.toMatchObject({ providerAlias: "legacy" });
   });
 });

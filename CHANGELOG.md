@@ -28,6 +28,12 @@ explicitly in the entries below.
 ### Fixed
 
 - **온보딩은 새 workspace 생성 흐름을 정확히 안내하고, 이름·이슈 접두사의 필수 입력 오류와 repository 선택 상태를 키보드·스크린리더에 전달하며, 좁은 화면에서도 저장소 선택기와 긴 repository 이름을 영역 안에서 조작할 수 있도록 개선했습니다.**
+
+- **Legacy AKB SSO projection now starts a direct Keycloak realm login.** Reef
+  omits the synthetic `legacy` value from `kc_idp_hint` while retaining the
+  `identity_provider=legacy` token validation binding; native v2 provider
+  aliases continue to be sent as identity-provider hints.
+
 - **SSO mode now restores the pre-v0.11 hybrid login surface.** AKB's local-auth
   capability controls whether username/password is shown beside Reef-owned SSO,
   and the credential route plus JWT session carrier remain usable in SSO mode.

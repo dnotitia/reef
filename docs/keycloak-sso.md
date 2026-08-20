@@ -126,6 +126,8 @@ explicit `sso_only: true` response still hides the password surface.
 
 The legacy shape cannot identify a provider alias or report AKB browser
 readiness. The compatibility projection therefore remains conservative: the
+fixed `legacy` binding starts a direct Keycloak realm login without a
+`kc_idp_hint`, because it is not an external identity-provider alias. The
 OIDC validator still requires `identity_provider=legacy` in the access token,
 alongside every existing issuer, audience, `azp`, bearer-type, subject, and ID
 token check. A deployment whose Keycloak token omits that claim or uses another
