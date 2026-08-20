@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../harness/test";
 import { openExistingWorkspace, resetFixture } from "../harness/fixture";
 
 // REEF-277: the issue activity timeline now records title / labels / due date /

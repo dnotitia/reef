@@ -95,6 +95,7 @@ export interface AkbLoginParams {
   baseUrl: string;
   username: string;
   password: string;
+  requestHeaders?: Record<string, string>;
 }
 
 export interface AkbLoginResult {
@@ -105,7 +106,7 @@ export interface AkbLoginResult {
 }
 
 export function login(params: AkbLoginParams): Promise<AkbLoginResult> {
-  const { baseUrl, username, password } = params;
+  const { baseUrl, username, password, requestHeaders } = params;
   return withSpan("akb.auth.login", {}, async (span) => {
     const url = `${stripTrailingSlashes(baseUrl)}/api/v1/auth/login`;
     const signal = AbortSignal.timeout(AKB_AUTH_TIMEOUT_MS);
@@ -116,6 +117,7 @@ export function login(params: AkbLoginParams): Promise<AkbLoginResult> {
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
+          ...requestHeaders,
         },
         body: JSON.stringify({ username, password }),
         redirect: "manual",
@@ -175,6 +177,7 @@ export function login(params: AkbLoginParams): Promise<AkbLoginResult> {
 
 export interface GetAuthConfigParams {
   baseUrl: string;
+  requestHeaders?: Record<string, string>;
 }
 
 export interface GetAuthConfigResult {
@@ -184,7 +187,7 @@ export interface GetAuthConfigResult {
 export function getAuthConfig(
   params: GetAuthConfigParams,
 ): Promise<GetAuthConfigResult> {
-  const { baseUrl } = params;
+  const { baseUrl, requestHeaders } = params;
   return withSpan("akb.auth.config", {}, async (span) => {
     const payload = await fetchTokenlessJson({
       baseUrl,
@@ -192,6 +195,7 @@ export function getAuthConfig(
       method: "GET",
       failureMessage: "auth_config_failed",
       nonJsonMessage: "auth_config_non_json",
+      requestHeaders,
     });
     const parsed = AkbAuthConfigSchema.safeParse(payload);
     if (!parsed.success) {
@@ -208,6 +212,7 @@ export function getAuthConfig(
 export interface ExchangeKeycloakCodeParams {
   baseUrl: string;
   code: string;
+  requestHeaders?: Record<string, string>;
 }
 
 export interface ExchangeKeycloakCodeResult {
@@ -220,6 +225,7 @@ export interface StartKeycloakLoginParams {
   baseUrl: string;
   loginUrl: string;
   redirectPath: string;
+  requestHeaders?: Record<string, string>;
 }
 
 export interface StartKeycloakLoginResult {
@@ -229,6 +235,7 @@ export interface StartKeycloakLoginResult {
 export interface StartKeycloakLogoutParams {
   baseUrl: string;
   idTokenHint: string;
+  requestHeaders?: Record<string, string>;
 }
 
 export interface StartKeycloakLogoutResult {
@@ -238,7 +245,7 @@ export interface StartKeycloakLogoutResult {
 export function startKeycloakLogin(
   params: StartKeycloakLoginParams,
 ): Promise<StartKeycloakLoginResult> {
-  const { baseUrl, loginUrl, redirectPath } = params;
+  const { baseUrl, loginUrl, redirectPath, requestHeaders } = params;
   return withSpan("akb.auth.keycloak_login_start", {}, async () => {
     const url = new URL(
       normalizeKeycloakLoginPath(loginUrl),
@@ -251,7 +258,10 @@ export function startKeycloakLogin(
     try {
       response = await fetch(url, {
         method: "GET",
-        headers: { Accept: "text/html,application/xhtml+xml" },
+        headers: {
+          Accept: "text/html,application/xhtml+xml",
+          ...requestHeaders,
+        },
         redirect: "manual",
         signal,
       });
@@ -329,7 +339,7 @@ function normalizeKeycloakLoginPath(loginUrl: string): string {
 export function startKeycloakLogout(
   params: StartKeycloakLogoutParams,
 ): Promise<StartKeycloakLogoutResult> {
-  const { baseUrl, idTokenHint } = params;
+  const { baseUrl, idTokenHint, requestHeaders } = params;
   return withSpan("akb.auth.keycloak_logout_start", {}, async () => {
     const url = `${stripTrailingSlashes(baseUrl)}/api/v1/auth/keycloak/logout`;
 
@@ -341,6 +351,7 @@ export function startKeycloakLogout(
         headers: {
           "Content-Type": "application/json",
           Accept: "text/html,application/xhtml+xml",
+          ...requestHeaders,
         },
         body: JSON.stringify({ id_token_hint: idTokenHint }),
         redirect: "manual",
@@ -391,7 +402,7 @@ export function startKeycloakLogout(
 export function exchangeKeycloakCode(
   params: ExchangeKeycloakCodeParams,
 ): Promise<ExchangeKeycloakCodeResult> {
-  const { baseUrl, code } = params;
+  const { baseUrl, code, requestHeaders } = params;
   return withSpan("akb.auth.keycloak_exchange", {}, async (span) => {
     const payload = await fetchTokenlessJson({
       baseUrl,
@@ -401,6 +412,7 @@ export function exchangeKeycloakCode(
       failureMessage: "keycloak_exchange_failed",
       nonJsonMessage: "keycloak_exchange_non_json",
       authStatuses: new Set([400, 401, 403]),
+      requestHeaders,
     });
     const parsed = AkbKeycloakExchangeResponseSchema.safeParse(payload);
     if (!parsed.success) {
@@ -426,6 +438,7 @@ async function fetchTokenlessJson(params: {
   failureMessage: string;
   nonJsonMessage: string;
   authStatuses?: Set<number>;
+  requestHeaders?: Record<string, string>;
 }): Promise<unknown> {
   const {
     baseUrl,
@@ -435,9 +448,13 @@ async function fetchTokenlessJson(params: {
     failureMessage,
     nonJsonMessage,
     authStatuses,
+    requestHeaders,
   } = params;
   const url = `${stripTrailingSlashes(baseUrl)}${path}`;
-  const headers: Record<string, string> = { Accept: "application/json" };
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    ...requestHeaders,
+  };
   let serializedBody: string | undefined;
   if (body !== undefined) {
     headers["Content-Type"] = "application/json";

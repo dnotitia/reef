@@ -41,6 +41,8 @@ export interface CreateGitHubAppInstallationTokenProviderParams {
    * Production callers omit this and use Octokit's default github.com endpoint.
    */
   baseUrl?: string;
+  /** Optional hermetic-test headers forwarded during token exchange. */
+  requestHeaders?: Record<string, string>;
 }
 
 /**
@@ -63,10 +65,14 @@ export interface CreateGitHubAppInstallationTokenProviderParams {
 export function createGitHubAppInstallationTokenProvider({
   config,
   baseUrl = process.env.REEF_GITHUB_API_BASE_URL,
+  requestHeaders,
 }: CreateGitHubAppInstallationTokenProviderParams): GitHubTokenProvider {
   const normalizedBaseUrl = baseUrl ? stripTrailingSlashes(baseUrl) : undefined;
   const tokenRequest = normalizedBaseUrl
-    ? new Octokit({ baseUrl: normalizedBaseUrl }).request
+    ? new Octokit({
+        baseUrl: normalizedBaseUrl,
+        ...(requestHeaders ? { request: { headers: requestHeaders } } : {}),
+      }).request
     : undefined;
   const auth = createAppAuth({
     appId: config.app_id,

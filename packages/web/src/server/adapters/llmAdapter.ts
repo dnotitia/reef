@@ -17,6 +17,8 @@ export interface CreateLlmAdapterParams {
   apiKey: string;
   baseUrl: string;
   model: string;
+  /** Optional hermetic-test headers forwarded to the local LLM mock. */
+  requestHeaders?: Record<string, string>;
 }
 
 export interface LlmAdapter {
@@ -63,7 +65,7 @@ export interface LlmAdapter {
  * credentials does not escape into module scope.
  */
 export function createLlmAdapter(params: CreateLlmAdapterParams): LlmAdapter {
-  const { apiKey, baseUrl, model: modelId } = params;
+  const { apiKey, baseUrl, model: modelId, requestHeaders } = params;
   const maxRetries = 0 as const;
   const requestIdentityMiddleware: LanguageModelMiddleware = {
     specificationVersion: "v4",
@@ -85,7 +87,11 @@ export function createLlmAdapter(params: CreateLlmAdapterParams): LlmAdapter {
 
   function model(): LanguageModel {
     // Constructed fresh each call — credentials scoped to this call frame.
-    const openai = createOpenAI({ apiKey, baseURL: baseUrl });
+    const openai = createOpenAI({
+      apiKey,
+      baseURL: baseUrl,
+      ...(requestHeaders ? { headers: requestHeaders } : {}),
+    });
     // Every Reef endpoint uses the same OpenAI-compatible Chat Completions
     // envelope and request identity contract. Core does not classify the
     // endpoint by provider or deployment topology.

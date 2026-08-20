@@ -5,6 +5,7 @@ import {
   isSafeSameOriginPath,
 } from "@/lib/akb/safeRedirect";
 import { buildClearedSsoStartCookie } from "@/lib/akb/sessionCookie";
+import { e2eWorkerHeaders } from "@/lib/e2e/workerHeader";
 import { logger } from "@/lib/logging/logger";
 import {
   AkbApiError,
@@ -49,7 +50,11 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   try {
-    const { config } = await akbGetAuthConfig({ baseUrl: backendUrl });
+    const requestHeaders = e2eWorkerHeaders(request.headers);
+    const { config } = await akbGetAuthConfig({
+      baseUrl: backendUrl,
+      requestHeaders,
+    });
     const loginUrl = config.keycloak.login_url;
     if (!config.keycloak.enabled || !loginUrl) {
       return loginErrorRedirect("sso_disabled");
@@ -59,6 +64,7 @@ export async function GET(request: Request): Promise<Response> {
       baseUrl: backendUrl,
       loginUrl,
       redirectPath,
+      requestHeaders,
     });
 
     return new Response(null, {

@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import { type Page, expect, test } from "@playwright/test";
+import { type Page, expect, test } from "../harness/test";
 import { openExistingWorkspace, resetFixture } from "../harness/fixture";
 
 const INLINE_PNG = Buffer.from(

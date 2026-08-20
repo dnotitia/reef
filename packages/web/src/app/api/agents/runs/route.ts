@@ -2,6 +2,7 @@ import { extractVault } from "@/lib/akb/extractVault";
 import { AUTH_ACCOUNT_ERROR_HEADER } from "@/lib/akb/headers";
 import { localizedAgentError } from "@/lib/api/errorLocalization";
 import { getAkbAdapter, getAkbCurrentActor } from "@/lib/api/requestHelpers";
+import { e2eWorkerHeaders } from "@/lib/e2e/workerHeader";
 import { logger } from "@/lib/logging/logger";
 import type { GitHubAdapter } from "@/server/adapters/githubAdapter";
 import { resolveGroundingGitHubAdapter } from "@/server/adapters/githubCredentials/resolveGroundingGitHubAdapter";
@@ -124,7 +125,10 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  const llmAdapter = createServerLlmAdapter(llmConfig);
+  const llmAdapter = createServerLlmAdapter(
+    llmConfig,
+    e2eWorkerHeaders(request.headers),
+  );
 
   if (runRequest.task_id === "chat.workspace") {
     let vault: string;

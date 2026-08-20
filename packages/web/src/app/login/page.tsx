@@ -6,8 +6,10 @@ import {
   normalizeSafeRedirect,
 } from "@/lib/akb/safeRedirect";
 import { ssoAutoRedirectEnabled } from "@/lib/akb/ssoAutoRedirect";
+import { e2eWorkerHeaders } from "@/lib/e2e/workerHeader";
 import { type AkbAccountErrorCode, isAkbAccountErrorCode } from "@reef/core";
 import { useTranslations } from "next-intl";
+import { headers as getRequestHeaders } from "next/headers";
 import { redirect } from "next/navigation";
 
 type LoginErrorKind = "sso" | "legacy" | AkbAccountErrorCode | null;
@@ -51,6 +53,7 @@ export default async function LoginPage({
     errorKind,
     params,
     redirectTo,
+    requestHeaders: e2eWorkerHeaders(await getRequestHeaders()),
   });
   if (ssoStartPath) {
     redirect(ssoStartPath);
@@ -83,15 +86,17 @@ async function resolveSsoAutoRedirect({
   errorKind,
   params,
   redirectTo,
+  requestHeaders,
 }: {
   errorKind: LoginErrorKind;
   params: LoginSearchParams;
   redirectTo: string;
+  requestHeaders?: Record<string, string>;
 }): Promise<string | null> {
   if (errorKind !== null) return null;
   if (params.password === "1" || params.prompt === "login") return null;
 
-  const result = await loadAkbAuthConfig();
+  const result = await loadAkbAuthConfig(requestHeaders);
   if (!result.ok) return null;
   if (!result.config.keycloak.enabled || !result.config.keycloak.login_url) {
     return null;

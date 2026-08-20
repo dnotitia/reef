@@ -23,6 +23,8 @@ type AkbFetchBody = Exclude<
 
 export interface AkbAdapter {
   request: AkbRequest;
+  /** Headers that must follow an AKB request into presigned transfers. */
+  requestHeaders?: Record<string, string>;
 }
 
 export interface AkbRequestPolicy {
@@ -185,6 +187,7 @@ function makeRequest(
   baseUrl: string,
   bearerToken: string,
   requestPolicy?: AkbRequestPolicy,
+  requestHeaders?: Record<string, string>,
 ): AkbRequest {
   return async (path, init = {}) => {
     const url = buildUrl(baseUrl, path, init.query);
@@ -203,6 +206,7 @@ function makeRequest(
         const headers: Record<string, string> = {
           Authorization: `Bearer ${bearerToken}`,
           Accept: "application/json",
+          ...requestHeaders,
           ...init.rawHeaders,
         };
         let body: AkbFetchBody | undefined;
@@ -320,6 +324,7 @@ export function createAkbAdapter(input: {
   baseUrl: string;
   jwt: string;
   requestPolicy?: AkbRequestPolicy;
+  requestHeaders?: Record<string, string>;
 }): AkbAdapter {
   if (
     input.requestPolicy &&
@@ -331,6 +336,12 @@ export function createAkbAdapter(input: {
     throw new Error("AKB request policy must use positive integer bounds");
   }
   return {
-    request: makeRequest(input.baseUrl, input.jwt, input.requestPolicy),
+    request: makeRequest(
+      input.baseUrl,
+      input.jwt,
+      input.requestPolicy,
+      input.requestHeaders,
+    ),
+    requestHeaders: input.requestHeaders,
   };
 }

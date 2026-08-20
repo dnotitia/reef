@@ -9,6 +9,7 @@ import {
   invalidJsonBodyResponse,
   respondWithError,
 } from "@/lib/api/requestHelpers";
+import { e2eWorkerHeaders } from "@/lib/e2e/workerHeader";
 import { logger } from "@/lib/logging/logger";
 import { resolveScanGitHubAdapter } from "@/server/adapters/githubCredentials/resolveScanGitHubAdapter";
 import {
@@ -108,7 +109,10 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  const llmAdapter = createServerLlmAdapter(llmConfig);
+  const llmAdapter = createServerLlmAdapter(
+    llmConfig,
+    e2eWorkerHeaders(request.headers),
+  );
 
   try {
     const result = await scanAndPersistActivitySuggestions({

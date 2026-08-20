@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { E2E_WORKER_HEADER, expect, test } from "../harness/test";
 import {
   readFixtureState,
   resetFixture,
@@ -15,6 +15,7 @@ test.describe("Hermetic issue notification preference", () => {
 
   test("persists watch and mute choices for the signed-in actor", async ({
     browser,
+    e2eWorkerId,
     page,
     request,
   }) => {
@@ -41,7 +42,10 @@ test.describe("Hermetic issue notification preference", () => {
     ).toBeVisible();
 
     const baseURL = new URL(page.url()).origin;
-    const freshContext = await browser.newContext({ baseURL });
+    const freshContext = await browser.newContext({
+      baseURL,
+      extraHTTPHeaders: { [E2E_WORKER_HEADER]: e2eWorkerId },
+    });
     try {
       const freshPage = await freshContext.newPage();
       await signInAndSelectExistingWorkspace(freshPage);

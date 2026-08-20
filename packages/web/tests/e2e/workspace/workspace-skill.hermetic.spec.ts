@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../harness/test";
 import { REEF_VAULT_SKILL_VERSION } from "@reef/core";
 import {
   REEF_E2E_VAULT,

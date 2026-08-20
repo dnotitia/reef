@@ -67,6 +67,7 @@ async function sha256(bytes: Uint8Array): Promise<string> {
 async function fetchPresigned(
   url: string,
   init?: RequestInit,
+  requestHeaders?: Record<string, string>,
 ): Promise<Response> {
   const parsed = new URL(url);
   if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
@@ -74,7 +75,14 @@ async function fetchPresigned(
       issues: ["AKB returned an unsupported presigned URL protocol"],
     });
   }
-  const response = await fetch(parsed.href, { ...init, redirect: "error" });
+  const response = await fetch(parsed.href, {
+    ...init,
+    headers: {
+      ...requestHeaders,
+      ...init?.headers,
+    },
+    redirect: "error",
+  });
   if (!response.ok) {
     throw new AkbApiError({
       status: response.status,
@@ -107,11 +115,15 @@ export async function uploadAkbFile(
   const bodyBytes = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(bodyBytes).set(bytes);
   try {
-    await fetchPresigned(initiated.upload_url, {
-      method: "PUT",
-      headers: { "Content-Type": mimeType },
-      body: bodyBytes,
-    });
+    await fetchPresigned(
+      initiated.upload_url,
+      {
+        method: "PUT",
+        headers: { "Content-Type": mimeType },
+        body: bodyBytes,
+      },
+      adapter.requestHeaders,
+    );
     const confirmed = AkbFileResponseSchema.parse(
       await adapter.request(
         `/api/v1/files/${encodeURIComponent(vault)}/${encodeURIComponent(
@@ -163,9 +175,11 @@ export async function downloadAkbFile(
       { resource: `file ${fileId}` },
     ),
   );
-  const response = await fetchPresigned(metadata.download_url, {
-    headers: { Accept: "*/*" },
-  });
+  const response = await fetchPresigned(
+    metadata.download_url,
+    { headers: { Accept: "*/*" } },
+    adapter.requestHeaders,
+  );
   const body = await response.arrayBuffer();
   return {
     body,

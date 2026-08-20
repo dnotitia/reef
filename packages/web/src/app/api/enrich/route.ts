@@ -7,6 +7,7 @@ import {
   getAkbCurrentActor,
   respondWithError,
 } from "@/lib/api/requestHelpers";
+import { e2eWorkerHeaders } from "@/lib/e2e/workerHeader";
 import { logger } from "@/lib/logging/logger";
 import type { GitHubAdapter } from "@/server/adapters/githubAdapter";
 import { resolveGroundingGitHubAdapter } from "@/server/adapters/githubCredentials/resolveGroundingGitHubAdapter";
@@ -90,7 +91,10 @@ export async function POST(request: Request): Promise<Response> {
     }
     return localizedErrorResponse("enrichDeploymentUnavailable", 503);
   }
-  const adapter = createServerLlmAdapter(config);
+  const adapter = createServerLlmAdapter(
+    config,
+    e2eWorkerHeaders(request.headers),
+  );
 
   // Code grounding just matters when the request carries a monitored repo.
   // Server-managed GitHub App just; any failure degrades to AKB scoped enrichment

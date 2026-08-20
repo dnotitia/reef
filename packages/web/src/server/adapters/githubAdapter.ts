@@ -75,20 +75,25 @@ export interface CreateGitHubAdapterParams {
    * use Octokit's default github.com endpoints.
    */
   baseUrl?: string;
+  /** Optional hermetic-test headers forwarded to GitHub mock requests. */
+  requestHeaders?: Record<string, string>;
 }
 
 export function createGitHubAdapter({
   token,
   baseUrl = process.env.REEF_GITHUB_API_BASE_URL,
+  requestHeaders,
 }: CreateGitHubAdapterParams): GitHubAdapter {
   const normalizedBaseUrl = baseUrl ? stripTrailingSlashes(baseUrl) : undefined;
   const rest = new Octokit({
     auth: token,
     ...(normalizedBaseUrl ? { baseUrl: normalizedBaseUrl } : {}),
+    ...(requestHeaders ? { request: { headers: requestHeaders } } : {}),
   });
   const graphqlClient = graphql.defaults({
     ...(normalizedBaseUrl ? { baseUrl: normalizedBaseUrl } : {}),
     headers: {
+      ...requestHeaders,
       authorization: `token ${token}`,
     },
   });

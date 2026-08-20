@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../harness/test";
 import { openExistingWorkspace, resetFixture } from "../harness/fixture";
 
 // Regression guard for the warm-cache hydration mismatch on the issues board.

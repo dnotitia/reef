@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../harness/test";
 import { openExistingWorkspace, resetFixture } from "../harness/fixture";
 
 // REEF-329: jira and confluence are first-class external_refs kinds. This drives

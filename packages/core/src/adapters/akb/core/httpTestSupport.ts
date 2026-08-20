@@ -80,9 +80,10 @@ export function setupFetch(responses: FetchResponseSpec[]): {
   return { calls, fetchMock };
 }
 
-export function makeAdapter() {
+export function makeAdapter(requestHeaders?: Record<string, string>) {
   return createAkbAdapter({
     baseUrl: "https://akb.test",
     jwt: "jwt.example.token",
+    requestHeaders,
   });
 }

@@ -6,6 +6,7 @@ import {
 } from "@/lib/akb/headers";
 import { buildClearedEstablishedAuthCookies } from "@/lib/akb/sessionCookie";
 import { localizeError } from "@/lib/api/errorLocalization";
+import { e2eWorkerHeaders } from "@/lib/e2e/workerHeader";
 import { logger } from "@/lib/logging/logger";
 import {
   type AkbAccountErrorCode,
@@ -55,7 +56,11 @@ export async function GET(request: Request): Promise<Response> {
   let profile: unknown;
   try {
     ({ profile } = await akbGetMe({
-      adapter: createAkbAdapter({ baseUrl: backendUrl, jwt }),
+      adapter: createAkbAdapter({
+        baseUrl: backendUrl,
+        jwt,
+        requestHeaders: e2eWorkerHeaders(request.headers),
+      }),
     }));
   } catch (err) {
     if (err instanceof AuthError) {

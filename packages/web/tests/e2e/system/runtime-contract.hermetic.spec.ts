@@ -5,7 +5,7 @@ import {
   type TestInfo,
   expect,
   test,
-} from "@playwright/test";
+} from "../harness/test";
 import {
   E2E_MOCK_URL,
   clearPersistedQueryCacheOnLoad,

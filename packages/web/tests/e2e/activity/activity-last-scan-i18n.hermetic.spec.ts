@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../harness/test";
 import {
   REEF_E2E_VAULT,
   clearPersistedQueryCacheOnLoad,

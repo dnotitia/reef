@@ -141,7 +141,7 @@ describe("uploadIssueAttachment", () => {
     ]);
 
     const attachment = await uploadIssueAttachment({
-      adapter: makeAdapter(),
+      adapter: makeAdapter({ "x-reef-e2e-worker": "worker-1" }),
       vault: "reef-sample",
       reefId: "REEF-349",
       filename: "screenshot.png",
@@ -172,7 +172,10 @@ describe("uploadIssueAttachment", () => {
       url: "https://s3.test/presigned-put",
       init: {
         method: "PUT",
-        headers: { "Content-Type": "image/png" },
+        headers: {
+          "Content-Type": "image/png",
+          "x-reef-e2e-worker": "worker-1",
+        },
         redirect: "error",
       },
     });

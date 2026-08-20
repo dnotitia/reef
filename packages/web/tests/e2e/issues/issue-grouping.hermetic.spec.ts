@@ -1,4 +1,4 @@
-import { type Locator, expect, test } from "@playwright/test";
+import { type Locator, expect, test } from "../harness/test";
 import {
   clearPersistedQueryCacheOnLoad,
   openExistingWorkspace,

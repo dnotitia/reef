@@ -26,7 +26,9 @@ export type AkbAuthConfigResult =
  * (show the panel) rather than redirect into a broken SSO flow. Unexpected
  * non-`AkbApiError` failures still propagate.
  */
-export async function loadAkbAuthConfig(): Promise<AkbAuthConfigResult> {
+export async function loadAkbAuthConfig(
+  requestHeaders?: Record<string, string>,
+): Promise<AkbAuthConfigResult> {
   let backendUrl: string;
   try {
     backendUrl = getAkbBackendUrl();
@@ -36,7 +38,10 @@ export async function loadAkbAuthConfig(): Promise<AkbAuthConfigResult> {
   }
 
   try {
-    const { config } = await akbGetAuthConfig({ baseUrl: backendUrl });
+    const { config } = await akbGetAuthConfig({
+      baseUrl: backendUrl,
+      requestHeaders,
+    });
     return { ok: true, config };
   } catch (err) {
     if (err instanceof AkbApiError) {

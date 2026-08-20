@@ -68,10 +68,13 @@ export default defineConfig({
   testMatch: /.*\.hermetic\.spec\.ts/,
   timeout: 30_000,
   expect: { timeout: 15_000 },
-  fullyParallel: false, // IndexedDB state is per-browser-context; run sequentially
+  fullyParallel: false, // Keep tests in each file sequential; contexts are isolated.
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: 1,
+  // The hermetic mock server is worker-isolated; use both cores on CI instead
+  // of serializing every file inside each shard. Local runs stay conservative
+  // unless a developer opts in with `--workers`.
+  workers: process.env.CI ? 2 : 1,
   reporter: process.env.CI ? "github" : "list",
   use: {
     baseURL: REEF_WEB_URL,

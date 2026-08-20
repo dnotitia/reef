@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../harness/test";
 import { resetFixture } from "../harness/fixture";
 
 test.describe("Branded error surfaces", () => {

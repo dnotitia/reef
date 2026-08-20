@@ -1,4 +1,4 @@
-import { type Page, expect, test } from "@playwright/test";
+import { type Page, expect, test } from "../harness/test";
 import {
   E2E_MOCK_URL,
   REEF_E2E_VAULT,

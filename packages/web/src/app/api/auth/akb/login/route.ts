@@ -7,6 +7,7 @@ import {
   decodeJwtExp,
 } from "@/lib/akb/sessionCookie";
 import { respondWithError } from "@/lib/api/requestHelpers";
+import { e2eWorkerHeaders } from "@/lib/e2e/workerHeader";
 import { logger } from "@/lib/logging/logger";
 import {
   AkbApiError,
@@ -70,6 +71,7 @@ export async function POST(request: Request): Promise<Response> {
       baseUrl: backendUrl,
       username: parsed.data.username,
       password: parsed.data.password,
+      requestHeaders: e2eWorkerHeaders(request.headers),
     });
   } catch (err) {
     if (err instanceof AuthError) {

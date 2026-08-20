@@ -22,6 +22,7 @@ import {
   parseCookieHeader,
 } from "@/lib/akb/sessionCookie";
 import { logger } from "@/lib/logging/logger";
+import { e2eWorkerHeaders } from "@/lib/e2e/workerHeader";
 import {
   AkbApiError,
   AuthError,
@@ -69,7 +70,11 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   try {
-    const result = await akbExchangeKeycloakCode({ baseUrl: backendUrl, code });
+    const result = await akbExchangeKeycloakCode({
+      baseUrl: backendUrl,
+      code,
+      requestHeaders: e2eWorkerHeaders(request.headers),
+    });
     const maxAgeSeconds = sessionMaxAgeSeconds(result.token);
     const headers = new Headers({
       // Relative same-origin Location (completionPath is a validated `/...` path);

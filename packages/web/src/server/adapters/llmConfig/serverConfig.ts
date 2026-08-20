@@ -129,11 +129,15 @@ export function resolveServerLlmConfig(
   };
 }
 
-export function createServerLlmAdapter(config: LLMConfig): LlmAdapter {
+export function createServerLlmAdapter(
+  config: LLMConfig,
+  requestHeaders?: Record<string, string>,
+): LlmAdapter {
   return createLlmAdapter({
     apiKey: config.api_key,
     baseUrl: config.base_url,
     model: config.model,
+    requestHeaders,
   });
 }
 

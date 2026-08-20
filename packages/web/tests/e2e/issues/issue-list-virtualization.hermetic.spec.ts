@@ -1,4 +1,4 @@
-import { type Page, type Response, expect, test } from "@playwright/test";
+import { type Page, type Response, expect, test } from "../harness/test";
 import {
   clearPersistedQueryCacheOnLoad,
   openExistingWorkspace,

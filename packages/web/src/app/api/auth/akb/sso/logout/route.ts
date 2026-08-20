@@ -6,6 +6,7 @@ import {
   parseCookieHeader,
 } from "@/lib/akb/sessionCookie";
 import { logger } from "@/lib/logging/logger";
+import { e2eWorkerHeaders } from "@/lib/e2e/workerHeader";
 import { AkbApiError, akbStartKeycloakLogout } from "@reef/core";
 
 export async function GET(request: Request): Promise<Response> {
@@ -30,6 +31,7 @@ export async function GET(request: Request): Promise<Response> {
     const { location } = await akbStartKeycloakLogout({
       baseUrl: backendUrl,
       idTokenHint,
+      requestHeaders: e2eWorkerHeaders(request.headers),
     });
     return redirectWithCookieCleanup(location);
   } catch (err) {

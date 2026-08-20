@@ -1,4 +1,5 @@
 import { getAkbCurrentActor } from "@/lib/api/requestHelpers";
+import { e2eWorkerHeaders } from "@/lib/e2e/workerHeader";
 import { createGitHubAppInstallationTokenProvider } from "@/server/adapters/github/appAuth";
 import {
   type GitHubAdapter,
@@ -57,6 +58,7 @@ export type ResolveGitHubAdapterResult =
 export async function resolveGitHubAdapter(
   request: Request,
 ): Promise<ResolveGitHubAdapterResult> {
+  const requestHeaders = e2eWorkerHeaders(request.headers);
   // 1. Server-managed GitHub App (deployment credential, session-gated).
   const appConfig = resolveServerGitHubAppConfig();
   if (appConfig.ok) {
@@ -68,11 +70,12 @@ export async function resolveGitHubAdapter(
     try {
       const mintInstallationToken = createGitHubAppInstallationTokenProvider({
         config: appConfig.config,
+        requestHeaders,
       });
       const token = await mintInstallationToken();
       return {
         kind: "adapter",
-        adapter: createGitHubAdapter({ token }),
+        adapter: createGitHubAdapter({ token, requestHeaders }),
         source: "app",
       };
     } catch (error) {
@@ -92,7 +95,10 @@ export async function resolveGitHubAdapter(
     }
     return {
       kind: "adapter",
-      adapter: createGitHubAdapter({ token: serverPat }),
+      adapter: createGitHubAdapter({
+        token: serverPat,
+        requestHeaders,
+      }),
       source: "server-pat",
     };
   }

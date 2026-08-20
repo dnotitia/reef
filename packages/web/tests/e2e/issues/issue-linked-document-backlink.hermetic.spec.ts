@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../harness/test";
 import { openExistingWorkspace, resetFixture } from "../harness/fixture";
 
 // REEF-368: the linked-document "open in akb" backlink must be driven by the

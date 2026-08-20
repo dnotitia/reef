@@ -1,5 +1,6 @@
 import { AUTH_INVALIDATED_HEADER } from "@/lib/akb/headers";
 import { loadAkbAuthConfig } from "@/lib/akb/loadAkbAuthConfig";
+import { e2eWorkerHeaders } from "@/lib/e2e/workerHeader";
 import {
   AUTH_INVALIDATION_COOKIE,
   buildClearedAuthInvalidationCookie,
@@ -16,7 +17,7 @@ import {
  * server component's SSO-first auto-redirect, REEF-312).
  */
 export async function GET(request: Request): Promise<Response> {
-  const result = await loadAkbAuthConfig();
+  const result = await loadAkbAuthConfig(e2eWorkerHeaders(request.headers));
 
   if (!result.ok) {
     const response =

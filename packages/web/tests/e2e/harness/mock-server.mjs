@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -7,6 +8,8 @@ const fixtureLogin = require("./fixture-login.json");
 
 const PORT = Number(process.env.REEF_E2E_MOCK_PORT ?? 7354);
 const HOST = process.env.REEF_E2E_MOCK_HOST ?? "127.0.0.1";
+const E2E_WORKER_HEADER = "x-reef-e2e-worker";
+const DEFAULT_WORKER_ID = "default";
 const NOW = "2026-06-15T00:00:00.000Z";
 const REEF_VAULT = "reef-e2e";
 const TOOL_LOOP_E2E_PROMPT = "tool transparency e2e";
@@ -121,15 +124,77 @@ const ACCOUNT_DENIAL_CODES = new Set([
 // exactly the sort-staleness fix REEF-325 covers. Deterministic (a pure
 // function of an incrementing counter), so runs stay reproducible.
 const NOW_MS = Date.parse(NOW);
-let editTick = 0;
-function nextEditTimestamp() {
-  editTick += 1;
-  return new Date(NOW_MS + editTick * 1000).toISOString();
+const stateStorage = new AsyncLocalStorage();
+const statesByWorker = new Map();
+const workersBySessionToken = new Map();
+
+const initialState = makeState("configured");
+statesByWorker.set(DEFAULT_WORKER_ID, initialState);
+workersBySessionToken.set(initialState.loginToken, DEFAULT_WORKER_ID);
+
+// Keep the existing handler helpers readable while making their state lookup
+// request-scoped. AsyncLocalStorage prevents concurrent workers from observing
+// each other's fixture reset or mutation, even though the server process is
+// shared by Playwright workers.
+const state = new Proxy(
+  {},
+  {
+    get(_target, property) {
+      return currentState()[property];
+    },
+    set(_target, property, value) {
+      currentState()[property] = value;
+      return true;
+    },
+  },
+);
+
+function currentState() {
+  return stateStorage.getStore()?.state ?? initialState;
 }
 
-let state = makeState("configured");
+function normalizeWorkerId(value) {
+  const candidate = String(value ?? "").trim();
+  return /^[A-Za-z0-9_-]{1,80}$/u.test(candidate)
+    ? candidate
+    : DEFAULT_WORKER_ID;
+}
 
-const server = createServer(async (req, res) => {
+function requestWorkerId(req) {
+  const explicit = req.headers[E2E_WORKER_HEADER];
+  if (explicit) return normalizeWorkerId(explicit);
+
+  const rawAuthorization = String(req.headers.authorization ?? "");
+  const token = rawAuthorization.replace(/^Bearer\s+/iu, "");
+  return workersBySessionToken.get(token) ?? DEFAULT_WORKER_ID;
+}
+
+function stateForWorker(workerId) {
+  let workerState = statesByWorker.get(workerId);
+  if (!workerState) {
+    workerState = makeState("configured", workerId);
+    statesByWorker.set(workerId, workerState);
+    workersBySessionToken.set(workerState.loginToken, workerId);
+  }
+  return workerState;
+}
+
+function resetWorkerState(workerId, scenario) {
+  const workerState = makeState(scenario, workerId);
+  statesByWorker.set(workerId, workerState);
+  workersBySessionToken.set(workerState.loginToken, workerId);
+  const context = stateStorage.getStore();
+  if (context?.workerId === workerId) context.state = workerState;
+  return workerState;
+}
+
+function nextEditTimestamp() {
+  const tick = (currentState().editTick ?? 0) + 1;
+  currentState().editTick = tick;
+  return new Date(NOW_MS + tick * 1000).toISOString();
+}
+
+async function handleRequest(req, res, workerId) {
   try {
     const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
     rememberCall(req.method ?? "GET", url.pathname);
@@ -160,7 +225,7 @@ const server = createServer(async (req, res) => {
     }
     if (url.pathname === "/__e2e/reset" && req.method === "POST") {
       const body = await readJson(req);
-      state = makeState(normalizeScenario(body?.scenario));
+      resetWorkerState(workerId, normalizeScenario(body?.scenario));
       return json(res, 200, { ok: true, scenario: state.scenario });
     }
     if (url.pathname === "/__e2e/issue-list-failure" && req.method === "POST") {
@@ -347,6 +412,14 @@ const server = createServer(async (req, res) => {
     );
     return json(res, 500, { error: "mock_server_error" });
   }
+}
+
+const server = createServer(async (req, res) => {
+  const workerId = requestWorkerId(req);
+  const workerState = stateForWorker(workerId);
+  return stateStorage.run({ workerId, state: workerState }, () =>
+    handleRequest(req, res, workerId),
+  );
 });
 
 // Playwright's APIRequestContext keeps fixture-control connections pooled.
@@ -554,7 +627,7 @@ function runtimeDiscovery() {
   };
 }
 
-function makeState(scenario) {
+function makeState(scenario, workerId = DEFAULT_WORKER_ID) {
   const alice = {
     id: "user-alice",
     username: fixtureLogin.username,
@@ -569,7 +642,11 @@ function makeState(scenario) {
     display_name: "Bob Example",
     is_admin: false,
   };
-  const token = makeJwt({ sub: alice.id, username: alice.username });
+  const token = makeJwt({
+    sub: alice.id,
+    username: alice.username,
+    jti: workerId,
+  });
   const next = {
     scenario,
     calls: [],
@@ -593,6 +670,7 @@ function makeState(scenario) {
     localAuthEnabled: true,
     ssoOnly: false,
     accountDenialCode: null,
+    editTick: 0,
     commitSeq: 0,
     planningSeq: 10,
     githubRepos: [

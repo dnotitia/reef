@@ -1,4 +1,4 @@
-import { type Locator, type Page, expect, test } from "@playwright/test";
+import { type Locator, type Page, expect, test } from "../harness/test";
 import {
   REEF_E2E_VAULT,
   openExistingWorkspace,

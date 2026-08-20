@@ -14,6 +14,7 @@ import {
   buildClearedEstablishedAuthCookies,
   decodeSessionUsername,
 } from "@/lib/akb/sessionCookie";
+import { e2eWorkerHeaders } from "@/lib/e2e/workerHeader";
 import {
   type AkbAccountErrorCode,
   type AkbAdapter,
@@ -274,7 +275,13 @@ export function getAkbAdapter(
       }),
     };
   }
-  return { adapter: createAkbAdapter({ baseUrl: getAkbBackendUrl(), jwt }) };
+  return {
+    adapter: createAkbAdapter({
+      baseUrl: getAkbBackendUrl(),
+      jwt,
+      requestHeaders: e2eWorkerHeaders(request.headers),
+    }),
+  };
 }
 
 /**
@@ -319,7 +326,11 @@ export async function getAkbCurrentActor(
   let actor: string | null;
   try {
     ({ actor } = await akbGetCurrentActor({
-      adapter: createAkbAdapter({ baseUrl: backendUrl, jwt }),
+      adapter: createAkbAdapter({
+        baseUrl: backendUrl,
+        jwt,
+        requestHeaders: e2eWorkerHeaders(request.headers),
+      }),
       jwt,
     }));
   } catch (err) {
