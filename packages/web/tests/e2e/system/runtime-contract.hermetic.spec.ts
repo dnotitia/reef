@@ -166,6 +166,15 @@ test.describe("Hermetic runtime discovery", () => {
           content_type: "application/json",
           body: { scenario: "<supported_scenario>" },
         },
+        llm_control: {
+          method: "POST",
+          path: "/__e2e/llm-control",
+          content_type: "application/json",
+          body: {
+            failures: "<count>",
+            delay_ms: "<milliseconds>",
+          },
+        },
       },
       fixture_login: {
         ...fixtureLogin,
@@ -326,6 +335,24 @@ test.describe("Hermetic runtime discovery", () => {
     );
     expect(loginResponse.ok()).toBeTruthy();
     expect((await loginResponse.json()).user.username).toBe(username);
+
+    const llmControl = contract.operations?.llm_control;
+    if (!llmControl?.path) {
+      throw new Error("missing discovered LLM control operation");
+    }
+    const llmControlResponse = await request.post(
+      new URL(llmControl.path, E2E_MOCK_URL).toString(),
+      {
+        data: { failures: 1, delay_ms: 125 },
+      },
+    );
+    expect(llmControlResponse.ok()).toBeTruthy();
+    expect(await llmControlResponse.json()).toMatchObject({
+      ok: true,
+      failures: 1,
+      delay_ms: 125,
+    });
+
     expect(contract.scenarios).toEqual(
       expect.arrayContaining([
         "configured_multi",

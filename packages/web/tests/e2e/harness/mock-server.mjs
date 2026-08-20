@@ -421,6 +421,15 @@ function runtimeDiscovery() {
           ],
         },
       },
+      llm_control: {
+        method: "POST",
+        path: "/__e2e/llm-control",
+        content_type: "application/json",
+        body: {
+          failures: "<count>",
+          delay_ms: "<milliseconds>",
+        },
+      },
     },
     fixture_login: {
       username: fixtureLogin.username,
