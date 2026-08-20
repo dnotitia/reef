@@ -8,6 +8,7 @@ import {
   issueListInfiniteKey,
   mapIssueListCache,
   prependIssueToIssueListCache,
+  restoreIssueListCacheItems,
   updateIssueListCaches,
 } from "./issueListCache";
 
@@ -89,5 +90,33 @@ describe("issue list cache shapes", () => {
     ) as ReturnType<typeof infiniteData>;
     expect(prepended.pages[0]?.issues[0]).toEqual(created);
     expect(prepended.pages[1]?.issues).toHaveLength(2);
+  });
+
+  it("restores one failed issue without erasing a sibling optimistic update", () => {
+    const client = new QueryClient();
+    const finiteKey = ["issues", "list", "reef-acme"] as const;
+    const infiniteKey = issueListInfiniteKey("reef-acme", query);
+    client.setQueryData(finiteKey, [issue("REEF-001"), issue("REEF-002")]);
+    client.setQueryData(infiniteKey, infiniteData());
+
+    const snapshots = updateIssueListCaches(client, "reef-acme", (item) =>
+      item.id === "REEF-001" ? { ...item, status: "in_progress" } : item,
+    );
+    updateIssueListCaches(client, "reef-acme", (item) =>
+      item.id === "REEF-002" ? { ...item, status: "done" } : item,
+    );
+
+    restoreIssueListCacheItems(client, snapshots, "REEF-001");
+
+    expect(
+      client
+        .getQueryData<IssueListItem[]>(finiteKey)
+        ?.map((item) => item.status),
+    ).toEqual(["todo", "done"]);
+    const restoredInfinite =
+      client.getQueryData<ReturnType<typeof infiniteData>>(infiniteKey);
+    expect(
+      restoredInfinite?.pages[0]?.issues.map((item) => item.status),
+    ).toEqual(["todo", "done"]);
   });
 });

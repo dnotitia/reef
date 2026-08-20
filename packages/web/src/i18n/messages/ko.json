@@ -873,6 +873,11 @@
     }
   },
   "issues": {
+    "quickEdit": {
+      "statusUpdating": "상태 업데이트 중…",
+      "statusUpdated": "상태를 업데이트했습니다.",
+      "statusUpdateFailed": "상태 업데이트에 실패했습니다. 재시도할 수 있습니다."
+    },
     "backlog": {
       "loadError": "백로그를 불러오지 못했습니다.",
       "noMatches": "필터와 일치하는 백로그 이슈가 없습니다.",

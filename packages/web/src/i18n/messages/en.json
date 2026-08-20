@@ -686,6 +686,11 @@
     "planningDeleteError": "Delete failed."
   },
   "issues": {
+    "quickEdit": {
+      "statusUpdating": "Updating status…",
+      "statusUpdated": "Status updated.",
+      "statusUpdateFailed": "Status update failed. Retry is available."
+    },
     "backlog": {
       "loadError": "Failed to load the backlog.",
       "noMatches": "No backlog issues match your filters.",

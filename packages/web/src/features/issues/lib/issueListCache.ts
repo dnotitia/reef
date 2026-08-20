@@ -165,6 +165,34 @@ export function updateIssueListCaches(
   return previous;
 }
 
+/**
+ * Restore only the issue that belongs to a failed mutation. Restoring an
+ * entire list snapshot can erase a sibling row's newer optimistic update when
+ * two rows are saved at the same time.
+ */
+export function restoreIssueListCacheItems(
+  queryClient: QueryClient,
+  previous: Array<[QueryKey, unknown]>,
+  issueId: string,
+): void {
+  for (const [queryKey, previousData] of previous) {
+    const previousIssue = findIssueListCacheItem(
+      queryKey,
+      previousData,
+      issueId,
+    );
+    if (!previousIssue) continue;
+
+    const currentData = queryClient.getQueryData<unknown>(queryKey);
+    queryClient.setQueryData(
+      queryKey,
+      mapIssueListCache(queryKey, currentData, (issues) =>
+        issues.map((issue) => (issue.id === issueId ? previousIssue : issue)),
+      ),
+    );
+  }
+}
+
 export function prependIssueToIssueListCaches(
   queryClient: QueryClient,
   vault: string,
@@ -208,6 +236,34 @@ function isIssueListItem(value: unknown): value is IssueListItem {
     !Array.isArray(value) &&
     typeof (value as { id?: unknown }).id === "string"
   );
+}
+
+function findIssueListCacheItem(
+  queryKey: QueryKey,
+  data: unknown,
+  issueId: string,
+): IssueListItem | undefined {
+  if (isIssueListInfiniteKey(queryKey)) {
+    if (!isIssueListInfiniteData(data)) return undefined;
+    for (const page of data.pages) {
+      const issue = page.issues.find((candidate) => candidate.id === issueId);
+      if (issue) return issue;
+    }
+    return undefined;
+  }
+
+  if (
+    issueListQueryFromKey(queryKey) !== undefined ||
+    isBareIssueListKey(queryKey)
+  ) {
+    if (!Array.isArray(data)) return undefined;
+    const issue = data.find(
+      (candidate): candidate is IssueListItem =>
+        isIssueListItem(candidate) && candidate.id === issueId,
+    );
+    return issue;
+  }
+  return undefined;
 }
 
 function isIssueListResponse(value: unknown): value is IssueListResponse {
