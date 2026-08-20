@@ -66,7 +66,7 @@ test.describe("Hermetic List status pending quick edit", () => {
     await expect(trigger).toContainText("In Progress");
     await expect(trigger).toHaveAttribute("aria-busy", "true");
     await expect(trigger).toBeDisabled();
-    await expect(trigger).toHaveAccessibleName("Status, Updating status…");
+    await expect(trigger).toHaveAccessibleName("Status");
     await expect(row.locator("[data-status-update-announcement]")).toHaveText(
       "Updating status…",
     );
@@ -84,7 +84,7 @@ test.describe("Hermetic List status pending quick edit", () => {
     expect(patchCount).toBe(1);
 
     await expect(trigger).not.toHaveAttribute("aria-busy");
-    await expect(trigger).toHaveAccessibleName("Status, Status updated.");
+    await expect(trigger).toHaveAccessibleName("Status");
     expect(await fixtureIssueStatus(request, "REEF-001")).toBe("in_progress");
   });
 
@@ -129,8 +129,9 @@ test.describe("Hermetic List status pending quick edit", () => {
 
     await expect(firstTrigger).not.toHaveAttribute("aria-busy");
     await expect(firstTrigger).toContainText("Todo");
-    await expect(firstTrigger).toHaveAccessibleName(
-      "Status, Status update failed. Retry is available.",
+    await expect(firstTrigger).toHaveAccessibleName("Status");
+    await expect(first.locator("[data-status-update-announcement]")).toHaveText(
+      "Status update failed. Retry is available.",
     );
     await expect(secondTrigger).toContainText("Done");
     expect(await fixtureIssueStatus(request, "REEF-001")).toBe("todo");
