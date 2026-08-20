@@ -26,10 +26,14 @@ reef has three runtime tiers:
   has no Next.js, React, DOM, browser-storage, GitHub SDK, LLM client, or AI SDK
   runtime dependencies.
 - **reef-web** — a Next.js App Router application that renders the product UI and
-  acts as a **stateless Backend-for-Frontend (BFF)** over the AKB vault. Its
+  acts as the AKB-facing Backend-for-Frontend (BFF). The current/default profile
+  is stateless and delegates authentication to AKB. A future auth-v2 profile is
+  reserved behind `REEF_AUTH_V2_ENABLED=1`; the route cutover is not wired in
+  this release. It adds only an encrypted, expiring Redis session store for OIDC
+  credentials, not product state. Its
   server-only adapters own GitHub/LLM I/O and its application tree owns agents;
-  Route Handlers validate input, resolve those use cases, call core for AKB/domain
-  behavior, and translate errors. It persists no user-specific server state.
+  Route Handlers validate input, resolve those use cases, call core for
+  AKB/domain behavior, and translate errors.
 
 Two auxiliary runtimes stay outside the interactive web request path:
 
@@ -68,8 +72,9 @@ Two auxiliary runtimes stay outside the interactive web request path:
 ```
 Browser (React UI, Zustand, TanStack Query, Dexie)
    │  apiFetch → /api/* Route Handlers
-reef-web (stateless Next.js BFF)
+reef-web (AKB-delegated by default; auth-v2 opt-in)
   ├── @reef/core AKB adapter + domain contracts
+  ├── auth-v2 (opt-in): OIDC code+PKCE + encrypted Redis credential custody
   └── server-only adapters/application
        ├── GitHub (monitored repos)                         — read-only grounding
        └── OpenAI-compatible LLM endpoint                    — chat + agents
@@ -106,19 +111,27 @@ a separate backend boundary with their own provider-neutral contracts. Mixing
 these surfaces would bind domain logic to Next.js and scatter external I/O
 across the app.
 
-- **`core` owns AKB product I/O** — data-plane reads and writes plus auth/session
-  calls (`login`, `getMe`, `getCurrentActor`). The AKB adapter is constructed per
-  request and forwards an `Authorization: Bearer <pat>` header to
-  `AKB_BACKEND_URL`.
+- **`core` owns AKB product I/O** — data-plane reads and writes plus the
+  provider-neutral auth/account boundary. In the current profile it owns the
+  AKB `login`, `getMe`, and `getCurrentActor` calls. Auth-v2 adds the exact AKB
+  `POST /api/v2/auth/account-validation` contract: core forwards the validated
+  access token and the `provider_alias` + `subject` binding, then maps AKB's
+  account projection or stable denial codes. The AKB adapter is constructed per
+  request and forwards an `Authorization: Bearer …` header to
+  `AKB_BACKEND_URL`; it never infers account eligibility from OIDC claims.
 - **`web` owns provider and agent application I/O** under
   `packages/web/src/server/`. GitHub credential resolution, GitHub transport,
   LLM configuration, LLM transport, agent tools, and agent use cases stay out of
   core and are consumed by routes through the server application barrel.
 - **Route Handlers** under `packages/web/src/app/api/*/route.ts` remain thin. A
-  handler validates the request with a Zod schema, extracts the AKB session
-  cookie, resolves server application dependencies, calls core for AKB/domain
-  behavior, and translates errors into PM-facing language and HTTP status. It
-  owns no inline provider fetch, business logic, or inline AKB wire schema.
+  current-profile handler validates the request with a Zod schema, extracts the
+  AKB session cookie, resolves server application dependencies, calls core for
+  AKB/domain behavior, and translates errors into PM-facing language and HTTP
+  status. The future auth-v2 cutover will replace that profile's session
+  boundary with an opaque handle; this release does not wire it. OIDC protocol
+  and token custody stay in the server-only auth-v2 module; handlers own no
+  inline provider fetch, business logic, OIDC validation, or inline AKB wire
+  schema.
 - **All user mutations flow through `apiFetch`** in client `.actions.ts` files,
   which call the Route Handlers. **Server Actions are not used**, so reads,
   mutations, and chat streaming all travel the same `apiFetch` → Route Handler →
@@ -175,19 +188,28 @@ retryable `ConflictError` instead of a silent overwrite. There is no diff/merge
 UI. This keeps queryable PM metadata fast while protecting externally editable
 document content from known stale-base writes.
 
-## Stateless web tier and credential placement
+## Authentication profiles and credential placement
 
 reef-web is Reef's interactive server; the optional orchestrator is a separate
-worker process and the Jira migrator is an operator-run process. To keep data
-ownership with the team and avoid per-user storage, **reef-web persists nothing
-that belongs to a specific user**: no database, no server-side session store, no
-Redis, no per-user cache, no KMS. Per-user state lives at the edges. The three
-credentials the web product needs are each placed deliberately:
+worker process and the Jira migrator is an operator-run process. Product state
+and account authority remain in AKB. The **current/default profile** persists
+nothing user-specific in Reef: the AKB JWT stays in the `__reef_session`
+httpOnly cookie, is decoded read-only per request, and is forwarded to AKB as
+`Authorization: Bearer …`. It is never mirrored to server memory or disk, and
+`httpOnly` keeps it out of browser JavaScript.
 
-- **AKB session** — a JWT inside the `__reef_session` httpOnly cookie. It is
-  decoded read-only per request and forwarded to AKB as
-  `Authorization: Bearer <pat>`. It is never mirrored to server memory or disk,
-  and `httpOnly` keeps it out of browser JavaScript.
+The **future auth-v2 profile** is reserved behind `REEF_AUTH_V2_ENABLED=1`.
+Its route cutover will add a bounded authentication exception: the browser gets
+only a random opaque `__reef_session` handle while access, refresh, and ID
+tokens live in AES-256-GCM-encrypted Redis. This ephemeral credential store is
+not product state, but production requires Redis and an independent 32-byte
+encryption key; there is no legacy or in-memory fallback. Auth-v2 validates the
+OIDC token locally against the catalog's canonical issuer, accepted audiences,
+accepted clients, RS256, bearer type, subject, and provider alias, then calls
+AKB account validation. Reef never derives account membership from token claims.
+
+Both profiles keep the remaining credentials deliberately placed:
+
 - **GitHub credentials** — deployment-managed server environment:
   `REEF_GITHUB_APP_ID`, `REEF_GITHUB_APP_INSTALLATION_ID`, and
   `REEF_GITHUB_APP_PRIVATE_KEY`. reef-web mints per-request installation tokens
@@ -205,9 +227,19 @@ credentials the web product needs are each placed deliberately:
   or headers.
 
 A redacting logger masks `Authorization`, `Cookie`, `Set-Cookie`, and the
-LLM-config header in request and error logs; if a known token substring appears
-in output, tests fail. Browser-side token exposure is minimized by keeping
-GitHub and LLM credentials out of browser storage.
+LLM-config header in request and error logs; auth-v2 additionally bounds OIDC
+errors before logging and never logs handles, codes, state, PKCE verifiers, or
+token claims. If a known token substring appears in output, tests fail.
+Browser-side token exposure is minimized by keeping AKB/OIDC, GitHub, and LLM
+credentials out of browser storage.
+
+Auth-v2 uses `REEF_KEYCLOAK_ISSUER` as the canonical browser/JWT issuer and
+`REEF_KEYCLOAK_TRANSPORT_URL` only for token, JWKS, revocation, and readiness
+traffic. The transport has the exact issuer realm path but is a distinct,
+non-public in-cluster address; public ingress, IP literals, credentials, query,
+and fragment are rejected. These boundaries fail closed when auth-v2 is
+partially configured. See [`keycloak-sso.md`](keycloak-sso.md) for the full
+AKB config catalog and account-validation contract.
 
 ## The AI layer
 

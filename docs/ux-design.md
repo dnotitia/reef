@@ -17,9 +17,13 @@ contract and this document explains the user-facing consequence.
 reef is a Next.js (App Router) application rendered with React 19. It runs
 in the browser; there is no desktop build, no native packaging, and no offline
 mode. The shell and shared empty-state surfaces also keep a narrow 390px
-viewport usable without clipping or overlap. The product is a stateless BFF in
-front of the AKB backend: the server persists no per-user session table, so the
-experience follows a strict state-owner split:
+viewport usable without clipping or overlap. The current/default product is a
+stateless BFF in front of the AKB backend: the server persists no per-user
+session table. A future auth-v2 deployment may use an encrypted Redis session
+store for OIDC credentials only after its guarded route cutover enables
+`REEF_AUTH_V2_ENABLED=1`; that ephemeral store is not product state and is never
+visible to the browser. The experience
+follows a strict state-owner split:
 
 - **Zustand** holds UI state only — sidebar collapse, the active issue view,
   filters, the open/closed state of the New Issue and Ask AI dialogs, user
@@ -796,15 +800,37 @@ offers a "New chat" reset and Esc-to-close. Its empty state primes the user:
 
 ### Authentication & Onboarding
 
-reef is gated by an AKB account. `/login` reads AKB's authentication capability
-and renders password login, workspace SSO, or both. Password login posts to
-`/api/auth/akb/login`. Workspace SSO delegates the Keycloak authorization and
-one-time code exchange to AKB rather than treating the Keycloak access token as
-an AKB API credential. Both paths finish with an AKB-issued JWT in the
-`__reef_session` httpOnly cookie; Reef keeps no server-side session table. After
-either path succeeds, the previous account's workspace-scoped browser state is
-reconciled away. There is no GitHub-OAuth sign-in, popup, or
+reef is gated by an AKB account. In the current/default profile, `/login` reads
+AKB's authentication capability and renders password login, workspace SSO, or
+both. Password login posts to `/api/auth/akb/login`. Workspace SSO delegates the
+Keycloak authorization and one-time code exchange to AKB rather than treating a
+Keycloak access token as an AKB API credential. Both paths finish with an
+AKB-issued JWT in the `__reef_session` httpOnly cookie; Reef keeps no
+server-side session table. There is no GitHub-OAuth sign-in, popup, or
 management-repository selection.
+
+After the future auth-v2 route cutover is enabled, the same login surface will
+be backed by Reef's authorization-code + PKCE flow. The unauthenticated AKB v2
+catalog determines which provider buttons are available, but the default
+presentation is hybrid:
+when `local_auth.enabled` is true, the username/password form and SSO option are
+visible together. A clean `/login` entry never hides the password form or
+redirects automatically unless the deployment explicitly sets
+`REEF_SSO_AUTO_REDIRECT=1`; the catalog's `sso_only` flag alone is not an
+auto-redirect command. An AKB catalog with `local_auth.enabled=false` is an
+explicit statement that the password method is unavailable, not a Reef-side
+fallback. SSO failures return to the panel with a bounded, translated error and
+leave the password path reachable whenever AKB advertises it.
+
+After an auth-v2 callback, Reef first validates the OIDC token and then asks AKB
+to validate the account at `POST /api/v2/auth/account-validation`, binding the
+selected provider alias and token subject. Membership, suspension, and identity
+conflict responses use the same curated account-denial copy and clear all Reef
+auth state; Reef does not infer eligibility from a token claim. A successful
+auth-v2 session exposes only an opaque httpOnly handle to the browser; access,
+refresh, and ID tokens never enter browser JavaScript, URLs, browser storage,
+cookies, or visible error copy. After either profile succeeds, the previous
+account's workspace-scoped browser state is reconciled away.
 
 After session validation, reef checks the user's accessible workspaces before
 showing onboarding. If at least one already has reef configuration, the app
@@ -827,8 +853,11 @@ account menu, including the current identity, theme shortcut, release notes,
 and the same sign-out flow used by the dashboard sidebar. The menu is absent
 while the session gate is checking, on unauthenticated surfaces, and on
 `/login`; signing out clears AKB-scoped browser state and returns to `/login`.
-An SSO session may continue through AKB's Keycloak logout route after Reef
-clears its own authentication cookies.
+An AKB-delegated SSO session may continue through AKB's Keycloak logout route
+after Reef clears its own authentication cookies. An auth-v2 session deletes its
+encrypted Redis record before clearing the opaque browser handle; external
+logout navigation is constructed from the canonical issuer and never receives
+token material in a URL.
 
 ### Planning, Reports, Settings
 

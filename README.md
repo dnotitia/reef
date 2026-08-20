@@ -26,8 +26,10 @@ them.
 ## What reef shows about AKB
 
 - **AKB can back a full product surface.** reef stores workspaces, issue bodies,
-  planning data, templates, settings, and membership in AKB while keeping the web
-  tier stateless.
+  planning data, templates, settings, and membership in AKB while keeping the
+  current/default web tier stateless. A future auth-v2 cutover may add encrypted
+  Redis custody for OIDC credentials only; it does not move product state out of
+  AKB.
 - **Documents and tables work together.** Issue bodies live as AKB task
   documents, while board/list/report fields live in typed `reef_issues` rows.
 - **Agentic workflows can stay reviewable.** Enrichment and activity detection
@@ -122,7 +124,7 @@ inside this repository.
 | Path | Purpose |
 | --- | --- |
 | `packages/core` | Framework-agnostic TypeScript library (`@reef/core`) for schemas, models, AKB access, observability, and errors. |
-| `packages/web` | Next.js App Router application package (`@reef/web`) and stateless Backend-for-Frontend. Its server-only adapters own GitHub/LLM I/O and its application tree owns agents; Route Handlers remain thin. |
+| `packages/web` | Next.js App Router application package (`@reef/web`) and AKB-facing Backend-for-Frontend. The current/default profile is stateless; the reserved future auth-v2 profile adds encrypted Redis custody for OIDC credentials only. Its server-only adapters own GitHub/LLM I/O and its application tree owns agents; Route Handlers remain thin. |
 | `packages/orchestration/runtime` | Provider-neutral execution core (`@reef/orchestrator`) for registry preflight, lifecycle, cancellation, cleanup, terminal results, and graceful shutdown outside the web process. |
 | `packages/orchestration/cli` | Private foreground work-URI invocation adapter (`@reef/orchestration-cli`) for strict config resolution, controller binding, bounded progress, cancellation, and terminal results. |
 | `packages/orchestration/providers/codex` | Private Codex App Server harness adapter (`@reef/harness-provider-codex`) for stdio lifecycle, policy enforcement, and secret-free harness events. |
@@ -187,9 +189,10 @@ reef has three runtime tiers:
   workspace as `@reef/core`. It owns schemas, domain models, the AKB adapter,
   observability, and typed errors. It is the only product owner of AKB I/O.
 - **reef web** is the Next.js application package, named `@reef/web` in the
-  workspace. It renders the product UI and acts as a stateless
-  Backend-for-Frontend; its server-only tree owns GitHub/LLM adapters and agent
-  application code.
+  workspace. It renders the product UI and acts as the AKB-facing
+  Backend-for-Frontend. The current/default profile is stateless; a future
+  auth-v2 route cutover may add encrypted Redis custody for OIDC credentials.
+  Its server-only tree owns GitHub/LLM adapters and agent application code.
 
 Provider-neutral one-run execution lives separately in `@reef/orchestrator`; a
 caller may schedule it outside the web process. The private
@@ -208,9 +211,10 @@ The root `Dockerfile` uses the repository-pinned Turbo dependency to prune the
 runs it as a non-root user. Kubernetes manifests live under `deploy/k8s`.
 
 Production deployments provide `AKB_BACKEND_URL` and deployment-managed LLM
-environment variables server-side. SSO is delegated through AKB; reef itself
-still only needs the AKB backend origin and, for cross-origin SSO, the public
-reef origin. See [docs/deployment.md](docs/deployment.md) and
+environment variables server-side. The current/default SSO path is delegated
+through AKB; the future auth-v2 flag is reserved for a separately reviewed
+route cutover and must remain disabled until AKB's v2 contract is live. See
+[docs/deployment.md](docs/deployment.md) and
 [docs/keycloak-sso.md](docs/keycloak-sso.md).
 
 ## Documentation

@@ -1,12 +1,12 @@
 # Deploying reef
 
-reef ships as a single stateless web service, **reef-web**, that talks to an
-[akb](https://github.com/dnotitia/akb) backend. reef-web persists nothing of its
-own: the akb session lives in an httpOnly cookie, monitored repositories are
-accessed through deployment-managed GitHub credentials, and LLM config is
-deployment-managed server state. That means deployment is just "run the
-container, point it at akb, and optionally give it one OpenAI-compatible LLM
-endpoint plus GitHub configuration."
+reef ships as a single web service, **reef-web**, that talks to an
+[akb](https://github.com/dnotitia/akb) backend. The current/default deployment is
+stateless: AKB owns authentication and the AKB-issued session lives in an
+httpOnly cookie, monitored repositories are accessed through deployment-managed
+GitHub credentials, and LLM config is deployment-managed server state. A future
+Reef-owned auth-v2 profile adds an encrypted Redis session store only when it is
+explicitly enabled and fully configured; it is not part of the current rollout.
 
 This guide covers three ways to run it:
 
@@ -15,6 +15,42 @@ This guide covers three ways to run it:
 3. [Docker Compose](#3-docker-compose) (single host / local trial)
 
 See [Required environment](#required-environment) for the full env contract.
+
+## Authentication profiles
+
+The operating default remains the AKB-delegated contract restored by #357:
+AKB handles username/password and Keycloak browser login, Reef exchanges the
+one-time AKB code server-side, and Reef stores the resulting AKB JWT in the
+`__reef_session` httpOnly cookie. The default requires no Redis, OIDC token
+custody, or Reef-side account-validation endpoint. Keep
+`REEF_AUTH_V2_ENABLED` unset (or `0`) for this profile.
+
+Auth-v2 is a future, explicit opt-in. `REEF_AUTH_V2_ENABLED=1` is a reserved
+rollout gate for the follow-up route cutover; this release does not replace the
+current Route Handlers when the variable is present. That cutover requires all
+of the following as one atomic deployment contract: the canonical Keycloak
+issuer, a distinct internal Keycloak transport, the dedicated client id, the
+AKB API audience, the public Reef origin, a Redis URL, and an independent
+32-byte session-encryption key. Partial configuration fails closed. Auth-v2
+never falls back to AKB's legacy browser-login/token-exchange endpoints or to
+`/api/v1/auth/me`; if AKB's v2 contract is missing, rollout stops and the flag
+remains off.
+
+In auth-v2, Reef validates the OIDC token's issuer, accepted audience/client,
+algorithm, bearer type, subject, and provider alias before calling AKB's exact
+`POST /api/v2/auth/account-validation` endpoint with the bearer token and the
+`provider_alias` + `subject` binding. AKB remains the membership, suspension,
+identity-conflict, and account-projection authority. See
+[`keycloak-sso.md`](keycloak-sso.md) for the wire schema, boundaries, and
+security invariants. The AKB prerequisite includes advertising
+`local_auth.enabled=true` when the product is expected to show the default
+hybrid password + SSO panel; `sso_only` alone never authorizes an automatic
+redirect. `REEF_SSO_AUTO_REDIRECT=1` is the explicit redirect opt-in.
+
+This work is intentionally deploy-neutral: do not enable auth-v2 in production
+until the follow-up route cutover exists, AKB's config and account-validation
+contract is live and contract-tested, and the Draft PR's rollout gates have
+passed.
 
 ---
 
@@ -96,14 +132,21 @@ cp -r deploy/k8s/overlays/example deploy/k8s/overlays/my-cluster
      akb namespace and Service name).
    - `REEF_PUBLIC_ORIGIN` — reef-web's canonical external origin; it must match
      the ingress host below.
+   - Leave `REEF_AUTH_V2_ENABLED` unset for the current delegated profile. An
+     auth-v2 rollout additionally needs every v2 setting in [Required
+     environment](#required-environment) and the Redis/encryption Secret; do
+     not enable the flag as a partial or speculative rollout.
 4. **Public host** — `patch-ingress.yaml` → the `tls.hosts` entry and
    `rules[].host`.
 
 ### Provide optional capability secrets
 
 The Deployment reads optional GitHub and LLM credentials from a Secret named
-`reef-web-secret` in the same namespace. The Secret reference is optional, so
-an AKB/Keycloak-only deployment does not need to create an empty Secret.
+`reef-web-secret` in the same namespace. The Secret reference is optional for
+the current delegated profile when GitHub and AI are disabled. An auth-v2
+deployment must put `REEF_SESSION_REDIS_URL` and
+`REEF_SESSION_ENCRYPTION_KEY` in this Secret; those are mandatory auth-v2
+dependencies, not optional capability fallbacks.
 
 To enable AI, create the Secret with `REEF_LLM_API_KEY`:
 
@@ -117,8 +160,8 @@ Set `REEF_LLM_BASE_URL` and `REEF_LLM_MODEL` in the overlay ConfigMap at the
 same time. The URL may point to OpenRouter or an akb-platform gateway; Reef does
 not classify the endpoint or derive a deployment mode from it. All three values
 enable AI, partial configuration fails closed, and no values is an intentionally
-disabled capability. Keycloak remains independent, so a Keycloak-only
-deployment is valid.
+disabled capability. Authentication remains independent; an auth-v2 deployment
+without AI is valid once its required auth/session settings are present.
 
 #### Upgrade an existing OpenRouter deployment
 
@@ -232,9 +275,11 @@ REEF_GITHUB_APP_PRIVATE_KEY="$(cat github-app.private-key.pem)" \
 docker compose up
 ```
 
-reef-web is stateless, so there is no database or volume to manage. If your
-akb backend runs in the same Compose project, give it a service name and use
-that as the host in `AKB_BACKEND_URL` (e.g. `http://akb-backend:8000`).
+The current delegated profile needs no Reef database, volume, or Redis. Auth-v2
+uses an external Redis service; do not mount token state into the web container.
+If your akb backend runs in the same Compose project, give it a service name and
+use that as the host in `AKB_BACKEND_URL` (for example,
+`http://akb-backend:8000`).
 
 ---
 
@@ -246,8 +291,15 @@ the `reef-web-config` ConfigMap plus the optional `reef-web-secret` Secret).
 | Variable | Required | Description |
 | --- | --- | --- |
 | `AKB_BACKEND_URL` | yes | Base URL of the akb backend reef-web calls server-side. In-cluster this is a Service DNS name (`http://<service>.<namespace>.svc.cluster.local:8000`). |
-| `REEF_PUBLIC_ORIGIN` | yes for SSO | reef-web's canonical external origin — bare `scheme://host[:port]`, no path. Sent to akb as the absolute SSO callback base so reef and akb's own frontend can share a tenant Keycloak. Must match the ingress/public host. `https` except for localhost dev. |
-| `REEF_SSO_AUTO_REDIRECT` | no | Optional SSO-first presentation override for a hybrid AKB. AKB `keycloak.sso_only=true` redirects without it; AKB `local_auth.enabled=false` suppresses password login even when `?password=1`/`?prompt=login` is present. SSO/session errors suppress automatic redirect as the loop guard. |
+| `REEF_AUTH_V2_ENABLED` | no (future opt-in) | Set to `1` only after the AKB v2 config/catalog and account-validation contract is deployed and tested. Unset/`0` keeps the current AKB-delegated flow; auth-v2 errors do not fall back to it. |
+| `REEF_PUBLIC_ORIGIN` | current delegated SSO / auth-v2 | Reef's canonical external origin — bare `scheme://host[:port]`, no path. The current delegated flow sends it to AKB as the callback base; auth-v2 uses it for exact callback, post-logout, and back-channel URIs. Must match the ingress/public host. `https` except for localhost dev. |
+| `REEF_KEYCLOAK_ISSUER` | auth-v2 only | Exact canonical Keycloak realm issuer used for browser authorization/logout and JWT `iss` verification. Production uses HTTPS. |
+| `REEF_KEYCLOAK_TRANSPORT_URL` | auth-v2 production | Distinct in-cluster Keycloak realm URL for token, JWKS, revocation, and readiness calls. Its realm path must exactly match the issuer; public ingress, IP literals, credentials, query, and fragment are rejected. |
+| `REEF_KEYCLOAK_CLIENT_ID` | auth-v2 only | Dedicated Reef OIDC client id. Accepted tokens must carry an accepted client in the configured client claim (`azp`); the AKB catalog owns the accepted-client set. |
+| `REEF_AKB_API_AUDIENCE` | auth-v2 only | Audience that must be present in the Keycloak access token before Reef sends it to AKB account validation. |
+| `REEF_SESSION_REDIS_URL` | auth-v2 production | Redis/Redis-TLS URL for encrypted auth-v2 sessions, refresh locks, and replay indexes. Keep credentials in `reef-web-secret`; no container-local or in-memory fallback is supported. |
+| `REEF_SESSION_ENCRYPTION_KEY` | auth-v2 production | Independent base64/base64url-encoded 32-byte AES key. Generate and store it in `reef-web-secret`; never reuse an AKB, Keycloak, or Redis credential. |
+| `REEF_SSO_AUTO_REDIRECT` | no | Explicit SSO-first presentation opt-in for a hybrid catalog. Without this variable `/login` keeps the password + SSO panel. `sso_only` alone does not redirect; `local_auth.enabled=false` is the only catalog signal that the password capability is unavailable. SSO/session errors suppress automatic redirects as the loop guard. |
 | `REEF_LLM_API_KEY` | for enabled AI | Key for the configured OpenAI-compatible endpoint. Keep it in a Secret; never inline it in manifests or commit it. |
 | `REEF_LLM_BASE_URL` | for enabled AI | OpenAI-compatible endpoint base URL. It may target OpenRouter or an akb-platform gateway. |
 | `REEF_LLM_MODEL` | for enabled AI | Deployment-selected model id passed to the configured endpoint. |
@@ -270,11 +322,14 @@ Optional tracing/observability:
 | `LOG_LEVEL` | pino level for backend stdout logs (`debug`/`info`/`warn`/`error`). Defaults to `debug` in development and `info` otherwise. |
 | `NEXT_PUBLIC_AKB_WEB_URL` | Public URL of the akb web app, used to open a linked akb document in a new tab from an issue. Optional; when unset that action is hidden. |
 
-Per-user secrets are intentionally **not** environment variables: the akb
-session is an httpOnly cookie minted per request. GitHub and LLM credentials are
-deployment-managed server secrets, not browser storage. The three `REEF_LLM_*`
-values must be set together; with none set, AI routes are unavailable but Reef,
-AKB, and Keycloak flows remain ready.
+In the current delegated profile, the AKB session is an httpOnly cookie and
+Reef has no per-user server store. In auth-v2, the browser still receives only
+an opaque httpOnly handle while the encrypted token set lives in Redis; the
+handle and token material are never logged or exposed to browser JavaScript.
+GitHub and LLM credentials are deployment-managed server secrets, not browser
+storage. The three `REEF_LLM_*` values must be set together; with none set, AI
+routes are unavailable. Auth-v2 readiness additionally fails closed when Redis,
+its independent key, or the internal Keycloak transport is absent/unreachable.
 
 ### Backend logging and the prod access-line policy
 

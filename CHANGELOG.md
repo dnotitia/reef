@@ -25,6 +25,15 @@ explicitly in the entries below.
   credential or requires Redis-backed OIDC token custody. The login page remains
   hybrid whenever AKB enables both local authentication and Keycloak.
 
+- **The future auth-v2 contract is now explicit but remains opt-in and
+  unreleased.** `REEF_AUTH_V2_ENABLED=1` is reserved for a Reef-owned
+  Authorization Code + PKCE flow with canonical issuer/audience/client checks,
+  encrypted Redis token custody, and the exact AKB
+  `POST /api/v2/auth/account-validation` boundary. The current/default delegated
+  path is unchanged; auth-v2 has no legacy fallback and cannot roll out until
+  AKB publishes and contract-tests its v2 config/provider catalog and account
+  validation response.
+
 ### Fixed
 
 - **온보딩은 새 workspace 생성 흐름을 정확히 안내하고, 이름·이슈 접두사의 필수 입력 오류와 repository 선택 상태를 키보드·스크린리더에 전달하며, 좁은 화면에서도 저장소 선택기와 긴 repository 이름을 영역 안에서 조작할 수 있도록 개선했습니다.**

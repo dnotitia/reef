@@ -133,14 +133,17 @@ describe("LoginPage", () => {
       expect(loadAkbAuthConfigMock).toHaveBeenCalledTimes(1);
     });
 
-    it("redirects when AKB declares an SSO-only policy without an env override", async () => {
+    it("does not redirect when AKB declares an SSO-only policy without an env override", async () => {
       loadAkbAuthConfigMock.mockResolvedValue(
         ssoEnabledConfig({ ssoOnly: true }),
       );
 
-      await expect(
-        LoginPage({ searchParams: Promise.resolve({ redirect: "/issues" }) }),
-      ).rejects.toThrow("REDIRECT:/api/auth/akb/sso/start?redirect=%2Fissues");
+      const view = await LoginPage({
+        searchParams: Promise.resolve({ redirect: "/issues" }),
+      });
+      render(<IntlTestProvider>{view}</IntlTestProvider>);
+
+      expect(screen.getByTestId("login-panel")).toBeInTheDocument();
     });
 
     it("redirects to SSO start, preserving the redirect destination", async () => {

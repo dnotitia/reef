@@ -305,7 +305,7 @@ describe("LoginPanel", () => {
     consumePendingAkbAccountErrorIfUnchanged(liveSnapshot);
   });
 
-  it("does not flash password fields while auth policy is loading", () => {
+  it("keeps password fields visible while auth policy is loading", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(() => new Promise(() => undefined)),
@@ -319,8 +319,8 @@ describe("LoginPanel", () => {
       "polite",
     );
     expect(screen.getByTestId("sso-config-loading")).toBeInTheDocument();
-    expect(screen.queryByTestId("login-username")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("login-password")).not.toBeInTheDocument();
+    expect(screen.getByTestId("login-username")).toBeVisible();
+    expect(screen.getByTestId("login-password")).toBeVisible();
   });
 
   it("renders the workspace SSO action when Keycloak is enabled", async () => {

@@ -172,7 +172,10 @@ export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
   }, [safeRedirect]);
 
   const ssoEnabled = capabilities?.ssoEnabled ?? false;
-  const localAuthEnabled = capabilities?.localAuthEnabled ?? false;
+  // Keep the password form available until AKB's capability response says
+  // otherwise. This avoids hiding the primary escape hatch during a slow
+  // probe and makes the hybrid surface usable while capabilities settle.
+  const localAuthEnabled = capabilities?.localAuthEnabled ?? true;
 
   if (capabilities && !ssoEnabled && localAuthEnabled) {
     return <LoginForm redirectTo={safeRedirect} />;

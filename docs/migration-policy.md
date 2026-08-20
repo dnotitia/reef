@@ -36,6 +36,14 @@ Browser migrations must never move the akb session into IndexedDB. The akb
 session stays in the `__reef_session` httpOnly cookie, and GitHub credentials
 stay deployment-managed server state rather than browser-local state.
 
+The current/default profile carries the AKB-issued JWT in that cookie. The
+future auth-v2 profile is a separate, explicitly reviewed route cutover: its
+cookie carries only an opaque handle while encrypted OIDC credentials live in
+Redis. Enabling that profile is not a browser-data migration and must never add
+a token migration, compatibility carrier, or fallback between the two session
+contracts. Keep the auth-v2 flag disabled until the AKB v2 config and
+account-validation contract is deployed and contract-tested.
+
 ## akb Compatibility
 
 Reef separates table provisioning from table evolution. The four paths below
