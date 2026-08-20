@@ -18,15 +18,18 @@ import {
 /**
  * Locale-resolved value labels for the enum-backed pivot axes (REEF-292). The
  * pure pivot does not resolve locales itself; the caller (a component) passes
- * the active-locale maps from `@/i18n/fieldLabels`. The dynamic axes
- * (assignee/label) and the "None"/"Other" sentinels are pivot-local UI copy
- * (web S3 scope), not field-registry labels, so they stay as-is.
+ * the active-locale maps from `@/i18n/fieldLabels` plus the UI-owned dynamic
+ * and sentinel labels.
  */
 export interface PivotValueLabels {
   status: Record<Status, string>;
   type: Record<IssueType, string>;
   priority: Record<Priority, string>;
   severity: Record<Severity, string>;
+  unassigned: string;
+  unlabeled: string;
+  none: string;
+  other: string;
 }
 
 /**
@@ -112,24 +115,29 @@ function buildPivotFields(
       valuesFor: (i) => [i.priority ?? NONE_KEY],
       fixed: fixedAxis(PRIORITY_OPTIONS, labels.priority, {
         key: NONE_KEY,
-        label: "None",
+        label: labels.none,
       }),
       labelFor: (k) =>
-        k === NONE_KEY ? "None" : (labels.priority[k as Priority] ?? k),
+        k === NONE_KEY ? labels.none : (labels.priority[k as Priority] ?? k),
     },
     severity: {
       valuesFor: (i) => [i.severity ?? NONE_KEY],
       fixed: fixedAxis(SEVERITY_OPTIONS, labels.severity, {
         key: NONE_KEY,
-        label: "None",
+        label: labels.none,
       }),
       labelFor: (k) =>
-        k === NONE_KEY ? "None" : (labels.severity[k as Severity] ?? k),
+        k === NONE_KEY ? labels.none : (labels.severity[k as Severity] ?? k),
     },
     assignee: {
       valuesFor: (i) => [i.assigned_to?.trim() || "Unassigned"],
       fixed: null,
-      labelFor: (k) => k,
+      labelFor: (k) =>
+        k === "Unassigned"
+          ? labels.unassigned
+          : k === OTHER_KEY
+            ? labels.other
+            : k,
     },
     label: {
       valuesFor: (i) => {
@@ -137,7 +145,12 @@ function buildPivotFields(
         return names.length > 0 ? names : ["Unlabeled"];
       },
       fixed: null,
-      labelFor: (k) => k,
+      labelFor: (k) =>
+        k === "Unlabeled"
+          ? labels.unlabeled
+          : k === OTHER_KEY
+            ? labels.other
+            : k,
     },
   };
 }
@@ -193,7 +206,9 @@ function rankDynamic(
   const kept = ranked.slice(0, limit);
   const rest = ranked.slice(limit);
   const axis = kept.map(({ key, label }) => ({ key, label }));
-  if (rest.length > 0) axis.push({ key: OTHER_KEY, label: "Other" });
+  if (rest.length > 0) {
+    axis.push({ key: OTHER_KEY, label: labelFor(OTHER_KEY) });
+  }
   return {
     axis,
     foldedKeys: new Set(rest.map((r) => r.key)),

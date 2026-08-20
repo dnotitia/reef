@@ -139,6 +139,7 @@ interface BacklogViewProps {
 export function BacklogView({ vault }: BacklogViewProps) {
   const t = useTranslations("issues.backlog");
   const c = useTranslations("common");
+  const toasts = useTranslations("toasts");
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
   const openIssue = useOpenIssue();
@@ -335,6 +336,10 @@ export function BacklogView({ vault }: BacklogViewProps) {
               ? err.message
               : t("reorderErrorTitle"),
           description: t("reorderErrorDescription"),
+          labels: {
+            retry: c("retry"),
+            retrying: toasts("retrying"),
+          },
           onRetry: () => runReorder(input),
         });
       },

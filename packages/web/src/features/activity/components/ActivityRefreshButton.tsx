@@ -77,6 +77,7 @@ export function ActivityRefreshButton({
         size="sm"
         onClick={onRefresh}
         disabled={isScanning || !repo}
+        busy={isScanning}
         data-testid="activity-refresh"
         aria-label={t("scanForNewActivity")}
         title={t("scanForNewActivity")}
@@ -87,7 +88,7 @@ export function ActivityRefreshButton({
         ) : (
           <RefreshCw aria-hidden="true" className={cn("h-3.5 w-3.5")} />
         )}
-        <span>{t("refresh")}</span>
+        <span>{isScanning ? t("scanningNow") : t("refresh")}</span>
       </Button>
     </div>
   );

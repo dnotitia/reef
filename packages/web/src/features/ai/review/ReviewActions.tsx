@@ -84,12 +84,16 @@ export function ReviewActions({
             type="button"
             size="sm"
             variant={variantByAction[action.id]}
-            disabled={action.disabled || action.busy}
+            disabled={action.disabled}
+            busy={action.busy}
             onKeyDown={
               action.id === "dismiss" ? activateButtonOnKeyDown : undefined
             }
             onClick={action.onClick}
-            aria-label={label}
+            // Keep the control's accessible name tied to its action identity.
+            // The visible busy copy changes, while `aria-label` remains stable
+            // for screen-reader users and automation across the mutation.
+            aria-label={action.label}
             data-testid={action.testId}
             className={cn(
               compact && "h-6 px-2 text-[11px]",

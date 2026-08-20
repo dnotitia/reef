@@ -15,7 +15,7 @@ import { StatusChangeCard } from "./StatusChangeCard";
 interface ActivityItemCardProps {
   item: ActivityFeedItem;
   onApproveDraft?: (draft: ActivityDraftSuggestion) => Promise<void>;
-  onDismissDraft?: (draftId: string) => void;
+  onDismissDraft?: (draftId: string) => Promise<void>;
   onSaveDraftEdits?: (
     draftId: string,
     edits: ActivityDraftEditPatch,
@@ -23,7 +23,7 @@ interface ActivityItemCardProps {
   onApproveStatusChange?: (
     statusChange: ActivityStatusChangeSuggestion,
   ) => Promise<void>;
-  onDismissStatusChange?: (statusChangeId: string) => void;
+  onDismissStatusChange?: (statusChangeId: string) => Promise<void>;
   onSaveStatusChange?: (
     statusChangeId: string,
     toStatus: Status,

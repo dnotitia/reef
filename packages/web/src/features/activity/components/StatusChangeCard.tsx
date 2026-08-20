@@ -7,6 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-icon";
 import { ArtifactMetadata, ReviewActions } from "@/features/ai/review";
 import { useStatusLabels } from "@/i18n/fieldLabels";
@@ -35,7 +36,7 @@ export function StatusChangeCard({
 }: {
   item: Extract<ActivityFeedItem, { type: "ai_status_change" }>;
   onApprove?: (statusChange: ActivityStatusChangeSuggestion) => Promise<void>;
-  onDismiss?: (statusChangeId: string) => void;
+  onDismiss?: (statusChangeId: string) => Promise<void>;
   onSaveTarget?: (statusChangeId: string, toStatus: Status) => Promise<void>;
   isApproving: boolean;
 }) {
@@ -48,21 +49,79 @@ export function StatusChangeCard({
   const [isEditing, setIsEditing] = useState(false);
   const [toStatus, setToStatus] = useState<Status>(proposedStatus);
   const [isSaving, setIsSaving] = useState(false);
+  const [pendingAction, setPendingAction] = useState<
+    "approve" | "dismiss" | "save" | null
+  >(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [failedAction, setFailedAction] = useState<
+    "approve" | "dismiss" | "save" | null
+  >(null);
 
   const handleCancel = () => {
     setToStatus(proposedStatus);
     setIsEditing(false);
+    setActionError(null);
+    setFailedAction(null);
   };
 
-  const handleSave = async () => {
-    if (!onSaveTarget) return;
-    setIsSaving(true);
+  const runAction = async (
+    action: "approve" | "dismiss" | "save",
+    operation: () => Promise<void>,
+    errorMessage: string,
+  ) => {
+    if (pendingAction) return;
+    setPendingAction(action);
+    setActionError(null);
+    setFailedAction(null);
     try {
-      await onSaveTarget(statusChange.id, toStatus);
-      setIsEditing(false);
+      await operation();
+    } catch {
+      setActionError(errorMessage);
+      setFailedAction(action);
     } finally {
-      setIsSaving(false);
+      setPendingAction(null);
     }
+  };
+
+  const handleApprove = () =>
+    void runAction(
+      "approve",
+      async () => {
+        if (onApprove) await onApprove(statusChange);
+      },
+      t("statusApproveError"),
+    );
+
+  const handleDismiss = () =>
+    void runAction(
+      "dismiss",
+      async () => {
+        if (onDismiss) await onDismiss(statusChange.id);
+      },
+      t("statusDismissError"),
+    );
+
+  const handleSave = () => {
+    if (!onSaveTarget) return;
+    void runAction(
+      "save",
+      async () => {
+        setIsSaving(true);
+        try {
+          await onSaveTarget(statusChange.id, toStatus);
+          setIsEditing(false);
+        } finally {
+          setIsSaving(false);
+        }
+      },
+      t("statusSaveError"),
+    );
+  };
+
+  const retryFailedAction = () => {
+    if (failedAction === "approve") handleApprove();
+    if (failedAction === "dismiss") handleDismiss();
+    if (failedAction === "save") handleSave();
   };
 
   return (
@@ -117,7 +176,13 @@ export function StatusChangeCard({
           evidence={statusChange.evidence.map((item) => ({
             type: item.type,
             ref: item.ref,
-            label: `${item.type} ${item.ref}`,
+            label: t("evidenceRef", {
+              kind:
+                item.type === "pr"
+                  ? t("evidencePullRequest")
+                  : t("evidenceCommit"),
+              ref: item.ref,
+            }),
             url: githubActivityUrl({
               type: item.type,
               repo: item.repo,
@@ -125,11 +190,35 @@ export function StatusChangeCard({
             }),
             metadata: { repo: item.repo, actor: item.actor },
           }))}
-          evidenceLabel={`${statusChange.evidence.length} commit${
-            statusChange.evidence.length === 1 ? "" : "s"
-          } / PR${statusChange.evidence.length === 1 ? "" : "s"}`}
+          evidenceLabel={t("evidenceSummary", {
+            commits: statusChange.evidence.filter((e) => e.type === "commit")
+              .length,
+            pullRequests: statusChange.evidence.filter((e) => e.type === "pr")
+              .length,
+          })}
         />
       </ActivityCardHeader>
+
+      {actionError && (
+        <div
+          role="alert"
+          data-testid="activity-status-action-error"
+          className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text"
+        >
+          <span>{actionError}</span>
+          {failedAction && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={retryFailedAction}
+              disabled={pendingAction !== null}
+            >
+              {common("retry")}
+            </Button>
+          )}
+        </div>
+      )}
 
       <div className="mt-3 flex items-center gap-2">
         {isEditing ? (
@@ -138,11 +227,17 @@ export function StatusChangeCard({
               {
                 id: "save",
                 label: common("save"),
-                busy: isSaving,
+                busy: isSaving || pendingAction === "save",
+                disabled: pendingAction !== null && pendingAction !== "save",
                 onClick: handleSave,
                 testId: "status-change-save",
               },
-              { id: "cancel", label: common("cancel"), onClick: handleCancel },
+              {
+                id: "cancel",
+                label: common("cancel"),
+                disabled: pendingAction !== null,
+                onClick: handleCancel,
+              },
             ]}
           />
         ) : (
@@ -151,20 +246,27 @@ export function StatusChangeCard({
               {
                 id: "approve",
                 label: tAi("approve"),
-                busy: isApproving,
+                busy: isApproving || pendingAction === "approve",
                 busyLabel: tAi("updating"),
-                onClick: () => onApprove?.(statusChange),
+                disabled: pendingAction !== null && pendingAction !== "approve",
+                onClick: handleApprove,
               },
               {
                 id: "edit",
                 label: common("edit"),
+                disabled: isApproving || pendingAction !== null,
                 onClick: () => setIsEditing(true),
                 testId: "status-change-edit",
               },
               {
                 id: "dismiss",
                 label: tAi("dismiss"),
-                onClick: () => onDismiss?.(statusChange.id),
+                busy: pendingAction === "dismiss",
+                busyLabel: tAi("dismissing"),
+                disabled:
+                  isApproving ||
+                  (pendingAction !== null && pendingAction !== "dismiss"),
+                onClick: handleDismiss,
               },
             ]}
           />

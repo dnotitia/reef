@@ -312,6 +312,63 @@ describe("PlanningPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("exposes busy semantics while creating a planning item", async () => {
+    let resolveCreate: ((response: Response) => void) | undefined;
+    const createResponse = new Promise<Response>((resolve) => {
+      resolveCreate = resolve;
+    });
+    mockApiFetch.mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : String(input);
+        if (url.startsWith("/api/planning?")) {
+          return Promise.resolve(
+            new Response(JSON.stringify(catalog), { status: 200 }),
+          );
+        }
+        if (init?.method === "POST") return createResponse;
+        return Promise.resolve(new Response(null, { status: 204 }));
+      },
+    );
+
+    const user = userEvent.setup();
+    render(wrap(<PlanningPage />));
+    await screen.findByText("Sprint One");
+    await user.click(screen.getByRole("button", { name: "New sprint" }));
+    const dialog = await screen.findByTestId("planning-editor-dialog");
+    await user.type(within(dialog).getByTestId("planning-name-input"), "Q3");
+    const save = within(dialog).getByTestId("planning-save");
+
+    await user.click(save);
+
+    await waitFor(() => {
+      expect(save).toBeDisabled();
+      expect(save).toHaveAttribute("aria-busy", "true");
+      expect(save).toHaveTextContent("Saving…");
+    });
+
+    resolveCreate?.(
+      new Response(
+        JSON.stringify({
+          item: {
+            id: "00000000-0000-4000-8000-000000000002",
+            name: "Q3",
+            status: "planned",
+            start_date: null,
+            end_date: null,
+            goal: "",
+            capacity_points: null,
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("planning-editor-dialog"),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
   it("confirms deletion with a dialog (not window.confirm) and issues the DELETE", async () => {
     const user = userEvent.setup();
     const confirmSpy = vi.spyOn(window, "confirm");
@@ -331,6 +388,63 @@ describe("PlanningPage", () => {
         expect.objectContaining({ method: "DELETE" }),
       );
     });
+  });
+
+  it("returns focus to the invoking delete action when cancellation closes the dialog", async () => {
+    const user = userEvent.setup();
+    render(wrap(<PlanningPage />));
+    await screen.findByText("Sprint One");
+
+    const trigger = screen.getByRole("button", { name: "Delete Sprint One" });
+    trigger.focus();
+    await user.keyboard("{Enter}");
+
+    const dialog = await screen.findByTestId("planning-delete-confirm");
+    const cancel = within(dialog).getByTestId("planning-delete-cancel");
+    cancel.focus();
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("planning-delete-confirm"),
+      ).not.toBeInTheDocument();
+      expect(trigger).toHaveFocus();
+    });
+  });
+
+  it("keeps planning metadata and row actions available in the compact presentation", async () => {
+    const matchMedia = vi.spyOn(window, "matchMedia").mockImplementation(
+      (query) =>
+        ({
+          matches: true,
+          media: query,
+          onchange: null,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          addListener: () => {},
+          removeListener: () => {},
+          dispatchEvent: () => false,
+        }) as unknown as MediaQueryList,
+    );
+    const view = render(wrap(<PlanningPage />));
+
+    try {
+      const compact = await screen.findByTestId("planning-compact-list");
+      expect(compact).toHaveTextContent("Sprint One");
+      expect(compact).toHaveTextContent("Active");
+      expect(compact).toHaveTextContent("2026-06-01");
+      expect(compact).toHaveTextContent("2026-06-14");
+      expect(
+        within(compact).getByRole("button", { name: "Edit Sprint One" }),
+      ).toBeInTheDocument();
+      expect(
+        within(compact).getByRole("button", { name: "Delete Sprint One" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    } finally {
+      view.unmount();
+      matchMedia.mockRestore();
+    }
   });
 
   it("saves an open editor against its original kind after URL kind changes", async () => {

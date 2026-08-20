@@ -47,6 +47,11 @@ export interface RetryableErrorOptions {
   id: string;
   title: string;
   description?: string;
+  /** Localized action copy supplied by the owning screen. */
+  labels: {
+    retry: string;
+    retrying: string;
+  };
   /**
    * Re-runs the failed write. Pass a callback that reads current state at click
    * time, because this toast can outlive many renders.
@@ -65,6 +70,7 @@ export function notifyRetryableError({
   id,
   title,
   description,
+  labels,
   onRetry,
 }: RetryableErrorOptions): void {
   toast.error(title, {
@@ -76,13 +82,13 @@ export function notifyRetryableError({
       label: (
         <span className="inline-flex items-center gap-1">
           <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
-          Retry
+          {labels.retry}
         </span>
       ),
       onClick: () => {
         // Morph to loading under the same id; the caller re-emits success/error
         // so the toast updates in place rather than stacking a new one.
-        toast.loading("Retrying…", { id });
+        toast.loading(labels.retrying, { id });
         onRetry();
       },
     },
@@ -121,6 +127,8 @@ export function notifyConflict({
 export interface UndoableSuccessOptions {
   id: string;
   message: string;
+  /** Localized inverse-action label supplied by the owning screen. */
+  undoLabel: string;
   /** Reverses the action. Invoked once, then the toast is dismissed. */
   onUndo: () => void;
 }
@@ -133,6 +141,7 @@ export interface UndoableSuccessOptions {
 export function notifyUndoableSuccess({
   id,
   message,
+  undoLabel,
   onUndo,
 }: UndoableSuccessOptions): void {
   toast.success(message, {
@@ -142,7 +151,7 @@ export function notifyUndoableSuccess({
       label: (
         <span className="inline-flex items-center gap-1">
           <Undo2 className="h-3.5 w-3.5" aria-hidden="true" />
-          Undo
+          {undoLabel}
         </span>
       ),
       onClick: () => {

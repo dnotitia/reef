@@ -255,6 +255,35 @@ describe("NotificationInboxPage", () => {
     });
   });
 
+  it("disables only the row whose state transition is in flight", async () => {
+    let resolveMutation: (() => void) | undefined;
+    mocks.mutateAsync.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveMutation = () => resolve({});
+        }),
+    );
+    renderPage();
+
+    const rows = screen.getAllByTestId("notification-item");
+    const busyRow = rows[0];
+    const idleRow = rows[1];
+    const busyArchive = within(busyRow).getByRole("button", {
+      name: "Archive notification for REEF-001",
+    });
+    const idleOpen = within(idleRow).getByRole("button", {
+      name: "Open activity for REEF-002",
+    });
+
+    fireEvent.click(busyArchive);
+    expect(busyArchive).toBeDisabled();
+    expect(busyArchive).toHaveAttribute("aria-busy", "true");
+    expect(idleOpen).toBeEnabled();
+
+    resolveMutation?.();
+    await waitFor(() => expect(busyArchive).toBeEnabled());
+  });
+
   it("shows loading, error, and empty states", () => {
     mocks.inboxState.isLoading = true;
     const { rerender } = renderPage();

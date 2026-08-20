@@ -16,12 +16,14 @@ export function PlanningDeleteDialog({
   target,
   kindSingular,
   isDeleting,
+  focusOriginRef,
   onCancel,
   onConfirm,
 }: {
   target: PlanningItem | null;
   kindSingular: string;
   isDeleting: boolean;
+  focusOriginRef: { current: HTMLElement | null };
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -43,6 +45,13 @@ export function PlanningDeleteDialog({
         }}
         onEscapeKeyDown={(e) => {
           if (isDeleting) e.preventDefault();
+        }}
+        onCloseAutoFocus={(event) => {
+          const origin = focusOriginRef.current;
+          focusOriginRef.current = null;
+          if (!origin?.isConnected) return;
+          event.preventDefault();
+          origin.focus({ preventScroll: true });
         }}
       >
         <DialogHeader>
@@ -72,6 +81,8 @@ export function PlanningDeleteDialog({
             size="sm"
             onClick={onConfirm}
             disabled={isDeleting}
+            busy={isDeleting}
+            aria-label={common("delete")}
             data-testid="planning-delete-confirm-btn"
           >
             {isDeleting ? t("deleting") : common("delete")}

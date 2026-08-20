@@ -20,6 +20,10 @@ const LABELS: PivotValueLabels = {
   type: ISSUE_FIELD_MESSAGES_EN.issueType,
   priority: ISSUE_FIELD_MESSAGES_EN.priority,
   severity: ISSUE_FIELD_MESSAGES_EN.severity,
+  unassigned: "Unassigned",
+  unlabeled: "Unlabeled",
+  none: "None",
+  other: "Other",
 };
 
 function makeIssue(overrides: Partial<IssueMetadata>): IssueMetadata {

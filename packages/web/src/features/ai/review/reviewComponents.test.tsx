@@ -1,4 +1,5 @@
 import { AgentArtifactSchema } from "@reef/core";
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -59,6 +60,27 @@ describe("AI review components", () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the action name stable while exposing busy semantics", () => {
+    render(
+      <ReviewActions
+        actions={[
+          {
+            id: "approve",
+            label: "Approve",
+            busy: true,
+            busyLabel: "Approving…",
+            onClick: vi.fn(),
+          },
+        ]}
+      />,
+    );
+
+    const approve = screen.getByRole("button", { name: "Approve" });
+    expect(approve).toBeDisabled();
+    expect(approve).toHaveAttribute("aria-busy", "true");
+    expect(approve).toHaveTextContent("Approving…");
+  });
+
   it("renders common artifact confidence, reasoning, evidence, and warnings", () => {
     render(
       <ArtifactMetadata
@@ -77,6 +99,20 @@ describe("AI review components", () => {
     expect(
       screen.getByText("Review generated title before approving."),
     ).toBeInTheDocument();
+  });
+
+  it("localizes confidence and evidence labels with the active locale", () => {
+    render(
+      <IntlTestProvider locale="ko">
+        <ArtifactMetadata
+          confidence={0.82}
+          evidence={[{ type: "pr", ref: "114", label: "PR 114", metadata: {} }]}
+        />
+      </IntlTestProvider>,
+    );
+
+    expect(screen.getByText("신뢰도 82%")).toBeInTheDocument();
+    expect(screen.getByText("증거 1개")).toBeInTheDocument();
   });
 
   it("renders safe evidence URLs as links and keeps unsafe URLs as text", () => {

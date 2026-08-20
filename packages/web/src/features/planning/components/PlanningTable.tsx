@@ -29,7 +29,7 @@ import type {
 } from "@reef/core";
 import { ChevronRight, Pencil, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { Fragment, useMemo } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import type { PlanningItem, PlanningKind } from "../hooks/usePlanningCatalog";
 import { countIssuesByPlanningId, itemsForKind } from "../lib/planningItems";
 
@@ -78,6 +78,15 @@ export function PlanningTable({
     () => countIssuesByPlanningId(issues, kind),
     [issues, kind],
   );
+  const [isCompact, setIsCompact] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 1023px)");
+    const sync = () => setIsCompact(mediaQuery.matches);
+    sync();
+    mediaQuery.addEventListener("change", sync);
+    return () => mediaQuery.removeEventListener("change", sync);
+  }, []);
 
   if (isLoading) {
     return (
@@ -99,6 +108,21 @@ export function PlanningTable({
         description={t("emptyKindDescription", {
           kind: planningKindSingular[kind].toLowerCase(),
         })}
+      />
+    );
+  }
+
+  if (isCompact) {
+    return (
+      <PlanningCompactList
+        items={items}
+        kind={kind}
+        countById={countById}
+        expandedId={expandedId}
+        onEdit={onEdit}
+        onExpandedIdChange={onExpandedIdChange}
+        onRequestDelete={onRequestDelete}
+        deletingId={deletingId}
       />
     );
   }
@@ -185,6 +209,7 @@ export function PlanningTable({
                       hitTarget="compact"
                       variant="ghost"
                       onClick={() => onEdit(kind, item)}
+                      disabled={isDeleting}
                       aria-label={t("editItem", { name: item.name })}
                     >
                       <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
@@ -196,6 +221,7 @@ export function PlanningTable({
                       variant="ghost"
                       onClick={() => onRequestDelete(kind, item)}
                       disabled={count > 0 || isDeleting}
+                      busy={isDeleting}
                       title={count > 0 ? t("removeLinkedFirst") : undefined}
                       aria-label={t("deleteItem", { name: item.name })}
                     >
@@ -229,6 +255,157 @@ export function PlanningTable({
   );
 }
 
+/**
+ * At widths below the desktop table contract, keep every planning field and
+ * both row actions in one bounded card. This is intentionally local to
+ * PlanningTable: the desktop table and shared Table primitive stay unchanged,
+ * while keyboard and touch users never need to discover an off-screen action
+ * column.
+ */
+function PlanningCompactList({
+  items,
+  kind,
+  countById,
+  expandedId,
+  onEdit,
+  onExpandedIdChange,
+  onRequestDelete,
+  deletingId,
+}: {
+  items: readonly PlanningItem[];
+  kind: PlanningKind;
+  countById: ReadonlyMap<string, number>;
+  expandedId: string | null;
+  onEdit: (kind: PlanningKind, item: PlanningItem) => void;
+  onExpandedIdChange: (id: string | null) => void;
+  onRequestDelete: (kind: PlanningKind, item: PlanningItem) => void;
+  deletingId?: string;
+}) {
+  const t = useTranslations("planning");
+  const sections = useTranslations("sections");
+  const fieldNames = useFieldNameLabels();
+
+  return (
+    <div
+      data-testid="planning-compact-list"
+      className="grid min-w-0 gap-3"
+      role="list"
+    >
+      {items.map((item) => {
+        const count = countById.get(item.id) ?? 0;
+        const isDeleting = deletingId === item.id;
+        const body = detailBody(kind, item);
+        const summary = body ? stripMarkdown(body) : "";
+        const isExpanded = expandedId === item.id;
+        const panelId = `planning-detail-compact-${item.id}`;
+
+        return (
+          <article
+            key={item.id}
+            data-testid={`planning-compact-item-${item.id}`}
+            className="min-w-0 rounded-md border border-border-subtle bg-surface-card p-3"
+            role="listitem"
+          >
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                {body ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onExpandedIdChange(isExpanded ? null : item.id)
+                    }
+                    aria-expanded={isExpanded}
+                    aria-controls={panelId}
+                    aria-label={
+                      isExpanded
+                        ? t("collapseDetails", { name: item.name })
+                        : t("expandDetails", { name: item.name })
+                    }
+                    className="group/disclosure flex w-full min-w-0 items-center gap-1.5 rounded text-left font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  >
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center text-muted-foreground transition-colors group-hover/disclosure:text-foreground">
+                      <ChevronRight
+                        aria-hidden="true"
+                        className={cn(
+                          "h-3.5 w-3.5 transition-transform motion-reduce:transition-none",
+                          isExpanded && "rotate-90",
+                        )}
+                      />
+                    </span>
+                    <span className="min-w-0 break-words">{item.name}</span>
+                  </button>
+                ) : (
+                  <span className="block min-w-0 break-words font-medium">
+                    {item.name}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex shrink-0 items-center gap-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  hitTarget="compact"
+                  variant="ghost"
+                  onClick={() => onEdit(kind, item)}
+                  disabled={isDeleting}
+                  aria-label={t("editItem", { name: item.name })}
+                >
+                  <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  hitTarget="compact"
+                  variant="ghost"
+                  onClick={() => onRequestDelete(kind, item)}
+                  disabled={count > 0 || isDeleting}
+                  busy={isDeleting}
+                  title={count > 0 ? t("removeLinkedFirst") : undefined}
+                  aria-label={t("deleteItem", { name: item.name })}
+                >
+                  <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+
+            <dl className="mt-3 grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-1.5 text-xs">
+              <dt className="text-muted-foreground">{fieldNames.status}</dt>
+              <dd className="min-w-0">
+                <PlanningStatusBadge kind={kind} status={item.status} />
+              </dd>
+              <dt className="text-muted-foreground">{t("dates")}</dt>
+              <dd className="min-w-0 break-words text-right tabular-nums text-muted-foreground">
+                <PlanningDates kind={kind} item={item} />
+              </dd>
+              <dt className="text-muted-foreground">{t("issues")}</dt>
+              <dd className="text-right tabular-nums">{count}</dd>
+              <dt className="text-muted-foreground">{sections("details")}</dt>
+              <dd className="min-w-0 break-words text-right text-muted-foreground">
+                {summary || "—"}
+              </dd>
+            </dl>
+
+            {isExpanded && body && (
+              <div
+                id={panelId}
+                className="mt-3 min-w-0 rounded-md bg-surface-subtle/40 p-2"
+              >
+                <MarkdownEditor
+                  value={body}
+                  onChange={NOOP}
+                  readOnly
+                  ariaLabel={t("itemDetails", { name: item.name })}
+                />
+              </div>
+            )}
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
 function PlanningDates({
   kind,
   item,
@@ -241,7 +418,7 @@ function PlanningDates({
     const sprint = item as Sprint;
     if (!sprint.start_date && !sprint.end_date) return <>—</>;
     return (
-      <span className="inline-flex items-center gap-1">
+      <span className="inline-flex flex-wrap items-center gap-1">
         <DateDisplay date={sprint.start_date} emptyText="?" />
         <span aria-hidden="true">–</span>
         <DateDisplay date={sprint.end_date} emptyText="?" />

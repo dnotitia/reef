@@ -165,7 +165,6 @@ function ActivityFeedContent({
   }, [updateLastVisitAt]);
 
   const [removedIds, setRemovedIds] = useState<Set<string>>(() => new Set());
-  const [approveError, setApproveError] = useState<string | null>(null);
 
   const displayItems = useMemo(
     () =>
@@ -224,7 +223,6 @@ function ActivityFeedContent({
     });
 
   const handleApproveDraft = async (draft: ActivityDraftSuggestion) => {
-    setApproveError(null);
     setApproving(draft.id, true);
     try {
       const prefix = projectConfigQuery.data?.config.project_prefix ?? "REEF";
@@ -239,9 +237,7 @@ function ActivityFeedContent({
           : undefined);
 
       markRemoved(draft.id);
-      void refreshInbox().catch((err) => {
-        console.error("Failed to refresh suggestions:", err);
-      });
+      void refreshInbox().catch(() => undefined);
       void queryClient.invalidateQueries({
         queryKey: ACTIVITY_SUGGESTIONS_QUERY_KEY,
       });
@@ -252,12 +248,8 @@ function ActivityFeedContent({
           : t("draftApproved"),
       );
       if (issueId) router.push(withVault(vault, `/issues/${issueId}`));
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : t("approveDraftError");
-      console.error("Failed to approve draft:", err);
-      setApproveError(message);
-      toast.error(message);
+    } catch {
+      throw new Error(t("approveDraftError"));
     } finally {
       setApproving(draft.id, false);
     }
@@ -268,27 +260,34 @@ function ActivityFeedContent({
     edits: IssueCreateInput,
   ) => {
     await updateActivitySuggestion(draftId, vault, { create: edits });
-    await refreshInbox();
-  };
-
-  const handleDismissDraft = async (draftId: string) => {
-    await dismissActivitySuggestion(draftId, vault);
-    markRemoved(draftId);
-    await refreshInbox();
+    void refreshInbox().catch(() => undefined);
     void queryClient.invalidateQueries({
       queryKey: ACTIVITY_SUGGESTIONS_QUERY_KEY,
     });
   };
 
+  const handleDismissDraft = async (draftId: string) => {
+    try {
+      await dismissActivitySuggestion(draftId, vault);
+      markRemoved(draftId);
+      void refreshInbox().catch(() => undefined);
+      void queryClient.invalidateQueries({
+        queryKey: ACTIVITY_SUGGESTIONS_QUERY_KEY,
+      });
+      toast.success(t("suggestionDismissed"));
+    } catch {
+      throw new Error(t("dismissDraftError"));
+    }
+  };
+
   const handleApproveStatusChange = async (
     statusChange: ActivityStatusChangeSuggestion,
   ) => {
-    setApproveError(null);
     setApproving(statusChange.id, true);
     try {
       await approveActivitySuggestion(statusChange.id, { vault });
       markRemoved(statusChange.id);
-      await refreshInbox();
+      void refreshInbox().catch(() => undefined);
       void queryClient.invalidateQueries({
         queryKey: ACTIVITY_SUGGESTIONS_QUERY_KEY,
       });
@@ -317,12 +316,8 @@ function ActivityFeedContent({
             : t("issueMovedFallbackStatus"),
         }),
       );
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : t("statusChangeError");
-      console.error("Failed to approve status change:", err);
-      setApproveError(message);
-      toast.error(message);
+    } catch {
+      throw new Error(t("statusChangeError"));
     } finally {
       setApproving(statusChange.id, false);
     }
@@ -342,16 +337,24 @@ function ActivityFeedContent({
         patch: { ...item.statusChange.proposal.update.patch, status: toStatus },
       },
     });
-    await refreshInbox();
-  };
-
-  const handleDismissStatusChange = async (statusChangeId: string) => {
-    await dismissActivitySuggestion(statusChangeId, vault);
-    markRemoved(statusChangeId);
-    await refreshInbox();
+    void refreshInbox().catch(() => undefined);
     void queryClient.invalidateQueries({
       queryKey: ACTIVITY_SUGGESTIONS_QUERY_KEY,
     });
+  };
+
+  const handleDismissStatusChange = async (statusChangeId: string) => {
+    try {
+      await dismissActivitySuggestion(statusChangeId, vault);
+      markRemoved(statusChangeId);
+      void refreshInbox().catch(() => undefined);
+      void queryClient.invalidateQueries({
+        queryKey: ACTIVITY_SUGGESTIONS_QUERY_KEY,
+      });
+      toast.success(t("suggestionDismissed"));
+    } catch {
+      throw new Error(t("dismissStatusChangeError"));
+    }
   };
 
   if (isLoading) {
@@ -461,16 +464,6 @@ function ActivityFeedContent({
               ))}
             </select>
           )}
-        </div>
-      )}
-
-      {approveError && (
-        <div
-          role="alert"
-          data-testid="activity-approve-error"
-          className="rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-4 py-2 text-sm text-destructive-text"
-        >
-          {approveError}
         </div>
       )}
 

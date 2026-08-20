@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -226,7 +232,10 @@ describe("ActivityItemCard", () => {
     it("shows approving state when isApproving is true", () => {
       render(wrap(<ActivityItemCard item={aiDraftItem} isApproving />));
 
-      expect(screen.getByRole("button", { name: /Approving/i })).toBeDisabled();
+      const approve = screen.getByRole("button", { name: "Approve" });
+      expect(approve).toBeDisabled();
+      expect(approve).toHaveAttribute("aria-busy", "true");
+      expect(approve).toHaveTextContent("Approving...");
     });
 
     it("renders provenance, implementation refs, and related issues as links", () => {
@@ -372,6 +381,58 @@ describe("ActivityItemCard", () => {
         content: "# Heading",
       });
     });
+
+    it("keeps a failed dismiss visible and retries the same action", async () => {
+      const onDismiss = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("network"))
+        .mockResolvedValueOnce(undefined);
+      const user = userEvent.setup();
+
+      render(
+        wrap(
+          <ActivityItemCard item={aiDraftItem} onDismissDraft={onDismiss} />,
+        ),
+      );
+
+      await user.click(screen.getByRole("button", { name: "Dismiss" }));
+      const alert = await screen.findByTestId("activity-draft-action-error");
+      expect(alert).toHaveTextContent("Couldn't dismiss this suggestion");
+      expect(screen.getByTestId("activity-item-ai_draft")).toBeInTheDocument();
+
+      await user.click(within(alert).getByRole("button", { name: "Retry" }));
+      await waitFor(() => expect(onDismiss).toHaveBeenCalledTimes(2));
+      await waitFor(() =>
+        expect(
+          screen.queryByTestId("activity-draft-action-error"),
+        ).not.toBeInTheDocument(),
+      );
+    });
+
+    it("keeps the edit panel open when saving fails and retries safely", async () => {
+      const onSave = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("network"))
+        .mockResolvedValueOnce(undefined);
+      const user = userEvent.setup();
+
+      render(
+        wrap(<ActivityItemCard item={aiDraftItem} onSaveDraftEdits={onSave} />),
+      );
+
+      await user.click(screen.getByTestId("draft-edit"));
+      await user.click(screen.getByTestId("draft-save"));
+      const alert = await screen.findByTestId("activity-draft-action-error");
+      expect(screen.getByTestId("draft-edit-panel")).toBeInTheDocument();
+
+      await user.click(within(alert).getByRole("button", { name: "Retry" }));
+      await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+      await waitFor(() =>
+        expect(
+          screen.queryByTestId("draft-edit-panel"),
+        ).not.toBeInTheDocument(),
+      );
+    });
   });
 
   describe("ai_status_change", () => {
@@ -391,8 +452,8 @@ describe("ActivityItemCard", () => {
           "Unified the review cards for AI-generated inbox items.",
         ),
       ).toBeInTheDocument();
-      expect(screen.getByText("1 commit / PR")).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "pr 294" })).toHaveAttribute(
+      expect(screen.getByText("No commits / 1 PR")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "PR 294" })).toHaveAttribute(
         "href",
         "https://github.com/owner/repo/pull/294",
       );
@@ -421,7 +482,10 @@ describe("ActivityItemCard", () => {
     it("shows updating state when isApproving is true", () => {
       render(wrap(<ActivityItemCard item={aiStatusChangeItem} isApproving />));
 
-      expect(screen.getByRole("button", { name: /Updating/i })).toBeDisabled();
+      const approve = screen.getByRole("button", { name: "Approve" });
+      expect(approve).toBeDisabled();
+      expect(approve).toHaveAttribute("aria-busy", "true");
+      expect(approve).toHaveTextContent("Updating...");
     });
 
     it("calls onDismissStatusChange with the id when Dismiss is clicked", async () => {
@@ -440,6 +504,36 @@ describe("ActivityItemCard", () => {
       await user.click(screen.getByRole("button", { name: /Dismiss/i }));
 
       expect(onDismiss).toHaveBeenCalledWith("reef-status-0123456789abcdef");
+    });
+
+    it("keeps a failed status dismiss visible and offers retry", async () => {
+      const onDismiss = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("network"))
+        .mockResolvedValueOnce(undefined);
+      const user = userEvent.setup();
+
+      render(
+        wrap(
+          <ActivityItemCard
+            item={aiStatusChangeItem}
+            onDismissStatusChange={onDismiss}
+          />,
+        ),
+      );
+
+      await user.click(screen.getByRole("button", { name: "Dismiss" }));
+      const alert = await screen.findByTestId("activity-status-action-error");
+      expect(
+        screen.getByTestId("activity-item-ai_status_change"),
+      ).toBeInTheDocument();
+      await user.click(within(alert).getByRole("button", { name: "Retry" }));
+      await waitFor(() => expect(onDismiss).toHaveBeenCalledTimes(2));
+      await waitFor(() =>
+        expect(
+          screen.queryByTestId("activity-status-action-error"),
+        ).not.toBeInTheDocument(),
+      );
     });
 
     it("edits the target status and calls onSaveStatusChange on Save", async () => {

@@ -35,11 +35,10 @@ export function UnreviewedSummaryCard({
   return (
     <div
       data-testid="unreviewed-summary-card"
-      className="rounded-md border border-brand-focus/30 bg-brand-fill/5 px-4 py-3 flex items-center justify-between gap-4"
+      className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-brand-focus/30 bg-brand-fill/5 px-4 py-3"
     >
-      <p className="text-sm text-foreground">
-        <span className="font-semibold">{t("summaryLabel")}</span>{" "}
-        {parts.join(", ")}.
+      <p className="min-w-0 flex-1 break-words text-sm text-foreground">
+        {t("summaryText", { parts: parts.join(t("summarySeparator")) })}
       </p>
       <button
         type="button"

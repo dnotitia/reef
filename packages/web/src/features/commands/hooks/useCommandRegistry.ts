@@ -116,6 +116,7 @@ export function useCommandRegistry({
     key: string,
     values?: Record<string, string>,
   ) => string;
+  const toasts = useTranslations("toasts");
   const [pendingClose, setPendingClose] = useState<CommandIssueTarget | null>(
     null,
   );
@@ -166,6 +167,10 @@ export function useCommandRegistry({
                   ? error.message
                   : commandsTranslator("mutation.errorTitle"),
               description: commandsTranslator("mutation.errorDescription"),
+              labels: {
+                retry: toasts("retry"),
+                retrying: toasts("retrying"),
+              },
               onRetry: attempt,
             });
           },
@@ -173,7 +178,7 @@ export function useCommandRegistry({
       };
       attempt();
     },
-    [commandsTranslator, getFreshIssue, mutation, vault],
+    [commandsTranslator, getFreshIssue, mutation, toasts, vault],
   );
 
   const executeStatus = useCallback(

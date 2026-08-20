@@ -35,7 +35,10 @@ interface ScanActivityResult {
 /** Setup-incomplete state — surfaced separately so auto path can suppress it. */
 class MissingCredentialsError extends Error {
   readonly kind = "missing_credentials" as const;
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly reason: "auth" | "unavailable",
+  ) {
     super(message);
     this.name = "MissingCredentialsError";
   }
@@ -73,10 +76,11 @@ export function useScanActivity(options?: {
     if (result.addedStatusChanges > 0) {
       parts.push(t("scanStatusChanges", { count: result.addedStatusChanges }));
     }
-    return t("scanSummary", { parts: parts.join(" + ") });
+    return t("scanSummary", { parts: parts.join(t("scanSeparator")) });
   };
 
-  return useMutation({
+  const retryRef = useRef<((input: ScanActivityInput) => void) | null>(null);
+  const mutation = useMutation({
     mutationFn: async ({
       vault,
       repo,
@@ -110,16 +114,17 @@ export function useScanActivity(options?: {
       if (res.status === 401) {
         throw new MissingCredentialsError(
           "Sign in again to scan for activity.",
+          "auth",
         );
       }
       if (res.status === 503) {
         throw new MissingCredentialsError(
           "GitHub App or AI is not configured for this deployment.",
+          "unavailable",
         );
       }
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error ?? `Scan failed (HTTP ${res.status}).`);
+        throw new Error(`Scan failed (HTTP ${res.status}).`);
       }
 
       const result = (await res.json()) as ScanActivityResult;
@@ -142,13 +147,21 @@ export function useScanActivity(options?: {
     },
     onError: (err, variables) => {
       if (variables.source !== "manual") return;
-      if (isMissingCredentialsError(err)) {
-        toast.error(err.message);
-        return;
-      }
-      toast.error(err instanceof Error ? err.message : t("scanError"));
+      const message = isMissingCredentialsError(err)
+        ? err.reason === "auth"
+          ? t("scanAuthError")
+          : t("scanUnavailable")
+        : t("scanRequestError");
+      toast.error(message, {
+        action: {
+          label: t("retry"),
+          onClick: () => retryRef.current?.(variables),
+        },
+      });
     },
   });
+  retryRef.current = (input) => mutation.mutate(input);
+  return mutation;
 }
 
 /**

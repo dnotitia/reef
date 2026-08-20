@@ -112,6 +112,7 @@ export function KanbanBoard({ vault, groupBy = "status" }: KanbanBoardProps) {
   useWorkflowStatusGuard();
   const t = useTranslations("board");
   const common = useTranslations("common");
+  const toasts = useTranslations("toasts");
   const statusLabels = useStatusLabels();
   const priorityLabels = usePriorityLabels();
   const noMatchId = useId();
@@ -317,6 +318,10 @@ export function KanbanBoard({ vault, groupBy = "status" }: KanbanBoardProps) {
               ? err.message
               : t("updateErrorTitle"),
           description: t("updateErrorDescription"),
+          labels: {
+            retry: common("retry"),
+            retrying: toasts("retrying"),
+          },
           onRetry: () => runGroupUpdate(input),
         });
       },

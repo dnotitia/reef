@@ -93,6 +93,7 @@ export function IssueQuickEditAnchor({
   const empty = useEnrichmentEmptyLabels();
   const common = useTranslations("common");
   const board = useTranslations("board");
+  const toasts = useTranslations("toasts");
   const [pendingClose, setPendingClose] = useState(false);
   const [anchorPosition, setAnchorPosition] = useState<{
     left: number;
@@ -256,6 +257,10 @@ export function IssueQuickEditAnchor({
               ? err.message
               : board("updateErrorTitle"),
           description: board("updateErrorDescription"),
+          labels: {
+            retry: common("retry"),
+            retrying: toasts("retrying"),
+          },
           onRetry: () => commitPatch(patch),
         });
       },

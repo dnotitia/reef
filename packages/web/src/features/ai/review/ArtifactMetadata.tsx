@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { AgentArtifactEvidence } from "@reef/core";
 import { AlertTriangle, Link2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { ConfidenceBadge } from "../components/ConfidenceBadge";
 import { isSafeWebUrl } from "./evidenceLinks";
@@ -29,6 +30,7 @@ export function ArtifactMetadata({
   compact = false,
   className,
 }: ArtifactMetadataProps) {
+  const t = useTranslations("ai");
   const visibleEvidence = evidence.filter(
     (item) => item.label || item.ref || item.url,
   );
@@ -60,9 +62,7 @@ export function ArtifactMetadata({
           <Badge className="gap-1 border-ai-border bg-surface-page/70 px-2 py-0 text-[11px] text-muted-foreground">
             <Link2 className="h-3 w-3" aria-hidden="true" />
             {evidenceLabel ??
-              `${visibleEvidence.length} evidence item${
-                visibleEvidence.length === 1 ? "" : "s"
-              }`}
+              t("evidenceItems", { count: visibleEvidence.length })}
           </Badge>
         )}
         {provenance}

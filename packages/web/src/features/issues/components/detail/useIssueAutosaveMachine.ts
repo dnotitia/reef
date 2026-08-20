@@ -41,6 +41,11 @@ interface UpdateIssueInput {
 
 type MutateIssue = (input: UpdateIssueInput) => Promise<unknown>;
 
+export interface AutosaveFeedbackLabels {
+  retry: string;
+  retrying: string;
+}
+
 // A later auto-save resolves an earlier failure when it re-writes the same
 // target: a body edit (carries `content`) or an overlapping field key. An
 // unrelated success should not clear another field's pending failure.
@@ -79,7 +84,12 @@ class IssueAutosaveMachine {
   constructor(
     private readonly target: { issueId: string; vault: string },
     private readonly mutateIssue: MutateIssue,
+    private feedbackLabels: AutosaveFeedbackLabels,
   ) {}
+
+  setFeedbackLabels(labels: AutosaveFeedbackLabels): void {
+    this.feedbackLabels = labels;
+  }
 
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
@@ -230,6 +240,7 @@ class IssueAutosaveMachine {
           ? err.message
           : "Couldn't save changes",
       description: "Your changes weren't saved. Retry to try again.",
+      labels: this.feedbackLabels,
       onRetry: this.retry,
     });
   }
@@ -255,18 +266,22 @@ export function useIssueAutosaveMachine({
   issueId,
   vault,
   mutateIssue,
+  feedbackLabels,
 }: {
   issueId: string;
   vault: string;
   mutateIssue: MutateIssue;
+  feedbackLabels: AutosaveFeedbackLabels;
 }) {
   const [machine] = useState(
-    () => new IssueAutosaveMachine({ issueId, vault }, mutateIssue),
+    () =>
+      new IssueAutosaveMachine({ issueId, vault }, mutateIssue, feedbackLabels),
   );
   useEffect(() => {
+    machine.setFeedbackLabels(feedbackLabels);
     machine.activate();
     return () => machine.scheduleDispose();
-  }, [machine]);
+  }, [feedbackLabels, machine]);
 
   const snapshot = useSyncExternalStore(
     machine.subscribe,
