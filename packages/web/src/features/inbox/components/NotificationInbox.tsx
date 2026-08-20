@@ -19,14 +19,46 @@ import { Archive, Bell, MailOpen } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 import {
   useInboxNotifications,
   useUpdateNotificationState,
 } from "../hooks/useInboxNotifications";
 
-function humanizeEventType(eventType: string): string {
-  const value = eventType.replaceAll("_", " ").trim();
-  return value ? value.charAt(0).toUpperCase() + value.slice(1) : "";
+const KNOWN_EVENT_TYPES = [
+  "comment_created",
+  "comment_updated",
+  "status_change",
+  "assignee_change",
+  "priority_change",
+  "planning_link",
+  "issue_body_mentions_change",
+  "impl_ref_linked",
+  "labels_change",
+  "relation_change",
+  "estimate_change",
+  "archived_change",
+  "attachment_added",
+  "attachment_removed",
+  "start_date_change",
+  "title_change",
+  "due_date_change",
+  "parent_change",
+  "issue_type_change",
+  "delivery_ready",
+  "validation_proof_refreshed",
+  "contract_amended",
+  "issue_contract_updated",
+] as const;
+
+function notificationEventLabel(
+  eventType: string,
+  translate: (key: string) => string,
+): string {
+  if ((KNOWN_EVENT_TYPES as readonly string[]).includes(eventType)) {
+    return translate(`event.${eventType}`);
+  }
+  return translate("notification");
 }
 
 function notificationIssueHref(
@@ -56,6 +88,7 @@ function NotificationItem({
 }) {
   const locale = useLocale();
   const t = useTranslations("inbox");
+  const translateInbox = t as unknown as (key: string) => string;
   const router = useRouter();
   const updateState = useUpdateNotificationState(vault);
   const [busy, setBusy] = useState(false);
@@ -67,7 +100,7 @@ function NotificationItem({
   const eventLabel =
     notification.event_type === ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE
       ? t("issueBodyMention")
-      : humanizeEventType(notification.event_type) || t("notification");
+      : notificationEventLabel(notification.event_type, translateInbox);
   const issueHref = notificationIssueHref(vault, notification);
 
   async function updateStateAndRefresh(state: NotificationState) {
@@ -78,6 +111,9 @@ function NotificationItem({
         notificationKey: notification.notification_key,
         state,
       });
+      if (state === "archived") {
+        toast.success(t("archiveSuccess", { issue: notification.reef_id }));
+      }
     } catch {
       onActionError(t("actionError"));
     } finally {
@@ -131,6 +167,7 @@ function NotificationItem({
           data-testid="notification-open"
           onClick={() => void openNotification()}
           disabled={busy}
+          aria-busy={busy}
           className="min-w-0 flex-1 touch-manipulation rounded-md text-left hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
           aria-label={t("openNotification", { issue: notification.reef_id })}
         >
@@ -170,6 +207,7 @@ function NotificationItem({
               hitTarget="compact"
               className="touch-manipulation"
               disabled={busy}
+              busy={busy}
               onClick={() => void updateStateAndRefresh("unread")}
               aria-label={t("markUnreadFor", { issue: notification.reef_id })}
               title={t("markUnread")}
@@ -184,6 +222,7 @@ function NotificationItem({
             hitTarget="compact"
             className="touch-manipulation"
             disabled={busy}
+            busy={busy}
             onClick={() => void updateStateAndRefresh("archived")}
             aria-label={t("archiveFor", { issue: notification.reef_id })}
             title={t("archive")}
@@ -230,6 +269,16 @@ function NotificationInboxContent({ vault }: { vault: string }) {
   const { notifications, isLoading, isError, refetch } =
     useInboxNotifications(vault);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const retryNotifications = async () => {
+    setIsRetrying(true);
+    try {
+      await refetch();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   if (isLoading) return <NotificationInboxSkeleton />;
 
@@ -255,7 +304,9 @@ function NotificationInboxContent({ vault }: { vault: string }) {
           variant="outline"
           size="sm"
           className="mt-4"
-          onClick={() => void refetch()}
+          onClick={() => void retryNotifications()}
+          busy={isRetrying}
+          aria-label={t("retry")}
         >
           {t("retry")}
         </Button>

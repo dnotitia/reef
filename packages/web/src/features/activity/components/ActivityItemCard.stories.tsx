@@ -86,7 +86,7 @@ export const AiDraftWithApproveAndDismiss: Story = {
     onApproveDraft: async (draft) => {
       console.log("Approved draft:", draft.id);
     },
-    onDismissDraft: (id) => {
+    onDismissDraft: async (id) => {
       console.log("Dismissed draft:", id);
     },
   },
@@ -97,7 +97,7 @@ export const AiDraftApproving: Story = {
     item: aiDraftItem,
     isApproving: true,
     onApproveDraft: async () => {},
-    onDismissDraft: () => {},
+    onDismissDraft: async () => {},
   },
 };
 
@@ -107,7 +107,7 @@ export const AiStatusChangeWithApproveAndDismiss: Story = {
     onApproveStatusChange: async (statusChange) => {
       console.log("Approved status change:", statusChange.id);
     },
-    onDismissStatusChange: (id) => {
+    onDismissStatusChange: async (id) => {
       console.log("Dismissed status change:", id);
     },
   },

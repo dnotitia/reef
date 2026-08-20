@@ -159,15 +159,13 @@ export function ReportsPage() {
           data-testid="reports-error"
           className="flex flex-col items-start gap-2"
         >
-          <p className="text-sm text-destructive-text">
-            {issuesQuery.error instanceof Error
-              ? issuesQuery.error.message
-              : t("failedToLoad")}
-          </p>
+          <p className="text-sm text-destructive-text">{t("failedToLoad")}</p>
           <Button
             variant="outline"
             size="sm"
             onClick={() => void issuesQuery.refetch()}
+            busy={issuesQuery.isFetching}
+            aria-label={c("retry")}
           >
             {c("retry")}
           </Button>
@@ -228,8 +226,9 @@ export function ReportsPage() {
                   onKeyDown={activateButtonOnKeyDown}
                   onClick={clearParentScope}
                 >
-                  {t("clearParentFilter")}
-                  {parentScopeName ? `: ${parentScopeName}` : ""}
+                  {parentScopeName
+                    ? t("clearParentFilterFor", { name: parentScopeName })
+                    : t("clearParentFilter")}
                 </Button>
               </div>
             ) : null}

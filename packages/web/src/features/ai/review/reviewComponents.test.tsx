@@ -59,6 +59,27 @@ describe("AI review components", () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the action name stable while exposing busy semantics", () => {
+    render(
+      <ReviewActions
+        actions={[
+          {
+            id: "approve",
+            label: "Approve",
+            busy: true,
+            busyLabel: "Approving…",
+            onClick: vi.fn(),
+          },
+        ]}
+      />,
+    );
+
+    const approve = screen.getByRole("button", { name: "Approve" });
+    expect(approve).toBeDisabled();
+    expect(approve).toHaveAttribute("aria-busy", "true");
+    expect(approve).toHaveTextContent("Approving…");
+  });
+
   it("renders common artifact confidence, reasoning, evidence, and warnings", () => {
     render(
       <ArtifactMetadata

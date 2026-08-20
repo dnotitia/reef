@@ -149,6 +149,10 @@ export function IssueContextMenu({
               ? error.message
               : board("updateErrorTitle"),
           description: board("updateErrorDescription"),
+          labels: {
+            retry: toasts("retry"),
+            retrying: toasts("retrying"),
+          },
           onRetry: () => commitPatch(patch),
         });
       },
@@ -220,6 +224,7 @@ export function IssueContextMenu({
         notifyUndoableSuccess({
           id: `archive:${issue.id}`,
           message: detail("unarchived", { id: issue.id }),
+          undoLabel: toasts("undo"),
           onUndo: () =>
             void archiveMutation
               .archive({ id: issue.id, vault })
@@ -234,6 +239,7 @@ export function IssueContextMenu({
         notifyUndoableSuccess({
           id: `archive:${issue.id}`,
           message: detail("archived", { id: issue.id }),
+          undoLabel: toasts("undo"),
           onUndo: () =>
             void archiveMutation
               .unarchive({ id: issue.id, vault })

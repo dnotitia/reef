@@ -1,6 +1,7 @@
 "use client";
 
 import { TypePill } from "@/components/fields/TypePill";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -33,11 +34,7 @@ import { NO_SELECTION } from "@reef/core/fields";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useState } from "react";
-import {
-  githubActivityUrl,
-  implementationRefLabel,
-  implementationRefUrl,
-} from "../lib/activityLinks";
+import { githubActivityUrl, implementationRefUrl } from "../lib/activityLinks";
 import type { ActivityFeedItem } from "../types";
 import { ActivityCardHeader } from "./ActivityCardHeader";
 import { ActivityDraftEditMetadataFields } from "./ActivityDraftEditMetadataFields";
@@ -66,7 +63,7 @@ export function ActivityDraftCard({
 }: {
   item: Extract<ActivityFeedItem, { type: "ai_draft" }>;
   onApprove?: (draft: ActivityDraftSuggestion) => Promise<void>;
-  onDismiss?: (draftId: string) => void;
+  onDismiss?: (draftId: string) => Promise<void>;
   onSaveEdits?: (
     draftId: string,
     edits: ActivityDraftEditPatch,
@@ -114,6 +111,13 @@ export function ActivityDraftCard({
   const [relatedTo, setRelatedTo] = useState<string[]>(fields.related_to ?? []);
   const [labels, setLabels] = useState<string[]>(fields.labels ?? []);
   const [isSaving, setIsSaving] = useState(false);
+  const [pendingAction, setPendingAction] = useState<
+    "approve" | "dismiss" | "save" | null
+  >(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [failedAction, setFailedAction] = useState<
+    "approve" | "dismiss" | "save" | null
+  >(null);
   const { data: allIssues = [] } = useIssueList(vault ?? "");
   // Whole-vault relation graph for accurate blocked badges in the relation dropdowns.
   const { data: relations } = useIssueRelations(vault ?? "");
@@ -182,51 +186,104 @@ export function ActivityDraftCard({
     setRelatedTo(fields.related_to ?? []);
     setLabels(fields.labels ?? []);
     setIsEditing(false);
+    setActionError(null);
+    setFailedAction(null);
   };
 
-  const handleSave = async () => {
+  const runAction = async (
+    action: "approve" | "dismiss" | "save",
+    operation: () => Promise<void>,
+    errorMessage: string,
+  ) => {
+    if (pendingAction) return;
+    setPendingAction(action);
+    setActionError(null);
+    setFailedAction(null);
+    try {
+      await operation();
+    } catch {
+      setActionError(errorMessage);
+      setFailedAction(action);
+    } finally {
+      setPendingAction(null);
+    }
+  };
+
+  const handleApprove = () =>
+    void runAction(
+      "approve",
+      async () => {
+        if (onApprove) await onApprove(draft);
+      },
+      t("approveError"),
+    );
+
+  const handleDismiss = () =>
+    void runAction(
+      "dismiss",
+      async () => {
+        if (onDismiss) await onDismiss(draft.id);
+      },
+      t("dismissError"),
+    );
+
+  const handleSave = () => {
     if (!onSaveEdits) return;
     if (estimatePoints.trim() && Number.isNaN(Number(estimatePoints.trim()))) {
+      setActionError(t("invalidEstimate"));
+      setFailedAction(null);
       return;
     }
-    setIsSaving(true);
-    try {
-      await onSaveEdits(draft.id, {
-        fields: {
-          title: title.trim(),
-          issue_type: issueType,
-          priority: priority === NO_SELECTION ? null : priority,
-          assigned_to: assignee.trim() || null,
-          requester: requester.trim() || null,
-          reporter: reporter.trim() || null,
-          start_date: startDate || null,
-          due_date: dueDate || null,
-          milestone_id: milestoneId || null,
-          sprint_id: sprintId || null,
-          release_id: releaseId || null,
-          estimate_points: estimatePoints.trim()
-            ? Number(estimatePoints.trim())
-            : null,
-          severity: severity || null,
-          parent_id: parentId.trim() || null,
-          depends_on: dependsOn.length > 0 ? dependsOn : undefined,
-          blocks: blocks.length > 0 ? blocks : undefined,
-          related_to: relatedTo.length > 0 ? relatedTo : undefined,
-          labels: labels.length > 0 ? labels : undefined,
-          ...(fields.implementation_refs
-            ? { implementation_refs: fields.implementation_refs }
-            : {}),
-          // Preserve the code-signal status the draft was created with (REEF-130).
-          // The edit form doesn't expose status, so rebuilding `fields` without
-          // it would strip it and drop the draft into `backlog` on approval.
-          ...(fields.status ? { status: fields.status } : {}),
-        },
-        content,
-      });
-      setIsEditing(false);
-    } finally {
-      setIsSaving(false);
-    }
+    void runAction(
+      "save",
+      async () => {
+        setIsSaving(true);
+        try {
+          await onSaveEdits(draft.id, {
+            fields: {
+              title: title.trim(),
+              issue_type: issueType,
+              priority: priority === NO_SELECTION ? null : priority,
+              assigned_to: assignee.trim() || null,
+              requester: requester.trim() || null,
+              reporter: reporter.trim() || null,
+              start_date: startDate || null,
+              due_date: dueDate || null,
+              milestone_id: milestoneId || null,
+              sprint_id: sprintId || null,
+              release_id: releaseId || null,
+              estimate_points: estimatePoints.trim()
+                ? Number(estimatePoints.trim())
+                : null,
+              severity: severity || null,
+              parent_id: parentId.trim() || null,
+              depends_on: dependsOn.length > 0 ? dependsOn : undefined,
+              blocks: blocks.length > 0 ? blocks : undefined,
+              related_to: relatedTo.length > 0 ? relatedTo : undefined,
+              labels: labels.length > 0 ? labels : undefined,
+              ...(fields.implementation_refs
+                ? { implementation_refs: fields.implementation_refs }
+                : {}),
+              // Preserve the code-signal status the draft was created with (REEF-130).
+              // The edit form doesn't expose status, so rebuilding `fields` without
+              // it would strip it and drop the draft into `backlog` on approval.
+              ...(fields.status ? { status: fields.status } : {}),
+            },
+            content,
+          });
+          setIsEditing(false);
+        } finally {
+          setIsSaving(false);
+        }
+      },
+      t("saveError"),
+    );
+  };
+
+  const retryFailedAction = () => {
+    if (failedAction === "approve") handleApprove();
+    if (failedAction === "dismiss") handleDismiss();
+    if (failedAction === "save") handleSave();
   };
 
   return (
@@ -248,7 +305,13 @@ export function ActivityDraftCard({
             {
               type: draft.provenance.type,
               ref: draft.provenance.ref,
-              label: `${draft.provenance.type} ${draft.provenance.ref}`,
+              label: t("evidenceRef", {
+                kind:
+                  draft.provenance.type === "pr"
+                    ? t("evidencePullRequest")
+                    : t("evidenceCommit"),
+                ref: draft.provenance.ref,
+              }),
               url: githubActivityUrl({
                 type: draft.provenance.type,
                 repo: draft.provenance.repo,
@@ -298,7 +361,15 @@ export function ActivityDraftCard({
             {fields.implementation_refs &&
               fields.implementation_refs.length > 0 &&
               fields.implementation_refs.map((ref, index) => {
-                const label = implementationRefLabel(ref);
+                const localizedLabel = t("evidenceRef", {
+                  kind:
+                    ref.type === "pull_request"
+                      ? t("evidencePullRequest")
+                      : ref.type === "commit"
+                        ? t("evidenceCommit")
+                        : t("evidenceBranch"),
+                  ref: ref.type === "commit" ? ref.ref.slice(0, 7) : ref.ref,
+                });
                 const href = implementationRefUrl(ref);
                 const key = `${ref.type}:${ref.repo ?? ""}:${ref.ref}:${index}`;
 
@@ -309,16 +380,16 @@ export function ActivityDraftCard({
                     target="_blank"
                     rel="noreferrer"
                     className={LINK_CHIP_CLASS}
-                    title={ref.title ?? label}
+                    title={ref.title ?? localizedLabel}
                   >
-                    {label}
+                    {localizedLabel}
                   </a>
                 ) : (
                   <span
                     key={key}
                     className="rounded-full bg-surface-page/70 px-2 py-0.5"
                   >
-                    {label}
+                    {localizedLabel}
                   </span>
                 );
               })}
@@ -428,6 +499,27 @@ export function ActivityDraftCard({
         className="mt-3"
       />
 
+      {actionError && (
+        <div
+          role="alert"
+          data-testid="activity-draft-action-error"
+          className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text"
+        >
+          <span>{actionError}</span>
+          {failedAction && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={retryFailedAction}
+              disabled={pendingAction !== null}
+            >
+              {common("retry")}
+            </Button>
+          )}
+        </div>
+      )}
+
       <div className="mt-3 flex items-center gap-2">
         {isEditing ? (
           <ReviewActions
@@ -435,11 +527,17 @@ export function ActivityDraftCard({
               {
                 id: "save",
                 label: common("save"),
-                busy: isSaving,
+                busy: isSaving || pendingAction === "save",
+                disabled: pendingAction !== null && pendingAction !== "save",
                 onClick: handleSave,
                 testId: "draft-save",
               },
-              { id: "cancel", label: common("cancel"), onClick: handleCancel },
+              {
+                id: "cancel",
+                label: common("cancel"),
+                disabled: pendingAction !== null,
+                onClick: handleCancel,
+              },
             ]}
           />
         ) : (
@@ -448,20 +546,27 @@ export function ActivityDraftCard({
               {
                 id: "approve",
                 label: tAi("approve"),
-                busy: isApproving,
+                busy: isApproving || pendingAction === "approve",
                 busyLabel: tAi("approving"),
-                onClick: () => onApprove?.(draft),
+                disabled: pendingAction !== null && pendingAction !== "approve",
+                onClick: handleApprove,
               },
               {
                 id: "edit",
                 label: common("edit"),
+                disabled: isApproving || pendingAction !== null,
                 onClick: () => setIsEditing(true),
                 testId: "draft-edit",
               },
               {
                 id: "dismiss",
                 label: tAi("dismiss"),
-                onClick: () => onDismiss?.(draft.id),
+                busy: pendingAction === "dismiss",
+                disabled:
+                  isApproving ||
+                  (pendingAction !== null && pendingAction !== "dismiss"),
+                busyLabel: tAi("dismissing"),
+                onClick: handleDismiss,
               },
             ]}
           />

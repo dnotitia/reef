@@ -72,6 +72,8 @@ export function PlanningDeleteDialog({
             size="sm"
             onClick={onConfirm}
             disabled={isDeleting}
+            busy={isDeleting}
+            aria-label={common("delete")}
             data-testid="planning-delete-confirm-btn"
           >
             {isDeleting ? t("deleting") : common("delete")}

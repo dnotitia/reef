@@ -301,6 +301,8 @@ export function PlanningEditorDialog({
               type="submit"
               data-testid="planning-save"
               disabled={isSaving}
+              busy={isSaving}
+              aria-label={common("save")}
             >
               {isSaving ? t("saving") : common("save")}
             </Button>

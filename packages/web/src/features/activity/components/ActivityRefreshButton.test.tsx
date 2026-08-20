@@ -10,13 +10,13 @@ vi.mock("@/lib/storage/lastScan", () => ({
   getLastScanAt: (repo: string) => getLastScanAt(repo),
 }));
 
-function renderButton(locale: Locale) {
+function renderButton(locale: Locale, isScanning = false) {
   return render(
     <IntlTestProvider locale={locale}>
       <ActivityRefreshButton
         repo="acme/widgets"
         onRefresh={() => {}}
-        isScanning={false}
+        isScanning={isScanning}
       />
     </IntlTestProvider>,
   );
@@ -56,5 +56,16 @@ describe("ActivityRefreshButton last-scan label", () => {
     // The refresh button mounts immediately; the label stays absent.
     await screen.findByTestId("activity-refresh");
     expect(screen.queryByTestId("activity-last-scan")).toBeNull();
+  });
+
+  it("keeps its accessible name stable while exposing busy semantics", () => {
+    renderButton("en", true);
+
+    const refresh = screen.getByRole("button", {
+      name: "Check for new suggestions",
+    });
+    expect(refresh).toBeDisabled();
+    expect(refresh).toHaveAttribute("aria-busy", "true");
+    expect(refresh).toHaveTextContent("Checking now…");
   });
 });

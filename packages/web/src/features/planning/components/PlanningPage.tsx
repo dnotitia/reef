@@ -148,22 +148,14 @@ export function PlanningPage() {
     try {
       if (editor.mode === "create") {
         await createMutation.mutateAsync({ kind: editor.kind, item: input });
-        toast.success(
-          t("planningCreated", { kind: planningKindSingular[editor.kind] }),
-        );
       } else {
         const item = { ...input, id: String(editor.item.id) } as PlanningItem;
         await updateMutation.mutateAsync({ kind: editor.kind, item });
-        toast.success(
-          t("planningSaved", { kind: planningKindSingular[editor.kind] }),
-        );
       }
       closeEditor();
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : t("planningSaveError");
+    } catch {
+      const message = t("planningSaveError");
       setFormError(message);
-      toast.error(message);
     }
   }
 
@@ -179,10 +171,8 @@ export function PlanningPage() {
         t("planningDeleted", { kind: planningKindSingular[target.kind] }),
       );
       setDeleteTarget(null);
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : t("planningDeleteError"),
-      );
+    } catch {
+      toast.error(t("planningDeleteError"));
     }
   }
 

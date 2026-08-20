@@ -25,6 +25,7 @@ import { useIssueAutosaveMachine } from "./useIssueAutosaveMachine";
 
 const mockNotifyConflict = vi.mocked(notifyConflict);
 const mockNotifyRetryableError = vi.mocked(notifyRetryableError);
+const feedbackLabels = { retry: "Retry", retrying: "Retrying…" };
 
 function httpError(status: number): Error {
   return Object.assign(new Error(`HTTP ${status}`), { status });
@@ -42,6 +43,7 @@ describe("useIssueAutosaveMachine — conflict handling (REEF-227)", () => {
         issueId: "REEF-001",
         vault: "reef-acme",
         mutateIssue,
+        feedbackLabels,
       }),
     );
 
@@ -66,6 +68,7 @@ describe("useIssueAutosaveMachine — conflict handling (REEF-227)", () => {
         issueId: "REEF-001",
         vault: "reef-acme",
         mutateIssue,
+        feedbackLabels,
       }),
     );
 

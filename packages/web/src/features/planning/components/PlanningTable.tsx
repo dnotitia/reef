@@ -185,6 +185,7 @@ export function PlanningTable({
                       hitTarget="compact"
                       variant="ghost"
                       onClick={() => onEdit(kind, item)}
+                      disabled={isDeleting}
                       aria-label={t("editItem", { name: item.name })}
                     >
                       <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
@@ -196,6 +197,7 @@ export function PlanningTable({
                       variant="ghost"
                       onClick={() => onRequestDelete(kind, item)}
                       disabled={count > 0 || isDeleting}
+                      busy={isDeleting}
                       title={count > 0 ? t("removeLinkedFirst") : undefined}
                       aria-label={t("deleteItem", { name: item.name })}
                     >

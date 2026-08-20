@@ -114,6 +114,10 @@ function IssueDetailLoaded({
 }) {
   const t = useTranslations("toasts");
   const dt = useTranslations("issues.detail");
+  const autosaveFeedbackLabels = useMemo(
+    () => ({ retry: t("retry"), retrying: t("retrying") }),
+    [t],
+  );
   const updateMutation = useUpdateIssue({
     onError: (_error, { patch }, context) => {
       // `useUpdateIssue` has already restored the query snapshots. Keep the
@@ -148,6 +152,7 @@ function IssueDetailLoaded({
     issueId,
     vault,
     mutateIssue: updateMutation.mutateAsync,
+    feedbackLabels: autosaveFeedbackLabels,
   });
   const handledConflictRef = useRef(conflictCount);
   const issue = data.issue;
@@ -274,6 +279,7 @@ function IssueDetailLoaded({
         notifyUndoableSuccess({
           id: archiveToastId,
           message: dt("unarchived", { id: issueId }),
+          undoLabel: t("undo"),
           onUndo: () =>
             void archiveMutation
               .archive({ id: issueId, vault })
@@ -291,6 +297,7 @@ function IssueDetailLoaded({
         notifyUndoableSuccess({
           id: archiveToastId,
           message: dt("archived", { id: issueId }),
+          undoLabel: t("undo"),
           onUndo: () =>
             void archiveMutation
               .unarchive({ id: issueId, vault })
