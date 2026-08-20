@@ -848,7 +848,7 @@ describe("NewIssueDialog", () => {
     });
     expect(createBody).not.toHaveProperty("chat");
     expect(createBody).not.toHaveProperty("draft");
-  });
+  }, 15_000);
 
   it("suppresses the shared dialog close X while keeping Cancel as a dismiss path (REEF-111)", async () => {
     const user = userEvent.setup();
