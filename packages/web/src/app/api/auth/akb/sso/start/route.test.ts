@@ -101,7 +101,7 @@ describe("GET /api/auth/akb/sso/start", () => {
 
     expect(response.status).toBe(302);
     const location = new URL(response.headers.get("location") ?? "");
-    expect(location.searchParams.get("kc_idp_hint")).toBe("legacy");
+    expect(location.searchParams.has("kc_idp_hint")).toBe(false);
     expect(fetchSpy).toHaveBeenCalledOnce();
     expect(String(fetchSpy.mock.calls[0]?.[0])).toContain(
       "/api/v1/auth/config",

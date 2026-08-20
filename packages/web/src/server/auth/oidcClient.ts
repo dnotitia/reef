@@ -83,7 +83,11 @@ export interface KeycloakOidcClient {
   checkReachability(): Promise<void>;
   beginAuthorization(
     repository: EncryptedSessionRepository,
-    input: { providerAlias: string; redirectPath: string },
+    input: {
+      providerAlias: string;
+      identityProviderHint: string | null;
+      redirectPath: string;
+    },
   ): Promise<AuthorizationStart>;
   completeAuthorization(
     repository: EncryptedSessionRepository,
@@ -353,6 +357,8 @@ export function createKeycloakOidcClient(
     async beginAuthorization(repository, input) {
       if (
         !PROVIDER_ALIAS_RE.test(input.providerAlias) ||
+        (input.identityProviderHint !== null &&
+          !PROVIDER_ALIAS_RE.test(input.identityProviderHint)) ||
         !isSafeRedirectPath(input.redirectPath)
       ) {
         throw new OidcProtocolError(
@@ -385,7 +391,9 @@ export function createKeycloakOidcClient(
         createHash("sha256").update(codeVerifier, "ascii").digest("base64url"),
       );
       location.searchParams.set("code_challenge_method", "S256");
-      location.searchParams.set("kc_idp_hint", input.providerAlias);
+      if (input.identityProviderHint !== null) {
+        location.searchParams.set("kc_idp_hint", input.identityProviderHint);
+      }
       return {
         location: location.toString(),
         browserBinding: issued.browserBinding,

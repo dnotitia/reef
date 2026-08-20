@@ -18,7 +18,12 @@ type LegacyAkbAuthConfig = Exclude<AkbAuthConfig, VersionedAkbAuthConfig>;
  * password panel" for the /login server component).
  */
 export type AkbAuthConfigResult =
-  | { ok: true; config: AkbAuthConfig }
+  | {
+      ok: true;
+      config: AkbAuthConfig;
+      /** Synthetic provider binding that represents a direct realm login. */
+      directRealmProviderAlias?: string;
+    }
   | {
       ok: false;
       reason:
@@ -101,7 +106,11 @@ export async function loadAkbAuthConfig(): Promise<AkbAuthConfigResult> {
         );
         return { ok: false, reason: "mode_mismatch" };
       }
-      return { ok: true, config: projected };
+      return {
+        ok: true,
+        config: projected,
+        directRealmProviderAlias: LEGACY_SSO_PROVIDER_ALIAS,
+      };
     }
     if (!config.keycloak.enabled || !config.keycloak.browser_session_ready) {
       return { ok: false, reason: "mode_mismatch" };

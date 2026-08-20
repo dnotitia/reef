@@ -34,6 +34,10 @@ export async function GET(request: Request): Promise<Response> {
     const runtime = await getSsoAuthRuntime();
     const started = await runtime.oidc.beginAuthorization(runtime.repository, {
       providerAlias: provider.alias,
+      identityProviderHint:
+        configResult.directRealmProviderAlias === provider.alias
+          ? null
+          : provider.alias,
       redirectPath,
     });
     const headers = new Headers({

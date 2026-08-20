@@ -133,6 +133,7 @@ describe("loadAkbAuthConfig", () => {
 
     await expect(loadAkbAuthConfig()).resolves.toEqual({
       ok: true,
+      directRealmProviderAlias: "legacy",
       config: {
         schema_version: 2,
         auth_mode: "sso",
