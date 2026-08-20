@@ -39,6 +39,7 @@ import {
 import { type IssueFilter, useIssueStore } from "../../stores/useIssueStore";
 import { DisplayOptionsFilter } from "./DisplayOptionsFilter";
 import { NamedIssueFilterControl } from "./NamedIssueFilterControl";
+import { SortControl } from "./SortControl";
 import type { IssueGroupBy, IssueWorkspaceView } from "../../lib/groupBy";
 
 /**
@@ -169,6 +170,12 @@ interface FilterBarProps {
    */
   statusOptions?: readonly Status[];
   view?: IssueWorkspaceView;
+  /** Omit the field/direction sort on date-ordered views such as Timeline. */
+  showSortControl?: boolean;
+  /** Treat an unset shared sort as the rank order on Board/Backlog. */
+  supportsRankOrder?: boolean;
+  /** Keep the drag hint scoped to the Backlog rank option. */
+  showsBacklogReorderHint?: boolean;
   groupBy?: IssueGroupBy;
   setGroupBy?: (groupBy: IssueGroupBy) => void;
 }
@@ -177,6 +184,9 @@ export function FilterBar({
   backlogScope = false,
   statusOptions = STATUS_OPTIONS,
   view,
+  showSortControl,
+  supportsRankOrder = false,
+  showsBacklogReorderHint = false,
   groupBy,
   setGroupBy,
 }: FilterBarProps) {
@@ -227,6 +237,7 @@ export function FilterBar({
 
   const activeCount = countActiveFilters(filter, backlogScope);
   const hasActiveFilters = activeCount > 0;
+  const shouldRenderSort = showSortControl ?? view !== "timeline";
 
   return (
     <div
@@ -499,6 +510,13 @@ export function FilterBar({
         groupBy={groupBy}
         setGroupBy={setGroupBy}
       />
+
+      {shouldRenderSort ? (
+        <SortControl
+          supportsRankOrder={supportsRankOrder}
+          showsBacklogReorderHint={showsBacklogReorderHint}
+        />
+      ) : null}
 
       <NamedIssueFilterControl />
 

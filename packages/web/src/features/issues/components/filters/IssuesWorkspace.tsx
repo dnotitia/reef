@@ -4,7 +4,6 @@ import { KanbanBoard } from "@/features/board/components/KanbanBoard";
 import { BacklogView } from "@/features/issues/components/backlog/BacklogView";
 import { IssueBulkActionBar } from "@/features/issues/components/bulk/IssueBulkActionBar";
 import { IssueFilterToolbar } from "@/features/issues/components/filters/IssueFilterToolbar";
-import { SortControl } from "@/features/issues/components/filters/SortControl";
 import { ViewSwitcher } from "@/features/issues/components/filters/ViewSwitcher";
 import { IssueListTable } from "@/features/issues/components/list/IssueListTable";
 import { useIssueFilterPersistence } from "@/features/issues/hooks/view/useIssueFilterPersistence";
@@ -59,22 +58,8 @@ export function IssuesWorkspace() {
       <PageHeader
         title={nav("issues")}
         description={vault || undefined}
-        className="h-auto min-h-12 flex-wrap py-2 [&>div:last-child]:basis-full [&>div:last-child]:max-w-full [&>div:last-child]:flex-wrap sm:[&>div:last-child]:basis-auto"
-        actions={
-          <div className="flex w-full min-w-0 max-w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
-            {/* Timeline is date-ordered, so the field/direction sort does not
-                apply there. Board, list, and backlog share the control; board
-                and backlog surface their pristine `rank` order here, while the
-                drag affordance appears on backlog (REEF-169/393). */}
-            {view === "timeline" ? null : (
-              <SortControl
-                supportsRankOrder={view === "board" || view === "backlog"}
-                showsBacklogReorderHint={view === "backlog"}
-              />
-            )}
-            <ViewSwitcher activeView={view} />
-          </div>
-        }
+        className="h-auto min-h-12 flex-wrap py-2"
+        actions={<ViewSwitcher activeView={view} />}
       />
 
       {!vault && !isLoading ? (
@@ -91,6 +76,9 @@ export function IssuesWorkspace() {
               view === "list" ? STATUS_OPTIONS : WORKFLOW_STATUS_OPTIONS
             }
             view={view}
+            showSortControl={view !== "timeline"}
+            supportsRankOrder={view === "board" || view === "backlog"}
+            showsBacklogReorderHint={view === "backlog"}
             groupBy={groupBy}
             setGroupBy={setGroupBy}
           />

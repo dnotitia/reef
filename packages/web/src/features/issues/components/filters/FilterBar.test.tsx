@@ -88,6 +88,31 @@ describe("FilterBar", () => {
     expect(setGroupBy).toHaveBeenCalledWith("label");
   });
 
+  it("places the shared sort control immediately after Display options", () => {
+    renderFilterBar({
+      view: "board",
+      supportsRankOrder: true,
+    });
+
+    const filterBar = screen.getByTestId("filter-bar");
+    const display = screen.getByTestId("display-options-trigger");
+    const sort = screen.getByTestId("sort-control");
+    const displayWrapper = display.parentElement;
+
+    expect(displayWrapper).not.toBeNull();
+    expect(displayWrapper?.parentElement).toBe(filterBar);
+    expect(sort.parentElement).toBe(filterBar);
+    expect(displayWrapper?.nextElementSibling).toBe(sort);
+    expect(
+      sort.parentElement?.querySelectorAll('[data-testid="sort-control"]'),
+    ).toHaveLength(1);
+  });
+
+  it("keeps the timeline date ordering without a field sort control", () => {
+    renderFilterBar({ view: "timeline" });
+    expect(screen.queryByTestId("sort-control")).toBeNull();
+  });
+
   it("keeps Milestone a single-select value field with a readable panel; Sprint/Release are multi-select chips (REEF-267)", async () => {
     const user = userEvent.setup();
     vi.mocked(useActiveVault).mockReturnValue({

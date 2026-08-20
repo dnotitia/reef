@@ -129,6 +129,34 @@ test.describe("Hermetic issue route surfaces", () => {
         await expect(page.getByTestId("view-switcher")).toBeVisible();
         if (view !== "timeline") {
           await expect(page.getByTestId("sort-control-trigger")).toBeVisible();
+          await expect(
+            page.locator(
+              '[data-slot="page-header"] [data-testid="sort-control"]',
+            ),
+          ).toHaveCount(0);
+          await expect(page.getByTestId("sort-control")).toHaveCount(1);
+          const sortPlacement = await page
+            .getByTestId("filter-bar")
+            .evaluate((root) => {
+              const display = root.querySelector(
+                '[data-testid="display-options-trigger"]',
+              );
+              const sort = root.querySelector('[data-testid="sort-control"]');
+              return {
+                directlyAfterDisplay:
+                  display?.parentElement?.nextElementSibling === sort,
+                toolbarOwnsSort: sort?.parentElement === root,
+              };
+            });
+          expect(sortPlacement.directlyAfterDisplay).toBe(true);
+          expect(sortPlacement.toolbarOwnsSort).toBe(true);
+        } else {
+          await expect(
+            page.locator(
+              '[data-slot="page-header"] [data-testid="sort-control"]',
+            ),
+          ).toHaveCount(0);
+          await expect(page.getByTestId("sort-control")).toHaveCount(0);
         }
 
         const headerGeometry = await page
@@ -330,7 +358,11 @@ test.describe("Hermetic issue route surfaces", () => {
     ]);
 
     const filterTops = await Promise.all(
-      ["type-dropdown-trigger", "display-options-trigger"].map(async (id) =>
+      [
+        "type-dropdown-trigger",
+        "display-options-trigger",
+        "sort-control-trigger",
+      ].map(async (id) =>
         page
           .getByTestId(id)
           .evaluate((element) => element.getBoundingClientRect().top),
