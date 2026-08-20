@@ -57,7 +57,10 @@ export function SettingsTabs() {
     <nav
       aria-label={t("settingsSections")}
       data-testid="settings-tabs"
-      className={cn(SEGMENTED_CONTROL_TRACK, "self-start")}
+      className={cn(
+        SEGMENTED_CONTROL_TRACK,
+        "!grid w-full max-w-full grid-cols-3 self-start",
+      )}
     >
       {SETTINGS_TABS.map(({ href, id, labelKey, icon: Icon }) => {
         // Targets are vault-scoped (REEF-315). A tab owns its segment, so it
@@ -74,13 +77,17 @@ export function SettingsTabs() {
             data-testid={`settings-tab-${id}`}
             className={cn(
               SEGMENTED_CONTROL_ITEM,
+              "min-w-0 justify-center text-center",
               isActive
                 ? SEGMENTED_CONTROL_ITEM_ACTIVE
                 : SEGMENTED_CONTROL_ITEM_INACTIVE,
             )}
           >
-            <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            <span>{t(labelKey)}</span>
+            <Icon
+              className="h-3.5 w-3.5 shrink-0 max-[480px]:hidden"
+              aria-hidden="true"
+            />
+            <span className="min-w-0 break-words">{t(labelKey)}</span>
           </Link>
         );
       })}

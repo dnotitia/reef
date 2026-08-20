@@ -25,6 +25,7 @@ export function ProjectSection({ canEdit = true }: { canEdit?: boolean }) {
   const configQuery = useProjectConfig(activeVault);
   const updateConfig = useUpdateProjectConfig(activeVault);
   const queryClient = useQueryClient();
+  const [saveMessage, setSaveMessage] = useState("");
 
   const serverPrefix =
     configQuery.data?.config.project_prefix ?? DEFAULT_CONFIG.project_prefix;
@@ -88,7 +89,9 @@ export function ProjectSection({ canEdit = true }: { canEdit?: boolean }) {
               patch: { project_prefix: projectPrefix },
             });
             await queryClient.invalidateQueries({ queryKey: ["issues"] });
+            setSaveMessage(t("saved"));
           }}
+          saveMessage={saveMessage}
         />
       ) : (
         <ReadOnlyValue
@@ -106,12 +109,15 @@ function ProjectPrefixEditor({
   serverPrefix,
   saving,
   onSave,
+  saveMessage,
 }: {
   activeVault: string;
   serverPrefix: string;
   saving: boolean;
   onSave: (projectPrefix: string) => Promise<void>;
+  saveMessage: string;
 }) {
+  const t = useTranslations("settings.config");
   const [draft, setDraft] = useState(serverPrefix);
   const [error, setError] = useState<string | null>(null);
   const dirty = draft !== serverPrefix;
@@ -120,12 +126,14 @@ function ProjectPrefixEditor({
 
   async function handleSave() {
     setError(null);
+    // The parent owns the success status because the config cache update
+    // remounts this editor with the persisted prefix.
     if (!activeVault) {
-      setError("Select a workspace in Settings first.");
+      setError(t("project.selectWorkspaceFirst"));
       return;
     }
     if (!valid) {
-      setError("Use uppercase letters only (A-Z), e.g. REEF.");
+      setError(t("project.invalid"));
       return;
     }
     try {
@@ -134,8 +142,7 @@ function ProjectPrefixEditor({
       // keeps the saved value and the Save button disables — the result is
       // immediately visible without a toast.
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Failed to save project prefix.";
+      const msg = err instanceof Error ? err.message : t("project.saveError");
       // Form-submit error: surfaced inline below (single source), not a toast.
       setError(msg);
     }
@@ -165,6 +172,7 @@ function ProjectPrefixEditor({
           spellCheck={false}
           aria-labelledby="project-prefix-label"
           aria-invalid={error != null}
+          aria-describedby={error ? "project-prefix-error" : undefined}
         />
         <Button
           type="button"
@@ -173,12 +181,21 @@ function ProjectPrefixEditor({
           disabled={!dirty || saving}
           data-testid="project-prefix-save"
         >
-          {saving ? "Saving…" : "Save"}
+          {saving ? t("saving") : t("save")}
         </Button>
       </div>
+      <p
+        role="status"
+        aria-live="polite"
+        className="min-h-5 text-sm text-muted-foreground"
+        data-testid="project-prefix-save-status"
+      >
+        {saving ? t("saving") : saveMessage}
+      </p>
       {error && (
         <p
           role="alert"
+          id="project-prefix-error"
           className="text-xs text-destructive-text"
           data-testid="project-prefix-error"
         >

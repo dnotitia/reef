@@ -7,6 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useTranslations } from "next-intl";
 
 /** Roles a member can be assigned in the UI. `owner` is excluded — akb refuses
  *  to grant it (ownership moves just via transfer, out of scope). */
@@ -34,6 +35,7 @@ export function RoleSelect({
   disabled,
   onChange,
 }: RoleSelectProps) {
+  const t = useTranslations("settings.members");
   return (
     <Select
       value={value}
@@ -43,7 +45,7 @@ export function RoleSelect({
       <SelectTrigger
         size="sm"
         className="w-28 capitalize"
-        aria-label={`Role for ${name}`}
+        aria-label={t("roleFor", { name })}
         data-testid="role-select-trigger"
       >
         <SelectValue />
@@ -56,7 +58,7 @@ export function RoleSelect({
             className="capitalize"
             data-testid={`role-option-${role}`}
           >
-            {role}
+            {t(`roles.${role}`)}
           </SelectItem>
         ))}
       </SelectContent>

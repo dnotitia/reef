@@ -51,6 +51,16 @@ export const MemberRow = memo(function MemberRow({
   const grant = useGrantMember(vault);
   const t = useTranslations("settings.members");
   const displayName = member.display_name?.trim() || member.username;
+  const roleLabel =
+    member.role === "reader"
+      ? t("roles.reader")
+      : member.role === "writer"
+        ? t("roles.writer")
+        : member.role === "admin"
+          ? t("roles.admin")
+          : member.role === "owner"
+            ? t("roles.owner")
+            : member.role;
 
   return (
     <li
@@ -92,7 +102,7 @@ export const MemberRow = memo(function MemberRow({
             className="capitalize text-muted-foreground"
             data-testid={`member-role-${member.username}`}
           >
-            {member.role}
+            {roleLabel}
           </Badge>
         )}
         {manageable ? (

@@ -67,14 +67,14 @@ export function ActiveWorkspaceSection() {
       try {
         await setActiveVaultMutation.mutateAsync(next);
       } catch {
-        setSaveMessage("Failed to save workspace.");
+        setSaveMessage(t("activeWorkspace.saveError"));
         return;
       }
       router.push(
         next ? withVault(next, "/settings/workspace") : "/onboarding",
       );
     },
-    [setActiveVaultMutation, activeVault, router],
+    [setActiveVaultMutation, activeVault, router, t],
   );
 
   return (
@@ -126,13 +126,24 @@ export function ActiveWorkspaceSection() {
 
       {/* Live region is consistently mounted so the async save result is announced
           when it appears; the message paragraph fills it on demand (REEF-174). */}
-      <div aria-live="polite" data-testid="active-workspace-save-status">
-        {saveMessage && (
+      <div
+        role={
+          saveMessage
+            ? "alert"
+            : setActiveVaultMutation.isPending
+              ? "status"
+              : undefined
+        }
+        aria-live="polite"
+        aria-atomic="true"
+        data-testid="active-workspace-save-status"
+      >
+        {(setActiveVaultMutation.isPending || saveMessage) && (
           <p
             className="text-sm text-muted-foreground"
             data-testid="active-workspace-save-message"
           >
-            {saveMessage}
+            {setActiveVaultMutation.isPending ? t("saving") : saveMessage}
           </p>
         )}
       </div>

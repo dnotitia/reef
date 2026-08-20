@@ -14,7 +14,7 @@ import {
 } from "@/features/settings/hooks/useRepos";
 import type { MonitoredRepo } from "@reef/core";
 import { useTranslations } from "next-intl";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   MonitoredRepoSelector,
   buildMonitoredReposPayload,
@@ -71,18 +71,9 @@ export function RepoPickerSection({
     [configQuery.data],
   );
 
-  const serverMonitoredKey = useMemo(
-    () =>
-      serverMonitoredList
-        .map((r) => `${r.owner}/${r.name}`)
-        .sort()
-        .join("\n"),
-    [serverMonitoredList],
-  );
-
   return (
     <RepoPickerSectionContent
-      key={`${activeVault || "no-vault"}:${serverMonitoredKey}`}
+      key={activeVault || "no-vault"}
       activeVault={activeVault}
       activeVaultLoading={activeVaultLoading}
       availableRepos={availableRepos}
@@ -133,11 +124,26 @@ function RepoPickerSectionContent({
     Set<string>
   >(() => new Set(serverMonitoredList.map((r) => `${r.owner}/${r.name}`)));
   const [saveMessage, setSaveMessage] = useState("");
+  const [saveMessageKind, setSaveMessageKind] = useState<
+    "success" | "error" | ""
+  >("");
+
+  // Keep the selector's local selection in sync with the server projection
+  // without remounting its Popover. Remounting after a successful PATCH would
+  // disconnect the trigger before the primitive's selection-focus restoration
+  // frame runs (REEF-536).
+  useEffect(() => {
+    if (updateConfig.isPending) return;
+    setSelectedMonitoredRepos(
+      new Set(serverMonitoredList.map((r) => `${r.owner}/${r.name}`)),
+    );
+  }, [updateConfig.isPending, serverMonitoredList]);
 
   const handleMonitoredRepoToggle = useCallback(
     async (repo: string) => {
       if (!activeVault) {
-        setSaveMessage("Select a workspace first.");
+        setSaveMessage(t("repos.selectWorkspaceFirst"));
+        setSaveMessageKind("error");
         return;
       }
       if (updateConfig.isPending) return;
@@ -146,7 +152,8 @@ function RepoPickerSectionContent({
       // empty `serverMonitoredList` (config GET failed) would wipe every
       // previously saved repo. Refuse the mutation until the config loads.
       if (!configDataLoaded) {
-        setSaveMessage("Couldn't load workspace config — try again.");
+        setSaveMessage(t("repos.configLoadError"));
+        setSaveMessageKind("error");
         return;
       }
 
@@ -158,21 +165,23 @@ function RepoPickerSectionContent({
       }
       setSelectedMonitoredRepos(next);
       setSaveMessage("");
-
-      const payload = buildMonitoredReposPayload(
-        serverMonitoredList,
-        next,
-        availableRepos,
-      );
+      setSaveMessageKind("");
 
       try {
+        const payload = buildMonitoredReposPayload(
+          serverMonitoredList,
+          next,
+          availableRepos,
+        );
         await updateConfig.mutateAsync({
           patch: { monitored_repos: payload },
         });
-        setSaveMessage("Monitored repositories saved.");
+        setSaveMessage(t("repos.saveSuccess"));
+        setSaveMessageKind("success");
         onSaved?.();
       } catch {
-        setSaveMessage("Failed to save monitored repositories.");
+        setSaveMessage(t("repos.saveError"));
+        setSaveMessageKind("error");
       }
     },
     [
@@ -182,6 +191,7 @@ function RepoPickerSectionContent({
       onSaved,
       selectedMonitoredRepos,
       serverMonitoredList,
+      t,
       updateConfig,
     ],
   );
@@ -189,8 +199,7 @@ function RepoPickerSectionContent({
   // Gate edits on a loaded server config (`configQuery.data`) — not just
   // isPending — so a failed config load does not leave the selector enabled with
   // an empty baseline (which a replace-all PATCH would persist as data loss).
-  const monitoredDisabled =
-    !activeVault || !configDataLoaded || updateConfig.isPending;
+  const monitoredDisabled = !activeVault || !configDataLoaded;
 
   return (
     <div className="flex flex-col gap-4" data-testid="repo-picker-section">
@@ -213,7 +222,8 @@ function RepoPickerSectionContent({
             isLoading={reposFetchLoading || !!(activeVault && configPending)}
             isError={reposFetchError && !reposFetchLoading}
             disabled={monitoredDisabled}
-            errorMessage="GitHub App is not configured for this deployment."
+            busy={updateConfig.isPending}
+            errorMessage={t("repos.githubAppUnavailable")}
           />
         ) : activeVaultLoading || (activeVault && configPending) ? (
           // Read path: don't conflate a still-loading workspace/config with
@@ -259,14 +269,15 @@ function RepoPickerSectionContent({
         )}
       </div>
 
-      {saveMessage && (
-        <p
-          className="text-sm text-muted-foreground"
-          data-testid="repo-picker-save-message"
-        >
-          {saveMessage}
-        </p>
-      )}
+      <p
+        role={saveMessageKind === "error" ? "alert" : "status"}
+        aria-live="polite"
+        aria-atomic="true"
+        className="min-h-5 text-sm text-muted-foreground"
+        data-testid="repo-picker-save-message"
+      >
+        {updateConfig.isPending ? t("saving") : saveMessage}
+      </p>
     </div>
   );
 }

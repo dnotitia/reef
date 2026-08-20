@@ -1,4 +1,5 @@
 import { Lock, Pencil, Settings2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 /**
  * Permission affordance shown in a Settings group header. Glyph + label
@@ -11,21 +12,28 @@ import { Lock, Pencil, Settings2 } from "lucide-react";
  */
 export type AccessLevel = "editable" | "view-only" | "managed";
 
-const LEVELS: Record<AccessLevel, { Icon: typeof Lock; label: string }> = {
-  editable: { Icon: Pencil, label: "You can edit" },
-  "view-only": { Icon: Lock, label: "View only" },
-  managed: { Icon: Settings2, label: "Managed by operator" },
+const LEVELS: Record<
+  AccessLevel,
+  {
+    Icon: typeof Lock;
+    labelKey: "accessEditable" | "accessViewOnly" | "accessManaged";
+  }
+> = {
+  editable: { Icon: Pencil, labelKey: "accessEditable" },
+  "view-only": { Icon: Lock, labelKey: "accessViewOnly" },
+  managed: { Icon: Settings2, labelKey: "accessManaged" },
 };
 
 export function AccessBadge({ level }: { level: AccessLevel }) {
-  const { Icon, label } = LEVELS[level];
+  const t = useTranslations("settings.misc");
+  const { Icon, labelKey } = LEVELS[level];
   return (
     <span
       data-testid={`access-badge-${level}`}
       className="inline-flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground"
     >
       <Icon className="h-3.5 w-3.5" aria-hidden />
-      {label}
+      {t(labelKey)}
     </span>
   );
 }

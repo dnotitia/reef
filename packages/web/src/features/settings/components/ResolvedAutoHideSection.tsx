@@ -48,6 +48,7 @@ export function ResolvedAutoHideSection({
   const configQuery = useProjectConfig(activeVault);
   const updateConfig = useUpdateProjectConfig(activeVault);
   const queryClient = useQueryClient();
+  const [saveMessage, setSaveMessage] = useState("");
 
   const completedDays =
     configQuery.data?.config.stale_hide_completed_days ??
@@ -115,7 +116,9 @@ export function ResolvedAutoHideSection({
               },
             });
             await queryClient.invalidateQueries({ queryKey: ["issues"] });
+            setSaveMessage(t("saved"));
           }}
+          saveMessage={saveMessage}
         />
       ) : (
         <div className="grid gap-2 sm:grid-cols-2">
@@ -149,46 +152,60 @@ function ResolvedAutoHideEditor({
   canceledDays,
   saving,
   onSave,
+  saveMessage,
 }: {
   activeVault: string;
   completedDays: number;
   canceledDays: number;
   saving: boolean;
   onSave: (days: ParsedDays) => Promise<void>;
+  saveMessage: string;
 }) {
   const t = useTranslations("settings.config");
   const [completedDraft, setCompletedDraft] = useState(String(completedDays));
   const [canceledDraft, setCanceledDraft] = useState(String(canceledDays));
-  const [error, setError] = useState<string | null>(null);
+  const [completedError, setCompletedError] = useState<string | null>(null);
+  const [canceledError, setCanceledError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const dirty =
     completedDraft.trim() !== String(completedDays) ||
     canceledDraft.trim() !== String(canceledDays);
 
   async function handleSave() {
-    setError(null);
+    setCompletedError(null);
+    setCanceledError(null);
+    setSaveError(null);
     if (!activeVault) {
-      setError("Select a workspace in Settings first.");
+      setSaveError(t("resolvedAutoHide.selectWorkspaceFirst"));
       return;
     }
 
     const completed = parseDaysInput(
       completedDraft,
-      "Hide completed after N days",
+      t("resolvedAutoHide.hideCompletedLabel"),
       completedDays,
     );
     if ("error" in completed) {
-      setError(completed.error);
+      setCompletedError(
+        t("resolvedAutoHide.invalid", {
+          label: t("resolvedAutoHide.hideCompletedLabel"),
+        }),
+      );
       return;
     }
 
     const canceled = parseDaysInput(
       canceledDraft,
-      "Hide canceled after N days",
+      t("resolvedAutoHide.hideCanceledLabel"),
       canceledDays,
     );
     if ("error" in canceled) {
-      setError(canceled.error);
+      setCanceledError(
+        t("resolvedAutoHide.invalid", {
+          label: t("resolvedAutoHide.hideCanceledLabel"),
+        }),
+      );
       return;
     }
 
@@ -196,10 +213,8 @@ function ResolvedAutoHideEditor({
       await onSave({ completed: completed.value, canceled: canceled.value });
     } catch (err) {
       const msg =
-        err instanceof Error
-          ? err.message
-          : "Failed to save completed issue visibility.";
-      setError(msg);
+        err instanceof Error ? err.message : t("resolvedAutoHide.saveError");
+      setSaveError(msg);
     }
   }
 
@@ -217,7 +232,8 @@ function ResolvedAutoHideEditor({
             value={completedDraft}
             onChange={(e) => {
               setCompletedDraft(e.target.value);
-              setError(null);
+              setCompletedError(null);
+              setSaveError(null);
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && dirty && !saving) {
@@ -231,8 +247,21 @@ function ResolvedAutoHideEditor({
             step={1}
             className="w-52"
             disabled={saving}
-            aria-invalid={error != null}
+            aria-invalid={completedError != null}
+            aria-describedby={
+              completedError ? "resolved-auto-hide-completed-error" : undefined
+            }
           />
+          {completedError && (
+            <span
+              id="resolved-auto-hide-completed-error"
+              data-testid="resolved-auto-hide-completed-error"
+              role="alert"
+              className="text-xs font-normal text-destructive-text"
+            >
+              {completedError}
+            </span>
+          )}
         </label>
         <label
           htmlFor="resolved-auto-hide-canceled-input"
@@ -245,7 +274,8 @@ function ResolvedAutoHideEditor({
             value={canceledDraft}
             onChange={(e) => {
               setCanceledDraft(e.target.value);
-              setError(null);
+              setCanceledError(null);
+              setSaveError(null);
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && dirty && !saving) {
@@ -259,8 +289,21 @@ function ResolvedAutoHideEditor({
             step={1}
             className="w-52"
             disabled={saving}
-            aria-invalid={error != null}
+            aria-invalid={canceledError != null}
+            aria-describedby={
+              canceledError ? "resolved-auto-hide-canceled-error" : undefined
+            }
           />
+          {canceledError && (
+            <span
+              id="resolved-auto-hide-canceled-error"
+              data-testid="resolved-auto-hide-canceled-error"
+              role="alert"
+              className="text-xs font-normal text-destructive-text"
+            >
+              {canceledError}
+            </span>
+          )}
         </label>
         <Button
           type="button"
@@ -269,16 +312,24 @@ function ResolvedAutoHideEditor({
           disabled={!dirty || saving}
           data-testid="resolved-auto-hide-save"
         >
-          {saving ? "Saving..." : "Save"}
+          {saving ? t("saving") : t("save")}
         </Button>
       </div>
-      {error && (
+      <p
+        role="status"
+        aria-live="polite"
+        className="min-h-5 text-sm text-muted-foreground"
+        data-testid="resolved-auto-hide-save-status"
+      >
+        {saving ? t("saving") : saveMessage}
+      </p>
+      {saveError && (
         <p
           role="alert"
           className="text-xs text-destructive-text"
           data-testid="resolved-auto-hide-error"
         >
-          {error}
+          {saveError}
         </p>
       )}
     </>

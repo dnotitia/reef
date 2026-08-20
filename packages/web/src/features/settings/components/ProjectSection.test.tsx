@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -79,5 +80,22 @@ describe("ProjectSection", () => {
     const input = await screen.findByTestId("project-prefix-input");
     expect(input).toHaveAttribute("autocomplete", "off");
     expect(input).toHaveAttribute("spellcheck", "false");
+  });
+
+  it("associates a validation error with only the project prefix field", async () => {
+    const user = userEvent.setup();
+    render(wrap(<ProjectSection />));
+    const input = await screen.findByTestId("project-prefix-input");
+
+    await user.clear(input);
+    await user.type(input, "reef1");
+    await user.click(screen.getByTestId("project-prefix-save"));
+
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAttribute("aria-describedby", "project-prefix-error");
+    expect(screen.getByTestId("project-prefix-error")).toHaveAttribute(
+      "role",
+      "alert",
+    );
   });
 });

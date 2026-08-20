@@ -20,6 +20,7 @@ interface MonitoredRepoSelectorProps {
   isLoading: boolean;
   isError: boolean;
   disabled?: boolean;
+  busy?: boolean;
   /** Shown when `isError` and not loading; a node so callers can link out. */
   errorMessage?: ReactNode;
   testIdPrefix?: string;
@@ -50,10 +51,10 @@ function MonitoredRepoOption({
         disabled={disabled}
         aria-label={repo.full_name}
         aria-pressed={checked}
-        className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+        className="flex w-full min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
         onClick={() => {
-          onToggle(repo.full_name);
           close("select");
+          onToggle(repo.full_name);
         }}
       >
         <input
@@ -64,7 +65,9 @@ function MonitoredRepoOption({
           tabIndex={-1}
           aria-hidden
         />
-        <span className="truncate">{repo.full_name}</span>
+        <span className="min-w-0 truncate" title={repo.full_name}>
+          {repo.full_name}
+        </span>
       </button>
     </li>
   );
@@ -110,6 +113,7 @@ export function MonitoredRepoSelector({
   isLoading,
   isError,
   disabled = false,
+  busy = false,
   errorMessage,
   testIdPrefix = "monitored-repos",
 }: MonitoredRepoSelectorProps) {
@@ -153,6 +157,7 @@ export function MonitoredRepoSelector({
           data-testid={`${testIdPrefix}-trigger`}
           aria-haspopup="dialog"
           disabled={disabled}
+          aria-busy={busy || undefined}
           className="inline-flex h-8 w-full max-w-full min-w-0 items-center justify-between rounded-md border border-border bg-surface-elevated px-2.5 text-[13px] text-foreground transition-colors duration-150 hover:bg-surface-hover disabled:opacity-50"
           aria-label={
             selectedRepos.size > 0
@@ -197,7 +202,7 @@ export function MonitoredRepoSelector({
                   key={repo.id}
                   repo={repo}
                   checked={checked}
-                  disabled={disabled}
+                  disabled={disabled || busy}
                   onToggle={onToggle}
                   testIdPrefix={testIdPrefix}
                 />
@@ -214,12 +219,12 @@ export function MonitoredRepoSelector({
               key={repo}
               className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs text-foreground"
             >
-              <span className="min-w-0 truncate" title={repo}>
+              <span className="min-w-0 truncate" title={repo} aria-label={repo}>
                 {repo}
               </span>
               <button
                 type="button"
-                disabled={disabled}
+                disabled={disabled || busy}
                 className="shrink-0 text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground"
                 aria-label={t("removeRepo", { repo })}
                 onClick={() => onToggle(repo)}

@@ -69,6 +69,20 @@ describe("SettingsTabs (REEF-183)", () => {
     expect(classes).toContain("focus-visible:ring-brand-focus");
   });
 
+  it("uses a bounded three-column track so every tab remains addressable on narrow viewports", () => {
+    render(<SettingsTabs />);
+    const nav = screen.getByTestId("settings-tabs");
+    expect(nav.className).toContain("w-full");
+    expect(nav.className).toContain("max-w-full");
+    expect(nav.className).toContain("grid-cols-3");
+
+    for (const label of ["Workspace", "Preferences", "Deployment"]) {
+      const link = screen.getByRole("link", { name: label });
+      expect(link.className).toContain("min-w-0");
+      expect(link).toBeVisible();
+    }
+  });
+
   it("keeps the Workspace tab active on its nested members route", () => {
     navigationState.pathname =
       "/workspace/reef-test/settings/workspace/members";

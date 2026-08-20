@@ -70,6 +70,56 @@ test.describe("Hermetic settings workflows", () => {
     }
   });
 
+  test("keeps every Settings scope tab visible and inside the viewport at narrow widths", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    for (const viewport of [
+      { width: 320, height: 844 },
+      { width: 375, height: 844 },
+      { width: 414, height: 844 },
+      { width: 768, height: 844 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/settings/workspace`);
+
+      const tabs = page.getByRole("navigation", {
+        name: "Settings sections",
+        exact: true,
+      });
+      await expect(tabs).toBeVisible();
+      for (const label of ["Workspace", "Preferences", "Deployment"]) {
+        const tab = tabs.getByRole("link", { name: label });
+        await expect(tab).toBeVisible();
+        const geometry = await tab.evaluate((element) => {
+          const rect = element.getBoundingClientRect();
+          return {
+            left: rect.left,
+            right: rect.right,
+            viewportWidth: window.innerWidth,
+          };
+        });
+        expect(
+          geometry.left,
+          `${viewport.width}px ${label} left`,
+        ).toBeGreaterThanOrEqual(-1);
+        expect(
+          geometry.right,
+          `${viewport.width}px ${label} right`,
+        ).toBeLessThanOrEqual(geometry.viewportWidth + 1);
+      }
+      expect(
+        await page.evaluate(
+          () =>
+            document.documentElement.scrollWidth >
+            document.documentElement.clientWidth,
+        ),
+        `${viewport.width}px document`,
+      ).toBe(false);
+    }
+  });
+
   test("persists monitored repositories through GitHub App-backed config routes", async ({
     page,
     request,
@@ -128,6 +178,35 @@ test.describe("Hermetic settings workflows", () => {
     await expect(
       page.locator('[data-testid="activity-last-scan"]'),
     ).toContainText("Checked");
+  });
+
+  test("restores the repository trigger focus after pointer and keyboard saves", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/settings/workspace`);
+    const main = page.getByRole("main");
+    const trigger = main.locator('[data-testid="monitored-repos-trigger"]');
+
+    for (const interaction of ["pointer", "Enter", "Space"] as const) {
+      await trigger.click();
+      const option = page.getByTestId("monitored-repos-option-octo/reef");
+      if (interaction === "pointer") {
+        await option.click();
+      } else {
+        await option.focus();
+        await page.keyboard.press(interaction);
+      }
+
+      await expect(
+        page.getByRole("dialog", { name: "Search repositories" }),
+      ).toHaveCount(0);
+      await expect(trigger).toBeFocused();
+      await expect(
+        main.locator('[data-testid="repo-picker-save-message"]'),
+      ).toContainText("saved", { timeout: 10_000 });
+      await expect(trigger).not.toHaveAttribute("aria-busy", "true");
+    }
   });
 
   test("updates workspace project prefix and authoring language through real config routes", async ({

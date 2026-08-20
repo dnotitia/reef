@@ -250,10 +250,14 @@
     },
     "config": {
       "loadError": "워크스페이스 구성을 불러오지 못했습니다:",
+      "save": "저장",
+      "saving": "저장 중…",
+      "saved": "저장했습니다.",
       "activeWorkspace": {
         "heading": "활성 워크스페이스",
         "description": "reef가 이슈를 읽고 쓰는 akb 워크스페이스입니다. 이 선택은 개인적인 설정으로, 사용자의 기기에 저장되며 본인의 보기에만 적용됩니다. 아래의 워크스페이스 설정 범위를 지정합니다.",
-        "newWorkspace": "새 워크스페이스…"
+        "newWorkspace": "새 워크스페이스…",
+        "saveError": "워크스페이스 선택을 저장하지 못했습니다."
       },
       "ai": {
         "notConfigured": "AI가 구성되지 않았습니다.",
@@ -264,24 +268,36 @@
         "noVault": "작성 언어를 구성하기 전에 위에서 워크스페이스를 선택하세요.",
         "label": "기본 작성 언어",
         "notSet": "설정 안 함(기본값 없음)",
-        "description": "AI가 새 이슈와 콘텐츠 초안을 작성할 때 사용하는 언어로, 팀의 생성 콘텐츠가 일관되게 유지됩니다. 설정하지 않으면 AI가 각 요청을 따릅니다. 기존 이슈는 변경되지 않습니다."
+        "description": "AI가 새 이슈와 콘텐츠 초안을 작성할 때 사용하는 언어로, 팀의 생성 콘텐츠가 일관되게 유지됩니다. 설정하지 않으면 AI가 각 요청을 따릅니다. 기존 이슈는 변경되지 않습니다.",
+        "saveError": "작성 언어를 저장하지 못했습니다."
       },
       "project": {
         "label": "프로젝트 접두사",
         "noVault": "프로젝트 접두사를 구성하기 전에 위에서 워크스페이스를 선택하세요.",
-        "description": "{prefix}-001 같은 이슈 ID를 생성하는 데 사용됩니다. 전체 팀이 하나의 접두사를 공유하도록 볼트의 <code></code> 문서에 저장됩니다."
+        "description": "{prefix}-001 같은 이슈 ID를 생성하는 데 사용됩니다. 전체 팀이 하나의 접두사를 공유하도록 볼트의 <code></code> 문서에 저장됩니다.",
+        "selectWorkspaceFirst": "설정에서 먼저 워크스페이스를 선택하세요.",
+        "invalid": "대문자(A-Z)만 사용할 수 있습니다. 예: REEF",
+        "saveError": "프로젝트 접두사를 저장하지 못했습니다."
       },
       "repos": {
         "heading": "모니터링 코드 저장소",
         "empty": "모니터링 중인 저장소가 없습니다.",
-        "description": "reef가 활동(PR, 커밋)을 감시하는 GitHub 저장소입니다. 활성 워크스페이스의 <code></code> 테이블에 저장되며 팀 전체와 공유됩니다."
+        "description": "reef가 활동(PR, 커밋)을 감시하는 GitHub 저장소입니다. 활성 워크스페이스의 <code></code> 테이블에 저장되며 팀 전체와 공유됩니다.",
+        "selectWorkspaceFirst": "먼저 워크스페이스를 선택하세요.",
+        "configLoadError": "워크스페이스 구성을 불러오지 못했습니다. 다시 시도하세요.",
+        "saveSuccess": "모니터링 저장소를 저장했습니다.",
+        "saveError": "모니터링 저장소를 저장하지 못했습니다.",
+        "githubAppUnavailable": "이 배포에는 GitHub가 구성되지 않았습니다."
       },
       "resolvedAutoHide": {
         "label": "완료된 이슈",
         "noVault": "완료된 이슈 표시를 구성하기 전에 위에서 워크스페이스를 선택하세요.",
         "description": "해결된 이슈가 기본 보드와 목록에서 사라지는 시점을 제어합니다.",
         "hideCompletedLabel": "완료 후 N일이 지나면 숨기기",
-        "hideCanceledLabel": "취소 후 N일이 지나면 숨기기"
+        "hideCanceledLabel": "취소 후 N일이 지나면 숨기기",
+        "selectWorkspaceFirst": "설정에서 먼저 워크스페이스를 선택하세요.",
+        "invalid": "{label}은(는) 0 이상의 정수 일수여야 합니다.",
+        "saveError": "완료된 이슈 표시 설정을 저장하지 못했습니다."
       },
       "activityScanning": {
         "label": "AI 활동 스캐닝",
@@ -290,7 +306,8 @@
         "on": "켜짐",
         "off": "꺼짐",
         "noVault": "AI 활동 스캐닝을 구성하기 전에 위에서 워크스페이스를 선택하세요.",
-        "saveError": "AI 스캐닝 설정을 저장하지 못했습니다."
+        "saveError": "AI 스캐닝 설정을 저장하지 못했습니다.",
+        "saveSuccess": "AI 활동 스캐닝 설정을 저장했습니다."
       }
     },
     "members": {
@@ -306,7 +323,15 @@
       "added": "{name}님을 추가했습니다.",
       "removeConfirm": "{workspace}에서 {name}님을 제거하시겠어요?",
       "removeDescription": "이 워크스페이스의 이슈에 대한 접근 권한을 잃게 됩니다. 언제든지 다시 추가할 수 있습니다.",
-      "removing": "제거 중…"
+      "removing": "제거 중…",
+      "roleFor": "{name} 역할",
+      "newMember": "새 멤버",
+      "roles": {
+        "reader": "읽기",
+        "writer": "쓰기",
+        "admin": "관리자",
+        "owner": "소유자"
+      }
     },
     "misc": {
       "connectGithubFirst": "저장소를 불러오려면 먼저 GitHub를 연결하세요.",
@@ -341,7 +366,10 @@
       "updateInstructions": "안내 업데이트",
       "workspaceSections": "워크스페이스 설정 섹션",
       "subtabGeneral": "일반",
-      "subtabMembers": "멤버"
+      "subtabMembers": "멤버",
+      "accessEditable": "편집 가능",
+      "accessViewOnly": "읽기 전용",
+      "accessManaged": "운영자 관리"
     },
     "routes": {
       "deployment": {
@@ -395,7 +423,8 @@
       "labelRequired": "레이블을 입력하세요.",
       "nameTaken": "\"{name}\" 이름의 템플릿이 이미 있습니다. 해당 템플릿을 편집하거나 다른 이름을 선택하세요.",
       "deleteConfirm": "\"{label}\" 템플릿을 삭제할까요? 공유 워크스페이스에서 제거됩니다.",
-      "saving": "저장 중…"
+      "saving": "저장 중…",
+      "saved": "저장했습니다."
     }
   },
   "errors": {

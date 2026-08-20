@@ -49,6 +49,7 @@ export function AuthoringLanguageSection({
 
   const serverLanguage = configQuery.data?.config.authoring_language ?? null;
   const [error, setError] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState("");
 
   // isPending (not isLoading) — see useActiveVault for the rationale.
   const isLoading = vaultLoading || configQuery.isPending;
@@ -56,18 +57,16 @@ export function AuthoringLanguageSection({
 
   async function handleChange(raw: string) {
     setError(null);
+    setSaveMessage("");
     const next: AuthoringLanguage | null =
       raw === NONE_VALUE ? null : (raw as AuthoringLanguage);
     if (next === serverLanguage) return;
     try {
       await updateConfig.mutateAsync({ patch: { authoring_language: next } });
-      // No success toast: the config cache updates synchronously, so the picker
-      // shows the saved value immediately (matches ProjectSection).
+      setSaveMessage(t("saved"));
     } catch (err) {
       const msg =
-        err instanceof Error
-          ? err.message
-          : "Failed to save authoring language.";
+        err instanceof Error ? err.message : t("authoringLanguage.saveError");
       setError(msg);
     }
   }
@@ -122,6 +121,7 @@ export function AuthoringLanguageSection({
             data-testid="authoring-language-select"
             aria-label={t("authoringLanguage.label")}
             aria-invalid={error != null}
+            aria-describedby={error ? "authoring-language-error" : undefined}
           >
             <SelectValue />
           </SelectTrigger>
@@ -146,12 +146,21 @@ export function AuthoringLanguageSection({
       {error && canEdit && (
         <p
           role="alert"
+          id="authoring-language-error"
           className="text-xs text-destructive-text"
           data-testid="authoring-language-error"
         >
           {error}
         </p>
       )}
+      <p
+        role="status"
+        aria-live="polite"
+        className="min-h-5 text-sm text-muted-foreground"
+        data-testid="authoring-language-save-status"
+      >
+        {saving ? t("saving") : saveMessage}
+      </p>
     </div>
   );
 }
