@@ -1229,15 +1229,36 @@ test.describe("Hermetic Markdown editor fixture", () => {
     const saveSource = page.getByTestId("markdown-source-textarea");
     const persistedMarker = "\n\nreef-517 save round-trip marker";
     const sourceBeforeSave = await saveSource.inputValue();
-    await saveSource.fill(`${sourceBeforeSave}${persistedMarker}`);
-    const saveResponse = page.waitForResponse(
-      (response) =>
-        response.url().includes("/api/issues/REEF-001") &&
-        response.request().method() === "PATCH" &&
-        response.status() === 200,
-    );
+    const persistedSource = `${sourceBeforeSave}${persistedMarker}`;
+    const saveResponse = page.waitForResponse((response) => {
+      const request = response.request();
+      if (
+        new URL(response.url()).pathname !== "/api/issues/REEF-001" ||
+        request.method() !== "PATCH"
+      ) {
+        return false;
+      }
+      const body = request.postDataJSON() as {
+        update?: { content?: unknown };
+      };
+      return body.update?.content === persistedSource;
+    });
+    await saveSource.fill(persistedSource);
     await page.getByTestId("issue-title-input").click();
-    await saveResponse;
+    const persistedResponse = await saveResponse;
+    expect(
+      persistedResponse.ok(),
+      `body save failed with ${persistedResponse.status()}`,
+    ).toBeTruthy();
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        return state.vaults
+          .find((vault) => vault.name === REEF_E2E_VAULT)
+          ?.documents.find((document) => document.path.startsWith("issues/"))
+          ?.content;
+      })
+      .toBe(persistedSource);
 
     await page.reload();
     await expect(page.getByTestId("issue-detail")).toBeVisible();
