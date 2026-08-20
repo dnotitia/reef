@@ -5,7 +5,8 @@ import {
 } from "./documentUri";
 
 const BARE_AKB_URI_RE = /akb:\/\/[^\s<>"'`()[\]]+/g;
-const MARKDOWN_AKB_LINK_RE = /(!?)\[([^\]\n]*)\]\((akb:\/\/[^\s)]+)([^)]*)\)/g;
+const MARKDOWN_AKB_LINK_RE =
+  /(!?)\[((?:\\[^\r\n]|[^\\\]\r\n]|\](?!\())*)\]\((akb:\/\/[^\s)]+)([^)]*)\)/g;
 const TRAILING_PUNCTUATION_RE = /[.,;:!?]+$/;
 
 interface LinkRange {

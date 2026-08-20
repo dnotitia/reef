@@ -6,6 +6,8 @@ import {
 } from "./markdownDocumentLinks";
 
 const URI = "akb://reef-test/coll/research/doc/report.md";
+const BRACKET_TITLE = "[Plan] 260811 - 전체";
+const BRACKET_TITLES = new Map([[URI, BRACKET_TITLE]]);
 
 describe("normalizeAkbDocumentMarkdownLinks", () => {
   it("converts bare akb document URIs into markdown links", () => {
@@ -33,10 +35,39 @@ describe("normalizeAkbDocumentMarkdownLinks", () => {
     ).toBe(`[Custom title](${URI})`);
   });
 
+  it("is idempotent for titles that start with brackets", () => {
+    const once = normalizeAkbDocumentMarkdownLinks(URI, BRACKET_TITLES);
+    const twice = normalizeAkbDocumentMarkdownLinks(once, BRACKET_TITLES);
+    const thrice = normalizeAkbDocumentMarkdownLinks(twice, BRACKET_TITLES);
+    const fourTimes = normalizeAkbDocumentMarkdownLinks(thrice, BRACKET_TITLES);
+
+    expect(once).toBe(`[\\[Plan\\] 260811 - 전체](${URI})`);
+    expect(twice).toBe(once);
+    expect(thrice).toBe(once);
+    expect(fourTimes).toBe(once);
+    expect(fourTimes.length).toBe(once.length);
+  });
+
+  it("recognizes existing links whose labels escape brackets", () => {
+    const existingLinks = [
+      `[\\[Plan\\] 260811 - 전체](${URI})`,
+      String.raw`[\\[Plan\\] 260811 - 전체](${URI})`,
+    ];
+
+    for (const existing of existingLinks) {
+      expect(normalizeAkbDocumentMarkdownLinks(existing, BRACKET_TITLES)).toBe(
+        existing,
+      );
+      expect(extractAkbDocumentUris(existing)).toEqual([URI]);
+    }
+  });
+
   it("leaves non-document akb URIs untouched", () => {
     expect(
-      normalizeAkbDocumentMarkdownLinks("akb://reef-test/table/pipeline"),
-    ).toBe("akb://reef-test/table/pipeline");
+      normalizeAkbDocumentMarkdownLinks(
+        "akb://reef-test/table/pipeline akb://reef-test/file/abc",
+      ),
+    ).toBe("akb://reef-test/table/pipeline akb://reef-test/file/abc");
   });
 });
 
@@ -61,5 +92,6 @@ describe("retargetRenderedAkbDocumentLinks", () => {
       "https://akb.example.com/vault/reef-test/doc/research%2Freport.md",
     );
     expect(anchor?.getAttribute("target")).toBe("_blank");
+    expect(anchor?.getAttribute("rel")).toBe("noreferrer");
   });
 });
