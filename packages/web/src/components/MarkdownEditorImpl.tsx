@@ -1497,10 +1497,19 @@ export function MarkdownEditor({
   }, [editor, mentionConfig, mentionRosterFingerprint]);
 
   useEffect(() => {
-    if (rootRef.current) {
-      retargetRenderedAkbDocumentLinks(rootRef.current, akbWebBase);
-    }
-  });
+    const root = rootRef.current;
+    if (!root) return;
+
+    const retarget = () => {
+      retargetRenderedAkbDocumentLinks(root, akbWebBase);
+    };
+    retarget();
+
+    if (typeof MutationObserver === "undefined") return;
+    const observer = new MutationObserver(retarget);
+    observer.observe(root, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [akbWebBase]);
 
   // Tiptap captures `editable` at creation and ignores later option changes, so
   // a readOnly toggle after mount (e.g. a save-pending lock) should be applied
