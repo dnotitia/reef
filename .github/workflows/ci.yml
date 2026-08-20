@@ -169,10 +169,10 @@ jobs:
         run: pnpm run test
 
   e2e-shard:
-    # NOTE: the `/3` denominator here, in the matrix below, and in the
+    # NOTE: the `/6` denominator here, in the matrix below, and in the
     # `--shard` flag are one logical value. `env:` is not available in a job
     # `name:`, so it is spelled out literally — keep all three in sync.
-    name: E2E (shard ${{ matrix.shard }}/3)
+    name: E2E (shard ${{ matrix.shard }}/6)
     runs-on: ubuntu-latest
     # Gate only on the *fast* checks plus the single production artifact. Vitest used to be a
     # `needs` here too, which serialized the whole ~2.5min unit suite ahead of
@@ -186,7 +186,7 @@ jobs:
       # result so a flake in one is not masked by an early abort in another.
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4, 5, 6]
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -247,7 +247,7 @@ jobs:
         run: pnpm --filter @reef/web exec playwright install-deps chromium
 
       - name: Run Playwright E2E tests
-        run: REEF_E2E_SKIP_BUILD=1 pnpm --filter @reef/web run test:e2e:sharded -- --shard=${{ matrix.shard }}/3
+        run: REEF_E2E_SKIP_BUILD=1 pnpm --filter @reef/web run test:e2e:sharded -- --shard=${{ matrix.shard }}/6
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v5
