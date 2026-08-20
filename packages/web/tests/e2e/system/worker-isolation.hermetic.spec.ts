@@ -1,5 +1,9 @@
-import { expect, test } from "./test";
-import { openExistingWorkspace, resetFixture, signInAsAlice } from "./fixture";
+import { expect, test } from "../harness/test";
+import {
+  openExistingWorkspace,
+  resetFixture,
+  signInAsAlice,
+} from "../harness/fixture";
 
 test.describe.configure({ mode: "parallel" });
 
