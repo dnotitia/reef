@@ -23,7 +23,7 @@ import { createPortal } from "react-dom";
 
 /** Mirrors the shared `<Input>` chrome, with room for a leading search glyph. */
 const INPUT_CLASS =
-  "flex h-8 w-full min-w-0 rounded-md border border-border bg-elevated pl-8 pr-8 py-1 text-[13px] text-foreground transition-colors duration-150 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/30 disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-8 w-full min-w-0 rounded-md border border-border bg-surface-elevated pl-8 pr-8 py-1 text-[13px] text-foreground transition-colors duration-150 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/30 disabled:cursor-not-allowed disabled:opacity-50";
 
 interface DocumentRefInputProps {
   vault: string;
@@ -211,7 +211,7 @@ export function DocumentRefInput({
                 // pointer-events-auto: see IssueRelationInput — a modal Radix
                 // dialog sets pointer-events:none on <body>, which this portaled
                 // panel would otherwise inherit.
-                "pointer-events-auto z-[100] rounded-md border border-border bg-popover p-1 shadow-lg shadow-foreground/5",
+                "pointer-events-auto z-[100] rounded-md border border-border bg-surface-popover p-1 shadow-lg shadow-foreground/5",
                 "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95",
               )}
             >

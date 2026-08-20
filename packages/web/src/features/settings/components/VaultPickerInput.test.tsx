@@ -42,7 +42,7 @@ describe("VaultPickerInput accessibility (REEF-151)", () => {
     renderPicker();
     fireEvent.click(screen.getByTestId("active-vault-trigger"));
     const search = screen.getByRole("textbox", { name: "Search workspaces" });
-    expect(search.className).toContain("focus-visible:ring-brand/30");
+    expect(search.className).toContain("focus-visible:ring-brand-focus/30");
     expect(search.className).not.toContain("focus:ring");
   });
 });

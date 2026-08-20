@@ -36,7 +36,7 @@ export function BlockedBadge({
         aria-label={label}
         title={label}
         className={cn(
-          "inline-flex items-center gap-0.5 text-xs font-medium text-destructive",
+          "inline-flex items-center gap-0.5 text-xs font-medium text-destructive-text",
           className,
         )}
       >
@@ -53,13 +53,13 @@ export function BlockedBadge({
     return (
       <span
         className={cn(
-          "inline-flex items-center gap-1 rounded-sm bg-destructive/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-destructive",
+          "inline-flex items-center gap-1 rounded-sm bg-destructive-fill/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-destructive-text",
           className,
         )}
         title={t("blocked")}
       >
         <span
-          className="inline-block h-1 w-1 rounded-full bg-destructive"
+          className="inline-block h-1 w-1 rounded-full bg-destructive-fill"
           aria-hidden="true"
         />
         {t("blocked")}
@@ -69,12 +69,12 @@ export function BlockedBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 text-xs font-medium text-destructive whitespace-nowrap",
+        "inline-flex items-center gap-1 text-xs font-medium text-destructive-text whitespace-nowrap",
         className,
       )}
     >
       <span
-        className="inline-block h-1.5 w-1.5 rounded-full bg-destructive"
+        className="inline-block h-1.5 w-1.5 rounded-full bg-destructive-fill"
         aria-hidden="true"
       />
       {t("blockedCount", { count: count ?? 0 })}

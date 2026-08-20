@@ -85,8 +85,8 @@ function issueListCellClass(
         selectedOrFocused || visualState === "context-open"
           ? selectedOrFocused
             ? "reef-list-sticky-state"
-            : "bg-background"
-          : "bg-background group-hover:bg-surface-hover",
+            : "bg-surface-page"
+          : "bg-surface-page group-hover:bg-surface-hover",
         column === "select"
           ? activeBoundary
             ? "z-40"
@@ -259,8 +259,8 @@ export const IssueListRow = memo(function IssueListRow({
           "reef-issue-list-row group h-10 cursor-pointer transition-colors duration-150 focus-visible:outline-none",
           visualState === "idle" && onClick && "hover:bg-surface-hover",
           (visualState === "focused" || visualState === "selected") &&
-            "bg-brand/5 hover:bg-brand/5",
-          visualState === "selected" && "ring-1 ring-inset ring-brand/30",
+            "bg-brand-fill/5 hover:bg-brand-fill/5",
+          visualState === "selected" && "ring-1 ring-inset ring-brand-focus/30",
           visualState === "context-open" && "hover:bg-transparent",
           isFlashing && "reef-flash-row",
         )}

@@ -699,10 +699,10 @@ describe("GlobalSearchDialog", () => {
     const wrapperClass = (wrapper as HTMLElement).className;
 
     expect(wrapperClass.split(/\s+/)).toContain("border");
-    expect(wrapperClass).toContain("focus-within:border-brand");
+    expect(wrapperClass).toContain("focus-within:border-brand-focus");
     expect(wrapperClass).toContain("focus-within:ring-2");
     expect(wrapperClass).toContain("focus-within:ring-inset");
-    expect(wrapperClass).toContain("focus-within:ring-brand/30");
+    expect(wrapperClass).toContain("focus-within:ring-brand-focus/30");
     expect(wrapper?.querySelector("svg")).toHaveAttribute(
       "aria-hidden",
       "true",
@@ -797,7 +797,7 @@ describe("GlobalSearchDialog", () => {
     expect(commentSource).toHaveTextContent("코멘트");
     for (const source of [bodySource, commentSource]) {
       expect(source.className).not.toMatch(
-        /\b(?:rounded|border|bg-brand|text-brand)\b/,
+        /\b(?:rounded|border|bg-brand-fill|text-brand-text)\b/,
       );
     }
 

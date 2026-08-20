@@ -15,7 +15,7 @@ export { NetThroughputChart } from "./ThroughputCharts";
  * Dependency-free SVG chart primitives for the reports dashboard. Kept local to
  * the reports feature to avoid adding a charting library for small, fixed
  * visualizations. All color inputs are CSS custom-property references
- * (`var(--brand)`, ...) so charts inherit light/dark tokens automatically.
+ * (`var(--brand-chart)`, ...) so charts inherit light/dark tokens automatically.
  */
 
 export interface Segment {
@@ -124,7 +124,7 @@ export function RankedBarList({
               className="h-full w-full origin-left rounded-full ease-out motion-safe:transition-transform motion-safe:duration-500"
               style={{
                 transform: `scaleX(${Math.max(0.02, row.value / max)})`,
-                backgroundColor: row.color ?? "var(--brand)",
+                backgroundColor: row.color ?? "var(--brand-chart)",
                 opacity: row.color ? 0.85 : 0.7,
               }}
             />

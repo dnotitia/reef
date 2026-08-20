@@ -50,7 +50,7 @@ function IssueSaveStatusComponent({
     return (
       <span
         data-testid="issue-save-status"
-        className="inline-flex items-center gap-1 text-[11px] text-destructive"
+        className="inline-flex items-center gap-1 text-[11px] text-destructive-text"
       >
         <AlertTriangle className="h-3 w-3" aria-hidden="true" />
         {t("notSaved")}
@@ -59,7 +59,7 @@ function IssueSaveStatusComponent({
           type="button"
           data-testid="issue-save-retry"
           onClick={onRetry}
-          className="rounded-sm font-medium underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40"
+          className="rounded-sm font-medium underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive-focus/40"
         >
           {c("retry")}
         </button>

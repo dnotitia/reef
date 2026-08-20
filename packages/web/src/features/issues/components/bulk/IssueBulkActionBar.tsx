@@ -88,7 +88,7 @@ function LabelBulkAction({
     <Popover open={open} onOpenChange={setPopoverOpen} className="shrink-0">
       <PopoverTrigger
         disabled={disabled}
-        className="h-8 gap-1.5 rounded-md border border-border bg-elevated px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:pointer-events-none disabled:opacity-50"
+        className="h-8 gap-1.5 rounded-md border border-border bg-surface-elevated px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40 disabled:pointer-events-none disabled:opacity-50"
         data-testid={testId}
       >
         {label}
@@ -179,18 +179,21 @@ export function IssueBulkActionBar({
 
   return (
     <div
-      className="border-b border-border-subtle bg-background px-6 py-2"
+      className="border-b border-border-subtle bg-surface-page px-6 py-2"
       data-testid="issue-bulk-action-bar"
     >
       <div
-        className="flex min-h-10 items-start gap-2 rounded-lg border border-brand/30 bg-brand/5 px-2.5 py-1.5 shadow-sm"
+        className="flex min-h-10 items-start gap-2 rounded-lg border border-brand-focus/30 bg-brand-fill/5 px-2.5 py-1.5 shadow-sm"
         aria-busy={runner.running}
       >
         <span
           className="inline-flex min-h-8 min-w-max items-center gap-2 px-1 text-sm font-semibold tabular-nums"
           aria-live="polite"
         >
-          <CheckSquare2 className="h-4 w-4 text-brand" aria-hidden="true" />
+          <CheckSquare2
+            className="h-4 w-4 text-brand-text"
+            aria-hidden="true"
+          />
           {runner.running
             ? bulk("progress", {
                 processed: runner.processed,
@@ -288,7 +291,7 @@ export function IssueBulkActionBar({
 
           {runner.failures.length > 0 && (
             <Popover>
-              <PopoverTrigger className="h-7 rounded-md bg-destructive px-2.5 text-xs font-medium text-destructive-foreground hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40">
+              <PopoverTrigger className="h-7 rounded-md bg-destructive-fill px-2.5 text-xs font-medium text-destructive-on-fill hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40">
                 {bulk("failedCount", { count: runner.failures.length })}
               </PopoverTrigger>
               <PopoverContent

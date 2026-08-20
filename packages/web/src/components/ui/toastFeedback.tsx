@@ -40,7 +40,7 @@ export function kanbanToastId(issueId: string): string {
  * never live in core. `!` important beats the non-important global classes.
  */
 export const ERROR_ACTION_BUTTON_CLASS =
-  "group-[.toast]:!border group-[.toast]:!border-destructive/30 group-[.toast]:!bg-transparent group-[.toast]:!text-destructive group-[.toast]:hover:!bg-destructive/10";
+  "group-[.toast]:!border group-[.toast]:!border-destructive-focus/30 group-[.toast]:!bg-transparent group-[.toast]:!text-destructive-text group-[.toast]:hover:!bg-destructive-fill/10";
 
 export interface RetryableErrorOptions {
   /** Stable id so retries/successes morph this toast in place. */

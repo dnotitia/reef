@@ -42,7 +42,7 @@ describe("MonitoredRepoSelector accessibility (REEF-151)", () => {
     renderSelector();
     fireEvent.click(screen.getByTestId("monitored-repos-trigger"));
     const search = screen.getByRole("textbox", { name: "Search repositories" });
-    expect(search.className).toContain("focus-visible:ring-brand/30");
+    expect(search.className).toContain("focus-visible:ring-brand-focus/30");
     expect(search.className).not.toContain("focus:ring");
   });
 

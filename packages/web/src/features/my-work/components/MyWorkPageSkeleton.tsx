@@ -77,7 +77,7 @@ export function MyWorkSkeleton({ hasSprint = false }: { hasSprint?: boolean }) {
             </div>
             <Skeleton className="h-8 w-40" />
           </header>
-          <div className="overflow-hidden rounded-xl border border-border-subtle bg-background">
+          <div className="overflow-hidden rounded-xl border border-border-subtle bg-surface-page">
             {QUEUE_ROW_KEYS.map((key) => (
               <div
                 key={key}

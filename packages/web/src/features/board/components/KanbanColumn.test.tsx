@@ -120,8 +120,8 @@ describe("KanbanColumn", () => {
       issues: [],
     });
     const col = container.firstChild as HTMLElement;
-    expect(col.className).toContain("border-brand");
-    expect(col.className).toContain("ring-brand/30");
+    expect(col.className).toContain("border-brand-focus");
+    expect(col.className).toContain("ring-brand-focus/30");
   });
 
   it("does not apply hover class when isOver is false", () => {
@@ -131,7 +131,7 @@ describe("KanbanColumn", () => {
     });
     const col = container.firstChild as HTMLElement;
     expect(col.className).toContain("border-border");
-    expect(col.className).not.toContain("border-brand");
+    expect(col.className).not.toContain("border-brand-focus");
   });
 
   it("registers the descriptor bucket as the droppable payload", () => {

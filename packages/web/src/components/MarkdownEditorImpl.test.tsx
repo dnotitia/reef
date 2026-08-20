@@ -197,7 +197,7 @@ describe("MarkdownEditor", () => {
     const editor = screen.getByTestId("markdown-editor");
     expect(editor.className).toContain("focus-within:ring-2");
     expect(editor.className).toContain("focus-within:ring-inset");
-    expect(editor.className).toContain("focus-within:ring-brand/30");
+    expect(editor.className).toContain("focus-within:ring-brand-focus/30");
   });
 
   it("insets the scrollable body from the focus chrome (REEF-378)", () => {

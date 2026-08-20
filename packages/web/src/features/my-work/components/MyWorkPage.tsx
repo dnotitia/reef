@@ -173,7 +173,7 @@ export function MyWorkPage() {
           data-testid="my-work-error"
           className="flex flex-col items-start gap-2"
         >
-          <p className="text-sm text-destructive">
+          <p className="text-sm text-destructive-text">
             {issuesQuery.error instanceof Error
               ? issuesQuery.error.message
               : t("loadError")}

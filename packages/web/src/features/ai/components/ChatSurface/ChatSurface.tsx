@@ -190,7 +190,7 @@ function AssistantTurn({
       )}
 
       {turn.errorMessage && (
-        <p role="alert" className="text-xs text-destructive">
+        <p role="alert" className="text-xs text-destructive-text">
           {turn.errorMessage}
         </p>
       )}

@@ -102,14 +102,14 @@ test.describe("Route skeleton layout stability (REEF-258)", () => {
     expect(await cumulativeLayoutShift(page)).toBeLessThan(CLS_BUDGET);
   });
 
-  test("issues board: columns keep horizontal overflow inside the board region", async ({
+  test("issues board: columns stay contained and keep desktop overflow inside the board region", async ({
     page,
     request,
   }, testInfo) => {
     await resetFixture(request, "demo_board");
     await openExistingWorkspace(page);
 
-    for (const width of [320, 375, 414, 768]) {
+    for (const width of [320, 375, 414, 768, 1280]) {
       await page.setViewportSize({ width, height: 844 });
       await page.goto("/workspace/reef-e2e/issues?view=board");
 
@@ -154,10 +154,6 @@ test.describe("Route skeleton layout stability (REEF-258)", () => {
       expect(geometry.board?.right).toBeLessThanOrEqual(
         geometry.main?.right ?? width,
       );
-      expect(geometry.board?.scrollWidth).toBeGreaterThan(
-        geometry.board?.clientWidth ?? 0,
-      );
-      expect(geometry.board?.overflowX).toBe("auto");
       expect(geometry.board?.tabIndex).toBe(0);
 
       await board.focus();
@@ -168,13 +164,25 @@ test.describe("Route skeleton layout stability (REEF-258)", () => {
       });
       expect(screenshot.byteLength).toBeGreaterThan(0);
 
-      const initialScroll = await board.evaluate(
-        (element) => element.scrollLeft,
-      );
-      await page.keyboard.press("ArrowRight");
-      await expect
-        .poll(() => board.evaluate((element) => element.scrollLeft))
-        .toBeGreaterThan(initialScroll);
+      if (width < 1024) {
+        expect(geometry.board?.scrollWidth).toBeLessThanOrEqual(
+          geometry.board?.clientWidth ?? 0,
+        );
+        expect(geometry.board?.overflowX).toBe("hidden");
+      } else {
+        expect(geometry.board?.scrollWidth).toBeGreaterThan(
+          geometry.board?.clientWidth ?? 0,
+        );
+        expect(geometry.board?.overflowX).toBe("auto");
+
+        const initialScroll = await board.evaluate(
+          (element) => element.scrollLeft,
+        );
+        await page.keyboard.press("ArrowRight");
+        await expect
+          .poll(() => board.evaluate((element) => element.scrollLeft))
+          .toBeGreaterThan(initialScroll);
+      }
     }
   });
 

@@ -178,7 +178,7 @@ function MentionSuggestionList({
       id={listboxId}
       role="listbox"
       aria-label={suggestionsLabel}
-      className="max-h-64 min-w-64 overflow-y-auto rounded-md border border-border bg-background p-1 shadow-lg"
+      className="max-h-64 min-w-64 overflow-y-auto rounded-md border border-border bg-surface-page p-1 shadow-lg"
     >
       {people.length > 0 ? (
         <div
@@ -227,7 +227,10 @@ function MentionSuggestionList({
             </div>
           ) : null}
           {documentSearchStatus === "error" ? (
-            <div role="alert" className="px-2 py-1.5 text-xs text-destructive">
+            <div
+              role="alert"
+              className="px-2 py-1.5 text-xs text-destructive-text"
+            >
               {documentSearchErrorLabel}
             </div>
           ) : null}

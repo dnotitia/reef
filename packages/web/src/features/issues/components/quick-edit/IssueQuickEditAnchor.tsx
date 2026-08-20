@@ -305,7 +305,7 @@ export function IssueQuickEditAnchor({
             open
             onOpenChange={closeOpenField}
             disabled={mutation.isPending}
-            triggerClassName="bg-popover shadow-lg shadow-foreground/10"
+            triggerClassName="bg-surface-popover shadow-lg shadow-foreground/10"
             contentClassName={COMPACT_QUICK_EDIT_WIDTH}
           />
         )}
@@ -331,7 +331,7 @@ export function IssueQuickEditAnchor({
             open
             onOpenChange={closeOpenField}
             disabled={mutation.isPending}
-            triggerClassName="bg-popover shadow-lg shadow-foreground/10"
+            triggerClassName="bg-surface-popover shadow-lg shadow-foreground/10"
             contentClassName={COMPACT_QUICK_EDIT_WIDTH}
           />
         )}
@@ -358,7 +358,7 @@ export function IssueQuickEditAnchor({
 
         {field === "labels" && (
           <Popover open onOpenChange={closeOpenField}>
-            <PopoverTrigger className="h-8 w-full justify-start rounded-md border border-border bg-popover px-2.5 text-[13px] text-foreground shadow-lg shadow-foreground/10">
+            <PopoverTrigger className="h-8 w-full justify-start rounded-md border border-border bg-surface-popover px-2.5 text-[13px] text-foreground shadow-lg shadow-foreground/10">
               {fieldNames.labels}
             </PopoverTrigger>
             <PopoverContent className="w-72 p-2">

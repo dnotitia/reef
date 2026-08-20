@@ -217,21 +217,21 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
           data-testid="timeline-grid"
         >
           <div
-            className="relative min-h-full bg-background"
+            className="relative min-h-full bg-surface-page"
             style={{ minWidth }}
           >
             {todayIndex != null && (
               <div
                 aria-hidden="true"
-                className="pointer-events-none absolute bottom-0 top-0 z-10 w-px bg-brand/70"
+                className="pointer-events-none absolute bottom-0 top-0 z-10 w-px bg-brand-fill/70"
                 style={{ left: LABEL_WIDTH + todayIndex * DAY_WIDTH }}
               />
             )}
 
-            <div className="sticky top-0 z-30 border-b border-border-subtle bg-background/95 backdrop-blur">
+            <div className="sticky top-0 z-30 border-b border-border-subtle bg-surface-page/95 backdrop-blur">
               <div className="grid h-8" style={gridStyle}>
                 <div
-                  className="sticky left-0 z-40 flex items-center border-r border-border-subtle bg-background px-3 text-xs font-medium text-muted-foreground"
+                  className="sticky left-0 z-40 flex items-center border-r border-border-subtle bg-surface-page px-3 text-xs font-medium text-muted-foreground"
                   style={{ gridColumn: 1 }}
                 >
                   {range.label}
@@ -250,7 +250,7 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
               </div>
               <div className="grid h-7" style={gridStyle}>
                 <div
-                  className="sticky left-0 z-40 flex items-center border-r border-border-subtle bg-background px-3 text-[11px] text-muted-foreground"
+                  className="sticky left-0 z-40 flex items-center border-r border-border-subtle bg-surface-page px-3 text-[11px] text-muted-foreground"
                   style={{ gridColumn: 1 }}
                 >
                   {t("issue")}
@@ -260,7 +260,7 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                     key={day.key}
                     className={cn(
                       "flex items-center justify-center border-r border-border-subtle/70 text-[10px] text-muted-foreground",
-                      todayIndex === index && "font-semibold text-brand",
+                      todayIndex === index && "font-semibold text-brand-text",
                     )}
                     style={{ gridColumn: index + 2 }}
                     title={day.key}
@@ -278,7 +278,7 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                   style={gridStyle}
                 >
                   <div
-                    className="sticky left-0 z-20 flex items-center border-r border-border-subtle bg-background px-3 text-xs text-muted-foreground"
+                    className="sticky left-0 z-20 flex items-center border-r border-border-subtle bg-surface-page px-3 text-xs text-muted-foreground"
                     style={{ gridColumn: 1 }}
                   >
                     {t("scheduled")}
@@ -331,7 +331,7 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
             {groupedUnscheduled.length > 0 && (
               <section
                 data-testid="timeline-unscheduled"
-                className="border-t border-border bg-background px-3 py-4"
+                className="border-t border-border bg-surface-page px-3 py-4"
                 aria-label={t("unscheduled")}
               >
                 <div className="sticky left-3 z-20 mb-3 max-w-[760px]">
@@ -363,7 +363,7 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                               start: formatCalendarDay(null),
                               due: formatCalendarDay(null),
                             })}
-                            className="min-w-0 rounded-md border border-border bg-elevated px-2.5 py-2 text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+                            className="min-w-0 rounded-md border border-border bg-surface-elevated px-2.5 py-2 text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
                           >
                             <span className="block truncate font-mono text-[11px] text-muted-foreground">
                               {issue.id}
@@ -388,13 +388,13 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
         <div
           ref={leftShadowRef}
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 z-[2] w-8 bg-gradient-to-r from-background to-transparent opacity-0 transition-opacity duration-150 data-[visible]:opacity-100"
+          className="pointer-events-none absolute inset-y-0 z-[2] w-8 bg-gradient-to-r from-surface-page to-transparent opacity-0 transition-opacity duration-150 data-[visible]:opacity-100"
           style={{ left: LABEL_WIDTH }}
         />
         <div
           ref={rightShadowRef}
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 right-0 z-[2] w-8 bg-gradient-to-l from-background to-transparent opacity-0 transition-opacity duration-150 data-[visible]:opacity-100"
+          className="pointer-events-none absolute inset-y-0 right-0 z-[2] w-8 bg-gradient-to-l from-surface-page to-transparent opacity-0 transition-opacity duration-150 data-[visible]:opacity-100"
         />
         <button
           ref={chevronRef}
@@ -402,16 +402,16 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
           data-off=""
           onClick={scrollToToday}
           aria-label={t("scrollToToday")}
-          className="group absolute top-2 z-[3] hidden items-center gap-1 rounded-full border border-brand/40 bg-elevated px-2.5 py-1 text-[11px] font-medium text-foreground shadow-sm transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 data-[off=left]:left-3 data-[off=left]:flex data-[off=right]:right-3 data-[off=right]:flex"
+          className="group absolute top-2 z-[3] hidden items-center gap-1 rounded-full border border-brand-focus/40 bg-surface-elevated px-2.5 py-1 text-[11px] font-medium text-foreground shadow-sm transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40 data-[off=left]:left-3 data-[off=left]:flex data-[off=right]:right-3 data-[off=right]:flex"
         >
           <ChevronLeft
             aria-hidden="true"
-            className="hidden h-3 w-3 text-brand group-data-[off=left]:block"
+            className="hidden h-3 w-3 text-brand-text group-data-[off=left]:block"
           />
           {t("today")}
           <ChevronRight
             aria-hidden="true"
-            className="hidden h-3 w-3 text-brand group-data-[off=right]:block"
+            className="hidden h-3 w-3 text-brand-text group-data-[off=right]:block"
           />
         </button>
       </div>

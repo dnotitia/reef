@@ -50,7 +50,7 @@ export function SettingsGroup({
               <span
                 translate="no"
                 data-testid="settings-group-scope"
-                className="min-w-0 truncate font-display text-[13px] font-medium text-brand"
+                className="min-w-0 truncate font-display text-[13px] font-medium text-brand-text"
               >
                 {scopeName}
               </span>

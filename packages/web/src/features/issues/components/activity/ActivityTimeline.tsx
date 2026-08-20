@@ -293,7 +293,7 @@ export function ActivityTimeline({
           until there is something to say. */}
       <output
         aria-live="polite"
-        className="text-xs text-destructive empty:hidden"
+        className="text-xs text-destructive-text empty:hidden"
       >
         {commentsError || activityError || bodyHistoryError
           ? ta("loadError")

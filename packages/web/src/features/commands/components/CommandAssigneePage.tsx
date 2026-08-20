@@ -82,7 +82,7 @@ export function CommandAssigneePage({
           <span className="truncate">{t("assignee.unassigned")}</span>
           {current === null ? (
             <Check
-              className="ml-auto size-4 text-brand"
+              className="ml-auto size-4 text-brand-text"
               aria-label={t("current")}
             />
           ) : null}
@@ -111,7 +111,7 @@ export function CommandAssigneePage({
             {option.content}
             {current === option.value ? (
               <Check
-                className="ml-2 size-4 text-brand"
+                className="ml-2 size-4 text-brand-text"
                 aria-label={t("current")}
               />
             ) : null}

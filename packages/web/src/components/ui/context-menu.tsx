@@ -244,7 +244,7 @@ const ContextMenuContent = React.forwardRef<
           focusInitialItem();
         }}
         className={cn(
-          "z-50 max-w-[calc(100vw-1rem)] min-w-[180px] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg shadow-foreground/5 outline-none",
+          "z-50 max-w-[calc(100vw-1rem)] min-w-[180px] rounded-md border border-border bg-surface-popover p-1 text-foreground shadow-lg shadow-foreground/5 outline-none",
           "data-[state=open]:motion-safe:animate-in data-[state=open]:motion-safe:fade-in-0 data-[state=open]:motion-safe:zoom-in-95 motion-reduce:animate-none",
           className,
         )}
@@ -316,7 +316,7 @@ const ContextMenuItem = React.forwardRef<HTMLDivElement, ContextMenuItemProps>(
           "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
           "data-[selected=true]:font-medium",
           destructive &&
-            "text-destructive data-[highlighted]:bg-destructive/10 data-[highlighted]:text-destructive",
+            "text-destructive-text data-[highlighted]:bg-destructive-fill/10 data-[highlighted]:text-destructive-text",
           className,
         )}
       >
@@ -473,7 +473,7 @@ const ContextMenuSubContent = React.forwardRef<
       sideOffset={4}
       collisionPadding={8}
       className={cn(
-        "max-w-[calc(100vw-1rem)] min-w-[13rem] text-popover-foreground",
+        "max-w-[calc(100vw-1rem)] min-w-[13rem] text-foreground",
         CBX_PANEL,
         "data-[state=open]:motion-safe:animate-in data-[state=open]:motion-safe:fade-in-0 data-[state=open]:motion-safe:zoom-in-95 motion-reduce:animate-none",
         className,

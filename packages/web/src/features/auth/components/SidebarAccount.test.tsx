@@ -176,7 +176,7 @@ describe("SidebarAccount", () => {
     // canonical button ring token the fix adds.
     const trigger = screen.getByRole("button", { name: "Account menu" });
     expect(trigger).toHaveClass("min-h-11");
-    expect(trigger.className).toContain("focus-visible:ring-brand/40");
+    expect(trigger.className).toContain("focus-visible:ring-brand-focus/40");
     expect(trigger.className).toContain("focus-visible:outline-none");
   });
 

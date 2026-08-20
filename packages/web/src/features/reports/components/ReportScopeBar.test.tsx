@@ -83,10 +83,10 @@ describe("ReportScopeBar", () => {
     renderBar();
 
     expect(screen.getByLabelText("Period").className).not.toContain(
-      "bg-brand/10",
+      "bg-brand-fill/10",
     );
     expect(screen.getByLabelText("Scope").className).not.toContain(
-      "bg-brand/10",
+      "bg-brand-fill/10",
     );
   });
 
@@ -97,8 +97,12 @@ describe("ReportScopeBar", () => {
       scope: "all",
     });
 
-    expect(screen.getByLabelText("Period").className).toContain("bg-brand/10");
-    expect(screen.getByLabelText("Scope").className).toContain("bg-brand/10");
+    expect(screen.getByLabelText("Period").className).toContain(
+      "bg-brand-fill/10",
+    );
+    expect(screen.getByLabelText("Scope").className).toContain(
+      "bg-brand-fill/10",
+    );
   });
 
   it("renders the Measure control defaulting to issue count (REEF-188)", () => {
@@ -109,7 +113,9 @@ describe("ReportScopeBar", () => {
 
   it("marks a non-default Story points measure as active (REEF-188)", () => {
     renderBar({ ...DEFAULT_REPORT_FILTERS, measure: "points" });
-    expect(screen.getByLabelText("Measure").className).toContain("bg-brand/10");
+    expect(screen.getByLabelText("Measure").className).toContain(
+      "bg-brand-fill/10",
+    );
     expect(screen.getByText("Story points")).toBeInTheDocument();
   });
 

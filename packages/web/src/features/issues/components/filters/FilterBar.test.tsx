@@ -610,7 +610,7 @@ describe("FilterBar", () => {
       });
       renderFilterBar();
       expect(screen.getByTestId("display-options-trigger").className).toContain(
-        "border-brand",
+        "border-brand-focus",
       );
     });
   });

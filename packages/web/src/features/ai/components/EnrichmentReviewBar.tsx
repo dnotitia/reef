@@ -70,7 +70,7 @@ export function EnrichmentReviewBar({
   if (error) {
     return (
       <div
-        className="sticky top-0 z-10 -mx-1 mb-1 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2"
+        className="sticky top-0 z-10 -mx-1 mb-1 flex items-start gap-2 rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-3 py-2"
         data-testid="enrichment-review-error"
       >
         <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
@@ -125,7 +125,7 @@ export function EnrichmentReviewBar({
           type="button"
           variant="ghost"
           size="sm"
-          className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+          className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive-text"
           onClick={onDismissAll}
           disabled={pending === 0}
           data-testid="enrichment-dismiss-all"

@@ -72,7 +72,7 @@ export function SimilarIssuesSection({
           type="button"
           aria-label={t("dismissSection")}
           title={t("dismissSection")}
-          className="inline-flex size-5 shrink-0 touch-manipulation items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+          className="inline-flex size-5 shrink-0 touch-manipulation items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
           onClick={() =>
             setDismissedQueries((previous) => {
               const next = new Set(previous);
@@ -95,7 +95,7 @@ export function SimilarIssuesSection({
                 aria-label={`${statusLabels[issue.status]} ${issue.id} ${issue.title}`}
                 title={t("openIssue", { id: issue.id })}
                 data-testid="similar-issue-row"
-                className="group grid min-h-8 min-w-0 touch-manipulation grid-cols-[minmax(0,1fr)_1.25rem] items-center gap-2 rounded-sm py-1.5 text-foreground text-xs hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+                className="group grid min-h-8 min-w-0 touch-manipulation grid-cols-[minmax(0,1fr)_1.25rem] items-center gap-2 rounded-sm py-1.5 text-foreground text-xs hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
               >
                 <span className="flex min-w-0 items-center gap-2">
                   <StatusIcon status={issue.status} size={12} />

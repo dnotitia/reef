@@ -64,8 +64,16 @@ export function NetThroughputChart({
       >
         <defs>
           <linearGradient id={`${gradId}-created`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--brand)" stopOpacity="0.18" />
-            <stop offset="100%" stopColor="var(--brand)" stopOpacity="0" />
+            <stop
+              offset="0%"
+              stopColor="var(--brand-chart)"
+              stopOpacity="0.18"
+            />
+            <stop
+              offset="100%"
+              stopColor="var(--brand-chart)"
+              stopOpacity="0"
+            />
           </linearGradient>
         </defs>
         {points.map((p, i) => {
@@ -80,7 +88,9 @@ export function NetThroughputChart({
               width={barW}
               height={Math.max(1, h)}
               rx={2}
-              fill={positive ? "var(--priority-high)" : "var(--status-done)"}
+              fill={
+                positive ? "var(--priority-high)" : "var(--status-done-chart)"
+              }
               opacity={0.32}
             >
               <title>{`${tickLabel(p.start)}: net ${value}`}</title>
@@ -95,7 +105,7 @@ export function NetThroughputChart({
         <path
           d={line(created)}
           fill="none"
-          stroke="var(--brand)"
+          stroke="var(--brand-chart)"
           strokeWidth={2}
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -104,7 +114,7 @@ export function NetThroughputChart({
         <path
           d={line(closed)}
           fill="none"
-          stroke="var(--status-done)"
+          stroke="var(--status-done-chart)"
           strokeWidth={2}
           strokeDasharray="4 3"
           strokeLinecap="round"
@@ -124,8 +134,12 @@ export function NetThroughputChart({
         ))}
       </svg>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-        <LegendLine color="var(--brand)" label={t("created")} />
-        <LegendLine color="var(--status-done)" label={t("closed")} dashed />
+        <LegendLine color="var(--brand-chart)" label={t("created")} />
+        <LegendLine
+          color="var(--status-done-chart)"
+          label={t("closed")}
+          dashed
+        />
         <LegendLine
           color="var(--priority-high)"
           label={t("netIncrease")}

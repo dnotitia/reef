@@ -429,7 +429,7 @@ export function BacklogView({ vault }: BacklogViewProps) {
           <p className="text-sm text-muted-foreground">{t("loadError")}</p>
           <button
             type="button"
-            className="rounded-md border border-border bg-elevated px-3 py-1.5 text-[13px] font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
+            className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-[13px] font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
             onClick={() => refetch()}
           >
             {c("retry")}
@@ -585,7 +585,7 @@ function BacklogNoMatches() {
       <p className="text-sm text-muted-foreground">{t("noMatches")}</p>
       <button
         type="button"
-        className="rounded-md border border-border bg-elevated px-3 py-1.5 text-[13px] font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
+        className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-[13px] font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
         onClick={() => useIssueStore.getState().clearFilter()}
       >
         {c("clearFilters")}
@@ -642,7 +642,7 @@ function BacklogEmptyState({ vault }: { vault: string }) {
       </div>
       <Link
         href={withVault(vault, "/issues?view=board")}
-        className="text-[13px] font-medium text-brand hover:underline"
+        className="text-[13px] font-medium text-brand-text hover:underline"
       >
         {t("goToBoard")}
       </Link>

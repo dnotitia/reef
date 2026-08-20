@@ -17,7 +17,7 @@ export function AppShellSkeleton() {
   const c = useTranslations("common");
   return (
     <div
-      className="flex h-screen overflow-hidden bg-background"
+      className="flex h-screen overflow-hidden bg-surface-page"
       data-testid="app-shell-skeleton"
     >
       <output className="sr-only">{c("loading")}</output>
@@ -26,7 +26,7 @@ export function AppShellSkeleton() {
       <div className="flex min-w-0 flex-1 overflow-hidden" aria-hidden="true">
         <aside
           data-testid="app-shell-skeleton-sidebar"
-          className="flex w-14 shrink-0 flex-col gap-4 border-r border-border-subtle bg-sidebar p-3 md:w-60"
+          className="flex w-14 shrink-0 flex-col gap-4 border-r border-border-subtle bg-surface-sidebar p-3 md:w-60"
         >
           <Skeleton className="size-8 md:h-8 md:w-28" />
           <Skeleton className="h-9 w-full" />

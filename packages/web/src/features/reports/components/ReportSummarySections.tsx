@@ -14,13 +14,13 @@ import { type Segment, SegmentedBar } from "./ReportCharts";
 import { Card } from "./ReportLayout";
 
 const STATUS_COLOR: Record<Status, string> = {
-  backlog: "var(--status-backlog)",
-  // `todo` keeps the shared `--status-open` token (REEF-139).
-  todo: "var(--status-open)",
-  in_progress: "var(--status-in-progress)",
-  in_review: "var(--status-in-review)",
-  done: "var(--status-done)",
-  closed: "var(--status-closed)",
+  backlog: "var(--status-backlog-chart)",
+  // `todo` keeps the issue workflow's open identity (REEF-139).
+  todo: "var(--status-open-chart)",
+  in_progress: "var(--status-in-progress-chart)",
+  in_review: "var(--status-in-review-chart)",
+  done: "var(--status-done-chart)",
+  closed: "var(--status-closed-chart)",
 };
 
 export function HealthSummary({ agg }: { agg: ReportAggregates }) {
@@ -99,10 +99,10 @@ export function HealthSummary({ agg }: { agg: ReportAggregates }) {
           key={t.key}
           data-testid={`kpi-${t.key}`}
           className={cn(
-            "relative flex flex-col gap-1 overflow-hidden rounded-lg border border-border-subtle bg-surface-subtle p-3",
+            "relative flex flex-col gap-1 overflow-hidden rounded-lg border border-border-subtle bg-surface-card p-3",
             "min-h-[76px] justify-between",
             t.tone === "danger" &&
-              "border-destructive/25 bg-destructive/[0.035] pl-4",
+              "border-destructive-focus/25 bg-destructive-fill/[0.035] pl-4",
             t.tone === "warn" && "pl-4",
             t.tone === "quiet" && "opacity-75",
           )}
@@ -112,7 +112,9 @@ export function HealthSummary({ agg }: { agg: ReportAggregates }) {
               aria-hidden="true"
               className={cn(
                 "absolute inset-y-0 left-0 w-1",
-                t.tone === "danger" ? "bg-destructive" : "bg-priority-high",
+                t.tone === "danger"
+                  ? "bg-destructive-fill"
+                  : "bg-priority-high",
               )}
             />
           )}
@@ -123,7 +125,7 @@ export function HealthSummary({ agg }: { agg: ReportAggregates }) {
             <span
               className={cn(
                 "shrink-0 font-mono text-2xl font-semibold tabular-nums leading-none",
-                t.tone === "danger" && "text-destructive",
+                t.tone === "danger" && "text-destructive-text",
                 t.tone === "warn" && "text-priority-high",
               )}
             >
@@ -223,7 +225,7 @@ export function DeadlineCard({ agg }: { agg: ReportAggregates }) {
       key: "upcoming",
       label: t("upcoming"),
       value: dueHealth.upcoming,
-      color: "var(--status-open)",
+      color: "var(--status-open-chart)",
     },
   ];
 
@@ -326,7 +328,7 @@ function Bar({
         className="h-full w-full origin-left rounded-full ease-out motion-safe:transition-transform motion-safe:duration-500"
         style={{
           transform: `scaleX(${scaleX})`,
-          backgroundColor: color ?? "var(--brand)",
+          backgroundColor: color ?? "var(--brand-chart)",
           opacity: color ? 0.85 : 0.7,
         }}
       />

@@ -251,7 +251,7 @@ function RepoPickerSectionContent({
         {configError && activeVault && (
           <p
             role="alert"
-            className="text-xs text-destructive"
+            className="text-xs text-destructive-text"
             data-testid="repo-picker-load-error"
           >
             {t("loadError")} {configError.message}

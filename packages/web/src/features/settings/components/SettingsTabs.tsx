@@ -42,7 +42,7 @@ const SETTINGS_TABS = [
  * route so back/forward, open-in-new-tab, deep-link, and bookmark all work.
  *
  * Visually it reuses the issue {@link ViewSwitcher} segmented-control vocabulary
- * (bordered `bg-elevated` track, `bg-surface-hover` active fill) so the two read
+ * (bordered `bg-surface-elevated` track, `bg-surface-hover` active fill) so the two read
  * as one control family. But because each tab is a real page navigation rather
  * than a `?view=` toggle, the semantics are a `<nav>` of `<Link>`s with
  * `aria-current="page"` — not toggle buttons with `aria-pressed`. That also lets

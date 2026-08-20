@@ -107,8 +107,8 @@ function issueTableColumnClass(
     kind === "header" ? "h-8 px-3 py-0" : "h-10 min-w-0 px-3 py-0 align-middle",
     isIssueTableStickyColumn(column) &&
       (kind === "header"
-        ? "sticky z-20 bg-background"
-        : "sticky z-10 bg-background group-hover:bg-surface-hover"),
+        ? "sticky z-20 bg-surface-page"
+        : "sticky z-10 bg-surface-page group-hover:bg-surface-hover"),
     column === "title" && "min-w-[15rem]",
   );
 }
@@ -168,7 +168,7 @@ function IssueListGroupHeader({
 
   return (
     <TableRow
-      className="sticky top-8 z-20 h-8 bg-background"
+      className="sticky top-8 z-20 h-8 bg-surface-page"
       data-testid="issue-group-header"
       data-group-id={bucketId}
       data-group-collapsed={collapsed ? "true" : "false"}
@@ -179,7 +179,7 @@ function IssueListGroupHeader({
       >
         <button
           type="button"
-          className="flex h-8 w-full items-center gap-2 px-3 text-left text-xs font-semibold text-foreground transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/40"
+          className="flex h-8 w-full items-center gap-2 px-3 text-left text-xs font-semibold text-foreground transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
           aria-expanded={!collapsed}
           aria-label={`${actionLabel} · ${groupSummary}`}
           onKeyDown={activateButtonOnKeyDown}
@@ -607,7 +607,7 @@ export function IssueListTable({
           <p className="text-sm text-muted-foreground">{t("loadError")}</p>
           <button
             type="button"
-            className="rounded-md border border-border bg-elevated px-3 py-1.5 text-[13px] font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
+            className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-[13px] font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
             onClick={() => refetch()}
           >
             {common("retry")}
@@ -620,7 +620,7 @@ export function IssueListTable({
               <p className="text-sm text-muted-foreground">{t("noMatches")}</p>
               <button
                 type="button"
-                className="rounded-md border border-border bg-elevated px-3 py-1.5 text-[13px] font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
+                className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-[13px] font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
                 onClick={() => {
                   useIssueStore.getState().clearFilter();
                 }}
@@ -707,7 +707,7 @@ export function IssueListTable({
                       </span>
                       <button
                         type="button"
-                        className="rounded-md border border-border bg-elevated px-3 py-1.5 text-[13px] font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
+                        className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-[13px] font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
                         onClick={() => fetchNextPage()}
                       >
                         {common("retry")}

@@ -21,7 +21,7 @@ export function ReefMark({
     >
       {decorative ? null : <title>reef</title>}
       <rect width="64" height="64" rx="14" fill="#1d2025" />
-      <rect x="12" y="13" width="5" height="38" rx="2.5" fill="var(--brand)" />
+      <rect x="12" y="13" width="5" height="38" rx="2.5" fill="var(--brand-fill)" />
       <path
         d="M27 26H49M27 39H43"
         fill="none"

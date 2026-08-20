@@ -16,7 +16,7 @@ export function AiConfigurationStatus() {
 
   if (!isAvailable) {
     return (
-      <div className="rounded-md border border-status-in-progress/40 bg-status-in-progress/5 px-3 py-2 text-sm text-muted-foreground">
+      <div className="rounded-md border border-status-in-progress-focus/40 bg-status-in-progress-fill/5 px-3 py-2 text-sm text-muted-foreground">
         <p className="font-medium text-foreground">{t("ai.notConfigured")}</p>
         <p>{t("ai.notConfiguredHelp")}</p>
       </div>
@@ -25,7 +25,7 @@ export function AiConfigurationStatus() {
 
   return (
     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-      <span className="inline-block h-2 w-2 rounded-full bg-status-done" />
+      <span className="inline-block h-2 w-2 rounded-full bg-status-done-fill" />
       <span>{`${t("ai.configured")} · ${model ?? t("ai.configured")}`}</span>
     </div>
   );

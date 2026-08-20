@@ -31,7 +31,7 @@ export function OnboardingPanel() {
       className="flex w-full max-w-2xl flex-col gap-6"
       data-testid="onboarding-panel"
     >
-      <section className="flex flex-col gap-4 rounded-md border border-border bg-elevated p-5">
+      <section className="flex flex-col gap-4 rounded-md border border-border bg-surface-elevated p-5">
         <div className="flex flex-col gap-1">
           <h2 className="text-xl font-semibold">{t("createWorkspaceTitle")}</h2>
           <p className="text-sm text-muted-foreground">

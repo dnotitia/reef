@@ -36,7 +36,7 @@ import { createPortal } from "react-dom";
 /** Mirrors the shared `<Input>` chrome so the combobox field reads as a plain
  *  text input (the dropdown supplies the richer affordances). */
 const INPUT_CLASS =
-  "flex h-8 flex-1 min-w-0 rounded-md border border-border bg-elevated px-2.5 py-1 text-[13px] text-foreground transition-colors duration-150 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/30 disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-8 flex-1 min-w-0 rounded-md border border-border bg-surface-elevated px-2.5 py-1 text-[13px] text-foreground transition-colors duration-150 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/30 disabled:cursor-not-allowed disabled:opacity-50";
 
 /** How many candidates to surface before the user has typed anything. */
 const RECENT_LIMIT = 8;
@@ -587,7 +587,7 @@ export function IssueRelationInput({
                 // onClick does not fires (no relation added) and the outside-mousedown
                 // handler closes the dropdown instead. Inline (non-modal) surfaces
                 // are unaffected but harmless to set.
-                "pointer-events-auto z-[100] rounded-md border border-border bg-popover p-1 shadow-lg shadow-foreground/5",
+                "pointer-events-auto z-[100] rounded-md border border-border bg-surface-popover p-1 shadow-lg shadow-foreground/5",
                 "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95",
               )}
             >
@@ -853,7 +853,7 @@ function RelationSelectedRow({
           aria-describedby={describedBy}
           className={cn(
             "flex min-w-0 flex-1 touch-manipulation items-center rounded-md px-1.5 py-1 transition-colors duration-150",
-            "hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
+            "hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
           )}
         >
           {targetContent}
@@ -881,7 +881,7 @@ function RelationSelectedRow({
           aria-describedby={describedBy}
           disabled={disabled}
           onClick={() => onRemove(relationId)}
-          className="shrink-0 touch-manipulation rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50"
+          className="shrink-0 touch-manipulation rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40 disabled:opacity-50"
         >
           <X className="h-3.5 w-3.5" aria-hidden="true" />
         </button>

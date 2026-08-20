@@ -110,7 +110,7 @@ function LiteralHighlight({ text, query }: { text: string; query: string }) {
       <mark
         // The source text + position is stable for a settled result.
         key={`${index}:${part.text}`}
-        className="rounded-sm bg-brand/15 px-0.5 text-foreground"
+        className="rounded-sm bg-brand-fill/15 px-0.5 text-foreground"
       >
         {part.text}
       </mark>
@@ -691,7 +691,7 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
                       className="flex min-w-0 flex-1 flex-col gap-1.5 py-0.5"
                     >
                       <span className="flex min-w-0 items-center gap-2">
-                        <span className="shrink-0 font-mono text-xs font-semibold text-brand">
+                        <span className="shrink-0 font-mono text-xs font-semibold text-brand-text">
                           {result.reef_id}
                         </span>
                         <span className="truncate text-sm font-medium">
@@ -732,7 +732,7 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
                     data-testid="global-search-content-more"
                     disabled={contentInFlight}
                     onClick={loadMore}
-                    className="mx-auto mt-1 block rounded-md px-3 py-1.5 text-xs font-medium text-brand transition-colors hover:bg-brand/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:pointer-events-none disabled:opacity-50"
+                    className="mx-auto mt-1 block rounded-md px-3 py-1.5 text-xs font-medium text-brand-text transition-colors hover:bg-brand-fill/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus disabled:pointer-events-none disabled:opacity-50"
                   >
                     {contentInFlight ? t("loadingMore") : t("loadMore")}
                   </button>

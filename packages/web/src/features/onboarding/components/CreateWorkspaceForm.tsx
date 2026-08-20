@@ -297,7 +297,7 @@ export function CreateWorkspaceForm({
       {createError && (
         <p
           role="alert"
-          className="text-sm text-destructive"
+          className="text-sm text-destructive-text"
           data-testid={`${idPrefix}-create-error`}
         >
           {createError}
@@ -309,7 +309,7 @@ export function CreateWorkspaceForm({
           type="submit"
           disabled={creating || !vaultName.trim() || !projectPrefix.trim()}
           data-testid={`${idPrefix}-create-btn`}
-          className="w-fit rounded-md bg-foreground px-6 py-2 text-sm font-medium text-background transition-colors duration-150 hover:bg-foreground/90 disabled:opacity-50"
+          className="w-fit rounded-md bg-foreground px-6 py-2 text-sm font-medium text-surface-page transition-colors duration-150 hover:bg-foreground/90 disabled:opacity-50"
         >
           {creating ? t("creating") : t("createButton")}
         </button>

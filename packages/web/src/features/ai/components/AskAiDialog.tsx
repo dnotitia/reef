@@ -114,7 +114,7 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
       className={cn(
         "fixed bottom-20 right-5 z-40 flex flex-col",
         "h-[560px] w-[420px] max-h-[calc(100vh-6rem)] max-w-[calc(100vw-2.5rem)]",
-        "rounded-xl border border-border bg-elevated shadow-2xl shadow-foreground/10",
+        "rounded-xl border border-border bg-surface-elevated shadow-2xl shadow-foreground/10",
         "transition-[opacity,transform] duration-[var(--duration-base)] ease-[var(--ease-signature)] motion-reduce:transition-none",
         isOpen
           ? "opacity-100 translate-y-0"

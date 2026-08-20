@@ -86,7 +86,7 @@ describe("NamedIssueFilterControl", () => {
     expectClassTokens(trigger, CBX_TRIGGER_CHIP_INACTIVE);
     expect(trigger).not.toHaveClass("text-xs");
     expect(trigger).not.toHaveClass("text-foreground");
-    expect(trigger).not.toHaveClass("border-brand/40");
+    expect(trigger).not.toHaveClass("border-brand-focus/40");
     expect(screen.queryByTestId("named-filter-active-dot")).toBeNull();
     expect(screen.queryByTestId("named-filter-changed-dot")).toBeNull();
 
@@ -128,7 +128,7 @@ describe("NamedIssueFilterControl", () => {
     });
     expectClassTokens(trigger, CBX_TRIGGER_CHIP);
     expectClassTokens(trigger, CBX_TRIGGER_CHIP_ACTIVE);
-    expect(trigger).not.toHaveClass("border-brand/40");
+    expect(trigger).not.toHaveClass("border-brand-focus/40");
 
     useIssueStore.getState().setFilter({ status: ["in_progress"] });
     await waitFor(() => {
@@ -139,7 +139,11 @@ describe("NamedIssueFilterControl", () => {
       expect(screen.getByTestId("named-filter-changed-dot")).toBeTruthy();
     });
     expectClassTokens(trigger, CBX_TRIGGER_CHIP_ACTIVE);
-    expect(trigger).toHaveClass("bg-brand/10", "ring-1", "ring-brand/30");
+    expect(trigger).toHaveClass(
+      "bg-brand-fill/10",
+      "ring-1",
+      "ring-brand-focus/30",
+    );
     expect(trigger).toHaveClass("text-foreground");
     expect(screen.queryByTestId("named-filter-active-dot")).toBeNull();
     expect(screen.getByTestId("named-filter-changed-dot")).toHaveClass(

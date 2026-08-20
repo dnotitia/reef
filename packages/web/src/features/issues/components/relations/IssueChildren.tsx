@@ -80,7 +80,7 @@ function IssueChildRow({
         // The row owns layout and hover state while its title link and
         // non-editable assignee button remain separate interactive elements.
         "flex min-w-0 flex-1 touch-manipulation items-center gap-3 rounded-md px-1.5 py-1 transition-colors duration-150 @max-[40rem]:flex-wrap",
-        "hover:bg-surface-hover focus-within:outline-none focus-within:ring-2 focus-within:ring-brand/40",
+        "hover:bg-surface-hover focus-within:outline-none focus-within:ring-2 focus-within:ring-brand-focus/40",
         resolved && "opacity-60 hover:opacity-100",
       )}
       onPointerMoveCapture={(event) => {
@@ -114,7 +114,7 @@ function IssueChildRow({
             setActiveTooltip(null);
           }
         }}
-        className="flex min-w-0 flex-1 touch-manipulation items-center gap-2 rounded-md px-1.5 py-1 transition-colors duration-150 @max-[40rem]:basis-full @max-[40rem]:flex-wrap focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+        className="flex min-w-0 flex-1 touch-manipulation items-center gap-2 rounded-md px-1.5 py-1 transition-colors duration-150 @max-[40rem]:basis-full @max-[40rem]:flex-wrap focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
       >
         <Tooltip
           open={isTitleOverflowing && activeTooltip === "title"}
@@ -163,7 +163,7 @@ function IssueChildRow({
             title={assigneeName}
             onPointerEnter={() => setActiveTooltip("assignee")}
             onFocus={() => setActiveTooltip("assignee")}
-            className="flex w-32 shrink-0 items-center justify-start rounded-md border-0 bg-transparent p-0 text-sm @max-[40rem]:ml-auto focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+            className="flex w-32 shrink-0 items-center justify-start rounded-md border-0 bg-transparent p-0 text-sm @max-[40rem]:ml-auto focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
           >
             <PersonChip
               identityKey={assignedTo}
@@ -290,7 +290,7 @@ export const IssueChildren = memo(function IssueChildren({
                 aria-label={t("progressLabel", { done: doneCount, total })}
               >
                 <div
-                  className="h-full origin-left rounded-full bg-brand transition-transform duration-300 motion-reduce:transition-none"
+                  className="h-full origin-left rounded-full bg-brand-fill transition-transform duration-300 motion-reduce:transition-none"
                   style={{ transform: `scaleX(${doneCount / total})` }}
                 />
               </div>
