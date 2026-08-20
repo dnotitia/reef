@@ -250,10 +250,14 @@
     },
     "config": {
       "loadError": "Couldn't load workspace config:",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Saved.",
       "activeWorkspace": {
         "heading": "Active Workspace",
         "description": "The akb workspace reef reads and writes issues in. This choice is personal — it's stored on your device and only changes your own view. It scopes the workspace settings below.",
-        "newWorkspace": "New workspace…"
+        "newWorkspace": "New workspace…",
+        "saveError": "Couldn't save the workspace selection."
       },
       "ai": {
         "notConfigured": "AI is not configured.",
@@ -264,24 +268,36 @@
         "noVault": "Choose a workspace above before configuring the authoring language.",
         "label": "Default authoring language",
         "notSet": "Not set (no default)",
-        "description": "The language AI writes new issue and content drafts in, so the team's generated content stays consistent. Leave unset to let AI follow each request. Existing issues are not changed."
+        "description": "The language AI writes new issue and content drafts in, so the team's generated content stays consistent. Leave unset to let AI follow each request. Existing issues are not changed.",
+        "saveError": "Couldn't save the authoring language."
       },
       "project": {
         "label": "Project Prefix",
         "noVault": "Choose a workspace above before configuring the project prefix.",
-        "description": "Used to generate issue IDs like {prefix}-001. Stored in the vault's <code></code> document so the whole team shares one prefix."
+        "description": "Used to generate issue IDs like {prefix}-001. Stored in the vault's <code></code> document so the whole team shares one prefix.",
+        "selectWorkspaceFirst": "Choose a workspace in Settings first.",
+        "invalid": "Use uppercase letters only (A-Z), e.g. REEF.",
+        "saveError": "Couldn't save the project prefix."
       },
       "repos": {
         "heading": "Monitored Code Repositories",
         "empty": "No repositories are being monitored.",
-        "description": "GitHub repos reef watches for activity (PRs, commits). Stored in the active workspace's <code></code> table — shared with your whole team."
+        "description": "GitHub repos reef watches for activity (PRs, commits). Stored in the active workspace's <code></code> table — shared with your whole team.",
+        "selectWorkspaceFirst": "Choose a workspace first.",
+        "configLoadError": "Couldn't load workspace config — try again.",
+        "saveSuccess": "Monitored repositories saved.",
+        "saveError": "Couldn't save monitored repositories.",
+        "githubAppUnavailable": "GitHub isn't configured for this deployment."
       },
       "resolvedAutoHide": {
         "label": "Completed issues",
         "noVault": "Choose a workspace above before configuring completed issue visibility.",
         "description": "Controls when resolved issues leave the default board and list.",
         "hideCompletedLabel": "Hide completed after N days",
-        "hideCanceledLabel": "Hide canceled after N days"
+        "hideCanceledLabel": "Hide canceled after N days",
+        "selectWorkspaceFirst": "Choose a workspace in Settings first.",
+        "invalid": "{label} must be a whole number of days, zero or more.",
+        "saveError": "Couldn't save completed issue visibility."
       },
       "activityScanning": {
         "label": "AI activity scanning",
@@ -290,7 +306,8 @@
         "on": "On",
         "off": "Off",
         "noVault": "Choose a workspace above before configuring AI activity scanning.",
-        "saveError": "Couldn't save the AI scanning setting."
+        "saveError": "Couldn't save the AI scanning setting.",
+        "saveSuccess": "AI activity scanning setting saved."
       }
     },
     "members": {
@@ -306,7 +323,15 @@
       "added": "Added {name}.",
       "removeConfirm": "Remove {name} from {workspace}?",
       "removeDescription": "They'll lose access to this workspace's issues. You can add them back anytime.",
-      "removing": "Removing…"
+      "removing": "Removing…",
+      "roleFor": "Role for {name}",
+      "newMember": "new member",
+      "roles": {
+        "reader": "reader",
+        "writer": "writer",
+        "admin": "admin",
+        "owner": "owner"
+      }
     },
     "misc": {
       "connectGithubFirst": "Connect GitHub first to load repositories.",
@@ -341,7 +366,10 @@
       "updateInstructions": "Update instructions",
       "workspaceSections": "Workspace settings sections",
       "subtabGeneral": "General",
-      "subtabMembers": "Members"
+      "subtabMembers": "Members",
+      "accessEditable": "You can edit",
+      "accessViewOnly": "View only",
+      "accessManaged": "Managed by operator"
     },
     "routes": {
       "deployment": {
@@ -395,7 +423,8 @@
       "labelRequired": "Label is required.",
       "nameTaken": "A template named \"{name}\" already exists. Edit it or pick a different name.",
       "deleteConfirm": "Delete template \"{label}\"? This removes it from the shared workspace.",
-      "saving": "Saving…"
+      "saving": "Saving…",
+      "saved": "Saved."
     }
   },
   "errors": {

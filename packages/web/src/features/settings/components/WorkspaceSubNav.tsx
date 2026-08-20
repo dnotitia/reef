@@ -35,7 +35,7 @@ export function WorkspaceSubNav() {
     <nav
       aria-label={t("workspaceSections")}
       data-testid="workspace-subnav"
-      className="flex items-center gap-4 border-b border-border-subtle"
+      className="flex w-full max-w-full flex-wrap items-center gap-4 border-b border-border-subtle"
     >
       {WORKSPACE_SUB_TABS.map(({ href, id, labelKey }) => {
         // Targets are vault-scoped (REEF-315). General is the index route, so it
@@ -53,7 +53,7 @@ export function WorkspaceSubNav() {
             aria-current={isActive ? "page" : undefined}
             data-testid={`workspace-subnav-${id}`}
             className={cn(
-              "-mb-px border-b-2 px-0.5 py-2 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
+              "-mb-px min-w-0 border-b-2 px-0.5 py-2 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
               isActive
                 ? "border-brand-focus text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground",

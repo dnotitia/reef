@@ -93,6 +93,31 @@ describe("TemplatesSection", () => {
     expect(screen.queryByLabelText("Related")).not.toBeInTheDocument();
   });
 
+  it("connects template validation to the specific name or label field", async () => {
+    const user = userEvent.setup();
+    render(wrap(<TemplatesSection />));
+    await user.click(await screen.findByTestId("templates-new-button"));
+
+    const name = screen.getByTestId("templates-name-input");
+    const label = screen.getByTestId("templates-label-input");
+    await user.type(name, "Bad Name");
+    await user.click(screen.getByTestId("templates-editor-save"));
+
+    expect(name).toHaveAttribute("aria-invalid", "true");
+    expect(name).toHaveAttribute("aria-describedby", "templates-name-error");
+    expect(label).toHaveAttribute("aria-invalid", "false");
+    expect(label).not.toHaveAttribute("aria-describedby");
+
+    await user.clear(name);
+    await user.type(name, "good-name");
+    await user.click(screen.getByTestId("templates-editor-save"));
+
+    expect(name).toHaveAttribute("aria-invalid", "false");
+    expect(name).not.toHaveAttribute("aria-describedby");
+    expect(label).toHaveAttribute("aria-invalid", "true");
+    expect(label).toHaveAttribute("aria-describedby", "templates-label-error");
+  });
+
   it("lets a read-only viewer inspect a template's full details without edit/save controls", async () => {
     mockApiFetch.mockResolvedValue(
       new Response(

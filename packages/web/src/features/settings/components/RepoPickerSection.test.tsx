@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -226,5 +227,61 @@ describe("RepoPickerSection", () => {
         ),
       ).toBe(true),
     );
+  });
+
+  it("keeps the trigger focused when selecting a repo updates the saved config", async () => {
+    const user = userEvent.setup();
+    let monitoredRepos: Array<{
+      github_id: number;
+      owner: string;
+      name: string;
+    }> = [];
+    mockApiFetch.mockImplementation(async (url, init) => {
+      const u = String(url);
+      if (u.startsWith("/api/config") && init?.method === "PATCH") {
+        const body = JSON.parse(String(init.body)) as {
+          patch: { monitored_repos: typeof monitoredRepos };
+        };
+        monitoredRepos = body.patch.monitored_repos;
+        return new Response(
+          JSON.stringify({
+            config: { project_prefix: "REEF", monitored_repos: monitoredRepos },
+          }),
+          { status: 200 },
+        );
+      }
+      if (u.startsWith("/api/config")) {
+        return new Response(
+          JSON.stringify({
+            config: { project_prefix: "REEF", monitored_repos: monitoredRepos },
+          }),
+          { status: 200 },
+        );
+      }
+      if (u.startsWith("/api/repos")) {
+        return new Response(
+          JSON.stringify({ repos: [{ full_name: "octo/reef", id: 1001 }] }),
+          { status: 200 },
+        );
+      }
+      return new Response("{}", { status: 200 });
+    });
+
+    render(wrap(<RepoPickerSection />));
+    const trigger = await screen.findByTestId("monitored-repos-trigger");
+    await user.click(trigger);
+    await user.click(
+      await screen.findByTestId("monitored-repos-option-octo/reef"),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("repo-picker-save-message")).toHaveTextContent(
+        "Monitored repositories saved.",
+      );
+      expect(trigger).toHaveFocus();
+    });
+    expect(monitoredRepos).toEqual([
+      { github_id: 1001, owner: "octo", name: "reef" },
+    ]);
   });
 });

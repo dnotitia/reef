@@ -69,7 +69,10 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
   const remove = useDeleteIssueTemplate(vault);
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [defaultLabels, setDefaultLabels] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [labelError, setLabelError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState("");
 
   const templates = query.data?.templates ?? [];
   const saving = upsert.isPending;
@@ -100,7 +103,10 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
   function startCreate() {
     setEditor({ originalName: null, draft: emptyDraft() });
     setDefaultLabels([]);
-    setError(null);
+    setNameError(null);
+    setLabelError(null);
+    setSaveError(null);
+    setSaveMessage("");
   }
 
   function startEdit(template: Template) {
@@ -109,13 +115,19 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
       draft: { ...template },
     });
     setDefaultLabels(template.default_labels);
-    setError(null);
+    setNameError(null);
+    setLabelError(null);
+    setSaveError(null);
+    setSaveMessage("");
   }
 
   function cancel() {
     setEditor(null);
     setDefaultLabels([]);
-    setError(null);
+    setNameError(null);
+    setLabelError(null);
+    setSaveError(null);
+    setSaveMessage("");
   }
 
   function updateDraft<K extends keyof Template>(key: K, value: Template[K]) {
@@ -125,7 +137,9 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
 
   async function save() {
     if (!editor || !vault) return;
-    setError(null);
+    setNameError(null);
+    setLabelError(null);
+    setSaveError(null);
 
     const draft: Template = {
       ...editor.draft,
@@ -133,16 +147,16 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
     };
 
     if (!TEMPLATE_NAME_PATTERN.test(draft.name)) {
-      setError(tt("nameInvalid"));
+      setNameError(tt("nameInvalid"));
       return;
     }
     if (draft.label.trim().length === 0) {
-      setError(tt("labelRequired"));
+      setLabelError(tt("labelRequired"));
       return;
     }
     if (editor.originalName === null) {
       if (templates.some((t) => t.name === draft.name)) {
-        setError(tt("nameTaken", { name: draft.name }));
+        setNameError(tt("nameTaken", { name: draft.name }));
         return;
       }
     }
@@ -155,9 +169,10 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
           : t("templateSaved", { label: draft.label }),
       );
       cancel();
+      setSaveMessage(tt("saved"));
     } catch (err) {
       const msg = err instanceof Error ? err.message : t("templateSaveError");
-      setError(msg);
+      setSaveError(msg);
       toast.error(msg);
     }
   }
@@ -352,10 +367,27 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
                   id="templates-name"
                   data-testid="templates-name-input"
                   value={editor.draft.name}
-                  onChange={(e) => updateDraft("name", e.target.value)}
+                  onChange={(e) => {
+                    updateDraft("name", e.target.value);
+                    setNameError(null);
+                    setSaveError(null);
+                  }}
                   placeholder="bug-report" // i18n-exempt: example slug token
                   disabled={editor.originalName !== null || editDisabled}
+                  aria-invalid={nameError != null}
+                  aria-describedby={
+                    nameError ? "templates-name-error" : undefined
+                  }
                 />
+                {nameError && (
+                  <p
+                    id="templates-name-error"
+                    role="alert"
+                    className="text-xs text-destructive-text"
+                  >
+                    {nameError}
+                  </p>
+                )}
                 <span className="text-muted-foreground/70">
                   {tt("nameHint")}
                 </span>
@@ -372,10 +404,27 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
                   id="templates-label"
                   data-testid="templates-label-input"
                   value={editor.draft.label}
-                  onChange={(e) => updateDraft("label", e.target.value)}
+                  onChange={(e) => {
+                    updateDraft("label", e.target.value);
+                    setLabelError(null);
+                    setSaveError(null);
+                  }}
                   placeholder="Bug report" // i18n-exempt: example seed label
                   disabled={editDisabled}
+                  aria-invalid={labelError != null}
+                  aria-describedby={
+                    labelError ? "templates-label-error" : undefined
+                  }
                 />
+                {labelError && (
+                  <p
+                    id="templates-label-error"
+                    role="alert"
+                    className="text-xs text-destructive-text"
+                  >
+                    {labelError}
+                  </p>
+                )}
               </div>
 
               <div className="flex flex-col gap-1 text-xs sm:col-span-2">
@@ -493,13 +542,13 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
             </div>
           </section>
 
-          {error && (
+          {saveError && (
             <p
               role="alert"
               className="text-xs text-destructive-text"
               data-testid="templates-editor-error"
             >
-              {error}
+              {saveError}
             </p>
           )}
 
@@ -528,6 +577,14 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
           </div>
         </div>
       )}
+      <p
+        role="status"
+        aria-live="polite"
+        className="min-h-5 text-sm text-muted-foreground"
+        data-testid="templates-save-status"
+      >
+        {saving ? tt("saving") : saveMessage}
+      </p>
     </div>
   );
 }

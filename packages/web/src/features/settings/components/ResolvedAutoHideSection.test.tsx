@@ -112,4 +112,28 @@ describe("ResolvedAutoHideSection", () => {
       );
     });
   });
+
+  it("associates validation with only the field whose day value is invalid", async () => {
+    const user = userEvent.setup();
+    render(wrap(<ResolvedAutoHideSection canEdit />));
+
+    const completed = await screen.findByLabelText(
+      "Hide completed after N days",
+    );
+    const canceled = screen.getByLabelText("Hide canceled after N days");
+    await user.clear(completed);
+    await user.type(completed, "-1");
+    await user.click(screen.getByTestId("resolved-auto-hide-save"));
+
+    expect(completed).toHaveAttribute("aria-invalid", "true");
+    expect(completed).toHaveAttribute(
+      "aria-describedby",
+      "resolved-auto-hide-completed-error",
+    );
+    expect(canceled).toHaveAttribute("aria-invalid", "false");
+    expect(canceled).not.toHaveAttribute("aria-describedby");
+    expect(
+      await screen.findByTestId("resolved-auto-hide-completed-error"),
+    ).toHaveAttribute("role", "alert");
+  });
 });

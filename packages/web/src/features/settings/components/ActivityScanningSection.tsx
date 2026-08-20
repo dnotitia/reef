@@ -28,6 +28,7 @@ export function ActivityScanningSection({
   const configQuery = useProjectConfig(activeVault);
   const updateConfig = useUpdateProjectConfig(activeVault);
   const [error, setError] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState("");
 
   const enabled =
     configQuery.data?.config.ai_scanning_enabled ??
@@ -59,8 +60,10 @@ export function ActivityScanningSection({
 
   async function handleToggle(next: boolean) {
     setError(null);
+    setSaveMessage("");
     try {
       await updateConfig.mutateAsync({ patch: { ai_scanning_enabled: next } });
+      setSaveMessage(t("activityScanning.saveSuccess"));
     } catch (err) {
       setError(
         err instanceof Error ? err.message : t("activityScanning.saveError"),
@@ -117,6 +120,14 @@ export function ActivityScanningSection({
           {error}
         </p>
       )}
+      <p
+        role="status"
+        aria-live="polite"
+        className="min-h-5 text-sm text-muted-foreground"
+        data-testid="activity-scanning-save-status"
+      >
+        {updateConfig.isPending ? t("saving") : saveMessage}
+      </p>
     </div>
   );
 }

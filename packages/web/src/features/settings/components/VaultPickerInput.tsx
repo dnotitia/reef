@@ -83,7 +83,11 @@ export function VaultPickerInput({
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen} className="w-full max-w-64">
+    <Popover
+      open={open}
+      onOpenChange={setOpen}
+      className="min-w-0 w-full max-w-64"
+    >
       <PopoverTrigger
         data-testid={`${testIdPrefix}-trigger`}
         aria-haspopup="dialog"
@@ -92,7 +96,9 @@ export function VaultPickerInput({
           value ? t("activeWorkspace", { value }) : resolvedPlaceholder
         }
       >
-        <span className="truncate">{value || resolvedPlaceholder}</span>
+        <span className="min-w-0 truncate" title={value || resolvedPlaceholder}>
+          {value || resolvedPlaceholder}
+        </span>
         <span
           aria-hidden
           className="ml-2 shrink-0 text-xs text-muted-foreground"
@@ -136,13 +142,15 @@ export function VaultPickerInput({
               <button
                 type="button"
                 data-testid={`${testIdPrefix}-option-${v.name}`}
-                className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground ${
+                className={`flex w-full min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground ${
                   value === v.name ? "font-semibold text-foreground" : ""
                 }`}
                 onClick={() => handleSelect(v.name)}
               >
                 {value === v.name && <span className="text-xs">✓</span>}
-                <span className="truncate">{v.name}</span>
+                <span className="min-w-0 truncate" title={v.name}>
+                  {v.name}
+                </span>
               </button>
             </li>
           ))}

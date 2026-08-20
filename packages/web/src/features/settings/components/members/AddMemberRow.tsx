@@ -86,7 +86,7 @@ export function AddMemberRow({
         </div>
         <RoleSelect
           value={role}
-          name="new member"
+          name={t("newMember")}
           disabled={grant.isPending}
           onChange={setRole}
         />

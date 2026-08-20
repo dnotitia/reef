@@ -112,6 +112,15 @@ describe("ActivityScanningSection", () => {
         }),
       );
     });
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("activity-scanning-save-status"),
+      ).toHaveTextContent("AI activity scanning setting saved."),
+    );
+    expect(screen.getByTestId("activity-scanning-save-status")).toHaveAttribute(
+      "role",
+      "status",
+    );
   });
 
   it("shows a read-only state for non-admin viewers (no switch)", async () => {

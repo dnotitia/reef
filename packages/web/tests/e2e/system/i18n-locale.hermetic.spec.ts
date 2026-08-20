@@ -458,6 +458,20 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     // Authoring Language / Completed Issues) follow the locale too — the App
     // Router server page resolves its copy through next-intl (REEF-303).
     await page.goto("/workspace/reef-e2e/settings/workspace");
+    const settingsTabs = page.getByRole("navigation", { name: "설정 섹션" });
+    await expect(
+      settingsTabs.getByRole("link", { name: "워크스페이스" }),
+    ).toBeVisible();
+    await expect(
+      settingsTabs.getByRole("link", { name: "환경설정" }),
+    ).toBeVisible();
+    await expect(
+      settingsTabs.getByRole("link", { name: "배포" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "저장" }).first(),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save" })).toHaveCount(0);
     for (const koHeading of [
       "프로젝트", // Project
       "템플릿", // Templates
@@ -471,6 +485,17 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     await expect(
       page.getByRole("heading", { name: "Project", level: 3 }),
     ).toHaveCount(0);
+
+    await expect(
+      page.getByText("편집 가능", { exact: true }).first(),
+    ).toBeVisible();
+    await page.goto("/workspace/reef-e2e/settings/workspace/members");
+    await expect(
+      page.getByText("소유자", { exact: true }).first(),
+    ).toBeVisible();
+    await expect(page.getByText("You can edit", { exact: true })).toHaveCount(
+      0,
+    );
   });
 
   test("renders migrated issue-area body strings in the active locale (REEF-302)", async ({
