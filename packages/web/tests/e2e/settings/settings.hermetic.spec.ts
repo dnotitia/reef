@@ -84,7 +84,10 @@ test.describe("Hermetic settings workflows", () => {
       await page.setViewportSize(viewport);
       await page.goto(`/workspace/${REEF_E2E_VAULT}/settings/workspace`);
 
-      const tabs = page.getByRole("navigation", { name: "Settings sections" });
+      const tabs = page.getByRole("navigation", {
+        name: "Settings sections",
+        exact: true,
+      });
       await expect(tabs).toBeVisible();
       for (const label of ["Workspace", "Preferences", "Deployment"]) {
         const tab = tabs.getByRole("link", { name: label });
