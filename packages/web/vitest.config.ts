@@ -14,13 +14,13 @@ export default defineConfig({
     // forked processes and share memory, which is the dominant cost in this
     // DOM-heavy suite. The suite is verified green under threads.
     pool: "threads",
-    setupFiles: ["./vitest.setup.ts"],
     projects: [
       {
         extends: true,
         test: {
           name: "node",
           environment: "node",
+          setupFiles: ["./vitest.setup.node.ts"],
           include: [
             "src/app/api/**/*.test.{ts,tsx}",
             "src/server/**/*.test.{ts,tsx}",
@@ -33,6 +33,7 @@ export default defineConfig({
         test: {
           name: "jsdom",
           environment: "jsdom",
+          setupFiles: ["./vitest.setup.ts"],
           include: ["src/**/*.test.{ts,tsx}"],
           exclude: ["src/app/api/**", "src/server/**"],
         },

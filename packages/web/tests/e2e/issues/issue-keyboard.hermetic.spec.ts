@@ -1,4 +1,4 @@
-import { type Page, expect, test } from "@playwright/test";
+import { type Locator, type Page, expect, test } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
   openExistingWorkspace,
@@ -23,6 +23,29 @@ async function expectIssueListKeyboardReady(page: Page) {
     timeout: 15_000,
   });
   return rows;
+}
+
+async function expectFocusedGeometryStable(locator: Locator) {
+  await expect
+    .poll(() =>
+      locator.evaluate(async (element) => {
+        const before = element.getBoundingClientRect();
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => resolve()),
+        );
+        const after = element.getBoundingClientRect();
+        return (
+          document.activeElement === element &&
+          after.width > 0 &&
+          after.height > 0 &&
+          before.x === after.x &&
+          before.y === after.y &&
+          before.width === after.width &&
+          before.height === after.height
+        );
+      }),
+    )
+    .toBe(true);
 }
 
 test.describe("Hermetic issue keyboard navigation", () => {
@@ -685,11 +708,7 @@ test.describe("Hermetic issue keyboard navigation", () => {
     await page.keyboard.press("ArrowDown");
     await expect(alpha).toHaveAttribute("data-keyboard-focused", "true");
     await expect(alpha).toBeFocused();
-    // The focus effect commits on the next task after ArrowDown. Let that
-    // commit settle before dispatching the following shortcut key.
-    await page.evaluate(
-      () => new Promise<void>((resolve) => setTimeout(resolve, 0)),
-    );
+    await expectFocusedGeometryStable(alpha);
     await page.keyboard.press("j");
     await expect(beta).toBeFocused();
     await expect(beta).toHaveAttribute("data-keyboard-focused", "true");

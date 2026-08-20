@@ -404,6 +404,13 @@ const startChild = (input: {
     shell: input.shell,
     stdio: ["ignore", "pipe", "pipe"],
   });
+  const processGroupId =
+    input.detached &&
+    process.platform !== "win32" &&
+    typeof child.pid === "number" &&
+    child.pid > 0
+      ? child.pid
+      : undefined;
   if (child.stdout === null || child.stderr === null) {
     throw new Error("child_stdio_unavailable");
   }
@@ -429,16 +436,31 @@ const startChild = (input: {
   });
 
   let termination: Promise<boolean> | undefined;
-  const sendSignal = (signal: NodeJS.Signals): void => {
-    if (settled) return;
+  const processGroupExists = (): boolean => {
+    if (processGroupId === undefined) return false;
     try {
-      if (
-        input.detached &&
-        process.platform !== "win32" &&
-        typeof child.pid === "number" &&
-        child.pid > 0
-      ) {
-        process.kill(-child.pid, signal);
+      process.kill(-processGroupId, 0);
+      return true;
+    } catch (error) {
+      return isRecord(error) && error.code === "EPERM";
+    }
+  };
+  const waitForProcessGroupExit = async (): Promise<boolean> => {
+    const deadline = Date.now() + input.terminationTimeoutMs;
+    while (processGroupExists()) {
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) return false;
+      await new Promise<void>((resolvePromise) => {
+        setTimeout(resolvePromise, Math.min(remainingMs, 10));
+      });
+    }
+    return true;
+  };
+  const sendSignal = (signal: NodeJS.Signals): void => {
+    if (settled && processGroupId === undefined) return;
+    try {
+      if (processGroupId !== undefined) {
+        process.kill(-processGroupId, signal);
       } else {
         child.kill(signal);
       }
@@ -449,8 +471,16 @@ const startChild = (input: {
   const terminate = async (): Promise<boolean> => {
     if (termination !== undefined) return termination;
     termination = (async () => {
-      if (settled) return true;
+      if (settled && !processGroupExists()) return true;
       sendSignal("SIGTERM");
+      if (processGroupId !== undefined) {
+        if (await waitForProcessGroupExit()) return true;
+        sendSignal("SIGKILL");
+        return (
+          settled ||
+          waitForSettled(closed, () => settled, input.terminationTimeoutMs)
+        );
+      }
       if (
         await waitForSettled(closed, () => settled, input.terminationTimeoutMs)
       ) {

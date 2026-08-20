@@ -56,6 +56,42 @@ const git = async (root: string, args: readonly string[]): Promise<string> => {
 const shellQuote = (value: string): string =>
   `'${value.replaceAll("'", `'"'"'`)}'`;
 
+const waitFor = async (
+  predicate: () => boolean | Promise<boolean>,
+  timeoutMs: number,
+): Promise<boolean> => {
+  const deadline = Date.now() + timeoutMs;
+  while (!(await predicate())) {
+    if (Date.now() >= deadline) return false;
+    await new Promise<void>((resolvePromise) => setTimeout(resolvePromise, 25));
+  }
+  return true;
+};
+
+const processIsRunning = async (pid: number): Promise<boolean> => {
+  if (process.platform === "win32") {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  try {
+    const result = await execFileAsync(
+      "ps",
+      ["-o", "stat=", "-p", String(pid)],
+      {
+        env: { PATH: DEFAULT_ENVIRONMENT.PATH },
+      },
+    );
+    const state = result.stdout.trim();
+    return state.length > 0 && !state.startsWith("Z");
+  } catch {
+    return false;
+  }
+};
+
 const createRepository = async (): Promise<RepositoryFixture> => {
   const root = await mkdtemp(join(tmpdir(), "local-infrastructure-repo-"));
   const workRoot = join(dirname(root), `${basename(root)}-managed-worktrees`);
@@ -313,25 +349,47 @@ describe("local infrastructure provider", () => {
 
     const controller = new AbortController();
     const childPidFile = "child.pid";
-    const childScript =
-      "const fs = require('node:fs'); const child = require('node:child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)']); fs.writeFileSync('child.pid', String(child.pid)); setInterval(() => {}, 1000);";
-    const command = `${shellQuote(process.execPath)} -e ${shellQuote(childScript)}`;
+    const childReadyFile = "child.ready";
     const [directory] = await worktreeDirectories(fixture.workRoot);
     const worktree = join(fixture.workRoot, directory);
+    await writeFile(
+      join(worktree, "descendant.js"),
+      [
+        "const fs = require('node:fs');",
+        "process.on('SIGTERM', () => {});",
+        "fs.writeFileSync('child.ready', 'ready');",
+        "setTimeout(() => process.exit(0), 5000);",
+        "setInterval(() => {}, 1000);",
+        "",
+      ].join("\n"),
+    );
+    await writeFile(
+      join(worktree, "child.js"),
+      [
+        "const fs = require('node:fs');",
+        "const child = require('node:child_process').spawn(process.execPath, ['descendant.js']);",
+        "fs.writeFileSync('child.pid', String(child.pid));",
+        "setInterval(() => {}, 1000);",
+        "",
+      ].join("\n"),
+    );
+    const command = `${shellQuote(process.execPath)} child.js`;
     const childPidPath = join(worktree, childPidFile);
+    const childReadyPath = join(worktree, childReadyFile);
     const execution = provider.exec(
       { resource, command },
       { signal: controller.signal },
     );
-    const pidDeadline = Date.now() + 2_000;
-    while (Date.now() < pidDeadline) {
-      try {
-        await stat(childPidPath);
-        break;
-      } catch {
-        await new Promise((resolvePromise) => setTimeout(resolvePromise, 25));
-      }
-    }
+    expect(
+      await waitFor(async () => {
+        try {
+          await Promise.all([stat(childPidPath), stat(childReadyPath)]);
+          return true;
+        } catch {
+          return false;
+        }
+      }, 2_000),
+    ).toBe(true);
     controller.abort();
     await expectProviderCode(execution, "cancelled");
 
@@ -345,16 +403,9 @@ describe("local infrastructure provider", () => {
       provider.exec({ resource, command: "printf should-not-run" }, {}),
       "request",
     );
-    const deadline = Date.now() + 1_000;
-    while (Date.now() < deadline) {
-      try {
-        process.kill(childPid, 0);
-        await new Promise((resolvePromise) => setTimeout(resolvePromise, 25));
-      } catch {
-        break;
-      }
-    }
-    expect(() => process.kill(childPid, 0)).toThrow();
+    expect(
+      await waitFor(async () => !(await processIsRunning(childPid)), 1_000),
+    ).toBe(true);
   });
 
   it("cleans a failed bootstrap and rejects pre-aborted provision without creating a worktree", async () => {
