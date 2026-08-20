@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   extractAkbDocumentUris,
   normalizeAkbDocumentMarkdownLinks,
   retargetRenderedAkbDocumentLinks,
+  restoreRenderedAkbDocumentMarkdownLinks,
 } from "./markdownDocumentLinks";
 
 const URI = "akb://reef-test/coll/research/doc/report.md";
@@ -93,5 +94,32 @@ describe("retargetRenderedAkbDocumentLinks", () => {
     );
     expect(anchor?.getAttribute("target")).toBe("_blank");
     expect(anchor?.getAttribute("rel")).toBe("noreferrer");
+  });
+
+  it("does not mutate links that already have the configured target", () => {
+    const root = document.createElement("div");
+    root.innerHTML = `<a href="https://akb.example.com/vault/reef-test/doc/research%2Freport.md" data-akb-uri="${URI}" target="_blank" rel="noreferrer">Research Report</a>`;
+    const anchor = root.querySelector<HTMLAnchorElement>("a");
+    const setAttribute = vi.spyOn(anchor as HTMLAnchorElement, "setAttribute");
+
+    retargetRenderedAkbDocumentLinks(root, "https://akb.example.com");
+
+    expect(setAttribute).not.toHaveBeenCalled();
+  });
+});
+
+describe("restoreRenderedAkbDocumentMarkdownLinks", () => {
+  it("restores original AKB targets from rendered link metadata", () => {
+    const root = document.createElement("div");
+    const renderedHref =
+      "https://akb.example.com/vault/reef-test/doc/research%2Freport.md";
+    root.innerHTML = `<a href="${renderedHref}" data-akb-uri="${URI}">Research Report</a>`;
+
+    expect(
+      restoreRenderedAkbDocumentMarkdownLinks(
+        `[Research Report](${renderedHref})`,
+        root,
+      ),
+    ).toBe(`[Research Report](${URI})`);
   });
 });

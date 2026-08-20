@@ -7,6 +7,8 @@ import {
 const BARE_AKB_URI_RE = /akb:\/\/[^\s<>"'`()[\]]+/g;
 const MARKDOWN_AKB_LINK_RE =
   /(!?)\[((?:\\[^\r\n]|[^\\\]\r\n]|\](?!\())*)\]\((akb:\/\/[^\s)]+)([^)]*)\)/g;
+const MARKDOWN_LINK_RE =
+  /(!?)\[((?:\\[^\r\n]|[^\\\]\r\n]|\](?!\())*)\]\(([^\s)]+)([^)]*)\)/g;
 const TRAILING_PUNCTUATION_RE = /[.,;:!?]+$/;
 
 interface LinkRange {
@@ -137,9 +139,53 @@ export function retargetRenderedAkbDocumentLinks(
   )) {
     const uri = anchor.dataset.akbUri ?? anchor.getAttribute("href") ?? "";
     if (!isAkbDocumentUri(uri)) continue;
+    const renderedHref = buildAkbDocumentUrl(akbWebBase, uri);
+    if (
+      anchor.dataset.akbUri === uri &&
+      renderedHref !== null &&
+      anchor.getAttribute("href") === renderedHref &&
+      anchor.getAttribute("target") === "_blank" &&
+      anchor.getAttribute("rel") === "noreferrer"
+    ) {
+      continue;
+    }
     anchor.dataset.akbUri = uri;
-    anchor.setAttribute("href", buildAkbDocumentUrl(akbWebBase, uri) ?? uri);
+    anchor.setAttribute("href", renderedHref ?? uri);
     anchor.setAttribute("target", "_blank");
     anchor.setAttribute("rel", "noreferrer");
   }
+}
+
+export function restoreRenderedAkbDocumentMarkdownLinks(
+  markdown: string,
+  root: ParentNode | null | undefined,
+): string {
+  if (!root) return markdown;
+
+  const renderedHrefToUri = new Map<string, string>();
+  for (const anchor of root.querySelectorAll<HTMLAnchorElement>(
+    "a[data-akb-uri], a[data-document-uri]",
+  )) {
+    const uri = anchor.dataset.akbUri ?? anchor.dataset.documentUri ?? "";
+    const renderedHref = anchor.getAttribute("href") ?? "";
+    if (renderedHref && isAkbDocumentUri(uri)) {
+      renderedHrefToUri.set(renderedHref, uri);
+    }
+  }
+  if (renderedHrefToUri.size === 0) return markdown;
+
+  return markdown.replace(
+    MARKDOWN_LINK_RE,
+    (
+      match,
+      imagePrefix: string,
+      text: string,
+      href: string,
+      suffix: string,
+    ) => {
+      if (imagePrefix) return match;
+      const uri = renderedHrefToUri.get(href);
+      return uri ? `[${text}](${uri}${suffix})` : match;
+    },
+  );
 }

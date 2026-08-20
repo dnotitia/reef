@@ -1299,6 +1299,102 @@ test.describe("Hermetic Markdown editor fixture", () => {
     expect(pageErrors).toEqual([]);
   });
 
+  test("keeps rendered AKB targets out of Source serialization", async ({
+    page,
+    request,
+  }) => {
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    const editor = page.locator(".reef-markdown-editor");
+    await page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+    const source = page.getByTestId("markdown-source-textarea");
+    const planUri = "akb://reef-e2e/coll/docs/doc/spec-overview.md";
+    const customUri = "akb://reef-e2e/coll/docs/doc/alpha-reference.md";
+    const authoredMarkdown = [
+      String.raw`[\[Plan\] 260811 - 전체](${planUri})`,
+      `[Custom title](${customUri})`,
+    ].join("\n\n");
+
+    await source.fill(authoredMarkdown);
+    await expect(source).toHaveValue(authoredMarkdown);
+    await page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+
+    const planLink = editor.getByRole("link", {
+      name: "[Plan] 260811 - 전체",
+    });
+    const customLink = editor.getByRole("link", { name: "Custom title" });
+    await expect(planLink).toHaveAttribute(
+      "href",
+      "https://akb.e2e.test/vault/reef-e2e/doc/docs%2Fspec-overview.md",
+    );
+    await expect(customLink).toHaveAttribute(
+      "href",
+      "https://akb.e2e.test/vault/reef-e2e/doc/docs%2Falpha-reference.md",
+    );
+    await expect(planLink).toHaveAttribute("target", "_blank");
+    await expect(planLink).toHaveAttribute("rel", "noreferrer");
+
+    await page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+    await expect(source).toHaveValue(
+      new RegExp(planUri.replaceAll("/", "\\/")),
+    );
+    await expect(source).toHaveValue(
+      new RegExp(customUri.replaceAll("/", "\\/")),
+    );
+    expect(await source.inputValue()).not.toContain(
+      "https://akb.e2e.test/vault/",
+    );
+
+    const marker = "\n\nserialization boundary marker";
+    const persistedSource = `${await source.inputValue()}${marker}`;
+    const saveResponse = page.waitForResponse((response) => {
+      const request = response.request();
+      if (
+        new URL(response.url()).pathname !== "/api/issues/REEF-001" ||
+        request.method() !== "PATCH"
+      ) {
+        return false;
+      }
+      const body = request.postDataJSON() as {
+        update?: { content?: unknown };
+      };
+      return body.update?.content === persistedSource;
+    });
+    await source.fill(persistedSource);
+    await page.getByTestId("issue-title-input").click();
+    const persistedResponse = await saveResponse;
+    expect(persistedResponse.ok()).toBeTruthy();
+
+    await page.reload();
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+    const reopenedSource = page.getByTestId("markdown-source-textarea");
+    await expect(reopenedSource).toHaveValue(
+      new RegExp(planUri.replaceAll("/", "\\/")),
+    );
+    await expect(reopenedSource).toHaveValue(
+      new RegExp(customUri.replaceAll("/", "\\/")),
+    );
+    expect(await reopenedSource.inputValue()).not.toContain(
+      "https://akb.e2e.test/vault/",
+    );
+  });
+
   test("aligns safe external links and known issue references across body and comments", async ({
     page,
     request,

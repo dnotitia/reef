@@ -26,6 +26,7 @@ function createEditor(
   ) => Promise<readonly DocumentSearchHit[]>,
   placeholder = "Describe the issue...",
   editable = true,
+  akbWebBase?: string,
 ) {
   const element = document.createElement("div");
   document.body.appendChild(element);
@@ -53,6 +54,10 @@ function createEditor(
           }
         : undefined,
       resolveAttachmentHref,
+      undefined,
+      undefined,
+      undefined,
+      akbWebBase,
     ),
     content: mentionMembers
       ? prepareIssueBodyMentionMarkdown(markdown, mentionMembers)
@@ -535,6 +540,27 @@ describe("MarkdownEditor Tiptap extensions", () => {
     expect(editor.getMarkdown()).toContain(`[Research Report](${uri})`);
     const link = editor.view.dom.querySelector("a");
     expect(link?.getAttribute("href")).toBe(uri);
+  });
+
+  it("renders configured AKB hrefs without changing Markdown serialization", () => {
+    const uri = "akb://reef-test/coll/research/doc/report.md";
+    const renderedHref =
+      "https://akb.example.test/vault/reef-test/doc/research%2Freport.md";
+    const editor = createEditor(
+      `[Research Report](${uri})`,
+      undefined,
+      undefined,
+      [],
+      undefined,
+      "Describe the issue...",
+      true,
+      "https://akb.example.test",
+    );
+    const link = editor.view.dom.querySelector<HTMLAnchorElement>("a");
+
+    expect(link).toHaveAttribute("href", renderedHref);
+    expect(link).toHaveAttribute("data-akb-uri", uri);
+    expect(editor.getMarkdown()).toBe(`[Research Report](${uri})`);
   });
 
   it("round-trips mixed inline marks, an AKB link, and a resolved mention", () => {

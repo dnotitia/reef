@@ -23,6 +23,7 @@ import {
   extractAkbDocumentUris,
   normalizeAkbDocumentMarkdownLinks,
   retargetRenderedAkbDocumentLinks,
+  restoreRenderedAkbDocumentMarkdownLinks,
 } from "@/lib/akb/markdownDocumentLinks";
 import { cn } from "@/lib/utils";
 import { useAkbWebUrl } from "@/providers/AkbWebUrlProvider";
@@ -301,6 +302,7 @@ function createImageExtension(resolveImageSrc?: (src: string) => string) {
 
 function createIssueAttachmentLinkExtension(
   resolveAttachmentHref?: (href: string) => string | undefined,
+  akbWebBase?: string | null,
 ) {
   return LinkExtension.extend({
     parseMarkdown(token, helpers) {
@@ -334,6 +336,15 @@ function createIssueAttachmentLinkExtension(
       } else if (parseAkbDocumentUri(href)) {
         attrs["data-reference-kind"] = "document";
         attrs["data-document-uri"] = href;
+        // Keep the mark's authored URI untouched while exposing the runtime
+        // AKB web destination to the rendered editor and click policy.
+        const renderedHref = buildAkbDocumentUrl(akbWebBase, href);
+        if (renderedHref) {
+          attrs.href = renderedHref;
+          attrs["data-akb-uri"] = href;
+          attrs.target = "_blank";
+          attrs.rel = "noreferrer";
+        }
       }
       return (
         this.parent?.({ mark, HTMLAttributes: attrs }) ?? [
@@ -394,6 +405,7 @@ export function createMarkdownEditorExtensions(
   slashMessages?: SlashCommandMessages,
   issueReferenceVault?: string,
   slashOnOpenChange?: (open: boolean, dismiss?: () => void) => void,
+  akbWebBase?: string | null,
 ) {
   const extensions: AnyExtension[] = [
     // StarterKit v3 bundles the Link extension; configure it here rather than
@@ -406,7 +418,7 @@ export function createMarkdownEditorExtensions(
     // Keep the shared Link behavior while adding issue-scoped file-link
     // display attributes at render time. The authored AKB URI remains the
     // mark's href and therefore remains the Markdown serialization value.
-    createIssueAttachmentLinkExtension(resolveAttachmentHref),
+    createIssueAttachmentLinkExtension(resolveAttachmentHref, akbWebBase),
     TaskList,
     AccessibleTaskItem.configure({ nested: true }),
     Table.configure({
@@ -1285,19 +1297,24 @@ export function MarkdownEditor({
   );
 
   function publishMarkdown(rawMarkdown: string, ed?: Editor | null) {
-    const markdown = normalizeAkbDocumentMarkdownLinks(
+    const restoredMarkdown = restoreRenderedAkbDocumentMarkdownLinks(
       rawMarkdown,
+      rootRef.current,
+    );
+    const markdown = normalizeAkbDocumentMarkdownLinks(
+      restoredMarkdown,
       resolvedTitleMapRef.current,
     );
+    const markdownChanged = markdown !== latestValueRef.current;
     latestValueRef.current = markdown;
-    if (markdown !== rawMarkdown) {
+    if (restoredMarkdown === rawMarkdown && markdown !== rawMarkdown) {
       syncEditorMarkdown(
         ed,
         markdown,
         mentionConfig ? mentionMembersRef.current : undefined,
       );
     }
-    onChangeRef.current(markdown);
+    if (markdownChanged) onChangeRef.current(markdown);
     queueAkbTitleResolution(markdown, ed);
   }
 
@@ -1334,6 +1351,7 @@ export function MarkdownEditor({
       slashMessages,
       vault,
       handleSlashOpenChange,
+      akbWebBase,
     ),
     /* eslint-enable react-hooks/refs */
     content: mentionConfig
