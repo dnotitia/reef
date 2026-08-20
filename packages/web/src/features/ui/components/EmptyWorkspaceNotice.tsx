@@ -39,7 +39,7 @@ export function EmptyWorkspaceNotice() {
           link: (chunks) => (
             <Link
               href={withVault(vault, "/settings")}
-              className="text-brand underline"
+              className="text-brand-text underline"
             >
               {chunks}
             </Link>

@@ -45,7 +45,7 @@ describe("CollapsedEventsRow — focus & motion (REEF-287)", () => {
     const pill = toggle.querySelector("span.rounded-full");
     expect(pill?.className).toContain("group-focus-visible/collapse:ring-2");
     expect(pill?.className).toContain(
-      "group-focus-visible/collapse:ring-brand/40",
+      "group-focus-visible/collapse:ring-brand-focus/40",
     );
 
     // The chevron animates when motion is allowed (prefers-reduced-motion).

@@ -114,7 +114,7 @@ describe("ViewSwitcher", () => {
 
   // REEF-261: the canonical segmented control previously had no keyboard focus
   // indicator at all (the a11y gap) and the family had drifted on dimensions.
-  // Each segment now draws the canonical `ring-brand` focus-visible ring and the
+  // Each segment now draws the canonical `ring-brand-focus` focus-visible ring and the
   // shared family dimensions from one source. The ring's actual visibility is a
   // runtime concern (jsdom is unable to render :focus-visible) — this is the class
   // contract that guards against the indicator being dropped again.
@@ -123,7 +123,7 @@ describe("ViewSwitcher", () => {
     const board = screen.getByTestId("view-switcher-board");
     const classes = board.className.split(/\s+/);
     expect(classes).toContain("focus-visible:ring-2");
-    expect(classes).toContain("focus-visible:ring-brand");
+    expect(classes).toContain("focus-visible:ring-brand-focus");
     expect(classes).toContain("text-[12px]");
     expect(classes).toContain("px-2");
     expect(classes).toContain("font-medium");

@@ -77,7 +77,7 @@ export function MembersSection({ vault, canManage }: MembersSectionProps) {
     return (
       <p
         role="alert"
-        className="text-sm text-destructive"
+        className="text-sm text-destructive-text"
         data-testid="members-error"
       >
         {t("loadFailed")} {error.message}

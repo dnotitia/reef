@@ -44,7 +44,7 @@ export function Card({
   return (
     <section
       data-testid={`report-card-${title.toLowerCase().replace(/\s+/g, "-")}`}
-      className="flex flex-col gap-3 rounded-lg border border-border-subtle bg-surface-subtle p-4"
+      className="flex flex-col gap-3 rounded-lg border border-border-subtle bg-surface-card p-4"
     >
       <header className="flex items-baseline justify-between gap-2">
         <h3 className="text-sm font-semibold text-foreground">{title}</h3>
@@ -97,7 +97,7 @@ const BREAKDOWN_CARD_KEYS = Array.from(
  *  its slot. `bodyHeight` approximates the loaded chart/list height. */
 function ReportCardSkeleton({ bodyHeight }: { bodyHeight: string }) {
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-border-subtle bg-surface-subtle p-4">
+    <div className="flex flex-col gap-3 rounded-lg border border-border-subtle bg-surface-card p-4">
       <Skeleton tone="secondary" className="h-4 w-24" />
       <Skeleton className={`${bodyHeight} w-full`} />
     </div>
@@ -142,7 +142,7 @@ export function ReportsSkeleton() {
               {KPI_TILE_KEYS.map((key) => (
                 <div
                   key={key}
-                  className="flex min-h-[76px] flex-col justify-between gap-1 rounded-lg border border-border-subtle bg-surface-subtle p-3"
+                  className="flex min-h-[76px] flex-col justify-between gap-1 rounded-lg border border-border-subtle bg-surface-card p-3"
                 >
                   <Skeleton tone="secondary" className="h-3 w-14" />
                   <Skeleton className="h-6 w-10" />

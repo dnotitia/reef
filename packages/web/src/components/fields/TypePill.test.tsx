@@ -38,7 +38,7 @@ describe("TypePill", () => {
   it("applies the activity variant classes verbatim", () => {
     render(<TypePill type="epic" variant="activity" />);
     const el = screen.getByText("Epic").parentElement as HTMLElement;
-    expect(el.className).toContain("bg-background/70");
+    expect(el.className).toContain("bg-surface-page/70");
   });
 
   it("renders the badge variant chrome-less for dropdown rows", () => {

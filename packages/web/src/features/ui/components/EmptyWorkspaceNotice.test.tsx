@@ -48,7 +48,7 @@ describe("EmptyWorkspaceNotice", () => {
 
     const link = screen.getByRole("link", { name: "Onboarding" });
     expect(link).toHaveAttribute("href", "/onboarding");
-    expect(link.className).toContain("text-brand");
+    expect(link.className).toContain("text-brand-text");
   });
 
   // REEF-293 AC1: the same notice renders in Korean under the ko catalog, with

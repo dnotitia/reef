@@ -22,7 +22,7 @@ describe("DatePickerField", () => {
     const trigger = screen.getByTestId("date-picker-trigger");
     expect(trigger).toHaveTextContent("Set date");
     // Theming comes from design tokens, not hard-coded colors → dark mode works.
-    expect(trigger.className).toContain("bg-elevated");
+    expect(trigger.className).toContain("bg-surface-elevated");
     expect(screen.queryByTestId("date-picker-clear")).not.toBeInTheDocument();
   });
 
@@ -207,7 +207,7 @@ describe("DatePickerField", () => {
     await user.click(screen.getByTestId("date-picker-trigger"));
     const input = screen.getByTestId("date-picker-input");
     // Shared brand ring, keyed off focus-visible so a mouse click does not flashes it.
-    expect(input.className).toContain("focus-visible:ring-brand/30");
+    expect(input.className).toContain("focus-visible:ring-brand-focus/30");
     expect(input.className).not.toContain("focus:ring");
   });
 

@@ -57,7 +57,7 @@ export function ArtifactMetadata({
           <ConfidenceBadge confidence={confidence} compact={compact} />
         )}
         {visibleEvidence.length > 0 && (
-          <Badge className="gap-1 border-ai-border bg-background/70 px-2 py-0 text-[11px] text-muted-foreground">
+          <Badge className="gap-1 border-ai-border bg-surface-page/70 px-2 py-0 text-[11px] text-muted-foreground">
             <Link2 className="h-3 w-3" aria-hidden="true" />
             {evidenceLabel ??
               `${visibleEvidence.length} evidence item${
@@ -92,7 +92,7 @@ export function ArtifactMetadata({
             return (
               <li
                 key={`${item.type}-${item.ref ?? item.label ?? index}`}
-                className="min-w-0 max-w-full truncate rounded-full bg-background/70 px-2 py-0.5"
+                className="min-w-0 max-w-full truncate rounded-full bg-surface-page/70 px-2 py-0.5"
               >
                 {safeUrl ? (
                   <a

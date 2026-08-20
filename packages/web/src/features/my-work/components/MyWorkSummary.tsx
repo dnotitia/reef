@@ -12,12 +12,12 @@ import { useTranslations } from "next-intl";
 /** Segment fill per stage — the status tokens (fill, not text, here in the
  * distribution strip; rows still encode status as an icon colour). */
 const STATUS_SEGMENT: Record<Status, string> = {
-  backlog: "var(--status-backlog)",
-  todo: "var(--status-open)",
-  in_progress: "var(--status-in-progress)",
-  in_review: "var(--status-in-review)",
-  done: "var(--status-done)",
-  closed: "var(--status-closed)",
+  backlog: "var(--status-backlog-chart)",
+  todo: "var(--status-open-chart)",
+  in_progress: "var(--status-in-progress-chart)",
+  in_review: "var(--status-in-review-chart)",
+  done: "var(--status-done-chart)",
+  closed: "var(--status-closed-chart)",
 };
 
 type TileTone = "default" | "warn" | "danger";
@@ -43,7 +43,7 @@ function Tile({
       className={cn(
         "relative flex min-h-[78px] flex-col justify-between gap-1 overflow-hidden rounded-lg border border-border-subtle bg-surface-subtle p-3",
         tone === "danger" &&
-          "border-destructive/25 bg-destructive/[0.035] pl-4",
+          "border-destructive-focus/25 bg-destructive-fill/[0.035] pl-4",
         tone === "warn" && "pl-4",
       )}
     >
@@ -52,7 +52,7 @@ function Tile({
           aria-hidden="true"
           className={cn(
             "absolute inset-y-0 left-0 w-1",
-            tone === "danger" ? "bg-destructive" : "bg-priority-high",
+            tone === "danger" ? "bg-destructive-fill" : "bg-priority-high",
           )}
         />
       )}
@@ -63,7 +63,7 @@ function Tile({
         <span
           className={cn(
             "shrink-0 font-mono text-2xl font-semibold leading-none tabular-nums",
-            tone === "danger" && "text-destructive",
+            tone === "danger" && "text-destructive-text",
             tone === "warn" && "text-priority-high",
           )}
         >
@@ -115,7 +115,7 @@ function SprintTile({ sprint }: { sprint: MyWorkSprint }) {
           className="h-1 w-full overflow-hidden rounded-full bg-surface-hover"
         >
           <div
-            className="h-full w-full origin-left rounded-full bg-status-done motion-safe:transition-transform motion-safe:duration-500 motion-safe:ease-out"
+            className="h-full w-full origin-left rounded-full bg-status-done-fill motion-safe:transition-transform motion-safe:duration-500 motion-safe:ease-out"
             style={{ transform: `scaleX(${pct})` }}
           />
         </div>

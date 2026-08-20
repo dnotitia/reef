@@ -73,7 +73,7 @@ export function ResolvedAutoHideSection({
     return (
       <p
         role="alert"
-        className="text-sm text-destructive"
+        className="text-sm text-destructive-text"
         data-testid="resolved-auto-hide-load-error"
       >
         {t("loadError")} {configQuery.error.message}
@@ -275,7 +275,7 @@ function ResolvedAutoHideEditor({
       {error && (
         <p
           role="alert"
-          className="text-xs text-destructive"
+          className="text-xs text-destructive-text"
           data-testid="resolved-auto-hide-error"
         >
           {error}

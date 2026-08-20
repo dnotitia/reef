@@ -51,6 +51,64 @@ test.describe("Hermetic issue route surfaces", () => {
     await expect(page.getByText("Backlog issue Gamma")).toBeVisible();
   });
 
+  test("contains board columns and card metadata across narrow viewports", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    for (const viewport of [
+      { width: 320, height: 844 },
+      { width: 375, height: 844 },
+      { width: 414, height: 844 },
+      { width: 768, height: 844 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=board`);
+      await expect(page.getByTestId("kanban-board-body")).toBeVisible();
+
+      const geometry = await page
+        .getByTestId("kanban-board-body")
+        .evaluate((element) => {
+          const root = element as HTMLElement;
+          const rootRect = root.getBoundingClientRect();
+          const horizontallyContained = (node: Element) => {
+            const rect = node.getBoundingClientRect();
+            return (
+              rect.left >= rootRect.left - 1 && rect.right <= rootRect.right + 1
+            );
+          };
+          return {
+            bodyOverflowX: root.scrollWidth > root.clientWidth,
+            documentOverflow:
+              document.documentElement.scrollWidth >
+              document.documentElement.clientWidth,
+            columnsContained: Array.from(
+              root.querySelectorAll("[data-group-by]"),
+            ).every(horizontallyContained),
+            cardsContained: Array.from(
+              root.querySelectorAll('[data-testid="kanban-card"]'),
+            ).every(horizontallyContained),
+            cardsDoNotClipContent: Array.from(
+              root.querySelectorAll<HTMLElement>('[data-testid="kanban-card"]'),
+            ).every((card) => card.scrollWidth <= card.clientWidth + 1),
+          };
+        });
+
+      expect(geometry.bodyOverflowX, `${viewport.width}px body`).toBe(false);
+      expect(geometry.documentOverflow, `${viewport.width}px document`).toBe(
+        false,
+      );
+      expect(geometry.columnsContained, `${viewport.width}px columns`).toBe(
+        true,
+      );
+      expect(geometry.cardsContained, `${viewport.width}px cards`).toBe(true);
+      expect(
+        geometry.cardsDoNotClipContent,
+        `${viewport.width}px card content`,
+      ).toBe(true);
+    }
+  });
+
   test("keeps List and Backlog table geometry and controls aligned on desktop", async ({
     page,
   }) => {

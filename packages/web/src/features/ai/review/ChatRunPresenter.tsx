@@ -30,7 +30,7 @@ export function ChatRunPresenter({
       {state.text && (
         <div
           data-testid="chat-run-text"
-          className="min-w-0 whitespace-pre-wrap break-words rounded-md border border-border-subtle bg-elevated px-3 py-2 text-sm text-foreground"
+          className="min-w-0 whitespace-pre-wrap break-words rounded-md border border-border-subtle bg-surface-elevated px-3 py-2 text-sm text-foreground"
         >
           {state.text}
         </div>

@@ -226,7 +226,7 @@ describe("IssueRelationInput", () => {
           ?.querySelector('[data-issue-option-slot="blocker"]'),
       ).toBeEmptyDOMElement();
       // Same focus contract as IssueChildren's rows.
-      expect(link).toHaveClass("focus-visible:ring-brand/40");
+      expect(link).toHaveClass("focus-visible:ring-brand-focus/40");
     });
 
     it("drills in place on click, recording the hop like the breadcrumb (REEF-284)", async () => {
@@ -344,7 +344,7 @@ describe("IssueRelationInput", () => {
       expect(screen.queryByRole("link")).not.toBeInTheDocument();
       expect(
         screen.getByRole("button", { name: "Remove REEF-001" }),
-      ).toHaveClass("focus-visible:ring-brand/40");
+      ).toHaveClass("focus-visible:ring-brand-focus/40");
     });
 
     it("marks the decorative X aria-hidden while the button keeps its accessible name", () => {

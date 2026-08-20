@@ -366,7 +366,9 @@ async function readMarkdownSurface(editor: Locator) {
             }
           : null,
         foreground: resolveColor("--foreground"),
-        brand: resolveColor("--brand"),
+        brand: resolveColor("--brand-text"),
+        brandGlyph: resolveColor("--brand-glyph"),
+        brandFocus: resolveColor("--brand-focus"),
         mutedForeground: resolveColor("--muted-foreground"),
         borderSubtle: resolveColor("--border-subtle"),
         surfaceSubtle: resolveBackground("--surface-subtle"),
@@ -519,7 +521,9 @@ async function readCommentMarkdownSurface(comment: Locator) {
           ? getComputedStyle(tableWrapper).borderTopColor
           : "",
         foreground: resolveColor("--foreground"),
-        brand: resolveColor("--brand"),
+        brand: resolveColor("--brand-text"),
+        brandGlyph: resolveColor("--brand-glyph"),
+        brandFocus: resolveColor("--brand-focus"),
         borderSubtle: resolveColor("--border-subtle"),
         surfaceSubtle: resolveBackground("--surface-subtle"),
       },
@@ -965,7 +969,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
           checked: "true",
           checkboxWidth: "16px",
           checkboxHeight: "16px",
-          accentColor: surface.colors.brand,
+          accentColor: surface.colors.brandGlyph,
           bodyColor: surface.colors.mutedForeground,
           bodyDecoration: "line-through",
         }),
@@ -973,7 +977,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
           checked: "false",
           checkboxWidth: "16px",
           checkboxHeight: "16px",
-          accentColor: surface.colors.brand,
+          accentColor: surface.colors.brandGlyph,
           bodyColor: surface.colors.foreground,
           bodyDecoration: "none",
         }),
@@ -981,7 +985,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
           checked: "true",
           checkboxWidth: "16px",
           checkboxHeight: "16px",
-          accentColor: surface.colors.brand,
+          accentColor: surface.colors.brandGlyph,
           bodyColor: surface.colors.mutedForeground,
           bodyDecoration: "line-through",
         }),
@@ -1022,7 +1026,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
         decoration: "line-through",
       });
       expect(surface.colors.nestedStrikethrough).toBe("line-through");
-      expect(surface.colors.quoteBorder).toBe(surface.colors.brand);
+      expect(surface.colors.quoteBorder).toBe(surface.colors.brandFocus);
       expect(surface.colors.quoteBorderWidth).toBe("2px");
       expect(surface.colors.quoteBackground).toBe(surface.colors.surfaceSubtle);
       expect(surface.colors.quoteFontStyle).toBe("normal");
@@ -2052,7 +2056,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await expect(firstTaskCheckbox).toHaveCSS("outline-width", "2px");
     await expect(firstTaskCheckbox).toHaveCSS(
       "outline-color",
-      surface.colors.brand,
+      surface.colors.brandFocus,
     );
     await expect(mention).not.toBeFocused();
   });

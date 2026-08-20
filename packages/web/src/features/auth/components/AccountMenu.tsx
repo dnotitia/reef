@@ -71,7 +71,7 @@ export function AccountMenu({
         aria-label={t("menuLabel")}
         title={inSidebar && collapsed ? identity.name : undefined}
         className={cn(
-          "min-h-11 gap-2 rounded-md text-left [touch-action:manipulation] transition-colors hover:bg-surface-hover aria-expanded:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
+          "min-h-11 gap-2 rounded-md text-left [touch-action:manipulation] transition-colors hover:bg-surface-hover aria-expanded:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
           inSidebar
             ? cn(
                 "w-full",
@@ -180,7 +180,7 @@ export function AccountMenu({
 
         <p
           aria-live="polite"
-          className="px-2 text-[11px] text-destructive empty:hidden"
+          className="px-2 text-[11px] text-destructive-text empty:hidden"
         >
           {signOut.isError ? t("signOutError") : null}
         </p>

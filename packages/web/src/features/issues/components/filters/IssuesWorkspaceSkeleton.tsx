@@ -66,7 +66,7 @@ export function IssuesWorkspaceSkeleton() {
             its SearchBar-over-FilterBar two-row stack so the toolbar appearing on
             hydration is not a vertical jump. */}
         <div
-          className="flex flex-col gap-2 border-b border-border-subtle bg-background px-6 py-2.5"
+          className="flex flex-col gap-2 border-b border-border-subtle bg-surface-page px-6 py-2.5"
           data-testid="issues-skeleton-toolbar"
         >
           {/* SearchBar row (Input h-9, full width). */}

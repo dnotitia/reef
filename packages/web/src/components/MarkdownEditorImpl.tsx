@@ -620,7 +620,7 @@ function ToolbarButton({
       title={label}
       className={cn(
         "text-muted-foreground hover:text-foreground",
-        isActive && "bg-surface-hover text-brand hover:text-brand",
+        isActive && "bg-surface-hover text-brand-text hover:text-brand-text",
       )}
     >
       <Icon className="size-3.5" aria-hidden="true" />
@@ -1689,7 +1689,7 @@ export function MarkdownEditor({
           onBlur?.(latestValueRef.current);
         }
       }}
-      className={`rounded-md border border-border bg-elevated transition-colors duration-150 focus-within:border-brand focus-within:ring-2 focus-within:ring-inset focus-within:ring-brand/30 ${className ?? ""}`}
+      className={`rounded-md border border-border bg-surface-elevated transition-colors duration-150 focus-within:border-brand-focus focus-within:ring-2 focus-within:ring-inset focus-within:ring-brand-focus/30 ${className ?? ""}`}
     >
       {/* Toolbar */}
       {!readOnly && (
@@ -2003,7 +2003,7 @@ export function MarkdownEditor({
             aria-valuetext={`${editorCurrentHeight}px`}
             data-testid="markdown-editor-resize-handle"
             data-resizing={isHeightResizing ? "true" : "false"}
-            className="group absolute bottom-0 right-0 z-10 flex size-8 touch-none select-none cursor-se-resize items-end justify-end focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/60"
+            className="group absolute bottom-0 right-0 z-10 flex size-8 touch-none select-none cursor-se-resize items-end justify-end focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/60"
             onKeyDown={onHeightResizeKeyDown}
             onPointerCancel={onHeightResizePointerCancel}
             onPointerDown={onHeightResizePointerDown}
@@ -2014,8 +2014,8 @@ export function MarkdownEditor({
             <span
               aria-hidden="true"
               className={cn(
-                "pointer-events-none mb-1 mr-1 size-4 border-b-2 border-r-2 border-border-subtle transition-colors group-hover:border-brand group-focus-visible:border-brand",
-                isHeightResizing && "border-brand",
+                "pointer-events-none mb-1 mr-1 size-4 border-b-2 border-r-2 border-border-subtle transition-colors group-hover:border-brand-focus group-focus-visible:border-brand-focus",
+                isHeightResizing && "border-brand-focus",
               )}
             />
           </div>

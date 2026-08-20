@@ -57,14 +57,14 @@ export function VaultPickerInput({
   const resolvedPlaceholder = placeholder ?? t("selectWorkspacePlaceholder");
 
   if (isLoading) {
-    return <Skeleton className="h-9 w-64" />;
+    return <Skeleton className="h-9 w-full max-w-64" />;
   }
 
   if (isError) {
     return (
       <p
         role="alert"
-        className="text-xs text-destructive"
+        className="text-xs text-destructive-text"
         data-testid="vault-picker-load-error"
       >
         {t("workspacesLoadError")}
@@ -83,10 +83,10 @@ export function VaultPickerInput({
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} className="w-full max-w-64">
       <PopoverTrigger
         data-testid={`${testIdPrefix}-trigger`}
-        className="inline-flex h-8 w-64 items-center justify-between rounded-md border border-border bg-elevated px-2.5 text-[13px] text-foreground transition-colors duration-150 hover:bg-surface-hover"
+        className="inline-flex h-8 w-full max-w-full items-center justify-between rounded-md border border-border bg-surface-elevated px-2.5 text-[13px] text-foreground transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
         aria-label={
           value ? t("activeWorkspace", { value }) : resolvedPlaceholder
         }
@@ -99,10 +99,10 @@ export function VaultPickerInput({
           ▾
         </span>
       </PopoverTrigger>
-      <PopoverContent className="w-64 p-2">
+      <PopoverContent className="w-full max-w-[calc(100vw-2rem)] p-2">
         <input
           type="text"
-          className="mb-2 w-full rounded-md border border-border bg-elevated px-2 py-1 text-[13px] text-foreground outline-none transition-colors focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/30"
+          className="mb-2 w-full rounded-md border border-border bg-surface-elevated px-2 py-1 text-[13px] text-foreground outline-none transition-colors focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30"
           placeholder={t("searchWorkspacesPlaceholder")}
           aria-label={t("searchWorkspacesLabel")}
           value={search}

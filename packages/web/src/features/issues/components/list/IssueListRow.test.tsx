@@ -256,7 +256,7 @@ describe("IssueListRow", () => {
       mockIssue.id,
     ]);
     expect(row).toHaveAttribute("data-context-open", "true");
-    expect(row.className).toContain("bg-brand/5");
+    expect(row.className).toContain("bg-brand-fill/5");
     expect(row.className).toContain("ring-1");
     expect(Number(boundaryCell?.style.zIndex)).toBeGreaterThan(
       Number(titleCell?.style.zIndex),
@@ -312,7 +312,7 @@ describe("IssueListRow", () => {
       selectedId,
     ]);
     expect(row).toHaveAttribute("data-context-open", "true");
-    expect(row.className).not.toContain("bg-brand/5");
+    expect(row.className).not.toContain("bg-brand-fill/5");
     expect(row.className).toContain("hover:bg-transparent");
     expect(Number(boundaryCell?.style.zIndex)).toBeGreaterThan(
       Number(titleCell?.style.zIndex),
@@ -342,8 +342,8 @@ describe("IssueListRow", () => {
     expect(screen.getByRole("menu")).toBeInTheDocument();
     expect(row).toHaveAttribute("data-context-open", "true");
     expect(row.className).toContain("hover:bg-transparent");
-    expect(row.className).not.toContain("bg-brand/5");
-    expect(stickyCell?.className).not.toContain("bg-brand/5");
+    expect(row.className).not.toContain("bg-brand-fill/5");
+    expect(stickyCell?.className).not.toContain("bg-brand-fill/5");
 
     await user.keyboard("{Escape}");
     await waitFor(() => expect(document.activeElement).toBe(row));
@@ -787,7 +787,7 @@ describe("IssueListRow", () => {
     const row = screen.getAllByTestId("issue-list-row")[0];
     expect(row).toHaveAttribute("data-keyboard-focused", "true");
     expect(row.className).toContain("reef-issue-list-row");
-    expect(row.className).toContain("bg-brand/5");
+    expect(row.className).toContain("bg-brand-fill/5");
     expect(row.className).toContain("focus-visible:outline-none");
     expect(row.className).not.toContain("focus-visible:ring-2");
     expect(row.className).not.toContain("ring-inset");

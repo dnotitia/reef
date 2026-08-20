@@ -12,21 +12,21 @@ interface TimelineBarProps {
 
 function barTone(item: TimelineItem): string {
   if (item.kind === "invalid") {
-    return "border-dashed border-destructive/60 bg-destructive/10 text-destructive hover:bg-destructive/15";
+    return "border-dashed border-destructive-focus/60 bg-destructive-fill/10 text-destructive-text hover:bg-destructive-fill/15";
   }
   if (item.isOverdue) {
-    return "border-destructive/50 bg-destructive/10 text-destructive hover:bg-destructive/15";
+    return "border-destructive-focus/50 bg-destructive-fill/10 text-destructive-text hover:bg-destructive-fill/15";
   }
   if (isResolvedStatus(item.issue.status)) {
     return "border-border bg-surface-subtle text-muted-foreground opacity-80 hover:bg-surface-hover";
   }
   if (item.kind === "deadline") {
-    return "border-brand/60 bg-brand/15 text-foreground hover:bg-brand/20";
+    return "border-brand-focus/60 bg-brand-fill/15 text-foreground hover:bg-brand-fill/20";
   }
   if (item.kind === "start") {
-    return "border-border bg-elevated text-foreground hover:bg-surface-hover";
+    return "border-border bg-surface-elevated text-foreground hover:bg-surface-hover";
   }
-  return "border-brand/35 bg-brand/10 text-foreground hover:bg-brand/15";
+  return "border-brand-focus/35 bg-brand-fill/10 text-foreground hover:bg-brand-fill/15";
 }
 
 export function TimelineBar({ item, onClick }: TimelineBarProps) {
@@ -51,7 +51,7 @@ export function TimelineBar({ item, onClick }: TimelineBarProps) {
       className={cn(
         "relative z-10 my-1 h-7 min-w-0 overflow-hidden rounded-md border px-2 text-left",
         "text-[11px] font-medium leading-7 transition-colors duration-150",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
         barTone(item),
         isMarker && "px-0 text-center",
       )}

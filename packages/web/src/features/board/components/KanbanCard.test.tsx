@@ -255,9 +255,9 @@ describe("KanbanCard", () => {
 
     const card = screen.getByTestId("kanban-card");
     expect(card).toHaveAttribute("data-keyboard-focused", "true");
-    expect(card.className).toContain("focus-visible:border-brand/60");
-    expect(card.className).toContain("border-brand/60");
-    expect(card.className).toContain("bg-brand/5");
+    expect(card.className).toContain("focus-visible:border-brand-focus/60");
+    expect(card.className).toContain("border-brand-focus/60");
+    expect(card.className).toContain("bg-brand-fill/5");
     expect(card.className).not.toContain("ring-2");
     expect(card.className).not.toContain("ring-inset");
     expect(card.className).not.toContain("ring-offset");
@@ -304,7 +304,7 @@ describe("KanbanCard", () => {
     currentLogin.value = "bob";
     render(<KanbanCard issue={mockIssue({ assigned_to: "bob" })} />);
     const avatar = screen.getByRole("img", { name: "bob" });
-    expect(avatar.className).toContain("bg-brand");
+    expect(avatar.className).toContain("bg-brand-fill");
     expect(/\bbg-av-\d\b/.test(avatar.className)).toBe(false);
   });
 
@@ -313,7 +313,7 @@ describe("KanbanCard", () => {
     render(<KanbanCard issue={mockIssue({ assigned_to: "bob" })} />);
     const avatar = screen.getByRole("img", { name: "bob" });
     expect(/\bbg-av-\d\b/.test(avatar.className)).toBe(true);
-    expect(avatar.className).not.toContain("bg-brand");
+    expect(avatar.className).not.toContain("bg-brand-fill");
   });
 
   it("invokes onClick with the issue id when clicked", () => {
@@ -382,7 +382,7 @@ describe("KanbanCard", () => {
     render(<KanbanCard issue={mockIssue({ due_date: "2026-06-01" })} />);
 
     expect(screen.getByTitle("Due 2026-06-01").className).toContain(
-      "text-destructive",
+      "text-destructive-text",
     );
   });
 
@@ -396,7 +396,7 @@ describe("KanbanCard", () => {
       );
 
       expect(screen.getByTitle("Due 2026-06-01").className).not.toContain(
-        "text-destructive",
+        "text-destructive-text",
       );
       unmount();
     }

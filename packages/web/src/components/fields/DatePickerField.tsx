@@ -239,7 +239,7 @@ export function DatePickerField({
             normalized ? `${resolvedLabel}: ${displayValue}` : resolvedLabel
           }
           data-testid="date-picker-trigger"
-          className="flex h-8 w-full min-w-0 items-center gap-2 rounded-md border border-border bg-elevated pl-2.5 pr-8 text-left text-[13px] text-foreground transition-colors duration-150 hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex h-8 w-full min-w-0 items-center gap-2 rounded-md border border-border bg-surface-elevated pl-2.5 pr-8 text-left text-[13px] text-foreground transition-colors duration-150 hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
           <CalendarIcon
             className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
@@ -282,7 +282,7 @@ export function DatePickerField({
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={handleDraftKeyDown}
             data-testid="date-picker-input"
-            className="mb-2 w-full rounded-md border border-border bg-elevated px-2 py-1 font-mono text-[13px] text-foreground outline-none transition-colors focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/30"
+            className="mb-2 w-full rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-[13px] text-foreground outline-none transition-colors focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30"
           />
 
           <Calendar
@@ -296,9 +296,12 @@ export function DatePickerField({
               type="button"
               onClick={handleToday}
               data-testid="date-picker-today"
-              className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] font-medium text-brand transition-colors duration-150 hover:bg-surface-hover"
+              className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] font-medium text-brand-text transition-colors duration-150 hover:bg-surface-hover"
             >
-              <span className="h-1.5 w-1.5 rounded-full bg-brand" aria-hidden />
+              <span
+                className="h-1.5 w-1.5 rounded-full bg-brand-fill"
+                aria-hidden
+              />
               {t("today")}
             </button>
             {normalized ? (

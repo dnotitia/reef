@@ -23,7 +23,7 @@ export function PlanningPageSkeleton() {
         <output className="sr-only">{common("loading")}</output>
         <div aria-hidden="true">
           {/* Kind toggle group placeholder (Sprints / Milestones / Releases). */}
-          <div className="mb-4 inline-flex gap-1 rounded-md border border-border-subtle bg-elevated p-0.5">
+          <div className="mb-4 inline-flex gap-1 rounded-md border border-border-subtle bg-surface-elevated p-0.5">
             {[0, 1, 2].map((i) => (
               <Skeleton
                 key={`kind-${i}`}

@@ -49,9 +49,9 @@ export function LanguageSection() {
               onClick={() => void setLocale(opt.value)}
               className={cn(
                 "flex min-w-0 items-center rounded-md border px-3 py-2.5 text-left transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring",
                 isSelected
-                  ? "border-brand bg-surface-subtle"
+                  ? "border-brand-focus bg-surface-subtle"
                   : "border-border hover:border-border-subtle hover:bg-surface-hover",
               )}
             >

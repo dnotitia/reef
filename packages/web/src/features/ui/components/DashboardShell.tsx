@@ -172,14 +172,14 @@ const navLinks: ReadonlyArray<{
 type NavBadgeTone = "brand" | "danger" | "warn";
 
 const NAV_BADGE_PILL: Record<NavBadgeTone, string> = {
-  brand: "bg-brand text-brand-foreground",
-  danger: "bg-destructive text-destructive-foreground",
+  brand: "bg-brand-fill text-brand-on-fill",
+  danger: "bg-destructive-fill text-destructive-on-fill",
   warn: "bg-priority-high text-white",
 };
 
 const NAV_BADGE_DOT: Record<NavBadgeTone, string> = {
-  brand: "bg-brand",
-  danger: "bg-destructive",
+  brand: "bg-brand-fill",
+  danger: "bg-destructive-fill",
   warn: "bg-priority-high",
 };
 
@@ -491,7 +491,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   return (
     <div
       className={cn(
-        "flex h-screen overflow-hidden bg-background",
+        "flex h-screen overflow-hidden bg-surface-page",
         // Server-rendered controls look ready before React has attached their
         // handlers. Keep the shell out of the visible interaction surface for
         // that brief window so early pointer and keyboard input is not silently
@@ -505,7 +505,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "flex flex-col bg-sidebar border-r border-border-subtle",
+          "flex flex-col bg-surface-sidebar border-r border-border-subtle",
           // Collapse snaps rather than animating width: a width transition
           // reflows the main content every frame, and this is a low-frequency
           // explicit toggle, not a hot path. (REEF-097 AC3)
@@ -526,7 +526,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
               onClick={toggleSidebar}
               aria-label={t("expandSidebar")}
               title={t("expandSidebar")}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
             >
               <ReefMark
                 className="size-6"
@@ -554,7 +554,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                 type="button"
                 onClick={toggleSidebar}
                 aria-label={t("collapseSidebar")}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -599,7 +599,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                   {/* Active rail */}
                   {isActive && (
                     <span
-                      className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-brand"
+                      className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-brand-fill"
                       aria-hidden="true"
                     />
                   )}
@@ -608,7 +608,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                     title={sidebarCollapsed ? label : undefined}
                     aria-label={badge ? `${label} ${badge.label}` : label}
                     className={cn(
-                      "flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
+                      "flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
                       isActive
                         ? "bg-surface-hover text-foreground font-medium"
                         : "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
@@ -691,7 +691,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
           ref={commandDestinationRef}
           tabIndex={-1}
           data-command-focus-destination=""
-          className="flex-1 overflow-auto bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/40"
+          className="flex-1 overflow-auto bg-surface-page focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
         >
           {children}
         </main>

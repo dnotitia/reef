@@ -19,7 +19,7 @@ export function WorkspaceResumeStatus({
   if (status === "error") {
     return (
       <div
-        className="flex w-full max-w-md flex-col items-center gap-3 rounded-md border border-border bg-elevated p-5 text-center"
+        className="flex w-full max-w-md flex-col items-center gap-3 rounded-md border border-border bg-surface-elevated p-5 text-center"
         role="alert"
         data-testid="workspace-resume-error"
       >

@@ -418,7 +418,7 @@ describe("MarkdownEditor Tiptap extensions", () => {
     ).toHaveAttribute("data-reference-status", knownIssue.status);
     expect(
       references[0]?.querySelector('[data-reference-glyph="issue"]'),
-    ).toHaveClass("text-status-in-progress");
+    ).toHaveClass("text-status-in-progress-glyph");
     expect(
       references[0]?.querySelector("[data-reference-id]"),
     ).toHaveTextContent(knownIssue.id);

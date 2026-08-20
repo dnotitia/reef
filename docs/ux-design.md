@@ -208,8 +208,8 @@ one source of truth.
 Design tokens are CSS custom properties defined in `packages/web/src/app/globals.css`
 in three tiers: raw HSL values per mode, semantic tokens (status, planning,
 priority, type, brand, AI), and a Tailwind `@theme inline` mapping that exposes
-them as utility classes (`bg-brand`, `text-status-done`, `text-planning-open`,
-`bg-ai`, …). This is the
+them as role utilities (`bg-brand-fill`, `text-brand-text`,
+`text-status-done-glyph`, `text-planning-open`, `bg-ai`, …). This is the
 mechanism behind the field-display ownership rule: a field's *label and
 options* live in core (`packages/core/src/schemas/issues/fieldRegistry.ts`, no React or
 Tailwind), and a field's *color* lives in web
@@ -232,12 +232,16 @@ Brand and AI tokens (light mode; dark-mode variants are defined alongside):
 
 | Token | Role | Light value |
 |-------|------|-------------|
-| `--brand` | reef brand — nav active rail, FAB, primary accents | `hsl(173 80% 40%)` (teal) |
+| `--brand-text` / `--brand-glyph` | readable teal text and icon roles | `hsl(173 80% 27%)` / `hsl(173 80% 30%)` |
+| `--brand-fill` / `--brand-on-fill` | teal fills and their contrasting foreground | `hsl(173 80% 35%)` / white |
+| `--brand-focus` / `--brand-chart` | focus chrome and data-viz teal | `hsl(173 80% 25%)` / `hsl(173 80% 32%)` |
 | `--ai` | AI track — enrichment, drafts, status-change proposals | `hsl(260 70% 60%)` (purple) |
 | `--ai-subtle` | AI surface tint behind suggestion cards / strips | `hsl(260 80% 97%)` |
 | `--ai-subtle-foreground` | AI text/icon on the subtle surface | `hsl(260 70% 35%)` |
 | `--ai-border` | AI card / strip border | `hsl(260 60% 88%)` |
-| `--destructive` | destructive actions, blocked indicators, errors | `hsl(0 75% 55%)` |
+| `--destructive-text` / `--destructive-glyph` | readable red text and icon roles | `hsl(0 75% 36%)` / `hsl(0 75% 38%)` |
+| `--destructive-fill` / `--destructive-on-fill` | destructive fills and their contrasting foreground | `hsl(0 75% 43%)` / white |
+| `--destructive-focus` / `--destructive-chart` | focus chrome and data-viz red | `hsl(0 75% 32%)` / `hsl(0 75% 40%)` |
 
 Surface tokens keep the product quiet and dense. The canonical values live in
 `packages/web/src/app/globals.css`; the table below captures the intended
@@ -245,9 +249,11 @@ roles so component work uses the tokens for the same jobs:
 
 | Role | Token | Light | Dark | Usage |
 |------|-------|-------|------|-------|
-| Page surface | `--background` | `hsl(0 0% 100%)` | `hsl(220 14% 8%)` | Main app background |
+| Page surface | `--surface-page` | `hsl(220 18% 98%)` | `hsl(220 14% 8%)` | Main app background |
 | Sidebar surface | `--surface-sidebar` | `hsl(220 13% 97%)` | `hsl(220 14% 6%)` | Primary navigation |
-| Elevated surface | `--surface-elevated` | `hsl(0 0% 100%)` | `hsl(220 14% 11%)` | Inputs, popovers, dialogs |
+| Elevated surface | `--surface-elevated` | `hsl(0 0% 100%)` | `hsl(220 14% 12%)` | Inputs and dialogs |
+| Card surface | `--surface-card` | `hsl(220 18% 99%)` | `hsl(220 14% 10%)` | Repeated cards and KPI panels |
+| Popover surface | `--surface-popover` | `hsl(220 18% 97%)` | `hsl(220 14% 14%)` | Menus, tooltips, and popovers |
 | Hover surface | `--surface-hover` | `hsl(220 13% 95%)` | `hsl(220 13% 14%)` | Hover and active rows |
 | Subtle surface | `--surface-subtle` | `hsl(220 13% 98%)` | `hsl(220 14% 10%)` | Quiet section backgrounds |
 | Primary text | `--foreground` | `hsl(220 13% 13%)` | `hsl(220 13% 95%)` | Main text |
@@ -255,16 +261,19 @@ roles so component work uses the tokens for the same jobs:
 | Default border | `--border` | `hsl(220 13% 91%)` | `hsl(220 13% 18%)` | Standard hairlines |
 | Subtle border | `--border-subtle` | `hsl(220 13% 93%)` | `hsl(220 13% 15%)` | Group dividers |
 
-Status colors (the five canonical statuses; rendered as the `StatusIcon`
-glyph color and the status badge text):
+Status colors (the six issue workflow statuses) keep separate text, glyph,
+fill, focus, and chart roles. Text roles meet 4.5:1 against every common
+surface; glyph/focus/chart roles meet 3:1. Planning continues to use its own
+`--planning-*` family.
 
-| Status | Token | Light value |
-|--------|-------|-------------|
-| Open | `--status-open` | `hsl(220 9% 60%)` (neutral gray) |
-| In Progress | `--status-in-progress` | `hsl(40 90% 50%)` (amber) |
-| In Review | `--status-in-review` | `hsl(260 70% 60%)` (purple) |
-| Done | `--status-done` | `hsl(150 65% 42%)` (green) |
-| Closed | `--status-closed` | `hsl(220 9% 50%)` (gray) |
+| Status | Text | Glyph | Chart |
+|--------|------|-------|-------|
+| Backlog | `--status-backlog-text` | `--status-backlog-glyph` | `--status-backlog-chart` |
+| Open / Todo | `--status-open-text` | `--status-open-glyph` | `--status-open-chart` |
+| In Progress | `--status-in-progress-text` | `--status-in-progress-glyph` | `--status-in-progress-chart` |
+| In Review | `--status-in-review-text` | `--status-in-review-glyph` | `--status-in-review-chart` |
+| Done | `--status-done-text` | `--status-done-glyph` | `--status-done-chart` |
+| Closed | `--status-closed-text` | `--status-closed-glyph` | `--status-closed-chart` |
 
 Planning lifecycle colors use a separate `--planning-*` token family from issue
 workflow status. The separation keeps issue `todo/open` neutral while letting an
@@ -313,9 +322,10 @@ is `system`.
 
 ### Typography
 
-The product font is **Inter** (loaded via `next/font`, with a separate
-display instance for headings/brand); code, IDs, and timestamps use **Geist
-Mono**. Issue IDs and SHAs render in the monospace stack with tabular numerals.
+The product font is **Inter** (loaded once via `next/font`); display and body
+roles intentionally share that same Inter variable face and fallback stack.
+Code, IDs, and timestamps use **Geist Mono**. Issue IDs and SHAs render in the
+monospace stack with tabular numerals.
 The scale is compact on purpose:
 
 | Level | Size | Weight | Line height | Tracking | Usage |
@@ -344,7 +354,7 @@ Issue descriptions and issue comments use one semantic Markdown contract. The
 Tiptap WYSIWYG editor (editable and read-only) carries
 `.reef-markdown-surface reef-markdown-editor`; the comment Streamdown instance
 carries `.reef-markdown-surface reef-markdown-comment`. Both scopes resolve
-foreground, muted foreground, brand, subtle surface, and subtle border from
+foreground, muted foreground, brand-text, subtle surface, and subtle border from
 the Reef tokens above. Headings, links, emphasis, inline and fenced code,
 quotes, dividers, lists/checklists, tables, images, mentions, and focus states
 therefore keep the same semantic roles without sharing a renderer or changing
@@ -377,7 +387,7 @@ Source mode retains its native vertical resize fallback when the dedicated
 handle is unavailable.
 
 Inline marks inside the same scoped surface follow the same semantic hierarchy:
-links use the `--brand` foreground and keep a visible underline in default,
+links use the `--brand-text` role and keep a visible underline in default,
 hover, visited, and keyboard-focus states; inline code uses the existing Geist
 Mono stack on `--surface-subtle` with a `--border-subtle` hairline, compact
 padding, and no generated backticks; bold, italic, and strikethrough retain
@@ -413,7 +423,7 @@ Geist Mono stack at `13px/20px` on `--surface-subtle`, with a
 `--border-subtle` 1px boundary, restrained radius, and compact padding; its
 `pre` owns `white-space: pre` and `overflow-x: auto` so long lines scroll inside
 the block without widening the editor or detail document. Blockquotes remove
-forced italics and generated quote marks, using a 2px `--brand` start rule and
+forced italics and generated quote marks, using a 2px `--brand-focus` start rule and
 an extremely light `--surface-subtle` surface; direct paragraphs and lists keep
 their normal weight/style and first/last block rhythm inside the quote. A
 horizontal rule is a single `--border-subtle` 1px hairline with 24px block
@@ -485,7 +495,7 @@ the detail panel is comfortable for reading and editing.
 The target is **WCAG AA**. Radix supplies keyboard operability, focus trapping
 in dialogs/sheets, focus restoration, and ARIA roles. On top of that the
 product adds: meaning encoded redundantly (shape/glyph/label alongside color),
-visible focus rings (`focus-visible:ring-brand/40`) on custom interactive
+visible focus rings (`focus-visible:ring-brand-focus/40`) on custom interactive
 elements including the draggable Kanban card, `role="alert"` on inline error
 messages, `aria-live` toast semantics via Sonner, screen-reader-only
 titles/descriptions on the issue Sheet, and keyboard activation (Enter/Space)

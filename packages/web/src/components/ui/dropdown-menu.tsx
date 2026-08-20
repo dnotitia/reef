@@ -123,7 +123,7 @@ const DropdownMenuContent = React.forwardRef<
       side={side}
       sideOffset={sideOffset}
       className={cn(
-        "z-50 max-w-[calc(100vw-1rem)] min-w-[180px] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg shadow-foreground/5 outline-none",
+        "z-50 max-w-[calc(100vw-1rem)] min-w-[180px] rounded-md border border-border bg-surface-popover p-1 text-foreground shadow-lg shadow-foreground/5 outline-none",
         "data-[state=open]:motion-safe:animate-in data-[state=open]:motion-safe:fade-in-0 data-[state=open]:motion-safe:zoom-in-95 motion-reduce:animate-none",
         className,
       )}
@@ -201,7 +201,7 @@ const DropdownMenuItem = React.forwardRef<
         "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         "data-[selected=true]:font-medium",
         destructive &&
-          "text-destructive data-[highlighted]:bg-destructive/10 data-[highlighted]:text-destructive",
+          "text-destructive-text data-[highlighted]:bg-destructive-fill/10 data-[highlighted]:text-destructive-text",
         className,
       )}
     >
@@ -261,7 +261,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
       {trailing !== undefined ? (
         <span className="flex shrink-0 items-center">{trailing}</span>
       ) : null}
-      <span className="pointer-events-none absolute right-2 flex size-3.5 items-center justify-center text-brand">
+      <span className="pointer-events-none absolute right-2 flex size-3.5 items-center justify-center text-brand-text">
         <DropdownMenuPrimitive.ItemIndicator>
           <Check aria-hidden="true" className="size-3.5" />
         </DropdownMenuPrimitive.ItemIndicator>
@@ -354,7 +354,7 @@ const DropdownMenuRadioItem = React.forwardRef<
       {trailing !== undefined ? (
         <span className="flex shrink-0 items-center">{trailing}</span>
       ) : null}
-      <span className="pointer-events-none absolute right-2 flex size-3.5 items-center justify-center text-brand">
+      <span className="pointer-events-none absolute right-2 flex size-3.5 items-center justify-center text-brand-text">
         <DropdownMenuPrimitive.ItemIndicator>
           <Check aria-hidden="true" className="size-3.5" />
         </DropdownMenuPrimitive.ItemIndicator>
@@ -424,7 +424,7 @@ const DropdownMenuSubContent = React.forwardRef<
       sideOffset={4}
       collisionPadding={8}
       className={cn(
-        "z-50 max-w-[calc(100vw-1rem)] min-w-[13rem] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg shadow-foreground/5 outline-none",
+        "z-50 max-w-[calc(100vw-1rem)] min-w-[13rem] rounded-md border border-border bg-surface-popover p-1 text-foreground shadow-lg shadow-foreground/5 outline-none",
         "data-[state=open]:motion-safe:animate-in data-[state=open]:motion-safe:fade-in-0 data-[state=open]:motion-safe:zoom-in-95 motion-reduce:animate-none",
         className,
       )}

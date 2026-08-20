@@ -71,8 +71,8 @@ describe("DateDisplay", () => {
       />,
     );
     const span = screen.getByTitle("Due 2026-06-01");
-    expect(span.className).toContain("bg-destructive/10");
-    expect(span.className).toContain("text-destructive");
+    expect(span.className).toContain("bg-destructive-fill/10");
+    expect(span.className).toContain("text-destructive-text");
   });
 
   it("non-overdue card span carries no class attribute", () => {

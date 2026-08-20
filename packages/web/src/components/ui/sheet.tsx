@@ -82,7 +82,7 @@ function SheetContent({
         data-slot="sheet-content"
         onEscapeKeyDown={handleEscapeKeyDown}
         className={cn(
-          "fixed z-50 flex flex-col gap-4 bg-elevated shadow-xl shadow-foreground/10 transition ease-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=open]:duration-200",
+          "fixed z-50 flex flex-col gap-4 bg-surface-elevated shadow-xl shadow-foreground/10 transition ease-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=open]:duration-200",
           side === "right" &&
             "inset-y-0 right-0 h-full w-3/4 border-l border-border-subtle data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm",
           side === "left" &&
@@ -99,7 +99,7 @@ function SheetContent({
           {children}
         </OverlayDismissProvider>
         {showCloseButton ? (
-          <DialogPrimitive.Close className="absolute top-3 right-3 rounded-sm p-1 text-muted-foreground opacity-70 transition-opacity hover:bg-surface-hover hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:pointer-events-none">
+          <DialogPrimitive.Close className="absolute top-3 right-3 rounded-sm p-1 text-muted-foreground opacity-70 transition-opacity hover:bg-surface-hover hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40 disabled:pointer-events-none">
             <XIcon className="size-4" />
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>

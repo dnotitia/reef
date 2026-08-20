@@ -114,7 +114,7 @@ function NotificationItem({
       <div
         className={
           notification.state === "unread"
-            ? "flex min-w-0 items-start gap-3 bg-brand/5 px-4 py-3"
+            ? "flex min-w-0 items-start gap-3 bg-brand-fill/5 px-4 py-3"
             : "flex min-w-0 items-start gap-3 px-4 py-3"
         }
       >
@@ -122,7 +122,7 @@ function NotificationItem({
           aria-hidden="true"
           className={
             notification.state === "unread"
-              ? "mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand"
+              ? "mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand-fill"
               : "mt-1.5 h-2 w-2 shrink-0 rounded-full bg-border"
           }
         />
@@ -131,7 +131,7 @@ function NotificationItem({
           data-testid="notification-open"
           onClick={() => void openNotification()}
           disabled={busy}
-          className="min-w-0 flex-1 touch-manipulation rounded-md text-left hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+          className="min-w-0 flex-1 touch-manipulation rounded-md text-left hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
           aria-label={t("openNotification", { issue: notification.reef_id })}
         >
           <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -236,10 +236,10 @@ function NotificationInboxContent({ vault }: { vault: string }) {
       <div
         role="alert"
         data-testid="notification-inbox-error"
-        className="mx-auto w-full max-w-2xl rounded-lg border border-dashed border-destructive/40 bg-destructive/5 px-6 py-12 text-center"
+        className="mx-auto w-full max-w-2xl rounded-lg border border-dashed border-destructive-focus/40 bg-destructive-fill/5 px-6 py-12 text-center"
       >
         <Bell
-          className="mx-auto mb-3 h-5 w-5 text-destructive"
+          className="mx-auto mb-3 h-5 w-5 text-destructive-text"
           aria-hidden="true"
         />
         <h2 className="text-pretty text-sm font-semibold text-foreground">
@@ -267,7 +267,7 @@ function NotificationInboxContent({ vault }: { vault: string }) {
         <div
           role="alert"
           aria-live="polite"
-          className="mx-auto w-full max-w-2xl rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+          className="mx-auto w-full max-w-2xl rounded-md border border-destructive-focus/40 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text"
         >
           {actionError}
         </div>
