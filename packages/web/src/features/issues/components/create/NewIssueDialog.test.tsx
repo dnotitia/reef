@@ -624,6 +624,9 @@ describe("NewIssueDialog", () => {
     expect(screen.getByTestId("new-issue-parent-locked")).toHaveTextContent(
       "Parent story",
     );
+    expect(screen.getByTestId("new-issue-parent-locked")).toHaveClass(
+      "bg-surface-elevated",
+    );
     fireEvent.change(screen.getByTestId("new-issue-title-input"), {
       target: { value: "Child work" },
     });

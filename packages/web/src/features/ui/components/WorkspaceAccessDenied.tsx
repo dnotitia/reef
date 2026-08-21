@@ -59,7 +59,7 @@ export function WorkspaceAccessDenied({
         {reefVaults.length > 0 ? (
           <nav
             aria-label={t("switchHeading")}
-            className="flex w-full flex-col gap-1.5 rounded-lg border border-border-subtle bg-surface p-2 text-left"
+            className="flex w-full flex-col gap-1.5 rounded-lg border border-border-subtle bg-surface-subtle p-2 text-left"
           >
             <span className="px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               {t("switchHeading")}

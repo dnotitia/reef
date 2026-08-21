@@ -74,7 +74,7 @@ export function NewIssueRelationFields({
             <div
               id="new-issue-parent"
               data-testid="new-issue-parent-locked"
-              className="flex h-8 min-w-0 items-center gap-2 rounded-md border border-border bg-surface px-2 text-xs text-foreground"
+              className="flex h-8 min-w-0 items-center gap-2 rounded-md border border-border bg-surface-elevated px-2 text-xs text-foreground"
             >
               <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
                 {lockedParent.id}

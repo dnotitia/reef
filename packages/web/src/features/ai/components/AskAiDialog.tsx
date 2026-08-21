@@ -188,7 +188,7 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
                 aria-label={t("issueContextChipLabel", {
                   id: issueContext.reefId,
                 })}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2 py-1 text-xs text-muted-foreground"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface-subtle px-2 py-1 text-xs text-muted-foreground"
               >
                 <FileText className="h-3 w-3 shrink-0" aria-hidden="true" />
                 <span className="font-medium text-foreground" translate="no">
