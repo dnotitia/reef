@@ -131,6 +131,7 @@ describe("KanbanColumn", () => {
     });
     const col = container.firstChild as HTMLElement;
     expect(col.className).toContain("border-border");
+    expect(col.className).toContain("bg-surface-subtle");
     expect(col.className).not.toContain("border-brand-focus");
   });
 

@@ -27,8 +27,9 @@
 :root {
   color-scheme: light;
 
-  /* base surfaces — page, elevated, card, and popover are intentionally
-   * distinct so adjacent containers remain legible in both themes. */
+  /* base surfaces — page, subtle, elevated, card, and popover are
+   * intentionally distinct so adjacent containers remain legible in both
+   * themes. */
   --surface-page: hsl(220 18% 98%);
   --foreground: hsl(220 13% 13%);
   --surface-sidebar: hsl(220 13% 97%);
@@ -36,7 +37,7 @@
   --surface-card: hsl(220 18% 99%);
   --surface-popover: hsl(220 18% 97%);
   --surface-hover: hsl(220 13% 95%);
-  --surface-subtle: hsl(220 13% 98%);
+  --surface-subtle: hsl(220 13% 97%);
 
   /* shadcn interaction roles */
   --primary: hsl(220 13% 13%);
@@ -206,7 +207,7 @@
   --surface-card: hsl(220 14% 10%);
   --surface-popover: hsl(220 14% 14%);
   --surface-hover: hsl(220 13% 14%);
-  --surface-subtle: hsl(220 14% 10%);
+  --surface-subtle: hsl(220 14% 9%);
 
   --primary: hsl(220 13% 95%);
   --primary-foreground: hsl(220 14% 8%);

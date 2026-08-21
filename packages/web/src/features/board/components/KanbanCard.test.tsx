@@ -242,6 +242,8 @@ describe("KanbanCard", () => {
   it("does not apply dragging class when not dragging", () => {
     const { container } = render(<KanbanCard issue={mockIssue()} />);
     const card = container.firstChild as HTMLElement;
+    expect(card.className).toContain("bg-surface-card");
+    expect(card.className).not.toContain("bg-surface-elevated");
     expect(card.className).not.toContain("opacity-50");
   });
 

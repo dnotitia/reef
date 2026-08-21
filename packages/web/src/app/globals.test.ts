@@ -158,10 +158,11 @@ describe("global focus styles", () => {
     }
   });
 
-  it("keeps page/elevated/card/popover surfaces distinct and role contrast AA-safe", () => {
+  it("keeps page/subtle/card/elevated/popover surfaces distinct and role contrast AA-safe", () => {
     const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
     const surfaces = [
       "--surface-page",
+      "--surface-subtle",
       "--surface-elevated",
       "--surface-card",
       "--surface-popover",
@@ -224,6 +225,21 @@ describe("global focus styles", () => {
     }
   });
 
+  it("maps every surface role directly into its semantic Tailwind utility", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const surfaceRoles = [
+      "page",
+      "subtle",
+      "card",
+      "elevated",
+      "popover",
+    ] as const;
+
+    for (const role of surfaceRoles) {
+      expect(css).toContain(`--color-surface-${role}: var(--surface-${role});`);
+    }
+  });
+
   it("keeps the planning family distinct while meeting non-text contrast", () => {
     const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
     const planningTokens = [
@@ -235,6 +251,7 @@ describe("global focus styles", () => {
     ] as const;
     const surfaces = [
       "--surface-page",
+      "--surface-subtle",
       "--surface-elevated",
       "--surface-card",
       "--surface-popover",

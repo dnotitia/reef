@@ -249,7 +249,7 @@ roles so component work uses the tokens for the same jobs:
 | Card surface | `--surface-card` | `hsl(220 18% 99%)` | `hsl(220 14% 10%)` | Repeated cards and KPI panels |
 | Popover surface | `--surface-popover` | `hsl(220 18% 97%)` | `hsl(220 14% 14%)` | Menus, tooltips, and popovers |
 | Hover surface | `--surface-hover` | `hsl(220 13% 95%)` | `hsl(220 13% 14%)` | Hover and active rows |
-| Subtle surface | `--surface-subtle` | `hsl(220 13% 98%)` | `hsl(220 14% 10%)` | Quiet section backgrounds |
+| Subtle surface | `--surface-subtle` | `hsl(220 13% 97%)` | `hsl(220 14% 9%)` | Quiet section backgrounds |
 | Primary text | `--foreground` | `hsl(220 13% 13%)` | `hsl(220 13% 95%)` | Main text |
 | Muted text | `--muted-foreground` | `hsl(220 9% 46%)` | `hsl(220 9% 65%)` | Captions and helper copy |
 | Default border | `--border` | `hsl(220 13% 91%)` | `hsl(220 13% 18%)` | Standard hairlines |
@@ -586,6 +586,8 @@ badge, the title (two-line clamp), and a compact meta row (priority dot + label,
 assignee, start/due dates, sprint/release chips). Blocked state is computed from
 the dependency graph projected over the whole vault, so badges stay correct even
 when the board view is filtered.
+Kanban columns use the subtle surface for their group frame, while repeated issue
+cards use the card surface; cards do not use the brighter elevated surface.
 
 **List.** A dense, sortable table rendering the same issues with their field
 leaves. It defaults to no grouping, and can group by None, Status, Priority,
