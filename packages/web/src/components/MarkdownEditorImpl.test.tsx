@@ -1319,8 +1319,11 @@ describe("MarkdownEditor", () => {
         String(EDITOR_BODY_MIN_HEIGHT),
       );
       expect(handle).toHaveAttribute("aria-valuemax", "740");
-      expect(handle).toHaveAttribute("aria-valuenow", "560");
-      expect(handle).toHaveAttribute("aria-valuetext", "560px");
+      expect(handle).toHaveAttribute("aria-valuenow", "320");
+      expect(handle).toHaveAttribute("aria-valuetext", "320px");
+      expect(screen.getByTestId("markdown-editor-body-frame")).toHaveStyle({
+        height: "320px",
+      });
       expect(handle).toHaveAttribute("aria-controls", EDITOR_RESIZABLE_BODY_ID);
       expect(handle).toHaveAttribute(
         "aria-describedby",
@@ -1329,7 +1332,7 @@ describe("MarkdownEditor", () => {
       expect(
         document.getElementById("markdown-editor-resize-description"),
       ).toHaveTextContent(
-        "Diagonal handle controls the issue description editor height. Current 560px; minimum 200px; maximum 740px.",
+        "Diagonal handle controls the issue description editor height. Current 320px; minimum 200px; maximum 740px.",
       );
       expect(
         document.getElementById(EDITOR_RESIZABLE_BODY_ID),
@@ -1343,15 +1346,9 @@ describe("MarkdownEditor", () => {
 
       handle.focus();
       fireEvent.keyDown(handle, { key: "ArrowDown" });
-      expect(handle).toHaveAttribute(
-        "aria-valuenow",
-        String(EDITOR_BODY_DEFAULT_HEIGHT + EDITOR_BODY_KEYBOARD_STEP),
-      );
+      expect(handle).toHaveAttribute("aria-valuenow", "352");
       fireEvent.keyDown(handle, { key: "ArrowUp" });
-      expect(handle).toHaveAttribute(
-        "aria-valuenow",
-        String(EDITOR_BODY_DEFAULT_HEIGHT),
-      );
+      expect(handle).toHaveAttribute("aria-valuenow", "320");
       fireEvent.keyDown(handle, { key: "Home" });
       expect(handle).toHaveAttribute(
         "aria-valuenow",
@@ -1384,19 +1381,19 @@ describe("MarkdownEditor", () => {
         pointerId: 3,
       });
       expect(setPointerCapture).toHaveBeenCalledWith(3);
-      expect(handle).toHaveAttribute("aria-valuenow", "340");
+      expect(handle).toHaveAttribute("aria-valuenow", "320");
       expect(handle).toHaveAttribute("data-resizing", "true");
 
       fireEvent.pointerMove(handle, {
         clientY: 180,
         pointerId: 9,
       });
-      expect(handle).toHaveAttribute("aria-valuenow", "340");
+      expect(handle).toHaveAttribute("aria-valuenow", "320");
       fireEvent.pointerMove(handle, {
         clientY: 180,
         pointerId: 3,
       });
-      expect(handle).toHaveAttribute("aria-valuenow", "420");
+      expect(handle).toHaveAttribute("aria-valuenow", "400");
 
       fireEvent.pointerCancel(handle, { pointerId: 3 });
       expect(releasePointerCapture).toHaveBeenCalledWith(3);
@@ -1433,9 +1430,83 @@ describe("MarkdownEditor", () => {
       await waitFor(() =>
         expect(screen.getAllByRole("separator").at(-1)).toHaveAttribute(
           "aria-valuenow",
-          "560",
+          "320",
         ),
       );
+    });
+
+    it("uses a transient preferred height without writing it to session storage", async () => {
+      setViewport(1440, 900);
+      const view = render(
+        <MarkdownEditor
+          value=""
+          onChange={vi.fn()}
+          enableHeightResize
+          preferredHeight={640}
+        />,
+      );
+
+      const handle = screen.getByRole("separator");
+      await waitFor(() =>
+        expect(handle).toHaveAttribute("aria-valuenow", "640"),
+      );
+      expect(screen.getByTestId("markdown-editor-body-frame")).toHaveStyle({
+        height: "640px",
+      });
+      expect(
+        sessionStorage.getItem(EDITOR_BODY_SESSION_STORAGE_KEY),
+      ).toBeNull();
+
+      fireEvent.keyDown(handle, { key: "ArrowDown" });
+      expect(handle).toHaveAttribute("aria-valuenow", "672");
+      expect(sessionStorage.getItem(EDITOR_BODY_SESSION_STORAGE_KEY)).toBe(
+        "672",
+      );
+
+      view.rerender(
+        <MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />,
+      );
+      expect(handle).toHaveAttribute("aria-valuenow", "672");
+    });
+
+    it("returns to the saved-or-default height when a preferred height is removed", async () => {
+      setViewport(1440, 900);
+      const view = render(
+        <MarkdownEditor
+          value=""
+          onChange={vi.fn()}
+          enableHeightResize
+          preferredHeight={640}
+        />,
+      );
+      const handle = screen.getByRole("separator");
+      await waitFor(() =>
+        expect(handle).toHaveAttribute("aria-valuenow", "640"),
+      );
+
+      view.rerender(
+        <MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />,
+      );
+      expect(handle).toHaveAttribute("aria-valuenow", "320");
+      expect(
+        sessionStorage.getItem(EDITOR_BODY_SESSION_STORAGE_KEY),
+      ).toBeNull();
+    });
+
+    it("updates another mounted issue Description through the shared tab session", () => {
+      setViewport(1440, 900);
+      render(
+        <>
+          <MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />
+          <MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />
+        </>,
+      );
+
+      const handles = screen.getAllByRole("separator");
+      expect(handles).toHaveLength(2);
+      expect(handles[1]).toHaveAttribute("aria-valuenow", "320");
+      fireEvent.keyDown(handles[0], { key: "ArrowDown" });
+      expect(handles[1]).toHaveAttribute("aria-valuenow", "352");
     });
 
     it("shares the explicit frame with Source mode and opts out below the resize width", async () => {

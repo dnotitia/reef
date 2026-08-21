@@ -37,6 +37,15 @@ explicitly in the entries below.
   credential or requires Redis-backed OIDC token custody. The login page remains
   hybrid whenever AKB enables both local authentication and Keycloak.
 
+- **Issue creation and detail Description editors now share an accessible,
+  fine-pointer height grip and a 320px initial frame.** Pointer and keyboard
+  changes use the existing 200px-to-viewport clamp, WYSIWYG and Source share
+  the frame, and the current tab restores one shared session height. A
+  maximized create shell may supply a transient preferred height without
+  persisting it; direct user input takes precedence. Other MarkdownEditor
+  consumers remain opt-out, and narrow/coarse-pointer layouts keep their
+  automatic behavior.
+
 ### Fixed
 
 - **온보딩은 새 workspace 생성 흐름을 정확히 안내하고, 이름·이슈 접두사의 필수 입력 오류와 repository 선택 상태를 키보드·스크린리더에 전달하며, 좁은 화면에서도 저장소 선택기와 긴 repository 이름을 영역 안에서 조작할 수 있도록 개선했습니다.**

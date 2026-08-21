@@ -84,8 +84,11 @@ function getSubIssueDefaults(
 
 export function NewIssueDialog({
   focusOriginRef: pendingFocusOriginRef,
+  preferredDescriptionHeight,
 }: {
   focusOriginRef?: { current: HTMLElement | null };
+  /** Non-persistent height supplied by the maximized create shell. */
+  preferredDescriptionHeight?: number;
 } = {}) {
   const open = useViewStore((s) => s.newIssueDialogOpen);
   const dialogContext = useViewStore((s) => s.newIssueDialogContext);
@@ -701,6 +704,8 @@ export function NewIssueDialog({
               onBodyChange={setBody}
               vault={vault ?? undefined}
               mentionConfig={issueBodyMentionConfig}
+              enableHeightResize
+              preferredDescriptionHeight={preferredDescriptionHeight}
               bodyWysiwygPlaceholder={tc("descriptionWysiwygPlaceholder")}
               bodySourcePlaceholder={tc("descriptionPlaceholder")}
               disabled={isSubmitting}

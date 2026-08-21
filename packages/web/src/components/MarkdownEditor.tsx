@@ -23,13 +23,17 @@ import type { MarkdownEditorProps } from "./MarkdownEditorImpl";
 
 /**
  * Placeholder shown while the editor chunk loads. Mirrors the editor's outer
- * shell and reserves the 200px body floor (EDITOR_BODY_SIZING), the inset body
- * frame, and a toolbar strip, matching the editable surfaces that dominate the call sites. The
- * read-mode Planning table inline expand has no toolbar, so it over-reserves by
+ * shell and reserves either the opted-in 320px issue Description frame or the
+ * existing 200px automatic floor, plus the inset body frame and toolbar strip.
+ * The read-mode Planning table inline expand has no toolbar, so it over-reserves by
  * the toolbar height for a frame — an acceptable trade to keep
  * the primary authoring surfaces from shifting on load.
  */
-function MarkdownEditorSkeleton() {
+function MarkdownEditorSkeleton({
+  enableHeightResize = false,
+}: Pick<MarkdownEditorProps, "enableHeightResize">) {
+  const bodyHeight = enableHeightResize ? "min-h-[320px]" : "min-h-[200px]";
+
   return (
     <div
       aria-hidden="true"
@@ -40,7 +44,7 @@ function MarkdownEditorSkeleton() {
         <Skeleton className="h-7 w-32" />
       </div>
       <div className="p-1" data-testid="markdown-editor-skeleton-body-frame">
-        <div className="min-h-[200px] px-3 py-2">
+        <div className={`${bodyHeight} px-3 py-2`}>
           <Skeleton className="h-3 w-2/3" />
         </div>
       </div>
@@ -49,12 +53,37 @@ function MarkdownEditorSkeleton() {
 }
 
 /**
+ * Keep separate lazy boundaries for the two public height policies. Next's
+ * dynamic loading component receives only its own load state, not the caller's
+ * props, so selecting the boundary at this small wrapper is what lets the
+ * opted-in issue surfaces reserve 320px while every other consumer keeps the
+ * existing 200px skeleton.
+ */
+const ResizableMarkdownEditor = dynamic<MarkdownEditorProps>(
+  () => import("./MarkdownEditorImpl").then((m) => m.MarkdownEditor),
+  {
+    ssr: false,
+    loading: () => <MarkdownEditorSkeleton enableHeightResize />,
+  },
+);
+
+const AutomaticMarkdownEditor = dynamic<MarkdownEditorProps>(
+  () => import("./MarkdownEditorImpl").then((m) => m.MarkdownEditor),
+  {
+    ssr: false,
+    loading: () => <MarkdownEditorSkeleton />,
+  },
+);
+
+/**
  * Public markdown editor entry point. Keeps the `@/components/MarkdownEditor`
  * import path and `MarkdownEditor` name stable so every call site stays
  * unchanged while the heavy implementation loads lazily from
  * `./MarkdownEditorImpl`.
  */
-export const MarkdownEditor = dynamic<MarkdownEditorProps>(
-  () => import("./MarkdownEditorImpl").then((m) => m.MarkdownEditor),
-  { ssr: false, loading: () => <MarkdownEditorSkeleton /> },
-);
+export function MarkdownEditor(props: MarkdownEditorProps) {
+  const Editor = props.enableHeightResize
+    ? ResizableMarkdownEditor
+    : AutomaticMarkdownEditor;
+  return <Editor {...props} />;
+}

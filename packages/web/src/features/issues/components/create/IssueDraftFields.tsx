@@ -40,6 +40,10 @@ interface IssueDraftFieldsProps {
   onBodyChange: (body: string) => void;
   vault?: string;
   mentionConfig?: ComponentProps<typeof MarkdownEditor>["mentionConfig"];
+  /** Explicit product opt-in for the shared issue Description height contract. */
+  enableHeightResize?: boolean;
+  /** Non-persistent layout preference; user/session height takes precedence. */
+  preferredDescriptionHeight?: number;
   disabled?: boolean;
   titleAction?: ReactNode;
   titleBelow?: ReactNode;
@@ -93,6 +97,8 @@ export function IssueDraftFields({
   onBodyChange,
   vault,
   mentionConfig,
+  enableHeightResize = false,
+  preferredDescriptionHeight,
   disabled = false,
   titleAction,
   titleBelow,
@@ -240,6 +246,8 @@ export function IssueDraftFields({
             ariaLabel={t("descriptionAriaLabel")}
             vault={vault}
             mentionConfig={mentionConfig}
+            enableHeightResize={enableHeightResize}
+            preferredHeight={preferredDescriptionHeight}
           />,
         )}
       </div>
