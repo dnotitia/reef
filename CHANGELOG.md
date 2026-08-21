@@ -46,6 +46,14 @@ explicitly in the entries below.
   consumers remain opt-out, and narrow/coarse-pointer layouts keep their
   automatic behavior.
 
+- **New Issue now offers a desktop-only two-dimensional maximize/restore
+  toggle.** The create canvas grows from the 1200px default to a capped 1680px
+  width and `100dvh - 2rem` height when either axis has at least 32px to gain;
+  the Description editor receives only a transient preferred height, while
+  REEF-545's persisted user height remains authoritative. The toggle keeps
+  draft values, focus, and body scrolling intact, restores within the same
+  tab, and stays separate from Issue Detail's shell state.
+
 ### Fixed
 
 - **온보딩은 새 workspace 생성 흐름을 정확히 안내하고, 이름·이슈 접두사의 필수 입력 오류와 repository 선택 상태를 키보드·스크린리더에 전달하며, 좁은 화면에서도 저장소 선택기와 긴 repository 이름을 영역 안에서 조작할 수 있도록 개선했습니다.**

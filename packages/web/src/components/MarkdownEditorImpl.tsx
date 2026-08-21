@@ -75,6 +75,7 @@ import {
   type DragEvent,
   type KeyboardEvent,
   type PointerEvent,
+  type Ref,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -228,9 +229,12 @@ export interface MarkdownEditorProps {
   enableHeightResize?: boolean;
   /**
    * A non-persistent height supplied by a containing layout (for example, a
-   * maximized New Issue dialog). A saved or user-selected height always wins.
+   * maximized New Issue dialog). A larger preferred value may temporarily grow
+   * a saved baseline, while explicit user resizing always wins and persists.
    */
   preferredHeight?: number;
+  /** Optional observation seam for a containing layout's transient geometry. */
+  bodyFrameRef?: Ref<HTMLDivElement>;
 }
 
 export interface MarkdownEditorMentionConfig {
@@ -874,12 +878,17 @@ function useMarkdownEditorHeightResize(
     isResizeAvailable && storedEditorHeight !== null
       ? clampEditorHeight(storedEditorHeight, maxHeight)
       : null;
-  const preferredManualHeight =
+  const preferredManualHeightCandidate =
     isResizeAvailable &&
-    storedEditorHeight === null &&
     typeof preferredHeight === "number" &&
     Number.isFinite(preferredHeight)
       ? clampEditorHeight(preferredHeight, maxHeight)
+      : null;
+  const preferredManualHeight =
+    preferredManualHeightCandidate !== null &&
+    (persistedManualHeight === null ||
+      preferredManualHeightCandidate > persistedManualHeight)
+      ? preferredManualHeightCandidate
       : null;
   const defaultManualHeight = clampEditorHeight(
     EDITOR_BODY_DEFAULT_HEIGHT,
@@ -887,8 +896,8 @@ function useMarkdownEditorHeightResize(
   );
   const effectiveHeight =
     manualHeightState ??
-    persistedManualHeight ??
     preferredManualHeight ??
+    persistedManualHeight ??
     defaultManualHeight;
   const manualHeightRef = useRef<number | null>(manualHeightState);
   const currentHeightRef = useRef(EDITOR_BODY_DEFAULT_HEIGHT);
@@ -904,8 +913,8 @@ function useMarkdownEditorHeightResize(
   const refreshAutoHeight = useCallback(() => {
     if (!isResizeAvailable || manualHeightState !== null) return;
     const nextHeight = clampEditorHeight(
-      persistedManualHeight ??
-        preferredManualHeight ??
+      preferredManualHeight ??
+        persistedManualHeight ??
         EDITOR_BODY_DEFAULT_HEIGHT,
       maxHeight,
     );
@@ -1097,6 +1106,7 @@ export function MarkdownEditor({
   mentionConfig,
   enableHeightResize = false,
   preferredHeight,
+  bodyFrameRef: externalBodyFrameRef,
 }: MarkdownEditorProps) {
   const t = useTranslations("markdownEditor");
   const c = useTranslations("common");
@@ -1110,7 +1120,16 @@ export function MarkdownEditor({
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [uploadError, setUploadError] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const bodyFrameRef = useRef<HTMLDivElement | null>(null);
+  const setBodyFrameRef = useCallback(
+    (element: HTMLDivElement | null) => {
+      if (typeof externalBodyFrameRef === "function") {
+        externalBodyFrameRef(element);
+      } else if (externalBodyFrameRef) {
+        externalBodyFrameRef.current = element;
+      }
+    },
+    [externalBodyFrameRef],
+  );
   const {
     isResizeAvailable: isHeightResizeAvailable,
     isManual: isManualHeight,
@@ -1990,7 +2009,7 @@ export function MarkdownEditor({
       )}
 
       <div
-        ref={bodyFrameRef}
+        ref={setBodyFrameRef}
         id={enableHeightResize ? EDITOR_RESIZABLE_BODY_ID : undefined}
         data-testid="markdown-editor-body-frame"
         className={cn(

@@ -42,8 +42,10 @@ interface IssueDraftFieldsProps {
   mentionConfig?: ComponentProps<typeof MarkdownEditor>["mentionConfig"];
   /** Explicit product opt-in for the shared issue Description height contract. */
   enableHeightResize?: boolean;
-  /** Non-persistent layout preference; user/session height takes precedence. */
+  /** Non-persistent layout preference; manual input remains authoritative. */
   preferredDescriptionHeight?: number;
+  /** Lets the create shell measure the Description frame's available space. */
+  descriptionBodyFrameRef?: Ref<HTMLDivElement>;
   disabled?: boolean;
   titleAction?: ReactNode;
   titleBelow?: ReactNode;
@@ -99,6 +101,7 @@ export function IssueDraftFields({
   mentionConfig,
   enableHeightResize = false,
   preferredDescriptionHeight,
+  descriptionBodyFrameRef,
   disabled = false,
   titleAction,
   titleBelow,
@@ -248,6 +251,7 @@ export function IssueDraftFields({
             mentionConfig={mentionConfig}
             enableHeightResize={enableHeightResize}
             preferredHeight={preferredDescriptionHeight}
+            bodyFrameRef={descriptionBodyFrameRef}
           />,
         )}
       </div>

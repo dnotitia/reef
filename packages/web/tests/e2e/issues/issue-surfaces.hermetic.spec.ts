@@ -18,6 +18,8 @@ function reefVault(
   return vault;
 }
 
+const ISSUE_DESCRIPTION_HEIGHT_KEY = "reef:issue-description-height:v1";
+
 test.describe("Hermetic issue route surfaces", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
@@ -973,6 +975,157 @@ test.describe("Hermetic issue route surfaces", () => {
     }
   });
 
+  test("maximizes and restores the New Issue canvas without losing the draft", async ({
+    page,
+  }) => {
+    const viewport = { width: 1920, height: 1080 };
+    await page.setViewportSize(viewport);
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+
+    await page.getByTestId("new-issue-trigger").click();
+    const dialog = page.getByTestId("new-issue-dialog");
+    await expect(dialog).toBeVisible();
+    const title = dialog.getByTestId("new-issue-title-input");
+    const sourceToggle = dialog
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button");
+    await title.fill("Draft survives maximize");
+    await sourceToggle.click();
+    const body = dialog.getByTestId("markdown-source-textarea");
+    await expect(body).toBeVisible();
+    await body.fill("Description survives maximize");
+
+    const normalBox = await dialog.boundingBox();
+    if (!normalBox) throw new Error("New Issue dialog has no normal geometry");
+    const normalDescriptionBox = await dialog
+      .getByTestId("markdown-editor-body-frame")
+      .boundingBox();
+    if (!normalDescriptionBox) {
+      throw new Error("New Issue Description has no normal geometry");
+    }
+    const handle = dialog.getByTestId("markdown-editor-resize-handle");
+    await expect(handle).toHaveAttribute("aria-valuenow", "320");
+    const normalDescriptionHeight = Number(
+      await handle.getAttribute("aria-valuenow"),
+    );
+    const maximize = dialog.getByTestId("new-issue-maximize-toggle");
+    await expect(maximize).toHaveAttribute("aria-label", "Maximize window");
+    await expect(maximize).toHaveAttribute("aria-pressed", "false");
+    await maximize.click();
+
+    const restore = dialog.getByTestId("new-issue-maximize-toggle");
+    await expect(restore).toHaveAttribute("aria-label", "Restore window");
+    await expect(restore).toHaveAttribute("aria-pressed", "true");
+    await expect(restore).toBeFocused();
+    await expect
+      .poll(async () => (await dialog.boundingBox())?.width ?? 0)
+      .toBeGreaterThan(normalBox.width + 32);
+    const expandedBox = await dialog.boundingBox();
+    if (!expandedBox) {
+      throw new Error("New Issue dialog has no maximized geometry");
+    }
+    expect(expandedBox.width).toBeGreaterThan(normalBox.width + 32);
+    expect(expandedBox.width).toBeLessThanOrEqual(viewport.width * 0.94 + 1);
+    expect(expandedBox.height).toBeGreaterThanOrEqual(normalBox.height - 4);
+    expect(expandedBox.height).toBeLessThanOrEqual(viewport.height - 30);
+    const expandedDescriptionBox = await dialog
+      .getByTestId("markdown-editor-body-frame")
+      .boundingBox();
+    if (!expandedDescriptionBox) {
+      throw new Error("New Issue Description has no maximized geometry");
+    }
+    expect(expandedDescriptionBox.height).toBeGreaterThan(
+      normalDescriptionBox.height,
+    );
+    await expect(title).toHaveValue("Draft survives maximize");
+    await expect(body).toHaveValue("Description survives maximize");
+
+    await expect(handle).toBeVisible();
+    await expect
+      .poll(async () => Number(await handle.getAttribute("aria-valuenow")))
+      .toBeGreaterThan(normalDescriptionHeight);
+    expect(
+      await page.evaluate(
+        (key) => window.sessionStorage.getItem(key),
+        ISSUE_DESCRIPTION_HEIGHT_KEY,
+      ),
+    ).toBeNull();
+
+    await restore.click();
+    await expect(restore).toHaveAttribute("aria-label", "Maximize window");
+    await expect(handle).toHaveAttribute(
+      "aria-valuenow",
+      String(normalDescriptionHeight),
+    );
+    await expect(
+      dialog.getByTestId("markdown-editor-body-frame"),
+    ).toHaveAttribute(
+      "style",
+      new RegExp(`height: ${normalDescriptionHeight}px`),
+    );
+
+    await dialog.getByTestId("new-issue-maximize-toggle").click();
+    await expect(
+      dialog.getByTestId("new-issue-maximize-toggle"),
+    ).toHaveAttribute("aria-label", "Restore window");
+    await expect
+      .poll(async () => Number(await handle.getAttribute("aria-valuenow")))
+      .toBeGreaterThan(normalDescriptionHeight);
+    const maximizedHeight = Number(await handle.getAttribute("aria-valuenow"));
+    await handle.focus();
+    await page.keyboard.press("ArrowDown");
+    const userHeight = maximizedHeight + 32;
+    await expect(handle).toHaveAttribute("aria-valuenow", String(userHeight));
+    await expect
+      .poll(() =>
+        page.evaluate(
+          (key) => window.sessionStorage.getItem(key),
+          ISSUE_DESCRIPTION_HEIGHT_KEY,
+        ),
+      )
+      .toBe(String(userHeight));
+
+    await restore.click();
+    await expect(restore).toHaveAttribute("aria-label", "Maximize window");
+    await expect(
+      dialog.getByTestId("markdown-editor-body-frame"),
+    ).toHaveAttribute("style", new RegExp(`height: ${userHeight}px`));
+    await dialog.getByTestId("new-issue-maximize-toggle").click();
+    await expect(
+      dialog.getByTestId("new-issue-maximize-toggle"),
+    ).toHaveAttribute("aria-label", "Restore window");
+
+    await dialog.getByTestId("new-issue-cancel").click();
+    await expect(page.getByTestId("discard-draft-confirm")).toBeVisible();
+    await page.getByTestId("discard-draft-confirm-button").click();
+    await expect(dialog).toBeHidden();
+
+    await page.getByTestId("new-issue-trigger").click();
+    await expect(page.getByTestId("new-issue-maximize-toggle")).toHaveAttribute(
+      "aria-label",
+      "Restore window",
+    );
+    await expect(page.getByTestId("new-issue-maximize-toggle")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    const reopenedDialog = page.getByTestId("new-issue-dialog");
+    await expect(
+      reopenedDialog.getByTestId("markdown-editor-body-frame"),
+    ).toHaveAttribute("style", new RegExp(`height: ${userHeight}px`));
+    await page.getByTestId("new-issue-maximize-toggle").click();
+    await expect(page.getByTestId("new-issue-maximize-toggle")).toHaveAttribute(
+      "aria-label",
+      "Maximize window",
+    );
+    await expect(
+      reopenedDialog.getByTestId("markdown-editor-body-frame"),
+    ).toHaveAttribute("style", new RegExp(`height: ${userHeight}px`));
+    await page.getByTestId("new-issue-cancel").click();
+    await expect(page.getByTestId("new-issue-dialog")).toBeHidden();
+  });
+
   test("creates an issue from New Issue at a mobile viewport", async ({
     page,
   }) => {
@@ -983,6 +1136,9 @@ test.describe("Hermetic issue route surfaces", () => {
     await page.getByTestId("new-issue-trigger").click();
     const dialog = page.getByTestId("new-issue-dialog");
     await expect(dialog).toBeVisible();
+    await expect(dialog.getByTestId("new-issue-maximize-toggle")).toHaveCount(
+      0,
+    );
     await dialog
       .getByTestId("new-issue-title-input")
       .fill("Created from mobile New Issue");

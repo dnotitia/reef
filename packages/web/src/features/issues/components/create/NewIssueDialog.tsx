@@ -11,6 +11,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { EnrichmentReviewBar } from "@/features/ai/components/EnrichmentReviewBar";
 import { useCreateIssue } from "@/features/issues/hooks/mutations/useCreateIssue";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
@@ -39,7 +45,7 @@ import type {
   Template,
 } from "@reef/core";
 import { useQueryClient } from "@tanstack/react-query";
-import { Sparkles } from "lucide-react";
+import { Maximize2, Minimize2, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -54,6 +60,7 @@ import { IssueDraftFields } from "./IssueDraftFields";
 import { NewIssueRailFields } from "./NewIssueRailFields";
 import { NewIssueRelationFields } from "./NewIssueRelationFields";
 import { TemplatePicker } from "./TemplatePicker";
+import { useNewIssueDialogGeometry } from "./newIssueDialogGeometry";
 import { useNewIssueEnrichment } from "./useNewIssueEnrichment";
 import {
   type NewIssueFormDefaults,
@@ -93,6 +100,16 @@ export function NewIssueDialog({
   const open = useViewStore((s) => s.newIssueDialogOpen);
   const dialogContext = useViewStore((s) => s.newIssueDialogContext);
   const closeDialog = useViewStore((s) => s.closeNewIssueDialog);
+  const formBodyRef = useRef<HTMLDivElement>(null);
+  const {
+    dialogRef: dialogContentRef,
+    descriptionFrameRef,
+    isMaximized,
+    canMaximize,
+    preferredDescriptionHeight: maximizedDescriptionHeight,
+    dialogStyle,
+    onToggleMaximize,
+  } = useNewIssueDialogGeometry(open, formBodyRef);
   const { vault } = useActiveVault();
   const router = useRouter();
   const t = useTranslations("toasts");
@@ -337,7 +354,6 @@ export function NewIssueDialog({
   // so `hasCommittedDraft` alone would miss them and let the dialog discard
   // typed content silently. Reading `.value` on close (not during render) is a
   // cheap, framework-agnostic way to include every such buffered input.
-  const formBodyRef = useRef<HTMLDivElement>(null);
   function hasBufferedText(): boolean {
     const root = formBodyRef.current;
     if (!root) return false;
@@ -547,10 +563,17 @@ export function NewIssueDialog({
       idPrefix="new-issue-refs"
     />,
   );
+  const resolvedPreferredDescriptionHeight = isMaximized
+    ? maximizedDescriptionHeight
+    : preferredDescriptionHeight;
+  const maximizeLabel = isMaximized
+    ? tc("restoreWindow")
+    : tc("maximizeWindow");
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
+        ref={dialogContentRef}
         data-testid="new-issue-dialog"
         // The header already owns the top-right action row (template picker +
         // Enrich with AI). The shared close X overlaps those actions, and the
@@ -561,7 +584,10 @@ export function NewIssueDialog({
         onCloseAutoFocus={handleCloseAutoFocus}
         // Canvas matches the issue detail sheet (REEF-167) so the widened rail
         // doesn't steal width from the main column.
-        className="grid max-h-[calc(100dvh-2rem)] min-h-0 max-w-[min(94vw,1200px)] grid-rows-[auto_minmax(0,1fr)_auto] gap-5 overflow-hidden pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
+        className={`grid max-h-[calc(100dvh-2rem)] min-h-0 ${
+          isMaximized ? "max-w-[min(94vw,1680px)]" : "max-w-[min(94vw,1200px)]"
+        } grid-rows-[auto_minmax(0,1fr)_auto] gap-5 overflow-hidden pb-[calc(1.25rem+env(safe-area-inset-bottom))]`}
+        style={dialogStyle}
         onInteractOutside={(e) => {
           // The relation picker renders its dropdown in a body portal, so Radix
           // sees a click on one of its options as "outside" the dialog. That is
@@ -660,6 +686,32 @@ export function NewIssueDialog({
                   ? tc("enriching")
                   : tc("enrichWithAi")}
               </Button>
+              {canMaximize ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="size-8 shrink-0 p-0 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+                        aria-label={maximizeLabel}
+                        aria-pressed={isMaximized}
+                        title={maximizeLabel}
+                        data-testid="new-issue-maximize-toggle"
+                        onClick={onToggleMaximize}
+                      >
+                        {isMaximized ? (
+                          <Minimize2 className="size-4" aria-hidden="true" />
+                        ) : (
+                          <Maximize2 className="size-4" aria-hidden="true" />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{maximizeLabel}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : null}
             </div>
           </div>
         </DialogHeader>
@@ -705,7 +757,8 @@ export function NewIssueDialog({
               vault={vault ?? undefined}
               mentionConfig={issueBodyMentionConfig}
               enableHeightResize
-              preferredDescriptionHeight={preferredDescriptionHeight}
+              preferredDescriptionHeight={resolvedPreferredDescriptionHeight}
+              descriptionBodyFrameRef={descriptionFrameRef}
               bodyWysiwygPlaceholder={tc("descriptionWysiwygPlaceholder")}
               bodySourcePlaceholder={tc("descriptionPlaceholder")}
               disabled={isSubmitting}

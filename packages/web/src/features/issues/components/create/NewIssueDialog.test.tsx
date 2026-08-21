@@ -295,8 +295,59 @@ describe("NewIssueDialog", () => {
     mockViewStore.state.newIssueDialogOpen = false;
     mockViewStore.state.newIssueDialogContext = null;
     mockEnrichmentState.exposeParentOverride = false;
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 1024,
+    });
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      value: 768,
+    });
+    sessionStorage.clear();
     installDefaultApiMocks();
   });
+
+  function setViewport(width: number, height: number) {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: width,
+    });
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      value: height,
+    });
+  }
+
+  function mockDialogGeometry({ width = 1200, height = 720 } = {}) {
+    return vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+        if (this.getAttribute("data-testid") === "new-issue-dialog") {
+          return {
+            bottom: height,
+            height,
+            left: 0,
+            right: width,
+            top: 0,
+            width,
+            x: 0,
+            y: 0,
+            toJSON: () => ({}),
+          } as DOMRect;
+        }
+        return {
+          bottom: 0,
+          height: 0,
+          left: 0,
+          right: 0,
+          top: 0,
+          width: 0,
+          x: 0,
+          y: 0,
+          toJSON: () => ({}),
+        } as DOMRect;
+      });
+  }
 
   it("renders nothing visible when dialog is closed", () => {
     render(wrap(<NewIssueDialog />));
@@ -339,6 +390,121 @@ describe("NewIssueDialog", () => {
     await screen.findByText("New Issue");
     expect(mockMarkdownEditorResize.enabled).toBe(true);
     expect(mockMarkdownEditorResize.preferredHeight).toBe(640);
+  });
+
+  it("maximizes the two-dimensional create canvas and restores it without remounting the draft", async () => {
+    const user = userEvent.setup();
+    setViewport(1920, 1080);
+    const geometry = mockDialogGeometry();
+    mockViewStore.state.newIssueDialogOpen = true;
+
+    render(wrap(<NewIssueDialog />));
+    await screen.findByText("New Issue");
+
+    const title = screen.getByTestId("new-issue-title-input");
+    const body = screen.getByTestId("markdown-source-textarea");
+    await user.type(title, "Keep this draft");
+    await user.type(body, "Keep this body");
+    body.scrollTop = 42;
+    await user.click(screen.getByRole("button", { name: /^Maximize window$/ }));
+
+    const dialog = screen.getByTestId("new-issue-dialog");
+    const toggle = screen.getByRole("button", {
+      name: /^Restore window$/,
+    });
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(dialog).toHaveClass("max-w-[min(94vw,1680px)]");
+    expect(dialog).toHaveStyle({ height: "calc(100dvh - 2rem)" });
+    expect(mockMarkdownEditorResize.preferredHeight).toBeGreaterThan(320);
+    expect(title).toHaveValue("Keep this draft");
+    expect(body).toHaveValue("Keep this body");
+    expect(toggle).toHaveFocus();
+    expect(body.scrollTop).toBe(42);
+    expect(sessionStorage.getItem("reef:new-issue-dialog-expanded:v1")).toBe(
+      "true",
+    );
+
+    await user.click(toggle);
+    expect(
+      screen.getByRole("button", { name: /^Maximize window$/ }),
+    ).toHaveAttribute("aria-pressed", "false");
+    expect(dialog).toHaveClass("max-w-[min(94vw,1200px)]");
+    expect(dialog).not.toHaveStyle({ height: "calc(100dvh - 2rem)" });
+    expect(mockMarkdownEditorResize.preferredHeight).toBeUndefined();
+    expect(title).toHaveValue("Keep this draft");
+    expect(body).toHaveValue("Keep this body");
+    expect(body.scrollTop).toBe(42);
+    expect(geometry).toHaveBeenCalled();
+  });
+
+  it("keeps the maximize control out when both axes gain less than 32px", async () => {
+    setViewport(1280, 752);
+    const geometry = mockDialogGeometry();
+    mockViewStore.state.newIssueDialogOpen = true;
+
+    render(wrap(<NewIssueDialog />));
+    await screen.findByText("New Issue");
+
+    expect(
+      screen.queryByRole("button", { name: /maximize window/i }),
+    ).not.toBeInTheDocument();
+    expect(geometry).toHaveBeenCalled();
+  });
+
+  it("uses localized maximize and restore names and a visible tooltip", async () => {
+    setViewport(1920, 1080);
+    mockDialogGeometry();
+    mockViewStore.state.newIssueDialogOpen = true;
+
+    const { rerender } = render(
+      <IntlTestProvider locale="ko">
+        {wrap(<NewIssueDialog />)}
+      </IntlTestProvider>,
+    );
+    await screen.findByText("새 이슈");
+
+    const maximize = screen.getByRole("button", {
+      name: /^창 최대화$/,
+    });
+    expect(maximize).toHaveAttribute("title", "창 최대화");
+    expect(maximize).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(maximize);
+    expect(screen.getByRole("button", { name: /^창 복원$/ })).toHaveAttribute(
+      "title",
+      "창 복원",
+    );
+
+    rerender(
+      <IntlTestProvider locale="en">
+        {wrap(<NewIssueDialog />)}
+      </IntlTestProvider>,
+    );
+  });
+
+  it("starts restored only for a valid same-tab boolean and ignores corrupt storage", async () => {
+    setViewport(1920, 1080);
+    mockDialogGeometry();
+    sessionStorage.setItem(
+      "reef:new-issue-dialog-expanded:v1",
+      JSON.stringify("true"),
+    );
+    mockViewStore.state.newIssueDialogOpen = true;
+
+    const { unmount } = render(wrap(<NewIssueDialog />));
+    await screen.findByText("New Issue");
+    expect(
+      screen.getByRole("button", { name: /^Maximize window$/ }),
+    ).toBeInTheDocument();
+
+    sessionStorage.setItem("reef:new-issue-dialog-expanded:v1", "true");
+    unmount();
+    mockViewStore.state.newIssueDialogOpen = true;
+    render(wrap(<NewIssueDialog />));
+    expect(
+      await screen.findByRole("button", {
+        name: /^Restore window$/,
+      }),
+    ).toBeInTheDocument();
   });
 
   it("keeps one scrollable form body and reflows header actions", async () => {
