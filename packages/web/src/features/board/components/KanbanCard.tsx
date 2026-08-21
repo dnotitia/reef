@@ -178,7 +178,7 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
         ref={ref}
         data-testid="kanban-card"
         className={cn(
-          "group relative min-w-0 rounded-md border border-border bg-surface-elevated px-3 py-2.5",
+          "group relative min-w-0 rounded-md border border-border bg-surface-card px-3 py-2.5",
           "cursor-pointer select-none transition-colors duration-[var(--duration-base)] ease-[var(--ease-signature)]",
           "hover:border-border hover:bg-surface-hover",
           "focus-visible:outline-none focus-visible:border-brand-focus/60 focus-visible:bg-brand-fill/5",
