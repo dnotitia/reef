@@ -111,6 +111,13 @@ const ACCOUNT_DENIAL_CODES = new Set([
   "account_suspended",
   "identity_conflict",
 ]);
+const AUTH_PROTECTED_RESPONSES = new Set([
+  "healthy",
+  "unauthorized",
+  "forbidden",
+]);
+const AUTH_SESSIONS = new Set(["active", "revoked"]);
+const AUTH_PROBE_HANG_MAX_MS = 8_000;
 
 // A monotonically-advancing "edit clock". Each issue-row UPDATE stamps an
 // `updated_at` strictly later than the seeded `NOW`, mirroring real akb, which
@@ -266,6 +273,31 @@ const server = createServer(async (req, res) => {
         code: state.accountDenialCode,
       });
     }
+    if (url.pathname === "/__e2e/auth-control" && req.method === "POST") {
+      const body = await readJson(req);
+      state.authProbeDelayMs = Math.max(
+        0,
+        Math.min(Number(body?.probe_delay_ms ?? 0), AUTH_PROBE_HANG_MAX_MS),
+      );
+      state.authProbeDelayOnce = body?.probe_delay_once === true;
+      state.authProbeHang = body?.probe_hang === true;
+      state.protectedResponse = AUTH_PROTECTED_RESPONSES.has(
+        body?.protected_response,
+      )
+        ? body.protected_response
+        : "healthy";
+      if (AUTH_SESSIONS.has(body?.session)) {
+        if (body.session === "revoked") state.sessions.clear();
+        else state.sessions.set(state.loginToken, fixtureLogin.username);
+      }
+      return json(res, 200, {
+        ok: true,
+        probe_delay_ms: state.authProbeDelayMs,
+        probe_hang: state.authProbeHang,
+        session: body?.session === "revoked" ? "revoked" : "active",
+        protected_response: state.protectedResponse,
+      });
+    }
     // AKB's Keycloak login start. Reef calls this server-side and relays only
     // the resulting public authorization redirect to the browser.
     if (
@@ -393,6 +425,14 @@ function runtimeDiscovery() {
         content_type: "application/json",
         body: { scenario: "<supported_scenario>" },
       },
+      account_denial: {
+        method: "POST",
+        path: "/__e2e/account-denial",
+        content_type: "application/json",
+        body: {
+          code: "membership_required|account_suspended|identity_conflict|null",
+        },
+      },
       issue_update_control: {
         method: "POST",
         path: "/__e2e/issue-update-control",
@@ -406,6 +446,18 @@ function runtimeDiscovery() {
               failures: "<count>",
             },
           ],
+        },
+      },
+      auth_control: {
+        method: "POST",
+        path: "/__e2e/auth-control",
+        content_type: "application/json",
+        body: {
+          probe_delay_ms: "<milliseconds>",
+          probe_delay_once: "<boolean>",
+          probe_hang: "<boolean>",
+          session: "active|revoked",
+          protected_response: "healthy|unauthorized|forbidden",
         },
       },
     },
@@ -424,6 +476,29 @@ function runtimeDiscovery() {
     },
     scenarios: SUPPORTED_SCENARIOS,
     tasks: {
+      auth_soft_navigation: {
+        scenario: "configured",
+        workspace: "reef-e2e",
+        start_path: "/workspace/reef-e2e/issues",
+        controls: {
+          auth_control: [
+            "session revoke",
+            "bounded probe delay (including one-shot) or hang",
+            "healthy, plain 401, or resource 403 protected responses",
+          ],
+          account_denial: [
+            "membership_required|account_suspended|identity_conflict|null",
+          ],
+          protected_response: [
+            "forbidden on an ordinary user-directory or member-search interaction (for example assignee or settings) to observe the resource access-denied surface",
+          ],
+        },
+        interaction: {
+          type: "auth_soft_navigation",
+          operation:
+            "verify cold and warm protected destinations stay behind the auth conclusion, revoked sessions converge to same-origin login, stale delayed probes do not win, cross-tab auth changes redirect, and valid slow probes preserve the destination",
+        },
+      },
       assignee_picker: {
         scenario: "assignee_picker",
         workspace: "reef-e2e",
@@ -582,6 +657,10 @@ function makeState(scenario) {
     localAuthEnabled: true,
     ssoOnly: false,
     accountDenialCode: null,
+    authProbeDelayMs: 0,
+    authProbeDelayOnce: false,
+    authProbeHang: false,
+    protectedResponse: "healthy",
     commitSeq: 0,
     planningSeq: 10,
     githubRepos: [
@@ -1674,6 +1753,7 @@ async function handleAkb(req, res, url) {
   const user = state.users.get(username);
 
   if (path === "/api/v1/auth/me" && req.method === "GET") {
+    if (!(await waitForAuthProbe(req))) return;
     return json(res, 200, {
       id: user.id,
       user_id: user.id,
@@ -1685,6 +1765,12 @@ async function handleAkb(req, res, url) {
   }
 
   if (path === "/api/v1/users/search" && req.method === "GET") {
+    if (state.protectedResponse === "unauthorized") {
+      return json(res, 401, { error: "e2e forced protected 401" });
+    }
+    if (state.protectedResponse === "forbidden") {
+      return json(res, 403, { error: "e2e forced resource 403" });
+    }
     const query = (url.searchParams.get("q") ?? "").trim().toLowerCase();
     const parsedLimit = Number.parseInt(
       url.searchParams.get("limit") ?? "20",
@@ -3391,6 +3477,28 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function waitForAuthProbe(req) {
+  const delayMs = state.authProbeDelayMs;
+  if (state.authProbeDelayOnce) {
+    state.authProbeDelayMs = 0;
+    state.authProbeDelayOnce = false;
+  }
+  if (delayMs > 0) {
+    await sleep(delayMs);
+    if (req.aborted || req.destroyed) return false;
+  }
+  if (!state.authProbeHang) return true;
+
+  await new Promise((resolve) => {
+    const timer = setTimeout(resolve, AUTH_PROBE_HANG_MAX_MS);
+    req.once("aborted", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+  return !req.aborted && !req.destroyed;
+}
+
 function handleGitHub(req, res, url) {
   const path = url.pathname.slice("/github".length);
   if (
@@ -3712,7 +3820,10 @@ function vaultSummary(vault) {
     name: vault.name,
     description: vault.description,
     status: vault.status,
-    role: vault.role,
+    role:
+      state.protectedResponse === "forbidden" && vault.name === REEF_VAULT
+        ? "reader"
+        : vault.role,
     created_at: vault.created_at,
   };
 }

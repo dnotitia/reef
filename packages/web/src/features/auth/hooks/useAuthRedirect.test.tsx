@@ -2,9 +2,10 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const replace = vi.fn();
+const pathnameRef = { current: "/workspace/raw-vault/issues" };
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace }),
-  usePathname: () => "/workspace/raw-vault/issues",
+  usePathname: () => pathnameRef.current,
 }));
 
 const getAkbSessionStatus = vi.fn();
@@ -41,6 +42,7 @@ import { useAuthRedirect } from "./useAuthRedirect";
 describe("useAuthRedirect", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    pathnameRef.current = "/workspace/raw-vault/issues";
     snapshotPendingAkbAccountError.mockReturnValue(undefined);
     accountDeniedHandler.current = undefined;
   });
@@ -146,5 +148,34 @@ describe("useAuthRedirect", () => {
     });
 
     expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("returns to checking immediately when the protected pathname changes", async () => {
+    getAkbSessionStatus.mockResolvedValue({ active: true });
+    const { result, rerender } = renderHook(() => useAuthRedirect("workspace"));
+
+    await waitFor(() => expect(result.current).toBe("active"));
+    getAkbSessionStatus.mockImplementation(
+      () => new Promise<{ active: boolean }>(() => {}),
+    );
+    pathnameRef.current = "/workspace/raw-vault/planning";
+    rerender();
+
+    expect(result.current).toBe("checking");
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("redirects an active guard when the auth cache/event bridge invalidates it", async () => {
+    getAkbSessionStatus.mockResolvedValue({ active: true });
+    const { result } = renderHook(() => useAuthRedirect("workspace"));
+
+    await waitFor(() => expect(result.current).toBe("active"));
+    act(() => window.dispatchEvent(new Event("reef:auth-changed")));
+
+    await waitFor(() => {
+      expect(replace).toHaveBeenCalledWith(
+        "/login?redirect=%2Fworkspace%2Fraw-vault%2Fissues",
+      );
+    });
   });
 });

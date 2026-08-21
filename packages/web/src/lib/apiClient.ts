@@ -6,8 +6,76 @@ import {
   AUTH_INVALIDATED_HEADER,
   VAULT_HEADER,
 } from "./akb/headers";
+import {
+  getAuthCoordinatorSnapshot,
+  hasEstablishedAuthSession,
+  invalidateAuthSession,
+} from "./akb/authCoordinator";
 import { VAULT_NAME_RE } from "./akb/vaultName";
 import { getActiveVault } from "./storage/config";
+import { AUTH_CHANGED_EVENT } from "./storage/clientCache";
+
+export type AuthResponseClassification =
+  | "established-session-invalidation"
+  | "first-visit-unauthenticated"
+  | "resource-permission-denial"
+  | "other-error";
+
+/**
+ * Keep status-only responses meaningful at the browser boundary. A plain 401
+ * on the first probe is not proof that an established account was revoked,
+ * while a 401 observed after an active probe is an invalidation signal. A
+ * resource 403 never signs the account out unless the server supplies the
+ * explicit invalidation header.
+ */
+export function classifyAuthResponse(
+  response: Response,
+  establishedSession: boolean,
+): AuthResponseClassification {
+  if (response.headers.get(AUTH_INVALIDATED_HEADER) === "1") {
+    return "established-session-invalidation";
+  }
+  if (response.status === 401) {
+    return establishedSession
+      ? "established-session-invalidation"
+      : "first-visit-unauthenticated";
+  }
+  if (response.status === 403) return "resource-permission-denial";
+  return "other-error";
+}
+
+const inFlightRequests = new Set<AbortController>();
+let authEventCancellationInstalled = false;
+
+function ensureAuthEventCancellationListener(): void {
+  if (authEventCancellationInstalled || typeof window === "undefined") {
+    return;
+  }
+  authEventCancellationInstalled = true;
+  window.addEventListener(AUTH_CHANGED_EVENT, abortAuthScopedRequests);
+}
+
+/** Abort protected requests that must not repopulate a revoked account. */
+export function abortAuthScopedRequests(): void {
+  for (const controller of inFlightRequests) controller.abort();
+}
+
+async function handleEstablishedSessionInvalidation(
+  accountError: string | null,
+): Promise<void> {
+  // Record the denial before cleanup dispatches AUTH_CHANGED_EVENT so a mounted
+  // guard can build the account-specific login route synchronously.
+  if (isAkbAccountErrorCode(accountError)) {
+    recordAkbAccountDenial(accountError);
+  }
+  abortAuthScopedRequests();
+  invalidateAuthSession();
+  try {
+    await wipeAkbScopedBrowserState();
+  } catch {
+    // Best-effort persistent cleanup; the authoritative response still wins.
+  }
+}
 
 /**
  * A fetch() wrapper that attaches browser-local request context.
@@ -20,49 +88,64 @@ import { getActiveVault } from "./storage/config";
  */
 export const apiClient = {
   async fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-    // Browser-local context is optional request decoration. IndexedDB can be
-    // unavailable (private mode, denied storage, startup failure); that does not
-    // turn login or an otherwise valid BFF request into a network error.
-    const vault = await getActiveVault().catch(() => "");
+    ensureAuthEventCancellationListener();
 
-    const headers = new Headers(init?.headers);
-
-    // X-Reef-Vault — read by the chat Route Handler which does not accept a
-    // `?vault=` querystring (the AI SDK transport owns the URL). Validated here
-    // so a stale/typo'd Dexie entry doesn't reach the server. Identifier just —
-    // not redacted by the logging middleware. The Dexie value is a
-    // fallback: a caller that already knows the workspace from the URL `[vault]`
-    // segment sets the header explicitly for tab-local request context, and the
-    // shared Dexie pointer should not clobber it (REEF-315 — tab independence).
-    if (!headers.has(VAULT_HEADER) && vault && VAULT_NAME_RE.test(vault)) {
-      headers.set(VAULT_HEADER, vault);
+    const requestController = new AbortController();
+    const callerSignal = init?.signal;
+    const abortFromCaller = () => requestController.abort();
+    if (callerSignal?.aborted) {
+      requestController.abort();
+    } else {
+      callerSignal?.addEventListener("abort", abortFromCaller, {
+        once: true,
+      });
     }
+    inFlightRequests.add(requestController);
 
-    // Pin credentials to same-origin so the `__reef_session` httpOnly cookie
-    // (used by /api/auth/akb/me and any future authenticated reef-web endpoint)
-    // is forwarded automatically without leaking cookies to cross-origin URLs
-    // that might land in `input`.
-    const response = await fetch(input, {
-      credentials: "same-origin",
-      ...init,
-      headers,
-    });
-    if (response.headers.get(AUTH_INVALIDATED_HEADER) === "1") {
-      const accountError = response.headers.get(AUTH_ACCOUNT_ERROR_HEADER);
-      // The server has already invalidated the httpOnly session. In-memory
-      // cleanup runs before accountReconcile touches IndexedDB; if persistent
-      // storage is unavailable, preserve the authoritative denial response
-      // instead of misreporting it as a network failure.
-      try {
-        await wipeAkbScopedBrowserState();
-      } catch {
-        // Best-effort persistent cleanup; the authoritative response wins.
+    try {
+      // Browser-local context is optional request decoration. IndexedDB can be
+      // unavailable (private mode, denied storage, startup failure); that does not
+      // turn login or an otherwise valid BFF request into a network error.
+      const vault = await getActiveVault().catch(() => "");
+
+      const headers = new Headers(init?.headers);
+
+      // X-Reef-Vault — read by the chat Route Handler which does not accept a
+      // `?vault=` querystring (the AI SDK transport owns the URL). Validated here
+      // so a stale/typo'd Dexie entry doesn't reach the server. Identifier just —
+      // not redacted by the logging middleware. The Dexie value is a
+      // fallback: a caller that already knows the workspace from the URL `[vault]`
+      // segment sets the header explicitly for tab-local request context, and the
+      // shared Dexie pointer should not clobber it (REEF-315 — tab independence).
+      if (!headers.has(VAULT_HEADER) && vault && VAULT_NAME_RE.test(vault)) {
+        headers.set(VAULT_HEADER, vault);
       }
-      if (isAkbAccountErrorCode(accountError)) {
-        recordAkbAccountDenial(accountError);
+
+      // Pin credentials to same-origin so the `__reef_session` httpOnly cookie
+      // (used by /api/auth/akb/me and any future authenticated reef-web endpoint)
+      // is forwarded automatically without leaking cookies to cross-origin URLs
+      // that might land in `input`.
+      const response = await fetch(input, {
+        ...init,
+        credentials: "same-origin",
+        headers,
+        signal: requestController.signal,
+      });
+      const classification = classifyAuthResponse(
+        response,
+        getAuthCoordinatorSnapshot().status === "active" ||
+          hasEstablishedAuthSession(),
+      );
+      if (classification === "established-session-invalidation") {
+        await handleEstablishedSessionInvalidation(
+          response.headers.get(AUTH_ACCOUNT_ERROR_HEADER),
+        );
       }
+      return response;
+    } finally {
+      inFlightRequests.delete(requestController);
+      callerSignal?.removeEventListener("abort", abortFromCaller);
     }
-    return response;
   },
 };
 

@@ -31,10 +31,11 @@ describe("GET /api/auth/akb/me", () => {
     vi.restoreAllMocks();
   });
 
-  it("returns 401 and clears cookie when no session cookie present", async () => {
+  it("returns a plain first-visit 401 when no session cookie is present", async () => {
     const res = await GET(makeRequest());
     expect(res.status).toBe(401);
-    expectClearedAuthCookies(res);
+    expect(res.headers.get("x-reef-auth-invalidated")).toBeNull();
+    expect(res.headers.get("set-cookie")).toBeNull();
   });
 
   it("returns 401 and clears cookie when JWT is expired", async () => {

@@ -24,7 +24,12 @@ vi.mock("./akb/accountDenialClient", () => ({
   recordAkbAccountDenial: (code: string) => recordAkbAccountDenial(code),
 }));
 
-import { apiClient, apiFetch } from "./apiClient";
+import {
+  apiClient,
+  apiFetch,
+  abortAuthScopedRequests,
+  classifyAuthResponse,
+} from "./apiClient";
 import { setConfigValue } from "./storage/config";
 import { db } from "./storage/db";
 
@@ -116,8 +121,8 @@ describe("apiClient.fetch — browser request headers", () => {
 
     expect(wipeAkbScopedBrowserState).toHaveBeenCalledOnce();
     expect(recordAkbAccountDenial).toHaveBeenCalledWith("membership_required");
-    expect(wipeAkbScopedBrowserState.mock.invocationCallOrder[0]).toBeLessThan(
-      recordAkbAccountDenial.mock.invocationCallOrder[0] ?? 0,
+    expect(recordAkbAccountDenial.mock.invocationCallOrder[0]).toBeLessThan(
+      wipeAkbScopedBrowserState.mock.invocationCallOrder[0] ?? 0,
     );
   });
 
@@ -125,6 +130,14 @@ describe("apiClient.fetch — browser request headers", () => {
     mockFetch.mockResolvedValueOnce(mockResponse(403));
 
     await apiClient.fetch("/api/issues");
+
+    expect(wipeAkbScopedBrowserState).not.toHaveBeenCalled();
+  });
+
+  it("does not sign out on a first-visit plain 401", async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse(401));
+
+    await apiClient.fetch("/api/auth/akb/me");
 
     expect(wipeAkbScopedBrowserState).not.toHaveBeenCalled();
   });
@@ -140,6 +153,46 @@ describe("apiClient.fetch — browser request headers", () => {
     );
 
     await expect(apiClient.fetch("/api/issues")).resolves.toBe(response);
+  });
+
+  it("classifies first-visit 401 and resource 403 without conflating them", () => {
+    expect(classifyAuthResponse(mockResponse(401), false)).toBe(
+      "first-visit-unauthenticated",
+    );
+    expect(classifyAuthResponse(mockResponse(403), true)).toBe(
+      "resource-permission-denial",
+    );
+    expect(
+      classifyAuthResponse(
+        new Response("{}", {
+          status: 401,
+          headers: { "X-Reef-Auth-Invalidated": "1" },
+        }),
+        false,
+      ),
+    ).toBe("established-session-invalidation");
+    expect(classifyAuthResponse(mockResponse(500), true)).toBe("other-error");
+  });
+
+  it("aborts an in-flight protected request on auth invalidation", async () => {
+    let capturedSignal: AbortSignal | null | undefined;
+    mockFetch.mockImplementation(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        capturedSignal = init?.signal;
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("aborted", "AbortError"));
+          });
+        });
+      },
+    );
+
+    const request = apiClient.fetch("/api/issues");
+    await vi.waitFor(() => expect(capturedSignal).toBeDefined());
+    abortAuthScopedRequests();
+
+    await expect(request).rejects.toMatchObject({ name: "AbortError" });
+    expect(capturedSignal?.aborted).toBe(true);
   });
 });
 

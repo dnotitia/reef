@@ -36,7 +36,15 @@ export async function GET(request: Request): Promise<Response> {
     jwt = extractAkbSession(request);
   } catch (err) {
     if (err instanceof AuthError) {
-      return clearedSessionResponse(err.toUserMessage());
+      // A request made before a user ever established a session is a plain
+      // first-visit 401.  Keep the invalidation marker and cookie clearing for
+      // an established session that akb later rejects, but do not make the
+      // client treat a missing cookie as an external auth change.
+      return sessionErrorResponse(
+        err.toUserMessage(),
+        undefined,
+        err.context.message !== "missing_session_cookie",
+      );
     }
     throw err;
   }
@@ -98,15 +106,25 @@ function clearedSessionResponse(
   message: string,
   code?: AkbAccountErrorCode,
 ): Response {
+  return sessionErrorResponse(message, code, true);
+}
+
+function sessionErrorResponse(
+  message: string,
+  code: AkbAccountErrorCode | undefined,
+  invalidate: boolean,
+): Response {
   const headers = new Headers({
     "Cache-Control": "no-store",
     "Content-Type": "application/json",
-    [AUTH_INVALIDATED_HEADER]: "1",
   });
-  if (code) headers.set(AUTH_ACCOUNT_ERROR_HEADER, code);
-  for (const cookie of buildClearedEstablishedAuthCookies()) {
-    headers.append("Set-Cookie", cookie);
+  if (invalidate) {
+    headers.set(AUTH_INVALIDATED_HEADER, "1");
+    for (const cookie of buildClearedEstablishedAuthCookies()) {
+      headers.append("Set-Cookie", cookie);
+    }
   }
+  if (code) headers.set(AUTH_ACCOUNT_ERROR_HEADER, code);
   return new Response(
     JSON.stringify({ error: message, ...(code ? { code } : {}) }),
     {

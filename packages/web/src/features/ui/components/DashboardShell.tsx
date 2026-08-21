@@ -50,7 +50,7 @@ import {
   Plus,
   Settings,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -86,6 +86,7 @@ function subscribeToPlatformStore() {
 }
 
 const MOBILE_SIDEBAR_MEDIA_QUERY = "(max-width: 767px)";
+const COMMAND_FOCUS_PENDING_ATTRIBUTE = "data-reef-command-focus-pending";
 
 function subscribeToMobileSidebar(onStoreChange: () => void) {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function")
@@ -217,6 +218,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   // cookie was cleared (REEF-291).
   useLocaleSync();
   const t = useTranslations("nav");
+  const activeLocale = useLocale();
   const pathname = usePathname();
   const router = useRouter();
   // Keep the assistant message count in DashboardShell so the FAB can show
@@ -334,6 +336,9 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
     null,
   );
   const commandDestinationRef = useRef<HTMLElement>(null);
+  const commandDestinationFocusPendingRef = useRef(false);
+  const commandDestinationFocusPathRef = useRef<string | null>(null);
+  const commandDestinationFocusLocaleRef = useRef<string | null>(null);
 
   const clearChord = useCallback(() => {
     if (chordRef.current?.timer) {
@@ -387,8 +392,46 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   );
 
   const focusCommandDestination = useCallback(() => {
+    commandDestinationFocusPendingRef.current = true;
+    commandDestinationFocusPathRef.current = pathname;
+    commandDestinationFocusLocaleRef.current = activeLocale;
+    document.documentElement.setAttribute(COMMAND_FOCUS_PENDING_ATTRIBUTE, "");
     commandDestinationRef.current?.focus({ preventScroll: true });
-  }, []);
+  }, [activeLocale, pathname]);
+
+  // Radix closes the palette before the App Router finishes a soft navigation.
+  // A synchronous focus handoff is therefore vulnerable to the router's route
+  // commit moving focus back to the document body. Keep a marker outside the
+  // route subtree so a remounted shell can finish the handoff after the route
+  // settles; route commits and locale refreshes reuse the same effect through
+  // pathname and activeLocale.
+  useEffect(() => {
+    if (!activeLocale) return;
+    if (
+      !commandDestinationFocusPendingRef.current &&
+      !document.documentElement.hasAttribute(COMMAND_FOCUS_PENDING_ATTRIBUTE)
+    ) {
+      return;
+    }
+    const routeSettled = commandDestinationFocusPathRef.current !== pathname;
+    const localeSettled =
+      commandDestinationFocusLocaleRef.current !== activeLocale;
+    if (!routeSettled && !localeSettled) return;
+    const frame = window.requestAnimationFrame(() => {
+      if (
+        !commandDestinationFocusPendingRef.current &&
+        !document.documentElement.hasAttribute(COMMAND_FOCUS_PENDING_ATTRIBUTE)
+      ) {
+        return;
+      }
+      commandDestinationFocusPendingRef.current = false;
+      commandDestinationFocusPathRef.current = null;
+      commandDestinationFocusLocaleRef.current = null;
+      document.documentElement.removeAttribute(COMMAND_FOCUS_PENDING_ATTRIBUTE);
+      commandDestinationRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeLocale, pathname]);
 
   const commandRegistry = useCommandRegistry({
     vault: vault ?? "",

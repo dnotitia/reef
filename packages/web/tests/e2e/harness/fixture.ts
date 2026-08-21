@@ -238,6 +238,28 @@ export async function setAkbAccountDenial(
   expect(response.ok()).toBeTruthy();
 }
 
+export async function setAuthControl(
+  request: APIRequestContext,
+  control: {
+    probeDelayMs?: number;
+    probeDelayOnce?: boolean;
+    probeHang?: boolean;
+    session?: "active" | "revoked";
+    protectedResponse?: "healthy" | "unauthorized" | "forbidden";
+  },
+): Promise<void> {
+  const response = await request.post(`${E2E_MOCK_URL}/__e2e/auth-control`, {
+    data: {
+      probe_delay_ms: control.probeDelayMs ?? 0,
+      probe_delay_once: control.probeDelayOnce ?? false,
+      probe_hang: control.probeHang ?? false,
+      session: control.session ?? "active",
+      protected_response: control.protectedResponse ?? "healthy",
+    },
+  });
+  expect(response.ok()).toBeTruthy();
+}
+
 export async function signInAsAlice(page: Page): Promise<void> {
   await page.goto("/login?redirect=%2Fonboarding");
   await waitForPasswordLogin(page);

@@ -6,7 +6,14 @@ import {
   subscribeAkbAccountDenied,
 } from "@/lib/akb/accountDenialClient";
 import { getAkbSessionStatus } from "@/lib/akb/checkAkbSession";
-import { buildPathWithParams } from "@/lib/akb/safeRedirect";
+import {
+  requestAuthProbe,
+  subscribeAuthCoordinator,
+} from "@/lib/akb/authCoordinator";
+import {
+  buildPathWithParams,
+  normalizeSafeRedirect,
+} from "@/lib/akb/safeRedirect";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -23,26 +30,29 @@ export type AuthGateMode = "root" | "workspace" | "onboarding";
 export type AuthGateStatus = "checking" | "active" | "inactive";
 
 /**
- * Shared client-side auth gate. Probe order:
- *   1. No active akb session → `/login`
- *   2. All modes stop here. Root and onboarding workspace selection is owned by
- *      the shared workspace auto-resume policy, while workspace membership is
- *      validated downstream by `WorkspaceGuard`.
- *
- * GitHub App and LLM config are NOT login gates - they are deployment
- * capabilities surfaced on the monitored-repository / AI surfaces.
+ * Shared client-side auth gate. A single coordinator owns probe freshness,
+ * timeout, focus/visibility revalidation, and auth-change invalidation. This
+ * hook owns only route-specific login navigation and the protected subtree's
+ * render status.
  */
 export function useAuthRedirect(mode: AuthGateMode): AuthGateStatus {
   const router = useRouter();
+  const replace = router.replace;
   const pathname = usePathname();
+  const routeKey = `${mode}:${pathname}`;
   const [authState, setAuthState] = useState<{
-    mode: AuthGateMode;
+    routeKey: string;
     status: AuthGateStatus;
-  }>({ mode, status: "checking" });
-  const status = authState.mode === mode ? authState.status : "checking";
+  }>({ routeKey, status: "checking" });
+
+  // A soft navigation can preserve this hook instance for one render while
+  // Next prepares the destination. The key mismatch deliberately keeps the
+  // neutral shell mounted until the newest probe concludes.
+  const status =
+    authState.routeKey === routeKey ? authState.status : "checking";
 
   useEffect(() => {
-    const controller = new AbortController();
+    let mounted = true;
     let redirectCommitted = false;
 
     const redirectToLogin = (
@@ -52,12 +62,12 @@ export function useAuthRedirect(mode: AuthGateMode): AuthGateStatus {
         | "identity_conflict",
       pending?: PendingAkbAccountErrorSnapshot,
     ) => {
-      if (redirectCommitted || controller.signal.aborted) return;
+      if (!mounted || redirectCommitted) return;
       const pendingSnapshot = pending ?? snapshotPendingAkbAccountError();
       const effectiveAccountError = accountError ?? pendingSnapshot?.code;
       redirectCommitted = true;
-      setAuthState({ mode, status: "inactive" });
-      router.replace(
+      setAuthState({ routeKey, status: "inactive" });
+      replace(
         effectiveAccountError
           ? buildPathWithParams("/login", {
               sso_error: effectiveAccountError,
@@ -66,45 +76,39 @@ export function useAuthRedirect(mode: AuthGateMode): AuthGateStatus {
                 : {}),
             })
           : mode === "workspace"
-            ? buildPathWithParams("/login", { redirect: pathname })
+            ? buildPathWithParams("/login", {
+                redirect: normalizeSafeRedirect(pathname),
+              })
             : "/login",
       );
     };
-    const unsubscribe = subscribeAkbAccountDenied(redirectToLogin);
 
-    async function run() {
-      try {
-        const session = await getAkbSessionStatus(controller.signal);
-        if (controller.signal.aborted) return;
-
-        if (!session.active) {
-          redirectToLogin(
-            session.accountError,
-            session.accountError && session.accountErrorToken
-              ? {
-                  code: session.accountError,
-                  token: session.accountErrorToken,
-                }
-              : undefined,
-          );
-          return;
-        }
-
-        if (redirectCommitted) return;
-
-        setAuthState({ mode, status: "active" });
-      } catch {
-        if (controller.signal.aborted) return;
-        redirectToLogin();
+    const unsubscribeCoordinator = subscribeAuthCoordinator((next) => {
+      if (!mounted) return;
+      if (next.status === "inactive") {
+        redirectToLogin(
+          next.accountError,
+          next.accountError && next.accountErrorToken
+            ? {
+                code: next.accountError,
+                token: next.accountErrorToken,
+              }
+            : undefined,
+        );
+        return;
       }
-    }
+      setAuthState({ routeKey, status: next.status });
+    }, getAkbSessionStatus);
+    const unsubscribeAccountDenial = subscribeAkbAccountDenied(redirectToLogin);
 
-    void run();
+    requestAuthProbe(getAkbSessionStatus);
+
     return () => {
-      controller.abort();
-      unsubscribe();
+      mounted = false;
+      unsubscribeCoordinator();
+      unsubscribeAccountDenial();
     };
-  }, [router, mode, pathname]);
+  }, [mode, pathname, replace, routeKey]);
 
   return status;
 }
