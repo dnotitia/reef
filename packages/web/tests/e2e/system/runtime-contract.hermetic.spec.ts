@@ -12,6 +12,7 @@ import {
   openExistingWorkspace,
   readFixtureState,
   resetFixture,
+  signInAsAlice,
   writeIndexedDbConfig,
 } from "../harness/fixture";
 import fixtureLogin from "../harness/fixture-login.json";
@@ -130,6 +131,227 @@ async function expectVisibleFocus(
     path: testInfo.outputPath(`${screenshotName}-focus.png`),
   });
   expect(screenshot.byteLength).toBeGreaterThan(0);
+}
+
+const RUNTIME_VISUAL_VIEWPORTS = [
+  { name: "320", width: 320, height: 844 },
+  { name: "375", width: 375, height: 844 },
+  { name: "414", width: 414, height: 844 },
+  { name: "768", width: 768, height: 844 },
+  { name: "desktop", width: 1440, height: 900 },
+] as const;
+
+const RUNTIME_SURFACE_ROLES = [
+  "page",
+  "subtle",
+  "card",
+  "elevated",
+  "popover",
+] as const;
+
+type RuntimeSurfaceRole = (typeof RUNTIME_SURFACE_ROLES)[number];
+
+type RuntimeSurfaceObservation = {
+  roleCounts: Record<RuntimeSurfaceRole, number>;
+  roleTokenColors: Record<RuntimeSurfaceRole, string>;
+  unresolvedSurfaceFills: Array<{
+    role: RuntimeSurfaceRole;
+    className: string;
+  }>;
+  clippedText: Array<{ tag: string; text: string; className: string }>;
+  outOfViewportControls: Array<{ tag: string; text: string }>;
+  documentOverflow: boolean;
+  bodyOverflow: boolean;
+  mainOverflow: boolean;
+};
+
+async function setRuntimeTheme(page: Page, theme: "light" | "dark") {
+  await writeIndexedDbConfig(page, "theme", theme);
+  await page.evaluate((nextTheme) => {
+    window.localStorage.setItem("reef.theme", nextTheme);
+  }, theme);
+  await page.emulateMedia({ colorScheme: theme });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect
+    .poll(() =>
+      page
+        .locator("html")
+        .evaluate((element) => element.classList.contains("dark")),
+    )
+    .toBe(theme === "dark");
+}
+
+async function setPublicRuntimeTheme(page: Page, theme: "light" | "dark") {
+  await page.emulateMedia({ colorScheme: theme });
+  await page.evaluate((nextTheme) => {
+    window.localStorage.setItem("reef.theme", nextTheme);
+    document.documentElement.classList.toggle("dark", nextTheme === "dark");
+  }, theme);
+  await expect
+    .poll(() =>
+      page
+        .locator("html")
+        .evaluate((element) => element.classList.contains("dark")),
+    )
+    .toBe(theme === "dark");
+}
+
+async function observeRuntimeSurface(
+  page: Page,
+): Promise<RuntimeSurfaceObservation> {
+  return page.evaluate((roles) => {
+    const rolePattern =
+      /^bg-surface-(page|subtle|card|elevated|popover)(?:\/.*)?$/u;
+    const roleCounts = Object.fromEntries(
+      roles.map((role) => [role, 0]),
+    ) as Record<RuntimeSurfaceRole, number>;
+    const unresolvedSurfaceFills: RuntimeSurfaceObservation["unresolvedSurfaceFills"] =
+      [];
+    const roleTokenColors = Object.fromEntries(
+      roles.map((role) => {
+        const probe = document.createElement("span");
+        probe.style.backgroundColor = `var(--surface-${role})`;
+        probe.style.position = "fixed";
+        probe.style.visibility = "hidden";
+        document.body.append(probe);
+        const color = getComputedStyle(probe).backgroundColor;
+        probe.remove();
+        return [role, color];
+      }),
+    ) as Record<RuntimeSurfaceRole, string>;
+
+    for (const element of Array.from(
+      document.querySelectorAll<HTMLElement>("*"),
+    )) {
+      const rect = element.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      for (const className of Array.from(element.classList)) {
+        const match = className.match(rolePattern);
+        if (!match) continue;
+        const role = match[1] as RuntimeSurfaceRole;
+        roleCounts[role] += 1;
+        const background = getComputedStyle(element).backgroundColor;
+        if (
+          background === "transparent" ||
+          background === "rgba(0, 0, 0, 0)" ||
+          background === ""
+        ) {
+          unresolvedSurfaceFills.push({ role, className });
+        }
+      }
+    }
+
+    const isVisible = (element: HTMLElement) => {
+      const styles = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return (
+        styles.display !== "none" &&
+        styles.visibility !== "hidden" &&
+        styles.opacity !== "0" &&
+        rect.width > 0 &&
+        rect.height > 0 &&
+        element.getAttribute("aria-hidden") !== "true"
+      );
+    };
+    const hasHorizontalScrollOwner = (element: HTMLElement) => {
+      let owner = element.parentElement;
+      while (owner) {
+        const styles = getComputedStyle(owner);
+        const scrollable = [styles.overflowX, styles.overflow].some(
+          (value) => value === "auto" || value === "scroll",
+        );
+        if (scrollable && owner.scrollWidth > owner.clientWidth + 1) {
+          return true;
+        }
+        owner = owner.parentElement;
+      }
+      return false;
+    };
+    const outOfViewportControls = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        "button,a,input,textarea,select,[role=button],[role=link]",
+      ),
+    )
+      .filter(isVisible)
+      .filter((element) => {
+        const rect = element.getBoundingClientRect();
+        if (rect.left >= -1 && rect.right <= window.innerWidth + 1) {
+          return false;
+        }
+        return !hasHorizontalScrollOwner(element);
+      })
+      .map((element) => ({
+        tag: element.tagName.toLowerCase(),
+        text: (element.textContent ?? element.getAttribute("aria-label") ?? "")
+          .trim()
+          .slice(0, 80),
+        rect: element.getBoundingClientRect(),
+      }))
+      .map(({ tag, text }) => ({ tag, text }));
+
+    const clippedText = Array.from(
+      document.querySelectorAll<HTMLElement>("h1,h2,h3,h4,p,button,a,label"),
+    )
+      .filter(isVisible)
+      .filter((element) => {
+        if (element.classList.contains("sr-only")) return false;
+        const styles = getComputedStyle(element);
+        if (element.scrollWidth <= element.clientWidth + 1) return false;
+        if (
+          styles.textOverflow === "ellipsis" ||
+          element.hasAttribute("title") ||
+          /(?:truncate|line-clamp)/u.test(element.className)
+        ) {
+          return false;
+        }
+        if (hasHorizontalScrollOwner(element)) return false;
+        return true;
+      })
+      .map((element) => ({
+        tag: element.tagName.toLowerCase(),
+        text: (element.textContent ?? "").trim().slice(0, 80),
+        className: element.className,
+      }));
+
+    const main = document.querySelector<HTMLElement>("main");
+    return {
+      roleCounts,
+      roleTokenColors,
+      unresolvedSurfaceFills,
+      clippedText,
+      outOfViewportControls,
+      documentOverflow:
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth,
+      bodyOverflow: document.body.scrollWidth > document.body.clientWidth,
+      mainOverflow: main ? main.scrollWidth > main.clientWidth : false,
+    };
+  }, RUNTIME_SURFACE_ROLES);
+}
+
+async function expectRuntimeFocus(locator: Locator) {
+  await locator.focus();
+  await expect(locator).toBeFocused();
+  const viewport = locator.page().viewportSize();
+  if (!viewport) throw new Error("Missing Playwright viewport size");
+  const focus = await locator.evaluate((element) => {
+    const styles = getComputedStyle(element);
+    const outlineWidth = Number.parseFloat(styles.outlineWidth) || 0;
+    return {
+      ring:
+        (styles.outlineStyle !== "none" &&
+          outlineWidth >= 2 &&
+          styles.outlineColor !== "transparent" &&
+          styles.outlineColor !== "rgba(0, 0, 0, 0)") ||
+        styles.boxShadow !== "none",
+      rect: element.getBoundingClientRect(),
+    };
+  });
+  expect(focus.ring).toBe(true);
+  expect(focus.rect.left).toBeGreaterThanOrEqual(-1);
+  expect(focus.rect.top).toBeGreaterThanOrEqual(-1);
+  expect(focus.rect.right).toBeLessThanOrEqual(viewport.width + 1);
+  expect(focus.rect.bottom).toBeLessThanOrEqual(viewport.height + 1);
 }
 
 test.describe("Hermetic runtime discovery", () => {
@@ -962,5 +1184,268 @@ test.describe("Hermetic runtime discovery", () => {
           }),
         ]),
       );
+  });
+
+  test("records dashboard surface roles and responsive evidence across routed pages", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(300_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openExistingWorkspace(page);
+
+    const routes = [
+      {
+        name: "inbox",
+        path: "/workspace/reef-e2e/inbox",
+        ready: () => page.getByTestId("notification-inbox"),
+        focus: () => page.getByRole("link", { name: "Inbox", exact: true }),
+      },
+      {
+        name: "my-work",
+        path: "/workspace/reef-e2e/my-work",
+        ready: () => page.getByTestId("my-work-page"),
+        focus: () => page.locator('[data-testid^="my-work-row-"]').first(),
+      },
+      {
+        name: "planning",
+        path: "/workspace/reef-e2e/planning",
+        ready: () => page.getByRole("heading", { name: "Planning" }),
+        focus: () => page.getByRole("button", { name: "New sprint" }),
+      },
+      {
+        name: "reports",
+        path: "/workspace/reef-e2e/reports",
+        ready: () => page.getByTestId("reports-page"),
+        focus: () => page.getByTestId("new-issue-trigger"),
+      },
+      {
+        name: "settings-workspace",
+        path: "/workspace/reef-e2e/settings/workspace",
+        ready: () => page.getByTestId("settings-tabs"),
+        focus: () =>
+          page.getByTestId("settings-tabs").getByRole("link").first(),
+      },
+      {
+        name: "settings-members",
+        path: "/workspace/reef-e2e/settings/workspace/members",
+        ready: () => page.getByTestId("settings-tabs"),
+        focus: () =>
+          page.getByTestId("settings-tabs").getByRole("link").first(),
+      },
+      {
+        name: "settings-preferences",
+        path: "/workspace/reef-e2e/settings/preferences",
+        ready: () => page.getByTestId("settings-tabs"),
+        focus: () =>
+          page.getByTestId("settings-tabs").getByRole("link").first(),
+      },
+      {
+        name: "settings-deployment",
+        path: "/workspace/reef-e2e/settings/deployment",
+        ready: () => page.getByTestId("settings-tabs"),
+        focus: () =>
+          page.getByTestId("settings-tabs").getByRole("link").first(),
+      },
+    ] as const;
+
+    const observations: Array<
+      RuntimeSurfaceObservation & {
+        route: string;
+        theme: "light" | "dark";
+        viewport: string;
+      }
+    > = [];
+    for (const theme of ["light", "dark"] as const) {
+      await setRuntimeTheme(page, theme);
+      for (const viewport of RUNTIME_VISUAL_VIEWPORTS) {
+        await page.setViewportSize(viewport);
+        for (const route of routes) {
+          await page.goto(route.path);
+          await expect(route.ready()).toBeVisible({ timeout: 15_000 });
+          await expectRuntimeFocus(route.focus());
+
+          const observation = await observeRuntimeSurface(page);
+          observations.push({
+            route: route.name,
+            theme,
+            viewport: viewport.name,
+            ...observation,
+          });
+          expect(observation.documentOverflow).toBe(false);
+          expect(observation.bodyOverflow).toBe(false);
+          expect(observation.mainOverflow).toBe(false);
+          expect(observation.unresolvedSurfaceFills).toEqual([]);
+          expect(observation.clippedText).toEqual([]);
+          expect(observation.outOfViewportControls).toEqual([]);
+          const tokenColors = Object.values(observation.roleTokenColors);
+          expect(
+            tokenColors.every((color) => color && color !== "transparent"),
+          ).toBe(true);
+          expect(new Set(tokenColors).size).toBe(RUNTIME_SURFACE_ROLES.length);
+
+          const screenshot = await page.screenshot({
+            animations: "disabled",
+            path: testInfo.outputPath(
+              `${route.name}-${theme}-${viewport.name}.png`,
+            ),
+          });
+          expect(screenshot.byteLength).toBeGreaterThan(0);
+        }
+      }
+    }
+
+    await testInfo.attach("dashboard-surface-observations.json", {
+      body: JSON.stringify(observations, null, 2),
+      contentType: "application/json",
+    });
+  });
+
+  test("records login, onboarding, error, and 404 surface evidence", async ({
+    context,
+    page,
+    request,
+  }, testInfo) => {
+    test.setTimeout(300_000);
+    await context.clearCookies();
+    await resetFixture(request, "configured");
+
+    const observations: Array<
+      RuntimeSurfaceObservation & {
+        route: string;
+        theme: "light" | "dark";
+        viewport: string;
+      }
+    > = [];
+
+    for (const theme of ["light", "dark"] as const) {
+      await page.goto("/login");
+      await setPublicRuntimeTheme(page, theme);
+      for (const viewport of RUNTIME_VISUAL_VIEWPORTS) {
+        await page.setViewportSize(viewport);
+        const loginRoutes = [
+          {
+            name: "login",
+            path: "/login",
+            ready: page.getByTestId("akb-login-form"),
+            focus: page.getByTestId("login-username"),
+          },
+          {
+            name: "login-error",
+            path: "/login?error=expired",
+            ready: page.getByTestId("akb-login-form"),
+            focus: page.getByTestId("login-username"),
+          },
+        ] as const;
+
+        for (const route of loginRoutes) {
+          await page.goto(route.path);
+          await setPublicRuntimeTheme(page, theme);
+          await expect(route.ready).toBeVisible({ timeout: 15_000 });
+          await expectRuntimeFocus(route.focus);
+          const observation = await observeRuntimeSurface(page);
+          observations.push({
+            route: route.name,
+            theme,
+            viewport: viewport.name,
+            ...observation,
+          });
+          expect(observation.documentOverflow).toBe(false);
+          expect(observation.bodyOverflow).toBe(false);
+          expect(observation.mainOverflow).toBe(false);
+          expect(observation.unresolvedSurfaceFills).toEqual([]);
+          expect(observation.clippedText).toEqual([]);
+          expect(observation.outOfViewportControls).toEqual([]);
+          const screenshot = await page.screenshot({
+            animations: "disabled",
+            path: testInfo.outputPath(
+              `${route.name}-${theme}-${viewport.name}.png`,
+            ),
+          });
+          expect(screenshot.byteLength).toBeGreaterThan(0);
+        }
+
+        const missingPath = `/visual-regression-missing-${theme}-${viewport.name}`;
+        const response = await page.goto(missingPath);
+        expect(response?.status()).toBe(404);
+        await setPublicRuntimeTheme(page, theme);
+        const notFoundHome = page.getByRole("link", {
+          name: "Go to reef home",
+        });
+        await expect(
+          page.getByRole("heading", { name: "Page not found" }),
+        ).toBeVisible();
+        await expectRuntimeFocus(notFoundHome);
+        const observation = await observeRuntimeSurface(page);
+        observations.push({
+          route: "404",
+          theme,
+          viewport: viewport.name,
+          ...observation,
+        });
+        expect(observation.documentOverflow).toBe(false);
+        expect(observation.bodyOverflow).toBe(false);
+        expect(observation.mainOverflow).toBe(false);
+        expect(observation.unresolvedSurfaceFills).toEqual([]);
+        expect(observation.clippedText).toEqual([]);
+        expect(observation.outOfViewportControls).toEqual([]);
+        const screenshot = await page.screenshot({
+          animations: "disabled",
+          path: testInfo.outputPath(`404-${theme}-${viewport.name}.png`),
+        });
+        expect(screenshot.byteLength).toBeGreaterThan(0);
+      }
+    }
+
+    await testInfo.attach("auth-error-surface-observations.json", {
+      body: JSON.stringify(observations, null, 2),
+      contentType: "application/json",
+    });
+
+    await resetFixture(request, "raw_only");
+    await context.clearCookies();
+    await signInAsAlice(page);
+    await expect(page).toHaveURL(/\/onboarding$/, { timeout: 15_000 });
+
+    const onboardingObservations: Array<
+      RuntimeSurfaceObservation & {
+        route: "onboarding";
+        theme: "light" | "dark";
+        viewport: string;
+      }
+    > = [];
+    for (const theme of ["light", "dark"] as const) {
+      await setRuntimeTheme(page, theme);
+      for (const viewport of RUNTIME_VISUAL_VIEWPORTS) {
+        await page.setViewportSize(viewport);
+        await page.goto("/onboarding");
+        const panel = page.getByTestId("onboarding-panel");
+        await expect(panel).toBeVisible({ timeout: 15_000 });
+        await expectRuntimeFocus(
+          page.getByTestId("greenfield-vault-name-input"),
+        );
+        const observation = await observeRuntimeSurface(page);
+        onboardingObservations.push({
+          route: "onboarding",
+          theme,
+          viewport: viewport.name,
+          ...observation,
+        });
+        expect(observation.documentOverflow).toBe(false);
+        expect(observation.bodyOverflow).toBe(false);
+        expect(observation.mainOverflow).toBe(false);
+        expect(observation.unresolvedSurfaceFills).toEqual([]);
+        expect(observation.clippedText).toEqual([]);
+        expect(observation.outOfViewportControls).toEqual([]);
+        const screenshot = await page.screenshot({
+          animations: "disabled",
+          path: testInfo.outputPath(`onboarding-${theme}-${viewport.name}.png`),
+        });
+        expect(screenshot.byteLength).toBeGreaterThan(0);
+      }
+    }
+    await testInfo.attach("onboarding-surface-observations.json", {
+      body: JSON.stringify(onboardingObservations, null, 2),
+      contentType: "application/json",
+    });
   });
 });
