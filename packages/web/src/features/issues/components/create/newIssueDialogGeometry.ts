@@ -51,12 +51,13 @@ export function canExpandNewIssueDialog({
     return false;
   }
 
-  return (
+  const widthGain =
     getNewIssueDialogMaxWidth(viewportWidth) -
-      getNewIssueDialogDefaultWidth(viewportWidth) >=
-      NEW_ISSUE_DIALOG_EXPANSION_THRESHOLD &&
-    getNewIssueDialogMaxHeight(viewportHeight) - normalHeight >=
-      NEW_ISSUE_DIALOG_EXPANSION_THRESHOLD
+    getNewIssueDialogDefaultWidth(viewportWidth);
+  const heightGain = getNewIssueDialogMaxHeight(viewportHeight) - normalHeight;
+  return (
+    widthGain >= NEW_ISSUE_DIALOG_EXPANSION_THRESHOLD ||
+    heightGain >= NEW_ISSUE_DIALOG_EXPANSION_THRESHOLD
   );
 }
 

@@ -437,8 +437,8 @@ describe("NewIssueDialog", () => {
     expect(geometry).toHaveBeenCalled();
   });
 
-  it("keeps the maximize control out of a narrow desktop when either axis gains less than 32px", async () => {
-    setViewport(1280, 1080);
+  it("keeps the maximize control out when both axes gain less than 32px", async () => {
+    setViewport(1280, 752);
     const geometry = mockDialogGeometry();
     mockViewStore.state.newIssueDialogOpen = true;
 

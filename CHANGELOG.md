@@ -48,7 +48,7 @@ explicitly in the entries below.
 
 - **New Issue now offers a desktop-only two-dimensional maximize/restore
   toggle.** The create canvas grows from the 1200px default to a capped 1680px
-  width and `100dvh - 2rem` height when both axes have at least 32px to gain;
+  width and `100dvh - 2rem` height when either axis has at least 32px to gain;
   the Description editor receives only a transient preferred height, while
   REEF-545's persisted user height remains authoritative. The toggle keeps
   draft values, focus, and body scrolling intact, restores within the same

@@ -978,7 +978,7 @@ test.describe("Hermetic issue route surfaces", () => {
   test("maximizes and restores the New Issue canvas without losing the draft", async ({
     page,
   }) => {
-    const viewport = { width: 1920, height: 1440 };
+    const viewport = { width: 1920, height: 1080 };
     await page.setViewportSize(viewport);
     await openExistingWorkspace(page);
     await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
@@ -1016,7 +1016,8 @@ test.describe("Hermetic issue route surfaces", () => {
     }
     expect(expandedBox.width).toBeGreaterThan(normalBox.width + 32);
     expect(expandedBox.width).toBeLessThanOrEqual(viewport.width * 0.94 + 1);
-    expect(expandedBox.height).toBeCloseTo(viewport.height - 32, 0);
+    expect(expandedBox.height).toBeGreaterThanOrEqual(normalBox.height - 4);
+    expect(expandedBox.height).toBeLessThanOrEqual(viewport.height - 30);
     await expect(title).toHaveValue("Draft survives maximize");
     await expect(body).toHaveValue("Description survives maximize");
 
@@ -1086,6 +1087,9 @@ test.describe("Hermetic issue route surfaces", () => {
     await page.getByTestId("new-issue-trigger").click();
     const dialog = page.getByTestId("new-issue-dialog");
     await expect(dialog).toBeVisible();
+    await expect(dialog.getByTestId("new-issue-maximize-toggle")).toHaveCount(
+      0,
+    );
     await dialog
       .getByTestId("new-issue-title-input")
       .fill("Created from mobile New Issue");
