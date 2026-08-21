@@ -846,6 +846,8 @@
       "descriptionPlaceholder": "Describe the issue…",
       "descriptionWysiwygPlaceholder": "Describe the issue or type / to insert a block…",
       "descriptionAriaLabel": "Issue description",
+      "maximizeWindow": "Maximize window",
+      "restoreWindow": "Restore window",
       "parentLocked": "Fixed",
       "applyTemplate": "Apply issue template",
       "noTemplates": "No templates defined yet. Add one in Settings → Templates.",

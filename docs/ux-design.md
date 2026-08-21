@@ -838,6 +838,19 @@ safe area, while only the form body scrolls. Header context and the Cancel /
 Create issue footer remain visible and keyboard reachable throughout a long
 draft, including when the viewport height is reduced.
 
+On a supported desktop, a visible Maximize/Restore toggle appears only when
+the 1680px canvas cap and the `100dvh - 2rem` height would each gain at least
+32px over the measured default canvas. Maximizing widens the main Description
+workspace while preserving the 400px metadata rail, the fixed header/footer,
+the single form-body scroll owner, and the mounted draft. Its Description
+height is a transient preferred value; the REEF-545 editor clamp and any
+direct pointer/keyboard height input still win and keep the shared current-tab
+height. The create-only expanded flag uses its own session key, restores for
+the same tab, ignores malformed values, and is hidden when the gain threshold
+is unavailable or the layout becomes narrow. There is no large geometry
+transition, and the control exposes localized visible text, tooltip, and
+`aria-pressed` state with ordinary keyboard focus behavior.
+
 ### Journey 2 — Ask AI with monitored-repository grounding
 
 1. The PM opens the Ask AI panel and asks a question about an issue or the
