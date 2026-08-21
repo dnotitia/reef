@@ -163,6 +163,23 @@ describe("IssueRelationInput", () => {
     );
   });
 
+  it("uses the subtle surface for an empty navigable relation section", () => {
+    render(
+      <IssueRelationInput
+        id="depends-on"
+        label="Depends on"
+        value={[]}
+        allIssues={ISSUES}
+        onChange={() => {}}
+        navigable
+      />,
+    );
+
+    expect(screen.getByTestId("depends-on-empty")).toHaveClass(
+      "bg-surface-subtle",
+    );
+  });
+
   // REEF-032: candidate dropdown is now a card-level combobox.
   const RICH: IssueMetadata[] = [
     {

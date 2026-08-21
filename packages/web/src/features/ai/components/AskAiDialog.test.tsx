@@ -197,6 +197,7 @@ describe("AskAiDialog", () => {
     render(<AskAiDialog />);
     const chip = screen.getByTestId("ask-ai-context-chip");
     expect(chip).toHaveTextContent("REEF-360");
+    expect(chip).toHaveClass("bg-surface-subtle");
   });
 
   it("removing the context chip clears the grounded issue (context-free)", () => {

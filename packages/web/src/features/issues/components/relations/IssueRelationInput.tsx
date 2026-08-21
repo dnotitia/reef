@@ -704,7 +704,7 @@ export function IssueRelationInput({
         ) : navigable ? (
           <p
             data-testid={`${id}-empty`}
-            className="rounded-md border border-dashed border-border-subtle bg-surface px-2 py-2 text-xs text-muted-foreground"
+            className="rounded-md border border-dashed border-border-subtle bg-surface-subtle px-2 py-2 text-xs text-muted-foreground"
           >
             {t("emptyRelation")}
           </p>

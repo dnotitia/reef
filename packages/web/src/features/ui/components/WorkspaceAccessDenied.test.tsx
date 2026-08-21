@@ -45,6 +45,7 @@ describe("WorkspaceAccessDenied (REEF-315 AC5)", () => {
 
     const link = screen.getByTestId("access-denied-workspace-reef-acme");
     expect(link).toHaveAttribute("href", "/workspace/reef-acme/issues");
+    expect(link.closest("nav")).toHaveClass("bg-surface-subtle");
     // Non-reef vaults are not offered as switch targets.
     expect(
       screen.queryByTestId("access-denied-workspace-raw"),
