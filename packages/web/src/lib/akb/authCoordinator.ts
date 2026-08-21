@@ -1,6 +1,6 @@
 import { AUTH_CHANGED_EVENT } from "@/lib/storage/clientCache";
 import type { AkbAccountErrorCode } from "@reef/core";
-import type { AkbSessionStatus } from "./checkAkbSession";
+import type { AkbSessionStatus } from "./authSessionStatus";
 
 /**
  * The maximum time a browser auth probe may keep a protected surface in the

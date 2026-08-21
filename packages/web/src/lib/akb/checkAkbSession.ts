@@ -11,20 +11,15 @@
  * trusting IndexedDB state alone.
  */
 import { apiFetch } from "@/lib/apiClient";
-import { type AkbAccountErrorCode, isAkbAccountErrorCode } from "@reef/core";
+import { isAkbAccountErrorCode } from "@reef/core";
 import {
   consumePendingAkbAccountErrorIfUnchanged,
   recordAkbAccountDenialIfUnchanged,
   snapshotPendingAkbAccountError,
 } from "./accountDenialClient";
+import type { AkbSessionStatus } from "./authSessionStatus";
 
-export type AkbSessionStatus =
-  | { active: true }
-  | {
-      active: false;
-      accountError?: AkbAccountErrorCode;
-      accountErrorToken?: string;
-    };
+export type { AkbSessionStatus } from "./authSessionStatus";
 
 /** Upper bound for a direct session-status probe. */
 export const AKB_SESSION_PROBE_TIMEOUT_MS = 5_000;

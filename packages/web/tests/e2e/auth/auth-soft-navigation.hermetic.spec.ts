@@ -64,18 +64,37 @@ test.describe("REEF-552 auth soft navigation", () => {
     request,
   }) => {
     await openExistingWorkspace(page);
-    await setAuthControl(request, { session: "revoked" });
+    await expect(page).toHaveURL(new RegExp(`${ISSUES_PATH}$`));
+
+    const issuesLink = page.locator(`a[href="${ISSUES_PATH}"]`);
+    const planningLink = page.locator(`a[href="${PLANNING_PATH}"]`);
+    await expect(issuesLink).toBeAttached();
+    await expect(issuesLink).toBeVisible();
+    await expect(planningLink).toBeAttached();
+    await expect(planningLink).toBeVisible();
+
+    // Prove the warm cookie is still valid before scheduling the external
+    // revocation. This avoids treating a slow login-shell probe as the
+    // soft-navigation probe under test.
+    const activeSessionStatus = await page.evaluate(async () => {
+      const response = await fetch("/api/auth/akb/me", {
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+      return response.status;
+    });
+    expect(activeSessionStatus).toBe(200);
 
     const probe = page.waitForRequest(isAuthProbeRequest);
-    await Promise.all([
-      expectLogin(page, PLANNING_PATH),
-      page.evaluate((planningPath) => {
-        document
-          .querySelector<HTMLAnchorElement>(`a[href="${planningPath}"]`)
-          ?.click();
-      }, PLANNING_PATH),
-    ]);
-    await probe;
+    const destination = page.waitForURL(
+      (url) => url.pathname === PLANNING_PATH,
+    );
+    // Start the fixture revocation before the real locator click, but keep both
+    // operations in flight so no background probe can win the navigation race.
+    const revocation = setAuthControl(request, { session: "revoked" });
+    const navigation = planningLink.click();
+    await Promise.all([revocation, navigation, probe, destination]);
+    await expectLogin(page, PLANNING_PATH);
 
     await expect(page.locator('[data-testid="planning-skeleton"]')).toHaveCount(
       0,

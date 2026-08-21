@@ -166,6 +166,14 @@ test.describe("Hermetic runtime discovery", () => {
           content_type: "application/json",
           body: { scenario: "<supported_scenario>" },
         },
+        account_denial: {
+          method: "POST",
+          path: "/__e2e/account-denial",
+          content_type: "application/json",
+          body: {
+            code: "membership_required|account_suspended|identity_conflict|null",
+          },
+        },
       },
       fixture_login: {
         ...fixtureLogin,
@@ -179,6 +187,29 @@ test.describe("Hermetic runtime discovery", () => {
         },
       },
       tasks: {
+        auth_soft_navigation: {
+          scenario: "configured",
+          workspace: "reef-e2e",
+          start_path: "/workspace/reef-e2e/issues",
+          controls: {
+            auth_control: [
+              "session revoke",
+              "bounded probe delay (including one-shot) or hang",
+              "healthy, plain 401, or resource 403 protected responses",
+            ],
+            account_denial: [
+              "membership_required|account_suspended|identity_conflict|null",
+            ],
+            protected_response: [
+              "forbidden on an ordinary user-directory or member-search interaction (for example assignee or settings) to observe the resource access-denied surface",
+            ],
+          },
+          interaction: {
+            type: "auth_soft_navigation",
+            operation:
+              "verify cold and warm protected destinations stay behind the auth conclusion, revoked sessions converge to same-origin login, stale delayed probes do not win, cross-tab auth changes redirect, and valid slow probes preserve the destination",
+          },
+        },
         status_quick_edit: {
           scenario: "status_quick_edit",
           workspace: "reef-e2e",

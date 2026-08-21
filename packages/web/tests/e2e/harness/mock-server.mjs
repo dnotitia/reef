@@ -425,6 +425,14 @@ function runtimeDiscovery() {
         content_type: "application/json",
         body: { scenario: "<supported_scenario>" },
       },
+      account_denial: {
+        method: "POST",
+        path: "/__e2e/account-denial",
+        content_type: "application/json",
+        body: {
+          code: "membership_required|account_suspended|identity_conflict|null",
+        },
+      },
       issue_update_control: {
         method: "POST",
         path: "/__e2e/issue-update-control",
@@ -477,6 +485,12 @@ function runtimeDiscovery() {
             "session revoke",
             "bounded probe delay (including one-shot) or hang",
             "healthy, plain 401, or resource 403 protected responses",
+          ],
+          account_denial: [
+            "membership_required|account_suspended|identity_conflict|null",
+          ],
+          protected_response: [
+            "forbidden on an ordinary user-directory or member-search interaction (for example assignee or settings) to observe the resource access-denied surface",
           ],
         },
         interaction: {
