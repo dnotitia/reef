@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { type Locator, type Page, expect, test } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
   clearPersistedQueryCacheOnLoad,
@@ -20,10 +20,376 @@ function reefVault(
 
 const ISSUE_DESCRIPTION_HEIGHT_KEY = "reef:issue-description-height:v1";
 
+const VISUAL_VIEWPORTS = [
+  { name: "320", width: 320, height: 844 },
+  { name: "375", width: 375, height: 844 },
+  { name: "414", width: 414, height: 844 },
+  { name: "768", width: 768, height: 844 },
+  { name: "desktop", width: 1440, height: 900 },
+] as const;
+
+const SURFACE_ROLES = [
+  "page",
+  "subtle",
+  "card",
+  "elevated",
+  "popover",
+] as const;
+
+type SurfaceRole = (typeof SURFACE_ROLES)[number];
+
+type SurfaceObservation = {
+  roleCounts: Record<SurfaceRole, number>;
+  roleTokenColors: Record<SurfaceRole, string>;
+  unresolvedSurfaceFills: Array<{ role: SurfaceRole; className: string }>;
+  clippedText: Array<{ tag: string; text: string; className: string }>;
+  outOfViewportControls: Array<{ tag: string; text: string }>;
+  documentOverflow: boolean;
+  bodyOverflow: boolean;
+  mainOverflow: boolean;
+};
+
+async function setVisualTheme(page: Page, theme: "light" | "dark") {
+  await writeIndexedDbConfig(page, "theme", theme);
+  await page.evaluate((nextTheme) => {
+    window.localStorage.setItem("reef.theme", nextTheme);
+  }, theme);
+  await page.emulateMedia({ colorScheme: theme });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect
+    .poll(() =>
+      page
+        .locator("html")
+        .evaluate((element) => element.classList.contains("dark")),
+    )
+    .toBe(theme === "dark");
+}
+
+async function observeSurfaceRoles(page: Page): Promise<SurfaceObservation> {
+  return page.evaluate((roles) => {
+    const rolePattern =
+      /^bg-surface-(page|subtle|card|elevated|popover)(?:\/.*)?$/u;
+    const roleCounts = Object.fromEntries(
+      roles.map((role) => [role, 0]),
+    ) as Record<SurfaceRole, number>;
+    const unresolvedSurfaceFills: SurfaceObservation["unresolvedSurfaceFills"] =
+      [];
+
+    const roleTokenColors = Object.fromEntries(
+      roles.map((role) => {
+        const probe = document.createElement("span");
+        probe.style.backgroundColor = `var(--surface-${role})`;
+        probe.style.position = "fixed";
+        probe.style.visibility = "hidden";
+        document.body.append(probe);
+        const color = getComputedStyle(probe).backgroundColor;
+        probe.remove();
+        return [role, color];
+      }),
+    ) as Record<SurfaceRole, string>;
+
+    for (const element of Array.from(
+      document.querySelectorAll<HTMLElement>("*"),
+    )) {
+      const rect = element.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      for (const className of Array.from(element.classList)) {
+        const match = className.match(rolePattern);
+        if (!match) continue;
+        const role = match[1] as SurfaceRole;
+        roleCounts[role] += 1;
+        const background = getComputedStyle(element).backgroundColor;
+        if (
+          background === "transparent" ||
+          background === "rgba(0, 0, 0, 0)" ||
+          background === ""
+        ) {
+          unresolvedSurfaceFills.push({ role, className });
+        }
+      }
+    }
+
+    const isVisible = (element: HTMLElement) => {
+      const styles = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return (
+        styles.display !== "none" &&
+        styles.visibility !== "hidden" &&
+        styles.opacity !== "0" &&
+        rect.width > 0 &&
+        rect.height > 0 &&
+        element.getAttribute("aria-hidden") !== "true"
+      );
+    };
+
+    const hasHorizontalScrollOwner = (element: HTMLElement) => {
+      let owner = element.parentElement;
+      while (owner) {
+        const styles = getComputedStyle(owner);
+        const scrollable = [styles.overflowX, styles.overflow].some(
+          (value) => value === "auto" || value === "scroll",
+        );
+        if (scrollable && owner.scrollWidth > owner.clientWidth + 1) {
+          return true;
+        }
+        owner = owner.parentElement;
+      }
+      return false;
+    };
+
+    const outOfViewportControls = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        "button,a,input,textarea,select,[role=button],[role=link]",
+      ),
+    )
+      .filter(isVisible)
+      .filter((element) => {
+        const rect = element.getBoundingClientRect();
+        if (rect.left >= -1 && rect.right <= window.innerWidth + 1) {
+          return false;
+        }
+        return !hasHorizontalScrollOwner(element);
+      })
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          tag: element.tagName.toLowerCase(),
+          text: (
+            element.textContent ??
+            element.getAttribute("aria-label") ??
+            ""
+          )
+            .trim()
+            .slice(0, 80),
+          rect,
+        };
+      })
+      .map(({ tag, text }) => ({ tag, text }));
+
+    const clippedText = Array.from(
+      document.querySelectorAll<HTMLElement>("h1,h2,h3,h4,p,button,a,label"),
+    )
+      .filter(isVisible)
+      .filter((element) => {
+        if (element.classList.contains("sr-only")) return false;
+        const styles = getComputedStyle(element);
+        if (element.scrollWidth <= element.clientWidth + 1) return false;
+        if (
+          styles.textOverflow === "ellipsis" ||
+          element.hasAttribute("title") ||
+          /(?:truncate|line-clamp)/u.test(element.className)
+        ) {
+          return false;
+        }
+        if (hasHorizontalScrollOwner(element)) return false;
+        return true;
+      })
+      .map((element) => ({
+        tag: element.tagName.toLowerCase(),
+        text: (element.textContent ?? "").trim().slice(0, 80),
+        className: element.className,
+      }));
+
+    const main = document.querySelector<HTMLElement>("main");
+    return {
+      roleCounts,
+      roleTokenColors,
+      unresolvedSurfaceFills,
+      clippedText,
+      outOfViewportControls,
+      documentOverflow:
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth,
+      bodyOverflow: document.body.scrollWidth > document.body.clientWidth,
+      mainOverflow: main ? main.scrollWidth > main.clientWidth : false,
+    };
+  }, SURFACE_ROLES);
+}
+
+async function expectVisibleFocus(locator: Locator) {
+  await locator.focus();
+  await expect(locator).toBeFocused();
+  const viewport = locator.page().viewportSize();
+  if (!viewport) throw new Error("Missing Playwright viewport size");
+  const focus = await locator.evaluate((element) => {
+    const styles = getComputedStyle(element);
+    const outlineWidth = Number.parseFloat(styles.outlineWidth) || 0;
+    const outlineVisible =
+      styles.outlineStyle !== "none" &&
+      outlineWidth >= 2 &&
+      styles.outlineColor !== "transparent" &&
+      styles.outlineColor !== "rgba(0, 0, 0, 0)";
+    return {
+      outlineVisible,
+      boxShadow: styles.boxShadow,
+      left: element.getBoundingClientRect().left,
+      top: element.getBoundingClientRect().top,
+      right: element.getBoundingClientRect().right,
+      bottom: element.getBoundingClientRect().bottom,
+    };
+  });
+  expect(focus.outlineVisible || focus.boxShadow !== "none").toBe(true);
+  expect(focus.left).toBeGreaterThanOrEqual(-1);
+  expect(focus.top).toBeGreaterThanOrEqual(-1);
+  expect(focus.right).toBeLessThanOrEqual(viewport.width + 1);
+  expect(focus.bottom).toBeLessThanOrEqual(viewport.height + 1);
+}
+
 test.describe("Hermetic issue route surfaces", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
     await resetFixture(request, "configured");
+  });
+
+  test("records surface roles, focus, clipping, and overflow across the Issues matrix", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(300_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openExistingWorkspace(page);
+
+    const routes = [
+      {
+        name: "issues-board",
+        path: `/workspace/${REEF_E2E_VAULT}/issues?view=board`,
+        ready: () => page.getByTestId("kanban-board"),
+        focus: () => page.getByRole("textbox", { name: "Search issues" }),
+      },
+      {
+        name: "issues-list",
+        path: `/workspace/${REEF_E2E_VAULT}/issues?view=list`,
+        ready: () => page.getByTestId("issue-list-scroll-container"),
+        focus: () => page.getByRole("textbox", { name: "Search issues" }),
+      },
+      {
+        name: "issues-backlog",
+        path: `/workspace/${REEF_E2E_VAULT}/issues?view=backlog`,
+        ready: () => page.getByTestId("backlog-table"),
+        focus: () => page.getByRole("textbox", { name: "Search issues" }),
+      },
+      {
+        name: "issues-timeline",
+        path: `/workspace/${REEF_E2E_VAULT}/issues?view=timeline`,
+        ready: () => page.getByTestId("timeline-grid"),
+        focus: () => page.getByRole("textbox", { name: "Search issues" }),
+      },
+      {
+        name: "issue-detail",
+        path: `/workspace/${REEF_E2E_VAULT}/issues/REEF-001`,
+        ready: () => page.getByTestId("issue-detail"),
+        focus: () => page.getByTestId("issue-title-input"),
+      },
+    ] as const;
+
+    const observations: Array<
+      SurfaceObservation & {
+        route: string;
+        theme: "light" | "dark";
+        viewport: string;
+      }
+    > = [];
+    const rolesSeen = new Set<SurfaceRole>();
+
+    for (const theme of ["light", "dark"] as const) {
+      await setVisualTheme(page, theme);
+
+      for (const viewport of VISUAL_VIEWPORTS) {
+        await page.setViewportSize(viewport);
+
+        for (const route of routes) {
+          await page.goto(route.path);
+          await expect(route.ready()).toBeVisible({ timeout: 15_000 });
+          await expectVisibleFocus(route.focus());
+
+          const observation = await observeSurfaceRoles(page);
+          observations.push({
+            route: route.name,
+            theme,
+            viewport: viewport.name,
+            ...observation,
+          });
+          for (const role of SURFACE_ROLES) {
+            if (observation.roleCounts[role] > 0) rolesSeen.add(role);
+          }
+
+          expect(
+            observation.documentOverflow,
+            `${route.name} ${theme} ${viewport.name} document overflow`,
+          ).toBe(false);
+          expect(
+            observation.bodyOverflow,
+            `${route.name} ${theme} ${viewport.name} body overflow`,
+          ).toBe(false);
+          expect(
+            observation.mainOverflow,
+            `${route.name} ${theme} ${viewport.name} main overflow`,
+          ).toBe(false);
+          expect(
+            observation.unresolvedSurfaceFills,
+            `${route.name} ${theme} ${viewport.name} undefined surface fill`,
+          ).toEqual([]);
+          expect(
+            observation.clippedText,
+            `${route.name} ${theme} ${viewport.name} clipped text`,
+          ).toEqual([]);
+          expect(
+            observation.outOfViewportControls,
+            `${route.name} ${theme} ${viewport.name} controls outside viewport`,
+          ).toEqual([]);
+
+          const tokenColors = Object.values(observation.roleTokenColors);
+          expect(
+            tokenColors.every((color) => color && color !== "transparent"),
+          ).toBe(true);
+          expect(new Set(tokenColors).size).toBe(SURFACE_ROLES.length);
+
+          const screenshot = await page.screenshot({
+            animations: "disabled",
+            path: testInfo.outputPath(
+              `${route.name}-${theme}-${viewport.name}.png`,
+            ),
+          });
+          expect(screenshot.byteLength).toBeGreaterThan(0);
+
+          if (route.name === "issues-board") {
+            await page.getByTestId("sort-control-trigger").click();
+            const menu = page.locator('[role="menu"]:visible').last();
+            await expect(menu).toBeVisible();
+            const popoverObservation = await observeSurfaceRoles(page);
+            observations.push({
+              route: "issues-board-popover",
+              theme,
+              viewport: viewport.name,
+              ...popoverObservation,
+            });
+            if (popoverObservation.roleCounts.popover > 0) {
+              rolesSeen.add("popover");
+            }
+            expect(popoverObservation.documentOverflow).toBe(false);
+            expect(popoverObservation.bodyOverflow).toBe(false);
+            expect(popoverObservation.mainOverflow).toBe(false);
+            expect(popoverObservation.unresolvedSurfaceFills).toEqual([]);
+            expect(popoverObservation.clippedText).toEqual([]);
+            expect(popoverObservation.outOfViewportControls).toEqual([]);
+            const popoverScreenshot = await page.screenshot({
+              animations: "disabled",
+              path: testInfo.outputPath(
+                `issues-board-popover-${theme}-${viewport.name}.png`,
+              ),
+            });
+            expect(popoverScreenshot.byteLength).toBeGreaterThan(0);
+            await page.keyboard.press("Escape");
+            await expect(menu).toBeHidden();
+          }
+        }
+      }
+    }
+
+    expect([...rolesSeen].sort()).toEqual([...SURFACE_ROLES].sort());
+    await testInfo.attach("issues-surface-observations.json", {
+      body: JSON.stringify(observations, null, 2),
+      contentType: "application/json",
+    });
   });
 
   test("switches between board, list, timeline, and backlog views from /issues", async ({
