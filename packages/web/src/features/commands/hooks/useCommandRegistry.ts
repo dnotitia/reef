@@ -267,7 +267,12 @@ export function useCommandRegistry({
         const next = actionValue(id) as Locale;
         if (locale !== next) {
           focusDestination();
-          void setLocale(next);
+          void setLocale(next).then(() => {
+            // Persisting the preference resolves before the App Router refresh
+            // commits the new locale; leave the destination handoff armed for
+            // the shell's locale-settle effect as well.
+            focusDestination();
+          });
         }
         return;
       }
