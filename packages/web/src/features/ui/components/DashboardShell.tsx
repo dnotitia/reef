@@ -337,6 +337,8 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   );
   const commandDestinationRef = useRef<HTMLElement>(null);
   const commandDestinationFocusPendingRef = useRef(false);
+  const commandDestinationFocusPathRef = useRef<string | null>(null);
+  const commandDestinationFocusLocaleRef = useRef<string | null>(null);
 
   const clearChord = useCallback(() => {
     if (chordRef.current?.timer) {
@@ -391,15 +393,18 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
 
   const focusCommandDestination = useCallback(() => {
     commandDestinationFocusPendingRef.current = true;
+    commandDestinationFocusPathRef.current = pathname;
+    commandDestinationFocusLocaleRef.current = activeLocale;
     document.documentElement.setAttribute(COMMAND_FOCUS_PENDING_ATTRIBUTE, "");
     commandDestinationRef.current?.focus({ preventScroll: true });
-  }, []);
+  }, [activeLocale, pathname]);
 
   // Radix closes the palette before the App Router finishes a soft navigation.
   // A synchronous focus handoff is therefore vulnerable to the router's route
   // commit moving focus back to the document body. Keep a marker outside the
   // route subtree so a remounted shell can finish the handoff after the route
-  // settles; locale refreshes reuse the same effect through activeLocale.
+  // settles; route commits and locale refreshes reuse the same effect through
+  // pathname and activeLocale.
   useEffect(() => {
     if (!activeLocale) return;
     if (
@@ -408,10 +413,25 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
     ) {
       return;
     }
-    commandDestinationFocusPendingRef.current = false;
-    document.documentElement.removeAttribute(COMMAND_FOCUS_PENDING_ATTRIBUTE);
-    commandDestinationRef.current?.focus({ preventScroll: true });
-  }, [activeLocale]);
+    const routeSettled = commandDestinationFocusPathRef.current !== pathname;
+    const localeSettled =
+      commandDestinationFocusLocaleRef.current !== activeLocale;
+    if (!routeSettled && !localeSettled) return;
+    const frame = window.requestAnimationFrame(() => {
+      if (
+        !commandDestinationFocusPendingRef.current &&
+        !document.documentElement.hasAttribute(COMMAND_FOCUS_PENDING_ATTRIBUTE)
+      ) {
+        return;
+      }
+      commandDestinationFocusPendingRef.current = false;
+      commandDestinationFocusPathRef.current = null;
+      commandDestinationFocusLocaleRef.current = null;
+      document.documentElement.removeAttribute(COMMAND_FOCUS_PENDING_ATTRIBUTE);
+      commandDestinationRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeLocale, pathname]);
 
   const commandRegistry = useCommandRegistry({
     vault: vault ?? "",
