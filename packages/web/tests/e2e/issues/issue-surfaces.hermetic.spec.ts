@@ -998,6 +998,17 @@ test.describe("Hermetic issue route surfaces", () => {
 
     const normalBox = await dialog.boundingBox();
     if (!normalBox) throw new Error("New Issue dialog has no normal geometry");
+    const normalDescriptionBox = await dialog
+      .getByTestId("markdown-editor-body-frame")
+      .boundingBox();
+    if (!normalDescriptionBox) {
+      throw new Error("New Issue Description has no normal geometry");
+    }
+    const handle = dialog.getByTestId("markdown-editor-resize-handle");
+    await expect(handle).toHaveAttribute("aria-valuenow", "320");
+    const normalDescriptionHeight = Number(
+      await handle.getAttribute("aria-valuenow"),
+    );
     const maximize = dialog.getByTestId("new-issue-maximize-toggle");
     await expect(maximize).toHaveAttribute("aria-label", "Maximize window");
     await expect(maximize).toHaveAttribute("aria-pressed", "false");
@@ -1018,11 +1029,49 @@ test.describe("Hermetic issue route surfaces", () => {
     expect(expandedBox.width).toBeLessThanOrEqual(viewport.width * 0.94 + 1);
     expect(expandedBox.height).toBeGreaterThanOrEqual(normalBox.height - 4);
     expect(expandedBox.height).toBeLessThanOrEqual(viewport.height - 30);
+    const expandedDescriptionBox = await dialog
+      .getByTestId("markdown-editor-body-frame")
+      .boundingBox();
+    if (!expandedDescriptionBox) {
+      throw new Error("New Issue Description has no maximized geometry");
+    }
+    expect(expandedDescriptionBox.height).toBeGreaterThan(
+      normalDescriptionBox.height,
+    );
     await expect(title).toHaveValue("Draft survives maximize");
     await expect(body).toHaveValue("Description survives maximize");
 
-    const handle = dialog.getByTestId("markdown-editor-resize-handle");
     await expect(handle).toBeVisible();
+    await expect
+      .poll(async () => Number(await handle.getAttribute("aria-valuenow")))
+      .toBeGreaterThan(normalDescriptionHeight);
+    expect(
+      await page.evaluate(
+        (key) => window.sessionStorage.getItem(key),
+        ISSUE_DESCRIPTION_HEIGHT_KEY,
+      ),
+    ).toBeNull();
+
+    await restore.click();
+    await expect(restore).toHaveAttribute("aria-label", "Maximize window");
+    await expect(handle).toHaveAttribute(
+      "aria-valuenow",
+      String(normalDescriptionHeight),
+    );
+    await expect(
+      dialog.getByTestId("markdown-editor-body-frame"),
+    ).toHaveAttribute(
+      "style",
+      new RegExp(`height: ${normalDescriptionHeight}px`),
+    );
+
+    await dialog.getByTestId("new-issue-maximize-toggle").click();
+    await expect(
+      dialog.getByTestId("new-issue-maximize-toggle"),
+    ).toHaveAttribute("aria-label", "Restore window");
+    await expect
+      .poll(async () => Number(await handle.getAttribute("aria-valuenow")))
+      .toBeGreaterThan(normalDescriptionHeight);
     const maximizedHeight = Number(await handle.getAttribute("aria-valuenow"));
     await handle.focus();
     await page.keyboard.press("ArrowDown");

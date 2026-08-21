@@ -100,14 +100,16 @@ export function NewIssueDialog({
   const open = useViewStore((s) => s.newIssueDialogOpen);
   const dialogContext = useViewStore((s) => s.newIssueDialogContext);
   const closeDialog = useViewStore((s) => s.closeNewIssueDialog);
+  const formBodyRef = useRef<HTMLDivElement>(null);
   const {
     dialogRef: dialogContentRef,
+    descriptionFrameRef,
     isMaximized,
     canMaximize,
     preferredDescriptionHeight: maximizedDescriptionHeight,
     dialogStyle,
     onToggleMaximize,
-  } = useNewIssueDialogGeometry(open);
+  } = useNewIssueDialogGeometry(open, formBodyRef);
   const { vault } = useActiveVault();
   const router = useRouter();
   const t = useTranslations("toasts");
@@ -352,7 +354,6 @@ export function NewIssueDialog({
   // so `hasCommittedDraft` alone would miss them and let the dialog discard
   // typed content silently. Reading `.value` on close (not during render) is a
   // cheap, framework-agnostic way to include every such buffered input.
-  const formBodyRef = useRef<HTMLDivElement>(null);
   function hasBufferedText(): boolean {
     const root = formBodyRef.current;
     if (!root) return false;
@@ -757,6 +758,7 @@ export function NewIssueDialog({
               mentionConfig={issueBodyMentionConfig}
               enableHeightResize
               preferredDescriptionHeight={resolvedPreferredDescriptionHeight}
+              descriptionBodyFrameRef={descriptionFrameRef}
               bodyWysiwygPlaceholder={tc("descriptionWysiwygPlaceholder")}
               bodySourcePlaceholder={tc("descriptionPlaceholder")}
               disabled={isSubmitting}

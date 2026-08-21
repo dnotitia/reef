@@ -1469,6 +1469,35 @@ describe("MarkdownEditor", () => {
       expect(handle).toHaveAttribute("aria-valuenow", "672");
     });
 
+    it("temporarily grows a stored baseline without replacing it", async () => {
+      setViewport(1440, 900);
+      sessionStorage.setItem(EDITOR_BODY_SESSION_STORAGE_KEY, "420");
+      const view = render(
+        <MarkdownEditor
+          value=""
+          onChange={vi.fn()}
+          enableHeightResize
+          preferredHeight={640}
+        />,
+      );
+
+      const handle = screen.getByRole("separator");
+      await waitFor(() =>
+        expect(handle).toHaveAttribute("aria-valuenow", "640"),
+      );
+      expect(sessionStorage.getItem(EDITOR_BODY_SESSION_STORAGE_KEY)).toBe(
+        "420",
+      );
+
+      view.rerender(
+        <MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />,
+      );
+      expect(handle).toHaveAttribute("aria-valuenow", "420");
+      expect(sessionStorage.getItem(EDITOR_BODY_SESSION_STORAGE_KEY)).toBe(
+        "420",
+      );
+    });
+
     it("returns to the saved-or-default height when a preferred height is removed", async () => {
       setViewport(1440, 900);
       const view = render(
