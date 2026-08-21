@@ -12,18 +12,25 @@ vi.mock("./MarkdownEditorImpl", () => ({
 }));
 
 describe("MarkdownEditor dynamic wrapper", () => {
-  it("renders a height-reserving placeholder before the editor chunk loads", () => {
-    render(<MarkdownEditor value="" onChange={vi.fn()} />);
+  it("reserves the opted-in 320px frame before the editor chunk loads", () => {
+    render(<MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />);
 
     const skeleton = screen.getByTestId("markdown-editor-skeleton");
     // Decorative: a screen reader should not announce the loading shell.
     expect(skeleton).toHaveAttribute("aria-hidden", "true");
-    // Reserves the editor's 200px body floor so the surrounding form does not
-    // shift when the lazy chunk arrives.
-    expect(skeleton.querySelector("[class*='min-h-[200px]']")).not.toBeNull();
+    // Reserves the issue Description's 320px body frame so the surrounding
+    // form does not shift when the lazy chunk arrives.
+    expect(skeleton.querySelector("[class*='min-h-[320px]']")).not.toBeNull();
     expect(
       screen.getByTestId("markdown-editor-skeleton-body-frame"),
     ).toHaveClass("p-1");
+  });
+
+  it("keeps automatic MarkdownEditor consumers at the 200px skeleton floor", () => {
+    render(<MarkdownEditor value="" onChange={vi.fn()} />);
+
+    const skeleton = screen.getByTestId("markdown-editor-skeleton");
+    expect(skeleton.querySelector("[class*='min-h-[200px]']")).not.toBeNull();
   });
 
   it("mounts the lazily-loaded editor once the chunk resolves", async () => {

@@ -133,21 +133,18 @@ const AccessibleTaskItem = TaskItem.extend({
 
 /**
  * Shared height policy for both editor surfaces — the WYSIWYG body and the
- * Source textarea. The body starts at a 200px floor so an empty description
- * reads as a real authoring canvas instead of a cramped box: on the create
- * dialog the writing column would otherwise sit shorter than the metadata rail
- * beside it (the rail is taller than a 120px floor), inverting the intended
- * emphasis. Content grows from that floor up to a viewport-relative cap, then
- * scrolls inside the editor instead of stretching the surrounding sheet (issue
- * detail) or dialog (create) — so the relationship fields below stay in normal
- * flow and remain reachable by the scrolling container, does not clipped. The 200px
- * floor matches the clamp's short-window floor, so the editor does not starts below
- * its own minimum ceiling. The clamp adapts to the full-height detail slide-over
- * and the 88vh create dialog alike: 48vh keeps the rest of the form in view, and
- * a 560px ceiling caps the height on large monitors. (REEF-133)
+ * Source textarea. An opted-in issue Description starts at a 320px frame so
+ * an empty description reads as a real authoring canvas instead of a cramped
+ * box. Content scrolls inside that frame instead of stretching the surrounding
+ * sheet or dialog, so the relationship fields below stay in normal flow and
+ * remain reachable by the scrolling container. The 200px floor remains the
+ * lower keyboard/pointer boundary and the clamp adapts to the full-height
+ * detail slide-over and the create dialog alike: 48vh keeps the rest of the
+ * form in view, and a 960px ceiling caps the height on large monitors. (REEF-133)
  *
- * The dynamic wrapper's loading skeleton reserves this same 200px floor so the
- * lazy chunk swap does not shift the surrounding form. (REEF-220)
+ * The dynamic wrapper's loading skeleton reserves the same 320px frame for
+ * opted-in issue Descriptions, while other consumers retain their 200px
+ * automatic floor. (REEF-220)
  */
 export const EDITOR_BODY_SIZING =
   "min-h-[200px] max-h-[clamp(200px,48vh,560px)] overflow-y-auto [scrollbar-gutter:stable]";
@@ -156,7 +153,7 @@ export const EDITOR_CONTENT_CLASS = "reef-markdown-editor";
 export const MARKDOWN_SURFACE_CLASS = "reef-markdown-surface";
 export const EDITOR_RESIZABLE_BODY_ID = "markdown-editor-body-frame";
 export const EDITOR_BODY_MIN_HEIGHT = 200;
-export const EDITOR_BODY_DEFAULT_HEIGHT = 560;
+export const EDITOR_BODY_DEFAULT_HEIGHT = 320;
 export const EDITOR_BODY_MAX_HEIGHT = 960;
 export const EDITOR_BODY_KEYBOARD_STEP = 32;
 /**
@@ -170,6 +167,8 @@ export const EDITOR_BODY_FINE_POINTER_MEDIA_QUERY = "(pointer: fine)";
 export const EDITOR_BODY_VIEWPORT_RESERVATION = 160;
 export const EDITOR_BODY_SESSION_STORAGE_KEY =
   "reef:issue-description-height:v1";
+export const EDITOR_BODY_SESSION_STORAGE_EVENT =
+  "reef:issue-description-height-change";
 export const EDITOR_RESIZE_DESCRIPTION_ID =
   "markdown-editor-resize-description";
 
@@ -227,6 +226,11 @@ export interface MarkdownEditorProps {
   mentionConfig?: MarkdownEditorMentionConfig;
   /** Enables the issue-detail description height control when the input surface supports it. */
   enableHeightResize?: boolean;
+  /**
+   * A non-persistent height supplied by a containing layout (for example, a
+   * maximized New Issue dialog). A saved or user-selected height always wins.
+   */
+  preferredHeight?: number;
 }
 
 export interface MarkdownEditorMentionConfig {
@@ -757,7 +761,14 @@ export function clampEditorHeight(value: number, maxHeight: number) {
 function subscribeToStoredEditorHeight(onStoreChange: () => void) {
   if (typeof window === "undefined") return () => {};
   window.addEventListener("storage", onStoreChange);
-  return () => window.removeEventListener("storage", onStoreChange);
+  window.addEventListener(EDITOR_BODY_SESSION_STORAGE_EVENT, onStoreChange);
+  return () => {
+    window.removeEventListener("storage", onStoreChange);
+    window.removeEventListener(
+      EDITOR_BODY_SESSION_STORAGE_EVENT,
+      onStoreChange,
+    );
+  };
 }
 
 function getStoredEditorHeightSnapshot() {
@@ -789,21 +800,10 @@ function storeEditorHeight(height: number) {
       EDITOR_BODY_SESSION_STORAGE_KEY,
       JSON.stringify(height),
     );
+    window.dispatchEvent(new Event(EDITOR_BODY_SESSION_STORAGE_EVENT));
   } catch {
     // Private browsing and disabled storage should not block resizing.
   }
-}
-
-function measureEditorBodyHeight(
-  body: HTMLDivElement | null,
-  maxHeight: number,
-) {
-  const measured = body
-    ? body.getBoundingClientRect().height ||
-      body.clientHeight ||
-      body.offsetHeight
-    : Number.NaN;
-  return clampEditorHeight(measured > 0 ? measured : Number.NaN, maxHeight);
 }
 
 interface MarkdownEditorHeightResizeHandlers {
@@ -824,7 +824,7 @@ interface MarkdownEditorHeightResizeHandlers {
 
 function useMarkdownEditorHeightResize(
   enabled: boolean,
-  bodyRef: React.RefObject<HTMLDivElement | null>,
+  preferredHeight?: number,
 ): MarkdownEditorHeightResizeHandlers {
   const subscribe = useCallback(
     (onStoreChange: () => void) =>
@@ -874,8 +874,23 @@ function useMarkdownEditorHeightResize(
     isResizeAvailable && storedEditorHeight !== null
       ? clampEditorHeight(storedEditorHeight, maxHeight)
       : null;
-  const manualHeight = manualHeightState ?? persistedManualHeight;
-  const manualHeightRef = useRef<number | null>(manualHeight);
+  const preferredManualHeight =
+    isResizeAvailable &&
+    storedEditorHeight === null &&
+    typeof preferredHeight === "number" &&
+    Number.isFinite(preferredHeight)
+      ? clampEditorHeight(preferredHeight, maxHeight)
+      : null;
+  const defaultManualHeight = clampEditorHeight(
+    EDITOR_BODY_DEFAULT_HEIGHT,
+    maxHeight,
+  );
+  const effectiveHeight =
+    manualHeightState ??
+    persistedManualHeight ??
+    preferredManualHeight ??
+    defaultManualHeight;
+  const manualHeightRef = useRef<number | null>(manualHeightState);
   const currentHeightRef = useRef(EDITOR_BODY_DEFAULT_HEIGHT);
   const dragRef = useRef<{
     pointerId: number;
@@ -883,71 +898,74 @@ function useMarkdownEditorHeightResize(
     startHeight: number;
   } | null>(null);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: React Compiler requires the stable setter dependency for this callback.
+  // Opted-in issue descriptions always own a fixed frame. This callback is
+  // retained for the editor's value-sync seam, but it deliberately never
+  // measures content: an empty body must not collapse the 320px default.
   const refreshAutoHeight = useCallback(() => {
-    if (!isResizeAvailable || manualHeightRef.current !== null) return;
-    const nextHeight = measureEditorBodyHeight(bodyRef.current, maxHeight);
+    if (!isResizeAvailable || manualHeightState !== null) return;
+    const nextHeight = clampEditorHeight(
+      persistedManualHeight ??
+        preferredManualHeight ??
+        EDITOR_BODY_DEFAULT_HEIGHT,
+      maxHeight,
+    );
     currentHeightRef.current = nextHeight;
     setCurrentHeight(nextHeight);
-  }, [bodyRef, isResizeAvailable, maxHeight, setCurrentHeight]);
+  }, [
+    isResizeAvailable,
+    manualHeightState,
+    maxHeight,
+    persistedManualHeight,
+    preferredManualHeight,
+  ]);
 
   useLayoutEffect(() => {
-    if (!isResizeAvailable || liveViewportHeight <= 0) return;
-    if (manualHeightRef.current !== null) {
-      const nextHeight = clampEditorHeight(manualHeightRef.current, maxHeight);
+    if (!isResizeAvailable || liveViewportHeight <= 0) {
+      manualHeightRef.current = manualHeightState;
+      return;
+    }
+    if (manualHeightState !== null) {
+      const nextHeight = clampEditorHeight(manualHeightState, maxHeight);
+      manualHeightRef.current = nextHeight;
       currentHeightRef.current = nextHeight;
-      if (nextHeight !== manualHeightRef.current) {
-        manualHeightRef.current = nextHeight;
+      if (nextHeight !== manualHeightState) {
         setManualHeight(nextHeight);
         storeEditorHeight(nextHeight);
       }
       setCurrentHeight(nextHeight);
       return;
     }
-    refreshAutoHeight();
-  }, [isResizeAvailable, liveViewportHeight, maxHeight, refreshAutoHeight]);
 
-  useLayoutEffect(() => {
-    if (!isResizeAvailable || manualHeightState !== null) return;
-    if (persistedManualHeight === null) return;
-    manualHeightRef.current = persistedManualHeight;
-    currentHeightRef.current = persistedManualHeight;
-    if (persistedManualHeight !== storedEditorHeight) {
+    manualHeightRef.current = null;
+    currentHeightRef.current = effectiveHeight;
+    setCurrentHeight(effectiveHeight);
+    if (
+      persistedManualHeight !== null &&
+      persistedManualHeight !== storedEditorHeight
+    ) {
       storeEditorHeight(persistedManualHeight);
     }
   }, [
+    effectiveHeight,
     isResizeAvailable,
+    liveViewportHeight,
     manualHeightState,
+    maxHeight,
     persistedManualHeight,
     storedEditorHeight,
   ]);
 
-  function measureCurrentHeight() {
-    const nextHeight = measureEditorBodyHeight(bodyRef.current, maxHeight);
-    currentHeightRef.current = nextHeight;
-    setCurrentHeight(nextHeight);
-    return nextHeight;
-  }
-
   function enterManualMode() {
     if (!isResizeAvailable) return null;
     const existingHeight = manualHeightRef.current;
-    if (existingHeight !== null) {
-      const nextHeight = clampEditorHeight(existingHeight, maxHeight);
-      if (nextHeight !== existingHeight) {
-        manualHeightRef.current = nextHeight;
-        currentHeightRef.current = nextHeight;
-        setManualHeight(nextHeight);
-        setCurrentHeight(nextHeight);
-        storeEditorHeight(nextHeight);
-      }
-      return nextHeight;
-    }
-
-    const nextHeight = measureCurrentHeight();
+    const nextHeight = clampEditorHeight(
+      existingHeight ?? effectiveHeight,
+      maxHeight,
+    );
     manualHeightRef.current = nextHeight;
     setManualHeight(nextHeight);
-    storeEditorHeight(nextHeight);
+    currentHeightRef.current = nextHeight;
+    setCurrentHeight(nextHeight);
     return nextHeight;
   }
 
@@ -1021,9 +1039,9 @@ function useMarkdownEditorHeightResize(
     setIsResizing(false);
   }
 
-  const isManual = isResizeAvailable && manualHeight !== null;
+  const isManual = isResizeAvailable;
   const accessibleHeight = clampEditorHeight(
-    isManual ? manualHeight : currentHeight,
+    isManual ? effectiveHeight : currentHeight,
     maxHeight,
   );
 
@@ -1078,6 +1096,7 @@ export function MarkdownEditor({
   resolveAttachmentHref,
   mentionConfig,
   enableHeightResize = false,
+  preferredHeight,
 }: MarkdownEditorProps) {
   const t = useTranslations("markdownEditor");
   const c = useTranslations("common");
@@ -1106,7 +1125,7 @@ export function MarkdownEditor({
     onPointerMove: onHeightResizePointerMove,
     onPointerUp: onHeightResizePointerUp,
     refreshAutoHeight,
-  } = useMarkdownEditorHeightResize(enableHeightResize, bodyFrameRef);
+  } = useMarkdownEditorHeightResize(enableHeightResize, preferredHeight);
   const latestValueRef = useRef(value);
   const lastSyncedValueRef = useRef(value);
   const onChangeRef = useRef(onChange);

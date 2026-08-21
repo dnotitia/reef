@@ -32,6 +32,12 @@ vi.mock("next/navigation", () => ({
 const { mockMarkdownMentionConfig } = vi.hoisted(() => ({
   mockMarkdownMentionConfig: { current: null as unknown },
 }));
+const { mockMarkdownEditorResize } = vi.hoisted(() => ({
+  mockMarkdownEditorResize: {
+    enabled: false,
+    preferredHeight: undefined as number | undefined,
+  },
+}));
 
 vi.mock("@/components/MarkdownEditor", () => ({
   MarkdownEditor: ({
@@ -40,14 +46,20 @@ vi.mock("@/components/MarkdownEditor", () => ({
     mentionConfig,
     placeholder,
     sourcePlaceholder,
+    enableHeightResize,
+    preferredHeight,
   }: {
     value: string;
     onChange: (value: string) => void;
     mentionConfig?: unknown;
     placeholder?: string;
     sourcePlaceholder?: string;
+    enableHeightResize?: boolean;
+    preferredHeight?: number;
   }) => {
     mockMarkdownMentionConfig.current = mentionConfig;
+    mockMarkdownEditorResize.enabled = enableHeightResize ?? false;
+    mockMarkdownEditorResize.preferredHeight = preferredHeight;
     return (
       <>
         <span data-testid="markdown-wysiwyg-placeholder">{placeholder}</span>
@@ -278,6 +290,8 @@ describe("NewIssueDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockMarkdownMentionConfig.current = null;
+    mockMarkdownEditorResize.enabled = false;
+    mockMarkdownEditorResize.preferredHeight = undefined;
     mockViewStore.state.newIssueDialogOpen = false;
     mockViewStore.state.newIssueDialogContext = null;
     mockEnrichmentState.exposeParentOverride = false;
@@ -316,6 +330,15 @@ describe("NewIssueDialog", () => {
         .compareDocumentPosition(screen.getByText("Planning")) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("opts the create Description into the shared height contract", async () => {
+    mockViewStore.state.newIssueDialogOpen = true;
+    render(wrap(<NewIssueDialog preferredDescriptionHeight={640} />));
+
+    await screen.findByText("New Issue");
+    expect(mockMarkdownEditorResize.enabled).toBe(true);
+    expect(mockMarkdownEditorResize.preferredHeight).toBe(640);
   });
 
   it("keeps one scrollable form body and reflows header actions", async () => {

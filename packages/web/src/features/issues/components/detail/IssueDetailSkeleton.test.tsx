@@ -61,9 +61,11 @@ describe("IssueDetailSkeleton", () => {
 
   it("reserves the description, lower main sections and activity regions so the panel does not double on hydration (REEF-258)", () => {
     const { container } = render(<IssueDetailSkeleton />);
-    // Description reserves the MarkdownEditor's ~236px height (h-60), not the
-    // old short h-44 stub.
-    expect(container.querySelectorAll(".reef-shimmer.h-60")).toHaveLength(1);
+    // Description reserves the MarkdownEditor's ~356px height (320px frame +
+    // toolbar), not the old short stub.
+    expect(
+      container.querySelectorAll(".reef-shimmer.h-\\[356px\\]"),
+    ).toHaveLength(1);
     expect(container.querySelectorAll(".reef-shimmer.h-44")).toHaveLength(0);
     // Activity composer (h-20) + its three event rows (h-12) are reserved below
     // Sub-issues / linked documents / refs, which the old skeleton omitted.

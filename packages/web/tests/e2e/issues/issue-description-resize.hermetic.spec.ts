@@ -7,6 +7,7 @@ import {
 
 const HEIGHT_KEY = "reef:issue-description-height:v1";
 const MIN_HEIGHT = 200;
+const DEFAULT_HEIGHT = 320;
 const MAX_HEIGHT = 960;
 const VIEWPORT_RESERVATION = 160;
 const RESIZE_MIN_WIDTH = 1024;
@@ -70,6 +71,49 @@ test.describe("Hermetic issue description height resize", () => {
     const editor = page.getByTestId("markdown-editor");
     await expect(frame).toBeVisible();
     await expect(handle).toBeVisible();
+    await expect(handle).toHaveAttribute(
+      "aria-valuenow",
+      String(DEFAULT_HEIGHT),
+    );
+    await expect(frame).toHaveAttribute(
+      "style",
+      new RegExp(`height: ${DEFAULT_HEIGHT}px`),
+    );
+
+    // The New Issue Description opts into the same editor contract. With no
+    // saved value it starts at 320px, and a user adjustment is visible when
+    // the same tab returns to the existing issue.
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+    await page.getByTestId("new-issue-trigger").click();
+    const createDialog = page.getByTestId("new-issue-dialog");
+    const createFrame = createDialog.getByTestId("markdown-editor-body-frame");
+    const createHandle = createDialog.getByTestId(
+      "markdown-editor-resize-handle",
+    );
+    await expect(createHandle).toBeVisible();
+    await expect(createHandle).toHaveAttribute(
+      "aria-valuenow",
+      String(DEFAULT_HEIGHT),
+    );
+    await expect(createFrame).toHaveAttribute(
+      "style",
+      new RegExp(`height: ${DEFAULT_HEIGHT}px`),
+    );
+    await createHandle.focus();
+    await page.keyboard.press("ArrowDown");
+    await expect(createHandle).toHaveAttribute(
+      "aria-valuenow",
+      String(DEFAULT_HEIGHT + KEYBOARD_STEP),
+    );
+    await createDialog.getByTestId("new-issue-cancel").click();
+
+    await page.goto(startPath);
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await expect(handle).toHaveAttribute(
+      "aria-valuenow",
+      String(DEFAULT_HEIGHT + KEYBOARD_STEP),
+    );
+
     await expect(handle).toHaveAttribute("role", "separator");
     await expect(handle).toHaveAttribute("aria-orientation", "horizontal");
     await expect(handle).toHaveAttribute("aria-valuemin", String(MIN_HEIGHT));

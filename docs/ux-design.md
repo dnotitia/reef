@@ -364,21 +364,25 @@ controls. The markdown fixture screenshot evidence keeps the Tiptap body and
 the comparable Streamdown comment in the same issue detail, while Source ↔
 WYSIWYG and save/reload preserve the authored block order and supported syntax.
 
-On the Issue Detail surface, the Description editor additionally exposes a
-quiet 32px hit area at its lower-right corner when the viewport is at least
+On the Issue Detail and New Issue Description surfaces, the editor exposes the
+same quiet 32px hit area at its lower-right corner when the viewport is at least
 1024px wide and the device reports a fine pointer. This deliberately differs
 from the Issue Detail sheet's 1280px desktop breakpoint: browser zoom and
 split-window layouts should not make a mouse-accessible editor control
 disappear. Coarse-pointer surfaces omit the focusable handle altogether so it
 does not compete with touch scrolling. The pointer-captured handle and its
-horizontal separator keyboard control share a 200px minimum, a 560px
-measurement fallback, and a maximum of `max(200px, min(960px, viewport height -
-160px))`; WYSIWYG and Source use the same body frame and scroll owner. A
-finite user height is restored only for the current tab through `sessionStorage`,
-while missing or malformed values keep the existing automatic editor sizing.
+horizontal separator keyboard control share a 200px minimum, a 320px initial
+frame, and a maximum of `max(200px, min(960px, viewport height - 160px))`;
+WYSIWYG and Source use the same body frame and scroll owner. A finite user
+height is restored only for the current tab through the shared
+`sessionStorage` key, while missing or malformed values use the 320px default
+(or the current clamp boundary). A containing layout may provide a transient
+preferred height for a maximized New Issue dialog; it is never persisted, and
+pointer/keyboard input takes precedence and becomes the shared user height.
 Narrow or coarse-pointer layouts keep the automatic responsive editor behavior;
 Source mode retains its native vertical resize fallback when the dedicated
-handle is unavailable.
+handle is unavailable. Planning, template, and other MarkdownEditor consumers
+remain opt-out.
 
 Inline marks inside the same scoped surface follow the same semantic hierarchy:
 links use the `--brand-text` role and keep a visible underline in default,
