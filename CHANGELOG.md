@@ -12,6 +12,12 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Migration
+
+- **Persisted query cache cleanup now removes empty snapshots after account or
+  session invalidation.** Existing non-empty snapshots remain readable; no
+  manual browser migration is required.
+
 ## v0.12.0 - 2026-08-24
 
 ### Added

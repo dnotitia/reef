@@ -49,6 +49,43 @@ function createReefQueryClient(): QueryClient {
   });
 }
 
+function isEmptyPersistedClient(value: string): boolean {
+  try {
+    const parsed = JSON.parse(value) as {
+      clientState?: {
+        mutations?: unknown[];
+        queries?: unknown[];
+      };
+    };
+    return (
+      Array.isArray(parsed.clientState?.mutations) &&
+      parsed.clientState.mutations.length === 0 &&
+      Array.isArray(parsed.clientState?.queries) &&
+      parsed.clientState.queries.length === 0
+    );
+  } catch {
+    return false;
+  }
+}
+
+function createQueryCacheStorage() {
+  return {
+    getItem: (key: string) => window.localStorage.getItem(key),
+    setItem: (key: string, value: string) => {
+      // A cache clear emits QueryCache removal events. The persister can
+      // throttle those events past clearAuthScopedClientCache(), so an empty
+      // snapshot must remove the key instead of recreating account-scoped
+      // persistence during logout or account denial.
+      if (key === PERSISTED_QUERY_CACHE_KEY && isEmptyPersistedClient(value)) {
+        window.localStorage.removeItem(key);
+        return;
+      }
+      window.localStorage.setItem(key, value);
+    },
+    removeItem: (key: string) => window.localStorage.removeItem(key),
+  };
+}
+
 /**
  * Wraps children in PersistQueryClientProvider so the QueryClient cache is
  * persisted to localStorage. On reload, the cache is rehydrated synchronously
@@ -78,7 +115,7 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       });
     }
     return createAsyncStoragePersister({
-      storage: window.localStorage,
+      storage: createQueryCacheStorage(),
       key: PERSISTED_QUERY_CACHE_KEY,
     });
   });
