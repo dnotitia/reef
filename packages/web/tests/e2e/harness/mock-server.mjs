@@ -9,6 +9,7 @@ const PORT = Number(process.env.REEF_E2E_MOCK_PORT ?? 7354);
 const HOST = process.env.REEF_E2E_MOCK_HOST ?? "127.0.0.1";
 const NOW = "2026-06-15T00:00:00.000Z";
 const REEF_VAULT = "reef-e2e";
+const ISSUE_TITLE_COLLATOR = new Intl.Collator("en-US");
 const TOOL_LOOP_E2E_PROMPT = "tool transparency e2e";
 const TOOL_LOOP_SEARCH_ISSUES_CALL_ID = "call_e2e_search_issues";
 const TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID = "call_e2e_search_documents";
@@ -1231,6 +1232,21 @@ function largeVault(name) {
   const vault = configuredVault(name);
   const issues = [];
   const total = 1_205;
+  const titlePrefixes = [
+    "! Symbol",
+    "# Hash",
+    "@ Mention",
+    "Alpha",
+    "alpha",
+    "Ångström",
+    "Éclair",
+    "O'Reilly",
+    "Zeta",
+    "가나다",
+    "한글",
+    "다람쥐",
+    "Beta",
+  ];
   for (let index = 0; index < total; index += 1) {
     const id = `REEF-${String(index + 1).padStart(4, "0")}`;
     const priority =
@@ -1247,7 +1263,11 @@ function largeVault(name) {
         id,
         title: isSparseMatch
           ? "Sparse residual match"
-          : `Large vault issue ${String(index + 1).padStart(4, "0")}`,
+          : index < 2
+            ? "! Symbol duplicate"
+            : index < 4
+              ? "힣 duplicate"
+              : `${titlePrefixes[index % titlePrefixes.length]} ${String(index + 1).padStart(4, "0")}`,
         status: "todo",
         priority,
         labels: isSparseMatch ? ["tail-marker"] : ["large-fixture"],
@@ -2909,6 +2929,20 @@ function sortIssueRows(rows, lowerSql) {
     out.sort((a, b) => stringDesc(a.updated_at, b.updated_at) || idDesc(a, b));
   } else if (lowerSql.includes("order by") && lowerSql.includes("created_at")) {
     out.sort((a, b) => stringDesc(a.created_at, b.created_at) || idDesc(a, b));
+  } else if (lowerSql.includes("order by") && lowerSql.includes("title")) {
+    const titleDirection = /order by "title" collate "und-x-icu" desc/i.test(
+      lowerSql,
+    )
+      ? -1
+      : 1;
+    out.sort(
+      (a, b) =>
+        titleDirection *
+          ISSUE_TITLE_COLLATOR.compare(
+            String(a.title ?? ""),
+            String(b.title ?? ""),
+          ) || idDesc(a, b),
+    );
   }
   return out;
 }
@@ -3023,32 +3057,34 @@ function applyIssueKeysetCursor(rows, sql) {
       match: sql.match(/END\s*([<>])\s*(-?\d+(?:\.\d+)?)/i),
       value: (row) =>
         ({ critical: 4, high: 3, medium: 2, low: 1 })[row.priority] ?? 0,
+      numeric: true,
+      compare: (left, right) => left - right,
     },
     {
       match: sql.match(/"created_at"\s*([<>])\s*'([^']+)'/i),
       value: (row) => String(row.created_at ?? ""),
+      compare: compareStrings,
     },
     {
       match: sql.match(/"updated_at"\s*([<>])\s*'([^']+)'/i),
       value: (row) => String(row.updated_at ?? ""),
+      compare: compareStrings,
     },
     {
-      match: sql.match(/"title"\s*([<>])\s*'([^']+)'/i),
+      match: sql.match(/"title"\s+COLLATE\s+"und-x-icu"\s*([<>])\s*'([^']+)'/i),
       value: (row) => String(row.title ?? ""),
+      compare: (left, right) => ISSUE_TITLE_COLLATOR.compare(left, right),
     },
   ].find(({ match }) => match);
   if (!leadMatchers?.match) return rows;
 
   const [, operator, rawKey] = leadMatchers.match;
-  const cursorKey =
-    typeof leadMatchers.value(rows[0] ?? {}) === "number"
-      ? Number(rawKey)
-      : rawKey;
+  const cursorKey = leadMatchers.numeric ? Number(rawKey) : rawKey;
   return rows.filter((row) => {
     const rowKey = leadMatchers.value(row);
-    const afterLead =
-      operator === ">" ? rowKey > cursorKey : rowKey < cursorKey;
-    const sameLead = rowKey === cursorKey;
+    const comparison = leadMatchers.compare(rowKey, cursorKey);
+    const afterLead = operator === ">" ? comparison > 0 : comparison < 0;
+    const sameLead = comparison === 0;
     const afterTie = String(row.reef_id).localeCompare(cursorId) < 0;
     return afterLead || (sameLead && afterTie);
   });
@@ -4220,6 +4256,10 @@ function numericSort(a, b) {
 
 function stringDesc(a, b) {
   return String(b ?? "").localeCompare(String(a ?? ""));
+}
+
+function compareStrings(a, b) {
+  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 function idDesc(a, b) {

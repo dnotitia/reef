@@ -268,6 +268,28 @@ describe("BacklogView", () => {
     );
   });
 
+  it("preserves the server's canonical mixed-title order for an explicit sort", async () => {
+    const titleIssues: IssueMetadata[] = [
+      { ...issues[0], id: "REEF-2", title: "! Symbol" },
+      { ...issues[0], id: "REEF-1", title: "가나다" },
+    ];
+    mockList(titleIssues);
+    useIssueStore.setState({
+      filter: { sortField: "title", sortOrder: "asc" },
+      searchQuery: "",
+      selectedIssueId: null,
+    });
+    render(wrap(<BacklogView vault="reef-acme" />));
+
+    await screen.findByText("! Symbol");
+    await screen.findByText("가나다");
+    expect(
+      screen
+        .getAllByTestId("backlog-row")
+        .map((row) => row.getAttribute("data-issue-id")),
+    ).toEqual(["REEF-2", "REEF-1"]);
+  });
+
   it("disables reordering and points to Rank order when a user sort is active (REEF-129, REEF-169)", async () => {
     mockList(issues);
     useIssueStore.setState({

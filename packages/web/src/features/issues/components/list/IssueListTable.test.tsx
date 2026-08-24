@@ -126,6 +126,43 @@ describe("IssueListTable", () => {
     ).toBeInTheDocument();
   });
 
+  it("preserves the server's canonical mixed-title order", async () => {
+    const titleIssues: IssueMetadata[] = [
+      { ...issues[1], id: "REEF-2", title: "! Symbol" },
+      { ...issues[0], id: "REEF-1", title: "가나다" },
+    ];
+    useIssueStore.setState({
+      filter: { sortField: "title", sortOrder: "asc" },
+      searchQuery: "",
+      selectedIssueId: null,
+    });
+    mockApiFetch.mockImplementation(async (url) => {
+      const path = String(url);
+      if (path.startsWith("/api/vaults/") && path.endsWith("/members")) {
+        return new Response(JSON.stringify({ members: [] }), { status: 200 });
+      }
+      if (path.startsWith("/api/vault-members")) {
+        return new Response(JSON.stringify({ users: [] }), { status: 200 });
+      }
+      if (path.startsWith("/api/issues/relations")) {
+        return new Response(JSON.stringify({ relations: [] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ issues: titleIssues }), {
+        status: 200,
+      });
+    });
+
+    render(wrap(<IssueListTable vault="reef-acme" />));
+    await screen.findByText("! Symbol");
+    await screen.findByText("가나다");
+
+    expect(
+      screen
+        .getAllByTestId("issue-list-row")
+        .map((row) => row.getAttribute("data-issue-id")),
+    ).toEqual(["REEF-2", "REEF-1"]);
+  });
+
   it("falls back to stable logins and the existing dash for incomplete roster data", async () => {
     const fallbackIssues: IssueMetadata[] = [
       { ...issues[0], id: "REEF-1", title: "Blank name", assigned_to: "alice" },

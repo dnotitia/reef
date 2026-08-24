@@ -32,6 +32,13 @@ export function sortIssues(
   order: IssueFilter["sortOrder"],
 ): IssueListItem[] {
   if (!field) return [...issues];
+  if (field === "title") {
+    // The server owns the canonical `und-x-icu` title order. Keeping the
+    // cursor pages' order here prevents a browser ICU variant from re-sorting
+    // only the rows already loaded and changing the global order at page
+    // boundaries. Filtering callers preserve this input order.
+    return [...issues];
+  }
   const dir = order === "desc" ? -1 : 1;
   return [...issues].sort((a, b) => {
     if (field === "priority") {
@@ -42,11 +49,6 @@ export function sortIssues(
     if (field === "estimate_points") {
       // Numeric column; nulls sort as 0 (matches the server's COALESCE).
       return ((a.estimate_points ?? 0) - (b.estimate_points ?? 0)) * dir;
-    }
-    if (field === "title") {
-      // Human text (often Korean) — localeCompare gives a natural A→Z / 가→하
-      // order rather than a raw lexicographic code-point comparison.
-      return a.title.localeCompare(b.title) * dir;
     }
     if (field === "start_date" || field === "due_date") {
       const aVal = a[field] ?? "";

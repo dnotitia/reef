@@ -127,21 +127,26 @@ describe("sortIssues", () => {
     expect(sorted[3].id).toBe("REEF-004"); // low
   });
 
-  it("sorts by title A→Z (localeCompare) ascending", () => {
-    // "Auth flow" < "Setup workspace" < "UI redesign" < "Write docs"
-    const sorted = sortIssues(issues, "title", "asc");
-    expect(sorted.map((i) => i.id)).toEqual([
-      "REEF-002",
-      "REEF-001",
-      "REEF-003",
-      "REEF-004",
-    ]);
-  });
+  it("preserves the server's canonical mixed-title order for both directions", () => {
+    const ascending = [
+      makeIssue({ id: "REEF-003", title: "! Symbol" }),
+      makeIssue({ id: "REEF-004", title: "Alpha" }),
+      makeIssue({ id: "REEF-002", title: "Alpha" }),
+      makeIssue({ id: "REEF-001", title: "가나다" }),
+    ];
+    const descending = [
+      makeIssue({ id: "REEF-001", title: "가나다" }),
+      makeIssue({ id: "REEF-004", title: "Alpha" }),
+      makeIssue({ id: "REEF-002", title: "Alpha" }),
+      makeIssue({ id: "REEF-003", title: "! Symbol" }),
+    ];
 
-  it("sorts by title Z→A descending", () => {
-    const sorted = sortIssues(issues, "title", "desc");
-    expect(sorted[0].id).toBe("REEF-004"); // Write docs
-    expect(sorted[3].id).toBe("REEF-002"); // Auth flow
+    expect(sortIssues(ascending, "title", "asc").map((i) => i.id)).toEqual(
+      ascending.map((i) => i.id),
+    );
+    expect(sortIssues(descending, "title", "desc").map((i) => i.id)).toEqual(
+      descending.map((i) => i.id),
+    );
   });
 
   it("sorts by estimate_points, treating null as 0", () => {
