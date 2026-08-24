@@ -4,8 +4,10 @@ import { AppShellSkeleton } from "@/components/AppShellSkeleton";
 import { useAuthRedirect } from "@/features/auth/hooks/useAuthRedirect";
 import { useSyncActiveVaultFromUrl } from "@/features/settings/hooks/useActiveVault";
 import { useVaults } from "@/features/settings/hooks/useVaults";
+import { hasEstablishedAuthSession } from "@/lib/akb/authCoordinator";
 import { VAULT_NAME_RE } from "@/lib/akb/vaultName";
 import { notFound, useParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { DashboardShell } from "./DashboardShell";
 import { WorkspaceAccessDenied } from "./WorkspaceAccessDenied";
@@ -39,48 +41,30 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
   // hook order is stable across route changes.
   if (!VAULT_NAME_RE.test(vault)) notFound();
 
-  if (authStatus !== "active") {
-    return <AppShellSkeleton />;
-  }
-
-  return (
-    <AuthenticatedWorkspaceGuard appVersion={appVersion} vault={vault}>
-      {children}
-    </AuthenticatedWorkspaceGuard>
-  );
-}
-
-function AuthenticatedWorkspaceGuard({
-  appVersion,
-  children,
-  vault,
-}: WorkspaceGuardProps & { vault: string }) {
-  const vaultsQuery = useVaults();
+  const isEstablishedRevalidation =
+    authStatus === "checking" && hasEstablishedAuthSession();
+  const vaultsQuery = useVaults({ enabled: authStatus === "active" });
   // A usable reef workspace is one the user can access AND that already carries
   // a reef config — the same `has_reef_config` bar the sidebar switcher and
   // onboarding use. A bare AKB vault the user merely belongs to is a dead end
   // (no issues/config surfaces), so treat it as not-a-workspace rather than
   // rendering an uninitialized board and persisting it as the default.
   const isMember =
+    authStatus === "active" &&
     vaultsQuery.isSuccess &&
     vaultsQuery.data.some((v) => v.name === vault && v.has_reef_config);
-  // One-way URL→Dexie sync: remember this vault as the "last viewed" default —
-  // but for a confirmed member. Persisting before the membership check let
-  // a well-formed but denied deep link (`/workspace/someone-else/...`) overwrite
-  // the browser default, after which `/` would keep redirecting into the
-  // inaccessible workspace. Passing "" while membership is
-  // unknown or denied makes the sync a no-op.
+  // One-way URL→Dexie sync: remember this vault as the per-browser default
+  // only after auth and membership are confirmed. Passing "" while the
+  // session or membership is unknown makes the sync a no-op.
   useSyncActiveVaultFromUrl(isMember ? vault : "");
 
-  // Membership gate (AC5) — no silent fallback, but render the shell
-  // optimistically. The common case is a member, and gating every page load on
-  // the vault-list fetch would serialize the whole workspace behind it (and is
-  // unneeded once the list is cached). A confirmed non-member replaces the
-  // shell with the explicit access-denied surface; while the list is still
-  // loading, or if it errors, the shell renders and the page's own queries own
-  // their loading/error states — a real member is not held back, and a
-  // non-member still lands on access-denied once the list resolves.
-  if (vaultsQuery.isSuccess && !isMember) {
+  if (authStatus !== "active" && !isEstablishedRevalidation) {
+    return <AppShellSkeleton />;
+  }
+
+  // Keep the access-denied surface outside the dashboard shell so its
+  // dedicated account utility and recovery layout stay unchanged.
+  if (authStatus === "active" && vaultsQuery.isSuccess && !isMember) {
     return (
       <WorkspaceAccessDenied
         appVersion={appVersion}
@@ -90,5 +74,24 @@ function AuthenticatedWorkspaceGuard({
     );
   }
 
-  return <DashboardShell appVersion={appVersion}>{children}</DashboardShell>;
+  return (
+    <DashboardShell appVersion={appVersion}>
+      {isEstablishedRevalidation ? <AuthRevalidationStatus /> : children}
+    </DashboardShell>
+  );
+}
+
+function AuthRevalidationStatus() {
+  const t = useTranslations("common");
+  return (
+    <div
+      className="flex min-h-full items-center justify-center p-6"
+      aria-busy="true"
+      data-testid="auth-revalidation-status"
+    >
+      <output aria-live="polite" aria-atomic="true">
+        {t("loading")}
+      </output>
+    </div>
+  );
 }

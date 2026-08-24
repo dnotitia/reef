@@ -29,6 +29,20 @@ async function expectLogin(
   }
 }
 
+async function expectPersistentShell(
+  page: import("@playwright/test").Page,
+): Promise<void> {
+  await expect(
+    page.getByRole("complementary", { name: "Sidebar" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Main navigation" }),
+  ).toBeVisible();
+  await expect(page.locator('[data-testid="app-shell-skeleton"]')).toHaveCount(
+    0,
+  );
+}
+
 test.describe("REEF-552 auth soft navigation", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
@@ -137,11 +151,38 @@ test.describe("REEF-552 auth soft navigation", () => {
     await expect(
       page.locator('[data-testid="planning-compact-list"]'),
     ).toHaveCount(0);
+    await expectPersistentShell(page);
     await expect(
-      page.locator('[data-testid="app-shell-skeleton"]'),
-    ).toBeVisible({ timeout: 1_000 });
+      page.locator('[data-testid="auth-revalidation-status"]'),
+    ).toBeVisible();
 
     await expect(page.getByRole("heading", { name: "Planning" })).toBeVisible({
+      timeout: 15_000,
+    });
+  });
+
+  test("keeps the established shell during a visible-tab revalidation", async ({
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    await setAuthControl(request, { probeDelayMs: 1_200 });
+
+    const probe = page.waitForRequest(isAuthProbeRequest);
+    await page.evaluate(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await probe;
+
+    await page.waitForTimeout(300);
+    await expect(page).toHaveURL(new RegExp(`${ISSUES_PATH}$`));
+    await expectPersistentShell(page);
+    await expect(
+      page.locator('[data-testid="auth-revalidation-status"]'),
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Issues" })).toHaveCount(0);
+
+    await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible({
       timeout: 15_000,
     });
   });

@@ -11,6 +11,7 @@ type VaultsState = {
 
 const {
   authStatusRef,
+  establishedSessionRef,
   paramsRef,
   notFoundMock,
   syncMock,
@@ -19,6 +20,9 @@ const {
 } = vi.hoisted(() => ({
   authStatusRef: {
     current: "active" as "checking" | "active" | "inactive",
+  },
+  establishedSessionRef: {
+    current: false,
   },
   paramsRef: {
     current: { vault: "reef-acme" } as Record<string, string | string[]>,
@@ -35,16 +39,24 @@ vi.mock("next/navigation", () => ({
   useParams: () => paramsRef.current,
   notFound: notFoundMock,
 }));
+vi.mock("next-intl", () => ({
+  useTranslations: () => (key: string) => key,
+}));
 vi.mock("@/features/auth/hooks/useAuthRedirect", () => ({
   useAuthRedirect: () => authStatusRef.current,
+}));
+vi.mock("@/lib/akb/authCoordinator", () => ({
+  hasEstablishedAuthSession: () => establishedSessionRef.current,
 }));
 vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   useSyncActiveVaultFromUrl: syncMock,
 }));
 vi.mock("@/features/settings/hooks/useVaults", () => ({
-  useVaults: () => {
-    vaultsMock();
-    return vaultsRef.current;
+  useVaults: ({ enabled = true }: { enabled?: boolean } = {}) => {
+    if (enabled) vaultsMock();
+    return enabled
+      ? vaultsRef.current
+      : { isPending: false, isSuccess: false, isError: false };
   },
 }));
 vi.mock("@/components/AppShellSkeleton", () => ({
@@ -67,6 +79,7 @@ describe("WorkspaceGuard (REEF-315)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     authStatusRef.current = "active";
+    establishedSessionRef.current = false;
     paramsRef.current = { vault: "reef-acme" };
     vaultsRef.current = {
       isPending: false,
@@ -87,6 +100,23 @@ describe("WorkspaceGuard (REEF-315)", () => {
 
     expect(screen.getByTestId("auth-loading-shell")).toBeInTheDocument();
     expect(screen.queryByTestId("dashboard-shell")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("page")).not.toBeInTheDocument();
+    expect(vaultsMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps an established shell while revalidation blocks protected content", () => {
+    authStatusRef.current = "checking";
+    establishedSessionRef.current = true;
+
+    render(
+      <WorkspaceGuard appVersion="1.0.0">
+        <span data-testid="page" />
+      </WorkspaceGuard>,
+    );
+
+    expect(screen.getByTestId("dashboard-shell")).toBeInTheDocument();
+    expect(screen.getByTestId("auth-revalidation-status")).toBeInTheDocument();
+    expect(screen.queryByTestId("auth-loading-shell")).not.toBeInTheDocument();
     expect(screen.queryByTestId("page")).not.toBeInTheDocument();
     expect(vaultsMock).not.toHaveBeenCalled();
   });

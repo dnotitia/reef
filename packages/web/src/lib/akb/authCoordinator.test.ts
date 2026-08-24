@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AUTH_PROBE_TIMEOUT_MS,
   __resetAuthCoordinatorForTests,
+  hasEstablishedAuthSession,
   requestAuthProbe,
   subscribeAuthCoordinator,
 } from "./authCoordinator";
@@ -101,6 +102,33 @@ describe("auth coordinator", () => {
     await Promise.resolve();
 
     expect(probe).toHaveBeenCalledOnce();
+    unsubscribe();
+  });
+
+  it("keeps the established-session marker during revalidation", async () => {
+    const activeProbe = vi.fn(async () => active);
+    const unsubscribe = subscribeAuthCoordinator(() => {}, activeProbe);
+
+    requestAuthProbe(activeProbe);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(hasEstablishedAuthSession()).toBe(true);
+
+    let resolveRevalidation!: (value: typeof active | typeof inactive) => void;
+    const revalidation = new Promise<typeof active | typeof inactive>(
+      (resolve) => {
+        resolveRevalidation = resolve;
+      },
+    );
+    const revalidationProbe = vi.fn(() => revalidation);
+
+    requestAuthProbe(revalidationProbe);
+    expect(hasEstablishedAuthSession()).toBe(true);
+
+    resolveRevalidation(inactive);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(hasEstablishedAuthSession()).toBe(false);
     unsubscribe();
   });
 });
