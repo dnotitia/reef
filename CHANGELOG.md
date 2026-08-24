@@ -12,6 +12,18 @@ explicitly in the entries below.
 
 ## Unreleased
 
+## v0.12.0 - 2026-08-24
+
+### Added
+
+- **Issue Description edits now appear in the Activity timeline** with the
+  editor and timestamp, while repeated body updates collapse into an expandable
+  group.
+
+- **Issue status saves now expose per-issue pending state.** List, Board, and
+  detail surfaces keep unrelated issues interactive while a save is in flight,
+  and shared async actions provide clearer progress and failure feedback.
+
 ### Changed
 
 - **Breaking: removed the obsolete AI activity-scanning and Suggestions
@@ -54,6 +66,40 @@ explicitly in the entries below.
   draft values, focus, and body scrolling intact, restores within the same
   tab, and stays separate from Issue Detail's shell state.
 
+- **Issue sorting now lives in the shared filter toolbar**, keeping search,
+  facets, grouping, and ordering controls in one predictable place across List
+  and Backlog workflows.
+
+- **Dashboard surfaces now use semantic background, border, overlay, and
+  interactive roles across light and dark themes.** Mobile issue, My Work, and
+  Settings layouts also contain long content and expose clearer keyboard and
+  screen-reader feedback.
+
+### Migration
+
+- **SSO deployments must remove Reef-owned OIDC and Redis session
+  configuration.** Reef no longer reads `REEF_AUTH_MODE`,
+  `REEF_KEYCLOAK_ISSUER`, `REEF_KEYCLOAK_TRANSPORT_URL`,
+  `REEF_KEYCLOAK_CLIENT_ID`, `REEF_AKB_API_AUDIENCE`,
+  `REEF_SESSION_REDIS_URL`, or `REEF_SESSION_ENCRYPTION_KEY`. Configure SSO in
+  AKB, keep `AKB_BACKEND_URL`, and set `REEF_PUBLIC_ORIGIN` when Reef and AKB
+  use distinct public origins. A hybrid AKB may optionally set
+  `REEF_SSO_AUTO_REDIRECT=1` for SSO-first presentation.
+
+- **No destructive storage migration is required for removed Suggestions.**
+  Existing AKB activity rows and documents, plus legacy browser target and
+  watermark values, remain untouched and inert.
+
+### Operational
+
+- **Kubernetes readiness now uses `/api/healthz`.** Reef no longer exposes
+  dependency-aware Redis/Keycloak readiness because AKB owns SSO and Reef is
+  stateless. Remove obsolete `/api/readyz` probes during rollout.
+
+- **Rollback to v0.11.0 requires restoring its Reef-owned Keycloak and Redis
+  environment before starting the old image.** Keep those values available
+  until the v0.12.0 SSO login and sign-out smoke test has passed.
+
 ### Fixed
 
 - **온보딩은 새 workspace 생성 흐름을 정확히 안내하고, 이름·이슈 접두사의 필수 입력 오류와 repository 선택 상태를 키보드·스크린리더에 전달하며, 좁은 화면에서도 저장소 선택기와 긴 repository 이름을 영역 안에서 조작할 수 있도록 개선했습니다.**
@@ -61,6 +107,18 @@ explicitly in the entries below.
 - **Workspace SSO no longer fails account validation by sending AKB a token
   intended for a different resource server.** Both password and SSO login now
   establish the same AKB-issued session contract used by AKB's own frontend.
+
+- **Protected soft navigation now verifies the current AKB session before
+  rendering authenticated content**, preventing stale browser state from
+  bypassing the login boundary after expiry or account denial.
+
+- **Repeated AKB Markdown document-link normalization is now idempotent**, so
+  an already normalized link keeps the same href and label across subsequent
+  reads and edits.
+
+- **Description and issue-detail resize handles remain attached to their
+  frames while content scrolls**, and shared tooltips stay above dialogs and
+  other layered surfaces.
 
 ## v0.11.0 - 2026-08-18
 
