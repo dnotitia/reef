@@ -102,7 +102,10 @@ explicitly in the entries below.
 
 ### Fixed
 
-- **온보딩은 새 workspace 생성 흐름을 정확히 안내하고, 이름·이슈 접두사의 필수 입력 오류와 repository 선택 상태를 키보드·스크린리더에 전달하며, 좁은 화면에서도 저장소 선택기와 긴 repository 이름을 영역 안에서 조작할 수 있도록 개선했습니다.**
+- **Onboarding now accurately guides new workspace creation.** Required name
+  and issue-prefix errors plus repository selection state are announced to
+  keyboard and screen-reader users, while the repository picker and long
+  repository names remain operable within narrow layouts.
 
 - **Workspace SSO no longer fails account validation by sending AKB a token
   intended for a different resource server.** Both password and SSO login now
