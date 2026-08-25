@@ -23,9 +23,10 @@ export type AuthResponseClassification =
 
 /**
  * Keep status-only responses meaningful at the browser boundary. A plain 401
- * on the first probe is not proof that an established account was revoked,
- * while a 401 observed after an active probe is an invalidation signal. A
- * resource 403 never signs the account out unless the server supplies the
+ * without an established session belongs to the first-visit flow, while a
+ * plain 401 after an established session is an ordinary request error. Only
+ * the server-owned invalidation header can invalidate an established session.
+ * A resource 403 never signs the account out unless the server supplies that
  * explicit invalidation header.
  */
 export function classifyAuthResponse(
@@ -36,9 +37,7 @@ export function classifyAuthResponse(
     return "established-session-invalidation";
   }
   if (response.status === 401) {
-    return establishedSession
-      ? "established-session-invalidation"
-      : "first-visit-unauthenticated";
+    return establishedSession ? "other-error" : "first-visit-unauthenticated";
   }
   if (response.status === 403) return "resource-permission-denial";
   return "other-error";

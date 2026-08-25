@@ -30,6 +30,11 @@ import {
   abortAuthScopedRequests,
   classifyAuthResponse,
 } from "./apiClient";
+import {
+  __resetAuthCoordinatorForTests,
+  bootstrapAuthSession,
+  getAuthCoordinatorSnapshot,
+} from "./akb/authCoordinator";
 import { setConfigValue } from "./storage/config";
 import { db } from "./storage/db";
 
@@ -51,6 +56,7 @@ describe("apiClient.fetch — browser request headers", () => {
   });
 
   afterEach(async () => {
+    __resetAuthCoordinatorForTests();
     await db.config.clear();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -142,6 +148,20 @@ describe("apiClient.fetch — browser request headers", () => {
     expect(wipeAkbScopedBrowserState).not.toHaveBeenCalled();
   });
 
+  it("does not invalidate an established session on a status-only 401", async () => {
+    bootstrapAuthSession(async () => ({ active: true }));
+    await vi.waitFor(() =>
+      expect(getAuthCoordinatorSnapshot().status).toBe("active"),
+    );
+
+    mockFetch.mockResolvedValueOnce(mockResponse(401));
+
+    await apiClient.fetch("/api/issues");
+
+    expect(getAuthCoordinatorSnapshot().status).toBe("active");
+    expect(wipeAkbScopedBrowserState).not.toHaveBeenCalled();
+  });
+
   it("preserves the account-denial response when browser cleanup fails", async () => {
     const response = new Response("{}", {
       status: 403,
@@ -159,6 +179,7 @@ describe("apiClient.fetch — browser request headers", () => {
     expect(classifyAuthResponse(mockResponse(401), false)).toBe(
       "first-visit-unauthenticated",
     );
+    expect(classifyAuthResponse(mockResponse(401), true)).toBe("other-error");
     expect(classifyAuthResponse(mockResponse(403), true)).toBe(
       "resource-permission-denial",
     );

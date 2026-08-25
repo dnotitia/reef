@@ -153,7 +153,7 @@ describe("respondWithError", () => {
       }),
     );
 
-    expect(response.status).toBe(401);
+    expect(response.status).toBe(403);
     expect(response.headers.get("set-cookie")).toBeNull();
     expect(response.headers.get("x-reef-auth-invalidated")).toBeNull();
   });
