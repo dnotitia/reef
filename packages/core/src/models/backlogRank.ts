@@ -11,8 +11,8 @@
 // Model:
 // - Lower `rank` sorts higher (nearer the top, picked sooner).
 // - A row with no rank (`null`) is *unranked*: it sorts BELOW every ranked row
-//   (the "tail"), ordered among the unranked by the stable `reef_id`
-//   tiebreaker. `RANK_NULL_SORT_SENTINEL` is the value an unranked row collapses
+//   (the "tail"), ordered among the unranked by the canonical numeric
+//   issue-number tiebreaker. `RANK_NULL_SORT_SENTINEL` is the value an unranked row collapses
 //   to for sort purposes just — it does not participate in the gap arithmetic that
 //   assigns real ranks.
 // - Reordering decides from the moved row's IMMEDIATE neighbors in the intended
@@ -88,7 +88,8 @@ export interface JiraRankMappingResult {
  * The sort key for a row under the backlog's manual order: ranked rows by their
  * ascending rank, unranked rows collapsed to the sentinel so they sink to the
  * tail. Equal keys (the unranked rows, all at the sentinel) need a
- * tiebreaker from the caller: the server breaks them by `reef_id DESC`, and the
+ * tiebreaker from the caller: the server breaks them by numeric ticket number
+ * DESC, and the
  * backlog view refines that to `created_at DESC` (newest first) so the order
  * holds past the 3-digit id padding boundary.
  */

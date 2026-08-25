@@ -111,6 +111,13 @@ describe("IssueListQuerySchema", () => {
     expect(USER_SORT_FIELDS as readonly string[]).not.toContain("rank");
   });
 
+  it("accepts the canonical ticket-number sort field", () => {
+    expect(
+      IssueListQuerySchema.parse({ sort_field: "reef_id", sort_order: "asc" }),
+    ).toMatchObject({ sort_field: "reef_id", sort_order: "asc" });
+    expect(USER_SORT_FIELDS).toContain("reef_id");
+  });
+
   it("rejects a malformed cursor and accepts a well-formed one", () => {
     expect(() =>
       IssueListQuerySchema.parse({ cursor: "not-base64-json" }),

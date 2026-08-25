@@ -157,6 +157,11 @@ describe("fieldRegistry", () => {
       expect(naturalSortOrder("created_at")).toBe("desc");
       expect(naturalSortOrder("updated_at")).toBe("desc");
       expect(naturalSortOrder("estimate_points")).toBe("desc");
+      expect(naturalSortOrder("reef_id")).toBe("desc");
+      expect(ISSUE_FIELD_MESSAGES_EN.sortField.reef_id).toBe("Ticket number");
+      expect(ISSUE_FIELD_MESSAGES_EN.sortDirection.reef_id.asc).toBe(
+        "Smallest → Largest",
+      );
     });
   });
 });

@@ -18,6 +18,12 @@ explicitly in the entries below.
   options**, so long milestone, sprint, and release values can be previewed
   without blocking selection in the planning filters.
 
+### Added
+
+- **Issue List and Board sorting now supports ticket numbers.** Numeric issue
+  numbers, including values beyond three-digit padding and gaps, use the same
+  order across the shared control, keyset pages, and client-rendered views.
+
 ### Changed
 
 - **Breaking: Issues now separates Active/Backlog scope from Board/List/Timeline

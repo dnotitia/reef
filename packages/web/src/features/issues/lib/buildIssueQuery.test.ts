@@ -93,6 +93,15 @@ describe("buildIssueQuery", () => {
     ).toEqual({ sort_field: "due_date", sort_order: "asc" });
   });
 
+  it("passes through ticket-number sorting in either direction", () => {
+    expect(buildIssueQuery({ sortField: "reef_id", sortOrder: "asc" })).toEqual(
+      { sort_field: "reef_id", sort_order: "asc" },
+    );
+    expect(
+      buildIssueQuery({ sortField: "reef_id", sortOrder: "desc" }),
+    ).toEqual({ sort_field: "reef_id", sort_order: "desc" });
+  });
+
   it("ignores an orphaned sort order when no valid field is selected", () => {
     // A stale/shared URL or a persisted filter can leave `sortOrder` set with no
     // (or a dropped) field. The order should not flip the default priority desc —

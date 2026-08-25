@@ -15,6 +15,7 @@ import {
 } from "../core/shared";
 
 const parse = (q: Record<string, unknown>) => IssueListQuerySchema.parse(q);
+const ISSUE_NUMBER_SORT_EXPR = `CAST(SUBSTRING("reef_id" FROM '[0-9]+$') AS NUMERIC)`;
 
 describe("buildIssueWhere", () => {
   it("adds the archived_at IS NULL floor by default (no facets)", () => {
@@ -155,15 +156,15 @@ describe("buildIssueWhere", () => {
 });
 
 describe("buildIssueOrderBy / priorityRankCase", () => {
-  it("orders by the priority CASE rank with a reef_id tiebreaker", () => {
+  it("orders by the priority CASE rank with a numeric issue-number tiebreaker", () => {
     expect(buildIssueOrderBy("priority", "desc")).toBe(
-      `${priorityRankCase()} DESC, "reef_id" DESC`,
+      `${priorityRankCase()} DESC, ${ISSUE_NUMBER_SORT_EXPR} DESC`,
     );
   });
 
   it("orders by a plain column for non-priority fields", () => {
     expect(buildIssueOrderBy("created_at", "asc")).toBe(
-      `"created_at" ASC, "reef_id" DESC`,
+      `"created_at" ASC, ${ISSUE_NUMBER_SORT_EXPR} DESC`,
     );
   });
 
@@ -171,29 +172,38 @@ describe("buildIssueOrderBy / priorityRankCase", () => {
     "puts missing %s values in the tail for both directions",
     (field) => {
       expect(buildIssueOrderBy(field, "asc")).toBe(
-        `CASE WHEN "${field}" IS NULL THEN 1 ELSE 0 END ASC, COALESCE("${field}", '') ASC, "reef_id" DESC`,
+        `CASE WHEN "${field}" IS NULL THEN 1 ELSE 0 END ASC, COALESCE("${field}", '') ASC, ${ISSUE_NUMBER_SORT_EXPR} DESC`,
       );
       expect(buildIssueOrderBy(field, "desc")).toBe(
-        `CASE WHEN "${field}" IS NULL THEN 1 ELSE 0 END ASC, COALESCE("${field}", '') DESC, "reef_id" DESC`,
+        `CASE WHEN "${field}" IS NULL THEN 1 ELSE 0 END ASC, COALESCE("${field}", '') DESC, ${ISSUE_NUMBER_SORT_EXPR} DESC`,
       );
     },
   );
 
   it("coalesces a NULL rank to the tail sentinel so unranked issues sink below ranked ones (REEF-129)", () => {
     expect(buildIssueOrderBy("rank", "asc")).toBe(
-      `COALESCE("rank", 1000000000000000) ASC, "reef_id" DESC`,
+      `COALESCE("rank", 1000000000000000) ASC, ${ISSUE_NUMBER_SORT_EXPR} DESC`,
     );
   });
 
   it("wraps the nullable estimate_points column in COALESCE (REEF-059)", () => {
     expect(buildIssueOrderBy("estimate_points", "desc")).toBe(
-      `COALESCE("estimate_points", 0) DESC, "reef_id" DESC`,
+      `COALESCE("estimate_points", 0) DESC, ${ISSUE_NUMBER_SORT_EXPR} DESC`,
     );
   });
 
   it("uses the canonical ICU collation for a title sort", () => {
     expect(buildIssueOrderBy("title", "asc")).toBe(
-      `"title" COLLATE "und-x-icu" ASC, "reef_id" DESC`,
+      `"title" COLLATE "und-x-icu" ASC, ${ISSUE_NUMBER_SORT_EXPR} DESC`,
+    );
+  });
+
+  it("sorts ticket numbers numerically without assuming prefix or padding", () => {
+    expect(buildIssueOrderBy("reef_id", "asc")).toBe(
+      `${ISSUE_NUMBER_SORT_EXPR} ASC`,
+    );
+    expect(buildIssueOrderBy("reef_id", "desc")).toBe(
+      `${ISSUE_NUMBER_SORT_EXPR} DESC`,
     );
   });
 });
@@ -222,14 +232,14 @@ describe("keyset cursor", () => {
     expect(() => decodeCursor("not-base64-json")).toThrow();
   });
 
-  it("builds a descending keyset OR-chain with a reef_id tiebreaker", () => {
+  it("builds a descending keyset OR-chain with a numeric issue-number tiebreaker", () => {
     expect(
       buildKeysetWhere("created_at", "desc", {
         k: "2026-05-02T00:00:00.000Z",
         id: "REEF-002",
       }),
     ).toBe(
-      `(("created_at" < '2026-05-02T00:00:00.000Z') OR ("created_at" = '2026-05-02T00:00:00.000Z' AND "reef_id" < 'REEF-002'))`,
+      `(("created_at" < '2026-05-02T00:00:00.000Z') OR ("created_at" = '2026-05-02T00:00:00.000Z' AND ${ISSUE_NUMBER_SORT_EXPR} < 2))`,
     );
   });
 
@@ -239,7 +249,7 @@ describe("keyset cursor", () => {
       id: "REEF-002",
     });
     expect(where).toContain(`${priorityRankCase()} < 3`);
-    expect(where).toContain(`"reef_id" < 'REEF-002'`);
+    expect(where).toContain(`${ISSUE_NUMBER_SORT_EXPR} < 2`);
   });
 
   it("uses the same ICU title expression for the keyset predicate", () => {
@@ -249,8 +259,28 @@ describe("keyset cursor", () => {
         id: "REEF-002",
       }),
     ).toBe(
-      `(("title" COLLATE "und-x-icu" < 'Alpha') OR ("title" COLLATE "und-x-icu" = 'Alpha' AND "reef_id" < 'REEF-002'))`,
+      `(("title" COLLATE "und-x-icu" < 'Alpha') OR ("title" COLLATE "und-x-icu" = 'Alpha' AND ${ISSUE_NUMBER_SORT_EXPR} < 2))`,
     );
+  });
+
+  it("uses the numeric ticket key for the 999/1000 cursor boundary", () => {
+    const cursor = encodeCursor({ reef_id: "TEAM_2-999" }, "reef_id");
+    expect(decodeCursor(cursor)).toEqual({ k: "999", id: "TEAM_2-999" });
+
+    const where = buildKeysetWhere("reef_id", "asc", {
+      k: "999",
+      id: "TEAM_2-999",
+    });
+    expect(where).toBe(`(${ISSUE_NUMBER_SORT_EXPR} > 999)`);
+  });
+
+  it("uses the canonical numeric tie-breaker for a 1000 cursor", () => {
+    const where = buildKeysetWhere("created_at", "desc", {
+      k: "2026-05-02T00:00:00.000Z",
+      id: "TEAM_2-1000",
+    });
+    expect(where).toContain(`${ISSUE_NUMBER_SORT_EXPR} < 1000`);
+    expect(where).not.toContain('"reef_id" <');
   });
 
   it("parses a string-numeric rank when encoding the cursor", () => {
@@ -297,7 +327,7 @@ describe("keyset cursor", () => {
         `CASE WHEN "${field}" IS NULL THEN 1 ELSE 0 END = 0`,
       );
       expect(where).toContain(`COALESCE("${field}", '') > '2026-06-01'`);
-      expect(where).toContain(`"reef_id" < 'REEF-010'`);
+      expect(where).toContain(`${ISSUE_NUMBER_SORT_EXPR} < 10`);
     },
   );
 
@@ -316,7 +346,7 @@ describe("keyset cursor", () => {
       `CASE WHEN "due_date" IS NULL THEN 1 ELSE 0 END > 1`,
     );
     expect(where).toContain(`COALESCE("due_date", '') = ''`);
-    expect(where).toContain(`"reef_id" < 'REEF-101'`);
+    expect(where).toContain(`${ISSUE_NUMBER_SORT_EXPR} < 101`);
   });
 });
 

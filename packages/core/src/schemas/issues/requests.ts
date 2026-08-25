@@ -63,8 +63,9 @@ export const CreateIssueRequestSchema = z
  * This is also the single source for the user-facing sort values.
  *
  * `priority` sorts by a CASE rank and `estimate_points` by a COALESCE'd numeric
- * (see the adapter's `sortLeadExpr` / `NUMERIC_SORT_FIELDS`); `title` is a
- * case-aware text sort; the rest are direct columns.
+ * (see the adapter's `sortLeadExpr` / `NUMERIC_SORT_FIELDS`); `reef_id` sorts
+ * by the canonical numeric issue number; `title` is a case-aware text sort;
+ * the rest are direct columns.
  */
 export const USER_SORT_FIELDS = [
   "created_at",
@@ -74,6 +75,7 @@ export const USER_SORT_FIELDS = [
   "due_date",
   "estimate_points",
   "title",
+  "reef_id",
 ] as const;
 
 /**
@@ -95,7 +97,8 @@ const SORT_FIELDS = [...USER_SORT_FIELDS, "rank"] as const;
 
 /**
  * Default issue sort when the user has not picked one (REEF-057): priority
- * high→low, with the server adding a `reef_id` tiebreaker (see the adapter's
+ * high→low, with the server adding the canonical numeric issue-number
+ * tiebreaker (see the adapter's
  * `buildIssueOrderBy`). This is the single source for the default; it is applied
  * at the query-building layer (`buildIssueQuery`) just — does not written into the
  * filter store / URL / persisted slot — so "no explicit sort" stays pristine for

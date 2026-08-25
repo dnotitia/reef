@@ -190,6 +190,7 @@ export {
 } from "./schemas";
 export {
   ISSUE_ID_PATTERN,
+  parseIssueId,
   type IssueIdParts,
   isForwardStatus,
   isResolvedStatus,

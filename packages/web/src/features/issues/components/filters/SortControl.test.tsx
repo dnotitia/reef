@@ -174,6 +174,18 @@ describe("SortControl", () => {
     expect(useIssueStore.getState().filter.sortOrder).toBe("asc");
   });
 
+  it("offers ticket number as a shared sort option with newest number first", async () => {
+    const user = userEvent.setup();
+    render(<SortControl />);
+    await user.click(screen.getByTestId("sort-control-trigger"));
+    expect(screen.getByTestId("sort-option-reef_id")).toHaveTextContent(
+      "Ticket number",
+    );
+    await user.click(screen.getByTestId("sort-option-reef_id"));
+    expect(useIssueStore.getState().filter.sortField).toBe("reef_id");
+    expect(useIssueStore.getState().filter.sortOrder).toBe("desc");
+  });
+
   it("toggling direction from the default promotes it to an explicit selection", async () => {
     const user = userEvent.setup();
     render(<SortControl />);
