@@ -21,15 +21,16 @@ const WORKFLOW_STATUS_SET: ReadonlySet<string> = new Set(
  * re-runs with nothing left to remove. The list view does not use this guard, so
  * it keeps the full status set.
  */
-export function useWorkflowStatusGuard(): void {
+export function useWorkflowStatusGuard(enabled = true): void {
   const status = useIssueStore((state) => state.filter.status);
   const setFilter = useIssueStore((state) => state.setFilter);
 
   useEffect(() => {
+    if (!enabled) return;
     if (!status?.length) return;
     const allowed = status.filter((s) => WORKFLOW_STATUS_SET.has(s));
     if (allowed.length !== status.length) {
       setFilter({ status: allowed.length ? allowed : undefined });
     }
-  }, [status, setFilter]);
+  }, [enabled, status, setFilter]);
 }

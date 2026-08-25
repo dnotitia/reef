@@ -1,6 +1,7 @@
 import {
-  type IssueViewMode,
-  parseViewParam,
+  type IssueLayout,
+  normalizeIssueViewState,
+  parseIssueViewState,
 } from "@/features/issues/lib/viewMode";
 import { withVault } from "@/lib/workspaceHref";
 
@@ -17,7 +18,7 @@ export function buildViewHref({
   vault: string;
   pathname: string;
   search: string;
-  view: IssueViewMode;
+  view: IssueLayout;
 }): string {
   const inIssuesWorkspace = /\/workspace\/[^/]+\/issues(?:\/[^/]+)?\/?$/.test(
     pathname,
@@ -25,7 +26,9 @@ export function buildViewHref({
   const params = inIssuesWorkspace
     ? new URLSearchParams(search)
     : new URLSearchParams();
-  params.set("view", view);
+  const scope = params.get("scope") === "backlog" ? "backlog" : "active";
+  params.set("scope", scope);
+  params.set("view", normalizeIssueViewState(scope, view).layout);
   return withVault(vault, `/issues?${params.toString()}`);
 }
 
@@ -35,9 +38,9 @@ export function resolveCurrentIssueView({
 }: {
   pathname: string;
   search: string;
-}): IssueViewMode | null {
+}): IssueLayout | null {
   if (!/\/workspace\/[^/]+\/issues(?:\/[^/]+)?\/?$/.test(pathname)) {
     return null;
   }
-  return parseViewParam(new URLSearchParams(search).get("view"));
+  return parseIssueViewState(new URLSearchParams(search)).layout;
 }

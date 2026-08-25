@@ -203,8 +203,10 @@ describe("BacklogView", () => {
     expect(mockPush).not.toHaveBeenCalled();
   });
 
-  it("preserves ?view=backlog when opening an issue (REEF-222)", async () => {
-    navigationState.searchParams = new URLSearchParams("view=backlog");
+  it("preserves the backlog scope and list layout when opening an issue", async () => {
+    navigationState.searchParams = new URLSearchParams(
+      "scope=backlog&view=list",
+    );
     mockList(issues);
     const user = userEvent.setup();
     render(wrap(<BacklogView vault="reef-acme" />));
@@ -212,7 +214,7 @@ describe("BacklogView", () => {
     await screen.findByText("Deferred idea");
     await user.click(screen.getByTestId("backlog-row"));
     expect(mockPush).toHaveBeenCalledWith(
-      "/workspace/reef-acme/issues/REEF-1?view=backlog",
+      "/workspace/reef-acme/issues/REEF-1?scope=backlog&view=list",
     );
   });
 
@@ -224,7 +226,7 @@ describe("BacklogView", () => {
     const cta = screen.getByRole("link", { name: /Go to the board/ });
     expect(cta).toHaveAttribute(
       "href",
-      "/workspace/reef-acme/issues?view=board",
+      "/workspace/reef-acme/issues?scope=active&view=board",
     );
     expect(cta).toHaveAttribute("data-next-link", "true");
   });

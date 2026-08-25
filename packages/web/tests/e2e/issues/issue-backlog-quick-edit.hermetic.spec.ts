@@ -40,7 +40,9 @@ test.describe("Hermetic Backlog quick edit", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=backlog`);
+    await page.goto(
+      `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`,
+    );
 
     const row = page.getByTestId("backlog-row").filter({
       hasText: "REEF-003",
@@ -123,7 +125,9 @@ test.describe("Hermetic Backlog quick edit", () => {
   }) => {
     await openExistingWorkspace(page);
     await page.setViewportSize({ width: 1024, height: 700 });
-    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=backlog`);
+    await page.goto(
+      `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`,
+    );
 
     const row = page.getByTestId("backlog-row").first();
     await expect(row).toBeVisible();
@@ -147,7 +151,9 @@ test.describe("Hermetic Backlog quick edit", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=backlog`);
+    await page.goto(
+      `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`,
+    );
     await page.setViewportSize({ width: 640, height: 360 });
 
     const row = page.getByTestId("backlog-row").filter({
@@ -186,7 +192,9 @@ test.describe("Hermetic Backlog quick edit", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=backlog`);
+    await page.goto(
+      `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`,
+    );
 
     const row = page.getByTestId("backlog-row").filter({
       hasText: "REEF-003",
@@ -219,7 +227,9 @@ test.describe("Hermetic Backlog quick edit", () => {
     request,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=backlog`);
+    await page.goto(
+      `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`,
+    );
 
     const row = page.getByTestId("backlog-row").filter({
       hasText: "REEF-003",
@@ -249,7 +259,9 @@ test.describe("Hermetic Backlog quick edit", () => {
     request,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=backlog`);
+    await page.goto(
+      `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`,
+    );
 
     const row = page.getByTestId("backlog-row").filter({
       hasText: "REEF-003",

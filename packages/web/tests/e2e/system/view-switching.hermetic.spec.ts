@@ -2,8 +2,8 @@ import { type Page, expect, test } from "@playwright/test";
 import { openExistingWorkspace, resetFixture } from "../harness/fixture";
 
 /**
- * Issue view-switch interaction (REEF-265). The Board / List / Timeline /
- * Backlog tabs are peer renderings of one cached collection, so switching is a
+ * Issue view-switch interaction (REEF-265). Scope and layout are independent
+ * controls over one cached collection, so switching is a
  * pure render/nav swap. The fix wraps the ViewSwitcher navigation in a React
  * transition so the route `loading.tsx` board skeleton no longer flashes and
  * the current view stays mounted while the next renders. These run against the
@@ -15,7 +15,6 @@ const VIEW_BODY: Record<string, string> = {
   board: "kanban-board",
   list: "issue-list-row",
   timeline: "timeline-grid",
-  backlog: "backlog-table",
 };
 
 async function switchTo(
@@ -35,7 +34,7 @@ test.describe("Hermetic issue view switching", () => {
     await resetFixture(request, "configured");
   });
 
-  test("swaps views and keeps ?view= in sync without flashing the board skeleton", async ({
+  test("swaps layouts and keeps the independent URL state without flashing the board skeleton", async ({
     page,
   }) => {
     await openExistingWorkspace(page);
@@ -68,7 +67,11 @@ test.describe("Hermetic issue view switching", () => {
 
     await switchTo(page, "list");
     await switchTo(page, "timeline");
-    await switchTo(page, "backlog");
+    await page.locator('[data-testid="scope-switcher-backlog"]').click();
+    await page.waitForURL(/scope=backlog&view=list/, { timeout: 10_000 });
+    await expect(page.locator('[data-testid="backlog-table"]')).toBeVisible();
+    await page.locator('[data-testid="scope-switcher-active"]').click();
+    await page.waitForURL(/scope=active&view=list/, { timeout: 10_000 });
     await switchTo(page, "board");
 
     const skeletonSeen = await page.evaluate(
@@ -94,12 +97,12 @@ test.describe("Hermetic issue view switching", () => {
     ).toBeVisible({ timeout: 15_000 });
 
     // Fire three switches back-to-back without awaiting navigation between them;
-    // the interruptible transition must settle on the last choice (Backlog).
+    // the interruptible transition must settle on the last scope/layout choice.
     await page.locator('[data-testid="view-switcher-list"]').click();
     await page.locator('[data-testid="view-switcher-timeline"]').click();
-    await page.locator('[data-testid="view-switcher-backlog"]').click();
+    await page.locator('[data-testid="scope-switcher-backlog"]').click();
 
-    await page.waitForURL(/view=backlog/, { timeout: 10_000 });
+    await page.waitForURL(/scope=backlog&view=list/, { timeout: 10_000 });
     await expect(
       page.locator('[data-testid="backlog-table"]').first(),
     ).toBeVisible({ timeout: 15_000 });

@@ -36,7 +36,7 @@ describe("KanbanBoard filtering and rendering", () => {
     // The board's pristine order is the issue-wide rank order (REEF-393),
     // applied on the wire so server pagination and the client column order agree.
     expect(mockApiFetch).toHaveBeenCalledWith(
-      "/api/issues?vault=reef-acme&sort_field=rank&sort_order=asc",
+      "/api/issues?vault=reef-acme&status=todo&status=in_progress&status=in_review&status=done&status=closed&sort_field=rank&sort_order=asc",
     );
   });
 

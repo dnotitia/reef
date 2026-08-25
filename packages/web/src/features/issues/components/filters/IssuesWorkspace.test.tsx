@@ -167,7 +167,9 @@ describe("IssuesWorkspace", () => {
   });
 
   it("renders the Backlog bulk preset without changing the body contract", () => {
-    navigationState.searchParams = new URLSearchParams("view=backlog");
+    navigationState.searchParams = new URLSearchParams(
+      "scope=backlog&view=list",
+    );
     render(wrap(<IssuesWorkspace />));
     expect(screen.getByTestId("issue-bulk-action-bar")).toHaveAttribute(
       "data-preset",

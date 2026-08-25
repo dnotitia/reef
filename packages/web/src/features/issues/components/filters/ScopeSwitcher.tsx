@@ -9,79 +9,71 @@ import {
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
-import { Columns3, GanttChart, List } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useTransition } from "react";
-import {
-  ISSUE_LAYOUTS,
-  type IssueLayout,
-  type IssueScope,
-} from "../../lib/viewMode";
+import type { IssueLayout, IssueScope } from "../../lib/viewMode";
 
-const LAYOUT_ICONS: Record<IssueLayout, typeof Columns3> = {
-  board: Columns3,
-  list: List,
-  timeline: GanttChart,
-};
-
-interface ViewSwitcherProps {
+interface ScopeSwitcherProps {
   activeLayout: IssueLayout;
-  scope: IssueScope;
+  activeScope: IssueScope;
 }
 
-/** Layout-only control. Scope is deliberately owned by ScopeSwitcher. */
-export function ViewSwitcher({ activeLayout, scope }: ViewSwitcherProps) {
+/** The work-scope control. Labels stay visible at every supported viewport. */
+export function ScopeSwitcher({
+  activeLayout,
+  activeScope,
+}: ScopeSwitcherProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { vault } = useActiveVault();
   const [isPending, startTransition] = useTransition();
   const t = useTranslations("issues.filters");
-  const layouts =
-    scope === "backlog"
-      ? ISSUE_LAYOUTS.filter((layout) => layout !== "timeline")
-      : ISSUE_LAYOUTS;
 
-  const selectLayout = useCallback(
-    (layout: IssueLayout) => {
-      if (layout === activeLayout) return;
+  const selectScope = useCallback(
+    (scope: IssueScope) => {
+      if (scope === activeScope) return;
       const next = new URLSearchParams(searchParams);
       next.set("scope", scope);
-      next.set("view", layout);
+      next.set(
+        "view",
+        scope === "backlog" && activeLayout === "timeline"
+          ? "list"
+          : activeLayout,
+      );
       startTransition(() => {
         router.push(withVault(vault, `/issues?${next.toString()}`), {
           scroll: false,
         });
       });
     },
-    [activeLayout, router, scope, searchParams, vault],
+    [activeLayout, activeScope, router, searchParams, vault],
   );
 
   return (
     <div
       role="group"
-      aria-label={t("issueView")}
+      aria-label={t("scope.label")}
       aria-busy={isPending}
-      data-testid="view-switcher"
+      data-testid="scope-switcher"
       className={cn(
         SEGMENTED_CONTROL_TRACK,
         "motion-safe:transition-opacity motion-safe:duration-150",
         isPending && "cursor-progress opacity-60",
       )}
     >
-      {layouts.map((layout) => {
-        const Icon = LAYOUT_ICONS[layout];
-        const label = t(`view.${layout}`);
-        const isActive = layout === activeLayout;
+      {(["active", "backlog"] as const).map((scope) => {
+        const label = t(`scope.${scope}`);
+        const isActive = scope === activeScope;
         return (
           <button
-            key={layout}
+            key={scope}
             type="button"
             aria-pressed={isActive}
             aria-label={label}
             title={label}
-            data-testid={`view-switcher-${layout}`}
-            onClick={() => selectLayout(layout)}
+            data-testid={`scope-switcher-${scope}`}
+            onClick={() => selectScope(scope)}
             className={cn(
               SEGMENTED_CONTROL_ITEM,
               "whitespace-nowrap",
@@ -90,7 +82,6 @@ export function ViewSwitcher({ activeLayout, scope }: ViewSwitcherProps) {
                 : SEGMENTED_CONTROL_ITEM_INACTIVE,
             )}
           >
-            <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span>{label}</span>
           </button>
         );

@@ -11,6 +11,7 @@ import { useUnreadNotificationCount } from "@/features/inbox/hooks/useInboxNotif
 import { NewIssueDialog } from "@/features/issues/components/create/NewIssueDialog";
 import { CloseIssueDialog } from "@/features/issues/components/detail/CloseIssueDialog";
 import { buildOpenIssueHref } from "@/features/issues/lib/issueHref";
+import { parseIssueViewState } from "@/features/issues/lib/viewMode";
 import {
   type IssueKeyboardScope,
   type IssueQuickEditField,
@@ -363,10 +364,11 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
     const path = window.location.pathname;
     if (!path.includes("/issues")) return "global";
     if (/\/issues\/[^/]+/.test(path)) return "detail";
-    const view = new URLSearchParams(window.location.search).get("view");
-    if (view === "list") return "list";
-    if (view === "backlog") return "backlog";
-    if (view === "board" || view == null) return "board";
+    const { scope, layout } = parseIssueViewState(
+      new URLSearchParams(window.location.search),
+    );
+    if (layout === "list") return scope === "backlog" ? "backlog" : "list";
+    if (layout === "board") return "board";
     return "global";
   }, []);
 

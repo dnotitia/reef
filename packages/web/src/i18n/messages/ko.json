@@ -880,6 +880,9 @@
       "emptyTitle": "백로그가 비어 있습니다",
       "emptyDescription": "새 이슈는 할 일에 추가됩니다. 나중으로 미룰 작업을 여기로 보내 활성 보드에서 빼두세요.",
       "goToBoard": "보드로 이동 →",
+      "goToList": "목록으로 이동 →",
+      "boardEmptyTitle": "백로그 보드가 비어 있습니다",
+      "boardEmptyDescription": "이슈를 백로그로 옮기면 여기에 보류된 작업이 표시됩니다.",
       "unrankedDivider": "순위 미지정 · 최신순",
       "rank": "Rank",
       "reorderHintDrag": "Rank 기준에서 드래그하여 순서 변경",
@@ -907,6 +910,7 @@
       "toggleDirection": "정렬 방향 전환",
       "toggleDirectionAria": "{direction}에서 정렬 방향 전환",
       "rankOrder": "Rank 기준",
+      "sortSummary": "정렬: {label}",
       "orderAria": "이슈 순서: {label}",
       "sortAria": "{field} 기준으로 이슈 정렬, {direction}",
       "directionTitle": "방향: {direction}"
@@ -1113,18 +1117,23 @@
       "searchLabel": "이슈 검색",
       "clearSearch": "검색 지우기",
       "issueView": "이슈 보기 방식",
+      "scope": {
+        "label": "이슈 범위",
+        "active": "활성",
+        "backlog": "백로그"
+      },
       "filterScrollRegion": "이슈 필터",
       "view": {
         "board": "보드",
         "list": "목록",
-        "timeline": "타임라인",
-        "backlog": "백로그"
+        "timeline": "타임라인"
       },
       "display": "표시",
       "displayOptions": "표시 옵션",
       "showArchived": "보관 항목 표시",
       "showCompleted": "완료 항목 표시",
       "groupBy": "그룹 기준",
+      "groupSummary": "그룹: {group}",
       "group": {
         "none": "그룹 없음",
         "status": "상태",

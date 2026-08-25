@@ -700,6 +700,9 @@
       "emptyTitle": "Your backlog is empty",
       "emptyDescription": "New issues arrive in Todo. Send work you want to defer here to keep it out of the active board.",
       "goToBoard": "Go to the board →",
+      "goToList": "Go to the list →",
+      "boardEmptyTitle": "Your backlog board is empty",
+      "boardEmptyDescription": "Deferred work appears here when an issue is moved to Backlog.",
       "unrankedDivider": "Unranked · newest first",
       "rank": "Rank",
       "reorderHintDrag": "Drag to reorder in Rank order",
@@ -727,6 +730,7 @@
       "toggleDirection": "Toggle sort direction",
       "toggleDirectionAria": "Toggle sort direction from {direction}",
       "rankOrder": "Rank order",
+      "sortSummary": "Sort: {label}",
       "orderAria": "Order issues: {label}",
       "sortAria": "Sort issues by {field}, {direction}",
       "directionTitle": "Direction: {direction}"
@@ -933,18 +937,23 @@
       "searchLabel": "Search issues",
       "clearSearch": "Clear search",
       "issueView": "Issue view",
+      "scope": {
+        "label": "Issue scope",
+        "active": "Active",
+        "backlog": "Backlog"
+      },
       "filterScrollRegion": "Issue filters",
       "view": {
         "board": "Board",
         "list": "List",
-        "timeline": "Timeline",
-        "backlog": "Backlog"
+        "timeline": "Timeline"
       },
       "display": "Display",
       "displayOptions": "Display options",
       "showArchived": "Show archived",
       "showCompleted": "Show completed",
       "groupBy": "Group by",
+      "groupSummary": "Group: {group}",
       "group": {
         "none": "No grouping",
         "status": "Status",

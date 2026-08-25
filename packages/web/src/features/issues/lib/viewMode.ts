@@ -1,28 +1,66 @@
-/**
- * The peer renderings of the issues collection. The active view is carried in
- * the `?view=` URL param so it is shareable / bookmarkable and survives a hard
- * reload. `backlog` is a dedicated view onto the `backlog` status (REEF-109);
- * the others render the active workflow.
- */
-export type IssueViewMode = "board" | "list" | "timeline" | "backlog";
+/** The work collection shown by the Issues workspace. */
+export type IssueScope = "active" | "backlog";
 
-export const ISSUE_VIEW_MODES: readonly IssueViewMode[] = [
+/** The rendering layout used for the current issue scope. */
+export type IssueLayout = "board" | "list" | "timeline";
+
+/** Kept as a layout alias for callers that only care about rendering. */
+export type IssueViewMode = IssueLayout;
+
+export const ISSUE_SCOPES: readonly IssueScope[] = [
+  "active",
+  "backlog",
+] as const;
+export const ISSUE_LAYOUTS: readonly IssueLayout[] = [
   "board",
   "list",
   "timeline",
-  "backlog",
 ] as const;
+export const ISSUE_VIEW_MODES = ISSUE_LAYOUTS;
 
-const DEFAULT_ISSUE_VIEW: IssueViewMode = "board";
+const DEFAULT_ISSUE_SCOPE: IssueScope = "active";
+const DEFAULT_ISSUE_LAYOUT: IssueLayout = "board";
+
+export interface IssueViewState {
+  scope: IssueScope;
+  layout: IssueLayout;
+}
+
+export function parseScopeParam(value: string | null | undefined): IssueScope {
+  return ISSUE_SCOPES.includes(value as IssueScope)
+    ? (value as IssueScope)
+    : DEFAULT_ISSUE_SCOPE;
+}
 
 /**
- * Coerce a raw `?view=` value into a known view mode, falling back to the
- * default for missing / unrecognized values.
+ * Coerce a raw `?view=` value into a layout. `backlog` is intentionally not a
+ * layout value: backlog is a scope, so the old mixed `view=backlog` URL is not
+ * interpreted as a compatibility route.
  */
-export function parseViewParam(
-  value: string | null | undefined,
-): IssueViewMode {
-  return ISSUE_VIEW_MODES.includes(value as IssueViewMode)
-    ? (value as IssueViewMode)
-    : DEFAULT_ISSUE_VIEW;
+export function parseViewParam(value: string | null | undefined): IssueLayout {
+  return ISSUE_LAYOUTS.includes(value as IssueLayout)
+    ? (value as IssueLayout)
+    : DEFAULT_ISSUE_LAYOUT;
+}
+
+export const parseLayoutParam = parseViewParam;
+
+/** Backlog has no Timeline layout, so normalize that unsupported combination. */
+export function normalizeIssueViewState(
+  scope: IssueScope,
+  layout: IssueLayout,
+): IssueViewState {
+  return {
+    scope,
+    layout: scope === "backlog" && layout === "timeline" ? "list" : layout,
+  };
+}
+
+export function parseIssueViewState(
+  searchParams: Pick<URLSearchParams, "get">,
+): IssueViewState {
+  return normalizeIssueViewState(
+    parseScopeParam(searchParams.get("scope")),
+    parseViewParam(searchParams.get("view")),
+  );
 }

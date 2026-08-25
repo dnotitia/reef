@@ -28,7 +28,9 @@ async function openBacklog(page: Page) {
     },
     { timeout: 15_000 },
   );
-  await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=backlog`);
+  await page.goto(
+    `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`,
+  );
   await expect(page.getByTestId("backlog-row").first()).toBeVisible({
     timeout: 15_000,
   });
@@ -358,7 +360,7 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
     const task = discovery.tasks?.backlog_bulk_partial_failure;
     expect(task).toMatchObject({
       scenario: "backlog_bulk_partial_failure",
-      start_path: "/workspace/reef-e2e/issues?view=backlog",
+      start_path: "/workspace/reef-e2e/issues?scope=backlog&view=list",
       interaction: {
         type: "bulk_status_update",
       },

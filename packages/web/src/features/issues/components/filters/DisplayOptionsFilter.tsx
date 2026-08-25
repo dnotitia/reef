@@ -20,16 +20,18 @@ import {
 import type { IssueFilter } from "@/features/issues/stores/useIssueStore";
 import {
   defaultIssueGroupBy,
-  ISSUE_GROUP_BY_VALUES,
+  issueGroupByOptions,
   type IssueGroupBy,
   type IssueWorkspaceView,
 } from "../../lib/groupBy";
+import type { IssueScope } from "../../lib/viewMode";
 import { cn } from "@/lib/utils";
 import { Archive, ChevronDown, CircleCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 interface DisplayOptionsFilterProps {
   backlogScope: boolean;
+  scope?: IssueScope;
   filter: Pick<IssueFilter, "showArchived" | "showStale">;
   setFilter: (patch: Partial<IssueFilter>) => void;
   view?: IssueWorkspaceView;
@@ -37,20 +39,26 @@ interface DisplayOptionsFilterProps {
   setGroupBy?: (groupBy: IssueGroupBy) => void;
 }
 
-function DisplayOptionsTrigger({ active }: { active: boolean }) {
+function DisplayOptionsTrigger({
+  active,
+  summary,
+}: {
+  active: boolean;
+  summary: string;
+}) {
   const t = useTranslations("issues.filters");
   const { open } = useDropdownMenu();
 
   return (
     <DropdownMenuTrigger
-      aria-label={t("displayOptions")}
+      aria-label={summary}
       className={cn(
         CBX_TRIGGER_CHIP,
         active ? CBX_TRIGGER_CHIP_ACTIVE : CBX_TRIGGER_CHIP_INACTIVE,
       )}
       data-testid="display-options-trigger"
     >
-      {t("display")}
+      {summary}
       <ChevronDown
         data-open={open}
         aria-hidden="true"
@@ -62,6 +70,7 @@ function DisplayOptionsTrigger({ active }: { active: boolean }) {
 
 export function DisplayOptionsFilter({
   backlogScope,
+  scope = backlogScope ? "backlog" : "active",
   filter,
   setFilter,
   view,
@@ -74,16 +83,17 @@ export function DisplayOptionsFilter({
     supportsGrouping &&
     groupBy !== undefined &&
     view !== undefined &&
-    groupBy !== defaultIssueGroupBy(view);
-  const groupOptions = supportsGrouping
-    ? ISSUE_GROUP_BY_VALUES.filter(
-        (value) => view !== "board" || value !== "none",
-      )
-    : [];
+    groupBy !== defaultIssueGroupBy(scope, view);
+  const groupOptions = supportsGrouping ? issueGroupByOptions(scope, view) : [];
+  const groupSummary =
+    backlogScope && groupBy
+      ? t("groupSummary", { group: t(`group.${groupBy}`) })
+      : t("display");
 
   return (
     <DropdownMenu>
       <DisplayOptionsTrigger
+        summary={groupSummary}
         active={
           Boolean(filter.showArchived || filter.showStale) || groupingActive
         }

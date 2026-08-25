@@ -41,6 +41,7 @@ import { DisplayOptionsFilter } from "./DisplayOptionsFilter";
 import { NamedIssueFilterControl } from "./NamedIssueFilterControl";
 import { SortControl } from "./SortControl";
 import type { IssueGroupBy, IssueWorkspaceView } from "../../lib/groupBy";
+import type { IssueScope } from "../../lib/viewMode";
 
 /**
  * Assignee/Requester multi-selects use chip triggers, but their dropdown needs
@@ -164,6 +165,7 @@ interface FilterBarProps {
    * `BacklogView` neutralizes dropped stored values to match this surface.
    */
   backlogScope?: boolean;
+  scope?: IssueScope;
   /**
    * Status values offered in the Status facet. Board and timeline pass workflow
    * statuses; list keeps the full set including backlog (REEF-109).
@@ -182,6 +184,7 @@ interface FilterBarProps {
 
 export function FilterBar({
   backlogScope = false,
+  scope = backlogScope ? "backlog" : "active",
   statusOptions = STATUS_OPTIONS,
   view,
   showSortControl,
@@ -504,6 +507,7 @@ export function FilterBar({
 
       <DisplayOptionsFilter
         backlogScope={backlogScope}
+        scope={scope}
         filter={filter}
         setFilter={setFilter}
         view={view}

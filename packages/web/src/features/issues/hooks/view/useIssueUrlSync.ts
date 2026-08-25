@@ -13,7 +13,12 @@ import {
   serializeIssueGroupBy,
   type IssueGroupBy,
 } from "../../lib/groupBy";
-import { parseViewParam } from "../../lib/viewMode";
+import {
+  ISSUE_LAYOUTS,
+  ISSUE_SCOPES,
+  normalizeIssueViewState,
+  parseIssueViewState,
+} from "../../lib/viewMode";
 
 /**
  * The list/board workspace is scoped to the vault's issues list
@@ -245,8 +250,12 @@ export function useIssueUrlSync(): {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const view = parseViewParam(searchParams.get("view"));
-  const groupBy = parseIssueGroupBy(searchParams.get(GROUP_QUERY_KEY), view);
+  const { scope, layout: view } = parseIssueViewState(searchParams);
+  const groupBy = parseIssueGroupBy(
+    searchParams.get(GROUP_QUERY_KEY),
+    scope,
+    view,
+  );
 
   // Gates URL writeback. Set as soon as the hydration source is decided
   // (synchronously, before any async restore settles) so a user filter change —
@@ -434,6 +443,32 @@ export function useIssueUrlSync(): {
       }
     }
   }, [filter, pathname, router, searchParams, searchQuery, vault]);
+
+  useEffect(() => {
+    if (pathname !== withVault(vault, ISSUES_LIST_BASE)) return;
+
+    const rawScope = searchParams.get("scope");
+    const rawView = searchParams.get("view");
+    const normalizedState = normalizeIssueViewState(scope, view);
+    const rawScopeIsValid =
+      rawScope === null || ISSUE_SCOPES.some((value) => value === rawScope);
+    const rawViewIsValid =
+      rawView === null || ISSUE_LAYOUTS.some((value) => value === rawView);
+    const needsNormalization =
+      !rawScopeIsValid ||
+      !rawViewIsValid ||
+      (scope === "backlog" && rawView === "timeline");
+    if (!needsNormalization) return;
+
+    const params = new URLSearchParams(searchParams);
+    if (normalizedState.scope === "active" && rawScope !== "active") {
+      params.delete("scope");
+    } else {
+      params.set("scope", normalizedState.scope);
+    }
+    params.set("view", normalizedState.layout);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [pathname, router, searchParams, scope, vault, view]);
 
   useEffect(() => {
     if (

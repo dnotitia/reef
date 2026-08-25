@@ -30,6 +30,7 @@ export interface KanbanColumnProps {
   planningCatalog?: PlanningCatalog;
   assignees?: readonly Collaborator[];
   onIssueClick?: (id: string) => void;
+  dragEnabled?: boolean;
   readOnlyReason?: string;
 }
 
@@ -43,12 +44,14 @@ export const KanbanColumn = memo(function KanbanColumn({
   planningCatalog,
   assignees,
   onIssueClick,
+  dragEnabled,
   readOnlyReason,
 }: KanbanColumnProps) {
+  const canDrag = dragEnabled ?? bucket.droppable;
   const { setNodeRef, isOver } = useDroppable({
     id: bucket.id,
     data: { bucket },
-    disabled: !bucket.droppable,
+    disabled: !canDrag,
   });
   // Layout transition: when a card joins/leaves this column (status change) or
   // the filtered/sorted set shifts, auto-animate FLIPs it into place instead
@@ -97,7 +100,7 @@ export const KanbanColumn = memo(function KanbanColumn({
             vault={vault}
             issue={issue}
             occurrenceKey={`${bucket.id}:${issue.id}`}
-            dragEnabled={bucket.droppable}
+            dragEnabled={canDrag}
             readOnlyReason={readOnlyReason}
             blocked={blockedIds.has(issue.id)}
             planningCatalog={planningCatalog}

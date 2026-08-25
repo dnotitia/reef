@@ -540,26 +540,30 @@ visible hover and focus affordance.
 
 ## Core Surfaces
 
-### Issues Workspace — Board / List / Timeline / Backlog
+### Issues Workspace — Scope and Layout
 
-`/workspace/{vault}/issues` is one workspace with four peer renderings switched
-via `?view=` and a ViewSwitcher in the page header. Every dashboard surface is
-vault-scoped under `/workspace/{vault}/…` (REEF-315): a malformed vault segment
-404s, a well-formed vault the signed-in user cannot access shows an explicit
-access-denied surface (with their own workspaces to switch to). Vault-less
-dashboard paths are not part of the route tree; use the explicit workspace URL
-or the root workspace picker. Board, List, and Timeline render the active
-workflow collection; Backlog is a dedicated triage lens over the `backlog`
-status. They share one route, one header, one Zustand filter scope, and one
-filter toolbar, with the backlog view hiding facets that are pinned or
-irrelevant there.
+`/workspace/{vault}/issues` is one workspace with two independent URL axes:
+`scope=active|backlog` selects the work collection and `view=board|list|timeline`
+selects its rendering layout. Active supports Board, List, and Timeline;
+Backlog supports Board and List, and a Backlog + Timeline URL is normalized to
+List. Every dashboard surface is vault-scoped under `/workspace/{vault}/…`
+(REEF-315): a malformed vault segment 404s, a well-formed vault the signed-in
+user cannot access shows an explicit access-denied surface (with their own
+workspaces to switch to). Vault-less dashboard paths are not part of the route
+tree; use the explicit workspace URL or the root workspace picker. The old
+mixed `view=backlog` URL is not a supported route.
 
-The Issues page header keeps only the compact ViewSwitcher in its action slot.
-Board, List, and Backlog render one shared sort split-control in the filter
-toolbar immediately after Display options, so sorting stays in the same
-collection-tool group and joins its responsive wrapping flow. Timeline remains
-date-ordered and therefore omits the field/direction sort while preserving the
-same shared filter and view state.
+The Issues page header keeps two separate semantic controls in its action slot:
+an always-text `Active | Backlog` scope control and a layout control. Switching
+scope preserves the current layout when supported, keeps filters and search,
+and normalizes Backlog away from Timeline. Backlog has no count, badge, or
+notification dot; counts appear in Board group headers or List content.
+
+Board, List, and Backlog render one shared sort control in the filter toolbar
+immediately after Display options, so sorting stays in the same collection-tool
+group and joins its responsive wrapping flow. Backlog's visible defaults are
+`Group: Priority` and `Sort: Rank`; Timeline remains date-ordered and omits the
+field/direction sort while preserving the shared filter and URL state.
 
 The workspace roots follow the same URL-first contract (REEF-424).
 `/workspace` is the only workspace route that consults the remembered Dexie
@@ -590,8 +594,8 @@ Kanban columns use the subtle surface for their group frame, while repeated issu
 cards use the card surface; cards do not use the brighter elevated surface.
 
 **List.** A dense, sortable table rendering the same issues with their field
-leaves. It defaults to no grouping, and can group by None, Status, Priority,
-Assignee, Sprint, or Label. Each populated bucket has a sticky, keyboard-focusable
+leaves. Active defaults to no grouping, and can group by None, Status, Priority,
+Assignee, Sprint, or Label. Backlog defaults to Priority grouping. Each populated bucket has a sticky, keyboard-focusable
 header with a localized label, count, and `aria-expanded` collapse control;
 collapsed rows leave the virtual item count and header count intact while their
 DOM rows are removed. Multi-label issues occur once under each distinct label,
@@ -599,8 +603,8 @@ but selection and mutation still use the issue id. Group headers and rows share
 the existing TanStack Virtual projection, cursor loading, bounded DOM,
 selection, focus, quick-edit, sticky-column, and anchor-preservation behavior.
 Grouping is UI-local: it is not stored in Dexie or akb, while the group choice
-itself remains in the URL for sharing and navigation. Timeline and Backlog
-ignore the group choice.
+itself remains in the URL for sharing and navigation. Timeline ignores the
+group choice.
 
 **Multi-select and bulk edit.** List owns multi-select because its leading
 checkbox column and field-comparison layout fit batch work. Rows expose compact
@@ -639,13 +643,17 @@ competes with the Ask AI control or covers issue content.
 
 **Timeline.** A date-windowed schedule view of the same set.
 
-**Backlog.** A flat triage list of backlog issues with manual rank order,
-drag-to-reorder when no explicit sort is active, and the shared inline quick
-edit for Status, Priority, and Assignee. These field triggers keep the same
-mutation, close-confirmation, cache, keyboard, and anchor behavior as List;
-Labels and planning fields are not exposed in this triage lens. Empty and
-no-match states are distinct: an empty backlog explains how deferred work
-arrives there, while filtered-out results offer a Clear filters action.
+**Backlog.** A Priority Board and Rank-ordered List of `backlog` issues share
+the issue-wide Rank meaning. Board columns are Critical, High, Medium, Low, and
+None; cards retain Rank order within a column. A same-column drag changes only
+Rank, while a cross-column drag changes Priority and the final Rank. Backlog
+List keeps the shared inline quick edit for Status, Priority, and Assignee,
+manual rank order, and drag-to-reorder when no explicit sort is active. These
+field triggers keep the same mutation, close-confirmation, cache, keyboard, and
+anchor behavior as List; Labels and planning fields are not exposed in this
+triage lens. Empty and no-match states are distinct: an empty backlog explains
+how deferred work arrives there, while filtered-out results offer a Clear
+filters action.
 
 At narrow widths (320–768px), the Issues header wraps its title and actions
 without hiding controls. List, Backlog, and Timeline keep wide data inside

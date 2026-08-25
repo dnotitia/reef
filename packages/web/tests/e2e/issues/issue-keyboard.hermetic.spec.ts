@@ -82,7 +82,11 @@ test.describe("Hermetic issue keyboard navigation", () => {
     await openExistingWorkspace(page);
 
     for (const view of ["list", "backlog"] as const) {
-      await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=${view}`);
+      const query =
+        view === "backlog"
+          ? "scope=backlog&view=list"
+          : "scope=active&view=list";
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?${query}`);
       const rows =
         view === "list"
           ? await expectIssueListKeyboardReady(page)
@@ -105,7 +109,9 @@ test.describe("Hermetic issue keyboard navigation", () => {
       await page.waitForURL(
         (url) =>
           url.pathname === `/workspace/${REEF_E2E_VAULT}/issues/${issueId}` &&
-          url.searchParams.get("view") === view,
+          url.searchParams.get("scope") ===
+            (view === "backlog" ? "backlog" : "active") &&
+          url.searchParams.get("view") === "list",
         { timeout: 10_000 },
       );
       await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
@@ -697,7 +703,7 @@ test.describe("Hermetic issue keyboard navigation", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/workspace/reef-e2e/issues?view=backlog");
+    await page.goto("/workspace/reef-e2e/issues?scope=backlog&view=list");
 
     const row = page.getByTestId("backlog-row").filter({ hasText: "REEF-003" });
     await expect(row).toBeVisible({ timeout: 15_000 });
@@ -708,7 +714,7 @@ test.describe("Hermetic issue keyboard navigation", () => {
     await expect(row).toBeFocused();
     await expect(row.getByRole("link", { name: "REEF-003" })).toHaveAttribute(
       "href",
-      "/workspace/reef-e2e/issues/REEF-003?view=backlog",
+      "/workspace/reef-e2e/issues/REEF-003?scope=backlog&view=list",
     );
     await expect(row.getByTestId("issue-inline-edit-status")).toHaveAttribute(
       "aria-label",
@@ -720,7 +726,7 @@ test.describe("Hermetic issue keyboard navigation", () => {
     );
 
     await page.keyboard.press("Enter");
-    await page.waitForURL(/\/issues\/REEF-003\?view=backlog/, {
+    await page.waitForURL(/\/issues\/REEF-003\?scope=backlog&view=list/, {
       timeout: 10_000,
     });
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
@@ -791,7 +797,9 @@ test.describe("Hermetic issue keyboard navigation", () => {
 
     await page.keyboard.press("g");
     await page.keyboard.press("b");
-    await page.waitForURL(/\/issues\?view=backlog/, { timeout: 10_000 });
+    await page.waitForURL(/\/issues\?scope=backlog&view=list/, {
+      timeout: 10_000,
+    });
 
     for (const [key, pattern, heading] of [
       ["i", /\/issues$/, "Issues"],

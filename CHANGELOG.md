@@ -18,6 +18,13 @@ explicitly in the entries below.
   options**, so long milestone, sprint, and release values can be previewed
   without blocking selection in the planning filters.
 
+### Changed
+
+- **Breaking: Issues now separates Active/Backlog scope from Board/List/Timeline
+  layout.** Backlog provides a Priority Board and Rank-ordered List, restores
+  both axes through shareable URLs and browser history, and removes the mixed
+  `view=backlog` URL path.
+
 ### Migration
 
 - **Persisted query cache cleanup now removes empty snapshots after account or

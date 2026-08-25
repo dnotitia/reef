@@ -68,7 +68,7 @@ function renderRow(onOpen: (id: string) => void = vi.fn()) {
             <BacklogRow
               issue={issue}
               vault="reef-acme"
-              href="/workspace/reef-acme/issues/REEF-007?view=backlog"
+              href="/workspace/reef-acme/issues/REEF-007?scope=backlog&view=list"
               logicalIds={[issue.id]}
               onOpen={onOpen}
               reorderHint="Drag to reorder in Rank order"
@@ -102,11 +102,11 @@ describe("BacklogRow", () => {
 
     expect(screen.getByRole("link", { name: "REEF-007" })).toHaveAttribute(
       "href",
-      "/workspace/reef-acme/issues/REEF-007?view=backlog",
+      "/workspace/reef-acme/issues/REEF-007?scope=backlog&view=list",
     );
     expect(screen.getByRole("link", { name: "Deferred row" })).toHaveAttribute(
       "href",
-      "/workspace/reef-acme/issues/REEF-007?view=backlog",
+      "/workspace/reef-acme/issues/REEF-007?scope=backlog&view=list",
     );
     expect(screen.getByTestId("backlog-grip-REEF-007")).toHaveAttribute(
       "aria-label",

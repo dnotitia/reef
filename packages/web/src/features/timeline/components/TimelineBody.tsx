@@ -11,9 +11,13 @@ import { buildIssueQuery } from "@/features/issues/lib/buildIssueQuery";
 import { applyDependencyFilter } from "@/features/issues/lib/dependencyUtils";
 import {
   filterIssues,
-  hasActiveIssueFilters,
   searchIssues,
 } from "@/features/issues/lib/issueListUtils";
+import {
+  filterForIssueScope,
+  hasScopeFilters,
+} from "@/features/issues/lib/scopeFilter";
+import type { IssueScope } from "@/features/issues/lib/viewMode";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import type { IssueListItem } from "@reef/core";
 import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
@@ -47,6 +51,7 @@ function TimelineSkeleton() {
 
 interface TimelineBodyProps {
   vault: string;
+  scope?: IssueScope;
 }
 
 /**
@@ -57,20 +62,24 @@ interface TimelineBodyProps {
  * IssuesWorkspace; the quarter navigation controls live in this body's own
  * sub-toolbar since they are timeline-specific.
  */
-export function TimelineBody({ vault }: TimelineBodyProps) {
+export function TimelineBody({ vault, scope = "active" }: TimelineBodyProps) {
   const t = useTranslations("timeline");
   const c = useTranslations("common");
   // The timeline groups by workflow status just; keep a stray backlog status
   // filter from blanking it (REEF-109).
-  useWorkflowStatusGuard();
+  useWorkflowStatusGuard(scope === "active");
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
+  const scopedFilter = useMemo(
+    () => filterForIssueScope(filter, scope),
+    [filter, scope],
+  );
   // Server-side narrows the transfer (facets + free-text search); the client
   // pipeline below still applies due/label/dependency residuals and the
   // quarter-window layout.
   const query = useMemo(
-    () => buildIssueQuery(filter, searchQuery),
-    [filter, searchQuery],
+    () => buildIssueQuery(filter, searchQuery, scope),
+    [filter, scope, searchQuery],
   );
   const {
     data: issues,
@@ -115,21 +124,21 @@ export function TimelineBody({ vault }: TimelineBodyProps) {
   // without a relations mock). Mirrors KanbanBoard / IssueListTable.
   const graph = relations ?? allIssues;
   const visibleIssues = useMemo(() => {
-    const filtered = filterIssues(allIssues, filter, {
+    const filtered = filterIssues(allIssues, scopedFilter, {
       searchActive: searchQuery.trim().length > 0,
       staleWindowDays,
     });
     const searched = searchIssues(filtered, searchQuery);
     const depFiltered = applyDependencyFilter(
       searched,
-      filter.dependencyFilter ?? null,
+      scopedFilter.dependencyFilter ?? null,
       graph,
     );
     // The timeline groups by workflow status just; drop backlog at the source so
     // the empty-state check and the rendered rows agree — a result set of just
     // backlog issues reads as an empty timeline, not a blank grid (REEF-109).
     return depFiltered.filter((issue) => WORKFLOW_STATUS_SET.has(issue.status));
-  }, [allIssues, filter, searchQuery, graph, staleWindowDays]);
+  }, [allIssues, graph, scopedFilter, searchQuery, staleWindowDays]);
 
   const timelineItems = useMemo(
     () =>
@@ -147,7 +156,7 @@ export function TimelineBody({ vault }: TimelineBodyProps) {
     () => visibleIssues.filter((issue) => !scheduledIds.has(issue.id)),
     [scheduledIds, visibleIssues],
   );
-  const activeFilters = hasActiveIssueFilters(filter, searchQuery);
+  const activeFilters = hasScopeFilters(filter, searchQuery, scope);
 
   function clearFilters() {
     useIssueStore.getState().clearFilter();

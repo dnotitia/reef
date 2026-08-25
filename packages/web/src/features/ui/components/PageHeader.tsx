@@ -58,7 +58,9 @@ export function PageHeader({
         </span>
       </div>
       {mounted && actions && (
-        <div className="flex shrink-0 items-center gap-2">{actions}</div>
+        <div className="flex max-w-full shrink-0 flex-wrap items-center gap-2">
+          {actions}
+        </div>
       )}
     </header>
   );

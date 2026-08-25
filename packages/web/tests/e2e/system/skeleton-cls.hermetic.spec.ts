@@ -199,7 +199,7 @@ test.describe("Route skeleton layout stability (REEF-258)", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/workspace/reef-e2e/issues?view=backlog");
+    await page.goto("/workspace/reef-e2e/issues?scope=backlog&view=list");
     await expect(page.getByTestId("backlog-table")).toBeVisible();
     expect(await cumulativeLayoutShift(page)).toBeLessThan(CLS_BUDGET);
   });
