@@ -1258,6 +1258,8 @@ function largeVault(name) {
             ? "medium"
             : "low";
     const isSparseMatch = index === 1_123;
+    const fixtureDate =
+      index < 99 ? `2026-06-${String((index % 3) + 1).padStart(2, "0")}` : null;
     issues.push(
       issueRow({
         id,
@@ -1270,6 +1272,8 @@ function largeVault(name) {
               : `${titlePrefixes[index % titlePrefixes.length]} ${String(index + 1).padStart(4, "0")}`,
         status: "todo",
         priority,
+        start_date: fixtureDate,
+        due_date: fixtureDate,
         labels: isSparseMatch ? ["tail-marker"] : ["large-fixture"],
       }),
     );
@@ -2943,8 +2947,30 @@ function sortIssueRows(rows, lowerSql) {
             String(b.title ?? ""),
           ) || idDesc(a, b),
     );
+  } else if (
+    lowerSql.includes("order by") &&
+    lowerSql.includes('case when "start_date" is null')
+  ) {
+    out.sort((a, b) => compareDateRows(a, b, "start_date", lowerSql));
+  } else if (
+    lowerSql.includes("order by") &&
+    lowerSql.includes('case when "due_date" is null')
+  ) {
+    out.sort((a, b) => compareDateRows(a, b, "due_date", lowerSql));
   }
   return out;
+}
+
+function compareDateRows(left, right, field, lowerSql) {
+  const leftMissing = left[field] == null;
+  const rightMissing = right[field] == null;
+  if (leftMissing !== rightMissing) return leftMissing ? 1 : -1;
+  const direction = lowerSql.includes(`coalesce("${field}", '') desc`) ? -1 : 1;
+  return (
+    direction *
+      compareStrings(String(left[field] ?? ""), String(right[field] ?? "")) ||
+    idDesc(left, right)
+  );
 }
 
 /**
@@ -3049,6 +3075,9 @@ function filterIssueRows(rows, sql, vault) {
 }
 
 function applyIssueKeysetCursor(rows, sql) {
+  const dateRows = applyDateKeysetCursor(rows, sql);
+  if (dateRows) return dateRows;
+
   const cursorId = matchSqlString(sql, /"reef_id"\s*<\s*'([^']+)'/i);
   if (!cursorId) return rows;
 
@@ -3087,6 +3116,31 @@ function applyIssueKeysetCursor(rows, sql) {
     const sameLead = comparison === 0;
     const afterTie = String(row.reef_id).localeCompare(cursorId) < 0;
     return afterLead || (sameLead && afterTie);
+  });
+}
+
+function applyDateKeysetCursor(rows, sql) {
+  const field = ["start_date", "due_date"].find((candidate) =>
+    sql.includes(`CASE WHEN "${candidate}" IS NULL THEN 1 ELSE 0 END`),
+  );
+  if (!field) return null;
+  const cursorId = matchSqlString(sql, /"reef_id"\s*<\s*'([^']+)'/i);
+  const dateMatch = sql.match(
+    new RegExp(`COALESCE\\("${field}", ''\\)\\s*([<>])\\s*'([^']*)'`, "i"),
+  );
+  if (!cursorId || !dateMatch) return null;
+
+  const [, operator, cursorDate] = dateMatch;
+  const cursorBucket = cursorDate === "" ? 1 : 0;
+  return rows.filter((row) => {
+    const rowBucket = row[field] == null ? 1 : 0;
+    if (rowBucket > cursorBucket) return true;
+    if (rowBucket !== cursorBucket) return false;
+    const comparison = compareStrings(String(row[field] ?? ""), cursorDate);
+    const afterDate = operator === ">" ? comparison > 0 : comparison < 0;
+    const sameDate = comparison === 0;
+    const afterTie = String(row.reef_id).localeCompare(cursorId) < 0;
+    return afterDate || (sameDate && afterTie);
   });
 }
 

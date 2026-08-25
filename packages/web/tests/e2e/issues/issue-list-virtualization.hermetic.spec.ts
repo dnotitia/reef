@@ -92,6 +92,26 @@ function waitForTitleIssueListPage(
   });
 }
 
+function waitForDateIssueListPage(
+  page: Page,
+  field: "start_date" | "due_date",
+  order: "asc" | "desc",
+  hasCursor: boolean,
+): Promise<Response> {
+  return page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      response.request().method() === "GET" &&
+      url.pathname === "/api/issues" &&
+      url.searchParams.get("limit") === "100" &&
+      url.searchParams.get("sort_field") === field &&
+      url.searchParams.get("sort_order") === order &&
+      url.searchParams.has("cursor") === hasCursor &&
+      response.ok()
+    );
+  });
+}
+
 async function readIssueListPage(response: Response) {
   const body = (await response.json()) as {
     issues?: Array<{ id?: unknown; title?: unknown }>;
@@ -105,6 +125,48 @@ async function readIssueListPage(response: Response) {
     ids: rows.map((issue) => issue.id),
     titles: rows.map((issue) => issue.title),
   };
+}
+
+async function readDateIssueListPage(
+  response: Response,
+  field: "start_date" | "due_date",
+): Promise<Array<{ id: string; date: string | null }>> {
+  const body = (await response.json()) as {
+    issues?: Array<Record<string, unknown>>;
+  };
+  return (body.issues ?? []).flatMap((issue) => {
+    const id = issue.id;
+    const date = issue[field];
+    if (typeof id !== "string" || (date !== null && typeof date !== "string")) {
+      return [];
+    }
+    return [{ id, date: date ?? null }];
+  });
+}
+
+function assertDatePageOrder(
+  rows: Array<{ id: string; date: string | null }>,
+  order: "asc" | "desc",
+): void {
+  let sawNull = false;
+  for (let index = 0; index < rows.length; index += 1) {
+    const current = rows[index];
+    if (!current) continue;
+    if (current.date === null) {
+      sawNull = true;
+      continue;
+    }
+    expect(sawNull).toBe(false);
+    const previous = rows[index - 1];
+    if (!previous || previous.date === null) continue;
+    const dateOrder = previous.date.localeCompare(current.date);
+    const directedDateOrder = order === "asc" ? dateOrder : -dateOrder;
+    if (directedDateOrder === 0) {
+      expect(previous.id.localeCompare(current.id)).toBeGreaterThanOrEqual(0);
+    } else {
+      expect(directedDateOrder).toBeLessThanOrEqual(0);
+    }
+  }
 }
 
 async function openLargeList(page: Page, query = ""): Promise<void> {
@@ -304,6 +366,49 @@ test.describe("large issue list virtualization", () => {
         ),
       ).toBe(true);
       await titlePage.close();
+    }
+  });
+
+  test("keeps mixed start/due dates ahead of the NULL tail across cursor pages", async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(120_000);
+    for (const field of ["start_date", "due_date"] as const) {
+      for (const order of ["asc", "desc"] as const) {
+        await resetFixture(request, "large_vault");
+        const initialResponse = waitForDateIssueListPage(
+          page,
+          field,
+          order,
+          false,
+        );
+        await openLargeList(page, `sort=${field}&order=${order}`);
+        const initial = await readDateIssueListPage(
+          await initialResponse,
+          field,
+        );
+
+        const cursorResponse = waitForDateIssueListPage(
+          page,
+          field,
+          order,
+          true,
+        );
+        await scrollToListEnd(page);
+        const cursorPage = await readDateIssueListPage(
+          await cursorResponse,
+          field,
+        );
+        const rows = [...initial, ...cursorPage];
+
+        expect(initial).toHaveLength(100);
+        expect(cursorPage).toHaveLength(100);
+        expect(initial.some((row) => row.date === null)).toBe(true);
+        expect(cursorPage.every((row) => row.date === null)).toBe(true);
+        expect(new Set(rows.map((row) => row.id)).size).toBe(rows.length);
+        assertDatePageOrder(rows, order);
+      }
     }
   });
 
