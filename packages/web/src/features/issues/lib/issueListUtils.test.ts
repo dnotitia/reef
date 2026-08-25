@@ -127,6 +127,28 @@ describe("sortIssues", () => {
     expect(sorted[3].id).toBe("REEF-004"); // low
   });
 
+  it.each(["start_date", "due_date"] as const)(
+    "puts missing %s values after dates in both directions with reef_id DESC ties",
+    (field) => {
+      const mixed = [
+        makeIssue({ id: "REEF-010", [field]: "2026-06-01" }),
+        makeIssue({ id: "REEF-003", [field]: null }),
+        makeIssue({ id: "REEF-011", [field]: "2026-01-01" }),
+        makeIssue({ id: "REEF-012", [field]: "2026-06-01" }),
+      ];
+
+      expect(sortIssues(mixed, field, "asc").map((issue) => issue.id)).toEqual([
+        "REEF-011",
+        "REEF-012",
+        "REEF-010",
+        "REEF-003",
+      ]);
+      expect(sortIssues(mixed, field, "desc").map((issue) => issue.id)).toEqual(
+        ["REEF-012", "REEF-010", "REEF-011", "REEF-003"],
+      );
+    },
+  );
+
   it("preserves the server's canonical mixed-title order for both directions", () => {
     const ascending = [
       makeIssue({ id: "REEF-003", title: "! Symbol" }),

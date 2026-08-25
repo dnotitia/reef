@@ -46,7 +46,7 @@ describe("listIssues → SQL", () => {
     expect(sql).toContain(`WHERE "status" IN ('todo', 'in_progress')`);
     expect(sql).toContain(`AND "archived_at" IS NULL`);
     expect(sql).toContain(
-      `ORDER BY COALESCE("due_date", '') ASC, "reef_id" DESC`,
+      `ORDER BY CASE WHEN "due_date" IS NULL THEN 1 ELSE 0 END ASC, COALESCE("due_date", '') ASC, "reef_id" DESC`,
     );
   });
 
@@ -205,6 +205,81 @@ describe("listIssues pagination", () => {
     expect(sql).toContain(`"created_at" < '2026-05-02T00:00:00.000Z'`);
     expect(sql).toContain(`"reef_id" < 'REEF-002'`);
   });
+
+  it.each([
+    { field: "start_date" as const, order: "asc" as const },
+    { field: "start_date" as const, order: "desc" as const },
+    { field: "due_date" as const, order: "asc" as const },
+    { field: "due_date" as const, order: "desc" as const },
+  ])(
+    "passes a mixed date/null page boundary without losing rows ($field $order)",
+    async ({ field, order }) => {
+      const dated = Array.from({ length: 99 }, (_, index) => {
+        const date = new Date(Date.UTC(2026, 0, index + 1))
+          .toISOString()
+          .slice(0, 10);
+        const row: Partial<IssueMetadata> = {
+          id: `REEF-${String(index + 1).padStart(3, "0")}`,
+        };
+        row[field] = date;
+        return makeIssue(row);
+      });
+      const ordered = order === "asc" ? dated : [...dated].reverse();
+      const undated = [100, 101, 102].map((index) => {
+        const row: Partial<IssueMetadata> = {
+          id: `REEF-${index}`,
+        };
+        row[field] = null;
+        return makeIssue(row);
+      });
+      const rows = [...ordered, ...undated];
+
+      const firstFetch = setupFetch([{ body: makeIssueQueryResponse(rows) }]);
+      const firstPage = await listIssues({
+        adapter: makeTestAkbAdapter(),
+        vault: "reef-acme",
+        query: IssueListQuerySchema.parse({
+          sort_field: field,
+          sort_order: order,
+          limit: 100,
+        }),
+      });
+
+      expect(firstPage.issues.map((issue) => issue.id)).toEqual(
+        rows.slice(0, 100).map((row) => row.id),
+      );
+      expect(decodeCursor(firstPage.next_cursor ?? "")).toEqual({
+        k: "",
+        id: rows[99]?.id,
+      });
+
+      const secondFetch = setupFetch([
+        { body: makeIssueQueryResponse(rows.slice(100)) },
+      ]);
+      const secondPage = await listIssues({
+        adapter: makeTestAkbAdapter(),
+        vault: "reef-acme",
+        query: IssueListQuerySchema.parse({
+          sort_field: field,
+          sort_order: order,
+          limit: 100,
+          cursor: firstPage.next_cursor,
+        }),
+      });
+
+      const combined = [
+        ...firstPage.issues.map((issue) => issue.id),
+        ...secondPage.issues.map((issue) => issue.id),
+      ];
+      expect(combined).toEqual(rows.map((row) => row.id));
+      expect(capturedSql(secondFetch.calls)).toContain(
+        `CASE WHEN "${field}" IS NULL THEN 1 ELSE 0 END > 1`,
+      );
+      expect(capturedSql(firstFetch.calls)).toContain(
+        `ORDER BY CASE WHEN "${field}" IS NULL THEN 1 ELSE 0 END ASC, COALESCE("${field}", '') ${order.toUpperCase()}, "reef_id" DESC`,
+      );
+    },
+  );
 });
 
 describe("listIssueRelations", () => {

@@ -51,11 +51,16 @@ export function sortIssues(
       return ((a.estimate_points ?? 0) - (b.estimate_points ?? 0)) * dir;
     }
     if (field === "start_date" || field === "due_date") {
+      const aMissing = a[field] == null;
+      const bMissing = b[field] == null;
+      if (aMissing !== bMissing) return aMissing ? 1 : -1;
       const aVal = a[field] ?? "";
       const bVal = b[field] ?? "";
       if (aVal < bVal) return -1 * dir;
       if (aVal > bVal) return 1 * dir;
-      return 0;
+      // Keep the same complete order as the server for equal dates, including
+      // the NULL tail. The tie-break direction is independent of date order.
+      return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
     }
     // created_at / updated_at — ISO strings sort lexicographically
     const aVal = a[field] ?? "";
