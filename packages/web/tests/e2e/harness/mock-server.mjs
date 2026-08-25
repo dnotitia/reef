@@ -526,6 +526,16 @@ function runtimeDiscovery() {
             "configure delayed status updates for two issues, observe optimistic status changes and per-row pending state, repeat the same activation while pending, and verify independent delayed success or failure with retry",
         },
       },
+      planning_overflow: {
+        scenario: "planning_overflow",
+        workspace: "reef-e2e",
+        start_path: "/workspace/reef-e2e/issues?view=list",
+        interaction: {
+          type: "planning_overflow_tooltip",
+          operation:
+            "open the Issues Milestone filter, move the pointer from an overflowing milestone through its tooltip to the adjacent short option, observe active transition and tooltip dismissal, select it, and verify the filter URL and displayed value update at 1280x900 and 390x844",
+        },
+      },
       named_issue_filters: {
         scenario: "configured_multi",
         workspace: "reef-e2e",

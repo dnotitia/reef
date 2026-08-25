@@ -148,6 +148,30 @@ describe("dev:e2e runtime contract", () => {
     ).toThrow(/fixture login password/);
   });
 
+  it("resolves the planning overflow task start path", () => {
+    expect(
+      getClientReadinessInputs(
+        {
+          status: "ready",
+          fixture_login: {
+            username: "alice",
+            password: "fixture-password",
+            login_path: "/login?password=1",
+          },
+          tasks: {
+            planning_overflow: {
+              scenario: "planning_overflow",
+              start_path: "/workspace/reef-e2e/issues?view=list",
+            },
+          },
+        },
+        "planning_overflow",
+      ),
+    ).toMatchObject({
+      startPath: "/workspace/reef-e2e/issues?view=list",
+    });
+  });
+
   it("resolves the demo board issue-drill entrypoint", () => {
     expect(
       getClientReadinessInputs(
