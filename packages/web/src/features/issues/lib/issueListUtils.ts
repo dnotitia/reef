@@ -23,9 +23,9 @@ const PRIORITY_RANK: Record<string, number> = {
 };
 
 /**
- * Read a canonical issue number for sorting. A malformed legacy row is kept at
- * the tail instead of taking down a whole Board/List render; valid IDs still
- * use the shared core parser and numeric ordering contract.
+ * Read a canonical issue number for sorting. A malformed row is kept at the
+ * tail instead of taking down a whole Board/List render; valid IDs still use
+ * the shared core parser and numeric ordering contract.
  */
 function issueNumberOrNull(id: string): number | null {
   try {

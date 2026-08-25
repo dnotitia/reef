@@ -2459,10 +2459,9 @@ function handleSql(vault, sql) {
     }
     if (
       state.issueListNextPageFailures > 0 &&
-      (/(?:"reef_id"\s*<\s*')/i.test(normalized) ||
-        /cast\(substring\("reef_id"\s+from\s+'\[0-9\]\+\$'\)\s+as\s+numeric\)\s*</i.test(
-          normalized,
-        ))
+      /cast\(substring\("reef_id"\s+from\s+'\[0-9\]\+\$'\)\s+as\s+numeric\)\s*</i.test(
+        normalized,
+      )
     ) {
       state.issueListNextPageFailures -= 1;
       return { error: "e2e forced next issue list page failure" };
