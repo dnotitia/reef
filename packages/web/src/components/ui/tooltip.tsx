@@ -106,6 +106,7 @@ const TooltipContent = React.forwardRef<
         ref={ref}
         align={align}
         collisionPadding={collisionPadding}
+        data-reef-tooltip-content="true"
         side={side}
         sideOffset={sideOffset}
         className={cn(

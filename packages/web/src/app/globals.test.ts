@@ -125,6 +125,14 @@ describe("global focus styles", () => {
     expect(css).toContain("font-weight: 500;");
   });
 
+  it("makes only tooltip-owned Radix Popper wrappers hit-test transparent", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    expect(css).toContain(
+      '[data-radix-popper-content-wrapper]:has([data-reef-tooltip-content="true"])',
+    );
+    expect(css).toContain("pointer-events: none;");
+  });
+
   it("keeps the Settings link's foreground text and focus outline accessible", () => {
     const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
     const lightBackground = readHslToken(css, ":root {", "--surface-page");

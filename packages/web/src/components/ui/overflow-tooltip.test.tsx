@@ -102,5 +102,10 @@ describe("overflow tooltip policy", () => {
 
     const tooltip = await screen.findByRole("tooltip");
     expect(tooltip).toHaveClass("z-[110]");
+    expect(tooltip).toHaveAttribute("data-reef-tooltip-content", "true");
+    expect(tooltip.parentElement).toHaveAttribute(
+      "data-radix-popper-content-wrapper",
+      "",
+    );
   });
 });

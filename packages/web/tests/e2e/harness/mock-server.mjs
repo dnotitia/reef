@@ -105,6 +105,7 @@ const SUPPORTED_SCENARIOS = [
   "large_vault",
   "markdown_fixture",
   "status_quick_edit",
+  "planning_overflow",
 ];
 const SUPPORTED_SCENARIO_SET = new Set(SUPPORTED_SCENARIOS);
 const ACCOUNT_DENIAL_CODES = new Set([
@@ -525,6 +526,16 @@ function runtimeDiscovery() {
             "configure delayed status updates for two issues, observe optimistic status changes and per-row pending state, repeat the same activation while pending, and verify independent delayed success or failure with retry",
         },
       },
+      planning_overflow: {
+        scenario: "planning_overflow",
+        workspace: "reef-e2e",
+        start_path: "/workspace/reef-e2e/issues?view=list",
+        interaction: {
+          type: "planning_overflow_tooltip",
+          operation:
+            "open the Issues Milestone filter, move the pointer from an overflowing milestone through its tooltip to the adjacent short option, observe active transition and tooltip dismissal, select it, and verify the filter URL and displayed value update at 1280x900 and 390x844",
+        },
+      },
       named_issue_filters: {
         scenario: "configured_multi",
         workspace: "reef-e2e",
@@ -695,7 +706,8 @@ function makeState(scenario) {
     scenario === "skill_outdated" ||
     scenario === "comment_mentions" ||
     scenario === "large_vault" ||
-    scenario === "status_quick_edit"
+    scenario === "status_quick_edit" ||
+    scenario === "planning_overflow"
   ) {
     const vault =
       scenario === "large_vault"
@@ -706,7 +718,9 @@ function makeState(scenario) {
             ? configuredCaughtUpVault(REEF_VAULT)
             : scenario === "assignee_picker"
               ? assigneePickerVault(REEF_VAULT)
-              : configuredVault(REEF_VAULT);
+              : scenario === "planning_overflow"
+                ? planningOverflowVault(REEF_VAULT)
+                : configuredVault(REEF_VAULT);
     if (scenario === "notifications") seedNotifications(vault);
     if (scenario === "skill_outdated") seedOutdatedVaultSkill(vault);
     if (scenario === "comment_mentions") {
@@ -1044,6 +1058,25 @@ function configuredVault(name) {
       "Spec overview for the hermetic Ask AI tool transparency workflow.",
     tags: ["docs", "ask-ai", "e2e"],
   });
+  return vault;
+}
+
+function planningOverflowVault(name) {
+  const vault = configuredVault(name);
+  const template = vault.milestones[0];
+  vault.milestones = [
+    template,
+    {
+      ...template,
+      id: uuidFor(4),
+      name: "Adjacent milestone",
+    },
+    {
+      ...template,
+      id: uuidFor(5),
+      name: "A milestone name long enough to overflow the planning filter option panel",
+    },
+  ];
   return vault;
 }
 

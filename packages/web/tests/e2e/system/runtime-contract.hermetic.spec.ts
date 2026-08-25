@@ -442,6 +442,15 @@ test.describe("Hermetic runtime discovery", () => {
               "configure delayed status updates for two issues, observe optimistic status changes and per-row pending state, repeat the same activation while pending, and verify independent delayed success or failure with retry",
           },
         },
+        planning_overflow: {
+          scenario: "planning_overflow",
+          workspace: "reef-e2e",
+          start_path: "/workspace/reef-e2e/issues?view=list",
+          interaction: {
+            type: "planning_overflow_tooltip",
+            operation: expect.stringContaining("adjacent short option"),
+          },
+        },
         assignee_picker: {
           scenario: "assignee_picker",
           workspace: "reef-e2e",
@@ -591,6 +600,7 @@ test.describe("Hermetic runtime discovery", () => {
         "large_vault",
         "markdown_fixture",
         "status_quick_edit",
+        "planning_overflow",
       ]),
     );
 
