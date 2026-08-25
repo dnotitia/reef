@@ -302,6 +302,21 @@ describe("describeError", () => {
     });
   });
 
+  it("preserves an AKB resource permission denial as akb.auth / 403", () => {
+    expect(
+      describeError(
+        new AuthError({
+          origin: "akb",
+          code: "permission_denied",
+          status: 403,
+        }),
+      ),
+    ).toEqual({
+      code: "akb.auth",
+      status: 403,
+    });
+  });
+
   it.each([
     ["membership_required", "akb.membershipRequired", 403],
     ["account_suspended", "akb.accountSuspended", 403],

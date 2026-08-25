@@ -419,6 +419,9 @@ function authErrorCode(context: AuthErrorContext): {
   if (context.origin === "akb" && isAkbAccountErrorCode(context.code)) {
     return AKB_ACCOUNT_ERROR_SPECS[context.code];
   }
+  if (context.origin === "akb" && context.status === 403) {
+    return { code: "akb.auth", status: 403 };
+  }
   return { code: "auth", status: 401 };
 }
 
