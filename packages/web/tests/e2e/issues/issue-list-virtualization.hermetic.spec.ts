@@ -73,8 +73,9 @@ function waitForIssueListPage(
   });
 }
 
-function waitForTitleIssueListPage(
+function waitForSortedIssueListPage(
   page: Page,
+  sortField: "title" | "start_date" | "due_date",
   order: "asc" | "desc",
   hasCursor: boolean,
 ): Promise<Response> {
@@ -84,27 +85,7 @@ function waitForTitleIssueListPage(
       response.request().method() === "GET" &&
       url.pathname === "/api/issues" &&
       url.searchParams.get("limit") === "100" &&
-      url.searchParams.get("sort_field") === "title" &&
-      url.searchParams.get("sort_order") === order &&
-      url.searchParams.has("cursor") === hasCursor &&
-      response.ok()
-    );
-  });
-}
-
-function waitForDateIssueListPage(
-  page: Page,
-  field: "start_date" | "due_date",
-  order: "asc" | "desc",
-  hasCursor: boolean,
-): Promise<Response> {
-  return page.waitForResponse((response) => {
-    const url = new URL(response.url());
-    return (
-      response.request().method() === "GET" &&
-      url.pathname === "/api/issues" &&
-      url.searchParams.get("limit") === "100" &&
-      url.searchParams.get("sort_field") === field &&
+      url.searchParams.get("sort_field") === sortField &&
       url.searchParams.get("sort_order") === order &&
       url.searchParams.has("cursor") === hasCursor &&
       response.ok()
@@ -299,15 +280,21 @@ test.describe("large issue list virtualization", () => {
     for (const order of ["asc", "desc"] as const) {
       await resetFixture(request, "large_vault");
       const titlePage = await page.context().newPage();
-      const initialResponse = waitForTitleIssueListPage(
+      const initialResponse = waitForSortedIssueListPage(
         titlePage,
+        "title",
         order,
         false,
       );
       await openLargeList(titlePage, `sort=title&order=${order}`);
       const initial = await readIssueListPage(await initialResponse);
 
-      const cursorResponse = waitForTitleIssueListPage(titlePage, order, true);
+      const cursorResponse = waitForSortedIssueListPage(
+        titlePage,
+        "title",
+        order,
+        true,
+      );
       await scrollToListEnd(titlePage);
       const cursorPage = await readIssueListPage(await cursorResponse);
       const ids = [...initial.ids, ...cursorPage.ids];
@@ -377,7 +364,7 @@ test.describe("large issue list virtualization", () => {
     for (const field of ["start_date", "due_date"] as const) {
       for (const order of ["asc", "desc"] as const) {
         await resetFixture(request, "large_vault");
-        const initialResponse = waitForDateIssueListPage(
+        const initialResponse = waitForSortedIssueListPage(
           page,
           field,
           order,
@@ -389,7 +376,7 @@ test.describe("large issue list virtualization", () => {
           field,
         );
 
-        const cursorResponse = waitForDateIssueListPage(
+        const cursorResponse = waitForSortedIssueListPage(
           page,
           field,
           order,
