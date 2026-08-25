@@ -75,7 +75,7 @@ function waitForIssueListPage(
 
 function waitForSortedIssueListPage(
   page: Page,
-  sortField: "title" | "start_date" | "due_date",
+  sortField: "title" | "start_date" | "due_date" | "reef_id",
   order: "asc" | "desc",
   hasCursor: boolean,
 ): Promise<Response> {
@@ -91,6 +91,22 @@ function waitForSortedIssueListPage(
       response.ok()
     );
   });
+}
+
+function readTicketNumber(id: string): bigint {
+  const match = /^[A-Z][A-Z0-9_]*-(\d+)$/u.exec(id);
+  expect(match).not.toBeNull();
+  return BigInt(match?.[1] ?? "0");
+}
+
+function assertTicketPageOrder(ids: string[], order: "asc" | "desc"): void {
+  for (let index = 1; index < ids.length; index += 1) {
+    const previous = readTicketNumber(ids[index - 1] ?? "");
+    const current = readTicketNumber(ids[index] ?? "");
+    expect(order === "asc" ? previous <= current : previous >= current).toBe(
+      true,
+    );
+  }
 }
 
 async function readIssueListPage(response: Response) {
@@ -353,6 +369,95 @@ test.describe("large issue list virtualization", () => {
         ),
       ).toBe(true);
       await titlePage.close();
+    }
+  });
+
+  test("keeps numeric ticket-number order and the 999/1000 cursor boundary across pages", async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(120_000);
+    for (const order of ["asc", "desc"] as const) {
+      await resetFixture(request, "large_vault");
+      const ticketPage = await page.context().newPage();
+      const requests = issueListRequests(ticketPage);
+      const initialResponse = waitForSortedIssueListPage(
+        ticketPage,
+        "reef_id",
+        order,
+        false,
+      );
+      await openLargeList(ticketPage, `sort=reef_id&order=${order}`);
+      const ids = (await readIssueListPage(await initialResponse)).ids;
+
+      for (let pageIndex = 0; pageIndex < 12; pageIndex += 1) {
+        if (
+          ids.includes("REEF-999") &&
+          ids.includes("REEF-1000") &&
+          ids.includes("REEF-1002")
+        ) {
+          break;
+        }
+
+        const cursorResponse = waitForSortedIssueListPage(
+          ticketPage,
+          "reef_id",
+          order,
+          true,
+        );
+        await scrollToListEnd(ticketPage);
+        ids.push(...(await readIssueListPage(await cursorResponse)).ids);
+      }
+
+      expect(ids).toContain("REEF-999");
+      expect(ids).toContain("REEF-1000");
+      expect(ids).toContain("REEF-1002");
+      expect(ids).not.toContain("REEF-1001");
+      expect(new Set(ids).size).toBe(ids.length);
+      assertTicketPageOrder(ids, order);
+
+      const nineNinetyNine = ids.indexOf("REEF-999");
+      const oneThousand = ids.indexOf("REEF-1000");
+      expect(
+        order === "asc"
+          ? nineNinetyNine < oneThousand
+          : nineNinetyNine > oneThousand,
+      ).toBe(true);
+
+      const ticketRequests = requests.filter((raw) => {
+        const url = new URL(raw);
+        return (
+          url.searchParams.get("sort_field") === "reef_id" &&
+          url.searchParams.get("sort_order") === order
+        );
+      });
+      expect(ticketRequests.length).toBeGreaterThan(order === "asc" ? 10 : 1);
+
+      const explicitCursor = Buffer.from(
+        JSON.stringify({ k: "1000", id: "REEF-1000" }),
+      ).toString("base64url");
+      const boundaryPage = await ticketPage.evaluate(
+        async ({ order: requestedOrder, cursor }) => {
+          const response = await fetch(
+            `/api/issues?vault=reef-e2e&limit=100&sort_field=reef_id&sort_order=${requestedOrder}&cursor=${encodeURIComponent(cursor)}`,
+          );
+          return {
+            status: response.status,
+            body: (await response.json()) as {
+              issues?: Array<{ id?: unknown }>;
+            },
+          };
+        },
+        { order, cursor: explicitCursor },
+      );
+      expect(boundaryPage.status).toBe(200);
+      const boundaryIds = (boundaryPage.body.issues ?? []).flatMap((issue) =>
+        typeof issue.id === "string" ? [issue.id] : [],
+      );
+      expect(boundaryIds[0]).toBe(order === "asc" ? "REEF-1002" : "REEF-999");
+      expect(boundaryIds).not.toContain("REEF-1001");
+      assertTicketPageOrder(boundaryIds, order);
+      await ticketPage.close();
     }
   });
 

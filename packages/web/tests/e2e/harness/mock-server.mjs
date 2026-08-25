@@ -1281,7 +1281,11 @@ function largeVault(name) {
     "Beta",
   ];
   for (let index = 0; index < total; index += 1) {
-    const id = `REEF-${String(index + 1).padStart(4, "0")}`;
+    const issueNumber = index === 998 ? 999 : index === 1000 ? 1206 : index + 1;
+    const id =
+      index === 998
+        ? "REEF-999"
+        : `REEF-${String(issueNumber).padStart(4, "0")}`;
     const priority =
       index < 200
         ? "critical"
@@ -2455,7 +2459,10 @@ function handleSql(vault, sql) {
     }
     if (
       state.issueListNextPageFailures > 0 &&
-      /"reef_id"\s*<\s*'/i.test(normalized)
+      (/(?:"reef_id"\s*<\s*')/i.test(normalized) ||
+        /cast\(substring\("reef_id"\s+from\s+'\[0-9\]\+\$'\)\s+as\s+numeric\)\s*</i.test(
+          normalized,
+        ))
     ) {
       state.issueListNextPageFailures -= 1;
       return { error: "e2e forced next issue list page failure" };
@@ -2948,24 +2955,68 @@ function settingsRows(vault, sql) {
 
 function sortIssueRows(rows, lowerSql) {
   const out = [...rows];
-  if (lowerSql.includes("order by") && lowerSql.includes("rank")) {
-    out.sort((a, b) => numericSort(a.rank, b.rank) || idDesc(a, b));
-  } else if (lowerSql.includes("order by") && lowerSql.includes("priority")) {
+  if (!lowerSql.includes("order by")) return out;
+
+  if (/order by\s+cast\(substring\("reef_id"/i.test(lowerSql)) {
+    const direction = sqlDirection(
+      lowerSql,
+      /cast\(substring\("reef_id"[^)]*\)\s+as\s+numeric\)\s+(asc|desc)/i,
+    );
+    out.sort((a, b) => direction * compareTicketNumbers(a, b));
+  } else if (lowerSql.includes("rank")) {
+    const direction = sqlDirection(
+      lowerSql,
+      /coalesce\("rank",[^)]+\)\s+(asc|desc)/i,
+    );
+    out.sort(
+      (a, b) =>
+        direction * numericSort(a.rank, b.rank) || ticketNumberDesc(a, b),
+    );
+  } else if (lowerSql.includes("priority")) {
     const weight = new Map([
       ["critical", 5],
       ["high", 4],
       ["medium", 3],
       ["low", 2],
     ]);
+    const direction = sqlDirection(lowerSql, /end\s+(asc|desc)/i);
     out.sort(
       (a, b) =>
-        (weight.get(b.priority) ?? 0) - (weight.get(a.priority) ?? 0) ||
-        idDesc(a, b),
+        direction *
+          ((weight.get(a.priority) ?? 0) - (weight.get(b.priority) ?? 0)) ||
+        ticketNumberDesc(a, b),
+    );
+  } else if (lowerSql.includes("estimate_points")) {
+    const direction = sqlDirection(
+      lowerSql,
+      /coalesce\("estimate_points",\s*0\)\s+(asc|desc)/i,
+    );
+    out.sort(
+      (a, b) =>
+        direction *
+          (Number(a.estimate_points ?? 0) - Number(b.estimate_points ?? 0)) ||
+        ticketNumberDesc(a, b),
     );
   } else if (lowerSql.includes("order by") && lowerSql.includes("updated_at")) {
-    out.sort((a, b) => stringDesc(a.updated_at, b.updated_at) || idDesc(a, b));
+    const direction = sqlDirection(lowerSql, /"updated_at"\s+(asc|desc)/i);
+    out.sort(
+      (a, b) =>
+        direction *
+          compareStrings(
+            String(a.updated_at ?? ""),
+            String(b.updated_at ?? ""),
+          ) || ticketNumberDesc(a, b),
+    );
   } else if (lowerSql.includes("order by") && lowerSql.includes("created_at")) {
-    out.sort((a, b) => stringDesc(a.created_at, b.created_at) || idDesc(a, b));
+    const direction = sqlDirection(lowerSql, /"created_at"\s+(asc|desc)/i);
+    out.sort(
+      (a, b) =>
+        direction *
+          compareStrings(
+            String(a.created_at ?? ""),
+            String(b.created_at ?? ""),
+          ) || ticketNumberDesc(a, b),
+    );
   } else if (lowerSql.includes("order by") && lowerSql.includes("title")) {
     const titleDirection = /order by "title" collate "und-x-icu" desc/i.test(
       lowerSql,
@@ -2978,7 +3029,7 @@ function sortIssueRows(rows, lowerSql) {
           ISSUE_TITLE_COLLATOR.compare(
             String(a.title ?? ""),
             String(b.title ?? ""),
-          ) || idDesc(a, b),
+          ) || ticketNumberDesc(a, b),
     );
   } else if (lowerSql.includes("order by")) {
     const dateField = ["start_date", "due_date"].find((field) =>
@@ -2999,7 +3050,7 @@ function compareDateRows(left, right, field, lowerSql) {
   return (
     direction *
       compareStrings(String(left[field] ?? ""), String(right[field] ?? "")) ||
-    idDesc(left, right)
+    ticketNumberDesc(left, right)
   );
 }
 
@@ -3108,14 +3159,48 @@ function applyIssueKeysetCursor(rows, sql) {
   const dateRows = applyDateKeysetCursor(rows, sql);
   if (dateRows) return dateRows;
 
-  const cursorId = matchSqlString(sql, /"reef_id"\s*<\s*'([^']+)'/i);
-  if (!cursorId) return rows;
+  const ticketTie = matchTicketNumberTie(sql);
 
   const leadMatchers = [
+    {
+      match: sql.match(
+        /\(\s*cast\(substring\("reef_id"\s+from\s+'\[0-9\]\+\$'\)\s+as\s+numeric\)\s*([<>])\s*(\d+)\s*\)/i,
+      ),
+      value: (row) => issueNumber(row.reef_id),
+      kind: "ticket",
+      compare: (left, right) =>
+        left === null || right === null
+          ? left === right
+            ? 0
+            : left === null
+              ? 1
+              : -1
+          : left < right
+            ? -1
+            : left > right
+              ? 1
+              : 0,
+    },
     {
       match: sql.match(/END\s*([<>])\s*(-?\d+(?:\.\d+)?)/i),
       value: (row) =>
         ({ critical: 4, high: 3, medium: 2, low: 1 })[row.priority] ?? 0,
+      numeric: true,
+      compare: (left, right) => left - right,
+    },
+    {
+      match: sql.match(
+        /coalesce\("rank",\s*[^)]+\)\s*([<>])\s*(-?\d+(?:\.\d+)?)/i,
+      ),
+      value: (row) => Number(row.rank ?? 1e15),
+      numeric: true,
+      compare: (left, right) => left - right,
+    },
+    {
+      match: sql.match(
+        /coalesce\("estimate_points",\s*0\)\s*([<>])\s*(-?\d+(?:\.\d+)?)/i,
+      ),
+      value: (row) => Number(row.estimate_points ?? 0),
       numeric: true,
       compare: (left, right) => left - right,
     },
@@ -3130,7 +3215,9 @@ function applyIssueKeysetCursor(rows, sql) {
       compare: compareStrings,
     },
     {
-      match: sql.match(/"title"\s+COLLATE\s+"und-x-icu"\s*([<>])\s*'([^']+)'/i),
+      match: sql.match(
+        /"title"\s+COLLATE\s+"und-x-icu"\s*([<>])\s*'((?:''|[^'])*)'/i,
+      ),
       value: (row) => String(row.title ?? ""),
       compare: (left, right) => ISSUE_TITLE_COLLATOR.compare(left, right),
     },
@@ -3138,15 +3225,23 @@ function applyIssueKeysetCursor(rows, sql) {
   if (!leadMatchers?.match) return rows;
 
   const [, operator, rawKey] = leadMatchers.match;
-  const cursorKey = leadMatchers.numeric ? Number(rawKey) : rawKey;
-  return rows.filter((row) => {
+  const cursorKey =
+    leadMatchers.kind === "ticket"
+      ? BigInt(rawKey)
+      : leadMatchers.numeric
+        ? Number(rawKey)
+        : rawKey.replace(/''/g, "'");
+  const filtered = rows.filter((row) => {
     const rowKey = leadMatchers.value(row);
     const comparison = leadMatchers.compare(rowKey, cursorKey);
     const afterLead = operator === ">" ? comparison > 0 : comparison < 0;
     const sameLead = comparison === 0;
-    const afterTie = String(row.reef_id).localeCompare(cursorId) < 0;
+    const rowNumber = issueNumber(row.reef_id);
+    const afterTie =
+      ticketTie !== null && rowNumber !== null && rowNumber < ticketTie;
     return afterLead || (sameLead && afterTie);
   });
+  return filtered;
 }
 
 function applyDateKeysetCursor(rows, sql) {
@@ -3154,11 +3249,11 @@ function applyDateKeysetCursor(rows, sql) {
     sql.includes(`CASE WHEN "${candidate}" IS NULL THEN 1 ELSE 0 END`),
   );
   if (!field) return null;
-  const cursorId = matchSqlString(sql, /"reef_id"\s*<\s*'([^']+)'/i);
   const dateMatch = sql.match(
     new RegExp(`COALESCE\\("${field}", ''\\)\\s*([<>])\\s*'([^']*)'`, "i"),
   );
-  if (!cursorId || !dateMatch) return null;
+  const ticketTie = matchTicketNumberTie(sql);
+  if (ticketTie === null || !dateMatch) return null;
 
   const [, operator, cursorDate] = dateMatch;
   const cursorBucket = cursorDate === "" ? 1 : 0;
@@ -3169,9 +3264,22 @@ function applyDateKeysetCursor(rows, sql) {
     const comparison = compareStrings(String(row[field] ?? ""), cursorDate);
     const afterDate = operator === ">" ? comparison > 0 : comparison < 0;
     const sameDate = comparison === 0;
-    const afterTie = String(row.reef_id).localeCompare(cursorId) < 0;
+    const rowNumber = issueNumber(row.reef_id);
+    const afterTie = rowNumber !== null && rowNumber < ticketTie;
     return afterDate || (sameDate && afterTie);
   });
+}
+
+function matchTicketNumberTie(sql) {
+  const match = sql.match(
+    /cast\(substring\("reef_id"\s+from\s+'\[0-9\]\+\$'\)\s+as\s+numeric\)\s*<\s*(\d+)/i,
+  );
+  if (!match) return null;
+  try {
+    return BigInt(match[1]);
+  } catch {
+    return null;
+  }
 }
 
 function selectPlanningRows(vault, table, sql) {
@@ -4338,16 +4446,37 @@ function numericSort(a, b) {
   return left - right;
 }
 
-function stringDesc(a, b) {
-  return String(b ?? "").localeCompare(String(a ?? ""));
+function sqlDirection(sql, matcher) {
+  return sql.match(matcher)?.[1]?.toLowerCase() === "desc" ? -1 : 1;
 }
 
 function compareStrings(a, b) {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-function idDesc(a, b) {
-  return String(b.reef_id ?? "").localeCompare(String(a.reef_id ?? ""));
+function issueNumber(value) {
+  const match = /^[A-Z][A-Z0-9_]*-(\d+)$/u.exec(String(value ?? ""));
+  if (!match) return null;
+  try {
+    const number = BigInt(match[1]);
+    return number > 0n ? number : null;
+  } catch {
+    return null;
+  }
+}
+
+function compareTicketNumbers(left, right) {
+  const leftNumber = issueNumber(left.reef_id);
+  const rightNumber = issueNumber(right.reef_id);
+  if (leftNumber === null || rightNumber === null) {
+    if (leftNumber === null && rightNumber === null) return 0;
+    return leftNumber === null ? 1 : -1;
+  }
+  return leftNumber < rightNumber ? -1 : leftNumber > rightNumber ? 1 : 0;
+}
+
+function ticketNumberDesc(left, right) {
+  return -compareTicketNumbers(left, right);
 }
 
 function nextBacklogRank(vault) {
