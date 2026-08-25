@@ -235,6 +235,21 @@ describe("useIssueUrlSync", () => {
     expect(useIssueStore.getState().filter.sortOrder).toBe("asc");
   });
 
+  it("restores ticket-number sorting from a shared URL in both directions", async () => {
+    navigationState.searchParams = new URLSearchParams(
+      "status=todo&sort=reef_id&order=asc",
+    );
+
+    render(<Harness />);
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.sortField).toBe("reef_id");
+    });
+    expect(useIssueStore.getState().filter.sortOrder).toBe("asc");
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
   it("reads repeated facet params into a multi-select array (REEF-031)", async () => {
     navigationState.searchParams = new URLSearchParams(
       "status=todo&status=in_progress&due=overdue&due=due_soon",

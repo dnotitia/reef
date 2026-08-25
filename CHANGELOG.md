@@ -14,9 +14,15 @@ explicitly in the entries below.
 
 ### Fixed
 
-- **Planning overflow tooltips no longer intercept pointer movement to adjacent
-  options**, so long milestone, sprint, and release values can be previewed
-  without blocking selection in the planning filters.
+ - **Planning overflow tooltips no longer intercept pointer movement to adjacent
+   options**, so long milestone, sprint, and release values can be previewed
+   without blocking selection in the planning filters.
+
+### Added
+
+ - **Issue List and Board sorting now supports ticket numbers.** Numeric issue
+   numbers, including values beyond three-digit padding and gaps, use the same
+   order across the shared control, keyset pages, and client-rendered views.
 
 ### Changed
 

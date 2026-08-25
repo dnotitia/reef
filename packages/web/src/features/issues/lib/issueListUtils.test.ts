@@ -10,6 +10,7 @@ import {
   parseLabelFilter,
   searchIssues,
   sortIssues,
+  sortIssuesByRankOrder,
 } from "./issueListUtils";
 
 const base = {
@@ -127,8 +128,41 @@ describe("sortIssues", () => {
     expect(sorted[3].id).toBe("REEF-004"); // low
   });
 
+  it("sorts ticket numbers numerically in both directions across gaps and padding widths", () => {
+    const mixed = [
+      makeIssue({ id: "TEAM_2-1000" }),
+      makeIssue({ id: "TEAM_2-7" }),
+      makeIssue({ id: "TEAM_2-999" }),
+      makeIssue({ id: "TEAM_2-1002" }),
+    ];
+
+    expect(
+      sortIssues(mixed, "reef_id", "asc").map((issue) => issue.id),
+    ).toEqual(["TEAM_2-7", "TEAM_2-999", "TEAM_2-1000", "TEAM_2-1002"]);
+    expect(
+      sortIssues(mixed, "reef_id", "desc").map((issue) => issue.id),
+    ).toEqual(["TEAM_2-1002", "TEAM_2-1000", "TEAM_2-999", "TEAM_2-7"]);
+  });
+
+  it("uses descending numeric ticket numbers for equal primary values and NULL ranks", () => {
+    const tied = [
+      makeIssue({ id: "TEAM_2-999", priority: "high", rank: null }),
+      makeIssue({ id: "TEAM_2-1000", priority: "high", rank: null }),
+      makeIssue({ id: "TEAM_2-7", priority: "high", rank: null }),
+    ];
+
+    expect(
+      sortIssues(tied, "priority", "desc").map((issue) => issue.id),
+    ).toEqual(["TEAM_2-1000", "TEAM_2-999", "TEAM_2-7"]);
+    expect(sortIssuesByRankOrder(tied).map((issue) => issue.id)).toEqual([
+      "TEAM_2-1000",
+      "TEAM_2-999",
+      "TEAM_2-7",
+    ]);
+  });
+
   it.each(["start_date", "due_date"] as const)(
-    "puts missing %s values after dates in both directions with reef_id DESC ties",
+    "puts missing %s values after dates in both directions with numeric ticket ties",
     (field) => {
       const mixed = [
         makeIssue({ id: "REEF-010", [field]: "2026-06-01" }),

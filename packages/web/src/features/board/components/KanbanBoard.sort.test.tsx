@@ -108,4 +108,25 @@ describe("KanbanBoard in-column sorting (REEF-059)", () => {
     const backend = await screen.findByText("Backend blocker"); // medium
     expect(isBefore(ui, backend)).toBe(true);
   });
+
+  it("orders the same column by numeric ticket number in either direction", async () => {
+    useIssueStore.setState({
+      filter: { sortField: "reef_id", sortOrder: "asc" },
+      searchQuery: "",
+      selectedIssueId: null,
+    });
+    const rows = FILTER_ISSUES.map((issue, index) => ({
+      ...issue,
+      id: index === 0 ? "TEAM_2-1000" : index === 1 ? "TEAM_2-999" : issue.id,
+    }));
+    mockApiFetch.mockResolvedValue(
+      new Response(JSON.stringify({ issues: rows }), { status: 200 }),
+    );
+
+    render(wrap(<KanbanBoard vault="reef-acme" />));
+
+    const oneThousand = await screen.findByText("UI board polish");
+    const nineNinetyNine = await screen.findByText("Backend blocker");
+    expect(isBefore(nineNinetyNine, oneThousand)).toBe(true);
+  });
 });

@@ -108,6 +108,13 @@ describe("FilterBar", () => {
     ).toHaveLength(1);
   });
 
+  it("exposes ticket number through the shared board/list sort control", async () => {
+    const user = userEvent.setup();
+    renderFilterBar({ view: "list" });
+    await user.click(screen.getByTestId("sort-control-trigger"));
+    expect(screen.getByTestId("sort-option-reef_id")).toBeInTheDocument();
+  });
+
   it("keeps the timeline date ordering without a field sort control", () => {
     renderFilterBar({ view: "timeline" });
     expect(screen.queryByTestId("sort-control")).toBeNull();

@@ -86,7 +86,7 @@ export function buildIssueQuery(
   // Sort is consistently present: fall back to the default (priority desc, REEF-057)
   // when the user has not picked a valid sort. Kept here (not in the filter
   // store) so an unset sort does not leaks into the URL / persisted slot; the
-  // adapter adds the `reef_id` tiebreaker.
+  // adapter adds the canonical numeric issue-number tiebreaker.
   const sortField =
     scopedFilter.sortField &&
     (USER_SORT_FIELDS as readonly string[]).includes(scopedFilter.sortField)

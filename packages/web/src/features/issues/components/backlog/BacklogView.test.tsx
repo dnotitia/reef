@@ -343,8 +343,7 @@ describe("BacklogView", () => {
   });
 
   it("orders unranked issues newest-first by created_at, not by lexical id (REEF-129)", async () => {
-    // REEF-1000 is newer than REEF-999 but sorts BEFORE it under lexical
-    // `reef_id DESC` ('999' > '1000'). The created_at tiebreaker should win so the
+    // REEF-1000 is newer than REEF-999. The created_at tiebreaker should win so the
     // newer issue is on top.
     const padded: IssueMetadata[] = [
       {

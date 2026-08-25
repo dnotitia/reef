@@ -217,6 +217,7 @@ export const ISSUE_FIELD_MESSAGES_EN = {
     created_at: "Created",
     estimate_points: "Points",
     title: "Title",
+    reef_id: "Ticket number",
   } satisfies Record<UserSortField, string>,
   // Field-aware natural-language direction labels (REEF-059): reads as the
   // user's intent rather than a generic asc/desc — "High → Low" for priority,
@@ -229,6 +230,7 @@ export const ISSUE_FIELD_MESSAGES_EN = {
     updated_at: { desc: "Newest", asc: "Oldest" },
     estimate_points: { desc: "Most", asc: "Fewest" },
     title: { desc: "Z → A", asc: "A → Z" },
+    reef_id: { desc: "Largest → Smallest", asc: "Smallest → Largest" },
   } satisfies Record<UserSortField, Record<SortOrder, string>>,
   // Field-NAME labels (REEF-301): the word that labels a field, keyed by field
   // id (see FIELD_NAME_KEYS). Shared by the property rail, filter bar, report

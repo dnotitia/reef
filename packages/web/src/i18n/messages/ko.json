@@ -781,7 +781,8 @@
       "updated_at": "수정일",
       "created_at": "생성일",
       "estimate_points": "포인트",
-      "title": "제목"
+      "title": "제목",
+      "reef_id": "티켓 번호"
     },
     "sortDirection": {
       "priority": {
@@ -807,6 +808,10 @@
       "estimate_points": {
         "desc": "많은 순",
         "asc": "적은 순"
+      },
+      "reef_id": {
+        "desc": "큰 번호부터",
+        "asc": "작은 번호부터"
       },
       "title": {
         "desc": "ㅎ → ㄱ",

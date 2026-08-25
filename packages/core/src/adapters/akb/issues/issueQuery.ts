@@ -1,5 +1,6 @@
 import { SchemaValidationError } from "../../../errors";
 import { RANK_NULL_SORT_SENTINEL } from "../../../models/backlogRank";
+import { parseIssueId } from "../../../models/id";
 import { ACTIVE_STATUSES } from "../../../models/status";
 import type { IssueListQuery } from "../../../schemas/issues/requests";
 import { REEF_ISSUES_TABLE, REEF_SPRINTS_TABLE } from "../core/constants";
@@ -199,7 +200,11 @@ const NUMERIC_SORT_FIELDS = new Set<IssueSortField>([
   "priority",
   "rank",
   "estimate_points",
+  "reef_id",
 ]);
+
+/** SQL equivalent of the canonical `parseIssueId(...).number` contract. */
+const ISSUE_NUMBER_SORT_EXPR = `CAST(SUBSTRING("reef_id" FROM '[0-9]+$') AS NUMERIC)`;
 
 function isDateSortField(
   sortField: IssueSortField,
@@ -236,6 +241,8 @@ function sortLeadExpr(sortField: IssueSortField): string {
       return `COALESCE("rank", ${RANK_NULL_SORT_SENTINEL})`;
     case "estimate_points":
       return `COALESCE("estimate_points", 0)`;
+    case "reef_id":
+      return ISSUE_NUMBER_SORT_EXPR;
     case "due_date":
     case "start_date":
       return `COALESCE(${quoteIdent(sortField)}, '')`;
@@ -247,27 +254,32 @@ function sortLeadExpr(sortField: IssueSortField): string {
 }
 
 /**
- * Build the `ORDER BY` body (without the keyword) for the issue list. A unique
- * `reef_id DESC` tiebreaker is consistently appended so paging stays deterministic
- * under akb's last-write-wins. Direction is a literal `ASC`/`DESC` — does not
- * interpolated from input.
+ * Build the `ORDER BY` body (without the keyword) for the issue list. The
+ * canonical numeric issue number is consistently appended as a DESC tiebreaker
+ * so paging stays deterministic under akb's last-write-wins. A ticket-number
+ * sort already uses that expression as its lead, so it does not duplicate it.
+ * Direction is a literal `ASC`/`DESC` — does not interpolated from input.
  */
 export function buildIssueOrderBy(
   sortField: IssueSortField,
   sortOrder: IssueSortOrder,
 ): string {
   const dir = sortOrder === "asc" ? "ASC" : "DESC";
+  if (sortField === "reef_id") {
+    return `${sortLeadExpr(sortField)} ${dir}`;
+  }
   if (isDateSortField(sortField)) {
     return `${dateNullBucketExpr(sortField)} ASC, ${sortLeadExpr(
       sortField,
-    )} ${dir}, "reef_id" DESC`;
+    )} ${dir}, ${ISSUE_NUMBER_SORT_EXPR} DESC`;
   }
-  return `${sortLeadExpr(sortField)} ${dir}, "reef_id" DESC`;
+  return `${sortLeadExpr(sortField)} ${dir}, ${ISSUE_NUMBER_SORT_EXPR} DESC`;
 }
 
 /**
- * Opaque keyset cursor parts: the lead sort-key value (`k`) and the unique
- * `reef_id` tiebreaker (`id`), both serialized as strings.
+ * Opaque keyset cursor parts: the lead sort-key value (`k`) and the canonical
+ * issue id (`id`) whose numeric suffix supplies the DESC tiebreaker, both
+ * serialized as strings.
  */
 export interface IssueCursorParts {
   k: string;
@@ -302,6 +314,9 @@ function cursorLeadValue(
     const raw = row.estimate_points;
     const num = typeof raw === "number" ? raw : Number(raw);
     return String(Number.isFinite(num) ? num : 0);
+  }
+  if (sortField === "reef_id") {
+    return String(parseIssueId(String(row.reef_id ?? "")).number);
   }
   const value = row[sortField];
   return typeof value === "string" ? value : "";
@@ -341,8 +356,9 @@ export function decodeCursor(cursor: string): IssueCursorParts {
 
 /**
  * Build the keyset `WHERE` predicate selecting "rows after the cursor" in the
- * given sort direction, with `reef_id DESC` as the unique tiebreaker. The lead
- * expression matches `sortLeadExpr`; every cursor value is escaped.
+ * given sort direction, with the canonical numeric issue number DESC as the
+ * tiebreaker. The lead expression matches `sortLeadExpr`; every cursor value
+ * is validated and escaped.
  */
 export function buildKeysetWhere(
   sortField: IssueSortField,
@@ -354,16 +370,19 @@ export function buildKeysetWhere(
   const kLit = NUMERIC_SORT_FIELDS.has(sortField)
     ? quoteNumberOrNull(Number(cursor.k))
     : quoteText(cursor.k, "cursor key");
-  const idLit = quoteText(cursor.id, "cursor reef_id");
+  const issueNumberLit = quoteNumberOrNull(parseIssueId(cursor.id).number);
+  if (sortField === "reef_id") {
+    return `(${lead} ${cmp} ${kLit})`;
+  }
   if (isDateSortField(sortField)) {
     // Date cursors use the empty lead value as the NULL marker (ISO date
     // fields cannot contain an empty string). The bucket is always ASC so the
     // real dates precede the NULL tail for both date directions.
     const nullBucket = dateNullBucketExpr(sortField);
     const cursorNullBucket = cursor.k === "" ? "1" : "0";
-    return `((${nullBucket} > ${cursorNullBucket}) OR (${nullBucket} = ${cursorNullBucket} AND ((${lead} ${cmp} ${kLit}) OR (${lead} = ${kLit} AND "reef_id" < ${idLit}))))`;
+    return `((${nullBucket} > ${cursorNullBucket}) OR (${nullBucket} = ${cursorNullBucket} AND ((${lead} ${cmp} ${kLit}) OR (${lead} = ${kLit} AND ${ISSUE_NUMBER_SORT_EXPR} < ${issueNumberLit}))))`;
   }
-  return `((${lead} ${cmp} ${kLit}) OR (${lead} = ${kLit} AND "reef_id" < ${idLit}))`;
+  return `((${lead} ${cmp} ${kLit}) OR (${lead} = ${kLit} AND ${ISSUE_NUMBER_SORT_EXPR} < ${issueNumberLit}))`;
 }
 
 /**

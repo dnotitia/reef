@@ -32,6 +32,7 @@ import { createIssueGroupDescriptor } from "@/features/issues/lib/grouping";
 import {
   filterIssues,
   searchIssues,
+  compareIssueNumberDesc,
   sortIssues,
 } from "@/features/issues/lib/issueListUtils";
 import { loadedSelectionState } from "@/features/issues/lib/issueSelection";
@@ -110,15 +111,15 @@ function BacklogColumnGroup() {
 
 // Manual backlog order is a pure function of (rank, created_at, id): ranked rows
 // ascending by rank, then any unranked rows newest-first. The created_at tie
-// break is explicit rather than leaning on the server's lexical `reef_id DESC`,
-// which mis-orders ids past the 3-digit padding boundary (REEF-1000 before
-// REEF-999); the unique id break keeps it deterministic.
+// break is explicit rather than relying on a lexical issue-id tie, which
+// mis-orders ids past the 3-digit padding boundary (REEF-1000 before REEF-999);
+// the canonical numeric issue-number break keeps it deterministic.
 function compareBacklogManualOrder(a: IssueListItem, b: IssueListItem): number {
   const byRank = backlogRankSortKey(a.rank) - backlogRankSortKey(b.rank);
   if (byRank !== 0) return byRank;
   if (a.created_at !== b.created_at)
     return a.created_at < b.created_at ? 1 : -1;
-  return a.id < b.id ? 1 : -1;
+  return compareIssueNumberDesc(a, b);
 }
 
 interface BacklogViewProps {

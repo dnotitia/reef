@@ -3,6 +3,7 @@ import {
   backlogRankSortKey,
   isResolvedStatus,
   isStaleResolved,
+  parseIssueId,
 } from "@reef/core";
 import type { IssueFilter } from "../stores/useIssueStore";
 
@@ -20,6 +21,41 @@ const PRIORITY_RANK: Record<string, number> = {
   medium: 2,
   low: 1,
 };
+
+/**
+ * Read a canonical issue number for sorting. A malformed legacy row is kept at
+ * the tail instead of taking down a whole Board/List render; valid IDs still
+ * use the shared core parser and numeric ordering contract.
+ */
+function issueNumberOrNull(id: string): number | null {
+  try {
+    return parseIssueId(id).number;
+  } catch {
+    return null;
+  }
+}
+
+function compareIssueNumber(
+  a: IssueListItem,
+  b: IssueListItem,
+  order: "asc" | "desc",
+): number {
+  const aNumber = issueNumberOrNull(a.id);
+  const bNumber = issueNumberOrNull(b.id);
+  if (aNumber === null || bNumber === null) {
+    if (aNumber === null && bNumber === null) return 0;
+    return aNumber === null ? 1 : -1;
+  }
+  return order === "asc" ? aNumber - bNumber : bNumber - aNumber;
+}
+
+/** Numeric ticket-number DESC tiebreaker shared by every client issue order. */
+export function compareIssueNumberDesc(
+  a: IssueListItem,
+  b: IssueListItem,
+): number {
+  return compareIssueNumber(a, b, "desc");
+}
 
 /**
  * Sorts issues by the given field and order.
@@ -41,14 +77,20 @@ export function sortIssues(
   }
   const dir = order === "desc" ? -1 : 1;
   return [...issues].sort((a, b) => {
+    if (field === "reef_id") {
+      return compareIssueNumber(a, b, order === "desc" ? "desc" : "asc");
+    }
     if (field === "priority") {
       const aRank = PRIORITY_RANK[a.priority ?? ""] ?? 0;
       const bRank = PRIORITY_RANK[b.priority ?? ""] ?? 0;
-      return (aRank - bRank) * dir;
+      const byPriority = (aRank - bRank) * dir;
+      return byPriority !== 0 ? byPriority : compareIssueNumberDesc(a, b);
     }
     if (field === "estimate_points") {
       // Numeric column; nulls sort as 0 (matches the server's COALESCE).
-      return ((a.estimate_points ?? 0) - (b.estimate_points ?? 0)) * dir;
+      const byPoints =
+        ((a.estimate_points ?? 0) - (b.estimate_points ?? 0)) * dir;
+      return byPoints !== 0 ? byPoints : compareIssueNumberDesc(a, b);
     }
     if (field === "start_date" || field === "due_date") {
       const aMissing = a[field] == null;
@@ -60,14 +102,14 @@ export function sortIssues(
       if (aVal > bVal) return 1 * dir;
       // Keep the same complete order as the server for equal dates, including
       // the NULL tail. The tie-break direction is independent of date order.
-      return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+      return compareIssueNumberDesc(a, b);
     }
     // created_at / updated_at — ISO strings sort lexicographically
     const aVal = a[field] ?? "";
     const bVal = b[field] ?? "";
     if (aVal < bVal) return -1 * dir;
     if (aVal > bVal) return 1 * dir;
-    return 0;
+    return compareIssueNumberDesc(a, b);
   });
 }
 
@@ -78,7 +120,7 @@ export function sortIssuesByRankOrder(
   return [...issues].sort((a, b) => {
     const byRank = backlogRankSortKey(a.rank) - backlogRankSortKey(b.rank);
     if (byRank !== 0) return byRank;
-    return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+    return compareIssueNumberDesc(a, b);
   });
 }
 
