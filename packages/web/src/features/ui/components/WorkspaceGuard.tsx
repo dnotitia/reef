@@ -4,10 +4,8 @@ import { AppShellSkeleton } from "@/components/AppShellSkeleton";
 import { useAuthRedirect } from "@/features/auth/hooks/useAuthRedirect";
 import { useSyncActiveVaultFromUrl } from "@/features/settings/hooks/useActiveVault";
 import { useVaults } from "@/features/settings/hooks/useVaults";
-import { hasEstablishedAuthSession } from "@/lib/akb/authCoordinator";
 import { VAULT_NAME_RE } from "@/lib/akb/vaultName";
 import { notFound, useParams } from "next/navigation";
-import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { DashboardShell } from "./DashboardShell";
 import { WorkspaceAccessDenied } from "./WorkspaceAccessDenied";
@@ -41,8 +39,6 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
   // hook order is stable across route changes.
   if (!VAULT_NAME_RE.test(vault)) notFound();
 
-  const isEstablishedRevalidation =
-    authStatus === "checking" && hasEstablishedAuthSession();
   const vaultsQuery = useVaults({ enabled: authStatus === "active" });
   // A usable reef workspace is one the user can access AND that already carries
   // a reef config — the same `has_reef_config` bar the sidebar switcher and
@@ -58,7 +54,7 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
   // session or membership is unknown makes the sync a no-op.
   useSyncActiveVaultFromUrl(isMember ? vault : "");
 
-  if (authStatus !== "active" && !isEstablishedRevalidation) {
+  if (authStatus !== "active") {
     return <AppShellSkeleton />;
   }
 
@@ -74,24 +70,5 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
     );
   }
 
-  return (
-    <DashboardShell appVersion={appVersion}>
-      {isEstablishedRevalidation ? <AuthRevalidationStatus /> : children}
-    </DashboardShell>
-  );
-}
-
-function AuthRevalidationStatus() {
-  const t = useTranslations("common");
-  return (
-    <div
-      className="flex min-h-full items-center justify-center p-6"
-      aria-busy="true"
-      data-testid="auth-revalidation-status"
-    >
-      <output aria-live="polite" aria-atomic="true">
-        {t("loading")}
-      </output>
-    </div>
-  );
+  return <DashboardShell appVersion={appVersion}>{children}</DashboardShell>;
 }

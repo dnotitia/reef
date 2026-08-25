@@ -2,8 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AUTH_PROBE_TIMEOUT_MS,
   __resetAuthCoordinatorForTests,
+  getAuthCoordinatorSnapshot,
   hasEstablishedAuthSession,
-  requestAuthProbe,
+  bootstrapAuthSession,
+  revalidateAuthSession,
   subscribeAuthCoordinator,
 } from "./authCoordinator";
 
@@ -36,9 +38,9 @@ describe("auth coordinator", () => {
       firstProbe,
     );
 
-    requestAuthProbe(firstProbe);
+    bootstrapAuthSession(firstProbe);
     const firstSignal = firstProbe.mock.calls[0]?.[0] as AbortSignal;
-    requestAuthProbe(secondProbe);
+    bootstrapAuthSession(secondProbe);
     resolveFirst(inactive);
     await Promise.resolve();
     await Promise.resolve();
@@ -60,7 +62,7 @@ describe("auth coordinator", () => {
       probe,
     );
 
-    requestAuthProbe(probe);
+    bootstrapAuthSession(probe);
     await vi.advanceTimersByTimeAsync(AUTH_PROBE_TIMEOUT_MS);
 
     const signal = probe.mock.calls[0]?.[0] as AbortSignal;
@@ -77,7 +79,7 @@ describe("auth coordinator", () => {
       probe,
     );
 
-    requestAuthProbe(probe);
+    bootstrapAuthSession(probe);
     await Promise.resolve();
     await Promise.resolve();
     expect(states.at(-1)).toBe("active");
@@ -92,7 +94,7 @@ describe("auth coordinator", () => {
     const probe = vi.fn(async () => active);
     const unsubscribe = subscribeAuthCoordinator(() => {}, probe);
 
-    requestAuthProbe(probe);
+    bootstrapAuthSession(probe);
     await Promise.resolve();
     await Promise.resolve();
     probe.mockClear();
@@ -109,7 +111,7 @@ describe("auth coordinator", () => {
     const activeProbe = vi.fn(async () => active);
     const unsubscribe = subscribeAuthCoordinator(() => {}, activeProbe);
 
-    requestAuthProbe(activeProbe);
+    bootstrapAuthSession(activeProbe);
     await Promise.resolve();
     await Promise.resolve();
     expect(hasEstablishedAuthSession()).toBe(true);
@@ -122,13 +124,39 @@ describe("auth coordinator", () => {
     );
     const revalidationProbe = vi.fn(() => revalidation);
 
-    requestAuthProbe(revalidationProbe);
+    revalidateAuthSession(revalidationProbe);
     expect(hasEstablishedAuthSession()).toBe(true);
 
     resolveRevalidation(inactive);
     await Promise.resolve();
     await Promise.resolve();
     expect(hasEstablishedAuthSession()).toBe(false);
+    unsubscribe();
+  });
+
+  it("keeps an established session active while background revalidation is pending", async () => {
+    const activeProbe = vi.fn(async () => active);
+    const unsubscribe = subscribeAuthCoordinator(() => {}, activeProbe);
+
+    bootstrapAuthSession(activeProbe);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    let resolveRevalidation!: (value: typeof active) => void;
+    const revalidation = new Promise<typeof active>((resolve) => {
+      resolveRevalidation = resolve;
+    });
+    const revalidationProbe = vi.fn(() => revalidation);
+
+    revalidateAuthSession(revalidationProbe);
+
+    expect(revalidationProbe).toHaveBeenCalledOnce();
+    expect(getAuthCoordinatorSnapshot().status).toBe("active");
+
+    resolveRevalidation(active);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(getAuthCoordinatorSnapshot().status).toBe("active");
     unsubscribe();
   });
 });
