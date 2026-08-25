@@ -185,9 +185,9 @@ describe("buildIssueOrderBy / priorityRankCase", () => {
     );
   });
 
-  it("orders by a plain column for a title sort (REEF-059)", () => {
+  it("uses the canonical ICU collation for a title sort", () => {
     expect(buildIssueOrderBy("title", "asc")).toBe(
-      `"title" ASC, "reef_id" DESC`,
+      `"title" COLLATE "und-x-icu" ASC, "reef_id" DESC`,
     );
   });
 });
@@ -234,6 +234,17 @@ describe("keyset cursor", () => {
     });
     expect(where).toContain(`${priorityRankCase()} < 3`);
     expect(where).toContain(`"reef_id" < 'REEF-002'`);
+  });
+
+  it("uses the same ICU title expression for the keyset predicate", () => {
+    expect(
+      buildKeysetWhere("title", "desc", {
+        k: "Alpha",
+        id: "REEF-002",
+      }),
+    ).toBe(
+      `(("title" COLLATE "und-x-icu" < 'Alpha') OR ("title" COLLATE "und-x-icu" = 'Alpha' AND "reef_id" < 'REEF-002'))`,
+    );
   });
 
   it("parses a string-numeric rank when encoding the cursor", () => {

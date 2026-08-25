@@ -7,7 +7,7 @@ import {
   setupFetch,
 } from "../../../test-support/akb/fetchMock";
 import { mockOpenTelemetry } from "../../../test-support/akb/otelMock";
-import { encodeCursor } from "../core/shared";
+import { decodeCursor, encodeCursor } from "../core/shared";
 import { listIssueRelations, listIssues } from "./issues";
 
 mockOpenTelemetry();
@@ -77,6 +77,78 @@ function makeIssue(over: Partial<IssueMetadata>): IssueMetadata {
 
 describe("listIssues pagination", () => {
   afterEach(() => vi.unstubAllGlobals());
+
+  it("keeps a mixed-title cursor boundary stable past 100 rows", async () => {
+    const titles = [
+      ...Array.from(
+        { length: 34 },
+        (_, index) => `! Symbol ${String(index).padStart(3, "0")}`,
+      ),
+      ...Array.from(
+        { length: 34 },
+        (_, index) => `Alpha ${String(index).padStart(3, "0")}`,
+      ),
+      ...Array.from(
+        { length: 33 },
+        (_, index) => `가나다 ${String(index).padStart(3, "0")}`,
+      ),
+    ];
+    const rows = titles.map((title, index) =>
+      makeIssue({
+        id: `REEF-${String(index + 1).padStart(3, "0")}`,
+        title,
+      }),
+    );
+
+    const firstFetch = setupFetch([{ body: makeIssueQueryResponse(rows) }]);
+    const firstPage = await listIssues({
+      adapter: makeTestAkbAdapter(),
+      vault: "reef-acme",
+      query: IssueListQuerySchema.parse({
+        sort_field: "title",
+        sort_order: "asc",
+        limit: 100,
+      }),
+    });
+
+    expect(firstPage.issues).toHaveLength(100);
+    expect(firstPage.issues.map((issue) => issue.id)).toEqual(
+      rows.slice(0, 100).map((row) => row.id),
+    );
+    expect(firstPage.next_cursor).toBeTruthy();
+    expect(capturedSql(firstFetch.calls)).toContain(
+      `ORDER BY "title" COLLATE "und-x-icu" ASC, "reef_id" DESC`,
+    );
+    expect(capturedSql(firstFetch.calls)).toContain("LIMIT 101");
+    expect(decodeCursor(firstPage.next_cursor ?? "")).toEqual({
+      k: rows[99]?.title,
+      id: rows[99]?.id,
+    });
+
+    const secondFetch = setupFetch([
+      { body: makeIssueQueryResponse(rows.slice(100)) },
+    ]);
+    const secondPage = await listIssues({
+      adapter: makeTestAkbAdapter(),
+      vault: "reef-acme",
+      query: IssueListQuerySchema.parse({
+        sort_field: "title",
+        sort_order: "asc",
+        limit: 100,
+        cursor: firstPage.next_cursor,
+      }),
+    });
+
+    const combinedIds = [
+      ...firstPage.issues.map((issue) => issue.id),
+      ...secondPage.issues.map((issue) => issue.id),
+    ];
+    expect(combinedIds).toEqual(rows.map((row) => row.id));
+    expect(new Set(combinedIds).size).toBe(101);
+    expect(capturedSql(secondFetch.calls)).toContain(
+      `"title" COLLATE "und-x-icu" > '가나다 031'`,
+    );
+  });
 
   it("fetches limit+1 and returns next_cursor when a full extra row exists", async () => {
     const rows = [

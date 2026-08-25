@@ -62,21 +62,33 @@ describe("KanbanBoard in-column sorting (REEF-059)", () => {
     });
   });
 
-  it("orders cards within a column by the selected title sort (A→Z)", async () => {
+  it("preserves the server's canonical order for the selected title sort (A→Z)", async () => {
     useIssueStore.setState({
       filter: { sortField: "title", sortOrder: "asc" },
       searchQuery: "",
       selectedIssueId: null,
     });
     mockApiFetch.mockResolvedValue(
-      new Response(JSON.stringify({ issues: FILTER_ISSUES }), { status: 200 }),
+      new Response(
+        JSON.stringify({
+          // The title comparator is owned by the server's ICU collation; the
+          // board must not re-sort only the loaded rows after pagination.
+          issues: [
+            FILTER_ISSUES[3],
+            FILTER_ISSUES[0],
+            FILTER_ISSUES[1],
+            FILTER_ISSUES[2],
+          ],
+        }),
+        { status: 200 },
+      ),
     );
 
     render(wrap(<KanbanBoard vault="reef-acme" />));
 
     const backend = await screen.findByText("Backend blocker");
     const ui = await screen.findByText("UI board polish");
-    // "Backend blocker" < "UI board polish" alphabetically.
+    // The response is already canonical and the board preserves that order.
     expect(isBefore(backend, ui)).toBe(true);
   });
 

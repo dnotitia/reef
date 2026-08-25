@@ -201,6 +201,8 @@ const NUMERIC_SORT_FIELDS = new Set<IssueSortField>([
   "estimate_points",
 ]);
 
+const ISSUE_TITLE_COLLATION = "und-x-icu";
+
 /**
  * The lead `ORDER BY` / keyset expression for a sort field. `priority` sorts by
  * the rank `CASE`; the nullable `rank` / `estimate_points` / date columns are
@@ -224,6 +226,8 @@ function sortLeadExpr(sortField: IssueSortField): string {
     case "due_date":
     case "start_date":
       return `COALESCE(${quoteIdent(sortField)}, '')`;
+    case "title":
+      return `${quoteIdent(sortField)} COLLATE "${ISSUE_TITLE_COLLATION}"`;
     default:
       return quoteIdent(sortField);
   }

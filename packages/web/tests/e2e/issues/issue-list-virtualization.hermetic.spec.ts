@@ -23,7 +23,11 @@ function issueListRequests(page: Page): string[] {
 }
 
 function issueListResponses(page: Page) {
-  const responses: Array<{ url: string; ids: string[] }> = [];
+  const responses: Array<{
+    url: string;
+    ids: string[];
+    titles: string[];
+  }> = [];
   page.on("response", async (response) => {
     const url = new URL(response.url());
     if (
@@ -35,13 +39,16 @@ function issueListResponses(page: Page) {
     }
     try {
       const body = (await response.json()) as {
-        issues?: Array<{ id?: unknown }>;
+        issues?: Array<{ id?: unknown; title?: unknown }>;
       };
+      const rows = (body.issues ?? []).filter(
+        (issue): issue is { id: string; title: string } =>
+          typeof issue.id === "string" && typeof issue.title === "string",
+      );
       responses.push({
         url: response.url(),
-        ids: (body.issues ?? [])
-          .map((issue) => issue.id)
-          .filter((id): id is string => typeof id === "string"),
+        ids: rows.map((issue) => issue.id),
+        titles: rows.map((issue) => issue.title),
       });
     } catch {
       // Other API responses are not part of this evidence lane.
@@ -66,15 +73,37 @@ function waitForIssueListPage(
   });
 }
 
+function waitForTitleIssueListPage(
+  page: Page,
+  order: "asc" | "desc",
+  hasCursor: boolean,
+): Promise<Response> {
+  return page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      response.request().method() === "GET" &&
+      url.pathname === "/api/issues" &&
+      url.searchParams.get("limit") === "100" &&
+      url.searchParams.get("sort_field") === "title" &&
+      url.searchParams.get("sort_order") === order &&
+      url.searchParams.has("cursor") === hasCursor &&
+      response.ok()
+    );
+  });
+}
+
 async function readIssueListPage(response: Response) {
   const body = (await response.json()) as {
-    issues?: Array<{ id?: unknown }>;
+    issues?: Array<{ id?: unknown; title?: unknown }>;
   };
+  const rows = (body.issues ?? []).filter(
+    (issue): issue is { id: string; title: string } =>
+      typeof issue.id === "string" && typeof issue.title === "string",
+  );
   return {
     url: response.url(),
-    ids: (body.issues ?? [])
-      .map((issue) => issue.id)
-      .filter((id): id is string => typeof id === "string"),
+    ids: rows.map((issue) => issue.id),
+    titles: rows.map((issue) => issue.title),
   };
 }
 
@@ -96,6 +125,24 @@ async function scrollToListEnd(page: Page): Promise<void> {
   await scroll.evaluate((element) => {
     element.scrollTop = element.scrollHeight;
   });
+}
+
+function assertTitlePageOrder(
+  ids: string[],
+  titles: string[],
+  order: "asc" | "desc",
+): void {
+  const collator = new Intl.Collator("en-US");
+  for (let index = 1; index < ids.length; index += 1) {
+    const titleOrder = collator.compare(
+      titles[index - 1] ?? "",
+      titles[index] ?? "",
+    );
+    const directedTitleOrder = order === "asc" ? titleOrder : -titleOrder;
+    const tieOrder =
+      ids[index - 1] === ids[index] ? 0 : ids[index - 1] < ids[index] ? 1 : -1;
+    expect(directedTitleOrder || tieOrder).toBeLessThanOrEqual(0);
+  }
 }
 
 test.describe("large issue list virtualization", () => {
@@ -181,6 +228,83 @@ test.describe("large issue list virtualization", () => {
       );
     expect(new Set(mountedIds).size).toBe(mountedIds.length);
     expect(mountedIds.length).toBeLessThanOrEqual(50);
+  });
+
+  test("keeps mixed title order exact across ASC/DESC cursor pages and the List UI", async ({
+    page,
+    request,
+  }) => {
+    for (const order of ["asc", "desc"] as const) {
+      await resetFixture(request, "large_vault");
+      const titlePage = await page.context().newPage();
+      const initialResponse = waitForTitleIssueListPage(
+        titlePage,
+        order,
+        false,
+      );
+      await openLargeList(titlePage, `sort=title&order=${order}`);
+      const initial = await readIssueListPage(await initialResponse);
+
+      const cursorResponse = waitForTitleIssueListPage(titlePage, order, true);
+      await scrollToListEnd(titlePage);
+      const cursorPage = await readIssueListPage(await cursorResponse);
+      const ids = [...initial.ids, ...cursorPage.ids];
+      const titles = [...initial.titles, ...cursorPage.titles];
+
+      expect(initial.ids).toHaveLength(100);
+      expect(cursorPage.ids).toHaveLength(100);
+      expect(new Set(ids).size).toBe(ids.length);
+      assertTitlePageOrder(ids, titles, order);
+
+      const duplicateTitle =
+        order === "asc" ? "! Symbol duplicate" : "힣 duplicate";
+      const duplicateTitleIds = ids.filter(
+        (id, index) => titles[index] === duplicateTitle,
+      );
+      expect(duplicateTitleIds).toEqual(
+        order === "asc"
+          ? ["REEF-0002", "REEF-0001"]
+          : ["REEF-0004", "REEF-0003"],
+      );
+
+      const scroll = titlePage.getByTestId("issue-list-scroll-container");
+      await scroll.evaluate((element) => {
+        element.scrollTop = 0;
+      });
+      await expect
+        .poll(() =>
+          titlePage
+            .locator('[data-testid="issue-list-row"]')
+            .first()
+            .getAttribute("data-issue-id"),
+        )
+        .toBe(initial.ids[0]);
+
+      await titlePage.locator('[data-testid="issue-list-row"]').first().focus();
+      for (let index = 0; index < 99; index += 1) {
+        await titlePage.keyboard.press("j");
+      }
+      const mountedIds = await titlePage
+        .locator('[data-testid="issue-list-row"]')
+        .evaluateAll((rows) =>
+          rows
+            .map((row) => row.getAttribute("data-issue-id"))
+            .filter((id): id is string => id !== null),
+        );
+      const loadedIndex = new Map(ids.map((id, index) => [id, index]));
+      await expect(
+        titlePage.locator(`[data-issue-id="${cursorPage.ids[0]}"]`),
+      ).toBeVisible();
+      expect(
+        mountedIds.every(
+          (id, index) =>
+            index === 0 ||
+            (loadedIndex.get(mountedIds[index - 1] ?? "") ?? -1) <
+              (loadedIndex.get(id) ?? -1),
+        ),
+      ).toBe(true);
+      await titlePage.close();
+    }
   });
 
   test("keeps loaded rows on next-page failure, retries, and continues sparse residual filters", async ({
