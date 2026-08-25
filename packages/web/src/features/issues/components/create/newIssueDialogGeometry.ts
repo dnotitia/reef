@@ -223,6 +223,19 @@ export function useNewIssueDialogGeometry(
     syncViewport,
   ]);
 
+  useLayoutEffect(() => {
+    if (!open || !isMaximized || !descriptionFrameElement) return;
+    const frame = window.requestAnimationFrame(() => {
+      measureMaximizedDescriptionHeight();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [
+    descriptionFrameElement,
+    isMaximized,
+    measureMaximizedDescriptionHeight,
+    open,
+  ]);
+
   const canMaximize = useMemo(
     () =>
       open &&

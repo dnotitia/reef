@@ -45,10 +45,14 @@ async function expectPersistedStatus(
     .toContain(status);
 }
 
-function hasStatusRequest(urls: readonly string[], status: string): boolean {
+function hasExactStatusRequest(
+  urls: readonly string[],
+  status: string,
+): boolean {
   return urls.some((raw) => {
     const url = new URL(raw);
-    return url.searchParams.getAll("status").includes(status);
+    const statuses = url.searchParams.getAll("status");
+    return statuses.length === 1 && statuses[0] === status;
   });
 }
 
@@ -214,9 +218,9 @@ test.describe("Hermetic issue list flow", () => {
     await expect(urlFiltered.getByText("Initial issue Beta")).toBeVisible();
     await expect(urlFiltered.getByText("Initial issue Alpha")).toBeHidden();
     await expect
-      .poll(() => hasStatusRequest(issueRequests, "in_progress"))
+      .poll(() => hasExactStatusRequest(issueRequests, "in_progress"))
       .toBe(true);
-    expect(hasStatusRequest(issueRequests, "todo")).toBe(false);
+    expect(hasExactStatusRequest(issueRequests, "todo")).toBe(false);
   });
 
   test("Retry fires a fresh Route Handler request after akb list failure", async ({

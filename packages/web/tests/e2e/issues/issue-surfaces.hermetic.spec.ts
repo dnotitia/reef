@@ -38,6 +38,9 @@ const SURFACE_ROLES = [
 
 type SurfaceRole = (typeof SURFACE_ROLES)[number];
 
+type IssueScope = "active" | "backlog";
+type IssueLayout = "board" | "list" | "timeline";
+
 type SurfaceObservation = {
   roleCounts: Record<SurfaceRole, number>;
   roleTokenColors: Record<SurfaceRole, string>;
@@ -235,6 +238,19 @@ async function expectVisibleFocus(locator: Locator) {
   expect(focus.bottom).toBeLessThanOrEqual(viewport.height + 1);
 }
 
+async function waitForIssueView(
+  page: Page,
+  scope: IssueScope,
+  view: IssueLayout,
+) {
+  await page.waitForURL(
+    (url) =>
+      url.searchParams.get("scope") === scope &&
+      url.searchParams.get("view") === view,
+    { timeout: 10_000 },
+  );
+}
+
 test.describe("Hermetic issue route surfaces", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
@@ -414,7 +430,7 @@ test.describe("Hermetic issue route surfaces", () => {
     await expect(page.locator('[data-testid="timeline-grid"]')).toBeVisible();
 
     await page.locator('[data-testid="scope-switcher-backlog"]').click();
-    await page.waitForURL(/scope=backlog&view=list/, { timeout: 10_000 });
+    await waitForIssueView(page, "backlog", "list");
     await expect(page.locator('[data-testid="backlog-table"]')).toBeVisible();
     await expect(page.getByText("Backlog issue Gamma")).toBeVisible();
   });
@@ -424,9 +440,9 @@ test.describe("Hermetic issue route surfaces", () => {
   }) => {
     await openExistingWorkspace(page);
     await page.goto(
-      "/workspace/reef-e2e/issues?scope=backlog&view=timeline&priority=high",
+      "/workspace/reef-e2e/issues?scope=backlog&view=timeline&priority=low",
     );
-    await page.waitForURL(/scope=backlog&view=list/, { timeout: 10_000 });
+    await waitForIssueView(page, "backlog", "list");
     await expect(page.getByTestId("backlog-table")).toBeVisible();
     await expect(page.getByTestId("scope-switcher-backlog")).toHaveAttribute(
       "aria-pressed",
@@ -444,13 +460,13 @@ test.describe("Hermetic issue route surfaces", () => {
     );
 
     await page.getByTestId("scope-switcher-active").click();
-    await page.waitForURL(/scope=active&view=list/, { timeout: 10_000 });
+    await waitForIssueView(page, "active", "list");
     await page.getByTestId("view-switcher-timeline").click();
-    await page.waitForURL(/scope=active&view=timeline/, { timeout: 10_000 });
+    await waitForIssueView(page, "active", "timeline");
     await page.goBack();
-    await page.waitForURL(/scope=active&view=list/, { timeout: 10_000 });
+    await waitForIssueView(page, "active", "list");
     await page.goBack();
-    await page.waitForURL(/scope=backlog&view=list/, { timeout: 10_000 });
+    await waitForIssueView(page, "backlog", "list");
   });
 
   test("contains board columns and card metadata across narrow viewports", async ({
@@ -896,7 +912,7 @@ test.describe("Hermetic issue route surfaces", () => {
     }
 
     await page.getByTestId("scope-switcher-backlog").click();
-    await page.waitForURL(/scope=backlog&view=list/, { timeout: 10_000 });
+    await waitForIssueView(page, "backlog", "list");
     await expect(page.getByTestId("backlog-table")).toBeVisible();
     await expect(page.getByTestId("backlog-row").first()).toBeVisible();
     await expect(page.getByTestId("backlog-rank-header")).toBeVisible();
@@ -1002,7 +1018,7 @@ test.describe("Hermetic issue route surfaces", () => {
     await page.getByTestId("view-switcher-list").click();
     await page.waitForURL(/view=list/, { timeout: 10_000 });
     await expect(
-      page.locator('[data-testid="issue-list-row"]').first(),
+      page.locator('[data-testid="backlog-row"]').first(),
     ).toBeVisible();
     await expect(page.locator('thead th[data-column-key="start"]')).toHaveCount(
       0,
