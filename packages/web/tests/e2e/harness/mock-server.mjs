@@ -2947,16 +2947,13 @@ function sortIssueRows(rows, lowerSql) {
             String(b.title ?? ""),
           ) || idDesc(a, b),
     );
-  } else if (
-    lowerSql.includes("order by") &&
-    lowerSql.includes('case when "start_date" is null')
-  ) {
-    out.sort((a, b) => compareDateRows(a, b, "start_date", lowerSql));
-  } else if (
-    lowerSql.includes("order by") &&
-    lowerSql.includes('case when "due_date" is null')
-  ) {
-    out.sort((a, b) => compareDateRows(a, b, "due_date", lowerSql));
+  } else if (lowerSql.includes("order by")) {
+    const dateField = ["start_date", "due_date"].find((field) =>
+      lowerSql.includes(`case when "${field}" is null`),
+    );
+    if (dateField) {
+      out.sort((a, b) => compareDateRows(a, b, dateField, lowerSql));
+    }
   }
   return out;
 }
