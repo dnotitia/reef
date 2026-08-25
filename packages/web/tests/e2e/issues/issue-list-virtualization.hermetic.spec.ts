@@ -118,13 +118,10 @@ async function readDateIssueListPage(
   return (body.issues ?? []).flatMap((issue) => {
     const id = issue.id;
     const date = issue[field];
-    if (
-      typeof id !== "string" ||
-      (date !== null && date !== undefined && typeof date !== "string")
-    ) {
+    if (typeof id !== "string" || (date != null && typeof date !== "string")) {
       return [];
     }
-    return [{ id, date: typeof date === "string" ? date : null }];
+    return [{ id, date: date ?? null }];
   });
 }
 
