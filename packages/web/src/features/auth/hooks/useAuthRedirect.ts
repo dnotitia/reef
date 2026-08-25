@@ -7,7 +7,8 @@ import {
 } from "@/lib/akb/accountDenialClient";
 import { getAkbSessionStatus } from "@/lib/akb/checkAkbSession";
 import {
-  requestAuthProbe,
+  ensureAuthSession,
+  hasEstablishedAuthSession,
   subscribeAuthCoordinator,
 } from "@/lib/akb/authCoordinator";
 import {
@@ -15,7 +16,7 @@ import {
   normalizeSafeRedirect,
 } from "@/lib/akb/safeRedirect";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * `root` — RootPage at `/`: redirect to the Dexie default workspace's
@@ -39,17 +40,11 @@ export function useAuthRedirect(mode: AuthGateMode): AuthGateStatus {
   const router = useRouter();
   const replace = router.replace;
   const pathname = usePathname();
-  const routeKey = `${mode}:${pathname}`;
-  const [authState, setAuthState] = useState<{
-    routeKey: string;
-    status: AuthGateStatus;
-  }>({ routeKey, status: "checking" });
-
-  // A soft navigation can preserve this hook instance for one render while
-  // Next prepares the destination. The key mismatch deliberately keeps the
-  // neutral shell mounted until the newest probe concludes.
-  const status =
-    authState.routeKey === routeKey ? authState.status : "checking";
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
+  const [status, setStatus] = useState<AuthGateStatus>(() =>
+    hasEstablishedAuthSession() ? "active" : "checking",
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -66,7 +61,7 @@ export function useAuthRedirect(mode: AuthGateMode): AuthGateStatus {
       const pendingSnapshot = pending ?? snapshotPendingAkbAccountError();
       const effectiveAccountError = accountError ?? pendingSnapshot?.code;
       redirectCommitted = true;
-      setAuthState({ routeKey, status: "inactive" });
+      setStatus("inactive");
       replace(
         effectiveAccountError
           ? buildPathWithParams("/login", {
@@ -77,7 +72,7 @@ export function useAuthRedirect(mode: AuthGateMode): AuthGateStatus {
             })
           : mode === "workspace"
             ? buildPathWithParams("/login", {
-                redirect: normalizeSafeRedirect(pathname),
+                redirect: normalizeSafeRedirect(pathnameRef.current),
               })
             : "/login",
       );
@@ -97,18 +92,18 @@ export function useAuthRedirect(mode: AuthGateMode): AuthGateStatus {
         );
         return;
       }
-      setAuthState({ routeKey, status: next.status });
+      setStatus(next.status);
     }, getAkbSessionStatus);
     const unsubscribeAccountDenial = subscribeAkbAccountDenied(redirectToLogin);
 
-    requestAuthProbe(getAkbSessionStatus);
+    ensureAuthSession(getAkbSessionStatus);
 
     return () => {
       mounted = false;
       unsubscribeCoordinator();
       unsubscribeAccountDenial();
     };
-  }, [mode, pathname, replace, routeKey]);
+  }, [mode, replace]);
 
   return status;
 }

@@ -43,7 +43,7 @@ async function expectPersistentShell(
   );
 }
 
-test.describe("REEF-552 auth soft navigation", () => {
+test.describe("auth soft navigation", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
     await resetFixture(request, "configured");
@@ -73,49 +73,60 @@ test.describe("REEF-552 auth soft navigation", () => {
     ).toHaveCount(0);
   });
 
-  test("converges an externally revoked established session on soft navigation", async ({
+  test("does not probe during ordinary page and issue-detail navigation", async ({
     page,
     request,
   }) => {
     await openExistingWorkspace(page);
     await expect(page).toHaveURL(new RegExp(`${ISSUES_PATH}$`));
 
-    const issuesLink = page.locator(`a[href="${ISSUES_PATH}"]`);
-    const planningLink = page.locator(`a[href="${PLANNING_PATH}"]`);
-    await expect(issuesLink).toBeAttached();
-    await expect(issuesLink).toBeVisible();
-    await expect(planningLink).toBeAttached();
-    await expect(planningLink).toBeVisible();
+    let authProbeCount = 0;
+    const countAuthProbe = (request: import("@playwright/test").Request) => {
+      if (isAuthProbeRequest(request)) authProbeCount += 1;
+    };
+    page.on("request", countAuthProbe);
 
-    // Prove the warm cookie is still valid before scheduling the external
-    // revocation. This avoids treating a slow login-shell probe as the
-    // soft-navigation probe under test.
-    const activeSessionStatus = await page.evaluate(async () => {
-      const response = await fetch("/api/auth/akb/me", {
-        credentials: "same-origin",
-        cache: "no-store",
-      });
-      return response.status;
-    });
-    expect(activeSessionStatus).toBe(200);
+    try {
+      await setAuthControl(request, { probeDelayMs: 1_200 });
+      await page.locator(`a[href="${PLANNING_PATH}"]`).click();
+      await page.waitForURL((url) => url.pathname === PLANNING_PATH);
+      await expect(
+        page.getByRole("heading", { name: "Planning" }),
+      ).toBeVisible();
+      await expect(
+        page.locator('[data-testid="auth-revalidation-status"]'),
+      ).toHaveCount(0);
+      expect(authProbeCount).toBe(0);
+
+      await page.locator(`a[href="${ISSUES_PATH}"]`).click();
+      await page.waitForURL((url) => url.pathname === ISSUES_PATH);
+      await page.getByText("Initial issue Alpha", { exact: true }).click();
+      await page.waitForURL(/\/issues\/REEF-001(?:\?|$)/);
+      await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+      await expect(
+        page.locator('[data-testid="auth-revalidation-status"]'),
+      ).toHaveCount(0);
+      expect(authProbeCount).toBe(0);
+
+      await page.locator('[data-testid="issue-close"]').click();
+      await page.waitForURL((url) => url.pathname === ISSUES_PATH);
+      expect(authProbeCount).toBe(0);
+    } finally {
+      page.off("request", countAuthProbe);
+    }
+  });
+
+  test("converges an externally revoked established session on focus revalidation", async ({
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    await setAuthControl(request, { session: "revoked" });
 
     const probe = page.waitForRequest(isAuthProbeRequest);
-    const destination = page.waitForURL(
-      (url) => url.pathname === PLANNING_PATH,
-    );
-    // Start the fixture revocation before the real locator click, but keep both
-    // operations in flight so no background probe can win the navigation race.
-    const revocation = setAuthControl(request, { session: "revoked" });
-    const navigation = planningLink.click();
-    await Promise.all([revocation, navigation, probe, destination]);
-    await expectLogin(page, PLANNING_PATH);
-
-    await expect(page.locator('[data-testid="planning-skeleton"]')).toHaveCount(
-      0,
-    );
-    await expect(
-      page.locator('[data-testid="planning-compact-list"]'),
-    ).toHaveCount(0);
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await probe;
+    await expectLogin(page, ISSUES_PATH);
   });
 
   test("fails closed at the bounded probe timeout without exposing destination content", async ({
@@ -125,40 +136,47 @@ test.describe("REEF-552 auth soft navigation", () => {
     await openExistingWorkspace(page);
     await setAuthControl(request, { probeHang: true });
 
+    const probe = page.waitForRequest(isAuthProbeRequest);
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await expectLogin(page);
+    await probe;
+    await expectLogin(page, ISSUES_PATH);
     await expect(page.locator('[data-testid="planning-skeleton"]')).toHaveCount(
       0,
     );
   });
 
-  test("keeps a valid slow destination in the protected shell until the probe completes", async ({
+  test("keeps a valid slow destination in the protected shell until page data completes", async ({
     page,
     request,
   }) => {
     await openExistingWorkspace(page);
     await setAuthControl(request, { probeDelayMs: 1_200 });
 
-    const probe = page.waitForRequest(isAuthProbeRequest);
-    await Promise.all([
-      page.waitForURL((url) => url.pathname === PLANNING_PATH),
-      page.locator(`a[href="${PLANNING_PATH}"]`).click(),
-    ]);
-    await probe;
+    let authProbeCount = 0;
+    const countAuthProbe = (request: import("@playwright/test").Request) => {
+      if (isAuthProbeRequest(request)) authProbeCount += 1;
+    };
+    page.on("request", countAuthProbe);
 
-    await page.waitForTimeout(300);
-    await expect(page).not.toHaveURL(/\/login(?:\?|$)/);
-    await expect(
-      page.locator('[data-testid="planning-compact-list"]'),
-    ).toHaveCount(0);
-    await expectPersistentShell(page);
-    await expect(
-      page.locator('[data-testid="auth-revalidation-status"]'),
-    ).toBeVisible();
-
-    await expect(page.getByRole("heading", { name: "Planning" })).toBeVisible({
-      timeout: 15_000,
-    });
+    try {
+      await Promise.all([
+        page.waitForURL((url) => url.pathname === PLANNING_PATH),
+        page.locator(`a[href="${PLANNING_PATH}"]`).click(),
+      ]);
+      await expect(page).not.toHaveURL(/\/login(?:\?|$)/);
+      await expectPersistentShell(page);
+      await expect(
+        page.locator('[data-testid="auth-revalidation-status"]'),
+      ).toHaveCount(0);
+      expect(authProbeCount).toBe(0);
+      await expect(page.getByRole("heading", { name: "Planning" })).toBeVisible(
+        {
+          timeout: 15_000,
+        },
+      );
+    } finally {
+      page.off("request", countAuthProbe);
+    }
   });
 
   test("keeps the established shell during a visible-tab revalidation", async ({
@@ -179,15 +197,14 @@ test.describe("REEF-552 auth soft navigation", () => {
     await expectPersistentShell(page);
     await expect(
       page.locator('[data-testid="auth-revalidation-status"]'),
-    ).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Issues" })).toHaveCount(0);
+    ).toHaveCount(0);
 
     await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible({
       timeout: 15_000,
     });
   });
 
-  test("ignores a late probe result after a soft-navigation probe supersedes it", async ({
+  test("ignores a late probe result after an immediate invalidation", async ({
     page,
     request,
   }) => {
@@ -198,26 +215,16 @@ test.describe("REEF-552 auth soft navigation", () => {
     });
 
     const delayedProbe = page.waitForRequest(isAuthProbeRequest);
-    await page.evaluate(() => {
-      window.dispatchEvent(new Event("focus"));
-      document
-        .querySelector<HTMLAnchorElement>(
-          'a[href="/workspace/reef-e2e/planning"]',
-        )
-        ?.click();
-    });
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await delayedProbe;
 
-    await expect(page).toHaveURL(new RegExp(`${PLANNING_PATH}$`), {
-      timeout: 10_000,
-    });
-    await expect(page.getByRole("heading", { name: "Planning" })).toBeVisible({
-      timeout: 15_000,
-    });
+    await page.evaluate(() =>
+      window.dispatchEvent(new Event("reef:auth-changed")),
+    );
+    await expectLogin(page, ISSUES_PATH);
 
     await page.waitForTimeout(6_200);
-    await expect(page).toHaveURL(new RegExp(`${PLANNING_PATH}$`));
-    await expect(page.getByRole("heading", { name: "Planning" })).toBeVisible();
+    await expect(page).toHaveURL(/\/login(?:\?|$)/);
   });
 
   test("keeps a resource 403 in place and preserves account-denial UX", async ({

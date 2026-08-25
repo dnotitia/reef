@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const replace = vi.fn();
 const pathnameRef = { current: "/workspace/raw-vault/issues" };
@@ -37,14 +37,20 @@ vi.mock("@/lib/akb/accountDenialClient", () => ({
   },
 }));
 
+import { __resetAuthCoordinatorForTests } from "@/lib/akb/authCoordinator";
 import { useAuthRedirect } from "./useAuthRedirect";
 
 describe("useAuthRedirect", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    __resetAuthCoordinatorForTests();
     pathnameRef.current = "/workspace/raw-vault/issues";
     snapshotPendingAkbAccountError.mockReturnValue(undefined);
     accountDeniedHandler.current = undefined;
+  });
+
+  afterEach(() => {
+    __resetAuthCoordinatorForTests();
   });
 
   it("redirects immediately when a protected request reports an account denial", async () => {
@@ -150,18 +156,32 @@ describe("useAuthRedirect", () => {
     expect(replace).not.toHaveBeenCalled();
   });
 
-  it("returns to checking immediately when the protected pathname changes", async () => {
+  it("keeps an established guard active when the protected pathname changes", async () => {
     getAkbSessionStatus.mockResolvedValue({ active: true });
     const { result, rerender } = renderHook(() => useAuthRedirect("workspace"));
 
     await waitFor(() => expect(result.current).toBe("active"));
-    getAkbSessionStatus.mockImplementation(
-      () => new Promise<{ active: boolean }>(() => {}),
-    );
+    getAkbSessionStatus.mockClear();
     pathnameRef.current = "/workspace/raw-vault/planning";
     rerender();
 
-    expect(result.current).toBe("checking");
+    expect(result.current).toBe("active");
+    expect(getAkbSessionStatus).not.toHaveBeenCalled();
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("keeps the protected tree active while focus revalidation is pending", async () => {
+    getAkbSessionStatus.mockResolvedValueOnce({ active: true });
+    getAkbSessionStatus.mockImplementationOnce(
+      () => new Promise<{ active: boolean }>(() => {}),
+    );
+    const { result } = renderHook(() => useAuthRedirect("workspace"));
+
+    await waitFor(() => expect(result.current).toBe("active"));
+
+    act(() => window.dispatchEvent(new Event("focus")));
+
+    expect(result.current).toBe("active");
     expect(replace).not.toHaveBeenCalled();
   });
 

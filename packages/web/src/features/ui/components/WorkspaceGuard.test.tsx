@@ -11,7 +11,6 @@ type VaultsState = {
 
 const {
   authStatusRef,
-  establishedSessionRef,
   paramsRef,
   notFoundMock,
   syncMock,
@@ -20,9 +19,6 @@ const {
 } = vi.hoisted(() => ({
   authStatusRef: {
     current: "active" as "checking" | "active" | "inactive",
-  },
-  establishedSessionRef: {
-    current: false,
   },
   paramsRef: {
     current: { vault: "reef-acme" } as Record<string, string | string[]>,
@@ -39,14 +35,8 @@ vi.mock("next/navigation", () => ({
   useParams: () => paramsRef.current,
   notFound: notFoundMock,
 }));
-vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string) => key,
-}));
 vi.mock("@/features/auth/hooks/useAuthRedirect", () => ({
   useAuthRedirect: () => authStatusRef.current,
-}));
-vi.mock("@/lib/akb/authCoordinator", () => ({
-  hasEstablishedAuthSession: () => establishedSessionRef.current,
 }));
 vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   useSyncActiveVaultFromUrl: syncMock,
@@ -79,7 +69,6 @@ describe("WorkspaceGuard (REEF-315)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     authStatusRef.current = "active";
-    establishedSessionRef.current = false;
     paramsRef.current = { vault: "reef-acme" };
     vaultsRef.current = {
       isPending: false,
@@ -104,10 +93,7 @@ describe("WorkspaceGuard (REEF-315)", () => {
     expect(vaultsMock).not.toHaveBeenCalled();
   });
 
-  it("keeps an established shell while revalidation blocks protected content", () => {
-    authStatusRef.current = "checking";
-    establishedSessionRef.current = true;
-
+  it("keeps the established shell and page content during revalidation", () => {
     render(
       <WorkspaceGuard appVersion="1.0.0">
         <span data-testid="page" />
@@ -115,10 +101,10 @@ describe("WorkspaceGuard (REEF-315)", () => {
     );
 
     expect(screen.getByTestId("dashboard-shell")).toBeInTheDocument();
-    expect(screen.getByTestId("auth-revalidation-status")).toBeInTheDocument();
-    expect(screen.queryByTestId("auth-loading-shell")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("page")).not.toBeInTheDocument();
-    expect(vaultsMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId("page")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("auth-revalidation-status"),
+    ).not.toBeInTheDocument();
   });
 
   it("renders the DashboardShell for a member's workspace and syncs the URL vault", () => {

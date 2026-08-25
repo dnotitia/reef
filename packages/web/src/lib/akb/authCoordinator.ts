@@ -76,7 +76,7 @@ function onAuthChanged(): void {
 
 function onFocus(): void {
   if (snapshot.status !== "active" || !latestProbe) return;
-  requestAuthProbe(latestProbe);
+  revalidateAuthSession(latestProbe);
 }
 
 function onVisibilityChange(): void {
@@ -118,9 +118,10 @@ export function hasEstablishedAuthSession(): boolean {
 
 /**
  * Subscribe a protected guard to the shared coordinator. The current snapshot
- * is intentionally not pushed during subscription: the caller starts a fresh
- * probe immediately, which prevents a stale inactive state from redirecting a
- * successful post-login navigation before its new session is verified.
+ * is intentionally not pushed during subscription: the caller decides whether
+ * a cold bootstrap is needed, which prevents a stale inactive state from
+ * redirecting a successful post-login navigation before its new session is
+ * verified.
  */
 export function subscribeAuthCoordinator(
   listener: (value: AuthCoordinatorSnapshot) => void,
@@ -141,18 +142,38 @@ export function subscribeAuthCoordinator(
 }
 
 /**
- * Start the newest auth probe. Only its result may commit; route transitions,
- * explicit invalidations, unmounts, and newer probes abort or supersede all
- * older work.
+ * Start a cold auth bootstrap. Only its result may commit; explicit
+ * invalidations, unmounts, and newer probes abort or supersede all older work.
  */
-export function requestAuthProbe(probe: AuthProbe): void {
+export function bootstrapAuthSession(probe: AuthProbe): void {
+  runAuthProbe(probe, false);
+}
+
+/**
+ * Revalidate an established session without exposing probe progress to the
+ * protected tree. An inactive or timed-out result still commits immediately so
+ * the mounted guard can converge on the safe login route.
+ */
+export function revalidateAuthSession(probe: AuthProbe): void {
+  if (!establishedSession || snapshot.status !== "active") return;
+  runAuthProbe(probe, true);
+}
+
+/** Start cold bootstrap only when no probe or established session is current. */
+export function ensureAuthSession(probe: AuthProbe): void {
+  latestProbe = probe;
+  if (establishedSession || currentProbe) return;
+  bootstrapAuthSession(probe);
+}
+
+function runAuthProbe(probe: AuthProbe, background: boolean): void {
   latestProbe = probe;
   cancelCurrentProbe();
 
   const probeGeneration = generation;
   const controller = new AbortController();
   currentProbe = { controller, generation: probeGeneration };
-  setStatus("checking");
+  if (!background) setStatus("checking");
 
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   let timedOut = false;
