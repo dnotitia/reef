@@ -38,11 +38,15 @@ import { flattenIssueListPages } from "@/features/issues/lib/issueListCache";
 import { buildIssueListVirtualItems } from "@/features/issues/lib/listGrouping";
 import {
   filterIssues,
-  hasActiveIssueFilters,
   searchIssues,
   sortIssues,
 } from "@/features/issues/lib/issueListUtils";
 import { loadedSelectionState } from "@/features/issues/lib/issueSelection";
+import {
+  filterForIssueScope,
+  hasScopeFilters,
+} from "@/features/issues/lib/scopeFilter";
+import type { IssueScope } from "@/features/issues/lib/viewMode";
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
 import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
@@ -74,6 +78,7 @@ const FALLBACK_RENDER_COUNT = 12;
 
 interface IssueListTableProps {
   vault: string;
+  scope?: IssueScope;
   groupBy?: IssueGroupBy;
 }
 
@@ -209,10 +214,15 @@ function IssueListGroupHeader({
  */
 export function IssueListTable({
   vault,
+  scope = "active",
   groupBy = "none",
 }: IssueListTableProps) {
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
+  const scopedFilter = useMemo(
+    () => filterForIssueScope(filter, scope),
+    [filter, scope],
+  );
   const openIssue = useOpenIssue();
   const columnLabels = useFieldNameLabels();
   const statusLabels = useStatusLabels();
@@ -249,8 +259,8 @@ export function IssueListTable({
   );
 
   const query = useMemo(
-    () => buildIssueQuery(filter, searchQuery),
-    [filter, searchQuery],
+    () => buildIssueQuery(filter, searchQuery, scope),
+    [filter, scope, searchQuery],
   );
   const {
     data,
@@ -272,18 +282,22 @@ export function IssueListTable({
   const allIssues = useMemo(() => flattenIssueListPages(data), [data]);
   const graph = relations ?? allIssues;
   const sorted = useMemo(() => {
-    const filtered = filterIssues(allIssues, filter, {
+    const filtered = filterIssues(allIssues, scopedFilter, {
       searchActive: searchQuery.trim().length > 0,
       staleWindowDays,
     });
     const searched = searchIssues(filtered, searchQuery);
     const depFiltered = applyDependencyFilter(
       searched,
-      filter.dependencyFilter ?? null,
+      scopedFilter.dependencyFilter ?? null,
       graph,
     );
-    return sortIssues(depFiltered, filter.sortField, filter.sortOrder);
-  }, [allIssues, filter, graph, searchQuery, staleWindowDays]);
+    return sortIssues(
+      depFiltered,
+      scopedFilter.sortField,
+      scopedFilter.sortOrder,
+    );
+  }, [allIssues, graph, scopedFilter, searchQuery, staleWindowDays]);
   const sprintNames = useMemo(
     () =>
       Object.fromEntries(
@@ -353,7 +367,7 @@ export function IssueListTable({
   );
   const focusRequest = useIssueKeyboardStore((state) => state.focusRequest);
   const selectAllState = loadedSelectionState(selectedIds, visibleIssueIds);
-  const hasActiveFilters = hasActiveIssueFilters(filter, searchQuery);
+  const hasActiveFilters = hasScopeFilters(filter, searchQuery, scope);
 
   // TanStack Virtual exposes imperative methods outside React Compiler's
   // safe memoization model; keep the compiler skip local to this integration point.

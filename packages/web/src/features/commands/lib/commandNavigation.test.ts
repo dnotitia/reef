@@ -23,7 +23,7 @@ describe("command navigation", () => {
         view: "list",
       }),
     ).toBe(
-      "/workspace/reef-acme/issues?assignee=alice&q=launch&sort=priority&view=list",
+      "/workspace/reef-acme/issues?assignee=alice&q=launch&sort=priority&view=list&scope=active",
     );
   });
 
@@ -35,7 +35,7 @@ describe("command navigation", () => {
         search: "?range=month",
         view: "timeline",
       }),
-    ).toBe("/workspace/reef-acme/issues?view=timeline");
+    ).toBe("/workspace/reef-acme/issues?scope=active&view=timeline");
   });
 
   it("resolves the active issue view only inside the issues workspace", () => {

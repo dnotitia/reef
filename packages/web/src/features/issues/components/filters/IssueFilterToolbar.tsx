@@ -2,6 +2,7 @@
 
 import type { Status } from "@reef/core";
 import type { IssueGroupBy, IssueWorkspaceView } from "../../lib/groupBy";
+import type { IssueScope } from "../../lib/viewMode";
 import { FilterBar } from "./FilterBar";
 import { SearchBar } from "./SearchBar";
 
@@ -9,6 +10,7 @@ interface IssueFilterToolbarProps {
   /** Forwarded to FilterBar to render the backlog view's reduced facet set
    *  (drops Status/Sprint/Release/Due). */
   backlogScope?: boolean;
+  scope?: IssueScope;
   /** Forwarded to FilterBar to restrict the Status facet per view. */
   statusOptions?: readonly Status[];
   view?: IssueWorkspaceView;
@@ -24,6 +26,7 @@ interface IssueFilterToolbarProps {
 
 export function IssueFilterToolbar({
   backlogScope = false,
+  scope = backlogScope ? "backlog" : "active",
   statusOptions,
   view,
   showSortControl,
@@ -40,6 +43,7 @@ export function IssueFilterToolbar({
       <SearchBar />
       <FilterBar
         backlogScope={backlogScope}
+        scope={scope}
         statusOptions={statusOptions}
         view={view}
         showSortControl={showSortControl}

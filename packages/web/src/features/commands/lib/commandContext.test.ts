@@ -79,11 +79,11 @@ describe("command context", () => {
     ).toBeNull();
   });
 
-  it("uses the focused issue in backlog view", () => {
+  it("uses the focused issue in the backlog list scope", () => {
     expect(
       resolveCommandTarget({
         pathname: "/workspace/reef-acme/issues",
-        search: "?view=backlog",
+        search: "?scope=backlog&view=list",
         selectionActive: false,
         focusedIssueId: {
           list: null,

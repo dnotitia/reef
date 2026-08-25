@@ -8,6 +8,8 @@ import {
   USER_SORT_FIELDS,
 } from "@reef/core";
 import type { IssueFilter } from "../stores/useIssueStore";
+import { filterForIssueScope } from "./scopeFilter";
+import type { IssueScope } from "./viewMode";
 
 /** A serialized issue-list query: facet → value(s), already in wire (snake_case)
  * key form. Kept as a plain string map so it serializes to URLSearchParams and
@@ -36,7 +38,9 @@ export type IssueQueryParams = Record<string, string | string[]>;
 export function buildIssueQuery(
   filter: IssueFilter,
   searchQuery?: string,
+  scope?: IssueScope,
 ): IssueQueryParams {
+  const scopedFilter = scope ? filterForIssueScope(filter, scope) : filter;
   const q: IssueQueryParams = {};
   // Validate enum-constrained facets against the wire schemas. A stale/shared
   // URL can put an unsupported value in the store; the server schema would
@@ -44,17 +48,19 @@ export function buildIssueQuery(
   // the request stays well-formed — the client pipeline still narrows by the
   // raw value, matching the old "empty filtered list" rather than a hard error.
   // Facets are multi-select (REEF-031): each surfaces as repeated wire params.
-  const status = filter.status?.filter((s) => StatusEnum.safeParse(s).success);
+  const status = scopedFilter.status?.filter(
+    (s) => StatusEnum.safeParse(s).success,
+  );
   if (status?.length) q.status = status;
-  const priority = filter.priority?.filter(
+  const priority = scopedFilter.priority?.filter(
     (p) => PriorityEnum.safeParse(p).success,
   );
   if (priority?.length) q.priority = priority;
-  const severity = filter.severity?.filter(
+  const severity = scopedFilter.severity?.filter(
     (s) => SeverityEnum.safeParse(s).success,
   );
   if (severity?.length) q.severity = severity;
-  const issueType = filter.issueType?.filter(
+  const issueType = scopedFilter.issueType?.filter(
     (t) => IssueTypeEnum.safeParse(t).success,
   );
   if (issueType?.length) q.issue_type = issueType;
@@ -63,36 +69,37 @@ export function buildIssueQuery(
   // reads as `[""]`) is ignored rather than sent — the strict server schema
   // (`min(1)`) would 400 the whole list, where the old scalar truthiness check
   // simply skipped an empty value. milestone_id stays a single scalar.
-  const assignee = filter.assignee?.filter((v) => v.trim());
+  const assignee = scopedFilter.assignee?.filter((v) => v.trim());
   if (assignee?.length) q.assigned_to = assignee;
-  const requester = filter.requester?.filter((v) => v.trim());
+  const requester = scopedFilter.requester?.filter((v) => v.trim());
   if (requester?.length) q.requester = requester;
-  const sprintId = filter.sprint_id?.filter((v) => v.trim());
+  const sprintId = scopedFilter.sprint_id?.filter((v) => v.trim());
   if (sprintId?.length) q.sprint_id = sprintId;
-  if (filter.milestone_id) q.milestone_id = filter.milestone_id;
-  const releaseId = filter.release_id?.filter((v) => v.trim());
+  if (scopedFilter.milestone_id) q.milestone_id = scopedFilter.milestone_id;
+  const releaseId = scopedFilter.release_id?.filter((v) => v.trim());
   if (releaseId?.length) q.release_id = releaseId;
   // Free-text search → server `q`. Trim so a whitespace box does not sends a
   // facet (the server schema rejects an empty `q`).
   const trimmedSearch = searchQuery?.trim();
   if (trimmedSearch) q.q = trimmedSearch;
-  if (filter.showArchived) q.archived = "true";
+  if (scopedFilter.showArchived) q.archived = "true";
   // Sort is consistently present: fall back to the default (priority desc, REEF-057)
   // when the user has not picked a valid sort. Kept here (not in the filter
   // store) so an unset sort does not leaks into the URL / persisted slot; the
   // adapter adds the `reef_id` tiebreaker.
   const sortField =
-    filter.sortField &&
-    (USER_SORT_FIELDS as readonly string[]).includes(filter.sortField)
-      ? filter.sortField
+    scopedFilter.sortField &&
+    (USER_SORT_FIELDS as readonly string[]).includes(scopedFilter.sortField)
+      ? scopedFilter.sortField
       : undefined;
   // just honor an explicit order when a valid field was selected. An orphaned
   // `sortOrder` (stale `?sort=bogus&order=asc`, or a persisted filter whose field
   // was dropped) should not flip the default — otherwise it silently yields
   // priority-ascending with no sort column shown.
   const sortOrder =
-    sortField && (filter.sortOrder === "asc" || filter.sortOrder === "desc")
-      ? filter.sortOrder
+    sortField &&
+    (scopedFilter.sortOrder === "asc" || scopedFilter.sortOrder === "desc")
+      ? scopedFilter.sortOrder
       : DEFAULT_ISSUE_SORT_ORDER;
   q.sort_field = sortField ?? DEFAULT_ISSUE_SORT_FIELD;
   q.sort_order = sortOrder;

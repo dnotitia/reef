@@ -4,29 +4,28 @@ import { KanbanBoard } from "@/features/board/components/KanbanBoard";
 import { BacklogView } from "@/features/issues/components/backlog/BacklogView";
 import { IssueBulkActionBar } from "@/features/issues/components/bulk/IssueBulkActionBar";
 import { IssueFilterToolbar } from "@/features/issues/components/filters/IssueFilterToolbar";
+import { ScopeSwitcher } from "@/features/issues/components/filters/ScopeSwitcher";
 import { ViewSwitcher } from "@/features/issues/components/filters/ViewSwitcher";
 import { IssueListTable } from "@/features/issues/components/list/IssueListTable";
 import { useIssueFilterPersistence } from "@/features/issues/hooks/view/useIssueFilterPersistence";
 import { useIssueUrlSync } from "@/features/issues/hooks/view/useIssueUrlSync";
-import { parseViewParam } from "@/features/issues/lib/viewMode";
+import { parseIssueViewState } from "@/features/issues/lib/viewMode";
 import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { TimelineBody } from "@/features/timeline/components/TimelineBody";
 import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { PageHeader } from "@/features/ui/components/PageHeader";
-import { STATUS_OPTIONS, WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
+import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 
 /**
- * Unified issues workspace. Board / List / Timeline / Backlog are peer
- * renderings of the issue collection, so they share one route (`/issues`), one
- * header, one filter toolbar, and one filter scope (`useIssueStore`). The active
- * view is read from `?view=` and swapped via the ViewSwitcher. Backlog is a
- * dedicated triage lens that pins the `backlog` status while the other views
- * render the active workflow.
+ * Unified issues workspace. Scope (`active` / `backlog`) and layout
+ * (`board` / `list` / `timeline`) share one route, header, filter toolbar, and
+ * filter scope (`useIssueStore`). The URL codec keeps those axes independent
+ * while normalizing the unsupported Backlog + Timeline combination.
  *
  * Used both by the `/issues` page and as the backdrop behind the
  * `/issues/[id]` detail slide-over on hard navigation.
@@ -34,14 +33,20 @@ import { useEffect, useRef } from "react";
 export function IssuesWorkspace() {
   const { vault, isLoading } = useActiveVault();
   const searchParams = useSearchParams();
-  const view = parseViewParam(searchParams.get("view"));
+  const { scope, layout } = parseIssueViewState(searchParams);
   const nav = useTranslations("nav");
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
   const clearSelectionForContextChange = useIssueSelectionStore(
     (state) => state.clearForContextChange,
   );
-  const selectionContext = JSON.stringify({ filter, searchQuery, vault, view });
+  const selectionContext = JSON.stringify({
+    filter,
+    searchQuery,
+    vault,
+    scope,
+    layout,
+  });
   const previousSelectionContext = useRef<string | null>(null);
 
   const { skipNextSave, groupBy, setGroupBy } = useIssueUrlSync();
@@ -59,50 +64,55 @@ export function IssuesWorkspace() {
         title={nav("issues")}
         description={vault || undefined}
         className="h-auto min-h-12 flex-wrap py-2"
-        actions={<ViewSwitcher activeView={view} />}
+        actions={
+          <div
+            className="flex max-w-full min-w-0 flex-wrap items-center justify-end gap-2"
+            data-testid="issues-header-controls"
+          >
+            <ScopeSwitcher activeScope={scope} activeLayout={layout} />
+            <ViewSwitcher scope={scope} activeLayout={layout} />
+          </div>
+        }
       />
 
       {!vault && !isLoading ? (
         <EmptyWorkspaceNotice />
       ) : (
         <>
-          {/* The backlog view drops the facets it pins or does not partition on
-              (Status/Sprint/Release/Due); the list can render backlog rows, so
-              it keeps the full status set, while board and timeline group
-              backlog away so they does not offer it (REEF-109/177). */}
+          {/* Backlog scope drops the facets it pins or does not partition on
+              (Status/Sprint/Release/Due); Active keeps only workflow statuses. */}
           <IssueFilterToolbar
-            backlogScope={view === "backlog"}
-            statusOptions={
-              view === "list" ? STATUS_OPTIONS : WORKFLOW_STATUS_OPTIONS
-            }
-            view={view}
-            showSortControl={view !== "timeline"}
-            supportsRankOrder={view === "board" || view === "backlog"}
-            showsBacklogReorderHint={view === "backlog"}
+            backlogScope={scope === "backlog"}
+            scope={scope}
+            statusOptions={WORKFLOW_STATUS_OPTIONS}
+            view={layout}
+            showSortControl={layout !== "timeline"}
+            supportsRankOrder={scope === "backlog" || layout === "board"}
+            showsBacklogReorderHint={scope === "backlog"}
             groupBy={groupBy}
             setGroupBy={setGroupBy}
           />
-          {view === "list" || view === "backlog" ? (
+          {layout === "list" ? (
             <IssueBulkActionBar
               vault={vault}
-              preset={view === "backlog" ? "backlog" : "list"}
+              preset={scope === "backlog" ? "backlog" : "list"}
             />
           ) : null}
           <div
             className={
-              view === "list"
+              layout === "list"
                 ? "flex min-h-48 min-w-0 flex-1 flex-col"
                 : "flex min-h-0 min-w-0 flex-1 flex-col"
             }
           >
-            {view === "board" ? (
-              <KanbanBoard vault={vault} groupBy={groupBy} />
-            ) : view === "list" ? (
-              <IssueListTable vault={vault} groupBy={groupBy} />
-            ) : view === "backlog" ? (
-              <BacklogView vault={vault} />
+            {layout === "board" ? (
+              <KanbanBoard vault={vault} scope={scope} groupBy={groupBy} />
+            ) : layout === "list" && scope === "active" ? (
+              <IssueListTable vault={vault} scope={scope} groupBy={groupBy} />
+            ) : layout === "list" ? (
+              <BacklogView vault={vault} groupBy={groupBy} />
             ) : (
-              <TimelineBody vault={vault} />
+              <TimelineBody vault={vault} scope={scope} />
             )}
           </div>
         </>

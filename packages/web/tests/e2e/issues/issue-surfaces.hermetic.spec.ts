@@ -38,6 +38,9 @@ const SURFACE_ROLES = [
 
 type SurfaceRole = (typeof SURFACE_ROLES)[number];
 
+type IssueScope = "active" | "backlog";
+type IssueLayout = "board" | "list" | "timeline";
+
 type SurfaceObservation = {
   roleCounts: Record<SurfaceRole, number>;
   roleTokenColors: Record<SurfaceRole, string>;
@@ -235,6 +238,19 @@ async function expectVisibleFocus(locator: Locator) {
   expect(focus.bottom).toBeLessThanOrEqual(viewport.height + 1);
 }
 
+async function waitForIssueView(
+  page: Page,
+  scope: IssueScope,
+  view: IssueLayout,
+) {
+  await page.waitForURL(
+    (url) =>
+      url.searchParams.get("scope") === scope &&
+      url.searchParams.get("view") === view,
+    { timeout: 10_000 },
+  );
+}
+
 test.describe("Hermetic issue route surfaces", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
@@ -263,7 +279,7 @@ test.describe("Hermetic issue route surfaces", () => {
       },
       {
         name: "issues-backlog",
-        path: `/workspace/${REEF_E2E_VAULT}/issues?view=backlog`,
+        path: `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`,
         ready: () => page.getByTestId("backlog-table"),
         focus: () => page.getByRole("textbox", { name: "Search issues" }),
       },
@@ -392,7 +408,7 @@ test.describe("Hermetic issue route surfaces", () => {
     });
   });
 
-  test("switches between board, list, timeline, and backlog views from /issues", async ({
+  test("switches between independent scope and layout controls from /issues", async ({
     page,
   }) => {
     await openExistingWorkspace(page);
@@ -413,10 +429,44 @@ test.describe("Hermetic issue route surfaces", () => {
     await page.waitForURL(/view=timeline/, { timeout: 10_000 });
     await expect(page.locator('[data-testid="timeline-grid"]')).toBeVisible();
 
-    await page.locator('[data-testid="view-switcher-backlog"]').click();
-    await page.waitForURL(/view=backlog/, { timeout: 10_000 });
+    await page.locator('[data-testid="scope-switcher-backlog"]').click();
+    await waitForIssueView(page, "backlog", "list");
     await expect(page.locator('[data-testid="backlog-table"]')).toBeVisible();
     await expect(page.getByText("Backlog issue Gamma")).toBeVisible();
+  });
+
+  test("restores scope and layout independently and normalizes Backlog Timeline", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(
+      "/workspace/reef-e2e/issues?scope=backlog&view=timeline&priority=low",
+    );
+    await waitForIssueView(page, "backlog", "list");
+    await expect(page.getByTestId("backlog-table")).toBeVisible();
+    await expect(page.getByTestId("scope-switcher-backlog")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(page.getByTestId("scope-switcher-backlog")).toHaveText(
+      "Backlog",
+    );
+    await expect(page.getByTestId("view-switcher-timeline")).toHaveCount(0);
+    await expect(page.getByTestId("display-options-trigger")).toContainText(
+      "Group: Priority",
+    );
+    await expect(page.getByTestId("sort-control-trigger")).toContainText(
+      "Sort: Rank",
+    );
+
+    await page.getByTestId("scope-switcher-active").click();
+    await waitForIssueView(page, "active", "list");
+    await page.getByTestId("view-switcher-timeline").click();
+    await waitForIssueView(page, "active", "timeline");
+    await page.goBack();
+    await waitForIssueView(page, "active", "list");
+    await page.goBack();
+    await waitForIssueView(page, "backlog", "list");
   });
 
   test("contains board columns and card metadata across narrow viewports", async ({
@@ -490,13 +540,20 @@ test.describe("Hermetic issue route surfaces", () => {
     ]) {
       await page.setViewportSize(viewport);
 
-      for (const view of ["board", "list", "backlog", "timeline"] as const) {
-        await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=${view}`);
+      for (const [scope, view] of [
+        ["active", "board"],
+        ["active", "list"],
+        ["backlog", "list"],
+        ["active", "timeline"],
+      ] as const) {
+        await page.goto(
+          `/workspace/${REEF_E2E_VAULT}/issues?scope=${scope}&view=${view}`,
+        );
         await expect(
           page.getByRole("textbox", { name: "Search issues" }),
         ).toBeVisible();
         await expect(page.getByTestId("view-switcher")).toBeVisible();
-        if (view === "backlog") {
+        if (scope === "backlog") {
           const filterGeometry = await page
             .getByTestId("filter-bar")
             .evaluate((element) => {
@@ -623,10 +680,10 @@ test.describe("Hermetic issue route surfaces", () => {
 
         const scroll = page.getByTestId(
           view === "list"
-            ? "issue-list-scroll-container"
-            : view === "backlog"
+            ? scope === "backlog"
               ? "backlog-scroll-container"
-              : "timeline-grid",
+              : "issue-list-scroll-container"
+            : "timeline-grid",
         );
         await expect(scroll).toHaveAttribute("role", "region");
         await expect(scroll).toHaveAttribute("tabindex", "0");
@@ -662,7 +719,9 @@ test.describe("Hermetic issue route surfaces", () => {
     await page.evaluate(() => {
       window.localStorage.setItem("reef.theme", "dark");
     });
-    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=backlog`);
+    await page.goto(
+      `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`,
+    );
     await expect(page.locator("html")).toHaveClass(/dark/);
     await expect(page.getByTestId("backlog-table")).toBeVisible();
 
@@ -852,8 +911,8 @@ test.describe("Hermetic issue route surfaces", () => {
       expect(alignment.cellLeft).toBe(alignment.headerLeft);
     }
 
-    await page.getByTestId("view-switcher-backlog").click();
-    await page.waitForURL(/view=backlog/, { timeout: 10_000 });
+    await page.getByTestId("scope-switcher-backlog").click();
+    await waitForIssueView(page, "backlog", "list");
     await expect(page.getByTestId("backlog-table")).toBeVisible();
     await expect(page.getByTestId("backlog-row").first()).toBeVisible();
     await expect(page.getByTestId("backlog-rank-header")).toBeVisible();
@@ -959,7 +1018,7 @@ test.describe("Hermetic issue route surfaces", () => {
     await page.getByTestId("view-switcher-list").click();
     await page.waitForURL(/view=list/, { timeout: 10_000 });
     await expect(
-      page.locator('[data-testid="issue-list-row"]').first(),
+      page.locator('[data-testid="backlog-row"]').first(),
     ).toBeVisible();
     await expect(page.locator('thead th[data-column-key="start"]')).toHaveCount(
       0,
@@ -1022,7 +1081,7 @@ test.describe("Hermetic issue route surfaces", () => {
       "updated",
     ]);
 
-    await page.goto("/workspace/reef-e2e/issues?view=backlog");
+    await page.goto("/workspace/reef-e2e/issues?scope=backlog&view=list");
     await expect(page.getByTestId("backlog-table")).toBeVisible();
 
     const narrowStatusGeometry = await page
@@ -1549,7 +1608,7 @@ test.describe("Hermetic issue route surfaces", () => {
     await page.getByTestId("issue-close").click();
     await page.waitForURL(/\/issues(?:\?[^#]*)?$/, { timeout: 10_000 });
 
-    const backlogPath = `/workspace/${REEF_E2E_VAULT}/issues?view=backlog`;
+    const backlogPath = `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`;
     const expectCreatedBacklogRow = async () => {
       await page.goto(backlogPath);
       await expect(page.getByTestId("backlog-table")).toBeVisible();
@@ -1569,9 +1628,12 @@ test.describe("Hermetic issue route surfaces", () => {
     await expectCreatedBacklogRow();
 
     await page.getByTestId("backlog-row").filter({ hasText: issueId }).click();
-    await page.waitForURL(new RegExp(`/issues/${issueId}\\?view=backlog$`), {
-      timeout: 10_000,
-    });
+    await page.waitForURL(
+      new RegExp(`/issues/${issueId}\\?scope=backlog&view=list$`),
+      {
+        timeout: 10_000,
+      },
+    );
     await expect(page.getByTestId("issue-detail")).toBeVisible();
     await page
       .getByTestId("markdown-source-toggle")

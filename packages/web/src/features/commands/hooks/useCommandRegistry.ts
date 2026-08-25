@@ -84,7 +84,7 @@ const NAVIGATION_HREFS: Readonly<Record<string, string>> = {
   "navigation.reports": "/reports",
   "navigation.planning": "/planning",
   "navigation.settings": "/settings",
-  "navigation.backlog": "/issues?view=backlog",
+  "navigation.backlog": "/issues?scope=backlog&view=list",
 };
 
 function actionValue(id: string): string {
@@ -249,7 +249,7 @@ export function useCommandRegistry({
             vault,
             pathname: window.location.pathname,
             search: window.location.search,
-            view: actionValue(id) as "board" | "list" | "timeline" | "backlog",
+            view: actionValue(id) as "board" | "list" | "timeline",
           }),
         );
         return;

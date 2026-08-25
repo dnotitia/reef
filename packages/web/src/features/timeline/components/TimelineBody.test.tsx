@@ -118,7 +118,7 @@ describe("TimelineBody", () => {
 
     await screen.findByText("Scheduled A");
     expect(mockApiFetch).toHaveBeenCalledWith(
-      "/api/issues?vault=reef-acme&sort_field=priority&sort_order=desc",
+      "/api/issues?vault=reef-acme&status=todo&status=in_progress&status=in_review&status=done&status=closed&sort_field=priority&sort_order=desc",
     );
   });
 

@@ -1,4 +1,5 @@
 import type { IssueKeyboardScope } from "@/features/issues/stores/useIssueKeyboardStore";
+import { parseIssueViewState } from "@/features/issues/lib/viewMode";
 
 export interface CommandIssueTarget {
   issueId: string;
@@ -29,10 +30,9 @@ export function resolveIssueKeyboardScope(
   search: string,
 ): IssueKeyboardScope | null {
   if (!/\/issues\/?$/.test(pathname)) return null;
-  const view = new URLSearchParams(search).get("view");
-  if (view === "list") return "list";
-  if (view === "backlog") return "backlog";
-  if (view === "board" || view == null) return "board";
+  const { scope, layout } = parseIssueViewState(new URLSearchParams(search));
+  if (layout === "list") return scope === "backlog" ? "backlog" : "list";
+  if (layout === "board") return "board";
   return null;
 }
 

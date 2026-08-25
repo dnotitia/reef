@@ -211,7 +211,7 @@ describe("IssueListTable", () => {
     expect(await screen.findByText("First task")).toBeInTheDocument();
     expect(screen.getByText("Second task")).toBeInTheDocument();
     expect(mockApiFetch).toHaveBeenCalledWith(
-      "/api/issues?vault=reef-acme&limit=100&sort_field=priority&sort_order=desc",
+      "/api/issues?vault=reef-acme&limit=100&status=todo&status=in_progress&status=in_review&status=done&status=closed&sort_field=priority&sort_order=desc",
     );
   });
 

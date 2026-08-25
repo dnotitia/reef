@@ -475,7 +475,7 @@ test.describe("Hermetic runtime discovery", () => {
         backlog_bulk_partial_failure: {
           scenario: "backlog_bulk_partial_failure",
           workspace: "reef-e2e",
-          start_path: "/workspace/reef-e2e/issues?view=backlog",
+          start_path: "/workspace/reef-e2e/issues?scope=backlog&view=list",
           interaction: {
             type: "bulk_status_update",
             operation:

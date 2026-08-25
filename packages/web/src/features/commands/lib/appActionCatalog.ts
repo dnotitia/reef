@@ -117,7 +117,6 @@ const VIEW_SEARCH_ALIASES = {
   board: ["board", "kanban", "보드", "칸반"],
   list: ["list", "table", "리스트", "표"],
   timeline: ["timeline", "schedule", "타임라인", "일정"],
-  backlog: ["backlog", "triage", "백로그", "트리아지"],
 } as const;
 
 const THEME_SEARCH_ALIASES = {
@@ -362,7 +361,7 @@ export const APP_ACTION_CATALOG: ReadonlyArray<AppActionDescriptor> = [
       bindings: [{ keys: [{ key: "Escape" }] }],
     },
   }),
-  ...(["board", "list", "timeline", "backlog"] as const).map((view) =>
+  ...(["board", "list", "timeline"] as const).map((view) =>
     action({
       id: `view.${view}`,
       labelKey: `view${view[0]?.toUpperCase()}${view.slice(1)}`,

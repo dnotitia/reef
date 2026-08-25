@@ -65,6 +65,7 @@ interface SortControlTriggerProps {
   sortFieldLabel: string;
   direction: string;
   ariaLabel: string;
+  summaryLabel?: string;
 }
 
 function SortControlTrigger({
@@ -74,6 +75,7 @@ function SortControlTrigger({
   sortFieldLabel,
   direction,
   ariaLabel,
+  summaryLabel,
 }: SortControlTriggerProps) {
   const { open } = useDropdownMenu();
 
@@ -97,7 +99,7 @@ function SortControlTrigger({
         <ArrowUpDown className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       )}
       <span className="font-medium">
-        {rankOrderActive ? rankOrderLabel : sortFieldLabel}
+        {summaryLabel ?? (rankOrderActive ? rankOrderLabel : sortFieldLabel)}
       </span>
       {!rankOrderActive && (
         <span className="text-muted-foreground">{direction}</span>
@@ -200,6 +202,11 @@ export function SortControl({
                   field: sortFieldLabels[effectiveField],
                   direction: effectiveDirection,
                 })
+          }
+          summaryLabel={
+            showsBacklogReorderHint && rankOrderActive
+              ? t("sortSummary", { label: rankOrderLabel })
+              : undefined
           }
         />
         <DropdownMenuContent align="start" data-testid="sort-control-content">

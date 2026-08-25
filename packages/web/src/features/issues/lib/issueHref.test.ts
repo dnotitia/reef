@@ -4,9 +4,9 @@ import { buildOpenIssueHref } from "./issueHref";
 
 describe("buildOpenIssueHref", () => {
   it("carries ?view= so the backdrop keeps the originating tab (REEF-222)", () => {
-    const query = new URLSearchParams({ view: "backlog" });
+    const query = new URLSearchParams({ scope: "backlog", view: "list" });
     expect(buildOpenIssueHref("reef-acme", "REEF-222", query)).toBe(
-      "/workspace/reef-acme/issues/REEF-222?view=backlog",
+      "/workspace/reef-acme/issues/REEF-222?scope=backlog&view=list",
     );
   });
 

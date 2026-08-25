@@ -16,7 +16,7 @@ async function openList(page: Page) {
   });
 }
 
-async function openBacklog(page: Page) {
+async function openBacklog(page: Page, group?: "none") {
   const backlogResponse = page.waitForResponse(
     (response) => {
       const url = new URL(response.url());
@@ -28,7 +28,10 @@ async function openBacklog(page: Page) {
     },
     { timeout: 15_000 },
   );
-  await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=backlog`);
+  const groupQuery = group ? `&group=${group}` : "";
+  await page.goto(
+    `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list${groupQuery}`,
+  );
   await expect(page.getByTestId("backlog-row").first()).toBeVisible({
     timeout: 15_000,
   });
@@ -68,25 +71,28 @@ async function prepareConfiguredTwoRowBacklog(
 ) {
   await resetFixture(request, "configured");
   await openList(page);
-  await selectRow(page, "REEF-002");
-  await selectRow(page, "REEF-003");
+  // Active excludes the fixture's existing Backlog issue, so enter the
+  // configured Backlog with the visible Active issue instead.
+  await selectRow(page, "REEF-001");
   await chooseBulkStatus(page, "Backlog");
   await expect(page.getByTestId("issue-bulk-action-bar")).toHaveCount(0);
   await expect
     .poll(async () => {
       const vault = reefVault(await readFixtureState(request));
       return vault.issues
-        .filter((issue) => issue.id === "REEF-002" || issue.id === "REEF-003")
+        .filter((issue) => issue.id === "REEF-001" || issue.id === "REEF-003")
         .sort((a, b) => a.id.localeCompare(b.id))
         .map((issue) => [issue.id, issue.status, issue.rank]);
     })
     .toEqual([
-      ["REEF-002", "backlog", 2000],
+      ["REEF-001", "backlog", 2000],
       ["REEF-003", "backlog", 1000],
     ]);
-  await openBacklog(page);
-  await selectBacklogRow(page, "REEF-002");
+  // Use the flat Rank projection for the reorder assertions; the default
+  // Priority grouping is covered by the Backlog bulk-selection scenario.
+  await openBacklog(page, "none");
   await selectBacklogRow(page, "REEF-003");
+  await selectBacklogRow(page, "REEF-001");
   await expect(page.getByTestId("issue-bulk-action-bar")).toContainText(
     "2 selected",
   );
@@ -235,7 +241,7 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
       .evaluateAll((rows) =>
         rows.map((row) => row.getAttribute("data-issue-id")),
       );
-    expect(before).toEqual(["REEF-112", "REEF-101"]);
+    expect(before).toEqual(["REEF-101", "REEF-112"]);
 
     const source = page.getByTestId("backlog-grip-REEF-101");
     const target = page.getByTestId("backlog-grip-REEF-112");
@@ -279,13 +285,13 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
         response.request().method() === "POST" &&
         new URL(response.url()).pathname === "/api/issues/reorder",
     );
-    await dragBacklogGrip(page, "REEF-003", "REEF-002");
+    await dragBacklogGrip(page, "REEF-003", "REEF-001");
     await expect((await reorderResponse).ok()).toBeTruthy();
 
-    await expect.poll(() => backlogIds(page)).toEqual(["REEF-002", "REEF-003"]);
+    await expect.poll(() => backlogIds(page)).toEqual(["REEF-001", "REEF-003"]);
     await page.reload();
     await expect(page.getByTestId("backlog-row").first()).toBeVisible();
-    await expect.poll(() => backlogIds(page)).toEqual(["REEF-002", "REEF-003"]);
+    await expect.poll(() => backlogIds(page)).toEqual(["REEF-001", "REEF-003"]);
   });
 
   test("persists a keyboard reorder after bulk-entering the configured backlog", async ({
@@ -318,10 +324,10 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
     await expect(liveRegion).toHaveText("REEF-003 moved to position 2.");
     await expect((await reorderResponse).ok()).toBeTruthy();
 
-    await expect.poll(() => backlogIds(page)).toEqual(["REEF-002", "REEF-003"]);
+    await expect.poll(() => backlogIds(page)).toEqual(["REEF-001", "REEF-003"]);
     await page.reload();
     await expect(page.getByTestId("backlog-row").first()).toBeVisible();
-    await expect.poll(() => backlogIds(page)).toEqual(["REEF-002", "REEF-003"]);
+    await expect.poll(() => backlogIds(page)).toEqual(["REEF-001", "REEF-003"]);
   });
 
   test("applies the typed label draft without requiring Enter", async ({
@@ -358,7 +364,7 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
     const task = discovery.tasks?.backlog_bulk_partial_failure;
     expect(task).toMatchObject({
       scenario: "backlog_bulk_partial_failure",
-      start_path: "/workspace/reef-e2e/issues?view=backlog",
+      start_path: "/workspace/reef-e2e/issues?scope=backlog&view=list",
       interaction: {
         type: "bulk_status_update",
       },

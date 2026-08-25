@@ -38,7 +38,7 @@ describe("ViewSwitcher", () => {
   });
 
   it("renders a toggle for each view and presses the active one", () => {
-    render(<ViewSwitcher activeView="list" />);
+    render(<ViewSwitcher activeLayout="list" scope="active" />);
     expect(screen.getByTestId("view-switcher-board")).toHaveAttribute(
       "aria-pressed",
       "false",
@@ -59,7 +59,7 @@ describe("ViewSwitcher", () => {
   it("pushes ?view= while preserving existing filter params", async () => {
     navigationState.searchParams = new URLSearchParams("status=todo&q=auth");
     const user = userEvent.setup();
-    render(<ViewSwitcher activeView="board" />);
+    render(<ViewSwitcher activeLayout="board" scope="active" />);
 
     await user.click(screen.getByTestId("view-switcher-timeline"));
 
@@ -80,7 +80,7 @@ describe("ViewSwitcher", () => {
       "view=list&group=label&status=todo",
     );
     const user = userEvent.setup();
-    render(<ViewSwitcher activeView="list" />);
+    render(<ViewSwitcher activeLayout="list" scope="active" />);
 
     await user.click(screen.getByTestId("view-switcher-board"));
 
@@ -97,7 +97,7 @@ describe("ViewSwitcher", () => {
   // state (AC2) and the dim it toggles is gated on `motion-safe` so reduced
   // motion gets the state without the fade (AC4).
   it("declares an aria-busy state and a motion-safe pending transition", () => {
-    render(<ViewSwitcher activeView="board" />);
+    render(<ViewSwitcher activeLayout="board" scope="active" />);
     const group = screen.getByTestId("view-switcher");
     expect(group).toHaveAttribute("aria-busy", "false");
     expect(group.className).toContain("motion-safe:transition-opacity");
@@ -105,7 +105,7 @@ describe("ViewSwitcher", () => {
 
   it("does not navigate when the active view is re-selected", async () => {
     const user = userEvent.setup();
-    render(<ViewSwitcher activeView="board" />);
+    render(<ViewSwitcher activeLayout="board" scope="active" />);
 
     await user.click(screen.getByTestId("view-switcher-board"));
 
@@ -119,7 +119,7 @@ describe("ViewSwitcher", () => {
   // runtime concern (jsdom is unable to render :focus-visible) — this is the class
   // contract that guards against the indicator being dropped again.
   it("gives each segment the canonical focus-visible ring and shared dimensions", () => {
-    render(<ViewSwitcher activeView="board" />);
+    render(<ViewSwitcher activeLayout="board" scope="active" />);
     const board = screen.getByTestId("view-switcher-board");
     const classes = board.className.split(/\s+/);
     expect(classes).toContain("focus-visible:ring-2");

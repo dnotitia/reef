@@ -27,6 +27,8 @@ import { useOpenIssue } from "@/features/issues/hooks/view/useOpenIssue";
 import { buildIssueQuery } from "@/features/issues/lib/buildIssueQuery";
 import { applyDependencyFilter } from "@/features/issues/lib/dependencyUtils";
 import { buildOpenIssueHref } from "@/features/issues/lib/issueHref";
+import type { IssueGroupBy } from "@/features/issues/lib/groupBy";
+import { createIssueGroupDescriptor } from "@/features/issues/lib/grouping";
 import {
   filterIssues,
   searchIssues,
@@ -37,7 +39,7 @@ import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboard
 import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { PageBody } from "@/features/ui/components/PageBody";
-import { useFieldNameLabels } from "@/i18n/fieldLabels";
+import { useFieldNameLabels, usePriorityLabels } from "@/i18n/fieldLabels";
 import { DURATION_BASE, EASE_SIGNATURE } from "@/lib/motionTokens";
 import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
@@ -121,6 +123,7 @@ function compareBacklogManualOrder(a: IssueListItem, b: IssueListItem): number {
 
 interface BacklogViewProps {
   vault: string;
+  groupBy?: IssueGroupBy;
 }
 
 /**
@@ -136,8 +139,9 @@ interface BacklogViewProps {
  * below a divider. Picking a sort from the toolbar switches to that sort and
  * disables reordering until rank order is restored.
  */
-export function BacklogView({ vault }: BacklogViewProps) {
+export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
   const t = useTranslations("issues.backlog");
+  const groupT = useTranslations("issues.filters");
   const c = useTranslations("common");
   const toasts = useTranslations("toasts");
   const filter = useIssueStore((state) => state.filter);
@@ -145,6 +149,7 @@ export function BacklogView({ vault }: BacklogViewProps) {
   const openIssue = useOpenIssue();
   const searchParams = useSearchParams();
   const reorder = useReorderBacklog();
+  const priorityLabels = usePriorityLabels();
 
   // Rank order is shown whenever the user has not picked an explicit sort.
   const isRankOrder = !filter.sortField;
@@ -166,6 +171,7 @@ export function BacklogView({ vault }: BacklogViewProps) {
       sprint_id: undefined,
       release_id: undefined,
       due: undefined,
+      showStale: undefined,
     }),
     [filter],
   );
@@ -296,6 +302,20 @@ export function BacklogView({ vault }: BacklogViewProps) {
     isRankOrder,
     staleWindowDays,
   ]);
+
+  const priorityGroups = useMemo(() => {
+    if (groupBy !== "priority") return null;
+    const descriptor = createIssueGroupDescriptor("priority", {
+      labels: {
+        none: groupT("group.none"),
+        status: {},
+        priority: priorityLabels,
+      },
+    });
+    return descriptor
+      .bucketsForIssues(visibleIssues)
+      .filter(({ issues: bucketIssues }) => bucketIssues.length > 0);
+  }, [groupBy, groupT, priorityLabels, visibleIssues]);
 
   // The divider sits between the manually-ordered (ranked) rows and the unranked
   // tail. Hidden when the backlog is entirely ranked or entirely unranked.
@@ -501,22 +521,53 @@ export function BacklogView({ vault }: BacklogViewProps) {
                   items={sortableIds}
                   strategy={verticalListSortingStrategy}
                 >
-                  {visibleIssues.map((issue, index) => (
-                    <Fragment key={issue.id}>
-                      {showDivider && index === firstUnrankedIndex && (
-                        <BacklogUnrankedDivider />
-                      )}
-                      <BacklogRow
-                        issue={issue}
-                        vault={vault}
-                        href={issueHref(issue.id)}
-                        logicalIds={sortableIds}
-                        sortable={canReorder}
-                        reorderHint={reorderHint}
-                        onOpen={openIssue}
-                      />
-                    </Fragment>
-                  ))}
+                  {priorityGroups
+                    ? priorityGroups.map(({ bucket, issues: bucketIssues }) => (
+                        <Fragment key={bucket.id}>
+                          <BacklogGroupHeader
+                            bucketId={bucket.id}
+                            label={bucket.label}
+                            count={bucketIssues.length}
+                          />
+                          {bucketIssues.map((issue, index) => (
+                            <Fragment key={issue.id}>
+                              {isRankOrder &&
+                              bucketIssues.some((item) => item.rank != null) &&
+                              index ===
+                                bucketIssues.findIndex(
+                                  (item) => item.rank == null,
+                                ) ? (
+                                <BacklogUnrankedDivider />
+                              ) : null}
+                              <BacklogRow
+                                issue={issue}
+                                vault={vault}
+                                href={issueHref(issue.id)}
+                                logicalIds={sortableIds}
+                                sortable={canReorder}
+                                reorderHint={reorderHint}
+                                onOpen={openIssue}
+                              />
+                            </Fragment>
+                          ))}
+                        </Fragment>
+                      ))
+                    : visibleIssues.map((issue, index) => (
+                        <Fragment key={issue.id}>
+                          {showDivider && index === firstUnrankedIndex && (
+                            <BacklogUnrankedDivider />
+                          )}
+                          <BacklogRow
+                            issue={issue}
+                            vault={vault}
+                            href={issueHref(issue.id)}
+                            logicalIds={sortableIds}
+                            sortable={canReorder}
+                            reorderHint={reorderHint}
+                            onOpen={openIssue}
+                          />
+                        </Fragment>
+                      ))}
                 </SortableContext>
               </TableBody>
             </Table>
@@ -588,6 +639,33 @@ function BacklogTableHeader({
         ))}
       </TableRow>
     </TableHeader>
+  );
+}
+
+function BacklogGroupHeader({
+  bucketId,
+  label,
+  count,
+}: {
+  bucketId: string;
+  label: string;
+  count: number;
+}) {
+  const t = useTranslations("issues.list");
+  return (
+    <TableRow data-testid="backlog-group-header" data-group-id={bucketId}>
+      <TableCell
+        colSpan={BACKLOG_COL_COUNT}
+        className="h-8 border-y border-border-subtle p-0"
+      >
+        <div className="flex h-8 items-center gap-2 bg-surface-page px-3 text-xs font-semibold text-foreground">
+          <span className="min-w-0 flex-1 truncate">{label}</span>
+          <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+            {t("groupHeader", { label, count })}
+          </span>
+        </div>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -680,7 +758,7 @@ function BacklogEmptyState({ vault }: { vault: string }) {
         <p className="text-sm text-muted-foreground">{t("emptyDescription")}</p>
       </div>
       <Link
-        href={withVault(vault, "/issues?view=board")}
+        href={withVault(vault, "/issues?scope=active&view=board")}
         className="text-[13px] font-medium text-brand-text hover:underline"
       >
         {t("goToBoard")}
