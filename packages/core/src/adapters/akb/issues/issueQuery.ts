@@ -201,14 +201,27 @@ const NUMERIC_SORT_FIELDS = new Set<IssueSortField>([
   "estimate_points",
 ]);
 
+function isDateSortField(
+  sortField: IssueSortField,
+): sortField is "due_date" | "start_date" {
+  return sortField === "due_date" || sortField === "start_date";
+}
+
+/** Keep missing dates in one direction-independent tail bucket. */
+function dateNullBucketExpr(sortField: "due_date" | "start_date"): string {
+  return `CASE WHEN ${quoteIdent(sortField)} IS NULL THEN 1 ELSE 0 END`;
+}
+
 const ISSUE_TITLE_COLLATION = "und-x-icu";
 
 /**
  * The lead `ORDER BY` / keyset expression for a sort field. `priority` sorts by
  * the rank `CASE`; the nullable `rank` / `estimate_points` / date columns are
- * wrapped in `COALESCE` so NULLs sort deterministically and the keyset
- * comparison does not hits a NULL; `created_at` / `updated_at` / `title` are NOT
- * NULL. ORDER BY and the keyset share this expression so paging stays exact.
+ * wrapped in `COALESCE` so the value comparison never hits a NULL. Date
+ * ORDER BY/keyset callers add a separate direction-independent NULL bucket
+ * before this expression so missing dates always stay at the tail.
+ * `created_at` / `updated_at` / `title` are NOT NULL. ORDER BY and the keyset
+ * share these expressions so paging stays exact.
  *
  * `rank` (the issue-wide ordering scalar, REEF-129/393) coalesces NULL to
  * `RANK_NULL_SORT_SENTINEL` — a value far above any real rank — so unranked or
@@ -244,6 +257,11 @@ export function buildIssueOrderBy(
   sortOrder: IssueSortOrder,
 ): string {
   const dir = sortOrder === "asc" ? "ASC" : "DESC";
+  if (isDateSortField(sortField)) {
+    return `${dateNullBucketExpr(sortField)} ASC, ${sortLeadExpr(
+      sortField,
+    )} ${dir}, "reef_id" DESC`;
+  }
   return `${sortLeadExpr(sortField)} ${dir}, "reef_id" DESC`;
 }
 
@@ -337,6 +355,14 @@ export function buildKeysetWhere(
     ? quoteNumberOrNull(Number(cursor.k))
     : quoteText(cursor.k, "cursor key");
   const idLit = quoteText(cursor.id, "cursor reef_id");
+  if (isDateSortField(sortField)) {
+    // Date cursors use the empty lead value as the NULL marker (ISO date
+    // fields cannot contain an empty string). The bucket is always ASC so the
+    // real dates precede the NULL tail for both date directions.
+    const nullBucket = dateNullBucketExpr(sortField);
+    const cursorNullBucket = cursor.k === "" ? "1" : "0";
+    return `((${nullBucket} > ${cursorNullBucket}) OR (${nullBucket} = ${cursorNullBucket} AND ((${lead} ${cmp} ${kLit}) OR (${lead} = ${kLit} AND "reef_id" < ${idLit}))))`;
+  }
   return `((${lead} ${cmp} ${kLit}) OR (${lead} = ${kLit} AND "reef_id" < ${idLit}))`;
 }
 

@@ -167,11 +167,17 @@ describe("buildIssueOrderBy / priorityRankCase", () => {
     );
   });
 
-  it("maps direction to a literal ASC/DESC (no raw interpolation)", () => {
-    expect(buildIssueOrderBy("due_date", "desc")).toBe(
-      `COALESCE("due_date", '') DESC, "reef_id" DESC`,
-    );
-  });
+  it.each(["start_date", "due_date"] as const)(
+    "puts missing %s values in the tail for both directions",
+    (field) => {
+      expect(buildIssueOrderBy(field, "asc")).toBe(
+        `CASE WHEN "${field}" IS NULL THEN 1 ELSE 0 END ASC, COALESCE("${field}", '') ASC, "reef_id" DESC`,
+      );
+      expect(buildIssueOrderBy(field, "desc")).toBe(
+        `CASE WHEN "${field}" IS NULL THEN 1 ELSE 0 END ASC, COALESCE("${field}", '') DESC, "reef_id" DESC`,
+      );
+    },
+  );
 
   it("coalesces a NULL rank to the tail sentinel so unranked issues sink below ranked ones (REEF-129)", () => {
     expect(buildIssueOrderBy("rank", "asc")).toBe(
@@ -275,6 +281,42 @@ describe("keyset cursor", () => {
       id: "REEF-002",
     });
     expect(where).toContain(`COALESCE("estimate_points", 0) < 13`);
+  });
+
+  it.each(["start_date", "due_date"] as const)(
+    "keeps the date null bucket in the keyset predicate for %s",
+    (field) => {
+      const where = buildKeysetWhere(field, "asc", {
+        k: "2026-06-01",
+        id: "REEF-010",
+      });
+      expect(where).toContain(
+        `CASE WHEN "${field}" IS NULL THEN 1 ELSE 0 END > 0`,
+      );
+      expect(where).toContain(
+        `CASE WHEN "${field}" IS NULL THEN 1 ELSE 0 END = 0`,
+      );
+      expect(where).toContain(`COALESCE("${field}", '') > '2026-06-01'`);
+      expect(where).toContain(`"reef_id" < 'REEF-010'`);
+    },
+  );
+
+  it("encodes an undated cursor at the null-tail boundary", () => {
+    const cursor = encodeCursor(
+      { due_date: null, reef_id: "REEF-101" },
+      "due_date",
+    );
+    expect(decodeCursor(cursor)).toEqual({ k: "", id: "REEF-101" });
+
+    const where = buildKeysetWhere("due_date", "desc", {
+      k: "",
+      id: "REEF-101",
+    });
+    expect(where).toContain(
+      `CASE WHEN "due_date" IS NULL THEN 1 ELSE 0 END > 1`,
+    );
+    expect(where).toContain(`COALESCE("due_date", '') = ''`);
+    expect(where).toContain(`"reef_id" < 'REEF-101'`);
   });
 });
 
