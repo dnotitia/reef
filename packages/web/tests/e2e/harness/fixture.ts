@@ -20,7 +20,8 @@ export type FixtureScenario =
   | "comment_mentions"
   | "large_vault"
   | "markdown_fixture"
-  | "status_quick_edit";
+  | "status_quick_edit"
+  | "planning_overflow";
 export const REEF_E2E_VAULT = "reef-e2e";
 
 function escapeRegExp(value: string): string {

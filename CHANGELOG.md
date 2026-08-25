@@ -12,6 +12,12 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Fixed
+
+- **Planning overflow tooltips no longer intercept pointer movement to adjacent
+  options**, so long milestone, sprint, and release values can be previewed
+  without blocking selection in the planning filters.
+
 ### Migration
 
 - **Persisted query cache cleanup now removes empty snapshots after account or
