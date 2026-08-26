@@ -1,4 +1,9 @@
-import type { IssueListItem, Priority, Status } from "@reef/core";
+import {
+  type IssueListItem,
+  type Priority,
+  type Status,
+  isResolvedStatus,
+} from "@reef/core";
 import { PRIORITY_OPTIONS, WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import type { IssueGroupBy } from "./groupBy";
 
@@ -25,6 +30,26 @@ export interface IssueGroupBucket {
 export interface IssueGroup {
   bucket: IssueGroupBucket;
   issues: IssueListItem[];
+}
+
+export type StatusHierarchyFallback =
+  | "parent_not_visible"
+  | "missing_parent"
+  | "non_epic_parent"
+  | "deeper_chain";
+
+export interface StatusEpicLane {
+  epic: IssueListItem;
+  children: IssueGroup[];
+  totalChildren: number;
+  completedChildren: number;
+  statusCounts: Partial<Record<Status, number>>;
+}
+
+export interface StatusHierarchyProjection {
+  rootGroups: IssueGroup[];
+  epicLanes: StatusEpicLane[];
+  fallbackByIssueId: ReadonlyMap<string, StatusHierarchyFallback>;
 }
 
 export interface IssueGroupLabels {
@@ -54,6 +79,14 @@ function compareDisplayNames(a: string, b: string): number {
 function bucketId(groupBy: IssueGroupBy, value: string | null): string {
   if (groupBy === "status") return value ?? "none";
   return `${groupBy}:${value === null ? "none" : encodeURIComponent(value)}`;
+}
+
+export function statusEpicOccurrenceKey(epicId: string): string {
+  return `epic:${encodeURIComponent(epicId)}`;
+}
+
+export function statusEpicBucketId(epicId: string, bucketId: string): string {
+  return `${statusEpicOccurrenceKey(epicId)}:${bucketId}`;
 }
 
 function createBucket(
@@ -229,4 +262,96 @@ export function groupIssues(
   descriptor: IssueGroupDescriptor,
 ): IssueGroup[] {
   return descriptor.bucketsForIssues(issues);
+}
+
+/**
+ * Project the Status board's flat groups into one-level epic lanes. The input
+ * is already filtered and sorted, so a parent is eligible for nesting only
+ * when that same parent is visible in the current board scope. This keeps
+ * filtered-out parents and unsupported relationships actionable as ordinary
+ * cards without changing board membership. `allIssues` distinguishes a
+ * filtered-out parent from a genuinely missing parent when callers have the
+ * wider issue collection available.
+ */
+export function projectStatusHierarchy(
+  groups: readonly IssueGroup[],
+  visibleIssues: readonly IssueListItem[],
+  allIssues: readonly IssueListItem[] = visibleIssues,
+): StatusHierarchyProjection {
+  const visibleById = new Map(
+    visibleIssues.map((issue) => [issue.id, issue] as const),
+  );
+  const allById = new Set(allIssues.map((issue) => issue.id));
+  const laneEpics = visibleIssues.filter(
+    (issue) => issue.issue_type === "epic" && issue.parent_id == null,
+  );
+  const laneIds = new Set(laneEpics.map((issue) => issue.id));
+  const nestedIds = new Set<string>();
+  const directChildrenByEpic = new Map<string, Map<Status, IssueListItem[]>>();
+
+  for (const issue of visibleIssues) {
+    if (issue.parent_id && laneIds.has(issue.parent_id)) {
+      nestedIds.add(issue.id);
+      const byStatus =
+        directChildrenByEpic.get(issue.parent_id) ??
+        new Map<Status, IssueListItem[]>();
+      const children = byStatus.get(issue.status) ?? [];
+      children.push(issue);
+      byStatus.set(issue.status, children);
+      directChildrenByEpic.set(issue.parent_id, byStatus);
+    }
+  }
+
+  const fallbackByIssueId = new Map<string, StatusHierarchyFallback>();
+  for (const issue of visibleIssues) {
+    if (!issue.parent_id || nestedIds.has(issue.id)) continue;
+
+    const parent = visibleById.get(issue.parent_id);
+    if (!parent) {
+      fallbackByIssueId.set(
+        issue.id,
+        allById.has(issue.parent_id) ? "parent_not_visible" : "missing_parent",
+      );
+    } else if (parent.parent_id != null) {
+      fallbackByIssueId.set(issue.id, "deeper_chain");
+    } else {
+      fallbackByIssueId.set(issue.id, "non_epic_parent");
+    }
+  }
+
+  const rootGroups = groups.map(({ bucket, issues }) => ({
+    bucket,
+    issues: issues.filter(
+      (issue) => !laneIds.has(issue.id) && !nestedIds.has(issue.id),
+    ),
+  }));
+
+  const epicLanes = laneEpics.map((epic) => {
+    const children = groups.map(({ bucket }) => ({
+      bucket: {
+        ...bucket,
+        id: statusEpicBucketId(epic.id, bucket.id),
+      },
+      issues: bucket.value
+        ? (directChildrenByEpic.get(epic.id)?.get(bucket.value as Status) ?? [])
+        : [],
+    }));
+    const laneChildren = children.flatMap(({ issues }) => issues);
+    const statusCounts: Partial<Record<Status, number>> = {};
+    for (const child of laneChildren) {
+      statusCounts[child.status] = (statusCounts[child.status] ?? 0) + 1;
+    }
+
+    return {
+      epic,
+      children,
+      totalChildren: laneChildren.length,
+      completedChildren: laneChildren.filter((child) =>
+        isResolvedStatus(child.status),
+      ).length,
+      statusCounts,
+    };
+  });
+
+  return { rootGroups, epicLanes, fallbackByIssueId };
 }

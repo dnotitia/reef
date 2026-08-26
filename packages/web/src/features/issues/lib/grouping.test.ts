@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createIssueGroupDescriptor,
   groupIssues,
+  projectStatusHierarchy,
   type IssueGroupBucket,
 } from "./grouping";
 
@@ -165,5 +166,96 @@ describe("issue grouping descriptor", () => {
       patchValue: null,
       droppable: true,
     });
+  });
+});
+
+describe("status hierarchy projection", () => {
+  const descriptor = createIssueGroupDescriptor("status", { labels });
+
+  it("renders one visible epic lane and places only direct children in status buckets", () => {
+    const issues = [
+      issue("independent", { status: "todo" }),
+      issue("epic", {
+        issue_type: "epic",
+        title: "Outcome",
+        status: "in_progress",
+      }),
+      issue("child-todo", { parent_id: "epic", status: "todo" }),
+      issue("child-done", { parent_id: "epic", status: "done" }),
+      issue("child-closed", { parent_id: "epic", status: "closed" }),
+      issue("grandchild", { parent_id: "child-todo", status: "todo" }),
+    ];
+    const projection = projectStatusHierarchy(
+      descriptor.bucketsForIssues(issues),
+      issues,
+    );
+
+    expect(projection.epicLanes).toHaveLength(1);
+    expect(projection.epicLanes[0]).toMatchObject({
+      epic: issues[1],
+      totalChildren: 3,
+      completedChildren: 2,
+      statusCounts: { todo: 1, done: 1, closed: 1 },
+    });
+    expect(
+      projection.epicLanes[0]?.children.flatMap(({ issues: children }) =>
+        children.map(({ id }) => id),
+      ),
+    ).toEqual(["child-todo", "child-done", "child-closed"]);
+    expect(
+      projection.rootGroups.flatMap(({ issues: rootIssues }) =>
+        rootIssues.map(({ id }) => id),
+      ),
+    ).toEqual(["independent", "grandchild"]);
+  });
+
+  it("keeps filtered-out parents, missing parents, non-epic parents, and deeper chains flat", () => {
+    const issues = [
+      issue("visible-epic", { issue_type: "epic" }),
+      issue("visible-child", { parent_id: "visible-epic" }),
+      issue("filtered-child", { parent_id: "visible-epic", status: "done" }),
+      issue("non-epic-parent", { issue_type: "story" }),
+      issue("non-epic-child", { parent_id: "non-epic-parent" }),
+      issue("missing-parent-child", { parent_id: "missing-parent" }),
+      issue("deeper-child", { parent_id: "visible-child" }),
+    ];
+    const visible = issues.filter(({ id }) => id !== "filtered-child");
+    const projection = projectStatusHierarchy(
+      descriptor.bucketsForIssues(visible),
+      visible,
+    );
+
+    expect(projection.epicLanes).toHaveLength(1);
+    expect(projection.epicLanes[0]?.totalChildren).toBe(1);
+    expect(
+      projection.rootGroups.flatMap(({ issues: rootIssues }) =>
+        rootIssues.map(({ id }) => id),
+      ),
+    ).toEqual([
+      "non-epic-parent",
+      "non-epic-child",
+      "missing-parent-child",
+      "deeper-child",
+    ]);
+    expect(projection.fallbackByIssueId).toEqual(
+      new Map([
+        ["non-epic-child", "non_epic_parent"],
+        ["missing-parent-child", "missing_parent"],
+        ["deeper-child", "deeper_chain"],
+      ]),
+    );
+
+    const allRenderedIds = [
+      ...projection.rootGroups.flatMap(({ issues: rootIssues }) =>
+        rootIssues.map(({ id }) => id),
+      ),
+      ...projection.epicLanes.flatMap(({ epic, children }) => [
+        epic.id,
+        ...children.flatMap(({ issues: childIssues }) =>
+          childIssues.map(({ id }) => id),
+        ),
+      ]),
+    ];
+    expect(new Set(allRenderedIds).size).toBe(allRenderedIds.length);
   });
 });

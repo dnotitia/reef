@@ -12,7 +12,10 @@ import type {
   Status,
 } from "@reef/core";
 import { memo } from "react";
-import type { IssueGroupBucket } from "../../issues/lib/grouping";
+import type {
+  IssueGroupBucket,
+  StatusHierarchyFallback,
+} from "../../issues/lib/grouping";
 import { KanbanCard } from "./KanbanCard";
 
 const EMPTY_BLOCKED_IDS: ReadonlySet<string> = new Set();
@@ -32,6 +35,8 @@ export interface KanbanColumnProps {
   onIssueClick?: (id: string) => void;
   dragEnabled?: boolean;
   readOnlyReason?: string;
+  hierarchyFallbackByIssueId?: ReadonlyMap<string, StatusHierarchyFallback>;
+  className?: string;
 }
 
 // Drop hover uses neutral surface + brand ring, not purple, to avoid
@@ -46,6 +51,8 @@ export const KanbanColumn = memo(function KanbanColumn({
   onIssueClick,
   dragEnabled,
   readOnlyReason,
+  hierarchyFallbackByIssueId,
+  className,
 }: KanbanColumnProps) {
   const canDrag = dragEnabled ?? bucket.droppable;
   const { setNodeRef, isOver } = useDroppable({
@@ -74,6 +81,7 @@ export const KanbanColumn = memo(function KanbanColumn({
         "transition-colors duration-150",
         isOver &&
           "border-brand-focus bg-surface-hover ring-2 ring-brand-focus/30",
+        className,
       )}
     >
       {/* Column header */}
@@ -106,6 +114,7 @@ export const KanbanColumn = memo(function KanbanColumn({
             planningCatalog={planningCatalog}
             assignees={assignees}
             onClick={onIssueClick}
+            hierarchyFallback={hierarchyFallbackByIssueId?.get(issue.id)}
           />
         ))}
       </div>

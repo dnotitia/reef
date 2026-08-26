@@ -1085,7 +1085,18 @@
     "noMatchTitle": "No matching issues",
     "noMatchDescription": "Try widening your filters or search to see more issues.",
     "groupNone": "None",
-    "groupReadOnly": "Label groups are read-only. Change labels from the issue details."
+    "groupReadOnly": "Label groups are read-only. Change labels from the issue details.",
+    "epicProgress": "{done} of {total} child issues done",
+    "epicStatusDistribution": "Status distribution: {distribution}",
+    "epicNoVisibleChildren": "No visible child issues",
+    "epicSummary": "Epic {title}, status {status}, {progress}; {distribution}; {state}",
+    "epicExpanded": "expanded",
+    "epicCollapsed": "collapsed",
+    "collapseEpic": "Collapse epic {title}",
+    "expandEpic": "Expand epic {title}",
+    "hierarchyParentNotVisible": "Parent is not visible; showing this issue as a standalone card.",
+    "hierarchyMissingParent": "Parent issue is missing; showing this issue as a standalone card.",
+    "hierarchyUnsupported": "This hierarchy is outside the one-level epic view; showing this issue as a standalone card."
   },
   "inbox": {
     "pageTitle": "Inbox",

@@ -35,6 +35,8 @@ import {
 } from "@/features/issues/lib/scopeFilter";
 import {
   createIssueGroupDescriptor,
+  projectStatusHierarchy,
+  statusEpicOccurrenceKey,
   type IssueGroup,
   type IssueGroupBucket,
 } from "@/features/issues/lib/grouping";
@@ -77,6 +79,7 @@ import { withVault } from "@/lib/workspaceHref";
 import { useBoardStore } from "../stores/useBoardStore";
 import { KanbanCardPreview } from "./KanbanCard";
 import { KanbanColumn } from "./KanbanColumn";
+import { KanbanEpicLane } from "./KanbanEpicLane";
 
 const EMPTY_ISSUES: IssueListItem[] = [];
 
@@ -179,6 +182,9 @@ export function KanbanBoard({
     issue: IssueListItem;
     bucket: IssueGroupBucket;
   } | null>(null);
+  const [collapsedEpicIds, setCollapsedEpicIds] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   // PointerSensor just starts a drag after a small distance — anything
   // shorter is treated as a click and reaches KanbanCard's onClick.
@@ -273,21 +279,51 @@ export function KanbanBoard({
     () => descriptor.bucketsForIssues(visibleIssues),
     [descriptor, visibleIssues],
   );
+  const hierarchyProjection = useMemo(
+    () =>
+      effectiveGroupBy === "status"
+        ? projectStatusHierarchy(issueGroups, visibleIssues, allIssues)
+        : null,
+    [allIssues, effectiveGroupBy, issueGroups, visibleIssues],
+  );
+  const activeHierarchy =
+    hierarchyProjection && hierarchyProjection.epicLanes.length > 0
+      ? hierarchyProjection
+      : null;
+  const renderGroups = activeHierarchy?.rootGroups ?? issueGroups;
+  const hierarchyFallbackByIssueId = hierarchyProjection?.fallbackByIssueId;
   const hasActiveFilters =
     hasScopeFilters(filter, searchQuery, scope) ||
     Boolean(filter.showArchived || (scope === "active" && filter.showStale));
   const showNoMatch =
     !isFetching && !isError && visibleIssues.length === 0 && hasActiveFilters;
-  const renderedOccurrences = useMemo(
-    () =>
-      issueGroups.flatMap(({ bucket, issues }) =>
-        issues.map((issue) => ({
-          key: `${bucket.id}:${issue.id}`,
-          issueId: issue.id,
-        })),
-      ),
-    [issueGroups],
-  );
+  const renderedOccurrences = useMemo(() => {
+    const rootOccurrences = renderGroups.flatMap(({ bucket, issues }) =>
+      issues.map((issue) => ({
+        key: `${bucket.id}:${issue.id}`,
+        issueId: issue.id,
+      })),
+    );
+    if (!activeHierarchy) return rootOccurrences;
+
+    return [
+      ...rootOccurrences,
+      ...activeHierarchy.epicLanes.flatMap((lane) => [
+        {
+          key: statusEpicOccurrenceKey(lane.epic.id),
+          issueId: lane.epic.id,
+        },
+        ...(collapsedEpicIds.has(lane.epic.id)
+          ? []
+          : lane.children.flatMap(({ bucket, issues }) =>
+              issues.map((issue) => ({
+                key: `${bucket.id}:${issue.id}`,
+                issueId: issue.id,
+              })),
+            )),
+      ]),
+    ];
+  }, [activeHierarchy, collapsedEpicIds, renderGroups]);
   useEffect(() => {
     useIssueKeyboardStore
       .getState()
@@ -303,9 +339,30 @@ export function KanbanBoard({
   );
 
   const bucketById = useMemo(
-    () => new Map(issueGroups.map(({ bucket }) => [bucket.id, bucket])),
-    [issueGroups],
+    () =>
+      new Map(
+        [
+          ...renderGroups,
+          ...(activeHierarchy?.epicLanes.flatMap((lane) => lane.children) ??
+            []),
+        ].map(({ bucket }) => [bucket.id, bucket]),
+      ),
+    [activeHierarchy, renderGroups],
   );
+
+  function toggleEpicLane(epicId: string, expanded: boolean) {
+    setCollapsedEpicIds((current) => {
+      const next = new Set(current);
+      if (expanded) next.delete(epicId);
+      else next.add(epicId);
+      return next;
+    });
+    useIssueKeyboardStore
+      .getState()
+      .focusOccurrence("board", statusEpicOccurrenceKey(epicId), epicId, {
+        requestDomFocus: true,
+      });
+  }
 
   const orderedBacklog = useMemo(
     () =>
@@ -602,26 +659,73 @@ export function KanbanBoard({
           onKeyDown={handleBoardScrollKeyDown}
           className="relative grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-3 overflow-x-hidden overflow-y-auto px-6 py-4 md:grid-cols-2 lg:flex lg:flex-nowrap lg:overflow-x-auto lg:overflow-y-hidden"
         >
-          {issueGroups.map(({ bucket, issues }) => (
-            <KanbanColumn
-              key={bucket.id}
-              bucket={bucket}
-              vault={vault}
-              issues={issues}
-              blockedIds={blockedIds}
-              planningCatalog={planningCatalog}
-              assignees={assignees}
-              onIssueClick={openIssue}
-              dragEnabled={
-                scope === "active"
-                  ? bucket.droppable
-                  : canReorderBacklog && bucket.droppable
-              }
-              readOnlyReason={
-                effectiveGroupBy === "label" ? t("groupReadOnly") : undefined
-              }
-            />
-          ))}
+          {activeHierarchy ? (
+            <div
+              data-testid="kanban-hierarchy-board"
+              className="flex min-w-0 flex-col gap-3 lg:min-w-max"
+            >
+              <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 lg:flex lg:flex-nowrap">
+                {activeHierarchy.rootGroups.map(({ bucket, issues }) => (
+                  <KanbanColumn
+                    key={bucket.id}
+                    bucket={bucket}
+                    vault={vault}
+                    issues={issues}
+                    blockedIds={blockedIds}
+                    planningCatalog={planningCatalog}
+                    assignees={assignees}
+                    onIssueClick={openIssue}
+                    dragEnabled={
+                      scope === "active"
+                        ? bucket.droppable
+                        : canReorderBacklog && bucket.droppable
+                    }
+                    hierarchyFallbackByIssueId={
+                      activeHierarchy.fallbackByIssueId
+                    }
+                  />
+                ))}
+              </div>
+              {activeHierarchy.epicLanes.map((lane) => (
+                <KanbanEpicLane
+                  key={lane.epic.id}
+                  lane={lane}
+                  vault={vault}
+                  blockedIds={blockedIds}
+                  planningCatalog={planningCatalog}
+                  assignees={assignees}
+                  onIssueClick={openIssue}
+                  collapsed={collapsedEpicIds.has(lane.epic.id)}
+                  onToggle={(expanded) =>
+                    toggleEpicLane(lane.epic.id, expanded)
+                  }
+                  dragEnabled={scope === "active"}
+                />
+              ))}
+            </div>
+          ) : (
+            issueGroups.map(({ bucket, issues }) => (
+              <KanbanColumn
+                key={bucket.id}
+                bucket={bucket}
+                vault={vault}
+                issues={issues}
+                blockedIds={blockedIds}
+                planningCatalog={planningCatalog}
+                assignees={assignees}
+                onIssueClick={openIssue}
+                dragEnabled={
+                  scope === "active"
+                    ? bucket.droppable
+                    : canReorderBacklog && bucket.droppable
+                }
+                readOnlyReason={
+                  effectiveGroupBy === "label" ? t("groupReadOnly") : undefined
+                }
+                hierarchyFallbackByIssueId={hierarchyFallbackByIssueId}
+              />
+            ))
+          )}
           {showNoMatch && (
             <div className="pointer-events-none absolute inset-x-6 top-16 z-10 flex justify-center">
               <div className="pointer-events-none flex max-w-md flex-col items-center rounded-lg border border-border-subtle bg-surface-page/95 px-5 py-4 text-center backdrop-blur-sm">

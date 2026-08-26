@@ -30,6 +30,8 @@ import {
   type Priority,
   isResolvedStatus,
 } from "@reef/core";
+import type { StatusHierarchyFallback } from "../../issues/lib/grouping";
+import { useTranslations } from "next-intl";
 import {
   type HTMLAttributes,
   type KeyboardEvent,
@@ -63,6 +65,7 @@ interface KanbanCardProps {
   occurrenceKey?: string;
   dragEnabled?: boolean;
   readOnlyReason?: string;
+  hierarchyFallback?: StatusHierarchyFallback;
 }
 
 interface KanbanCardSurfaceProps extends HTMLAttributes<HTMLDivElement> {
@@ -74,6 +77,7 @@ interface KanbanCardSurfaceProps extends HTMLAttributes<HTMLDivElement> {
   quickEditAnchor?: ReactNode;
   readOnlyReason?: string;
   readOnlyTooltipId?: string;
+  hierarchyFallback?: StatusHierarchyFallback;
 }
 
 interface PlanningContextItem {
@@ -132,12 +136,14 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
       quickEditAnchor,
       readOnlyReason,
       readOnlyTooltipId,
+      hierarchyFallback,
       className,
       ...props
     },
     ref,
   ) {
     const priorityLabels = usePriorityLabels();
+    const board = useTranslations("board");
     const [nowMs] = useState(() => Date.now());
     const dueTime = issue.due_date ? new Date(issue.due_date).getTime() : null;
     const isOverdue =
@@ -172,6 +178,20 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
     const hasPrimaryMeta = Boolean(
       issue.priority || issue.assigned_to || issue.start_date || issue.due_date,
     );
+    const hierarchyFallbackLabel =
+      hierarchyFallback === "parent_not_visible"
+        ? board("hierarchyParentNotVisible")
+        : hierarchyFallback === "missing_parent"
+          ? board("hierarchyMissingParent")
+          : hierarchyFallback
+            ? board("hierarchyUnsupported")
+            : null;
+    const hierarchyFallbackId = hierarchyFallback
+      ? `kanban-hierarchy-fallback-${issue.id}`
+      : undefined;
+    const describedBy = [readOnlyTooltipId, hierarchyFallbackId]
+      .filter((value): value is string => Boolean(value))
+      .join(" ");
 
     return (
       <div
@@ -186,7 +206,7 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
           readOnlyReason && "cursor-not-allowed",
           className,
         )}
-        aria-describedby={readOnlyTooltipId}
+        aria-describedby={describedBy || undefined}
         aria-disabled={readOnlyReason ? true : undefined}
         title={readOnlyReason}
         {...props}
@@ -269,6 +289,17 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
           </div>
         )}
 
+        {hierarchyFallbackLabel && hierarchyFallbackId ? (
+          <span
+            id={hierarchyFallbackId}
+            data-testid="kanban-hierarchy-fallback"
+            data-hierarchy-fallback={hierarchyFallback}
+            className="mt-1 block min-w-0 text-[10px] leading-4 text-muted-foreground"
+          >
+            {hierarchyFallbackLabel}
+          </span>
+        ) : null}
+
         <PlanningContextStrip items={planningContextItems} />
       </div>
     );
@@ -285,6 +316,7 @@ export const KanbanCard = memo(function KanbanCard({
   occurrenceKey,
   dragEnabled = true,
   readOnlyReason,
+  hierarchyFallback,
 }: KanbanCardProps) {
   const currentLogin = useCurrentUserLogin();
   const { attributes, listeners, setNodeRef, transform, isDragging } =
@@ -381,6 +413,7 @@ export const KanbanCard = memo(function KanbanCard({
       planningCatalog={planningCatalog}
       isDragging={isDragging}
       readOnlyReason={readOnlyReason}
+      hierarchyFallback={hierarchyFallback}
       readOnlyTooltipId={
         readOnlyReason ? `kanban-read-only-${keyboardOccurrenceKey}` : undefined
       }
