@@ -8,21 +8,12 @@ import {
   clearWorkspaceFavorites,
   compareWorkspaceNames,
   filterWorkspaceFavorites,
-  getConfiguredWorkspaceNames,
   getWorkspaceFavorites,
   WORKSPACE_FAVORITES_STORAGE_KEY,
   setWorkspaceFavorites,
 } from "./workspaceFavorites";
 import { getConfigValue, setConfigValue } from "./config";
 import { db } from "./db";
-
-const CANDIDATES = [
-  { name: "reef-zeta", has_reef_config: true },
-  { name: "reef-alpha", has_reef_config: true },
-  { name: "reef-alpha", has_reef_config: true },
-  { name: "raw-vault", has_reef_config: false },
-  { name: "Bad Vault", has_reef_config: true },
-] as const;
 
 describe("workspace favorites storage", () => {
   beforeEach(async () => {
@@ -77,8 +68,7 @@ describe("workspace favorites storage", () => {
   });
 
   it("filters raw, invalid, duplicate, and stale entries against configured candidates", async () => {
-    const available = getConfiguredWorkspaceNames(CANDIDATES);
-    expect(available).toEqual(["reef-alpha", "reef-zeta"]);
+    const available = ["reef-zeta", "reef-alpha", "reef-alpha"];
     expect(
       filterWorkspaceFavorites(
         ["reef-zeta", "raw-vault", "reef-missing", "Bad Vault", "reef-zeta"],

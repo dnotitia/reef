@@ -10,10 +10,7 @@ import {
 import { AUTH_CHANGED_EVENT } from "@/lib/storage/clientCache";
 import { useWorkspaceFavorites } from "./useWorkspaceFavorites";
 
-const CANDIDATES = [
-  { name: "reef-alpha", has_reef_config: true },
-  { name: "reef-zeta", has_reef_config: true },
-] as const;
+const CANDIDATES = ["reef-alpha", "reef-zeta"] as const;
 
 describe("useWorkspaceFavorites", () => {
   beforeEach(async () => {

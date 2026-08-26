@@ -95,7 +95,11 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
       })
       .toSorted((left, right) => compareWorkspaceNames(left.name, right.name));
   }, [vaultsQuery.data]);
-  const workspaceFavorites = useWorkspaceFavorites(reefVaults, {
+  const reefVaultNames = useMemo(
+    () => reefVaults.map((vault) => vault.name),
+    [reefVaults],
+  );
+  const workspaceFavorites = useWorkspaceFavorites(reefVaultNames, {
     enabled: !vaultsQuery.isPending && !vaultsQuery.isError,
   });
   const filtered = useMemo(
@@ -155,7 +159,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
 
   function renderWorkspaceOption(v: (typeof reefVaults)[number]) {
     const isCurrent = v.name === activeVault;
-    const isFavorite = workspaceFavorites.isFavorite(v.name);
+    const isFavorite = favoriteNames.has(v.name);
     const favoriteLabel = isFavorite
       ? tw("removeFavorite", { name: v.name })
       : tw("addFavorite", { name: v.name });

@@ -5,7 +5,7 @@ import {
   resetFixture,
 } from "../harness/fixture";
 
-const FAVORITES_KEY = "workspace_favorites:v1";
+const FAVORITES_KEY = "workspace_favorites";
 
 test.describe("Hermetic workspace favorites", () => {
   test.beforeEach(async ({ request }) => {

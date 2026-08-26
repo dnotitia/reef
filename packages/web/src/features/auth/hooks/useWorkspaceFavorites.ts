@@ -3,11 +3,9 @@
 import { AUTH_CHANGED_EVENT } from "@/lib/storage/clientCache";
 import {
   filterWorkspaceFavorites,
-  getConfiguredWorkspaceNames,
   getWorkspaceFavorites,
   normalizeWorkspaceFavoriteNames,
   setWorkspaceFavorites,
-  type WorkspaceFavoriteCandidate,
 } from "@/lib/storage/workspaceFavorites";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -17,9 +15,7 @@ export interface UseWorkspaceFavoritesOptions {
 
 export interface WorkspaceFavoritesState {
   favorites: string[];
-  isLoading: boolean;
   hasStorageError: boolean;
-  isFavorite: (name: string) => boolean;
   toggleFavorite: (name: string) => Promise<void>;
 }
 
@@ -28,15 +24,14 @@ export interface WorkspaceFavoritesState {
  * from the complete configured useVaults candidate list.
  */
 export function useWorkspaceFavorites(
-  candidates: readonly WorkspaceFavoriteCandidate[],
+  names: readonly string[],
   { enabled = true }: UseWorkspaceFavoritesOptions = {},
 ): WorkspaceFavoritesState {
   const availableNames = useMemo(
-    () => getConfiguredWorkspaceNames(candidates),
-    [candidates],
+    () => normalizeWorkspaceFavoriteNames(names),
+    [names],
   );
   const [storedFavorites, setStoredFavorites] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [hasStorageError, setHasStorageError] = useState(false);
   const storedFavoritesRef = useRef<string[]>([]);
   const loadGenerationRef = useRef(0);
@@ -49,7 +44,6 @@ export function useWorkspaceFavorites(
     const generation = loadGenerationRef.current + 1;
     loadGenerationRef.current = generation;
     let cancelled = false;
-    setIsLoading(true);
     setHasStorageError(false);
 
     void getWorkspaceFavorites()
@@ -60,7 +54,6 @@ export function useWorkspaceFavorites(
           : favorites;
         storedFavoritesRef.current = next;
         setStoredFavorites(next);
-        setIsLoading(false);
 
         if (enabled && next.length !== favorites.length) {
           void setWorkspaceFavorites(next).catch(() => undefined);
@@ -70,7 +63,6 @@ export function useWorkspaceFavorites(
         if (cancelled || loadGenerationRef.current !== generation) return;
         storedFavoritesRef.current = [];
         setStoredFavorites([]);
-        setIsLoading(false);
       });
 
     return () => {
@@ -85,7 +77,6 @@ export function useWorkspaceFavorites(
       storedFavoritesRef.current = [];
       setStoredFavorites([]);
       setHasStorageError(false);
-      setIsLoading(false);
     };
     window.addEventListener(AUTH_CHANGED_EVENT, handleAuthChanged);
     return () =>
@@ -130,18 +121,9 @@ export function useWorkspaceFavorites(
       enabled ? filterWorkspaceFavorites(storedFavorites, availableNames) : [],
     [availableNames, enabled, storedFavorites],
   );
-  const favoriteSet = useMemo(() => new Set(favorites), [favorites]);
-
-  const isFavorite = useCallback(
-    (name: string) => favoriteSet.has(name),
-    [favoriteSet],
-  );
-
   return {
     favorites,
-    isLoading,
     hasStorageError,
-    isFavorite,
     toggleFavorite,
   };
 }

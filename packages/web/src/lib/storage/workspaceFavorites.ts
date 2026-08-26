@@ -2,13 +2,8 @@ import { VAULT_NAME_RE } from "@/lib/akb/vaultName";
 import { clearConfigByPrefix, getConfigValue, setConfigValue } from "./config";
 
 /** The versioned config key for browser-local workspace favorites. */
-export const WORKSPACE_FAVORITES_STORAGE_KEY = "workspace_favorites:v1";
+export const WORKSPACE_FAVORITES_STORAGE_KEY = "workspace_favorites";
 export const WORKSPACE_FAVORITES_ENVELOPE_VERSION = 1 as const;
-
-export interface WorkspaceFavoriteCandidate {
-  name: string;
-  has_reef_config: boolean;
-}
 
 export interface WorkspaceFavoritesEnvelope {
   version: typeof WORKSPACE_FAVORITES_ENVELOPE_VERSION;
@@ -48,21 +43,6 @@ export function normalizeWorkspaceFavoriteNames(
     names.push(value);
   }
   return names.toSorted(compareWorkspaceNames);
-}
-
-/**
- * Return the configured, valid, unique workspace candidates from useVaults.
- * This preserves useVaults as the source of truth while keeping malformed
- * upstream entries out of the display and persistence set.
- */
-export function getConfiguredWorkspaceNames(
-  candidates: readonly WorkspaceFavoriteCandidate[],
-): string[] {
-  return normalizeWorkspaceFavoriteNames(
-    candidates
-      .filter((candidate) => candidate.has_reef_config)
-      .map((candidate) => candidate.name),
-  );
 }
 
 /** Keep only favorites that still belong to the accessible configured set. */
