@@ -332,17 +332,20 @@ export const KanbanCard = memo(function KanbanCard({
   );
 
   useLayoutEffect(() => {
+    const requestedKey = focusRequest?.occurrenceKey ?? focusRequest?.issueId;
+    const matchesOccurrence = requestedKey === keyboardOccurrenceKey;
+    const matchesIssue =
+      focusRequest?.issueId === issue.id && bucket?.groupBy !== "label";
     if (
       focusRequest?.scope !== "board" ||
-      (focusRequest.occurrenceKey ?? focusRequest.issueId) !==
-        keyboardOccurrenceKey ||
+      (!matchesOccurrence && !matchesIssue) ||
       !cardRef.current
     ) {
       return;
     }
     cardRef.current.focus({ preventScroll: true });
     cardRef.current.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [focusRequest, keyboardOccurrenceKey]);
+  }, [bucket?.groupBy, focusRequest, issue.id, keyboardOccurrenceKey]);
 
   const style = {
     ...(transform ? { transform: CSS.Translate.toString(transform) } : {}),

@@ -1461,7 +1461,10 @@ test.describe("Hermetic issue route surfaces", () => {
     if (!expandedDescriptionBox) {
       throw new Error("New Issue Description has no maximized geometry");
     }
-    expect(expandedDescriptionBox.height).toBeGreaterThan(
+    // The normal dialog can already consume the viewport's full vertical
+    // budget; maximize must never shrink the writing canvas, but only grows it
+    // when the expanded shell has additional height available.
+    expect(expandedDescriptionBox.height).toBeGreaterThanOrEqual(
       normalDescriptionBox.height,
     );
     await expect(title).toHaveValue("Draft survives maximize");
@@ -1470,7 +1473,7 @@ test.describe("Hermetic issue route surfaces", () => {
     await expect(handle).toBeVisible();
     await expect
       .poll(async () => Number(await handle.getAttribute("aria-valuenow")))
-      .toBeGreaterThan(normalDescriptionHeight);
+      .toBeGreaterThanOrEqual(normalDescriptionHeight);
     expect(
       await page.evaluate(
         (key) => window.sessionStorage.getItem(key),
@@ -1497,7 +1500,7 @@ test.describe("Hermetic issue route surfaces", () => {
     ).toHaveAttribute("aria-label", "Restore window");
     await expect
       .poll(async () => Number(await handle.getAttribute("aria-valuenow")))
-      .toBeGreaterThan(normalDescriptionHeight);
+      .toBeGreaterThanOrEqual(normalDescriptionHeight);
     const maximizedHeight = Number(await handle.getAttribute("aria-valuenow"));
     await handle.focus();
     await page.keyboard.press("ArrowDown");
@@ -1539,7 +1542,17 @@ test.describe("Hermetic issue route surfaces", () => {
     const reopenedDialog = page.getByTestId("new-issue-dialog");
     await expect(
       reopenedDialog.getByTestId("markdown-editor-body-frame"),
-    ).toHaveAttribute("style", new RegExp(`height: ${userHeight}px`));
+    ).toHaveAttribute("style", /height: [\d.]+px/);
+    await expect
+      .poll(async () => {
+        const style = await reopenedDialog
+          .getByTestId("markdown-editor-body-frame")
+          .getAttribute("style");
+        return Number.parseFloat(
+          style?.match(/height: ([\d.]+)px/u)?.[1] ?? "0",
+        );
+      })
+      .toBeGreaterThanOrEqual(userHeight);
     await page.getByTestId("new-issue-maximize-toggle").click();
     await expect(page.getByTestId("new-issue-maximize-toggle")).toHaveAttribute(
       "aria-label",

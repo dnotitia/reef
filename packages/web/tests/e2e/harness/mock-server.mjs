@@ -1327,6 +1327,10 @@ function demoBoardVault(name) {
   const sprintId = uuidFor(101);
   const milestoneId = uuidFor(102);
   const releaseId = uuidFor(103);
+  // Keep the demo Manual-order spine born-correct. The normal create path
+  // intentionally leaves a new issue unranked, so this fixture must give its
+  // existing issues canonical ranks for the new row's deterministic tail to
+  // remain observable across status groups.
   const vault = configuredVault(name);
   vault.members.push({
     username: "bob",
@@ -1343,6 +1347,7 @@ function demoBoardVault(name) {
       issue_type: "story",
       priority: "critical",
       assigned_to: "alice",
+      rank: 3000,
       start_date: "2026-06-16",
       due_date: "2026-06-21",
       sprint_id: sprintId,
@@ -1359,6 +1364,7 @@ function demoBoardVault(name) {
       issue_type: "task",
       priority: "high",
       assigned_to: "alice",
+      rank: 2000,
       start_date: "2026-06-17",
       due_date: "2026-06-24",
       sprint_id: sprintId,
@@ -1377,6 +1383,7 @@ function demoBoardVault(name) {
       issue_type: "task",
       priority: "medium",
       assigned_to: null,
+      rank: 1000,
       due_date: "2026-06-27",
       milestone_id: milestoneId,
       release_id: releaseId,
@@ -1391,6 +1398,7 @@ function demoBoardVault(name) {
       issue_type: "task",
       priority: "high",
       assigned_to: "alice",
+      rank: 5000,
       start_date: "2026-06-14",
       due_date: "2026-06-20",
       sprint_id: sprintId,
@@ -1406,6 +1414,7 @@ function demoBoardVault(name) {
       issue_type: "story",
       priority: "critical",
       assigned_to: "alice",
+      rank: 4000,
       start_date: "2026-06-13",
       due_date: "2026-06-23",
       sprint_id: sprintId,
@@ -1422,6 +1431,7 @@ function demoBoardVault(name) {
       issue_type: "task",
       priority: "high",
       assigned_to: "alice",
+      rank: 7000,
       start_date: "2026-06-12",
       due_date: "2026-06-18",
       sprint_id: sprintId,
@@ -1437,6 +1447,7 @@ function demoBoardVault(name) {
       issue_type: "task",
       priority: "medium",
       assigned_to: null,
+      rank: 6000,
       start_date: "2026-06-11",
       due_date: "2026-06-19",
       sprint_id: sprintId,
@@ -1459,6 +1470,7 @@ function demoBoardVault(name) {
       release_id: releaseId,
       estimate_points: 5,
       labels: ["bff", "api"],
+      rank: 8000,
     }),
     issueRow({
       id: "REEF-109",
@@ -1473,6 +1485,7 @@ function demoBoardVault(name) {
       release_id: releaseId,
       estimate_points: 2,
       labels: ["storage", "akb"],
+      rank: 9000,
     }),
     issueRow({
       id: "REEF-110",
@@ -1488,6 +1501,7 @@ function demoBoardVault(name) {
       closed_at: "2026-06-10T10:30:00.000Z",
       closed_reason: "completed",
       labels: ["cleanup"],
+      rank: 10000,
     }),
     issueRow({
       id: "REEF-111",
@@ -1504,6 +1518,7 @@ function demoBoardVault(name) {
       closed_at: "2026-06-11T15:45:00.000Z",
       closed_reason: "completed",
       labels: ["settings", "llm"],
+      rank: 11000,
     }),
     issueRow({
       id: "REEF-112",
@@ -1512,7 +1527,7 @@ function demoBoardVault(name) {
       issue_type: "task",
       priority: "low",
       assigned_to: null,
-      rank: 1000,
+      rank: 12000,
       parent_id: "REEF-101",
       labels: ["mobile", "board"],
     }),
@@ -2487,6 +2502,7 @@ function handleSql(vault, sql) {
       const row = objectFromColumns(insert.columns, insert.values);
       if (
         row.status === "backlog" &&
+        row.meta?.source !== "user:create_issue" &&
         (row.rank == null ||
           String(row.rank).toLowerCase().includes("select coalesce"))
       ) {

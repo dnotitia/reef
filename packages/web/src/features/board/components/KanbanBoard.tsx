@@ -333,10 +333,13 @@ export function KanbanBoard({
     useIssueKeyboardStore
       .getState()
       .setVisibleOccurrences("board", renderedOccurrences);
+  }, [renderedOccurrences]);
+
+  useEffect(() => {
     return () => {
       useIssueKeyboardStore.getState().setVisibleOccurrences("board", []);
     };
-  }, [renderedOccurrences]);
+  }, []);
 
   const issueMap = useMemo<Map<string, IssueListItem>>(
     () => new Map(allIssues.map((i) => [i.id, i])),

@@ -330,8 +330,9 @@ export async function writeIssue(
     // Insert the queryable projection row keyed to the document. On failure,
     // compensate by deleting the document we created — a doc without a
     // row is invisible to the board, so we do not leave that orphan behind.
-    // `assignBacklogRank` appends a new backlog issue to the manual-order tail
-    // (REEF-176) so the backlog does not gain an unranked row.
+    // `assignBacklogRank` appends trusted/imported backlog rows to the manual
+    // tail (REEF-176); normal user-created issues intentionally begin
+    // unranked so they remain at the Manual-order tail until first reorder.
     if (claimFirst) {
       const existing = (
         await selectIssueRows(
@@ -419,7 +420,7 @@ export async function writeIssue(
     } else {
       try {
         await insertIssueRow(adapter, vault, issue, put.uri, {
-          assignBacklogRank: true,
+          assignBacklogRank: issue.source !== "user:create_issue",
         });
       } catch (err) {
         await deleteDocumentQuietly(adapter, vault, put.path);

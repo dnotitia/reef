@@ -162,7 +162,11 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => 
     // Open REEF-001 in the detail modal and rename it. The server restamps its
     // updated_at on the PATCH, and REEF-325 makes the edit refetch the
     // updated_at-sorted list that would otherwise drift stale.
-    await rows.filter({ hasText: "REEF-001" }).first().click();
+    await rows
+      .filter({ hasText: "REEF-001" })
+      .first()
+      .getByText("Initial issue Alpha", { exact: true })
+      .click();
     const titleInput = page.locator('[data-testid="issue-title-input"]');
     await expect(titleInput).toBeVisible({ timeout: 10_000 });
     await titleInput.fill("Initial issue Alpha (edited)");
@@ -396,6 +400,92 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => 
     await expect
       .poll(() => boardIssueIds(inProgress))
       .toEqual(["REEF-103", "REEF-105", "REEF-104"]);
+    const movedCard = inProgress
+      .getByTestId("kanban-card")
+      .filter({ hasText: "Add saved filters" });
+    await expect(movedCard).toHaveAttribute("data-keyboard-focused", "true");
+    await expect(movedCard).toBeFocused();
+  });
+
+  test("keeps a newly created issue at the Manual-order tail after entering Todo", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "demo_board");
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+
+    await page.getByTestId("new-issue-trigger").click();
+    const dialog = page.getByTestId("new-issue-dialog");
+    await expect(dialog).toBeVisible();
+    await dialog
+      .getByTestId("new-issue-title-input")
+      .fill("New Manual tail issue");
+    await dialog.getByTestId("new-issue-submit").click();
+
+    await page.waitForURL(/\/issues\/REEF-113$/, { timeout: 10_000 });
+    const issueId = "REEF-113";
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await page.getByTestId("issue-status-select").click();
+    await page.getByRole("option", { name: "Todo", exact: true }).click();
+    await expect
+      .poll(
+        async () =>
+          demoIssueState(await readFixtureState(request)).issues.find(
+            (issue) => issue.id === issueId,
+          )?.status,
+      )
+      .toBe("todo");
+    await expect
+      .poll(
+        async () =>
+          demoIssueState(await readFixtureState(request)).issues.find(
+            (issue) => issue.id === issueId,
+          )?.rank,
+      )
+      .toBeNull();
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await expect(
+      page.getByTestId("issue-list-row").filter({ hasText: issueId }),
+    ).toBeVisible();
+    await expect
+      .poll(() => issueListIds(page).then((ids) => ids.at(-1)))
+      .toBe(issueId);
+
+    const initialIds = await issueListIds(page);
+    const firstIssueId = initialIds[0];
+    if (!firstIssueId || firstIssueId === issueId || initialIds.length < 2) {
+      throw new Error("Manual list did not expose a ranked tail target");
+    }
+    const expectedIds = [firstIssueId, issueId, ...initialIds.slice(1, -1)];
+    const grip = page.getByTestId(`issue-list-grip-${issueId}`);
+    await grip.focus();
+    await page.keyboard.press("Space");
+    await expect(grip).toHaveAttribute("aria-pressed", "true");
+    const liveRegion = page.locator('[role="status"][aria-live="assertive"]');
+    for (let attempt = 0; attempt < 32; attempt += 1) {
+      if ((await liveRegion.textContent()) === `${issueId} is at position 2.`) {
+        break;
+      }
+      await page.keyboard.press("ArrowUp");
+      await page.evaluate(
+        () => new Promise<void>((resolve) => setTimeout(resolve, 0)),
+      );
+    }
+    await expect(liveRegion).toHaveText(`${issueId} is at position 2.`);
+    const reorderResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/api/issues/reorder",
+    );
+    await page.keyboard.press("Space");
+    await expect((await reorderResponse).ok()).toBeTruthy();
+    await expect.poll(() => issueListIds(page)).toEqual(expectedIds);
+
+    await page.reload();
+    await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
+    await expect.poll(() => issueListIds(page)).toEqual(expectedIds);
   });
 
   test("persists Manual List reorder and exposes keyboard and screen-reader feedback", async ({
@@ -472,6 +562,9 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => 
     await page.keyboard.press("Space");
     await expect(cancelGrip).toHaveAttribute("aria-pressed", "true");
     await expect(liveRegion).toHaveText("REEF-002 is at position 1.");
+    await page.evaluate(
+      () => new Promise<void>((resolve) => setTimeout(resolve, 0)),
+    );
     await page.keyboard.press("Escape");
     await expect(cancelGrip).not.toHaveAttribute("aria-pressed", "true");
     await expect(liveRegion).toHaveText("Reordering REEF-002 cancelled.");
