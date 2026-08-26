@@ -36,15 +36,6 @@ function makeTarget(
   };
 }
 
-/** Build a target from explicit neighbours, including an empty Board bucket. */
-export function buildIssueReorderTargetBetween(
-  issue: IssueListItem,
-  before: IssueListItem | null,
-  after: IssueListItem | null,
-): IssueReorderTarget {
-  return makeTarget(issue, before, after);
-}
-
 /**
  * Build the target slot created by dropping `issue` onto a rendered item. The
  * returned neighbours are snapshots, not a persisted client-side ordering;
@@ -223,7 +214,7 @@ export function resolveIssueReorderTargetForDrop(
     const issue = visibleItems.find((item) => item.id === activeId);
     if (issue) {
       return {
-        target: buildIssueReorderTargetBetween(issue, before, nextCanonical),
+        target: makeTarget(issue, before, nextCanonical),
         needsMoreCanonicalItems: false,
       };
     }

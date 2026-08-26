@@ -490,18 +490,10 @@ export function KanbanBoard({
     issue: IssueListItem,
     bucket: IssueGroupBucket,
   ): boolean {
-    switch (bucket.patchField) {
-      case "status":
-        return issue.status === bucket.patchValue;
-      case "priority":
-        return (issue.priority ?? null) === bucket.patchValue;
-      case "assigned_to":
-        return (issue.assigned_to ?? null) === bucket.patchValue;
-      case "sprint_id":
-        return (issue.sprint_id ?? null) === bucket.patchValue;
-      default:
-        return bucket.groupBy === "none";
+    if (bucket.patchField === null || bucket.patchField === "labels") {
+      return bucket.groupBy === "none";
     }
+    return issueGroupValue(issue, bucket.patchField) === bucket.patchValue;
   }
 
   function handleDragStart(event: DragStartEvent) {
