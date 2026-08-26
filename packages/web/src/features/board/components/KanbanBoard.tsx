@@ -662,7 +662,7 @@ export function KanbanBoard({
           {activeHierarchy ? (
             <div
               data-testid="kanban-hierarchy-board"
-              className="flex min-w-0 flex-col gap-3 lg:min-w-max"
+              className="flex min-w-0 flex-col gap-3 md:col-span-2 lg:min-w-max"
             >
               <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 lg:flex lg:flex-nowrap">
                 {activeHierarchy.rootGroups.map(({ bucket, issues }) => (

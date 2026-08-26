@@ -176,6 +176,23 @@ describe("KanbanBoard epic lanes", () => {
     expect(toggle).toHaveAttribute("aria-controls", children.id);
   });
 
+  it("keeps the hierarchy board full-width at the 768px two-column breakpoint", async () => {
+    render(wrap(<KanbanBoard vault="reef-acme" />));
+
+    const hierarchyBoard = await screen.findByTestId("kanban-hierarchy-board");
+    expect(hierarchyBoard).toHaveClass("md:col-span-2");
+    expect(hierarchyBoard).toHaveClass("min-w-0");
+    expect(hierarchyBoard).toHaveClass("lg:min-w-max");
+    expect(screen.getByTestId("kanban-epic-lane")).toHaveClass(
+      "min-w-0",
+      "w-full",
+    );
+    expect(screen.getByTestId("kanban-epic-header")).toHaveClass("min-w-0");
+    expect(screen.getByTestId("kanban-epic-status-distribution")).toHaveClass(
+      "min-w-0",
+    );
+  });
+
   it("collapses children, removes them from keyboard occurrences, and restores them on expand", async () => {
     const user = userEvent.setup();
     render(wrap(<KanbanBoard vault="reef-acme" />));
