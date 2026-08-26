@@ -7,13 +7,11 @@ import type { EnrichmentRequest, EnrichmentResult } from "@reef/core";
 import { extractErrorDetail } from "@reef/core";
 import { WorkspaceBoundaryError } from "./enrichIssue/context";
 import {
-  buildIssueEnrichmentStageHandlers,
   createIssueEnrichmentState,
-} from "./enrichIssue/stageHandlers";
-import { parseEnrichmentResult } from "./enrichIssue/validation";
+  runIssueEnrichmentPipeline,
+} from "./enrichIssue/pipeline";
 import type { AgentRunEvent } from "./framework/events";
-import { createAgentTaskFromRegistry } from "./framework/registry";
-import { collectAgentResult, runAgentStream } from "./framework/runtime";
+import { createAgentRunLifecycle } from "./framework/lifecycle";
 
 const tracer = trace.getTracer("@reef/web");
 
@@ -28,10 +26,8 @@ export interface EnrichIssueParams {
    * undefined/null preserves the prior model-default behavior.
    */
   authoringLanguage?: string | null;
-  onEvent?: (event: AgentRunEvent) => void | Promise<void>;
+  onEvent?: (event: AgentRunEvent) => void;
 }
-
-type EnrichIssueEventSink = NonNullable<EnrichIssueParams["onEvent"]>;
 
 /**
  * AI-assisted issue enrichment (Motivation 2 — non-PM author gets a
@@ -64,47 +60,45 @@ export async function enrichIssue(
         ? `${request.repoContext.owner}/${request.repoContext.repo}`
         : "none",
     );
+    const lifecycle = createAgentRunLifecycle({
+      taskId: "issue.enrichment",
+      metadata: { function_id: "reef.agent.issue.enrichment" },
+      onEvent: params.onEvent,
+    });
 
     try {
       const state = createIssueEnrichmentState(params);
-      const task = createAgentTaskFromRegistry("issue.enrichment", {
-        initial_state: state,
-        stageHandlers: buildIssueEnrichmentStageHandlers(span),
-        metadata: {
-          issue_id: request.issueId,
-          vault: request.vault,
-          repo: request.repoContext
-            ? `${request.repoContext.owner}/${request.repoContext.repo}`
-            : null,
-        },
+      lifecycle.start({
+        issue_id: request.issueId,
+        vault: request.vault,
       });
-
-      const envelope = await collectAgentResult(
-        tapAgentEvents(
-          runAgentStream(task, {
-            metadata: {
-              issue_id: request.issueId,
-              vault: request.vault,
-            },
-          }),
-          params.onEvent,
-        ),
-      );
-      span.setAttribute("enrichment.run_status", envelope.status);
-      if (envelope.status === "error") {
-        throw (
-          state.error ??
-          new LlmError({
-            message: envelope.error?.message ?? "Issue enrichment task failed.",
-          })
-        );
+      const pipeline = await runIssueEnrichmentPipeline({
+        state,
+        span,
+        lifecycle,
+      });
+      const hasResult =
+        pipeline.result.suggestions.length > 0 ||
+        pipeline.result.references.length > 0;
+      if (hasResult) {
+        lifecycle.complete({
+          artifactIds: pipeline.artifactId ? [pipeline.artifactId] : [],
+          usage: pipeline.usage,
+          metadata: pipeline.finishReason
+            ? { finish_reason: pipeline.finishReason }
+            : {},
+        });
+      } else {
+        lifecycle.empty(pipeline.finishReason);
       }
-      span.setStatus({ code: SpanStatusCode.OK });
-      return (
-        state.result ??
-        parseEnrichmentResult({ suggestions: [], references: [] })
+      span.setAttribute(
+        "enrichment.run_status",
+        hasResult ? "completed" : "empty",
       );
+      span.setStatus({ code: SpanStatusCode.OK });
+      return pipeline.result;
     } catch (err) {
+      lifecycle.fail(err, "issue_enrichment_failed");
       const workspaceBoundaryCause =
         err instanceof WorkspaceBoundaryError ? err.boundaryCause : null;
       const detail =
@@ -131,16 +125,6 @@ export async function enrichIssue(
       span.end();
     }
   });
-}
-
-async function* tapAgentEvents(
-  events: AsyncIterable<AgentRunEvent>,
-  onEvent?: EnrichIssueEventSink,
-): AsyncGenerator<AgentRunEvent> {
-  for await (const event of events) {
-    await onEvent?.(event);
-    yield event;
-  }
 }
 
 export {

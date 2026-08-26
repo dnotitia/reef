@@ -120,33 +120,6 @@ enable AI, partial configuration fails closed, and no values is an intentionally
 disabled capability. Keycloak remains independent, so a Keycloak-only
 deployment is valid.
 
-#### Upgrade an existing OpenRouter deployment
-
-Older Kubernetes releases supplied `OPENROUTER_BASE_URL` and `REEF_LLM_MODEL`
-from the base ConfigMap, while operators usually stored only
-`OPENROUTER_API_KEY` in `reef-web-secret`. Migrate that shape before applying
-this release; otherwise the surviving legacy key is an invalid partial LLM
-configuration after the old base defaults are removed.
-
-To keep AI enabled, add the provider-neutral key to the Secret with the same
-value as `OPENROUTER_API_KEY`, and add both URL names plus the model to the
-overlay ConfigMap:
-
-```yaml
-data:
-  REEF_LLM_BASE_URL: "https://openrouter.ai/api/v1"
-  OPENROUTER_BASE_URL: "https://openrouter.ai/api/v1"
-  REEF_LLM_MODEL: "deepseek/deepseek-v4-flash"
-```
-
-Keep both key names and both matching URL names through the rollout and rollback
-window. That lets old and new pods run concurrently and keeps rollback safe;
-remove the `OPENROUTER_*` aliases after the old image is no longer needed. To
-disable AI instead, remove `OPENROUTER_API_KEY` from the Secret before applying
-the manifests (or remove the Secret when it contains no other capability keys).
-Then apply the overlay normally. Existing old pods keep their startup
-environment until drained, while new pods start in the valid AI-disabled state.
-
 `GET /api/healthz` is the Reef workload liveness/readiness endpoint. The legacy-
 named `GET /api/ai/managed-platform` endpoint is an LLM capability declaration:
 valid enabled and disabled states return 200, while malformed LLM configuration
@@ -251,8 +224,6 @@ the `reef-web-config` ConfigMap plus the optional `reef-web-secret` Secret).
 | `REEF_LLM_API_KEY` | for enabled AI | Key for the configured OpenAI-compatible endpoint. Keep it in a Secret; never inline it in manifests or commit it. |
 | `REEF_LLM_BASE_URL` | for enabled AI | OpenAI-compatible endpoint base URL. It may target OpenRouter or an akb-platform gateway. |
 | `REEF_LLM_MODEL` | for enabled AI | Deployment-selected model id passed to the configured endpoint. |
-| `OPENROUTER_API_KEY` | compatibility alias | Alias for `REEF_LLM_API_KEY`; prefer the provider-neutral name in new deployments. If both are set, their values must match. |
-| `OPENROUTER_BASE_URL` | compatibility alias | Alias for `REEF_LLM_BASE_URL`; prefer the provider-neutral name in new deployments. If both are set, their normalized values must match. |
 | `REEF_GITHUB_APP_ID` | yes for GitHub features | GitHub App id used to mint server-side installation tokens for monitored-repo listing and read-only grounding. |
 | `REEF_GITHUB_APP_INSTALLATION_ID` | yes for GitHub features | Installation id for the repository/org installation reef should read from. |
 | `REEF_GITHUB_APP_PRIVATE_KEY` | yes for GitHub features | PEM private key for the GitHub App. Keep it in a Secret; literal `\\n` escapes are accepted and normalized at runtime. |
@@ -263,8 +234,9 @@ Optional tracing/observability:
 
 | Variable | Description |
 | --- | --- |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP HTTP base endpoint for trace export (the instrumentation appends `/v1/traces`). No-op when unset / nothing is listening. |
-| `OTEL_EXPORTER_OTLP_HEADERS` | Comma-separated `key=value` headers for authenticating to the trace backend. Read once at startup; never logged. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Standard OTLP HTTP base endpoint for trace export. The OpenTelemetry exporter resolves the trace path. |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | Optional full trace-export endpoint, using the standard OpenTelemetry precedence rules. |
+| `OTEL_EXPORTER_OTLP_HEADERS` | Standard comma-separated `key=value` headers for authenticating to the trace backend. Never logged. |
 | `REEF_RESPONSE_LOG` | Set to `1` to emit the per-request `response` access line (status + duration) and the backend `core` observability lines (LLM token usage) on stdout in **any** environment. On by default only in development. See the access-line policy below. |
 | `REEF_SLOW_REQUEST_MS` | Threshold in milliseconds at/above which a `response` line is logged at WARN instead of INFO, so a slow request stands out. Defaults to `1000`; a non-positive or non-numeric value falls back to the default. |
 | `LOG_LEVEL` | pino level for backend stdout logs (`debug`/`info`/`warn`/`error`). Defaults to `debug` in development and `info` otherwise. |

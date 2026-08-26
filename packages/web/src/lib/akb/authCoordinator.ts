@@ -32,7 +32,6 @@ let currentProbe:
   | {
       controller: AbortController;
       generation: number;
-      timeoutId?: ReturnType<typeof setTimeout>;
     }
   | undefined;
 let latestProbe: AuthProbe | undefined;
@@ -63,9 +62,6 @@ function setStatus(
 
 function cancelCurrentProbe(): void {
   generation += 1;
-  if (currentProbe?.timeoutId !== undefined) {
-    clearTimeout(currentProbe.timeoutId);
-  }
   currentProbe?.controller.abort();
   currentProbe = undefined;
 }
@@ -174,32 +170,15 @@ function runAuthProbe(probe: AuthProbe, background: boolean): void {
   const controller = new AbortController();
   currentProbe = { controller, generation: probeGeneration };
   if (!background) setStatus("checking");
-
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  let timedOut = false;
-  const timeoutResult = new Promise<AkbSessionStatus>((resolve) => {
-    timeoutId = setTimeout(() => {
-      timedOut = true;
-      controller.abort();
-      resolve({ active: false });
-    }, AUTH_PROBE_TIMEOUT_MS);
-  });
-  if (currentProbe?.generation === probeGeneration) {
-    currentProbe.timeoutId = timeoutId;
-  }
+  const signal = AbortSignal.any([
+    controller.signal,
+    AbortSignal.timeout(AUTH_PROBE_TIMEOUT_MS),
+  ]);
 
   void (async () => {
     try {
-      const result = await Promise.race([
-        probe(controller.signal),
-        timeoutResult,
-      ]);
-      if (
-        probeGeneration !== generation ||
-        (controller.signal.aborted && !timedOut)
-      ) {
-        return;
-      }
+      const result = await probe(signal);
+      if (probeGeneration !== generation || controller.signal.aborted) return;
       setStatus(
         result.active ? "active" : "inactive",
         result.active ? undefined : result,
@@ -208,7 +187,6 @@ function runAuthProbe(probe: AuthProbe, background: boolean): void {
       if (probeGeneration !== generation || controller.signal.aborted) return;
       setStatus("inactive");
     } finally {
-      if (timeoutId !== undefined) clearTimeout(timeoutId);
       if (currentProbe?.generation === probeGeneration) {
         currentProbe = undefined;
       }

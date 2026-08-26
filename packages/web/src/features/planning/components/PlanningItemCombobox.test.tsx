@@ -150,7 +150,7 @@ describe("PlanningItemCombobox", () => {
 
     fireEvent.click(screen.getByTestId("sprint-combo"));
 
-    const panel = screen.getByRole("listbox").parentElement;
+    const panel = screen.getByRole("listbox").closest('[role="dialog"]');
     expect(panel?.className).toContain(PLANNING_ITEM_PANEL_CLASS);
   });
 

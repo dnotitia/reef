@@ -534,10 +534,13 @@ test.describe("large issue list virtualization", () => {
     await resetFixture(request, "large_vault");
     const sparsePage = await page.context().newPage();
     await clearPersistedQueryCacheOnLoad(sparsePage);
-    await openExistingWorkspace(sparsePage, LARGE_VAULT);
     const initialSparseResponse = waitForIssueListPage(sparsePage, false);
     const responses = issueListResponses(sparsePage);
+    await openExistingWorkspace(sparsePage, LARGE_VAULT);
     await sparsePage.goto(`/workspace/${LARGE_VAULT}/issues?view=list`);
+    const initialSparsePage = await readIssueListPage(
+      await initialSparseResponse,
+    );
     await sparsePage.getByTestId("labels-input").fill("tail-marker");
     await sparsePage.getByTestId("labels-input").press("Enter");
     await expect(sparsePage.getByText("Sparse residual match")).toBeVisible({
@@ -550,9 +553,6 @@ test.describe("large issue list virtualization", () => {
             .length,
       )
       .toBeGreaterThan(0);
-    const initialSparsePage = await readIssueListPage(
-      await initialSparseResponse,
-    );
     expect(initialSparsePage.ids).not.toContain(TAIL_ISSUE_ID);
     await sparsePage.close();
   });

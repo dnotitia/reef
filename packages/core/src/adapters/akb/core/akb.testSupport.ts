@@ -6,14 +6,11 @@ export {
   SchemaValidationError,
 } from "../../../errors";
 export type { IssueMetadata } from "../../../schemas/issues/metadata";
-export type { Template } from "../../../schemas/issues/template";
 export {
   ISSUES_COLLECTION,
   ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE,
   MONITORED_REPOS_TABLE,
   REEF_ACTIVITY_TABLE,
-  REEF_NOTIFICATIONS_TABLE,
-  REEF_SUBSCRIPTIONS_TABLE,
   REEF_ATTACHMENTS_TABLE,
   REEF_COMMENTS_TABLE,
   REEF_DESIRED_TABLES,
@@ -21,10 +18,8 @@ export {
   REEF_MILESTONES_TABLE,
   REEF_RELEASES_TABLE,
   REEF_SCHEMA_VERSION,
-  REEF_SETTINGS_SCHEMA_VERSION_KEY,
   REEF_SETTINGS_TABLE,
   REEF_SPRINTS_TABLE,
-  REEF_TEMPLATES_TABLE,
   activityEventKey,
   appendActivityEvents,
   appendIssueBodyMentionsChangeEvent,
@@ -40,7 +35,6 @@ export {
   deleteMilestone,
   deleteRelease,
   deleteSprint,
-  deleteTemplate,
   deleteVault,
   detachReef,
   diffFieldActivityEvents,

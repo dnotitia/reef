@@ -209,9 +209,11 @@ test.describe("Hermetic issue keyboard navigation", () => {
         );
         const content =
           fieldName === "assignee"
-            ? document.querySelector<HTMLElement>(
-                '[data-testid="assignee-combobox"] [role="listbox"]',
-              )?.parentElement
+            ? document
+                .querySelector<HTMLElement>(
+                  '[data-testid="assignee-combobox"] [role="listbox"]',
+                )
+                ?.closest<HTMLElement>('[role="dialog"]')
             : document.querySelector<HTMLElement>(
                 '[data-slot="select-content"]',
               );

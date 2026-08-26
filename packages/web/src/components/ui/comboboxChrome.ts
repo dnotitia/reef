@@ -64,11 +64,7 @@ export const CBX_CHEVRON =
   "data-[open=true]:rotate-180";
 
 /**
- * Portaled-free panel shell (mirrors popover.tsx). The vertical anchor is NOT
- * baked in — the caller appends `CBX_PANEL_BELOW` (default) or `CBX_PANEL_ABOVE`
- * so a non-portaled panel can flip up near the viewport bottom instead of being
- * clipped by (or dragging) an ancestor scroll container like the issue detail
- * sheet (REEF-145).
+ * Portaled-free panel shell. The shared Popover owns the top/bottom anchor.
  */
 export const CBX_PANEL =
   "z-50 rounded-md border border-border " +
@@ -77,12 +73,6 @@ export const CBX_PANEL =
 
 /** Positioning for the non-portaled combobox panel. */
 export const CBX_PANEL_POSITIONED = "absolute w-full min-w-[12rem]";
-
-/** Panel opening downward, anchored under the trigger (default). */
-export const CBX_PANEL_BELOW = "top-full mt-1";
-
-/** Panel opening upward, anchored over the trigger (vertical-flip fallback). */
-export const CBX_PANEL_ABOVE = "bottom-full mb-1";
 
 export const CBX_LIST = "max-h-64 overflow-y-auto overscroll-contain";
 
@@ -99,9 +89,6 @@ export const CBX_OPTION_BASE =
 
 /** Default single-line row layout. */
 export const CBX_OPTION_ROW = "flex items-center gap-2";
-
-/** Keyboard-active highlight — identical token to hover so mouse and keyboard match. */
-export const CBX_OPTION_ACTIVE = "bg-surface-hover text-foreground";
 
 /** Radix menu highlight state, shared by context-menu option rows. */
 export const CBX_OPTION_HIGHLIGHT =

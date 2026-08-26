@@ -91,9 +91,11 @@ test.describe("Hermetic Backlog quick edit", () => {
         );
         const content =
           fieldName === "assignee"
-            ? document.querySelector<HTMLElement>(
-                '[data-testid="assignee-combobox"] [role="listbox"]',
-              )?.parentElement
+            ? document
+                .querySelector<HTMLElement>(
+                  '[data-testid="assignee-combobox"] [role="listbox"]',
+                )
+                ?.closest<HTMLElement>('[role="dialog"]')
             : document.querySelector<HTMLElement>(
                 '[data-slot="select-content"]',
               );

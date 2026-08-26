@@ -61,29 +61,11 @@ function invalidResolution(
 export function resolveServerLlmConfig(
   env: ServerEnvironment = process.env,
 ): ServerLlmConfigResolution {
-  const canonicalApiKey = trimToNull(env.REEF_LLM_API_KEY);
-  const legacyApiKey = trimToNull(env.OPENROUTER_API_KEY);
-  const canonicalBaseUrl = trimToNull(env.REEF_LLM_BASE_URL);
-  const legacyBaseUrl = trimToNull(env.OPENROUTER_BASE_URL);
-  const apiKey = canonicalApiKey ?? legacyApiKey;
-  const baseUrl = canonicalBaseUrl ?? legacyBaseUrl;
+  const apiKey = trimToNull(env.REEF_LLM_API_KEY);
+  const baseUrl = trimToNull(env.REEF_LLM_BASE_URL);
   const model = trimToNull(env.REEF_LLM_MODEL);
   const values = [apiKey, baseUrl, model];
   const configuredCount = values.filter(Boolean).length;
-
-  const aliasConflicts = [
-    canonicalApiKey && legacyApiKey && canonicalApiKey !== legacyApiKey
-      ? "REEF_LLM_API_KEY and its OPENROUTER_API_KEY alias must not disagree"
-      : null,
-    canonicalBaseUrl &&
-    legacyBaseUrl &&
-    normalizeBaseUrl(canonicalBaseUrl) !== normalizeBaseUrl(legacyBaseUrl)
-      ? "REEF_LLM_BASE_URL and its OPENROUTER_BASE_URL alias must not disagree"
-      : null,
-  ].filter((issue): issue is string => issue !== null);
-  if (aliasConflicts.length > 0) {
-    return invalidResolution(aliasConflicts, model);
-  }
 
   if (configuredCount === 0) {
     return {

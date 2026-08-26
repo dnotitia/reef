@@ -471,9 +471,8 @@ async function main() {
     );
   }
   assert(
-    turboConfig.globalPassThroughEnv.includes("REEF_*") &&
-      turboConfig.globalPassThroughEnv.includes("OPENROUTER_*"),
-    "deployment and compatibility secrets must be pass-through-only",
+    turboConfig.globalPassThroughEnv.includes("REEF_*"),
+    "deployment secrets must be pass-through-only",
   );
   verifyRepositoryHandoffs();
 

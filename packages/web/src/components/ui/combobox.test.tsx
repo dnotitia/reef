@@ -56,21 +56,24 @@ describe("Combobox", () => {
     expect(screen.queryByRole("option", { name: "Cherry" })).toBeNull();
   });
 
-  it("opens from explicit pointer and keyboard activation while closed", () => {
+  it("opens through native pointer and keyboard button activation", async () => {
+    const user = userEvent.setup();
     render(<Controlled />);
     const trigger = screen.getByLabelText("Fruit");
 
-    fireEvent.pointerDown(trigger, { button: 0 });
+    await user.click(trigger);
     expect(screen.getByRole("option", { name: "Apple" })).toBeInTheDocument();
 
-    fireEvent.keyDown(trigger, { key: "Escape" });
+    await user.keyboard("{Escape}");
     expect(screen.queryByRole("option", { name: "Apple" })).toBeNull();
 
-    fireEvent.keyDown(trigger, { key: "Enter" });
+    trigger.focus();
+    await user.keyboard("{Enter}");
     expect(screen.getByRole("option", { name: "Apple" })).toBeInTheDocument();
 
-    fireEvent.keyDown(trigger, { key: "Escape" });
-    fireEvent.keyDown(trigger, { key: " " });
+    await user.keyboard("{Escape}");
+    trigger.focus();
+    await user.keyboard(" ");
     expect(screen.getByRole("option", { name: "Apple" })).toBeInTheDocument();
   });
 
@@ -153,21 +156,6 @@ describe("Combobox", () => {
     // filters" at the primitive boundary.
     rerender(<Combobox<string> {...base} options={FRUITS} />);
     expect(screen.queryByTestId("search-progress-bar")).toBeNull();
-  });
-
-  it("commits the active option on Space instead of closing the menu", async () => {
-    const user = userEvent.setup();
-    const onChange = vi.fn();
-    render(<Controlled onChange={onChange} />);
-
-    const trigger = screen.getByLabelText("Fruit");
-    trigger.focus();
-    // Open (ArrowDown) → none row, two more downs → Apple → Banana, then Space.
-    await user.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}[Space]");
-
-    expect(onChange).toHaveBeenCalledWith("banana");
-    // Committing closes the menu (not reopened by a stray native click).
-    expect(screen.queryByRole("option", { name: "Cherry" })).toBeNull();
   });
 
   it("closes on Escape without committing", async () => {
@@ -347,13 +335,8 @@ describe("Combobox", () => {
     expect(screen.getByLabelText("Fruit").className).toContain("bg-brand-fill/10");
   });
 
-  it("scrolls only its own list, never an ancestor, when opening and navigating (REEF-145)", async () => {
+  it("uses cmdk's nearest-row scrolling while navigating", async () => {
     const user = userEvent.setup();
-    // The panel is anchored inside the page flow (not portaled), so
-    // `Element.scrollIntoView` would scroll every scrollable ancestor — the
-    // issue detail sheet — and visibly shift the edit content. The open /
-    // active-row effect must keep the active row visible by scrolling the list
-    // alone, so this API must never fire.
     const spy = vi.spyOn(Element.prototype, "scrollIntoView");
     render(<Controlled />);
 
@@ -362,7 +345,10 @@ describe("Combobox", () => {
     // Open, then walk the keyboard active row down past several entries.
     await user.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{ArrowUp}");
 
-    expect(spy).not.toHaveBeenCalled();
+    expect(spy).toHaveBeenCalled();
+    for (const [options] of spy.mock.calls) {
+      expect(options).toEqual({ block: "nearest" });
+    }
     spy.mockRestore();
   });
 
@@ -371,7 +357,7 @@ describe("Combobox", () => {
     render(<Controlled />);
 
     await user.click(screen.getByLabelText("Fruit"));
-    const panel = screen.getByRole("listbox").parentElement;
+    const panel = screen.getByRole("listbox").closest('[role="dialog"]');
     // The vertical anchor is no longer baked into the shared panel token; it is
     // applied from collision-aware placement state, which defaults to opening
     // downward (top-full) and start-aligned (left-0) and only flips when a real
@@ -418,7 +404,7 @@ describe("Combobox", () => {
     await user.click(screen.getByTestId("fruit-trigger"));
 
     await waitFor(() => {
-      const panel = screen.getByRole("listbox").parentElement;
+      const panel = screen.getByRole("listbox").closest('[role="dialog"]');
       expect(panel?.className).toContain("bottom-full");
     });
 

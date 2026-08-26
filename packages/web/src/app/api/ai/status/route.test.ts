@@ -1,14 +1,8 @@
 // @vitest-environment node
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { GET } from "./route";
 
 describe("GET /api/ai/status", () => {
-  beforeEach(() => {
-    for (const key of ["OPENROUTER_API_KEY", "OPENROUTER_BASE_URL"]) {
-      vi.stubEnv(key, "");
-    }
-  });
-
   afterEach(() => {
     vi.unstubAllEnvs();
   });

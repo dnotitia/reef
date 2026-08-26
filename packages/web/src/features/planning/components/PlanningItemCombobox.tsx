@@ -37,7 +37,7 @@ export const PLANNING_ITEM_PANEL_CLASS = "min-w-[min(20rem,90vw)]";
 /**
  * Sprint / milestone / release selector on the shared `<Combobox>` primitive
  * (REEF-135). The planning catalog is a short static list, so the control is a
- * plain (non-searchable) select with type-ahead. Planning names are often
+ * plain non-searchable select. Planning names are often
  * longer than compact filter triggers, so the opened panel keeps a readable
  * floor while still capping itself to narrow viewports.
  */

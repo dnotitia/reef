@@ -2,15 +2,13 @@ import { z } from "zod";
 import { IsoDateFieldSchema } from "../common/date";
 import {
   AgentArtifactSchema,
-  AgentArtifactTypeEnum,
   AgentErrorSchema,
-  AgentStatusChangeProposalArtifactBaseSchema,
   MetadataSchema,
 } from "./agentArtifacts";
 
 export * from "./agentArtifacts";
 
-export const AgentRunStatusEnum = z.enum([
+const AgentRunStatusEnum = z.enum([
   "running",
   "completed",
   "empty",
@@ -19,25 +17,6 @@ export const AgentRunStatusEnum = z.enum([
 ]);
 export type AgentRunStatus = z.infer<typeof AgentRunStatusEnum>;
 
-export const AgentRunEventTypeEnum = z.enum([
-  "run.started",
-  "run.completed",
-  "run.empty",
-  "run.cancelled",
-  "run.error",
-  "stage.started",
-  "stage.completed",
-  "stage.error",
-  "tool.called",
-  "tool.completed",
-  "tool.error",
-  "model.delta",
-  "artifact.partial",
-  "artifact.final",
-  "repair.started",
-  "repair.completed",
-  "repair.failed",
-]);
 const AgentRunEventBaseSchema = z.object({
   event_id: z.string().min(1),
   run_id: z.string().min(1),
@@ -55,12 +34,6 @@ const AgentStagePayloadSchema = z.object({
 const AgentToolPayloadSchema = z.object({
   tool_call_id: z.string().min(1),
   tool_name: z.string().min(1),
-});
-
-const AgentRepairPayloadSchema = z.object({
-  attempt: z.number().int().positive(),
-  reason: z.string().min(1),
-  policy: z.string().min(1).nullable().default(null),
 });
 
 const AgentRunStartedEventSchema = AgentRunEventBaseSchema.extend({
@@ -135,13 +108,6 @@ const AgentModelDeltaEventSchema = AgentRunEventBaseSchema.extend({
   channel: z.enum(["text", "reasoning", "tool"]).default("text"),
 });
 
-const AgentArtifactPartialEventSchema = AgentRunEventBaseSchema.extend({
-  type: z.literal("artifact.partial"),
-  artifact_id: z.string().min(1),
-  artifact_type: AgentArtifactTypeEnum,
-  delta: MetadataSchema.default({}),
-});
-
 const AgentArtifactFinalEventBaseSchema = AgentRunEventBaseSchema.extend({
   type: z.literal("artifact.final"),
   artifact: AgentArtifactSchema,
@@ -167,23 +133,6 @@ const assertFinalEventArtifactMatches = (
   }
 };
 
-const AgentRepairStartedEventSchema = AgentRunEventBaseSchema.extend({
-  type: z.literal("repair.started"),
-  repair: AgentRepairPayloadSchema,
-});
-
-const AgentRepairCompletedEventSchema = AgentRunEventBaseSchema.extend({
-  type: z.literal("repair.completed"),
-  repair: AgentRepairPayloadSchema,
-  output: MetadataSchema.default({}),
-});
-
-const AgentRepairFailedEventSchema = AgentRunEventBaseSchema.extend({
-  type: z.literal("repair.failed"),
-  repair: AgentRepairPayloadSchema,
-  error: AgentErrorSchema,
-});
-
 export const AgentRunEventSchema = z
   .discriminatedUnion("type", [
     AgentRunStartedEventSchema,
@@ -198,11 +147,7 @@ export const AgentRunEventSchema = z
     AgentToolCompletedEventSchema,
     AgentToolErrorEventSchema,
     AgentModelDeltaEventSchema,
-    AgentArtifactPartialEventSchema,
     AgentArtifactFinalEventBaseSchema,
-    AgentRepairStartedEventSchema,
-    AgentRepairCompletedEventSchema,
-    AgentRepairFailedEventSchema,
   ])
   .superRefine((event, ctx) => {
     if (event.type === "artifact.final") {
@@ -210,69 +155,3 @@ export const AgentRunEventSchema = z
     }
   });
 export type AgentRunEvent = z.infer<typeof AgentRunEventSchema>;
-
-export const AgentRunEnvelopeSchema = z
-  .object({
-    run_id: z.string().min(1),
-    task_id: z.string().min(1),
-    status: AgentRunStatusEnum,
-    started_at: IsoDateFieldSchema,
-    completed_at: IsoDateFieldSchema.nullable().default(null),
-    input: MetadataSchema.default({}),
-    events: z.array(AgentRunEventSchema).default([]),
-    artifacts: z.array(AgentArtifactSchema).default([]),
-    error: AgentErrorSchema.nullable().default(null),
-    metadata: MetadataSchema.default({}),
-  })
-  .superRefine((envelope, ctx) => {
-    envelope.events.forEach((event, index) => {
-      if (event.run_id !== envelope.run_id) {
-        ctx.addIssue({
-          code: "custom",
-          message: "event run_id must match envelope run_id",
-          path: ["events", index, "run_id"],
-        });
-      }
-      if (event.task_id !== envelope.task_id) {
-        ctx.addIssue({
-          code: "custom",
-          message: "event task_id must match envelope task_id",
-          path: ["events", index, "task_id"],
-        });
-      }
-      if (event.type === "artifact.final") {
-        if (event.artifact.run_id !== envelope.run_id) {
-          ctx.addIssue({
-            code: "custom",
-            message: "artifact run_id must match envelope run_id",
-            path: ["events", index, "artifact", "run_id"],
-          });
-        }
-        if (event.artifact.task_id !== envelope.task_id) {
-          ctx.addIssue({
-            code: "custom",
-            message: "artifact task_id must match envelope task_id",
-            path: ["events", index, "artifact", "task_id"],
-          });
-        }
-      }
-    });
-
-    envelope.artifacts.forEach((artifact, index) => {
-      if (artifact.run_id !== envelope.run_id) {
-        ctx.addIssue({
-          code: "custom",
-          message: "artifact run_id must match envelope run_id",
-          path: ["artifacts", index, "run_id"],
-        });
-      }
-      if (artifact.task_id !== envelope.task_id) {
-        ctx.addIssue({
-          code: "custom",
-          message: "artifact task_id must match envelope task_id",
-          path: ["artifacts", index, "task_id"],
-        });
-      }
-    });
-  });
-export type AgentRunEnvelope = z.infer<typeof AgentRunEnvelopeSchema>;

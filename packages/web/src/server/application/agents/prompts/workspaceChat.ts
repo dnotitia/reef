@@ -47,15 +47,9 @@ export interface WorkspaceChatSystemPromptOptions {
  * Build the system prompt (agent `instructions`) that grounds the workspace
  * chat agent in the current project state (REEF-360).
  *
- * This is the chat-mode counterpart to the dormant `projectState` prompt pair.
- * projectState was ported from the Tauri era for a *one-shot JSON Q&A* — its
- * system prompt hard-codes a `{answer, referenced_issue_ids}` JSON contract and
- * its user prompt dumps up to 200 issues. Injecting it verbatim would break the
- * streaming Markdown chat surface (the UI renders assistant text as Markdown,
- * not parsed JSON) and does not match AC1's compact *summary*. So this builder
- * reuses projectState's grounding intent — persona, anti-fabrication, proactive
- * tool use — adapted for a multi-turn Markdown chat, and injects a compact
- * workspace summary plus the current issue instead of the whole board.
+ * The prompt uses a compact workspace summary and optional current issue rather
+ * than dumping the board into every chat turn. Output remains streaming
+ * Markdown, with tools supplying any additional grounded detail.
  *
  * Pure and synchronous: it takes already-resolved, credential-safe data and
  * performs no I/O, so prompt assembly (context present/absent, truncation,

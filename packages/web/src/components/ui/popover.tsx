@@ -113,6 +113,19 @@ function Popover({
     }
 
     const focus = () => {
+      const active =
+        typeof document === "undefined" ? null : document.activeElement;
+      const focusMovedOutside =
+        typeof HTMLElement !== "undefined" &&
+        active instanceof HTMLElement &&
+        active !== document.body &&
+        active !== document.documentElement &&
+        !rootRef.current?.contains(active);
+      if (focusMovedOutside) {
+        focusRestoreScheduledRef.current = false;
+        focusOriginRef.current = null;
+        return;
+      }
       if (target.isConnected) target.focus({ preventScroll: true });
       focusRestoreScheduledRef.current = false;
       focusOriginRef.current = null;

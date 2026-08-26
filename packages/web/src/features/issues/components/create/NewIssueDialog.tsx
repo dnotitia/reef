@@ -184,7 +184,7 @@ export function NewIssueDialog({
     () => new Set(),
   );
   // AI reference candidates captured into local state so closing the suggestion
-  // bar (which resets enrichMutation) doesn't discard documents the PM hasn't
+  // bar (which resets the enrichment run) doesn't discard documents the PM hasn't
   // accepted or dismissed yet.
   const [referenceCandidates, setReferenceCandidates] = useState<
     ReferenceSuggestion[]
@@ -213,7 +213,7 @@ export function NewIssueDialog({
 
   const {
     enrichment,
-    enrichMutation,
+    enrichRun,
     enrichError,
     enrichIsEmpty,
     showEnrichmentBar,
@@ -285,7 +285,7 @@ export function NewIssueDialog({
     setDismissedRefs(new Set());
     setReferenceCandidates([]);
     enrichment.reset();
-    enrichMutation.reset();
+    enrichRun.reset();
     createMutation.reset();
   }
 
@@ -488,7 +488,7 @@ export function NewIssueDialog({
         setDismissedRefs(new Set());
         setReferenceCandidates([]);
         enrichment.reset();
-        enrichMutation.reset();
+        enrichRun.reset();
         createMutation.reset();
         requestAnimationFrame(() => titleInputRef.current?.focus());
         return;
@@ -678,13 +678,11 @@ export function NewIssueDialog({
                 size="sm"
                 className="h-8 gap-1.5 bg-ai px-3 text-xs text-ai-foreground hover:bg-ai/90"
                 onClick={handleEnrichClick}
-                disabled={isSubmitting || enrichMutation.isPending || noVault}
+                disabled={isSubmitting || enrichRun.isPending || noVault}
                 data-testid="enrich-trigger"
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                {enrichMutation.isPending
-                  ? tc("enriching")
-                  : tc("enrichWithAi")}
+                {enrichRun.isPending ? tc("enriching") : tc("enrichWithAi")}
               </Button>
               {canMaximize ? (
                 <TooltipProvider>
@@ -728,15 +726,14 @@ export function NewIssueDialog({
                 accepted={enrichment.counts.accepted}
                 onAcceptAll={handleAcceptAll}
                 onDismissAll={enrichment.dismissAll}
-                isLoading={enrichMutation.isPending}
+                isLoading={enrichRun.isPending}
                 isEmpty={enrichIsEmpty}
                 error={enrichError?.message}
                 onRetry={() => {
                   const enrichmentRequest = buildEnrichmentRequest();
-                  if (enrichmentRequest)
-                    enrichMutation.mutate(enrichmentRequest);
+                  if (enrichmentRequest) enrichRun.mutate(enrichmentRequest);
                 }}
-                onClose={() => enrichMutation.reset()}
+                onClose={() => enrichRun.reset()}
               />
             )}
 

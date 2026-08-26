@@ -173,7 +173,7 @@ describe("FilterBar", () => {
 
     // The opened Milestone panel keeps the readable planning floor.
     await user.click(screen.getByLabelText("Milestone"));
-    const panel = screen.getByRole("listbox").parentElement;
+    const panel = screen.getByRole("listbox").closest('[role="dialog"]');
     expect(panel?.className).toContain(PLANNING_ITEM_PANEL_CLASS);
     expect(screen.queryByText("Any milestone")).toBeNull();
     expect(screen.queryByText("No Milestone")).toBeNull();
@@ -512,16 +512,14 @@ describe("FilterBar", () => {
 
     await user.click(screen.getByTestId("assignee-dropdown-trigger"));
     // Vault-member rows are addressable by their role; pick two.
-    await user.click(
-      await screen.findByRole("menuitemcheckbox", { name: /Alice/ }),
-    );
+    await user.click(await screen.findByRole("option", { name: /Alice/ }));
     expect(useIssueStore.getState().filter.assignee).toEqual(["alice"]);
-    await user.click(screen.getByRole("menuitemcheckbox", { name: /Bob/ }));
+    await user.click(screen.getByRole("option", { name: /Bob/ }));
     expect(useIssueStore.getState().filter.assignee).toEqual(["alice", "bob"]);
 
     // Unchecking the last selected drops the facet to undefined, not [].
-    await user.click(screen.getByRole("menuitemcheckbox", { name: /Alice/ }));
-    await user.click(screen.getByRole("menuitemcheckbox", { name: /Bob/ }));
+    await user.click(screen.getByRole("option", { name: /Alice/ }));
+    await user.click(screen.getByRole("option", { name: /Bob/ }));
     expect(useIssueStore.getState().filter.assignee).toBeUndefined();
   });
 

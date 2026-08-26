@@ -552,7 +552,9 @@ hr {
 /* Streamdown owns its element tree and data-streamdown markers. This scope
  * mirrors the editor's semantic hierarchy while retaining the comment's
  * 13px density. The root's default `space-y-4` is deliberately overridden so
- * a long comment cannot create a different rhythm from the issue body. */
+ * a long comment cannot create a different rhythm from the issue body.
+ * Element selectors shared with the editor use a zero-specificity scope so
+ * these disjoint renderers do not impose a source-order dependency. */
 .reef-markdown-comment {
   font-size: 13px;
   line-height: 20px;
@@ -661,7 +663,7 @@ hr {
   text-decoration-line: none;
 }
 
-.reef-markdown-comment [data-streamdown="inline-code"] {
+:where(.reef-markdown-comment) [data-streamdown="inline-code"] {
   color: var(--foreground);
   font-family: var(--font-mono-stack);
   font-size: 0.875em;
@@ -677,8 +679,8 @@ hr {
   overflow-wrap: anywhere;
 }
 
-.reef-markdown-comment [data-streamdown="inline-code"]::before,
-.reef-markdown-comment [data-streamdown="inline-code"]::after {
+:where(.reef-markdown-comment) [data-streamdown="inline-code"]::before,
+:where(.reef-markdown-comment) [data-streamdown="inline-code"]::after {
   content: none;
 }
 
@@ -693,9 +695,9 @@ hr {
   padding: 8px 12px;
 }
 
-.reef-markdown-comment [data-streamdown="blockquote"] > p,
-.reef-markdown-comment [data-streamdown="blockquote"] > ul,
-.reef-markdown-comment [data-streamdown="blockquote"] > ol {
+:where(.reef-markdown-comment) [data-streamdown="blockquote"] > p,
+:where(.reef-markdown-comment) [data-streamdown="blockquote"] > ul,
+:where(.reef-markdown-comment) [data-streamdown="blockquote"] > ol {
   margin-block: 8px;
 }
 
@@ -740,12 +742,12 @@ hr {
   white-space: pre;
 }
 
-.reef-markdown-comment [data-streamdown="code-block-body"] > pre {
+:where(.reef-markdown-comment) [data-streamdown="code-block-body"] > pre {
   min-width: max-content;
   white-space: pre;
 }
 
-.reef-markdown-comment [data-streamdown="code-block-body"] code {
+:where(.reef-markdown-comment) [data-streamdown="code-block-body"] code {
   display: block;
   min-width: max-content;
   color: inherit;
@@ -827,8 +829,8 @@ hr {
   border-collapse: collapse;
 }
 
-.reef-markdown-comment [data-streamdown="table"] th,
-.reef-markdown-comment [data-streamdown="table"] td {
+:where(.reef-markdown-comment) [data-streamdown="table"] th,
+:where(.reef-markdown-comment) [data-streamdown="table"] td {
   min-width: 0;
   max-width: 100%;
   border: 1px solid var(--border-subtle);

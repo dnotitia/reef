@@ -144,45 +144,4 @@ describe("getAkbSessionStatus", () => {
       accountErrorToken: "denial-9",
     });
   });
-
-  it("fails closed and aborts the request at the bounded probe timeout", async () => {
-    vi.useFakeTimers();
-    let capturedSignal: AbortSignal | null | undefined;
-    apiFetch.mockImplementation(
-      (_input: RequestInfo | URL, init?: RequestInit) => {
-        capturedSignal = init?.signal;
-        return new Promise<Response>((_resolve, reject) => {
-          init?.signal?.addEventListener("abort", () => {
-            reject(new DOMException("aborted", "AbortError"));
-          });
-        });
-      },
-    );
-
-    const probe = getAkbSessionStatus(undefined, 25);
-    await vi.advanceTimersByTimeAsync(25);
-
-    await expect(probe).resolves.toEqual({ active: false });
-    expect(capturedSignal?.aborted).toBe(true);
-    vi.useRealTimers();
-  });
-
-  it("ignores a late profile response after the probe is aborted", async () => {
-    vi.useFakeTimers();
-    let resolveResponse!: (response: Response) => void;
-    apiFetch.mockImplementation(
-      () =>
-        new Promise<Response>((resolve) => {
-          resolveResponse = resolve;
-        }),
-    );
-
-    const probe = getAkbSessionStatus(undefined, 25);
-    await vi.advanceTimersByTimeAsync(25);
-    resolveResponse(new Response("{}", { status: 200 }));
-
-    await expect(probe).resolves.toEqual({ active: false });
-    expect(consumePendingAkbAccountErrorIfUnchanged).not.toHaveBeenCalled();
-    vi.useRealTimers();
-  });
 });

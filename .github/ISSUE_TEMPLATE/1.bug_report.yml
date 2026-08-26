@@ -70,7 +70,7 @@ body:
       description: |
         Browser devtools console output and the failing request's status/response.
         Redact secrets first: the __reef_session cookie, any `Authorization: Bearer`
-        tokens (AKB PAT, GitHub PAT), and OPENROUTER_API_KEY.
+        tokens (AKB PAT, GitHub PAT), and REEF_LLM_API_KEY.
       render: shell
   - type: checkboxes
     id: checks

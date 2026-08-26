@@ -10,16 +10,6 @@ import {
 } from "@reef/core";
 import { parseLenientJson } from "@reef/core";
 
-export function averageConfidence(
-  suggestions: readonly EnrichmentSuggestion[],
-): number | null {
-  if (suggestions.length === 0) return null;
-  return (
-    suggestions.reduce((sum, suggestion) => sum + suggestion.confidence, 0) /
-    suggestions.length
-  );
-}
-
 export function rescueEmptyText(result: unknown): string | null {
   const obj = result as Record<string, unknown>;
 

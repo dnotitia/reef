@@ -22,47 +22,14 @@ import pkg from "../../../package.json";
  * The Edge runtime does not imports this module, so `@opentelemetry/sdk-node` and
  * `process.once` (both Node) stay out of the Edge bundle.
  *
- * Security invariant: OTEL_EXPORTER_OTLP_HEADERS carries Langfuse API keys as
- * HTTP headers on outbound OTLP calls just — they are not recorded in span
- * attributes, log output, or response bodies.
+ * OTLP endpoint and header configuration is owned by the exporter through the
+ * standard `OTEL_EXPORTER_OTLP_*` environment variables.
  */
 export function registerNode() {
-  // Parse comma-separated key=value pairs from OTEL_EXPORTER_OTLP_HEADERS.
-  // Example: "x-langfuse-public-key=pk-...,x-langfuse-secret-key=sk-..."
-  const headersRaw = process.env.OTEL_EXPORTER_OTLP_HEADERS ?? "";
-  const headers: Record<string, string> = {};
-  if (headersRaw) {
-    for (const pair of headersRaw.split(",")) {
-      const eqIndex = pair.indexOf("=");
-      if (eqIndex > 0) {
-        const key = pair.slice(0, eqIndex).trim();
-        const value = pair.slice(eqIndex + 1).trim();
-        if (key) {
-          headers[key] = value;
-        }
-      }
-    }
-  }
-
-  // URL resolution follows the OTEL spec:
-  //   - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, if set, is used as-is (full URL).
-  //   - Otherwise, OTEL_EXPORTER_OTLP_ENDPOINT is treated as a base and
-  //     `/v1/traces` is appended (with single-slash normalization).
-  //   - Otherwise, fall back to http://localhost:4318/v1/traces.
-  // Passing the OTLPTraceExporter `url` overrides the SDK's default path
-  // resolution, so we should resolve the path here.
-  const tracesEndpoint =
-    process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT ??
-    (process.env.OTEL_EXPORTER_OTLP_ENDPOINT
-      ? `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT.replace(/\/+$/, "")}/v1/traces`
-      : "http://localhost:4318/v1/traces");
-
   // OTLP export is consistently on; the response-completion access log is dev by
   // default (see `responseLoggingEnabled` for the deploy-time opt-in).
   const spanProcessors: tracing.SpanProcessor[] = [
-    new tracing.BatchSpanProcessor(
-      new OTLPTraceExporter({ url: tracesEndpoint, headers }),
-    ),
+    new tracing.BatchSpanProcessor(new OTLPTraceExporter()),
   ];
   if (responseLoggingEnabled()) {
     spanProcessors.push(new RequestLogSpanProcessor());

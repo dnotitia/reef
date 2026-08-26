@@ -3403,13 +3403,31 @@ async function handleOpenRouter(req, res) {
           finish_reason: "stop",
           message: {
             role: "assistant",
-            content: basicTextResponse(body),
+            content: isEnrichmentRequest(body)
+              ? JSON.stringify({
+                  suggestions: [
+                    {
+                      field: "priority",
+                      value: "high",
+                      reasoning: "Authentication failures affect core access.",
+                      confidence: 0.91,
+                    },
+                  ],
+                  references: [],
+                })
+              : basicTextResponse(body),
           },
         },
       ],
     });
   }
   return json(res, 404, { error: "not_found" });
+}
+
+function isEnrichmentRequest(body) {
+  return JSON.stringify(body?.messages ?? []).includes(
+    "complete a new Reef issue draft",
+  );
 }
 
 function basicTextChunks(created, body) {

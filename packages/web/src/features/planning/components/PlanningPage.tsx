@@ -17,7 +17,6 @@ import {
   usePlanningKindLabels,
   usePlanningKindSingularLabels,
 } from "@/i18n/fieldLabels";
-import { activateButtonOnKeyDown } from "@/lib/keyboard";
 import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
 import { Plus } from "lucide-react";
@@ -206,7 +205,6 @@ export function PlanningPage() {
           <Button
             type="button"
             size="sm"
-            onKeyDown={activateButtonOnKeyDown}
             onClick={() => startCreate(activeKind)}
             disabled={!vault}
             className="gap-1.5"
@@ -238,7 +236,6 @@ export function PlanningPage() {
                     : SEGMENTED_CONTROL_ITEM_INACTIVE,
                 )}
                 onClick={() => selectKind(kind)}
-                onKeyDown={activateButtonOnKeyDown}
               >
                 <PlanningKindIcon kind={kind} decorative size={14} />
                 {planningKindLabels[kind]}

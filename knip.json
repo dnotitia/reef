@@ -60,18 +60,11 @@
     },
     "packages/web": {
       "entry": [
-        "next.config.ts",
-        "postcss.config.mjs",
-        "playwright.config.ts",
-        "vitest.config.ts",
-        "vitest.eval.ts",
-        "vitest.setup.ts",
         "src/app/**/*.{ts,tsx}",
-        "src/proxy.ts",
         "tests/e2e/**/*.{ts,tsx}",
         "tests/evals/**/*.{ts,tsx}"
       ],
-      "project": ["*.{ts,mjs}", "src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}"]
+      "project": ["*.{ts,mjs}", "src/**/*.{ts,tsx,css}", "tests/**/*.{ts,tsx}"]
     }
   }
 }

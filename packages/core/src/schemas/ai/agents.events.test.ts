@@ -1,13 +1,9 @@
 import { describe, expect, it } from "vitest";
-import {
-  AgentArtifactSchema,
-  AgentRunEnvelopeSchema,
-  AgentRunEventSchema,
-} from "./agents";
+import { AgentRunEventSchema } from "./agents";
 import { baseArtifact, timestamp } from "./agents.testSupport";
 
 describe("agent run event schemas", () => {
-  it("parses lifecycle events for stages, tools, model deltas, repairs, artifacts, and completion", () => {
+  it("parses the lifecycle, stage, tool, model, artifact, and terminal events used by live runs", () => {
     const events = [
       {
         event_id: "event-1",
@@ -25,7 +21,7 @@ describe("agent run event schemas", () => {
         seq: 1,
         created_at: timestamp,
         type: "stage.started",
-        stage: { stage_id: "prepareContext", name: "Prepare context" },
+        stage: { stage_id: "prepareContext", name: "prepareContext" },
       },
       {
         event_id: "event-3",
@@ -52,15 +48,6 @@ describe("agent run event schemas", () => {
         task_id: "issue.enrichment",
         seq: 4,
         created_at: timestamp,
-        type: "repair.started",
-        repair: { attempt: 1, reason: "Invalid JSON", policy: "json-repair" },
-      },
-      {
-        event_id: "event-6",
-        run_id: "run-1",
-        task_id: "issue.enrichment",
-        seq: 5,
-        created_at: timestamp,
         type: "artifact.final",
         artifact: {
           ...baseArtifact,
@@ -79,10 +66,10 @@ describe("agent run event schemas", () => {
         },
       },
       {
-        event_id: "event-7",
+        event_id: "event-6",
         run_id: "run-1",
         task_id: "issue.enrichment",
-        seq: 6,
+        seq: 5,
         created_at: timestamp,
         type: "run.completed",
         run_status: "completed",
@@ -92,10 +79,10 @@ describe("agent run event schemas", () => {
 
     expect(
       events.map((event) => AgentRunEventSchema.parse(event)),
-    ).toHaveLength(7);
+    ).toHaveLength(6);
   });
 
-  it("rejects standalone final events whose artifact belongs to another run", () => {
+  it("rejects final events whose artifact belongs to another run", () => {
     expect(() =>
       AgentRunEventSchema.parse({
         event_id: "event-1",
@@ -109,85 +96,9 @@ describe("agent run event schemas", () => {
           run_id: "run-2",
           task_id: "chat.workspace",
           type: "chat_message",
-          payload: {
-            text: "Wrong run.",
-          },
+          payload: { text: "Wrong run." },
         },
       }),
     ).toThrow("artifact run_id must match event run_id");
-  });
-
-  it("parses a run envelope with shared events and artifacts", () => {
-    const envelope = AgentRunEnvelopeSchema.parse({
-      run_id: "run-1",
-      task_id: "chat.workspace",
-      status: "completed",
-      started_at: timestamp,
-      completed_at: timestamp,
-      events: [
-        {
-          event_id: "event-1",
-          run_id: "run-1",
-          task_id: "chat.workspace",
-          seq: 0,
-          created_at: timestamp,
-          type: "run.completed",
-          run_status: "completed",
-        },
-      ],
-      artifacts: [
-        {
-          ...baseArtifact,
-          task_id: "chat.workspace",
-          type: "chat_message",
-          payload: {
-            text: "I found three related issues.",
-          },
-        },
-      ],
-    });
-
-    expect(envelope.status).toBe("completed");
-    expect(envelope.artifacts[0]?.type).toBe("chat_message");
-  });
-
-  it("rejects envelopes that mix events or artifacts from other runs", () => {
-    expect(() =>
-      AgentRunEnvelopeSchema.parse({
-        run_id: "run-1",
-        task_id: "chat.workspace",
-        status: "completed",
-        started_at: timestamp,
-        events: [
-          {
-            event_id: "event-1",
-            run_id: "run-2",
-            task_id: "chat.workspace",
-            seq: 0,
-            created_at: timestamp,
-            type: "artifact.final",
-            artifact: {
-              ...baseArtifact,
-              run_id: "run-2",
-              task_id: "chat.workspace",
-              type: "chat_message",
-              payload: {
-                text: "Wrong run.",
-              },
-            },
-          },
-        ],
-        artifacts: [
-          {
-            ...baseArtifact,
-            task_id: "issue.enrichment",
-            type: "chat_message",
-            payload: {
-              text: "Wrong task.",
-            },
-          },
-        ],
-      }),
-    ).toThrow("event run_id must match envelope run_id");
   });
 });

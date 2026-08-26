@@ -6,8 +6,8 @@ import {
 
 /**
  * Resolve the GitHub adapter for AI **code grounding** — the read scoped
- * monitored-repo `search_code` / `dev_read_file` tools wired into Ask AI
- * (`/api/agents/runs`), enrich (`/api/enrich`), and other agent runs.
+ * monitored-repo `search_code` / `dev_read_file` tools wired into
+ * `/api/agents/runs` chat and enrichment tasks.
  *
  * Credential selection is shared with repo-list callers through
  * `resolveGitHubAdapter` (REEF-290 AC2): server-managed GitHub App, then the

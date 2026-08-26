@@ -128,8 +128,8 @@ export function agentErrorEnvelope(
 
 /**
  * Localize an agent streaming error into the request locale (REEF-308). The
- * agent envelopes and `AgentArtifactCommandError` carry a stable snake_case
- * `code`; this boundary resolves the PM-facing message from an `errors.*` key
+ * agent envelopes carry a stable snake_case `code`; this boundary resolves the
+ * PM-facing message from an `errors.*` key
  * for the active locale (falling back to en per key via the catalog merge, AC3)
  * and keeps the `code`/`recoverable` contract unchanged — both `error` and
  * `runtime_error.message` carry the localized text (AC2). `fallback` (the

@@ -4,9 +4,6 @@ export type IssueScope = "active" | "backlog";
 /** The rendering layout used for the current issue scope. */
 export type IssueLayout = "board" | "list" | "timeline";
 
-/** Kept as a layout alias for callers that only care about rendering. */
-export type IssueViewMode = IssueLayout;
-
 export const ISSUE_SCOPES: readonly IssueScope[] = [
   "active",
   "backlog",
@@ -16,7 +13,6 @@ export const ISSUE_LAYOUTS: readonly IssueLayout[] = [
   "list",
   "timeline",
 ] as const;
-export const ISSUE_VIEW_MODES = ISSUE_LAYOUTS;
 
 const DEFAULT_ISSUE_SCOPE: IssueScope = "active";
 const DEFAULT_ISSUE_LAYOUT: IssueLayout = "board";
@@ -42,8 +38,6 @@ export function parseViewParam(value: string | null | undefined): IssueLayout {
     ? (value as IssueLayout)
     : DEFAULT_ISSUE_LAYOUT;
 }
-
-export const parseLayoutParam = parseViewParam;
 
 /** Backlog has no Timeline layout, so normalize that unsupported combination. */
 export function normalizeIssueViewState(

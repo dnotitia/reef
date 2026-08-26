@@ -1,6 +1,4 @@
 export {
-  AgentArtifactCommandRequestSchema,
-  AgentArtifactEditRequestSchema,
   AgentRunRequestSchema,
   type AgentRunRequest,
   type WorkspaceChatAgentInput,

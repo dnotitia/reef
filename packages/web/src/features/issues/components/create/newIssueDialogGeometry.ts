@@ -11,26 +11,26 @@ import {
   useState,
 } from "react";
 
-export const NEW_ISSUE_DIALOG_DEFAULT_MAX_WIDTH = 1200;
-export const NEW_ISSUE_DIALOG_MAX_WIDTH = 1680;
-export const NEW_ISSUE_DIALOG_EXPANSION_THRESHOLD = 32;
-export const NEW_ISSUE_DIALOG_VIEWPORT_GUTTER = 32;
-export const NEW_ISSUE_DIALOG_EXPANDED_SESSION_STORAGE_KEY =
+const NEW_ISSUE_DIALOG_DEFAULT_MAX_WIDTH = 1200;
+const NEW_ISSUE_DIALOG_MAX_WIDTH = 1680;
+const NEW_ISSUE_DIALOG_EXPANSION_THRESHOLD = 32;
+const NEW_ISSUE_DIALOG_VIEWPORT_GUTTER = 32;
+const NEW_ISSUE_DIALOG_EXPANDED_SESSION_STORAGE_KEY =
   "reef:new-issue-dialog-expanded:v1";
 
-export function getNewIssueDialogDefaultWidth(viewportWidth: number) {
+function getNewIssueDialogDefaultWidth(viewportWidth: number) {
   return Math.min(viewportWidth * 0.94, NEW_ISSUE_DIALOG_DEFAULT_MAX_WIDTH);
 }
 
-export function getNewIssueDialogMaxWidth(viewportWidth: number) {
+function getNewIssueDialogMaxWidth(viewportWidth: number) {
   return Math.min(viewportWidth * 0.94, NEW_ISSUE_DIALOG_MAX_WIDTH);
 }
 
-export function getNewIssueDialogMaxHeight(viewportHeight: number) {
+function getNewIssueDialogMaxHeight(viewportHeight: number) {
   return Math.max(0, viewportHeight - NEW_ISSUE_DIALOG_VIEWPORT_GUTTER);
 }
 
-export function canExpandNewIssueDialog({
+function canExpandNewIssueDialog({
   viewportWidth,
   viewportHeight,
   normalHeight,
@@ -61,7 +61,7 @@ export function canExpandNewIssueDialog({
   );
 }
 
-export function getMaximizedDescriptionHeight({
+function getMaximizedDescriptionHeight({
   viewportHeight,
   normalHeight,
   availableHeight,

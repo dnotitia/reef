@@ -45,7 +45,6 @@ import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboard
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import { useUserSearch } from "@/features/issues/hooks/queries/useUserSearch";
-import { activateButtonOnKeyDown } from "@/lib/keyboard";
 import { DURATION_BASE, EASE_SIGNATURE } from "@/lib/motionTokens";
 import {
   DndContext,
@@ -650,7 +649,6 @@ export function KanbanBoard({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onKeyDown={activateButtonOnKeyDown}
                   onClick={() => useIssueStore.getState().clearFilter()}
                 >
                   {common("clearFilters")}

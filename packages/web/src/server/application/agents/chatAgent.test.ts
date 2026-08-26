@@ -5,7 +5,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type WorkspaceChatStepSummary,
   createWorkspaceChatAgentResponse,
-  getWorkspaceChatTaskConfig,
 } from "./chatAgent";
 import type { AgentRunEvent } from "./framework/events";
 
@@ -116,16 +115,6 @@ describe("workspace chat agent task", () => {
     });
   });
 
-  it("declares chat.workspace streaming config in the registry", () => {
-    expect(getWorkspaceChatTaskConfig()).toMatchObject({
-      taskId: "chat.workspace",
-      executionMode: "tool-loop-stream",
-      functionId: "reef.agent.chat.workspace",
-      maxSteps: 10,
-      toolsetPolicy: ["workspace-read", "repo-read"],
-    });
-  });
-
   it("passes the adapter retry policy into every ToolLoopAgent model step", async () => {
     await createWorkspaceChatAgentResponse(
       createParams({
@@ -139,7 +128,7 @@ describe("workspace chat agent task", () => {
     expect(getAgentSettings().maxRetries).toBe(0);
   });
 
-  it("assembles the AI SDK stream presenter from registry config", async () => {
+  it("assembles the AI SDK stream presenter with the bounded chat policy", async () => {
     const params = createParams();
 
     await createWorkspaceChatAgentResponse(params);
@@ -181,7 +170,7 @@ describe("workspace chat agent task", () => {
     expect(instructions).toContain("reef-test");
     expect(instructions).toContain("Sprint 6");
     expect(instructions).toContain("Open issues (not done/closed): 7");
-    // Chat output should be Markdown, not the projectState JSON contract.
+    // Chat output should remain Markdown rather than a one-shot JSON contract.
     expect(instructions).toContain("Markdown");
     expect(instructions).not.toContain("referenced_issue_ids");
     // With no current issue, there is no issue section and no prefetch.

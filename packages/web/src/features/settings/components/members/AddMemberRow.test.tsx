@@ -49,7 +49,7 @@ describe("AddMemberRow (REEF-179)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Add a member" }));
     const already = screen.getByTestId("directory-option-bob");
-    expect(already).toBeDisabled();
+    expect(already).toHaveAttribute("aria-disabled", "true");
     expect(already).toHaveTextContent("Already a member");
   });
 
