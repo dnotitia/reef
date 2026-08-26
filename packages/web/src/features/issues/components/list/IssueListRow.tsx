@@ -68,7 +68,6 @@ interface IssueListRowProps {
   occurrenceKey?: string;
   columns?: readonly IssueListColumnKey[];
   sortable?: boolean;
-  sortableItems?: readonly string[];
   reorderHint?: string;
   onClick?: (id: string) => void;
 }
@@ -157,7 +156,6 @@ export const IssueListRow = memo(function IssueListRow({
   occurrenceKey,
   columns = ISSUE_LIST_DEFAULT_COLUMNS,
   sortable = false,
-  sortableItems = [],
   reorderHint,
   onClick,
 }: IssueListRowProps) {
@@ -358,12 +356,7 @@ export const IssueListRow = memo(function IssueListRow({
             data-column-key="rank"
           >
             {sortable && reorderHint ? (
-              <IssueListReorderHandle
-                id={issue.id}
-                index={sortableItems.indexOf(issue.id)}
-                items={sortableItems}
-                label={reorderHint}
-              />
+              <IssueListReorderHandle id={issue.id} label={reorderHint} />
             ) : (
               <span className="block size-8" aria-hidden="true" />
             )}

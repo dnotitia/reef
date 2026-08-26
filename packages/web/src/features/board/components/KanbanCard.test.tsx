@@ -57,7 +57,19 @@ vi.mock("@dnd-kit/utilities", () => ({
   },
 }));
 
-import { useDraggable } from "@dnd-kit/core";
+vi.mock("@dnd-kit/sortable", () => ({
+  useSortable: vi.fn(() => ({
+    attributes: {},
+    listeners: {},
+    setNodeRef: vi.fn(),
+    transform: null,
+    transition: undefined,
+    isDragging: false,
+    isOver: false,
+  })),
+}));
+
+import { useSortable } from "@dnd-kit/sortable";
 
 const mockIssue = (overrides: Partial<IssueListItem> = {}): IssueListItem => ({
   id: "reef-001",
@@ -216,7 +228,7 @@ describe("KanbanCard", () => {
   });
 
   it("applies dragging style class when isDragging is true", () => {
-    vi.mocked(useDraggable).mockReturnValueOnce({
+    vi.mocked(useSortable).mockReturnValueOnce({
       attributes: {
         role: "button",
         tabIndex: 0,
@@ -227,15 +239,11 @@ describe("KanbanCard", () => {
       },
       listeners: {},
       setNodeRef: vi.fn(),
-      setActivatorNodeRef: vi.fn(),
-      activeNodeRect: null,
       transform: { x: 10, y: 20, scaleX: 1, scaleY: 1 },
       isDragging: true,
-      node: { current: null },
-      over: null,
-      active: null,
-      activatorEvent: null,
-    });
+      transition: undefined,
+      isOver: false,
+    } as unknown as ReturnType<typeof useSortable>);
 
     const { container } = render(<KanbanCard issue={mockIssue()} />);
     const card = container.firstChild as HTMLElement;
@@ -330,7 +338,7 @@ describe("KanbanCard", () => {
   });
 
   it("ignores click while dragging", () => {
-    vi.mocked(useDraggable).mockReturnValueOnce({
+    vi.mocked(useSortable).mockReturnValueOnce({
       attributes: {
         role: "button",
         tabIndex: 0,
@@ -341,15 +349,11 @@ describe("KanbanCard", () => {
       },
       listeners: {},
       setNodeRef: vi.fn(),
-      setActivatorNodeRef: vi.fn(),
-      activeNodeRect: null,
       transform: null,
       isDragging: true,
-      node: { current: null },
-      over: null,
-      active: null,
-      activatorEvent: null,
-    });
+      transition: undefined,
+      isOver: false,
+    } as unknown as ReturnType<typeof useSortable>);
     const onClick = vi.fn();
     render(<KanbanCard issue={mockIssue()} onClick={onClick} />);
     fireEvent.click(screen.getByTestId("kanban-card"));

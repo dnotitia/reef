@@ -1,6 +1,7 @@
 import type { IssueListItem } from "@reef/core";
 import { ISSUE_FIELD_MESSAGES_EN } from "@reef/core/fields";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { KanbanColumn } from "./KanbanColumn";
 
@@ -25,6 +26,11 @@ vi.mock("@dnd-kit/core", () => ({
 
 vi.mock("@dnd-kit/utilities", () => ({
   CSS: { Translate: { toString: () => "" } },
+}));
+
+vi.mock("@dnd-kit/sortable", () => ({
+  SortableContext: ({ children }: { children: ReactNode }) => <>{children}</>,
+  verticalListSortingStrategy: vi.fn(),
 }));
 
 // Stub auto-animate so its controller's setState doesn't trigger a second

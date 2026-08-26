@@ -15,7 +15,7 @@ import type {
   PlanningCatalog,
   Status,
 } from "@reef/core";
-import { memo, useMemo } from "react";
+import { memo } from "react";
 import type { IssueGroupBucket } from "../../issues/lib/grouping";
 import { KanbanCard } from "./KanbanCard";
 
@@ -66,11 +66,6 @@ export const KanbanColumn = memo(function KanbanColumn({
     duration: DURATION_BASE,
     easing: EASE_SIGNATURE,
   });
-  const sortableItems = useMemo(
-    () => issues.map((issue) => `${bucket.id}:${issue.id}`),
-    [bucket.id, issues],
-  );
-
   return (
     <div
       ref={setNodeRef}
@@ -99,21 +94,19 @@ export const KanbanColumn = memo(function KanbanColumn({
 
       {/* Cards — scroll within the column when many */}
       <SortableContext
-        items={sortableItems}
+        items={issues.map((issue) => `${bucket.id}:${issue.id}`)}
         strategy={verticalListSortingStrategy}
       >
         <div
           ref={cardListRef}
           className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto"
         >
-          {issues.map((issue, index) => (
+          {issues.map((issue) => (
             <KanbanCard
               key={`${bucket.id}:${issue.id}`}
               vault={vault}
               issue={issue}
               bucket={bucket}
-              sortableIndex={index}
-              sortableItems={sortableItems}
               occurrenceKey={`${bucket.id}:${issue.id}`}
               dragEnabled={canDrag}
               readOnlyReason={readOnlyReason}

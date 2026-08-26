@@ -884,7 +884,6 @@ export function IssueListTable({
                         occurrenceKey={item.occurrenceKey}
                         columns={columns}
                         sortable={canReorder && groupBy === "none"}
-                        sortableItems={reorderableIds}
                         reorderHint={t("reorderGrip", { id: item.issue.id })}
                         onClick={openIssue}
                       />

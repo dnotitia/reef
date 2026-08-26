@@ -73,6 +73,21 @@ vi.mock("@dnd-kit/core", () => ({
   useSensors: vi.fn((...sensors: unknown[]) => sensors),
 }));
 
+vi.mock("@dnd-kit/sortable", () => ({
+  SortableContext: ({ children }: { children: ReactNode }) => <>{children}</>,
+  sortableKeyboardCoordinates: vi.fn(),
+  useSortable: vi.fn(() => ({
+    attributes: {},
+    listeners: {},
+    setNodeRef: vi.fn(),
+    transform: null,
+    transition: undefined,
+    isDragging: false,
+    isOver: false,
+  })),
+  verticalListSortingStrategy: vi.fn(),
+}));
+
 // Stub auto-animate (used by KanbanColumn) so its controller doesn't trigger
 // an extra render that would consume one-shot dnd-kit mocks.
 vi.mock("@formkit/auto-animate/react", () => ({

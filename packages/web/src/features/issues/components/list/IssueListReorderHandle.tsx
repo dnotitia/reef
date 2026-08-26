@@ -1,6 +1,6 @@
 "use client";
 
-import { useDraggable, useDroppable } from "@dnd-kit/core";
+import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 import { useCallback, useLayoutEffect, useRef } from "react";
@@ -8,8 +8,6 @@ import { useIssueKeyboardStore } from "../../stores/useIssueKeyboardStore";
 
 interface IssueListReorderHandleProps {
   id: string;
-  index: number;
-  items: readonly string[];
   label: string;
 }
 
@@ -21,30 +19,27 @@ interface IssueListReorderHandleProps {
  */
 export function IssueListReorderHandle({
   id,
-  index,
-  items,
   label,
 }: IssueListReorderHandleProps) {
   const focusRequest = useIssueKeyboardStore((state) => state.focusRequest);
   const handleRef = useRef<HTMLButtonElement | null>(null);
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({
-      id,
-      data: {
-        sortable: { containerId: "issue-list", index, items },
-      },
-    });
-  const { setNodeRef: setDroppableRef, isOver } = useDroppable({
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+    isOver,
+  } = useSortable({
     id,
-    data: { sortable: { containerId: "issue-list", index, items } },
   });
   const setRef = useCallback(
     (node: HTMLButtonElement | null) => {
       handleRef.current = node;
       setNodeRef(node);
-      setDroppableRef(node);
     },
-    [setDroppableRef, setNodeRef],
+    [setNodeRef],
   );
 
   useLayoutEffect(() => {
@@ -66,9 +61,10 @@ export function IssueListReorderHandle({
       aria-label={label}
       data-testid={`issue-list-grip-${id}`}
       className="inline-flex size-8 shrink-0 cursor-grab items-center justify-center rounded-sm text-muted-foreground opacity-50 transition-[background-color,opacity,box-shadow] duration-150 hover:bg-surface-hover hover:opacity-100 focus-visible:z-10 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40 active:cursor-grabbing"
-      style={
-        transform ? { transform: CSS.Translate.toString(transform) } : undefined
-      }
+      style={{
+        ...(transform ? { transform: CSS.Translate.toString(transform) } : {}),
+        ...(transition ? { transition } : {}),
+      }}
       data-drag-over={isOver ? "true" : undefined}
       data-dragging={isDragging ? "true" : undefined}
       onClick={(event) => event.stopPropagation()}

@@ -21,7 +21,7 @@ import {
   usePriorityLabels,
 } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
-import { useDraggable, useDroppable } from "@dnd-kit/core";
+import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
   type Collaborator,
@@ -65,8 +65,6 @@ interface KanbanCardProps {
   dragEnabled?: boolean;
   readOnlyReason?: string;
   bucket?: IssueGroupBucket;
-  sortableIndex?: number;
-  sortableItems?: readonly string[];
 }
 
 interface KanbanCardSurfaceProps extends HTMLAttributes<HTMLDivElement> {
@@ -290,26 +288,17 @@ export const KanbanCard = memo(function KanbanCard({
   dragEnabled = true,
   readOnlyReason,
   bucket,
-  sortableIndex = 0,
-  sortableItems = [],
 }: KanbanCardProps) {
   const currentLogin = useCurrentUserLogin();
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({
-      id: occurrenceKey ?? issue.id,
-      data: {
-        issue,
-        occurrenceKey,
-        bucket,
-        sortable: {
-          containerId: bucket?.id,
-          index: sortableIndex,
-          items: sortableItems,
-        },
-      },
-      disabled: !dragEnabled,
-    });
-  const { setNodeRef: setDroppableRef, isOver } = useDroppable({
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+    isOver,
+  } = useSortable({
     id: occurrenceKey ?? issue.id,
     data: { issue, occurrenceKey, bucket },
     disabled: !dragEnabled,
@@ -338,9 +327,8 @@ export const KanbanCard = memo(function KanbanCard({
     (node: HTMLDivElement | null) => {
       cardRef.current = node;
       setNodeRef(node);
-      setDroppableRef(node);
     },
-    [setDroppableRef, setNodeRef],
+    [setNodeRef],
   );
 
   useLayoutEffect(() => {
@@ -356,9 +344,10 @@ export const KanbanCard = memo(function KanbanCard({
     cardRef.current.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [focusRequest, keyboardOccurrenceKey]);
 
-  const style = transform
-    ? { transform: CSS.Translate.toString(transform) }
-    : undefined;
+  const style = {
+    ...(transform ? { transform: CSS.Translate.toString(transform) } : {}),
+    ...(transition ? { transition } : {}),
+  };
 
   function handleClick() {
     // Suppress the click that would fire at the end of a drag — pointerup
