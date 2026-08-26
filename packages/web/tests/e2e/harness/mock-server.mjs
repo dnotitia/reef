@@ -2453,6 +2453,9 @@ function handleSql(vault, sql) {
     );
   }
 
+  if (lower.startsWith("with updated as (update reef_issues")) {
+    return handleIssueReorderSql(vault, normalized);
+  }
   if (lower.startsWith("select * from reef_issues")) {
     if (state.issueListFailure) {
       return { error: "e2e forced issue list failure" };
@@ -2496,43 +2499,6 @@ function handleSql(vault, sql) {
     return tableSql();
   }
   if (lower.startsWith("update reef_issues")) {
-    const reorderMatch = normalized.match(
-      /set\s+"rank"\s*=\s*case\s+"reef_id"\s+(.+?)\s+end,\s+"meta"/i,
-    );
-    if (reorderMatch) {
-      const idsMatch = normalized.match(
-        /where\s+"reef_id"\s+in\s*\(([^)]+)\)/i,
-      );
-      const assignments = new Map(
-        [
-          ...reorderMatch[1].matchAll(
-            /when\s+'((?:''|[^'])+)'\s+then\s+(null|-?(?:\d+(?:\.\d+)?))/gi,
-          ),
-        ].map(([, rawId, rawRank]) => [
-          rawId.replace(/''/g, "'"),
-          /^null$/i.test(rawRank) ? null : Number(rawRank),
-        ]),
-      );
-      const ids = idsMatch ? sqlValues(idsMatch[1]) : [];
-      const editor = matchSqlString(
-        normalized,
-        /to_jsonb\('((?:''|[^'])*)'::text\)/i,
-      );
-      const updatedAt = nextEditTimestamp();
-      for (const row of vault.issues) {
-        if (
-          ids.includes(row.reef_id) &&
-          row.status === "backlog" &&
-          row.archived_at == null &&
-          assignments.has(row.reef_id)
-        ) {
-          row.rank = assignments.get(row.reef_id);
-          row.updated_at = updatedAt;
-          if (editor) row.meta = { ...row.meta, last_editor: editor };
-        }
-      }
-      return tableSql();
-    }
     const update = parseUpdate(normalized);
     if (update) {
       const id = matchSqlString(
@@ -2864,6 +2830,116 @@ function handleSql(vault, sql) {
   }
 
   return tableQuery([], []);
+}
+
+/**
+ * Emulate the atomic Manual reorder CTE. The real adapter reads canonical rows
+ * first, then sends one `WITH updated AS (UPDATE reef_issues ...) SELECT ...`
+ * statement. Keep this parser deliberately shaped to that SQL so hermetic
+ * browser tests exercise the same route contract instead of retaining the old
+ * `{ vault, assignments }` shortcut.
+ */
+function handleIssueReorderSql(vault, sql) {
+  const idsMatch = sql.match(/where\s+"reef_id"\s+in\s*\(([^)]+)\)/i);
+  const ids = idsMatch ? sqlValues(idsMatch[1]) : [];
+  if (ids.length === 0)
+    return tableQuery(["reef_id", "rank", "updated_at"], []);
+
+  const isBacklog = /"status"\s*=\s*'backlog'/i.test(sql);
+  const eligible = (row) =>
+    ids.includes(row.reef_id) &&
+    row.archived_at == null &&
+    (isBacklog ? row.status === "backlog" : row.status !== "backlog");
+  const rows = vault.issues.filter(eligible);
+  if (rows.length !== ids.length) {
+    return tableQuery(["reef_id", "rank", "updated_at"], []);
+  }
+
+  const guardPattern =
+    /\("reef_id"\s*=\s*'((?:''|[^'])+)'\s+AND\s+\("rank"\s+IS\s+DISTINCT\s+FROM\s+(NULL|-?(?:\d+(?:\.\d+)?(?:e[+-]?\d+)?))\s+OR\s+"updated_at"\s+IS\s+DISTINCT\s+FROM\s+'((?:''|[^'])+)'\)\)/gi;
+  for (const match of sql.matchAll(guardPattern)) {
+    const row = vault.issues.find(
+      (candidate) => candidate.reef_id === match[1].replace(/''/g, "'"),
+    );
+    const expectedRank = /^null$/i.test(match[2]) ? null : Number(match[2]);
+    const expectedUpdatedAt = match[3].replace(/''/g, "'");
+    if (
+      !row ||
+      (row.rank ?? null) !== expectedRank ||
+      String(row.updated_at ?? "") !== expectedUpdatedAt
+    ) {
+      return tableQuery(["reef_id", "rank", "updated_at"], []);
+    }
+  }
+
+  const rankAssignments = new Map();
+  const rankCase = sql.match(
+    /"rank"\s*=\s*case\s+"reef_id"\s+(.+?)\s+end(?:,|\s+where)/i,
+  );
+  for (const match of rankCase?.[1].matchAll(
+    /when\s+'((?:''|[^'])+)'\s+then\s+(-?(?:\d+(?:\.\d+)?(?:e[+-]?\d+)?))/gi,
+  ) ?? []) {
+    rankAssignments.set(match[1].replace(/''/g, "'"), Number(match[2]));
+  }
+
+  const groupAssignments = new Map();
+  for (const column of [
+    "status",
+    "priority",
+    "assigned_to",
+    "sprint_id",
+    "closed_at",
+    "closed_reason",
+  ]) {
+    const assignment = parseIssueReorderCase(sql, column);
+    if (assignment) groupAssignments.set(column, assignment);
+  }
+
+  const editor = matchSqlString(sql, /to_jsonb\('((?:''|[^'])*)'::text\)/i);
+  const statusChangedAt = matchSqlString(
+    sql,
+    /\{last_status_change\}.*?to_jsonb\('((?:''|[^'])*)'::text\)/i,
+  );
+  const updatedAt = nextEditTimestamp();
+  const updatedRows = [];
+  for (const row of rows) {
+    const rank = rankAssignments.get(row.reef_id);
+    if (rank !== undefined) row.rank = rank;
+    for (const [column, assignment] of groupAssignments) {
+      if (assignment.id !== row.reef_id) continue;
+      row[column] = assignment.value;
+    }
+    row.updated_at = updatedAt;
+    if (editor !== null) {
+      row.meta = { ...(row.meta ?? {}), last_editor: editor };
+    }
+    if (statusChangedAt !== null) {
+      row.meta = {
+        ...(row.meta ?? {}),
+        last_status_change: statusChangedAt,
+      };
+    }
+    updatedRows.push({
+      reef_id: row.reef_id,
+      rank: row.rank,
+      updated_at: row.updated_at,
+    });
+  }
+  return tableQuery(["reef_id", "rank", "updated_at"], updatedRows);
+}
+
+function parseIssueReorderCase(sql, column) {
+  const escapedColumn = column.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(
+    `"${escapedColumn}"\\s*=\\s*case\\s+"reef_id"\\s+when\\s+'((?:''|[^'])+)'\\s+then\\s+(null|'(?:''|[^'])*')\\s+else\\s+"${escapedColumn}"\\s+end`,
+    "i",
+  );
+  const match = sql.match(pattern);
+  if (!match) return null;
+  return {
+    id: match[1].replace(/''/g, "'"),
+    value: parseSqlValue(match[2]),
+  };
 }
 
 /** Columns a reef_activity timeline row exposes (mirrors the akb row shape). */

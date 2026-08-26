@@ -8,6 +8,7 @@ import {
   PriorityEnum,
   SeverityEnum,
   StatusEnum,
+  ClosedReasonEnum,
 } from "./metadata";
 import { AKB_DOCUMENT_URI_RE } from "./references";
 
@@ -57,7 +58,7 @@ export const CreateIssueRequestSchema = z
 /**
  * User-selectable sort columns — the set surfaced in the issue list's sort
  * control. `rank` is deliberately excluded: it is server-managed issue ordering
- * (backlog drag-reorder and trusted imports), not a value the user picks. The
+ * (Manual drag-reorder and trusted imports), not a field sort the user picks. The
  * persisted-filter schema (REEF-009) restores these, so a stale/shared
  * `?sort=rank` is dropped on restore, matching a UI that does not offers it.
  * This is also the single source for the user-facing sort values.
@@ -83,8 +84,14 @@ export const USER_SORT_FIELDS = [
  * typing the web filter store's `sortField`, the display-metadata maps in
  * `fieldRegistry`, and any consumer that should stay in lockstep with
  * `USER_SORT_FIELDS`. Excludes the server-managed `rank` (see `SORT_FIELDS`).
+ * Manual order is represented by the separate ordering mode and sent as rank
+ * ascending.
  */
 export type UserSortField = (typeof USER_SORT_FIELDS)[number];
+
+/** The shared view choice: Manual rank order or one of the field sorts. */
+export const IssueOrderingModeEnum = z.enum(["manual", "field"]);
+export type IssueOrderingMode = z.infer<typeof IssueOrderingModeEnum>;
 
 /**
  * Sortable columns for the issue list. `priority` sorts by a CASE rank (see the
@@ -202,23 +209,143 @@ export const IssueListResponseSchema = z.object({
 export type IssueListResponse = z.infer<typeof IssueListResponseSchema>;
 
 /**
- * Body for POST /api/issues/reorder — the backlog drag-reorder write (REEF-129).
- * `assignments` is the set of `rank` writes a single drag produced (from
- * `computeReorderedRanks`); the server applies them as one atomic SQL update.
- * `rank` is finite (fractional midpoints and negative top-inserts are valid).
+ * The shared Manual-order drag command used by Board, List, and Backlog.
  *
- * The cap is `MAX_REORDER_WRITES` — the SAME bound `computeReorderedRanks`
- * clamps its output to — so a valid drag can not be rejected as malformed,
- * while still bounding a hostile payload. It is shared, not a second guess at
- * "how big is a backlog".
+ * The browser sends only the moved issue and its intended neighbours. The
+ * adapter reads the canonical rank-ordered set before applying the command;
+ * the client page is therefore never treated as the complete ordering source.
  */
-export const BacklogReorderRequestSchema = z.object({
-  vault: z.string().min(1),
+export const IssueReorderGroupSchema = z
+  .object({
+    field: z.enum(["status", "priority", "assigned_to", "sprint_id"]),
+    value: z.string().nullable(),
+    closed_reason: ClosedReasonEnum.nullable().optional(),
+  })
+  .superRefine((group, ctx) => {
+    if (group.field === "status") {
+      if (!StatusEnum.safeParse(group.value).success) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["value"],
+          message: "status group value is invalid",
+        });
+      }
+      if (group.value === "closed" && !group.closed_reason) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["closed_reason"],
+          message: "closed status requires a close reason",
+        });
+      }
+      if (group.value !== "closed" && group.closed_reason != null) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["closed_reason"],
+          message: "close reason is only valid for closed status",
+        });
+      }
+      return;
+    }
+
+    if (
+      group.field === "priority" &&
+      group.value != null &&
+      !PriorityEnum.safeParse(group.value).success
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["value"],
+        message: "priority group value is invalid",
+      });
+    }
+    if (
+      (group.field === "assigned_to" || group.field === "sprint_id") &&
+      group.value != null &&
+      group.value.trim().length === 0
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["value"],
+        message: `${group.field} group value must not be empty`,
+      });
+    }
+    if (group.closed_reason != null) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["closed_reason"],
+        message: "close reason is only valid for status groups",
+      });
+    }
+  });
+
+const IssueReorderExpectedSchema = z.object({
+  issue_rank: z.number().finite().nullable(),
+  issue_updated_at: IsoDateFieldSchema,
+  before_rank: z.number().finite().nullable(),
+  before_updated_at: IsoDateFieldSchema.nullable(),
+  after_rank: z.number().finite().nullable(),
+  after_updated_at: IsoDateFieldSchema.nullable(),
+});
+
+/**
+ * Body for POST /api/issues/reorder. `before_id` and `after_id` describe the
+ * target slot after removing `issue_id`; either edge may be null. Expected
+ * snapshots make a stale neighbour or moved row a retryable conflict instead
+ * of allowing a concurrent reorder to be overwritten.
+ */
+export const IssueReorderRequestSchema = z
+  .object({
+    vault: z.string().min(1),
+    scope: z.enum(["active", "backlog"]),
+    issue_id: z.string().min(1),
+    before_id: z.string().min(1).nullable(),
+    after_id: z.string().min(1).nullable(),
+    expected: IssueReorderExpectedSchema,
+    group: IssueReorderGroupSchema.optional(),
+  })
+  .refine(
+    (request) =>
+      request.issue_id !== request.before_id &&
+      request.issue_id !== request.after_id &&
+      (request.before_id === null || request.before_id !== request.after_id),
+    {
+      message: "reorder neighbours must be distinct from the moved issue",
+      path: ["before_id"],
+    },
+  )
+  .refine(
+    (request) =>
+      (request.before_id !== null ||
+        (request.expected.before_rank === null &&
+          request.expected.before_updated_at === null)) &&
+      (request.after_id !== null ||
+        (request.expected.after_rank === null &&
+          request.expected.after_updated_at === null)) &&
+      (request.before_id === null ||
+        request.expected.before_updated_at !== null) &&
+      (request.after_id === null || request.expected.after_updated_at !== null),
+    {
+      message: "edge neighbours must have null expected snapshots",
+      path: ["expected"],
+    },
+  );
+
+export const IssueReorderResponseSchema = z.object({
+  ok: z.literal(true),
   assignments: z
-    .array(z.object({ id: z.string().min(1), rank: z.number() }))
-    .min(1)
+    .array(
+      z.object({
+        id: z.string().min(1),
+        rank: z.number().finite(),
+        updated_at: IsoDateFieldSchema.optional(),
+      }),
+    )
     .max(MAX_REORDER_WRITES),
 });
+
+export type IssueReorderRequest = z.infer<typeof IssueReorderRequestSchema>;
+export type IssueReorderGroup = z.infer<typeof IssueReorderGroupSchema>;
+export type IssueReorderResponse = z.infer<typeof IssueReorderResponseSchema>;
 
 /**
  * A single node of the whole-vault relation projection — the minimal shape the

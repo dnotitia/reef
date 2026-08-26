@@ -1,9 +1,20 @@
-import { AkbApiError, ConflictError, NotFoundError } from "../../../errors";
+import {
+  AkbApiError,
+  ConflictError,
+  NotFoundError,
+  SchemaValidationError,
+} from "../../../errors";
+import { computeReorderedRanks } from "../../../models/backlogRank";
 import {
   buildResolvedMentionRecipients,
   extractMentionUsernames,
 } from "../../../schemas/issues/mention";
-import type { IssueMetadata } from "../../../schemas/issues/metadata";
+import type {
+  IssueMetadata,
+  Priority,
+  Status,
+} from "../../../schemas/issues/metadata";
+import type { IssueReorderGroup } from "../../../schemas/issues/requests";
 import { deepEqual } from "../../../utils/deepEqual";
 import type { AkbAdapter } from "../core/http";
 import {
@@ -12,6 +23,7 @@ import {
   buildIssueDocPatchBody,
   buildPutRequestBody,
   buildRowAssignments,
+  buildIssueOrderBy,
   deleteDocumentQuietly,
   ensureDocumentPutResponse,
   ensureDocumentResponse,
@@ -21,8 +33,10 @@ import {
   issueRowMutableFields,
   makeIssueResourceLabel,
   quoteJson,
+  quoteIdent,
   quoteNumberOrNull,
   quoteText,
+  quoteTextOrNull,
   rowToIssue,
   runSql,
   selectIssueRows,
@@ -36,7 +50,8 @@ import type {
   DeleteIssueParams,
   ReadIssueParams,
   ReadIssueResult,
-  ReorderBacklogParams,
+  ReorderIssueParams,
+  ReorderIssueResult,
   UpdateIssueParams,
   UpdateIssueResult,
   WriteIssueParams,
@@ -960,54 +975,389 @@ export async function deleteIssue(params: DeleteIssueParams): Promise<void> {
   });
 }
 
+const REORDER_GROUP_COLUMNS = {
+  status: "status",
+  priority: "priority",
+  assigned_to: "assigned_to",
+  sprint_id: "sprint_id",
+} as const;
+
+function rawRank(row: Record<string, unknown>): number | null {
+  if (row.rank == null) return null;
+  const rank = typeof row.rank === "number" ? row.rank : Number(row.rank);
+  return Number.isFinite(rank) ? rank : null;
+}
+
+function rawGroupValue(
+  row: Record<string, unknown>,
+  field: keyof typeof REORDER_GROUP_COLUMNS,
+): string | null {
+  const value = row[REORDER_GROUP_COLUMNS[field]];
+  return value == null ? null : String(value);
+}
+
+function reorderScopeWhere(scope: ReorderIssueParams["scope"]): string {
+  return scope === "backlog"
+    ? `"status" = 'backlog' AND "archived_at" IS NULL`
+    : `"status" <> 'backlog' AND "archived_at" IS NULL`;
+}
+
+function issueWithReorderGroup(
+  issue: IssueMetadata,
+  group: IssueReorderGroup,
+): IssueMetadata {
+  switch (group.field) {
+    case "status":
+      return { ...issue, status: group.value as Status };
+    case "priority":
+      return { ...issue, priority: group.value as Priority | null };
+    case "assigned_to":
+      return { ...issue, assigned_to: group.value };
+    case "sprint_id":
+      return { ...issue, sprint_id: group.value };
+  }
+}
+
 /**
- * Persist a backlog drag-reorder's `rank` writes (REEF-129) as ONE atomic SQL
- * `UPDATE … SET rank = CASE reef_id … END` so a multi-row reorder (tail
- * materialization, curated re-space) does not leave the server partially
- * reordered the way independent per-row PATCHes could. `rank` is a typed row
- * column absent from the document, so this is a pure row update — no document
- * PATCH, no commit, no compensation saga. Last-write-wins, like every row edit.
- *
- * akb bumps `updated_at` on the write and projects `updated_by` from
- * `meta.last_editor`, so the same statement stamps `last_editor` with the actor
- * — otherwise reordered rows would read as freshly updated by a stale editor.
+ * Reorder one issue against server-side canonical neighbours. The command is
+ * intentionally separate from the older assignment primitive: callers send a
+ * target slot, while this method reads the complete rank order and applies the
+ * resulting rank writes (and an optional single-value group change) in one SQL
+ * statement. This keeps filtered/paginated clients from becoming an ordering
+ * authority.
  */
-export async function reorderBacklogIssues(
-  params: ReorderBacklogParams,
-): Promise<void> {
-  const { adapter, vault, assignments, actor } = params;
-  if (assignments.length === 0) return;
-  await withSpan(
-    "akb.reorder_backlog",
-    { vault, count: assignments.length },
-    async () => {
-      const cases = assignments
-        .map(
-          (a) =>
-            `WHEN ${quoteText(a.id, "reorder reef_id")} THEN ${quoteNumberOrNull(
-              a.rank,
-            )}`,
-        )
-        .join(" ");
-      const ids = assignments
-        .map((a) => quoteText(a.id, "reorder reef_id"))
-        .join(", ");
-      const editor = `to_jsonb(${quoteText(actor, "reorder actor")}::text)`;
-      // Scope the write to rows actually in the active backlog: `status =
-      // 'backlog'` AND not archived. A stale client (its backlog query can stay
-      // fresh up to `staleTime` while another user promotes, closes, or archives
-      // an issue) should not stamp rank / updated_at / last_editor onto a row
-      // outside the active backlog — an archived backlog issue keeps its status
-      // but is excluded by `archived_at IS NULL`, so the status guard alone would
-      // still corrupt it. Rows outside the active backlog are simply skipped.
-      const backlog = quoteText("backlog", "reorder status guard");
-      await runSql(
+export async function reorderIssue(
+  params: ReorderIssueParams,
+): Promise<ReorderIssueResult> {
+  const {
+    adapter,
+    vault,
+    scope,
+    issueId,
+    beforeId,
+    afterId,
+    expected,
+    group,
+    actor,
+    at,
+  } = params;
+  return withSpan(
+    "akb.reorder_issue",
+    { vault, issue_id: issueId, scope },
+    async (span) => {
+      if (scope === "backlog" && group && group.field !== "priority") {
+        throw new SchemaValidationError({
+          issues: ["backlog reorder only supports the priority group"],
+        });
+      }
+      if (
+        scope === "active" &&
+        group?.field === "status" &&
+        group.value === "backlog"
+      ) {
+        throw new SchemaValidationError({
+          issues: ["active reorder cannot target the backlog status"],
+        });
+      }
+
+      const rows = await selectIssueRows(
         adapter,
         vault,
-        `UPDATE ${tableRef(REEF_ISSUES_TABLE)} SET "rank" = CASE "reef_id" ${cases} END, ` +
-          `"meta" = jsonb_set("meta"::jsonb, '{last_editor}', ${editor})::json ` +
-          `WHERE "reef_id" IN (${ids}) AND "status" = ${backlog} AND "archived_at" IS NULL`,
+        reorderScopeWhere(scope),
+        buildIssueOrderBy("rank", "asc"),
       );
+      const rowById = new Map<string, Record<string, unknown>>();
+      for (const row of rows) {
+        if (typeof row.reef_id === "string") rowById.set(row.reef_id, row);
+      }
+
+      const movedRow = rowById.get(issueId);
+      if (!movedRow) {
+        throw new NotFoundError({ resource: makeIssueResourceLabel(issueId) });
+      }
+
+      const expectedRows: Array<{
+        id: string;
+        rank: number | null;
+        updatedAt: string | null;
+      }> = [
+        {
+          id: issueId,
+          rank: expected.issueRank,
+          updatedAt: expected.issueUpdatedAt,
+        },
+      ];
+      if (beforeId) {
+        expectedRows.push({
+          id: beforeId,
+          rank: expected.beforeRank,
+          updatedAt: expected.beforeUpdatedAt,
+        });
+      }
+      if (afterId) {
+        expectedRows.push({
+          id: afterId,
+          rank: expected.afterRank,
+          updatedAt: expected.afterUpdatedAt,
+        });
+      }
+      for (const snapshot of expectedRows) {
+        const row = rowById.get(snapshot.id);
+        if (
+          !row ||
+          rawRank(row) !== snapshot.rank ||
+          (row.updated_at == null ? null : String(row.updated_at)) !==
+            snapshot.updatedAt
+        ) {
+          throw new ConflictError({ path: issuePathFor(issueId) });
+        }
+      }
+
+      const ordered = rows.flatMap((row) => {
+        const id = typeof row.reef_id === "string" ? row.reef_id : null;
+        return id ? [{ id, rank: rawRank(row) }] : [];
+      });
+      const fromIndex = ordered.findIndex((item) => item.id === issueId);
+      if (fromIndex < 0) {
+        throw new NotFoundError({ resource: makeIssueResourceLabel(issueId) });
+      }
+
+      const withoutMoved = ordered.filter((item) => item.id !== issueId);
+      const beforeIndex = beforeId
+        ? withoutMoved.findIndex((item) => item.id === beforeId)
+        : -1;
+      const afterIndex = afterId
+        ? withoutMoved.findIndex((item) => item.id === afterId)
+        : -1;
+      if (
+        (beforeId && beforeIndex < 0) ||
+        (afterId && afterIndex < 0) ||
+        (beforeId && afterId && beforeIndex >= afterIndex)
+      ) {
+        throw new ConflictError({ path: issuePathFor(issueId) });
+      }
+
+      // A null `after_id` is the canonical scope tail. The client must only
+      // send it once that tail is known (or deliberately asks for the true
+      // end); a visible page boundary is not an ordering authority.
+      const toIndex = afterId ? afterIndex : beforeId ? withoutMoved.length : 0;
+      if (toIndex < 0 || toIndex > withoutMoved.length) {
+        throw new ConflictError({ path: issuePathFor(issueId) });
+      }
+
+      const currentGroupValue = group
+        ? rawGroupValue(movedRow, group.field)
+        : null;
+      const targetGroupValue = group?.value ?? null;
+      const groupChanged =
+        group != null && currentGroupValue !== targetGroupValue;
+
+      const assignments =
+        fromIndex === toIndex
+          ? []
+          : computeReorderedRanks(ordered, fromIndex, toIndex);
+      const touchedIds = new Set(
+        assignments.map((assignment) => assignment.id),
+      );
+      if (groupChanged) touchedIds.add(issueId);
+      if (touchedIds.size === 0) {
+        span.setAttribute("assignment_count", 0);
+        return { assignments };
+      }
+
+      // Recheck every row whose rank the algebra is about to rewrite. A
+      // concurrent change to an unranked tail row must not be silently folded
+      // into a materialized run.
+      const guardRows = new Map<
+        string,
+        { rank: number | null; updatedAt: string }
+      >();
+      for (const assignment of assignments) {
+        const row = rowById.get(assignment.id);
+        if (row?.updated_at != null) {
+          guardRows.set(assignment.id, {
+            rank: rawRank(row),
+            updatedAt: String(row.updated_at),
+          });
+        }
+      }
+      for (const snapshot of expectedRows) {
+        if (snapshot.updatedAt != null) {
+          guardRows.set(snapshot.id, {
+            rank: snapshot.rank,
+            updatedAt: snapshot.updatedAt,
+          });
+        }
+      }
+      const guard = [...guardRows.entries()]
+        .map(
+          ([id, snapshot]) =>
+            `("reef_id" = ${quoteText(
+              id,
+              "reorder reef_id",
+            )} AND ("rank" IS DISTINCT FROM ${quoteNumberOrNull(
+              snapshot.rank,
+            )} OR "updated_at" IS DISTINCT FROM ${quoteText(
+              snapshot.updatedAt,
+              "reorder updated_at",
+            )}))`,
+        )
+        .join(" OR ");
+
+      const setClauses: string[] = [];
+      if (assignments.length > 0) {
+        const rankCases = assignments
+          .map(
+            (assignment) =>
+              `WHEN ${quoteText(
+                assignment.id,
+                "reorder reef_id",
+              )} THEN ${quoteNumberOrNull(assignment.rank)}`,
+          )
+          .join(" ");
+        setClauses.push(`"rank" = CASE "reef_id" ${rankCases} ELSE "rank" END`);
+      }
+
+      if (groupChanged && group) {
+        const column = REORDER_GROUP_COLUMNS[group.field];
+        setClauses.push(
+          `${quoteIdent(column)} = CASE "reef_id" WHEN ${quoteText(
+            issueId,
+            "reorder reef_id",
+          )} THEN ${quoteTextOrNull(
+            group.value,
+            `reorder ${group.field}`,
+          )} ELSE ${quoteIdent(column)} END`,
+        );
+        if (group.field === "status") {
+          const status = group.value as Status;
+          setClauses.push(
+            `"closed_at" = CASE "reef_id" WHEN ${quoteText(
+              issueId,
+              "reorder reef_id",
+            )} THEN ${
+              status === "closed" ? quoteText(at, "reorder closed_at") : "NULL"
+            } ELSE "closed_at" END`,
+          );
+          setClauses.push(
+            `"closed_reason" = CASE "reef_id" WHEN ${quoteText(
+              issueId,
+              "reorder reef_id",
+            )} THEN ${
+              status === "closed"
+                ? quoteTextOrNull(group.closed_reason, "reorder closed_reason")
+                : "NULL"
+            } ELSE "closed_reason" END`,
+          );
+        }
+      }
+
+      let metaExpression = `COALESCE("meta"::jsonb, '{}'::jsonb)`;
+      metaExpression = `jsonb_set(${metaExpression}, '{last_editor}', to_jsonb(${quoteText(
+        actor,
+        "reorder actor",
+      )}::text), true)`;
+      if (groupChanged && group?.field === "status") {
+        metaExpression = `jsonb_set(${metaExpression}, '{last_status_change}', to_jsonb(${quoteText(
+          at,
+          "reorder status timestamp",
+        )}::text), true)`;
+      }
+      setClauses.push(`"meta" = ${metaExpression}::json`);
+
+      const touched = [...touchedIds]
+        .map((id) => quoteText(id, "reorder reef_id"))
+        .join(", ");
+      const updated = await runSql(
+        adapter,
+        vault,
+        `WITH updated AS (UPDATE ${tableRef(
+          REEF_ISSUES_TABLE,
+        )} SET ${setClauses.join(", ")} WHERE "reef_id" IN (${touched}) AND ${reorderScopeWhere(
+          scope,
+        )} AND NOT EXISTS (SELECT 1 FROM ${tableRef(
+          REEF_ISSUES_TABLE,
+        )} WHERE ${reorderScopeWhere(scope)} AND (${guard})) RETURNING "reef_id", "rank", "updated_at") SELECT "reef_id", "rank", "updated_at" FROM updated`,
+      );
+      if (
+        updated.kind !== "table_query" ||
+        updated.items.length !== touchedIds.size
+      ) {
+        throw new ConflictError({ path: issuePathFor(issueId) });
+      }
+
+      const returnedById = new Map(
+        updated.items.flatMap((row) => {
+          if (typeof row.reef_id !== "string") return [];
+          const rank = rawRank(row);
+          if (rank == null) return [];
+          return [
+            [
+              row.reef_id,
+              {
+                rank,
+                updatedAt:
+                  row.updated_at == null ? undefined : String(row.updated_at),
+              },
+            ] as const,
+          ];
+        }),
+      );
+      const persistedAssignments = [...touchedIds].flatMap((id) => {
+        const returned = returnedById.get(id);
+        const requested = assignments.find(
+          (assignment) => assignment.id === id,
+        );
+        const rank =
+          returned?.rank ?? requested?.rank ?? rawRank(rowById.get(id) ?? {});
+        if (rank == null) return [];
+        return [
+          {
+            id,
+            rank,
+            ...(returned?.updatedAt ? { updatedAt: returned.updatedAt } : {}),
+          },
+        ];
+      });
+
+      if (groupChanged && group) {
+        try {
+          const beforeIssue = rowToIssue(movedRow);
+          const afterIssue = issueWithReorderGroup(beforeIssue, group);
+          if (group.field === "status") {
+            await appendStatusChangeEvent(adapter, vault, {
+              reefId: issueId,
+              from: beforeIssue.status,
+              to: afterIssue.status,
+              at,
+              actor,
+              source: null,
+            });
+          } else {
+            const events = diffFieldActivityEvents(
+              issueId,
+              beforeIssue,
+              afterIssue,
+              {
+                at,
+                actor,
+                source: null,
+              },
+            );
+            if (events.length > 0) {
+              await appendActivityEvents(adapter, vault, events);
+            }
+          }
+        } catch (error) {
+          span.addEvent("activity_append_failed", {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      span.setAttribute("assignment_count", assignments.length);
+      span.setAttribute("group_changed", groupChanged);
+      return { assignments: persistedAssignments };
     },
   );
 }

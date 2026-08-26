@@ -4,6 +4,10 @@ import { StatusIcon } from "@/components/ui/status-icon";
 import { DURATION_BASE, EASE_SIGNATURE } from "@/lib/motionTokens";
 import { cn } from "@/lib/utils";
 import { useDroppable } from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
 import type {
   Collaborator,
@@ -11,7 +15,7 @@ import type {
   PlanningCatalog,
   Status,
 } from "@reef/core";
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import type { IssueGroupBucket } from "../../issues/lib/grouping";
 import { KanbanCard } from "./KanbanCard";
 
@@ -62,6 +66,10 @@ export const KanbanColumn = memo(function KanbanColumn({
     duration: DURATION_BASE,
     easing: EASE_SIGNATURE,
   });
+  const sortableItems = useMemo(
+    () => issues.map((issue) => `${bucket.id}:${issue.id}`),
+    [bucket.id, issues],
+  );
 
   return (
     <div
@@ -90,25 +98,33 @@ export const KanbanColumn = memo(function KanbanColumn({
       </div>
 
       {/* Cards — scroll within the column when many */}
-      <div
-        ref={cardListRef}
-        className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto"
+      <SortableContext
+        items={sortableItems}
+        strategy={verticalListSortingStrategy}
       >
-        {issues.map((issue) => (
-          <KanbanCard
-            key={`${bucket.id}:${issue.id}`}
-            vault={vault}
-            issue={issue}
-            occurrenceKey={`${bucket.id}:${issue.id}`}
-            dragEnabled={canDrag}
-            readOnlyReason={readOnlyReason}
-            blocked={blockedIds.has(issue.id)}
-            planningCatalog={planningCatalog}
-            assignees={assignees}
-            onClick={onIssueClick}
-          />
-        ))}
-      </div>
+        <div
+          ref={cardListRef}
+          className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto"
+        >
+          {issues.map((issue, index) => (
+            <KanbanCard
+              key={`${bucket.id}:${issue.id}`}
+              vault={vault}
+              issue={issue}
+              bucket={bucket}
+              sortableIndex={index}
+              sortableItems={sortableItems}
+              occurrenceKey={`${bucket.id}:${issue.id}`}
+              dragEnabled={canDrag}
+              readOnlyReason={readOnlyReason}
+              blocked={blockedIds.has(issue.id)}
+              planningCatalog={planningCatalog}
+              assignees={assignees}
+              onClick={onIssueClick}
+            />
+          ))}
+        </div>
+      </SortableContext>
     </div>
   );
 });

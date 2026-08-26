@@ -1,4 +1,4 @@
-import type { IssueUpdatePatch } from "@reef/core";
+import type { IssueReorderGroup, IssueUpdatePatch } from "@reef/core";
 import type { IssueQueryParams } from "./buildIssueQuery";
 import { issueListQueryFromKey } from "./issueListCache";
 
@@ -185,4 +185,52 @@ export function listInvalidationPredicate(
     if (variant.sort_field === "updated_at") return true;
     return changedKeys.some((key) => variant.sort_field === key);
   };
+}
+
+/**
+ * Rank reorder invalidation follows the field-aware issue-list decision
+ * (REEF-323): the response patches every cached row, so only Manual/rank
+ * variants and the server-stamped `updated_at` variants need a refetch.
+ * Priority/title/date/etc. field-sort variants cannot change order or
+ * membership from a rank-only write.
+ */
+export function rankReorderInvalidationPredicate({
+  queryKey,
+}: {
+  queryKey: readonly unknown[];
+}): boolean {
+  const variant = issueListQueryFromKey(queryKey) as
+    | IssueQueryParams
+    | undefined;
+  return variant?.sort_field === "rank" || variant?.sort_field === "updated_at";
+}
+
+function issuePatchForReorderGroup(group: IssueReorderGroup): IssueUpdatePatch {
+  switch (group.field) {
+    case "status":
+      return { status: group.value as IssueUpdatePatch["status"] };
+    case "priority":
+      return { priority: group.value as IssueUpdatePatch["priority"] };
+    case "assigned_to":
+      return { assigned_to: group.value };
+    case "sprint_id":
+      return { sprint_id: group.value };
+  }
+}
+
+/**
+ * Combine the rank-only predicate with the field-aware membership predicate
+ * for a Board/Backlog cross-group move. Same-group Manual moves use only the
+ * rank and `updated_at` branches; a group mutation also invalidates variants
+ * filtered or sorted by that group field.
+ */
+export function reorderListInvalidationPredicate(
+  group?: IssueReorderGroup,
+): (query: { queryKey: readonly unknown[] }) => boolean {
+  const groupPredicate = group
+    ? listInvalidationPredicate(issuePatchForReorderGroup(group))
+    : undefined;
+  return (query) =>
+    rankReorderInvalidationPredicate(query) ||
+    (groupPredicate?.(query) ?? false);
 }

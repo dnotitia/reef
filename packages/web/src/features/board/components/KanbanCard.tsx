@@ -21,7 +21,7 @@ import {
   usePriorityLabels,
 } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
-import { useDraggable } from "@dnd-kit/core";
+import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import {
   type Collaborator,
@@ -41,6 +41,7 @@ import {
   useRef,
   useState,
 } from "react";
+import type { IssueGroupBucket } from "../../issues/lib/grouping";
 
 interface KanbanCardProps {
   issue: IssueListItem;
@@ -63,6 +64,9 @@ interface KanbanCardProps {
   occurrenceKey?: string;
   dragEnabled?: boolean;
   readOnlyReason?: string;
+  bucket?: IssueGroupBucket;
+  sortableIndex?: number;
+  sortableItems?: readonly string[];
 }
 
 interface KanbanCardSurfaceProps extends HTMLAttributes<HTMLDivElement> {
@@ -285,14 +289,31 @@ export const KanbanCard = memo(function KanbanCard({
   occurrenceKey,
   dragEnabled = true,
   readOnlyReason,
+  bucket,
+  sortableIndex = 0,
+  sortableItems = [],
 }: KanbanCardProps) {
   const currentLogin = useCurrentUserLogin();
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
       id: occurrenceKey ?? issue.id,
-      data: { issue, occurrenceKey },
+      data: {
+        issue,
+        occurrenceKey,
+        bucket,
+        sortable: {
+          containerId: bucket?.id,
+          index: sortableIndex,
+          items: sortableItems,
+        },
+      },
       disabled: !dragEnabled,
     });
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({
+    id: occurrenceKey ?? issue.id,
+    data: { issue, occurrenceKey, bucket },
+    disabled: !dragEnabled,
+  });
   // Save-confirm flash: one-shot highlight when this card's edit lands
   // server-side. the flashing card re-renders; the hook auto-clears the
   // flag after the flash window so a later save can flash it again.
@@ -317,8 +338,9 @@ export const KanbanCard = memo(function KanbanCard({
     (node: HTMLDivElement | null) => {
       cardRef.current = node;
       setNodeRef(node);
+      setDroppableRef(node);
     },
-    [setNodeRef],
+    [setDroppableRef, setNodeRef],
   );
 
   useLayoutEffect(() => {
@@ -367,6 +389,9 @@ export const KanbanCard = memo(function KanbanCard({
       }
       className={cn(
         focused && "border-brand-focus/60 bg-brand-fill/5",
+        isOver &&
+          !isDragging &&
+          "border-brand-focus/60 ring-2 ring-brand-focus/20",
         isFlashing && "reef-flash-card",
       )}
       role="button"

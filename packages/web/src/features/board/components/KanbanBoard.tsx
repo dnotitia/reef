@@ -14,11 +14,19 @@ import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelat
 import { useResolvedAutoHideWindows } from "@/features/issues/hooks/useResolvedAutoHideWindows";
 import { useOpenIssue } from "@/features/issues/hooks/view/useOpenIssue";
 import { useWorkflowStatusGuard } from "@/features/issues/hooks/view/useWorkflowStatusGuard";
-import { buildIssueQuery } from "@/features/issues/lib/buildIssueQuery";
+import {
+  buildIssueQuery,
+  buildManualIssueQuery,
+} from "@/features/issues/lib/buildIssueQuery";
 import {
   buildBulkIssuePatch,
   type BulkIssueOperation,
 } from "@/features/issues/lib/bulkIssueUpdate";
+import {
+  buildIssueReorderTargetForBoardDrop,
+  type IssueReorderGroupInput,
+  type IssueReorderTarget,
+} from "@/features/issues/lib/issueReorder";
 import {
   applyDependencyFilter,
   computeBlockedIds,
@@ -42,7 +50,10 @@ import type { IssueGroupBy } from "@/features/issues/lib/groupBy";
 import type { IssueScope } from "@/features/issues/lib/viewMode";
 import { useFlashStore } from "@/features/issues/stores/useFlashStore";
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
-import { useIssueStore } from "@/features/issues/stores/useIssueStore";
+import {
+  isManualOrdering,
+  useIssueStore,
+} from "@/features/issues/stores/useIssueStore";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import { useUserSearch } from "@/features/issues/hooks/queries/useUserSearch";
 import { DURATION_BASE, EASE_SIGNATURE } from "@/lib/motionTokens";
@@ -137,33 +148,24 @@ export function KanbanBoard({
     () => filterForIssueScope(filter, scope),
     [filter, scope],
   );
+  const manualOrder = isManualOrdering(filter);
   // Server-side narrows the transfer (facets + free-text search); the client
   // pipeline below still applies due/label/dependency residuals and grouping.
   // The whole-vault relation projection backs blocker badges + the dependency
   // filter so they stay correct over the server-filtered subset.
   const query = useMemo(() => {
-    if (scope === "backlog" && !filter.sortField) {
-      return {
-        ...buildIssueQuery(
-          { status: ["backlog"], showArchived: filter.showArchived },
-          "",
-          "backlog",
-        ),
-        sort_field: "rank",
-        sort_order: "asc",
-      };
+    if (manualOrder) {
+      return buildManualIssueQuery(filter, scope);
     }
-    const next = buildIssueQuery(filter, searchQuery, scope);
-    return filter.sortField
-      ? next
-      : { ...next, sort_field: "rank", sort_order: "asc" };
-  }, [filter, scope, searchQuery]);
+    return buildIssueQuery(filter, searchQuery, scope);
+  }, [filter, manualOrder, scope, searchQuery]);
   // isPending (not isLoading) — see useActiveVault for the rationale.
   const {
     data: issues,
     isPending,
     isFetching,
     isError,
+    isPlaceholderData,
   } = useIssueList(vault, query);
   const staleWindowDays = useResolvedAutoHideWindows(vault);
   const { data: relations } = useIssueRelations(vault);
@@ -178,6 +180,7 @@ export function KanbanBoard({
   const [pendingClose, setPendingClose] = useState<{
     issue: IssueListItem;
     bucket: IssueGroupBucket;
+    target?: IssueReorderTarget;
   } | null>(null);
 
   // PointerSensor just starts a drag after a small distance — anything
@@ -222,10 +225,17 @@ export function KanbanBoard({
     // selected sort, the board shows reef's issue-wide rank order seeded by
     // backlog reorder or trusted imports (REEF-393); grouping preserves that
     // order inside each workflow column.
-    return scopedFilter.sortField
-      ? sortIssues(depFiltered, scopedFilter.sortField, scopedFilter.sortOrder)
-      : sortIssuesByRankOrder(depFiltered);
-  }, [allIssues, graph, scopedFilter, searchQuery, staleWindowDays]);
+    return manualOrder
+      ? sortIssuesByRankOrder(depFiltered)
+      : sortIssues(depFiltered, scopedFilter.sortField, scopedFilter.sortOrder);
+  }, [
+    allIssues,
+    graph,
+    manualOrder,
+    scopedFilter,
+    searchQuery,
+    staleWindowDays,
+  ]);
   // The filtered list controls card visibility; the full `allIssues` list
   // still powers dependency lookups so hidden deps can resolve accurately.
   // Active uses workflow-status columns; Backlog uses fixed Priority columns.
@@ -316,12 +326,18 @@ export function KanbanBoard({
       ),
     [allIssues],
   );
-  const canReorderBacklog =
-    scope === "backlog" &&
-    !filter.sortField &&
+  const canonicalBoardIssues = useMemo(
+    () => sortIssuesByRankOrder(allIssues),
+    [allIssues],
+  );
+  const canReorderManualBoard =
+    manualOrder &&
     !filter.showArchived &&
-    !reorder.isPending &&
-    !mutation.isPending;
+    !isFetching &&
+    !isPlaceholderData &&
+    !reorder.isPending;
+  const canReorderBacklog =
+    scope === "backlog" && canReorderManualBoard && !mutation.isPending;
 
   function operationForBucket(
     bucket: IssueGroupBucket,
@@ -385,89 +401,87 @@ export function KanbanBoard({
     );
   }
 
-  function runBacklogReorder(input: {
-    ordered: IssueListItem[];
-    fromIndex: number;
-    toIndex: number;
+  function runReorder(input: {
+    target: IssueReorderTarget;
+    group?: IssueReorderGroupInput;
   }) {
-    reorder.mutateAsync({ vault, ...input }).then(
-      () =>
-        toast.dismiss(kanbanToastId(input.ordered[input.fromIndex]?.id ?? "")),
-      (err: unknown) => {
-        const id = input.ordered[input.fromIndex]?.id ?? "backlog";
-        notifyRetryableError({
-          id: kanbanToastId(id),
-          title:
-            err instanceof Error && err.message
-              ? err.message
-              : backlogT("reorderErrorTitle"),
-          description: backlogT("reorderErrorDescription"),
-          labels: {
-            retry: common("retry"),
-            retrying: toasts("retrying"),
-          },
-          onRetry: () => runBacklogReorder(input),
-        });
-      },
-    );
-  }
-
-  function backlogDropIndex(
-    issue: IssueListItem,
-    targetPriority: Priority | null,
-  ) {
-    const fromIndex = orderedBacklog.findIndex((item) => item.id === issue.id);
-    if (fromIndex < 0) return null;
-    const targetIndexes = orderedBacklog
-      .map((item, index) => ({ item, index }))
-      .filter(
-        ({ item }) =>
-          item.id !== issue.id && (item.priority ?? null) === targetPriority,
-      )
-      .map(({ index }) => index);
-    const lastTargetIndex = targetIndexes.at(-1);
-    const toIndex =
-      lastTargetIndex === undefined
-        ? 0
-        : fromIndex <= lastTargetIndex
-          ? lastTargetIndex
-          : lastTargetIndex + 1;
-    return { fromIndex, toIndex };
-  }
-
-  function handleBacklogDrop(issue: IssueListItem, bucket: IssueGroupBucket) {
-    if (!canReorderBacklog || bucket.patchField !== "priority") return;
-    const targetPriority = bucket.patchValue as Priority | null;
-    const indexes = backlogDropIndex(issue, targetPriority);
-    if (!indexes) return;
-    if (
-      indexes.fromIndex === indexes.toIndex &&
-      (issue.priority ?? null) === targetPriority
-    ) {
-      return;
-    }
-
-    if ((issue.priority ?? null) === targetPriority) {
-      runBacklogReorder({
-        ordered: orderedBacklog,
-        fromIndex: indexes.fromIndex,
-        toIndex: indexes.toIndex,
-      });
-      return;
-    }
-
-    if (indexes.fromIndex !== indexes.toIndex) {
-      runBacklogReorder({
-        ordered: orderedBacklog,
-        fromIndex: indexes.fromIndex,
-        toIndex: indexes.toIndex,
-      });
-    }
-    runGroupUpdate({
-      id: issue.id,
-      vault,
-      patch: { priority: targetPriority },
+    useIssueKeyboardStore.getState().focusIssue("board", input.target.issueId, {
+      requestDomFocus: true,
     });
+    reorder
+      .mutateAsync({
+        vault,
+        scope,
+        ...input.target,
+        ...(input.group ? { group: input.group } : {}),
+      })
+      .then(
+        () => toast.dismiss(kanbanToastId(input.target.issueId)),
+        (err: unknown) => {
+          const id = input.target.issueId;
+          notifyRetryableError({
+            id: kanbanToastId(id),
+            title:
+              err instanceof Error && err.message
+                ? err.message
+                : backlogT("reorderErrorTitle"),
+            description: backlogT("reorderErrorDescription"),
+            labels: {
+              retry: common("retry"),
+              retrying: toasts("retrying"),
+            },
+            onRetry: () => runReorder(input),
+          });
+        },
+      );
+  }
+
+  function groupForBucket(
+    bucket: IssueGroupBucket,
+  ): IssueReorderGroupInput | undefined {
+    if (
+      bucket.patchField !== "status" &&
+      bucket.patchField !== "priority" &&
+      bucket.patchField !== "assigned_to" &&
+      bucket.patchField !== "sprint_id"
+    ) {
+      return undefined;
+    }
+    return { field: bucket.patchField, value: bucket.patchValue };
+  }
+
+  function issueGroupValue(
+    issue: IssueListItem,
+    field: IssueReorderGroupInput["field"],
+  ): string | null {
+    switch (field) {
+      case "status":
+        return issue.status;
+      case "priority":
+        return issue.priority ?? null;
+      case "assigned_to":
+        return issue.assigned_to ?? null;
+      case "sprint_id":
+        return issue.sprint_id ?? null;
+    }
+  }
+
+  function issueBelongsToBucket(
+    issue: IssueListItem,
+    bucket: IssueGroupBucket,
+  ): boolean {
+    switch (bucket.patchField) {
+      case "status":
+        return issue.status === bucket.patchValue;
+      case "priority":
+        return (issue.priority ?? null) === bucket.patchValue;
+      case "assigned_to":
+        return (issue.assigned_to ?? null) === bucket.patchValue;
+      case "sprint_id":
+        return (issue.sprint_id ?? null) === bucket.patchValue;
+      default:
+        return bucket.groupBy === "none";
+    }
   }
 
   function handleDragStart(event: DragStartEvent) {
@@ -482,14 +496,57 @@ export function KanbanBoard({
     setActiveIssueId(null);
 
     if (!over || !active.data.current) return;
+    const overData = over.data?.current as
+      | { bucket?: IssueGroupBucket; issue?: IssueListItem }
+      | undefined;
+    const overId = String(over.id);
+    const overGroup = issueGroups.find(
+      ({ bucket: candidate, issues: bucketIssues }) =>
+        candidate.id === overId ||
+        bucketIssues.some(
+          (item) =>
+            item.id === overId || `${candidate.id}:${item.id}` === overId,
+        ),
+    );
+    const overIssue =
+      overData?.issue ??
+      overGroup?.issues.find(
+        (item) =>
+          item.id === overId || `${overGroup.bucket.id}:${item.id}` === overId,
+      );
     const bucket =
-      (over.data?.current?.bucket as IssueGroupBucket | undefined) ??
-      bucketById.get(String(over.id));
-    if (!bucket?.droppable) return;
+      overData?.bucket ?? bucketById.get(overId) ?? overGroup?.bucket;
+    const manualUngroupedBucket =
+      (manualOrder || scope === "backlog") && effectiveGroupBy === "none";
+    if (!bucket || (!bucket.droppable && !manualUngroupedBucket)) return;
 
     const issue = active.data.current.issue as IssueListItem;
-    if (scope === "backlog") {
-      handleBacklogDrop(issue, bucket);
+    const targetItems = canonicalBoardIssues.filter((candidate) =>
+      issueBelongsToBucket(candidate, bucket),
+    );
+    const overIssueId = overIssue?.id;
+
+    if (manualOrder || scope === "backlog") {
+      if (scope === "active" && !canReorderManualBoard) return;
+      if (scope === "backlog" && !canReorderBacklog) return;
+      if (scope === "active" && !manualOrder) return;
+      const target = buildIssueReorderTargetForBoardDrop(
+        issue,
+        targetItems,
+        canonicalBoardIssues,
+        overIssueId,
+      );
+      if (!target) return;
+      const group = groupForBucket(bucket);
+      if (group && issueGroupValue(issue, group.field) === group.value) {
+        runReorder({ target });
+        return;
+      }
+      if (group?.field === "status" && group.value === "closed") {
+        setPendingClose({ issue, bucket, target });
+        return;
+      }
+      runReorder({ target, group });
       return;
     }
     const operation = operationForBucket(bucket);
@@ -512,7 +569,17 @@ export function KanbanBoard({
   function confirmClose(reason: ClosedReason) {
     if (!pendingClose) return;
     const { issue, bucket } = pendingClose;
+    const target = pendingClose.target;
     setPendingClose(null);
+    if (target) {
+      const group = groupForBucket(bucket);
+      if (!group || group.field !== "status") return;
+      runReorder({
+        target,
+        group: { ...group, closed_reason: reason },
+      });
+      return;
+    }
     const operation = operationForBucket(bucket, reason);
     if (!operation) return;
     const patch = buildBulkIssuePatch(issue, operation);
@@ -526,13 +593,30 @@ export function KanbanBoard({
 
   const activeIssue = activeIssueId ? issueMap.get(activeIssueId) : undefined;
   const announcements = useMemo<Announcements>(() => {
+    const announcementOrder =
+      scope === "backlog"
+        ? orderedBacklog
+        : issueGroups.flatMap(({ issues: bucketIssues }) => bucketIssues);
     const positionOf = (id: string | undefined) => {
       if (!id) return null;
-      const index = orderedBacklog.findIndex((issue) => issue.id === id);
+      const index = announcementOrder.findIndex((issue) => issue.id === id);
       return index < 0 ? null : index + 1;
     };
+    const issueIdForTarget = (id: string | undefined) => {
+      if (!id) return undefined;
+      return issueGroups
+        .flatMap(({ bucket, issues: bucketIssues }) =>
+          bucketIssues.map((issue) => ({
+            issue,
+            occurrenceKey: `${bucket.id}:${issue.id}`,
+          })),
+        )
+        .find(
+          ({ issue, occurrenceKey }) => issue.id === id || occurrenceKey === id,
+        )?.issue.id;
+    };
     const positionForDropTarget = (id: string | undefined) => {
-      const direct = positionOf(id);
+      const direct = positionOf(issueIdForTarget(id) ?? id);
       if (direct !== null) return direct;
       const bucket = issueGroups.find(
         ({ bucket: candidate }) => candidate.id === id,
@@ -542,14 +626,19 @@ export function KanbanBoard({
     };
     return {
       onDragStart: ({ active }) =>
-        backlogT("dragStart", { id: String(active.id) }),
+        backlogT("dragStart", {
+          id: String(active.data.current?.issue?.id ?? active.id),
+        }),
       onDragOver: ({ active, over }) => {
         const position = positionForDropTarget(
           over ? String(over.id) : undefined,
         );
         return position === null
           ? undefined
-          : backlogT("dragOver", { id: String(active.id), position });
+          : backlogT("dragOver", {
+              id: String(active.data.current?.issue?.id ?? active.id),
+              position,
+            });
       },
       onDragEnd: ({ active, over }) => {
         const position = positionForDropTarget(
@@ -557,12 +646,17 @@ export function KanbanBoard({
         );
         return position === null
           ? undefined
-          : backlogT("dragEnd", { id: String(active.id), position });
+          : backlogT("dragEnd", {
+              id: String(active.data.current?.issue?.id ?? active.id),
+              position,
+            });
       },
       onDragCancel: ({ active }) =>
-        backlogT("dragCancel", { id: String(active.id) }),
+        backlogT("dragCancel", {
+          id: String(active.data.current?.issue?.id ?? active.id),
+        }),
     };
-  }, [backlogT, issueGroups, orderedBacklog]);
+  }, [backlogT, issueGroups, orderedBacklog, scope]);
 
   if (isPending) {
     return <BoardColumnsSkeleton ariaLabel={t("columnsScrollRegion")} />;
@@ -588,7 +682,7 @@ export function KanbanBoard({
       <DndContext
         sensors={sensors}
         collisionDetection={pointerWithin}
-        accessibility={scope === "backlog" ? { announcements } : undefined}
+        accessibility={{ announcements }}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onDragCancel={() => setActiveIssueId(null)}
@@ -614,8 +708,11 @@ export function KanbanBoard({
               onIssueClick={openIssue}
               dragEnabled={
                 scope === "active"
-                  ? bucket.droppable
-                  : canReorderBacklog && bucket.droppable
+                  ? (bucket.droppable ||
+                      (manualOrder && effectiveGroupBy === "none")) &&
+                    (!manualOrder || canReorderManualBoard)
+                  : canReorderBacklog &&
+                    (bucket.droppable || effectiveGroupBy === "none")
               }
               readOnlyReason={
                 effectiveGroupBy === "label" ? t("groupReadOnly") : undefined

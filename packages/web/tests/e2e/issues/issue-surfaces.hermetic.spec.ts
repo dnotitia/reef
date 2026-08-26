@@ -456,7 +456,7 @@ test.describe("Hermetic issue route surfaces", () => {
       "Group: Priority",
     );
     await expect(page.getByTestId("sort-control-trigger")).toContainText(
-      "Sort: Rank",
+      "Sort: Rank order",
     );
 
     await page.getByTestId("scope-switcher-active").click();
@@ -785,13 +785,12 @@ test.describe("Hermetic issue route surfaces", () => {
     for (const width of [320, 768]) {
       await page.setViewportSize({ width, height: 844 });
       await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+      await page.getByTestId("sort-control-trigger").click();
+      await page.getByTestId("sort-option-created_at").click();
       await expect(page.getByTestId("sort-direction-toggle")).toBeVisible();
 
       // Selecting a date sort exercises the same long-lived direction state
       // that the narrow and desktop route checks share.
-      await page.getByTestId("sort-control-trigger").click();
-      await page.getByTestId("sort-option-created_at").click();
-
       const direction = page.getByTestId("sort-direction-toggle");
       const tooltip = page.getByRole("tooltip");
       await direction.hover();
@@ -863,6 +862,7 @@ test.describe("Hermetic issue route surfaces", () => {
     expect(Math.round(defaultList.rowHeight)).toBe(40);
     expect(defaultList.columnKeys).toEqual([
       "select",
+      "rank",
       "id",
       "type",
       "title",
@@ -1071,6 +1071,7 @@ test.describe("Hermetic issue route surfaces", () => {
     expect(geometry.documentOverflow).toBe(false);
     expect(geometry.columnKeys).toEqual([
       "select",
+      "rank",
       "id",
       "type",
       "title",

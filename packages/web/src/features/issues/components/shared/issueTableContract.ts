@@ -95,18 +95,22 @@ const ISSUE_TABLE_STICKY_COLUMNS = [
   "title",
 ] as const satisfies readonly IssueTableColumnKey[];
 
-export type IssueListColumnKey = (typeof ISSUE_LIST_COLUMN_ORDER)[number];
+export type IssueListColumnKey =
+  | (typeof ISSUE_LIST_COLUMN_ORDER)[number]
+  | "rank";
 
 export function resolveIssueListColumns(
   optionalColumns: readonly IssueListOptionalColumnKey[],
+  includeRank = false,
 ): readonly IssueListColumnKey[] {
   const selected = new Set(optionalColumns);
-  return ISSUE_LIST_COLUMN_ORDER.filter(
+  const columns = ISSUE_LIST_COLUMN_ORDER.filter(
     (key) =>
       !ISSUE_LIST_OPTIONAL_COLUMNS.includes(
         key as IssueListOptionalColumnKey,
       ) || selected.has(key as IssueListOptionalColumnKey),
   );
+  return includeRank ? ["select", "rank", ...columns.slice(1)] : columns;
 }
 
 export function issueTableWidth(columns: readonly IssueTableColumnKey[]) {

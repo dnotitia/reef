@@ -24,7 +24,14 @@ import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
 import { useResolvedAutoHideWindows } from "@/features/issues/hooks/useResolvedAutoHideWindows";
 import { useOpenIssue } from "@/features/issues/hooks/view/useOpenIssue";
-import { buildIssueQuery } from "@/features/issues/lib/buildIssueQuery";
+import {
+  buildIssueQuery,
+  buildManualIssueQuery,
+} from "@/features/issues/lib/buildIssueQuery";
+import {
+  buildIssueReorderTargetFromDrop,
+  type IssueReorderTarget,
+} from "@/features/issues/lib/issueReorder";
 import { applyDependencyFilter } from "@/features/issues/lib/dependencyUtils";
 import { buildOpenIssueHref } from "@/features/issues/lib/issueHref";
 import type { IssueGroupBy } from "@/features/issues/lib/groupBy";
@@ -32,13 +39,16 @@ import { createIssueGroupDescriptor } from "@/features/issues/lib/grouping";
 import {
   filterIssues,
   searchIssues,
-  compareIssueNumberDesc,
   sortIssues,
+  sortIssuesByRankOrder,
 } from "@/features/issues/lib/issueListUtils";
 import { loadedSelectionState } from "@/features/issues/lib/issueSelection";
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
 import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
-import { useIssueStore } from "@/features/issues/stores/useIssueStore";
+import {
+  isManualOrdering,
+  useIssueStore,
+} from "@/features/issues/stores/useIssueStore";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { useFieldNameLabels, usePriorityLabels } from "@/i18n/fieldLabels";
 import { DURATION_BASE, EASE_SIGNATURE } from "@/lib/motionTokens";
@@ -60,7 +70,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
-import { type IssueListItem, backlogRankSortKey } from "@reef/core";
+import type { IssueListItem } from "@reef/core";
 import { CircleDashed } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -109,19 +119,6 @@ function BacklogColumnGroup() {
   );
 }
 
-// Manual backlog order is a pure function of (rank, created_at, id): ranked rows
-// ascending by rank, then any unranked rows newest-first. The created_at tie
-// break is explicit rather than relying on a lexical issue-id tie, which
-// mis-orders ids past the 3-digit padding boundary (REEF-1000 before REEF-999);
-// the canonical numeric issue-number break keeps it deterministic.
-function compareBacklogManualOrder(a: IssueListItem, b: IssueListItem): number {
-  const byRank = backlogRankSortKey(a.rank) - backlogRankSortKey(b.rank);
-  if (byRank !== 0) return byRank;
-  if (a.created_at !== b.created_at)
-    return a.created_at < b.created_at ? 1 : -1;
-  return compareIssueNumberDesc(a, b);
-}
-
 interface BacklogViewProps {
   vault: string;
   groupBy?: IssueGroupBy;
@@ -153,7 +150,7 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
   const priorityLabels = usePriorityLabels();
 
   // Rank order is shown whenever the user has not picked an explicit sort.
-  const isRankOrder = !filter.sortField;
+  const isRankOrder = isManualOrdering(filter);
 
   // The effective backlog filter: force `status=['backlog']` on the server query
   // AND the client residual filter (overriding the store's hidden status facet),
@@ -225,20 +222,10 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
     // it is does not a user-pickable sort. With an explicit user sort, reordering is
     // off, so the normal server-filtered query applies.
     if (isRankOrder) {
-      return {
-        ...buildIssueQuery(
-          {
-            status: BACKLOG_STATUS as string[],
-            showArchived: filter.showArchived,
-          },
-          "",
-        ),
-        sort_field: "rank",
-        sort_order: "asc",
-      };
+      return buildManualIssueQuery(filter, "backlog");
     }
     return buildIssueQuery(backlogFilter, searchQuery);
-  }, [isRankOrder, backlogFilter, searchQuery, filter.showArchived]);
+  }, [isRankOrder, backlogFilter, filter, searchQuery]);
   const {
     data: issues,
     isPending,
@@ -262,6 +249,7 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
     isRankOrder &&
     !filter.showArchived &&
     !isPlaceholderData &&
+    !isFetching &&
     !reorder.isPending;
 
   const allIssues = issues ?? EMPTY_ISSUES;
@@ -274,9 +262,11 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
   // optimistically-promoted row. In sorted mode reordering is off, so unused.
   const orderedBacklog = useMemo(
     () =>
-      allIssues
-        .filter((i) => i.status === "backlog" && i.archived_at == null)
-        .sort(compareBacklogManualOrder),
+      sortIssuesByRankOrder(
+        allIssues.filter(
+          (i) => i.status === "backlog" && i.archived_at == null,
+        ),
+      ),
     [allIssues],
   );
 
@@ -292,7 +282,7 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
       graph,
     );
     return isRankOrder
-      ? [...depFiltered].sort(compareBacklogManualOrder)
+      ? sortIssuesByRankOrder(depFiltered)
       : sortIssues(depFiltered, filter.sortField, filter.sortOrder);
   }, [
     allIssues,
@@ -342,12 +332,11 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
     };
   }, []);
 
-  function runReorder(input: {
-    ordered: IssueListItem[];
-    fromIndex: number;
-    toIndex: number;
-  }) {
-    reorder.mutateAsync({ vault, ...input }).then(
+  function runReorder(input: IssueReorderTarget) {
+    useIssueKeyboardStore.getState().focusIssue("backlog", input.issueId, {
+      requestDomFocus: true,
+    });
+    reorder.mutateAsync({ vault, scope: "backlog", ...input }).then(
       () => toast.dismiss(REORDER_TOAST_ID),
       (err: unknown) => {
         notifyRetryableError({
@@ -375,10 +364,13 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
     if (!canReorder) return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const fromIndex = orderedBacklog.findIndex((i) => i.id === active.id);
-    const toIndex = orderedBacklog.findIndex((i) => i.id === over.id);
-    if (fromIndex < 0 || toIndex < 0) return;
-    runReorder({ ordered: orderedBacklog, fromIndex, toIndex });
+    const target = buildIssueReorderTargetFromDrop(
+      orderedBacklog,
+      String(active.id),
+      String(over.id),
+    );
+    if (!target) return;
+    runReorder(target);
   }
 
   const announcements = useMemo<Announcements>(() => {

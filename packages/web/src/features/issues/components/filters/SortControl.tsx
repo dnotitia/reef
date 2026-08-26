@@ -21,7 +21,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useIssueStore } from "@/features/issues/stores/useIssueStore";
+import {
+  isManualOrdering,
+  useIssueStore,
+} from "@/features/issues/stores/useIssueStore";
 import { useDirectionLabel, useSortFieldLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import {
@@ -138,6 +141,7 @@ export function SortControl({
   // Granular selectors — does not subscribe to the whole store (web/AGENTS.md).
   const sortField = useIssueStore((s) => s.filter.sortField);
   const sortOrder = useIssueStore((s) => s.filter.sortOrder);
+  const orderingMode = useIssueStore((s) => s.filter.orderingMode);
   const setSortField = useIssueStore((s) => s.setSortField);
   const setSortOrder = useIssueStore((s) => s.setSortOrder);
   const clearSort = useIssueStore((s) => s.clearSort);
@@ -154,10 +158,13 @@ export function SortControl({
   const rankOrderLabel = t("rankOrder");
 
   // Derived during render — no effect, no mirrored state (you-might-not-need-an-effect).
-  const isDefault = !sortField;
-  // On rank-backed surfaces the pristine (no explicit sort) state IS the rank
-  // order, shown as a real mode rather than a muted implicit default.
-  const rankOrderActive = supportsRankOrder && isDefault;
+  // On rank-backed surfaces the shared Manual state is a real mode rather than
+  // an implicit field default. Legacy filters with no orderingMode resolve to
+  // Manual until a field is selected.
+  const rankOrderActive =
+    supportsRankOrder &&
+    isManualOrdering({ sortField, sortOrder, orderingMode });
+  const isDefault = !sortField && !rankOrderActive;
   const effectiveField: UserSortField = sortField ?? DEFAULT_ISSUE_SORT_FIELD;
   const effectiveOrder = sortField
     ? (sortOrder ?? naturalSortOrder(sortField))

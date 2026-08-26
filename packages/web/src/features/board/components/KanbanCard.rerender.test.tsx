@@ -31,6 +31,10 @@ vi.mock("@dnd-kit/core", () => ({
     transform: null,
     isDragging: false,
   })),
+  useDroppable: vi.fn(() => ({
+    setNodeRef: vi.fn(),
+    isOver: false,
+  })),
 }));
 
 vi.mock("@dnd-kit/utilities", () => ({

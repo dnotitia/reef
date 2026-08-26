@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   CreateIssueRequestSchema,
+  IssueReorderRequestSchema,
+  IssueReorderResponseSchema,
   IssueListQuerySchema,
   IssueListResponseSchema,
   USER_SORT_FIELDS,
@@ -170,5 +172,59 @@ describe("IssueListResponseSchema", () => {
     expect(parsed.issues).toEqual([]);
     expect(parsed.next_cursor).toBeUndefined();
     expect(parsed.column_counts).toBeUndefined();
+  });
+});
+
+describe("IssueReorderRequestSchema (REEF-570)", () => {
+  const expected = {
+    issue_rank: 3000,
+    issue_updated_at: "2026-05-01T00:00:00.000Z",
+    before_rank: 1000,
+    before_updated_at: "2026-05-01T00:00:00.000Z",
+    after_rank: 2000,
+    after_updated_at: "2026-05-01T00:00:00.000Z",
+  };
+
+  it("accepts a rank-only move with two anchor snapshots", () => {
+    expect(
+      IssueReorderRequestSchema.parse({
+        vault: "reef-acme",
+        scope: "active",
+        issue_id: "REEF-003",
+        before_id: "REEF-001",
+        after_id: "REEF-002",
+        expected,
+      }),
+    ).toMatchObject({ scope: "active", issue_id: "REEF-003" });
+  });
+
+  it("requires a close reason for a status group targeting Closed", () => {
+    expect(
+      IssueReorderRequestSchema.safeParse({
+        vault: "reef-acme",
+        scope: "active",
+        issue_id: "REEF-003",
+        before_id: null,
+        after_id: "REEF-001",
+        expected: {
+          ...expected,
+          before_rank: null,
+          before_updated_at: null,
+        },
+        group: { field: "status", value: "closed" },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("keeps the response limited to server-produced rank assignments", () => {
+    expect(
+      IssueReorderResponseSchema.parse({
+        ok: true,
+        assignments: [{ id: "REEF-003", rank: 1500 }],
+      }),
+    ).toEqual({
+      ok: true,
+      assignments: [{ id: "REEF-003", rank: 1500 }],
+    });
   });
 });

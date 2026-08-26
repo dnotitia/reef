@@ -1052,7 +1052,17 @@
       "columnsOptions": "Optional columns",
       "groupHeader": "{label} · {count}",
       "collapseGroup": "Collapse {label}",
-      "expandGroup": "Expand {label}"
+      "expandGroup": "Expand {label}",
+      "rank": "Rank",
+      "reorderHintUngrouped": "Switch to ungrouped Manual order to reorder issues.",
+      "reorderGrip": "Reorder {id}",
+      "dragStart": "Picked up {id} for reordering.",
+      "dragOver": "{id} is at position {position}.",
+      "dragEnd": "{id} moved to position {position}.",
+      "dragCancel": "Reordering {id} cancelled.",
+      "reorderLoadMore": "Load more issues before moving an issue to the end.",
+      "reorderErrorTitle": "Couldn't reorder issues",
+      "reorderErrorDescription": "The order was reverted. Retry to move it again."
     },
     "bulk": {
       "selectIssue": "Select {id}",

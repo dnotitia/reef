@@ -13,12 +13,7 @@ import {
   makeListTablesResponse,
   makeSqlQueryResponse,
 } from "../core/sqlTestSupport";
-import {
-  claimIssueId,
-  reorderBacklogIssues,
-  updateIssue,
-  writeIssue,
-} from "./issues";
+import { claimIssueId, updateIssue, writeIssue } from "./issues";
 
 mockOpenTelemetry();
 
@@ -527,52 +522,5 @@ describe("updateIssue → document OCC (REEF-227)", () => {
     );
     expect(patchCalls(calls)).toHaveLength(0);
     expect(calls).toHaveLength(3);
-  });
-});
-
-describe("reorderBacklogIssues (REEF-129)", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("applies a multi-row reorder as one atomic CASE update", async () => {
-    const { calls } = setupFetch([{ body: ROW_UPDATE_OK }]);
-
-    await reorderBacklogIssues({
-      adapter: makeTestAkbAdapter(),
-      vault: VAULT,
-      actor: "carol",
-      assignments: [
-        { id: "REEF-1", rank: 1000 },
-        { id: "REEF-2", rank: 2000 },
-        { id: "REEF-3", rank: 1500 },
-      ],
-    });
-
-    // One SQL statement covers every row — no per-row write that could land
-    // partially if a sibling failed.
-    const sqlCalls = calls.filter((c) => c.url.includes("/sql"));
-    expect(sqlCalls).toHaveLength(1);
-    const sql = String(bodyOf(sqlCalls[0]).sql);
-    expect(sql).toContain('SET "rank" = CASE "reef_id"');
-    expect(sql).toContain("WHEN 'REEF-1' THEN 1000");
-    expect(sql).toContain("WHEN 'REEF-3' THEN 1500");
-    expect(sql).toContain(`WHERE "reef_id" IN ('REEF-1', 'REEF-2', 'REEF-3')`);
-    // Scoped to the ACTIVE backlog (status + not archived) so a stale id that was
-    // promoted, closed, or archived is skipped.
-    expect(sql).toContain(`AND "status" = 'backlog' AND "archived_at" IS NULL`);
-    // Same statement keeps updated_by consistent with the auto-bumped updated_at.
-    expect(sql).toContain(
-      `"meta" = jsonb_set("meta"::jsonb, '{last_editor}', to_jsonb('carol'::text))::json`,
-    );
-  });
-
-  it("is a no-op write for an empty assignment set", async () => {
-    const { calls } = setupFetch([]);
-    await reorderBacklogIssues({
-      adapter: makeTestAkbAdapter(),
-      vault: VAULT,
-      actor: "carol",
-      assignments: [],
-    });
-    expect(calls).toHaveLength(0);
   });
 });

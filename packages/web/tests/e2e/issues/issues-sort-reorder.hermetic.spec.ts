@@ -1,5 +1,10 @@
 import { type Page, type Request, expect, test } from "@playwright/test";
-import { openExistingWorkspace, resetFixture } from "../harness/fixture";
+import {
+  REEF_E2E_VAULT,
+  openExistingWorkspace,
+  readFixtureState,
+  resetFixture,
+} from "../harness/fixture";
 
 /**
  * REEF-325: editing a non-membership field (title / labels / due date / …) must
@@ -32,7 +37,41 @@ function countUpdatedAtListFetches(page: Page): () => number {
   return () => count;
 }
 
-test.describe("Hermetic issue-list sort re-order on edit (REEF-325)", () => {
+async function dragIssueListGrip(
+  page: Page,
+  sourceId: string,
+  targetId: string,
+): Promise<void> {
+  const source = page.getByTestId(`issue-list-grip-${sourceId}`);
+  const target = page.getByTestId(`issue-list-grip-${targetId}`);
+  const sourceBox = await source.boundingBox();
+  const targetBox = await target.boundingBox();
+  if (!sourceBox || !targetBox)
+    throw new Error("missing issue list grip bounds");
+  await page.mouse.move(
+    sourceBox.x + sourceBox.width / 2,
+    sourceBox.y + sourceBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    targetBox.x + targetBox.width / 2,
+    targetBox.y + targetBox.height / 2,
+    { steps: 8 },
+  );
+  await page.mouse.up();
+}
+
+async function issueListIds(page: Page): Promise<string[]> {
+  return page
+    .getByTestId("issue-list-row")
+    .evaluateAll((rows) =>
+      rows
+        .map((row) => row.getAttribute("data-issue-id"))
+        .filter((id): id is string => id !== null),
+    );
+}
+
+test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
     await resetFixture(request, "configured");
@@ -96,5 +135,132 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325)", () => {
     // Sanity: the row is now first — the refreshed server order and the view's
     // client-side sort agree that the just-edited issue is most recent.
     await expect.poll(() => indexOf("REEF-001")).toBe(0);
+  });
+
+  test("shares Manual order between Board and List and gates reorder by mode", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=board`);
+    await expect(page.getByTestId("kanban-board")).toBeVisible();
+    await expect(page.getByTestId("sort-control-trigger")).toContainText(
+      "Rank order",
+    );
+
+    await page.getByTestId("sort-control-trigger").click();
+    await page.getByTestId("sort-option-priority").click();
+    await expect(page.getByTestId("sort-control-trigger")).toContainText(
+      "Priority",
+    );
+
+    await page.getByTestId("view-switcher-list").click();
+    await page.waitForURL(/view=list/);
+    await expect(page.getByTestId("issue-list-scroll-container")).toBeVisible();
+    await expect(page.getByTestId("sort-control-trigger")).toContainText(
+      "Priority",
+    );
+    await expect(page.locator('thead th[data-column-key="rank"]')).toHaveCount(
+      0,
+    );
+    await expect(page.locator('[data-testid^="issue-list-grip-"]')).toHaveCount(
+      0,
+    );
+
+    await page.getByTestId("sort-control-trigger").click();
+    await page.getByTestId("sort-option-rank").click();
+    await expect(page.getByTestId("sort-control-trigger")).toContainText(
+      "Rank order",
+    );
+    await expect(
+      page.locator('thead th[data-column-key="rank"]'),
+    ).toBeVisible();
+    await expect(
+      page.locator('[data-testid^="issue-list-grip-"]').first(),
+    ).toBeVisible();
+
+    await page.getByTestId("display-options-trigger").click();
+    await page.getByTestId("group-by-assignee").click();
+    await expect(page.getByTestId("issue-ordering-hint")).toContainText(
+      "Switch to ungrouped Manual order",
+    );
+    await expect(page.locator('[data-testid^="issue-list-grip-"]')).toHaveCount(
+      0,
+    );
+
+    await page.getByTestId("display-options-trigger").click();
+    await page.getByTestId("group-by-none").click();
+    await expect(page).toHaveURL(/group=none/);
+    await expect(page.getByTestId("issue-ordering-hint")).toHaveCount(0);
+    await expect(
+      page.locator('[data-testid^="issue-list-grip-"]').first(),
+    ).toBeVisible();
+  });
+
+  test("persists Manual List reorder and exposes keyboard and screen-reader feedback", async ({
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await expect(page.getByTestId("issue-list-scroll-container")).toBeVisible();
+    await expect(page.getByTestId("issue-list-grip-REEF-001")).toBeVisible();
+    await expect(page.getByTestId("issue-list-grip-REEF-002")).toBeVisible();
+
+    const pointerResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/api/issues/reorder",
+    );
+    await dragIssueListGrip(page, "REEF-001", "REEF-002");
+    await expect((await pointerResponse).ok()).toBeTruthy();
+    await expect
+      .poll(() => issueListIds(page))
+      .toEqual(["REEF-001", "REEF-002"]);
+
+    await page.reload();
+    await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
+    await expect
+      .poll(() => issueListIds(page))
+      .toEqual(["REEF-001", "REEF-002"]);
+    const persisted = await readFixtureState(request);
+    const persistedRows = persisted.vaults
+      .find((vault) => vault.name === REEF_E2E_VAULT)
+      ?.issues.filter(
+        (issue) => issue.id === "REEF-001" || issue.id === "REEF-002",
+      )
+      .sort(
+        (left, right) =>
+          (left.rank ?? Number.POSITIVE_INFINITY) -
+          (right.rank ?? Number.POSITIVE_INFINITY),
+      );
+    expect(persistedRows?.map((issue) => issue.id)).toEqual([
+      "REEF-001",
+      "REEF-002",
+    ]);
+
+    const liveRegion = page.locator('[role="status"][aria-live="assertive"]');
+    const grip = page.getByTestId("issue-list-grip-REEF-001");
+    await grip.focus();
+    await page.keyboard.press("Space");
+    await expect(liveRegion).toHaveText(
+      /(?:Picked up REEF-001 for reordering\.|REEF-001 is at position 1\.)/,
+    );
+    await expect(grip).toHaveAttribute("aria-pressed", "true");
+    await page.evaluate(
+      () => new Promise<void>((resolve) => setTimeout(resolve, 0)),
+    );
+    await page.keyboard.press("ArrowDown");
+    await expect(liveRegion).toHaveText("REEF-001 is at position 2.");
+    const keyboardResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/api/issues/reorder",
+    );
+    await page.keyboard.press("Space");
+    await expect(liveRegion).toHaveText("REEF-001 moved to position 2.");
+    await expect((await keyboardResponse).ok()).toBeTruthy();
+    await expect
+      .poll(() => issueListIds(page))
+      .toEqual(["REEF-002", "REEF-001"]);
   });
 });

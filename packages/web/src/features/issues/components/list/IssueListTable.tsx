@@ -2,6 +2,10 @@
 
 import { SearchProgressBar } from "@/components/ui/SearchProgressBar";
 import {
+  kanbanToastId,
+  notifyRetryableError,
+} from "@/components/ui/toastFeedback";
+import {
   Table,
   TableBody,
   TableCell,
@@ -26,20 +30,29 @@ import {
   resolveIssueListColumns,
 } from "@/features/issues/components/shared/issueTableContract";
 import { useInfiniteIssueList } from "@/features/issues/hooks/queries/useInfiniteIssueList";
+import { useReorderBacklog } from "@/features/issues/hooks/mutations/useReorderBacklog";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
 import { useResolvedAutoHideWindows } from "@/features/issues/hooks/useResolvedAutoHideWindows";
 import { useOpenIssue } from "@/features/issues/hooks/view/useOpenIssue";
 import { useVaultRoster } from "@/features/settings/hooks/useVaultRoster";
-import { buildIssueQuery } from "@/features/issues/lib/buildIssueQuery";
+import {
+  buildIssueQuery,
+  buildManualIssueQuery,
+} from "@/features/issues/lib/buildIssueQuery";
 import { applyDependencyFilter } from "@/features/issues/lib/dependencyUtils";
 import type { IssueGroupBy } from "@/features/issues/lib/groupBy";
 import { createIssueGroupDescriptor } from "@/features/issues/lib/grouping";
+import {
+  resolveIssueReorderTargetForDrop,
+  type IssueReorderTarget,
+} from "@/features/issues/lib/issueReorder";
 import { flattenIssueListPages } from "@/features/issues/lib/issueListCache";
 import { buildIssueListVirtualItems } from "@/features/issues/lib/listGrouping";
 import {
   filterIssues,
   searchIssues,
   sortIssues,
+  sortIssuesByRankOrder,
 } from "@/features/issues/lib/issueListUtils";
 import { loadedSelectionState } from "@/features/issues/lib/issueSelection";
 import {
@@ -49,7 +62,10 @@ import {
 import type { IssueScope } from "@/features/issues/lib/viewMode";
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
 import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
-import { useIssueStore } from "@/features/issues/stores/useIssueStore";
+import {
+  isManualOrdering,
+  useIssueStore,
+} from "@/features/issues/stores/useIssueStore";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import { useUserSearch } from "@/features/issues/hooks/queries/useUserSearch";
 import { PageBody } from "@/features/ui/components/PageBody";
@@ -60,8 +76,24 @@ import {
 } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import {
+  type Announcements,
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import {
   useCallback,
   useEffect,
@@ -74,6 +106,10 @@ import {
 const VIRTUAL_OVERSCAN = 8;
 const LOAD_AHEAD_COUNT = 8;
 const FALLBACK_RENDER_COUNT = 12;
+
+function issueIdFromDropTarget(id: string): string {
+  return id.startsWith("issue-row:") ? id.slice("issue-row:".length) : id;
+}
 
 interface IssueListTableProps {
   vault: string;
@@ -221,6 +257,7 @@ export function IssueListTable({
     () => filterForIssueScope(filter, scope),
     [filter, scope],
   );
+  const manualOrder = isManualOrdering(filter);
   const openIssue = useOpenIssue();
   const columnLabels = useFieldNameLabels();
   const statusLabels = useStatusLabels();
@@ -228,6 +265,7 @@ export function IssueListTable({
   const t = useTranslations("issues.list");
   const groupT = useTranslations("issues.filters");
   const common = useTranslations("common");
+  const toasts = useTranslations("toasts");
   const bulk = useTranslations("issues.bulk");
   const selectedIds = useIssueSelectionStore((state) => state.selectedIds);
   const selectionRunning = useIssueSelectionStore((state) => state.running);
@@ -236,9 +274,10 @@ export function IssueListTable({
   const [optionalColumns, setOptionalColumns] = useState<
     readonly IssueListOptionalColumnKey[]
   >([]);
+  const showReorderColumn = manualOrder && groupBy === "none";
   const columns = useMemo(
-    () => resolveIssueListColumns(optionalColumns),
-    [optionalColumns],
+    () => resolveIssueListColumns(optionalColumns, showReorderColumn),
+    [optionalColumns, showReorderColumn],
   );
   const tableWidth = useMemo(() => issueTableWidth(columns), [columns]);
   const tableClassName = cn(
@@ -257,8 +296,11 @@ export function IssueListTable({
   );
 
   const query = useMemo(
-    () => buildIssueQuery(filter, searchQuery, scope),
-    [filter, scope, searchQuery],
+    () =>
+      manualOrder
+        ? buildManualIssueQuery(filter, scope)
+        : buildIssueQuery(filter, searchQuery, scope),
+    [filter, manualOrder, scope, searchQuery],
   );
   const {
     data,
@@ -270,7 +312,9 @@ export function IssueListTable({
     hasNextPage,
     isFetchingNextPage,
     isFetchNextPageError,
+    isPlaceholderData,
   } = useInfiniteIssueList(vault, query);
+  const reorder = useReorderBacklog();
   const staleWindowDays = useResolvedAutoHideWindows(vault);
   const { data: relations } = useIssueRelations(vault);
   const { data: planningCatalog } = usePlanningCatalog(vault);
@@ -290,12 +334,17 @@ export function IssueListTable({
       scopedFilter.dependencyFilter ?? null,
       graph,
     );
-    return sortIssues(
-      depFiltered,
-      scopedFilter.sortField,
-      scopedFilter.sortOrder,
-    );
-  }, [allIssues, graph, scopedFilter, searchQuery, staleWindowDays]);
+    return manualOrder
+      ? sortIssuesByRankOrder(depFiltered)
+      : sortIssues(depFiltered, scopedFilter.sortField, scopedFilter.sortOrder);
+  }, [
+    allIssues,
+    graph,
+    manualOrder,
+    scopedFilter,
+    searchQuery,
+    staleWindowDays,
+  ]);
   const sprintNames = useMemo(
     () =>
       Object.fromEntries(
@@ -366,6 +415,87 @@ export function IssueListTable({
   const focusRequest = useIssueKeyboardStore((state) => state.focusRequest);
   const selectAllState = loadedSelectionState(selectedIds, visibleIssueIds);
   const hasActiveFilters = hasScopeFilters(filter, searchQuery, scope);
+  const canReorder =
+    showReorderColumn &&
+    !filter.showArchived &&
+    !isPlaceholderData &&
+    !isFetching &&
+    !isFetchingNextPage &&
+    !reorder.isPending;
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+  const reorderableIds = canReorder ? visibleIssueIds : [];
+  const announcements = useMemo<Announcements>(
+    () => ({
+      onDragStart: ({ active }) => t("dragStart", { id: String(active.id) }),
+      onDragOver: ({ active, over }) => {
+        const position = over
+          ? visibleIssueIds.indexOf(issueIdFromDropTarget(String(over.id))) + 1
+          : 0;
+        return position > 0
+          ? t("dragOver", { id: String(active.id), position })
+          : undefined;
+      },
+      onDragEnd: ({ active, over }) => {
+        const position = over
+          ? visibleIssueIds.indexOf(issueIdFromDropTarget(String(over.id))) + 1
+          : 0;
+        return position > 0
+          ? t("dragEnd", { id: String(active.id), position })
+          : undefined;
+      },
+      onDragCancel: ({ active }) => t("dragCancel", { id: String(active.id) }),
+    }),
+    [t, visibleIssueIds],
+  );
+
+  function runReorder(target: IssueReorderTarget | null) {
+    if (!target) return;
+    reorder.mutateAsync({ vault, scope: "active", ...target }).then(
+      () => toast.dismiss(kanbanToastId(target.issueId)),
+      (error: unknown) => {
+        notifyRetryableError({
+          id: kanbanToastId(target.issueId),
+          title:
+            error instanceof Error && error.message
+              ? error.message
+              : t("reorderErrorTitle"),
+          description: t("reorderErrorDescription"),
+          labels: {
+            retry: common("retry"),
+            retrying: toasts("retrying"),
+          },
+          onRetry: () => runReorder(target),
+        });
+      },
+    );
+  }
+
+  function handleReorderDragEnd(event: DragEndEvent) {
+    if (!canReorder || !event.over) return;
+    const { target, needsMoreCanonicalItems } =
+      resolveIssueReorderTargetForDrop(
+        sorted,
+        sortIssuesByRankOrder(allIssues),
+        String(event.active.id),
+        issueIdFromDropTarget(String(event.over.id)),
+        hasNextPage === true,
+      );
+    if (needsMoreCanonicalItems) {
+      toast.info(t("reorderLoadMore"));
+      void fetchNextPage();
+      return;
+    }
+    if (!target) return;
+    useIssueKeyboardStore.getState().focusIssue("list", target.issueId, {
+      requestDomFocus: true,
+    });
+    runReorder(target);
+  }
 
   // TanStack Virtual exposes imperative methods outside React Compiler's
   // safe memoization model; keep the compiler skip local to this integration point.
@@ -553,6 +683,8 @@ export function IssueListTable({
                     .toggleAllLoaded(visibleIssueIds)
                 }
               />
+            ) : column === "rank" ? (
+              t("rank")
             ) : (
               columnLabels[column]
             )}
@@ -573,7 +705,18 @@ export function IssueListTable({
           className="top-0 bottom-auto"
         />
       </div>
-      <div className="flex min-h-8 shrink-0 items-center justify-end pb-2">
+      <div className="flex min-h-8 shrink-0 items-center justify-between gap-3 pb-2">
+        {groupBy !== "none" ? (
+          <p
+            className="text-xs text-muted-foreground"
+            role="note"
+            data-testid="issue-ordering-hint"
+          >
+            {t("reorderHintUngrouped")}
+          </p>
+        ) : (
+          <span aria-hidden="true" />
+        )}
         <IssueListColumnsControl
           selectedColumns={optionalColumns}
           onToggle={toggleOptionalColumn}
@@ -617,6 +760,8 @@ export function IssueListTable({
                           label={bulk("selectAllLoaded")}
                           onChange={() => {}}
                         />
+                      ) : column === "rank" ? (
+                        t("rank")
                       ) : (
                         columnLabels[column]
                       )}
@@ -676,84 +821,99 @@ export function IssueListTable({
           aria-label={t("scrollRegion")}
           data-testid="issue-list-scroll-container"
         >
-          <Table
-            className={tableClassName}
-            style={{ minWidth: tableWidth }}
-            containerClassName="overflow-visible"
+          <DndContext
+            sensors={canReorder ? sensors : []}
+            collisionDetection={closestCenter}
+            accessibility={canReorder ? { announcements } : undefined}
+            onDragEnd={handleReorderDragEnd}
           >
-            <IssueListColumnGroup columns={columns} />
-            {tableHeader}
-            <TableBody>
-              <SpacerRow
-                height={topSpacerHeight}
-                columnCount={columns.length}
-              />
-              {renderedIndexes.map((index) => {
-                const item = projectionItems[index];
-                if (!item) return null;
-                if (item.kind === "header") {
-                  return (
-                    <IssueListGroupHeader
-                      key={item.key}
-                      label={item.bucket.label}
-                      bucketId={item.bucket.id}
-                      count={item.count}
-                      collapsed={item.collapsed}
-                      columnCount={columns.length}
-                      onToggle={() => toggleGroup(item.bucket.id)}
-                    />
-                  );
-                }
-                return (
-                  <IssueListRow
-                    key={item.key}
-                    issue={item.issue}
-                    vault={vault}
-                    allIssues={graph}
-                    planningCatalog={planningCatalog}
-                    assignees={assignees}
-                    assigneeNames={assigneeNames}
-                    highlightQuery={searchQuery}
-                    logicalIds={visibleIssueIds}
-                    occurrenceKey={item.occurrenceKey}
-                    columns={columns}
-                    onClick={openIssue}
+            <SortableContext
+              items={reorderableIds}
+              strategy={verticalListSortingStrategy}
+            >
+              <Table
+                className={tableClassName}
+                style={{ minWidth: tableWidth }}
+                containerClassName="overflow-visible"
+              >
+                <IssueListColumnGroup columns={columns} />
+                {tableHeader}
+                <TableBody>
+                  <SpacerRow
+                    height={topSpacerHeight}
+                    columnCount={columns.length}
                   />
-                );
-              })}
-              <SpacerRow
-                height={bottomSpacerHeight}
-                columnCount={columns.length}
-              />
-              {sorted.length === 0 && isFetchingNextPage && (
-                <tr>
-                  <td colSpan={columns.length} className="px-3 py-4">
-                    <output className="text-sm text-muted-foreground">
-                      {t("loadingMore")}
-                    </output>
-                  </td>
-                </tr>
-              )}
-              {isFetchNextPageError && (
-                <tr>
-                  <td colSpan={columns.length} className="px-3 py-4">
-                    <div className="flex items-center gap-3" role="alert">
-                      <span className="text-sm text-muted-foreground">
-                        {t("loadMoreError")}
-                      </span>
-                      <button
-                        type="button"
-                        className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-[13px] font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
-                        onClick={() => fetchNextPage()}
-                      >
-                        {common("retry")}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </TableBody>
-          </Table>
+                  {renderedIndexes.map((index) => {
+                    const item = projectionItems[index];
+                    if (!item) return null;
+                    if (item.kind === "header") {
+                      return (
+                        <IssueListGroupHeader
+                          key={item.key}
+                          label={item.bucket.label}
+                          bucketId={item.bucket.id}
+                          count={item.count}
+                          collapsed={item.collapsed}
+                          columnCount={columns.length}
+                          onToggle={() => toggleGroup(item.bucket.id)}
+                        />
+                      );
+                    }
+                    return (
+                      <IssueListRow
+                        key={item.key}
+                        issue={item.issue}
+                        vault={vault}
+                        allIssues={graph}
+                        planningCatalog={planningCatalog}
+                        assignees={assignees}
+                        assigneeNames={assigneeNames}
+                        highlightQuery={searchQuery}
+                        logicalIds={visibleIssueIds}
+                        occurrenceKey={item.occurrenceKey}
+                        columns={columns}
+                        sortable={canReorder && groupBy === "none"}
+                        sortableItems={reorderableIds}
+                        reorderHint={t("reorderGrip", { id: item.issue.id })}
+                        onClick={openIssue}
+                      />
+                    );
+                  })}
+                  <SpacerRow
+                    height={bottomSpacerHeight}
+                    columnCount={columns.length}
+                  />
+                  {sorted.length === 0 && isFetchingNextPage && (
+                    <tr>
+                      <td colSpan={columns.length} className="px-3 py-4">
+                        <output className="text-sm text-muted-foreground">
+                          {t("loadingMore")}
+                        </output>
+                      </td>
+                    </tr>
+                  )}
+                  {isFetchNextPageError && (
+                    <tr>
+                      <td colSpan={columns.length} className="px-3 py-4">
+                        <div className="flex items-center gap-3" role="alert">
+                          <span className="text-sm text-muted-foreground">
+                            {t("loadMoreError")}
+                          </span>
+                          <button
+                            type="button"
+                            className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-[13px] font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
+                            onClick={() => fetchNextPage()}
+                          >
+                            {common("retry")}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </TableBody>
+              </Table>
+            </SortableContext>
+          </DndContext>
         </div>
       )}
     </PageBody>

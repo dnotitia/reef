@@ -8,12 +8,7 @@ import {
   setupFetch,
 } from "../../../test-support/akb/fetchMock";
 import { mockOpenTelemetry } from "../../../test-support/akb/otelMock";
-import {
-  claimIssueId,
-  reorderBacklogIssues,
-  updateIssue,
-  writeIssue,
-} from "./issues";
+import { claimIssueId, updateIssue, writeIssue } from "./issues";
 
 mockOpenTelemetry();
 

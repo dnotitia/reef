@@ -13,12 +13,23 @@ import {
   wrap,
 } from "./KanbanBoard.testSupport";
 
+function useFieldOrdering() {
+  useIssueStore.setState({
+    filter: {
+      orderingMode: "field",
+      sortField: "priority",
+      sortOrder: "desc",
+    },
+  });
+}
+
 describe("KanbanBoard drag and status updates", () => {
   beforeEach(() => {
     resetKanbanBoardMocks();
   });
 
   it("PATCHes status when a card is dropped on a different status column", async () => {
+    useFieldOrdering();
     mockApiFetch.mockImplementation(async (url, init) => {
       if ((url as string).startsWith("/api/issues?vault=reef-acme")) {
         return new Response(JSON.stringify({ issues: ISSUES }), {
@@ -71,6 +82,7 @@ describe("KanbanBoard drag and status updates", () => {
   });
 
   it("asks for a close reason before closing a card from the board", async () => {
+    useFieldOrdering();
     const user = userEvent.setup();
     mockApiFetch.mockImplementation(async (url, init) => {
       if ((url as string).startsWith("/api/issues?vault=reef-acme")) {
@@ -132,6 +144,7 @@ describe("KanbanBoard drag and status updates", () => {
   });
 
   it("PATCHes status when a card is moved backward by the user", async () => {
+    useFieldOrdering();
     mockApiFetch.mockImplementation(async (url, init) => {
       if ((url as string).startsWith("/api/issues?vault=reef-acme")) {
         return new Response(JSON.stringify({ issues: ISSUES }), {
@@ -180,6 +193,7 @@ describe("KanbanBoard drag and status updates", () => {
   });
 
   it("clears closed metadata when a closed card is moved backward by the user", async () => {
+    useFieldOrdering();
     const closedIssue: IssueMetadata = {
       ...ISSUES[1],
       status: "closed",
@@ -254,6 +268,7 @@ describe("KanbanBoard drag and status updates", () => {
   });
 
   it("uses the shared bulk patch path for a writable priority group", async () => {
+    useFieldOrdering();
     mockApiFetch.mockImplementation(async (url, init) => {
       if ((url as string).startsWith("/api/issues?vault=reef-acme")) {
         return new Response(JSON.stringify({ issues: FILTER_ISSUES }), {
@@ -298,6 +313,7 @@ describe("KanbanBoard drag and status updates", () => {
   });
 
   it("writes null when a writable grouped field targets None and skips same-value drops", async () => {
+    useFieldOrdering();
     mockApiFetch.mockImplementation(async (url, init) => {
       if ((url as string).startsWith("/api/issues?vault=reef-acme")) {
         return new Response(JSON.stringify({ issues: FILTER_ISSUES }), {

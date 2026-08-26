@@ -1,5 +1,8 @@
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
-import type { IssueListQuery } from "../../../schemas/issues/requests";
+import type {
+  IssueListQuery,
+  IssueReorderGroup,
+} from "../../../schemas/issues/requests";
 import type { Template } from "../../../schemas/issues/template";
 import type {
   Milestone,
@@ -122,22 +125,40 @@ export interface DeleteIssueParams {
   id: string;
 }
 
-export interface ReorderBacklogParams {
+export interface ReorderIssueParams {
   adapter: AkbAdapter;
   vault: string;
-  /**
-   * The backlog `rank` writes a single drag produced (REEF-129). Applied as one
-   * atomic SQL `UPDATE … CASE` so a multi-row reorder does not leave the server
-   * partially reordered. Each id is a reef issue id; each rank is the new manual
-   * order value.
-   */
-  assignments: ReadonlyArray<{ id: string; rank: number }>;
-  /**
-   * The acting user. akb bumps `updated_at` on the row write, and `updated_by`
-   * is projected from `meta.last_editor`; setting it in the same statement keeps
-   * the audit pair consistent instead of attributing the bump to a stale editor.
-   */
+  /** The collection rendered by the source surface. */
+  scope: "active" | "backlog";
+  /** The issue being moved. */
+  issueId: string;
+  /** The issue immediately before the target slot, or null at the top. */
+  beforeId: string | null;
+  /** The issue immediately after the target slot, or null at the bottom. */
+  afterId: string | null;
+  /** Snapshots used to reject stale visible neighbours and moved rows. */
+  expected: {
+    issueRank: number | null;
+    issueUpdatedAt: string;
+    beforeRank: number | null;
+    beforeUpdatedAt: string | null;
+    afterRank: number | null;
+    afterUpdatedAt: string | null;
+  };
+  /** Optional single-value Board/Backlog group mutation. */
+  group?: IssueReorderGroup;
+  /** The semantic actor projected into meta.last_editor/activity. */
   actor: string;
+  /** The server-side timestamp for a status transition, when needed. */
+  at: string;
+}
+
+export interface ReorderIssueResult {
+  assignments: ReadonlyArray<{
+    id: string;
+    rank: number;
+    updatedAt?: string;
+  }>;
 }
 
 export interface ListIssuesParams {

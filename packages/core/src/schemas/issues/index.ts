@@ -118,17 +118,24 @@ export {
 } from "./template";
 
 export {
-  BacklogReorderRequestSchema,
+  IssueReorderGroupSchema,
+  IssueReorderRequestSchema,
+  IssueReorderResponseSchema,
   CreateIssueRequestSchema,
   DEFAULT_ISSUE_SORT_FIELD,
   DEFAULT_ISSUE_SORT_ORDER,
   IssueListQuerySchema,
   IssueListResponseSchema,
   USER_SORT_FIELDS,
+  IssueOrderingModeEnum,
   hasAnyFilter,
   type IssueListQuery,
   type IssueListResponse,
   type IssueRelation,
+  type IssueOrderingMode,
+  type IssueReorderGroup,
+  type IssueReorderRequest,
+  type IssueReorderResponse,
 } from "./requests";
 
 export {

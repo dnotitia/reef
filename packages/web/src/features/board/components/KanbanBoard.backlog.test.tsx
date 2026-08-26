@@ -42,7 +42,9 @@ function mockBacklogApi() {
       });
     }
     if (url === "/api/issues/reorder") {
-      return new Response("{}", { status: 200 });
+      return new Response(JSON.stringify({ ok: true, assignments: [] }), {
+        status: 200,
+      });
     }
     if (url === "/api/issues/REEF-101" && init?.method === "PATCH") {
       return new Response(
@@ -89,7 +91,9 @@ describe("KanbanBoard backlog scope", () => {
         });
       }
       if (url === "/api/issues/reorder") {
-        return new Response("{}", { status: 200 });
+        return new Response(JSON.stringify({ ok: true, assignments: [] }), {
+          status: 200,
+        });
       }
       if (init?.method === "PATCH") return new Response("{}", { status: 500 });
       return new Response("{}", { status: 200 });
@@ -117,7 +121,7 @@ describe("KanbanBoard backlog scope", () => {
     ).toBe(false);
   });
 
-  it("sends a priority update and Rank reorder when crossing Priority columns", async () => {
+  it("sends the priority update and Rank reorder as one command when crossing Priority columns", async () => {
     render(wrap(<KanbanBoard vault="reef-acme" scope="backlog" />));
     await screen.findByText("Critical backlog item");
 
@@ -130,21 +134,21 @@ describe("KanbanBoard backlog scope", () => {
 
     await waitFor(() =>
       expect(
-        mockApiFetch.mock.calls.some(
-          ([url, init]) =>
-            url === "/api/issues/REEF-101" && init?.method === "PATCH",
-        ),
+        mockApiFetch.mock.calls.some(([url]) => url === "/api/issues/reorder"),
       ).toBe(true),
     );
-    const patchCall = mockApiFetch.mock.calls.find(
-      ([url, init]) =>
-        url === "/api/issues/REEF-101" && init?.method === "PATCH",
+    const reorderCall = mockApiFetch.mock.calls.find(
+      ([url]) => url === "/api/issues/reorder",
     );
-    expect(JSON.parse(patchCall?.[1]?.body as string).update.patch).toEqual({
-      priority: "high",
-    });
+    const body = JSON.parse(reorderCall?.[1]?.body as string);
+    expect(body.scope).toBe("backlog");
+    expect(body.issue_id).toBe("REEF-101");
+    expect(body.group).toEqual({ field: "priority", value: "high" });
     expect(
-      mockApiFetch.mock.calls.some(([url]) => url === "/api/issues/reorder"),
-    ).toBe(true);
+      mockApiFetch.mock.calls.some(
+        ([url, init]) =>
+          url === "/api/issues/REEF-101" && init?.method === "PATCH",
+      ),
+    ).toBe(false);
   });
 });
