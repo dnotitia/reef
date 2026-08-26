@@ -554,7 +554,10 @@ test.describe("Hermetic command palette", () => {
   }) => {
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/issues?view=list");
-    const row = page.getByTestId("issue-list-row").first();
+    const row = page
+      .getByTestId("issue-list-row")
+      .filter({ hasText: "REEF-001" })
+      .first();
     await expect(row).toBeVisible();
     await row.hover();
     await row.getByRole("checkbox", { name: "Select REEF-001" }).click();

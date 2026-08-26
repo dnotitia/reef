@@ -832,7 +832,7 @@ export function IssueListTable({
           data-testid="issue-list-scroll-container"
         >
           <DndContext
-            sensors={canReorder ? sensors : []}
+            sensors={sensors}
             collisionDetection={closestCenter}
             accessibility={canReorder ? { announcements } : undefined}
             onDragEnd={handleReorderDragEnd}

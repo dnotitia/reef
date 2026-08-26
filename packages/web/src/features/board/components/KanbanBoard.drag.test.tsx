@@ -368,7 +368,7 @@ describe("KanbanBoard drag and status updates", () => {
     );
   });
 
-  it("disables sensors and drops for label groups while retaining issue cards", async () => {
+  it("gates drag and drops for label groups while retaining issue cards", async () => {
     mockApiFetch.mockImplementation(async (url) => {
       if ((url as string).startsWith("/api/issues?vault=reef-acme")) {
         return new Response(JSON.stringify({ issues: FILTER_ISSUES }), {
@@ -381,8 +381,16 @@ describe("KanbanBoard drag and status updates", () => {
     render(wrap(<KanbanBoard vault="reef-acme" groupBy="label" />));
     await screen.findByText("UI board polish");
 
-    expect(dndHarness.contextProps?.sensors).toEqual([]);
+    // Keep the DnD sensor dependency shape stable across group changes; the
+    // label group's cards and columns remain disabled below, so no drag can
+    // activate while the context avoids React's variable-length dependency.
+    expect(dndHarness.contextProps?.sensors).toHaveLength(2);
     expect(screen.getAllByTestId("kanban-card").length).toBeGreaterThan(0);
+    expect(
+      screen
+        .getAllByTestId("kanban-card")
+        .every((card) => card.getAttribute("aria-disabled") === "true"),
+    ).toBe(true);
     expect(
       screen.getAllByTitle(/Label groups are read-only/i).length,
     ).toBeGreaterThan(0);

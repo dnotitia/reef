@@ -221,9 +221,10 @@ export function KanbanBoard({
   const keyboardSensor = useSensor(KeyboardSensor, {
     coordinateGetter: sortableKeyboardCoordinates,
   });
-  const sensors = useSensors(
-    ...(effectiveGroupBy === "label" ? [] : [pointerSensor, keyboardSensor]),
-  );
+  // Keep the hook's dependency shape stable while label grouping remains
+  // read-only. The cards and columns gate their own drag affordances with
+  // dragEnabled, so the stable context sensors cannot activate a label drag.
+  const sensors = useSensors(pointerSensor, keyboardSensor);
 
   const allIssues = issues ?? EMPTY_ISSUES;
   // Dependency graph: prefer the whole-vault relation projection; fall back to

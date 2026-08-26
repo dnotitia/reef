@@ -135,6 +135,15 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
     request,
   }) => {
     await openList(page);
+    // The shared default is Manual Rank now. This scenario's expected
+    // three-row range is intentionally the former Priority-desc fixture range
+    // (REEF-101, REEF-108, REEF-106), so make that ordering explicit.
+    await page.goto(
+      `/workspace/${REEF_E2E_VAULT}/issues?view=list&sort=priority`,
+    );
+    await expect(page.getByTestId("issue-list-row").first()).toBeVisible({
+      timeout: 15_000,
+    });
     const patchIds: string[] = [];
     let inFlight = 0;
     let maxInFlight = 0;
