@@ -1,11 +1,21 @@
-import { expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 import {
-  openExistingWorkspace,
+  continueToWorkspace,
   readIndexedDbConfig,
   resetFixture,
+  signInAsAlice,
 } from "../harness/fixture";
 
 const FAVORITES_KEY = "workspace_favorites";
+
+async function openMultiVaultWorkspace(
+  page: Page,
+  vault: string,
+): Promise<void> {
+  await signInAsAlice(page);
+  await page.goto(`/workspace/${vault}/issues`);
+  await continueToWorkspace(page, vault);
+}
 
 test.describe("Hermetic workspace favorites", () => {
   test.beforeEach(async ({ request }) => {
@@ -15,7 +25,7 @@ test.describe("Hermetic workspace favorites", () => {
   test("groups, searches, navigates, restores, and cleans up browser-local favorites", async ({
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openMultiVaultWorkspace(page, "reef-e2e");
 
     const trigger = page.getByTestId("sidebar-workspace-trigger");
     await trigger.click();
