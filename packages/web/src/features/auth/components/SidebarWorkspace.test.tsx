@@ -44,20 +44,25 @@ vi.mock("@/features/settings/hooks/useActiveVault", async (orig) => {
 
 import { useViewStore } from "@/features/ui/stores/useViewStore";
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
+import type { Locale } from "@/i18n/locales";
 import { apiFetch } from "@/lib/apiClient";
 import { getActiveVault, setActiveVault } from "@/lib/storage/config";
 import { db } from "@/lib/storage/db";
+import {
+  getWorkspaceFavorites,
+  setWorkspaceFavorites,
+} from "@/lib/storage/workspaceFavorites";
 import { SidebarWorkspace } from "./SidebarWorkspace";
 
 const mockApiFetch = vi.mocked(apiFetch);
 
-function wrap(ui: ReactNode) {
+function wrap(ui: ReactNode, locale: Locale = "en") {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return (
     <QueryClientProvider client={queryClient}>
-      <IntlTestProvider>{ui}</IntlTestProvider>
+      <IntlTestProvider locale={locale}>{ui}</IntlTestProvider>
     </QueryClientProvider>
   );
 }
@@ -259,6 +264,177 @@ describe("SidebarWorkspace", () => {
     expect(
       screen.queryByTestId("workspace-switcher-option-reef-acme"),
     ).not.toBeInTheDocument();
+  });
+
+  it("moves a workspace between groups without closing or resetting the search", async () => {
+    await setActiveVault("reef-acme");
+    setupVaults([
+      { name: "reef-acme", has_reef_config: true },
+      { name: "reef-beta", has_reef_config: true },
+      { name: "raw-vault", has_reef_config: false },
+    ]);
+    const user = userEvent.setup();
+
+    render(wrap(<SidebarWorkspace collapsed={false} />));
+
+    await user.click(await screen.findByTestId("sidebar-workspace-trigger"));
+    const search = await screen.findByTestId("workspace-switcher-search");
+    await user.type(search, "reef");
+
+    const favoriteToggle = screen.getByTestId(
+      "workspace-switcher-favorite-reef-beta",
+    );
+    expect(favoriteToggle).toHaveAttribute("aria-pressed", "false");
+    expect(favoriteToggle).toHaveAccessibleName("Add reef-beta to favorites");
+
+    await user.click(favoriteToggle);
+
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("workspace-switcher-favorite-reef-beta"),
+      ).toHaveAttribute("aria-pressed", "true"),
+    );
+    expect(screen.getByTestId("workspace-switcher")).toBeInTheDocument();
+    expect(search).toHaveValue("reef");
+    expect(
+      screen.getByRole("heading", { name: "Favorites" }),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("workspace-switcher-other")).queryByTestId(
+        "workspace-switcher-option-reef-beta",
+      ),
+    ).not.toBeInTheDocument();
+    expect(mockPush).not.toHaveBeenCalled();
+
+    await user.click(
+      screen.getByTestId("workspace-switcher-favorite-reef-beta"),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("workspace-switcher-favorite-reef-beta"),
+      ).toHaveAttribute("aria-pressed", "false"),
+    );
+    expect(
+      screen.queryByRole("heading", { name: "Favorites" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("workspace-switcher-other")).getByTestId(
+        "workspace-switcher-option-reef-beta",
+      ),
+    ).toBeInTheDocument();
+    expect(await getWorkspaceFavorites()).toEqual([]);
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it("sorts each group deterministically and drops invalid or duplicate candidates", async () => {
+    await setActiveVault("reef-alpha");
+    setupVaults([
+      { name: "reef-zeta", has_reef_config: true },
+      { name: "reef-alpha", has_reef_config: true },
+      { name: "reef-alpha", has_reef_config: true },
+      { name: "Bad Vault", has_reef_config: true },
+      { name: "raw-vault", has_reef_config: false },
+    ]);
+    const user = userEvent.setup();
+
+    render(wrap(<SidebarWorkspace collapsed={false} />));
+    await user.click(await screen.findByTestId("sidebar-workspace-trigger"));
+
+    const optionIds = Array.from(
+      screen
+        .getByTestId("workspace-switcher-other")
+        .querySelectorAll<HTMLElement>(
+          '[data-testid^="workspace-switcher-option-"]',
+        ),
+    ).map((option) => option.dataset.testid);
+    expect(optionIds).toEqual([
+      "workspace-switcher-option-reef-alpha",
+      "workspace-switcher-option-reef-zeta",
+    ]);
+    expect(
+      screen.queryByTestId("workspace-switcher-option-raw-vault"),
+    ).toBeNull();
+    expect(
+      screen.queryByTestId("workspace-switcher-option-Bad Vault"),
+    ).toBeNull();
+  });
+
+  it("keeps the previous favorite and shows localized feedback when saving fails", async () => {
+    await setActiveVault("reef-acme");
+    await setWorkspaceFavorites(["reef-beta"]);
+    const put = vi
+      .spyOn(db.config, "put")
+      .mockRejectedValueOnce(new Error("storage unavailable"));
+    setupVaults([
+      { name: "reef-acme", has_reef_config: true },
+      { name: "reef-beta", has_reef_config: true },
+    ]);
+    const user = userEvent.setup();
+
+    render(wrap(<SidebarWorkspace collapsed={false} />));
+    await user.click(await screen.findByTestId("sidebar-workspace-trigger"));
+    await user.click(
+      await screen.findByTestId("workspace-switcher-favorite-reef-beta"),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("workspace-switcher-favorites-error"),
+      ).toHaveTextContent("Couldn't save favorites"),
+    );
+    expect(
+      screen.getByTestId("workspace-switcher-favorite-reef-beta"),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("workspace-switcher")).toBeInTheDocument();
+    expect(mockPush).not.toHaveBeenCalled();
+    put.mockRestore();
+  });
+
+  it("keeps active marking independent from favorite pressed state", async () => {
+    await setActiveVault("reef-acme");
+    await setWorkspaceFavorites(["reef-acme"]);
+    setupVaults([
+      { name: "reef-acme", has_reef_config: true },
+      { name: "reef-beta", has_reef_config: true },
+    ]);
+    const user = userEvent.setup();
+
+    render(wrap(<SidebarWorkspace collapsed={false} />));
+    await user.click(await screen.findByTestId("sidebar-workspace-trigger"));
+
+    expect(
+      screen.getByTestId("workspace-switcher-option-reef-acme"),
+    ).toHaveAttribute("aria-current", "true");
+    expect(
+      screen.getByTestId("workspace-switcher-favorite-reef-acme"),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(
+      screen.getByTestId("workspace-switcher-favorite-reef-acme"),
+    );
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(await getActiveVault()).toBe("reef-acme");
+  });
+
+  it("uses the Korean catalog for group and toggle accessibility copy", async () => {
+    await setActiveVault("reef-acme");
+    await setWorkspaceFavorites(["reef-beta"]);
+    setupVaults([
+      { name: "reef-acme", has_reef_config: true },
+      { name: "reef-beta", has_reef_config: true },
+    ]);
+    const user = userEvent.setup();
+
+    render(wrap(<SidebarWorkspace collapsed={false} />, "ko"));
+    await user.click(await screen.findByTestId("sidebar-workspace-trigger"));
+
+    expect(
+      screen.getByRole("heading", { name: "즐겨찾기" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("workspace-switcher-favorite-reef-beta"),
+    ).toHaveAccessibleName("reef-beta을(를) 즐겨찾기에서 제거");
   });
 
   it("draws the switcher search input's ring on keyboard focus only (REEF-226)", async () => {

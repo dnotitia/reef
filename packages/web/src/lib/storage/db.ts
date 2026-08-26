@@ -14,6 +14,7 @@ interface ConfigEntry {
  *    — the active `vault`, `theme`, `filter:{vault}`
  *    (the per-vault last-used issue filter, REEF-009),
  *    `named_filter:{vault}:{id}` (browser-local named issue filter envelopes),
+ *    `workspace_favorites:v1` (account-scoped configured workspace names),
  *    `akb_user_id` (the previously-signed-in account,
  *    read by `accountReconcile` to detect an account switch).
  *
