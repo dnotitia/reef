@@ -37,18 +37,13 @@ export function useWorkspaceFavorites(
   const loadGenerationRef = useRef(0);
 
   useEffect(() => {
-    storedFavoritesRef.current = storedFavorites;
-  }, [storedFavorites]);
-
-  useEffect(() => {
     const generation = loadGenerationRef.current + 1;
     loadGenerationRef.current = generation;
-    let cancelled = false;
     setHasStorageError(false);
 
     void getWorkspaceFavorites()
       .then((favorites) => {
-        if (cancelled || loadGenerationRef.current !== generation) return;
+        if (loadGenerationRef.current !== generation) return;
         const next = enabled
           ? filterWorkspaceFavorites(favorites, availableNames)
           : favorites;
@@ -60,13 +55,13 @@ export function useWorkspaceFavorites(
         }
       })
       .catch(() => {
-        if (cancelled || loadGenerationRef.current !== generation) return;
+        if (loadGenerationRef.current !== generation) return;
         storedFavoritesRef.current = [];
         setStoredFavorites([]);
       });
 
     return () => {
-      cancelled = true;
+      loadGenerationRef.current += 1;
     };
   }, [availableNames, enabled]);
 

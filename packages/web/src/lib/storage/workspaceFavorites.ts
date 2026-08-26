@@ -50,14 +50,10 @@ export function filterWorkspaceFavorites(
   favorites: readonly unknown[],
   availableNames: readonly string[],
 ): string[] {
-  const available = new Map<string, string>();
-  for (const name of normalizeWorkspaceFavoriteNames(availableNames)) {
-    available.set(name.toLowerCase(), name);
-  }
-
-  return normalizeWorkspaceFavoriteNames(favorites)
-    .map((favorite) => available.get(favorite.toLowerCase()))
-    .filter((favorite): favorite is string => favorite !== undefined);
+  const available = new Set(normalizeWorkspaceFavoriteNames(availableNames));
+  return normalizeWorkspaceFavoriteNames(favorites).filter((favorite) =>
+    available.has(favorite),
+  );
 }
 
 function isWorkspaceFavoritesEnvelope(
