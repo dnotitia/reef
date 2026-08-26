@@ -83,7 +83,14 @@ import type {
 import { usePriorityLabels, useStatusLabels } from "@/i18n/fieldLabels";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { type KeyboardEvent, useEffect, useId, useMemo, useState } from "react";
+import {
+  type KeyboardEvent,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import { withVault } from "@/lib/workspaceHref";
 import { useBoardStore } from "../stores/useBoardStore";
@@ -202,6 +209,9 @@ export function KanbanBoard({
     bucket: IssueGroupBucket;
     target?: IssueReorderTarget;
   } | null>(null);
+  const lastPointerCoordinatesRef = useRef<{ x: number; y: number } | null>(
+    null,
+  );
 
   // PointerSensor just starts a drag after a small distance — anything
   // shorter is treated as a click and reaches KanbanCard's onClick.
@@ -503,15 +513,76 @@ export function KanbanBoard({
     }
   }
 
+  // PointerSensor can activate on the first move without emitting a later
+  // collision update when a pointer jumps directly to its destination. Use
+  // the final rendered DOM target only to recover that drop target; canonical
+  // rank resolution remains owned by the shared reorder helper and server.
+  function pointerDropTargetAtLastPointer(): {
+    id: string;
+    issue?: IssueListItem;
+    bucket: IssueGroupBucket;
+  } | null {
+    const point = lastPointerCoordinatesRef.current;
+    if (
+      !point ||
+      typeof document === "undefined" ||
+      typeof document.elementFromPoint !== "function"
+    ) {
+      return null;
+    }
+    const element = document.elementFromPoint(point.x, point.y);
+    const card = element?.closest<HTMLElement>(
+      '[data-testid="kanban-card"][data-occurrence-key]',
+    );
+    const occurrenceKey = card?.dataset.occurrenceKey;
+    if (occurrenceKey) {
+      const group = issueGroups.find(({ bucket: candidate, issues }) =>
+        issues.some((item) => `${candidate.id}:${item.id}` === occurrenceKey),
+      );
+      const issue = group?.issues.find(
+        (item) => `${group.bucket.id}:${item.id}` === occurrenceKey,
+      );
+      if (group && issue) {
+        return { id: occurrenceKey, issue, bucket: group.bucket };
+      }
+    }
+
+    const column = element?.closest<HTMLElement>("[data-group-by]");
+    if (!column) return null;
+    const group = issueGroups.find(
+      ({ bucket: candidate }) =>
+        candidate.groupBy === column.dataset.groupBy &&
+        (candidate.value ?? "none") === column.dataset.groupValue,
+    );
+    return group ? { id: group.bucket.id, bucket: group.bucket } : null;
+  }
+
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     setActiveIssueId(null);
 
-    if (!over || !active.data.current) return;
-    const overData = over.data?.current as
+    if (!active.data.current) return;
+    const overData = over?.data?.current as
       | { bucket?: IssueGroupBucket; issue?: IssueListItem }
       | undefined;
-    const overId = String(over.id);
+    const issue = active.data.current.issue as IssueListItem;
+    const isPointerDrag =
+      event.activatorEvent?.type === "pointerdown" ||
+      event.activatorEvent?.type === "mousedown";
+    const pointerTarget = isPointerDrag
+      ? pointerDropTargetAtLastPointer()
+      : null;
+    const rawOverId = over ? String(over.id) : null;
+    const usePointerTarget =
+      pointerTarget !== null &&
+      (rawOverId === null ||
+        rawOverId === String(active.id) ||
+        overData?.issue?.id === issue.id);
+    const resolvedOverData = usePointerTarget
+      ? { issue: pointerTarget.issue, bucket: pointerTarget.bucket }
+      : overData;
+    const overId = usePointerTarget ? pointerTarget.id : rawOverId;
+    lastPointerCoordinatesRef.current = null;
     const overGroup = issueGroups.find(
       ({ bucket: candidate, issues: bucketIssues }) =>
         candidate.id === overId ||
@@ -521,18 +592,21 @@ export function KanbanBoard({
         ),
     );
     const overIssue =
-      overData?.issue ??
+      resolvedOverData?.issue ??
       overGroup?.issues.find(
         (item) =>
           item.id === overId || `${overGroup.bucket.id}:${item.id}` === overId,
       );
     const bucket =
-      overData?.bucket ?? bucketById.get(overId) ?? overGroup?.bucket;
+      resolvedOverData?.bucket ??
+      (overId ? bucketById.get(overId) : undefined) ??
+      overGroup?.bucket;
     const manualUngroupedBucket =
       (manualOrder || scope === "backlog") && effectiveGroupBy === "none";
-    if (!bucket || (!bucket.droppable && !manualUngroupedBucket)) return;
+    if (!overId || !bucket || (!bucket.droppable && !manualUngroupedBucket)) {
+      return;
+    }
 
-    const issue = active.data.current.issue as IssueListItem;
     const targetItems = canonicalBoardIssues.filter((candidate) =>
       issueBelongsToBucket(candidate, bucket),
     );
@@ -716,6 +790,15 @@ export function KanbanBoard({
           // biome-ignore lint/a11y/noNoninteractiveTabindex: The labeled overflow region is the keyboard scrollport.
           tabIndex={0}
           onKeyDown={handleBoardScrollKeyDown}
+          onPointerMove={(event) => {
+            lastPointerCoordinatesRef.current = {
+              x: event.clientX,
+              y: event.clientY,
+            };
+          }}
+          onPointerLeave={() => {
+            lastPointerCoordinatesRef.current = null;
+          }}
           className="relative grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-3 overflow-x-hidden overflow-y-auto px-6 py-4 md:grid-cols-2 lg:flex lg:flex-nowrap lg:overflow-x-auto lg:overflow-y-hidden"
         >
           {issueGroups.map(({ bucket, issues }) => (
