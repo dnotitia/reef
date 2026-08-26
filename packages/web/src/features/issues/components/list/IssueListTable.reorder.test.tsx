@@ -1,4 +1,5 @@
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
+import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -12,6 +13,7 @@ const { dndHarness, fetchNextPage } = vi.hoisted(() => ({
             active: { id: string };
             over: { id: string } | null;
           }) => void;
+          onDragCancel?: (event: { active: { id: string } }) => void;
           children?: ReactNode;
         }
       | undefined,
@@ -161,5 +163,42 @@ describe("IssueListTable Manual reorder boundary", () => {
         .mocked(apiFetch)
         .mock.calls.some(([url]) => url === "/api/issues/reorder"),
     ).toBe(false);
+  });
+
+  it("restores focus to the reorder handle after a keyboard drop or cancel", async () => {
+    vi.mocked(apiFetch).mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, assignments: [] }), {
+        status: 200,
+      }),
+    );
+    render(wrap(<IssueListTable vault="reef-acme" />));
+    await screen.findByTestId("issue-list-grip-REEF-002");
+
+    act(() => {
+      dndHarness.props?.onDragEnd?.({
+        active: { id: "REEF-002" },
+        over: { id: "REEF-001" },
+      });
+    });
+    expect(useIssueKeyboardStore.getState().focusRequest).toMatchObject({
+      scope: "list",
+      issueId: "REEF-002",
+      target: "reorder-handle",
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("issue-list-grip-REEF-002")).toHaveFocus(),
+    );
+
+    act(() => {
+      dndHarness.props?.onDragCancel?.({ active: { id: "REEF-001" } });
+    });
+    expect(useIssueKeyboardStore.getState().focusRequest).toMatchObject({
+      scope: "list",
+      issueId: "REEF-001",
+      target: "reorder-handle",
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("issue-list-grip-REEF-001")).toHaveFocus(),
+    );
   });
 });

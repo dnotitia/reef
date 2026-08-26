@@ -1,4 +1,10 @@
-import { type Page, type Request, expect, test } from "@playwright/test";
+import {
+  type Locator,
+  type Page,
+  type Request,
+  expect,
+  test,
+} from "@playwright/test";
 import {
   REEF_E2E_VAULT,
   openExistingWorkspace,
@@ -69,6 +75,47 @@ async function issueListIds(page: Page): Promise<string[]> {
         .map((row) => row.getAttribute("data-issue-id"))
         .filter((id): id is string => id !== null),
     );
+}
+
+async function dragBoardTarget(
+  page: Page,
+  source: Locator,
+  target: Locator,
+  point: "card" | "body",
+): Promise<void> {
+  const sourceBox = await source.boundingBox();
+  const targetBox = await target.boundingBox();
+  if (!sourceBox || !targetBox) throw new Error("missing Board drag bounds");
+  await page.mouse.move(
+    sourceBox.x + sourceBox.width / 2,
+    sourceBox.y + sourceBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    targetBox.x + targetBox.width / 2,
+    point === "card" ? targetBox.y + targetBox.height / 2 : targetBox.y + 24,
+    { steps: 12 },
+  );
+  await page.mouse.up();
+}
+
+async function boardIssueIds(column: Locator): Promise<string[]> {
+  return column.locator('[data-testid="kanban-card"]').evaluateAll((cards) =>
+    cards
+      .map((card) => card.getAttribute("data-occurrence-key"))
+      .filter((key): key is string => key !== null)
+      .map((key) => key.slice(key.lastIndexOf(":") + 1)),
+  );
+}
+
+function demoIssueState(
+  state: Awaited<ReturnType<typeof readFixtureState>>,
+): Awaited<ReturnType<typeof readFixtureState>>["vaults"][number] {
+  const vault = state.vaults.find(
+    (candidate) => candidate.name === REEF_E2E_VAULT,
+  );
+  if (!vault) throw new Error("demo fixture vault is missing");
+  return vault;
 }
 
 test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => {
@@ -196,6 +243,159 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => 
     ).toBeVisible();
   });
 
+  test("persists a Manual Board same-group reorder through the canonical rank spine", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "demo_board");
+    await context.clearCookies();
+    await page.setViewportSize({ width: 2200, height: 1000 });
+    await openExistingWorkspace(page);
+    await page.goto(
+      `/workspace/${REEF_E2E_VAULT}/issues?view=board&group=status`,
+    );
+
+    const todo = page.locator(
+      '[data-group-by="status"][data-group-value="todo"]',
+    );
+    await expect(todo).toBeVisible();
+    await expect
+      .poll(() => boardIssueIds(todo))
+      .toEqual(["REEF-103", "REEF-102", "REEF-101"]);
+
+    const responsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/api/issues/reorder",
+    );
+    await dragBoardTarget(
+      page,
+      todo.getByTestId("kanban-card").filter({ hasText: "Review monitored" }),
+      todo.getByTestId("kanban-card").filter({ hasText: "Polish onboarding" }),
+      "card",
+    );
+    await expect((await responsePromise).ok()).toBeTruthy();
+    await expect
+      .poll(() => boardIssueIds(todo))
+      .toEqual(["REEF-103", "REEF-101", "REEF-102"]);
+
+    const persisted = demoIssueState(await readFixtureState(request));
+    const todoState = persisted.issues
+      .filter((issue) => issue.status === "todo")
+      .sort(
+        (left, right) =>
+          (left.rank ?? Number.POSITIVE_INFINITY) -
+            (right.rank ?? Number.POSITIVE_INFINITY) ||
+          right.id.localeCompare(left.id, undefined, { numeric: true }),
+      );
+    expect(todoState.map((issue) => issue.id)).toEqual([
+      "REEF-103",
+      "REEF-101",
+      "REEF-102",
+    ]);
+
+    await page.reload();
+    await expect
+      .poll(() => boardIssueIds(todo))
+      .toEqual(["REEF-103", "REEF-101", "REEF-102"]);
+  });
+
+  test("commits a Manual Board cross-group body drop as one status+rank mutation", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "demo_board");
+    await context.clearCookies();
+    await page.setViewportSize({ width: 2200, height: 1000 });
+    await openExistingWorkspace(page);
+    await page.goto(
+      `/workspace/${REEF_E2E_VAULT}/issues?view=board&group=status`,
+    );
+
+    const todo = page.locator(
+      '[data-group-by="status"][data-group-value="todo"]',
+    );
+    const inProgress = page.locator(
+      '[data-group-by="status"][data-group-value="in_progress"]',
+    );
+    await expect(todo).toBeVisible();
+    const responsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/api/issues/reorder",
+    );
+    await dragBoardTarget(
+      page,
+      inProgress
+        .getByTestId("kanban-card")
+        .filter({ hasText: "Wire board filters" }),
+      todo,
+      "body",
+    );
+    await expect((await responsePromise).ok()).toBeTruthy();
+    await expect
+      .poll(async () =>
+        demoIssueState(await readFixtureState(request)).issues.find(
+          (issue) => issue.id === "REEF-104",
+        ),
+      )
+      .toMatchObject({ status: "todo" });
+    const moved = demoIssueState(await readFixtureState(request)).issues.find(
+      (issue) => issue.id === "REEF-104",
+    );
+    expect(moved?.rank).not.toBeNull();
+    await expect(
+      todo.getByTestId("kanban-card").filter({ hasText: "Wire board filters" }),
+    ).toBeVisible();
+  });
+
+  test("commits a Manual Board cross-group card drop at the target rank", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "demo_board");
+    await context.clearCookies();
+    await page.setViewportSize({ width: 2200, height: 1000 });
+    await openExistingWorkspace(page);
+    await page.goto(
+      `/workspace/${REEF_E2E_VAULT}/issues?view=board&group=status`,
+    );
+
+    const todo = page.locator(
+      '[data-group-by="status"][data-group-value="todo"]',
+    );
+    const inProgress = page.locator(
+      '[data-group-by="status"][data-group-value="in_progress"]',
+    );
+    const responsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/api/issues/reorder",
+    );
+    await dragBoardTarget(
+      page,
+      inProgress
+        .getByTestId("kanban-card")
+        .filter({ hasText: "Wire board filters" }),
+      todo.getByTestId("kanban-card").filter({ hasText: "Polish onboarding" }),
+      "card",
+    );
+    await expect((await responsePromise).ok()).toBeTruthy();
+    await expect
+      .poll(async () =>
+        demoIssueState(await readFixtureState(request)).issues.find(
+          (issue) => issue.id === "REEF-104",
+        ),
+      )
+      .toMatchObject({ status: "todo" });
+    await expect
+      .poll(() => boardIssueIds(todo))
+      .toEqual(["REEF-103", "REEF-104", "REEF-102", "REEF-101"]);
+  });
+
   test("persists Manual List reorder and exposes keyboard and screen-reader feedback", async ({
     page,
     request,
@@ -262,5 +462,15 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => 
     await expect
       .poll(() => issueListIds(page))
       .toEqual(["REEF-002", "REEF-001"]);
+    await expect(grip).toBeFocused();
+    await expect(page.locator('[data-testid="issue-detail"]')).toHaveCount(0);
+
+    const cancelGrip = page.getByTestId("issue-list-grip-REEF-002");
+    await cancelGrip.focus();
+    await page.keyboard.press("Space");
+    await expect(cancelGrip).toHaveAttribute("aria-pressed", "true");
+    await page.keyboard.press("Escape");
+    await expect(liveRegion).toHaveText("Reordering REEF-002 cancelled.");
+    await expect(cancelGrip).toBeFocused();
   });
 });

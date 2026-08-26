@@ -2,7 +2,7 @@ import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import type { IssueMetadata } from "@reef/core";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   FILTER_ISSUES,
   ISSUES,
@@ -26,6 +26,10 @@ function useFieldOrdering() {
 describe("KanbanBoard drag and status updates", () => {
   beforeEach(() => {
     resetKanbanBoardMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("PATCHes status when a card is dropped on a different status column", async () => {
@@ -395,5 +399,49 @@ describe("KanbanBoard drag and status updates", () => {
           url === "/api/issues/REEF-010" && init?.method === "PATCH",
       ),
     ).toBe(false);
+  });
+
+  it("prefers a card collision over its enclosing Board column", async () => {
+    mockApiFetch.mockResolvedValue(
+      new Response(JSON.stringify({ issues: FILTER_ISSUES }), { status: 200 }),
+    );
+
+    render(wrap(<KanbanBoard vault="reef-acme" />));
+    await screen.findByText("UI board polish");
+
+    const columnCollision = {
+      id: "todo",
+      data: {
+        droppableContainer: { data: { current: { bucket: true } } },
+        value: 1,
+      },
+    };
+    const cardCollision = {
+      id: "todo:REEF-010",
+      data: {
+        droppableContainer: {
+          data: { current: { issue: FILTER_ISSUES[0] } },
+        },
+        value: 2,
+      },
+    };
+    dndHarness.pointerWithin.mockReturnValue([columnCollision, cardCollision]);
+
+    const detect = dndHarness.contextProps?.collisionDetection as (
+      args: unknown,
+    ) => unknown[];
+    expect(detect({})).toEqual([cardCollision]);
+  });
+
+  it("disables the Board drop settle animation for reduced-motion users", async () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true }));
+    mockApiFetch.mockResolvedValue(
+      new Response(JSON.stringify({ issues: FILTER_ISSUES }), { status: 200 }),
+    );
+
+    render(wrap(<KanbanBoard vault="reef-acme" />));
+    await screen.findByText("UI board polish");
+
+    expect(dndHarness.overlayProps?.dropAnimation).toBeUndefined();
   });
 });

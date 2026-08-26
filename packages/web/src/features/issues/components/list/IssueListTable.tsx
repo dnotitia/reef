@@ -79,6 +79,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   type Announcements,
   DndContext,
+  type DragCancelEvent,
   type DragEndEvent,
   KeyboardSensor,
   PointerSensor,
@@ -493,8 +494,17 @@ export function IssueListTable({
     if (!target) return;
     useIssueKeyboardStore.getState().focusIssue("list", target.issueId, {
       requestDomFocus: true,
+      target: "reorder-handle",
     });
     runReorder(target);
+  }
+
+  function handleReorderDragCancel(event: DragCancelEvent) {
+    const issueId = issueIdFromDropTarget(String(event.active.id));
+    useIssueKeyboardStore.getState().focusIssue("list", issueId, {
+      requestDomFocus: true,
+      target: "reorder-handle",
+    });
   }
 
   // TanStack Virtual exposes imperative methods outside React Compiler's
@@ -826,6 +836,7 @@ export function IssueListTable({
             collisionDetection={closestCenter}
             accessibility={canReorder ? { announcements } : undefined}
             onDragEnd={handleReorderDragEnd}
+            onDragCancel={handleReorderDragCancel}
           >
             <SortableContext
               items={reorderableIds}

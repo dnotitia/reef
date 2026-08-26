@@ -12,6 +12,7 @@ export interface CapturedDragEvent {
 export interface CapturedDndContextProps {
   children: ReactNode;
   collisionDetection?: unknown;
+  dropAnimation?: unknown;
   onDragCancel?: () => void;
   onDragEnd?: (event: CapturedDragEvent) => void;
   onDragStart?: (event: CapturedDragEvent) => void;
@@ -20,6 +21,9 @@ export interface CapturedDndContextProps {
 
 const dndHarness = vi.hoisted(() => ({
   contextProps: undefined as CapturedDndContextProps | undefined,
+  overlayProps: undefined as
+    | { children: ReactNode; dropAnimation?: unknown }
+    | undefined,
   pointerWithin: vi.fn(),
 }));
 
@@ -42,9 +46,10 @@ vi.mock("@dnd-kit/core", () => ({
     dndHarness.contextProps = props;
     return <div data-testid="dnd-context">{props.children}</div>;
   },
-  DragOverlay: ({ children }: { children: ReactNode }) => (
-    <div data-testid="drag-overlay">{children}</div>
-  ),
+  DragOverlay: (props: { children: ReactNode; dropAnimation?: unknown }) => {
+    dndHarness.overlayProps = props;
+    return <div data-testid="drag-overlay">{props.children}</div>;
+  },
   PointerSensor: vi.fn(),
   KeyboardSensor: vi.fn(),
   pointerWithin: dndHarness.pointerWithin,
@@ -165,6 +170,7 @@ export function wrap(ui: ReactNode) {
 export function resetKanbanBoardMocks() {
   vi.clearAllMocks();
   dndHarness.contextProps = undefined;
+  dndHarness.overlayProps = undefined;
   useIssueStore.setState({
     filter: {},
     searchQuery: "",

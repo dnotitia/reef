@@ -3,7 +3,8 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
-import { useCallback } from "react";
+import { useCallback, useLayoutEffect, useRef } from "react";
+import { useIssueKeyboardStore } from "../../stores/useIssueKeyboardStore";
 
 interface IssueListReorderHandleProps {
   id: string;
@@ -24,6 +25,8 @@ export function IssueListReorderHandle({
   items,
   label,
 }: IssueListReorderHandleProps) {
+  const focusRequest = useIssueKeyboardStore((state) => state.focusRequest);
+  const handleRef = useRef<HTMLButtonElement | null>(null);
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
       id,
@@ -37,11 +40,24 @@ export function IssueListReorderHandle({
   });
   const setRef = useCallback(
     (node: HTMLButtonElement | null) => {
+      handleRef.current = node;
       setNodeRef(node);
       setDroppableRef(node);
     },
     [setDroppableRef, setNodeRef],
   );
+
+  useLayoutEffect(() => {
+    if (
+      focusRequest?.scope !== "list" ||
+      focusRequest.target !== "reorder-handle" ||
+      focusRequest.issueId !== id ||
+      !handleRef.current
+    ) {
+      return;
+    }
+    handleRef.current.focus({ preventScroll: true });
+  }, [focusRequest, id]);
 
   return (
     <button

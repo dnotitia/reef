@@ -237,6 +237,7 @@ export const IssueListRow = memo(function IssueListRow({
   useEffect(() => {
     if (
       focusRequest?.scope !== "list" ||
+      focusRequest.target === "reorder-handle" ||
       (focusRequest.occurrenceKey ?? focusRequest.issueId) !==
         keyboardOccurrenceKey ||
       !rowRef.current

@@ -60,6 +60,7 @@ import { DURATION_BASE, EASE_SIGNATURE } from "@/lib/motionTokens";
 import {
   DndContext,
   type Announcements,
+  type CollisionDetection,
   type DragEndEvent,
   DragOverlay,
   type DragStartEvent,
@@ -114,6 +115,25 @@ const DROP_ANIMATION: DropAnimation = {
   sideEffects: defaultDropAnimationSideEffects({
     styles: { active: { opacity: "0.4" } },
   }),
+};
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+const boardCollisionDetection: CollisionDetection = (args) => {
+  const collisions = pointerWithin(args);
+  const issueCollision = collisions.find((collision) => {
+    const data = collision.data?.droppableContainer.data.current as
+      | { issue?: unknown }
+      | undefined;
+    return data?.issue != null;
+  });
+  return issueCollision ? [issueCollision] : collisions;
 };
 
 interface KanbanBoardProps {
@@ -681,11 +701,21 @@ export function KanbanBoard({
       )}
       <DndContext
         sensors={sensors}
-        collisionDetection={pointerWithin}
+        collisionDetection={boardCollisionDetection}
         accessibility={{ announcements }}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
-        onDragCancel={() => setActiveIssueId(null)}
+        onDragCancel={(event) => {
+          const issue = event.active.data.current?.issue as
+            | IssueListItem
+            | undefined;
+          if (issue) {
+            useIssueKeyboardStore.getState().focusIssue("board", issue.id, {
+              requestDomFocus: true,
+            });
+          }
+          setActiveIssueId(null);
+        }}
       >
         <div
           data-testid="kanban-board-body"
@@ -754,7 +784,9 @@ export function KanbanBoard({
             </div>
           )}
         </div>
-        <DragOverlay dropAnimation={DROP_ANIMATION}>
+        <DragOverlay
+          dropAnimation={prefersReducedMotion() ? undefined : DROP_ANIMATION}
+        >
           {activeIssue ? (
             <KanbanCardPreview
               issue={activeIssue}
