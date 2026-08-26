@@ -12,7 +12,6 @@ export interface CapturedDragEvent {
 export interface CapturedDndContextProps {
   children: ReactNode;
   collisionDetection?: unknown;
-  dropAnimation?: unknown;
   onDragCancel?: () => void;
   onDragEnd?: (event: CapturedDragEvent) => void;
   onDragStart?: (event: CapturedDragEvent) => void;
