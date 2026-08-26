@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import { linkSafetyConfig } from "@/components/markdown/linkSafety";
 import {
   attachmentFileTypeLabel,
@@ -650,7 +649,9 @@ function ToolbarButton({
 
 /** Hairline separator between toolbar control groups. */
 function ToolbarDivider() {
-  return <Separator orientation="vertical" className="mx-0.5 h-4" />;
+  return (
+    <span aria-hidden="true" className="mx-0.5 h-4 w-px shrink-0 bg-border" />
+  );
 }
 
 function syncEditorMarkdown(

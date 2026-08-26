@@ -3,8 +3,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { GET } from "./route";
 
 const LLM_ENV_KEYS = [
-  "OPENROUTER_API_KEY",
-  "OPENROUTER_BASE_URL",
   "REEF_LLM_MODEL",
   "REEF_LLM_API_KEY",
   "REEF_LLM_BASE_URL",

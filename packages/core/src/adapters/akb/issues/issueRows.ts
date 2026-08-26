@@ -51,7 +51,7 @@ interface IssueRowMeta {
   /**
    * ISO timestamp of the last status transition. A reef field with no
    * akb-native home and no filter/sort need — set by the board on drag and
-   * read by the project-state prompt, so it should survive the round-trip.
+   * exposed in issue reads, so it should survive the round-trip.
    */
   last_status_change: string | null;
   external_refs: IssueMetadata["external_refs"] | null;

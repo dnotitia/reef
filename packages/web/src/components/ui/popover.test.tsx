@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useState } from "react";
@@ -116,6 +116,28 @@ describe("Popover", () => {
     expect(screen.queryByRole("dialog", { name: "Choose an option" })).not.toBeInTheDocument();
     await new Promise((resolve) => window.requestAnimationFrame(resolve));
     expect(trigger).toHaveFocus();
+  });
+
+  it("does not steal focus moved outside before deferred restoration", async () => {
+    render(
+      <>
+        <Popover>
+          <PopoverTrigger>Open</PopoverTrigger>
+          <PopoverContent role="dialog" aria-label="Choose an option">
+            <SelectAction />
+          </PopoverContent>
+        </Popover>
+        <input aria-label="Next field" />
+      </>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
+    fireEvent.click(screen.getByRole("button", { name: "Choose" }));
+    const next = screen.getByRole("textbox", { name: "Next field" });
+    next.focus();
+
+    await new Promise((resolve) => window.requestAnimationFrame(resolve));
+    expect(next).toHaveFocus();
   });
 
   it("closes on a trigger re-click without reopening", async () => {

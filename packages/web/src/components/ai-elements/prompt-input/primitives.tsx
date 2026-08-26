@@ -6,7 +6,8 @@ import { cn } from "@/lib/utils";
 import { CornerDownLeftIcon, SquareIcon, XIcon } from "lucide-react";
 import type { ComponentProps, MouseEvent } from "react";
 import { useCallback } from "react";
-import type { ChatStatus } from "./types";
+
+type ChatStatus = "submitted" | "streaming" | "ready" | "error";
 
 export type PromptInputSubmitProps = ComponentProps<typeof InputGroupButton> & {
   status?: ChatStatus;

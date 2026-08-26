@@ -102,10 +102,9 @@ advisory, opens matches in a new tab for
 inspection, can be dismissed as a contextual group for the current writing
 session, and never blocks creating or approving an issue.
 
-The same human-in-the-loop pattern governs the **Ask AI** panel, which lets the
-PM interrogate the codebase conversationally with the same read-only grounding
-agent. Issue enrichment and other artifact reviews remain on-demand and
-client-ephemeral until the PM applies them.
+The **Ask AI** panel lets the PM interrogate the codebase conversationally with
+the same read-only grounding agent. Issue-enrichment field suggestions remain
+on-demand and client-ephemeral until the PM applies them.
 
 Across these surfaces, the design rule is identical and load-bearing: **show the
 why, not just the what.** A suggestion carries its reasoning and confidence; an
@@ -188,7 +187,7 @@ components they document.
 
 The shadcn primitives in use include Button, Dialog, Sheet (the issue
 slide-over), Dropdown Menu, Select, Popover, Command (the global search
-palette), Table, Tooltip, Hover Card, Badge, Separator, Skeleton, Spinner, and
+palette), Table, Tooltip, Hover Card, Badge, Skeleton, Spinner, and
 Sonner (toasts). Feature-specific composites live in their feature folders, and
 shared but custom leaves live alongside the primitives.
 

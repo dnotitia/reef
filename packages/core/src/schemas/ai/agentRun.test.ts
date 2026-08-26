@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  AgentArtifactCommandRequestSchema,
-  AgentArtifactEditRequestSchema,
   AgentRunRequestSchema,
   WorkspaceChatAgentInputSchema,
   WorkspaceChatRequestBodySchema,
@@ -172,41 +170,5 @@ describe("agent run request schemas", () => {
         ],
       }).success,
     ).toBe(true);
-  });
-
-  it("accepts empty artifact command bodies", () => {
-    expect(AgentArtifactCommandRequestSchema.parse({})).toMatchObject({
-      artifact: null,
-      actor: null,
-      reason: null,
-    });
-  });
-
-  it("rejects malformed artifact command vault ids", () => {
-    expect(
-      AgentArtifactCommandRequestSchema.safeParse({ vault: "reef/test" })
-        .success,
-    ).toBe(false);
-  });
-
-  it("accepts vault-scoped artifact edit commands", () => {
-    expect(
-      AgentArtifactEditRequestSchema.parse({
-        vault: "reef-test",
-        artifact: {
-          artifact_id: "artifact-1",
-          run_id: "run-1",
-          task_id: "chat.workspace",
-          type: "chat_message",
-          status: "pending",
-          created_at: "2026-06-04T00:00:00.000Z",
-          payload: { text: "Hello" },
-        },
-        patch: { title: "Reviewed" },
-      }),
-    ).toMatchObject({
-      vault: "reef-test",
-      patch: { title: "Reviewed" },
-    });
   });
 });

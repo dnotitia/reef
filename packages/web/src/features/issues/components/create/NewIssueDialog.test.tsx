@@ -121,7 +121,7 @@ vi.mock("./useNewIssueEnrichment", async () => {
         dismissAll: vi.fn(),
         reset: vi.fn(),
       },
-      enrichMutation: {
+      enrichRun: {
         error: null,
         isPending: false,
         isSuccess: false,

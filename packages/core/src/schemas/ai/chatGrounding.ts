@@ -20,7 +20,7 @@ const WorkspaceStatusCountSchema = z.object({
 /**
  * Compact workspace summary: the vault name, the active sprint (name + goal),
  * and open-issue counts. This is the "workspace 요약" of AC1 — a summary, not
- * the full 200-issue dump the dormant projectState user prompt produces.
+ * a full workspace issue dump.
  */
 export const WorkspaceSummarySchema = z.object({
   vault: z.string(),

@@ -158,7 +158,9 @@ describe("AssigneeCombobox", () => {
     // the supplied readable floor and sheds the default narrow min-width
     // (tailwind-merge keeps the later, caller-supplied token). This is the
     // structural contract that keeps long display names + @login readable.
-    const panel = (await screen.findByRole("listbox")).parentElement;
+    const panel = (await screen.findByRole("listbox")).closest(
+      '[role="dialog"]',
+    );
     expect(panel?.className).toContain("min-w-[17rem]");
     expect(panel?.className).not.toContain("min-w-[12rem]");
     // Default anchoring stays right-aligned so dialog/report callers keep the

@@ -3,18 +3,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   EnrichmentUserPromptRequestSchema,
-  ProjectStateUserPromptRequestSchema,
   buildEnrichmentSystemPrompt,
   buildEnrichmentUserPrompt,
-  buildProjectStateSystemPrompt,
-  buildProjectStateUserPrompt,
   buildWorkspaceChatSystemPrompt,
 } from "@/server/application/agents/prompts";
 
 import draftIssueCanned from "./fixtures/draft-issue-canned.json";
 import enrichmentCanned from "./fixtures/enrichment-canned.json";
-import projectStateCanned from "./fixtures/project-state-canned.json";
-import projectStateCodeQuestionCanned from "./fixtures/project-state-code-question-canned.json";
 
 function cannedTask(
   cannedResponse: Record<string, unknown>,
@@ -53,18 +48,6 @@ describe("prompt-evals", () => {
       enrichmentCanned.cannedResponse as Record<string, unknown>,
     );
     expectFields(output, enrichmentCanned.expectedFields);
-  });
-
-  it("project_state", async () => {
-    const request = ProjectStateUserPromptRequestSchema.parse(
-      projectStateCanned.input,
-    );
-    const input = `${buildProjectStateSystemPrompt({ hasLocalTools: false, hasDevTools: false, monitoredRepos: [] })}\n\n${buildProjectStateUserPrompt(request)}`;
-    const output = await runCannedJsonCase(
-      input,
-      projectStateCanned.cannedResponse as Record<string, unknown>,
-    );
-    expectFields(output, projectStateCanned.expectedFields);
   });
 
   it("draft_issue_enrichment", async () => {
@@ -108,30 +91,12 @@ describe("prompt-evals", () => {
     );
     expectFields(output, draftIssueCanned.expectedFields);
   });
-
-  it("project_state_code", async () => {
-    const request = ProjectStateUserPromptRequestSchema.parse(
-      projectStateCodeQuestionCanned.input,
-    );
-    const input = `${buildProjectStateSystemPrompt({ hasLocalTools: false, hasDevTools: true, monitoredRepos: [] })}\n\n${buildProjectStateUserPrompt(request)}`;
-    const output = await runCannedJsonCase(
-      input,
-      projectStateCodeQuestionCanned.cannedResponse as Record<string, unknown>,
-    );
-    expectFields(output, projectStateCodeQuestionCanned.expectedFields);
-  });
 });
 
 describe("prompt-smoke", () => {
   it("retained prompts are non-empty", () => {
     expect(buildEnrichmentSystemPrompt()).not.toHaveLength(0);
-    expect(
-      buildProjectStateSystemPrompt({
-        hasLocalTools: false,
-        hasDevTools: false,
-        monitoredRepos: [],
-      }),
-    ).not.toHaveLength(0);
+    expect(buildWorkspaceChatSystemPrompt).toBeTypeOf("function");
   });
 
   it("chat_grounding", () => {

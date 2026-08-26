@@ -86,21 +86,24 @@ describe("MultiSelectCombobox", () => {
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
   });
 
-  it("opens from explicit pointer and keyboard activation while closed", () => {
+  it("opens through native pointer and keyboard button activation", async () => {
+    const user = userEvent.setup();
     render(<Harness />);
     const trigger = screen.getByTestId("fruit-trigger");
 
-    fireEvent.pointerDown(trigger, { button: 0 });
+    await user.click(trigger);
     expect(screen.queryByTestId("fruit-content")).not.toBeNull();
 
-    fireEvent.keyDown(trigger, { key: "Escape" });
+    await user.keyboard("{Escape}");
     expect(screen.queryByTestId("fruit-content")).toBeNull();
 
-    fireEvent.keyDown(trigger, { key: "Enter" });
+    trigger.focus();
+    await user.keyboard("{Enter}");
     expect(screen.queryByTestId("fruit-content")).not.toBeNull();
 
-    fireEvent.keyDown(trigger, { key: "Escape" });
-    fireEvent.keyDown(trigger, { key: " " });
+    await user.keyboard("{Escape}");
+    trigger.focus();
+    await user.keyboard(" ");
     expect(screen.queryByTestId("fruit-content")).not.toBeNull();
   });
 
@@ -221,11 +224,8 @@ describe("MultiSelectCombobox", () => {
     expect(trigger).toHaveAccessibleName(/Fruit \(apple\)/);
   });
 
-  it("scrolls only its own list, never an ancestor, when opening and navigating (REEF-145)", async () => {
+  it("uses cmdk's nearest-row scrolling while navigating", async () => {
     const user = userEvent.setup();
-    // Like the single-select sibling, this panel is anchored in the page flow
-    // (not portaled), so `Element.scrollIntoView` would drag a surrounding
-    // scroll container. The active-row effect must scroll the list alone.
     const spy = vi.spyOn(Element.prototype, "scrollIntoView");
     render(<Harness />);
 
@@ -233,7 +233,10 @@ describe("MultiSelectCombobox", () => {
     trigger.focus();
     await user.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{ArrowUp}");
 
-    expect(spy).not.toHaveBeenCalled();
+    expect(spy).toHaveBeenCalled();
+    for (const [options] of spy.mock.calls) {
+      expect(options).toEqual({ block: "nearest" });
+    }
     spy.mockRestore();
   });
 

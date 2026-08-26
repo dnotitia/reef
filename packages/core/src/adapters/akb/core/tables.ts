@@ -335,7 +335,7 @@ export interface EnsureReefTablesParams {
   vault: string;
 }
 
-export function assertNoAkbManagedColumns(table: AkbCreateTableRequest): void {
+function assertNoAkbManagedColumns(table: AkbCreateTableRequest): void {
   const reserved = new Set<string>(AKB_MANAGED_TABLE_COLUMNS);
   const conflicts = table.columns
     .map((column) => column.name)

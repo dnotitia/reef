@@ -12,50 +12,23 @@ import {
   isTerminalPhase,
 } from "./reducer";
 
-const issueDraftFields = {
-  title: "Create stream client",
-  issue_type: "task",
-  priority: null,
-  assigned_to: null,
-  requester: null,
-  reporter: null,
-  start_date: null,
-  due_date: null,
-  milestone_id: null,
-  sprint_id: null,
-  release_id: null,
-  estimate_points: null,
-  severity: null,
-  parent_id: null,
-  labels: [],
-  depends_on: [],
-  blocks: [],
-  related_to: [],
-  external_refs: [],
-};
-
 const artifact = AgentArtifactSchema.parse({
   artifact_id: "artifact-1",
   run_id: "run-1",
   task_id: "issue.enrichment",
-  type: "issue_create_proposal",
-  status: "pending",
-  title: "Create stream client",
-  confidence: 0.9,
-  reasoning: "The issue needs a web runtime.",
-  evidence: [],
-  warnings: [],
+  type: "field_suggestion",
   created_at: "2026-06-04T00:00:04.000Z",
-  updated_at: null,
   metadata: {},
   payload: {
-    proposal: {
-      operation: "create" as const,
-      create: {
-        fields: issueDraftFields,
-        content: "Implement shared runtime.",
+    issue_id: "REEF-001",
+    suggestions: [
+      {
+        field: "title",
+        value: "Create stream client",
+        reasoning: "The issue needs a web runtime.",
+        confidence: 0.9,
       },
-    },
+    ],
   },
 });
 
@@ -93,18 +66,11 @@ describe("agentRunReducer", () => {
       }),
       event({
         seq: 4,
-        type: "artifact.partial",
-        artifact_id: "artifact-1",
-        artifact_type: "issue_create_proposal",
-        delta: { field: "title" },
-      }),
-      event({
-        seq: 5,
         type: "artifact.final",
         artifact,
       }),
       event({
-        seq: 6,
+        seq: 5,
         type: "run.completed",
         run_status: "completed",
         artifact_ids: ["artifact-1"],
@@ -126,10 +92,8 @@ describe("agentRunReducer", () => {
     expect(state.progress.tools["tool-1"]?.input).toEqual({ query: "stream" });
     expect(state.artifact_order).toEqual(["artifact-1"]);
     expect(state.artifacts["artifact-1"]).toMatchObject({
-      type: "issue_create_proposal",
-      status: "pending",
+      type: "field_suggestion",
     });
-    expect(state.partial_artifacts["artifact-1"]).toBeUndefined();
   });
 
   it("distinguishes runtime errors from stream errors", () => {

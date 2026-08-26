@@ -1,6 +1,4 @@
 import { z } from "zod";
-import { PROJECT_PREFIX_PATTERN, VaultNameSchema } from "../workspace";
-import { AgentArtifactSchema } from "./agents";
 import { EnrichmentRequestSchema } from "./enrichment";
 
 const TextPartSchema = z.looseObject({
@@ -86,25 +84,3 @@ export const AgentRunRequestSchema = z.discriminatedUnion("task_id", [
   IssueEnrichmentAgentRunRequestSchema,
 ]);
 export type AgentRunRequest = z.infer<typeof AgentRunRequestSchema>;
-
-export const AgentArtifactEditRequestSchema = z.strictObject({
-  artifact: AgentArtifactSchema,
-  patch: z.record(z.string(), z.unknown()).default({}),
-  vault: VaultNameSchema.nullable().default(null),
-  actor: z.string().min(1).nullable().default(null),
-});
-export const AgentArtifactCommandRequestSchema = z.strictObject({
-  artifact: AgentArtifactSchema.nullable().default(null),
-  vault: VaultNameSchema.nullable().default(null),
-  prefix: z
-    .string()
-    .min(1)
-    .regex(
-      PROJECT_PREFIX_PATTERN,
-      "prefix must start with uppercase A-Z and use only A-Z, 0-9, or underscore",
-    )
-    .nullable()
-    .default(null),
-  actor: z.string().min(1).nullable().default(null),
-  reason: z.string().min(1).nullable().default(null),
-});

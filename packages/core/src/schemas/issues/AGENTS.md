@@ -1,7 +1,7 @@
 # `core/src/schemas/issues` — Issue Schema Rules
 
-- `IssueMetadataSchema` is canonical. Issue list/detail/create/update/proposal,
-  tool, and enrichment schemas must derive from it; do not reintroduce
+- `IssueMetadataSchema` is canonical. Issue list/detail/create/update, tool, and
+  enrichment schemas must derive from it; do not reintroduce
   `IssueSchema` or independently redefine issue fields.
 - New issue fields start here. Give each field one storage home: akb-native
   document field, `reef_issues` typed column when filtering or sorting is needed,

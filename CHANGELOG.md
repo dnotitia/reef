@@ -26,6 +26,18 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Breaking: Reef now accepts only the provider-neutral `REEF_LLM_*`
+  deployment contract.** `OPENROUTER_API_KEY` and `OPENROUTER_BASE_URL` are no
+  longer read or validated; deployments must provide `REEF_LLM_API_KEY`,
+  `REEF_LLM_BASE_URL`, and `REEF_LLM_MODEL` together.
+
+- **Breaking: removed unused agent review and prompt surfaces.** The uncalled
+  agent-artifact approve/edit/dismiss API, issue/status proposal schemas,
+  Tauri-era ProjectState prompt, and legacy `/api/enrich` endpoint are gone.
+  New Issue enrichment now uses the same `/api/agents/runs` SSE contract as Ask
+  AI, backed by a direct enrichment pipeline and a small shared lifecycle event
+  emitter.
+
 - **Breaking: Issues now separates Active/Backlog scope from Board/List/Timeline
   layout.** Backlog provides a Priority Board and Rank-ordered List, restores
   both axes through shareable URLs and browser history, and removes the mixed
@@ -60,8 +72,8 @@ explicitly in the entries below.
   watermark keys; existing browser values remain inert and require no destructive
   migration.
   On-demand Ask AI, issue enrichment, monitored-repository read-only grounding,
-  Notification Inbox, issue Activity, implementation references, and generic
-  client-ephemeral AgentArtifact review remain available.
+  Notification Inbox, issue Activity, implementation references, and inline
+  client-ephemeral field-suggestion review remain available.
 
 - **Removed the vault-less dashboard compatibility routes.** Dashboard links now
   require the canonical `/workspace/{vault}/...` form; old flat paths such as
@@ -742,8 +754,7 @@ explicitly in the entries below.
 - **Reef uses one provider-neutral LLM endpoint contract.** Deployments set
   `REEF_LLM_API_KEY`, `REEF_LLM_BASE_URL`, and `REEF_LLM_MODEL` together for
   either OpenRouter or an akb-platform gateway, without a mode switch or
-  provider-specific runtime behavior. Existing `OPENROUTER_API_KEY` and
-  `OPENROUTER_BASE_URL` settings remain supported as compatibility aliases.
+  provider-specific runtime behavior.
   Every model step uses Chat Completions, a UUID request identity, and zero SDK
   retries. LLM availability remains independent from AKB and Keycloak, so
   Keycloak-only deployments stay healthy with AI disabled. (REEF-413)
@@ -793,15 +804,6 @@ explicitly in the entries below.
 
 ### Migration
 
-- **Migrate existing Kubernetes LLM settings before deploying REEF-413.** The
-  base ConfigMap no longer supplies OpenRouter URL/model defaults. To keep AI
-  enabled, add the three provider-neutral `REEF_LLM_*` values in the deployment
-  overlay/Secret and retain matching `OPENROUTER_API_KEY` and
-  `OPENROUTER_BASE_URL` aliases through the rollout and rollback window so old
-  and new pods can run concurrently. To disable AI, remove the legacy
-  `OPENROUTER_API_KEY` before applying the manifests. See
-  `docs/deployment.md#upgrade-an-existing-openrouter-deployment` for the exact
-  sequence and rollback behavior. (REEF-413)
 - **AKB table evolution now has an explicit operator-owned rollout policy.**
   New-table provisioning remains limited to `ensureReefTables` create/verify,
   while a release pre-start gate must enumerate every registered Reef workspace,
@@ -1093,17 +1095,15 @@ explicitly in the entries below.
   instead of English. The framework-agnostic `core` package now carries a stable
   error code (never message text) for each failure, and `web` resolves the active
   locale at its error boundary and translates that code, falling back to English
-  for any message a locale has not translated yet. The remaining English error
-  strings in the agent-artifact review flow are localized by later work
-  (REEF-297).
+  for any message a locale has not translated yet (REEF-297).
 - **The last inline server error strings now follow the interface language.**
   Building on the error-localization boundary above, the messages a Route Handler
   still raised directly now render in Korean too when Korean is selected: the
   deployment-config and validation replies ("GitHub App is not configured for this
   deployment", the various "Invalid … id" / "Invalid suggestion status" checks, the
-  activity-suggestion review guards), the AI chat / enrichment / agent-run
-  availability, session, and request errors, and the agent-artifact review flow
-  (approve, edit, dismiss). The streaming agent error envelope keeps its stable
+  activity-suggestion review guards), and the AI chat / enrichment / agent-run
+  availability, session, and request errors. The streaming agent error envelope
+  keeps its stable
   machine `code` unchanged and carries the localized message alongside it, and any
   message a locale has not translated yet still falls back to English (REEF-308,
   completing server-error localization under epic REEF-178).

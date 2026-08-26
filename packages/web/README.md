@@ -82,15 +82,12 @@ variables for secrets.
 | `REEF_LLM_API_KEY` | Server-side key for the configured OpenAI-compatible LLM endpoint. |
 | `REEF_LLM_BASE_URL` | Base URL for the configured OpenAI-compatible LLM endpoint. |
 | `REEF_LLM_MODEL` | Deployment-selected model for an enabled LLM capability. |
-| `OPENROUTER_API_KEY` | Compatibility alias for `REEF_LLM_API_KEY`. |
-| `OPENROUTER_BASE_URL` | Compatibility alias for `REEF_LLM_BASE_URL`. |
 
 Set all three LLM variables to enable AI, or leave all three empty to disable
 it. Partial configuration fails closed. `REEF_LLM_BASE_URL` can point to
 OpenRouter or an akb-platform gateway; Reef does not classify the endpoint by
 provider or deployment mode. LLM state does not affect AKB or Keycloak
-authentication. Canonical and compatibility alias values may be set together
-only when they agree.
+authentication.
 
 GitHub features (monitored repositories and read-only code grounding) are
 deployment-managed through `REEF_GITHUB_APP_ID`,

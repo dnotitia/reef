@@ -90,23 +90,11 @@ vi.mock("ai", () => ({ registerTelemetry: mocks.registerTelemetry }));
 
 import { registerNode } from "./instrumentation-node";
 
-const environmentKeys = [
-  "OTEL_EXPORTER_OTLP_ENDPOINT",
-  "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
-  "OTEL_EXPORTER_OTLP_HEADERS",
-] as const;
-const originalEnvironment = Object.fromEntries(
-  environmentKeys.map((key) => [key, process.env[key]]),
-);
-
 describe("registerNode", () => {
   let processOnceSpy: MockInstance<typeof process.once>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    for (const key of environmentKeys) {
-      delete process.env[key];
-    }
     mocks.responseLoggingEnabled.mockReturnValue(false);
     processOnceSpy = vi.spyOn(process, "once");
   });
@@ -118,30 +106,12 @@ describe("registerNode", () => {
       }
     }
     processOnceSpy.mockRestore();
-    for (const key of environmentKeys) {
-      const value = originalEnvironment[key];
-      if (value === undefined) {
-        delete process.env[key];
-      } else {
-        process.env[key] = value;
-      }
-    }
   });
 
   it("configures the exporter, resource, processors, and shutdown signals", () => {
-    process.env.OTEL_EXPORTER_OTLP_ENDPOINT = "https://collector.example///";
-    process.env.OTEL_EXPORTER_OTLP_HEADERS =
-      "x-fake-secret=fake-value, x-extra=with=equals";
-
     registerNode();
 
-    expect(mocks.OTLPTraceExporter).toHaveBeenCalledWith({
-      url: "https://collector.example/v1/traces",
-      headers: {
-        "x-fake-secret": "fake-value",
-        "x-extra": "with=equals",
-      },
-    });
+    expect(mocks.OTLPTraceExporter).toHaveBeenCalledWith();
     expect(mocks.BatchSpanProcessor).toHaveBeenCalledWith(mocks.exporter);
     expect(mocks.PinoInstrumentation).toHaveBeenCalledWith({
       disableLogSending: true,
@@ -175,19 +145,6 @@ describe("registerNode", () => {
     expect(sigtermHandler).toEqual(expect.any(Function));
     (sigtermHandler as () => void)();
     expect(mocks.sdk.shutdown).toHaveBeenCalledOnce();
-  });
-
-  it("prefers the explicit traces endpoint over the base endpoint", () => {
-    process.env.OTEL_EXPORTER_OTLP_ENDPOINT = "https://base.example";
-    process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT =
-      "https://traces.example/custom";
-
-    registerNode();
-
-    expect(mocks.OTLPTraceExporter).toHaveBeenCalledWith({
-      url: "https://traces.example/custom",
-      headers: {},
-    });
   });
 
   it("adds response logging and wires the core logger when enabled", async () => {

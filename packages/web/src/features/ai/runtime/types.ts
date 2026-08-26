@@ -1,6 +1,5 @@
 import type {
   AgentArtifact,
-  AgentArtifactType,
   AgentError,
   AgentRunEvent,
   AgentRunRequest,
@@ -45,13 +44,6 @@ export interface AgentRunToolState {
   updated_at: string;
 }
 
-export interface AgentRunPartialArtifactState {
-  artifact_id: string;
-  artifact_type: AgentArtifactType;
-  deltas: Record<string, unknown>[];
-  updated_at: string;
-}
-
 export interface AgentRunProgressState {
   stages: Record<string, AgentRunStageState>;
   tools: Record<string, AgentRunToolState>;
@@ -69,7 +61,6 @@ export interface AgentRunState {
   text: string;
   events: AgentRunEvent[];
   progress: AgentRunProgressState;
-  partial_artifacts: Record<string, AgentRunPartialArtifactState>;
   artifacts: Record<string, AgentArtifact>;
   artifact_order: string[];
   artifact_ids: string[];

@@ -36,7 +36,7 @@ export interface UpdateIssueInput {
 
 export type UpdateIssueResult = IssueDocument;
 
-export const UPDATE_ISSUE_MUTATION_KEY = ["issues", "update"] as const;
+const UPDATE_ISSUE_MUTATION_KEY = ["issues", "update"] as const;
 
 export type IssueStatusUpdateState = {
   status: "idle" | "pending" | "success" | "error";

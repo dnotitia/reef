@@ -52,9 +52,17 @@ describe("auth coordinator", () => {
   });
 
   it("fails closed and aborts a probe at the bounded timeout", async () => {
-    vi.useFakeTimers();
+    const timeout = new AbortController();
+    const timeoutSpy = vi
+      .spyOn(AbortSignal, "timeout")
+      .mockReturnValue(timeout.signal);
     const probe = vi.fn(
-      (_signal: AbortSignal) => new Promise<typeof active>(() => {}),
+      (signal: AbortSignal) =>
+        new Promise<typeof active>((_resolve, reject) => {
+          signal.addEventListener("abort", () => reject(signal.reason), {
+            once: true,
+          });
+        }),
     );
     const states: string[] = [];
     const unsubscribe = subscribeAuthCoordinator(
@@ -63,12 +71,16 @@ describe("auth coordinator", () => {
     );
 
     bootstrapAuthSession(probe);
-    await vi.advanceTimersByTimeAsync(AUTH_PROBE_TIMEOUT_MS);
+    expect(AbortSignal.timeout).toHaveBeenCalledWith(AUTH_PROBE_TIMEOUT_MS);
+    timeout.abort(new DOMException("Timed out", "TimeoutError"));
+    await Promise.resolve();
+    await Promise.resolve();
 
     const signal = probe.mock.calls[0]?.[0] as AbortSignal;
     expect(signal.aborted).toBe(true);
     expect(states.at(-1)).toBe("inactive");
     unsubscribe();
+    timeoutSpy.mockRestore();
   });
 
   it("turns AUTH_CHANGED_EVENT into an immediate inactive transition", async () => {

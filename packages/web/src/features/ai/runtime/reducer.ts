@@ -21,7 +21,6 @@ export function createInitialAgentRunState(
     text: "",
     events: [],
     progress: { stages: {}, tools: {} },
-    partial_artifacts: {},
     artifacts: {},
     artifact_order: [],
     artifact_ids: [],
@@ -235,26 +234,8 @@ function reduceAgentRunEvent(
         text:
           event.channel === "text" ? `${base.text}${event.delta}` : base.text,
       };
-    case "artifact.partial":
-      return {
-        ...base,
-        partial_artifacts: {
-          ...base.partial_artifacts,
-          [event.artifact_id]: {
-            artifact_id: event.artifact_id,
-            artifact_type: event.artifact_type,
-            deltas: [
-              ...(base.partial_artifacts[event.artifact_id]?.deltas ?? []),
-              event.delta,
-            ],
-            updated_at: event.created_at,
-          },
-        },
-      };
     case "artifact.final": {
       const alreadySeen = event.artifact.artifact_id in base.artifacts;
-      const { [event.artifact.artifact_id]: _removed, ...remainingPartials } =
-        base.partial_artifacts;
       return {
         ...base,
         artifacts: {
@@ -264,13 +245,8 @@ function reduceAgentRunEvent(
         artifact_order: alreadySeen
           ? base.artifact_order
           : [...base.artifact_order, event.artifact.artifact_id],
-        partial_artifacts: remainingPartials,
       };
     }
-    case "repair.started":
-    case "repair.completed":
-    case "repair.failed":
-      return base;
     default:
       return assertNever(event);
   }

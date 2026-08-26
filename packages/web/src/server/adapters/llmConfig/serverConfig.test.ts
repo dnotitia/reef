@@ -65,37 +65,6 @@ describe("server LLM config", () => {
     }
   });
 
-  it("accepts the main branch OpenRouter variables as compatibility aliases", () => {
-    const result = resolveServerLlmConfig({
-      OPENROUTER_API_KEY: "test",
-      OPENROUTER_BASE_URL: "https://openrouter.ai/api/v1",
-      REEF_LLM_MODEL: "model-a",
-    });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error("expected valid aliases");
-    expect(result.config).toEqual({
-      api_key: "test",
-      base_url: "https://openrouter.ai/api/v1",
-      model: "model-a",
-    });
-  });
-
-  it("rejects conflicting canonical and compatibility alias values", () => {
-    const result = resolveServerLlmConfig({
-      ...enabledEnv,
-      OPENROUTER_API_KEY: "test",
-      OPENROUTER_BASE_URL: "https://different.example/v1",
-    });
-
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("expected alias conflict");
-    expect(result.issues).toEqual([
-      "REEF_LLM_API_KEY and its OPENROUTER_API_KEY alias must not disagree",
-      "REEF_LLM_BASE_URL and its OPENROUTER_BASE_URL alias must not disagree",
-    ]);
-  });
-
   it("validates the canonical endpoint URL", () => {
     const result = resolveServerLlmConfig({
       ...enabledEnv,

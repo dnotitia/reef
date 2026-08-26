@@ -45,7 +45,7 @@ const issueContext: ChatIssueContext = {
 };
 
 describe("buildWorkspaceChatSystemPrompt", () => {
-  it("instructs Markdown (not JSON) output — it must not carry projectState's JSON contract", () => {
+  it("instructs Markdown output rather than a one-shot JSON contract", () => {
     const prompt = buildWorkspaceChatSystemPrompt({ summary });
     expect(prompt).toContain("Markdown");
     expect(prompt).not.toContain("referenced_issue_ids");

@@ -5,10 +5,6 @@ import {
   CollapsibleLineDiff,
   InlineWordDiff,
 } from "@/features/ai/components/TextDiff";
-import {
-  type EnrichIssueError,
-  useEnrichIssue,
-} from "@/features/ai/hooks/useEnrichIssue";
 import { useInlineEnrichment } from "@/features/ai/hooks/useInlineEnrichment";
 import {
   type EnrichmentFormApi,
@@ -24,6 +20,10 @@ import type {
   ReferenceSuggestion,
 } from "@reef/core";
 import type { ReactNode } from "react";
+import { useCallback, useRef, useState } from "react";
+import { issueEnrichmentRun } from "@/features/ai/runtime/taskRequests";
+import { agentRunFailureFromUnknown } from "@/features/ai/runtime/streamClient";
+import { useAgentRun } from "@/features/ai/runtime/useAgentRun";
 
 const FIELD_LABEL_CLASS = "text-xs font-medium text-muted-foreground";
 
@@ -52,12 +52,79 @@ export function useNewIssueEnrichment({
 }) {
   const enrichment = useInlineEnrichment(formApi);
   const ingestEnrichment = enrichment.ingest;
-  const enrichMutation = useEnrichIssue({
-    onSuccess: (result) => {
-      ingestEnrichment(result.suggestions);
-      setReferenceCandidates(result.references);
+  const { start, cancel } = useAgentRun();
+  const activeRequest = useRef<symbol | null>(null);
+  const [result, setResult] = useState<{
+    suggestions: EnrichmentSuggestion[];
+    references: ReferenceSuggestion[];
+  } | null>(null);
+  const [error, setError] = useState<(Error & { status?: number }) | null>(
+    null,
+  );
+  const [isPending, setIsPending] = useState(false);
+
+  const runEnrichment = useCallback(
+    async (request: EnrichmentRequest) => {
+      const token = Symbol("issue-enrichment");
+      activeRequest.current = token;
+      setIsPending(true);
+      setError(null);
+      setResult(null);
+      try {
+        const finalState = await start(issueEnrichmentRun(request));
+        if (activeRequest.current !== token) return;
+        if (finalState.phase === "error") {
+          throw new Error(
+            finalState.error?.message ?? "AI enrichment is unavailable.",
+          );
+        }
+        if (finalState.phase === "cancelled") return;
+        const artifact = finalState.artifact_order
+          .map((id) => finalState.artifacts[id])
+          .find((candidate) => candidate?.type === "field_suggestion");
+        const next = artifact
+          ? {
+              suggestions: [...artifact.payload.suggestions],
+              references: [...artifact.payload.references],
+            }
+          : { suggestions: [], references: [] };
+        setResult(next);
+        ingestEnrichment(next.suggestions);
+        setReferenceCandidates(next.references);
+      } catch (cause) {
+        if (activeRequest.current !== token) return;
+        const failure = agentRunFailureFromUnknown(cause);
+        const nextError = new Error(failure.message) as Error & {
+          status?: number;
+        };
+        if (failure.status !== undefined) nextError.status = failure.status;
+        setError(nextError);
+      } finally {
+        if (activeRequest.current === token) {
+          activeRequest.current = null;
+          setIsPending(false);
+        }
+      }
     },
-  });
+    [ingestEnrichment, setReferenceCandidates, start],
+  );
+
+  const resetRun = useCallback(() => {
+    activeRequest.current = null;
+    cancel();
+    setIsPending(false);
+    setError(null);
+    setResult(null);
+  }, [cancel]);
+
+  const enrichRun = {
+    data: result,
+    error,
+    isPending,
+    isSuccess: result !== null,
+    mutate: (request: EnrichmentRequest) => void runEnrichment(request),
+    reset: resetRun,
+  };
 
   function buildEnrichmentRequest(): EnrichmentRequest | null {
     if (!vault) return null;
@@ -94,7 +161,7 @@ export function useNewIssueEnrichment({
     }
     setSubmitError(null);
     enrichment.reset();
-    enrichMutation.mutate(enrichmentRequest);
+    enrichRun.mutate(enrichmentRequest);
   }
 
   function handleAcceptAll() {
@@ -153,13 +220,13 @@ export function useNewIssueEnrichment({
     return undefined;
   }
 
-  const enrichError = enrichMutation.error as EnrichIssueError | undefined;
+  const enrichError = enrichRun.error ?? undefined;
   const enrichIsEmpty =
-    enrichMutation.isSuccess &&
-    (enrichMutation.data?.suggestions.length ?? 0) === 0 &&
-    (enrichMutation.data?.references.length ?? 0) === 0;
+    enrichRun.isSuccess &&
+    (enrichRun.data?.suggestions.length ?? 0) === 0 &&
+    (enrichRun.data?.references.length ?? 0) === 0;
   const showEnrichmentBar =
-    enrichMutation.isPending ||
+    enrichRun.isPending ||
     Boolean(enrichError) ||
     enrichIsEmpty ||
     enrichment.counts.pending > 0 ||
@@ -167,7 +234,7 @@ export function useNewIssueEnrichment({
 
   return {
     enrichment,
-    enrichMutation,
+    enrichRun,
     enrichError,
     enrichIsEmpty,
     showEnrichmentBar,

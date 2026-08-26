@@ -6,7 +6,7 @@ import {
   AgentRunEventSchema,
   type AgentRunRequest,
 } from "@reef/core";
-import { z } from "zod";
+import { parseJsonEventStream } from "ai";
 import {
   agentRunReducer,
   createInitialAgentRunState,
@@ -71,33 +71,38 @@ export async function streamAgentRun(
 export async function* readAgentRunEvents(
   response: Response,
 ): AsyncGenerator<AgentRunEvent> {
-  const reader = response.body?.getReader();
-  if (!reader) {
+  if (!response.body) {
     throw new AgentRunClientError(
       streamFailure("Agent run response did not include a stream."),
     );
   }
-
-  const decoder = new TextDecoder();
-  let buffer = "";
+  const reader = parseJsonEventStream({
+    stream: response.body,
+    schema: AgentRunEventSchema,
+  }).getReader();
 
   try {
     while (true) {
       const { done, value } = await reader.read();
-      if (done) {
-        const trailing = decoder.decode();
-        if (trailing) buffer += trailing;
-        yield* drainBufferedFrames(buffer, true);
-        return;
+      if (done) return;
+      if (!value.success) {
+        throw new AgentRunClientError(
+          streamFailure("Agent run stream contained an invalid event.", {
+            validation: value.error.message,
+          }),
+        );
       }
-
-      buffer += decoder.decode(value, { stream: true });
-      const { frames, remainder } = splitSseFrames(buffer);
-      buffer = remainder;
-      for (const frame of frames) {
-        yield parseAgentRunFrame(frame);
-      }
+      yield value.value;
     }
+  } catch (error) {
+    if (error instanceof AgentRunClientError) throw error;
+    throw new AgentRunClientError(
+      streamFailure(
+        error instanceof Error
+          ? error.message
+          : "Agent run stream could not be parsed.",
+      ),
+    );
   } finally {
     reader.releaseLock();
   }
@@ -117,66 +122,6 @@ export function agentRunFailureFromUnknown(error: unknown): AgentRunFailure {
   return streamFailure(
     error instanceof Error ? error.message : "Agent run stream failed.",
   );
-}
-
-async function* drainBufferedFrames(
-  buffer: string,
-  allowTrailingFrame: boolean,
-): AsyncGenerator<AgentRunEvent> {
-  const { frames, remainder } = splitSseFrames(buffer);
-  for (const frame of frames) {
-    yield parseAgentRunFrame(frame);
-  }
-  if (allowTrailingFrame && remainder.trim()) {
-    yield parseAgentRunFrame(remainder);
-  }
-}
-
-function splitSseFrames(buffer: string): {
-  frames: string[];
-  remainder: string;
-} {
-  const normalized = buffer.replace(/\r\n/g, "\n");
-  const parts = normalized.split("\n\n");
-  return {
-    frames: parts.slice(0, -1).filter((frame) => frame.trim().length > 0),
-    remainder: parts.at(-1) ?? "",
-  };
-}
-
-function parseAgentRunFrame(frame: string): AgentRunEvent {
-  const data = frame
-    .split("\n")
-    .filter((line) => line.startsWith("data:"))
-    .map((line) => line.slice("data:".length).trimStart())
-    .join("\n");
-
-  if (!data.trim()) {
-    throw new AgentRunClientError(
-      streamFailure("Agent run frame had no data."),
-    );
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(data);
-  } catch {
-    throw new AgentRunClientError(
-      streamFailure("Agent run stream contained malformed JSON.", {
-        frame: data.slice(0, 200),
-      }),
-    );
-  }
-
-  const event = AgentRunEventSchema.safeParse(parsed);
-  if (!event.success) {
-    throw new AgentRunClientError(
-      streamFailure("Agent run stream contained an invalid event.", {
-        validation: z.flattenError(event.error),
-      }),
-    );
-  }
-  return event.data;
 }
 
 async function httpFailure(response: Response): Promise<AgentRunFailure> {

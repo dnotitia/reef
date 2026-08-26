@@ -15,13 +15,7 @@
     "packages/web/postcss.config.mjs"
   ],
   "globalEnv": ["NODE_ENV"],
-  "globalPassThroughEnv": [
-    "CI",
-    "AKB_BACKEND_URL",
-    "AKB_WEB_URL",
-    "REEF_*",
-    "OPENROUTER_*"
-  ],
+  "globalPassThroughEnv": ["CI", "AKB_BACKEND_URL", "AKB_WEB_URL", "REEF_*"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

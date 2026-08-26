@@ -476,26 +476,7 @@
       "workspaceAuthRequired": "워크스페이스 세션이 없거나 올바르지 않습니다.",
       "workspaceUnavailable": "워크스페이스 백엔드를 사용할 수 없습니다. 다시 시도해 주세요.",
       "vaultRequired": "X-Reef-Vault 헤더가 없거나 올바르지 않습니다.",
-      "githubCredentialUnavailable": "GitHub App 자격 증명을 사용할 수 없습니다. 배포의 GitHub App 설정을 확인해 주세요.",
-      "invalidArtifactId": "잘못된 아티팩트 ID입니다.",
-      "artifactIdMismatch": "아티팩트 ID가 요청 경로와 일치하지 않습니다.",
-      "artifactEditRequestInvalid": "아티팩트 편집 요청이 없거나 올바르지 않습니다.",
-      "artifactEditInvalid": "아티팩트 편집 결과가 올바르지 않습니다.",
-      "artifactApprovalRequestInvalid": "아티팩트 승인 요청이 없거나 올바르지 않습니다.",
-      "artifactApprovalMissingArtifact": "아티팩트 승인에는 아티팩트 페이로드가 필요합니다.",
-      "artifactApprovalMissingVault": "아티팩트 승인에는 워크스페이스가 필요합니다.",
-      "artifactDismissalRequestInvalid": "아티팩트 무시 요청이 없거나 올바르지 않습니다.",
-      "artifactDismissalMissingArtifact": "아티팩트 무시에는 아티팩트 페이로드가 필요합니다.",
-      "unexpectedError": "예기치 않은 오류가 발생했습니다.",
-      "artifactTypeNotApprovable": "이 아티팩트 유형은 서버 측 승인 동작을 정의하지 않습니다.",
-      "artifactAlreadyReviewed": "이미 검토한 아티팩트입니다.",
-      "statusChangeRetargetForbidden": "상태 변경 아티팩트는 대상 이슈를 변경할 수 없습니다.",
-      "closeRequiresReason": "이슈를 닫으려면 사유가 필요합니다. 이슈의 닫기 대화상자에서 닫아 주세요.",
-      "invalidStatusChangeTarget": "백로그는 유효한 상태 변경 대상이 아닙니다. 백로그로 이동은 이슈에서 직접 해 주세요.",
-      "artifactAlreadyDismissed": "이미 무시한 아티팩트입니다.",
-      "missingProjectPrefix": "이슈 생성 아티팩트를 승인하려면 프로젝트 프리픽스가 필요합니다.",
-      "missingStatusPatch": "상태 변경 아티팩트에 patch.status가 없습니다.",
-      "staleStatusChangeArtifact": "이슈 상태가 이미 변경되어 이 아티팩트는 최신 상태가 아닙니다."
+      "githubCredentialUnavailable": "GitHub App 자격 증명을 사용할 수 없습니다. 배포의 GitHub App 설정을 확인해 주세요."
     }
   },
   "enrichment": {
@@ -1398,23 +1379,6 @@
     "review": "검토",
     "apply": "적용",
     "dismiss": "무시",
-    "approve": "승인",
-    "updating": "업데이트 중...",
-    "approving": "승인 중...",
-    "saving": "저장 중...",
-    "dismissing": "무시 중...",
-    "editing": "편집 중...",
-    "retrying": "다시 시도 중...",
-    "cancelling": "취소 중...",
-    "badgeStatusChange": "AI 상태 변경",
-    "badgeDraft": "AI 초안",
-    "phaseIdle": "준비됨",
-    "phaseRunning": "실행 중",
-    "phaseCompleted": "완료됨",
-    "phaseEmpty": "결과 없음",
-    "phaseError": "확인 필요",
-    "phaseCancelled": "취소됨",
-    "artifactCount": "{count, plural, other {아티팩트 #개}}",
     "chatThinking": "생각하는 중…",
     "chatSources": {
       "heading": "출처"
@@ -1462,8 +1426,7 @@
         }
       }
     },
-    "confidenceLabel": "신뢰도 {pct}%",
-    "evidenceItems": "증거 {count}개"
+    "confidenceLabel": "신뢰도 {pct}%"
   },
   "myWork": {
     "emptyTitle": "아직 할당된 작업이 없습니다",
@@ -1586,6 +1549,7 @@
       "clearField": "{field} 지우기"
     },
     "combobox": {
+      "options": "옵션",
       "searchPlaceholder": "검색…",
       "loading": "불러오는 중…",
       "noResults": "결과 없음.",

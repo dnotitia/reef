@@ -440,26 +440,7 @@
       "workspaceAuthRequired": "Workspace session is missing or invalid.",
       "workspaceUnavailable": "Workspace backend is unavailable. Please try again.",
       "vaultRequired": "X-Reef-Vault header is missing or invalid.",
-      "githubCredentialUnavailable": "GitHub App credentials are unavailable. Check the deployment GitHub App configuration.",
-      "invalidArtifactId": "Invalid artifact id.",
-      "artifactIdMismatch": "Artifact id does not match the request path.",
-      "artifactEditRequestInvalid": "Artifact edit request is missing or invalid.",
-      "artifactEditInvalid": "Artifact edit produced an invalid artifact.",
-      "artifactApprovalRequestInvalid": "Artifact approval request is missing or invalid.",
-      "artifactApprovalMissingArtifact": "Artifact approval requires an artifact payload.",
-      "artifactApprovalMissingVault": "Artifact approval requires a vault.",
-      "artifactDismissalRequestInvalid": "Artifact dismissal request is missing or invalid.",
-      "artifactDismissalMissingArtifact": "Artifact dismissal requires an artifact payload.",
-      "unexpectedError": "Unexpected error.",
-      "artifactTypeNotApprovable": "This artifact type does not define a server-side approval mutation.",
-      "artifactAlreadyReviewed": "This artifact has already been reviewed.",
-      "statusChangeRetargetForbidden": "Status-change artifacts cannot retarget the issue.",
-      "closeRequiresReason": "Closing an issue requires a reason. Close it from the issue close dialog instead.",
-      "invalidStatusChangeTarget": "Backlog isn't a valid status-change target. Move an issue to the backlog from the issue itself.",
-      "artifactAlreadyDismissed": "This artifact has already been dismissed.",
-      "missingProjectPrefix": "Project prefix is required to approve an issue-create artifact.",
-      "missingStatusPatch": "Status-change artifact is missing patch.status.",
-      "staleStatusChangeArtifact": "This artifact is out of date because the issue status has already changed."
+      "githubCredentialUnavailable": "GitHub App credentials are unavailable. Check the deployment GitHub App configuration."
     }
   },
   "enrichment": {
@@ -1213,23 +1194,6 @@
     "review": "Review",
     "apply": "Apply",
     "dismiss": "Dismiss",
-    "approve": "Approve",
-    "updating": "Updating...",
-    "approving": "Approving...",
-    "saving": "Saving...",
-    "dismissing": "Dismissing...",
-    "editing": "Editing...",
-    "retrying": "Retrying...",
-    "cancelling": "Cancelling...",
-    "badgeStatusChange": "AI Status Change",
-    "badgeDraft": "AI Draft",
-    "phaseIdle": "Ready",
-    "phaseRunning": "Running",
-    "phaseCompleted": "Completed",
-    "phaseEmpty": "No result",
-    "phaseError": "Needs attention",
-    "phaseCancelled": "Cancelled",
-    "artifactCount": "{count, plural, one {# artifact} other {# artifacts}}",
     "chatThinking": "Thinking…",
     "chatSources": {
       "heading": "Sources"
@@ -1277,8 +1241,7 @@
         }
       }
     },
-    "confidenceLabel": "{pct}% confidence",
-    "evidenceItems": "{count, plural, one {# evidence item} other {# evidence items}}"
+    "confidenceLabel": "{pct}% confidence"
   },
   "myWork": {
     "emptyTitle": "Nothing is assigned to you yet",
@@ -1401,6 +1364,7 @@
       "clearField": "Clear {field}"
     },
     "combobox": {
+      "options": "Options",
       "searchPlaceholder": "Search…",
       "loading": "Loading…",
       "noResults": "No results.",

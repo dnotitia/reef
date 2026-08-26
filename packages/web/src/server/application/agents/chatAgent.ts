@@ -20,11 +20,8 @@ import {
   createAgentUIStreamResponse,
   isStepCount,
 } from "ai";
-import { type AgentRunEvent, AgentRunEventSchema } from "./framework/events";
-import {
-  type AgentTaskRegistryEntry,
-  getAgentRegistryEntry,
-} from "./framework/registry";
+import type { AgentRunEvent } from "./framework/events";
+import { createAgentRunLifecycle } from "./framework/lifecycle";
 import { buildWorkspaceChatSystemPrompt } from "./prompts/workspaceChat";
 import type { RepoRef } from "./tools/repo";
 import {
@@ -34,6 +31,8 @@ import {
 
 const tracer = trace.getTracer("@reef/web");
 const WORKSPACE_CHAT_TASK_ID = "chat.workspace";
+const WORKSPACE_CHAT_FUNCTION_ID = "reef.agent.chat.workspace";
+const WORKSPACE_CHAT_MAX_STEPS = 10;
 
 export interface CreateChatAgentToolsParams {
   /** Per-request akb adapter (vault-scoped operations). */
@@ -92,8 +91,8 @@ export interface CreateWorkspaceChatAgentResponseParams
  *      read a repository the vault does not monitor.
  *
  * No vault-mutating tools are registered here. Issue creation and edits go
- * through dedicated Route Handlers (`/api/issues`, `/api/issues/[id]`, and
- * AgentArtifact review) with their own confirmation UI, not the chat loop.
+ * through dedicated issue Route Handlers with their own confirmation UI, not
+ * the chat loop.
  *
  * Both adapters and `vault` are bound for the lifetime of one Route Handler
  * request. The akb-scoped tools does not expose `vault` in their inputSchemas —
@@ -119,14 +118,9 @@ function createChatAgentTools(params: CreateChatAgentToolsParams) {
   );
 }
 
-export function getWorkspaceChatTaskConfig(): AgentTaskRegistryEntry {
-  return getAgentRegistryEntry(WORKSPACE_CHAT_TASK_ID);
-}
-
 export async function createWorkspaceChatAgentResponse(
   params: CreateWorkspaceChatAgentResponseParams,
 ): Promise<Response> {
-  const taskConfig = getWorkspaceChatTaskConfig();
   const allowedRepos = await resolveMonitoredRepos(params);
   const hasRepoTools =
     Boolean(params.githubAdapter) && (allowedRepos?.length ?? 0) > 0;
@@ -153,8 +147,16 @@ export async function createWorkspaceChatAgentResponse(
     hasRepoTools,
   });
 
-  const lifecycle = createWorkspaceChatLifecycle(taskConfig, params);
-  lifecycle.emitStarted();
+  const lifecycle = createAgentRunLifecycle({
+    taskId: WORKSPACE_CHAT_TASK_ID,
+    metadata: { function_id: WORKSPACE_CHAT_FUNCTION_ID },
+    onEvent: params.onEvent,
+  });
+  lifecycle.start({
+    message_count: params.messages.length,
+    vault: params.vault,
+    max_steps: WORKSPACE_CHAT_MAX_STEPS,
+  });
 
   try {
     let stepCounter = 0;
@@ -165,10 +167,10 @@ export async function createWorkspaceChatAgentResponse(
         : {}),
       instructions,
       tools,
-      stopWhen: isStepCount(taskConfig.maxSteps ?? 10),
+      stopWhen: isStepCount(WORKSPACE_CHAT_MAX_STEPS),
       telemetry: {
         isEnabled: true,
-        functionId: taskConfig.functionId,
+        functionId: WORKSPACE_CHAT_FUNCTION_ID,
         // does not record the assembled prompt or conversation into telemetry
         // spans — the grounding prompt carries workspace context and the
         // observability contract forbids prompt text in spans (AC5).
@@ -186,7 +188,7 @@ export async function createWorkspaceChatAgentResponse(
         });
       },
       onEnd: () => {
-        lifecycle.emitCompleted();
+        lifecycle.complete();
         params.onEnd?.();
       },
     });
@@ -196,14 +198,14 @@ export async function createWorkspaceChatAgentResponse(
       uiMessages,
       originalMessages: uiMessages,
       onError: (error) => {
-        lifecycle.emitError(error);
+        lifecycle.fail(error, "workspace_chat_stream_error");
         const fallback =
           error instanceof Error ? error.message : "stream error";
         return params.onError?.(error) ?? fallback;
       },
     });
   } catch (err) {
-    lifecycle.emitError(err);
+    lifecycle.fail(err, "workspace_chat_stream_error");
     throw err;
   }
 }
@@ -288,96 +290,4 @@ async function resolveIssueContext(
   } catch {
     return null;
   }
-}
-
-function createWorkspaceChatLifecycle(
-  taskConfig: AgentTaskRegistryEntry,
-  params: CreateWorkspaceChatAgentResponseParams,
-) {
-  const runId = createRunId(taskConfig.taskId);
-  let seq = 0;
-  let terminalEmitted = false;
-
-  const emit = (event: unknown) => {
-    if (!params.onEvent) return;
-    params.onEvent(AgentRunEventSchema.parse(event));
-  };
-
-  const baseEvent = () => ({
-    event_id: `${runId}:${seq}`,
-    run_id: runId,
-    task_id: taskConfig.taskId,
-    seq: seq++,
-    created_at: new Date().toISOString(),
-    metadata: {
-      function_id: taskConfig.functionId,
-      execution_mode: taskConfig.executionMode,
-    },
-  });
-
-  const emitTerminal = (
-    event:
-      | {
-          type: "run.completed";
-          run_status: "completed";
-          artifact_ids: string[];
-          usage: Record<string, unknown>;
-        }
-      | {
-          type: "run.error";
-          run_status: "error";
-          error: {
-            code: string;
-            message: string;
-            recoverable: boolean;
-            details: Record<string, unknown>;
-          };
-        },
-  ) => {
-    if (terminalEmitted) return;
-    terminalEmitted = true;
-    emit({ ...baseEvent(), ...event });
-  };
-
-  return {
-    emitStarted: () =>
-      emit({
-        ...baseEvent(),
-        type: "run.started",
-        run_status: "running",
-        input: {
-          message_count: params.messages.length,
-          vault: params.vault,
-          toolset_policy: taskConfig.toolsetPolicy,
-          max_steps: taskConfig.maxSteps,
-        },
-      }),
-    emitCompleted: () =>
-      emitTerminal({
-        type: "run.completed",
-        run_status: "completed",
-        artifact_ids: [],
-        usage: {},
-      }),
-    emitError: (error: unknown) =>
-      emitTerminal({
-        type: "run.error",
-        run_status: "error",
-        error: {
-          code: "workspace_chat_stream_error",
-          message:
-            error instanceof Error
-              ? error.message
-              : String(error || "stream error"),
-          recoverable: false,
-          details: {},
-        },
-      }),
-  };
-}
-
-function createRunId(taskId: string): string {
-  return `${taskId}:${Date.now().toString(36)}:${Math.random()
-    .toString(36)
-    .slice(2, 10)}`;
 }

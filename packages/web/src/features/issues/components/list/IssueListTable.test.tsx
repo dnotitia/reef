@@ -422,6 +422,7 @@ describe("IssueListTable", () => {
   });
 
   it("toggles a grouped header from native Enter and Space key activation", async () => {
+    const user = userEvent.setup();
     const groupedIssues: IssueMetadata[] = [
       { ...issues[0], labels: ["alpha"] },
       { ...issues[1], labels: ["beta"] },
@@ -452,11 +453,11 @@ describe("IssueListTable", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     toggle.focus();
     expect(toggle).toHaveFocus();
-    fireEvent.keyDown(toggle, { key: "Enter" });
+    await user.keyboard("{Enter}");
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(toggle).toHaveFocus();
 
-    fireEvent.keyDown(toggle, { key: " " });
+    await user.keyboard(" ");
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(toggle).toHaveFocus();
   });
