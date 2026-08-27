@@ -21,8 +21,6 @@ export interface IssueGroupProgress {
   total: number;
 }
 
-export type IssueGroupFallback = "no_epic" | "unavailable_parent";
-
 export interface IssueGroupBucket {
   groupBy: IssueGroupBy;
   id: string;
@@ -37,8 +35,6 @@ export interface IssueGroupBucket {
   epic?: IssueRelation;
   /** Visible direct-child completion, with `done` including closed issues. */
   progress?: IssueGroupProgress;
-  /** Why an Epic bucket is a fallback instead of a resolved root Epic. */
-  fallback?: IssueGroupFallback;
 }
 
 export interface IssueGroup {
@@ -67,7 +63,6 @@ export interface IssueGroupDescriptorOptions {
 
 export interface IssueGroupDescriptor {
   readonly groupBy: IssueGroupBy;
-  bucketsForIssue(issue: IssueListItem): IssueGroupBucket[];
   bucketsForIssues(issues: readonly IssueListItem[]): IssueGroup[];
 }
 
@@ -288,7 +283,7 @@ function compareEpicNodes(
 }
 
 function createEpicFallbackBucket(
-  fallback: IssueGroupFallback,
+  fallback: "no_epic" | "unavailable_parent",
   labels: IssueGroupLabels,
   order: number,
 ): IssueGroupBucket {
@@ -303,7 +298,6 @@ function createEpicFallbackBucket(
       fallback === "no_epic" ? null : "unavailable-parent",
       order,
     ),
-    fallback,
   };
 }
 
@@ -404,15 +398,6 @@ export function createIssueGroupDescriptor(
 ): IssueGroupDescriptor {
   return {
     groupBy,
-    bucketsForIssue(issue) {
-      if (groupBy === "epic") {
-        return buildEpicGroups([issue], options).map(({ bucket }) => bucket);
-      }
-      const buckets = buildBuckets(groupBy, [issue], options);
-      return buckets.filter((bucket) =>
-        sameGroupValue(issue, groupBy, bucket.value),
-      );
-    },
     bucketsForIssues(issues) {
       if (groupBy === "epic") return buildEpicGroups(issues, options);
       const buckets = buildBuckets(groupBy, issues, options);

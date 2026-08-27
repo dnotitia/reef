@@ -2381,21 +2381,6 @@ function handleSql(vault, sql) {
     );
   }
 
-  if (
-    lower.startsWith(
-      'select "reef_id", "status", "depends_on" from reef_issues',
-    )
-  ) {
-    return tableQuery(
-      ["reef_id", "status", "depends_on"],
-      vault.issues.map((row) => ({
-        reef_id: row.reef_id,
-        status: row.status,
-        depends_on: row.depends_on,
-      })),
-    );
-  }
-
   if (lower.startsWith("select * from reef_subscriptions")) {
     let subscriptions = [...vault.subscriptions];
     const reefId = matchSqlString(normalized, /reef_id\s*=\s*'([^']+)'/i);
