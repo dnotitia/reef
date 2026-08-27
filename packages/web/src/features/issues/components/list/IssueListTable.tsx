@@ -489,15 +489,11 @@ export function IssueListTable({
   }, []);
   const visibleIssueIds = useMemo(() => {
     if (groupBy !== "epic") return sorted.map((issue) => issue.id);
-    const rootEpicIds = new Set(
-      hierarchyCatalog
-        .filter((node) => node.issue_type === "epic" && node.parent_id === null)
-        .map((node) => node.id),
-    );
+    const rootEpicIds = new Set(groups.map(({ bucket }) => bucket.epic?.id));
     return sorted
       .filter((issue) => !rootEpicIds.has(issue.id))
       .map((issue) => issue.id);
-  }, [groupBy, hierarchyCatalog, sorted]);
+  }, [groupBy, groups, sorted]);
   const selectedIssueId = useIssueKeyboardStore(
     (state) => state.focusedIssueId.list,
   );

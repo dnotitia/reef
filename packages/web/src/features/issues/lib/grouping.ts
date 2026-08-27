@@ -291,14 +291,12 @@ function createEpicFallbackBucket(
     fallback === "no_epic"
       ? (labels.epic?.none ?? labels.none)
       : (labels.epic?.unavailableParent ?? labels.none);
-  return {
-    ...createBucket(
-      "epic",
-      label,
-      fallback === "no_epic" ? null : "unavailable-parent",
-      order,
-    ),
-  };
+  return createBucket(
+    "epic",
+    label,
+    fallback === "no_epic" ? null : "unavailable-parent",
+    order,
+  );
 }
 
 function buildEpicGroups(
@@ -306,7 +304,7 @@ function buildEpicGroups(
   options: IssueGroupDescriptorOptions,
 ): IssueGroup[] {
   const catalog = new Map(
-    buildIssueHierarchyCatalog(options.hierarchyCatalog, issues).map((node) => [
+    (options.hierarchyCatalog ?? issues.map(issueToRelation)).map((node) => [
       node.id,
       node,
     ]),
