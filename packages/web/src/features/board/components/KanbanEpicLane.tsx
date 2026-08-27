@@ -317,7 +317,7 @@ export function KanbanEpicLane({
                   assignees={assignees}
                   onIssueClick={onIssueClick}
                   dragEnabled={dragEnabled}
-                  className="h-auto min-h-24 lg:min-h-32"
+                  className="h-auto min-h-24 rounded-none border-0 bg-transparent lg:min-h-32"
                 />
               ))}
             </div>

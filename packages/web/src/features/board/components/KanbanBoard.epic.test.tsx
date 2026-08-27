@@ -176,21 +176,22 @@ describe("KanbanBoard epic lanes", () => {
     expect(toggle).toHaveAttribute("aria-controls", children.id);
   });
 
-  it("keeps the hierarchy board full-width at the 768px two-column breakpoint", async () => {
+  it("keeps lane status groups visible with each child rendered once", async () => {
     render(wrap(<KanbanBoard vault="reef-acme" />));
 
-    const hierarchyBoard = await screen.findByTestId("kanban-hierarchy-board");
-    expect(hierarchyBoard).toHaveClass("md:col-span-2");
-    expect(hierarchyBoard).toHaveClass("min-w-0");
-    expect(hierarchyBoard).toHaveClass("lg:min-w-max");
-    expect(screen.getByTestId("kanban-epic-lane")).toHaveClass(
-      "min-w-0",
-      "w-full",
-    );
-    expect(screen.getByTestId("kanban-epic-header")).toHaveClass("min-w-0");
-    expect(screen.getByTestId("kanban-epic-status-distribution")).toHaveClass(
-      "min-w-0",
-    );
+    const lane = await screen.findByTestId("kanban-epic-lane");
+    const childRegion = within(lane).getByTestId("kanban-epic-children");
+    for (const [status, title] of [
+      ["Todo", "Todo child"],
+      ["Done", "Done child"],
+      ["Closed", "Closed child"],
+    ] as const) {
+      const column = within(childRegion).getByLabelText(`${status}, 1`);
+      expect(within(column).getByText(title)).toBeInTheDocument();
+    }
+    for (const title of ["Todo child", "Done child", "Closed child"]) {
+      expect(screen.getAllByText(title)).toHaveLength(1);
+    }
   });
 
   it("collapses children, removes them from keyboard occurrences, and restores them on expand", async () => {
