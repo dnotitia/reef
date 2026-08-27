@@ -2042,7 +2042,10 @@ async function handleAkb(req, res, url) {
     const vault = getVault(decodeURIComponent(sqlMatch[1]), res);
     if (!vault) return;
     const body = await readJson(req);
-    const sql = String(body?.sql ?? "");
+    const sql = resolveSqlParams(
+      String(body?.sql ?? ""),
+      Array.isArray(body?.params) ? body.params : undefined,
+    );
     const issueId =
       /^\s*update\s+reef_issues\b/i.test(sql) &&
       matchSqlString(sql, /where "?reef_id"?\s*=\s*'([^']+)'/i);
@@ -2191,7 +2194,7 @@ function accountDenialResponse(res, code) {
 }
 
 function handleSql(vault, sql) {
-  const normalized = sql.replace(/\s+/g, " ").trim();
+  const normalized = sql;
   const lower = normalized.toLowerCase();
 
   for (const table of tableNamesInSql(lower)) {
@@ -4305,6 +4308,52 @@ function base64url(value) {
     .replace(/\//g, "_");
 }
 
+function resolveSqlParams(sql, params) {
+  const normalized = sql.replace(/\s+/g, " ").trim();
+  if (!Array.isArray(params) || params.length === 0) return normalized;
+
+  let resolved = "";
+  let inQuote = false;
+  for (let index = 0; index < normalized.length; index += 1) {
+    const character = normalized[index];
+    if (character === "'") {
+      resolved += character;
+      if (inQuote && normalized[index + 1] === "'") {
+        resolved += normalized[index + 1];
+        index += 1;
+      } else {
+        inQuote = !inQuote;
+      }
+      continue;
+    }
+
+    if (!inQuote && character === "$") {
+      const match = normalized.slice(index).match(/^\$(\d+)/u);
+      if (match) {
+        const parameterIndex = Number(match[1]) - 1;
+        if (parameterIndex >= 0 && parameterIndex < params.length) {
+          resolved += sqlParameterLiteral(params[parameterIndex]);
+          index += match[0].length - 1;
+          continue;
+        }
+      }
+    }
+    resolved += character;
+  }
+  return resolved;
+}
+
+function sqlParameterLiteral(value) {
+  if (value == null) return "NULL";
+  if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
+  if (typeof value === "number")
+    return Number.isFinite(value) ? String(value) : "NULL";
+  if (typeof value === "string") {
+    return `'${value.replaceAll("'", "''")}'`;
+  }
+  return "NULL";
+}
+
 function sqlValues(sql) {
   const values = [];
   const re = /'((?:''|[^'])*)'/g;
@@ -4385,8 +4434,12 @@ function objectFromColumns(columns, values) {
 
 function parseSqlValue(value) {
   const trimmed = value.trim();
-  if (/^null$/i.test(trimmed)) return null;
-  if (/^\d+(?:\.\d+)?$/.test(trimmed)) return Number(trimmed);
+  if (/^null(?:::jsonb?|::text)?$/i.test(trimmed)) return null;
+  if (/^(?:true|false)$/i.test(trimmed))
+    return trimmed.toLowerCase() === "true";
+  if (/^-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(trimmed)) {
+    return Number(trimmed);
+  }
   if (/^'.*'(?:\:\:json(?:b)?|\:\:text)?$/i.test(trimmed)) {
     const raw = trimmed.replace(/::jsonb?$/i, "").replace(/::text$/i, "");
     const unquoted = raw.slice(1, -1).replace(/''/g, "'");
