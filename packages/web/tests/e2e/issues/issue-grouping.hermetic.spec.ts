@@ -376,7 +376,10 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
           geometry.scrollLeft - 1,
         );
         expect(header.countRight).toBeLessThanOrEqual(geometry.scrollRight + 1);
-        if (header.groupId?.startsWith("epic:")) {
+        const isRealEpic =
+          header.groupId === "epic:REEF-100" ||
+          header.groupId === "epic:REEF-101";
+        if (isRealEpic) {
           if (
             header.titleRight === null ||
             header.openLeft === null ||
@@ -393,6 +396,9 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
           expect(header.openRight).toBeLessThanOrEqual(
             geometry.scrollRight + 1,
           );
+        } else {
+          expect(header.openLeft).toBeNull();
+          expect(header.openRight).toBeNull();
         }
       }
       const longEpicHeader = geometry.groupHeaders.find(
