@@ -342,15 +342,39 @@ describe("listIssues pagination", () => {
 describe("listIssueRelations", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("projects reef_id/status/depends_on into relation nodes", async () => {
+  it("projects hierarchy metadata and dependencies into relation nodes", async () => {
     const { calls } = setupFetch([
       {
         body: {
           kind: "table_query",
-          columns: ["reef_id", "status", "depends_on"],
+          columns: [
+            "reef_id",
+            "status",
+            "depends_on",
+            "issue_type",
+            "parent_id",
+            "title",
+            "rank",
+          ],
           items: [
-            { reef_id: "REEF-001", status: "todo", depends_on: ["REEF-002"] },
-            { reef_id: "REEF-002", status: "done", depends_on: [] },
+            {
+              reef_id: "REEF-001",
+              status: "todo",
+              depends_on: ["REEF-002"],
+              issue_type: "story",
+              parent_id: "REEF-100",
+              title: "Child",
+              rank: 2,
+            },
+            {
+              reef_id: "REEF-002",
+              status: "done",
+              depends_on: [],
+              issue_type: "epic",
+              parent_id: null,
+              title: "Epic",
+              rank: 1,
+            },
           ],
           total: 2,
         },
@@ -361,11 +385,27 @@ describe("listIssueRelations", () => {
       "reef-acme",
     );
     expect(capturedSql(calls)).toBe(
-      `SELECT "reef_id", "status", "depends_on" FROM reef_issues`,
+      `SELECT "reef_id", "status", "depends_on", "issue_type", "parent_id", "title", "rank" FROM reef_issues`,
     );
     expect(relations).toEqual([
-      { id: "REEF-001", status: "todo", depends_on: ["REEF-002"] },
-      { id: "REEF-002", status: "done", depends_on: [] },
+      {
+        id: "REEF-001",
+        status: "todo",
+        depends_on: ["REEF-002"],
+        issue_type: "story",
+        parent_id: "REEF-100",
+        title: "Child",
+        rank: 2,
+      },
+      {
+        id: "REEF-002",
+        status: "done",
+        depends_on: [],
+        issue_type: "epic",
+        parent_id: null,
+        title: "Epic",
+        rank: 1,
+      },
     ]);
   });
 

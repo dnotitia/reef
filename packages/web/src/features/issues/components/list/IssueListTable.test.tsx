@@ -1,7 +1,7 @@
 import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { apiFetch } from "@/lib/apiClient";
-import type { IssueMetadata } from "@reef/core";
+import type { IssueMetadata, IssueRelation } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -464,5 +464,132 @@ describe("IssueListTable", () => {
     await user.keyboard(" ");
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(toggle).toHaveFocus();
+  });
+
+  it("renders Epic headers from the compact catalog and excludes root Epics from rows", async () => {
+    const epicIssues: IssueMetadata[] = [
+      {
+        ...issues[0],
+        id: "REEF-100",
+        title: "Foundation Epic",
+        status: "in_progress",
+        issue_type: "epic",
+        rank: 1,
+      },
+      {
+        ...issues[1],
+        id: "REEF-101",
+        title: "Empty Epic",
+        status: "todo",
+        issue_type: "epic",
+        rank: 2,
+      },
+      {
+        ...issues[0],
+        id: "REEF-1",
+        title: "Completed foundation work",
+        status: "done",
+        issue_type: "story",
+        parent_id: "REEF-100",
+        rank: 3,
+      },
+      {
+        ...issues[1],
+        id: "REEF-2",
+        title: "Open foundation work",
+        status: "todo",
+        issue_type: "task",
+        parent_id: "REEF-100",
+        rank: 4,
+      },
+      {
+        ...issues[0],
+        id: "REEF-3",
+        title: "Independent work",
+        status: "todo",
+        issue_type: "task",
+        rank: 5,
+      },
+      {
+        ...issues[1],
+        id: "REEF-4",
+        title: "Missing parent work",
+        status: "todo",
+        issue_type: "task",
+        parent_id: "REEF-999",
+        rank: 6,
+      },
+    ];
+    const hierarchy: IssueRelation[] = epicIssues.map((issue) => ({
+      id: issue.id,
+      title: issue.title,
+      status: issue.status,
+      issue_type: issue.issue_type ?? "task",
+      parent_id: issue.parent_id ?? null,
+      rank: issue.rank ?? null,
+      depends_on: issue.depends_on ?? [],
+    }));
+    mockApiFetch.mockImplementation(async (url) => {
+      const path = String(url);
+      if (path.startsWith("/api/vaults/") && path.endsWith("/members")) {
+        return new Response(JSON.stringify({ members: [] }), { status: 200 });
+      }
+      if (path.startsWith("/api/vault-members")) {
+        return new Response(JSON.stringify({ users: [] }), { status: 200 });
+      }
+      if (path.startsWith("/api/issues/relations")) {
+        return new Response(JSON.stringify({ relations: hierarchy }), {
+          status: 200,
+        });
+      }
+      return new Response(JSON.stringify({ issues: epicIssues }), {
+        status: 200,
+      });
+    });
+
+    const user = userEvent.setup();
+    render(wrap(<IssueListTable vault="reef-acme" groupBy="epic" />));
+
+    expect(
+      await screen.findByText("Completed foundation work"),
+    ).toBeInTheDocument();
+    expect(screen.getAllByTestId("issue-group-header")).toHaveLength(4);
+    expect(screen.getByTestId("open-epic-REEF-100")).toBeInTheDocument();
+    expect(screen.getByText("Foundation Epic")).toBeInTheDocument();
+    expect(screen.getAllByText("In Progress").length).toBeGreaterThan(0);
+    expect(screen.getByText("1 of 2 done or closed")).toBeInTheDocument();
+    expect(screen.getByText("Empty Epic")).toBeInTheDocument();
+    expect(screen.getByText("No epic")).toBeInTheDocument();
+    expect(screen.getByText("Unavailable parent")).toBeInTheDocument();
+    expect(
+      screen
+        .getAllByTestId("issue-list-row")
+        .map((row) => row.getAttribute("data-issue-id")),
+    ).not.toContain("REEF-100");
+    expect(screen.getAllByTestId("issue-list-row")).toHaveLength(4);
+
+    const selectAll = screen.getByRole("checkbox", {
+      name: "Select all loaded issues",
+    });
+    await user.click(selectAll);
+    expect([...useIssueSelectionStore.getState().selectedIds].sort()).toEqual([
+      "REEF-1",
+      "REEF-2",
+      "REEF-3",
+      "REEF-4",
+    ]);
+
+    await user.click(screen.getByTestId("open-epic-REEF-100"));
+    expect(mockPush).toHaveBeenCalledWith(
+      "/workspace/reef-acme/issues/REEF-100",
+    );
+
+    const foundationToggle = screen.getByRole("button", {
+      name: /Collapse Foundation Epic/,
+    });
+    await user.click(foundationToggle);
+    expect(foundationToggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Completed foundation work")).toBeNull();
+    expect(screen.getByTestId("open-epic-REEF-100")).toBeInTheDocument();
   });
 });

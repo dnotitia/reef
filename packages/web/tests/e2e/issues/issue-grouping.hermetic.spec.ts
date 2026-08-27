@@ -134,6 +134,79 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
     ).toBeVisible();
   });
 
+  test("groups Active Board and List by Epic with flat children, progress, and fallbacks", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "epic_grouping");
+    await context.clearCookies();
+    await openExistingWorkspace(page);
+
+    await page.goto(`${WORKSPACE}?view=board&group=epic`);
+    const foundationColumn = page.locator(
+      '[data-group-by="epic"][data-group-value="REEF-100"]',
+    );
+    await expect(foundationColumn).toBeVisible();
+    await expect(foundationColumn).toContainText("REEF-100");
+    await expect(foundationColumn).toContainText("Platform foundation");
+    await expect(foundationColumn).toContainText("In Progress");
+    await expect(foundationColumn).toContainText("1 of 2 done or closed");
+    await expect(
+      foundationColumn.locator('[data-testid="kanban-card"]'),
+    ).toHaveCount(2);
+    await expect(
+      foundationColumn.locator('[data-testid="kanban-card"]').first(),
+    ).toHaveAttribute("aria-disabled", "true");
+    await expect(
+      foundationColumn.locator('[data-testid="kanban-card"]').first(),
+    ).toHaveAttribute("title", /Epic groups are read-only/);
+    await expect(
+      page.locator('[data-group-by="epic"][data-group-value="none"]'),
+    ).toContainText("No epic");
+    await expect(
+      page.locator(
+        '[data-group-by="epic"][data-group-value="unavailable-parent"]',
+      ),
+    ).toContainText("Unavailable parent");
+    await expect(
+      foundationColumn.locator('[data-testid="kanban-card"]').filter({
+        hasText: "Platform foundation",
+      }),
+    ).toHaveCount(0);
+
+    await page.goto(`${WORKSPACE}?view=list&group=epic`);
+    const listFoundationHeader = page.locator(
+      '[data-testid="issue-group-header"][data-group-id="epic:REEF-100"]',
+    );
+    await expect(listFoundationHeader).toBeVisible();
+    await expect(listFoundationHeader).toContainText("REEF-100");
+    await expect(listFoundationHeader).toContainText("1 of 2 done or closed");
+    await expect(
+      page.locator('[data-occurrence-key="epic:REEF-100:REEF-001"]'),
+    ).toHaveCount(1);
+    await expect(
+      page.locator('[data-testid="issue-list-row"][data-issue-id="REEF-100"]'),
+    ).toHaveCount(0);
+
+    const listToggle = listFoundationHeader.getByRole("button", {
+      name: /Collapse Platform foundation/,
+    });
+    await listToggle.click();
+    await expect(listToggle).toHaveAttribute("aria-expanded", "false");
+    await expect(
+      page.locator('[data-occurrence-key="epic:REEF-100:REEF-001"]'),
+    ).toHaveCount(0);
+
+    await page.goto(`${WORKSPACE}?view=board&group=epic&type=epic`);
+    await expect(
+      page.locator('[data-group-by="epic"][data-group-value="REEF-100"]'),
+    ).toContainText("0");
+    await expect(
+      page.locator('[data-group-by="epic"][data-group-value="REEF-101"]'),
+    ).toContainText("0");
+  });
+
   test("toggles grouped List headers with native Enter and Space activation", async ({
     page,
   }) => {

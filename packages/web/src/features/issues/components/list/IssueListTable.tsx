@@ -1,6 +1,7 @@
 "use client";
 
 import { SearchProgressBar } from "@/components/ui/SearchProgressBar";
+import { StatusIcon } from "@/components/ui/status-icon";
 import {
   kanbanToastId,
   notifyRetryableError,
@@ -41,7 +42,11 @@ import {
 } from "@/features/issues/lib/buildIssueQuery";
 import { applyDependencyFilter } from "@/features/issues/lib/dependencyUtils";
 import type { IssueGroupBy } from "@/features/issues/lib/groupBy";
-import { createIssueGroupDescriptor } from "@/features/issues/lib/grouping";
+import {
+  buildIssueHierarchyCatalog,
+  createIssueGroupDescriptor,
+  type IssueGroupBucket,
+} from "@/features/issues/lib/grouping";
 import {
   resolveIssueReorderTargetForDrop,
   type IssueReorderTarget,
@@ -93,7 +98,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { ChevronRight } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 import {
   useCallback,
@@ -187,56 +192,115 @@ function SpacerRow({
 }
 
 function IssueListGroupHeader({
-  label,
-  bucketId,
+  bucket,
   count,
   collapsed,
   columnCount,
   onToggle,
+  onOpenEpic,
 }: {
-  label: string;
-  bucketId: string;
+  bucket: IssueGroupBucket;
   count: number;
   collapsed: boolean;
   columnCount: number;
   onToggle: () => void;
+  onOpenEpic?: (id: string) => void;
 }) {
   const t = useTranslations("issues.list");
+  const statusLabels = useStatusLabels();
+  const label = bucket.label;
   const actionLabel = collapsed
     ? t("expandGroup", { label })
     : t("collapseGroup", { label });
   const groupSummary = t("groupHeader", { label, count });
+  const epic = bucket.epic;
+  const epicSummary = epic
+    ? t("epicSummary", {
+        id: epic.id,
+        title: epic.title,
+        status: statusLabels[epic.status],
+        count,
+        done: bucket.progress?.done ?? 0,
+        total: bucket.progress?.total ?? count,
+      })
+    : null;
 
   return (
     <TableRow
       className="sticky top-8 z-20 h-8 bg-surface-page"
       data-testid="issue-group-header"
-      data-group-id={bucketId}
+      data-group-id={bucket.id}
       data-group-collapsed={collapsed ? "true" : "false"}
     >
       <TableCell
         colSpan={columnCount}
         className="h-8 border-y border-border-subtle p-0"
       >
-        <button
-          type="button"
-          className="flex h-8 w-full items-center gap-2 px-3 text-left text-xs font-semibold text-foreground transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
-          aria-expanded={!collapsed}
-          aria-label={`${actionLabel} · ${groupSummary}`}
-          onClick={onToggle}
-        >
-          <ChevronRight
-            aria-hidden="true"
-            className={cn(
-              "size-3.5 shrink-0 transition-transform duration-150",
-              !collapsed && "rotate-90",
-            )}
-          />
-          <span className="min-w-0 flex-1 truncate">{label}</span>
-          <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
-            {count}
-          </span>
-        </button>
+        {epic ? (
+          <div className="flex h-8 min-w-0 w-full items-center gap-2 px-3 text-left text-xs font-semibold text-foreground">
+            <button
+              type="button"
+              className="flex size-6 shrink-0 items-center justify-center rounded-sm transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
+              aria-expanded={!collapsed}
+              aria-label={`${actionLabel} · ${epicSummary ?? groupSummary}`}
+              onClick={onToggle}
+            >
+              <ChevronRight
+                aria-hidden="true"
+                className={cn(
+                  "size-3.5 shrink-0 transition-transform duration-150",
+                  !collapsed && "rotate-90",
+                )}
+              />
+            </button>
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
+              aria-label={t("openEpic", { id: epic.id, title: epic.title })}
+              data-testid={`open-epic-${epic.id}`}
+              title={epic.title}
+              onClick={() => onOpenEpic?.(epic.id)}
+            >
+              <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+                {epic.id}
+              </span>
+              <span className="min-w-0 truncate">{epic.title}</span>
+            </button>
+            <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-normal text-muted-foreground">
+              <StatusIcon status={epic.status} size={12} />
+              <span>{statusLabels[epic.status]}</span>
+            </span>
+            <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+              {count}
+            </span>
+            <span className="shrink-0 text-[11px] font-normal text-muted-foreground">
+              {t("epicProgress", {
+                done: bucket.progress?.done ?? 0,
+                total: bucket.progress?.total ?? count,
+              })}
+            </span>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="flex h-8 w-full items-center gap-2 px-3 text-left text-xs font-semibold text-foreground transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
+            aria-expanded={!collapsed}
+            aria-label={`${actionLabel} · ${groupSummary}`}
+            onClick={onToggle}
+          >
+            <ChevronRight
+              aria-hidden="true"
+              className={cn(
+                "size-3.5 shrink-0 transition-transform duration-150",
+                !collapsed && "rotate-90",
+              )}
+            />
+            <span className="min-w-0 flex-1 truncate">{label}</span>
+            <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+              {count}
+            </span>
+          </button>
+        )}
       </TableCell>
     </TableRow>
   );
@@ -265,6 +329,7 @@ export function IssueListTable({
   const priorityLabels = usePriorityLabels();
   const t = useTranslations("issues.list");
   const groupT = useTranslations("issues.filters");
+  const locale = useLocale();
   const common = useTranslations("common");
   const toasts = useTranslations("toasts");
   const bulk = useTranslations("issues.bulk");
@@ -324,6 +389,10 @@ export function IssueListTable({
 
   const allIssues = useMemo(() => flattenIssueListPages(data), [data]);
   const graph = relations ?? allIssues;
+  const hierarchyCatalog = useMemo(
+    () => buildIssueHierarchyCatalog(relations, allIssues),
+    [allIssues, relations],
+  );
   const sorted = useMemo(() => {
     const filtered = filterIssues(allIssues, scopedFilter, {
       searchActive: searchQuery.trim().length > 0,
@@ -372,11 +441,26 @@ export function IssueListTable({
           none: groupT("group.none"),
           status: statusLabels,
           priority: priorityLabels,
+          epic: {
+            none: groupT("group.noEpic"),
+            unavailableParent: groupT("group.unavailableParent"),
+          },
         },
         assigneeNames,
         sprintNames,
+        hierarchyCatalog,
+        locale,
       }),
-    [assigneeNames, groupBy, groupT, priorityLabels, sprintNames, statusLabels],
+    [
+      assigneeNames,
+      groupBy,
+      groupT,
+      hierarchyCatalog,
+      locale,
+      priorityLabels,
+      sprintNames,
+      statusLabels,
+    ],
   );
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(
     () => new Set(),
@@ -403,10 +487,17 @@ export function IssueListTable({
       return next;
     });
   }, []);
-  const visibleIssueIds = useMemo(
-    () => sorted.map((issue) => issue.id),
-    [sorted],
-  );
+  const visibleIssueIds = useMemo(() => {
+    if (groupBy !== "epic") return sorted.map((issue) => issue.id);
+    const rootEpicIds = new Set(
+      hierarchyCatalog
+        .filter((node) => node.issue_type === "epic" && node.parent_id === null)
+        .map((node) => node.id),
+    );
+    return sorted
+      .filter((issue) => !rootEpicIds.has(issue.id))
+      .map((issue) => issue.id);
+  }, [groupBy, hierarchyCatalog, sorted]);
   const selectedIssueId = useIssueKeyboardStore(
     (state) => state.focusedIssueId.list,
   );
@@ -861,12 +952,12 @@ export function IssueListTable({
                       return (
                         <IssueListGroupHeader
                           key={item.key}
-                          label={item.bucket.label}
-                          bucketId={item.bucket.id}
+                          bucket={item.bucket}
                           count={item.count}
                           collapsed={item.collapsed}
                           columnCount={columns.length}
                           onToggle={() => toggleGroup(item.bucket.id)}
+                          onOpenEpic={openIssue}
                         />
                       );
                     }

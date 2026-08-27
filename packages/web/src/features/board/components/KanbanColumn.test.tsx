@@ -57,6 +57,30 @@ function statusBucket(status: "todo" | "in_progress"): IssueGroupBucket {
   };
 }
 
+function epicBucket(): IssueGroupBucket {
+  return {
+    groupBy: "epic",
+    id: "epic:REEF-100",
+    label: "Foundation Epic",
+    value: "REEF-100",
+    order: 0,
+    patchField: null,
+    patchValue: null,
+    multiBucket: false,
+    droppable: false,
+    epic: {
+      id: "REEF-100",
+      title: "Foundation Epic",
+      status: "in_progress",
+      issue_type: "epic",
+      parent_id: null,
+      rank: 1,
+      depends_on: [],
+    },
+    progress: { done: 1, total: 2 },
+  };
+}
+
 const makeTestIssue = (id: string): IssueListItem => ({
   id,
   title: `Issue ${id}`,
@@ -160,5 +184,27 @@ describe("KanbanColumn", () => {
     renderColumn({ bucket: statusBucket("todo"), issues, onIssueClick });
     fireEvent.click(screen.getAllByTestId("kanban-card")[1]);
     expect(onIssueClick).toHaveBeenCalledWith("reef-002");
+  });
+
+  it("opens a root Epic from its keyboard-focusable header without enabling drops", () => {
+    const onGroupClick = vi.fn();
+    renderColumn({
+      bucket: epicBucket(),
+      issues: [],
+      onGroupClick,
+      dragEnabled: false,
+    });
+
+    const header = screen.getByTestId("open-epic-REEF-100");
+    expect(header).toHaveAccessibleName("Open Epic REEF-100: Foundation Epic");
+    fireEvent.keyDown(header, { key: "Enter" });
+    fireEvent.click(header);
+    expect(onGroupClick).toHaveBeenCalledWith("REEF-100");
+    expect(vi.mocked(useDroppable)).toHaveBeenLastCalledWith({
+      id: "epic:REEF-100",
+      data: { bucket: epicBucket() },
+      disabled: true,
+    });
+    expect(screen.getByText("1 of 2 done or closed")).toBeInTheDocument();
   });
 });

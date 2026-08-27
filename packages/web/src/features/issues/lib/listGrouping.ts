@@ -45,7 +45,8 @@ export function buildIssueListVirtualItems(
 
   const items: IssueListVirtualItem[] = [];
   for (const { bucket, issues } of groups) {
-    if (issues.length === 0) continue;
+    const keepEmptyEpicHeader = bucket.groupBy === "epic" && bucket.epic;
+    if (issues.length === 0 && !keepEmptyEpicHeader) continue;
     const collapsed = collapsedBucketIds.has(bucket.id);
     items.push({
       kind: "header",

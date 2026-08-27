@@ -348,18 +348,30 @@ export type IssueReorderGroup = z.infer<typeof IssueReorderGroupSchema>;
 export type IssueReorderResponse = z.infer<typeof IssueReorderResponseSchema>;
 
 /**
- * A single node of the whole-vault relation projection — the minimal shape the
- * client needs to compute blocker badges and the blocked/blocking dependency
- * filter without fetching every issue's body. `id` is the reef id; `depends_on`
- * holds the reef ids this issue depends on.
+ * A single node of the whole-vault relation projection. The dependency fields
+ * power blocker badges and the blocked/blocking filter; the compact hierarchy
+ * fields let Active Board/List resolve a parent Epic without fetching issue
+ * documents or adding an N+1 read path.
  */
 export const IssueRelationSchema = z.object({
   id: z.string(),
   status: StatusEnum,
   depends_on: z.array(z.string()),
+  issue_type: IssueTypeEnum,
+  parent_id: z.string().nullable(),
+  title: z.string().min(1),
+  rank: z.number().finite().nullable(),
 });
 
 export type IssueRelation = z.infer<typeof IssueRelationSchema>;
+
+export const IssueRelationsResponseSchema = z.object({
+  relations: z.array(IssueRelationSchema),
+});
+
+export type IssueRelationsResponse = z.infer<
+  typeof IssueRelationsResponseSchema
+>;
 
 /**
  * The narrowing filter facets — everything that shrinks the result set,

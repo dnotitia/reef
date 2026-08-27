@@ -106,6 +106,7 @@ const SUPPORTED_SCENARIOS = [
   "markdown_fixture",
   "status_quick_edit",
   "planning_overflow",
+  "epic_grouping",
 ];
 const SUPPORTED_SCENARIO_SET = new Set(SUPPORTED_SCENARIOS);
 const ACCOUNT_DENIAL_CODES = new Set([
@@ -516,6 +517,16 @@ function runtimeDiscovery() {
         workspace: "reef-e2e",
         start_path: "/workspace/reef-e2e/issues?view=list",
       },
+      epic_grouping: {
+        scenario: "epic_grouping",
+        workspace: "reef-e2e",
+        start_path: "/workspace/reef-e2e/issues?view=board&group=epic",
+        interaction: {
+          type: "issue_grouping",
+          operation:
+            "inspect flat root-Epic Board columns and List headers, follow the existing Epic detail action, and exercise the no-epic and unavailable-parent fallbacks",
+        },
+      },
       status_quick_edit: {
         scenario: "status_quick_edit",
         workspace: "reef-e2e",
@@ -707,7 +718,8 @@ function makeState(scenario) {
     scenario === "comment_mentions" ||
     scenario === "large_vault" ||
     scenario === "status_quick_edit" ||
-    scenario === "planning_overflow"
+    scenario === "planning_overflow" ||
+    scenario === "epic_grouping"
   ) {
     const vault =
       scenario === "large_vault"
@@ -720,7 +732,9 @@ function makeState(scenario) {
               ? assigneePickerVault(REEF_VAULT)
               : scenario === "planning_overflow"
                 ? planningOverflowVault(REEF_VAULT)
-                : configuredVault(REEF_VAULT);
+                : scenario === "epic_grouping"
+                  ? epicGroupingVault(REEF_VAULT)
+                  : configuredVault(REEF_VAULT);
     if (scenario === "notifications") seedNotifications(vault);
     if (scenario === "skill_outdated") seedOutdatedVaultSkill(vault);
     if (scenario === "comment_mentions") {
@@ -1077,6 +1091,83 @@ function planningOverflowVault(name) {
       name: "A milestone name long enough to overflow the planning filter option panel",
     },
   ];
+  return vault;
+}
+
+function epicGroupingVault(name) {
+  const vault = configuredVault(name);
+  const issues = [
+    issueRow({
+      id: "REEF-100",
+      title: "Platform foundation",
+      status: "in_progress",
+      issue_type: "epic",
+      rank: 1000,
+    }),
+    issueRow({
+      id: "REEF-101",
+      title:
+        "A very long product outcome title that should remain readable inside a compact Epic group header",
+      status: "todo",
+      issue_type: "epic",
+      rank: 2000,
+    }),
+    issueRow({
+      id: "REEF-001",
+      title: "Ship the first foundation slice",
+      status: "done",
+      issue_type: "story",
+      parent_id: "REEF-100",
+      rank: 3000,
+    }),
+    issueRow({
+      id: "REEF-002",
+      title: "Review the second foundation slice",
+      status: "todo",
+      issue_type: "task",
+      parent_id: "REEF-100",
+      rank: 4000,
+    }),
+    issueRow({
+      id: "REEF-003",
+      title: "Prepare the product outcome",
+      status: "in_review",
+      issue_type: "story",
+      parent_id: "REEF-101",
+      rank: 5000,
+    }),
+    issueRow({
+      id: "REEF-004",
+      title: "Independent work",
+      status: "todo",
+      issue_type: "task",
+      rank: 6000,
+    }),
+    issueRow({
+      id: "REEF-005",
+      title: "Missing relationship work",
+      status: "todo",
+      issue_type: "task",
+      parent_id: "REEF-999",
+      rank: 7000,
+    }),
+    issueRow({
+      id: "REEF-006",
+      title: "Non-Epic relationship work",
+      status: "todo",
+      issue_type: "task",
+      parent_id: "REEF-004",
+      rank: 8000,
+    }),
+  ];
+  vault.issues = issues;
+  vault.documents = new Map();
+  vault.documentHistory = new Map();
+  vault.comments = [];
+  vault.activity = [];
+  for (const issue of issues) {
+    seedIssueDocument(vault, issue.reef_id, `${issue.title} fixture body.`);
+  }
   return vault;
 }
 
@@ -2261,6 +2352,33 @@ function handleSql(vault, sql) {
       }
     }
     return tableSql();
+  }
+
+  if (
+    lower.startsWith(
+      'select "reef_id", "status", "depends_on", "issue_type", "parent_id", "title", "rank" from reef_issues',
+    )
+  ) {
+    return tableQuery(
+      [
+        "reef_id",
+        "status",
+        "depends_on",
+        "issue_type",
+        "parent_id",
+        "title",
+        "rank",
+      ],
+      vault.issues.map((row) => ({
+        reef_id: row.reef_id,
+        status: row.status,
+        depends_on: row.depends_on,
+        issue_type: row.issue_type,
+        parent_id: row.parent_id,
+        title: row.title,
+        rank: row.rank,
+      })),
+    );
   }
 
   if (

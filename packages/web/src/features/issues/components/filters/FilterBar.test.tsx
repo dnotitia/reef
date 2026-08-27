@@ -84,6 +84,7 @@ describe("FilterBar", () => {
     await user.click(screen.getByTestId("display-options-trigger"));
     expect(screen.getByTestId("group-by-none")).toBeInTheDocument();
     expect(screen.getByTestId("group-by-label")).toBeInTheDocument();
+    expect(screen.getByTestId("group-by-epic")).toBeInTheDocument();
     await user.click(screen.getByTestId("group-by-label"));
     expect(setGroupBy).toHaveBeenCalledWith("label");
   });

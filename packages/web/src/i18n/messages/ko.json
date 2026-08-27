@@ -1126,7 +1126,10 @@
         "assignee": "담당자",
         "priority": "우선순위",
         "sprint": "스프린트",
-        "label": "라벨"
+        "label": "라벨",
+        "epic": "에픽",
+        "noEpic": "에픽 없음",
+        "unavailableParent": "확인할 수 없는 상위 항목"
       },
       "namedFilters": "내 필터",
       "namedFilterMenu": "내 필터 메뉴",
@@ -1238,6 +1241,9 @@
       "groupHeader": "{label} · {count}",
       "collapseGroup": "{label} 접기",
       "expandGroup": "{label} 펼치기",
+      "openEpic": "에픽 {id}: {title} 열기",
+      "epicProgress": "{total}개 중 {done}개 완료·종료",
+      "epicSummary": "에픽 {id}: {title}; 상태 {status}; 하위 이슈 {count}개 표시; {total}개 중 {done}개 완료·종료",
       "rank": "Rank",
       "reorderHintUngrouped": "이슈 순서를 바꾸려면 그룹 없음·Manual 순서로 전환하세요.",
       "reorderGrip": "{id} 순서 변경",
@@ -1280,7 +1286,11 @@
     "noMatchTitle": "일치하는 이슈가 없습니다",
     "noMatchDescription": "필터나 검색어를 넓혀 더 많은 이슈를 확인해 보세요.",
     "groupNone": "없음",
-    "groupReadOnly": "라벨 그룹은 읽기 전용입니다. 이슈 상세에서 라벨을 변경하세요."
+    "groupReadOnly": "라벨 그룹은 읽기 전용입니다. 이슈 상세에서 라벨을 변경하세요.",
+    "epicGroupReadOnly": "에픽 그룹은 읽기 전용입니다. 이슈 상세에서 상위 항목을 변경하세요.",
+    "openEpic": "에픽 {id}: {title} 열기",
+    "epicProgress": "{total}개 중 {done}개 완료·종료",
+    "epicColumnLabel": "에픽 {id}: {title}; 상태 {status}; 하위 이슈 {count}개 표시; {total}개 중 {done}개 완료·종료"
   },
   "inbox": {
     "pageTitle": "받은 알림",

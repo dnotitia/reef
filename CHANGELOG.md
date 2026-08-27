@@ -20,6 +20,13 @@ explicitly in the entries below.
 
 ### Added
 
+- **Active Issue Board and List can now group work by Epic.** Root Epic headers
+  show their own status and visible child progress, direct children stay flat
+  and preserve the current filter/sort order, and missing or unsupported
+  parents remain visible in localized fallback groups. Epic grouping is
+  read-only for Board drag interactions and is shareable through the existing
+  `group=epic` URL state.
+
 - **The sidebar workspace switcher now supports account-local Favorites.**
   Favorites are stored in the existing browser IndexedDB `config` key-value
   store, restored for the same account, removed when access becomes stale or

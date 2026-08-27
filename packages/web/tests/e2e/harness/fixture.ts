@@ -21,7 +21,8 @@ export type FixtureScenario =
   | "large_vault"
   | "markdown_fixture"
   | "status_quick_edit"
-  | "planning_overflow";
+  | "planning_overflow"
+  | "epic_grouping";
 export const REEF_E2E_VAULT = "reef-e2e";
 
 function escapeRegExp(value: string): string {

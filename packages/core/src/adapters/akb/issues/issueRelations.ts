@@ -15,11 +15,12 @@ import {
 import type { AllocateNextIssueIdParams } from "../core/types";
 
 /**
- * The whole-vault relation projection — `reef_id` / `status` / `depends_on`
- * just, no document body. Powers client-side blocker badges and the
- * blocked/blocking dependency filter under server-side filtered/paginated
- * lists, where the displayed page is a subset of the graph. A does not-onboarded
- * vault (missing table) resolves to an empty projection.
+ * The whole-vault compact relation projection — dependency state plus the
+ * parent/title/type/rank fields needed by Active Epic grouping, with no
+ * document body. It powers client-side blocker badges and the blocked/blocking
+ * dependency filter under server-side filtered/paginated lists, where the
+ * displayed page is a subset of the graph. A not-yet-onboarded vault (missing
+ * table) resolves to an empty projection.
  */
 export async function listIssueRelations(
   adapter: AkbAdapter,
@@ -31,7 +32,7 @@ export async function listIssueRelations(
       const res = await runSql(
         adapter,
         vault,
-        `SELECT "reef_id", "status", "depends_on" FROM ${tableRef(
+        `SELECT "reef_id", "status", "depends_on", "issue_type", "parent_id", "title", "rank" FROM ${tableRef(
           REEF_ISSUES_TABLE,
         )}`,
       );
@@ -54,6 +55,15 @@ export async function listIssueRelations(
             // string; reuse the same decoder `rowToIssue` uses so dependencies
             // are not silently dropped to [].
             depends_on: decodeStringArray(row.depends_on) ?? [],
+            issue_type: row.issue_type ?? "task",
+            parent_id: row.parent_id ?? null,
+            title: row.title,
+            rank:
+              row.rank == null
+                ? null
+                : typeof row.rank === "number"
+                  ? row.rank
+                  : Number(row.rank),
           }),
         );
       } catch {
