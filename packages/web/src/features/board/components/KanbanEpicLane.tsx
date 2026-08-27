@@ -169,7 +169,7 @@ function KanbanEpicHeader({
               </span>
               <TypePill type={lane.epic.issue_type} variant="kanban" />
             </span>
-            <span className="min-w-0 whitespace-normal text-[14px] font-semibold text-foreground [overflow-wrap:anywhere] lg:order-2 lg:flex-1 lg:truncate">
+            <span className="min-w-0 whitespace-normal text-[14px] font-semibold text-foreground [overflow-wrap:anywhere] lg:order-2 lg:flex-1">
               {lane.epic.title}
             </span>
             <span className="shrink-0 text-xs text-muted-foreground lg:order-3 lg:ml-auto">
@@ -241,7 +241,7 @@ function KanbanEpicHeader({
           {progressText}
         </span>
         <span
-          className="w-full min-w-0 whitespace-normal [overflow-wrap:anywhere] lg:w-auto lg:flex-1 lg:truncate"
+          className="w-full min-w-0 whitespace-normal [overflow-wrap:anywhere] lg:w-auto lg:flex-1"
           data-testid="kanban-epic-status-distribution"
         >
           {t("epicStatusDistribution", { distribution })}
