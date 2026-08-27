@@ -64,7 +64,7 @@ function normalizeSqlScalar(
 }
 
 /** Serialize a JSON/JSONB value while preserving the adapter's validation errors. */
-export function serializeJsonValue(
+function serializeJsonValue(
   value: unknown,
   fieldDescriptor = "json value",
 ): string {
@@ -118,18 +118,6 @@ export class SqlParameterBuilder {
   add(value: unknown, fieldDescriptor = "SQL parameter"): string {
     this.values.push(normalizeSqlScalar(value, fieldDescriptor));
     return `$${this.values.length}`;
-  }
-
-  addInt(
-    value: number | null | undefined,
-    fieldDescriptor = "SQL integer parameter",
-  ): string {
-    if (value != null && !Number.isInteger(value)) {
-      throw new SchemaValidationError({
-        issues: [`${fieldDescriptor} must be an integer`],
-      });
-    }
-    return this.add(value, fieldDescriptor);
   }
 
   addJson(

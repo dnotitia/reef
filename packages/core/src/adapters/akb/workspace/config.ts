@@ -343,7 +343,7 @@ export async function writeConfig(params: WriteConfigParams): Promise<void> {
         const valuesClause = config.monitored_repos
           .map(
             (repo) =>
-              `(${params.addInt(
+              `(${params.add(
                 repo.github_id,
                 "monitored_repo github_id",
               )}, ${params.add(repo.owner, "monitored_repo owner")}, ${params.add(
