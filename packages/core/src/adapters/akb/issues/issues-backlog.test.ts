@@ -8,12 +8,7 @@ import {
   setupFetch,
 } from "../../../test-support/akb/fetchMock";
 import { mockOpenTelemetry } from "../../../test-support/akb/otelMock";
-import {
-  claimIssueId,
-  reorderBacklogIssues,
-  updateIssue,
-  writeIssue,
-} from "./issues";
+import { claimIssueId, updateIssue, writeIssue } from "./issues";
 
 mockOpenTelemetry();
 
@@ -151,6 +146,21 @@ describe("born-correct backlog rank (REEF-176)", () => {
     const insert = sqlStatements(calls)[0];
     expect(insert).toContain("INSERT INTO reef_issues");
     expect(insert).toContain(TAIL_EXPR);
+  });
+
+  it("leaves a normal user-created backlog issue unranked until Manual reorder", async () => {
+    const { calls } = setupFetch([
+      { body: putResponse("commit-1") },
+      { body: ROW_UPDATE_OK },
+    ]);
+    await writeIssue({
+      adapter: makeTestAkbAdapter(),
+      vault: VAULT,
+      issue: makeIssue({ status: "backlog", source: "user:create_issue" }),
+      content: "",
+    });
+    const insert = sqlStatements(calls)[0];
+    expect(insert).not.toContain("COALESCE(MAX");
   });
 
   it("atomically claims a migration issue id before creating its document", async () => {

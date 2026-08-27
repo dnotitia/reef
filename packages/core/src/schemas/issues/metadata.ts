@@ -228,8 +228,8 @@ const IssueCreateFieldsBaseSchema = IssueMetadataSchema.pick({
   estimate_points: true,
   severity: true,
   // `rank` is deliberately NOT a create field: product create flows do not
-  // hand-author ordering. The backlog drag-reorder endpoint and trusted import
-  // paths own writes to the issue-wide numeric ordering scalar (REEF-129/393).
+  // hand-author ordering. The Manual reorder endpoint and trusted import paths
+  // own writes to the issue-wide numeric ordering scalar (REEF-129/393/570).
   parent_id: true,
   labels: true,
   depends_on: true,
@@ -272,8 +272,8 @@ const IssueUpdatePatchBaseSchema = IssueMetadataSchema.pick({
   estimate_points: true,
   severity: true,
   // `rank` is intentionally NOT updatable here: the issue-wide numeric ordering
-  // scalar is owned by the atomic, backlog-scoped reorder endpoint and trusted
-  // import paths (REEF-129/393). Allowing it on generic PATCH would bypass those
+  // scalar is owned by the atomic Manual reorder endpoint and trusted import
+  // paths (REEF-129/393/570). Allowing it on generic PATCH would bypass those
   // ownership guards.
   closed_reason: true,
   parent_id: true,

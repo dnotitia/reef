@@ -10,6 +10,7 @@ import { StatusBadge } from "@/components/ui/status-icon";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { IssueInlineEditTrigger } from "@/features/issues/components/quick-edit/IssueInlineEditTrigger";
+import { IssueListReorderHandle } from "@/features/issues/components/list/IssueListReorderHandle";
 import { IssueQuickEditAnchor } from "@/features/issues/components/quick-edit/IssueQuickEditAnchor";
 import { IssueContextMenu } from "@/features/issues/components/context-menu/IssueContextMenu";
 import { IssueSelectionCheckbox } from "@/features/issues/components/shared/IssueSelectionCheckbox";
@@ -28,6 +29,7 @@ import {
 import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
 import { findPlanningName } from "@/features/planning/lib/planningItems";
 import { cn } from "@/lib/utils";
+import { useDroppable } from "@dnd-kit/core";
 import type { Collaborator, IssueListItem, PlanningCatalog } from "@reef/core";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { useLocale, useTranslations } from "next-intl";
@@ -65,6 +67,8 @@ interface IssueListRowProps {
   logicalIds?: readonly string[];
   occurrenceKey?: string;
   columns?: readonly IssueListColumnKey[];
+  sortable?: boolean;
+  reorderHint?: string;
   onClick?: (id: string) => void;
 }
 
@@ -151,6 +155,8 @@ export const IssueListRow = memo(function IssueListRow({
   logicalIds = [],
   occurrenceKey,
   columns = ISSUE_LIST_DEFAULT_COLUMNS,
+  sortable = false,
+  reorderHint,
   onClick,
 }: IssueListRowProps) {
   const issue = useIssueEntity(vault, seed.id) ?? seed;
@@ -186,9 +192,21 @@ export const IssueListRow = memo(function IssueListRow({
   const currentLogin = useCurrentUserLogin();
   const locale = useLocale();
   const rowRef = useRef<HTMLTableRowElement | null>(null);
+  const { setNodeRef: setDroppableRef } = useDroppable({
+    id: `issue-row:${issue.id}`,
+    data: { issue },
+    disabled: !sortable,
+  });
   const statusTriggerRef = useRef<HTMLButtonElement>(null);
   const priorityTriggerRef = useRef<HTMLButtonElement>(null);
   const assigneeTriggerRef = useRef<HTMLButtonElement>(null);
+  const setRowRef = useCallback(
+    (node: HTMLTableRowElement | null) => {
+      rowRef.current = node;
+      setDroppableRef(node);
+    },
+    [setDroppableRef],
+  );
   const getQuickEditAnchor = useCallback((field: IssueQuickEditField) => {
     switch (field) {
       case "status":
@@ -217,6 +235,7 @@ export const IssueListRow = memo(function IssueListRow({
   useEffect(() => {
     if (
       focusRequest?.scope !== "list" ||
+      focusRequest.target === "reorder-handle" ||
       (focusRequest.occurrenceKey ?? focusRequest.issueId) !==
         keyboardOccurrenceKey ||
       !rowRef.current
@@ -266,7 +285,7 @@ export const IssueListRow = memo(function IssueListRow({
       onOpenChange={setContextOpen}
     >
       <TableRow
-        ref={rowRef}
+        ref={setRowRef}
         className={cn(
           "reef-issue-list-row group h-10 cursor-pointer transition-colors duration-150 focus-visible:outline-none",
           visualState === "idle" && onClick && "hover:bg-surface-hover",
@@ -330,6 +349,19 @@ export const IssueListRow = memo(function IssueListRow({
             }}
           />
         </TableCell>
+        {columns.includes("rank") && (
+          <TableCell
+            className={cn(issueListCellClass("rank", visualState), "pr-0")}
+            style={issueListCellStyle(columns, "rank", visualState)}
+            data-column-key="rank"
+          >
+            {sortable && reorderHint ? (
+              <IssueListReorderHandle id={issue.id} label={reorderHint} />
+            ) : (
+              <span className="block size-8" aria-hidden="true" />
+            )}
+          </TableCell>
+        )}
         {/* ID */}
         <TableCell
           className={cn(

@@ -36,7 +36,9 @@ experience follows a strict state-owner split:
   preference, UI locale (mirrored to a
   non-httpOnly `NEXT_LOCALE` cookie so SSR can resolve it on the first request),
   per-vault issue filters, and the previously signed-in akb user id used for
-  account reconciliation.
+  account reconciliation. It also holds the signed-in account's workspace
+  favorites as a versioned `config` envelope; favorite names are a browser-local
+  exploration preference, not workspace identity or shared project state.
 - **akb-backed workspace config** holds team-shared project state — the project
   prefix, monitored repositories, issue templates, and default authoring
   language. It is read and mutated through Route Handlers, not stored as a
@@ -461,6 +463,12 @@ fluid main column:
   the reef wordmark, a prominent New Issue button, the primary nav (Issues / My
   Work / Inbox / Planning / Reports / Settings), a footer utility
   row for keyboard shortcuts, and the workspace/account identity block.
+  The workspace switcher keeps the full configured `useVaults()` candidate set,
+  applies search before splitting it into localized Favorites and Other
+  workspaces groups, and keeps a separate favorite toggle beside each
+  navigation control. Toggling a favorite preserves the popover and search;
+  selecting the workspace name alone writes the last-viewed browser pointer and
+  navigates to that workspace's URL-owned Issues screen.
   App-version context lives in the account menu as a release-notes link.
 - **Main column** — a per-page header and the page body. The Issues page body
   swaps between Board, List, Timeline, and Backlog.
@@ -540,6 +548,16 @@ visible hover and focus affordance.
 ## Core Surfaces
 
 ### Issues Workspace — Scope and Layout
+
+The sidebar workspace switcher is navigation chrome shared by every dashboard
+surface. Its URL segment remains the active workspace identity, while the
+versioned browser-local favorites preference only controls discovery order. It
+shows only accessible workspaces with Reef configuration, removes stale or
+malformed local names as the candidate list is reconciled, and degrades to an
+empty Favorites group when browser storage is corrupt or unavailable. Favorite
+and workspace controls are independent keyboard targets with localized names
+and pressed state; saving a preference never blocks workspace navigation or
+workspace creation.
 
 `/workspace/{vault}/issues` is one workspace with two independent URL axes:
 `scope=active|backlog` selects the work collection and `view=board|list|timeline`

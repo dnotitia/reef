@@ -21,7 +21,7 @@ import {
   usePriorityLabels,
 } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
-import { useDraggable } from "@dnd-kit/core";
+import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
   type Collaborator,
@@ -43,6 +43,7 @@ import {
   useRef,
   useState,
 } from "react";
+import type { IssueGroupBucket } from "../../issues/lib/grouping";
 
 interface KanbanCardProps {
   issue: IssueListItem;
@@ -66,6 +67,7 @@ interface KanbanCardProps {
   dragEnabled?: boolean;
   readOnlyReason?: string;
   hierarchyFallback?: StatusHierarchyFallback;
+  bucket?: IssueGroupBucket;
 }
 
 interface KanbanCardSurfaceProps extends HTMLAttributes<HTMLDivElement> {
@@ -317,14 +319,22 @@ export const KanbanCard = memo(function KanbanCard({
   dragEnabled = true,
   readOnlyReason,
   hierarchyFallback,
+  bucket,
 }: KanbanCardProps) {
   const currentLogin = useCurrentUserLogin();
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({
-      id: occurrenceKey ?? issue.id,
-      data: { issue, occurrenceKey },
-      disabled: !dragEnabled,
-    });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+    isOver,
+  } = useSortable({
+    id: occurrenceKey ?? issue.id,
+    data: { issue, occurrenceKey, bucket },
+    disabled: !dragEnabled,
+  });
   // Save-confirm flash: one-shot highlight when this card's edit lands
   // server-side. the flashing card re-renders; the hook auto-clears the
   // flag after the flash window so a later save can flash it again.
@@ -354,21 +364,25 @@ export const KanbanCard = memo(function KanbanCard({
   );
 
   useLayoutEffect(() => {
+    const requestedKey = focusRequest?.occurrenceKey ?? focusRequest?.issueId;
+    const matchesOccurrence = requestedKey === keyboardOccurrenceKey;
+    const matchesIssue =
+      focusRequest?.issueId === issue.id && bucket?.groupBy !== "label";
     if (
       focusRequest?.scope !== "board" ||
-      (focusRequest.occurrenceKey ?? focusRequest.issueId) !==
-        keyboardOccurrenceKey ||
+      (!matchesOccurrence && !matchesIssue) ||
       !cardRef.current
     ) {
       return;
     }
     cardRef.current.focus({ preventScroll: true });
     cardRef.current.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [focusRequest, keyboardOccurrenceKey]);
+  }, [bucket?.groupBy, focusRequest, issue.id, keyboardOccurrenceKey]);
 
-  const style = transform
-    ? { transform: CSS.Translate.toString(transform) }
-    : undefined;
+  const style = {
+    ...(transform ? { transform: CSS.Translate.toString(transform) } : {}),
+    ...(transition ? { transition } : {}),
+  };
 
   function handleClick() {
     // Suppress the click that would fire at the end of a drag — pointerup
@@ -399,6 +413,9 @@ export const KanbanCard = memo(function KanbanCard({
       }
       className={cn(
         focused && "border-brand-focus/60 bg-brand-fill/5",
+        isOver &&
+          !isDragging &&
+          "border-brand-focus/60 ring-2 ring-brand-focus/20",
         isFlashing && "reef-flash-card",
       )}
       role="button"

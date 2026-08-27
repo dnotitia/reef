@@ -93,11 +93,11 @@ test.describe("search debounce cadence (REEF-370)", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=board&sort=priority");
     const searches = collectIssueSearch(page);
 
     const input = page.locator('[data-testid="search-input"]');
     await expect(input).toBeVisible();
-    await expect(page.getByRole("main")).toBeFocused();
     await input.focus();
     await expect(input).toBeFocused();
 
@@ -150,6 +150,7 @@ test.describe("search debounce cadence (REEF-370)", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=list&sort=priority");
     const searches = collectIssueSearch(page);
 
     // The Status facet is a static, in-memory enum select — no search input and

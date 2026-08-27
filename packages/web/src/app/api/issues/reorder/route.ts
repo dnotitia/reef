@@ -7,19 +7,14 @@ import {
 } from "@/lib/api/requestHelpers";
 import { runRouteSpan } from "@/lib/api/routeTracing";
 import { logger } from "@/lib/logging/logger";
-import {
-  BacklogReorderRequestSchema,
-  akbReorderBacklogIssues,
-} from "@reef/core";
+import { IssueReorderRequestSchema, akbReorderIssue } from "@reef/core";
 
 /**
  * POST /api/issues/reorder
  *
- * Persist a backlog drag-reorder's `rank` writes (REEF-129) as ONE atomic
- * server update, so a multi-row reorder (tail materialization, curated
- * re-space) does not lands partially the way independent per-row PATCHes could.
- * Row — `rank` is not a document field — so no commit churns.
- * Last-write-wins, like every reef row edit.
+ * Persist a Manual-order move from Board, List, or Backlog. The adapter reads
+ * canonical neighbours and applies rank plus an optional single-value group
+ * change atomically; the browser page is never treated as the full ordering.
  */
 export async function POST(request: Request): Promise<Response> {
   let rawBody: unknown;
@@ -29,9 +24,10 @@ export async function POST(request: Request): Promise<Response> {
     return invalidJsonBodyResponse();
   }
 
-  const parsed = BacklogReorderRequestSchema.safeParse(rawBody);
+  const parsed = IssueReorderRequestSchema.safeParse(rawBody);
   if (!parsed.success) return invalidBodyResponse(parsed.error);
-  const { vault, assignments } = parsed.data;
+  const { vault, scope, issue_id, before_id, after_id, expected, group } =
+    parsed.data;
 
   const adapterResult = getAkbAdapter(request);
   if ("response" in adapterResult) return adapterResult.response;
@@ -43,15 +39,40 @@ export async function POST(request: Request): Promise<Response> {
   const { actor } = actorResult;
 
   try {
-    await runRouteSpan({
-      name: "route.reorder_backlog",
-      attributes: { vault, count: assignments.length },
+    const result = await runRouteSpan({
+      name: "route.reorder_issue",
+      attributes: { vault, scope, issue_id },
       run: () =>
-        akbReorderBacklogIssues({ adapter, vault, assignments, actor }),
+        akbReorderIssue({
+          adapter,
+          vault,
+          scope,
+          issueId: issue_id,
+          beforeId: before_id,
+          afterId: after_id,
+          expected: {
+            issueRank: expected.issue_rank,
+            issueUpdatedAt: expected.issue_updated_at,
+            beforeRank: expected.before_rank,
+            beforeUpdatedAt: expected.before_updated_at,
+            afterRank: expected.after_rank,
+            afterUpdatedAt: expected.after_updated_at,
+          },
+          group,
+          actor,
+          at: new Date().toISOString(),
+        }),
     });
-    return Response.json({ ok: true });
+    return Response.json({
+      ok: true,
+      assignments: result.assignments.map(({ id, rank, updatedAt }) => ({
+        id,
+        rank,
+        ...(updatedAt ? { updated_at: updatedAt } : {}),
+      })),
+    });
   } catch (err) {
-    logger.error({ err, vault }, "reorder_backlog failed");
+    logger.error({ err, vault, scope, issue_id }, "reorder_issue failed");
     return respondWithError(err, { resourceKind: "issue" });
   }
 }

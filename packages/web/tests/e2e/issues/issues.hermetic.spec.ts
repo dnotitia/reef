@@ -212,7 +212,7 @@ test.describe("Hermetic issue list flow", () => {
     await clearPersistedQueryCacheOnLoad(urlFiltered);
     const issueRequests = collectIssueListRequests(urlFiltered);
     await urlFiltered.goto(
-      "/workspace/reef-e2e/issues?view=list&status=in_progress",
+      "/workspace/reef-e2e/issues?view=list&sort=priority&status=in_progress",
     );
 
     await expect(urlFiltered.getByText("Initial issue Beta")).toBeVisible();

@@ -79,7 +79,7 @@ export {
   claimIssueId,
   writeIssue,
   updateIssue,
-  reorderBacklogIssues,
+  reorderIssue,
   deleteIssue,
   listIssues,
   searchSimilarIssues,

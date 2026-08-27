@@ -5,7 +5,7 @@ import {
   SeverityEnum,
   StatusEnum,
 } from "./metadata";
-import { USER_SORT_FIELDS } from "./requests";
+import { IssueOrderingModeEnum, USER_SORT_FIELDS } from "./requests";
 
 /**
  * Persisted representation of the client issue filter — the payload that crosses
@@ -100,6 +100,7 @@ export const PersistedIssueFilterSchema = z.object({
   showStale: z.boolean().optional().catch(undefined),
   sortField: z.enum(USER_SORT_FIELDS).optional().catch(undefined),
   sortOrder: z.enum(["asc", "desc"]).optional().catch(undefined),
+  orderingMode: IssueOrderingModeEnum.optional().catch(undefined),
 });
 
 /**

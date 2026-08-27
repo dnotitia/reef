@@ -4,6 +4,10 @@ import { StatusIcon } from "@/components/ui/status-icon";
 import { DURATION_BASE, EASE_SIGNATURE } from "@/lib/motionTokens";
 import { cn } from "@/lib/utils";
 import { useDroppable } from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
 import type {
   Collaborator,
@@ -69,7 +73,6 @@ export const KanbanColumn = memo(function KanbanColumn({
     duration: DURATION_BASE,
     easing: EASE_SIGNATURE,
   });
-
   return (
     <div
       ref={setNodeRef}
@@ -98,26 +101,32 @@ export const KanbanColumn = memo(function KanbanColumn({
       </div>
 
       {/* Cards — scroll within the column when many */}
-      <div
-        ref={cardListRef}
-        className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto"
+      <SortableContext
+        items={issues.map((issue) => `${bucket.id}:${issue.id}`)}
+        strategy={verticalListSortingStrategy}
       >
-        {issues.map((issue) => (
-          <KanbanCard
-            key={`${bucket.id}:${issue.id}`}
-            vault={vault}
-            issue={issue}
-            occurrenceKey={`${bucket.id}:${issue.id}`}
-            dragEnabled={canDrag}
-            readOnlyReason={readOnlyReason}
-            blocked={blockedIds.has(issue.id)}
-            planningCatalog={planningCatalog}
-            assignees={assignees}
-            onClick={onIssueClick}
-            hierarchyFallback={hierarchyFallbackByIssueId?.get(issue.id)}
-          />
-        ))}
-      </div>
+        <div
+          ref={cardListRef}
+          className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto"
+        >
+          {issues.map((issue) => (
+            <KanbanCard
+              key={`${bucket.id}:${issue.id}`}
+              vault={vault}
+              issue={issue}
+              bucket={bucket}
+              occurrenceKey={`${bucket.id}:${issue.id}`}
+              dragEnabled={canDrag}
+              readOnlyReason={readOnlyReason}
+              blocked={blockedIds.has(issue.id)}
+              planningCatalog={planningCatalog}
+              assignees={assignees}
+              onClick={onIssueClick}
+              hierarchyFallback={hierarchyFallbackByIssueId?.get(issue.id)}
+            />
+          ))}
+        </div>
+      </SortableContext>
     </div>
   );
 });

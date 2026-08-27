@@ -8,53 +8,33 @@ import {
 
 const WORKSPACE = "/workspace/reef-e2e/issues";
 
-async function dragCardToColumn(
-  page: import("@playwright/test").Page,
-  card: Locator,
-  column: Locator,
-): Promise<void> {
-  const source = await card.boundingBox();
+async function dragCardToColumn(card: Locator, column: Locator): Promise<void> {
   const target = await column.boundingBox();
-  if (!source || !target)
-    throw new Error("Drag source or target is not visible");
-
-  await page.mouse.move(
-    source.x + source.width / 2,
-    source.y + source.height / 2,
-  );
-  await page.mouse.down();
-  await page.mouse.move(
-    target.x + target.width / 2,
-    target.y + Math.min(target.height / 2, 160),
-    { steps: 12 },
-  );
-  await page.mouse.up();
+  if (!target) throw new Error("Drag target is not visible");
+  await card.dragTo(column, {
+    targetPosition: {
+      x: target.width / 2,
+      y: Math.min(target.height / 2, 160),
+    },
+  });
 }
 
 async function dragCardToColumnPoint(
-  page: import("@playwright/test").Page,
   card: Locator,
   column: Locator,
   point: "center" | "header",
 ): Promise<void> {
-  const source = await card.boundingBox();
   const target = await column.boundingBox();
-  if (!source || !target)
-    throw new Error("Drag source or target is not visible");
-
-  await page.mouse.move(
-    source.x + source.width / 2,
-    source.y + source.height / 2,
-  );
-  await page.mouse.down();
-  await page.mouse.move(
-    target.x + target.width / 2,
-    point === "header"
-      ? target.y + 24
-      : target.y + Math.min(target.height / 2, 160),
-    { steps: 12 },
-  );
-  await page.mouse.up();
+  if (!target) throw new Error("Drag target is not visible");
+  await card.dragTo(column, {
+    targetPosition: {
+      x: target.width / 2,
+      y:
+        point === "header"
+          ? Math.min(24, target.height / 2)
+          : Math.min(target.height / 2, 160),
+    },
+  });
 }
 
 test.describe("Hermetic issue grouping (REEF-341)", () => {
@@ -192,7 +172,6 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
       .getByTestId("kanban-card")
       .filter({ hasText: "Initial issue Alpha" });
     await dragCardToColumnPoint(
-      page,
       priorityCard,
       page.locator('[data-group-by="priority"][data-group-value="medium"]'),
       "center",
@@ -230,7 +209,6 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
       .getByTestId("kanban-card")
       .filter({ hasText: "Initial issue Alpha" });
     await dragCardToColumnPoint(
-      page,
       assigneeCard,
       page.locator('[data-group-by="assignee"][data-group-value="none"]'),
       "header",
@@ -269,7 +247,6 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
       .getByTestId("kanban-card")
       .filter({ hasText: "Wire board filters into shareable URL state" });
     await dragCardToColumn(
-      page,
       priorityCard,
       page.locator('[data-group-by="priority"][data-group-value="medium"]'),
     );
@@ -290,7 +267,6 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
       .getByTestId("kanban-card")
       .filter({ hasText: "Review monitored-repo findings" });
     await dragCardToColumn(
-      page,
       todoCard,
       page.locator('[data-group-by="status"][data-group-value="closed"]'),
     );

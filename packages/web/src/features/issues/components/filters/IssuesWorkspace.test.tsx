@@ -147,7 +147,7 @@ describe("IssuesWorkspace", () => {
     expect(screen.getByTestId("list-body")).toBeInTheDocument();
     expect(screen.getByTestId("filter-toolbar")).toHaveAttribute(
       "data-supports-rank",
-      "false",
+      "true",
     );
     expect(screen.getByTestId("issue-bulk-action-bar")).toBeInTheDocument();
     expect(screen.queryByTestId("board-body")).toBeNull();

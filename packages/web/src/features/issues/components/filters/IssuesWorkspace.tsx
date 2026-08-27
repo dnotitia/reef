@@ -87,7 +87,7 @@ export function IssuesWorkspace() {
             statusOptions={WORKFLOW_STATUS_OPTIONS}
             view={layout}
             showSortControl={layout !== "timeline"}
-            supportsRankOrder={scope === "backlog" || layout === "board"}
+            supportsRankOrder={layout !== "timeline"}
             showsBacklogReorderHint={scope === "backlog"}
             groupBy={groupBy}
             setGroupBy={setGroupBy}

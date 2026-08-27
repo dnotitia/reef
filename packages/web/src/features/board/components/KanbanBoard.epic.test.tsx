@@ -104,6 +104,12 @@ function issueApiResponse(url: unknown) {
 
 function mockEpicBoard() {
   mockApiFetch.mockImplementation(async (url, init) => {
+    if (url === "/api/issues/reorder" && init?.method === "POST") {
+      return new Response(
+        JSON.stringify({ ok: true, assignments: [] }),
+        { status: 200 },
+      );
+    }
     if (url === "/api/issues/CHILD-TODO" && init?.method === "PATCH") {
       return new Response(
         JSON.stringify({
@@ -340,24 +346,24 @@ describe("KanbanBoard epic lanes", () => {
 
     await waitFor(() =>
       expect(mockApiFetch).toHaveBeenCalledWith(
-        "/api/issues/CHILD-TODO",
-        expect.objectContaining({ method: "PATCH" }),
+        "/api/issues/reorder",
+        expect.objectContaining({ method: "POST" }),
       ),
     );
-    const patchCalls = mockApiFetch.mock.calls.filter(
+    const reorderCalls = mockApiFetch.mock.calls.filter(
       ([url, init]) =>
-        typeof url === "string" &&
-        url.startsWith("/api/issues/") &&
-        init?.method === "PATCH",
+        url === "/api/issues/reorder" && init?.method === "POST",
     );
-    expect(patchCalls).toHaveLength(1);
-    const body = JSON.parse(patchCalls[0]?.[1]?.body as string);
-    expect(body.update).toEqual({
-      issue_id: "CHILD-TODO",
-      patch: { status: "in_review" },
-    });
-    expect(body.update.patch.parent_id).toBeUndefined();
-    expect(patchCalls.some(([url]) => url === "/api/issues/EPIC-001")).toBe(
+    expect(reorderCalls).toHaveLength(1);
+    const body = JSON.parse(reorderCalls[0]?.[1]?.body as string);
+    expect(body.issue_id).toBe("CHILD-TODO");
+    expect(body.group).toEqual({ field: "status", value: "in_review" });
+    expect(body.parent_id).toBeUndefined();
+    expect(
+      mockApiFetch.mock.calls.some(([url, init]) =>
+        url === "/api/issues/EPIC-001" && init?.method === "POST",
+      ),
+    ).toBe(
       false,
     );
   });

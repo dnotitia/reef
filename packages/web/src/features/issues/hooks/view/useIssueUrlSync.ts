@@ -116,8 +116,11 @@ function readIssueUrlState(searchParams: URLSearchParams): {
   // read alongside a valid field (a fieldless `order` is dropped here); an
   // orderless field is backfilled by normalizeRestoredSort below. Together they
   // keep the store's sort invariant: field ⟺ order.
-  if (sort && (USER_SORT_FIELDS as readonly string[]).includes(sort)) {
+  if (sort === "manual") {
+    filter.orderingMode = "manual";
+  } else if (sort && (USER_SORT_FIELDS as readonly string[]).includes(sort)) {
     filter.sortField = sort as UserSortField;
+    filter.orderingMode = "field";
     if (order === "asc" || order === "desc") {
       filter.sortOrder = order;
     }
@@ -152,12 +155,22 @@ function readIssueUrlState(searchParams: URLSearchParams): {
  * the missing half when present.
  */
 function normalizeRestoredSort(filter: IssueFilter): IssueFilter {
-  if (
-    filter.sortField &&
-    filter.sortOrder !== "asc" &&
-    filter.sortOrder !== "desc"
-  ) {
-    return { ...filter, sortOrder: naturalSortOrder(filter.sortField) };
+  if (filter.sortField) {
+    return {
+      ...filter,
+      orderingMode: "field",
+      sortOrder:
+        filter.sortOrder === "asc" || filter.sortOrder === "desc"
+          ? filter.sortOrder
+          : naturalSortOrder(filter.sortField),
+    };
+  }
+  if (filter.orderingMode === "field") {
+    return {
+      ...filter,
+      orderingMode: "manual",
+      sortOrder: undefined,
+    };
   }
   return filter;
 }
@@ -208,8 +221,12 @@ function buildIssueSearchParams(
   // server — a separate codec; do not unify the two.
   if (filter.showArchived) params.set("archived", "1");
   if (filter.showStale) params.set("stale", "1");
-  if (filter.sortField) params.set("sort", filter.sortField);
-  if (filter.sortOrder) params.set("order", filter.sortOrder);
+  if (filter.orderingMode === "manual") {
+    params.set("sort", "manual");
+  } else if (filter.sortField) {
+    params.set("sort", filter.sortField);
+    if (filter.sortOrder) params.set("order", filter.sortOrder);
+  }
   if (searchQuery) params.set("q", searchQuery);
   return params.toString();
 }

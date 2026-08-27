@@ -308,10 +308,10 @@ export function issueRowMutableFields(
 
 /** INSERT the projection row for an issue. Used on create and on delete's
  * compensating restore. `document_uri` / `reef_id` are the immutable keys.
- * `opts.assignBacklogRank` (set by `writeIssue` on a genuine product create)
- * appends a new backlog issue to the manual-order tail (REEF-176); the
- * delete-restore path omits it so the row is recreated with its exact prior
- * rank. */
+ * `opts.assignBacklogRank` appends a trusted/imported backlog issue to the
+ * manual-order tail (REEF-176); normal user-created issues stay unranked until
+ * their first Manual reorder, and the delete-restore path omits it so the row
+ * is recreated with its exact prior rank. */
 export function insertIssueRow(
   adapter: AkbAdapter,
   vault: string,

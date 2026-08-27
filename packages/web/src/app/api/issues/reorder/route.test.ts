@@ -18,19 +18,17 @@ vi.mock("@/lib/api/requestHelpers", async (importOriginal) => {
   return { ...original, getAkbCurrentActor: mockGetAkbCurrentActor };
 });
 
-const { mockAkbReorderBacklogIssues, mockCreateAkbAdapter } = vi.hoisted(
-  () => ({
-    mockAkbReorderBacklogIssues: vi.fn(),
-    mockCreateAkbAdapter: vi.fn(),
-  }),
-);
+const { mockAkbReorderIssue, mockCreateAkbAdapter } = vi.hoisted(() => ({
+  mockAkbReorderIssue: vi.fn(),
+  mockCreateAkbAdapter: vi.fn(),
+}));
 
 vi.mock("@reef/core", async () => {
   const actual =
     await vi.importActual<typeof import("@reef/core")>("@reef/core");
   return {
     ...actual,
-    akbReorderBacklogIssues: mockAkbReorderBacklogIssues,
+    akbReorderIssue: mockAkbReorderIssue,
     createAkbAdapter: mockCreateAkbAdapter,
   };
 });
@@ -57,6 +55,22 @@ function reorderRequest(
   });
 }
 
+const VALID_REORDER_BODY = {
+  vault: "reef-acme",
+  scope: "backlog",
+  issue_id: "REEF-1",
+  before_id: null,
+  after_id: "REEF-2",
+  expected: {
+    issue_rank: 2000,
+    issue_updated_at: "2026-05-01T00:00:00.000Z",
+    before_rank: null,
+    before_updated_at: null,
+    after_rank: 3000,
+    after_updated_at: "2026-05-01T00:00:00.000Z",
+  },
+};
+
 describe("POST /api/issues/reorder", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -72,38 +86,40 @@ describe("POST /api/issues/reorder", () => {
 
   it("returns 401 without a session cookie", async () => {
     const res = await POST(
-      reorderRequest(
-        { vault: "reef-acme", assignments: [{ id: "REEF-1", rank: 1000 }] },
-        { "content-type": "application/json" },
-      ),
+      reorderRequest(VALID_REORDER_BODY, {
+        "content-type": "application/json",
+      }),
     );
     expect(res.status).toBe(401);
-    expect(mockAkbReorderBacklogIssues).not.toHaveBeenCalled();
+    expect(mockAkbReorderIssue).not.toHaveBeenCalled();
   });
 
-  it("returns 400 for a malformed body (empty assignments)", async () => {
+  it("returns 400 for a malformed body without a reorder target", async () => {
     const res = await POST(
-      reorderRequest({ vault: "reef-acme", assignments: [] }),
+      reorderRequest({ vault: "reef-acme", scope: "backlog" }),
     );
     expect(res.status).toBe(400);
-    expect(mockAkbReorderBacklogIssues).not.toHaveBeenCalled();
+    expect(mockAkbReorderIssue).not.toHaveBeenCalled();
   });
 
-  it("applies the assignments atomically and returns ok", async () => {
-    mockAkbReorderBacklogIssues.mockResolvedValueOnce(undefined);
-    const assignments = [
-      { id: "REEF-1", rank: 1000 },
-      { id: "REEF-2", rank: 2000 },
-    ];
-
-    const res = await POST(reorderRequest({ vault: "reef-acme", assignments }));
+  it("returns the server-produced rank assignments", async () => {
+    mockAkbReorderIssue.mockResolvedValueOnce({
+      assignments: [{ id: "REEF-1", rank: 1000 }],
+    });
+    const res = await POST(reorderRequest(VALID_REORDER_BODY));
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true });
-    expect(mockAkbReorderBacklogIssues).toHaveBeenCalledWith(
+    expect(await res.json()).toEqual({
+      ok: true,
+      assignments: [{ id: "REEF-1", rank: 1000 }],
+    });
+    expect(mockAkbReorderIssue).toHaveBeenCalledWith(
       expect.objectContaining({
         vault: "reef-acme",
-        assignments,
+        scope: "backlog",
+        issueId: "REEF-1",
+        beforeId: null,
+        afterId: "REEF-2",
         actor: "carol",
       }),
     );

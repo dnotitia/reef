@@ -8,6 +8,8 @@ import {
   patchAffectsActivityTimeline,
   patchAffectsListMembership,
   patchAffectsRelationGraph,
+  rankReorderInvalidationPredicate,
+  reorderListInvalidationPredicate,
 } from "./issueListMembership";
 
 describe("patchAffectsListMembership", () => {
@@ -246,5 +248,58 @@ describe("listInvalidationPredicate", () => {
       expect(predicate(key({ sort_field: "priority" }))).toBe(true);
       expect(predicate(key({ sort_field: "due_date" }))).toBe(true);
     });
+  });
+});
+
+describe("rankReorderInvalidationPredicate", () => {
+  const key = (params?: Record<string, unknown>) => ({
+    queryKey: params
+      ? (["issues", "list", "v", params] as const)
+      : (["issues", "list", "v"] as const),
+  });
+
+  it("refetches Manual/rank and server-stamped updated_at variants", () => {
+    expect(rankReorderInvalidationPredicate(key({ sort_field: "rank" }))).toBe(
+      true,
+    );
+    expect(
+      rankReorderInvalidationPredicate(key({ sort_field: "updated_at" })),
+    ).toBe(true);
+  });
+
+  it("skips unrelated field-sort variants and the bare list", () => {
+    for (const sortField of ["priority", "title", "due_date", "created_at"]) {
+      expect(
+        rankReorderInvalidationPredicate(key({ sort_field: sortField })),
+      ).toBe(false);
+    }
+    expect(rankReorderInvalidationPredicate(key())).toBe(false);
+  });
+
+  it("handles the infinite Manual key through the same query contract", () => {
+    expect(
+      rankReorderInvalidationPredicate({
+        queryKey: issueListInfiniteKey("reef-acme", {
+          sort_field: "rank",
+          sort_order: "asc",
+        }),
+      }),
+    ).toBe(true);
+  });
+
+  it("adds only the changed group field variants for a cross-group move", () => {
+    const predicate = reorderListInvalidationPredicate({
+      field: "priority",
+      value: "high",
+    });
+    expect(predicate(key({ sort_field: "rank" }))).toBe(true);
+    expect(predicate(key({ sort_field: "updated_at" }))).toBe(true);
+    expect(predicate(key({ sort_field: "priority" }))).toBe(true);
+    expect(
+      predicate(key({ priority: ["low"], sort_field: "created_at" })),
+    ).toBe(true);
+    expect(predicate(key({ status: ["todo"], sort_field: "created_at" }))).toBe(
+      false,
+    );
   });
 });

@@ -15,8 +15,10 @@ import {
   getActiveVault,
   getAkbUserId,
   getPersistedIssueFilter,
+  getConfigValue,
   setActiveVault,
   setAkbUserId,
+  setConfigValue,
   setPersistedIssueFilter,
 } from "@/lib/storage/config";
 import { db } from "@/lib/storage/db";
@@ -24,6 +26,10 @@ import {
   createNamedIssueFilter,
   listNamedIssueFilters,
 } from "@/lib/storage/namedIssueFilter";
+import {
+  getWorkspaceFavorites,
+  setWorkspaceFavorites,
+} from "@/lib/storage/workspaceFavorites";
 import {
   reconcileAkbAccount,
   wipeAkbScopedBrowserState,
@@ -51,6 +57,7 @@ describe("reconcileAkbAccount", () => {
   it("is a no-op when the same account signs in again", async () => {
     await setAkbUserId("user-1");
     await setActiveVault("reef-acme");
+    await setWorkspaceFavorites(["reef-acme"]);
     await setPersistedIssueFilter("reef-acme", { status: ["todo"] });
     await createNamedIssueFilter({
       vault: "reef-acme",
@@ -68,6 +75,7 @@ describe("reconcileAkbAccount", () => {
 
     expect(clearAuthScopedClientCache).not.toHaveBeenCalled();
     expect(await getActiveVault()).toBe("reef-acme");
+    expect(await getWorkspaceFavorites()).toEqual(["reef-acme"]);
     // Same account: saved filters survive.
     expect(await getPersistedIssueFilter("reef-acme")).toEqual({
       status: ["todo"],
@@ -81,6 +89,8 @@ describe("reconcileAkbAccount", () => {
   it("wipes account-scoped state when a different account signs in", async () => {
     await setAkbUserId("user-1");
     await setActiveVault("reef-acme");
+    await setWorkspaceFavorites(["reef-acme", "reef-zen"]);
+    await setConfigValue("theme", "dark");
     await setPersistedIssueFilter("reef-acme", { status: ["todo"] });
     await setPersistedIssueFilter("reef-zen", { priority: ["low"] });
     await createNamedIssueFilter({
@@ -104,6 +114,8 @@ describe("reconcileAkbAccount", () => {
 
     expect(clearAuthScopedClientCache).toHaveBeenCalledOnce();
     expect(await getActiveVault()).toBe("");
+    expect(await getWorkspaceFavorites()).toEqual([]);
+    expect(await getConfigValue("theme")).toBe("dark");
     expect(await getAkbUserId()).toBe("user-2");
     // A different account should not inherit the previous account's saved filters.
     expect(await getPersistedIssueFilter("reef-acme")).toEqual({});
@@ -133,6 +145,8 @@ describe("wipeAkbScopedBrowserState", () => {
   it("clears the cache, active vault, saved filters, user id, and in-memory filter", async () => {
     await setAkbUserId("user-1");
     await setActiveVault("reef-acme");
+    await setWorkspaceFavorites(["reef-acme"]);
+    await setConfigValue("theme", "dark");
     await setPersistedIssueFilter("reef-acme", { status: ["todo"] });
     await createNamedIssueFilter({
       vault: "reef-acme",
@@ -150,6 +164,8 @@ describe("wipeAkbScopedBrowserState", () => {
 
     expect(clearAuthScopedClientCache).toHaveBeenCalledOnce();
     expect(await getActiveVault()).toBe("");
+    expect(await getWorkspaceFavorites()).toEqual([]);
+    expect(await getConfigValue("theme")).toBe("dark");
     // Unlike a same-account reconcile (a no-op), an explicit sign-out consistently
     // drops the recorded id so the next login is a fresh-account wipe.
     expect(await getAkbUserId()).toBeUndefined();

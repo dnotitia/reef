@@ -20,6 +20,9 @@ export interface CapturedDndContextProps {
 
 const dndHarness = vi.hoisted(() => ({
   contextProps: undefined as CapturedDndContextProps | undefined,
+  overlayProps: undefined as
+    | { children: ReactNode; dropAnimation?: unknown }
+    | undefined,
   pointerWithin: vi.fn(),
 }));
 
@@ -42,9 +45,10 @@ vi.mock("@dnd-kit/core", () => ({
     dndHarness.contextProps = props;
     return <div data-testid="dnd-context">{props.children}</div>;
   },
-  DragOverlay: ({ children }: { children: ReactNode }) => (
-    <div data-testid="drag-overlay">{children}</div>
-  ),
+  DragOverlay: (props: { children: ReactNode; dropAnimation?: unknown }) => {
+    dndHarness.overlayProps = props;
+    return <div data-testid="drag-overlay">{props.children}</div>;
+  },
   PointerSensor: vi.fn(),
   KeyboardSensor: vi.fn(),
   pointerWithin: dndHarness.pointerWithin,
@@ -66,6 +70,21 @@ vi.mock("@dnd-kit/core", () => ({
     sensor,
   })),
   useSensors: vi.fn((...sensors: unknown[]) => sensors),
+}));
+
+vi.mock("@dnd-kit/sortable", () => ({
+  SortableContext: ({ children }: { children: ReactNode }) => <>{children}</>,
+  sortableKeyboardCoordinates: vi.fn(),
+  useSortable: vi.fn(() => ({
+    attributes: {},
+    listeners: {},
+    setNodeRef: vi.fn(),
+    transform: null,
+    transition: undefined,
+    isDragging: false,
+    isOver: false,
+  })),
+  verticalListSortingStrategy: vi.fn(),
 }));
 
 // Stub auto-animate (used by KanbanColumn) so its controller doesn't trigger
@@ -165,6 +184,7 @@ export function wrap(ui: ReactNode) {
 export function resetKanbanBoardMocks() {
   vi.clearAllMocks();
   dndHarness.contextProps = undefined;
+  dndHarness.overlayProps = undefined;
   useIssueStore.setState({
     filter: {},
     searchQuery: "",
