@@ -14,6 +14,7 @@ import {
   makeSqlRuntimeErrorResponse,
   reconcileJiraImportedComment,
   setupFetch,
+  sqlRequestBody,
   updateComment,
 } from "../core/akb.testSupport";
 
@@ -118,7 +119,8 @@ describe("listComments", () => {
     });
     const sql = lastSql(calls[0]?.init?.body);
     expect(sql).toContain(`FROM ${REEF_COMMENTS_TABLE}`);
-    expect(sql).toContain("reef_id = 'REEF-062'");
+    expect(sql).toContain("reef_id = $1");
+    expect(sqlRequestBody(calls[0]).params).toEqual(["REEF-062"]);
     expect(sql).toContain("ORDER BY meta->>'created_at' ASC, id ASC");
   });
 
@@ -286,8 +288,18 @@ describe("createComment", () => {
     );
 
     expect(comment.mention_recipients).toEqual(["Alice Smith", "alice"]);
-    const sql = lastSql(calls[2]?.init?.body);
-    expect(sql).toContain('"mention_recipients":["Alice Smith","alice"]');
+    const body = sqlRequestBody(calls[2]);
+    expect(body.sql).toContain("SELECT $1, $2, $3::json");
+    expect(body.params).toContain(
+      JSON.stringify({
+        mention_recipients: ["Alice Smith", "alice"],
+        author: "alice",
+        created_at: "2026-06-18T04:00:00.000Z",
+        edited_at: null,
+        parent_comment_id: null,
+        thread_root_id: null,
+      }),
+    );
   });
 
   it("fails closed before provisioning or inserting when a mention is unresolved", async () => {
@@ -360,23 +372,34 @@ describe("createComment", () => {
       thread_root_id: null,
     });
 
-    const sql = lastSql(calls[1]?.init?.body);
+    const body = sqlRequestBody(calls[1]);
+    const sql = body.sql;
     expect(sql).toContain(`INSERT INTO ${REEF_COMMENTS_TABLE}`);
     // Declared columns are used; akb reserved/auto columns are excluded.
     expect(sql).toContain(`("reef_id", "body", "meta")`);
     expect(sql).toContain("target_issue AS");
     expect(sql).toContain("pg_advisory_xact_lock");
     expect(sql).toContain("jira_idempotency_key");
-    expect(sql).toContain("WHERE reef_id = 'REEF-062' LIMIT 1");
-    expect(sql).toContain("SELECT 'REEF-062', 'hello $1 it''s me'");
+    expect(sql).toContain("WHERE reef_id = $2 LIMIT 1");
+    expect(sql).toContain("SELECT $2, $3, $4::json");
     expect(sql).not.toContain("created_by");
     expect(sql).toContain("RETURNING *");
-    // SQL escaping: single-quote doubled, literal `$` preserved.
-    expect(sql).toContain("'hello $1 it''s me'");
-    // Semantic author lives in meta.
-    expect(sql).toContain('"author":"alice"');
-    expect(sql).toContain('"edited_at":"2026-06-18T05:00:00.000Z"');
-    expect(sql).toContain('"jira_idempotency_key":"jira:comment:10001"');
+    expect(sql).not.toContain("hello $1 it's me");
+    expect(body.params).toEqual(
+      expect.arrayContaining([
+        "REEF-062",
+        "hello $1 it's me",
+        JSON.stringify({
+          jira_idempotency_key: "jira:comment:10001",
+          mention_recipients: [],
+          author: "alice",
+          created_at: "2026-06-18T04:00:00.000Z",
+          edited_at: "2026-06-18T05:00:00.000Z",
+          parent_comment_id: null,
+          thread_root_id: null,
+        }),
+      ]),
+    );
   });
 
   it("404s a comment on a non-existent issue (no orphan row)", async () => {
@@ -444,14 +467,15 @@ describe("createComment", () => {
       thread_root_id: rootId,
     });
 
-    const sql = lastSql(calls[1]?.init?.body);
+    const body = sqlRequestBody(calls[1]);
+    const sql = body.sql;
     expect(sql).toContain("direct_parent AS");
     expect(sql).toContain("valid_reply AS");
     expect(sql).toContain("CROSS JOIN valid_reply");
     expect(sql).toContain("WITH RECURSIVE");
     expect(sql).toContain("target_issue AS");
     expect(sql).toContain("pg_advisory_xact_lock");
-    expect(sql).toContain("WHERE reef_id = 'REEF-062' LIMIT 1");
+    expect(sql).toContain("WHERE reef_id = $2 LIMIT 1");
     expect(sql).toContain("parent_chain AS");
     expect(sql).toContain(
       "chain_parent.id::text = parent_chain.meta->>'parent_comment_id'",
@@ -459,7 +483,8 @@ describe("createComment", () => {
     expect(sql).toContain("root_comment.id::text = reply_target.root_id");
     expect(sql).toContain("jsonb_build_object");
     expect(sql).not.toMatch(/\bjson_build_object\b/u);
-    expect(sql).toContain('"jira_idempotency_key":"jira:reply:10002"');
+    expect(body.params).toContain("jira:reply:10002");
+    expect(body.params).toContain("reply");
     expect(sql.match(/INSERT INTO reef_comments/g)).toHaveLength(1);
     expect(calls).toHaveLength(3);
   });
@@ -521,8 +546,8 @@ describe("updateComment", () => {
     );
 
     expect(comment.mention_recipients).toEqual(["alice"]);
-    expect(lastSql(calls[2]?.init?.body)).toContain(
-      '"mention_recipients":["alice"]',
+    expect(sqlRequestBody(calls[2]).params).toContain(
+      JSON.stringify({ mention_recipients: ["alice"] }),
     );
   });
 
@@ -562,15 +587,19 @@ describe("updateComment", () => {
       edited_at: "2026-06-18T05:00:00.000Z",
     });
 
-    const sql = lastSql(calls[1]?.init?.body);
+    const body = sqlRequestBody(calls[1]);
+    const sql = body.sql;
     expect(sql).toContain(`UPDATE ${REEF_COMMENTS_TABLE}`);
     expect(sql).toContain("jsonb_set(meta::jsonb, '{edited_at}'");
-    expect(sql).toContain("WHERE id = 'c1'");
+    expect(sql).toContain("WHERE id = $4");
     // Scoped to the parent issue named in the URL.
-    expect(sql).toContain("reef_id = 'REEF-062'");
+    expect(sql).toContain("reef_id = $5");
     // Ownership guard: the author's own row matches.
-    expect(sql).toContain("meta->>'author' = 'alice'");
+    expect(sql).toContain("meta->>'author' = $6");
     expect(sql).toContain("RETURNING *");
+    expect(body.params).toEqual(
+      expect.arrayContaining(["edited body", "c1", "REEF-062", "alice"]),
+    );
   });
 
   it("raises NotFound when no row matches (missing comment or not the author)", async () => {
@@ -626,11 +655,17 @@ describe("updateComment", () => {
       },
     );
 
-    const sql = lastSql(calls[1]?.init?.body);
-    expect(sql).toContain('"created_at":"2020-01-01T00:00:00.000Z"');
-    expect(sql).toContain('"edited_at":"2020-01-02T00:00:00.000Z"');
-    expect(sql).toContain('"jira_idempotency_key":"jira:comment:10001"');
-    expect(sql).toContain("meta::jsonb ||");
+    const body = sqlRequestBody(calls[1]);
+    expect(body.sql).toContain("meta::jsonb || $2::jsonb");
+    expect(body.params).toContain(
+      JSON.stringify({
+        jira_idempotency_key: "jira:comment:10001",
+        author: "alice",
+        created_at: "2020-01-01T00:00:00.000Z",
+        edited_at: "2020-01-02T00:00:00.000Z",
+        mention_recipients: [],
+      }),
+    );
   });
 });
 
@@ -658,16 +693,19 @@ describe("deleteComment", () => {
       deleted_comment_ids: ["c-root", "c-reply", "c-nested"],
     });
 
-    const sql = lastSql(calls[1]?.init?.body);
+    const body = sqlRequestBody(calls[1]);
+    const sql = body.sql;
     expect(sql).toMatch(/^WITH RECURSIVE/u);
-    expect(sql).toContain("meta->>'author' = 'alice'");
+    expect(sql).toContain("meta->>'author' = $3");
     expect(sql).toContain("source_type = 'comment'");
     expect(sql).toContain("source_ref IN");
     expect(sql).toContain(`DELETE FROM ${REEF_COMMENTS_TABLE}`);
     expect(sql).toContain("DELETE FROM reef_notifications");
     expect(sql).toContain("meta->>'parent_comment_id'");
     expect(sql).toContain("RETURNING");
-    expect(sql).toContain("reef_id = 'REEF-062'");
+    expect(body.params).toEqual(
+      expect.arrayContaining(["c-root", "REEF-062", "alice"]),
+    );
   });
 
   it("raises the same not-found error for a missing or non-owned comment", async () => {
@@ -734,10 +772,19 @@ describe("reconcileJiraImportedComment", () => {
       thread_root_id: rootId,
     });
 
-    const sql = lastSql(calls[1]?.init?.body);
+    const body = sqlRequestBody(calls[1]);
+    const sql = body.sql;
     expect(sql).toContain(`UPDATE ${REEF_COMMENTS_TABLE}`);
-    expect(sql).toContain('"author":"hongchan"');
-    expect(sql).toContain(`meta->>'jira_idempotency_key' = '${jiraKey}'`);
+    expect(sql).toContain("meta->>'jira_idempotency_key' = $5");
+    expect(body.params).toContain(
+      JSON.stringify({
+        author: "hongchan",
+        created_at: "2025-05-27T21:43:43.262+09:00",
+        edited_at: null,
+        jira_idempotency_key: jiraKey,
+        mention_recipients: [],
+      }),
+    );
     expect(sql).toContain("RETURNING *");
     expect(sql).not.toContain("created_by =");
     expect(sql).not.toContain("created_at =");
@@ -787,8 +834,14 @@ describe("reconcileJiraImportedComment", () => {
       mention_recipients: ["Alice Smith"],
     });
 
-    expect(lastSql(calls[2]?.init?.body)).toContain(
-      '"mention_recipients":["Alice Smith"]',
+    expect(sqlRequestBody(calls[2]).params).toContain(
+      JSON.stringify({
+        author: "hongchan",
+        created_at: "2025-05-27T21:43:43.262+09:00",
+        edited_at: null,
+        jira_idempotency_key: jiraKey,
+        mention_recipients: ["Alice Smith"],
+      }),
     );
   });
 
@@ -830,5 +883,80 @@ describe("reconcileJiraImportedComment", () => {
       }),
     ).rejects.toBeInstanceOf(SchemaValidationError);
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe("comment body parameter binding", () => {
+  it("passes consecutive backslashes unchanged through create and update params", async () => {
+    const original = String.raw`댓글 ' \\ 한글 🧪`;
+    const edited = String.raw`수정 댓글 ' \\ 한글 🚀`;
+    const { calls } = setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      {
+        body: makeSqlQueryResponse(
+          [
+            makeCommentRow({
+              id: "new-uuid",
+              body: original,
+              meta: {
+                author: "alice",
+                created_at: "2026-06-18T04:00:00.000Z",
+                edited_at: null,
+              },
+            }),
+          ],
+          COMMENT_ROW_COLUMNS,
+        ),
+      },
+      {
+        body: makeSqlQueryResponse([commenterSubscriptionRow("alice")], ["id"]),
+      },
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      {
+        body: makeSqlQueryResponse(
+          [
+            makeCommentRow({
+              id: "new-uuid",
+              body: edited,
+              meta: {
+                author: "alice",
+                created_at: "2026-06-18T04:00:00.000Z",
+                edited_at: "2026-06-18T05:00:00.000Z",
+              },
+            }),
+          ],
+          COMMENT_ROW_COLUMNS,
+        ),
+      },
+    ]);
+
+    await expect(
+      createComment(
+        makeAdapter(),
+        "reef-sample",
+        "REEF-062",
+        original,
+        "alice",
+        undefined,
+        { createdAt: "2026-06-18T04:00:00.000Z", editedAt: null },
+      ),
+    ).resolves.toMatchObject({ body: original });
+    await expect(
+      updateComment(
+        makeAdapter(),
+        "reef-sample",
+        "REEF-062",
+        "new-uuid",
+        edited,
+        "alice",
+      ),
+    ).resolves.toMatchObject({ body: edited });
+
+    const createRequest = sqlRequestBody(calls[1]);
+    const updateRequest = sqlRequestBody(calls[4]);
+    expect(createRequest.params).toContain(original);
+    expect(updateRequest.params).toContain(edited);
+    expect(createRequest.sql).not.toContain(original);
+    expect(updateRequest.sql).not.toContain(edited);
   });
 });

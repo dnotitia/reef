@@ -44,16 +44,25 @@ describe("readConfig", () => {
         monitored_repos: [{ github_id: 123, owner: "acme", name: "api" }],
       },
     });
-    const settingsSql = JSON.parse(calls[0]?.init?.body as string)
-      .sql as string;
+    const settingsBody = JSON.parse(calls[0]?.init?.body as string);
+    const settingsSql = settingsBody.sql as string;
     expect(settingsSql).toContain(`FROM ${REEF_SETTINGS_TABLE}`);
     expect(settingsSql).not.toContain("ai_scanning_enabled");
-    const reposSql = JSON.parse(calls[1]?.init?.body as string).sql as string;
+    expect(settingsBody.sql).toContain("key IN ($1, $2, $3, $4)");
+    expect(settingsBody.params).toEqual([
+      "project_prefix",
+      "authoring_language",
+      "stale_hide_completed_days",
+      "stale_hide_canceled_days",
+    ]);
+    const reposBody = JSON.parse(calls[1]?.init?.body as string);
+    const reposSql = reposBody.sql as string;
     expect(reposSql).toContain(`FROM ${MONITORED_REPOS_TABLE}`);
+    expect(reposBody).not.toHaveProperty("params");
   });
 
   it("returns the default config when the settings table is missing", async () => {
-    setupFetch([
+    const { calls } = setupFetch([
       {
         body: { error: 'relation "reef_settings" does not exist' },
       },
@@ -73,7 +82,7 @@ describe("readConfig", () => {
 
 describe("readAuthoringLanguage", () => {
   it("reads the retained authoring language key", async () => {
-    setupFetch([
+    const { calls } = setupFetch([
       {
         body: makeSqlQueryResponse(
           [{ key: "authoring_language", value: '"ja"' }],
@@ -84,5 +93,8 @@ describe("readAuthoringLanguage", () => {
     await expect(
       readAuthoringLanguage({ adapter: makeAdapter(), vault: "reef-sample" }),
     ).resolves.toBe("ja");
+    const body = JSON.parse(calls[0]?.init?.body as string);
+    expect(body.sql).toContain("key = $1");
+    expect(body.params).toEqual(["authoring_language"]);
   });
 });

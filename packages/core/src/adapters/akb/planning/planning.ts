@@ -17,9 +17,9 @@ import {
   REEF_MILESTONES_TABLE,
   REEF_RELEASES_TABLE,
   REEF_SPRINTS_TABLE,
+  SqlParameterBuilder,
   ensureReefTables,
   isMissingTableError,
-  quoteText,
   withSpan,
 } from "../core/shared";
 import type {
@@ -58,11 +58,16 @@ export async function readPlanningCreateClaim(
 ): Promise<Release | Sprint | null> {
   const { adapter, vault, kind, idempotencyKey } = params;
   const table = kind === "release" ? REEF_RELEASES_TABLE : REEF_SPRINTS_TABLE;
+  const sqlParams = new SqlParameterBuilder();
   const rows = await selectPlanningRows(
     adapter,
     vault,
     table,
-    `meta->>${quoteText(CREATE_IDEMPOTENCY_META_KEY, "planning claim field")} = ${quoteText(idempotencyKey, "planning idempotency key")}`,
+    `meta->>${sqlParams.add(
+      CREATE_IDEMPOTENCY_META_KEY,
+      "planning claim field",
+    )} = ${sqlParams.add(idempotencyKey, "planning idempotency key")}`,
+    sqlParams.params,
   );
   if (rows.length > 1) {
     throw new SchemaValidationError({
@@ -117,10 +122,14 @@ export async function createSprint(
       adapter,
       vault,
       table: REEF_SPRINTS_TABLE,
-      fields: sprintRowFields(
-        validated,
-        idempotencyKey ? { [CREATE_IDEMPOTENCY_META_KEY]: idempotencyKey } : {},
-      ),
+      fields: (sqlParams) =>
+        sprintRowFields(
+          validated,
+          sqlParams,
+          idempotencyKey
+            ? { [CREATE_IDEMPOTENCY_META_KEY]: idempotencyKey }
+            : {},
+        ),
       name: validated.name,
       idempotencyKey,
       idempotencyMetaKey: CREATE_IDEMPOTENCY_META_KEY,
@@ -160,7 +169,7 @@ export async function updateSprint(
       vault,
       REEF_SPRINTS_TABLE,
       id,
-      sprintRowFields(sprint),
+      (sqlParams) => sprintRowFields(sprint, sqlParams),
     );
     return sprint;
   });
@@ -191,7 +200,7 @@ export async function createMilestone(
       adapter,
       vault,
       REEF_MILESTONES_TABLE,
-      milestoneRowFields(validated),
+      (sqlParams) => milestoneRowFields(validated, sqlParams),
       rowToMilestone,
     );
   });
@@ -221,7 +230,7 @@ export async function updateMilestone(
       vault,
       REEF_MILESTONES_TABLE,
       id,
-      milestoneRowFields(milestone),
+      (sqlParams) => milestoneRowFields(milestone, sqlParams),
     );
     return milestone;
   });
@@ -248,10 +257,14 @@ export async function createRelease(
       adapter,
       vault,
       table: REEF_RELEASES_TABLE,
-      fields: releaseRowFields(
-        validated,
-        idempotencyKey ? { [CREATE_IDEMPOTENCY_META_KEY]: idempotencyKey } : {},
-      ),
+      fields: (sqlParams) =>
+        releaseRowFields(
+          validated,
+          sqlParams,
+          idempotencyKey
+            ? { [CREATE_IDEMPOTENCY_META_KEY]: idempotencyKey }
+            : {},
+        ),
       name: validated.name,
       idempotencyKey,
       idempotencyMetaKey: CREATE_IDEMPOTENCY_META_KEY,
@@ -290,7 +303,7 @@ export async function updateRelease(
       vault,
       REEF_RELEASES_TABLE,
       id,
-      releaseRowFields(release),
+      (sqlParams) => releaseRowFields(release, sqlParams),
     );
     return release;
   });

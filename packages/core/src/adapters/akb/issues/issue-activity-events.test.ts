@@ -19,6 +19,7 @@ import {
   reconcileJiraChangelogActivityEvents,
   reconcileJiraImportedAttachmentActivityActor,
   setupFetch,
+  sqlRequestBody,
   statusChangeEventKey,
 } from "../core/akb.testSupport";
 
@@ -105,13 +106,19 @@ describe("issue body mention activity", () => {
     });
 
     expect(calls).toHaveLength(2);
-    const sql = lastSql(calls[1]?.init?.body);
-    expect(sql).toContain("issue_body_mentions_change:commit-mentions");
-    expect(sql).toContain('"recipients":["alice","bob"]');
-    expect(sql).toContain('"added":["bob"]');
-    expect(sql).toContain('"removed":["carol"]');
-    expect(sql).toContain('"document_commit":"commit-mentions"');
-    expect(sql).toContain("WHERE NOT EXISTS");
+    const body = sqlRequestBody(calls[1]);
+    expect(body.sql).toContain("WHERE NOT EXISTS");
+    expect(body.params).toEqual(
+      expect.arrayContaining([
+        "issue_body_mentions_change:commit-mentions",
+        JSON.stringify({
+          recipients: ["alice", "bob"],
+          added: ["bob"],
+          removed: ["carol"],
+          document_commit: "commit-mentions",
+        }),
+      ]),
+    );
   });
 });
 
@@ -134,7 +141,8 @@ describe("appendStatusChangeEvent", () => {
     // One provisioning call + one conditional insert — no separate probe.
     expect(calls).toHaveLength(2);
 
-    const insertSql = lastSql(calls[1]?.init?.body);
+    const insertBody = sqlRequestBody(calls[1]);
+    const insertSql = insertBody.sql;
     expect(insertSql).toContain(`INSERT INTO ${REEF_ACTIVITY_TABLE}`);
     // Declared columns are used; akb reserved/auto columns are excluded.
     expect(insertSql).toContain(
@@ -145,17 +153,25 @@ describe("appendStatusChangeEvent", () => {
     // (reef_id, event_key) row not already exist.
     expect(insertSql).toContain("WHERE NOT EXISTS");
     expect(insertSql).toContain(`SELECT 1 FROM ${REEF_ACTIVITY_TABLE}`);
-    expect(insertSql).toContain("reef_id = 'REEF-063'");
-    expect(insertSql).toContain(
-      "event_key = 'status_change:todo->in_progress@2026-06-18T01:00:00.000Z'",
+    expect(insertSql).toContain("reef_id = $1");
+    expect(insertSql).toContain("event_key = $3");
+    expect(insertSql).not.toContain("REEF-063");
+    expect(insertBody.params).toEqual(
+      expect.arrayContaining([
+        "REEF-063",
+        "status_change",
+        "status_change:todo->in_progress@2026-06-18T01:00:00.000Z",
+        JSON.stringify({ from: "todo", to: "in_progress" }),
+        JSON.stringify({
+          actor: "alice",
+          at: "2026-06-18T01:00:00.000Z",
+          source: "ai-agent:user_request",
+        }),
+      ]),
     );
-    expect(insertSql).toContain("'status_change'");
-    expect(insertSql).toContain('"from":"todo"');
-    expect(insertSql).toContain('"to":"in_progress"');
     // Semantic actor / event time / provenance live in meta.
-    expect(insertSql).toContain('"actor":"alice"');
-    expect(insertSql).toContain('"at":"2026-06-18T01:00:00.000Z"');
-    expect(insertSql).toContain('"source":"ai-agent:user_request"');
+    expect(insertSql).toContain("$4::json");
+    expect(insertSql).toContain("$5::json");
   });
 
   it("is idempotent: the NOT EXISTS guard records nothing when the event already exists", async () => {
@@ -193,8 +209,14 @@ describe("appendStatusChangeEvent", () => {
       actor: "bob",
     });
 
-    const insertSql = lastSql(calls[1]?.init?.body);
-    expect(insertSql).toContain('"source":null');
+    const insertBody = sqlRequestBody(calls[1]);
+    expect(insertBody.params).toContain(
+      JSON.stringify({
+        actor: "bob",
+        at: "2026-06-18T02:00:00.000Z",
+        source: null,
+      }),
+    );
   });
 });
 
@@ -253,10 +275,11 @@ describe("listIssueActivity", () => {
       source: null,
     });
 
-    const sql = lastSql(calls[0]?.init?.body);
-    expect(sql).toContain(`FROM ${REEF_ACTIVITY_TABLE}`);
-    expect(sql).toContain("reef_id = 'REEF-063'");
-    expect(sql).toContain("ORDER BY meta->>'at' ASC, id ASC");
+    const body = sqlRequestBody(calls[0]);
+    expect(body.sql).toContain(`FROM ${REEF_ACTIVITY_TABLE}`);
+    expect(body.sql).toContain("reef_id = $1");
+    expect(body.sql).toContain("ORDER BY meta->>'at' ASC, id ASC");
+    expect(body.params).toEqual(["REEF-063"]);
   });
 
   it("returns an empty history for an unprovisioned vault (no reconcile)", async () => {

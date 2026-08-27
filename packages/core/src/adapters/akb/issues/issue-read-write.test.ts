@@ -85,7 +85,8 @@ describe("readIssue", () => {
     expect(calls[1]?.url).toContain("/api/v1/tables/reef-sample/sql");
     const sqlBody = JSON.parse(calls[1]?.init?.body as string);
     expect(sqlBody.sql).toContain("FROM reef_issues");
-    expect(sqlBody.sql).toContain("reef_id = 'REEF-001'");
+    expect(sqlBody.sql).toContain("reef_id = $1");
+    expect(sqlBody.params).toEqual(["REEF-001"]);
     expect(
       (calls[0]?.init?.headers as Record<string, string>).Authorization,
     ).toBe("Bearer jwt.example.token");
@@ -276,19 +277,37 @@ describe("writeIssue", () => {
 
     const insertCall = calls[1];
     expect(insertCall?.url).toContain("/api/v1/tables/reef-sample/sql");
-    const insertSql = JSON.parse(insertCall?.init?.body as string).sql;
+    const insertBody = JSON.parse(insertCall?.init?.body as string);
+    const insertSql = insertBody.sql;
     expect(insertSql).toContain("INSERT INTO reef_issues");
-    expect(insertSql).toContain(
-      "akb://reef-sample/doc/issues/reef-001-fix-the-login-flow.md",
+    expect(insertSql).toContain("VALUES ($1, $2");
+    expect(insertSql).not.toContain("akb://reef-sample/doc/issues/reef-001");
+    expect(insertBody.params).toEqual(
+      expect.arrayContaining([
+        "akb://reef-sample/doc/issues/reef-001-fix-the-login-flow.md",
+        "REEF-001",
+        "todo",
+        "high",
+      ]),
     );
-    expect(insertSql).toContain("'REEF-001'");
-    expect(insertSql).toContain("'todo'");
-    expect(insertSql).toContain("'high'");
     expect(insertSql).toContain('"issue_type"');
-    expect(insertSql).toContain("'task'");
+    expect(insertSql).not.toContain("'task'");
     // Semantic actors land in meta json, not akb-native columns.
-    expect(insertSql).toContain('"author":"alice"');
-    expect(insertSql).toContain('"last_editor":"bob"');
+    expect(insertBody.params).toContain(
+      JSON.stringify({
+        author: "alice",
+        last_editor: "bob",
+        source: "ai-action",
+        last_status_change: null,
+        external_refs: null,
+        implementation_refs: null,
+        watchers: null,
+        reviewers: null,
+        qa_owner: null,
+        custom_fields: null,
+        mention_recipients: [],
+      }),
+    );
   });
 
   it("derives create-time mention recipients from the roster and ignores client metadata", async () => {
@@ -320,13 +339,24 @@ describe("writeIssue", () => {
     });
 
     expect(result.issue.mention_recipients).toEqual(["Ada Lovelace", "alice"]);
-    const rowSql = JSON.parse(String(calls[2]?.init?.body)).sql as string;
-    expect(rowSql).toContain('"mention_recipients":["Ada Lovelace","alice"]');
-    const eventSql = JSON.parse(String(calls[4]?.init?.body)).sql as string;
-    expect(eventSql).toContain("issue_body_mentions_change:abc1234");
-    expect(eventSql).toContain('"added":["Ada Lovelace","alice"]');
-    expect(eventSql).toContain('"removed":[]');
-    expect(eventSql).toContain('"document_commit":"abc1234"');
+    const rowBody = JSON.parse(String(calls[2]?.init?.body));
+    expect(rowBody.sql).toContain("VALUES");
+    expect(rowBody.params).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining(
+          '"mention_recipients":["Ada Lovelace","alice"]',
+        ),
+      ]),
+    );
+    const eventBody = JSON.parse(String(calls[4]?.init?.body));
+    expect(eventBody.params).toEqual(
+      expect.arrayContaining([
+        "issue_body_mentions_change:abc1234",
+        expect.stringContaining('"added":["Ada Lovelace","alice"]'),
+        expect.stringContaining('"removed":[]'),
+        expect.stringContaining('"document_commit":"abc1234"'),
+      ]),
+    );
   });
 
   it("compensates by deleting the document when the row INSERT fails", async () => {

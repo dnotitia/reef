@@ -26,8 +26,7 @@ import {
   ensureReefTables,
   isMissingTableError,
   quoteIdent,
-  quoteJson,
-  quoteText,
+  SqlParameterBuilder,
   runSql,
   tableRef,
   withSpan,
@@ -114,13 +113,15 @@ export async function listComments(
     async (span) => {
       let rows: Record<string, unknown>[];
       try {
+        const sqlParams = new SqlParameterBuilder();
         const res = await runSql(
           adapter,
           vault,
-          `SELECT * FROM ${tableRef(REEF_COMMENTS_TABLE)} WHERE reef_id = ${quoteText(
+          `SELECT * FROM ${tableRef(REEF_COMMENTS_TABLE)} WHERE reef_id = ${sqlParams.add(
             reefId,
             "comment reef_id",
           )} ORDER BY meta->>'created_at' ASC, id ASC`,
+          sqlParams.params,
         );
         rows = res.kind === "table_query" ? res.items : [];
       } catch (err) {
@@ -207,34 +208,25 @@ export async function createComment(
         parent_comment_id: null,
         thread_root_id: null,
       };
-      const fields: Array<[string, string]> = [
-        ["reef_id", quoteText(reefId, "comment reef_id")],
-        ["body", quoteText(body, "comment body")],
-        ["meta", quoteJson(meta)],
-      ];
-      const columns = fields
-        .map(([c]) => c)
-        .map(quoteIdent)
-        .join(", ");
-      const values = fields.map(([, v]) => v).join(", ");
-      const issueGuard = `SELECT reef_id FROM ${tableRef(
-        REEF_ISSUES_TABLE,
-      )} WHERE reef_id = ${quoteText(reefId, "comment reef_id")} LIMIT 1`;
+      const sqlParams = new SqlParameterBuilder();
       const idempotencyKey =
         typeof metadata.jira_idempotency_key === "string"
           ? metadata.jira_idempotency_key
           : null;
-      const claimCtes = idempotencyKey
-        ? `claim_lock AS (SELECT pg_advisory_xact_lock(hashtextextended(${quoteText(
-            idempotencyKey,
-            "comment idempotency key",
-          )}, 0))), existing AS (SELECT comment.* FROM ${tableRef(
-            REEF_COMMENTS_TABLE,
-          )} comment CROSS JOIN claim_lock WHERE comment.meta->>'jira_idempotency_key' = ${quoteText(
-            idempotencyKey,
-            "comment idempotency key",
-          )} LIMIT 1), `
-        : "";
+      let claimCtes = "";
+      if (idempotencyKey) {
+        const idempotencyParam = sqlParams.add(
+          idempotencyKey,
+          "comment idempotency key",
+        );
+        claimCtes = `claim_lock AS (SELECT pg_advisory_xact_lock(hashtextextended(${idempotencyParam}, 0))), existing AS (SELECT comment.* FROM ${tableRef(
+          REEF_COMMENTS_TABLE,
+        )} comment CROSS JOIN claim_lock WHERE comment.meta->>'jira_idempotency_key' = ${idempotencyParam} LIMIT 1), `;
+      }
+      const reefIdParam = sqlParams.add(reefId, "comment reef_id");
+      const issueGuard = `SELECT reef_id FROM ${tableRef(
+        REEF_ISSUES_TABLE,
+      )} WHERE reef_id = ${reefIdParam} LIMIT 1`;
       const resultSelection = idempotencyKey
         ? "SELECT * FROM ins UNION ALL SELECT * FROM existing LIMIT 1"
         : "SELECT * FROM ins";
@@ -242,42 +234,48 @@ export async function createComment(
         ? " CROSS JOIN claim_lock WHERE NOT EXISTS (SELECT 1 FROM existing)"
         : "";
       const sql = parentCommentId
-        ? `WITH RECURSIVE ${claimCtes}target_issue AS (${issueGuard}), direct_parent AS (SELECT * FROM ${tableRef(
-            REEF_COMMENTS_TABLE,
-          )} WHERE id = ${quoteText(
-            parentCommentId,
-            "parent comment id",
-          )} AND reef_id = ${quoteText(
-            reefId,
-            "comment reef_id",
-          )}), reply_target AS (SELECT direct_parent.id::text AS parent_id, CASE WHEN direct_parent.meta->>'parent_comment_id' IS NULL AND direct_parent.meta->>'thread_root_id' IS NULL THEN direct_parent.id::text ELSE direct_parent.meta->>'thread_root_id' END AS root_id FROM direct_parent), parent_chain AS (SELECT direct_parent.id::text AS id, direct_parent.reef_id, direct_parent.meta, 0 AS depth FROM direct_parent UNION ALL SELECT chain_parent.id::text, chain_parent.reef_id, chain_parent.meta, parent_chain.depth + 1 FROM parent_chain JOIN ${tableRef(
-            REEF_COMMENTS_TABLE,
-          )} chain_parent ON chain_parent.id::text = parent_chain.meta->>'parent_comment_id' AND chain_parent.reef_id = ${quoteText(
-            reefId,
-            "comment reef_id",
-          )} WHERE parent_chain.depth < 100), valid_reply AS (SELECT reply_target.parent_id, reply_target.root_id FROM reply_target JOIN ${tableRef(
-            REEF_COMMENTS_TABLE,
-          )} root_comment ON root_comment.id::text = reply_target.root_id AND root_comment.reef_id = ${quoteText(
-            reefId,
-            "comment reef_id",
-          )} WHERE root_comment.meta->>'parent_comment_id' IS NULL AND root_comment.meta->>'thread_root_id' IS NULL AND EXISTS (SELECT 1 FROM parent_chain WHERE parent_chain.id = reply_target.root_id AND parent_chain.meta->>'parent_comment_id' IS NULL AND parent_chain.meta->>'thread_root_id' IS NULL) AND NOT EXISTS (SELECT 1 FROM parent_chain WHERE parent_chain.id <> reply_target.root_id AND (parent_chain.meta->>'parent_comment_id' IS NULL OR parent_chain.meta->>'thread_root_id' IS DISTINCT FROM reply_target.root_id))), ins AS (INSERT INTO ${tableRef(
-            REEF_COMMENTS_TABLE,
-          )} (${quoteIdent("reef_id")}, ${quoteIdent("body")}, ${quoteIdent(
-            "meta",
-          )}) SELECT target_issue.reef_id, ${quoteText(
-            body,
-            "comment body",
-          )}, jsonb_build_object('author', ${quoteText(
-            author,
-            "comment author",
-          )}, 'created_at', ${quoteText(
-            createdAt,
-            "comment created_at",
-          )}, 'edited_at', ${editedAt === null ? "NULL" : quoteText(editedAt, "comment edited_at")}, 'parent_comment_id', valid_reply.parent_id, 'thread_root_id', valid_reply.root_id) || ${quoteJson(metadata)}::jsonb FROM target_issue CROSS JOIN valid_reply${claimJoin} RETURNING *) ${resultSelection}`
-        : `WITH ${claimCtes}target_issue AS (${issueGuard}), ins AS (INSERT INTO ${tableRef(
-            REEF_COMMENTS_TABLE,
-          )} (${columns}) SELECT ${values} FROM target_issue${claimJoin} RETURNING *) ${resultSelection}`;
-      const res = await runSql(adapter, vault, sql);
+        ? (() => {
+            const parentParam = sqlParams.add(
+              parentCommentId,
+              "parent comment id",
+            );
+            const bodyParam = sqlParams.add(body, "comment body");
+            const authorParam = sqlParams.add(author, "comment author");
+            const createdAtParam = sqlParams.add(
+              createdAt,
+              "comment created_at",
+            );
+            const editedAtParam =
+              editedAt === null
+                ? "NULL"
+                : `${sqlParams.add(editedAt, "comment edited_at")}::text`;
+            const metadataParam = sqlParams.addJson(
+              metadata,
+              "comment metadata",
+              "jsonb",
+            );
+            return `WITH RECURSIVE ${claimCtes}target_issue AS (${issueGuard}), direct_parent AS (SELECT * FROM ${tableRef(
+              REEF_COMMENTS_TABLE,
+            )} WHERE id = ${parentParam} AND reef_id = ${reefIdParam}), reply_target AS (SELECT direct_parent.id::text AS parent_id, CASE WHEN direct_parent.meta->>'parent_comment_id' IS NULL AND direct_parent.meta->>'thread_root_id' IS NULL THEN direct_parent.id::text ELSE direct_parent.meta->>'thread_root_id' END AS root_id FROM direct_parent), parent_chain AS (SELECT direct_parent.id::text AS id, direct_parent.reef_id, direct_parent.meta, 0 AS depth FROM direct_parent UNION ALL SELECT chain_parent.id::text, chain_parent.reef_id, chain_parent.meta, parent_chain.depth + 1 FROM parent_chain JOIN ${tableRef(
+              REEF_COMMENTS_TABLE,
+            )} chain_parent ON chain_parent.id::text = parent_chain.meta->>'parent_comment_id' AND chain_parent.reef_id = ${reefIdParam} WHERE parent_chain.depth < 100), valid_reply AS (SELECT reply_target.parent_id, reply_target.root_id FROM reply_target JOIN ${tableRef(
+              REEF_COMMENTS_TABLE,
+            )} root_comment ON root_comment.id::text = reply_target.root_id AND root_comment.reef_id = ${reefIdParam} WHERE root_comment.meta->>'parent_comment_id' IS NULL AND root_comment.meta->>'thread_root_id' IS NULL AND EXISTS (SELECT 1 FROM parent_chain WHERE parent_chain.id = reply_target.root_id AND parent_chain.meta->>'parent_comment_id' IS NULL AND parent_chain.meta->>'thread_root_id' IS NULL) AND NOT EXISTS (SELECT 1 FROM parent_chain WHERE parent_chain.id <> reply_target.root_id AND (parent_chain.meta->>'parent_comment_id' IS NULL OR parent_chain.meta->>'thread_root_id' IS DISTINCT FROM reply_target.root_id))), ins AS (INSERT INTO ${tableRef(
+              REEF_COMMENTS_TABLE,
+            )} (${quoteIdent("reef_id")}, ${quoteIdent("body")}, ${quoteIdent(
+              "meta",
+            )}) SELECT target_issue.reef_id, ${bodyParam}, jsonb_build_object('author', ${authorParam}::text, 'created_at', ${createdAtParam}::text, 'edited_at', ${editedAtParam}, 'parent_comment_id', valid_reply.parent_id, 'thread_root_id', valid_reply.root_id) || ${metadataParam} FROM target_issue CROSS JOIN valid_reply${claimJoin} RETURNING *) ${resultSelection}`;
+          })()
+        : (() => {
+            const bodyParam = sqlParams.add(body, "comment body");
+            const metaParam = sqlParams.addJson(meta, "comment meta");
+            return `WITH ${claimCtes}target_issue AS (${issueGuard}), ins AS (INSERT INTO ${tableRef(
+              REEF_COMMENTS_TABLE,
+            )} (${quoteIdent("reef_id")}, ${quoteIdent("body")}, ${quoteIdent(
+              "meta",
+            )}) SELECT ${reefIdParam}, ${bodyParam}, ${metaParam} FROM target_issue${claimJoin} RETURNING *) ${resultSelection}`;
+          })();
+      const res = await runSql(adapter, vault, sql, sqlParams.params);
       const row = res.kind === "table_query" ? res.items[0] : undefined;
       if (!row) {
         throw parentCommentId
@@ -369,33 +367,35 @@ export async function updateComment(
             mention_recipients: mentionRecipients,
           }
         : null;
+      const sqlParams = new SqlParameterBuilder();
+      const bodyParam = sqlParams.add(body, "comment body");
       const metaUpdate = preservedMetadata
-        ? `meta::jsonb || ${quoteJson(preservedMetadata)}::jsonb`
-        : `(jsonb_set(meta::jsonb, '{edited_at}', to_jsonb(${quoteText(
+        ? `meta::jsonb || ${sqlParams.addJson(
+            preservedMetadata,
+            "comment metadata",
+            "jsonb",
+          )}`
+        : `(jsonb_set(meta::jsonb, '{edited_at}', to_jsonb(${sqlParams.add(
             editedAt,
             "comment edited_at",
-          )}::text)) || ${quoteJson({ mention_recipients: mentionRecipients })}::jsonb)`;
+          )}::text)) || ${sqlParams.addJson(
+            { mention_recipients: mentionRecipients },
+            "comment mention metadata",
+            "jsonb",
+          )})`;
       const metaAssignment = preservedMetadata
         ? `(${metaUpdate})::json`
         : `${metaUpdate}::json`;
+      const commentIdParam = sqlParams.add(commentId, "comment id");
+      const reefIdParam = sqlParams.add(reefId, "comment reef_id");
+      const editorParam = sqlParams.add(editor, "comment editor");
       const res = await runSql(
         adapter,
         vault,
         `WITH upd AS (UPDATE ${tableRef(
           REEF_COMMENTS_TABLE,
-        )} SET body = ${quoteText(
-          body,
-          "comment body",
-        )}, meta = ${metaAssignment} WHERE id = ${quoteText(
-          commentId,
-          "comment id",
-        )} AND reef_id = ${quoteText(
-          reefId,
-          "comment reef_id",
-        )} AND meta->>'author' = ${quoteText(
-          editor,
-          "comment editor",
-        )} RETURNING *) SELECT * FROM upd`,
+        )} SET body = ${bodyParam}, meta = ${metaAssignment} WHERE id = ${commentIdParam} AND reef_id = ${reefIdParam} AND meta->>'author' = ${editorParam} RETURNING *) SELECT * FROM upd`,
+        sqlParams.params,
       );
       const row = res.kind === "table_query" ? res.items[0] : undefined;
       if (!row) {
@@ -425,36 +425,23 @@ export async function deleteComment(
     { vault, reef_id: reefId, comment_id: commentId },
     async (span) => {
       await ensureReefTables({ adapter, vault });
+      const sqlParams = new SqlParameterBuilder();
+      const targetIdParam = sqlParams.add(commentId, "comment id");
+      const targetReefParam = sqlParams.add(reefId, "comment reef_id");
+      const actorParam = sqlParams.add(actor, "comment actor");
       const result = await runSql(
         adapter,
         vault,
         `WITH RECURSIVE target AS (SELECT id FROM ${tableRef(
           REEF_COMMENTS_TABLE,
-        )} WHERE id = ${quoteText(
-          commentId,
-          "comment id",
-        )} AND reef_id = ${quoteText(
-          reefId,
-          "comment reef_id",
-        )} AND meta->>'author' = ${quoteText(
-          actor,
-          "comment actor",
-        )}), descendants AS (SELECT id FROM target UNION SELECT child.id FROM ${tableRef(
+        )} WHERE id = ${targetIdParam} AND reef_id = ${targetReefParam} AND meta->>'author' = ${actorParam}), descendants AS (SELECT id FROM target UNION SELECT child.id FROM ${tableRef(
           REEF_COMMENTS_TABLE,
-        )} child JOIN descendants parent ON child.meta->>'parent_comment_id' = parent.id::text WHERE child.reef_id = ${quoteText(
-          reefId,
-          "comment reef_id",
-        )}), deleted_notifications AS (DELETE FROM ${tableRef(
+        )} child JOIN descendants parent ON child.meta->>'parent_comment_id' = parent.id::text WHERE child.reef_id = ${targetReefParam}), deleted_notifications AS (DELETE FROM ${tableRef(
           REEF_NOTIFICATIONS_TABLE,
-        )} WHERE reef_id = ${quoteText(
-          reefId,
-          "notification reef_id",
-        )} AND source_type = 'comment' AND source_ref IN (SELECT id::text FROM descendants) RETURNING source_ref), deleted_comments AS (DELETE FROM ${tableRef(
+        )} WHERE reef_id = ${targetReefParam} AND source_type = 'comment' AND source_ref IN (SELECT id::text FROM descendants) RETURNING source_ref), deleted_comments AS (DELETE FROM ${tableRef(
           REEF_COMMENTS_TABLE,
-        )} WHERE reef_id = ${quoteText(
-          reefId,
-          "comment reef_id",
-        )} AND id IN (SELECT id FROM descendants) RETURNING id::text AS id) SELECT id FROM deleted_comments ORDER BY id`,
+        )} WHERE reef_id = ${targetReefParam} AND id IN (SELECT id FROM descendants) RETURNING id::text AS id) SELECT id FROM deleted_comments ORDER BY id`,
+        sqlParams.params,
       );
       const deletedIds =
         result.kind === "table_query"
@@ -527,26 +514,26 @@ export async function reconcileJiraImportedComment(
         jira_idempotency_key: input.idempotencyKey,
         mention_recipients: mentionRecipients,
       };
+      const sqlParams = new SqlParameterBuilder();
+      const bodyParam = sqlParams.add(input.body, "comment body");
+      const metadataParam = sqlParams.addJson(
+        migrationMeta,
+        "comment migration metadata",
+        "jsonb",
+      );
+      const commentIdParam = sqlParams.add(input.commentId, "comment id");
+      const reefIdParam = sqlParams.add(input.reefId, "comment reef_id");
+      const idempotencyParam = sqlParams.add(
+        input.idempotencyKey,
+        "comment idempotency key",
+      );
       const res = await runSql(
         adapter,
         vault,
         `WITH upd AS (UPDATE ${tableRef(
           REEF_COMMENTS_TABLE,
-        )} SET body = ${quoteText(
-          input.body,
-          "comment body",
-        )}, meta = (meta::jsonb || ${quoteJson(
-          migrationMeta,
-        )}::jsonb)::json WHERE id = ${quoteText(
-          input.commentId,
-          "comment id",
-        )} AND reef_id = ${quoteText(
-          input.reefId,
-          "comment reef_id",
-        )} AND meta->>'jira_idempotency_key' = ${quoteText(
-          input.idempotencyKey,
-          "comment idempotency key",
-        )} RETURNING *) SELECT * FROM upd`,
+        )} SET body = ${bodyParam}, meta = (meta::jsonb || ${metadataParam})::json WHERE id = ${commentIdParam} AND reef_id = ${reefIdParam} AND meta->>'jira_idempotency_key' = ${idempotencyParam} RETURNING *) SELECT * FROM upd`,
+        sqlParams.params,
       );
       const row = res.kind === "table_query" ? res.items[0] : undefined;
       if (!row) {

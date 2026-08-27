@@ -20,6 +20,7 @@ import {
   makeSqlQueryResponse,
   makeSqlRuntimeErrorResponse,
   setupFetch,
+  sqlRequestBody,
   updateIssue,
   writeMultipleIssues,
 } from "../core/akb.testSupport";
@@ -64,11 +65,14 @@ describe("updateIssue", () => {
 
     const updateCall = calls[2];
     expect(updateCall?.url).toContain("/api/v1/tables/reef-sample/sql");
-    const updateSql = JSON.parse(updateCall?.init?.body as string).sql;
-    expect(updateSql).toContain("UPDATE reef_issues SET");
-    expect(updateSql).toContain(`"status" = 'in_progress'`);
-    expect(updateSql).toContain(`"priority" = 'critical'`);
-    expect(updateSql).toContain(`WHERE reef_id = 'REEF-001'`);
+    const updateBody = sqlRequestBody(updateCall);
+    expect(updateBody.sql).toContain("UPDATE reef_issues SET");
+    expect(updateBody.sql).toContain('"status" = $2');
+    expect(updateBody.sql).toContain('"priority" = $4');
+    expect(updateBody.sql).toContain("WHERE reef_id = $25");
+    expect(updateBody.params).toEqual(
+      expect.arrayContaining(["in_progress", "critical", "REEF-001"]),
+    );
   });
 
   it("PATCHes the document and updates the row when the body changes", async () => {
@@ -102,8 +106,9 @@ describe("updateIssue", () => {
       "/api/v1/documents/reef-sample/issues/reef-001.md",
     );
 
-    const updateSql = JSON.parse(calls[3]?.init?.body as string).sql;
-    expect(updateSql).toContain(`"status" = 'done'`);
+    const updateBody = sqlRequestBody(calls[3]);
+    expect(updateBody.sql).toContain('"status" = $2');
+    expect(updateBody.params).toContain("done");
   });
 
   it("propagates NotFoundError from the read phase", async () => {
@@ -151,20 +156,30 @@ describe("updateIssue", () => {
     const updateSql = JSON.parse(calls[2]?.init?.body as string).sql;
     expect(updateSql.startsWith("UPDATE reef_issues SET")).toBe(true);
 
-    const insertSql = JSON.parse(calls[4]?.init?.body as string).sql;
-    expect(insertSql).toContain(`INSERT INTO ${REEF_ACTIVITY_TABLE}`);
-    expect(insertSql).toContain("'status_change'");
-    expect(insertSql).toContain(
-      "'status_change:todo->in_progress@2026-06-18T10:00:00.000Z'",
+    const insertBody = sqlRequestBody(calls[4]);
+    expect(insertBody.sql).toContain(`INSERT INTO ${REEF_ACTIVITY_TABLE}`);
+    expect(insertBody.params).toEqual(
+      expect.arrayContaining([
+        "status_change",
+        "status_change:todo->in_progress@2026-06-18T10:00:00.000Z",
+        JSON.stringify({ from: "todo", to: "in_progress" }),
+        JSON.stringify({
+          actor: "carol",
+          at: "2026-06-18T10:00:00.000Z",
+          source: null,
+        }),
+      ]),
     );
-    expect(insertSql).toContain('"from":"todo"');
-    expect(insertSql).toContain('"to":"in_progress"');
-    expect(insertSql).toContain('"actor":"carol"');
-    expect(insertSql).toContain('"at":"2026-06-18T10:00:00.000Z"');
     // Provenance is this update's source (none here → null), NOT the issue's
     // stale stored source ("ai-action" on the read row).
-    expect(insertSql).toContain('"source":null');
-    expect(insertSql).not.toContain("ai-action");
+    expect(insertBody.params).toContain(
+      JSON.stringify({
+        actor: "carol",
+        at: "2026-06-18T10:00:00.000Z",
+        source: null,
+      }),
+    );
+    expect(insertBody.sql).not.toContain("ai-action");
   });
 
   // The update's own provenance is recorded when supplied (approve/scan path),
@@ -190,10 +205,17 @@ describe("updateIssue", () => {
       },
     });
 
-    const insertSql = JSON.parse(calls[4]?.init?.body as string).sql;
-    expect(insertSql).toContain('"from":"todo"');
-    expect(insertSql).toContain('"to":"done"');
-    expect(insertSql).toContain('"source":"ai-agent:status_change:s-1"');
+    const insertBody = sqlRequestBody(calls[4]);
+    expect(insertBody.params).toContain(
+      JSON.stringify({ from: "todo", to: "done" }),
+    );
+    expect(insertBody.params).toContain(
+      JSON.stringify({
+        actor: "carol",
+        at: "2026-06-18T11:00:00.000Z",
+        source: "ai-agent:status_change:s-1",
+      }),
+    );
   });
 
   // A genuine transition is logged even when the patch's last_status_change
@@ -231,9 +253,8 @@ describe("updateIssue", () => {
     });
     // The event is recorded despite the repeated timestamp.
     expect(calls).toHaveLength(5);
-    const insertSql = JSON.parse(calls[4]?.init?.body as string).sql;
-    expect(insertSql).toContain(
-      "'status_change:todo->in_review@2026-06-18T09:00:00.000Z'",
+    expect(sqlRequestBody(calls[4]).params).toContain(
+      "status_change:todo->in_review@2026-06-18T09:00:00.000Z",
     );
   });
 
@@ -319,25 +340,39 @@ describe("updateIssue", () => {
     expect(result.issue.assigned_to).toBe("bob");
     expect(calls).toHaveLength(8);
 
-    const assigneeSql = JSON.parse(calls[4]?.init?.body as string).sql;
-    expect(assigneeSql).toContain(`INSERT INTO ${REEF_ACTIVITY_TABLE}`);
-    expect(assigneeSql).toContain("'assignee_change'");
-    expect(assigneeSql).toContain(
-      "'assignee_change:alice->bob@2026-06-18T12:00:00.000Z'",
+    const assigneeBody = sqlRequestBody(calls[4]);
+    expect(assigneeBody.sql).toContain(`INSERT INTO ${REEF_ACTIVITY_TABLE}`);
+    expect(assigneeBody.params).toEqual(
+      expect.arrayContaining([
+        "assignee_change",
+        "assignee_change:alice->bob@2026-06-18T12:00:00.000Z",
+        JSON.stringify({ from: "alice", to: "bob" }),
+        JSON.stringify({
+          actor: "carol",
+          at: "2026-06-18T12:00:00.000Z",
+          source: "ai-agent:user_request",
+        }),
+      ]),
     );
-    expect(assigneeSql).toContain('"from":"alice"');
-    expect(assigneeSql).toContain('"to":"bob"');
-    expect(assigneeSql).toContain('"actor":"carol"');
-    expect(assigneeSql).toContain('"source":"ai-agent:user_request"');
 
-    const prioritySql = JSON.parse(calls[5]?.init?.body as string).sql;
-    expect(prioritySql).toContain("'priority_change'");
-    expect(prioritySql).toContain(
-      "'priority_change:high->low@2026-06-18T12:00:00.000Z'",
+    const priorityBody = sqlRequestBody(calls[5]);
+    expect(priorityBody.params).toEqual(
+      expect.arrayContaining([
+        "priority_change",
+        "priority_change:high->low@2026-06-18T12:00:00.000Z",
+      ]),
     );
     // Both events carry the same `at` — one save, one moment (AC3).
-    expect(assigneeSql).toContain('"at":"2026-06-18T12:00:00.000Z"');
-    expect(prioritySql).toContain('"at":"2026-06-18T12:00:00.000Z"');
+    expect(assigneeBody.params).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('"at":"2026-06-18T12:00:00.000Z"'),
+      ]),
+    );
+    expect(priorityBody.params).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('"at":"2026-06-18T12:00:00.000Z"'),
+      ]),
+    );
   });
 
   // The field-change funnel is gated on a stamped `updated_at` (the web/agent
@@ -410,9 +445,10 @@ describe("deleteIssue", () => {
     const adapter = makeAdapter();
     await deleteIssue({ adapter, vault: "reef-sample", id: "REEF-001" });
     expect(calls).toHaveLength(3);
-    const deleteSql = JSON.parse(calls[1]?.init?.body as string).sql;
-    expect(deleteSql).toContain("DELETE FROM reef_issues");
-    expect(deleteSql).toContain(`WHERE reef_id = 'REEF-001'`);
+    const deleteBody = sqlRequestBody(calls[1]);
+    expect(deleteBody.sql).toContain("DELETE FROM reef_issues");
+    expect(deleteBody.sql).toContain("WHERE reef_id = $1");
+    expect(deleteBody.params).toEqual(["REEF-001"]);
     expect(calls[2]?.init?.method).toBe("DELETE");
     expect(calls[2]?.url).toContain(
       "/api/v1/documents/reef-sample/issues/reef-001.md",
@@ -445,9 +481,9 @@ describe("deleteIssue", () => {
       deleteIssue({ adapter, vault: "reef-sample", id: "REEF-001" }),
     ).rejects.toBeInstanceOf(AkbApiError);
     expect(calls).toHaveLength(4);
-    const restoreSql = JSON.parse(calls[3]?.init?.body as string).sql;
-    expect(restoreSql).toContain("INSERT INTO reef_issues");
-    expect(restoreSql).toContain("'REEF-001'");
+    const restoreBody = sqlRequestBody(calls[3]);
+    expect(restoreBody.sql).toContain("INSERT INTO reef_issues");
+    expect(restoreBody.params).toContain("REEF-001");
   });
 });
 

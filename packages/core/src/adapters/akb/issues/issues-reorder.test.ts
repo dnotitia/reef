@@ -91,10 +91,14 @@ describe("reorderIssue (REEF-570)", () => {
     });
 
     expect(result.assignments).toEqual([{ id: "REEF-003", rank: 1500 }]);
-    const sql = String(bodyOf(calls[1]).sql);
+    const updateBody = bodyOf(calls[1]);
+    const sql = String(updateBody.sql);
     expect(sql).toContain('SET "rank" = CASE "reef_id"');
-    expect(sql).toContain("WHEN 'REEF-003' THEN 1500");
+    expect(sql).toContain("WHEN $1 THEN $2");
     expect(sql).toContain("IS DISTINCT FROM");
+    expect(updateBody.params).toEqual(
+      expect.arrayContaining(["REEF-003", 1500, "carol"]),
+    );
     expect(String(bodyOf(calls[0]).sql)).toContain("ORDER BY");
   });
 
@@ -162,7 +166,9 @@ describe("reorderIssue (REEF-570)", () => {
       at: "2026-05-02T00:00:00.000Z",
     });
 
-    expect(String(bodyOf(calls[1]).sql)).toContain("THEN 4000");
+    const updateBody = bodyOf(calls[1]);
+    expect(String(updateBody.sql)).toContain("THEN $2");
+    expect(updateBody.params).toContain(4000);
   });
 
   it("applies a Board group change and rank in the same SQL update", async () => {
@@ -209,10 +215,14 @@ describe("reorderIssue (REEF-570)", () => {
       at: "2026-05-02T00:00:00.000Z",
     });
 
-    const sql = String(bodyOf(calls[1]).sql);
+    const updateBody = bodyOf(calls[1]);
+    const sql = String(updateBody.sql);
     expect(sql).toContain('"rank" = CASE "reef_id"');
     expect(sql).toContain('"priority" = CASE "reef_id"');
-    expect(sql).toContain("THEN 'high'");
+    expect(sql).toContain("THEN $4");
     expect(sql).toContain('"meta" =');
+    expect(updateBody.params).toEqual(
+      expect.arrayContaining(["REEF-003", 1500, "high", "carol"]),
+    );
   });
 });

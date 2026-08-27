@@ -25,6 +25,16 @@ export interface CommentMentionOptions {
   cacheFingerprint?: string;
 }
 
+/**
+ * CommonMark renders a consecutive `\\` run as one literal backslash. Comment
+ * bodies preserve the authored run, so double only runs of two or more before
+ * handing the source to the Markdown renderer. A single `\\@` remains the
+ * existing ordinary-mention escape.
+ */
+export function preserveCommentBackslashRuns(value: string): string {
+  return value.replace(/\\{2,}/g, (run) => run + run);
+}
+
 const MARKDOWN_ESCAPABLE = new Set([
   "!",
   '"',

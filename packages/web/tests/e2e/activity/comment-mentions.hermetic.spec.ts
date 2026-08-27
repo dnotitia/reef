@@ -113,6 +113,75 @@ test.describe("Comment mentions (REEF-452)", () => {
     expect(accessibleText).toContain("@Bob Smith");
   });
 
+  test("preserves consecutive backslashes through visible comment create, edit, and reopen", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues/REEF-001");
+
+    const original = String.raw`댓글 ' \\ 한글 🧪`;
+    const composer = page.getByRole("textbox", {
+      name: "Add a comment",
+      exact: true,
+    });
+    await composer.fill(original);
+    const createResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname.endsWith("/comments") &&
+        response.request().method() === "POST",
+    );
+    await page
+      .getByRole("button", { name: "Comment", exact: true })
+      .last()
+      .click();
+    const created = await createResponse;
+    expect(created.ok()).toBeTruthy();
+    expect((await created.json()).comment.body).toBe(original);
+
+    const thread = page.getByTestId("comment-thread").last();
+    await expect(thread.getByText(original, { exact: true })).toBeVisible();
+    await thread
+      .getByRole("button", { name: "Edit comment", exact: true })
+      .click();
+
+    const edited = String.raw`수정 댓글 ' \\ 한글 🚀`;
+    const editDraft = page.getByRole("textbox", {
+      name: "Comment draft",
+      exact: true,
+    });
+    await expect(editDraft).toHaveValue(original);
+    await editDraft.fill(edited);
+    const updateResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname.includes("/comments/") &&
+        response.request().method() === "PATCH",
+    );
+    await thread.getByRole("button", { name: "Save", exact: true }).click();
+    const updated = await updateResponse;
+    expect(updated.ok()).toBeTruthy();
+    expect((await updated.json()).comment.body).toBe(edited);
+    await expect(thread.getByText(edited, { exact: true })).toBeVisible();
+
+    await page.reload();
+    const refreshedThread = page
+      .getByTestId("comment-thread")
+      .filter({ hasText: edited })
+      .last();
+    await expect(
+      refreshedThread.getByText(edited, { exact: true }),
+    ).toBeVisible();
+
+    await page.goto("/workspace/reef-e2e/issues");
+    await page.goto("/workspace/reef-e2e/issues/REEF-001");
+    const reopenedThread = page
+      .getByTestId("comment-thread")
+      .filter({ hasText: edited })
+      .last();
+    await expect(
+      reopenedThread.getByText(edited, { exact: true }),
+    ).toBeVisible();
+  });
+
   test("Escape closes autocomplete without dismissing the composer or issue", async ({
     page,
   }) => {

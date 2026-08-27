@@ -10,6 +10,7 @@ import {
   makeSqlQueryResponse,
   makeSqlRuntimeErrorResponse,
   setupFetch,
+  sqlRequestBody,
   uploadIssueAttachment,
 } from "../core/akb.testSupport";
 
@@ -196,9 +197,16 @@ describe("uploadIssueAttachment", () => {
     expect(insertSql).toContain("'source-42'");
     expect(insertSql).toContain("'REEF-349'");
     expect(insertSql).toContain("'akb://reef-sample/issues/file/file-1'");
-    const activitySql = lastSql(calls[8]?.init?.body);
-    expect(activitySql).toContain("'attachment_added'");
-    expect(activitySql).toContain('"attachment_id":"att-1"');
+    const activityBody = sqlRequestBody(calls[8]);
+    expect(activityBody.sql).toContain(
+      'INSERT INTO reef_activity ("reef_id", "event_type", "event_key", "payload", "meta")',
+    );
+    expect(activityBody.params).toContain("attachment_added");
+    expect(activityBody.params).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('"attachment_id":"att-1"'),
+      ]),
+    );
   });
 
   it("returns a compatible idempotent attachment before uploading", async () => {

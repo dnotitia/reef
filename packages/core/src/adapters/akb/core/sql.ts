@@ -3,21 +3,11 @@ import { AkbApiError, SchemaValidationError } from "../../../errors";
 import type { ReefTableName } from "./constants";
 import type { AkbAdapter } from "./http";
 
-// ─── SQL escaping ─────────────────────────────────────────────────────────────
+// ─── SQL values and identifiers ───────────────────────────────────────────────
 //
-// akb exposes a DML SQL endpoint at `POST /api/v1/tables/{vault}/sql`. The
-// endpoint takes a raw string — NO parameter binding — so every value reef
-// hand-writes into a SQL statement should pass through these escape helpers.
-// Layered defenses:
-//
-//   1. Zod validates incoming Config (owner/name regex, github_id integer)
-//      before any value reaches the SQL string.
-//   2. `rejectNul` blocks NUL bytes that Postgres TEXT would refuse anyway.
-//   3. Single-quote escaping via `''` doubling — the just sanctioned Postgres
-//      escape with `standard_conforming_strings = on` (the default).
-//
-// `quoteIdent` is included for completeness even though reef  passes
-// constant identifiers (table/column names from `constants.ts`).
+// akb exposes a DML SQL endpoint at `POST /api/v1/tables/{vault}/sql`. Values
+// use PostgreSQL positional parameters; identifiers still need to be rendered
+// as part of the statement and are handled by `quoteIdent` / `tableRef`.
 
 export const AkbSqlQueryResponseSchema = z.object({
   kind: z.literal("table_query"),
@@ -45,6 +35,99 @@ function rejectNul(value: string, fieldDescriptor: string): void {
     throw new SchemaValidationError({
       issues: [`${fieldDescriptor} must not contain a NUL byte`],
     });
+  }
+}
+
+type SqlScalar = string | number | boolean | null;
+
+function normalizeSqlScalar(
+  value: unknown,
+  fieldDescriptor: string,
+): SqlScalar {
+  if (value == null) return null;
+  if (typeof value === "string") {
+    rejectNul(value, fieldDescriptor);
+    return value;
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new SchemaValidationError({
+        issues: [`${fieldDescriptor} must be a finite number`],
+      });
+    }
+    return value;
+  }
+  if (typeof value === "boolean") return value;
+  throw new SchemaValidationError({
+    issues: [`${fieldDescriptor} must be a SQL scalar value`],
+  });
+}
+
+/** Serialize a JSON/JSONB value while preserving the adapter's validation errors. */
+function serializeJsonValue(
+  value: unknown,
+  fieldDescriptor = "json value",
+): string {
+  let serialized: string | undefined;
+  try {
+    serialized = JSON.stringify(value, (key, nestedValue) => {
+      if (key.length > 0) {
+        rejectNul(key, fieldDescriptor);
+      }
+      if (
+        nestedValue === undefined ||
+        typeof nestedValue === "function" ||
+        typeof nestedValue === "symbol"
+      ) {
+        throw new SchemaValidationError({
+          issues: [`${fieldDescriptor} is not JSON-serializable`],
+        });
+      }
+      if (typeof nestedValue === "number" && !Number.isFinite(nestedValue)) {
+        throw new SchemaValidationError({
+          issues: [`${fieldDescriptor} must contain finite numbers`],
+        });
+      }
+      if (typeof nestedValue === "string") {
+        rejectNul(nestedValue, fieldDescriptor);
+      }
+      return nestedValue;
+    });
+  } catch (err) {
+    if (err instanceof SchemaValidationError) throw err;
+    throw new SchemaValidationError({
+      issues: [`${fieldDescriptor} is not JSON-serializable`],
+    });
+  }
+  if (serialized === undefined) {
+    throw new SchemaValidationError({
+      issues: [`${fieldDescriptor} is not JSON-serializable`],
+    });
+  }
+  return serialized;
+}
+
+/** Build `$1..$n` placeholders and the corresponding validated request values. */
+export class SqlParameterBuilder {
+  private readonly values: SqlScalar[] = [];
+
+  get params(): readonly SqlScalar[] {
+    return this.values;
+  }
+
+  add(value: unknown, fieldDescriptor = "SQL parameter"): string {
+    this.values.push(normalizeSqlScalar(value, fieldDescriptor));
+    return `$${this.values.length}`;
+  }
+
+  addJson(
+    value: unknown,
+    fieldDescriptor = "json value",
+    cast: "json" | "jsonb" = "json",
+  ): string {
+    const serialized = serializeJsonValue(value, fieldDescriptor);
+    this.values.push(serialized);
+    return `$${this.values.length}::${cast}`;
   }
 }
 
@@ -82,13 +165,7 @@ export function quoteNumberOrNull(value: number | null | undefined): string {
 }
 
 export function quoteJson(value: unknown): string {
-  const serialized = JSON.stringify(value);
-  if (serialized === undefined) {
-    throw new SchemaValidationError({
-      issues: ["value is not JSON-serializable"],
-    });
-  }
-  rejectNul(serialized, "json value");
+  const serialized = serializeJsonValue(value);
   return `'${serialized.replace(/'/g, "''")}'::json`;
 }
 
@@ -132,12 +209,29 @@ export async function runSql(
   adapter: AkbAdapter,
   vault: string,
   sql: string,
+  params?: readonly unknown[],
 ): Promise<AkbSqlResponse> {
+  // Keep validation at this boundary because callers may provide raw params;
+  // builder output is validated again when it crosses into the adapter.
+  let normalizedParams: SqlScalar[] | undefined;
+  if (params !== undefined) {
+    if (!Array.isArray(params)) {
+      throw new SchemaValidationError({
+        issues: ["SQL params must be an array"],
+      });
+    }
+    normalizedParams = params.map((value, index) =>
+      normalizeSqlScalar(value, `SQL parameter ${index + 1}`),
+    );
+  }
   const payload = await adapter.request(
     `/api/v1/tables/${encodeURIComponent(vault)}/sql`,
     {
       method: "POST",
-      body: { sql },
+      body:
+        normalizedParams === undefined
+          ? { sql }
+          : { sql, params: normalizedParams },
       resource: `sql on vault ${vault}`,
     },
   );

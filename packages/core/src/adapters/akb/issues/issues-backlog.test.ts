@@ -132,6 +132,16 @@ describe("born-correct backlog rank (REEF-176)", () => {
       .map((c) => String(bodyOf(c).sql));
   }
 
+  function updateBody(calls: FetchCall[]): Record<string, unknown> {
+    const call = calls.find(
+      (candidate) =>
+        candidate.url.includes("/sql") &&
+        String(bodyOf(candidate).sql).startsWith("UPDATE"),
+    );
+    if (!call) throw new Error("expected an issue UPDATE request");
+    return bodyOf(call);
+  }
+
   it("appends a new backlog issue to the manual-order tail on create", async () => {
     const { calls } = setupFetch([
       { body: putResponse("commit-1") }, // POST /documents
@@ -182,7 +192,9 @@ describe("born-correct backlog rank (REEF-176)", () => {
     });
     expect(calls[0]?.url).toContain("/sql");
     expect(String(bodyOf(calls[0]).sql)).toContain("INSERT INTO reef_issues");
-    expect(String(bodyOf(calls[0]).sql)).toContain('"reservation":true');
+    expect(bodyOf(calls[0]).params).toEqual(
+      expect.arrayContaining([expect.stringContaining('"reservation":true')]),
+    );
     expect(String(bodyOf(calls[0]).sql)).toContain('"archived_at"');
     expect(calls[2]?.url).toContain("/documents");
     expect(String(bodyOf(calls[4]).sql)).toContain("UPDATE reef_issues");
@@ -190,9 +202,8 @@ describe("born-correct backlog rank (REEF-176)", () => {
     expect(String(bodyOf(calls[4]).sql)).toContain(
       "'reservation' = 'true'::jsonb",
     );
-    expect(String(bodyOf(calls[4]).sql)).toContain(
-      "updated_at = '2026-05-01T00:00:00.000Z'",
-    );
+    expect(String(bodyOf(calls[4]).sql)).toContain("updated_at = $27");
+    expect(bodyOf(calls[4]).params).toContain("2026-05-01T00:00:00.000Z");
   });
 
   it("claims a migration id without creating a document or relationships", async () => {
@@ -221,7 +232,9 @@ describe("born-correct backlog rank (REEF-176)", () => {
     expect(sql).not.toContain("REEF-099");
     expect(sql).not.toContain("REEF-098");
     expect(sql).toContain('"archived_at"');
-    expect(sql).toContain('"reservation":true');
+    expect(bodyOf(calls[0]).params).toEqual(
+      expect.arrayContaining([expect.stringContaining('"reservation":true')]),
+    );
   });
 
   it("normalizes a foreign-owner issue claim collision to ConflictError", async () => {
@@ -383,11 +396,17 @@ describe("born-correct backlog rank (REEF-176)", () => {
     const update = sqlStatements(calls).find((statement) =>
       statement.startsWith("UPDATE reef_issues"),
     );
-    expect(update).toContain("REEF-098");
-    expect(update).toContain("REEF-097");
-    expect(update).toContain("REEF-096");
-    expect(update).toContain("REEF-099");
-    expect(update).toContain('"rank" = 4096');
+    const updateRequest = updateBody(calls);
+    expect(update).toContain('"depends_on" =');
+    expect(updateRequest.params).toEqual(
+      expect.arrayContaining([
+        JSON.stringify(["REEF-098"]),
+        JSON.stringify(["REEF-097"]),
+        JSON.stringify(["REEF-096"]),
+        "REEF-099",
+        4096,
+      ]),
+    );
     expect(calls[4]?.init?.method).toBe("POST");
   });
 
@@ -524,7 +543,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
     });
     const update = sqlStatements(calls).find((s) => s.startsWith("UPDATE"));
     expect(update).not.toContain("COALESCE(MAX");
-    expect(update).toContain('"rank" = 3000');
+    expect(updateBody(calls).params).toContain(3000);
   });
 
   it("does not re-rank an edit made while already in the backlog", async () => {
@@ -545,6 +564,6 @@ describe("born-correct backlog rank (REEF-176)", () => {
     });
     const update = sqlStatements(calls).find((s) => s.startsWith("UPDATE"));
     expect(update).not.toContain("COALESCE(MAX");
-    expect(update).toContain('"rank" = 5000');
+    expect(updateBody(calls).params).toContain(5000);
   });
 });
