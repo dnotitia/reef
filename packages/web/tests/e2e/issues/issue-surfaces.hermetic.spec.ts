@@ -690,13 +690,59 @@ test.describe("Hermetic issue route surfaces", () => {
         await expect(scroll).toBeVisible();
         const scrollGeometry = await scroll.evaluate((element) => {
           const root = element as HTMLElement;
+          const describe = (candidate: Element | null) => {
+            if (!candidate) return null;
+            const computed = getComputedStyle(candidate);
+            const rect = candidate.getBoundingClientRect();
+            return {
+              tag: candidate.tagName,
+              className: candidate.className,
+              inlineStyle: candidate.getAttribute("style"),
+              width: computed.width,
+              minWidth: computed.minWidth,
+              tableLayout: computed.tableLayout,
+              overflow: computed.overflow,
+              rect: {
+                left: rect.left,
+                right: rect.right,
+                width: rect.width,
+              },
+              offsetWidth:
+                candidate instanceof HTMLElement ? candidate.offsetWidth : null,
+              scrollWidth:
+                candidate instanceof HTMLElement ? candidate.scrollWidth : null,
+            };
+          };
           return {
             hasOverflow: root.scrollWidth > root.clientWidth,
             documentOverflow:
               document.documentElement.scrollWidth >
               document.documentElement.clientWidth,
+            debug: {
+              viewport: {
+                innerWidth: window.innerWidth,
+                documentClientWidth: document.documentElement.clientWidth,
+              },
+              scrollport: describe(root),
+              tables: Array.from(root.querySelectorAll("table"), describe),
+              tableContainers: Array.from(
+                root.querySelectorAll('[data-slot="table-container"]'),
+                describe,
+              ),
+              columns: Array.from(
+                root.querySelectorAll(
+                  "table col[data-column-key], table tbody td[data-column-key]",
+                ),
+                describe,
+              ).slice(0, 24),
+            },
           };
         });
+        if (!scrollGeometry.hasOverflow && viewport.width === 414) {
+          console.log(
+            `[DEBUG-REEF581-SCROLL] view=${view} scope=${scope} ${JSON.stringify(scrollGeometry.debug)}`,
+          );
+        }
         expect(
           scrollGeometry.hasOverflow,
           `${view} ${viewport.width}px scroll`,
