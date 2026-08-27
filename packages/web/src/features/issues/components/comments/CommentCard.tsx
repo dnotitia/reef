@@ -11,7 +11,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { remarkCommentMentions } from "@/lib/markdown/remarkCommentMentions";
+import {
+  preserveCommentBackslashRuns,
+  remarkCommentMentions,
+} from "@/lib/markdown/remarkCommentMentions";
 import { parseAkbDocumentUri } from "@/lib/akb/documentUri";
 import {
   attachmentFileTypeLabel,
@@ -460,7 +463,7 @@ export function CommentCard({
             urlTransform={urlTransform}
             remarkPlugins={remarkPlugins}
           >
-            {comment.body}
+            {preserveCommentBackslashRuns(comment.body)}
           </Streamdown>
         )}
       </div>

@@ -885,3 +885,78 @@ describe("reconcileJiraImportedComment", () => {
     expect(calls).toHaveLength(0);
   });
 });
+
+describe("comment body parameter binding", () => {
+  it("passes consecutive backslashes unchanged through create and update params", async () => {
+    const original = String.raw`댓글 ' \\ 한글 🧪`;
+    const edited = String.raw`수정 댓글 ' \\ 한글 🚀`;
+    const { calls } = setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      {
+        body: makeSqlQueryResponse(
+          [
+            makeCommentRow({
+              id: "new-uuid",
+              body: original,
+              meta: {
+                author: "alice",
+                created_at: "2026-06-18T04:00:00.000Z",
+                edited_at: null,
+              },
+            }),
+          ],
+          COMMENT_ROW_COLUMNS,
+        ),
+      },
+      {
+        body: makeSqlQueryResponse([commenterSubscriptionRow("alice")], ["id"]),
+      },
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      {
+        body: makeSqlQueryResponse(
+          [
+            makeCommentRow({
+              id: "new-uuid",
+              body: edited,
+              meta: {
+                author: "alice",
+                created_at: "2026-06-18T04:00:00.000Z",
+                edited_at: "2026-06-18T05:00:00.000Z",
+              },
+            }),
+          ],
+          COMMENT_ROW_COLUMNS,
+        ),
+      },
+    ]);
+
+    await expect(
+      createComment(
+        makeAdapter(),
+        "reef-sample",
+        "REEF-062",
+        original,
+        "alice",
+        undefined,
+        { createdAt: "2026-06-18T04:00:00.000Z", editedAt: null },
+      ),
+    ).resolves.toMatchObject({ body: original });
+    await expect(
+      updateComment(
+        makeAdapter(),
+        "reef-sample",
+        "REEF-062",
+        "new-uuid",
+        edited,
+        "alice",
+      ),
+    ).resolves.toMatchObject({ body: edited });
+
+    const createRequest = sqlRequestBody(calls[1]);
+    const updateRequest = sqlRequestBody(calls[4]);
+    expect(createRequest.params).toContain(original);
+    expect(updateRequest.params).toContain(edited);
+    expect(createRequest.sql).not.toContain(original);
+    expect(updateRequest.sql).not.toContain(edited);
+  });
+});

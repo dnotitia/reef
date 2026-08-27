@@ -3,9 +3,25 @@
 import { render, waitFor } from "@testing-library/react";
 import { Streamdown } from "streamdown";
 import { describe, expect, it } from "vitest";
-import { remarkCommentMentions } from "./remarkCommentMentions";
+import {
+  preserveCommentBackslashRuns,
+  remarkCommentMentions,
+} from "./remarkCommentMentions";
 
 describe("remarkCommentMentions renderer", () => {
+  it("preserves consecutive authored backslashes in rendered comment text", async () => {
+    const body = String.raw`댓글 ' \\ 한글 🧪`;
+    const { container } = render(
+      <Streamdown mode="static">
+        {preserveCommentBackslashRuns(body)}
+      </Streamdown>,
+    );
+
+    await waitFor(() => {
+      expect(container.textContent).toContain(body);
+    });
+  });
+
   it("survives the real Streamdown mdast-to-hast renderer", async () => {
     const style = document.createElement("style");
     // jsdom does not parse Tailwind v4's @theme/@source directives. Install the

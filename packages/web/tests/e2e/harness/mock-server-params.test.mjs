@@ -5,6 +5,11 @@ import { createRequire } from "node:module";
 import { createServer } from "node:net";
 import { fileURLToPath } from "node:url";
 import { after, before, test } from "node:test";
+import {
+  akbCreateComment,
+  akbUpdateComment,
+  createAkbAdapter,
+} from "@reef/core";
 
 const require = createRequire(import.meta.url);
 const fixtureLogin = require("./fixture-login.json");
@@ -48,7 +53,7 @@ test("mock SQL fixture materializes positional params before its existing parser
     body: { scenario: "configured" },
   });
 
-  const special = "it's \\ 한글😀";
+  const special = String.raw`댓글 ' \\ 한글 🧪`;
   await postSql(
     "INSERT INTO reef_settings (key, value) VALUES ($1, $2::json)",
     ["special_key", JSON.stringify(special)],
@@ -97,6 +102,47 @@ test("mock SQL fixture materializes positional params before its existing parser
     author: "alice",
     mention_recipients: ["한글😀"],
   });
+});
+
+test("preserves consecutive backslashes through production comment create and update SQL", async () => {
+  await requestJson("/__e2e/reset", {
+    method: "POST",
+    body: { scenario: "configured" },
+  });
+  const adapter = createAkbAdapter({
+    baseUrl: `${fixtureUrl}/akb`,
+    jwt: fixtureToken,
+  });
+  const original = String.raw`댓글 ' \\ 한글 🧪`;
+  const created = await akbCreateComment(
+    adapter,
+    "reef-e2e",
+    "REEF-001",
+    original,
+    "alice",
+    undefined,
+    { createdAt: "2026-06-18T04:00:00.000Z", editedAt: null },
+  );
+  assert.equal(created.body, original);
+
+  const edited = String.raw`수정 댓글 ' \\ 한글 🚀`;
+  const updated = await akbUpdateComment(
+    adapter,
+    "reef-e2e",
+    "REEF-001",
+    created.id,
+    edited,
+    "alice",
+  );
+  assert.equal(updated.body, edited);
+
+  const state = await requestJson("/__e2e/state");
+  const vault = state.vaults.find((candidate) => candidate.name === "reef-e2e");
+  assert.ok(vault);
+  assert.equal(
+    vault.comments.find((comment) => comment.id === created.id).body,
+    edited,
+  );
 });
 
 async function reservePort() {
