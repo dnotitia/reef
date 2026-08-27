@@ -20,6 +20,13 @@ explicitly in the entries below.
 
 ### Added
 
+- **The sidebar workspace switcher now supports account-local Favorites.**
+  Favorites are stored in the existing browser IndexedDB `config` key-value
+  store, restored for the same account, removed when access becomes stale or
+  the account changes, and kept separate from URL-owned workspace identity.
+  Search, workspace navigation, keyboard focus, and the pinned New workspace
+  action remain available while favorites are toggled.
+
 - **Issue List and Board sorting now supports ticket numbers.** Numeric issue
   numbers, including values beyond three-digit padding and gaps, use the same
   order across the shared control, keyset pages, and client-rendered views.
@@ -44,6 +51,11 @@ explicitly in the entries below.
   `view=backlog` URL path.
 
 ### Migration
+
+- **No Dexie schema migration is required for workspace Favorites.** The new
+  versioned preference envelope is additive within the existing `config` store;
+  corrupt, unsupported, stale, or unavailable browser values degrade to an
+  empty Favorites preference and do not affect the active workspace.
 
 - **Persisted query cache cleanup now removes empty snapshots after account or
   session invalidation.** Existing non-empty snapshots remain readable; no

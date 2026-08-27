@@ -13,9 +13,14 @@ import {
 } from "@/features/settings/hooks/useActiveVault";
 import { useVaults } from "@/features/settings/hooks/useVaults";
 import { useViewStore } from "@/features/ui/stores/useViewStore";
+import { useWorkspaceFavorites } from "@/features/auth/hooks/useWorkspaceFavorites";
+import {
+  compareWorkspaceNames,
+  isValidWorkspaceFavoriteName,
+} from "@/lib/storage/workspaceFavorites";
 import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
-import { Check, ChevronsUpDown, Plus } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, Star } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -75,16 +80,46 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
-  const reefVaults = useMemo(
-    () => (vaultsQuery.data ?? []).filter((v) => v.has_reef_config),
-    [vaultsQuery.data],
+  const reefVaults = useMemo(() => {
+    const seen = new Set<string>();
+    return (vaultsQuery.data ?? [])
+      .filter(
+        (vault) =>
+          vault.has_reef_config && isValidWorkspaceFavoriteName(vault.name),
+      )
+      .filter((vault) => {
+        const foldedName = vault.name.toLowerCase();
+        if (seen.has(foldedName)) return false;
+        seen.add(foldedName);
+        return true;
+      })
+      .toSorted((left, right) => compareWorkspaceNames(left.name, right.name));
+  }, [vaultsQuery.data]);
+  const reefVaultNames = useMemo(
+    () => reefVaults.map((vault) => vault.name),
+    [reefVaults],
   );
+  const workspaceFavorites = useWorkspaceFavorites(reefVaultNames, {
+    enabled: !vaultsQuery.isPending && !vaultsQuery.isError,
+  });
   const filtered = useMemo(
     () =>
       reefVaults.filter((v) =>
         v.name.toLowerCase().includes(search.trim().toLowerCase()),
       ),
     [reefVaults, search],
+  );
+  const favoriteNames = useMemo(
+    () => new Set(workspaceFavorites.favorites),
+    [workspaceFavorites.favorites],
+  );
+  const favoriteVaults = useMemo(
+    () => filtered.filter((vault) => favoriteNames.has(vault.name)),
+    [favoriteNames, filtered],
+  );
+  const otherVaults = useMemo(
+    () => filtered.filter((vault) => !favoriteNames.has(vault.name)),
+    [favoriteNames, filtered],
   );
 
   const label = activeVault || tw("selectWorkspace");
@@ -120,6 +155,65 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
     setOpen(false);
     setSearch("");
     openCreateWorkspaceDialog();
+  }
+
+  function renderWorkspaceOption(v: (typeof reefVaults)[number]) {
+    const isCurrent = v.name === activeVault;
+    const isFavorite = favoriteNames.has(v.name);
+    const favoriteLabel = isFavorite
+      ? tw("removeFavorite", { name: v.name })
+      : tw("addFavorite", { name: v.name });
+
+    return (
+      <li key={v.name} className="relative">
+        {isCurrent && (
+          <span
+            aria-hidden="true"
+            className="absolute left-0 top-1 bottom-1 w-0.5 rounded-full bg-brand-fill"
+          />
+        )}
+        <div className="flex min-w-0 items-center gap-1">
+          <button
+            type="button"
+            data-testid={`workspace-switcher-option-${v.name}`}
+            aria-current={isCurrent ? "true" : undefined}
+            onClick={() => void handleSelect(v.name)}
+            className={cn(
+              "flex min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[13px] transition-colors hover:bg-surface-hover",
+              isCurrent
+                ? "font-medium text-foreground"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Check
+              aria-hidden="true"
+              className={cn(
+                "size-3.5 shrink-0 text-brand-text",
+                isCurrent ? "opacity-100" : "opacity-0",
+              )}
+            />
+            <span className="min-w-0 truncate" title={v.name}>
+              {v.name}
+            </span>
+          </button>
+          <button
+            type="button"
+            data-testid={`workspace-switcher-favorite-${v.name}`}
+            aria-label={favoriteLabel}
+            aria-pressed={isFavorite}
+            title={favoriteLabel}
+            onClick={() => void workspaceFavorites.toggleFavorite(v.name)}
+            className="inline-flex size-8 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+          >
+            <Star
+              aria-hidden="true"
+              className="size-3.5"
+              fill={isFavorite ? "currentColor" : "none"}
+            />
+          </button>
+        </div>
+      </li>
+    );
   }
 
   return (
@@ -195,6 +289,16 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
             spellCheck={false}
           />
 
+          {workspaceFavorites.hasStorageError && (
+            <p
+              role="alert"
+              data-testid="workspace-switcher-favorites-error"
+              className="mb-2 px-2 text-[11px] text-destructive-text"
+            >
+              {tw("favoritesSaveError")}
+            </p>
+          )}
+
           <ul className="max-h-56 overflow-y-auto">
             {vaultsQuery.isError ? (
               <li
@@ -223,40 +327,24 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
                   : tw("noWorkspacesFound")}
               </li>
             ) : (
-              filtered.map((v) => {
-                const isCurrent = v.name === activeVault;
-                return (
-                  <li key={v.name} className="relative">
-                    {isCurrent && (
-                      <span
-                        aria-hidden="true"
-                        className="absolute left-0 top-1 bottom-1 w-0.5 rounded-full bg-brand-fill"
-                      />
-                    )}
-                    <button
-                      type="button"
-                      data-testid={`workspace-switcher-option-${v.name}`}
-                      aria-current={isCurrent ? "true" : undefined}
-                      onClick={() => void handleSelect(v.name)}
-                      className={cn(
-                        "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-[13px] transition-colors hover:bg-surface-hover",
-                        isCurrent
-                          ? "font-medium text-foreground"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      <Check
-                        aria-hidden="true"
-                        className={cn(
-                          "size-3.5 shrink-0 text-brand-text",
-                          isCurrent ? "opacity-100" : "opacity-0",
-                        )}
-                      />
-                      <span className="truncate">{v.name}</span>
-                    </button>
+              <>
+                {favoriteVaults.length > 0 && (
+                  <li data-testid="workspace-switcher-favorites">
+                    <h3 className="px-2 pb-1 pt-1 text-[11px] font-semibold text-muted-foreground">
+                      {tw("favorites")}
+                    </h3>
+                    <ul>{favoriteVaults.map(renderWorkspaceOption)}</ul>
                   </li>
-                );
-              })
+                )}
+                {otherVaults.length > 0 && (
+                  <li data-testid="workspace-switcher-other">
+                    <h3 className="px-2 pb-1 pt-2 text-[11px] font-semibold text-muted-foreground">
+                      {tw("otherWorkspaces")}
+                    </h3>
+                    <ul>{otherVaults.map(renderWorkspaceOption)}</ul>
+                  </li>
+                )}
+              </>
             )}
           </ul>
 
