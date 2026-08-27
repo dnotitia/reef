@@ -174,6 +174,8 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
         hasText: "Platform foundation",
       }),
     ).toHaveCount(0);
+    await foundationColumn.getByTestId("open-epic-REEF-100").click();
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
 
     await page.goto(`${WORKSPACE}?view=list&group=epic`);
     const listFoundationHeader = page.locator(
