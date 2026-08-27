@@ -32,11 +32,8 @@ import {
   issuePathFor,
   issueRowMutableFields,
   makeIssueResourceLabel,
-  quoteJson,
   quoteIdent,
-  quoteNumberOrNull,
-  quoteText,
-  quoteTextOrNull,
+  SqlParameterBuilder,
   rowToIssue,
   runSql,
   selectIssueRows,
@@ -179,6 +176,22 @@ function mentionRecipientDelta(
   };
 }
 
+async function selectIssueRowsById(
+  adapter: AkbAdapter,
+  vault: string,
+  id: string,
+): Promise<Record<string, unknown>[]> {
+  const params = new SqlParameterBuilder();
+  return selectIssueRows(
+    adapter,
+    vault,
+    `reef_id = ${params.add(id, "reef_id")}`,
+    undefined,
+    undefined,
+    params.params,
+  );
+}
+
 export async function readIssue(
   params: ReadIssueParams,
 ): Promise<ReadIssueResult> {
@@ -192,11 +205,7 @@ export async function readIssue(
       { resource: makeIssueResourceLabel(id) },
     );
     const doc = ensureDocumentResponse(docPayload);
-    const rows = await selectIssueRows(
-      adapter,
-      vault,
-      `reef_id = ${quoteText(id, "reef_id")}`,
-    );
+    const rows = await selectIssueRowsById(adapter, vault, id);
     const row = rows[0];
     if (!row) {
       throw new NotFoundError({ resource: makeIssueResourceLabel(id) });
@@ -242,13 +251,7 @@ export async function writeIssue(
       claimDisposition = await claimIssueIdInternal({ adapter, vault, issue });
     }
     const readCommittedClaimDocument = async () => {
-      const claimed = (
-        await selectIssueRows(
-          adapter,
-          vault,
-          `reef_id = ${quoteText(issue.id, "reef_id")}`,
-        )
-      )[0];
+      const claimed = (await selectIssueRowsById(adapter, vault, issue.id))[0];
       const claimedIssue = claimed ? rowToIssue(claimed) : null;
       const owner = (
         issue.custom_fields?.jira_migration as
@@ -334,13 +337,7 @@ export async function writeIssue(
     // tail (REEF-176); normal user-created issues intentionally begin
     // unranked so they remain at the Manual-order tail until first reorder.
     if (claimFirst) {
-      const existing = (
-        await selectIssueRows(
-          adapter,
-          vault,
-          `reef_id = ${quoteText(issue.id, "reef_id")}`,
-        )
-      )[0];
+      const existing = (await selectIssueRowsById(adapter, vault, issue.id))[0];
       const existingIssue = existing ? rowToIssue(existing) : null;
       claimBeforeIssue = existingIssue;
       const owner = (
@@ -362,32 +359,32 @@ export async function writeIssue(
       ) {
         throw new ConflictError({ path: issueDocumentUri(vault, issue.id) });
       }
+      const rowParams = new SqlParameterBuilder();
+      const rowIssue =
+        issue.rank == null && existingIssue.rank != null
+          ? { ...issue, rank: existingIssue.rank }
+          : issue;
+      const rowFields = issueRowMutableFields(rowIssue, rowParams);
+      const rowIdParam = rowParams.add(issue.id, "reef_id");
+      const ownerParam = rowParams.addJson(
+        existingOwner,
+        "Jira migration owner",
+        "jsonb",
+      );
+      const updatedAtParam = rowParams.add(
+        existingIssue.updated_at,
+        "expected updated_at",
+      );
       await runSql(
         adapter,
         vault,
         `UPDATE ${tableRef(REEF_ISSUES_TABLE)} SET ${buildRowAssignments(
-          issueRowMutableFields(
-            issue,
-            issue.rank == null && existingIssue.rank != null
-              ? { rankExpr: quoteNumberOrNull(existingIssue.rank) }
-              : undefined,
-          ),
-        )} WHERE reef_id = ${quoteText(
-          issue.id,
-          "reef_id",
-        )} AND meta::jsonb->'custom_fields'->'jira_migration'->'owner' = ${quoteJson(
-          existingOwner,
-        )}::jsonb AND archived_at IS NOT NULL AND meta::jsonb->'custom_fields'->'jira_migration'->'reservation' = 'true'::jsonb AND updated_at = ${quoteText(
-          existingIssue.updated_at,
-          "expected updated_at",
-        )}`,
+          rowFields,
+        )} WHERE reef_id = ${rowIdParam} AND meta::jsonb->'custom_fields'->'jira_migration'->'owner' = ${ownerParam} AND archived_at IS NOT NULL AND meta::jsonb->'custom_fields'->'jira_migration'->'reservation' = 'true'::jsonb AND updated_at = ${updatedAtParam}`,
+        rowParams.params,
       );
       const refreshed = (
-        await selectIssueRows(
-          adapter,
-          vault,
-          `reef_id = ${quoteText(issue.id, "reef_id")}`,
-        )
+        await selectIssueRowsById(adapter, vault, issue.id)
       )[0];
       const refreshedIssue = refreshed ? rowToIssue(refreshed) : null;
       const relationKeys = new Set(["depends_on", "blocks", "related_to"]);
@@ -445,13 +442,19 @@ export async function writeIssue(
           source: issue.source ?? null,
         });
       } catch (err) {
+        const compensationParams = new SqlParameterBuilder();
+        const compensationFields = claimBeforeIssue
+          ? issueRowMutableFields(claimBeforeIssue, compensationParams)
+          : [];
+        const compensationIdParam = compensationParams.add(issue.id, "reef_id");
         if (claimFirst && claimBeforeIssue) {
           await runSql(
             adapter,
             vault,
             `UPDATE ${tableRef(REEF_ISSUES_TABLE)} SET ${buildRowAssignments(
-              issueRowMutableFields(claimBeforeIssue),
-            )} WHERE reef_id = ${quoteText(issue.id, "reef_id")}`,
+              compensationFields,
+            )} WHERE reef_id = ${compensationIdParam}`,
+            compensationParams.params,
           ).catch(() => undefined);
           if (claimDisposition === "created") {
             await deleteDocumentQuietly(adapter, vault, put.path);
@@ -460,10 +463,10 @@ export async function writeIssue(
           await runSql(
             adapter,
             vault,
-            `DELETE FROM ${tableRef(REEF_ISSUES_TABLE)} WHERE reef_id = ${quoteText(
-              issue.id,
-              "reef_id",
-            )}`,
+            `DELETE FROM ${tableRef(
+              REEF_ISSUES_TABLE,
+            )} WHERE reef_id = ${compensationIdParam}`,
+            compensationParams.params,
           ).catch(() => undefined);
           await deleteDocumentQuietly(adapter, vault, put.path);
         }
@@ -539,13 +542,7 @@ async function claimIssueIdInternal(
   } catch (error) {
     insertError = error;
   }
-  const existing = (
-    await selectIssueRows(
-      adapter,
-      vault,
-      `reef_id = ${quoteText(issue.id, "reef_id")}`,
-    )
-  )[0];
+  const existing = (await selectIssueRowsById(adapter, vault, issue.id))[0];
   const existingIssue = existing ? rowToIssue(existing) : null;
   const existingOwner = (
     existingIssue?.custom_fields?.jira_migration as
@@ -668,49 +665,42 @@ export async function updateIssue(
       });
     };
     const restoreRowProjection = async (): Promise<void> => {
+      const compensationParams = new SqlParameterBuilder();
+      const compensationFields = issueRowMutableFields(
+        current.issue,
+        compensationParams,
+      );
+      const compensationIdParam = compensationParams.add(id, "reef_id");
       await runSql(
         adapter,
         vault,
         `UPDATE ${tableRef(REEF_ISSUES_TABLE)} SET ${buildRowAssignments(
-          issueRowMutableFields(current.issue),
-        )} WHERE reef_id = ${quoteText(id, "reef_id")}`,
+          compensationFields,
+        )} WHERE reef_id = ${compensationIdParam}`,
+        compensationParams.params,
       );
     };
     try {
-      const rowUpdate = await runSql(
-        adapter,
-        vault,
-        expectedUpdatedAt
-          ? // `updated_at` is an AKB-reserved dynamic-table column: AKB
-            // atomically advances it after every successful UPDATE and rejects
-            // callers that try to assign it directly. The predicate therefore
-            // checks the pre-write token, while the same statement produces the
-            // next token for subsequent OCC callers.
-            `WITH upd AS (UPDATE ${tableRef(
-              REEF_ISSUES_TABLE,
-            )} SET ${buildRowAssignments(
-              issueRowMutableFields(
-                mergedIssue,
-                enteringBacklog
-                  ? { rankExpr: backlogTailRankExpr() }
-                  : undefined,
-              ),
-            )} WHERE reef_id = ${quoteText(
-              id,
-              "reef_id",
-            )} AND updated_at = ${quoteText(
-              expectedUpdatedAt,
-              "expected updated_at",
-            )} RETURNING reef_id) SELECT reef_id FROM upd`
-          : `UPDATE ${tableRef(REEF_ISSUES_TABLE)} SET ${buildRowAssignments(
-              issueRowMutableFields(
-                mergedIssue,
-                enteringBacklog
-                  ? { rankExpr: backlogTailRankExpr() }
-                  : undefined,
-              ),
-            )} WHERE reef_id = ${quoteText(id, "reef_id")}`,
+      const rowParams = new SqlParameterBuilder();
+      const rowFields = issueRowMutableFields(
+        mergedIssue,
+        rowParams,
+        enteringBacklog ? { rankExpr: backlogTailRankExpr() } : undefined,
       );
+      const rowIdParam = rowParams.add(id, "reef_id");
+      const expectedUpdatedAtParam = expectedUpdatedAt
+        ? rowParams.add(expectedUpdatedAt, "expected updated_at")
+        : null;
+      const rowSql = expectedUpdatedAt
+        ? `WITH upd AS (UPDATE ${tableRef(
+            REEF_ISSUES_TABLE,
+          )} SET ${buildRowAssignments(
+            rowFields,
+          )} WHERE reef_id = ${rowIdParam} AND updated_at = ${expectedUpdatedAtParam} RETURNING reef_id) SELECT reef_id FROM upd`
+        : `UPDATE ${tableRef(REEF_ISSUES_TABLE)} SET ${buildRowAssignments(
+            rowFields,
+          )} WHERE reef_id = ${rowIdParam}`;
+      const rowUpdate = await runSql(adapter, vault, rowSql, rowParams.params);
       if (
         expectedUpdatedAt &&
         rowUpdate.kind === "table_query" &&
@@ -770,11 +760,7 @@ export async function updateIssue(
     // carry the real rank instead of the pre-assignment null, upholding the
     // born-correct invariant (REEF-176). fires on demote-into-backlog.
     if (enteringBacklog) {
-      const [row] = await selectIssueRows(
-        adapter,
-        vault,
-        `reef_id = ${quoteText(id, "reef_id")}`,
-      );
+      const [row] = await selectIssueRowsById(adapter, vault, id);
       if (row?.rank != null) {
         mergedIssue.rank = Number(row.rank);
       }
@@ -914,7 +900,7 @@ function mergeIssue(
   // Drop undefined keys so we don't clobber existing fields. Explicit `null`
   // is the "clear this field" sentinel — used by the archive/unarchive flow
   // to clear `archived_at`. We delete the key entirely rather than carry
-  // `null` so the field maps to a SQL NULL via `quoteTextOrNull`.
+  // `null` so the field maps to a SQL NULL via a bound parameter.
   const merged: Record<string, unknown> = { ...current };
   for (const [key, value] of Object.entries(partial)) {
     if (value === undefined) continue;
@@ -932,20 +918,18 @@ export async function deleteIssue(params: DeleteIssueParams): Promise<void> {
   await withSpan("akb.delete_issue", { vault, id }, async () => {
     // Capture the row first so we can compensate if the document delete fails
     // after the row delete — the two stores are non-transactional.
-    const rows = await selectIssueRows(
-      adapter,
-      vault,
-      `reef_id = ${quoteText(id, "reef_id")}`,
-    );
+    const rows = await selectIssueRowsById(adapter, vault, id);
     const row = rows[0];
 
+    const deleteParams = new SqlParameterBuilder();
+    const deleteIdParam = deleteParams.add(id, "reef_id");
     await runSql(
       adapter,
       vault,
-      `DELETE FROM ${tableRef(REEF_ISSUES_TABLE)} WHERE reef_id = ${quoteText(
-        id,
-        "reef_id",
-      )}`,
+      `DELETE FROM ${tableRef(
+        REEF_ISSUES_TABLE,
+      )} WHERE reef_id = ${deleteIdParam}`,
+      deleteParams.params,
     );
 
     try {
@@ -1190,85 +1174,71 @@ export async function reorderIssue(
           });
         }
       }
-      const guard = [...guardRows.entries()]
-        .map(
-          ([id, snapshot]) =>
-            `("reef_id" = ${quoteText(
-              id,
-              "reorder reef_id",
-            )} AND ("rank" IS DISTINCT FROM ${quoteNumberOrNull(
-              snapshot.rank,
-            )} OR "updated_at" IS DISTINCT FROM ${quoteText(
-              snapshot.updatedAt,
-              "reorder updated_at",
-            )}))`,
-        )
-        .join(" OR ");
-
+      const sqlParams = new SqlParameterBuilder();
       const setClauses: string[] = [];
       if (assignments.length > 0) {
         const rankCases = assignments
-          .map(
-            (assignment) =>
-              `WHEN ${quoteText(
-                assignment.id,
-                "reorder reef_id",
-              )} THEN ${quoteNumberOrNull(assignment.rank)}`,
-          )
+          .map((assignment) => {
+            const idParam = sqlParams.add(assignment.id, "reorder reef_id");
+            const rankParam = sqlParams.add(assignment.rank, "reorder rank");
+            return `WHEN ${idParam} THEN ${rankParam}`;
+          })
           .join(" ");
         setClauses.push(`"rank" = CASE "reef_id" ${rankCases} ELSE "rank" END`);
       }
 
       if (groupChanged && group) {
         const column = REORDER_GROUP_COLUMNS[group.field];
+        const groupIssueParam = sqlParams.add(issueId, "reorder reef_id");
+        const groupValueParam = sqlParams.add(
+          group.value,
+          `reorder ${group.field}`,
+        );
         setClauses.push(
-          `${quoteIdent(column)} = CASE "reef_id" WHEN ${quoteText(
-            issueId,
-            "reorder reef_id",
-          )} THEN ${quoteTextOrNull(
-            group.value,
-            `reorder ${group.field}`,
-          )} ELSE ${quoteIdent(column)} END`,
+          `${quoteIdent(column)} = CASE "reef_id" WHEN ${groupIssueParam} THEN ${groupValueParam} ELSE ${quoteIdent(column)} END`,
         );
         if (group.field === "status") {
           const status = group.value as Status;
+          const closedAtParam =
+            status === "closed"
+              ? sqlParams.add(at, "reorder closed_at")
+              : "NULL";
           setClauses.push(
-            `"closed_at" = CASE "reef_id" WHEN ${quoteText(
-              issueId,
-              "reorder reef_id",
-            )} THEN ${
-              status === "closed" ? quoteText(at, "reorder closed_at") : "NULL"
-            } ELSE "closed_at" END`,
+            `"closed_at" = CASE "reef_id" WHEN ${groupIssueParam} THEN ${closedAtParam} ELSE "closed_at" END`,
           );
+          const closedReasonParam =
+            status === "closed"
+              ? sqlParams.add(group.closed_reason, "reorder closed_reason")
+              : "NULL";
           setClauses.push(
-            `"closed_reason" = CASE "reef_id" WHEN ${quoteText(
-              issueId,
-              "reorder reef_id",
-            )} THEN ${
-              status === "closed"
-                ? quoteTextOrNull(group.closed_reason, "reorder closed_reason")
-                : "NULL"
-            } ELSE "closed_reason" END`,
+            `"closed_reason" = CASE "reef_id" WHEN ${groupIssueParam} THEN ${closedReasonParam} ELSE "closed_reason" END`,
           );
         }
       }
 
       let metaExpression = `COALESCE("meta"::jsonb, '{}'::jsonb)`;
-      metaExpression = `jsonb_set(${metaExpression}, '{last_editor}', to_jsonb(${quoteText(
-        actor,
-        "reorder actor",
-      )}::text), true)`;
+      const actorParam = sqlParams.add(actor, "reorder actor");
+      metaExpression = `jsonb_set(${metaExpression}, '{last_editor}', to_jsonb(${actorParam}::text), true)`;
       if (groupChanged && group?.field === "status") {
-        metaExpression = `jsonb_set(${metaExpression}, '{last_status_change}', to_jsonb(${quoteText(
-          at,
-          "reorder status timestamp",
-        )}::text), true)`;
+        const atParam = sqlParams.add(at, "reorder status timestamp");
+        metaExpression = `jsonb_set(${metaExpression}, '{last_status_change}', to_jsonb(${atParam}::text), true)`;
       }
       setClauses.push(`"meta" = ${metaExpression}::json`);
 
       const touched = [...touchedIds]
-        .map((id) => quoteText(id, "reorder reef_id"))
+        .map((id) => sqlParams.add(id, "reorder reef_id"))
         .join(", ");
+      const guard = [...guardRows.entries()]
+        .map(([id, snapshot]) => {
+          const idParam = sqlParams.add(id, "reorder reef_id");
+          const rankParam = sqlParams.add(snapshot.rank, "reorder rank");
+          const updatedAtParam = sqlParams.add(
+            snapshot.updatedAt,
+            "reorder updated_at",
+          );
+          return `("reef_id" = ${idParam} AND ("rank" IS DISTINCT FROM ${rankParam} OR "updated_at" IS DISTINCT FROM ${updatedAtParam}))`;
+        })
+        .join(" OR ");
       const updated = await runSql(
         adapter,
         vault,
@@ -1279,6 +1249,7 @@ export async function reorderIssue(
         )} AND NOT EXISTS (SELECT 1 FROM ${tableRef(
           REEF_ISSUES_TABLE,
         )} WHERE ${reorderScopeWhere(scope)} AND (${guard})) RETURNING "reef_id", "rank", "updated_at") SELECT "reef_id", "rank", "updated_at" FROM updated`,
+        sqlParams.params,
       );
       if (
         updated.kind !== "table_query" ||

@@ -128,10 +128,13 @@ describe("planning metadata", () => {
     // akb assigns the uuid id and returns the row in one statement via the
     // data-modifying CTE — no separate read-back to race.
     expect(sprint.id).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
-    const insertSql = JSON.parse(calls[1]?.init?.body as string).sql;
+    const insertBody = JSON.parse(calls[1]?.init?.body as string);
+    const insertSql = insertBody.sql;
     expect(insertSql).toContain("claim_lock AS MATERIALIZED");
     expect(insertSql).toContain("RETURNING *");
-    expect(insertSql).toContain("'Sprint 12'");
+    expect(insertSql).toContain("lower(planning.name) = lower($2)");
+    expect(insertSql).not.toContain("'Sprint 12'");
+    expect(insertBody.params).toContain("Sprint 12");
     expect(insertSql).not.toContain('"id"'); // id is does not written
   });
 
@@ -181,12 +184,14 @@ describe("planning metadata", () => {
         idempotencyKey: "sprint:cloud-1:42",
       }),
     ).resolves.toMatchObject({ id: claimedRow.id });
-    const insertSql = JSON.parse(calls[1]?.init?.body as string).sql;
+    const insertBody = JSON.parse(calls[1]?.init?.body as string);
+    const insertSql = insertBody.sql;
     expect(insertSql).toContain("pg_advisory_xact_lock");
     expect(insertSql).toContain("claim_lock AS MATERIALIZED");
     expect(insertSql).toContain("name_conflict AS MATERIALIZED");
-    expect(insertSql).toContain("create_idempotency_key");
-    expect(insertSql).toContain("sprint:cloud-1:42");
+    expect(insertBody.params).toEqual(
+      expect.arrayContaining(["create_idempotency_key", "sprint:cloud-1:42"]),
+    );
   });
 
   it("rejects an invalid sprint before inserting", async () => {
@@ -270,9 +275,11 @@ describe("planning metadata", () => {
         item: release,
       }),
     ).resolves.toMatchObject({ status: "in_progress" });
-    const updateSql = JSON.parse(calls[3]?.init?.body as string).sql;
+    const updateBody = JSON.parse(calls[3]?.init?.body as string);
+    const updateSql = updateBody.sql;
     expect(updateSql).toContain(`UPDATE ${REEF_RELEASES_TABLE} SET`);
-    expect(updateSql).toContain(`WHERE id = '${release.id}'`);
+    expect(updateSql).toContain("WHERE id = $7");
+    expect(updateBody.params).toContain(release.id);
   });
 
   it("blocks deleting planning rows referenced by issues", async () => {
@@ -288,9 +295,11 @@ describe("planning metadata", () => {
       }),
     ).rejects.toBeInstanceOf(ConflictError);
     expect(calls).toHaveLength(1);
-    expect(JSON.parse(calls[0]?.init?.body as string).sql).toContain(
-      `"sprint_id" = '22222222-2222-4222-8222-222222222222'`,
-    );
+    const referenceBody = JSON.parse(calls[0]?.init?.body as string);
+    expect(referenceBody.sql).toContain('"sprint_id" = $1');
+    expect(referenceBody.params).toEqual([
+      "22222222-2222-4222-8222-222222222222",
+    ]);
   });
 
   it("deletes unreferenced milestone and release rows", async () => {

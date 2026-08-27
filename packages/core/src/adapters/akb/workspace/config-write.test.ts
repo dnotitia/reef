@@ -36,12 +36,32 @@ describe("writeConfig", () => {
         stale_hide_canceled_days: 3,
       },
     });
-    const sqls = calls
+    const bodies = calls
       .slice(1)
-      .map((call) => JSON.parse(call.init?.body as string).sql as string);
+      .map((call) => JSON.parse(call.init?.body as string));
+    const sqls = bodies.map((body) => body.sql as string);
     expect(sqls.some((sql) => sql.includes("ai_scanning_enabled"))).toBe(false);
     expect(sqls[0]).toContain(`DELETE FROM ${REEF_SETTINGS_TABLE}`);
     expect(sqls.at(-2)).toContain(`DELETE FROM ${MONITORED_REPOS_TABLE}`);
     expect(sqls.at(-1)).toContain(`INSERT INTO ${MONITORED_REPOS_TABLE}`);
+    expect(bodies[0].params).toEqual(["project_prefix"]);
+    expect(bodies[1].sql).toContain("VALUES ($1, $2::json)");
+    expect(bodies[1].params).toEqual([
+      "project_prefix",
+      JSON.stringify("ACME"),
+    ]);
+    expect(bodies[3].params).toEqual([
+      "authoring_language",
+      JSON.stringify("ko"),
+    ]);
+    expect(bodies[5].params).toEqual([
+      "stale_hide_completed_days",
+      JSON.stringify(14),
+    ]);
+    expect(bodies[7].params).toEqual([
+      "stale_hide_canceled_days",
+      JSON.stringify(3),
+    ]);
+    expect(bodies[9].params).toEqual([1, "acme", "api", null]);
   });
 });

@@ -15,12 +15,9 @@ import {
   type AkbSqlResponse,
   decodeSettingsValue,
   isMissingTableError,
+  SqlParameterBuilder,
   quoteIdent,
   quoteIntOrNull,
-  quoteJson,
-  quoteNumberOrNull,
-  quoteText,
-  quoteTextOrNull,
   runSql,
   tableRef,
 } from "../core/sql";
@@ -104,13 +101,6 @@ function issueTypeOrDefault(
   issue: IssueMetadata,
 ): NonNullable<IssueMetadata["issue_type"]> {
   return issue.issue_type ?? "task";
-}
-
-export function quoteOptionalText(
-  value: string | null | undefined,
-  fieldDescriptor: string,
-): string {
-  return quoteTextOrNull(nonEmptyText(value), fieldDescriptor);
 }
 
 /**
@@ -270,39 +260,46 @@ export function backlogTailRankExpr(): string {
  */
 export function issueRowMutableFields(
   issue: IssueMetadata,
+  params: SqlParameterBuilder,
   opts?: { rankExpr?: string },
 ): Array<[string, string]> {
   return [
-    ["title", quoteText(issue.title, "issue title")],
-    ["status", quoteText(issue.status, "issue status")],
-    ["issue_type", quoteText(issueTypeOrDefault(issue), "issue issue_type")],
-    ["priority", quoteTextOrNull(issue.priority, "issue priority")],
-    ["assigned_to", quoteOptionalText(issue.assigned_to, "issue assigned_to")],
-    ["requester", quoteOptionalText(issue.requester, "issue requester")],
-    ["reporter", quoteOptionalText(issue.reporter, "issue reporter")],
-    ["start_date", quoteTextOrNull(issue.start_date, "issue start_date")],
-    ["due_date", quoteTextOrNull(issue.due_date, "issue due_date")],
+    ["title", params.add(issue.title, "issue title")],
+    ["status", params.add(issue.status, "issue status")],
+    ["issue_type", params.add(issueTypeOrDefault(issue), "issue issue_type")],
+    ["priority", params.add(issue.priority, "issue priority")],
+    [
+      "assigned_to",
+      params.add(nonEmptyText(issue.assigned_to), "issue assigned_to"),
+    ],
+    ["requester", params.add(nonEmptyText(issue.requester), "issue requester")],
+    ["reporter", params.add(nonEmptyText(issue.reporter), "issue reporter")],
+    ["start_date", params.add(issue.start_date, "issue start_date")],
+    ["due_date", params.add(issue.due_date, "issue due_date")],
     [
       "milestone_id",
-      quoteOptionalText(issue.milestone_id, "issue milestone_id"),
+      params.add(nonEmptyText(issue.milestone_id), "issue milestone_id"),
     ],
-    ["sprint_id", quoteOptionalText(issue.sprint_id, "issue sprint_id")],
-    ["release_id", quoteOptionalText(issue.release_id, "issue release_id")],
-    ["estimate_points", quoteNumberOrNull(issue.estimate_points)],
-    ["severity", quoteTextOrNull(issue.severity, "issue severity")],
-    ["rank", opts?.rankExpr ?? quoteNumberOrNull(issue.rank)],
-    ["closed_at", quoteTextOrNull(issue.closed_at, "issue closed_at")],
+    ["sprint_id", params.add(nonEmptyText(issue.sprint_id), "issue sprint_id")],
     [
-      "closed_reason",
-      quoteTextOrNull(issue.closed_reason, "issue closed_reason"),
+      "release_id",
+      params.add(nonEmptyText(issue.release_id), "issue release_id"),
     ],
-    ["parent_id", quoteOptionalText(issue.parent_id, "issue parent_id")],
-    ["labels", quoteJson(issue.labels ?? [])],
-    ["depends_on", quoteJson(issue.depends_on ?? [])],
-    ["related_to", quoteJson(issue.related_to ?? [])],
-    ["blocks", quoteJson(issue.blocks ?? [])],
-    ["archived_at", quoteTextOrNull(issue.archived_at, "issue archived_at")],
-    ["meta", quoteJson(buildIssueRowMeta(issue))],
+    [
+      "estimate_points",
+      params.add(issue.estimate_points, "issue estimate_points"),
+    ],
+    ["severity", params.add(issue.severity, "issue severity")],
+    ["rank", opts?.rankExpr ?? params.add(issue.rank, "issue rank")],
+    ["closed_at", params.add(issue.closed_at, "issue closed_at")],
+    ["closed_reason", params.add(issue.closed_reason, "issue closed_reason")],
+    ["parent_id", params.add(nonEmptyText(issue.parent_id), "issue parent_id")],
+    ["labels", params.addJson(issue.labels ?? [], "issue labels")],
+    ["depends_on", params.addJson(issue.depends_on ?? [], "issue depends_on")],
+    ["related_to", params.addJson(issue.related_to ?? [], "issue related_to")],
+    ["blocks", params.addJson(issue.blocks ?? [], "issue blocks")],
+    ["archived_at", params.add(issue.archived_at, "issue archived_at")],
+    ["meta", params.addJson(buildIssueRowMeta(issue), "issue meta")],
   ];
 }
 
@@ -329,44 +326,51 @@ export function insertIssueRow(
     opts?.assignBacklogRank === true &&
     issue.status === "backlog" &&
     issue.rank == null;
+  const params = new SqlParameterBuilder();
+  const ownerLockIdentity = opts?.uniqueJiraOwner
+    ? JSON.stringify([
+        opts.uniqueJiraOwner.jiraCloudId,
+        opts.uniqueJiraOwner.issueId,
+      ])
+    : null;
+  const ownerLockParam = ownerLockIdentity
+    ? params.add(ownerLockIdentity, "Jira owner lock identity")
+    : null;
+  const documentUriParam = params.add(documentUri, "document_uri");
+  const reefIdParam = params.add(issue.id, "reef_id");
   const fields = issueRowMutableFields(
     issue,
+    params,
     assignTail ? { rankExpr: backlogTailRankExpr() } : undefined,
   );
   const columns = ["document_uri", "reef_id", ...fields.map(([c]) => c)]
     .map(quoteIdent)
     .join(", ");
   const values = [
-    quoteText(documentUri, "document_uri"),
-    quoteText(issue.id, "reef_id"),
+    documentUriParam,
+    reefIdParam,
     ...fields.map(([, v]) => v),
   ].join(", ");
   if (opts?.uniqueJiraOwner) {
     const { jiraCloudId, issueId } = opts.uniqueJiraOwner;
-    const ownerLockIdentity = JSON.stringify([jiraCloudId, issueId]);
+    const jiraCloudIdParam = params.add(jiraCloudId, "Jira cloud id");
+    const jiraIssueIdParam = params.add(issueId, "Jira issue id");
     return runSql(
       adapter,
       vault,
-      `WITH owner_lock AS MATERIALIZED (SELECT pg_advisory_xact_lock(hashtextextended(${quoteText(
-        ownerLockIdentity,
-        "Jira owner lock identity",
-      )}, 0))), inserted AS (INSERT INTO ${tableRef(
+      `WITH owner_lock AS MATERIALIZED (SELECT pg_advisory_xact_lock(hashtextextended(${ownerLockParam}, 0))), inserted AS (INSERT INTO ${tableRef(
         REEF_ISSUES_TABLE,
       )} (${columns}) SELECT ${values} FROM owner_lock WHERE NOT EXISTS (SELECT 1 FROM ${tableRef(
         REEF_ISSUES_TABLE,
-      )} WHERE meta::jsonb->'custom_fields'->'jira_migration'->'owner'->>'jira_cloud_id' = ${quoteText(
-        jiraCloudId,
-        "Jira cloud id",
-      )} AND meta::jsonb->'custom_fields'->'jira_migration'->'owner'->>'issue_id' = ${quoteText(
-        issueId,
-        "Jira issue id",
-      )}) RETURNING reef_id) SELECT reef_id FROM inserted`,
+      )} WHERE meta::jsonb->'custom_fields'->'jira_migration'->'owner'->>'jira_cloud_id' = ${jiraCloudIdParam} AND meta::jsonb->'custom_fields'->'jira_migration'->'owner'->>'issue_id' = ${jiraIssueIdParam}) RETURNING reef_id) SELECT reef_id FROM inserted`,
+      params.params,
     );
   }
   return runSql(
     adapter,
     vault,
     `INSERT INTO ${tableRef(REEF_ISSUES_TABLE)} (${columns}) VALUES (${values})`,
+    params.params,
   );
 }
 
@@ -432,12 +436,13 @@ export async function selectIssueRows(
   where?: string,
   orderBy?: string,
   limit?: number,
+  params?: readonly unknown[],
 ): Promise<Record<string, unknown>[]> {
   const sql = `SELECT * FROM ${tableRef(REEF_ISSUES_TABLE)}${
     where ? ` WHERE ${where}` : ""
   }${orderBy ? ` ORDER BY ${orderBy}` : ""}${
     limit != null ? ` LIMIT ${quoteIntOrNull(limit)}` : ""
   }`;
-  const res = await runSql(adapter, vault, sql);
+  const res = await runSql(adapter, vault, sql, params);
   return res.kind === "table_query" ? res.items : [];
 }

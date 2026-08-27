@@ -17,6 +17,7 @@ import {
   reconcileJiraChangelogActivityEvents,
   reconcileJiraImportedAttachmentActivityActor,
   setupFetch,
+  sqlRequestBody,
   statusChangeEventKey,
 } from "../core/akb.testSupport";
 
@@ -294,14 +295,23 @@ describe("appendActivityEvents (REEF-126)", () => {
       "priority_change",
     ]);
     expect(calls).toHaveLength(3);
-    const insert1 = lastSql(calls[1]?.init?.body);
-    expect(insert1).toContain("'assignee_change'");
-    expect(insert1).toContain(`'assignee_change:alice->bob@${at}'`);
-    expect(insert1).toContain("WHERE NOT EXISTS");
-    expect(insert1).toContain('"from":"alice"');
-    const insert2 = lastSql(calls[2]?.init?.body);
-    expect(insert2).toContain("'priority_change'");
-    expect(insert2).toContain(`'priority_change:high->low@${at}'`);
+    const insert1 = sqlRequestBody(calls[1]);
+    expect(insert1.sql).toContain("WHERE NOT EXISTS");
+    expect(insert1.params).toEqual(
+      expect.arrayContaining([
+        "assignee_change",
+        `assignee_change:alice->bob@${at}`,
+        JSON.stringify({ from: "alice", to: "bob" }),
+        JSON.stringify({ actor: "carol", at, source: null }),
+      ]),
+    );
+    const insert2 = sqlRequestBody(calls[2]);
+    expect(insert2.params).toEqual(
+      expect.arrayContaining([
+        "priority_change",
+        `priority_change:high->low@${at}`,
+      ]),
+    );
   });
 
   it("no-ops without a single fetch when there are no events", async () => {
@@ -327,7 +337,7 @@ describe("appendActivityEvents (REEF-126)", () => {
         source: "jira-changelog:history-key:0",
       },
     ]);
-    expect(lastSql(calls[1]?.init?.body)).toContain(`'${eventKey}'`);
+    expect(sqlRequestBody(calls[1]).params).toContain(eventKey);
     expect(activityEventKey(events[0], at)).toBe(
       `assignee_change:alice->bob@${at}`,
     );
@@ -393,17 +403,24 @@ describe("reconcileJiraChangelogActivityEvents", () => {
     ]);
 
     expect(calls).toHaveLength(2);
-    const updateSql = lastSql(calls[1]?.init?.body);
-    expect(updateSql).toContain(`UPDATE ${REEF_ACTIVITY_TABLE}`);
-    expect(updateSql).toContain("SET event_type = 'assignee_change'");
-    expect(updateSql).toContain('"from":"한병전"');
-    expect(updateSql).toContain('"to":"남무현"');
-    expect(updateSql).toContain('"actor":"한병전"');
-    expect(updateSql).toContain("reef_id = 'SHDEV-001'");
-    expect(updateSql).toContain(`event_key = '${event.eventKey}'`);
-    expect(updateSql).toContain("RETURNING id");
-    expect(updateSql).not.toContain("created_by");
-    expect(updateSql).not.toContain("created_at");
+    const updateBody = sqlRequestBody(calls[1]);
+    expect(updateBody.sql).toContain(`UPDATE ${REEF_ACTIVITY_TABLE}`);
+    expect(updateBody.sql).toContain("SET event_type = $1");
+    expect(updateBody.sql).toContain("event_key = $5");
+    expect(updateBody.sql).toContain("RETURNING id");
+    expect(updateBody.sql).not.toContain("created_by");
+    expect(updateBody.sql).not.toContain("created_at");
+    expect(updateBody.params).toEqual([
+      "assignee_change",
+      JSON.stringify(event.payload),
+      JSON.stringify({
+        actor: "한병전",
+        at,
+        source: "jira-changelog:history-key:0",
+      }),
+      "SHDEV-001",
+      event.eventKey,
+    ]);
   });
 
   it("uses the idempotent insert path when the Jira event is absent", async () => {
@@ -424,7 +441,7 @@ describe("reconcileJiraChangelogActivityEvents", () => {
     const insertSql = lastSql(calls[2]?.init?.body);
     expect(insertSql).toContain(`INSERT INTO ${REEF_ACTIVITY_TABLE}`);
     expect(insertSql).toContain("WHERE NOT EXISTS");
-    expect(insertSql).toContain(`'${event.eventKey}'`);
+    expect(sqlRequestBody(calls[2]).params).toContain(event.eventKey);
   });
 
   it("rejects non-Jira or missing event keys before I/O", async () => {
@@ -465,15 +482,21 @@ describe("reconcileJiraImportedAttachmentActivityActor", () => {
     );
 
     expect(calls).toHaveLength(2);
-    const updateSql = lastSql(calls[1]?.init?.body);
-    expect(updateSql).toContain(`UPDATE ${REEF_ACTIVITY_TABLE}`);
-    expect(updateSql).toContain("event_type = 'attachment_added'");
-    expect(updateSql).toContain(`event_key = '${input.eventKey}'`);
-    expect(updateSql).toContain(`meta->>'actor' = '${input.fromActor}'`);
-    expect(updateSql).toContain('"임종혁"');
-    expect(updateSql).toContain("::jsonb, true)::json");
-    expect(updateSql).not.toContain("created_by");
-    expect(updateSql).not.toContain("created_at");
+    const updateBody = sqlRequestBody(calls[1]);
+    expect(updateBody.sql).toContain(`UPDATE ${REEF_ACTIVITY_TABLE}`);
+    expect(updateBody.sql).toContain("event_type = $3");
+    expect(updateBody.sql).toContain("event_key = $4");
+    expect(updateBody.sql).toContain("meta->>'actor' = $5");
+    expect(updateBody.sql).toContain("::jsonb, true)::json");
+    expect(updateBody.sql).not.toContain("created_by");
+    expect(updateBody.sql).not.toContain("created_at");
+    expect(updateBody.params).toEqual([
+      JSON.stringify(input.toActor),
+      input.reefId,
+      "attachment_added",
+      input.eventKey,
+      input.fromActor,
+    ]);
   });
 
   it("rejects a non-attachment key or non-fallback actor before I/O", async () => {

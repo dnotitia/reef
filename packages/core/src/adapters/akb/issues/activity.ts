@@ -69,8 +69,7 @@ import {
   ensureReefTables,
   isMissingTableError,
   quoteIdent,
-  quoteJson,
-  quoteText,
+  SqlParameterBuilder,
   runSql,
   tableRef,
   withSpan,
@@ -303,18 +302,16 @@ async function insertActivityEventRow(
   vault: string,
   row: ActivityRowInput,
 ): Promise<boolean> {
-  const reefId = quoteText(row.reefId, "activity reef_id");
-  const key = quoteText(row.eventKey, "activity event_key");
+  const params = new SqlParameterBuilder();
+  const reefId = params.add(row.reefId, "activity reef_id");
+  const eventType = params.add(row.eventType, "activity event_type");
+  const key = params.add(row.eventKey, "activity event_key");
+  const payload = params.addJson(row.payload, "activity payload");
+  const meta = params.addJson(row.meta, "activity meta");
   const columns = ["reef_id", "event_type", "event_key", "payload", "meta"]
     .map(quoteIdent)
     .join(", ");
-  const selectValues = [
-    reefId,
-    quoteText(row.eventType, "activity event_type"),
-    key,
-    quoteJson(row.payload),
-    quoteJson(row.meta),
-  ].join(", ");
+  const selectValues = [reefId, eventType, key, payload, meta].join(", ");
   // Single-statement conditional insert: the `NOT EXISTS` probe and the insert
   // share one snapshot, so an already-recorded change is skipped atomically (no
   // separate read-then-write race). RETURNING tells us whether a row was added.
@@ -326,6 +323,7 @@ async function insertActivityEventRow(
     )} (${columns}) SELECT ${selectValues} WHERE NOT EXISTS (SELECT 1 FROM ${tableRef(
       REEF_ACTIVITY_TABLE,
     )} WHERE reef_id = ${reefId} AND event_key = ${key}) RETURNING id`,
+    params.params,
   );
   return res.kind === "table_query" && res.items.length > 0;
 }
@@ -509,19 +507,24 @@ export async function reconcileJiraChangelogActivityEvents(
       let inserted = 0;
       for (const [index, event] of events.entries()) {
         const eventKey = eventKeys[index] as string;
-        const reefId = quoteText(event.reefId, "activity reef_id");
-        const key = quoteText(eventKey, "activity event_key");
-        const update = await runSql(
-          adapter,
-          vault,
-          `UPDATE ${tableRef(REEF_ACTIVITY_TABLE)} SET event_type = ${quoteText(
-            event.eventType,
-            "activity event_type",
-          )}, payload = ${quoteJson(event.payload)}, meta = ${quoteJson({
+        const params = new SqlParameterBuilder();
+        const eventType = params.add(event.eventType, "activity event_type");
+        const payload = params.addJson(event.payload, "activity payload");
+        const meta = params.addJson(
+          {
             actor: event.actor,
             at: event.at,
             source: event.source,
-          })} WHERE reef_id = ${reefId} AND event_key = ${key} RETURNING id`,
+          },
+          "activity meta",
+        );
+        const reefId = params.add(event.reefId, "activity reef_id");
+        const key = params.add(eventKey, "activity event_key");
+        const update = await runSql(
+          adapter,
+          vault,
+          `UPDATE ${tableRef(REEF_ACTIVITY_TABLE)} SET event_type = ${eventType}, payload = ${payload}, meta = ${meta} WHERE reef_id = ${reefId} AND event_key = ${key} RETURNING id`,
+          params.params,
         );
         if (update.kind === "table_query" && update.items.length > 0) {
           updated += update.items.length;
@@ -591,26 +594,26 @@ export async function reconcileJiraImportedAttachmentActivityActor(
     { vault, reef_id: input.reefId },
     async (span) => {
       await ensureReefTables({ adapter, vault });
+      const params = new SqlParameterBuilder();
+      const actorParam = params.addJson(
+        input.toActor,
+        "activity actor",
+        "jsonb",
+      );
+      const reefIdParam = params.add(input.reefId, "activity reef_id");
+      const eventTypeParam = params.add(
+        ACTIVITY_EVENT_ATTACHMENT_ADDED,
+        "activity event_type",
+      );
+      const eventKeyParam = params.add(input.eventKey, "activity event_key");
+      const fromActorParam = params.add(input.fromActor, "activity actor");
       const update = await runSql(
         adapter,
         vault,
         `UPDATE ${tableRef(
           REEF_ACTIVITY_TABLE,
-        )} SET meta = jsonb_set(meta::jsonb, '{actor}', ${quoteJson(
-          input.toActor,
-        )}::jsonb, true)::json WHERE reef_id = ${quoteText(
-          input.reefId,
-          "activity reef_id",
-        )} AND event_type = ${quoteText(
-          ACTIVITY_EVENT_ATTACHMENT_ADDED,
-          "activity event_type",
-        )} AND event_key = ${quoteText(
-          input.eventKey,
-          "activity event_key",
-        )} AND meta->>'actor' = ${quoteText(
-          input.fromActor,
-          "activity actor",
-        )} RETURNING id`,
+        )} SET meta = jsonb_set(meta::jsonb, '{actor}', ${actorParam}, true)::json WHERE reef_id = ${reefIdParam} AND event_type = ${eventTypeParam} AND event_key = ${eventKeyParam} AND meta->>'actor' = ${fromActorParam} RETURNING id`,
+        params.params,
       );
       // AKB may return the generic `table_sql` envelope even for DML with
       // RETURNING. The related-data migration performs an exact actor readback,
@@ -926,13 +929,15 @@ export async function listIssueActivity(
     async (span) => {
       let rows: Record<string, unknown>[];
       try {
+        const sqlParams = new SqlParameterBuilder();
         const res = await runSql(
           adapter,
           vault,
-          `SELECT * FROM ${tableRef(REEF_ACTIVITY_TABLE)} WHERE reef_id = ${quoteText(
+          `SELECT * FROM ${tableRef(REEF_ACTIVITY_TABLE)} WHERE reef_id = ${sqlParams.add(
             reefId,
             "activity reef_id",
           )} ORDER BY meta->>'at' ASC, id ASC`,
+          sqlParams.params,
         );
         rows = res.kind === "table_query" ? res.items : [];
       } catch (err) {

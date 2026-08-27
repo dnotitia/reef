@@ -17,10 +17,7 @@ import {
   type ReefTableName,
   buildRowAssignments,
   quoteIdent,
-  quoteJson,
-  quoteNumberOrNull,
-  quoteOptionalText,
-  quoteText,
+  SqlParameterBuilder,
   runSql,
   selectIssueRows,
   tableRef,
@@ -108,9 +105,10 @@ export async function selectPlanningRows(
   vault: string,
   table: ReefTableName,
   where?: string,
+  params?: readonly unknown[],
 ): Promise<Record<string, unknown>[]> {
   const sql = `SELECT * FROM ${tableRef(table)}${where ? ` WHERE ${where}` : ""}`;
-  const res = await runSql(adapter, vault, sql);
+  const res = await runSql(adapter, vault, sql, params);
   return res.kind === "table_query" ? res.items : [];
 }
 
@@ -121,15 +119,17 @@ export async function assertUniquePlanningName(
   name: string,
   excludeId?: string,
 ): Promise<void> {
-  const clauses = [`lower(name) = lower(${quoteText(name, "planning name")})`];
+  const params = new SqlParameterBuilder();
+  const clauses = [`lower(name) = lower(${params.add(name, "planning name")})`];
   if (excludeId) {
-    clauses.push(`id <> ${quoteText(excludeId, "planning id")}`);
+    clauses.push(`id <> ${params.add(excludeId, "planning id")}`);
   }
   const rows = await selectPlanningRows(
     adapter,
     vault,
     table,
     clauses.join(" AND "),
+    params.params,
   );
   if (rows.length > 0) {
     throw new ConflictError();
@@ -138,45 +138,51 @@ export async function assertUniquePlanningName(
 
 export function sprintRowFields(
   item: Omit<Sprint, "id">,
+  params: SqlParameterBuilder,
   meta: Record<string, unknown> = {},
 ): Array<[string, string]> {
   return [
-    ["name", quoteText(item.name, "sprint name")],
-    ["status", quoteText(item.status, "sprint status")],
-    ["start_date", quoteOptionalText(item.start_date, "sprint start_date")],
-    ["end_date", quoteOptionalText(item.end_date, "sprint end_date")],
-    ["goal", quoteText(item.goal ?? "", "sprint goal")],
-    ["capacity_points", quoteNumberOrNull(item.capacity_points)],
-    ["meta", quoteJson(meta)],
+    ["name", params.add(item.name, "sprint name")],
+    ["status", params.add(item.status, "sprint status")],
+    ["start_date", params.add(item.start_date, "sprint start_date")],
+    ["end_date", params.add(item.end_date, "sprint end_date")],
+    ["goal", params.add(item.goal ?? "", "sprint goal")],
+    [
+      "capacity_points",
+      params.add(item.capacity_points, "sprint capacity_points"),
+    ],
+    ["meta", params.addJson(meta, "sprint meta")],
   ];
 }
 
 export function milestoneRowFields(
   item: Omit<Milestone, "id">,
+  params: SqlParameterBuilder,
 ): Array<[string, string]> {
   return [
-    ["name", quoteText(item.name, "milestone name")],
-    ["status", quoteText(item.status, "milestone status")],
+    ["name", params.add(item.name, "milestone name")],
+    ["status", params.add(item.status, "milestone status")],
+    ["target_date", params.add(item.target_date, "milestone target_date")],
     [
-      "target_date",
-      quoteOptionalText(item.target_date, "milestone target_date"),
+      "description",
+      params.add(item.description ?? "", "milestone description"),
     ],
-    ["description", quoteText(item.description ?? "", "milestone description")],
-    ["meta", quoteJson({})],
+    ["meta", params.addJson({}, "milestone meta")],
   ];
 }
 
 export function releaseRowFields(
   item: Omit<Release, "id">,
+  params: SqlParameterBuilder,
   meta: Record<string, unknown> = {},
 ): Array<[string, string]> {
   return [
-    ["name", quoteText(item.name, "release name")],
-    ["status", quoteText(item.status, "release status")],
-    ["target_date", quoteOptionalText(item.target_date, "release target_date")],
-    ["released_at", quoteOptionalText(item.released_at, "release released_at")],
-    ["notes", quoteText(item.notes ?? "", "release notes")],
-    ["meta", quoteJson(meta)],
+    ["name", params.add(item.name, "release name")],
+    ["status", params.add(item.status, "release status")],
+    ["target_date", params.add(item.target_date, "release target_date")],
+    ["released_at", params.add(item.released_at, "release released_at")],
+    ["notes", params.add(item.notes ?? "", "release notes")],
+    ["meta", params.addJson(meta, "release meta")],
   ];
 }
 
@@ -198,18 +204,21 @@ export async function insertAndReadPlanningRow<T>(
   adapter: AkbAdapter,
   vault: string,
   table: ReefTableName,
-  fields: Array<[string, string]>,
+  fields: (params: SqlParameterBuilder) => Array<[string, string]>,
   toItem: (row: Record<string, unknown>) => T,
 ): Promise<T> {
-  const columns = fields
+  const params = new SqlParameterBuilder();
+  const resolvedFields = fields(params);
+  const columns = resolvedFields
     .map(([c]) => c)
     .map(quoteIdent)
     .join(", ");
-  const values = fields.map(([, v]) => v).join(", ");
+  const values = resolvedFields.map(([, v]) => v).join(", ");
   const res = await runSql(
     adapter,
     vault,
     `WITH ins AS (INSERT INTO ${tableRef(table)} (${columns}) VALUES (${values}) RETURNING *) SELECT * FROM ins`,
+    params.params,
   );
   const row = res.kind === "table_query" ? res.items[0] : undefined;
   if (!row) {
@@ -224,40 +233,45 @@ export async function claimAndReadPlanningRow<T>(input: {
   adapter: AkbAdapter;
   vault: string;
   table: ReefTableName;
-  fields: Array<[string, string]>;
+  fields: (params: SqlParameterBuilder) => Array<[string, string]>;
   name: string;
   idempotencyKey?: string;
   idempotencyMetaKey: string;
   toItem: (row: Record<string, unknown>) => T;
   isCompatible: (item: T) => boolean;
 }): Promise<T> {
-  const columns = input.fields.map(([column]) => quoteIdent(column)).join(", ");
-  const values = input.fields.map(([, value]) => value).join(", ");
+  const params = new SqlParameterBuilder();
   const idempotencyLock = input.idempotencyKey
     ? `reef:planning:idempotency:${input.idempotencyKey}`
     : null;
   const nameLock = `reef:planning:name:${input.table}:${input.name.trim().toLowerCase()}`;
   const lockValues = [idempotencyLock, nameLock]
     .filter((value): value is string => value !== null)
-    .map((value) => `(${quoteText(value, "planning lock")})`)
+    .map((value) => `(${params.add(value, "planning lock")})`)
     .join(", ");
   const existingClaimPredicate = input.idempotencyKey
-    ? `planning.meta->>${quoteText(
+    ? `planning.meta->>${params.add(
         input.idempotencyMetaKey,
         "planning claim field",
-      )} = ${quoteText(input.idempotencyKey, "planning idempotency key")}`
+      )} = ${params.add(input.idempotencyKey, "planning idempotency key")}`
     : "FALSE";
+  const nameParam = params.add(input.name, "planning name");
+  const fields = input.fields(params);
+  const columns = fields.map(([column]) => quoteIdent(column)).join(", ");
+  const values = fields.map(([, value]) => value).join(", ");
   const statement = `WITH claim_lock AS MATERIALIZED (SELECT pg_advisory_xact_lock(hashtext(lock_key)) FROM (VALUES ${lockValues}) AS locks(lock_key) ORDER BY lock_key), lock_barrier AS MATERIALIZED (SELECT count(*) FROM claim_lock), existing_claim AS MATERIALIZED (SELECT planning.* FROM ${tableRef(
     input.table,
   )} planning CROSS JOIN lock_barrier WHERE ${existingClaimPredicate}), name_conflict AS MATERIALIZED (SELECT 1 FROM ${tableRef(
     input.table,
-  )} planning CROSS JOIN lock_barrier WHERE lower(planning.name) = lower(${quoteText(
-    input.name,
-    "planning name",
-  )}) AND NOT EXISTS (SELECT 1 FROM existing_claim) LIMIT 1), ins AS (INSERT INTO ${tableRef(
+  )} planning CROSS JOIN lock_barrier WHERE lower(planning.name) = lower(${nameParam}) AND NOT EXISTS (SELECT 1 FROM existing_claim) LIMIT 1), ins AS (INSERT INTO ${tableRef(
     input.table,
   )} (${columns}) SELECT ${values} FROM lock_barrier WHERE NOT EXISTS (SELECT 1 FROM existing_claim) AND NOT EXISTS (SELECT 1 FROM name_conflict) RETURNING *), resolved AS (SELECT * FROM existing_claim UNION ALL SELECT * FROM ins) SELECT * FROM resolved`;
-  const res = await runSql(input.adapter, input.vault, statement);
+  const res = await runSql(
+    input.adapter,
+    input.vault,
+    statement,
+    params.params,
+  );
   const rows = res.kind === "table_query" ? res.items : [];
   if (rows.length > 1) {
     throw new SchemaValidationError({
@@ -276,24 +290,27 @@ export async function updatePlanningRow(
   vault: string,
   table: ReefTableName,
   id: string,
-  fields: Array<[string, string]>,
+  fields: (params: SqlParameterBuilder) => Array<[string, string]>,
 ): Promise<void> {
+  const selectParams = new SqlParameterBuilder();
   const existing = await selectPlanningRows(
     adapter,
     vault,
     table,
-    `id = ${quoteText(id, "planning id")}`,
+    `id = ${selectParams.add(id, "planning id")}`,
+    selectParams.params,
   );
   if (existing.length === 0) {
     throw new NotFoundError({ resource: `planning item ${id}` });
   }
+  const updateParams = new SqlParameterBuilder();
+  const resolvedFields = fields(updateParams);
+  const idParam = updateParams.add(id, "planning id");
   await runSql(
     adapter,
     vault,
-    `UPDATE ${tableRef(table)} SET ${buildRowAssignments(fields)} WHERE id = ${quoteText(
-      id,
-      "planning id",
-    )}`,
+    `UPDATE ${tableRef(table)} SET ${buildRowAssignments(resolvedFields)} WHERE id = ${idParam}`,
+    updateParams.params,
   );
 }
 
@@ -303,10 +320,14 @@ export async function assertPlanningItemNotReferenced(
   column: "sprint_id" | "milestone_id" | "release_id",
   id: string,
 ): Promise<void> {
+  const params = new SqlParameterBuilder();
   const rows = await selectIssueRows(
     adapter,
     vault,
-    `${quoteIdent(column)} = ${quoteText(id, "planning id")}`,
+    `${quoteIdent(column)} = ${params.add(id, "planning id")}`,
+    undefined,
+    undefined,
+    params.params,
   );
   if (rows.length > 0) {
     throw new ConflictError();
@@ -319,9 +340,12 @@ export async function deletePlanningRow(
   table: ReefTableName,
   id: string,
 ): Promise<void> {
+  const params = new SqlParameterBuilder();
+  const idParam = params.add(id, "planning id");
   await runSql(
     adapter,
     vault,
-    `DELETE FROM ${tableRef(table)} WHERE id = ${quoteText(id, "planning id")}`,
+    `DELETE FROM ${tableRef(table)} WHERE id = ${idParam}`,
+    params.params,
   );
 }

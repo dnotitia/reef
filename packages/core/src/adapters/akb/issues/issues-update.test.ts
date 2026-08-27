@@ -327,14 +327,37 @@ describe("updateIssue → row-update compensation", () => {
     });
 
     expect(result.issue.mention_recipients).toEqual(["bob"]);
-    const rowSql = JSON.parse(String(calls[4]?.init?.body)).sql as string;
-    expect(rowSql).toContain('"mention_recipients":["bob"]');
-    const eventSql = JSON.parse(String(calls[6]?.init?.body)).sql as string;
-    expect(eventSql).toContain("issue_body_mentions_change:commit-mentions");
-    expect(eventSql).toContain('"recipients":["bob"]');
-    expect(eventSql).toContain('"added":["bob"]');
-    expect(eventSql).toContain('"removed":["alice"]');
-    expect(eventSql).toContain('"document_commit":"commit-mentions"');
+    const rowBody = bodyOf(calls[4]);
+    expect(rowBody.sql).toContain('"meta" =');
+    expect(rowBody.sql).not.toContain('"mention_recipients":["bob"]');
+    expect(rowBody.params).toContain(
+      JSON.stringify({
+        author: "alice",
+        last_editor: "alice",
+        source: null,
+        last_status_change: null,
+        external_refs: null,
+        implementation_refs: null,
+        watchers: null,
+        reviewers: null,
+        qa_owner: null,
+        custom_fields: null,
+        mention_recipients: ["bob"],
+      }),
+    );
+    const eventBody = bodyOf(calls[6]);
+    expect(eventBody.sql).toContain("SELECT $1");
+    expect(eventBody.params).toContain(
+      "issue_body_mentions_change:commit-mentions",
+    );
+    expect(eventBody.params).toContain(
+      JSON.stringify({
+        recipients: ["bob"],
+        added: ["bob"],
+        removed: ["alice"],
+        document_commit: "commit-mentions",
+      }),
+    );
   });
 
   it("does not append a mention event for a no-op recipient set", async () => {
@@ -395,9 +418,23 @@ describe("updateIssue → row-update compensation", () => {
     expect(bodyOf(patches[0]).content).toBe("new @bob");
     expect(bodyOf(patches[1]).content).toBe("old @alice");
     expect(bodyOf(patches[1]).expected_commit).toBe("commit-failed-mentions");
-    const compensationSql = JSON.parse(String(calls[7]?.init?.body))
-      .sql as string;
-    expect(compensationSql).toContain('"mention_recipients":["alice"]');
+    const compensationBody = bodyOf(calls[7]);
+    expect(compensationBody.sql).toContain('"meta" =');
+    expect(compensationBody.params).toContain(
+      JSON.stringify({
+        author: "alice",
+        last_editor: "alice",
+        source: null,
+        last_status_change: null,
+        external_refs: null,
+        implementation_refs: null,
+        watchers: null,
+        reviewers: null,
+        qa_owner: null,
+        custom_fields: null,
+        mention_recipients: ["alice"],
+      }),
+    );
   });
 });
 

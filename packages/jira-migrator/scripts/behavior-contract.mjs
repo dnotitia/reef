@@ -122,6 +122,18 @@ const readBody = async (request) => {
     ? JSON.parse(Buffer.concat(chunks).toString("utf8"))
     : null;
 };
+const renderSqlParams = (statement, params) => {
+  if (!Array.isArray(params)) return statement;
+  return statement.replace(/\$(\d+)/gu, (placeholder, indexText) => {
+    const value = params[Number(indexText) - 1];
+    if (value === undefined) return placeholder;
+    if (value === null) return "NULL";
+    if (typeof value === "string") {
+      return `'${value.replaceAll("'", "''")}'`;
+    }
+    return String(value);
+  });
+};
 const respond = (response, value, status = 200) => {
   response.writeHead(status, { "content-type": "application/json" });
   response.end(JSON.stringify(value));
@@ -392,7 +404,8 @@ const server = createServer(async (request, response) => {
     url.pathname === "/akb/api/v1/tables/reef-contract/sql" &&
     request.method === "POST"
   ) {
-    const { sql: statement } = await readBody(request);
+    const { sql, params } = await readBody(request);
+    const statement = renderSqlParams(sql, params);
     state.akbRequests.at(-1).sql = statement;
     if (statement.includes("FROM reef_settings")) {
       return respond(

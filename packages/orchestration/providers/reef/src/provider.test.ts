@@ -49,6 +49,23 @@ function sqlLiterals(sql: string): string[] {
   );
 }
 
+function renderFixtureSqlParams(
+  sql: string,
+  params: readonly unknown[] | undefined,
+): string {
+  if (!params) return sql;
+  return sql.replace(/\$(\d+)/gu, (placeholder, indexText) => {
+    const value = params[Number(indexText) - 1];
+    if (value === undefined || value === null) {
+      return value === null ? "NULL" : placeholder;
+    }
+    if (typeof value === "string") {
+      return `'${value.replaceAll("'", "''")}'`;
+    }
+    return String(value);
+  });
+}
+
 class ScriptedAkbFixture {
   readonly activities: FixtureActivity[] = [];
   readonly comments: FixtureComment[] = [];
@@ -212,9 +229,10 @@ class ScriptedAkbFixture {
     }
 
     if (path === `/api/v1/tables/${VAULT}/sql`) {
-      const sql = String(
-        (init?.body as { sql?: unknown } | undefined)?.sql ?? "",
-      );
+      const body = init?.body as
+        | { sql?: unknown; params?: readonly unknown[] }
+        | undefined;
+      const sql = renderFixtureSqlParams(String(body?.sql ?? ""), body?.params);
       return this.handleSql(sql);
     }
 

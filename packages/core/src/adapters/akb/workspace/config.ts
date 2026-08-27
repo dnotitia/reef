@@ -14,6 +14,7 @@ import {
   StaleHideDaysSchema,
 } from "../../../schemas/workspace/config";
 import {
+  type AkbAdapter,
   type AkbSqlResponse,
   MONITORED_REPOS_TABLE,
   REEF_SETTINGS_AUTHORING_LANGUAGE_KEY,
@@ -24,10 +25,7 @@ import {
   decodeSettingsValue,
   ensureReefTables,
   isMissingTableError,
-  quoteIntOrNull,
-  quoteJson,
-  quoteText,
-  quoteTextOrNull,
+  SqlParameterBuilder,
   runSql,
   tableRef,
   withSpan,
@@ -121,6 +119,15 @@ function parseMonitoredRepoRow(raw: Record<string, unknown>): MonitoredRepo {
   return result.data;
 }
 
+async function runConfigSql(
+  adapter: AkbAdapter,
+  vault: string,
+  buildSql: (params: SqlParameterBuilder) => string,
+): Promise<AkbSqlResponse> {
+  const params = new SqlParameterBuilder();
+  return runSql(adapter, vault, buildSql(params), params.params);
+}
+
 export async function readConfig(
   params: ReadConfigParams,
 ): Promise<ReadConfigResult> {
@@ -129,23 +136,25 @@ export async function readConfig(
     let settingsResponse: AkbSqlResponse;
     let reposResponse: AkbSqlResponse;
     try {
+      const settingsParams = new SqlParameterBuilder();
       [settingsResponse, reposResponse] = await Promise.all([
         runSql(
           adapter,
           vault,
-          `SELECT key, value FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key IN (${quoteText(
+          `SELECT key, value FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key IN (${settingsParams.add(
             REEF_SETTINGS_PROJECT_PREFIX_KEY,
             "settings key",
-          )}, ${quoteText(
+          )}, ${settingsParams.add(
             REEF_SETTINGS_AUTHORING_LANGUAGE_KEY,
             "settings key",
-          )}, ${quoteText(
+          )}, ${settingsParams.add(
             REEF_SETTINGS_STALE_HIDE_COMPLETED_DAYS_KEY,
             "settings key",
-          )}, ${quoteText(
+          )}, ${settingsParams.add(
             REEF_SETTINGS_STALE_HIDE_CANCELED_DAYS_KEY,
             "settings key",
           )})`,
+          settingsParams.params,
         ),
         runSql(
           adapter,
@@ -219,23 +228,25 @@ export async function writeConfig(params: WriteConfigParams): Promise<void> {
     await ensureReefTables({ adapter, vault });
 
     // (1) Replace the project_prefix row in reef_settings.
-    await runSql(
+    await runConfigSql(
       adapter,
       vault,
-      `DELETE FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key = ${quoteText(
-        REEF_SETTINGS_PROJECT_PREFIX_KEY,
-        "settings key",
-      )}`,
+      (params) =>
+        `DELETE FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key = ${params.add(
+          REEF_SETTINGS_PROJECT_PREFIX_KEY,
+          "settings key",
+        )}`,
     );
-    await runSql(
+    await runConfigSql(
       adapter,
       vault,
       // akb manages the auto-injected `updated_at` column itself; we just
       // write the user-defined (key, value) pair.
-      `INSERT INTO ${tableRef(REEF_SETTINGS_TABLE)} (key, value) VALUES (${quoteText(
-        REEF_SETTINGS_PROJECT_PREFIX_KEY,
-        "settings key",
-      )}, ${quoteJson(config.project_prefix)})`,
+      (params) =>
+        `INSERT INTO ${tableRef(REEF_SETTINGS_TABLE)} (key, value) VALUES (${params.add(
+          REEF_SETTINGS_PROJECT_PREFIX_KEY,
+          "settings key",
+        )}, ${params.addJson(config.project_prefix, "project_prefix")})`,
     );
 
     // (2) Replace the authoring_language row. Unset (null) is the ABSENCE of the
@@ -245,22 +256,27 @@ export async function writeConfig(params: WriteConfigParams): Promise<void> {
       "authoring_language",
       config.authoring_language ?? "(unset)",
     );
-    await runSql(
+    await runConfigSql(
       adapter,
       vault,
-      `DELETE FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key = ${quoteText(
-        REEF_SETTINGS_AUTHORING_LANGUAGE_KEY,
-        "settings key",
-      )}`,
-    );
-    if (config.authoring_language != null) {
-      await runSql(
-        adapter,
-        vault,
-        `INSERT INTO ${tableRef(REEF_SETTINGS_TABLE)} (key, value) VALUES (${quoteText(
+      (params) =>
+        `DELETE FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key = ${params.add(
           REEF_SETTINGS_AUTHORING_LANGUAGE_KEY,
           "settings key",
-        )}, ${quoteJson(config.authoring_language)})`,
+        )}`,
+    );
+    if (config.authoring_language != null) {
+      await runConfigSql(
+        adapter,
+        vault,
+        (params) =>
+          `INSERT INTO ${tableRef(REEF_SETTINGS_TABLE)} (key, value) VALUES (${params.add(
+            REEF_SETTINGS_AUTHORING_LANGUAGE_KEY,
+            "settings key",
+          )}, ${params.addJson(
+            config.authoring_language,
+            "authoring_language",
+          )})`,
       );
     }
 
@@ -273,37 +289,47 @@ export async function writeConfig(params: WriteConfigParams): Promise<void> {
       "stale_hide_canceled_days",
       config.stale_hide_canceled_days,
     );
-    await runSql(
+    await runConfigSql(
       adapter,
       vault,
-      `DELETE FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key = ${quoteText(
-        REEF_SETTINGS_STALE_HIDE_COMPLETED_DAYS_KEY,
-        "settings key",
-      )}`,
+      (params) =>
+        `DELETE FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key = ${params.add(
+          REEF_SETTINGS_STALE_HIDE_COMPLETED_DAYS_KEY,
+          "settings key",
+        )}`,
     );
-    await runSql(
+    await runConfigSql(
       adapter,
       vault,
-      `INSERT INTO ${tableRef(REEF_SETTINGS_TABLE)} (key, value) VALUES (${quoteText(
-        REEF_SETTINGS_STALE_HIDE_COMPLETED_DAYS_KEY,
-        "settings key",
-      )}, ${quoteJson(config.stale_hide_completed_days)})`,
+      (params) =>
+        `INSERT INTO ${tableRef(REEF_SETTINGS_TABLE)} (key, value) VALUES (${params.add(
+          REEF_SETTINGS_STALE_HIDE_COMPLETED_DAYS_KEY,
+          "settings key",
+        )}, ${params.addJson(
+          config.stale_hide_completed_days,
+          "stale_hide_completed_days",
+        )})`,
     );
-    await runSql(
+    await runConfigSql(
       adapter,
       vault,
-      `DELETE FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key = ${quoteText(
-        REEF_SETTINGS_STALE_HIDE_CANCELED_DAYS_KEY,
-        "settings key",
-      )}`,
+      (params) =>
+        `DELETE FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key = ${params.add(
+          REEF_SETTINGS_STALE_HIDE_CANCELED_DAYS_KEY,
+          "settings key",
+        )}`,
     );
-    await runSql(
+    await runConfigSql(
       adapter,
       vault,
-      `INSERT INTO ${tableRef(REEF_SETTINGS_TABLE)} (key, value) VALUES (${quoteText(
-        REEF_SETTINGS_STALE_HIDE_CANCELED_DAYS_KEY,
-        "settings key",
-      )}, ${quoteJson(config.stale_hide_canceled_days)})`,
+      (params) =>
+        `INSERT INTO ${tableRef(REEF_SETTINGS_TABLE)} (key, value) VALUES (${params.add(
+          REEF_SETTINGS_STALE_HIDE_CANCELED_DAYS_KEY,
+          "settings key",
+        )}, ${params.addJson(
+          config.stale_hide_canceled_days,
+          "stale_hide_canceled_days",
+        )})`,
     );
 
     // (4) Replace all monitored_repos rows.
@@ -313,22 +339,26 @@ export async function writeConfig(params: WriteConfigParams): Promise<void> {
       `DELETE FROM ${tableRef(MONITORED_REPOS_TABLE)}`,
     );
     if (config.monitored_repos.length > 0) {
-      const valuesClause = config.monitored_repos
-        .map((repo) => {
-          const parts = [
-            quoteIntOrNull(repo.github_id),
-            quoteText(repo.owner, "monitored_repo owner"),
-            quoteText(repo.name, "monitored_repo name"),
-            quoteTextOrNull(repo.description, "monitored_repo description"),
-          ];
-          return `(${parts.join(", ")})`;
-        })
-        .join(", ");
-      await runSql(
-        adapter,
-        vault,
-        `INSERT INTO ${tableRef(MONITORED_REPOS_TABLE)} (github_id, owner, name, description) VALUES ${valuesClause}`,
-      );
+      await runConfigSql(adapter, vault, (params) => {
+        const valuesClause = config.monitored_repos
+          .map(
+            (repo) =>
+              `(${params.addInt(
+                repo.github_id,
+                "monitored_repo github_id",
+              )}, ${params.add(repo.owner, "monitored_repo owner")}, ${params.add(
+                repo.name,
+                "monitored_repo name",
+              )}, ${params.add(
+                repo.description,
+                "monitored_repo description",
+              )})`,
+          )
+          .join(", ");
+        return `INSERT INTO ${tableRef(
+          MONITORED_REPOS_TABLE,
+        )} (github_id, owner, name, description) VALUES ${valuesClause}`;
+      });
     }
   });
 }
@@ -348,13 +378,15 @@ export async function readAuthoringLanguage(
   return withSpan("akb.read_authoring_language", { vault }, async (span) => {
     let response: AkbSqlResponse;
     try {
+      const sqlParams = new SqlParameterBuilder();
       response = await runSql(
         adapter,
         vault,
-        `SELECT key, value FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key = ${quoteText(
+        `SELECT key, value FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key = ${sqlParams.add(
           REEF_SETTINGS_AUTHORING_LANGUAGE_KEY,
           "settings key",
         )} LIMIT 1`,
+        sqlParams.params,
       );
     } catch (err) {
       if (isMissingTableError(err)) {

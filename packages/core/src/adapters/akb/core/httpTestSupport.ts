@@ -40,6 +40,16 @@ export interface FetchCall {
   init: RequestInit | undefined;
 }
 
+export interface SqlRequestBody {
+  sql: string;
+  params?: unknown[];
+}
+
+export function sqlRequestBody(call: FetchCall | undefined): SqlRequestBody {
+  if (!call) throw new Error("expected an SQL request");
+  return JSON.parse(String(call.init?.body)) as SqlRequestBody;
+}
+
 export interface FetchResponseSpec {
   status?: number;
   body?: unknown;
