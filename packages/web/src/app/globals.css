@@ -1800,12 +1800,10 @@ hr {
     [data-column-key="title"] {
     left: 152px !important;
   }
-}
 
-/* Expanded tables at the 768–1311px content-width breakpoint keep their
- * optional columns' intrinsic widths, but their sticky prefix still needs to
- * fit the visible List scrollport. */
-@media (min-width: 768px) and (max-width: 1311px) {
+  /* Expanded tables at the 768–1311px content-width breakpoint keep their
+   * optional columns' intrinsic widths, but their sticky prefix still needs to
+   * fit the visible List scrollport. */
   .reef-issue-list-table.reef-issue-list-table-expanded {
     min-width: 0 !important;
   }
