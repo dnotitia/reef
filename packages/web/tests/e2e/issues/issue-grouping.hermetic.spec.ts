@@ -251,7 +251,7 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
     await context.clearCookies();
     await openExistingWorkspace(page);
 
-    for (const width of [320, 375, 414]) {
+    for (const width of [320, 375, 414, 768]) {
       await page.setViewportSize({ width, height: 844 });
       await page.goto(`${WORKSPACE}?view=list&group=epic`);
 
