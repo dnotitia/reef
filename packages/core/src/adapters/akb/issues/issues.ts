@@ -380,7 +380,7 @@ export async function writeIssue(
         vault,
         `UPDATE ${tableRef(REEF_ISSUES_TABLE)} SET ${buildRowAssignments(
           rowFields,
-        )} WHERE reef_id = ${rowIdParam} AND meta::jsonb->'custom_fields'->'jira_migration'->'owner' = ${ownerParam} AND archived_at IS NOT NULL AND meta::jsonb->'custom_fields'->'jira_migration'->'reservation' = 'true'::jsonb AND updated_at = ${updatedAtParam}`,
+        )} WHERE reef_id = ${rowIdParam} AND meta::jsonb->'custom_fields'->'jira_migration'->'owner' = ${ownerParam} AND archived_at IS NOT NULL AND meta::jsonb->'custom_fields'->'jira_migration'->'reservation' = 'true'::jsonb AND updated_at = ((${updatedAtParam}::text)::timestamptz)`,
         rowParams.params,
       );
       const refreshed = (
@@ -696,7 +696,7 @@ export async function updateIssue(
             REEF_ISSUES_TABLE,
           )} SET ${buildRowAssignments(
             rowFields,
-          )} WHERE reef_id = ${rowIdParam} AND updated_at = ${expectedUpdatedAtParam} RETURNING reef_id) SELECT reef_id FROM upd`
+          )} WHERE reef_id = ${rowIdParam} AND updated_at = ((${expectedUpdatedAtParam}::text)::timestamptz) RETURNING reef_id) SELECT reef_id FROM upd`
         : `UPDATE ${tableRef(REEF_ISSUES_TABLE)} SET ${buildRowAssignments(
             rowFields,
           )} WHERE reef_id = ${rowIdParam}`;
@@ -1236,7 +1236,7 @@ export async function reorderIssue(
             snapshot.updatedAt,
             "reorder updated_at",
           );
-          return `("reef_id" = ${idParam} AND ("rank" IS DISTINCT FROM ${rankParam} OR "updated_at" IS DISTINCT FROM ${updatedAtParam}))`;
+          return `("reef_id" = ${idParam} AND ("rank" IS DISTINCT FROM ${rankParam} OR "updated_at" IS DISTINCT FROM ((${updatedAtParam}::text)::timestamptz)))`;
         })
         .join(" OR ");
       const updated = await runSql(
@@ -1293,9 +1293,11 @@ export async function reorderIssue(
       });
 
       if (groupChanged && group) {
+        let beforeIssue: IssueMetadata | undefined;
+        let afterIssue: IssueMetadata | undefined;
         try {
-          const beforeIssue = rowToIssue(movedRow);
-          const afterIssue = issueWithReorderGroup(beforeIssue, group);
+          beforeIssue = rowToIssue(movedRow);
+          afterIssue = issueWithReorderGroup(beforeIssue, group);
           if (group.field === "status") {
             await appendStatusChangeEvent(adapter, vault, {
               reefId: issueId,
@@ -1324,6 +1326,15 @@ export async function reorderIssue(
           span.addEvent("activity_append_failed", {
             error: error instanceof Error ? error.message : String(error),
           });
+        }
+        if (group.field === "assigned_to" && beforeIssue && afterIssue) {
+          await syncAutomaticIssueSubscriptions(
+            adapter,
+            vault,
+            issueId,
+            beforeIssue,
+            afterIssue,
+          );
         }
       }
 

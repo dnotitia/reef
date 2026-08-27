@@ -9,6 +9,7 @@ import {
   login,
   readIssue,
   searchDocuments,
+  updateIssue,
   writeIssue,
 } from "../../src/adapters/akb";
 import {
@@ -313,6 +314,21 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
   it("readIssue — reef's joined read path parses a live document + row", async () => {
     const result = await readIssue({ adapter, vault, id: SEED_ISSUE_ID });
     expect(result.issue.id).toBe(SEED_ISSUE_ID);
+  });
+
+  it("updateIssue — live row OCC accepts an ISO expected_updated_at", async () => {
+    const current = await readIssue({ adapter, vault, id: SEED_ISSUE_ID });
+
+    await updateIssue({
+      adapter,
+      vault,
+      id: SEED_ISSUE_ID,
+      partial: { priority: "low" },
+      expectedUpdatedAt: current.issue.updated_at,
+    });
+
+    const updated = await readIssue({ adapter, vault, id: SEED_ISSUE_ID });
+    expect(updated.issue.priority).toBe("low");
   });
 
   it("notification storage — public APIs preserve identity, recipient, state, and source contracts", async () => {

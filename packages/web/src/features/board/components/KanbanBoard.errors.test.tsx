@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 
 // Capture the retry helper so the effect-free onError path can be asserted.
-const { notifyRetryableError } = vi.hoisted(() => ({
+const { notifyReorderFailure, notifyRetryableError } = vi.hoisted(() => ({
+  notifyReorderFailure: vi.fn(),
   notifyRetryableError: vi.fn(),
 }));
 vi.mock("@/components/ui/toastFeedback", () => ({
+  notifyReorderFailure,
   notifyRetryableError,
   kanbanToastId: (id: string) => `kanban:${id}`,
 }));
@@ -30,7 +32,50 @@ describe("KanbanBoard status-update errors", () => {
         sortOrder: "desc",
       },
     });
+    notifyReorderFailure.mockReset();
     notifyRetryableError.mockReset();
+  });
+
+  it("surfaces a non-retry conflict notice for a stale Manual reorder", async () => {
+    useIssueStore.setState({ filter: { orderingMode: "manual" } });
+    mockApiFetch.mockImplementation(async (url, init) => {
+      if ((url as string).startsWith("/api/issues?vault=reef-acme")) {
+        return new Response(
+          JSON.stringify({
+            issues: ISSUES.map((issue, index) => ({
+              ...issue,
+              rank: (index + 1) * 1000,
+            })),
+          }),
+          { status: 200 },
+        );
+      }
+      if (url === "/api/issues/reorder" && init?.method === "POST") {
+        return new Response(JSON.stringify({ error: "Save conflict" }), {
+          status: 409,
+        });
+      }
+      return new Response("{}", { status: 200 });
+    });
+
+    render(wrap(<KanbanBoard vault="reef-acme" />));
+    await screen.findByText("Open A");
+
+    act(() => {
+      dndHarness.contextProps?.onDragEnd?.({
+        active: { data: { current: { issue: ISSUES[0] } } },
+        over: { id: "in_progress" },
+      });
+    });
+
+    await waitFor(() => expect(notifyReorderFailure).toHaveBeenCalledTimes(1));
+    expect(notifyRetryableError).not.toHaveBeenCalled();
+    expect(notifyReorderFailure.mock.calls[0][0]).toMatchObject({
+      status: 409,
+    });
+    expect(notifyReorderFailure.mock.calls[0][1]).toMatchObject({
+      id: "kanban:REEF-001",
+    });
   });
 
   it("surfaces a retryable error toast from onError (not a mount effect) when a move fails", async () => {

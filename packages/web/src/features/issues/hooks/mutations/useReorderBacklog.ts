@@ -21,6 +21,7 @@ import type {
   IssueReorderGroupInput,
   IssueReorderTarget,
 } from "../../lib/issueReorder";
+import { activityKey } from "../queries/useActivity";
 
 export interface ReorderIssueInput extends IssueReorderTarget {
   vault: string;
@@ -36,17 +37,29 @@ async function invalidateReorderQueries(
   queryClient: QueryClient,
   input: ReorderIssueInput,
 ): Promise<void> {
-  await queryClient.invalidateQueries({
-    queryKey: ["issues", "list", input.vault],
-    predicate: reorderListInvalidationPredicate(input.group),
-    refetchType: "all",
-  });
-  if (input.group?.field === "status") {
-    await queryClient.invalidateQueries({
-      queryKey: ["issues", "relations", input.vault],
+  const invalidations = [
+    queryClient.invalidateQueries({
+      queryKey: ["issues", "list", input.vault],
+      predicate: reorderListInvalidationPredicate(input.group),
       refetchType: "all",
-    });
+    }),
+  ];
+  if (input.group?.field === "status") {
+    invalidations.push(
+      queryClient.invalidateQueries({
+        queryKey: ["issues", "relations", input.vault],
+        refetchType: "all",
+      }),
+    );
   }
+  if (input.group) {
+    invalidations.push(
+      queryClient.invalidateQueries({
+        queryKey: activityKey(input.vault, input.issueId),
+      }),
+    );
+  }
+  await Promise.all(invalidations);
 }
 
 function optimisticRank(input: ReorderIssueInput): number {

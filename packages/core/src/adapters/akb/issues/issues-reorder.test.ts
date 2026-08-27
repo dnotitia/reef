@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ConflictError } from "../../../errors";
+import { buildSubscriptionKey } from "../../../schemas/notifications";
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
 import {
   type FetchCall,
@@ -55,6 +56,23 @@ function bodyOf(call: FetchCall): Record<string, unknown> {
   return JSON.parse(String(call.init?.body));
 }
 
+function subscriptionRow(subscriber: string) {
+  return {
+    id: "018f47a4-8e3b-7f62-a3d2-9876543210ab",
+    subscription_key: buildSubscriptionKey({
+      reefId: "REEF-003",
+      subscriber,
+      source: "assignee",
+    }),
+    reef_id: "REEF-003",
+    subscriber,
+    source: "assignee",
+    status: "active",
+    subscribed_at: "2026-05-02T00:00:00.000Z",
+    meta: null,
+  };
+}
+
 describe("reorderIssue (REEF-570)", () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -96,6 +114,9 @@ describe("reorderIssue (REEF-570)", () => {
     expect(sql).toContain('SET "rank" = CASE "reef_id"');
     expect(sql).toContain("WHEN $1 THEN $2");
     expect(sql).toContain("IS DISTINCT FROM");
+    expect(sql).toMatch(
+      /"updated_at" IS DISTINCT FROM \(\(\$\d+::text\)::timestamptz\)/,
+    );
     expect(updateBody.params).toEqual(
       expect.arrayContaining(["REEF-003", 1500, "carol"]),
     );
@@ -224,5 +245,80 @@ describe("reorderIssue (REEF-570)", () => {
     expect(updateBody.params).toEqual(
       expect.arrayContaining(["REEF-003", 1500, "high", "carol"]),
     );
+  });
+
+  it("keeps automatic assignee subscriptions aligned with a Board group move", async () => {
+    const rows = makeIssueQueryResponse([
+      makeIssue({ id: "REEF-001", rank: 1000, assigned_to: "alice" }),
+      makeIssue({ id: "REEF-002", rank: 2000, assigned_to: "bob" }),
+      makeIssue({ id: "REEF-003", rank: 3000, assigned_to: "alice" }),
+    ]);
+    const { calls } = setupFetch([
+      { body: rows },
+      {
+        body: {
+          kind: "table_query",
+          columns: ["reef_id", "rank", "updated_at"],
+          items: [
+            {
+              reef_id: "REEF-003",
+              rank: 1500,
+              updated_at: "2026-05-02T00:00:00.000Z",
+            },
+          ],
+          total: 1,
+        },
+      },
+      { status: 500, body: { error: "activity unavailable" } },
+      {
+        body: {
+          kind: "table_query",
+          columns: ["id"],
+          items: [{ id: "removed-alice" }],
+          total: 1,
+        },
+      },
+      {
+        body: {
+          kind: "table_query",
+          columns: Object.keys(subscriptionRow("bob")),
+          items: [subscriptionRow("bob")],
+          total: 1,
+        },
+      },
+    ]);
+
+    await reorderIssue({
+      adapter: makeTestAkbAdapter(),
+      vault: VAULT,
+      scope: "active",
+      issueId: "REEF-003",
+      beforeId: "REEF-001",
+      afterId: "REEF-002",
+      expected: {
+        issueRank: 3000,
+        issueUpdatedAt: "2026-05-01T00:00:00.000Z",
+        beforeRank: 1000,
+        beforeUpdatedAt: "2026-05-01T00:00:00.000Z",
+        afterRank: 2000,
+        afterUpdatedAt: "2026-05-01T00:00:00.000Z",
+      },
+      group: { field: "assigned_to", value: "bob" },
+      actor: "carol",
+      at: "2026-05-02T00:00:00.000Z",
+    });
+
+    const subscriptionSql = calls
+      .slice(3)
+      .map((call) => String(bodyOf(call).sql));
+    expect(subscriptionSql).toHaveLength(2);
+    expect(subscriptionSql[0]).toContain("DELETE FROM reef_subscriptions");
+    expect(subscriptionSql[0]).toContain("'alice'");
+    expect(subscriptionSql[0]).toContain("'assignee'");
+    expect(subscriptionSql[1]).toContain(
+      "ON CONFLICT (subscription_key) DO UPDATE",
+    );
+    expect(subscriptionSql[1]).toContain("'bob'");
+    expect(subscriptionSql[1]).toContain("'assignee'");
   });
 });

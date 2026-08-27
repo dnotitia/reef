@@ -3,7 +3,7 @@
 import { SearchProgressBar } from "@/components/ui/SearchProgressBar";
 import {
   kanbanToastId,
-  notifyRetryableError,
+  notifyReorderFailure,
 } from "@/components/ui/toastFeedback";
 import {
   Table,
@@ -459,19 +459,23 @@ export function IssueListTable({
     reorder.mutateAsync({ vault, scope: "active", ...target }).then(
       () => toast.dismiss(kanbanToastId(target.issueId)),
       (error: unknown) => {
-        notifyRetryableError({
-          id: kanbanToastId(target.issueId),
-          title:
-            error instanceof Error && error.message
-              ? error.message
-              : t("reorderErrorTitle"),
-          description: t("reorderErrorDescription"),
-          labels: {
-            retry: common("retry"),
-            retrying: toasts("retrying"),
+        notifyReorderFailure(
+          error,
+          {
+            id: kanbanToastId(target.issueId),
+            title: t("reorderErrorTitle"),
+            description: t("reorderErrorDescription"),
+            labels: {
+              retry: common("retry"),
+              retrying: toasts("retrying"),
+            },
+            onRetry: () => runReorder(target),
           },
-          onRetry: () => runReorder(target),
-        });
+          {
+            title: t("reorderConflictTitle"),
+            description: t("reorderConflictDescription"),
+          },
+        );
       },
     );
   }

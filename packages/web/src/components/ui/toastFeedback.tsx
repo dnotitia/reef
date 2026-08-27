@@ -124,6 +124,29 @@ export function notifyConflict({
   });
 }
 
+/** Route reorder conflicts to a fresh drag; keep transient failures retryable. */
+export function notifyReorderFailure(
+  error: unknown,
+  retryable: RetryableErrorOptions,
+  conflict: Omit<ConflictNoticeOptions, "id">,
+): void {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { status?: number }).status === 409
+  ) {
+    notifyConflict({ id: retryable.id, ...conflict });
+    return;
+  }
+  notifyRetryableError({
+    ...retryable,
+    title:
+      error instanceof Error && error.message
+        ? error.message
+        : retryable.title,
+  });
+}
+
 export interface UndoableSuccessOptions {
   id: string;
   message: string;
