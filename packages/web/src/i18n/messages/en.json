@@ -698,7 +698,9 @@
       "updateErrorTitle": "Couldn't update issue",
       "updateErrorDescription": "The backlog was reverted. Retry to move it again.",
       "reorderErrorTitle": "Couldn't reorder the backlog",
-      "reorderErrorDescription": "The order was reverted. Retry to move it again."
+      "reorderErrorDescription": "The order was reverted. Retry to move it again.",
+      "reorderConflictTitle": "The issue order changed",
+      "reorderConflictDescription": "The latest order is shown. Drag the issue again to place it against the current order."
     },
     "detailSidebar": {
       "noRequester": "No requester",
@@ -1062,7 +1064,9 @@
       "dragCancel": "Reordering {id} cancelled.",
       "reorderLoadMore": "Load more issues before moving an issue to the end.",
       "reorderErrorTitle": "Couldn't reorder issues",
-      "reorderErrorDescription": "The order was reverted. Retry to move it again."
+      "reorderErrorDescription": "The order was reverted. Retry to move it again.",
+      "reorderConflictTitle": "The issue order changed",
+      "reorderConflictDescription": "The latest order is shown. Drag the issue again to place it against the current list."
     },
     "bulk": {
       "selectIssue": "Select {id}",

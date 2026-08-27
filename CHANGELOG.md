@@ -14,6 +14,16 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Timestamp-guarded issue writes no longer fail at the AKB SQL boundary.**
+  Manual reorder, Jira reservation, migration reconciliation, and orchestration
+  updates keep ISO timestamps text-bound until PostgreSQL performs the
+  `timestamptz` conversion.
+
+- **Manual group moves now preserve their full side effects and conflict
+  recovery.** Assignee moves synchronize automatic subscriptions, group changes
+  refresh Activity, and a stale 409 shows the latest order for a new drag
+  instead of blindly retrying obsolete anchors.
+
 - **Planning overflow tooltips no longer intercept pointer movement to adjacent
   options**, so long milestone, sprint, and release values can be previewed
   without blocking selection in the planning filters.

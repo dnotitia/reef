@@ -4,6 +4,7 @@ import { BoardColumnsSkeleton } from "@/components/BoardColumnsSkeleton";
 import { Button } from "@/components/ui/button";
 import {
   kanbanToastId,
+  notifyReorderFailure,
   notifyRetryableError,
 } from "@/components/ui/toastFeedback";
 import { CloseIssueDialog } from "@/features/issues/components/detail/CloseIssueDialog";
@@ -453,19 +454,23 @@ export function KanbanBoard({
         () => toast.dismiss(kanbanToastId(input.target.issueId)),
         (err: unknown) => {
           const id = input.target.issueId;
-          notifyRetryableError({
-            id: kanbanToastId(id),
-            title:
-              err instanceof Error && err.message
-                ? err.message
-                : backlogT("reorderErrorTitle"),
-            description: backlogT("reorderErrorDescription"),
-            labels: {
-              retry: common("retry"),
-              retrying: toasts("retrying"),
+          notifyReorderFailure(
+            err,
+            {
+              id: kanbanToastId(id),
+              title: backlogT("reorderErrorTitle"),
+              description: backlogT("reorderErrorDescription"),
+              labels: {
+                retry: common("retry"),
+                retrying: toasts("retrying"),
+              },
+              onRetry: () => runReorder(input),
             },
-            onRetry: () => runReorder(input),
-          });
+            {
+              title: backlogT("reorderConflictTitle"),
+              description: backlogT("reorderConflictDescription"),
+            },
+          );
         },
       );
   }

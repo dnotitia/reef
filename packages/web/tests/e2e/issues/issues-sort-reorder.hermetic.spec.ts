@@ -407,6 +407,65 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => 
     await expect(movedCard).toBeFocused();
   });
 
+  test("refreshes stale Manual anchors and asks for a new drag after a conflict", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "demo_board");
+    await context.clearCookies();
+    await page.setViewportSize({ width: 2200, height: 1000 });
+    await openExistingWorkspace(page);
+    await page.goto(
+      `/workspace/${REEF_E2E_VAULT}/issues?view=board&group=status`,
+    );
+
+    const todo = page.locator(
+      '[data-group-by="status"][data-group-value="todo"]',
+    );
+    const inProgress = page.locator(
+      '[data-group-by="status"][data-group-value="in_progress"]',
+    );
+    const movedCard = todo
+      .getByTestId("kanban-card")
+      .filter({ hasText: "Add saved filters" });
+    await expect(movedCard).toBeVisible();
+
+    // Change the row through the real Reef route without updating this page's
+    // Query cache. The next drag therefore carries a stale updated_at snapshot
+    // and exercises the canonical 409 recovery path.
+    const externalStatus = await page.evaluate(
+      async ({ id, vault }) => {
+        const response = await fetch(`/api/issues/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            vault,
+            update: {
+              issue_id: id,
+              patch: { priority: "low" },
+            },
+          }),
+        });
+        return response.status;
+      },
+      { id: "REEF-103", vault: REEF_E2E_VAULT },
+    );
+    expect(externalStatus).toBe(200);
+
+    const reorderResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/api/issues/reorder",
+    );
+    await dragBoardTarget(movedCard, inProgress, "body");
+    expect((await reorderResponse).status()).toBe(409);
+
+    await expect(page.getByText("The issue order changed")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Retry" })).toHaveCount(0);
+    await expect.poll(() => boardIssueIds(todo)).toContain("REEF-103");
+  });
+
   test("keeps a newly created issue at the Manual-order tail after entering Todo", async ({
     page,
     request,

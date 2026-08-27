@@ -202,7 +202,9 @@ describe("born-correct backlog rank (REEF-176)", () => {
     expect(String(bodyOf(calls[4]).sql)).toContain(
       "'reservation' = 'true'::jsonb",
     );
-    expect(String(bodyOf(calls[4]).sql)).toContain("updated_at = $27");
+    expect(String(bodyOf(calls[4]).sql)).toMatch(
+      /updated_at = \(\(\$\d+::text\)::timestamptz\)/,
+    );
     expect(bodyOf(calls[4]).params).toContain("2026-05-01T00:00:00.000Z");
   });
 

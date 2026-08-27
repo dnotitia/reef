@@ -13,6 +13,7 @@ vi.mock("@/lib/apiClient", async () => {
 
 import { useReorderBacklog } from "./useReorderBacklog";
 import { buildIssueReorderTargetFromDrop } from "../../lib/issueReorder";
+import { activityKey } from "../queries/useActivity";
 
 const mockApiFetch = vi.mocked(apiFetch);
 
@@ -151,6 +152,25 @@ describe("useReorderBacklog", () => {
     expect(predicate?.({ queryKey: rankKey })).toBe(true);
     expect(predicate?.({ queryKey: updatedAtKey })).toBe(true);
     expect(predicate?.({ queryKey: priorityKey })).toBe(false);
+  });
+
+  it("invalidates the moved issue activity after a group change", async () => {
+    const { queryClient, wrapper } = wrap();
+    const rows = ordered(["A", 1000], ["B", 2000]);
+    queryClient.setQueryData(activityKey("reef-acme", "B"), []);
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHook(() => useReorderBacklog(), { wrapper });
+
+    await result.current.mutateAsync({
+      vault: "reef-acme",
+      scope: "active",
+      ...targetFor(rows, "B", "A"),
+      group: { field: "priority", value: "high" },
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: activityKey("reef-acme", "B"),
+    });
   });
 
   it("optimistically stamps the new rank onto the vault list cache", async () => {

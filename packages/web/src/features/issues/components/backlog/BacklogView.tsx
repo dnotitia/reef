@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { notifyRetryableError } from "@/components/ui/toastFeedback";
+import { notifyReorderFailure } from "@/components/ui/toastFeedback";
 import { BacklogRow } from "@/features/issues/components/backlog/BacklogRow";
 import { IssueSelectionCheckbox } from "@/features/issues/components/shared/IssueSelectionCheckbox";
 import {
@@ -339,19 +339,20 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
     reorder.mutateAsync({ vault, scope: "backlog", ...input }).then(
       () => toast.dismiss(REORDER_TOAST_ID),
       (err: unknown) => {
-        notifyRetryableError({
-          id: REORDER_TOAST_ID,
-          title:
-            err instanceof Error && err.message
-              ? err.message
-              : t("reorderErrorTitle"),
-          description: t("reorderErrorDescription"),
-          labels: {
-            retry: c("retry"),
-            retrying: toasts("retrying"),
+        notifyReorderFailure(
+          err,
+          {
+            id: REORDER_TOAST_ID,
+            title: t("reorderErrorTitle"),
+            description: t("reorderErrorDescription"),
+            labels: { retry: c("retry"), retrying: toasts("retrying") },
+            onRetry: () => runReorder(input),
           },
-          onRetry: () => runReorder(input),
-        });
+          {
+            title: t("reorderConflictTitle"),
+            description: t("reorderConflictDescription"),
+          },
+        );
       },
     );
   }

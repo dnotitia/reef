@@ -883,7 +883,9 @@
       "updateErrorTitle": "이슈를 업데이트하지 못했습니다",
       "updateErrorDescription": "백로그가 되돌려졌습니다. 다시 이동하려면 재시도하세요.",
       "reorderErrorTitle": "백로그 순서를 바꾸지 못했습니다",
-      "reorderErrorDescription": "순서가 되돌려졌습니다. 다시 이동하려면 재시도하세요."
+      "reorderErrorDescription": "순서가 되돌려졌습니다. 다시 이동하려면 재시도하세요.",
+      "reorderConflictTitle": "이슈 순서가 변경되었습니다",
+      "reorderConflictDescription": "최신 순서를 표시했습니다. 현재 순서를 기준으로 이슈를 다시 드래그하세요."
     },
     "detailSidebar": {
       "noRequester": "요청자 없음",
@@ -1247,7 +1249,9 @@
       "dragCancel": "{id} 순서 변경을 취소했습니다.",
       "reorderLoadMore": "끝으로 이동하기 전에 이슈를 더 불러옵니다.",
       "reorderErrorTitle": "이슈 순서를 바꾸지 못했습니다",
-      "reorderErrorDescription": "순서가 되돌려졌습니다. 다시 이동하려면 재시도하세요."
+      "reorderErrorDescription": "순서가 되돌려졌습니다. 다시 이동하려면 재시도하세요.",
+      "reorderConflictTitle": "이슈 순서가 변경되었습니다",
+      "reorderConflictDescription": "최신 순서를 표시했습니다. 현재 목록을 기준으로 이슈를 다시 드래그하세요."
     },
     "bulk": {
       "selectIssue": "{id} 선택",
