@@ -121,10 +121,12 @@ describe("global focus styles", () => {
   it("compresses the default List sticky columns through narrow viewports", () => {
     const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
 
+    expect(css).toContain("@media (max-width: 480px)");
+    expect(css).toContain("@media (min-width: 768px) and (max-width: 1311px)");
     expect(css).toContain(
-      "@media (max-width: 480px), (min-width: 768px) and (max-width: 1311px)",
+      ".reef-issue-list-table {\n    min-width: 0 !important;",
     );
-    expect(css).toContain('[data-column-key="title"]');
+    expect(css).toContain('.reef-issue-list-table [data-column-key="title"]');
     expect(css).toContain("min-width: 144px !important");
   });
 
