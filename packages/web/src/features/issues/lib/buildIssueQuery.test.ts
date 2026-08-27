@@ -2,13 +2,23 @@
 
 import { describe, expect, it } from "vitest";
 import type { IssueFilter } from "../stores/useIssueStore";
-import { buildIssueQuery, normalizeIssueQuery } from "./buildIssueQuery";
+import {
+  buildIssueQuery,
+  buildManualIssueQuery,
+  normalizeIssueQuery,
+} from "./buildIssueQuery";
 
 // Sort is consistently present now (REEF-057): an unset sort falls back to priority
 // desc, applied at this query-building layer just (not the filter store / URL).
 const DEFAULT_SORT = { sort_field: "priority", sort_order: "desc" } as const;
 
 describe("buildIssueQuery", () => {
+  it("maps an explicitly selected Manual mode to rank order", () => {
+    expect(buildIssueQuery({ orderingMode: "manual" })).toEqual({
+      sort_field: "rank",
+      sort_order: "asc",
+    });
+  });
   it("applies the default sort (priority desc) for an empty filter", () => {
     expect(buildIssueQuery({})).toEqual({ ...DEFAULT_SORT });
   });
@@ -134,6 +144,30 @@ describe("buildIssueQuery", () => {
     expect(buildIssueQuery({})).toEqual({ ...DEFAULT_SORT });
     expect(buildIssueQuery({}, "")).toEqual({ ...DEFAULT_SORT });
     expect(buildIssueQuery({}, "   ")).toEqual({ ...DEFAULT_SORT });
+  });
+});
+
+describe("buildManualIssueQuery", () => {
+  it("fetches the complete active ordering spine and keeps residual filters client-side", () => {
+    expect(
+      buildManualIssueQuery(
+        { priority: ["high"], showArchived: false },
+        "active",
+      ),
+    ).toEqual({
+      status: ["todo", "in_progress", "in_review", "done", "closed"],
+      sort_field: "rank",
+      sort_order: "asc",
+    });
+  });
+
+  it("pins the Manual ordering spine to backlog when requested", () => {
+    expect(buildManualIssueQuery({ showArchived: true }, "backlog")).toEqual({
+      status: ["backlog"],
+      archived: "true",
+      sort_field: "rank",
+      sort_order: "asc",
+    });
   });
 });
 

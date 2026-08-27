@@ -1,7 +1,7 @@
 import type { IssueListItem } from "@reef/core";
 import type { IssueGroupBucket } from "../../issues/lib/grouping";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { useReducer } from "react";
+import { type ReactNode, useReducer } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // Render probe: the column header renders exactly one StatusIcon per render, so
@@ -24,6 +24,11 @@ vi.mock("./KanbanCard", () => ({ KanbanCard: () => null }));
 
 vi.mock("@dnd-kit/core", () => ({
   useDroppable: vi.fn(() => ({ setNodeRef: vi.fn(), isOver: false })),
+}));
+
+vi.mock("@dnd-kit/sortable", () => ({
+  SortableContext: ({ children }: { children: ReactNode }) => <>{children}</>,
+  verticalListSortingStrategy: vi.fn(),
 }));
 
 vi.mock("@formkit/auto-animate/react", () => ({

@@ -1680,12 +1680,18 @@ hr {
  * Keep the fresh default List preset fully visible in that narrow desktop
  * content column; optional planning columns opt back into the table-local
  * horizontal scroll owned by the List surface. At the mobile/zoom-width
- * breakpoint the table keeps its intrinsic column widths instead: shrinking
+ * medium desktop breakpoint the table keeps its intrinsic column widths
+ * instead: shrinking
  * sticky columns below their readable width lets ordinary cells paint through
  * the sticky title boundary while horizontally scrolling. */
-@media (min-width: 768px) and (max-width: 1231px) {
+@media (min-width: 768px) and (max-width: 1311px) {
   .reef-issue-list-table:not(.reef-issue-list-table-expanded) {
     min-width: 0 !important;
+  }
+
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+    [data-column-key="rank"] {
+    width: 32px !important;
   }
 
   .reef-issue-list-table:not(.reef-issue-list-table-expanded)

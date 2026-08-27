@@ -2,100 +2,200 @@
 
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
 import {
+  IssueReorderResponseSchema,
   type IssueListItem,
-  type RankedItem,
-  computeReorderedRanks,
+  type IssueReorderGroup,
 } from "@reef/core";
 import {
+  type QueryClient,
   type QueryKey,
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import { updateIssueListCaches } from "../../lib/issueListCache";
+import {
+  restoreIssueListCacheItems,
+  updateIssueListCaches,
+} from "../../lib/issueListCache";
+import { reorderListInvalidationPredicate } from "../../lib/issueListMembership";
+import type {
+  IssueReorderGroupInput,
+  IssueReorderTarget,
+} from "../../lib/issueReorder";
 
-interface ReorderBacklogInput {
+export interface ReorderIssueInput extends IssueReorderTarget {
   vault: string;
-  /** The backlog in its current display order, so `from`/`to` index into it. */
-  ordered: readonly IssueListItem[];
-  fromIndex: number;
-  toIndex: number;
+  scope: "active" | "backlog";
+  group?: IssueReorderGroupInput;
 }
 
-interface ReorderBacklogContext {
+interface ReorderIssueContext {
   previousLists: Array<[QueryKey, unknown]>;
 }
 
-function toRankedItems(ordered: readonly IssueListItem[]): RankedItem[] {
-  return ordered.map((issue) => ({ id: issue.id, rank: issue.rank ?? null }));
+async function invalidateReorderQueries(
+  queryClient: QueryClient,
+  input: ReorderIssueInput,
+): Promise<void> {
+  await queryClient.invalidateQueries({
+    queryKey: ["issues", "list", input.vault],
+    predicate: reorderListInvalidationPredicate(input.group),
+    refetchType: "all",
+  });
+  if (input.group?.field === "status") {
+    await queryClient.invalidateQueries({
+      queryKey: ["issues", "relations", input.vault],
+      refetchType: "all",
+    });
+  }
+}
+
+function optimisticRank(input: ReorderIssueInput): number {
+  const before = input.expected.beforeRank;
+  const after = input.expected.afterRank;
+  if (before != null && after != null && after > before) {
+    const midpoint = before + (after - before) / 2;
+    if (midpoint > before && midpoint < after) return midpoint;
+  }
+  if (before != null) return before + 1000;
+  if (after != null) return after - 1000;
+  return 1000;
+}
+
+function applyGroup(
+  issue: IssueListItem,
+  group: IssueReorderGroup,
+): IssueListItem {
+  switch (group.field) {
+    case "status":
+      return {
+        ...issue,
+        status: group.value as IssueListItem["status"],
+        ...(group.value === "closed"
+          ? { closed_reason: group.closed_reason ?? null }
+          : { closed_at: null, closed_reason: null }),
+      };
+    case "priority":
+      return { ...issue, priority: group.value as IssueListItem["priority"] };
+    case "assigned_to":
+      return { ...issue, assigned_to: group.value };
+    case "sprint_id":
+      return { ...issue, sprint_id: group.value };
+  }
+}
+
+function mapOptimisticIssue(
+  issue: IssueListItem,
+  input: ReorderIssueInput,
+  rankById: ReadonlyMap<
+    string,
+    { rank: number; updatedAt?: string }
+  > = new Map(),
+  settledRank: number | null | undefined,
+): IssueListItem {
+  let next = issue;
+  const persisted = rankById.get(issue.id);
+  const rank =
+    persisted?.rank ??
+    (issue.id === input.issueId
+      ? settledRank !== undefined
+        ? settledRank
+        : optimisticRank(input)
+      : undefined);
+  if (rank !== undefined) {
+    next = {
+      ...next,
+      rank,
+      ...(persisted?.updatedAt ? { updated_at: persisted.updatedAt } : {}),
+    };
+  }
+  if (input.group && issue.id === input.issueId) {
+    next = applyGroup(next, input.group);
+  }
+  return next;
+}
+
+function requestBody(input: ReorderIssueInput): Record<string, unknown> {
+  return {
+    vault: input.vault,
+    scope: input.scope,
+    issue_id: input.issueId,
+    before_id: input.beforeId,
+    after_id: input.afterId,
+    expected: {
+      issue_rank: input.expected.issueRank,
+      issue_updated_at: input.expected.issueUpdatedAt,
+      before_rank: input.expected.beforeRank,
+      before_updated_at: input.expected.beforeUpdatedAt,
+      after_rank: input.expected.afterRank,
+      after_updated_at: input.expected.afterUpdatedAt,
+    },
+    ...(input.group ? { group: input.group } : {}),
+  };
 }
 
 /**
- * Persist a backlog drag-reorder as `rank` writes (REEF-129). The pure
- * `computeReorderedRanks` algebra decides the minimal set of rows to touch —
- * one in the steady state, a bounded run / curated re-space otherwise. They are
- * sent as a SINGLE atomic request so a multi-row reorder does not lands partially;
- * `rank` is a row column, not a document field, so no commit churns.
- *
- * The display order in the backlog view is a pure function of `rank`
- * (`backlogRankSortKey`), so the optimistic update just has to stamp the new
- * ranks onto the affected rows in every list cache for the vault; the view
- * re-sorts itself.
+ * Persist a Manual-order move for any supported issue surface. The browser
+ * optimistically changes only the moved entity's rank; the server response
+ * supplies any additional materialized ranks, so no client-owned id sequence
+ * is introduced.
  */
 export function useReorderBacklog() {
   const queryClient = useQueryClient();
 
-  return useMutation<void, Error, ReorderBacklogInput, ReorderBacklogContext>({
-    mutationFn: async ({ vault, ordered, fromIndex, toIndex }) => {
-      const updates = computeReorderedRanks(
-        toRankedItems(ordered),
-        fromIndex,
-        toIndex,
-      );
-      if (updates.length === 0) return;
+  return useMutation<
+    ReturnType<typeof IssueReorderResponseSchema.parse>,
+    Error,
+    ReorderIssueInput,
+    ReorderIssueContext
+  >({
+    mutationFn: async (input) => {
       const res = await apiFetch("/api/issues/reorder", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vault, assignments: updates }),
+        body: JSON.stringify(requestBody(input)),
       });
       if (!res.ok) {
         await throwHttpError(res, `Reorder failed: ${res.status}`);
       }
+      return IssueReorderResponseSchema.parse(await res.json());
     },
-    onMutate: async ({ vault, ordered, fromIndex, toIndex }) => {
-      const listKey = ["issues", "list", vault] as const;
-      await queryClient.cancelQueries({ queryKey: listKey, type: "active" });
-
-      const updates = computeReorderedRanks(
-        toRankedItems(ordered),
-        fromIndex,
-        toIndex,
-      );
-      const rankById = new Map(updates.map((u) => [u.id, u.rank]));
-
-      // Stamp the new ranks onto every list cache for the vault; the backlog
-      // view re-sorts by rank, so this is the whole optimistic reorder.
+    onMutate: async (input) => {
+      const listKey = ["issues", "list", input.vault] as const;
+      await queryClient.cancelQueries({ queryKey: listKey });
       const previousLists = updateIssueListCaches(
         queryClient,
-        vault,
-        (issue) =>
-          rankById.has(issue.id)
-            ? { ...issue, rank: rankById.get(issue.id) }
-            : issue,
+        input.vault,
+        (issue) => mapOptimisticIssue(issue, input, new Map(), undefined),
       );
-
       return { previousLists };
     },
-    onError: (_err, _input, context) => {
+    onError: async (_error, input, context) => {
       if (context?.previousLists) {
-        for (const [key, data] of context.previousLists) {
-          queryClient.setQueryData(key, data);
-        }
+        restoreIssueListCacheItems(
+          queryClient,
+          context.previousLists,
+          input.issueId,
+        );
       }
+      // A rejected anchor may reflect another user's committed order. Restore
+      // the local snapshot immediately, then re-read every active list cache so
+      // rollback converges to the server rather than merely to stale input.
+      await invalidateReorderQueries(queryClient, input);
     },
-    onSettled: (_data, _err, { vault }) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["issues", "list", vault],
-      });
+    onSuccess: (data, input) => {
+      const rankById = new Map(
+        data.assignments.map((assignment) => [
+          assignment.id,
+          { rank: assignment.rank, updatedAt: assignment.updated_at },
+        ]),
+      );
+      updateIssueListCaches(queryClient, input.vault, (issue) =>
+        mapOptimisticIssue(issue, input, rankById, input.expected.issueRank),
+      );
+    },
+    onSettled: async (_data, error, input) => {
+      if (error) return;
+      await invalidateReorderQueries(queryClient, input);
     },
   });
 }

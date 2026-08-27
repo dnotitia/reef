@@ -7,6 +7,7 @@ import {
   StatusEnum,
   USER_SORT_FIELDS,
 } from "@reef/core";
+import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import type { IssueFilter } from "../stores/useIssueStore";
 import { filterForIssueScope } from "./scopeFilter";
 import type { IssueScope } from "./viewMode";
@@ -83,6 +84,11 @@ export function buildIssueQuery(
   const trimmedSearch = searchQuery?.trim();
   if (trimmedSearch) q.q = trimmedSearch;
   if (scopedFilter.showArchived) q.archived = "true";
+  if (scopedFilter.orderingMode === "manual") {
+    q.sort_field = "rank";
+    q.sort_order = "asc";
+    return q;
+  }
   // Sort is consistently present: fall back to the default (priority desc, REEF-057)
   // when the user has not picked a valid sort. Kept here (not in the filter
   // store) so an unset sort does not leaks into the URL / persisted slot; the
@@ -104,6 +110,28 @@ export function buildIssueQuery(
   q.sort_field = sortField ?? DEFAULT_ISSUE_SORT_FIELD;
   q.sort_order = sortOrder;
   return q;
+}
+
+/**
+ * Build the complete rank-ordered query used by Manual surfaces. All narrowing
+ * facets stay in the client pipeline so the loaded rows remain an ordering
+ * spine; once pagination has a next page, a bottom drop is held until that
+ * canonical neighbour is loaded. The reorder command still validates anchors
+ * against server state before writing.
+ */
+export function buildManualIssueQuery(
+  filter: IssueFilter,
+  scope: IssueScope,
+): IssueQueryParams {
+  return {
+    status:
+      scope === "backlog"
+        ? ["backlog"]
+        : ([...WORKFLOW_STATUS_OPTIONS] as string[]),
+    ...(filter.showArchived ? { archived: "true" } : {}),
+    sort_field: "rank",
+    sort_order: "asc",
+  };
 }
 
 /** Append a query param map onto URLSearchParams (arrays → repeated params). */

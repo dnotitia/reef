@@ -2,7 +2,7 @@ import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import type { IssueMetadata } from "@reef/core";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   FILTER_ISSUES,
   ISSUES,
@@ -13,12 +13,27 @@ import {
   wrap,
 } from "./KanbanBoard.testSupport";
 
+function useFieldOrdering() {
+  useIssueStore.setState({
+    filter: {
+      orderingMode: "field",
+      sortField: "priority",
+      sortOrder: "desc",
+    },
+  });
+}
+
 describe("KanbanBoard drag and status updates", () => {
   beforeEach(() => {
     resetKanbanBoardMocks();
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("PATCHes status when a card is dropped on a different status column", async () => {
+    useFieldOrdering();
     mockApiFetch.mockImplementation(async (url, init) => {
       if ((url as string).startsWith("/api/issues?vault=reef-acme")) {
         return new Response(JSON.stringify({ issues: ISSUES }), {
@@ -71,6 +86,7 @@ describe("KanbanBoard drag and status updates", () => {
   });
 
   it("asks for a close reason before closing a card from the board", async () => {
+    useFieldOrdering();
     const user = userEvent.setup();
     mockApiFetch.mockImplementation(async (url, init) => {
       if ((url as string).startsWith("/api/issues?vault=reef-acme")) {
@@ -132,6 +148,7 @@ describe("KanbanBoard drag and status updates", () => {
   });
 
   it("PATCHes status when a card is moved backward by the user", async () => {
+    useFieldOrdering();
     mockApiFetch.mockImplementation(async (url, init) => {
       if ((url as string).startsWith("/api/issues?vault=reef-acme")) {
         return new Response(JSON.stringify({ issues: ISSUES }), {
@@ -180,6 +197,7 @@ describe("KanbanBoard drag and status updates", () => {
   });
 
   it("clears closed metadata when a closed card is moved backward by the user", async () => {
+    useFieldOrdering();
     const closedIssue: IssueMetadata = {
       ...ISSUES[1],
       status: "closed",
@@ -254,6 +272,7 @@ describe("KanbanBoard drag and status updates", () => {
   });
 
   it("uses the shared bulk patch path for a writable priority group", async () => {
+    useFieldOrdering();
     mockApiFetch.mockImplementation(async (url, init) => {
       if ((url as string).startsWith("/api/issues?vault=reef-acme")) {
         return new Response(JSON.stringify({ issues: FILTER_ISSUES }), {
@@ -298,6 +317,7 @@ describe("KanbanBoard drag and status updates", () => {
   });
 
   it("writes null when a writable grouped field targets None and skips same-value drops", async () => {
+    useFieldOrdering();
     mockApiFetch.mockImplementation(async (url, init) => {
       if ((url as string).startsWith("/api/issues?vault=reef-acme")) {
         return new Response(JSON.stringify({ issues: FILTER_ISSUES }), {
@@ -348,7 +368,7 @@ describe("KanbanBoard drag and status updates", () => {
     );
   });
 
-  it("disables sensors and drops for label groups while retaining issue cards", async () => {
+  it("gates drag and drops for label groups while retaining issue cards", async () => {
     mockApiFetch.mockImplementation(async (url) => {
       if ((url as string).startsWith("/api/issues?vault=reef-acme")) {
         return new Response(JSON.stringify({ issues: FILTER_ISSUES }), {
@@ -361,8 +381,16 @@ describe("KanbanBoard drag and status updates", () => {
     render(wrap(<KanbanBoard vault="reef-acme" groupBy="label" />));
     await screen.findByText("UI board polish");
 
-    expect(dndHarness.contextProps?.sensors).toEqual([]);
+    // Keep the DnD sensor dependency shape stable across group changes; the
+    // label group's cards and columns remain disabled below, so no drag can
+    // activate while the context avoids React's variable-length dependency.
+    expect(dndHarness.contextProps?.sensors).toHaveLength(2);
     expect(screen.getAllByTestId("kanban-card").length).toBeGreaterThan(0);
+    expect(
+      screen
+        .getAllByTestId("kanban-card")
+        .every((card) => card.getAttribute("aria-disabled") === "true"),
+    ).toBe(true);
     expect(
       screen.getAllByTitle(/Label groups are read-only/i).length,
     ).toBeGreaterThan(0);
@@ -379,5 +407,49 @@ describe("KanbanBoard drag and status updates", () => {
           url === "/api/issues/REEF-010" && init?.method === "PATCH",
       ),
     ).toBe(false);
+  });
+
+  it("prefers a card collision over its enclosing Board column", async () => {
+    mockApiFetch.mockResolvedValue(
+      new Response(JSON.stringify({ issues: FILTER_ISSUES }), { status: 200 }),
+    );
+
+    render(wrap(<KanbanBoard vault="reef-acme" />));
+    await screen.findByText("UI board polish");
+
+    const columnCollision = {
+      id: "todo",
+      data: {
+        droppableContainer: { data: { current: { bucket: true } } },
+        value: 1,
+      },
+    };
+    const cardCollision = {
+      id: "todo:REEF-010",
+      data: {
+        droppableContainer: {
+          data: { current: { issue: FILTER_ISSUES[0] } },
+        },
+        value: 2,
+      },
+    };
+    dndHarness.pointerWithin.mockReturnValue([columnCollision, cardCollision]);
+
+    const detect = dndHarness.contextProps?.collisionDetection as (
+      args: unknown,
+    ) => unknown[];
+    expect(detect({})).toEqual([cardCollision]);
+  });
+
+  it("disables the Board drop settle animation for reduced-motion users", async () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true }));
+    mockApiFetch.mockResolvedValue(
+      new Response(JSON.stringify({ issues: FILTER_ISSUES }), { status: 200 }),
+    );
+
+    render(wrap(<KanbanBoard vault="reef-acme" />));
+    await screen.findByText("UI board polish");
+
+    expect(dndHarness.overlayProps?.dropAnimation).toBeUndefined();
   });
 });

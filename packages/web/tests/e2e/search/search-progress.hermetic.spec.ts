@@ -50,7 +50,7 @@ test.describe("Search progress hairline (REEF-369)", () => {
     await openExistingWorkspace(page);
     // The hairline is wired into IssueListTable (and BacklogView); switch to the
     // List view so it is mounted, then let the initial load settle.
-    await page.locator('[data-testid="view-switcher-list"]').click();
+    await page.goto("/workspace/reef-e2e/issues?view=list&sort=priority");
     await expect(
       page.locator('[data-testid="issue-list-row"]').first(),
     ).toBeVisible();

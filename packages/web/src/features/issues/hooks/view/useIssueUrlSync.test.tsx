@@ -160,6 +160,20 @@ describe("useIssueUrlSync", () => {
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
+  it("restores the shared Manual ordering mode without a direction", async () => {
+    navigationState.searchParams = new URLSearchParams(
+      "sort=manual&order=desc",
+    );
+
+    render(<Harness />);
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.orderingMode).toBe("manual");
+    });
+    expect(useIssueStore.getState().filter.sortField).toBeUndefined();
+    expect(useIssueStore.getState().filter.sortOrder).toBeUndefined();
+  });
+
   it("normalizes an invalid group URL to the view default while preserving filters", async () => {
     navigationState.searchParams = new URLSearchParams(
       "view=list&group=not-a-group&status=todo",

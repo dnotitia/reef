@@ -211,7 +211,7 @@ describe("IssueListTable", () => {
     expect(await screen.findByText("First task")).toBeInTheDocument();
     expect(screen.getByText("Second task")).toBeInTheDocument();
     expect(mockApiFetch).toHaveBeenCalledWith(
-      "/api/issues?vault=reef-acme&limit=100&status=todo&status=in_progress&status=in_review&status=done&status=closed&sort_field=priority&sort_order=desc",
+      "/api/issues?vault=reef-acme&limit=100&status=todo&status=in_progress&status=in_review&status=done&status=closed&sort_field=rank&sort_order=asc",
     );
   });
 
@@ -260,6 +260,7 @@ describe("IssueListTable", () => {
         .map((header) => header.getAttribute("data-column-key")),
     ).toEqual([
       "select",
+      "rank",
       "id",
       "type",
       "title",
@@ -400,14 +401,17 @@ describe("IssueListTable", () => {
     expect(await screen.findByText("Second label task")).toBeInTheDocument();
     expect(screen.getByText("Unlabeled task")).toBeInTheDocument();
     expect(screen.getAllByTestId("issue-group-header")).toHaveLength(3);
+    expect(screen.getByTestId("issue-ordering-hint")).toHaveTextContent(
+      "Switch to ungrouped Manual order",
+    );
     expect(
       screen
         .getAllByTestId("issue-list-row")
         .map((row) => row.getAttribute("data-occurrence-key")),
     ).toEqual([
       "label:alpha:REEF-1",
-      "label:Zebra:REEF-1",
       "label:Zebra:REEF-2",
+      "label:Zebra:REEF-1",
       "label:none:REEF-3",
     ]);
 

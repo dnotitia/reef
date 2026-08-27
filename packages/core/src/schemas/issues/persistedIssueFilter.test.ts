@@ -25,6 +25,7 @@ describe("PersistedIssueFilterSchema", () => {
       showArchived: true,
       sortField: "updated_at",
       sortOrder: "desc",
+      orderingMode: "field",
     };
     expect(PersistedIssueFilterSchema.parse(input)).toEqual(input);
   });

@@ -299,7 +299,7 @@ export async function signInAndSelectExistingWorkspace(
 ): Promise<void> {
   await signInAsAlice(page);
   await expect(page).toHaveURL(
-    new RegExp(`/workspace/${escapeRegExp(vault)}/issues/?$`),
+    new RegExp(`/workspace/${escapeRegExp(vault)}/issues/?(?:\\?[^#]*)?$`),
     { timeout: 15_000 },
   );
 }
@@ -309,7 +309,7 @@ export async function continueToWorkspace(
   vault = REEF_E2E_VAULT,
 ): Promise<void> {
   await expect(page).toHaveURL(
-    new RegExp(`/workspace/${escapeRegExp(vault)}/issues/?$`),
+    new RegExp(`/workspace/${escapeRegExp(vault)}/issues/?(?:\\?[^#]*)?$`),
     { timeout: 15_000 },
   );
 

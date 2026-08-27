@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 
 // Capture the retry helper so the effect-free onError path can be asserted.
 const { notifyRetryableError } = vi.hoisted(() => ({
@@ -22,6 +23,13 @@ import {
 describe("KanbanBoard status-update errors", () => {
   beforeEach(() => {
     resetKanbanBoardMocks();
+    useIssueStore.setState({
+      filter: {
+        orderingMode: "field",
+        sortField: "priority",
+        sortOrder: "desc",
+      },
+    });
     notifyRetryableError.mockReset();
   });
 

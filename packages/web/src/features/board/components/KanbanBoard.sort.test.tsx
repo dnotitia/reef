@@ -1,9 +1,11 @@
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
+import type { IssueMetadata } from "@reef/core";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   FILTER_ISSUES,
   KanbanBoard,
+  dndHarness,
   mockApiFetch,
   resetKanbanBoardMocks,
   wrap,
@@ -129,4 +131,158 @@ describe("KanbanBoard in-column sorting (REEF-059)", () => {
     const nineNinetyNine = await screen.findByText("Backend blocker");
     expect(isBefore(nineNinetyNine, oneThousand)).toBe(true);
   });
+
+  it("reorders the same Manual Board group through the shared rank command", async () => {
+    const manualIssues = FILTER_ISSUES.map((issue) =>
+      issue.id === "REEF-010"
+        ? { ...issue, rank: 1000 }
+        : issue.id === "REEF-013"
+          ? { ...issue, rank: 2000 }
+          : issue,
+    );
+    mockApiFetch.mockImplementation(async (url) => {
+      if (String(url).startsWith("/api/issues?vault=reef-acme")) {
+        return new Response(JSON.stringify({ issues: manualIssues }), {
+          status: 200,
+        });
+      }
+      if (url === "/api/issues/reorder") {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            assignments: [{ id: "REEF-013", rank: 0 }],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response("{}", { status: 200 });
+    });
+
+    render(wrap(<KanbanBoard vault="reef-acme" />));
+    await screen.findByText("Backend blocker");
+
+    act(() => {
+      dndHarness.contextProps?.onDragEnd?.({
+        active: { data: { current: { issue: manualIssues[3] } } },
+        over: { id: "todo:REEF-010" },
+      });
+    });
+
+    await waitFor(() =>
+      expect(
+        mockApiFetch.mock.calls.some(([url]) => url === "/api/issues/reorder"),
+      ).toBe(true),
+    );
+    const call = mockApiFetch.mock.calls.find(
+      ([url]) => url === "/api/issues/reorder",
+    );
+    const body = JSON.parse(String(call?.[1]?.body));
+    expect(body).toMatchObject({
+      scope: "active",
+      issue_id: "REEF-013",
+      before_id: null,
+      after_id: "REEF-010",
+    });
+    expect(body.group).toBeUndefined();
+  });
+
+  it.each([
+    {
+      groupBy: "status" as const,
+      overId: "in_review",
+      source: { status: "todo" as const },
+      target: { field: "status" as const, value: "in_review" },
+    },
+    {
+      groupBy: "priority" as const,
+      overId: "priority:medium",
+      source: { priority: "high" as const },
+      target: { field: "priority" as const, value: "medium" },
+    },
+    {
+      groupBy: "assignee" as const,
+      overId: "assignee:none",
+      source: { assigned_to: "alice" },
+      target: { field: "assigned_to" as const, value: null },
+    },
+    {
+      groupBy: "sprint" as const,
+      overId: "sprint:none",
+      source: { sprint_id: "sprint-1" },
+      target: { field: "sprint_id" as const, value: null },
+    },
+  ])(
+    "uses canonical anchors for an empty $groupBy bucket and sends one group+rank command",
+    async ({ groupBy, overId, source, target }) => {
+      const moved: IssueMetadata = {
+        id: "REEF-003",
+        title: "Moved issue",
+        status: "todo",
+        rank: 3000,
+        created_at: "2026-05-01T00:00:00.000Z",
+        created_by: "alice",
+        updated_at: "2026-05-01T00:00:00.000Z",
+        updated_by: "alice",
+        ...source,
+      };
+      const interleaved: IssueMetadata = {
+        id: "REEF-001",
+        title: "Interleaved issue",
+        status: "in_progress",
+        rank: 1000,
+        created_at: "2026-05-01T00:00:00.000Z",
+        created_by: "alice",
+        updated_at: "2026-05-01T00:00:00.000Z",
+        updated_by: "alice",
+      };
+      const rows = [moved, interleaved];
+      mockApiFetch.mockImplementation(async (url) => {
+        if (String(url).startsWith("/api/issues?vault=reef-acme")) {
+          return new Response(JSON.stringify({ issues: rows }), {
+            status: 200,
+          });
+        }
+        if (url === "/api/issues/reorder") {
+          return new Response(JSON.stringify({ ok: true, assignments: [] }), {
+            status: 200,
+          });
+        }
+        if (String(url).startsWith("/api/issues/relations")) {
+          return new Response(JSON.stringify({ relations: [] }), {
+            status: 200,
+          });
+        }
+        return new Response("{}", { status: 200 });
+      });
+
+      render(wrap(<KanbanBoard vault="reef-acme" groupBy={groupBy} />));
+      expect(await screen.findByText("Moved issue")).toBeInTheDocument();
+
+      act(() => {
+        dndHarness.contextProps?.onDragEnd?.({
+          active: { data: { current: { issue: moved } } },
+          over: { id: overId },
+        });
+      });
+
+      await waitFor(() =>
+        expect(
+          mockApiFetch.mock.calls.some(
+            ([url]) => url === "/api/issues/reorder",
+          ),
+        ).toBe(true),
+      );
+      const call = mockApiFetch.mock.calls.find(
+        ([url]) => url === "/api/issues/reorder",
+      );
+      const body = JSON.parse(String(call?.[1]?.body));
+      expect(body).toMatchObject({
+        scope: "active",
+        issue_id: "REEF-003",
+        before_id: "REEF-001",
+        after_id: null,
+        group: target,
+      });
+    },
+  );
 });

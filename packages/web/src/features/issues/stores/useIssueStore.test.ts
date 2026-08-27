@@ -95,12 +95,14 @@ describe("useIssueStore", () => {
   it("setSortField sets sortField in filter", () => {
     useIssueStore.getState().setSortField("updated_at");
     expect(useIssueStore.getState().filter.sortField).toBe("updated_at");
+    expect(useIssueStore.getState().filter.orderingMode).toBe("field");
   });
 
   it("setSortField to undefined clears the sort field", () => {
     useIssueStore.getState().setSortField("created_at");
     useIssueStore.getState().setSortField(undefined);
     expect(useIssueStore.getState().filter.sortField).toBeUndefined();
+    expect(useIssueStore.getState().filter.orderingMode).toBe("manual");
   });
 
   it("setSortOrder sets sortOrder in filter", () => {
@@ -111,6 +113,19 @@ describe("useIssueStore", () => {
   it("setSortOrder to desc", () => {
     useIssueStore.getState().setSortOrder("desc");
     expect(useIssueStore.getState().filter.sortOrder).toBe("desc");
+  });
+
+  it("clearSort selects shared Manual ordering without storing a rank sequence", () => {
+    useIssueStore
+      .getState()
+      .setFilter({ sortField: "updated_at", sortOrder: "desc" });
+    useIssueStore.getState().clearSort();
+    expect(useIssueStore.getState().filter).toMatchObject({
+      orderingMode: "manual",
+      sortField: undefined,
+      sortOrder: undefined,
+    });
+    expect("rank" in useIssueStore.getState().filter).toBe(false);
   });
 
   it("setFilter toggles dependencyFilter as a multi-select array (REEF-031)", () => {

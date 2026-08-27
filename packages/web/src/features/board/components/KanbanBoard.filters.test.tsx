@@ -146,10 +146,7 @@ describe("KanbanBoard filtering and rendering", () => {
     expect(screen.queryByText("Backend blocker")).toBeNull();
   });
 
-  it("sends the search query to the server as `q` (REEF-034)", async () => {
-    // Free-text search is now a server predicate, not a client filter. The board
-    // forwards `searchQuery` as `q=` and renders whatever the server returns —
-    // the mock returns the already-narrowed result the server would.
+  it("keeps the full rank spine while applying search locally for Manual order", async () => {
     useIssueStore.setState({
       filter: {},
       searchQuery: "api",
@@ -164,7 +161,8 @@ describe("KanbanBoard filtering and rendering", () => {
     expect(await screen.findByText("API cleanup")).toBeInTheDocument();
     expect(screen.queryByText("UI board polish")).toBeNull();
     const requestedUrl = mockApiFetch.mock.calls[0]?.[0] as string;
-    expect(requestedUrl).toContain("q=api");
+    expect(requestedUrl).toContain("sort_field=rank");
+    expect(requestedUrl).not.toContain("q=api");
   });
 
   it("applies dependency filters to board cards", async () => {

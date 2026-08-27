@@ -40,10 +40,10 @@ export const RANK_NULL_SORT_SENTINEL = 1e15;
  * The hard upper bound on the rows a single reorder may write. Dropping deep
  * into a very large unranked tail would otherwise materialize one row per
  * passed-over row — unbounded for an unpaginated backlog, and rejected by the
- * reorder request schema (which caps `assignments` at this same value). The
+ * reorder response schema (which caps assignments at this same value). The
  * algorithm clamps such a drop so the moved row lands at most this far below the
  * curated zone; a realistic triage backlog does not approaches the clamp. The
- * server schema and this constant share the bound so a valid drag is does not
+ * server schema and this constant share the bound so a valid drag is not
  * rejected as malformed.
  */
 export const MAX_REORDER_WRITES = 1000;

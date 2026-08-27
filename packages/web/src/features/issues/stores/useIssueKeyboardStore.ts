@@ -4,11 +4,18 @@ import { create } from "zustand";
 
 export type IssueKeyboardScope = "list" | "board" | "backlog";
 export type IssueQuickEditField = "status" | "assignee" | "priority" | "labels";
+export type IssueKeyboardFocusTarget = "surface" | "reorder-handle";
+
+interface FocusOptions {
+  requestDomFocus?: boolean;
+  target?: IssueKeyboardFocusTarget;
+}
 
 interface FocusRequest {
   scope: IssueKeyboardScope;
   issueId: string;
   occurrenceKey?: string;
+  target?: IssueKeyboardFocusTarget;
   serial: number;
 }
 
@@ -45,13 +52,13 @@ interface IssueKeyboardState {
   focusIssue: (
     scope: IssueKeyboardScope,
     issueId: string,
-    options?: { requestDomFocus?: boolean },
+    options?: FocusOptions,
   ) => void;
   focusOccurrence: (
     scope: IssueKeyboardScope,
     occurrenceKey: string,
     issueId: string,
-    options?: { requestDomFocus?: boolean },
+    options?: FocusOptions,
   ) => void;
   moveFocus: (scope: IssueKeyboardScope, delta: 1 | -1) => void;
   requestQuickEdit: (
@@ -235,7 +242,13 @@ export const useIssueKeyboardStore = create<IssueKeyboardState>((set) => ({
           [scope]: occurrenceKey,
         },
         focusRequest: options.requestDomFocus
-          ? { scope, issueId, occurrenceKey, serial }
+          ? {
+              scope,
+              issueId,
+              occurrenceKey,
+              target: options.target ?? "surface",
+              serial,
+            }
           : state.focusRequest,
       };
     }),
@@ -255,7 +268,13 @@ export const useIssueKeyboardStore = create<IssueKeyboardState>((set) => ({
           [scope]: occurrenceKey,
         },
         focusRequest: options.requestDomFocus
-          ? { scope, issueId, occurrenceKey, serial }
+          ? {
+              scope,
+              issueId,
+              occurrenceKey,
+              target: options.target ?? "surface",
+              serial,
+            }
           : state.focusRequest,
       };
     }),

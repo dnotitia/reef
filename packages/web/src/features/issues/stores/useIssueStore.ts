@@ -1,4 +1,5 @@
 import type { UserSortField } from "@reef/core/fields";
+import type { IssueOrderingMode } from "@reef/core";
 import { create } from "zustand";
 
 export interface IssueFilter {
@@ -25,6 +26,8 @@ export interface IssueFilter {
   // in core does not silently leave this union behind.
   sortField?: UserSortField;
   sortOrder?: "asc" | "desc";
+  /** Shared ordering choice; omitted legacy filters resolve to Manual. */
+  orderingMode?: IssueOrderingMode;
   dependencyFilter?: ("blocked" | "blocking")[];
   /**
    * Controls whether archived issues (`archived_at != null`) appear in the
@@ -40,6 +43,11 @@ export interface IssueFilter {
    * auto-hide are distinct reasons an issue leaves the default view.
    */
   showStale?: boolean;
+}
+
+/** Resolve old filters and the pristine store state to the shared Manual mode. */
+export function isManualOrdering(filter: IssueFilter): boolean {
+  return filter.orderingMode === "manual" || !filter.sortField;
 }
 
 interface IssueState {
@@ -110,20 +118,38 @@ export const useIssueStore = create<IssueState>((set) => ({
   clearFiltersOnly: () =>
     set((state) => ({
       filter: {
+        orderingMode: state.filter.orderingMode,
         sortField: state.filter.sortField,
         sortOrder: state.filter.sortOrder,
       },
     })),
 
   setSortField: (field) =>
-    set((state) => ({ filter: { ...state.filter, sortField: field } })),
+    set((state) => ({
+      filter: {
+        ...state.filter,
+        sortField: field,
+        orderingMode: field ? "field" : "manual",
+      },
+    })),
 
   setSortOrder: (order) =>
-    set((state) => ({ filter: { ...state.filter, sortOrder: order } })),
+    set((state) => ({
+      filter: {
+        ...state.filter,
+        orderingMode: state.filter.sortField ? "field" : "manual",
+        sortOrder: order,
+      },
+    })),
 
   clearSort: () =>
     set((state) => ({
-      filter: { ...state.filter, sortField: undefined, sortOrder: undefined },
+      filter: {
+        ...state.filter,
+        orderingMode: "manual",
+        sortField: undefined,
+        sortOrder: undefined,
+      },
     })),
 
   setSearchQuery: (query) => set({ searchQuery: query }),

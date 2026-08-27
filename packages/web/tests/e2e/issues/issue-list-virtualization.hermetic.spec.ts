@@ -534,10 +534,17 @@ test.describe("large issue list virtualization", () => {
     await resetFixture(request, "large_vault");
     const sparsePage = await page.context().newPage();
     await clearPersistedQueryCacheOnLoad(sparsePage);
-    const initialSparseResponse = waitForIssueListPage(sparsePage, false);
+    const initialSparseResponse = waitForSortedIssueListPage(
+      sparsePage,
+      "reef_id",
+      "asc",
+      false,
+    );
     const responses = issueListResponses(sparsePage);
     await openExistingWorkspace(sparsePage, LARGE_VAULT);
-    await sparsePage.goto(`/workspace/${LARGE_VAULT}/issues?view=list`);
+    await sparsePage.goto(
+      `/workspace/${LARGE_VAULT}/issues?view=list&sort=reef_id&order=asc`,
+    );
     const initialSparsePage = await readIssueListPage(
       await initialSparseResponse,
     );
@@ -560,13 +567,16 @@ test.describe("large issue list virtualization", () => {
   test("moves keyboard focus to an unmounted logical row and opens it", async ({
     page,
   }) => {
-    await openLargeList(page);
+    await openLargeList(page, "sort=reef_id&order=asc");
     const target = page.locator(`[data-issue-id="REEF-0101"]`);
+    const cursorResponse = waitForIssueListPage(page, true);
     await page.locator('[data-testid="issue-list-row"]').first().focus();
     for (let index = 0; index < 99; index += 1) {
       await page.keyboard.press("j");
     }
+    await cursorResponse;
     await expect(target).toBeVisible({ timeout: 15_000 });
+    await page.keyboard.press("j");
     await expect(target).toHaveAttribute("data-keyboard-focused", "true");
     await expect(target).toHaveAttribute("tabindex", "0");
 
@@ -581,11 +591,11 @@ test.describe("large issue list virtualization", () => {
     page,
     request,
   }) => {
-    await openLargeList(page, "labels=large-fixture");
+    await openLargeList(page, "sort=reef_id&order=asc&labels=large-fixture");
     const first = page.locator('[data-issue-id="REEF-0101"]');
     const second = page.locator('[data-issue-id="REEF-0102"]');
     await page.locator('[data-testid="issue-list-row"]').first().focus();
-    for (let index = 0; index < 99; index += 1) {
+    for (let index = 0; index < 100; index += 1) {
       await page.keyboard.press("j");
     }
     await expect(first).toBeVisible({ timeout: 15_000 });
@@ -627,7 +637,10 @@ test.describe("large issue list virtualization", () => {
     page,
   }) => {
     const requests = issueListRequests(page);
-    await openLargeList(page, "group=priority&labels=large-fixture");
+    await openLargeList(
+      page,
+      "sort=reef_id&order=asc&group=priority&labels=large-fixture",
+    );
 
     await expect
       .poll(() => page.locator('[data-testid="issue-list-row"]').count())
@@ -638,11 +651,14 @@ test.describe("large issue list virtualization", () => {
 
     const first = page.locator('[data-issue-id="REEF-0101"]').first();
     const second = page.locator('[data-issue-id="REEF-0102"]').first();
+    const cursorResponse = waitForIssueListPage(page, true);
     await page.locator('[data-testid="issue-list-row"]').first().focus();
     for (let index = 0; index < 99; index += 1) {
       await page.keyboard.press("j");
     }
+    await cursorResponse;
     await expect(first).toBeVisible({ timeout: 15_000 });
+    await page.keyboard.press("j");
     await expect(first).toHaveAttribute("data-keyboard-focused", "true");
     await first.getByTestId("issue-row-checkbox").click();
     await second
@@ -651,7 +667,6 @@ test.describe("large issue list virtualization", () => {
     await expect(first).toHaveAttribute("aria-selected", "true");
     await expect(second).toHaveAttribute("aria-selected", "true");
 
-    const cursorResponse = waitForIssueListPage(page, true);
     await scrollToListEnd(page);
     await cursorResponse;
     expect(
