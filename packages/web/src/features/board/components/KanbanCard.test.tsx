@@ -385,6 +385,32 @@ describe("KanbanCard", () => {
     expect(onClick).toHaveBeenCalledWith("reef-001");
   });
 
+  it("keeps non-draggable child cards interactive without a group read-only state", () => {
+    const onClick = vi.fn();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <KanbanCard
+          issue={mockIssue()}
+          vault="reef-test"
+          onClick={onClick}
+          dragEnabled={false}
+        />
+      </QueryClientProvider>,
+    );
+
+    const card = screen.getByTestId("kanban-card");
+    expect(card).not.toHaveAttribute("aria-disabled");
+    fireEvent.click(card);
+    fireEvent.keyDown(card, { key: "Enter" });
+    expect(onClick).toHaveBeenCalledTimes(2);
+
+    fireEvent.keyDown(card, { key: "F10", shiftKey: true });
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+  });
+
   it("marks active past-due issues as overdue", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-10T00:00:00.000Z"));

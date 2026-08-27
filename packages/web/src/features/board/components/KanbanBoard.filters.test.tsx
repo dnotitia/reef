@@ -1,7 +1,14 @@
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import type { IssueMetadata, IssueRelation } from "@reef/core";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
@@ -11,6 +18,7 @@ import {
   dndHarness,
   mockApiFetch,
   resetKanbanBoardMocks,
+  routerPush,
   wrap,
 } from "./KanbanBoard.testSupport";
 
@@ -145,13 +153,32 @@ describe("KanbanBoard filtering and rendering", () => {
     expect(
       screen.queryByText("Foundation Epic", { selector: "h4" }),
     ).toBeNull();
+    expect(screen.getAllByTestId("epic-group-read-only")).toHaveLength(4);
+    expect(screen.getAllByTestId("epic-group-read-only")[0]).toHaveTextContent(
+      "Epic groups are read-only. Change the parent from the issue details.",
+    );
     for (const card of screen.getAllByTestId("kanban-card")) {
-      expect(card).toHaveAttribute("aria-disabled", "true");
-      expect(card).toHaveAttribute(
+      expect(card).not.toHaveAttribute("aria-disabled");
+      expect(card).not.toHaveAttribute(
         "title",
         "Epic groups are read-only. Change the parent from the issue details.",
       );
     }
+
+    const user = userEvent.setup();
+    const childCard = screen
+      .getAllByTestId("kanban-card")
+      .find((card) => card.textContent?.includes("Completed foundation work"));
+    if (!childCard) throw new Error("Missing Epic child card");
+    await user.click(childCard);
+    expect(routerPush).toHaveBeenCalledWith(
+      "/workspace/reef-acme/issues/REEF-001",
+    );
+    routerPush.mockClear();
+    fireEvent.keyDown(childCard, { key: "Enter" });
+    expect(routerPush).toHaveBeenCalledWith(
+      "/workspace/reef-acme/issues/REEF-001",
+    );
   });
 
   it("registers only rendered workflow cards for board keyboard focus", async () => {

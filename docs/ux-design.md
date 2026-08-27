@@ -610,14 +610,17 @@ when the board view is filtered.
 Kanban columns use the subtle surface for their group frame, while repeated issue
 cards use the card surface; cards do not use the brighter elevated surface.
 
-When grouped by Epic, each root Epic is one flat, read-only column. Its header
-shows the Epic id, full title, own status, visible direct-child count, and the
-done-or-closed count over those visible children. Root Epics are headers only,
-never child cards; a filtered parent remains available through the compact
-whole-workspace relation catalog. Issues without a parent or with a non-Epic or
-unsupported deeper parent use the localized **No epic** fallback, while a
-parent id absent from the catalog uses **Unavailable parent**. Epic columns do
-not accept drag-and-drop; parent changes continue through Issue Detail.
+When grouped by Epic, each root Epic is one flat column with read-only group
+dragging. Its header shows the Epic id, full title, own status, visible
+direct-child count, and the done-or-closed count over those visible children;
+a translated note explains the relationship restriction.
+Child cards retain their existing click, keyboard detail, quick-edit, and
+context-menu actions. Root Epics are headers only, never child cards; a filtered
+parent remains available through the compact whole-workspace relation catalog.
+Issues without a parent or with a non-Epic or unsupported deeper parent use the
+localized **No epic** fallback, while a parent id absent from the catalog uses
+**Unavailable parent**. Epic columns do not accept drag-and-drop; parent
+changes continue through Issue Detail.
 
 **List.** A dense, sortable table rendering the same issues with their field
 leaves. Active defaults to no grouping, and can group by None, Status, Priority,

@@ -118,6 +118,14 @@ describe("global focus styles", () => {
     expect(css).toContain("border-bottom-color: transparent");
   });
 
+  it("compresses the default List sticky columns through narrow viewports", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+
+    expect(css).toContain("@media (max-width: 1311px)");
+    expect(css).toContain('[data-column-key="title"]');
+    expect(css).toContain("min-width: 144px !important");
+  });
+
   it("styles comment mentions from the sanitized renderer marker", () => {
     const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
     expect(css).toContain(".comment-mention-renderer [data-reef-mention]");

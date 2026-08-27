@@ -57,6 +57,23 @@ export const KanbanColumn = memo(function KanbanColumn({
 }: KanbanColumnProps) {
   const t = useTranslations("board");
   const statusLabels = useStatusLabels();
+  const isEpicGroup = bucket.groupBy === "epic";
+  const cardReadOnlyReason = isEpicGroup ? undefined : readOnlyReason;
+  const readOnlyNoteId =
+    isEpicGroup && readOnlyReason
+      ? `epic-group-read-only-${bucket.id}`
+      : undefined;
+  const readOnlyNote =
+    readOnlyReason && isEpicGroup ? (
+      <p
+        id={readOnlyNoteId}
+        role="note"
+        data-testid="epic-group-read-only"
+        className="mt-1 min-w-0 break-words text-[10.5px] leading-4 text-muted-foreground"
+      >
+        {readOnlyReason}
+      </p>
+    ) : null;
   const canDrag = dragEnabled ?? bucket.droppable;
   const { setNodeRef, isOver } = useDroppable({
     id: bucket.id,
@@ -89,6 +106,7 @@ export const KanbanColumn = memo(function KanbanColumn({
             })
           : `${bucket.label}, ${issues.length}`
       }
+      aria-describedby={readOnlyNoteId}
       className={cn(
         "flex h-full min-w-0 w-full flex-col rounded-lg border border-border bg-surface-subtle p-2 lg:w-80 lg:shrink-0",
         "transition-colors duration-150",
@@ -137,19 +155,23 @@ export const KanbanColumn = memo(function KanbanColumn({
               })}
             </span>
           </div>
+          {readOnlyNote}
         </div>
       ) : (
-        <div className="mb-2 flex shrink-0 items-center gap-2 px-1.5 py-1">
-          {bucket.groupBy === "status" && bucket.value ? (
-            <StatusIcon status={bucket.value as Status} size={12} />
-          ) : null}
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground/80">
-            {bucket.label}
-          </h3>
-          <span className="ml-auto font-mono text-[11px] tabular-nums text-muted-foreground">
-            {issues.length}
-          </span>
-        </div>
+        <>
+          <div className="mb-2 flex shrink-0 items-center gap-2 px-1.5 py-1">
+            {bucket.groupBy === "status" && bucket.value ? (
+              <StatusIcon status={bucket.value as Status} size={12} />
+            ) : null}
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground/80">
+              {bucket.label}
+            </h3>
+            <span className="ml-auto font-mono text-[11px] tabular-nums text-muted-foreground">
+              {issues.length}
+            </span>
+          </div>
+          {readOnlyNote}
+        </>
       )}
 
       {/* Cards — scroll within the column when many */}
@@ -169,7 +191,7 @@ export const KanbanColumn = memo(function KanbanColumn({
               bucket={bucket}
               occurrenceKey={`${bucket.id}:${issue.id}`}
               dragEnabled={canDrag}
-              readOnlyReason={readOnlyReason}
+              readOnlyReason={cardReadOnlyReason}
               blocked={blockedIds.has(issue.id)}
               planningCatalog={planningCatalog}
               assignees={assignees}
