@@ -632,8 +632,10 @@ but selection and mutation still use the issue id. Group headers and rows share
 the existing TanStack Virtual projection, cursor loading, bounded DOM,
 selection, focus, quick-edit, sticky-column, and anchor-preservation behavior.
 Grouping is UI-local: it is not stored in Dexie or akb, while the group choice
-itself remains in the URL for sharing and navigation. Timeline ignores the
-group choice.
+itself remains in the URL for sharing and navigation. At narrow mobile widths
+the default sticky prefix compresses inside the List scrollport so child titles
+and controls remain readable without page-level horizontal overflow; optional
+columns retain the table-local scroll. Timeline ignores the group choice.
 
 Epic List headers additionally expose the root Epic id/title/status and visible
 done-or-closed progress. The Epic title action opens the existing issue detail

@@ -1684,7 +1684,7 @@ hr {
  * instead: shrinking
  * sticky columns below their readable width lets ordinary cells paint through
  * the sticky title boundary while horizontally scrolling. */
-@media (max-width: 1311px) {
+@media (max-width: 480px), (min-width: 768px) and (max-width: 1311px) {
   .reef-issue-list-table:not(.reef-issue-list-table-expanded) {
     min-width: 0 !important;
   }
