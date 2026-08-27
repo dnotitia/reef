@@ -269,6 +269,33 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
           '[data-testid="issue-list-row"][data-issue-id="REEF-001"] [data-column-key="title"] > span > span',
         );
         if (!scroll || !title) throw new Error("Missing narrow List geometry");
+        const describe = (element: Element | null) => {
+          if (!element) return null;
+          const computed = getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return {
+            tag: element.tagName,
+            className: element.className,
+            inlineStyle: element.getAttribute("style"),
+            width: computed.width,
+            minWidth: computed.minWidth,
+            maxWidth: computed.maxWidth,
+            left: computed.left,
+            position: computed.position,
+            display: computed.display,
+            overflow: computed.overflow,
+            whiteSpace: computed.whiteSpace,
+            rect: {
+              left: rect.left,
+              right: rect.right,
+              width: rect.width,
+            },
+            offsetWidth:
+              element instanceof HTMLElement ? element.offsetWidth : null,
+            scrollWidth:
+              element instanceof HTMLElement ? element.scrollWidth : null,
+          };
+        };
         const scrollRect = scroll.getBoundingClientRect();
         const titleRect = title.getBoundingClientRect();
         return {
@@ -282,8 +309,62 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
           titleWidth: titleRect.width,
           scrollLeft: scrollRect.left,
           scrollRight: scrollRect.right,
+          debug: {
+            media: {
+              max480: window.matchMedia("(max-width: 480px)").matches,
+              medium: window.matchMedia(
+                "(min-width: 768px) and (max-width: 1311px)",
+              ).matches,
+              gap481to767: window.matchMedia(
+                "(min-width: 481px) and (max-width: 767px)",
+              ).matches,
+            },
+            viewport: {
+              innerWidth: window.innerWidth,
+              outerWidth: window.outerWidth,
+              documentClientWidth: document.documentElement.clientWidth,
+              bodyClientWidth: document.body.clientWidth,
+            },
+            table: describe(title.closest("table")),
+            tableContainer: describe(
+              title.closest("table")?.parentElement ?? null,
+            ),
+            titleColumns: Array.from(
+              title
+                .closest("table")
+                ?.querySelectorAll('[data-column-key="title"]') ?? [],
+              describe,
+            ),
+            selectorMatches: {
+              table:
+                title.closest("table")?.matches(".reef-issue-list-table") ??
+                false,
+              defaultTable:
+                title
+                  .closest("table")
+                  ?.matches(
+                    ".reef-issue-list-table:not(.reef-issue-list-table-expanded)",
+                  ) ?? false,
+              expandedTable:
+                title
+                  .closest("table")
+                  ?.matches(
+                    ".reef-issue-list-table.reef-issue-list-table-expanded",
+                  ) ?? false,
+            },
+            scrollport: describe(scroll),
+            titleCell: describe(title.closest("td")),
+            titleOuter: describe(title.parentElement),
+            title: describe(title),
+          },
         };
       });
+
+      if (geometry.titleRight > geometry.scrollRight + 1) {
+        console.log(
+          `[DEBUG-REEF581] width=${width} ${JSON.stringify(geometry.debug)}`,
+        );
+      }
 
       expect(geometry.documentWidth).toBeLessThanOrEqual(
         geometry.viewportWidth,
