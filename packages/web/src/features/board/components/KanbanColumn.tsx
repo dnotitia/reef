@@ -113,7 +113,7 @@ export const KanbanColumn = memo(function KanbanColumn({
                 })}
                 data-testid={`open-epic-${bucket.epic.id}`}
                 title={bucket.epic.title}
-                onClick={() => onGroupClick?.(bucket.epic.id)}
+                onClick={() => onGroupClick?.(bucket.epic?.id ?? "")}
               >
                 <span className="shrink-0 font-mono text-[10.5px] tabular-nums text-muted-foreground">
                   {bucket.epic.id}
