@@ -150,19 +150,19 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
     await expect(foundationColumn).toBeVisible();
     await expect(foundationColumn).toContainText("REEF-100");
     await expect(foundationColumn).toContainText("Platform foundation");
-    await expect(foundationColumn).toContainText("In Progress");
-    await expect(foundationColumn).toContainText("1 of 2 done or closed");
+    await expect(
+      foundationColumn.locator('[data-testid="epic-group-header"]'),
+    ).not.toContainText("In Progress");
+    await expect(
+      foundationColumn.locator('[data-testid="epic-group-header"]'),
+    ).not.toContainText("1 of 2 done or closed");
     await expect(
       foundationColumn.locator('[data-testid="kanban-card"]'),
     ).toHaveCount(2);
-    await expect(page.getByTestId("epic-group-read-only")).toHaveCount(1);
-    await expect(page.getByTestId("epic-group-read-only")).toContainText(
-      "Epic groups are read-only",
-    );
-    await expect(foundationColumn).toHaveAttribute(
-      "aria-describedby",
-      "epic-group-read-only",
-    );
+    await expect(page.getByTestId("epic-group-read-only")).toHaveCount(0);
+    await expect(
+      foundationColumn.getByTestId("open-epic-REEF-100"),
+    ).toHaveAccessibleName("Open Epic REEF-100: Platform foundation");
     await expect(
       foundationColumn.locator('[data-testid="kanban-card"]').first(),
     ).not.toHaveAttribute("aria-disabled");
@@ -218,11 +218,13 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
       '[data-testid="issue-group-header"][data-group-id="epic:REEF-100"]',
     );
     await expect(listFoundationHeader).toBeVisible();
-    await expect(page.getByTestId("epic-group-read-only")).toContainText(
-      "Epic groups are read-only",
-    );
+    await expect(page.getByTestId("epic-group-read-only")).toHaveCount(0);
+    await expect(page.getByTestId("issue-ordering-hint")).toBeVisible();
     await expect(listFoundationHeader).toContainText("REEF-100");
-    await expect(listFoundationHeader).toContainText("1 of 2 done or closed");
+    await expect(listFoundationHeader).not.toContainText("In Progress");
+    await expect(listFoundationHeader).not.toContainText(
+      "1 of 2 done or closed",
+    );
     await expect(
       page.locator('[data-occurrence-key="epic:REEF-100:REEF-001"]'),
     ).toHaveCount(1);
@@ -231,11 +233,18 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
     ).toHaveCount(0);
 
     const listToggle = listFoundationHeader.getByRole("button").first();
+    const listOpen = listFoundationHeader.getByTestId("open-epic-REEF-100");
+    await expect(listOpen).toHaveAccessibleName(
+      "Open Epic REEF-100: Platform foundation",
+    );
+    await expect(listOpen).not.toContainText("REEF-100");
     await expect(listToggle).toHaveAccessibleName(
-      /Collapse Platform foundation/,
+      /Collapse REEF-100: Platform foundation.*REEF-100: Platform foundation · 2/,
     );
     await listToggle.click();
-    await expect(listToggle).toHaveAccessibleName(/Expand Platform foundation/);
+    await expect(listToggle).toHaveAccessibleName(
+      /Expand REEF-100: Platform foundation.*REEF-100: Platform foundation · 2/,
+    );
     await expect(listToggle).toHaveAttribute("aria-expanded", "false");
     await expect(
       page.locator('[data-occurrence-key="epic:REEF-100:REEF-001"]'),

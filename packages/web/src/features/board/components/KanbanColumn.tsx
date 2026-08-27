@@ -15,6 +15,7 @@ import type {
   PlanningCatalog,
   Status,
 } from "@reef/core";
+import { ExternalLink } from "lucide-react";
 import { memo } from "react";
 import { useStatusLabels } from "@/i18n/fieldLabels";
 import { useTranslations } from "next-intl";
@@ -39,7 +40,6 @@ export interface KanbanColumnProps {
   onGroupClick?: (id: string) => void;
   dragEnabled?: boolean;
   readOnlyReason?: string;
-  readOnlyDescriptionId?: string;
 }
 
 // Drop hover uses neutral surface + brand ring, not purple, to avoid
@@ -55,15 +55,12 @@ export const KanbanColumn = memo(function KanbanColumn({
   onGroupClick,
   dragEnabled,
   readOnlyReason,
-  readOnlyDescriptionId,
 }: KanbanColumnProps) {
   const t = useTranslations("board");
   const statusLabels = useStatusLabels();
   const isEpicGroup = bucket.groupBy === "epic";
   const epic = bucket.epic;
   const cardReadOnlyReason = isEpicGroup ? undefined : readOnlyReason;
-  const columnDescriptionId =
-    isEpicGroup && readOnlyReason ? readOnlyDescriptionId : undefined;
   const canDrag = dragEnabled ?? bucket.droppable;
   const { setNodeRef, isOver } = useDroppable({
     id: bucket.id,
@@ -96,7 +93,6 @@ export const KanbanColumn = memo(function KanbanColumn({
             })
           : `${bucket.label}, ${issues.length}`
       }
-      aria-describedby={columnDescriptionId}
       className={cn(
         "flex h-full min-w-0 w-full flex-col rounded-lg border border-border bg-surface-subtle p-2 lg:w-80 lg:shrink-0",
         "transition-colors duration-150",
@@ -109,9 +105,7 @@ export const KanbanColumn = memo(function KanbanColumn({
         className="mb-2 flex min-w-0 shrink-0 items-center gap-2 px-1.5 py-1"
         data-testid={epic ? "epic-group-header" : "kanban-group-header"}
       >
-        {epic ? (
-          <StatusIcon status={epic.status} size={12} />
-        ) : bucket.groupBy === "status" && bucket.value ? (
+        {bucket.groupBy === "status" && bucket.value ? (
           <StatusIcon status={bucket.value as Status} size={12} />
         ) : null}
         <h3
@@ -121,51 +115,36 @@ export const KanbanColumn = memo(function KanbanColumn({
           )}
         >
           {epic ? (
-            <button
-              type="button"
-              className="flex min-w-0 max-w-full items-center gap-1.5 rounded-sm text-left whitespace-nowrap transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
-              aria-label={t("openEpic", {
-                id: epic.id,
-                title: epic.title,
-              })}
-              data-testid={`open-epic-${epic.id}`}
-              title={epic.title}
-              onClick={() => onGroupClick?.(epic.id)}
-            >
+            <span className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap">
               <span className="shrink-0 font-mono text-[10.5px] tabular-nums text-muted-foreground">
                 {epic.id}
               </span>
               <span className="min-w-0 truncate" title={epic.title}>
                 {epic.title}
               </span>
-            </button>
+            </span>
           ) : (
             bucket.label
           )}
         </h3>
-        {epic ? (
-          <span
-            className="inline-flex min-w-0 max-w-[45%] shrink items-center gap-1 text-[10.5px] font-medium text-muted-foreground"
-            title={`${statusLabels[epic.status]} · ${t("epicProgress", {
-              done: bucket.progress?.done ?? 0,
-              total: bucket.progress?.total ?? issues.length,
-            })}`}
-          >
-            <span className="min-w-0 truncate">
-              {statusLabels[epic.status]}
-            </span>
-            <span aria-hidden="true">·</span>
-            <span className="min-w-0 truncate">
-              {t("epicProgress", {
-                done: bucket.progress?.done ?? 0,
-                total: bucket.progress?.total ?? issues.length,
-              })}
-            </span>
-          </span>
-        ) : null}
         <span className="ml-auto shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
           {issues.length}
         </span>
+        {epic ? (
+          <button
+            type="button"
+            className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
+            aria-label={t("openEpic", {
+              id: epic.id,
+              title: epic.title,
+            })}
+            data-testid={`open-epic-${epic.id}`}
+            title={epic.title}
+            onClick={() => onGroupClick?.(epic.id)}
+          >
+            <ExternalLink aria-hidden="true" className="size-3.5" />
+          </button>
+        ) : null}
       </div>
 
       {/* Cards — scroll within the column when many */}

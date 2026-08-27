@@ -560,28 +560,40 @@ describe("IssueListTable", () => {
       await screen.findByText("Completed foundation work"),
     ).toBeInTheDocument();
     expect(screen.getAllByTestId("issue-group-header")).toHaveLength(4);
-    expect(screen.getByTestId("epic-group-read-only")).toHaveTextContent(
-      "Epic groups are read-only. Change the parent from the issue details.",
-    );
-    expect(screen.getByTestId("issue-list-scroll-container")).toHaveAttribute(
-      "aria-describedby",
-      "epic-group-read-only",
-    );
+    expect(screen.queryByTestId("epic-group-read-only")).toBeNull();
+    expect(screen.getByTestId("issue-ordering-hint")).toBeInTheDocument();
     expect(screen.getByTestId("open-epic-REEF-100")).toBeInTheDocument();
     expect(screen.getByText("Foundation Epic")).toBeInTheDocument();
-    expect(screen.getAllByText("In Progress").length).toBeGreaterThan(0);
+    const foundationHeader = screen
+      .getAllByTestId("issue-group-header")
+      .find(
+        (header) => header.getAttribute("data-group-id") === "epic:REEF-100",
+      );
+    if (!foundationHeader) throw new Error("Missing Foundation Epic header");
+    expect(foundationHeader).toHaveAttribute(
+      "aria-label",
+      "Epic REEF-100: Foundation Epic; status In Progress; 2 visible children; 1 of 2 done or closed",
+    );
+    expect(foundationHeader).not.toHaveTextContent("In Progress");
+    expect(foundationHeader).not.toHaveTextContent("1 of 2 done or closed");
     expect(
       screen.getByRole("button", {
-        name: /Collapse Foundation Epic.*1 of 2 done or closed/,
+        name: /Collapse REEF-100: Foundation Epic.*REEF-100: Foundation Epic · 2/,
       }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("open-epic-REEF-100")).toHaveAttribute(
       "title",
       "Foundation Epic",
     );
+    expect(screen.getByTestId("open-epic-REEF-100")).not.toHaveTextContent(
+      "REEF-100",
+    );
+    expect(
+      screen.getByTestId("open-epic-REEF-100").querySelector("svg"),
+    ).toBeInTheDocument();
     const epicTitle = screen
       .getByRole("button", {
-        name: /Collapse Foundation Epic.*1 of 2 done or closed/,
+        name: /Collapse REEF-100: Foundation Epic.*REEF-100: Foundation Epic · 2/,
       })
       .querySelector('span[title="Foundation Epic"]');
     expect(epicTitle).toHaveClass("truncate");
@@ -612,7 +624,7 @@ describe("IssueListTable", () => {
     );
 
     const foundationToggle = screen.getByRole("button", {
-      name: /Collapse Foundation Epic/,
+      name: /Collapse REEF-100: Foundation Epic/,
     });
     expect(foundationToggle).toHaveClass(
       "min-w-0",

@@ -1,7 +1,6 @@
 "use client";
 
 import { SearchProgressBar } from "@/components/ui/SearchProgressBar";
-import { StatusIcon } from "@/components/ui/status-icon";
 import {
   kanbanToastId,
   notifyRetryableError,
@@ -209,11 +208,12 @@ function IssueListGroupHeader({
   const t = useTranslations("issues.list");
   const statusLabels = useStatusLabels();
   const label = bucket.label;
-  const actionLabel = collapsed
-    ? t("expandGroup", { label })
-    : t("collapseGroup", { label });
-  const groupSummary = t("groupHeader", { label, count });
   const epic = bucket.epic;
+  const groupLabel = epic ? `${epic.id}: ${epic.title}` : label;
+  const actionLabel = collapsed
+    ? t("expandGroup", { label: groupLabel })
+    : t("collapseGroup", { label: groupLabel });
+  const groupSummary = t("groupHeader", { label: groupLabel, count });
   const epicSummary = epic
     ? t("epicSummary", {
         id: epic.id,
@@ -224,15 +224,6 @@ function IssueListGroupHeader({
         total: bucket.progress?.total ?? count,
       })
     : null;
-  const epicProgress = epic
-    ? t("epicProgress", {
-        done: bucket.progress?.done ?? 0,
-        total: bucket.progress?.total ?? count,
-      })
-    : null;
-  const epicMetadata = epic
-    ? `${statusLabels[epic.status]} · ${epicProgress}`
-    : null;
 
   return (
     <TableRow
@@ -240,6 +231,7 @@ function IssueListGroupHeader({
       data-testid="issue-group-header"
       data-group-id={bucket.id}
       data-group-collapsed={collapsed ? "true" : "false"}
+      aria-label={epicSummary ?? undefined}
     >
       <TableCell
         colSpan={columnCount}
@@ -250,7 +242,7 @@ function IssueListGroupHeader({
             type="button"
             className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-sm text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
             aria-expanded={!collapsed}
-            aria-label={`${actionLabel} · ${epicSummary ?? groupSummary}`}
+            aria-label={`${actionLabel} · ${groupSummary}`}
             onClick={onToggle}
           >
             <ChevronRight
@@ -272,15 +264,6 @@ function IssueListGroupHeader({
             ) : (
               <span className="min-w-0 flex-1 truncate">{label}</span>
             )}
-            {epic ? (
-              <span
-                className="inline-flex min-w-0 max-w-[32%] shrink items-center gap-1 text-[11px] font-normal text-muted-foreground"
-                title={epicMetadata ?? undefined}
-              >
-                <StatusIcon status={epic.status} size={12} />
-                <span className="min-w-0 truncate">{epicMetadata}</span>
-              </span>
-            ) : null}
             <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
               {count}
             </span>
@@ -802,22 +785,11 @@ export function IssueListTable({
       <div className="flex min-h-8 shrink-0 items-center justify-between gap-3 pb-2">
         {groupBy !== "none" ? (
           <p
-            id={groupBy === "epic" ? "epic-group-read-only" : undefined}
             className="text-xs text-muted-foreground"
             role="note"
-            data-testid={
-              groupBy === "epic"
-                ? "epic-group-read-only"
-                : "issue-ordering-hint"
-            }
+            data-testid="issue-ordering-hint"
           >
-            {groupBy === "epic" ? (
-              <>
-                {t("epicGroupReadOnly")} {t("reorderHintUngrouped")}
-              </>
-            ) : (
-              t("reorderHintUngrouped")
-            )}
+            {t("reorderHintUngrouped")}
           </p>
         ) : (
           <span aria-hidden="true" />
@@ -840,9 +812,6 @@ export function IssueListTable({
             // biome-ignore lint/a11y/noNoninteractiveTabindex: The labeled overflow region is the keyboard scrollport.
             tabIndex={0}
             aria-label={t("scrollRegion")}
-            aria-describedby={
-              groupBy === "epic" ? "epic-group-read-only" : undefined
-            }
             data-testid="issue-list-scroll-container"
           >
             <Table
@@ -927,9 +896,6 @@ export function IssueListTable({
           // biome-ignore lint/a11y/noNoninteractiveTabindex: The labeled overflow region is the keyboard scrollport.
           tabIndex={0}
           aria-label={t("scrollRegion")}
-          aria-describedby={
-            groupBy === "epic" ? "epic-group-read-only" : undefined
-          }
           data-testid="issue-list-scroll-container"
         >
           <DndContext

@@ -198,7 +198,7 @@ describe("KanbanColumn", () => {
     expect(onIssueClick).toHaveBeenCalledWith("reef-002");
   });
 
-  it("opens a root Epic from its keyboard-focusable header without enabling drops", () => {
+  it("keeps the Epic header to label/count and opens its detail control", () => {
     const onGroupClick = vi.fn();
     renderColumn({
       bucket: epicBucket(),
@@ -207,26 +207,41 @@ describe("KanbanColumn", () => {
       dragEnabled: false,
     });
 
-    const header = screen.getByTestId("open-epic-REEF-100");
+    const header = screen.getByTestId("epic-group-header");
+    const openEpic = screen.getByTestId("open-epic-REEF-100");
     expect(screen.getByTestId("epic-group-header")).toHaveClass(
       "items-center",
       "gap-2",
       "px-1.5",
       "py-1",
     );
-    expect(screen.getByTestId("epic-group-header")).toHaveTextContent(
-      "1 of 2 done or closed",
+    expect(header).toHaveTextContent("REEF-100");
+    expect(header).toHaveTextContent("Foundation Epic");
+    expect(header).toHaveTextContent("0");
+    expect(header).not.toHaveTextContent("In Progress");
+    expect(header).not.toHaveTextContent("1 of 2 done or closed");
+    const column = header.parentElement;
+    if (!column) throw new Error("Missing Epic column");
+    expect(column).toHaveAttribute(
+      "aria-label",
+      "Epic REEF-100: Foundation Epic; status In Progress; 0 visible children; 1 of 2 done or closed",
     );
-    expect(header).toHaveAccessibleName("Open Epic REEF-100: Foundation Epic");
-    fireEvent.keyDown(header, { key: "Enter" });
-    fireEvent.click(header);
+    expect(openEpic).toHaveAccessibleName(
+      "Open Epic REEF-100: Foundation Epic",
+    );
+    expect(openEpic.querySelector("svg")).toBeInTheDocument();
+    expect(openEpic).not.toHaveTextContent("REEF-100");
+    fireEvent.keyDown(openEpic, { key: "Enter" });
+    fireEvent.click(openEpic);
     expect(onGroupClick).toHaveBeenCalledWith("REEF-100");
     expect(vi.mocked(useDroppable)).toHaveBeenLastCalledWith({
       id: "epic:REEF-100",
       data: { bucket: epicBucket() },
       disabled: true,
     });
-    expect(screen.getByText("1 of 2 done or closed")).toBeInTheDocument();
+    expect(screen.getByTestId("epic-group-header")).not.toHaveTextContent(
+      "1 of 2 done or closed",
+    );
   });
 
   it("keeps a long Epic label on one line with a full title tooltip", () => {
@@ -239,12 +254,12 @@ describe("KanbanColumn", () => {
 
     renderColumn({ bucket, issues: [], onGroupClick: vi.fn() });
 
+    const header = screen.getByTestId("epic-group-header");
     const openEpic = screen.getByTestId("open-epic-REEF-100");
-    const title = openEpic.querySelector("span:nth-child(2)");
+    const title = header.querySelector(`span[title="${longTitle}"]`);
     expect(openEpic).toHaveAttribute("title", longTitle);
     expect(title).toHaveClass("truncate");
-    expect(title).toHaveAttribute("title", longTitle);
-    expect(openEpic).not.toHaveClass("line-clamp-2");
+    expect(openEpic).not.toHaveTextContent(longTitle);
   });
 
   it("keeps Epic child cards interactive while the group remains read-only", () => {
@@ -258,8 +273,8 @@ describe("KanbanColumn", () => {
     });
 
     expect(screen.queryByTestId("epic-group-read-only")).toBeNull();
-    expect(screen.getByTestId("epic-group-header")).toHaveTextContent(
-      /In Progress.*1 of 2 done or closed/,
+    expect(screen.getByTestId("epic-group-header")).not.toHaveTextContent(
+      /In Progress|1 of 2 done or closed/,
     );
     const card = screen.getByTestId("kanban-card");
     expect(card).not.toHaveAttribute("data-read-only-reason");

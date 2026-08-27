@@ -144,8 +144,10 @@ describe("KanbanBoard filtering and rendering", () => {
     expect(screen.getAllByTestId("epic-group-header")).toHaveLength(2);
     expect(screen.getByText("REEF-100")).toBeInTheDocument();
     expect(screen.getByText("Foundation Epic")).toBeInTheDocument();
-    expect(screen.getAllByText("In Progress").length).toBeGreaterThan(0);
-    expect(screen.getByText("1 of 2 done or closed")).toBeInTheDocument();
+    for (const header of screen.getAllByTestId("epic-group-header")) {
+      expect(header).not.toHaveTextContent("In Progress");
+      expect(header).not.toHaveTextContent("1 of 2 done or closed");
+    }
     expect(screen.getByText("Empty Epic")).toBeInTheDocument();
     expect(screen.getByText("No epic")).toBeInTheDocument();
     expect(screen.getByText("Unavailable parent")).toBeInTheDocument();
@@ -153,18 +155,11 @@ describe("KanbanBoard filtering and rendering", () => {
     expect(
       screen.queryByText("Foundation Epic", { selector: "h4" }),
     ).toBeNull();
-    const readOnlyNote = screen.getByTestId("epic-group-read-only");
-    expect(readOnlyNote).toHaveTextContent(
-      "Epic groups are read-only. Change the parent from the issue details.",
-    );
-    expect(readOnlyNote.closest("[data-group-by=epic]")).toBeNull();
+    expect(screen.queryByTestId("epic-group-read-only")).toBeNull();
     expect(document.querySelectorAll('[data-group-by="epic"]')).toHaveLength(4);
     expect(screen.getAllByTestId("epic-group-header")).toHaveLength(2);
     for (const column of document.querySelectorAll('[data-group-by="epic"]')) {
-      expect(column).toHaveAttribute(
-        "aria-describedby",
-        "epic-group-read-only",
-      );
+      expect(column).not.toHaveAttribute("aria-describedby");
     }
     for (const card of screen.getAllByTestId("kanban-card")) {
       expect(card).not.toHaveAttribute("aria-disabled");
