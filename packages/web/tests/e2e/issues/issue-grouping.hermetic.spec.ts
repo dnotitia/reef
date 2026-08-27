@@ -155,9 +155,14 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
     await expect(
       foundationColumn.locator('[data-testid="kanban-card"]'),
     ).toHaveCount(2);
-    await expect(
-      foundationColumn.getByTestId("epic-group-read-only"),
-    ).toContainText("Epic groups are read-only");
+    await expect(page.getByTestId("epic-group-read-only")).toHaveCount(1);
+    await expect(page.getByTestId("epic-group-read-only")).toContainText(
+      "Epic groups are read-only",
+    );
+    await expect(foundationColumn).toHaveAttribute(
+      "aria-describedby",
+      "epic-group-read-only",
+    );
     await expect(
       foundationColumn.locator('[data-testid="kanban-card"]').first(),
     ).not.toHaveAttribute("aria-disabled");
@@ -213,6 +218,9 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
       '[data-testid="issue-group-header"][data-group-id="epic:REEF-100"]',
     );
     await expect(listFoundationHeader).toBeVisible();
+    await expect(page.getByTestId("epic-group-read-only")).toContainText(
+      "Epic groups are read-only",
+    );
     await expect(listFoundationHeader).toContainText("REEF-100");
     await expect(listFoundationHeader).toContainText("1 of 2 done or closed");
     await expect(

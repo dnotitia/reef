@@ -97,7 +97,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, ExternalLink } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 import {
@@ -224,6 +224,15 @@ function IssueListGroupHeader({
         total: bucket.progress?.total ?? count,
       })
     : null;
+  const epicProgress = epic
+    ? t("epicProgress", {
+        done: bucket.progress?.done ?? 0,
+        total: bucket.progress?.total ?? count,
+      })
+    : null;
+  const epicMetadata = epic
+    ? `${statusLabels[epic.status]} · ${epicProgress}`
+    : null;
 
   return (
     <TableRow
@@ -236,56 +245,12 @@ function IssueListGroupHeader({
         colSpan={columnCount}
         className="h-8 border-y border-border-subtle p-0"
       >
-        {epic ? (
-          <div className="flex h-8 min-w-0 w-full items-center gap-2 px-3 text-left text-xs font-semibold text-foreground">
-            <button
-              type="button"
-              className="flex size-6 shrink-0 items-center justify-center rounded-sm transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
-              aria-expanded={!collapsed}
-              aria-label={`${actionLabel} · ${epicSummary ?? groupSummary}`}
-              onClick={onToggle}
-            >
-              <ChevronRight
-                aria-hidden="true"
-                className={cn(
-                  "size-3.5 shrink-0 transition-transform duration-150",
-                  !collapsed && "rotate-90",
-                )}
-              />
-            </button>
-            <button
-              type="button"
-              className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
-              aria-label={t("openEpic", { id: epic.id, title: epic.title })}
-              data-testid={`open-epic-${epic.id}`}
-              title={epic.title}
-              onClick={() => onOpenEpic?.(epic.id)}
-            >
-              <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
-                {epic.id}
-              </span>
-              <span className="min-w-0 truncate">{epic.title}</span>
-            </button>
-            <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-normal text-muted-foreground">
-              <StatusIcon status={epic.status} size={12} />
-              <span>{statusLabels[epic.status]}</span>
-            </span>
-            <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
-              {count}
-            </span>
-            <span className="shrink-0 text-[11px] font-normal text-muted-foreground">
-              {t("epicProgress", {
-                done: bucket.progress?.done ?? 0,
-                total: bucket.progress?.total ?? count,
-              })}
-            </span>
-          </div>
-        ) : (
+        <div className="flex h-8 min-w-0 w-full items-center gap-2 px-3 text-left text-xs font-semibold text-foreground">
           <button
             type="button"
-            className="flex h-8 w-full items-center gap-2 px-3 text-left text-xs font-semibold text-foreground transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
+            className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-sm text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
             aria-expanded={!collapsed}
-            aria-label={`${actionLabel} · ${groupSummary}`}
+            aria-label={`${actionLabel} · ${epicSummary ?? groupSummary}`}
             onClick={onToggle}
           >
             <ChevronRight
@@ -295,12 +260,44 @@ function IssueListGroupHeader({
                 !collapsed && "rotate-90",
               )}
             />
-            <span className="min-w-0 flex-1 truncate">{label}</span>
-            <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+            {epic ? (
+              <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden whitespace-nowrap">
+                <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+                  {epic.id}
+                </span>
+                <span className="min-w-0 truncate" title={epic.title}>
+                  {epic.title}
+                </span>
+              </span>
+            ) : (
+              <span className="min-w-0 flex-1 truncate">{label}</span>
+            )}
+            {epic ? (
+              <span
+                className="inline-flex min-w-0 max-w-[32%] shrink items-center gap-1 text-[11px] font-normal text-muted-foreground"
+                title={epicMetadata ?? undefined}
+              >
+                <StatusIcon status={epic.status} size={12} />
+                <span className="min-w-0 truncate">{epicMetadata}</span>
+              </span>
+            ) : null}
+            <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
               {count}
             </span>
           </button>
-        )}
+          {epic ? (
+            <button
+              type="button"
+              className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
+              aria-label={t("openEpic", { id: epic.id, title: epic.title })}
+              data-testid={`open-epic-${epic.id}`}
+              title={epic.title}
+              onClick={() => onOpenEpic?.(epic.id)}
+            >
+              <ExternalLink aria-hidden="true" className="size-3.5" />
+            </button>
+          ) : null}
+        </div>
       </TableCell>
     </TableRow>
   );
@@ -805,11 +802,22 @@ export function IssueListTable({
       <div className="flex min-h-8 shrink-0 items-center justify-between gap-3 pb-2">
         {groupBy !== "none" ? (
           <p
+            id={groupBy === "epic" ? "epic-group-read-only" : undefined}
             className="text-xs text-muted-foreground"
             role="note"
-            data-testid="issue-ordering-hint"
+            data-testid={
+              groupBy === "epic"
+                ? "epic-group-read-only"
+                : "issue-ordering-hint"
+            }
           >
-            {t("reorderHintUngrouped")}
+            {groupBy === "epic" ? (
+              <>
+                {t("epicGroupReadOnly")} {t("reorderHintUngrouped")}
+              </>
+            ) : (
+              t("reorderHintUngrouped")
+            )}
           </p>
         ) : (
           <span aria-hidden="true" />
@@ -832,6 +840,9 @@ export function IssueListTable({
             // biome-ignore lint/a11y/noNoninteractiveTabindex: The labeled overflow region is the keyboard scrollport.
             tabIndex={0}
             aria-label={t("scrollRegion")}
+            aria-describedby={
+              groupBy === "epic" ? "epic-group-read-only" : undefined
+            }
             data-testid="issue-list-scroll-container"
           >
             <Table
@@ -916,6 +927,9 @@ export function IssueListTable({
           // biome-ignore lint/a11y/noNoninteractiveTabindex: The labeled overflow region is the keyboard scrollport.
           tabIndex={0}
           aria-label={t("scrollRegion")}
+          aria-describedby={
+            groupBy === "epic" ? "epic-group-read-only" : undefined
+          }
           data-testid="issue-list-scroll-container"
         >
           <DndContext

@@ -1244,6 +1244,7 @@
       "openEpic": "에픽 {id}: {title} 열기",
       "epicProgress": "{total}개 중 {done}개 완료·종료",
       "epicSummary": "에픽 {id}: {title}; 상태 {status}; 하위 이슈 {count}개 표시; {total}개 중 {done}개 완료·종료",
+      "epicGroupReadOnly": "에픽 그룹은 읽기 전용입니다. 이슈 상세에서 상위 항목을 변경하세요.",
       "rank": "Rank",
       "reorderHintUngrouped": "이슈 순서를 바꾸려면 그룹 없음·Manual 순서로 전환하세요.",
       "reorderGrip": "{id} 순서 변경",

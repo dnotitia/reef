@@ -123,6 +123,12 @@ function renderColumn(props: KanbanColumnProps) {
 describe("KanbanColumn", () => {
   it("renders column title matching status label", () => {
     renderColumn({ bucket: statusBucket("todo"), issues: [] });
+    expect(screen.getByTestId("kanban-group-header")).toHaveClass(
+      "items-center",
+      "gap-2",
+      "px-1.5",
+      "py-1",
+    );
     expect(
       screen.getByRole("heading", {
         name: ISSUE_FIELD_MESSAGES_EN.status.todo,
@@ -202,6 +208,15 @@ describe("KanbanColumn", () => {
     });
 
     const header = screen.getByTestId("open-epic-REEF-100");
+    expect(screen.getByTestId("epic-group-header")).toHaveClass(
+      "items-center",
+      "gap-2",
+      "px-1.5",
+      "py-1",
+    );
+    expect(screen.getByTestId("epic-group-header")).toHaveTextContent(
+      "1 of 2 done or closed",
+    );
     expect(header).toHaveAccessibleName("Open Epic REEF-100: Foundation Epic");
     fireEvent.keyDown(header, { key: "Enter" });
     fireEvent.click(header);
@@ -214,6 +229,24 @@ describe("KanbanColumn", () => {
     expect(screen.getByText("1 of 2 done or closed")).toBeInTheDocument();
   });
 
+  it("keeps a long Epic label on one line with a full title tooltip", () => {
+    const longTitle =
+      "A very long product outcome title that stays compact in the group header";
+    const bucket = epicBucket();
+    bucket.label = longTitle;
+    if (!bucket.epic) throw new Error("Missing Epic metadata");
+    bucket.epic = { ...bucket.epic, title: longTitle };
+
+    renderColumn({ bucket, issues: [], onGroupClick: vi.fn() });
+
+    const openEpic = screen.getByTestId("open-epic-REEF-100");
+    const title = openEpic.querySelector("span:nth-child(2)");
+    expect(openEpic).toHaveAttribute("title", longTitle);
+    expect(title).toHaveClass("truncate");
+    expect(title).toHaveAttribute("title", longTitle);
+    expect(openEpic).not.toHaveClass("line-clamp-2");
+  });
+
   it("keeps Epic child cards interactive while the group remains read-only", () => {
     const onIssueClick = vi.fn();
     renderColumn({
@@ -224,8 +257,9 @@ describe("KanbanColumn", () => {
       readOnlyReason: "Epic groups are read-only",
     });
 
-    expect(screen.getByTestId("epic-group-read-only")).toHaveTextContent(
-      "Epic groups are read-only",
+    expect(screen.queryByTestId("epic-group-read-only")).toBeNull();
+    expect(screen.getByTestId("epic-group-header")).toHaveTextContent(
+      /In Progress.*1 of 2 done or closed/,
     );
     const card = screen.getByTestId("kanban-card");
     expect(card).not.toHaveAttribute("data-read-only-reason");

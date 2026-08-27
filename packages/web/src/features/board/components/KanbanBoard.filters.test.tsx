@@ -153,10 +153,19 @@ describe("KanbanBoard filtering and rendering", () => {
     expect(
       screen.queryByText("Foundation Epic", { selector: "h4" }),
     ).toBeNull();
-    expect(screen.getAllByTestId("epic-group-read-only")).toHaveLength(4);
-    expect(screen.getAllByTestId("epic-group-read-only")[0]).toHaveTextContent(
+    const readOnlyNote = screen.getByTestId("epic-group-read-only");
+    expect(readOnlyNote).toHaveTextContent(
       "Epic groups are read-only. Change the parent from the issue details.",
     );
+    expect(readOnlyNote.closest("[data-group-by=epic]")).toBeNull();
+    expect(document.querySelectorAll('[data-group-by="epic"]')).toHaveLength(4);
+    expect(screen.getAllByTestId("epic-group-header")).toHaveLength(2);
+    for (const column of document.querySelectorAll('[data-group-by="epic"]')) {
+      expect(column).toHaveAttribute(
+        "aria-describedby",
+        "epic-group-read-only",
+      );
+    }
     for (const card of screen.getAllByTestId("kanban-card")) {
       expect(card).not.toHaveAttribute("aria-disabled");
       expect(card).not.toHaveAttribute(

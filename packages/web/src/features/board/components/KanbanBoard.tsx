@@ -333,6 +333,8 @@ export function KanbanBoard({
   const hasActiveFilters =
     hasScopeFilters(filter, searchQuery, scope) ||
     Boolean(filter.showArchived || (scope === "active" && filter.showStale));
+  const epicGroupReadOnlyReason =
+    effectiveGroupBy === "epic" ? t("epicGroupReadOnly") : undefined;
   const showNoMatch =
     !isFetching && !isError && visibleIssues.length === 0 && hasActiveFilters;
   const renderedOccurrences = useMemo(
@@ -785,6 +787,16 @@ export function KanbanBoard({
           {t("loadError")}
         </div>
       )}
+      {epicGroupReadOnlyReason && (
+        <p
+          id="epic-group-read-only"
+          role="note"
+          data-testid="epic-group-read-only"
+          className="mx-6 mt-3 min-w-0 shrink-0 text-[11px] leading-4 text-muted-foreground"
+        >
+          {epicGroupReadOnlyReason}
+        </p>
+      )}
       <DndContext
         sensors={sensors}
         collisionDetection={boardCollisionDetection}
@@ -843,9 +855,10 @@ export function KanbanBoard({
               readOnlyReason={
                 effectiveGroupBy === "label"
                   ? t("groupReadOnly")
-                  : effectiveGroupBy === "epic"
-                    ? t("epicGroupReadOnly")
-                    : undefined
+                  : epicGroupReadOnlyReason
+              }
+              readOnlyDescriptionId={
+                epicGroupReadOnlyReason ? "epic-group-read-only" : undefined
               }
             />
           ))}

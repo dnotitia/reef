@@ -418,6 +418,12 @@ describe("IssueListTable", () => {
     const zebraHeader = screen.getByRole("button", {
       name: /Collapse Zebra/,
     });
+    expect(zebraHeader).toHaveClass(
+      "min-w-0",
+      "flex-1",
+      "items-center",
+      "gap-2",
+    );
     expect(zebraHeader).toHaveAttribute("aria-expanded", "true");
     await user.click(zebraHeader);
     expect(zebraHeader).toHaveAttribute("aria-expanded", "false");
@@ -554,10 +560,31 @@ describe("IssueListTable", () => {
       await screen.findByText("Completed foundation work"),
     ).toBeInTheDocument();
     expect(screen.getAllByTestId("issue-group-header")).toHaveLength(4);
+    expect(screen.getByTestId("epic-group-read-only")).toHaveTextContent(
+      "Epic groups are read-only. Change the parent from the issue details.",
+    );
+    expect(screen.getByTestId("issue-list-scroll-container")).toHaveAttribute(
+      "aria-describedby",
+      "epic-group-read-only",
+    );
     expect(screen.getByTestId("open-epic-REEF-100")).toBeInTheDocument();
     expect(screen.getByText("Foundation Epic")).toBeInTheDocument();
     expect(screen.getAllByText("In Progress").length).toBeGreaterThan(0);
-    expect(screen.getByText("1 of 2 done or closed")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: /Collapse Foundation Epic.*1 of 2 done or closed/,
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("open-epic-REEF-100")).toHaveAttribute(
+      "title",
+      "Foundation Epic",
+    );
+    const epicTitle = screen
+      .getByRole("button", {
+        name: /Collapse Foundation Epic.*1 of 2 done or closed/,
+      })
+      .querySelector('span[title="Foundation Epic"]');
+    expect(epicTitle).toHaveClass("truncate");
     expect(screen.getByText("Empty Epic")).toBeInTheDocument();
     expect(screen.getByText("No epic")).toBeInTheDocument();
     expect(screen.getByText("Unavailable parent")).toBeInTheDocument();
@@ -587,6 +614,12 @@ describe("IssueListTable", () => {
     const foundationToggle = screen.getByRole("button", {
       name: /Collapse Foundation Epic/,
     });
+    expect(foundationToggle).toHaveClass(
+      "min-w-0",
+      "flex-1",
+      "items-center",
+      "gap-2",
+    );
     await user.click(foundationToggle);
     expect(foundationToggle).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByText("Completed foundation work")).toBeNull();
