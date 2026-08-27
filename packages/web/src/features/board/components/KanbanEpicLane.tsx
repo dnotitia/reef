@@ -140,8 +140,8 @@ function KanbanEpicHeader({
       data-testid="kanban-epic-header"
       className="flex min-w-0 flex-col overflow-hidden rounded-lg border-b border-border-subtle bg-surface-subtle"
     >
-      <div className="flex min-w-0 items-start gap-3 border-b border-border-subtle bg-surface-subtle px-3 py-3">
-        <h3 id={titleId} className="min-w-0 flex-1">
+      <div className="grid min-w-0 gap-2 border-b border-border-subtle bg-surface-subtle px-3 py-3 lg:flex lg:items-start lg:gap-3">
+        <h3 id={titleId} className="min-w-0 lg:flex-1">
           <button
             ref={identityRef}
             type="button"
@@ -151,7 +151,7 @@ function KanbanEpicHeader({
             aria-selected={focused || undefined}
             tabIndex={focused || tabStopped ? 0 : -1}
             className={cn(
-              "flex min-w-0 max-w-full items-center gap-2 rounded-md px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
+              "grid min-w-0 w-full max-w-full grid-cols-1 gap-y-1 rounded-md px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40 lg:flex lg:items-center lg:gap-2",
               isFlashing && "reef-flash-card",
             )}
             onClick={handleIdentityClick}
@@ -162,21 +162,23 @@ function KanbanEpicHeader({
                 .focusOccurrence("board", occurrenceKey, lane.epic.id)
             }
           >
-            <StatusIcon status={lane.epic.status} size={14} decorative />
-            <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
-              {lane.epic.id}
+            <span className="flex min-w-0 flex-wrap items-center gap-2 lg:order-1">
+              <StatusIcon status={lane.epic.status} size={14} decorative />
+              <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+                {lane.epic.id}
+              </span>
+              <TypePill type={lane.epic.issue_type} variant="kanban" />
             </span>
-            <TypePill type={lane.epic.issue_type} variant="kanban" />
-            <span className="min-w-0 truncate text-[14px] font-semibold text-foreground">
+            <span className="min-w-0 whitespace-normal text-[14px] font-semibold text-foreground [overflow-wrap:anywhere] lg:order-2 lg:flex-1 lg:truncate">
               {lane.epic.title}
             </span>
-            <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+            <span className="shrink-0 text-xs text-muted-foreground lg:order-3 lg:ml-auto">
               {statusLabels[lane.epic.status]}
             </span>
           </button>
         </h3>
 
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 items-center justify-end gap-1">
           <IssueQuickEditAnchor
             scope="board"
             issue={lane.epic}
@@ -213,7 +215,7 @@ function KanbanEpicHeader({
         {summary}
       </div>
 
-      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-xs text-muted-foreground">
+      <div className="flex min-w-0 flex-col items-stretch gap-1.5 px-4 py-2 text-xs text-muted-foreground lg:flex-row lg:flex-wrap lg:items-center lg:gap-x-3 lg:gap-y-1">
         {lane.totalChildren > 0 ? (
           <div
             role="progressbar"
@@ -222,7 +224,7 @@ function KanbanEpicHeader({
             aria-valuemax={lane.totalChildren}
             aria-label={progressText}
             data-testid="kanban-epic-progress"
-            className="h-1.5 min-w-24 max-w-52 flex-1 overflow-hidden rounded-full bg-secondary"
+            className="h-1.5 w-full flex-none overflow-hidden rounded-full bg-secondary lg:w-auto lg:min-w-24 lg:max-w-52 lg:flex-1"
           >
             <div
               className="h-full origin-left rounded-full bg-brand-fill transition-transform duration-300 motion-reduce:transition-none"
@@ -239,7 +241,7 @@ function KanbanEpicHeader({
           {progressText}
         </span>
         <span
-          className="min-w-0 truncate"
+          className="w-full min-w-0 whitespace-normal [overflow-wrap:anywhere] lg:w-auto lg:flex-1 lg:truncate"
           data-testid="kanban-epic-status-distribution"
         >
           {t("epicStatusDistribution", { distribution })}

@@ -95,14 +95,20 @@ const EPIC_ISSUES: IssueMetadata[] = [
   },
 ];
 
-function issueApiResponse(url: unknown) {
+const LONG_EPIC_TITLE =
+  "Status board responsive epic title remains readable at every narrow width";
+const LONG_EPIC_ISSUES = EPIC_ISSUES.map((issue) =>
+  issue.id === "EPIC-001" ? { ...issue, title: LONG_EPIC_TITLE } : issue,
+);
+
+function issueApiResponse(url: unknown, issues = EPIC_ISSUES) {
   if (String(url).startsWith("/api/issues/relations")) {
     return new Response(JSON.stringify({ relations: [] }), { status: 200 });
   }
-  return new Response(JSON.stringify({ issues: EPIC_ISSUES }), { status: 200 });
+  return new Response(JSON.stringify({ issues }), { status: 200 });
 }
 
-function mockEpicBoard() {
+function mockEpicBoard(issues = EPIC_ISSUES) {
   mockApiFetch.mockImplementation(async (url, init) => {
     if (url === "/api/issues/reorder" && init?.method === "POST") {
       return new Response(JSON.stringify({ ok: true, assignments: [] }), {
@@ -118,7 +124,7 @@ function mockEpicBoard() {
         { status: 200 },
       );
     }
-    return issueApiResponse(url);
+    return issueApiResponse(url, issues);
   });
 }
 
@@ -197,6 +203,22 @@ describe("KanbanBoard epic lanes", () => {
     for (const title of ["Todo child", "Done child", "Closed child"]) {
       expect(screen.getAllByText(title)).toHaveLength(1);
     }
+  });
+
+  it("keeps long identity and distribution copy observable", async () => {
+    mockEpicBoard(LONG_EPIC_ISSUES);
+    render(wrap(<KanbanBoard vault="reef-acme" />));
+
+    const lane = await screen.findByTestId("kanban-epic-lane");
+    expect(
+      within(lane).getByRole("button", {
+        name: new RegExp(`EPIC-001.*${LONG_EPIC_TITLE}`),
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(LONG_EPIC_TITLE)).toBeInTheDocument();
+    expect(
+      screen.getByTestId("kanban-epic-status-distribution"),
+    ).toHaveTextContent("Status distribution: Todo 1, Done 1, Closed 1");
   });
 
   it("collapses children, removes them from keyboard occurrences, and restores them on expand", async () => {
