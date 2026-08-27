@@ -191,10 +191,12 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
       page.locator('[data-testid="issue-list-row"][data-issue-id="REEF-100"]'),
     ).toHaveCount(0);
 
-    const listToggle = listFoundationHeader.getByRole("button", {
-      name: /Collapse Platform foundation/,
-    });
+    const listToggle = listFoundationHeader.getByRole("button").first();
+    await expect(listToggle).toHaveAccessibleName(
+      /Collapse Platform foundation/,
+    );
     await listToggle.click();
+    await expect(listToggle).toHaveAccessibleName(/Expand Platform foundation/);
     await expect(listToggle).toHaveAttribute("aria-expanded", "false");
     await expect(
       page.locator('[data-occurrence-key="epic:REEF-100:REEF-001"]'),
