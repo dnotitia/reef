@@ -237,7 +237,7 @@ function IssueListGroupHeader({
         colSpan={columnCount}
         className="h-8 border-y border-border-subtle p-0"
       >
-        <div className="flex h-8 min-w-0 w-full items-center gap-2 px-3 text-left text-xs font-semibold text-foreground">
+        <div className="reef-issue-list-group-header flex h-8 min-w-0 w-full items-center gap-2 px-3 text-left text-xs font-semibold text-foreground">
           <button
             type="button"
             className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-sm text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
@@ -253,18 +253,33 @@ function IssueListGroupHeader({
               )}
             />
             {epic ? (
-              <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden whitespace-nowrap">
+              <span
+                className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden whitespace-nowrap"
+                data-testid="issue-group-label"
+              >
                 <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
                   {epic.id}
                 </span>
-                <span className="min-w-0 truncate" title={epic.title}>
+                <span
+                  className="min-w-0 truncate"
+                  data-testid="issue-group-title"
+                  title={epic.title}
+                >
                   {epic.title}
                 </span>
               </span>
             ) : (
-              <span className="min-w-0 flex-1 truncate">{label}</span>
+              <span
+                className="min-w-0 flex-1 truncate"
+                data-testid="issue-group-label"
+              >
+                {label}
+              </span>
             )}
-            <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+            <span
+              className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground"
+              data-testid="issue-group-count"
+            >
               {count}
             </span>
           </button>

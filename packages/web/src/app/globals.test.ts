@@ -126,6 +126,12 @@ describe("global focus styles", () => {
     expect(css).toContain(
       ".reef-issue-list-table {\n    min-width: 0 !important;",
     );
+    expect(css).toContain(
+      '[data-testid="issue-list-scroll-container"] {\n  container-type: inline-size;\n}',
+    );
+    expect(css).toContain(
+      ".reef-issue-list-group-header {\n  width: min(100%, 100cqi);\n}",
+    );
     expect(css).toContain('.reef-issue-list-table [data-column-key="title"]');
     expect(css).toContain("min-width: 144px !important");
     expect(css).toContain(

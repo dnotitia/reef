@@ -259,7 +259,7 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
     ).toContainText("0");
   });
 
-  test("keeps grouped List child titles inside the internal scrollport at narrow widths", async ({
+  test("keeps grouped List rows and group controls inside the internal scrollport at narrow widths", async ({
     context,
     page,
     request,
@@ -288,6 +288,47 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
         if (!scroll || !title) throw new Error("Missing narrow List geometry");
         const scrollRect = scroll.getBoundingClientRect();
         const titleRect = title.getBoundingClientRect();
+        const groupHeaders = Array.from(
+          document.querySelectorAll<HTMLElement>(
+            '[data-testid="issue-group-header"]',
+          ),
+        ).map((header) => {
+          const content = header.querySelector<HTMLElement>(
+            ".reef-issue-list-group-header",
+          );
+          const label = header.querySelector<HTMLElement>(
+            '[data-testid="issue-group-label"]',
+          );
+          const groupTitle = header.querySelector<HTMLElement>(
+            '[data-testid="issue-group-title"]',
+          );
+          const count = header.querySelector<HTMLElement>(
+            '[data-testid="issue-group-count"]',
+          );
+          const open = header.querySelector<HTMLElement>(
+            '[data-testid^="open-epic-"]',
+          );
+          const rect = (element: HTMLElement | null) =>
+            element?.getBoundingClientRect() ?? null;
+          const contentRect = rect(content);
+          const labelRect = rect(label);
+          const groupTitleRect = rect(groupTitle);
+          const countRect = rect(count);
+          const openRect = rect(open);
+          return {
+            groupId: header.getAttribute("data-group-id"),
+            contentRight: contentRect?.right ?? null,
+            labelLeft: labelRect?.left ?? null,
+            labelRight: labelRect?.right ?? null,
+            titleRight: groupTitleRect?.right ?? null,
+            titleClientWidth: groupTitle?.clientWidth ?? null,
+            titleScrollWidth: groupTitle?.scrollWidth ?? null,
+            countLeft: countRect?.left ?? null,
+            countRight: countRect?.right ?? null,
+            openLeft: openRect?.left ?? null,
+            openRight: openRect?.right ?? null,
+          };
+        });
         return {
           documentWidth: document.documentElement.scrollWidth,
           bodyWidth: document.body.scrollWidth,
@@ -299,6 +340,7 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
           titleWidth: titleRect.width,
           scrollLeft: scrollRect.left,
           scrollRight: scrollRect.right,
+          groupHeaders,
         };
       });
 
@@ -312,6 +354,53 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
       );
       expect(geometry.titleRight).toBeLessThanOrEqual(geometry.scrollRight + 1);
       expect(geometry.titleWidth).toBeGreaterThan(0);
+      expect(geometry.groupHeaders).toHaveLength(4);
+      for (const header of geometry.groupHeaders) {
+        if (
+          header.contentRight === null ||
+          header.labelLeft === null ||
+          header.labelRight === null ||
+          header.countLeft === null ||
+          header.countRight === null
+        ) {
+          throw new Error(`Missing geometry for ${header.groupId ?? "group"}`);
+        }
+        expect(header.contentRight).toBeLessThanOrEqual(
+          geometry.scrollRight + 1,
+        );
+        expect(header.labelLeft).toBeGreaterThanOrEqual(
+          geometry.scrollLeft - 1,
+        );
+        expect(header.labelRight).toBeLessThanOrEqual(header.countLeft + 1);
+        expect(header.countLeft).toBeGreaterThanOrEqual(
+          geometry.scrollLeft - 1,
+        );
+        expect(header.countRight).toBeLessThanOrEqual(geometry.scrollRight + 1);
+        if (header.groupId?.startsWith("epic:")) {
+          if (
+            header.titleRight === null ||
+            header.openLeft === null ||
+            header.openRight === null
+          ) {
+            throw new Error(
+              `Missing Epic control geometry for ${header.groupId}`,
+            );
+          }
+          expect(header.titleRight).toBeLessThanOrEqual(header.countLeft + 1);
+          expect(header.openLeft).toBeGreaterThanOrEqual(
+            geometry.scrollLeft - 1,
+          );
+          expect(header.openRight).toBeLessThanOrEqual(
+            geometry.scrollRight + 1,
+          );
+        }
+      }
+      const longEpicHeader = geometry.groupHeaders.find(
+        (header) => header.groupId === "epic:REEF-101",
+      );
+      expect(longEpicHeader?.titleScrollWidth).toBeGreaterThan(
+        longEpicHeader?.titleClientWidth ?? 0,
+      );
     }
   });
 

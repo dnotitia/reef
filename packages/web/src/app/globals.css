@@ -1676,6 +1676,17 @@ hr {
  * visible scrollport. Active rows raise that cell above the opaque sticky
  * title layer; otherwise the title background paints over the teal border. */
 
+/* Group headers live in table cells whose intrinsic width follows the table's
+ * horizontal scroll content. Give only their content the visible List
+ * scrollport width so the label yields to the count and open control. */
+[data-testid="issue-list-scroll-container"] {
+  container-type: inline-size;
+}
+
+.reef-issue-list-group-header {
+  width: min(100%, 100cqi);
+}
+
 /* At true narrow mobile widths the default List and an already-expanded List
  * share the same readable sticky prefix. Optional columns still own the
  * horizontal overflow, but they must not leave the title behind the viewport
