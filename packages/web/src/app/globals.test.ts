@@ -128,6 +128,9 @@ describe("global focus styles", () => {
     );
     expect(css).toContain('.reef-issue-list-table [data-column-key="title"]');
     expect(css).toContain("min-width: 144px !important");
+    expect(css).toContain(
+      "width: clamp(76px, calc(100vw - 244px), 144px) !important",
+    );
   });
 
   it("styles comment mentions from the sanitized renderer marker", () => {

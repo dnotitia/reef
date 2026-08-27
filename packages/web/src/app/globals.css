@@ -1699,8 +1699,10 @@ hr {
   }
 
   .reef-issue-list-table [data-column-key="title"] {
-    width: 144px !important;
-    min-width: 144px !important;
+    /* The 244px subtraction accounts for the mobile rail, PageBody inset,
+     * sticky prefix, and the title cell's leading padding. */
+    width: clamp(76px, calc(100vw - 244px), 144px) !important;
+    min-width: clamp(76px, calc(100vw - 244px), 144px) !important;
   }
 
   .reef-issue-list-table [data-column-key="select"] {
