@@ -1688,14 +1688,17 @@ hr {
 
   .reef-issue-list-table [data-column-key="select"] {
     width: 32px !important;
+    left: 0 !important;
   }
 
   .reef-issue-list-table [data-column-key="id"] {
     width: 64px !important;
+    left: 32px !important;
   }
 
   .reef-issue-list-table [data-column-key="type"] {
     width: 56px !important;
+    left: 96px !important;
   }
 
   .reef-issue-list-table [data-column-key="title"] {
@@ -1703,21 +1706,6 @@ hr {
      * sticky prefix, and the title cell's leading padding. */
     width: clamp(76px, calc(100vw - 244px), 144px) !important;
     min-width: clamp(76px, calc(100vw - 244px), 144px) !important;
-  }
-
-  .reef-issue-list-table [data-column-key="select"] {
-    left: 0 !important;
-  }
-
-  .reef-issue-list-table [data-column-key="id"] {
-    left: 32px !important;
-  }
-
-  .reef-issue-list-table [data-column-key="type"] {
-    left: 96px !important;
-  }
-
-  .reef-issue-list-table [data-column-key="title"] {
     left: 152px !important;
   }
 }
@@ -1743,22 +1731,26 @@ hr {
   .reef-issue-list-table:not(.reef-issue-list-table-expanded)
     [data-column-key="select"] {
     width: 32px !important;
+    left: 0 !important;
   }
 
   .reef-issue-list-table:not(.reef-issue-list-table-expanded)
     [data-column-key="id"] {
     width: 64px !important;
+    left: 32px !important;
   }
 
   .reef-issue-list-table:not(.reef-issue-list-table-expanded)
     [data-column-key="type"] {
     width: 56px !important;
+    left: 96px !important;
   }
 
   .reef-issue-list-table:not(.reef-issue-list-table-expanded)
     [data-column-key="title"] {
     width: 144px !important;
     min-width: 144px !important;
+    left: 152px !important;
   }
 
   .reef-issue-list-table:not(.reef-issue-list-table-expanded)
@@ -1781,26 +1773,6 @@ hr {
   .reef-issue-list-table:not(.reef-issue-list-table-expanded)
     [data-column-key="updated"] {
     width: 72px !important;
-  }
-
-  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
-    [data-column-key="select"] {
-    left: 0 !important;
-  }
-
-  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
-    [data-column-key="id"] {
-    left: 32px !important;
-  }
-
-  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
-    [data-column-key="type"] {
-    left: 96px !important;
-  }
-
-  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
-    [data-column-key="title"] {
-    left: 152px !important;
   }
 
   /* Expanded tables at the 768–1311px content-width breakpoint keep their
