@@ -105,10 +105,9 @@ function issueApiResponse(url: unknown) {
 function mockEpicBoard() {
   mockApiFetch.mockImplementation(async (url, init) => {
     if (url === "/api/issues/reorder" && init?.method === "POST") {
-      return new Response(
-        JSON.stringify({ ok: true, assignments: [] }),
-        { status: 200 },
-      );
+      return new Response(JSON.stringify({ ok: true, assignments: [] }), {
+        status: 200,
+      });
     }
     if (url === "/api/issues/CHILD-TODO" && init?.method === "PATCH") {
       return new Response(
@@ -351,8 +350,7 @@ describe("KanbanBoard epic lanes", () => {
       ),
     );
     const reorderCalls = mockApiFetch.mock.calls.filter(
-      ([url, init]) =>
-        url === "/api/issues/reorder" && init?.method === "POST",
+      ([url, init]) => url === "/api/issues/reorder" && init?.method === "POST",
     );
     expect(reorderCalls).toHaveLength(1);
     const body = JSON.parse(reorderCalls[0]?.[1]?.body as string);
@@ -360,11 +358,10 @@ describe("KanbanBoard epic lanes", () => {
     expect(body.group).toEqual({ field: "status", value: "in_review" });
     expect(body.parent_id).toBeUndefined();
     expect(
-      mockApiFetch.mock.calls.some(([url, init]) =>
-        url === "/api/issues/EPIC-001" && init?.method === "POST",
+      mockApiFetch.mock.calls.some(
+        ([url, init]) =>
+          url === "/api/issues/EPIC-001" && init?.method === "POST",
       ),
-    ).toBe(
-      false,
-    );
+    ).toBe(false);
   });
 });
