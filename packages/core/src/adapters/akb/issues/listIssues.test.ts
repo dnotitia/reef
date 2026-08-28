@@ -17,6 +17,11 @@ function capturedSql(calls: { init: RequestInit | undefined }[]): string {
   return JSON.parse(String(body)).sql as string;
 }
 
+function capturedParams(calls: { init: RequestInit | undefined }[]): unknown[] {
+  const body = calls[0]?.init?.body;
+  return (JSON.parse(String(body)).params as unknown[] | undefined) ?? [];
+}
+
 describe("listIssues → SQL", () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -43,11 +48,12 @@ describe("listIssues → SQL", () => {
       query,
     });
     const sql = capturedSql(calls);
-    expect(sql).toContain(`WHERE "status" IN ('todo', 'in_progress')`);
+    expect(sql).toContain(`WHERE "status" IN ($1, $2)`);
     expect(sql).toContain(`AND "archived_at" IS NULL`);
     expect(sql).toContain(
       `ORDER BY CASE WHEN "due_date" IS NULL THEN 1 ELSE 0 END ASC, COALESCE("due_date", '') ASC, CAST(SUBSTRING("reef_id" FROM '[0-9]+$') AS NUMERIC) DESC`,
     );
+    expect(capturedParams(calls)).toEqual(["todo", "in_progress"]);
   });
 
   it("emits no ORDER BY for a filtered query without an explicit sort", async () => {
@@ -59,6 +65,7 @@ describe("listIssues → SQL", () => {
       query,
     });
     expect(capturedSql(calls)).not.toContain("ORDER BY");
+    expect(capturedParams(calls)).toEqual(["todo"]);
   });
 });
 
@@ -119,7 +126,8 @@ describe("listIssues pagination", () => {
     expect(capturedSql(firstFetch.calls)).toContain(
       `ORDER BY "title" COLLATE "und-x-icu" ASC, CAST(SUBSTRING("reef_id" FROM '[0-9]+$') AS NUMERIC) DESC`,
     );
-    expect(capturedSql(firstFetch.calls)).toContain("LIMIT 101");
+    expect(capturedSql(firstFetch.calls)).toContain("LIMIT $1");
+    expect(capturedParams(firstFetch.calls)).toEqual([101]);
     expect(decodeCursor(firstPage.next_cursor ?? "")).toEqual({
       k: rows[99]?.title,
       id: rows[99]?.id,
@@ -146,8 +154,9 @@ describe("listIssues pagination", () => {
     expect(combinedIds).toEqual(rows.map((row) => row.id));
     expect(new Set(combinedIds).size).toBe(101);
     expect(capturedSql(secondFetch.calls)).toContain(
-      `"title" COLLATE "und-x-icu" > '가나다 031'`,
+      `"title" COLLATE "und-x-icu" > $1`,
     );
+    expect(capturedParams(secondFetch.calls)).toEqual(["가나다 031", 100, 101]);
   });
 
   it("fetches limit+1 and returns next_cursor when a full extra row exists", async () => {
@@ -166,13 +175,14 @@ describe("listIssues pagination", () => {
       vault: "reef-acme",
       query,
     });
-    expect(capturedSql(calls)).toContain("LIMIT 3");
+    expect(capturedSql(calls)).toContain("LIMIT $1");
+    expect(capturedParams(calls)).toEqual([3]);
     expect(res.issues).toHaveLength(2);
     expect(res.next_cursor).toBeTruthy();
   });
 
   it("returns next_cursor null when there is no next page", async () => {
-    setupFetch([
+    const { calls } = setupFetch([
       { body: makeIssueQueryResponse([makeIssue({ id: "REEF-001" })]) },
     ]);
     const query = IssueListQuerySchema.parse({ limit: 50 });
@@ -183,6 +193,7 @@ describe("listIssues pagination", () => {
     });
     expect(res.next_cursor).toBeNull();
     expect(res.issues).toHaveLength(1);
+    expect(capturedParams(calls)).toEqual([51]);
   });
 
   it("applies the keyset predicate when a cursor is supplied", async () => {
@@ -202,10 +213,11 @@ describe("listIssues pagination", () => {
       query,
     });
     const sql = capturedSql(calls);
-    expect(sql).toContain(`"created_at" < '2026-05-02T00:00:00.000Z'`);
+    expect(sql).toContain(`"created_at" < $1`);
     expect(sql).toContain(
-      `CAST(SUBSTRING("reef_id" FROM '[0-9]+$') AS NUMERIC) < 2`,
+      `CAST(SUBSTRING("reef_id" FROM '[0-9]+$') AS NUMERIC) < $2`,
     );
+    expect(capturedParams(calls)).toEqual(["2026-05-02T00:00:00.000Z", 2, 3]);
   });
 
   it("keeps a numeric ticket-number keyset page boundary past 100 rows", async () => {
@@ -236,8 +248,10 @@ describe("listIssues pagination", () => {
       id: "TEAM_2-1000",
     });
     expect(capturedSql(firstFetch.calls)).toContain(
-      `ORDER BY CAST(SUBSTRING("reef_id" FROM '[0-9]+$') AS NUMERIC) ASC LIMIT 101`,
+      `ORDER BY CAST(SUBSTRING("reef_id" FROM '[0-9]+$') AS NUMERIC) ASC LIMIT $1`,
     );
+    expect(capturedSql(firstFetch.calls)).toContain("LIMIT $1");
+    expect(capturedParams(firstFetch.calls)).toEqual([101]);
 
     const secondFetch = setupFetch([
       { body: makeIssueQueryResponse(rows.slice(100)) },
@@ -258,9 +272,10 @@ describe("listIssues pagination", () => {
       ...secondPage.issues.map((issue) => issue.id),
     ]).toEqual(rows.map((row) => row.id));
     expect(capturedSql(secondFetch.calls)).toContain(
-      `CAST(SUBSTRING("reef_id" FROM '[0-9]+$') AS NUMERIC) > 1000`,
+      `CAST(SUBSTRING("reef_id" FROM '[0-9]+$') AS NUMERIC) > $1`,
     );
     expect(capturedSql(secondFetch.calls)).not.toContain('"reef_id" <');
+    expect(capturedParams(secondFetch.calls)).toEqual([1000, 101]);
   });
 
   it.each([
@@ -330,11 +345,13 @@ describe("listIssues pagination", () => {
       ];
       expect(combined).toEqual(rows.map((row) => row.id));
       expect(capturedSql(secondFetch.calls)).toContain(
-        `CASE WHEN "${field}" IS NULL THEN 1 ELSE 0 END > 1`,
+        `CASE WHEN "${field}" IS NULL THEN 1 ELSE 0 END > $1`,
       );
       expect(capturedSql(firstFetch.calls)).toContain(
-        `ORDER BY CASE WHEN "${field}" IS NULL THEN 1 ELSE 0 END ASC, COALESCE("${field}", '') ${order.toUpperCase()}, CAST(SUBSTRING("reef_id" FROM '[0-9]+$') AS NUMERIC) DESC`,
+        `ORDER BY CASE WHEN "${field}" IS NULL THEN 1 ELSE 0 END ASC, COALESCE("${field}", '') ${order.toUpperCase()}, CAST(SUBSTRING("reef_id" FROM '[0-9]+$') AS NUMERIC) DESC LIMIT $1`,
       );
+      expect(capturedParams(firstFetch.calls)).toEqual([101]);
+      expect(capturedParams(secondFetch.calls)).toEqual([1, "", 100, 101]);
     },
   );
 });

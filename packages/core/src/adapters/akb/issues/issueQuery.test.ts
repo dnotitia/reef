@@ -13,145 +13,249 @@ import {
   encodeCursor,
   priorityRankCase,
 } from "../core/shared";
+import { SqlParameterBuilder } from "../core/sql";
 
 const parse = (q: Record<string, unknown>) => IssueListQuerySchema.parse(q);
 const ISSUE_NUMBER_SORT_EXPR = `CAST(SUBSTRING("reef_id" FROM '[0-9]+$') AS NUMERIC)`;
 
+function issueWhere(q: Record<string, unknown>) {
+  const params = new SqlParameterBuilder();
+  return {
+    sql: buildIssueWhere(parse(q), params),
+    params: [...params.params],
+  };
+}
+
+function keyset(
+  field: Parameters<typeof buildIssueOrderBy>[0],
+  order: Parameters<typeof buildIssueOrderBy>[1],
+  cursor: { k: string; id: string },
+) {
+  const params = new SqlParameterBuilder();
+  return {
+    sql: buildKeysetWhere(field, order, cursor, params),
+    params: [...params.params],
+  };
+}
+
 describe("buildIssueWhere", () => {
   it("adds the archived_at IS NULL floor by default (no facets)", () => {
-    expect(buildIssueWhere(parse({}))).toBe(`"archived_at" IS NULL`);
+    expect(issueWhere({}).sql).toBe(`"archived_at" IS NULL`);
+    expect(issueWhere({}).params).toEqual([]);
   });
 
   it("omits the archived floor when archived=true and no facets", () => {
-    expect(buildIssueWhere(parse({ archived: true }))).toBeUndefined();
+    expect(issueWhere({ archived: true }).sql).toBeUndefined();
+    expect(issueWhere({ archived: true }).params).toEqual([]);
   });
 
   it("renders a multi-value status IN list", () => {
     expect(
-      buildIssueWhere(
-        parse({ status: ["todo", "in_progress"], archived: true }),
-      ),
-    ).toBe(`"status" IN ('todo', 'in_progress')`);
+      issueWhere({ status: ["todo", "in_progress"], archived: true }).sql,
+    ).toBe(`"status" IN ($1, $2)`);
+    expect(
+      issueWhere({ status: ["todo", "in_progress"], archived: true }).params,
+    ).toEqual(["todo", "in_progress"]);
   });
 
   it("treats issue_type=task as matching NULL rows too", () => {
-    expect(
-      buildIssueWhere(parse({ issue_type: ["task"], archived: true })),
-    ).toBe(`("issue_type" = 'task' OR "issue_type" IS NULL)`);
+    expect(issueWhere({ issue_type: ["task"], archived: true }).sql).toBe(
+      `("issue_type" = $1 OR "issue_type" IS NULL)`,
+    );
+    expect(issueWhere({ issue_type: ["task"], archived: true }).params).toEqual(
+      ["task"],
+    );
   });
 
   it("uses exact equality for a non-task issue_type", () => {
-    expect(
-      buildIssueWhere(parse({ issue_type: ["bug"], archived: true })),
-    ).toBe(`"issue_type" = 'bug'`);
+    expect(issueWhere({ issue_type: ["bug"], archived: true }).sql).toBe(
+      `"issue_type" = $1`,
+    );
+    expect(issueWhere({ issue_type: ["bug"], archived: true }).params).toEqual([
+      "bug",
+    ]);
   });
 
   it("uses a case-insensitive exact IN for assigned_to (REEF-267, no longer substring)", () => {
     // Exact match, not the old `ILIKE '%ali%'` substring — so scoping to `ali`
     // does not incidentally return `alice` / `khalil`.
-    expect(
-      buildIssueWhere(parse({ assigned_to: ["ali"], archived: true })),
-    ).toBe(`LOWER("assigned_to") IN ('ali')`);
+    expect(issueWhere({ assigned_to: ["ali"], archived: true }).sql).toBe(
+      `LOWER("assigned_to") IN ($1)`,
+    );
+    expect(issueWhere({ assigned_to: ["ali"], archived: true }).params).toEqual(
+      ["ali"],
+    );
   });
 
   it("OR-combines a multi-value assigned_to facet and folds case (REEF-267)", () => {
     expect(
-      buildIssueWhere(parse({ assigned_to: ["Alice", "BOB"], archived: true })),
-    ).toBe(`LOWER("assigned_to") IN ('alice', 'bob')`);
+      issueWhere({ assigned_to: ["Alice", "BOB"], archived: true }).sql,
+    ).toBe(`LOWER("assigned_to") IN ($1, $2)`);
+    expect(
+      issueWhere({ assigned_to: ["Alice", "BOB"], archived: true }).params,
+    ).toEqual(["alice", "bob"]);
   });
 
   it("uses a case-insensitive exact IN for requester (REEF-267)", () => {
     expect(
-      buildIssueWhere(parse({ requester: ["carol", "dave"], archived: true })),
-    ).toBe(`LOWER("requester") IN ('carol', 'dave')`);
+      issueWhere({ requester: ["carol", "dave"], archived: true }).sql,
+    ).toBe(`LOWER("requester") IN ($1, $2)`);
+    expect(
+      issueWhere({ requester: ["carol", "dave"], archived: true }).params,
+    ).toEqual(["carol", "dave"]);
   });
 
   it("renders a multi-value sprint_id IN list (REEF-267)", () => {
+    expect(issueWhere({ sprint_id: ["s1", "s2"], archived: true }).sql).toBe(
+      `"sprint_id" IN ($1, $2)`,
+    );
     expect(
-      buildIssueWhere(parse({ sprint_id: ["s1", "s2"], archived: true })),
-    ).toBe(`"sprint_id" IN ('s1', 's2')`);
+      issueWhere({ sprint_id: ["s1", "s2"], archived: true }).params,
+    ).toEqual(["s1", "s2"]);
   });
 
   it("renders a multi-value release_id IN list (REEF-267)", () => {
+    expect(issueWhere({ release_id: ["r1", "r2"], archived: true }).sql).toBe(
+      `"release_id" IN ($1, $2)`,
+    );
     expect(
-      buildIssueWhere(parse({ release_id: ["r1", "r2"], archived: true })),
-    ).toBe(`"release_id" IN ('r1', 'r2')`);
+      issueWhere({ release_id: ["r1", "r2"], archived: true }).params,
+    ).toEqual(["r1", "r2"]);
   });
 
   it("keeps milestone_id a single exact match (multi-select out of scope, REEF-267)", () => {
-    expect(buildIssueWhere(parse({ milestone_id: "m1", archived: true }))).toBe(
-      `"milestone_id" = 'm1'`,
+    expect(issueWhere({ milestone_id: "m1", archived: true }).sql).toBe(
+      `"milestone_id" = $1`,
     );
+    expect(issueWhere({ milestone_id: "m1", archived: true }).params).toEqual([
+      "m1",
+    ]);
   });
 
   it("escapes LIKE metacharacters in the value", () => {
-    expect(buildIssueWhere(parse({ q: "50%_x", archived: true }))).toContain(
-      `'%50\\%\\_x%'`,
-    );
+    const result = issueWhere({ q: "50%_x", archived: true });
+    expect(result.sql).toContain(`ILIKE $1 ESCAPE '\\'`);
+    expect(result.params).toEqual(["%50\\%\\_x%"]);
   });
 
   it("escapes a literal backslash in the value (ESCAPE-clause safety)", () => {
-    expect(buildIssueWhere(parse({ q: "a\\b", archived: true }))).toContain(
-      `'%a\\\\b%'`,
-    );
+    const result = issueWhere({ q: "a\\b", archived: true });
+    expect(result.sql).toContain(`ILIKE $1 ESCAPE '\\'`);
+    expect(result.params).toEqual(["%a\\\\b%"]);
   });
 
   it("escapes single quotes (injection-safe)", () => {
-    expect(buildIssueWhere(parse({ sprint_id: ["a'b"], archived: true }))).toBe(
-      `"sprint_id" IN ('a''b')`,
-    );
+    const result = issueWhere({ sprint_id: ["a'b"], archived: true });
+    expect(result.sql).toBe(`"sprint_id" IN ($1)`);
+    expect(result.params).toEqual(["a'b"]);
   });
 
   it("builds the `q` free-text OR group over 9 fields incl. labels text-cast (REEF-034)", () => {
-    expect(buildIssueWhere(parse({ q: "auth", archived: true }))).toBe(
-      `("reef_id" ILIKE '%auth%' ESCAPE '\\' OR ` +
-        `"title" ILIKE '%auth%' ESCAPE '\\' OR ` +
-        `"assigned_to" ILIKE '%auth%' ESCAPE '\\' OR ` +
-        `"requester" ILIKE '%auth%' ESCAPE '\\' OR ` +
-        `"reporter" ILIKE '%auth%' ESCAPE '\\' OR ` +
-        `"milestone_id" ILIKE '%auth%' ESCAPE '\\' OR ` +
-        `"sprint_id" ILIKE '%auth%' ESCAPE '\\' OR ` +
-        `"release_id" ILIKE '%auth%' ESCAPE '\\' OR ` +
-        `"labels"::text ILIKE '%auth%' ESCAPE '\\')`,
+    expect(issueWhere({ q: "auth", archived: true }).sql).toBe(
+      `("reef_id" ILIKE $1 ESCAPE '\\' OR ` +
+        `"title" ILIKE $1 ESCAPE '\\' OR ` +
+        `"assigned_to" ILIKE $1 ESCAPE '\\' OR ` +
+        `"requester" ILIKE $1 ESCAPE '\\' OR ` +
+        `"reporter" ILIKE $1 ESCAPE '\\' OR ` +
+        `"milestone_id" ILIKE $1 ESCAPE '\\' OR ` +
+        `"sprint_id" ILIKE $1 ESCAPE '\\' OR ` +
+        `"release_id" ILIKE $1 ESCAPE '\\' OR ` +
+        `"labels"::text ILIKE $1 ESCAPE '\\')`,
     );
+    expect(issueWhere({ q: "auth", archived: true }).params).toEqual([
+      "%auth%",
+    ]);
   });
 
   it("AND-combines the `q` group with other facets (search narrows within filter) (REEF-034)", () => {
-    const where = buildIssueWhere(parse({ status: ["todo"], q: "auth" }));
+    const result = issueWhere({ status: ["todo"], q: "auth" });
     // status facet, then the parenthesized q group, then the archived floor.
-    expect(where).toBe(
-      `"status" IN ('todo') AND ` +
-        `("reef_id" ILIKE '%auth%' ESCAPE '\\' OR ` +
-        `"title" ILIKE '%auth%' ESCAPE '\\' OR ` +
-        `"assigned_to" ILIKE '%auth%' ESCAPE '\\' OR ` +
-        `"requester" ILIKE '%auth%' ESCAPE '\\' OR ` +
-        `"reporter" ILIKE '%auth%' ESCAPE '\\' OR ` +
-        `"milestone_id" ILIKE '%auth%' ESCAPE '\\' OR ` +
-        `"sprint_id" ILIKE '%auth%' ESCAPE '\\' OR ` +
-        `"release_id" ILIKE '%auth%' ESCAPE '\\' OR ` +
-        `"labels"::text ILIKE '%auth%' ESCAPE '\\') AND ` +
+    expect(result.sql).toBe(
+      `"status" IN ($1) AND ` +
+        `("reef_id" ILIKE $2 ESCAPE '\\' OR ` +
+        `"title" ILIKE $2 ESCAPE '\\' OR ` +
+        `"assigned_to" ILIKE $2 ESCAPE '\\' OR ` +
+        `"requester" ILIKE $2 ESCAPE '\\' OR ` +
+        `"reporter" ILIKE $2 ESCAPE '\\' OR ` +
+        `"milestone_id" ILIKE $2 ESCAPE '\\' OR ` +
+        `"sprint_id" ILIKE $2 ESCAPE '\\' OR ` +
+        `"release_id" ILIKE $2 ESCAPE '\\' OR ` +
+        `"labels"::text ILIKE $2 ESCAPE '\\') AND ` +
         `"archived_at" IS NULL`,
     );
+    expect(result.params).toEqual(["todo", "%auth%"]);
   });
 
   it("AND-joins multiple facets with the archived floor", () => {
-    expect(
-      buildIssueWhere(parse({ status: ["todo"], priority: ["high"] })),
-    ).toBe(
-      `"status" IN ('todo') AND "priority" IN ('high') AND "archived_at" IS NULL`,
+    expect(issueWhere({ status: ["todo"], priority: ["high"] }).sql).toBe(
+      `"status" IN ($1) AND "priority" IN ($2) AND "archived_at" IS NULL`,
     );
+    expect(issueWhere({ status: ["todo"], priority: ["high"] }).params).toEqual(
+      ["todo", "high"],
+    );
+  });
+
+  it("binds every facet value and keeps special free-text data out of SQL", () => {
+    const result = issueWhere({
+      status: ["todo"],
+      priority: ["high"],
+      severity: ["major"],
+      issue_type: ["bug"],
+      assigned_to: ["Alice"],
+      requester: ["김영로"],
+      sprint_id: ["sprint'\\😀"],
+      milestone_id: "milestone",
+      release_id: ["release"],
+      due_after: "2026-01-01",
+      due_before: "2026-03-31",
+      q: "it's 한글😀",
+      archived: true,
+    });
+
+    expect(result.sql).toContain('"status" IN ($1)');
+    expect(result.sql).toContain('"priority" IN ($2)');
+    expect(result.sql).toContain('"severity" IN ($3)');
+    expect(result.sql).toContain('"issue_type" = $4');
+    expect(result.sql).toContain('LOWER("assigned_to") IN ($5)');
+    expect(result.sql).toContain('LOWER("requester") IN ($6)');
+    expect(result.sql).toContain('"sprint_id" IN ($7)');
+    expect(result.sql).toContain('"milestone_id" = $8');
+    expect(result.sql).toContain('"release_id" IN ($9)');
+    expect(result.sql).toContain('"due_date" >= $10');
+    expect(result.sql).toContain('"due_date" <= $11');
+    expect(result.sql).toContain("ILIKE $12 ESCAPE");
+    expect(result.sql).not.toContain("it's");
+    expect(result.params).toEqual([
+      "todo",
+      "high",
+      "major",
+      "bug",
+      "alice",
+      "김영로",
+      "sprint'\\😀",
+      "milestone",
+      "release",
+      "2026-01-01",
+      "2026-03-31",
+      "%it's 한글😀%",
+    ]);
   });
 
   it("renders due-date window bounds", () => {
     expect(
-      buildIssueWhere(
-        parse({
-          due_after: "2026-01-01",
-          due_before: "2026-03-31",
-          archived: true,
-        }),
-      ),
-    ).toBe(`"due_date" >= '2026-01-01' AND "due_date" <= '2026-03-31'`);
+      issueWhere({
+        due_after: "2026-01-01",
+        due_before: "2026-03-31",
+        archived: true,
+      }).sql,
+    ).toBe(`"due_date" >= $1 AND "due_date" <= $2`);
+    expect(
+      issueWhere({
+        due_after: "2026-01-01",
+        due_before: "2026-03-31",
+        archived: true,
+      }).params,
+    ).toEqual(["2026-01-01", "2026-03-31"]);
   });
 });
 
@@ -233,54 +337,57 @@ describe("keyset cursor", () => {
   });
 
   it("builds a descending keyset OR-chain with a numeric issue-number tiebreaker", () => {
-    expect(
-      buildKeysetWhere("created_at", "desc", {
-        k: "2026-05-02T00:00:00.000Z",
-        id: "REEF-002",
-      }),
-    ).toBe(
-      `(("created_at" < '2026-05-02T00:00:00.000Z') OR ("created_at" = '2026-05-02T00:00:00.000Z' AND ${ISSUE_NUMBER_SORT_EXPR} < 2))`,
+    const result = keyset("created_at", "desc", {
+      k: "2026-05-02T00:00:00.000Z",
+      id: "REEF-002",
+    });
+    expect(result.sql).toBe(
+      `(("created_at" < $1) OR ("created_at" = $1 AND ${ISSUE_NUMBER_SORT_EXPR} < $2))`,
     );
+    expect(result.params).toEqual(["2026-05-02T00:00:00.000Z", 2]);
   });
 
   it("uses the priority CASE rank as the keyset lead for a priority sort", () => {
-    const where = buildKeysetWhere("priority", "desc", {
+    const result = keyset("priority", "desc", {
       k: "3",
       id: "REEF-002",
     });
-    expect(where).toContain(`${priorityRankCase()} < 3`);
-    expect(where).toContain(`${ISSUE_NUMBER_SORT_EXPR} < 2`);
+    expect(result.sql).toContain(`${priorityRankCase()} < $1`);
+    expect(result.sql).toContain(`${ISSUE_NUMBER_SORT_EXPR} < $2`);
+    expect(result.params).toEqual([3, 2]);
   });
 
   it("uses the same ICU title expression for the keyset predicate", () => {
-    expect(
-      buildKeysetWhere("title", "desc", {
-        k: "Alpha",
-        id: "REEF-002",
-      }),
-    ).toBe(
-      `(("title" COLLATE "und-x-icu" < 'Alpha') OR ("title" COLLATE "und-x-icu" = 'Alpha' AND ${ISSUE_NUMBER_SORT_EXPR} < 2))`,
+    const result = keyset("title", "desc", {
+      k: "Alpha",
+      id: "REEF-002",
+    });
+    expect(result.sql).toBe(
+      `(("title" COLLATE "und-x-icu" < $1) OR ("title" COLLATE "und-x-icu" = $1 AND ${ISSUE_NUMBER_SORT_EXPR} < $2))`,
     );
+    expect(result.params).toEqual(["Alpha", 2]);
   });
 
   it("uses the numeric ticket key for the 999/1000 cursor boundary", () => {
     const cursor = encodeCursor({ reef_id: "TEAM_2-999" }, "reef_id");
     expect(decodeCursor(cursor)).toEqual({ k: "999", id: "TEAM_2-999" });
 
-    const where = buildKeysetWhere("reef_id", "asc", {
+    const result = keyset("reef_id", "asc", {
       k: "999",
       id: "TEAM_2-999",
     });
-    expect(where).toBe(`(${ISSUE_NUMBER_SORT_EXPR} > 999)`);
+    expect(result.sql).toBe(`(${ISSUE_NUMBER_SORT_EXPR} > $1)`);
+    expect(result.params).toEqual([999]);
   });
 
   it("uses the canonical numeric tie-breaker for a 1000 cursor", () => {
-    const where = buildKeysetWhere("created_at", "desc", {
+    const result = keyset("created_at", "desc", {
       k: "2026-05-02T00:00:00.000Z",
       id: "TEAM_2-1000",
     });
-    expect(where).toContain(`${ISSUE_NUMBER_SORT_EXPR} < 1000`);
-    expect(where).not.toContain('"reef_id" <');
+    expect(result.sql).toContain(`${ISSUE_NUMBER_SORT_EXPR} < $2`);
+    expect(result.sql).not.toContain('"reef_id" <');
+    expect(result.params).toEqual(["2026-05-02T00:00:00.000Z", 1000]);
   });
 
   it("parses a string-numeric rank when encoding the cursor", () => {
@@ -306,28 +413,30 @@ describe("keyset cursor", () => {
       "estimate_points",
     );
     expect(decodeCursor(cursor)).toEqual({ k: "13", id: "REEF-002" });
-    const where = buildKeysetWhere("estimate_points", "desc", {
+    const result = keyset("estimate_points", "desc", {
       k: "13",
       id: "REEF-002",
     });
-    expect(where).toContain(`COALESCE("estimate_points", 0) < 13`);
+    expect(result.sql).toContain(`COALESCE("estimate_points", 0) < $1`);
+    expect(result.params).toEqual([13, 2]);
   });
 
   it.each(["start_date", "due_date"] as const)(
     "keeps the date null bucket in the keyset predicate for %s",
     (field) => {
-      const where = buildKeysetWhere(field, "asc", {
+      const result = keyset(field, "asc", {
         k: "2026-06-01",
         id: "REEF-010",
       });
-      expect(where).toContain(
-        `CASE WHEN "${field}" IS NULL THEN 1 ELSE 0 END > 0`,
+      expect(result.sql).toContain(
+        `CASE WHEN "${field}" IS NULL THEN 1 ELSE 0 END > $1`,
       );
-      expect(where).toContain(
-        `CASE WHEN "${field}" IS NULL THEN 1 ELSE 0 END = 0`,
+      expect(result.sql).toContain(
+        `CASE WHEN "${field}" IS NULL THEN 1 ELSE 0 END = $1`,
       );
-      expect(where).toContain(`COALESCE("${field}", '') > '2026-06-01'`);
-      expect(where).toContain(`${ISSUE_NUMBER_SORT_EXPR} < 10`);
+      expect(result.sql).toContain(`COALESCE("${field}", '') > $2`);
+      expect(result.sql).toContain(`${ISSUE_NUMBER_SORT_EXPR} < $3`);
+      expect(result.params).toEqual([0, "2026-06-01", 10]);
     },
   );
 
@@ -338,15 +447,16 @@ describe("keyset cursor", () => {
     );
     expect(decodeCursor(cursor)).toEqual({ k: "", id: "REEF-101" });
 
-    const where = buildKeysetWhere("due_date", "desc", {
+    const result = keyset("due_date", "desc", {
       k: "",
       id: "REEF-101",
     });
-    expect(where).toContain(
-      `CASE WHEN "due_date" IS NULL THEN 1 ELSE 0 END > 1`,
+    expect(result.sql).toContain(
+      `CASE WHEN "due_date" IS NULL THEN 1 ELSE 0 END > $1`,
     );
-    expect(where).toContain(`COALESCE("due_date", '') = ''`);
-    expect(where).toContain(`${ISSUE_NUMBER_SORT_EXPR} < 101`);
+    expect(result.sql).toContain(`COALESCE("due_date", '') = $2`);
+    expect(result.sql).toContain(`${ISSUE_NUMBER_SORT_EXPR} < $3`);
+    expect(result.params).toEqual([1, "", 101]);
   });
 });
 
