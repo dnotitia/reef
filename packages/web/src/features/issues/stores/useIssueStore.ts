@@ -1,5 +1,9 @@
+import {
+  MyViewListColumnEnum,
+  type IssueOrderingMode,
+  type MyViewListColumn,
+} from "@reef/core";
 import type { UserSortField } from "@reef/core/fields";
-import type { IssueOrderingMode } from "@reef/core";
 import { create } from "zustand";
 
 export interface IssueFilter {
@@ -66,6 +70,7 @@ interface IssueState {
   filterVault: string | null;
   searchQuery: string;
   selectedIssueId: string | null;
+  listOptionalColumns: readonly MyViewListColumn[];
   setFilter: (filter: Partial<IssueFilter>) => void;
   /** Replace a complete saved-filter payload and clear one-off search. */
   applyFilter: (filter: IssueFilter) => void;
@@ -84,6 +89,8 @@ interface IssueState {
   clearSort: () => void;
   setSearchQuery: (query: string) => void;
   setSelectedIssueId: (id: string | null) => void;
+  setListOptionalColumns: (columns: readonly MyViewListColumn[]) => void;
+  toggleListOptionalColumn: (column: MyViewListColumn) => void;
   /**
    * Wipe the filter, search, and vault scope. Used on an akb account switch so a
    * different account on the same browser does not inherits the previous account's
@@ -106,6 +113,7 @@ export const useIssueStore = create<IssueState>((set) => ({
   filterVault: null,
   searchQuery: "",
   selectedIssueId: null,
+  listOptionalColumns: [],
 
   setFilter: (partialFilter) =>
     set((state) => ({ filter: { ...state.filter, ...partialFilter } })),
@@ -156,6 +164,32 @@ export const useIssueStore = create<IssueState>((set) => ({
 
   setSelectedIssueId: (id) => set({ selectedIssueId: id }),
 
+  setListOptionalColumns: (columns) => {
+    const selected = new Set(columns);
+    set({
+      listOptionalColumns: MyViewListColumnEnum.options.filter((column) =>
+        selected.has(column),
+      ),
+    });
+  },
+
+  toggleListOptionalColumn: (column) =>
+    set((state) => {
+      const selected = new Set(state.listOptionalColumns);
+      if (selected.has(column)) selected.delete(column);
+      else selected.add(column);
+      return {
+        listOptionalColumns: MyViewListColumnEnum.options.filter((value) =>
+          selected.has(value),
+        ),
+      };
+    }),
+
   resetFilterScope: () =>
-    set({ filter: {}, searchQuery: "", filterVault: null }),
+    set({
+      filter: {},
+      searchQuery: "",
+      filterVault: null,
+      listOptionalColumns: [],
+    }),
 }));

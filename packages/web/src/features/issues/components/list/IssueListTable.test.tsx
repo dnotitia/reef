@@ -81,6 +81,7 @@ describe("IssueListTable", () => {
       filter: {},
       searchQuery: "",
       selectedIssueId: null,
+      listOptionalColumns: [],
     });
     useIssueSelectionStore.getState().clear();
   });
@@ -298,7 +299,7 @@ describe("IssueListTable", () => {
     expect(screen.getByRole("columnheader", { name: "Release" })).toBeVisible();
   });
 
-  it("resets optional columns when the List surface is re-entered", async () => {
+  it("keeps optional columns when the List surface is re-entered", async () => {
     const user = userEvent.setup();
     const first = render(wrap(<IssueListTable vault="reef-acme" />));
     await screen.findByText("First task");
@@ -309,7 +310,7 @@ describe("IssueListTable", () => {
     first.unmount();
     render(wrap(<IssueListTable vault="reef-acme" />));
     await screen.findByText("First task");
-    expect(screen.queryByRole("columnheader", { name: "Start" })).toBeNull();
+    expect(screen.getByRole("columnheader", { name: "Start" })).toBeVisible();
   });
 
   it("selects and clears only the currently loaded logical ids from the header", async () => {

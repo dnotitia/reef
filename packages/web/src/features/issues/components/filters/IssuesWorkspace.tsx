@@ -49,7 +49,13 @@ export function IssuesWorkspace() {
   });
   const previousSelectionContext = useRef<string | null>(null);
 
-  const { skipNextSave, groupBy, setGroupBy } = useIssueUrlSync();
+  const {
+    skipNextSave,
+    groupBy,
+    setGroupBy,
+    listOptionalColumns,
+    applyMyViewSnapshot,
+  } = useIssueUrlSync();
   useIssueFilterPersistence(vault, skipNextSave);
 
   useEffect(() => {
@@ -91,6 +97,8 @@ export function IssuesWorkspace() {
             showsBacklogReorderHint={scope === "backlog"}
             groupBy={groupBy}
             setGroupBy={setGroupBy}
+            listOptionalColumns={listOptionalColumns}
+            applyMyViewSnapshot={applyMyViewSnapshot}
           />
           {layout === "list" ? (
             <IssueBulkActionBar

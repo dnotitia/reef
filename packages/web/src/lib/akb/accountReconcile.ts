@@ -7,7 +7,7 @@ import {
   setActiveVault,
   setAkbUserId,
 } from "@/lib/storage/config";
-import { clearAllNamedIssueFilters } from "@/lib/storage/namedIssueFilter";
+import { clearAllMyViews } from "@/lib/storage/myView";
 import { clearWorkspaceFavorites } from "@/lib/storage/workspaceFavorites";
 
 /**
@@ -17,7 +17,7 @@ import { clearWorkspaceFavorites } from "@/lib/storage/workspaceFavorites";
  * filters (`filter:*`), and the recorded `akb_user_id` are not keyed by AKB
  * account — left behind, a different account (or the next person on a shared
  * browser) inherits the previous account's vaults/issues, active vault, and
- * saved filters. The in-memory issue filter store is reset too: it is
+ * saved filters and My Views. The in-memory issue filter store is reset too: it is
  * module-level and survives a soft account change, so clearing IndexedDB alone
  * would still leak the previous account's filter if the same vault slug is
  * reselected. Monitored repos and LLM config are deployment/workspace state and
@@ -32,13 +32,13 @@ export async function wipeAkbScopedBrowserState(): Promise<void> {
   useIssueStore.getState().resetFilterScope();
   // Clear EVERY akb-account-scoped key in the Dexie `config` store. The
   // canonical inventory lives in db.ts (config store doc): active `vault`,
-  // `filter:*`, `named_filter:*`, `workspace_favorites`, and `akb_user_id`.
+  // `filter:*`, `my_view:*`, `workspace_favorites`, and `akb_user_id`.
   // `theme` is device-scoped and intentionally preserved.
   // When a new account-scoped config key is added, clear it here too (REEF-068).
   await Promise.all([
     setActiveVault(""),
     clearAllIssueFilters(),
-    clearAllNamedIssueFilters(),
+    clearAllMyViews(),
     clearWorkspaceFavorites(),
     clearAkbUserId(),
   ]);

@@ -24,20 +24,21 @@ import {
   DropdownMenuTrigger,
   useDropdownMenu,
 } from "@/components/ui/dropdown-menu";
-import { useIssueStore } from "@/features/issues/stores/useIssueStore";
+import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import {
-  type NamedIssueFilter,
-  NamedIssueFilterError,
-  createNamedIssueFilter,
-  deleteNamedIssueFilter,
-  listNamedIssueFilters,
-  updateNamedIssueFilter,
-} from "@/lib/storage/namedIssueFilter";
+  type MyView,
+  MyViewError,
+  createMyView,
+  deleteMyView,
+  listMyViews,
+  updateMyView,
+} from "@/lib/storage/myView";
 import { cn } from "@/lib/utils";
 import {
-  hasNamedIssueFilterPayload,
-  serializeNamedIssueFilterPayload,
+  type MyViewListColumn,
+  type MyViewSnapshot,
+  serializeMyViewSnapshot,
 } from "@reef/core";
 import {
   ChevronDown,
@@ -58,18 +59,30 @@ import {
   useRef,
   useState,
 } from "react";
-import type { IssueFilter } from "../../stores/useIssueStore";
+import {
+  applyMyViewSnapshot,
+  buildMyViewSnapshot,
+} from "../../lib/myViewSnapshot";
+import type { IssueGroupBy } from "../../lib/groupBy";
+import type { IssueLayout, IssueScope } from "../../lib/viewMode";
+import { type IssueFilter, useIssueStore } from "../../stores/useIssueStore";
 
 type NameDialogKind = "save" | "rename" | "duplicate";
 
 interface NameDialogState {
   kind: NameDialogKind;
-  item?: NamedIssueFilter;
+  item?: MyView;
 }
 
-function sortNamedFilters(
-  items: readonly NamedIssueFilter[],
-): NamedIssueFilter[] {
+interface MyViewControlProps {
+  scope: IssueScope;
+  layout: IssueLayout;
+  groupBy?: IssueGroupBy;
+  listOptionalColumns?: readonly MyViewListColumn[];
+  onApplySnapshot?: (snapshot: MyViewSnapshot) => void;
+}
+
+function sortMyViews(items: readonly MyView[]): MyView[] {
   return [...items].sort((left, right) =>
     left.nameKey === right.nameKey
       ? left.id.localeCompare(right.id)
@@ -77,28 +90,28 @@ function sortNamedFilters(
   );
 }
 
-function errorCode(error: unknown): NamedIssueFilterError["code"] | null {
-  return error instanceof NamedIssueFilterError ? error.code : null;
+function errorCode(error: unknown): MyViewError["code"] | null {
+  return error instanceof MyViewError ? error.code : null;
 }
 
-interface NamedFilterMenuProps {
-  items: readonly NamedIssueFilter[];
-  activeItem: NamedIssueFilter | undefined;
+interface MyViewMenuProps {
+  items: readonly MyView[];
+  activeItem: MyView | undefined;
   activeChanged: boolean;
   canSave: boolean;
   actionError: string | null;
   updatingId: string | null;
-  onApply: (item: NamedIssueFilter) => void;
+  onApply: (item: MyView) => void;
   onSave: () => void;
-  onRename: (item: NamedIssueFilter) => void;
-  onDuplicate: (item: NamedIssueFilter) => void;
-  onDelete: (item: NamedIssueFilter) => void;
+  onRename: (item: MyView) => void;
+  onDuplicate: (item: MyView) => void;
+  onDelete: (item: MyView) => void;
   onUpdate: () => void;
   onRetry: () => void;
   loadError: boolean;
 }
 
-function NamedFilterMenu({
+function MyViewMenu({
   items,
   activeItem,
   activeChanged,
@@ -113,7 +126,7 @@ function NamedFilterMenu({
   onUpdate,
   onRetry,
   loadError,
-}: NamedFilterMenuProps) {
+}: MyViewMenuProps) {
   const { setOpen } = useDropdownMenu();
   const t = useTranslations("issues.filters");
 
@@ -129,14 +142,14 @@ function NamedFilterMenu({
     <DropdownMenuContent
       align="start"
       className="min-w-[22rem] max-w-[min(92vw,34rem)]"
-      data-testid="named-filter-menu"
+      data-testid="my-view-menu"
     >
-      <DropdownMenuLabel>{t("namedFilters")}</DropdownMenuLabel>
+      <DropdownMenuLabel>{t("myViews")}</DropdownMenuLabel>
 
       {loadError ? (
         <>
           <div className="px-2 py-2 text-xs text-destructive-text" role="alert">
-            {t("loadError")}
+            {t("loadViewsError")}
           </div>
           <DropdownMenuItem onSelect={onRetry}>{t("retry")}</DropdownMenuItem>
         </>
@@ -145,29 +158,23 @@ function NamedFilterMenu({
           aria-live="polite"
           className="px-2 py-2 text-xs text-muted-foreground"
         >
-          {t("noSaved")}
+          {t("noSavedViews")}
         </div>
       ) : (
         <div className="max-h-[min(18rem,50vh)] overflow-y-auto">
           {items.map((item) => {
             const isActive = activeItem?.id === item.id;
-            const updateDisabled =
-              !isActive || !item.applicable || !canSave || updatingId !== null;
+            const updateDisabled = !isActive || !canSave || updatingId !== null;
             return (
               <div className="space-y-0.5" key={item.id}>
                 <DropdownMenuItem
                   aria-current={isActive ? "true" : undefined}
                   className="min-w-0"
-                  disabled={!item.applicable}
                   onSelect={() => closeAnd(() => onApply(item))}
                   selected={isActive}
                   title={item.name}
                   trailing={
-                    !item.applicable ? (
-                      <span className="text-[11px] text-muted-foreground">
-                        {t("unavailable")}
-                      </span>
-                    ) : isActive ? (
+                    isActive ? (
                       <span
                         className={cn(
                           "text-[11px] font-medium",
@@ -200,7 +207,7 @@ function NamedFilterMenu({
                   onSelect={() => closeAnd(onUpdate)}
                 >
                   <span className="min-w-0 truncate">
-                    {t("update", { name: item.name })}
+                    {t("updateView", { name: item.name })}
                   </span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -209,7 +216,7 @@ function NamedFilterMenu({
                   onSelect={() => closeAnd(() => onRename(item))}
                 >
                   <span className="min-w-0 truncate">
-                    {t("rename", { name: item.name })}
+                    {t("renameView", { name: item.name })}
                   </span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -218,7 +225,7 @@ function NamedFilterMenu({
                   onSelect={() => closeAnd(() => onDuplicate(item))}
                 >
                   <span className="min-w-0 truncate">
-                    {t("duplicate", { name: item.name })}
+                    {t("duplicateView", { name: item.name })}
                   </span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -228,7 +235,7 @@ function NamedFilterMenu({
                   onSelect={() => closeAnd(() => onDelete(item))}
                 >
                   <span className="min-w-0 truncate">
-                    {t("deleteNamed", { name: item.name })}
+                    {t("deleteView", { name: item.name })}
                   </span>
                 </DropdownMenuItem>
               </div>
@@ -249,44 +256,47 @@ function NamedFilterMenu({
         leading={<Plus aria-hidden="true" className="size-3.5" />}
         onSelect={canSave ? onSave : undefined}
       >
-        {t("saveCurrent")}
+        {t("saveCurrentView")}
       </DropdownMenuItem>
       <div className="px-2 pt-1 text-[11px] text-muted-foreground">
-        {t("scopeNotice")}
+        {t("viewScopeNotice")}
       </div>
     </DropdownMenuContent>
   );
 }
 
-interface NamedFilterTriggerProps {
+interface MyViewTriggerProps {
   activeChanged: boolean;
-  activeItem: NamedIssueFilter | undefined;
+  activeItem: MyView | undefined;
+  busy: boolean;
   disabled: boolean;
   triggerAria: string;
   triggerRef: RefObject<HTMLButtonElement | null>;
   triggerText: string;
 }
 
-function NamedFilterTrigger({
+function MyViewTrigger({
   activeChanged,
   activeItem,
+  busy,
   disabled,
   triggerAria,
   triggerRef,
   triggerText,
-}: NamedFilterTriggerProps) {
+}: MyViewTriggerProps) {
   const { open } = useDropdownMenu();
 
   return (
     <DropdownMenuTrigger
       ref={triggerRef}
       aria-label={triggerAria}
+      aria-busy={busy || undefined}
       className={cn(
         CBX_TRIGGER_CHIP,
         activeItem ? CBX_TRIGGER_CHIP_ACTIVE : CBX_TRIGGER_CHIP_INACTIVE,
         "max-w-[18rem]",
       )}
-      data-testid="named-filter-trigger"
+      data-testid="my-view-trigger"
       disabled={disabled}
     >
       <span className="min-w-0 truncate" title={activeItem?.name}>
@@ -300,9 +310,7 @@ function NamedFilterTrigger({
           )}
           aria-hidden="true"
           data-testid={
-            activeChanged
-              ? "named-filter-changed-dot"
-              : "named-filter-active-dot"
+            activeChanged ? "my-view-changed-dot" : "my-view-active-dot"
           }
         />
       ) : null}
@@ -315,19 +323,23 @@ function NamedFilterTrigger({
   );
 }
 
-export function NamedIssueFilterControl() {
+export function MyViewControl({
+  scope,
+  layout,
+  groupBy,
+  listOptionalColumns = [],
+  onApplySnapshot,
+}: MyViewControlProps) {
   const t = useTranslations("issues.filters");
   const { vault } = useActiveVault();
+  const actor = useCurrentUserLogin();
   const filter = useIssueStore((state) => state.filter);
-  const applyFilter = useIssueStore((state) => state.applyFilter);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
-  const [items, setItems] = useState<NamedIssueFilter[]>([]);
+  const [items, setItems] = useState<MyView[]>([]);
   const [loadError, setLoadError] = useState(false);
   const [dialog, setDialog] = useState<NameDialogState | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<NamedIssueFilter | null>(
-    null,
-  );
+  const [deleteTarget, setDeleteTarget] = useState<MyView | null>(null);
   const [draftName, setDraftName] = useState("");
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -336,28 +348,46 @@ export function NamedIssueFilterControl() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [dialogPending, setDialogPending] = useState(false);
   const [deletePending, setDeletePending] = useState(false);
+  const loadGeneration = useRef(0);
+  const ownerKey = `${actor ?? ""}\u0000${vault}`;
+  const [loadedOwnerKey, setLoadedOwnerKey] = useState("");
 
-  const filterPayload = useMemo(
-    () => serializeNamedIssueFilterPayload(filter),
-    [filter],
+  const currentSnapshot = useMemo(
+    () =>
+      buildMyViewSnapshot({
+        filter,
+        scope,
+        layout,
+        groupBy,
+        listOptionalColumns,
+      }),
+    [filter, groupBy, layout, listOptionalColumns, scope],
   );
-  const canSave = hasNamedIssueFilterPayload(filter);
+  const currentSnapshotText = useMemo(
+    () => serializeMyViewSnapshot(currentSnapshot),
+    [currentSnapshot],
+  );
+  const currentSnapshotTextRef = useRef(currentSnapshotText);
+  useEffect(() => {
+    currentSnapshotTextRef.current = currentSnapshotText;
+  }, [currentSnapshotText]);
+  const canSave = Boolean(actor && vault);
+  const scopedItems = loadedOwnerKey === ownerKey ? items : [];
   const exactMatch = useMemo(
     () =>
-      items.find(
+      scopedItems.find(
         (item) =>
-          item.applicable &&
-          serializeNamedIssueFilterPayload(item.payload) === filterPayload,
+          serializeMyViewSnapshot(item.snapshot) === currentSnapshotText,
       ),
-    [filterPayload, items],
+    [currentSnapshotText, scopedItems],
   );
   const activeItem = useMemo(
-    () => exactMatch ?? items.find((item) => item.id === activeId),
-    [activeId, exactMatch, items],
+    () => exactMatch ?? scopedItems.find((item) => item.id === activeId),
+    [activeId, exactMatch, scopedItems],
   );
   const activeChanged = Boolean(
     activeItem &&
-      serializeNamedIssueFilterPayload(activeItem.payload) !== filterPayload,
+      serializeMyViewSnapshot(activeItem.snapshot) !== currentSnapshotText,
   );
 
   const restoreTriggerFocus = useCallback(() => {
@@ -365,29 +395,32 @@ export function NamedIssueFilterControl() {
   }, []);
 
   const loadItems = useCallback(async () => {
-    if (!vault) {
+    const generation = ++loadGeneration.current;
+    if (!actor || !vault) {
+      if (generation !== loadGeneration.current) return;
       setItems([]);
+      setLoadedOwnerKey(ownerKey);
       setLoadError(false);
       setActiveId(null);
       return;
     }
     try {
       setLoadError(false);
-      const loaded = await listNamedIssueFilters(vault);
+      const loaded = await listMyViews(actor, vault);
+      if (generation !== loadGeneration.current) return;
       setItems(loaded);
-      const currentPayload = serializeNamedIssueFilterPayload(
-        useIssueStore.getState().filter,
-      );
+      setLoadedOwnerKey(ownerKey);
+      if (generation !== loadGeneration.current) return;
       const restoredActive = loaded.find(
         (item) =>
-          item.applicable &&
-          serializeNamedIssueFilterPayload(item.payload) === currentPayload,
+          serializeMyViewSnapshot(item.snapshot) ===
+          currentSnapshotTextRef.current,
       );
       setActiveId(restoredActive?.id ?? null);
     } catch {
       setLoadError(true);
     }
-  }, [vault]);
+  }, [actor, ownerKey, vault]);
 
   useEffect(() => {
     void Promise.resolve().then(loadItems);
@@ -399,7 +432,7 @@ export function NamedIssueFilterControl() {
   }, [dialog]);
 
   const openNameDialog = useCallback(
-    (kind: NameDialogKind, item?: NamedIssueFilter) => {
+    (kind: NameDialogKind, item?: MyView) => {
       setDialog({ kind, item });
       setDialogError(null);
       setDraftName(
@@ -418,68 +451,92 @@ export function NamedIssueFilterControl() {
     setDialogError(null);
   }, []);
 
+  const applySnapshot = useCallback(
+    (snapshot: MyViewSnapshot) => {
+      if (onApplySnapshot) {
+        onApplySnapshot(snapshot);
+        return;
+      }
+      const applied = applyMyViewSnapshot(snapshot);
+      useIssueStore.setState({
+        filter: applied.filter,
+        searchQuery: "",
+        filterVault: vault || null,
+        listOptionalColumns: applied.listOptionalColumns ?? [],
+      });
+    },
+    [onApplySnapshot, vault],
+  );
+
   const handleApply = useCallback(
-    (item: NamedIssueFilter) => {
-      applyFilter(item.payload as IssueFilter);
+    (item: MyView) => {
+      applySnapshot(item.snapshot);
       setActiveId(item.id);
       setActionError(null);
     },
-    [applyFilter],
+    [applySnapshot],
   );
 
   const handleUpdate = useCallback(async () => {
-    if (!vault || !activeItem || !canSave || updatingId) return;
+    if (!actor || !vault || !activeItem || !canSave || updatingId) return;
+    loadGeneration.current += 1;
     setUpdatingId(activeItem.id);
     setActionError(null);
     try {
-      const updated = await updateNamedIssueFilter({
+      const updated = await updateMyView({
+        actor,
         vault,
         id: activeItem.id,
-        payload: filter,
+        snapshot: currentSnapshot,
       });
+      loadGeneration.current += 1;
       setItems((current) =>
-        sortNamedFilters(
+        sortMyViews(
           current.map((item) => (item.id === updated.id ? updated : item)),
         ),
       );
     } catch (error) {
       const code = errorCode(error);
       setActionError(
-        code === "not_found" ? t("notFoundError") : t("updateError"),
+        code === "not_found" ? t("viewNotFoundError") : t("updateViewError"),
       );
     } finally {
       setUpdatingId(null);
     }
-  }, [activeItem, canSave, filter, t, updatingId, vault]);
+  }, [actor, activeItem, canSave, currentSnapshot, t, updatingId, vault]);
 
   const handleDialogSubmit = useCallback(
     async (event: SyntheticEvent<HTMLFormElement>) => {
       event.preventDefault();
-      if (!vault || !dialog) return;
+      if (!actor || !vault || !dialog) return;
       const name = draftName.normalize("NFKC").trim();
       if (!name) {
-        setDialogError(t("nameRequired"));
+        setDialogError(t("viewNameRequired"));
         return;
       }
       setDialogPending(true);
       setDialogError(null);
+      loadGeneration.current += 1;
       try {
-        let saved: NamedIssueFilter;
+        let saved: MyView;
         if (dialog.kind === "save") {
-          saved = await createNamedIssueFilter({
+          saved = await createMyView({
+            actor,
             vault,
             name,
-            payload: filter,
+            snapshot: currentSnapshot,
           });
           setActiveId(saved.id);
         } else if (dialog.kind === "duplicate" && dialog.item) {
-          saved = await createNamedIssueFilter({
+          saved = await createMyView({
+            actor,
             vault,
             name,
-            payload: dialog.item.payload,
+            snapshot: dialog.item.snapshot,
           });
         } else if (dialog.kind === "rename" && dialog.item) {
-          saved = await updateNamedIssueFilter({
+          saved = await updateMyView({
+            actor,
             vault,
             id: dialog.item.id,
             name,
@@ -488,8 +545,9 @@ export function NamedIssueFilterControl() {
         } else {
           return;
         }
+        loadGeneration.current += 1;
         setItems((current) =>
-          sortNamedFilters(
+          sortMyViews(
             dialog.kind === "save" || dialog.kind === "duplicate"
               ? [...current, saved]
               : current.map((item) => (item.id === saved.id ? saved : item)),
@@ -500,28 +558,39 @@ export function NamedIssueFilterControl() {
         const code = errorCode(error);
         setDialogError(
           code === "duplicate"
-            ? t("duplicateError")
+            ? t("viewDuplicateError")
             : code === "not_found"
-              ? t("notFoundError")
+              ? t("viewNotFoundError")
               : dialog.kind === "save"
-                ? t("saveError")
+                ? t("saveViewError")
                 : dialog.kind === "duplicate"
-                  ? t("duplicateError")
-                  : t("renameError"),
+                  ? t("duplicateViewError")
+                  : t("renameViewError"),
         );
       } finally {
         setDialogPending(false);
       }
     },
-    [activeId, closeNameDialog, dialog, draftName, filter, t, vault],
+    [
+      activeId,
+      actor,
+      closeNameDialog,
+      currentSnapshot,
+      dialog,
+      draftName,
+      t,
+      vault,
+    ],
   );
 
   const confirmDelete = useCallback(async () => {
-    if (!vault || !deleteTarget) return;
+    if (!actor || !vault || !deleteTarget) return;
+    loadGeneration.current += 1;
     setDeletePending(true);
     setDeleteError(null);
     try {
-      await deleteNamedIssueFilter({ vault, id: deleteTarget.id });
+      await deleteMyView({ actor, vault, id: deleteTarget.id });
+      loadGeneration.current += 1;
       setItems((current) =>
         current.filter((item) => item.id !== deleteTarget.id),
       );
@@ -531,35 +600,36 @@ export function NamedIssueFilterControl() {
     } catch (error) {
       const code = errorCode(error);
       setDeleteError(
-        code === "not_found" ? t("notFoundError") : t("deleteError"),
+        code === "not_found" ? t("viewNotFoundError") : t("deleteViewError"),
       );
     } finally {
       setDeletePending(false);
     }
-  }, [activeId, deleteTarget, restoreTriggerFocus, t, vault]);
+  }, [actor, activeId, deleteTarget, restoreTriggerFocus, t, vault]);
 
-  const triggerText = activeItem?.name ?? t("namedFilters");
+  const triggerText = activeItem?.name ?? t("myViews");
   const triggerAria = activeItem
-    ? `${t("namedFilters")}: ${activeItem.name}, ${activeChanged ? t("changed") : t("active")}`
-    : t("namedFilterMenu");
+    ? `${t("myViews")}: ${activeItem.name}, ${activeChanged ? t("changed") : t("active")}`
+    : t("myViewMenu");
 
   return (
     <>
       <DropdownMenu>
-        <NamedFilterTrigger
+        <MyViewTrigger
           activeChanged={activeChanged}
           activeItem={activeItem}
-          disabled={!vault}
+          busy={Boolean(updatingId || dialogPending || deletePending)}
+          disabled={!canSave}
           triggerAria={triggerAria}
           triggerRef={triggerRef}
           triggerText={triggerText}
         />
-        <NamedFilterMenu
+        <MyViewMenu
           actionError={actionError}
           activeChanged={activeChanged}
           activeItem={activeItem}
           canSave={canSave}
-          items={items}
+          items={scopedItems}
           loadError={loadError}
           onApply={handleApply}
           onDelete={(item) => {
@@ -582,7 +652,7 @@ export function NamedIssueFilterControl() {
         }}
       >
         <DialogContent
-          data-testid="named-filter-dialog"
+          data-testid="my-view-dialog"
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             queueMicrotask(() => triggerRef.current?.focus());
@@ -591,42 +661,42 @@ export function NamedIssueFilterControl() {
           <DialogHeader>
             <DialogTitle>
               {dialog?.kind === "save"
-                ? t("saveTitle")
+                ? t("saveViewTitle")
                 : dialog?.kind === "rename"
-                  ? t("renameTitle")
-                  : t("duplicateTitle")}
+                  ? t("renameViewTitle")
+                  : t("duplicateViewTitle")}
             </DialogTitle>
             <DialogDescription>
               {dialog?.kind === "save"
-                ? t("saveDescription")
-                : t("nameDescription")}
+                ? t("saveViewDescription")
+                : t("viewNameDescription")}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleDialogSubmit}>
             <label
               className="flex flex-col gap-1.5 text-sm font-medium"
-              htmlFor="named-filter-name"
+              htmlFor="my-view-name"
             >
-              {t("nameLabel")}
+              {t("viewNameLabel")}
               <input
                 className="h-9 rounded-md border border-border bg-surface-page px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
-                id="named-filter-name"
+                id="my-view-name"
                 maxLength={80}
                 onChange={(event) => setDraftName(event.target.value)}
-                placeholder={t("namePlaceholder")}
+                placeholder={t("viewNamePlaceholder")}
                 ref={nameInputRef}
                 value={draftName}
                 aria-describedby={
-                  dialogError ? "named-filter-dialog-error" : undefined
+                  dialogError ? "my-view-dialog-error" : undefined
                 }
                 aria-invalid={dialogError ? "true" : undefined}
-                data-testid="named-filter-name-input"
+                data-testid="my-view-name-input"
               />
             </label>
             {dialogError ? (
               <p
                 className="mt-2 text-xs text-destructive-text"
-                id="named-filter-dialog-error"
+                id="my-view-dialog-error"
                 role="alert"
               >
                 {dialogError}
@@ -644,7 +714,7 @@ export function NamedIssueFilterControl() {
               <Button
                 type="submit"
                 variant="brand"
-                disabled={dialogPending || !vault}
+                disabled={dialogPending || !canSave}
               >
                 {dialogPending ? (
                   <LoaderCircle
@@ -669,11 +739,11 @@ export function NamedIssueFilterControl() {
           }
         }}
       >
-        <DialogContent data-testid="named-filter-delete-dialog">
+        <DialogContent data-testid="my-view-delete-dialog">
           <DialogHeader>
-            <DialogTitle>{t("deleteConfirmTitle")}</DialogTitle>
+            <DialogTitle>{t("deleteViewConfirmTitle")}</DialogTitle>
             <DialogDescription>
-              {t("deleteConfirmDescription", {
+              {t("deleteViewConfirmDescription", {
                 name: deleteTarget?.name ?? "",
               })}
             </DialogDescription>
@@ -701,7 +771,7 @@ export function NamedIssueFilterControl() {
               variant="destructive"
               onClick={() => void confirmDelete()}
               disabled={deletePending || !deleteTarget}
-              data-testid="named-filter-confirm-delete"
+              data-testid="my-view-confirm-delete"
             >
               {deletePending ? (
                 <LoaderCircle

@@ -4,6 +4,7 @@ import "fake-indexeddb/auto";
 
 import { setPersistedIssueFilter } from "@/lib/storage/config";
 import { db } from "@/lib/storage/db";
+import type { MyViewSnapshot } from "@reef/core";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
@@ -50,9 +51,8 @@ vi.mock("@/features/settings/hooks/useActiveVault", () => ({
 }));
 
 function Harness() {
-  const { groupBy, setGroupBy } = useIssueUrlSync();
+  const { groupBy, setGroupBy, applyMyViewSnapshot } = useIssueUrlSync();
   const setFilter = useIssueStore((state) => state.setFilter);
-  const applyFilter = useIssueStore((state) => state.applyFilter);
 
   return (
     <>
@@ -69,14 +69,17 @@ function Harness() {
       <button
         type="button"
         onClick={() =>
-          applyFilter({
-            status: ["todo"],
-            sortField: "priority",
-            sortOrder: "desc",
-          })
+          applyMyViewSnapshot({
+            filter: { status: ["todo"] },
+            scope: "active",
+            layout: "list",
+            grouping: "label",
+            ordering: { mode: "field", field: "title", direction: "asc" },
+            display: { showArchived: true, listColumns: ["start", "release"] },
+          } satisfies MyViewSnapshot)
         }
       >
-        Apply named filter
+        Apply My View
       </button>
     </>
   );
@@ -94,6 +97,7 @@ describe("useIssueUrlSync", () => {
       filterVault: null,
       searchQuery: "",
       selectedIssueId: null,
+      listOptionalColumns: [],
     });
     await db.config.clear();
   });
@@ -372,7 +376,7 @@ describe("useIssueUrlSync", () => {
     });
   });
 
-  it("applies a named payload atomically, clears search, preserves view, and emits only canonical issue params", async () => {
+  it("applies a My View atomically, clears search, and emits its canonical workspace state", async () => {
     navigationState.searchParams = new URLSearchParams(
       "view=timeline&q=temporary",
     );
@@ -382,17 +386,70 @@ describe("useIssueUrlSync", () => {
     );
     mockPush.mockClear();
 
-    fireEvent.click(screen.getByRole("button", { name: "Apply named filter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply My View" }));
+
+    await waitFor(() => expect(mockPush).toHaveBeenCalledTimes(1));
+    const href = mockPush.mock.calls[0][0] as string;
+    const params = new URLSearchParams(href.split("?")[1] ?? "");
+    expect(params.get("view")).toBe("list");
+    expect(params.get("group")).toBe("label");
+    expect(params.get("status")).toBe("todo");
+    expect(params.get("archived")).toBe("1");
+    expect(params.get("sort")).toBe("title");
+    expect(params.get("order")).toBe("asc");
+    expect(params.get("columns")).toBe("start,release");
+    expect(href).not.toContain("temporary");
+    expect(href).not.toContain("My View");
+    expect(useIssueStore.getState().searchQuery).toBe("");
+    expect(navigationState.searchParams.has("q")).toBe(false);
+    expect(navigationState.searchParams.has("my_view")).toBe(false);
+    expect(useIssueStore.getState().listOptionalColumns).toEqual([
+      "start",
+      "release",
+    ]);
+  });
+
+  it("restores List optional columns from an explicit URL", async () => {
+    navigationState.searchParams = new URLSearchParams(
+      "view=list&columns=release,start",
+    );
+
+    render(<Harness />);
 
     await waitFor(() => {
+      expect(useIssueStore.getState().listOptionalColumns).toEqual([
+        "start",
+        "release",
+      ]);
+    });
+    await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith(
-        "/workspace/reef-acme/issues?view=timeline&status=todo&sort=priority&order=desc",
+        "/workspace/reef-acme/issues?view=list&columns=start%2Crelease",
         { scroll: false },
       );
     });
-    expect(useIssueStore.getState().searchQuery).toBe("");
-    expect(navigationState.searchParams.has("q")).toBe(false);
-    expect(navigationState.searchParams.has("named_filter")).toBe(false);
+  });
+
+  it("adopts browser-history filter and List display changes without pushing them back", async () => {
+    navigationState.searchParams = new URLSearchParams(
+      "view=list&status=todo&columns=start",
+    );
+    const rendered = render(<Harness />);
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.status).toEqual(["todo"]);
+    });
+    mockPush.mockClear();
+
+    navigationState.searchParams = new URLSearchParams(
+      "view=list&status=closed&columns=release",
+    );
+    rendered.rerender(<Harness />);
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.status).toEqual(["closed"]);
+      expect(useIssueStore.getState().listOptionalColumns).toEqual(["release"]);
+    });
+    expect(mockPush).not.toHaveBeenCalled();
   });
 
   it("does not mirror filters onto the URL while a detail sheet is open", async () => {

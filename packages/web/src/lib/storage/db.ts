@@ -13,7 +13,7 @@ interface ConfigEntry {
  *  - `config` (key-value bag): client workspace state with no akb backend home
  *    — the active `vault`, `theme`, `filter:{vault}`
  *    (the per-vault last-used issue filter, REEF-009),
- *    `named_filter:{vault}:{id}` (browser-local named issue filter envelopes),
+ *    `my_view:{actor}:{vault}:{id}` (browser-local My View envelopes),
  *    `workspace_favorites` (versioned account-scoped configured workspace names),
  *    `akb_user_id` (the previously-signed-in account,
  *    read by `accountReconcile` to detect an account switch).

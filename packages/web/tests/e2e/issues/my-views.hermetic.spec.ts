@@ -21,29 +21,29 @@ async function selectTodo(page: Page): Promise<void> {
   await expect(page).toHaveURL(/status=todo/);
 }
 
-async function saveNamedFilter(page: Page, name: string): Promise<void> {
+async function saveMyView(page: Page, name: string): Promise<void> {
   await selectTodo(page);
-  await page.getByTestId("named-filter-trigger").click();
-  await page.getByRole("menuitem", { name: "Save current filter…" }).click();
-  const dialog = page.getByTestId("named-filter-dialog");
+  await page.getByTestId("my-view-trigger").click();
+  await page.getByRole("menuitem", { name: "Save current view…" }).click();
+  const dialog = page.getByTestId("my-view-dialog");
   await expect(dialog).toBeVisible();
-  await dialog.getByTestId("named-filter-name-input").fill(name);
+  await dialog.getByTestId("my-view-name-input").fill(name);
   await dialog.getByRole("button", { name: "Save", exact: true }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByTestId("named-filter-trigger")).toHaveAttribute(
+  await expect(page.getByTestId("my-view-trigger")).toHaveAttribute(
     "aria-label",
     new RegExp(name),
   );
 }
 
-async function openNamedFilterMenu(page: Page) {
-  await page.getByTestId("named-filter-trigger").click();
-  const menu = page.getByTestId("named-filter-menu");
+async function openMyViewMenu(page: Page) {
+  await page.getByTestId("my-view-trigger").click();
+  const menu = page.getByTestId("my-view-menu");
   await expect(menu).toBeVisible();
   return menu;
 }
 
-test.describe("Hermetic named issue filters", () => {
+test.describe("Hermetic My Views", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
     await resetFixture(request, "configured_multi");
@@ -66,22 +66,27 @@ test.describe("Hermetic named issue filters", () => {
     await page.keyboard.press("Escape");
     await page.getByTestId("sort-control-trigger").click();
     await page.getByTestId("sort-option-title").click();
+    await page.getByTestId("display-options-trigger").click();
+    await page.getByTestId("group-by-label").click();
+    await page.getByTestId("issue-list-columns-control").click();
+    await page.getByTestId("issue-list-column-start").click();
+    await page.keyboard.press("Escape");
     await expect(page).toHaveURL(/view=list/);
 
     const savedName = "My triage view";
-    await page.getByTestId("named-filter-trigger").click();
-    await page.getByRole("menuitem", { name: "Save current filter…" }).click();
-    const saveDialog = page.getByTestId("named-filter-dialog");
-    await saveDialog.getByTestId("named-filter-name-input").fill(savedName);
+    await page.getByTestId("my-view-trigger").click();
+    await page.getByRole("menuitem", { name: "Save current view…" }).click();
+    const saveDialog = page.getByTestId("my-view-dialog");
+    await saveDialog.getByTestId("my-view-name-input").fill(savedName);
     await saveDialog.getByRole("button", { name: "Save", exact: true }).click();
     await expect(saveDialog).toBeHidden();
-    await expect(page.getByTestId("named-filter-trigger")).toHaveAttribute(
+    await expect(page.getByTestId("my-view-trigger")).toHaveAttribute(
       "aria-label",
       /My triage view.*Active/,
     );
 
-    // Change the working state and add one-off search before applying the named
-    // payload. The view mode remains List while every named filter field is
+    // Change the working state and add one-off search before applying the My View
+    // payload. The view mode remains List while every My View field is
     // replaced and the query is cleared.
     await page.getByTestId("status-dropdown-trigger").click();
     await page.getByTestId("status-option-todo").click();
@@ -96,19 +101,23 @@ test.describe("Hermetic named issue filters", () => {
     const applyNavigation = page.waitForURL((url) => {
       return (
         url.searchParams.get("view") === "list" &&
+        url.searchParams.get("group") === "label" &&
+        url.searchParams.get("columns") === "start" &&
         url.searchParams.get("status") === "todo" &&
         url.searchParams.get("sort") === "title" &&
         url.searchParams.get("order") === "asc" &&
         !url.searchParams.has("q")
       );
     });
-    const menu = await openNamedFilterMenu(page);
+    const menu = await openMyViewMenu(page);
     await menu.getByRole("menuitem", { name: /^My triage view/ }).click();
     await applyNavigation;
     const appliedUrl = new URL(page.url());
     expect(appliedUrl.searchParams.get("view")).toBe("list");
+    expect(appliedUrl.searchParams.get("group")).toBe("label");
+    expect(appliedUrl.searchParams.get("columns")).toBe("start");
     expect(appliedUrl.searchParams.get("archived")).toBe("1");
-    expect(appliedUrl.searchParams.has("named_filter")).toBe(false);
+    expect(appliedUrl.searchParams.has("my_view")).toBe(false);
     expect(appliedUrl.toString()).not.toContain(savedName);
     await expect(page.getByTestId("search-input")).toHaveValue("");
 
@@ -118,7 +127,7 @@ test.describe("Hermetic named issue filters", () => {
     ).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByTestId("named-filter-trigger")).toHaveAttribute(
+    await expect(page.getByTestId("my-view-trigger")).toHaveAttribute(
       "aria-label",
       /My triage view.*Active/,
     );
@@ -127,94 +136,94 @@ test.describe("Hermetic named issue filters", () => {
     await page.getByTestId("display-options-trigger").click();
     await page.getByTestId("show-archived-toggle").click();
     await page.keyboard.press("Escape");
-    await expect(page.getByTestId("named-filter-trigger")).toHaveAttribute(
+    await expect(page.getByTestId("my-view-trigger")).toHaveAttribute(
       "aria-label",
       /My triage view.*Changed/,
     );
-    const changedMenu = await openNamedFilterMenu(page);
+    const changedMenu = await openMyViewMenu(page);
     await changedMenu
       .getByRole("menuitem", {
-        name: `Update ${savedName} with the current filter`,
+        name: `Update ${savedName} with the current view`,
         exact: true,
       })
       .click();
-    await expect(page.getByTestId("named-filter-trigger")).toHaveAttribute(
+    await expect(page.getByTestId("my-view-trigger")).toHaveAttribute(
       "aria-label",
       /My triage view.*Active/,
     );
 
     const renamedName = "Renamed triage";
-    const renameMenu = await openNamedFilterMenu(page);
+    const renameMenu = await openMyViewMenu(page);
     await renameMenu
       .getByRole("menuitem", { name: `Rename ${savedName}`, exact: true })
       .click();
-    const renameDialog = page.getByTestId("named-filter-dialog");
-    await renameDialog.getByTestId("named-filter-name-input").fill(renamedName);
+    const renameDialog = page.getByTestId("my-view-dialog");
+    await renameDialog.getByTestId("my-view-name-input").fill(renamedName);
     await renameDialog
       .getByRole("button", { name: "Rename", exact: true })
       .click();
     await expect(renameDialog).toBeHidden();
-    await expect(page.getByTestId("named-filter-trigger")).toHaveAttribute(
+    await expect(page.getByTestId("my-view-trigger")).toHaveAttribute(
       "aria-label",
       new RegExp(renamedName),
     );
 
     const copiedName = `${renamedName} copy`;
-    const duplicateMenu = await openNamedFilterMenu(page);
+    const duplicateMenu = await openMyViewMenu(page);
     await duplicateMenu
       .getByRole("menuitem", { name: `Duplicate ${renamedName}`, exact: true })
       .click();
-    const duplicateDialog = page.getByTestId("named-filter-dialog");
-    await expect(
-      duplicateDialog.getByTestId("named-filter-name-input"),
-    ).toHaveValue(copiedName);
+    const duplicateDialog = page.getByTestId("my-view-dialog");
+    await expect(duplicateDialog.getByTestId("my-view-name-input")).toHaveValue(
+      copiedName,
+    );
     await duplicateDialog
       .getByRole("button", { name: "Save", exact: true })
       .click();
     await expect(duplicateDialog).toBeHidden();
 
     // The same duplicate is rejected and leaves the existing records intact.
-    const duplicateAgainMenu = await openNamedFilterMenu(page);
+    const duplicateAgainMenu = await openMyViewMenu(page);
     await duplicateAgainMenu
       .getByRole("menuitem", {
         name: `Duplicate ${renamedName}`,
         exact: true,
       })
       .click();
-    const duplicateErrorDialog = page.getByTestId("named-filter-dialog");
+    const duplicateErrorDialog = page.getByTestId("my-view-dialog");
     await duplicateErrorDialog
       .getByRole("button", { name: "Save", exact: true })
       .click();
     await expect(duplicateErrorDialog.getByRole("alert")).toHaveText(
-      "A filter with that name already exists.",
+      "A My View with that name already exists.",
     );
     await duplicateErrorDialog
       .getByRole("button", { name: "Cancel", exact: true })
       .click();
 
-    const deleteMenu = await openNamedFilterMenu(page);
+    const deleteMenu = await openMyViewMenu(page);
     await deleteMenu
       .getByRole("menuitem", { name: `Delete ${copiedName}`, exact: true })
       .click();
-    const deleteDialog = page.getByTestId("named-filter-delete-dialog");
-    await deleteDialog.getByTestId("named-filter-confirm-delete").click();
+    const deleteDialog = page.getByTestId("my-view-delete-dialog");
+    await deleteDialog.getByTestId("my-view-confirm-delete").click();
     await expect(deleteDialog).toBeHidden();
-    const finalMenu = await openNamedFilterMenu(page);
+    const finalMenu = await openMyViewMenu(page);
     await expect(finalMenu.getByText(copiedName, { exact: true })).toHaveCount(
       0,
     );
 
     // Keep the focus regression on the same post-CRUD handoff path as the
-    // portable named-filter scenario.
+    // My View scenario.
     await page.keyboard.press("Escape");
-    const trigger = page.getByTestId("named-filter-trigger");
+    const trigger = page.getByTestId("my-view-trigger");
     await trigger.click();
     await page.keyboard.press("Escape");
     await expect(trigger).toBeFocused();
     await trigger.click();
-    await page.getByRole("menuitem", { name: "Save current filter…" }).click();
-    const escapeDialog = page.getByTestId("named-filter-dialog");
-    await escapeDialog.getByTestId("named-filter-name-input").press("Escape");
+    await page.getByRole("menuitem", { name: "Save current view…" }).click();
+    const escapeDialog = page.getByTestId("my-view-dialog");
+    await escapeDialog.getByTestId("my-view-name-input").press("Escape");
     await expect(escapeDialog).toBeHidden();
     await expect(trigger).toBeFocused();
   });
@@ -243,8 +252,8 @@ test.describe("Hermetic named issue filters", () => {
     ).toBeVisible({ timeout: 15_000 });
 
     const savedName = "Changed update view";
-    await saveNamedFilter(page, savedName);
-    const trigger = page.getByTestId("named-filter-trigger");
+    await saveMyView(page, savedName);
+    const trigger = page.getByTestId("my-view-trigger");
     await page.getByTestId("display-options-trigger").click();
     await page.getByTestId("show-archived-toggle").click();
     await page.keyboard.press("Escape");
@@ -253,10 +262,10 @@ test.describe("Hermetic named issue filters", () => {
       new RegExp(`${savedName}.*Changed`),
     );
 
-    const menu = await openNamedFilterMenu(page);
+    const menu = await openMyViewMenu(page);
     await menu
       .getByRole("menuitem", {
-        name: `Update ${savedName} with the current filter`,
+        name: `Update ${savedName} with the current view`,
         exact: true,
       })
       .click();
@@ -274,7 +283,7 @@ test.describe("Hermetic named issue filters", () => {
     );
   });
 
-  test("returns focus to the trigger when Escape closes the named-filter dialog", async ({
+  test("returns focus to the trigger when Escape closes the my-view dialog", async ({
     page,
   }) => {
     await openMultiVaultWorkspace(page, "reef-e2e");
@@ -284,12 +293,12 @@ test.describe("Hermetic named issue filters", () => {
     ).toBeVisible({ timeout: 15_000 });
     await selectTodo(page);
 
-    const trigger = page.getByTestId("named-filter-trigger");
+    const trigger = page.getByTestId("my-view-trigger");
     await trigger.click();
-    await page.getByRole("menuitem", { name: "Save current filter…" }).click();
-    const dialog = page.getByTestId("named-filter-dialog");
+    await page.getByRole("menuitem", { name: "Save current view…" }).click();
+    const dialog = page.getByTestId("my-view-dialog");
     await expect(dialog).toBeVisible();
-    await dialog.getByTestId("named-filter-name-input").press("Escape");
+    await dialog.getByTestId("my-view-name-input").press("Escape");
     await expect(dialog).toBeHidden();
     await expect
       .poll(
@@ -299,7 +308,7 @@ test.describe("Hermetic named issue filters", () => {
       .toBe(true);
   });
 
-  test("isolates vaults and clears browser-local named filters during account reconciliation", async ({
+  test("isolates vaults and clears browser-local My Views during account reconciliation", async ({
     page,
   }) => {
     await openMultiVaultWorkspace(page, "reef-e2e");
@@ -309,7 +318,7 @@ test.describe("Hermetic named issue filters", () => {
     ).toBeVisible({
       timeout: 15_000,
     });
-    await saveNamedFilter(page, "Acme-only view");
+    await saveMyView(page, "Acme-only view");
 
     await page.goto("/workspace/reef-zeta/issues?view=list");
     await expect(
@@ -317,9 +326,9 @@ test.describe("Hermetic named issue filters", () => {
     ).toBeVisible({
       timeout: 15_000,
     });
-    const otherVaultMenu = await openNamedFilterMenu(page);
+    const otherVaultMenu = await openMyViewMenu(page);
     await expect(
-      otherVaultMenu.getByText("No saved filters yet.", { exact: true }),
+      otherVaultMenu.getByText("No saved views yet.", { exact: true }),
     ).toBeVisible();
     await page.keyboard.press("Escape");
 
@@ -335,9 +344,9 @@ test.describe("Hermetic named issue filters", () => {
     ).toBeVisible({
       timeout: 15_000,
     });
-    const reconciledMenu = await openNamedFilterMenu(page);
+    const reconciledMenu = await openMyViewMenu(page);
     await expect(
-      reconciledMenu.getByText("No saved filters yet.", { exact: true }),
+      reconciledMenu.getByText("No saved views yet.", { exact: true }),
     ).toBeVisible();
   });
 });

@@ -10,6 +10,7 @@ describe("useIssueStore", () => {
       filter: {},
       searchQuery: "",
       selectedIssueId: null,
+      listOptionalColumns: [],
     });
   });
 
@@ -166,6 +167,19 @@ describe("useIssueStore", () => {
     useIssueStore.getState().setSelectedIssueId("reef-042");
     useIssueStore.getState().setSelectedIssueId(null);
     expect(useIssueStore.getState().selectedIssueId).toBeNull();
+  });
+
+  it("keeps List optional columns canonical and clears them with account scope", () => {
+    useIssueStore
+      .getState()
+      .setListOptionalColumns(["release", "start", "release"]);
+    expect(useIssueStore.getState().listOptionalColumns).toEqual([
+      "start",
+      "release",
+    ]);
+
+    useIssueStore.getState().resetFilterScope();
+    expect(useIssueStore.getState().listOptionalColumns).toEqual([]);
   });
 
   it("granular selector: can select filter without subscribing to whole store", () => {

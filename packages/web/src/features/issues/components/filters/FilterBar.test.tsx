@@ -19,6 +19,10 @@ vi.mock("@/lib/apiClient", async () => {
   return { ...actual, apiFetch: vi.fn() };
 });
 
+vi.mock("@/features/auth/hooks/useCurrentUserLogin", () => ({
+  useCurrentUserLogin: () => null,
+}));
+
 vi.mock("@/features/settings/hooks/useActiveVault", async () => {
   const actual = await vi.importActual<
     typeof import("@/features/settings/hooks/useActiveVault")

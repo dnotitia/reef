@@ -30,6 +30,12 @@ explicitly in the entries below.
 
 ### Added
 
+- **Issues now provide browser-local My Views.** A named My View captures the
+  current filters, scope/layout, grouping, ordering mode, display options, and
+  List columns; applying it updates the canonical URL without exposing the
+  local view identity, while Manual mode continues to read the shared server
+  rank.
+
 - **Active Issue Board and List can now group work by Epic.** Root Epic headers
   show their own status and visible child progress, direct children stay flat
   and preserve the current filter/sort order, and missing or unsupported
@@ -68,6 +74,11 @@ explicitly in the entries below.
   `view=backlog` URL path.
 
 ### Migration
+
+- **No Dexie schema migration is required for My Views.** The new versioned
+  actor/vault-scoped envelopes use the existing `config` key-value store; old
+  legacy personal-filter keys are not read or migrated, and account reconciliation clears
+  My Views along with the other account-scoped browser state.
 
 - **No Dexie schema migration is required for workspace Favorites.** The new
   versioned preference envelope is additive within the existing `config` store;
