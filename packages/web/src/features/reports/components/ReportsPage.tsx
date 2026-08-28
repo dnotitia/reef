@@ -13,7 +13,11 @@ import { ACTIVE_STATUSES, type Status } from "@reef/core";
 import { Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useMemo, useState } from "react";
-import { DEFAULT_REPORT_FILTERS, computeAggregates } from "../lib/aggregate";
+import {
+  DEFAULT_REPORT_FILTERS,
+  computeAggregates,
+  computeFlowMetrics,
+} from "../lib/aggregate";
 import type { ReportFilters } from "../lib/aggregateModel";
 import type { RollupDimension } from "../lib/healthRollup";
 import {
@@ -21,7 +25,9 @@ import {
   computeForecast,
 } from "../lib/monteCarlo";
 import { useReportPeriodLabels } from "../lib/useReportPeriodLabels";
+import { useReportActivity } from "../hooks/queries/useReportActivity";
 import { ForecastCard } from "./ForecastCard";
+import { FlowMetricsCard } from "./FlowMetricsCard";
 import { HealthRollup } from "./HealthRollup";
 import { PivotCard } from "./PivotCard";
 import { NetThroughputChart, RankedBarList, RiskMatrix } from "./ReportCharts";
@@ -55,6 +61,7 @@ export function ReportsPage() {
   const { vault, isLoading: vaultLoading } = useActiveVault();
   const openNewIssueDialog = useViewStore((state) => state.openNewIssueDialog);
   const issuesQuery = useIssueList(vault);
+  const activityQuery = useReportActivity(vault);
   const planningQuery = usePlanningCatalog(vault);
   const [filters, setFilters] = useState<ReportFilters>(DEFAULT_REPORT_FILTERS);
   const [rollupDimension, setRollupDimension] =
@@ -67,6 +74,14 @@ export function ReportsPage() {
   const agg = useMemo(
     () => computeAggregates(issues, { filters }),
     [issues, filters],
+  );
+  const flowMetrics = useMemo(
+    () =>
+      computeFlowMetrics(issues, activityQuery.data ?? [], {
+        filters,
+        now: nowMs,
+      }),
+    [activityQuery.data, filters, issues, nowMs],
   );
 
   // Monte Carlo forecast off the same single-pass aggregate: remaining open work
@@ -286,6 +301,16 @@ export function ReportsPage() {
                     />
                   </Card>
                 </div>
+
+                <FlowMetricsCard
+                  metrics={flowMetrics}
+                  periodLabel={periodLabels[filters.period]}
+                  vault={vault}
+                  isPending={activityQuery.isPending}
+                  isError={activityQuery.isError}
+                  isFetching={activityQuery.isFetching}
+                  onRetry={() => void activityQuery.refetch()}
+                />
 
                 {/* Forward-looking forecast sits right after the present-state
                     Risk map / Throughput row: same throughput it samples, now

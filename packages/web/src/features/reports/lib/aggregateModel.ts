@@ -4,6 +4,7 @@ import {
 } from "@/features/issues/lib/issueListUtils";
 import {
   ACTIVE_STATUSES,
+  type ActivityEvent,
   type IssueListItem,
   type IssueType,
   type Priority,
@@ -166,6 +167,48 @@ export interface ReportAggregates {
   riskMatrix: RiskBucket[];
 }
 
+export type FlowMetricKind = "cycle" | "lead";
+
+export interface FlowMetricPoint {
+  issueId: string;
+  title: string;
+  completionAt: string;
+  elapsedDays: number;
+}
+
+export interface FlowPercentiles {
+  p50: number;
+  p85: number;
+  p95: number;
+}
+
+export interface FlowMetricResult {
+  completionWindowCount: number;
+  measuredCount: number;
+  coveragePercent: number;
+  points: FlowMetricPoint[];
+  percentiles: FlowPercentiles | null;
+  sleDays: number | null;
+  lowSample: boolean;
+  outliers: FlowMetricPoint[];
+}
+
+export interface FlowMetrics {
+  cycle: FlowMetricResult;
+  lead: FlowMetricResult;
+}
+
+export interface FlowMetricsOptions {
+  filters?: ReportFilters;
+  /** Reference "now" (ms epoch) for the selected completion window. */
+  now?: number;
+}
+
+export type StatusActivityEvent = Extract<
+  ActivityEvent,
+  { event_type: "status_change" }
+>;
+
 export interface AggregateOptions {
   assigneeLimit?: number;
   labelLimit?: number;
@@ -197,6 +240,34 @@ export const REPORT_PERIOD_WEEKS: Record<
   "12w": 12,
   quarter: 13,
 };
+
+/**
+ * Return the same UTC-aligned report window used by the throughput series.
+ * `end` is the end of the current UTC day, making the boundary inclusive at
+ * the start and exclusive at the end for completion events.
+ */
+export function reportPeriodWindow(
+  period: ReportPeriod,
+  now: number,
+): { start: number; end: number } {
+  const end = Math.floor(now / DAY_MS) * DAY_MS + DAY_MS;
+  if (period === "all") return { start: Number.NEGATIVE_INFINITY, end };
+  return {
+    start: end - REPORT_PERIOD_WEEKS[period] * WEEK_MS,
+    end,
+  };
+}
+
+/** Nearest-rank percentile: choose the ceil(p × N)-th sorted value. */
+export function nearestRankPercentile(
+  values: ReadonlyArray<number>,
+  percentile: number,
+): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const rank = Math.max(1, Math.ceil(percentile * sorted.length));
+  return sorted[rank - 1] ?? null;
+}
 
 export const RISK_PRIORITIES: readonly RiskPriority[] = [
   "critical",

@@ -1,10 +1,12 @@
 "use client";
 
+import { formatTimestampMonthDay } from "@/features/issues/lib/dateHelpers";
 import { usePriorityLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import type {
   AgingBucketKey,
+  FlowMetricResult,
   RiskBucket,
   RiskPriority,
 } from "../lib/aggregateModel";
@@ -407,4 +409,219 @@ function PivotRow({
       </td>
     </tr>
   );
+}
+
+export function FlowMetricsChart({
+  result,
+  metricLabel,
+}: {
+  result: FlowMetricResult;
+  metricLabel: string;
+}) {
+  const locale = useLocale();
+  const t = useTranslations("reports.cards");
+  const percentiles = result.percentiles;
+  if (!percentiles || result.points.length === 0) return null;
+
+  const W = 640;
+  const H = 260;
+  const padLeft = 48;
+  const padRight = 12;
+  const padTop = 20;
+  const padBottom = 42;
+  const innerW = W - padLeft - padRight;
+  const innerH = H - padTop - padBottom;
+  const times = result.points.map((point) => Date.parse(point.completionAt));
+  const minTime = Math.min(...times);
+  const maxTime = Math.max(...times);
+  const timeRange = maxTime - minTime;
+  const maxValue = Math.max(
+    1,
+    percentiles.p95,
+    ...result.points.map((point) => point.elapsedDays),
+  );
+  const yMax = maxValue * 1.1;
+  const outlierIds = new Set(result.outliers.map((point) => point.issueId));
+  const x = (time: number, index: number): number =>
+    timeRange === 0
+      ? padLeft +
+        (result.points.length <= 1
+          ? innerW / 2
+          : (index / (result.points.length - 1)) * innerW)
+      : padLeft + ((time - minTime) / timeRange) * innerW;
+  const y = (value: number): number =>
+    padTop + innerH - (value / yMax) * innerH;
+  const yTicks = [0, yMax / 2, yMax];
+  const percentileLines = [
+    {
+      key: "p50",
+      value: percentiles.p50,
+      color: "var(--status-in-progress-chart)",
+    },
+    {
+      key: "p85",
+      value: percentiles.p85,
+      color: "var(--status-in-review-chart)",
+    },
+    { key: "p95", value: percentiles.p95, color: "var(--destructive-chart)" },
+  ] as const;
+  const tickIndexes = [
+    ...new Set([
+      0,
+      Math.floor((result.points.length - 1) / 2),
+      result.points.length - 1,
+    ]),
+  ];
+
+  return (
+    <div className="flex flex-col gap-2">
+      <svg
+        data-testid="flow-metrics-chart"
+        viewBox={`0 0 ${W} ${H}`}
+        className="h-auto w-full"
+        role="img"
+        aria-label={t("flowChartAria", { metric: metricLabel })}
+      >
+        {yTicks.map((tick) => (
+          <g key={tick}>
+            <line
+              x1={padLeft}
+              x2={W - padRight}
+              y1={y(tick)}
+              y2={y(tick)}
+              stroke="var(--border-subtle)"
+              strokeWidth={1}
+              vectorEffect="non-scaling-stroke"
+            />
+            <text
+              x={padLeft - 8}
+              y={y(tick) + 4}
+              textAnchor="end"
+              className="fill-muted-foreground text-[10px]"
+            >
+              {formatFlowDays(tick, locale)}
+            </text>
+          </g>
+        ))}
+        <line
+          x1={padLeft}
+          x2={W - padRight}
+          y1={padTop + innerH}
+          y2={padTop + innerH}
+          stroke="var(--border)"
+          strokeWidth={1}
+          vectorEffect="non-scaling-stroke"
+        />
+        {percentileLines.map((line) => (
+          <g key={line.key}>
+            <line
+              x1={padLeft}
+              x2={W - padRight}
+              y1={y(line.value)}
+              y2={y(line.value)}
+              stroke={line.color}
+              strokeDasharray={line.key === "p85" ? "5 3" : "3 3"}
+              strokeWidth={line.key === "p85" ? 2 : 1.25}
+              vectorEffect="non-scaling-stroke"
+            />
+            <text
+              x={W - padRight - 2}
+              y={y(line.value) - 4}
+              textAnchor="end"
+              className="fill-foreground text-[10px] font-medium"
+            >
+              {t(line.key)}
+            </text>
+          </g>
+        ))}
+        {result.points.map((point, index) => {
+          const isOutlier = outlierIds.has(point.issueId);
+          return (
+            <circle
+              key={`${point.issueId}-${point.completionAt}`}
+              data-testid="flow-metric-point"
+              data-outlier={isOutlier ? "true" : undefined}
+              cx={x(times[index] ?? minTime, index)}
+              cy={y(point.elapsedDays)}
+              r={isOutlier ? 4.5 : 3.5}
+              fill={
+                isOutlier ? "var(--destructive-chart)" : "var(--brand-chart)"
+              }
+              stroke="var(--surface-card)"
+              strokeWidth={1.5}
+              vectorEffect="non-scaling-stroke"
+            >
+              <title>
+                {t("flowPointTooltip", {
+                  id: point.issueId,
+                  days: formatFlowDays(point.elapsedDays, locale),
+                })}
+              </title>
+            </circle>
+          );
+        })}
+        {tickIndexes.map((index) => {
+          const point = result.points[index];
+          if (!point) return null;
+          return (
+            <text
+              key={`${point.issueId}-tick`}
+              x={x(times[index] ?? minTime, index)}
+              y={H - 20}
+              textAnchor={
+                index === 0
+                  ? "start"
+                  : index === result.points.length - 1
+                    ? "end"
+                    : "middle"
+              }
+              className="fill-muted-foreground text-[10px]"
+            >
+              {formatTimestampMonthDay(point.completionAt, locale) ?? ""}
+            </text>
+          );
+        })}
+        <text
+          x={W / 2}
+          y={H - 3}
+          textAnchor="middle"
+          className="fill-muted-foreground text-[10px]"
+        >
+          {t("completionTimeAxis")}
+        </text>
+        <text
+          x={12}
+          y={padTop + innerH / 2}
+          textAnchor="middle"
+          transform={`rotate(-90 12 ${padTop + innerH / 2})`}
+          className="fill-muted-foreground text-[10px]"
+        >
+          {t("elapsedDaysAxis")}
+        </text>
+      </svg>
+      <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+        {percentileLines.map((line) => (
+          <li key={line.key} className="inline-flex items-center gap-1.5">
+            <span
+              aria-hidden="true"
+              className="inline-block h-0.5 w-4"
+              style={{
+                backgroundColor: line.color,
+                borderTop:
+                  line.key === "p85" ? `2px dashed ${line.color}` : undefined,
+              }}
+            />
+            <span>{t(line.key)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function formatFlowDays(value: number, locale: string): string {
+  return new Intl.NumberFormat(locale, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(value);
 }

@@ -11,6 +11,7 @@ import {
   appendStatusChangeEvent,
   diffFieldActivityEvents,
   listIssueActivity,
+  listReportActivity,
   makeAdapter,
   makeListTablesResponse,
   makeSqlMutationResponse,
@@ -355,6 +356,85 @@ describe("listIssueActivity", () => {
     );
 
     expect(events.map((event) => event.id)).toEqual(["status-event"]);
+  });
+});
+
+describe("listReportActivity", () => {
+  it("reads status changes in one vault query and de-duplicates event keys", async () => {
+    const duplicateKey =
+      "status_change:todo->in_progress@2026-06-18T01:00:00.000Z";
+    const { calls } = setupFetch([
+      {
+        body: makeSqlQueryResponse(
+          [
+            makeActivityRow({
+              id: "e1",
+              reef_id: "REEF-001",
+              event_key: duplicateKey,
+              meta: {
+                actor: "alice",
+                at: "2026-06-18T01:00:00.000Z",
+                source: null,
+              },
+            }),
+            makeActivityRow({
+              id: "e1-duplicate",
+              reef_id: "REEF-001",
+              event_key: duplicateKey,
+            }),
+            makeActivityRow({
+              id: "e2",
+              reef_id: "REEF-002",
+              event_key:
+                "status_change:in_progress->done@2026-06-18T02:00:00.000Z",
+              payload: { from: "in_progress", to: "done" },
+              meta: {
+                actor: "bob",
+                at: "2026-06-18T02:00:00.000Z",
+                source: "fixture",
+              },
+            }),
+            makeActivityRow({
+              id: "non-status",
+              event_type: "title_change",
+              event_key: "title_change@2026-06-18T03:00:00.000Z",
+              payload: { from: "Old", to: "New" },
+            }),
+          ],
+          ACTIVITY_ROW_COLUMNS,
+        ),
+      },
+    ]);
+
+    const events = await listReportActivity(makeAdapter(), "reef-sample");
+
+    expect(events.map((event) => event.id)).toEqual(["e1", "e2"]);
+    expect(events[0]).toMatchObject({
+      reef_id: "REEF-001",
+      event_type: "status_change",
+      event_key: duplicateKey,
+    });
+    expect(events[1]).toMatchObject({
+      reef_id: "REEF-002",
+      payload: { from: "in_progress", to: "done" },
+    });
+    expect(calls).toHaveLength(1);
+    const body = sqlRequestBody(calls[0]);
+    expect(body.sql).toContain(`FROM ${REEF_ACTIVITY_TABLE}`);
+    expect(body.sql).toContain("event_type = $1");
+    expect(body.sql).toContain("ORDER BY meta->>'at' ASC");
+    expect(body.params).toEqual(["status_change"]);
+  });
+
+  it("returns an empty result when the activity table is not provisioned", async () => {
+    const { calls } = setupFetch([
+      makeSqlRuntimeErrorResponse(REEF_ACTIVITY_TABLE),
+    ]);
+
+    await expect(
+      listReportActivity(makeAdapter(), "reef-sample"),
+    ).resolves.toEqual([]);
+    expect(calls).toHaveLength(1);
   });
 });
 
