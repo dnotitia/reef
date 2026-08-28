@@ -27,6 +27,7 @@ function createEditor(
   placeholder = "Describe the issue...",
   editable = true,
   akbWebBase?: string,
+  resolveImageSrc?: (src: string) => string,
 ) {
   const element = document.createElement("div");
   document.body.appendChild(element);
@@ -35,7 +36,7 @@ function createEditor(
     element,
     extensions: createMarkdownEditorExtensions(
       placeholder,
-      undefined,
+      resolveImageSrc,
       mentionMembers
         ? {
             membersRef: { current: mentionMembers },
@@ -734,6 +735,50 @@ describe("MarkdownEditor Tiptap extensions", () => {
     expect(editor.getMarkdown()).toContain(
       "![screen](akb://reef-test/issues/file/file-1)",
     );
+  });
+
+  it("renders and reloads AKB images with special-character filenames", () => {
+    const filename = "reef'\\한글😀.png";
+    const fileUri = "akb://reef-test/issues/file/file-1";
+    const markdown = `![${filename}](${fileUri})`;
+    const resolveImageSrc = (src: string) =>
+      `/api/issues/REEF-001/attachments/file?vault=reef-test&uri=${encodeURIComponent(src)}`;
+    const editor = createEditor(
+      markdown,
+      undefined,
+      undefined,
+      [],
+      undefined,
+      "Describe the issue...",
+      true,
+      undefined,
+      resolveImageSrc,
+    );
+
+    const image = editor.view.dom.querySelector<HTMLImageElement>("img");
+    expect(image).not.toBeNull();
+    expect(image).toHaveAttribute("src", resolveImageSrc(fileUri));
+    expect(image).toHaveAttribute("alt", filename);
+
+    const serialized = editor.getMarkdown();
+    expect(serialized).toBe(markdown);
+    const reloaded = createEditor(
+      serialized,
+      undefined,
+      undefined,
+      [],
+      undefined,
+      "Describe the issue...",
+      true,
+      undefined,
+      resolveImageSrc,
+    );
+    expect(
+      reloaded.view.dom.querySelector<HTMLImageElement>("img"),
+    ).toHaveAttribute("alt", filename);
+    expect(
+      reloaded.view.dom.querySelector<HTMLImageElement>("img"),
+    ).toHaveAttribute("src", resolveImageSrc(fileUri));
   });
 
   it("round-trips image variants and an explicit file link without changing Source Markdown", () => {

@@ -119,7 +119,7 @@ function mimeAllowed(mimeType: string, allowed: readonly string[]): boolean {
 }
 
 function markdownAlt(filename: string): string {
-  return filename.replace(/[\[\]\\]/g, "\\$&");
+  return filename.replace(/[\[\]]/g, "\\$&");
 }
 
 /** GET /api/issues/[id]/attachments?vault={vault} -> { attachments } */
