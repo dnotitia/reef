@@ -216,11 +216,6 @@ export function normalizePersistedIssueFilter(
   return parsed.success ? parsed.data : {};
 }
 
-/** Stable JSON form used when persisted filter state is compared. */
-export function serializePersistedIssueFilter(value: unknown): string {
-  return JSON.stringify(normalizePersistedIssueFilter(value));
-}
-
 /**
  * Versioned envelope stored in IndexedDB. A version mismatch fails the reader's
  * `safeParse` → the whole payload is discarded and the filter falls back to

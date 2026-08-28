@@ -144,7 +144,6 @@ export {
 export {
   PersistedIssueFilterEnvelopeSchema,
   normalizePersistedIssueFilter,
-  serializePersistedIssueFilter,
   type PersistedIssueFilter,
 } from "./persistedIssueFilter";
 

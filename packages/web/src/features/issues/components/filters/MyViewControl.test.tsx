@@ -14,7 +14,9 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { MyViewSnapshot } from "@reef/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { applyMyViewSnapshot } from "../../lib/myViewSnapshot";
 import { useIssueStore } from "../../stores/useIssueStore";
 import { MyViewControl } from "./MyViewControl";
 
@@ -55,11 +57,28 @@ function renderControl(
   locale: Locale = "en",
   props: Partial<React.ComponentProps<typeof MyViewControl>> = {},
 ) {
+  const onApplySnapshot = props.onApplySnapshot ?? applySnapshotForTest;
   return render(
     <IntlTestProvider locale={locale}>
-      <MyViewControl scope="active" layout="list" groupBy="none" {...props} />
+      <MyViewControl
+        scope="active"
+        layout="list"
+        groupBy="none"
+        {...props}
+        onApplySnapshot={onApplySnapshot}
+      />
     </IntlTestProvider>,
   );
+}
+
+function applySnapshotForTest(snapshot: MyViewSnapshot) {
+  const applied = applyMyViewSnapshot(snapshot);
+  useIssueStore.setState({
+    filter: applied.filter,
+    searchQuery: "",
+    filterVault: "reef-acme",
+    listOptionalColumns: applied.listOptionalColumns,
+  });
 }
 
 async function openMenu(user: ReturnType<typeof userEvent.setup>) {

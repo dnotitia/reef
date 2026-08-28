@@ -1,5 +1,6 @@
 import { PLANNING_ITEM_PANEL_CLASS } from "@/features/planning/components/PlanningItemCombobox";
 import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
+import { applyMyViewSnapshot } from "../../lib/myViewSnapshot";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -54,13 +55,29 @@ beforeEach(() => {
   );
 });
 
-function renderFilterBar(props: ComponentProps<typeof FilterBar> = {}) {
+function renderFilterBar(
+  props: Partial<ComponentProps<typeof FilterBar>> = {},
+) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={client}>
-      <FilterBar {...props} />
+      <FilterBar
+        {...props}
+        applyMyViewSnapshot={
+          props.applyMyViewSnapshot ??
+          ((snapshot) => {
+            const applied = applyMyViewSnapshot(snapshot);
+            useIssueStore.setState({
+              filter: applied.filter,
+              searchQuery: "",
+              filterVault: "reef-acme",
+              listOptionalColumns: applied.listOptionalColumns,
+            });
+          })
+        }
+      />
     </QueryClientProvider>,
   );
 }

@@ -72,8 +72,6 @@ interface IssueState {
   selectedIssueId: string | null;
   listOptionalColumns: readonly MyViewListColumn[];
   setFilter: (filter: Partial<IssueFilter>) => void;
-  /** Replace a complete saved-filter payload and clear one-off search. */
-  applyFilter: (filter: IssueFilter) => void;
   clearFilter: () => void;
   clearFiltersOnly: () => void;
   setSortField: (field: IssueFilter["sortField"]) => void;
@@ -89,7 +87,6 @@ interface IssueState {
   clearSort: () => void;
   setSearchQuery: (query: string) => void;
   setSelectedIssueId: (id: string | null) => void;
-  setListOptionalColumns: (columns: readonly MyViewListColumn[]) => void;
   toggleListOptionalColumn: (column: MyViewListColumn) => void;
   /**
    * Wipe the filter, search, and vault scope. Used on an akb account switch so a
@@ -117,8 +114,6 @@ export const useIssueStore = create<IssueState>((set) => ({
 
   setFilter: (partialFilter) =>
     set((state) => ({ filter: { ...state.filter, ...partialFilter } })),
-
-  applyFilter: (filter) => set({ filter, searchQuery: "" }),
 
   clearFilter: () => set({ filter: {}, searchQuery: "" }),
 
@@ -163,15 +158,6 @@ export const useIssueStore = create<IssueState>((set) => ({
   setSearchQuery: (query) => set({ searchQuery: query }),
 
   setSelectedIssueId: (id) => set({ selectedIssueId: id }),
-
-  setListOptionalColumns: (columns) => {
-    const selected = new Set(columns);
-    set({
-      listOptionalColumns: MyViewListColumnEnum.options.filter((column) =>
-        selected.has(column),
-      ),
-    });
-  },
 
   toggleListOptionalColumn: (column) =>
     set((state) => {

@@ -77,7 +77,6 @@ export {
   normalizeMyViewSnapshot,
   normalizePersistedIssueFilter,
   serializeMyViewSnapshot,
-  serializePersistedIssueFilter,
   hasAnyFilter,
   AddIssueReferenceRequestSchema,
   ResolveDocumentTitlesRequestSchema,

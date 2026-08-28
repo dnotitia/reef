@@ -59,10 +59,7 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  applyMyViewSnapshot,
-  buildMyViewSnapshot,
-} from "../../lib/myViewSnapshot";
+import { buildMyViewSnapshot } from "../../lib/myViewSnapshot";
 import type { IssueGroupBy } from "../../lib/groupBy";
 import type { IssueLayout, IssueScope } from "../../lib/viewMode";
 import { type IssueFilter, useIssueStore } from "../../stores/useIssueStore";
@@ -79,7 +76,7 @@ interface MyViewControlProps {
   layout: IssueLayout;
   groupBy?: IssueGroupBy;
   listOptionalColumns?: readonly MyViewListColumn[];
-  onApplySnapshot?: (snapshot: MyViewSnapshot) => void;
+  onApplySnapshot: (snapshot: MyViewSnapshot) => void;
 }
 
 function sortMyViews(items: readonly MyView[]): MyView[] {
@@ -451,30 +448,13 @@ export function MyViewControl({
     setDialogError(null);
   }, []);
 
-  const applySnapshot = useCallback(
-    (snapshot: MyViewSnapshot) => {
-      if (onApplySnapshot) {
-        onApplySnapshot(snapshot);
-        return;
-      }
-      const applied = applyMyViewSnapshot(snapshot);
-      useIssueStore.setState({
-        filter: applied.filter,
-        searchQuery: "",
-        filterVault: vault || null,
-        listOptionalColumns: applied.listOptionalColumns ?? [],
-      });
-    },
-    [onApplySnapshot, vault],
-  );
-
   const handleApply = useCallback(
     (item: MyView) => {
-      applySnapshot(item.snapshot);
+      onApplySnapshot(item.snapshot);
       setActiveId(item.id);
       setActionError(null);
     },
-    [applySnapshot],
+    [onApplySnapshot],
   );
 
   const handleUpdate = useCallback(async () => {

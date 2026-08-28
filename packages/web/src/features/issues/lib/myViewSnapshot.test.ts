@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  applyMyViewSnapshot,
-  buildMyViewSnapshot,
-  serializeCurrentMyViewSnapshot,
-} from "./myViewSnapshot";
+import { applyMyViewSnapshot, buildMyViewSnapshot } from "./myViewSnapshot";
+import { serializeMyViewSnapshot } from "@reef/core";
 
 describe("My View workspace snapshot codec", () => {
   it("stores the complete workspace state without one-off search or selection", () => {
@@ -67,24 +64,28 @@ describe("My View workspace snapshot codec", () => {
   });
 
   it("compares equivalent array ordering and implicit field direction canonically", () => {
-    const left = serializeCurrentMyViewSnapshot({
-      filter: { status: ["todo", "in_progress"], sortField: "due_date" },
-      scope: "active",
-      layout: "list",
-      groupBy: "none",
-      listOptionalColumns: ["release", "start"],
-    });
-    const right = serializeCurrentMyViewSnapshot({
-      filter: {
-        status: ["in_progress", "todo"],
-        sortField: "due_date",
-        sortOrder: "asc",
-      },
-      scope: "active",
-      layout: "list",
-      groupBy: "none",
-      listOptionalColumns: ["start", "release"],
-    });
+    const left = serializeMyViewSnapshot(
+      buildMyViewSnapshot({
+        filter: { status: ["todo", "in_progress"], sortField: "due_date" },
+        scope: "active",
+        layout: "list",
+        groupBy: "none",
+        listOptionalColumns: ["release", "start"],
+      }),
+    );
+    const right = serializeMyViewSnapshot(
+      buildMyViewSnapshot({
+        filter: {
+          status: ["in_progress", "todo"],
+          sortField: "due_date",
+          sortOrder: "asc",
+        },
+        scope: "active",
+        layout: "list",
+        groupBy: "none",
+        listOptionalColumns: ["start", "release"],
+      }),
+    );
     expect(left).toBe(right);
   });
 });

@@ -1,9 +1,6 @@
 import {
-  MyViewListColumnEnum,
   normalizeMyViewSnapshot,
   normalizePersistedIssueFilter,
-  serializeMyViewSnapshot,
-  type MyViewFilter,
   type MyViewListColumn,
   type MyViewSnapshot,
 } from "@reef/core";
@@ -11,42 +8,6 @@ import { naturalSortOrder } from "@reef/core/fields";
 import type { IssueFilter } from "../stores/useIssueStore";
 import { defaultIssueGroupBy, type IssueGroupBy } from "./groupBy";
 import type { IssueLayout, IssueScope } from "./viewMode";
-
-const MY_VIEW_FILTER_KEYS = [
-  "status",
-  "issueType",
-  "priority",
-  "assignee",
-  "requester",
-  "reporter",
-  "severity",
-  "sprint_id",
-  "milestone_id",
-  "release_id",
-  "due",
-  "label",
-  "dependencyFilter",
-] as const;
-
-function filterForSnapshot(filter: IssueFilter): MyViewFilter {
-  const normalized = normalizePersistedIssueFilter(filter);
-  const snapshotFilter: Record<string, unknown> = {};
-  for (const key of MY_VIEW_FILTER_KEYS) {
-    const value = normalized[key];
-    if (value !== undefined) snapshotFilter[key] = value;
-  }
-  return snapshotFilter as MyViewFilter;
-}
-
-function listColumnsForSnapshot(
-  columns: readonly string[],
-): MyViewSnapshot["display"]["listColumns"] {
-  const selected = new Set(columns);
-  const normalized = MyViewListColumnEnum.options.filter((column) =>
-    selected.has(column),
-  );
-  return normalized.length > 0 ? normalized : undefined;
-}
 
 /** Converts the current issue workspace state into the stored My View shape. */
 export function buildMyViewSnapshot(input: {
@@ -68,7 +29,7 @@ export function buildMyViewSnapshot(input: {
       }
     : { mode: "manual" as const };
   const snapshot = normalizeMyViewSnapshot({
-    filter: filterForSnapshot(normalizedFilter),
+    filter: normalizedFilter,
     scope,
     layout,
     grouping: input.groupBy ?? defaultIssueGroupBy(scope, layout),
@@ -76,7 +37,7 @@ export function buildMyViewSnapshot(input: {
     display: {
       showArchived: normalizedFilter.showArchived ? true : undefined,
       showStale: normalizedFilter.showStale ? true : undefined,
-      listColumns: listColumnsForSnapshot(input.listOptionalColumns ?? []),
+      listColumns: input.listOptionalColumns ?? [],
     },
   });
   if (!snapshot) throw new TypeError("My View snapshot could not be built");
@@ -112,14 +73,4 @@ export function applyMyViewSnapshot(snapshot: MyViewSnapshot): {
     groupBy: normalized.grouping,
     listOptionalColumns: normalized.display.listColumns ?? [],
   };
-}
-
-export function serializeCurrentMyViewSnapshot(input: {
-  filter: IssueFilter;
-  scope: IssueScope;
-  layout: IssueLayout;
-  groupBy?: IssueGroupBy;
-  listOptionalColumns?: readonly string[];
-}): string {
-  return serializeMyViewSnapshot(buildMyViewSnapshot(input));
 }

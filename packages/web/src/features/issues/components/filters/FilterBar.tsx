@@ -181,7 +181,7 @@ interface FilterBarProps {
   groupBy?: IssueGroupBy;
   setGroupBy?: (groupBy: IssueGroupBy) => void;
   listOptionalColumns?: readonly MyViewListColumn[];
-  applyMyViewSnapshot?: (snapshot: MyViewSnapshot) => void;
+  applyMyViewSnapshot: (snapshot: MyViewSnapshot) => void;
 }
 
 export function FilterBar({
