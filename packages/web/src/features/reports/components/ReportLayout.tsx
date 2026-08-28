@@ -35,15 +35,19 @@ export function PageShell({
 export function Card({
   title,
   subtitle,
+  testId,
   children,
 }: {
   title: string;
   subtitle?: string;
+  testId?: string;
   children: ReactNode;
 }) {
   return (
     <section
-      data-testid={`report-card-${title.toLowerCase().replace(/\s+/g, "-")}`}
+      data-testid={
+        testId ?? `report-card-${title.toLowerCase().replace(/\s+/g, "-")}`
+      }
       className="flex flex-col gap-3 rounded-lg border border-border-subtle bg-surface-card p-4"
     >
       <header className="flex items-baseline justify-between gap-2">
@@ -160,6 +164,7 @@ export function ReportsSkeleton() {
               <ReportCardSkeleton bodyHeight="h-40" />
               <ReportCardSkeleton bodyHeight="h-40" />
             </div>
+            <ReportCardSkeleton bodyHeight="h-64" />
             {/* Forecast + custom pivot, both full width. */}
             <ReportCardSkeleton bodyHeight="h-32" />
             <ReportCardSkeleton bodyHeight="h-32" />

@@ -79,9 +79,12 @@ function respond(body: unknown, status = 200) {
  * rendering it fires planning-catalog and vault-member lookups alongside the
  * issues list; route each to a benign empty payload.
  */
-function mockApi(issuesPayload: IssueMetadata[]) {
+function mockApi(issuesPayload: IssueMetadata[], activityPayload = []) {
   mockApiFetch.mockImplementation((input) => {
     const path = String(input);
+    if (path.startsWith("/api/reports/activity")) {
+      return Promise.resolve(respond({ activity: activityPayload }));
+    }
     if (path.startsWith("/api/planning")) {
       return Promise.resolve(
         respond({ sprints: [], milestones: [], releases: [] }),
@@ -153,6 +156,22 @@ describe("ReportsPage", () => {
     // Eventually issuesQuery.isPending flips to false (issues=[]); aggregates render.
     await screen.findByText(/Reports|Status|Priority/i);
     expect(mockApiFetch).toHaveBeenCalledWith("/api/issues?vault=reef-acme");
+  });
+
+  it("requests report activity through one vault-scoped bulk endpoint", async () => {
+    mockApi(issues);
+
+    render(wrap(<ReportsPage />));
+
+    await screen.findByTestId("report-card-flow-metrics");
+    expect(mockApiFetch).toHaveBeenCalledWith(
+      "/api/reports/activity?vault=reef-acme",
+    );
+    expect(
+      mockApiFetch.mock.calls.filter(([input]) =>
+        String(input).startsWith("/api/reports/activity"),
+      ),
+    ).toHaveLength(1);
   });
 
   it("renders the default report scope bar and risk-first summary", async () => {

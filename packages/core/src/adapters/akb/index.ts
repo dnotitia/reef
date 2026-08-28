@@ -120,6 +120,7 @@ export {
   appendStatusChangeEvent,
   diffFieldActivityEvents,
   listIssueActivity,
+  listReportActivity,
   reconcileJiraImportedAttachmentActivityActor,
   reconcileJiraChangelogActivityEvents,
   statusChangeEventKey,
