@@ -131,13 +131,6 @@ const ATTACHMENT_COLUMNS = [
   "meta",
 ] as const;
 
-function persistedAttachmentMeta(
-  meta: Record<string, unknown> | null,
-  createdAt: string,
-): Record<string, unknown> {
-  return { ...(meta ?? {}), created_at: createdAt };
-}
-
 function attachmentSqlValues(
   params: SqlParameterBuilder,
   input: AttachmentSqlInput,
@@ -156,7 +149,7 @@ function attachmentSqlValues(
       "attachment original_jira_attachment_id",
     ),
     params.addJson(
-      persistedAttachmentMeta(input.meta, input.createdAt),
+      { ...(input.meta ?? {}), created_at: input.createdAt },
       "attachment meta",
       "jsonb",
     ),
