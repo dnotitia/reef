@@ -118,35 +118,64 @@ interface AttachmentSqlInput {
   meta: Record<string, unknown> | null;
 }
 
+const ATTACHMENT_COLUMNS = [
+  "reef_id",
+  "file_uri",
+  "filename",
+  "mime_type",
+  "size_bytes",
+  "author",
+  "source",
+  "inline",
+  "original_jira_attachment_id",
+  "meta",
+] as const;
+
 function persistedAttachmentMeta(
-  input: AttachmentSqlInput,
+  meta: Record<string, unknown> | null,
+  createdAt: string,
 ): Record<string, unknown> {
-  return { ...(input.meta ?? {}), created_at: input.createdAt };
+  return { ...(meta ?? {}), created_at: createdAt };
+}
+
+function attachmentSqlValues(
+  params: SqlParameterBuilder,
+  input: AttachmentSqlInput,
+): string[] {
+  return [
+    params.add(input.reefId, "attachment reef_id"),
+    params.add(input.fileUri, "attachment file_uri"),
+    params.add(input.filename, "attachment filename"),
+    params.add(input.mimeType, "attachment mime_type"),
+    params.add(input.sizeBytes, "attachment size_bytes"),
+    params.add(input.author, "attachment author"),
+    params.add(input.source, "attachment source"),
+    params.add(input.inline, "attachment inline"),
+    params.add(
+      input.originalJiraAttachmentId,
+      "attachment original_jira_attachment_id",
+    ),
+    params.addJson(
+      persistedAttachmentMeta(input.meta, input.createdAt),
+      "attachment meta",
+      "jsonb",
+    ),
+  ];
+}
+
+function jiraIdempotencyKey(
+  meta: Record<string, unknown> | null,
+): string | null {
+  const value = meta?.jira_idempotency_key;
+  return typeof value === "string" && value ? value : null;
 }
 
 /** Validate every attachment value before the first AKB request. */
 function validateAttachmentSqlInput(input: AttachmentSqlInput): void {
   const params = new SqlParameterBuilder();
-  params.add(input.reefId, "attachment reef_id");
-  if (input.fileUri !== undefined) {
-    params.add(input.fileUri, "attachment file_uri");
-  }
-  params.add(input.filename, "attachment filename");
-  params.add(input.mimeType, "attachment mime_type");
-  params.add(input.sizeBytes, "attachment size_bytes");
-  params.add(input.author, "attachment author");
-  params.add(input.source, "attachment source");
-  params.add(input.inline, "attachment inline");
-  params.add(
-    input.originalJiraAttachmentId,
-    "attachment original_jira_attachment_id",
-  );
-  params.addJson(persistedAttachmentMeta(input), "attachment meta", "jsonb");
-  const idempotencyKey =
-    typeof input.meta?.jira_idempotency_key === "string"
-      ? input.meta.jira_idempotency_key
-      : null;
-  if (idempotencyKey !== null) {
+  attachmentSqlValues(params, input);
+  const idempotencyKey = jiraIdempotencyKey(input.meta);
+  if (idempotencyKey) {
     params.add(idempotencyKey, "attachment idempotency key");
   }
 }
@@ -178,7 +207,7 @@ async function insertAttachmentRow(
 ): Promise<IssueAttachment> {
   const sqlParams = new SqlParameterBuilder();
   const inline = input.inline ?? false;
-  const persistedMeta = persistedAttachmentMeta({
+  const sqlInput: AttachmentSqlInput = {
     reefId: input.reef_id,
     fileUri: input.file_uri,
     filename: input.filename,
@@ -190,34 +219,10 @@ async function insertAttachmentRow(
     originalJiraAttachmentId: input.original_jira_attachment_id ?? null,
     createdAt: input.created_at,
     meta: input.meta ?? null,
-  });
-  const fields: Array<[string, string]> = [
-    ["reef_id", sqlParams.add(input.reef_id, "attachment reef_id")],
-    ["file_uri", sqlParams.add(input.file_uri, "attachment file_uri")],
-    ["filename", sqlParams.add(input.filename, "attachment filename")],
-    ["mime_type", sqlParams.add(input.mime_type, "attachment mime_type")],
-    ["size_bytes", sqlParams.add(input.size_bytes, "attachment size_bytes")],
-    ["author", sqlParams.add(input.author, "attachment author")],
-    ["source", sqlParams.add(input.source, "attachment source")],
-    ["inline", sqlParams.add(inline, "attachment inline")],
-    [
-      "original_jira_attachment_id",
-      sqlParams.add(
-        input.original_jira_attachment_id,
-        "attachment original_jira_attachment_id",
-      ),
-    ],
-    ["meta", sqlParams.addJson(persistedMeta, "attachment meta", "jsonb")],
-  ];
-  const columns = fields
-    .map(([column]) => column)
-    .map(quoteIdent)
-    .join(", ");
-  const values = fields.map(([, value]) => value).join(", ");
-  const idempotencyKey =
-    typeof input.meta?.jira_idempotency_key === "string"
-      ? input.meta.jira_idempotency_key
-      : null;
+  };
+  const columns = ATTACHMENT_COLUMNS.map(quoteIdent).join(", ");
+  const values = attachmentSqlValues(sqlParams, sqlInput).join(", ");
+  const idempotencyKey = jiraIdempotencyKey(sqlInput.meta);
   const idempotencyKeyParam = !idempotencyKey
     ? null
     : sqlParams.add(idempotencyKey, "attachment idempotency key");
@@ -391,10 +396,7 @@ export async function uploadIssueAttachment(
       });
       await ensureReefTables({ adapter, vault });
       await assertIssueExists(adapter, vault, reefId);
-      const idempotencyKey =
-        typeof params.meta?.jira_idempotency_key === "string"
-          ? params.meta.jira_idempotency_key
-          : null;
+      const idempotencyKey = jiraIdempotencyKey(params.meta ?? null);
       if (idempotencyKey) {
         const existing = await attachmentByIdempotencyKey(
           adapter,
