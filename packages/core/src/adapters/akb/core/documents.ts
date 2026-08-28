@@ -4,6 +4,7 @@ import type { IssueMetadata } from "../../../schemas/issues/metadata";
 import type { AkbDocumentReference } from "../../../schemas/issues/references";
 import { buildIssueAkbTitle, uniqueStrings } from "../issues/issueRows";
 import { ISSUES_COLLECTION } from "./constants";
+import { assertNoNul } from "./sql";
 import {
   type AkbAdapter,
   type AkbSearchHit,
@@ -80,6 +81,7 @@ export async function searchDocumentsWithMetadata({
   limit: number;
   requireHealthy?: boolean;
 }): Promise<AkbDocumentSearchResult> {
+  assertNoNul(query, "search query");
   const payload = await adapter.request("/api/v1/search", {
     query: {
       vault,

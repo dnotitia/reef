@@ -5,10 +5,20 @@ import type {
 import { IssueContentSearchResponseSchema } from "../../../schemas/issues/contentSearch";
 import { REEF_COMMENTS_TABLE } from "../core/constants";
 import { searchDocumentsWithMetadata } from "../core/documents";
-import type { AkbAdapter, AkbSearchHit } from "../core/http";
-import { isMissingTableError, quoteText, runSql, tableRef } from "../core/sql";
+import type { AkbAdapter } from "../core/http";
+import {
+  assertNoNul,
+  isMissingTableError,
+  SqlParameterBuilder,
+  runSql,
+  tableRef,
+} from "../core/sql";
 import { withSpan } from "../core/tracing";
-import { rowToIssue, selectIssueRows } from "./issueRows";
+import {
+  hydrateIssuesByDocumentUri,
+  rowToIssue,
+  selectIssueRows,
+} from "./issueRows";
 
 const MAX_SNIPPET_LENGTH = 280;
 const SNIPPET_CONTEXT = 90;
@@ -150,35 +160,6 @@ function mergeSearchParts(
   return results;
 }
 
-async function hydrateIssuesByDocumentUri(
-  adapter: AkbAdapter,
-  vault: string,
-  hits: readonly AkbSearchHit[],
-): Promise<Map<string, ReturnType<typeof rowToIssue>>> {
-  const uris = [...new Set(hits.map((hit) => hit.uri))];
-  if (uris.length === 0) return new Map();
-  const rows = await selectIssueRows(
-    adapter,
-    vault,
-    `document_uri IN (${uris
-      .map((uri) => quoteText(uri, "document_uri"))
-      .join(", ")})`,
-  );
-  const issues = new Map<string, ReturnType<typeof rowToIssue>>();
-  for (const row of rows) {
-    const uri = row.document_uri;
-    if (typeof uri !== "string") continue;
-    try {
-      const issue = rowToIssue(row);
-      if (issue.archived_at == null) issues.set(uri, issue);
-    } catch {
-      // Ignore a malformed projection row and continue with the remaining
-      // search results.
-    }
-  }
-  return issues;
-}
-
 async function searchBodyMatches(
   adapter: AkbAdapter,
   vault: string,
@@ -201,7 +182,7 @@ async function searchBodyMatches(
       const issuesByUri = await hydrateIssuesByDocumentUri(
         adapter,
         vault,
-        search.hits,
+        search.hits.map((hit) => hit.uri),
       );
       const results: IssueContentSearchResult[] = [];
       const seenIssues = new Set<string>();
@@ -244,6 +225,12 @@ async function searchCommentMatches(
       const escaped = escapeLikeLiteral(query);
       let rows: Record<string, unknown>[];
       try {
+        const params = new SqlParameterBuilder();
+        const patternParam = params.add(
+          `%${escaped}%`,
+          "comment search pattern",
+        );
+        const limitParam = params.add(limit, "comment search limit");
         const response = await runSql(
           adapter,
           vault,
@@ -254,14 +241,12 @@ async function searchCommentMatches(
                 ORDER BY meta->>'created_at' DESC, id ASC
               ) AS issue_rank
             FROM ${tableRef(REEF_COMMENTS_TABLE)}
-            WHERE body ILIKE ${quoteText(
-              `%${escaped}%`,
-              "comment search pattern",
-            )} ESCAPE '\\'
+            WHERE body ILIKE ${patternParam} ESCAPE '\\'
           ) AS ranked_comments
           WHERE issue_rank = 1
           ORDER BY created_at DESC, id ASC
-          LIMIT ${limit}`,
+          LIMIT ${limitParam}`,
+          params.params,
         );
         rows = response.kind === "table_query" ? response.items : [];
       } catch (error) {
@@ -279,15 +264,19 @@ async function searchCommentMatches(
           ),
         ),
       ];
+      const issueParams = new SqlParameterBuilder();
       const issueRows =
         reefIds.length === 0
           ? []
           : await selectIssueRows(
               adapter,
               vault,
-              `reef_id IN (${reefIds
-                .map((id) => quoteText(id, "reef_id"))
-                .join(", ")})`,
+              "reef_id IN (" +
+                reefIds.map((id) => issueParams.add(id, "reef_id")).join(", ") +
+                ")",
+              undefined,
+              undefined,
+              issueParams,
             );
       const issuesById = new Map<string, ReturnType<typeof rowToIssue>>();
       for (const row of issueRows) {
@@ -341,6 +330,7 @@ export async function searchIssueContent({
   query: string;
   limit: number;
 }): Promise<IssueContentSearchResponse> {
+  assertNoNul(query, "search query");
   const [body, comments] = await Promise.all([
     searchBodyMatches(adapter, vault, query, limit),
     searchCommentMatches(adapter, vault, query, limit),

@@ -1,11 +1,6 @@
 import { akbListIssues } from "@reef/core";
 import type { AkbAdapter } from "@reef/core";
-import {
-  akbQuoteText,
-  akbRowToIssue,
-  akbSearchDocuments,
-  akbSelectIssueRows,
-} from "@reef/core";
+import { akbHydrateIssuesByDocumentUri, akbSearchDocuments } from "@reef/core";
 import { SchemaValidationError } from "@reef/core";
 import {
   SearchIssuesInputSchema,
@@ -118,25 +113,7 @@ async function hybridSearchIssues({
   const uris = [...new Set(hits.map((hit) => hit.uri))];
   if (uris.length === 0) return [];
 
-  const rows = await akbSelectIssueRows(
-    adapter,
-    vault,
-    `document_uri IN (${uris
-      .map((uri) => akbQuoteText(uri, "document_uri"))
-      .join(", ")})`,
-  );
-  const byUri = new Map(
-    rows
-      .map((row) => {
-        const uri = row.document_uri;
-        return typeof uri === "string"
-          ? ([uri, akbRowToIssue(row)] as const)
-          : null;
-      })
-      .filter(
-        (entry): entry is readonly [string, IssueMetadata] => entry !== null,
-      ),
-  );
+  const byUri = await akbHydrateIssuesByDocumentUri(adapter, vault, uris);
 
   const results: SearchIssuesResult[] = [];
   for (const hit of hits) {

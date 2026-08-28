@@ -225,6 +225,44 @@ export function rowToIssue(row: Record<string, unknown>): IssueMetadata {
 }
 
 /**
+ * Hydrate issue projections for a set of AKB document URIs. The URI set is
+ * deduplicated before SQL construction so every value is bound once, while
+ * the returned map lets search consumers retain the upstream hit order.
+ * Invalid, archived, and missing projections are omitted independently.
+ */
+export async function hydrateIssuesByDocumentUri(
+  adapter: AkbAdapter,
+  vault: string,
+  documentUris: readonly string[],
+): Promise<Map<string, IssueMetadata>> {
+  const uniqueUris = [...new Set(documentUris)];
+  if (uniqueUris.length === 0) return new Map();
+
+  const params = new SqlParameterBuilder();
+  const placeholders = uniqueUris.map((uri) => params.add(uri, "document_uri"));
+  const rows = await selectIssueRows(
+    adapter,
+    vault,
+    `document_uri IN (${placeholders.join(", ")})`,
+    undefined,
+    undefined,
+    params,
+  );
+  const issues = new Map<string, IssueMetadata>();
+  for (const row of rows) {
+    const uri = row.document_uri;
+    if (typeof uri !== "string") continue;
+    try {
+      const issue = rowToIssue(row);
+      if (issue.archived_at == null) issues.set(uri, issue);
+    } catch {
+      // A malformed projection must not hide valid search results.
+    }
+  }
+  return issues;
+}
+
+/**
  * SQL scalar subquery yielding the next tail rank for the active backlog:
  * `RANK_STEP` above the current maximum, so a new or demoted backlog issue
  * appends to the BOTTOM of the product-managed backlog order (REEF-176). An

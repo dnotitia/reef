@@ -30,7 +30,7 @@ export const AkbSqlResponseSchema = z.discriminatedUnion("kind", [
 
 export type AkbSqlResponse = z.infer<typeof AkbSqlResponseSchema>;
 
-function rejectNul(value: string, fieldDescriptor: string): void {
+export function assertNoNul(value: string, fieldDescriptor: string): void {
   if (value.includes("\0")) {
     throw new SchemaValidationError({
       issues: [`${fieldDescriptor} must not contain a NUL byte`],
@@ -46,7 +46,7 @@ function normalizeSqlScalar(
 ): SqlScalar {
   if (value == null) return null;
   if (typeof value === "string") {
-    rejectNul(value, fieldDescriptor);
+    assertNoNul(value, fieldDescriptor);
     return value;
   }
   if (typeof value === "number") {
@@ -72,7 +72,7 @@ function serializeJsonValue(
   try {
     serialized = JSON.stringify(value, (key, nestedValue) => {
       if (key.length > 0) {
-        rejectNul(key, fieldDescriptor);
+        assertNoNul(key, fieldDescriptor);
       }
       if (
         nestedValue === undefined ||
@@ -89,7 +89,7 @@ function serializeJsonValue(
         });
       }
       if (typeof nestedValue === "string") {
-        rejectNul(nestedValue, fieldDescriptor);
+        assertNoNul(nestedValue, fieldDescriptor);
       }
       return nestedValue;
     });
@@ -132,7 +132,7 @@ export class SqlParameterBuilder {
 }
 
 export function quoteText(value: string, fieldDescriptor: string): string {
-  rejectNul(value, fieldDescriptor);
+  assertNoNul(value, fieldDescriptor);
   return `'${value.replace(/'/g, "''")}'`;
 }
 

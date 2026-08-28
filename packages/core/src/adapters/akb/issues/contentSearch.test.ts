@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { AkbApiError } from "../../../errors";
+import { AkbApiError, SchemaValidationError } from "../../../errors";
 import type { AkbAdapter, AkbRequestInit } from "../core/http";
 import { buildContentSearchSnippet, searchIssueContent } from "./contentSearch";
 
@@ -46,6 +46,7 @@ function makeAdapter(options?: {
   }>;
   bodyRows?: Record<string, unknown>[];
   commentRows?: Record<string, unknown>[];
+  commentIssueRows?: Record<string, unknown>[];
 }): { adapter: AkbAdapter; request: ReturnType<typeof vi.fn> } {
   const bodyUri = "akb://reef/coll/issues/doc/reef-001.md";
   const request = vi.fn(
@@ -98,9 +99,11 @@ function makeAdapter(options?: {
         return table(options?.bodyRows ?? [issueRow("REEF-001", bodyUri)]);
       }
       if (sql.includes("reef_id IN")) {
-        return table([
-          issueRow("REEF-002", "akb://reef/coll/issues/doc/reef-002.md"),
-        ]);
+        return table(
+          options?.commentIssueRows ?? [
+            issueRow("REEF-002", "akb://reef/coll/issues/doc/reef-002.md"),
+          ],
+        );
       }
       throw new Error(`Unexpected request: ${path} ${sql}`);
     },
@@ -151,7 +154,7 @@ describe("searchIssueContent", () => {
     });
   });
 
-  it("escapes %, _, and backslash as literal ILIKE input using the SQL quote helper", async () => {
+  it("escapes %, _, and backslash as literal ILIKE input parameters", async () => {
     const { adapter, request } = makeAdapter({ commentRows: [] });
     await searchIssueContent({
       adapter,
@@ -162,13 +165,70 @@ describe("searchIssueContent", () => {
     const commentCall = request.mock.calls.find(([, init]) =>
       String(init?.body?.sql ?? "").includes("FROM reef_comments"),
     );
-    expect(commentCall?.[1]?.body?.sql).toContain(
-      "ILIKE '%\\%\\_\\\\[%' ESCAPE '\\'",
-    );
+    expect(commentCall?.[1]?.body?.sql).toContain("ILIKE $1 ESCAPE '\\'");
+    expect(commentCall?.[1]?.body?.sql).toContain("LIMIT $2");
+    expect(commentCall?.[1]?.body?.sql).not.toContain("%\\%\\_\\\\[%");
+    expect(commentCall?.[1]?.body?.params).toEqual(["%\\%\\_\\\\[%", 10]);
     expect(commentCall?.[1]?.body?.sql).toContain(
       "ROW_NUMBER() OVER (\n                PARTITION BY reef_id",
     );
     expect(commentCall?.[1]?.body?.sql).toContain("WHERE issue_rank = 1");
+  });
+
+  it("binds comment issue identifiers and preserves special text values", async () => {
+    const commentReefId = "REEF-'한글😀";
+    const commentUri = "akb://reef/coll/issues/doc/issue-'한글😀.md";
+    const { adapter, request } = makeAdapter({
+      bodyHits: [],
+      commentRows: [
+        {
+          id: "comment-'한글😀",
+          reef_id: commentReefId,
+          body: "Comment it's 한글😀",
+          created_at: "2026-07-03T00:00:00.000Z",
+        },
+      ],
+      commentIssueRows: [issueRow(commentReefId, commentUri)],
+    });
+
+    const result = await searchIssueContent({
+      adapter,
+      vault: "reef",
+      query: "it's 한글😀",
+      limit: 10,
+    });
+
+    expect(result.results).toEqual([
+      expect.objectContaining({
+        reef_id: commentReefId,
+        match_id: "comment:comment-'한글😀",
+      }),
+    ]);
+    const commentCall = request.mock.calls.find(([, init]) =>
+      String(init?.body?.sql ?? "").includes("FROM reef_comments"),
+    );
+    const issueCall = request.mock.calls.find(([, init]) =>
+      String(init?.body?.sql ?? "").includes("reef_id IN"),
+    );
+    expect(commentCall?.[1]?.body?.params).toEqual(["%it's 한글😀%", 10]);
+    expect(commentCall?.[1]?.body?.sql).not.toContain("it's 한글😀");
+    expect(issueCall?.[1]?.body?.sql).toContain("reef_id IN ($1)");
+    expect(issueCall?.[1]?.body?.params).toEqual([commentReefId]);
+    expect(issueCall?.[1]?.body?.sql).not.toContain(commentReefId);
+  });
+
+  it("rejects a NUL search value before either AKB request", async () => {
+    const { adapter, request } = makeAdapter();
+
+    await expect(
+      searchIssueContent({
+        adapter,
+        vault: "reef",
+        query: "bad\0needle",
+        limit: 10,
+      }),
+    ).rejects.toBeInstanceOf(SchemaValidationError);
+    expect(request).not.toHaveBeenCalled();
   });
 
   it("drops missing, archived, and malformed issue rows without failing the response", async () => {
