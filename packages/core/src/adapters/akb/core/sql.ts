@@ -131,44 +131,6 @@ export class SqlParameterBuilder {
   }
 }
 
-export function quoteText(value: string, fieldDescriptor: string): string {
-  assertNoNul(value, fieldDescriptor);
-  return `'${value.replace(/'/g, "''")}'`;
-}
-
-export function quoteTextOrNull(
-  value: string | null | undefined,
-  fieldDescriptor: string,
-): string {
-  if (value == null) return "NULL";
-  return quoteText(value, fieldDescriptor);
-}
-
-export function quoteIntOrNull(value: number | null | undefined): string {
-  if (value == null) return "NULL";
-  if (!Number.isInteger(value)) {
-    throw new SchemaValidationError({
-      issues: ["expected integer value for SQL int column"],
-    });
-  }
-  return String(value);
-}
-
-export function quoteNumberOrNull(value: number | null | undefined): string {
-  if (value == null) return "NULL";
-  if (!Number.isFinite(value)) {
-    throw new SchemaValidationError({
-      issues: ["expected finite number value for SQL number column"],
-    });
-  }
-  return String(value);
-}
-
-export function quoteJson(value: unknown): string {
-  const serialized = serializeJsonValue(value);
-  return `'${serialized.replace(/'/g, "''")}'::json`;
-}
-
 export function quoteIdent(name: string): string {
   if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
     throw new SchemaValidationError({
