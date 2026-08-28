@@ -411,6 +411,7 @@ test.describe("Hermetic issue route surfaces", () => {
   test("switches between independent scope and layout controls from /issues", async ({
     page,
   }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
     await openExistingWorkspace(page);
 
     await page.goto("/workspace/reef-e2e/issues?view=board");
@@ -429,10 +430,59 @@ test.describe("Hermetic issue route surfaces", () => {
     await page.waitForURL(/view=timeline/, { timeout: 10_000 });
     await expect(page.locator('[data-testid="timeline-grid"]')).toBeVisible();
 
-    await page.locator('[data-testid="scope-switcher-backlog"]').click();
+    await page.goto(
+      "/workspace/reef-e2e/issues?scope=active&view=timeline&status=todo&q=auth",
+    );
+    await expect(page.locator('[data-testid="timeline-grid"]')).toBeVisible();
+
+    const scopeSwitcher = page.getByTestId("scope-switcher");
+    const scopeBefore = await scopeSwitcher.boundingBox();
+    const backlogButton = page.getByTestId("scope-switcher-backlog");
+    const backlogBefore = await backlogButton.boundingBox();
+    if (!scopeBefore || !backlogBefore) {
+      throw new Error("Scope controls have no geometry before switching");
+    }
+
+    // Click the exact center of Backlog so the visual pointer target is part
+    // of the geometry contract, not just a locator-assisted activation.
+    await page.mouse.click(
+      backlogBefore.x + backlogBefore.width / 2,
+      backlogBefore.y + backlogBefore.height / 2,
+    );
     await waitForIssueView(page, "backlog", "list");
     await expect(page.locator('[data-testid="backlog-table"]')).toBeVisible();
     await expect(page.getByText("Backlog issue Gamma")).toBeVisible();
+
+    const scopeAfter = await scopeSwitcher.boundingBox();
+    const backlogAfter = await backlogButton.boundingBox();
+    if (!scopeAfter || !backlogAfter) {
+      throw new Error("Scope controls have no geometry after switching");
+    }
+    expect(Math.abs(scopeAfter.x - scopeBefore.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(scopeAfter.y - scopeBefore.y)).toBeLessThanOrEqual(1);
+    expect(Math.abs(backlogAfter.x - backlogBefore.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(backlogAfter.y - backlogBefore.y)).toBeLessThanOrEqual(1);
+    await expect(backlogButton).toBeFocused();
+    await expect(backlogButton).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      page.locator(
+        '[data-slot="page-header-title-adjacent"] [data-testid="scope-switcher"]',
+      ),
+    ).toHaveCount(1);
+    await expect(
+      page.locator(
+        '[data-slot="page-header-actions"] [data-testid="view-switcher"]',
+      ),
+    ).toHaveCount(1);
+    await expect(page.getByTestId("view-switcher-board")).toBeVisible();
+    await expect(page.getByTestId("view-switcher-list")).toBeVisible();
+    await expect(page.getByTestId("view-switcher-timeline")).toHaveCount(0);
+
+    const url = new URL(page.url());
+    expect(url.searchParams.get("scope")).toBe("backlog");
+    expect(url.searchParams.get("view")).toBe("list");
+    expect(url.searchParams.get("status")).toBe("todo");
+    expect(url.searchParams.get("q")).toBe("auth");
   });
 
   test("restores scope and layout independently and normalizes Backlog Timeline", async ({
@@ -552,7 +602,20 @@ test.describe("Hermetic issue route surfaces", () => {
         await expect(
           page.getByRole("textbox", { name: "Search issues" }),
         ).toBeVisible();
+        const scopeSwitcher = page.getByTestId("scope-switcher");
+        await expect(scopeSwitcher).toBeVisible();
         await expect(page.getByTestId("view-switcher")).toBeVisible();
+        await expect(scopeSwitcher.locator("button")).toHaveCount(2);
+        await expect(
+          page.locator(
+            '[data-slot="page-header-title-adjacent"] [data-testid="scope-switcher"]',
+          ),
+        ).toHaveCount(1);
+        await expect(
+          page.locator(
+            '[data-slot="page-header-actions"] [data-testid="view-switcher"]',
+          ),
+        ).toHaveCount(1);
         if (scope === "backlog") {
           const filterGeometry = await page
             .getByTestId("filter-bar")
@@ -636,7 +699,15 @@ test.describe("Hermetic issue route surfaces", () => {
           .evaluate((element) => {
             const root = element as HTMLElement;
             const rootRect = root.getBoundingClientRect();
+            const scope = root.querySelector('[data-testid="scope-switcher"]');
+            const view = root.querySelector('[data-testid="view-switcher"]');
             return {
+              scopeBeforeView: Boolean(
+                scope &&
+                  view &&
+                  scope.compareDocumentPosition(view) &
+                    Node.DOCUMENT_POSITION_FOLLOWING,
+              ),
               actionsContained: Array.from(
                 root.querySelectorAll("button"),
               ).every((button) => {
@@ -657,6 +728,10 @@ test.describe("Hermetic issue route surfaces", () => {
               })(),
             };
           });
+        expect(
+          headerGeometry.scopeBeforeView,
+          `${view} ${viewport.width}px header order`,
+        ).toBe(true);
         expect(
           headerGeometry.actionsContained,
           `${view} ${viewport.width}px header`,

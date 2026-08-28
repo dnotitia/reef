@@ -141,6 +141,18 @@ describe("IssuesWorkspace", () => {
     expect(screen.queryByTestId("timeline-body")).toBeNull();
   });
 
+  it("keeps scope beside the title and layout in the right action area", () => {
+    render(wrap(<IssuesWorkspace />));
+
+    const scope = screen.getByTestId("scope-switcher");
+    const view = screen.getByTestId("view-switcher");
+    expect(
+      scope.closest('[data-slot="page-header-title-adjacent"]'),
+    ).not.toBeNull();
+    expect(scope.closest('[data-slot="page-header-actions"]')).toBeNull();
+    expect(view.closest('[data-slot="page-header-actions"]')).not.toBeNull();
+  });
+
   it("renders the list body when ?view=list", () => {
     navigationState.searchParams = new URLSearchParams("view=list");
     render(wrap(<IssuesWorkspace />));

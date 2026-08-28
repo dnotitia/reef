@@ -14,6 +14,12 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Issues header scope and layout controls now occupy separate stable areas.**
+  The text-only `Active | Backlog` scope control stays beside the page title,
+  while `Board | List | Timeline` remains in the right action area; switching
+  scope no longer moves the scope control or changes its URL, filter, search, or
+  focus behavior.
+
 - **Timestamp-guarded issue writes no longer fail at the AKB SQL boundary.**
   Manual reorder, Jira reservation, migration reconciliation, and orchestration
   updates keep ISO timestamps text-bound until PostgreSQL performs the
