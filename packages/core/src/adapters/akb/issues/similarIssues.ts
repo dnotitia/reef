@@ -49,14 +49,11 @@ export async function searchSimilarIssues({
       const eligibleHits = hits.filter(
         (hit) => typeof hit.score === "number" && hit.score >= minScore,
       );
-      const uris = [...new Set(eligibleHits.map((hit) => hit.uri))];
-      if (uris.length === 0) {
-        span.setAttribute("candidate_count", 0);
-        span.setAttribute("issue_count", 0);
-        return [];
-      }
-
-      const byUri = await hydrateIssuesByDocumentUri(adapter, vault, uris);
+      const byUri = await hydrateIssuesByDocumentUri(
+        adapter,
+        vault,
+        eligibleHits.map((hit) => hit.uri),
+      );
 
       const issues: SimilarIssue[] = [];
       const seenIds = new Set<string>();
