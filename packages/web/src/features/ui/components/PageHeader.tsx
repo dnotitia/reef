@@ -15,6 +15,8 @@ interface PageHeaderProps {
    * translates (REEF-260).
    */
   description?: React.ReactNode;
+  /** Optional secondary control rendered next to the page title. */
+  titleAdjacent?: React.ReactNode;
   /** Right-aligned action slot — buttons, toggles, etc. */
   actions?: React.ReactNode;
   className?: string;
@@ -23,12 +25,14 @@ interface PageHeaderProps {
 export function PageHeader({
   title,
   description,
+  titleAdjacent,
   actions,
   className,
 }: PageHeaderProps) {
   const mounted = useHydrated();
 
   const renderedDescription = mounted ? (description ?? "") : "";
+  const hasTitleAdjacent = mounted && titleAdjacent != null;
   // A string subtitle is a bare identifier, so opt the whole span out of
   // translation. A node subtitle owns its own translate boundaries (see the
   // `description` prop doc), so leave the span translatable.
@@ -39,16 +43,31 @@ export function PageHeader({
       data-slot="page-header"
       className={cn(
         "sticky top-0 z-20 flex h-12 shrink-0 items-center justify-between gap-4 border-b border-border-subtle bg-surface-page/80 px-6 backdrop-blur-md",
+        hasTitleAdjacent && "flex-wrap",
         className,
       )}
     >
-      <div className="flex min-w-0 items-baseline gap-3">
+      <div
+        className={cn(
+          "flex min-w-0 items-baseline gap-3",
+          hasTitleAdjacent &&
+            "flex-wrap max-[767px]:w-full max-[767px]:items-center",
+        )}
+      >
         <h1
           className="font-display text-[14px] font-semibold tracking-tight text-foreground"
           style={{ letterSpacing: "-0.01em" }}
         >
           {title}
         </h1>
+        {hasTitleAdjacent && (
+          <div
+            data-slot="page-header-title-adjacent"
+            className="flex shrink-0 items-center"
+          >
+            {titleAdjacent}
+          </div>
+        )}
         <span
           className="truncate text-[12px] text-muted-foreground"
           translate={identifierOnly ? "no" : undefined}
@@ -58,7 +77,13 @@ export function PageHeader({
         </span>
       </div>
       {mounted && actions && (
-        <div className="flex max-w-full shrink-0 flex-wrap items-center gap-2">
+        <div
+          data-slot="page-header-actions"
+          className={cn(
+            "flex max-w-full shrink-0 flex-wrap items-center gap-2",
+            hasTitleAdjacent && "max-[767px]:w-full max-[767px]:justify-end",
+          )}
+        >
           {actions}
         </div>
       )}

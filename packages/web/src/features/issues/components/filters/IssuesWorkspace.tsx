@@ -63,16 +63,11 @@ export function IssuesWorkspace() {
       <PageHeader
         title={nav("issues")}
         description={vault || undefined}
-        className="h-auto min-h-12 flex-wrap py-2"
-        actions={
-          <div
-            className="flex max-w-full min-w-0 flex-wrap items-center justify-end gap-2"
-            data-testid="issues-header-controls"
-          >
-            <ScopeSwitcher activeScope={scope} activeLayout={layout} />
-            <ViewSwitcher scope={scope} activeLayout={layout} />
-          </div>
+        titleAdjacent={
+          <ScopeSwitcher activeScope={scope} activeLayout={layout} />
         }
+        className="h-auto min-h-12 flex-wrap py-2"
+        actions={<ViewSwitcher scope={scope} activeLayout={layout} />}
       />
 
       {!vault && !isLoading ? (
