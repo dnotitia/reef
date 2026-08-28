@@ -118,6 +118,27 @@ describe("global focus styles", () => {
     expect(css).toContain("border-bottom-color: transparent");
   });
 
+  it("compresses the default List sticky columns through narrow viewports", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+
+    expect(css).toContain("@media (max-width: 480px)");
+    expect(css).toContain("@media (min-width: 768px) and (max-width: 1311px)");
+    expect(css).toContain(
+      ".reef-issue-list-table {\n    min-width: 0 !important;",
+    );
+    expect(css).toContain(
+      '[data-testid="issue-list-scroll-container"] {\n  container-type: inline-size;\n}',
+    );
+    expect(css).toContain(
+      ".reef-issue-list-group-header {\n  width: min(100%, 100cqi);\n}",
+    );
+    expect(css).toContain('.reef-issue-list-table [data-column-key="title"]');
+    expect(css).toContain("min-width: 144px !important");
+    expect(css).toContain(
+      "width: clamp(76px, calc(100vw - 244px), 144px) !important",
+    );
+  });
+
   it("styles comment mentions from the sanitized renderer marker", () => {
     const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
     expect(css).toContain(".comment-mention-renderer [data-reef-mention]");

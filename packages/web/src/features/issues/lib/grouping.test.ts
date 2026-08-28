@@ -1,4 +1,4 @@
-import type { IssueListItem } from "@reef/core";
+import type { IssueListItem, IssueRelation } from "@reef/core";
 import { describe, expect, it } from "vitest";
 import {
   createIssueGroupDescriptor,
@@ -21,6 +21,10 @@ const labels = {
     high: "High",
     medium: "Medium",
     low: "Low",
+  },
+  epic: {
+    none: "No epic",
+    unavailableParent: "Unavailable parent",
   },
 };
 
@@ -164,6 +168,138 @@ describe("issue grouping descriptor", () => {
       patchField: "assigned_to",
       patchValue: null,
       droppable: true,
+    });
+  });
+
+  it("projects direct children into ranked Epic groups and keeps root headers unique", () => {
+    const catalog: IssueRelation[] = [
+      {
+        id: "REEF-200",
+        title: "Zeta Epic",
+        status: "in_progress",
+        issue_type: "epic",
+        parent_id: null,
+        rank: 20,
+        depends_on: [],
+      },
+      {
+        id: "REEF-100",
+        title: "Alpha Epic",
+        status: "done",
+        issue_type: "epic",
+        parent_id: null,
+        rank: 10,
+        depends_on: [],
+      },
+      {
+        id: "REEF-300",
+        title: "Regular parent",
+        status: "todo",
+        issue_type: "story",
+        parent_id: null,
+        rank: 1,
+        depends_on: [],
+      },
+      {
+        id: "REEF-400",
+        title: "Nested Epic",
+        status: "todo",
+        issue_type: "epic",
+        parent_id: "REEF-300",
+        rank: 2,
+        depends_on: [],
+      },
+    ];
+    const descriptor = createIssueGroupDescriptor("epic", {
+      labels,
+      hierarchyCatalog: catalog,
+    });
+    const groups = descriptor.bucketsForIssues([
+      issue("child-zeta", {
+        parent_id: "REEF-200",
+        status: "done",
+      }),
+      issue("child-alpha", {
+        parent_id: "REEF-100",
+        status: "closed",
+      }),
+      issue("child-alpha-open", {
+        parent_id: "REEF-100",
+        status: "todo",
+      }),
+      issue("REEF-100", {
+        issue_type: "epic",
+        title: "Alpha Epic",
+        status: "done",
+      }),
+      issue("independent"),
+      issue("missing-parent", { parent_id: "REEF-999" }),
+      issue("non-epic-parent", { parent_id: "REEF-300" }),
+      issue("deeper-parent", { parent_id: "REEF-400" }),
+    ]);
+
+    expect(groups.map(({ bucket }) => bucket.id)).toEqual([
+      "epic:REEF-100",
+      "epic:REEF-200",
+      "epic:none",
+      "epic:unavailable-parent",
+    ]);
+    expect(groups[0]).toMatchObject({
+      bucket: {
+        epic: { id: "REEF-100", title: "Alpha Epic", status: "done" },
+        progress: { done: 1, total: 2 },
+        droppable: false,
+      },
+      issues: [{ id: "child-alpha" }, { id: "child-alpha-open" }],
+    });
+    expect(groups[1]?.issues.map(({ id }) => id)).toEqual(["child-zeta"]);
+    expect(groups[2]?.issues.map(({ id }) => id)).toEqual([
+      "independent",
+      "non-epic-parent",
+      "deeper-parent",
+    ]);
+    expect(groups[3]?.issues.map(({ id }) => id)).toEqual(["missing-parent"]);
+    expect(
+      groups
+        .flatMap(({ issues }) => issues)
+        .filter(({ id }) => id === "REEF-100"),
+    ).toHaveLength(0);
+    expect(
+      groups.flatMap(({ issues }) => issues).map(({ id }) => id),
+    ).toHaveLength(7);
+  });
+
+  it("keeps a zero-count Epic header when the Epic itself matches", () => {
+    const descriptor = createIssueGroupDescriptor("epic", {
+      labels,
+      hierarchyCatalog: [
+        {
+          id: "REEF-100",
+          title: "Empty Epic",
+          status: "in_review",
+          issue_type: "epic",
+          parent_id: null,
+          rank: null,
+          depends_on: [],
+        },
+      ],
+    });
+
+    const [group] = descriptor.bucketsForIssues([
+      issue("REEF-100", {
+        issue_type: "epic",
+        title: "Empty Epic",
+        status: "in_review",
+      }),
+    ]);
+
+    expect(group).toMatchObject({
+      bucket: {
+        id: "epic:REEF-100",
+        epic: { id: "REEF-100" },
+        progress: { done: 0, total: 0 },
+      },
+      issues: [],
     });
   });
 });

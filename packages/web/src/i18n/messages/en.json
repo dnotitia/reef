@@ -943,7 +943,10 @@
         "assignee": "Assignee",
         "priority": "Priority",
         "sprint": "Sprint",
-        "label": "Label"
+        "label": "Label",
+        "epic": "Epic",
+        "noEpic": "No epic",
+        "unavailableParent": "Unavailable parent"
       },
       "namedFilters": "My filters",
       "namedFilterMenu": "My filters menu",
@@ -1055,6 +1058,8 @@
       "groupHeader": "{label} · {count}",
       "collapseGroup": "Collapse {label}",
       "expandGroup": "Expand {label}",
+      "openEpic": "Open Epic {id}: {title}",
+      "epicSummary": "Epic {id}: {title}; status {status}; {count} visible children; {done} of {total} done or closed",
       "rank": "Rank",
       "reorderHintUngrouped": "Switch to ungrouped Manual order to reorder issues.",
       "reorderGrip": "Reorder {id}",
@@ -1099,7 +1104,9 @@
     "noMatchTitle": "No matching issues",
     "noMatchDescription": "Try widening your filters or search to see more issues.",
     "groupNone": "None",
-    "groupReadOnly": "Label groups are read-only. Change labels from the issue details."
+    "groupReadOnly": "Label groups are read-only. Change labels from the issue details.",
+    "openEpic": "Open Epic {id}: {title}",
+    "epicColumnLabel": "Epic {id}: {title}; status {status}; {count} visible children; {done} of {total} done or closed"
   },
   "inbox": {
     "pageTitle": "Inbox",

@@ -10,10 +10,11 @@ import { SpanStatusCode } from "@opentelemetry/api";
 import { akbListIssueRelations as listIssueRelations } from "@reef/core";
 
 /**
- * GET /api/issues/relations?vault={vault_name} — the whole-vault relation
- * projection (reef_id / status / depends_on) for client-side blocker badges and
- * the blocked/blocking dependency filter. Small payload, no document body, so
- * the displayed list can be a server-filtered subset without breaking badges.
+ * GET /api/issues/relations?vault={vault_name} — the whole-vault compact
+ * relation projection (dependency plus parent/title/type/rank metadata) for
+ * client-side blocker badges, dependency filtering, and Active Epic grouping.
+ * Small payload, no document body, so the displayed list can be a
+ * server-filtered subset without breaking these projections.
  */
 export async function GET(request: Request): Promise<Response> {
   const vault = parseVaultParam(request);

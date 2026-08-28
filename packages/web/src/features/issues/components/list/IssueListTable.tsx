@@ -41,7 +41,11 @@ import {
 } from "@/features/issues/lib/buildIssueQuery";
 import { applyDependencyFilter } from "@/features/issues/lib/dependencyUtils";
 import type { IssueGroupBy } from "@/features/issues/lib/groupBy";
-import { createIssueGroupDescriptor } from "@/features/issues/lib/grouping";
+import {
+  buildIssueHierarchyCatalog,
+  createIssueGroupDescriptor,
+  type IssueGroupBucket,
+} from "@/features/issues/lib/grouping";
 import {
   resolveIssueReorderTargetForDrop,
   type IssueReorderTarget,
@@ -92,8 +96,8 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { ChevronRight } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { ChevronRight, ExternalLink } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 import {
   useCallback,
@@ -187,56 +191,111 @@ function SpacerRow({
 }
 
 function IssueListGroupHeader({
-  label,
-  bucketId,
+  bucket,
   count,
   collapsed,
   columnCount,
   onToggle,
+  onOpenEpic,
 }: {
-  label: string;
-  bucketId: string;
+  bucket: IssueGroupBucket;
   count: number;
   collapsed: boolean;
   columnCount: number;
   onToggle: () => void;
+  onOpenEpic?: (id: string) => void;
 }) {
   const t = useTranslations("issues.list");
+  const statusLabels = useStatusLabels();
+  const label = bucket.label;
+  const epic = bucket.epic;
+  const groupLabel = epic ? `${epic.id}: ${epic.title}` : label;
   const actionLabel = collapsed
-    ? t("expandGroup", { label })
-    : t("collapseGroup", { label });
-  const groupSummary = t("groupHeader", { label, count });
+    ? t("expandGroup", { label: groupLabel })
+    : t("collapseGroup", { label: groupLabel });
+  const groupSummary = t("groupHeader", { label: groupLabel, count });
+  const epicSummary = epic
+    ? t("epicSummary", {
+        id: epic.id,
+        title: epic.title,
+        status: statusLabels[epic.status],
+        count,
+        done: bucket.progress?.done ?? 0,
+        total: bucket.progress?.total ?? count,
+      })
+    : null;
 
   return (
     <TableRow
       className="sticky top-8 z-20 h-8 bg-surface-page"
       data-testid="issue-group-header"
-      data-group-id={bucketId}
+      data-group-id={bucket.id}
       data-group-collapsed={collapsed ? "true" : "false"}
+      aria-label={epicSummary ?? undefined}
     >
       <TableCell
         colSpan={columnCount}
         className="h-8 border-y border-border-subtle p-0"
       >
-        <button
-          type="button"
-          className="flex h-8 w-full items-center gap-2 px-3 text-left text-xs font-semibold text-foreground transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
-          aria-expanded={!collapsed}
-          aria-label={`${actionLabel} · ${groupSummary}`}
-          onClick={onToggle}
-        >
-          <ChevronRight
-            aria-hidden="true"
-            className={cn(
-              "size-3.5 shrink-0 transition-transform duration-150",
-              !collapsed && "rotate-90",
+        <div className="reef-issue-list-group-header flex h-8 min-w-0 w-full items-center gap-2 px-3 text-left text-xs font-semibold text-foreground">
+          <button
+            type="button"
+            className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-sm text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
+            aria-expanded={!collapsed}
+            aria-label={`${actionLabel} · ${groupSummary}`}
+            onClick={onToggle}
+          >
+            <ChevronRight
+              aria-hidden="true"
+              className={cn(
+                "size-3.5 shrink-0 transition-transform duration-150",
+                !collapsed && "rotate-90",
+              )}
+            />
+            {epic ? (
+              <span
+                className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden whitespace-nowrap"
+                data-testid="issue-group-label"
+              >
+                <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+                  {epic.id}
+                </span>
+                <span
+                  className="min-w-0 truncate"
+                  data-testid="issue-group-title"
+                  title={epic.title}
+                >
+                  {epic.title}
+                </span>
+              </span>
+            ) : (
+              <span
+                className="min-w-0 flex-1 truncate"
+                data-testid="issue-group-label"
+              >
+                {label}
+              </span>
             )}
-          />
-          <span className="min-w-0 flex-1 truncate">{label}</span>
-          <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
-            {count}
-          </span>
-        </button>
+            <span
+              className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground"
+              data-testid="issue-group-count"
+            >
+              {count}
+            </span>
+          </button>
+          {epic ? (
+            <button
+              type="button"
+              className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
+              aria-label={t("openEpic", { id: epic.id, title: epic.title })}
+              data-testid={`open-epic-${epic.id}`}
+              title={epic.title}
+              onClick={() => onOpenEpic?.(epic.id)}
+            >
+              <ExternalLink aria-hidden="true" className="size-3.5" />
+            </button>
+          ) : null}
+        </div>
       </TableCell>
     </TableRow>
   );
@@ -265,6 +324,7 @@ export function IssueListTable({
   const priorityLabels = usePriorityLabels();
   const t = useTranslations("issues.list");
   const groupT = useTranslations("issues.filters");
+  const locale = useLocale();
   const common = useTranslations("common");
   const toasts = useTranslations("toasts");
   const bulk = useTranslations("issues.bulk");
@@ -324,6 +384,10 @@ export function IssueListTable({
 
   const allIssues = useMemo(() => flattenIssueListPages(data), [data]);
   const graph = relations ?? allIssues;
+  const hierarchyCatalog = useMemo(
+    () => buildIssueHierarchyCatalog(relations, allIssues),
+    [allIssues, relations],
+  );
   const sorted = useMemo(() => {
     const filtered = filterIssues(allIssues, scopedFilter, {
       searchActive: searchQuery.trim().length > 0,
@@ -372,11 +436,26 @@ export function IssueListTable({
           none: groupT("group.none"),
           status: statusLabels,
           priority: priorityLabels,
+          epic: {
+            none: groupT("group.noEpic"),
+            unavailableParent: groupT("group.unavailableParent"),
+          },
         },
         assigneeNames,
         sprintNames,
+        hierarchyCatalog,
+        locale,
       }),
-    [assigneeNames, groupBy, groupT, priorityLabels, sprintNames, statusLabels],
+    [
+      assigneeNames,
+      groupBy,
+      groupT,
+      hierarchyCatalog,
+      locale,
+      priorityLabels,
+      sprintNames,
+      statusLabels,
+    ],
   );
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(
     () => new Set(),
@@ -403,10 +482,13 @@ export function IssueListTable({
       return next;
     });
   }, []);
-  const visibleIssueIds = useMemo(
-    () => sorted.map((issue) => issue.id),
-    [sorted],
-  );
+  const visibleIssueIds = useMemo(() => {
+    if (groupBy !== "epic") return sorted.map((issue) => issue.id);
+    const rootEpicIds = new Set(groups.map(({ bucket }) => bucket.epic?.id));
+    return sorted
+      .filter((issue) => !rootEpicIds.has(issue.id))
+      .map((issue) => issue.id);
+  }, [groupBy, groups, sorted]);
   const selectedIssueId = useIssueKeyboardStore(
     (state) => state.focusedIssueId.list,
   );
@@ -865,12 +947,12 @@ export function IssueListTable({
                       return (
                         <IssueListGroupHeader
                           key={item.key}
-                          label={item.bucket.label}
-                          bucketId={item.bucket.id}
+                          bucket={item.bucket}
                           count={item.count}
                           collapsed={item.collapsed}
                           columnCount={columns.length}
                           onToggle={() => toggleGroup(item.bucket.id)}
+                          onOpenEpic={openIssue}
                         />
                       );
                     }

@@ -15,7 +15,10 @@ import type {
   PlanningCatalog,
   Status,
 } from "@reef/core";
+import { ExternalLink } from "lucide-react";
 import { memo } from "react";
+import { useStatusLabels } from "@/i18n/fieldLabels";
+import { useTranslations } from "next-intl";
 import type { IssueGroupBucket } from "../../issues/lib/grouping";
 import { KanbanCard } from "./KanbanCard";
 
@@ -34,6 +37,7 @@ export interface KanbanColumnProps {
   planningCatalog?: PlanningCatalog;
   assignees?: readonly Collaborator[];
   onIssueClick?: (id: string) => void;
+  onGroupClick?: (id: string) => void;
   dragEnabled?: boolean;
   readOnlyReason?: string;
 }
@@ -48,9 +52,15 @@ export const KanbanColumn = memo(function KanbanColumn({
   planningCatalog,
   assignees,
   onIssueClick,
+  onGroupClick,
   dragEnabled,
   readOnlyReason,
 }: KanbanColumnProps) {
+  const t = useTranslations("board");
+  const statusLabels = useStatusLabels();
+  const isEpicGroup = bucket.groupBy === "epic";
+  const epic = bucket.epic;
+  const cardReadOnlyReason = isEpicGroup ? undefined : readOnlyReason;
   const canDrag = dragEnabled ?? bucket.droppable;
   const { setNodeRef, isOver } = useDroppable({
     id: bucket.id,
@@ -71,7 +81,18 @@ export const KanbanColumn = memo(function KanbanColumn({
       ref={setNodeRef}
       data-group-by={bucket.groupBy}
       data-group-value={bucket.value ?? "none"}
-      aria-label={`${bucket.label}, ${issues.length}`}
+      aria-label={
+        bucket.epic
+          ? t("epicColumnLabel", {
+              id: bucket.epic.id,
+              title: bucket.epic.title,
+              status: statusLabels[bucket.epic.status],
+              count: issues.length,
+              done: bucket.progress?.done ?? 0,
+              total: bucket.progress?.total ?? issues.length,
+            })
+          : `${bucket.label}, ${issues.length}`
+      }
       className={cn(
         "flex h-full min-w-0 w-full flex-col rounded-lg border border-border bg-surface-subtle p-2 lg:w-80 lg:shrink-0",
         "transition-colors duration-150",
@@ -80,16 +101,50 @@ export const KanbanColumn = memo(function KanbanColumn({
       )}
     >
       {/* Column header */}
-      <div className="mb-2 flex shrink-0 items-center gap-2 px-1.5 py-1">
+      <div
+        className="mb-2 flex min-w-0 shrink-0 items-center gap-2 px-1.5 py-1"
+        data-testid={epic ? "epic-group-header" : "kanban-group-header"}
+      >
         {bucket.groupBy === "status" && bucket.value ? (
           <StatusIcon status={bucket.value as Status} size={12} />
         ) : null}
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground/80">
-          {bucket.label}
+        <h3
+          className={cn(
+            "min-w-0 flex-1 text-xs font-semibold text-foreground/80",
+            !epic && "uppercase tracking-wide",
+          )}
+        >
+          {epic ? (
+            <span className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap">
+              <span className="shrink-0 font-mono text-[10.5px] tabular-nums text-muted-foreground">
+                {epic.id}
+              </span>
+              <span className="min-w-0 truncate" title={epic.title}>
+                {epic.title}
+              </span>
+            </span>
+          ) : (
+            bucket.label
+          )}
         </h3>
-        <span className="ml-auto font-mono text-[11px] tabular-nums text-muted-foreground">
+        <span className="ml-auto shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
           {issues.length}
         </span>
+        {epic ? (
+          <button
+            type="button"
+            className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
+            aria-label={t("openEpic", {
+              id: epic.id,
+              title: epic.title,
+            })}
+            data-testid={`open-epic-${epic.id}`}
+            title={epic.title}
+            onClick={() => onGroupClick?.(epic.id)}
+          >
+            <ExternalLink aria-hidden="true" className="size-3.5" />
+          </button>
+        ) : null}
       </div>
 
       {/* Cards — scroll within the column when many */}
@@ -109,7 +164,7 @@ export const KanbanColumn = memo(function KanbanColumn({
               bucket={bucket}
               occurrenceKey={`${bucket.id}:${issue.id}`}
               dragEnabled={canDrag}
-              readOnlyReason={readOnlyReason}
+              readOnlyReason={cardReadOnlyReason}
               blocked={blockedIds.has(issue.id)}
               planningCatalog={planningCatalog}
               assignees={assignees}

@@ -57,6 +57,30 @@ function statusBucket(status: "todo" | "in_progress"): IssueGroupBucket {
   };
 }
 
+function epicBucket(): IssueGroupBucket {
+  return {
+    groupBy: "epic",
+    id: "epic:REEF-100",
+    label: "Foundation Epic",
+    value: "REEF-100",
+    order: 0,
+    patchField: null,
+    patchValue: null,
+    multiBucket: false,
+    droppable: false,
+    epic: {
+      id: "REEF-100",
+      title: "Foundation Epic",
+      status: "in_progress",
+      issue_type: "epic",
+      parent_id: null,
+      rank: 1,
+      depends_on: [],
+    },
+    progress: { done: 1, total: 2 },
+  };
+}
+
 const makeTestIssue = (id: string): IssueListItem => ({
   id,
   title: `Issue ${id}`,
@@ -72,13 +96,19 @@ vi.mock("./KanbanCard", () => ({
   KanbanCard: ({
     issue,
     onClick,
+    readOnlyReason,
+    dragEnabled,
   }: {
     issue: IssueListItem;
     onClick?: (id: string) => void;
+    readOnlyReason?: string;
+    dragEnabled?: boolean;
   }) => (
     <button
       type="button"
       data-testid="kanban-card"
+      data-read-only-reason={readOnlyReason}
+      data-drag-enabled={String(dragEnabled)}
       onClick={() => onClick?.(issue.id)}
     >
       {issue.title}
@@ -93,6 +123,12 @@ function renderColumn(props: KanbanColumnProps) {
 describe("KanbanColumn", () => {
   it("renders column title matching status label", () => {
     renderColumn({ bucket: statusBucket("todo"), issues: [] });
+    expect(screen.getByTestId("kanban-group-header")).toHaveClass(
+      "items-center",
+      "gap-2",
+      "px-1.5",
+      "py-1",
+    );
     expect(
       screen.getByRole("heading", {
         name: ISSUE_FIELD_MESSAGES_EN.status.todo,
@@ -160,5 +196,90 @@ describe("KanbanColumn", () => {
     renderColumn({ bucket: statusBucket("todo"), issues, onIssueClick });
     fireEvent.click(screen.getAllByTestId("kanban-card")[1]);
     expect(onIssueClick).toHaveBeenCalledWith("reef-002");
+  });
+
+  it("keeps the Epic header to label/count and opens its detail control", () => {
+    const onGroupClick = vi.fn();
+    renderColumn({
+      bucket: epicBucket(),
+      issues: [],
+      onGroupClick,
+      dragEnabled: false,
+    });
+
+    const header = screen.getByTestId("epic-group-header");
+    const openEpic = screen.getByTestId("open-epic-REEF-100");
+    expect(screen.getByTestId("epic-group-header")).toHaveClass(
+      "items-center",
+      "gap-2",
+      "px-1.5",
+      "py-1",
+    );
+    expect(header).toHaveTextContent("REEF-100");
+    expect(header).toHaveTextContent("Foundation Epic");
+    expect(header).toHaveTextContent("0");
+    expect(header).not.toHaveTextContent("In Progress");
+    expect(header).not.toHaveTextContent("1 of 2 done or closed");
+    const column = header.parentElement;
+    if (!column) throw new Error("Missing Epic column");
+    expect(column).toHaveAttribute(
+      "aria-label",
+      "Epic REEF-100: Foundation Epic; status In Progress; 0 visible children; 1 of 2 done or closed",
+    );
+    expect(openEpic).toHaveAccessibleName(
+      "Open Epic REEF-100: Foundation Epic",
+    );
+    expect(openEpic.querySelector("svg")).toBeInTheDocument();
+    expect(openEpic).not.toHaveTextContent("REEF-100");
+    fireEvent.keyDown(openEpic, { key: "Enter" });
+    fireEvent.click(openEpic);
+    expect(onGroupClick).toHaveBeenCalledWith("REEF-100");
+    expect(vi.mocked(useDroppable)).toHaveBeenLastCalledWith({
+      id: "epic:REEF-100",
+      data: { bucket: epicBucket() },
+      disabled: true,
+    });
+    expect(screen.getByTestId("epic-group-header")).not.toHaveTextContent(
+      "1 of 2 done or closed",
+    );
+  });
+
+  it("keeps a long Epic label on one line with a full title tooltip", () => {
+    const longTitle =
+      "A very long product outcome title that stays compact in the group header";
+    const bucket = epicBucket();
+    bucket.label = longTitle;
+    if (!bucket.epic) throw new Error("Missing Epic metadata");
+    bucket.epic = { ...bucket.epic, title: longTitle };
+
+    renderColumn({ bucket, issues: [], onGroupClick: vi.fn() });
+
+    const header = screen.getByTestId("epic-group-header");
+    const openEpic = screen.getByTestId("open-epic-REEF-100");
+    const title = header.querySelector(`span[title="${longTitle}"]`);
+    expect(openEpic).toHaveAttribute("title", longTitle);
+    expect(title).toHaveClass("truncate");
+    expect(openEpic).not.toHaveTextContent(longTitle);
+  });
+
+  it("keeps Epic child cards interactive while the group remains read-only", () => {
+    const onIssueClick = vi.fn();
+    renderColumn({
+      bucket: epicBucket(),
+      issues: [makeTestIssue("reef-001")],
+      onIssueClick,
+      dragEnabled: false,
+      readOnlyReason: "Epic groups are read-only",
+    });
+
+    expect(screen.queryByTestId("epic-group-read-only")).toBeNull();
+    expect(screen.getByTestId("epic-group-header")).not.toHaveTextContent(
+      /In Progress|1 of 2 done or closed/,
+    );
+    const card = screen.getByTestId("kanban-card");
+    expect(card).not.toHaveAttribute("data-read-only-reason");
+    expect(card).toHaveAttribute("data-drag-enabled", "false");
+    fireEvent.click(card);
+    expect(onIssueClick).toHaveBeenCalledWith("reef-001");
   });
 });

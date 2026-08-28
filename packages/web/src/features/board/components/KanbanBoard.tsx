@@ -43,6 +43,7 @@ import {
   hasScopeFilters,
 } from "@/features/issues/lib/scopeFilter";
 import {
+  buildIssueHierarchyCatalog,
   createIssueGroupDescriptor,
   type IssueGroup,
   type IssueGroupBucket,
@@ -82,7 +83,7 @@ import type {
   Status,
 } from "@reef/core";
 import { usePriorityLabels, useStatusLabels } from "@/i18n/fieldLabels";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import {
   type KeyboardEvent,
@@ -164,9 +165,11 @@ export function KanbanBoard({
     groupBy ?? (scope === "backlog" ? "priority" : "status");
   useWorkflowStatusGuard(scope === "active");
   const t = useTranslations("board");
+  const groupT = useTranslations("issues.filters");
   const backlogT = useTranslations("issues.backlog");
   const common = useTranslations("common");
   const toasts = useTranslations("toasts");
+  const locale = useLocale();
   const statusLabels = useStatusLabels();
   const priorityLabels = usePriorityLabels();
   const noMatchId = useId();
@@ -231,6 +234,10 @@ export function KanbanBoard({
   // Dependency graph: prefer the whole-vault relation projection; fall back to
   // the displayed set until it loads (or in tests without a relations mock).
   const graph = relations ?? allIssues;
+  const hierarchyCatalog = useMemo(
+    () => buildIssueHierarchyCatalog(relations, allIssues),
+    [allIssues, relations],
+  );
   // Resolve every card's blocked state once instead of letting each card
   // re-derive it from the whole graph (O(n²) → O(n)); the cards get a primitive
   // `blocked` boolean so `memo` can skip the unchanged ones. `depends_on` comes
@@ -298,9 +305,15 @@ export function KanbanBoard({
           none: t("groupNone"),
           status: statusLabels,
           priority: priorityLabels,
+          epic: {
+            none: groupT("group.noEpic"),
+            unavailableParent: groupT("group.unavailableParent"),
+          },
         },
         assigneeNames,
         sprintNames,
+        hierarchyCatalog,
+        locale,
       }),
     [
       assigneeNames,
@@ -308,6 +321,9 @@ export function KanbanBoard({
       priorityLabels,
       sprintNames,
       statusLabels,
+      groupT,
+      hierarchyCatalog,
+      locale,
       t,
     ],
   );
@@ -820,6 +836,7 @@ export function KanbanBoard({
               planningCatalog={planningCatalog}
               assignees={assignees}
               onIssueClick={openIssue}
+              onGroupClick={bucket.epic ? openIssue : undefined}
               dragEnabled={
                 scope === "active"
                   ? (bucket.droppable ||

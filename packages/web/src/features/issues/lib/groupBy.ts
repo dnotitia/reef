@@ -7,6 +7,7 @@ export const ISSUE_GROUP_BY_VALUES = [
   "priority",
   "sprint",
   "label",
+  "epic",
 ] as const;
 
 export type IssueGroupBy = (typeof ISSUE_GROUP_BY_VALUES)[number];

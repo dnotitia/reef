@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   defaultIssueGroupBy,
+  issueGroupByOptions,
   normalizeIssueGroupByParam,
   parseIssueGroupBy,
   serializeIssueGroupBy,
@@ -15,6 +16,13 @@ describe("issue group URL codec", () => {
     expect(defaultIssueGroupBy("backlog", "list")).toBe("priority");
   });
 
+  it("offers Epic grouping only on active Board and List", () => {
+    expect(issueGroupByOptions("active", "board")).toContain("epic");
+    expect(issueGroupByOptions("active", "list")).toContain("epic");
+    expect(issueGroupByOptions("backlog", "board")).not.toContain("epic");
+    expect(issueGroupByOptions("backlog", "list")).not.toContain("epic");
+  });
+
   it("normalizes invalid and Board none values to the view default", () => {
     expect(parseIssueGroupBy("priority", "active", "board")).toBe("priority");
     expect(parseIssueGroupBy("none", "active", "board")).toBe("status");
@@ -27,6 +35,14 @@ describe("issue group URL codec", () => {
     );
   });
 
+  it("normalizes Epic to the existing defaults outside Active Board/List", () => {
+    expect(parseIssueGroupBy("epic", "active", "board")).toBe("epic");
+    expect(parseIssueGroupBy("epic", "active", "list")).toBe("epic");
+    expect(parseIssueGroupBy("epic", "active", "timeline")).toBe("none");
+    expect(parseIssueGroupBy("epic", "backlog", "board")).toBe("priority");
+    expect(parseIssueGroupBy("epic", "backlog", "list")).toBe("priority");
+  });
+
   it("round-trips all supported values without a compatibility alias", () => {
     for (const value of [
       "none",
@@ -35,6 +51,7 @@ describe("issue group URL codec", () => {
       "priority",
       "sprint",
       "label",
+      "epic",
     ] as const) {
       expect(
         parseIssueGroupBy(serializeIssueGroupBy(value), "active", "list"),

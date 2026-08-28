@@ -10,6 +10,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { KanbanCard } from "./KanbanCard";
+import type { IssueGroupBucket } from "../../issues/lib/grouping";
 
 // The card reads the signed-in login to decide whether the assignee avatar is
 // "you" (brand tone). Mock it directly: KanbanCard renders without a
@@ -114,6 +115,18 @@ const planningCatalog: PlanningCatalog = {
     },
   ],
 };
+
+const epicCardBucket = {
+  groupBy: "epic",
+  id: "epic:REEF-100",
+  label: "Foundation Epic",
+  value: "REEF-100",
+  order: 0,
+  patchField: null,
+  patchValue: null,
+  multiBucket: false,
+  droppable: false,
+} satisfies IssueGroupBucket;
 
 describe("KanbanCard", () => {
   it("opens its context menu from the board keyboard menu key without opening detail", () => {
@@ -383,6 +396,63 @@ describe("KanbanCard", () => {
     expect(card).toHaveAttribute("tabindex", "0");
     fireEvent.keyDown(card, { key: "Enter" });
     expect(onClick).toHaveBeenCalledWith("reef-001");
+  });
+
+  it("keeps non-draggable child cards interactive without a group read-only state", () => {
+    const onClick = vi.fn();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <KanbanCard
+          issue={mockIssue()}
+          vault="reef-test"
+          onClick={onClick}
+          dragEnabled={false}
+        />
+      </QueryClientProvider>,
+    );
+
+    const card = screen.getByTestId("kanban-card");
+    expect(card).not.toHaveAttribute("aria-disabled");
+    fireEvent.click(card);
+    fireEvent.keyDown(card, { key: "Enter" });
+    expect(onClick).toHaveBeenCalledTimes(2);
+
+    fireEvent.keyDown(card, { key: "F10", shiftKey: true });
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+  });
+
+  it("does not expose disabled drag semantics on an Epic child card", () => {
+    vi.mocked(useSortable).mockReturnValueOnce({
+      attributes: {
+        role: "button",
+        tabIndex: 0,
+        "aria-disabled": true,
+        "aria-roledescription": "sortable",
+        "aria-describedby": "DndDescribedBy-0",
+      },
+      listeners: {},
+      setNodeRef: vi.fn(),
+      transform: null,
+      transition: undefined,
+      isDragging: false,
+      isOver: false,
+    } as unknown as ReturnType<typeof useSortable>);
+
+    render(
+      <KanbanCard
+        issue={mockIssue()}
+        bucket={epicCardBucket}
+        dragEnabled={false}
+      />,
+    );
+
+    const card = screen.getByTestId("kanban-card");
+    expect(card).not.toHaveAttribute("aria-disabled");
+    expect(card).not.toHaveAttribute("aria-roledescription");
+    expect(card).not.toHaveAttribute("aria-describedby");
   });
 
   it("marks active past-due issues as overdue", () => {

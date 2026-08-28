@@ -1,11 +1,12 @@
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
-import type { IssueRelation } from "@reef/core";
+import { IssueRelationsResponseSchema, type IssueRelation } from "@reef/core";
 import { useQuery } from "@tanstack/react-query";
 
 /**
- * The whole-vault relation projection (reef_id / status / depends_on) used for
- * blocker badges and the blocked/blocking dependency filter. Small payload, so
- * a generous staleTime. Query key `['issues', 'relations', vault]` — mutations
+ * The whole-vault compact relation projection used for blocker badges, the
+ * blocked/blocking dependency filter, and Active Epic grouping. It carries
+ * parent/title/type/rank metadata but no document body, so a generous staleTime
+ * is appropriate. Query key `['issues', 'relations', vault]` — mutations
  * invalidate the `['issues']` prefix so this refreshes alongside the list.
  */
 const issueRelationsKey = (vault: string) =>
@@ -22,8 +23,7 @@ export function useIssueRelations(vault: string) {
       if (!res.ok) {
         await throwHttpError(res, `Failed to fetch relations: ${res.status}`);
       }
-      const body = (await res.json()) as { relations: IssueRelation[] };
-      return body.relations;
+      return IssueRelationsResponseSchema.parse(await res.json()).relations;
     },
     enabled: !!vault,
   });

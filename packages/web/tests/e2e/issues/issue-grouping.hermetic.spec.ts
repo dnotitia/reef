@@ -134,6 +134,282 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
     ).toBeVisible();
   });
 
+  test("groups Active Board and List by Epic with flat children, progress, and fallbacks", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "epic_grouping");
+    await context.clearCookies();
+    await openExistingWorkspace(page);
+
+    await page.goto(`${WORKSPACE}?view=board&group=epic`);
+    const foundationColumn = page.locator(
+      '[data-group-by="epic"][data-group-value="REEF-100"]',
+    );
+    await expect(foundationColumn).toBeVisible();
+    await expect(foundationColumn).toContainText("REEF-100");
+    await expect(foundationColumn).toContainText("Platform foundation");
+    await expect(
+      foundationColumn.locator('[data-testid="epic-group-header"]'),
+    ).not.toContainText("In Progress");
+    await expect(
+      foundationColumn.locator('[data-testid="epic-group-header"]'),
+    ).not.toContainText("1 of 2 done or closed");
+    await expect(
+      foundationColumn.locator('[data-testid="kanban-card"]'),
+    ).toHaveCount(2);
+    await expect(page.getByTestId("epic-group-read-only")).toHaveCount(0);
+    await expect(
+      foundationColumn.getByTestId("open-epic-REEF-100"),
+    ).toHaveAccessibleName("Open Epic REEF-100: Platform foundation");
+    await expect(
+      foundationColumn.locator('[data-testid="kanban-card"]').first(),
+    ).not.toHaveAttribute("aria-disabled");
+    await expect(
+      foundationColumn.locator('[data-testid="kanban-card"]').first(),
+    ).not.toHaveAttribute("title", /Epic groups are read-only/);
+    await expect(
+      page.locator('[data-group-by="epic"][data-group-value="none"]'),
+    ).toContainText("No epic");
+    await expect(
+      page.locator(
+        '[data-group-by="epic"][data-group-value="unavailable-parent"]',
+      ),
+    ).toContainText("Unavailable parent");
+    await expect(
+      foundationColumn.locator('[data-testid="kanban-card"]').filter({
+        hasText: "Platform foundation",
+      }),
+    ).toHaveCount(0);
+
+    const childCard = foundationColumn
+      .locator('[data-testid="kanban-card"]')
+      .first();
+    await childCard.click();
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+
+    await page.goto(`${WORKSPACE}?view=board&group=epic`);
+    const keyboardChildCard = foundationColumn
+      .locator('[data-testid="kanban-card"]')
+      .first();
+    await keyboardChildCard.focus();
+    await expect(keyboardChildCard).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+
+    await page.goto(`${WORKSPACE}?view=board&group=epic`);
+    const actionChildCard = foundationColumn
+      .locator('[data-testid="kanban-card"]')
+      .first();
+    await actionChildCard.click({ button: "right" });
+    await expect(page.getByRole("menu")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await actionChildCard.focus();
+    await page.keyboard.press("s");
+    await expect(page.getByTestId("issue-quick-edit-status")).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    await foundationColumn.getByTestId("open-epic-REEF-100").click();
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+
+    await page.goto(`${WORKSPACE}?view=list&group=epic`);
+    const listFoundationHeader = page.locator(
+      '[data-testid="issue-group-header"][data-group-id="epic:REEF-100"]',
+    );
+    await expect(listFoundationHeader).toBeVisible();
+    await expect(page.getByTestId("epic-group-read-only")).toHaveCount(0);
+    await expect(page.getByTestId("issue-ordering-hint")).toBeVisible();
+    await expect(listFoundationHeader).toContainText("REEF-100");
+    await expect(listFoundationHeader).not.toContainText("In Progress");
+    await expect(listFoundationHeader).not.toContainText(
+      "1 of 2 done or closed",
+    );
+    await expect(
+      page.locator('[data-occurrence-key="epic:REEF-100:REEF-001"]'),
+    ).toHaveCount(1);
+    await expect(
+      page.locator('[data-testid="issue-list-row"][data-issue-id="REEF-100"]'),
+    ).toHaveCount(0);
+
+    const listToggle = listFoundationHeader.getByRole("button").first();
+    const listOpen = listFoundationHeader.getByTestId("open-epic-REEF-100");
+    await expect(listOpen).toHaveAccessibleName(
+      "Open Epic REEF-100: Platform foundation",
+    );
+    await expect(listOpen).not.toContainText("REEF-100");
+    await expect(listToggle).toHaveAccessibleName(
+      /Collapse REEF-100: Platform foundation.*REEF-100: Platform foundation · 2/,
+    );
+    await listToggle.click();
+    await expect(listToggle).toHaveAccessibleName(
+      /Expand REEF-100: Platform foundation.*REEF-100: Platform foundation · 2/,
+    );
+    await expect(listToggle).toHaveAttribute("aria-expanded", "false");
+    await expect(
+      page.locator('[data-occurrence-key="epic:REEF-100:REEF-001"]'),
+    ).toHaveCount(0);
+
+    await page.goto(`${WORKSPACE}?view=board&group=epic&type=epic`);
+    await expect(
+      page.locator('[data-group-by="epic"][data-group-value="REEF-100"]'),
+    ).toContainText("0");
+    await expect(
+      page.locator('[data-group-by="epic"][data-group-value="REEF-101"]'),
+    ).toContainText("0");
+  });
+
+  test("keeps grouped List rows and group controls inside the internal scrollport at narrow widths", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "epic_grouping");
+    await context.clearCookies();
+    await openExistingWorkspace(page);
+
+    for (const width of [320, 375, 414, 768]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto(`${WORKSPACE}?view=list&group=epic`);
+
+      const scrollport = page.getByTestId("issue-list-scroll-container");
+      const childTitle = page.locator(
+        '[data-testid="issue-list-row"][data-issue-id="REEF-001"] [data-column-key="title"] > span > span',
+      );
+      await expect(scrollport).toBeVisible();
+      await expect(childTitle).toBeVisible();
+      const geometry = await page.evaluate(() => {
+        const scroll = document.querySelector<HTMLElement>(
+          '[data-testid="issue-list-scroll-container"]',
+        );
+        const title = document.querySelector<HTMLElement>(
+          '[data-testid="issue-list-row"][data-issue-id="REEF-001"] [data-column-key="title"] > span > span',
+        );
+        if (!scroll || !title) throw new Error("Missing narrow List geometry");
+        const scrollRect = scroll.getBoundingClientRect();
+        const titleRect = title.getBoundingClientRect();
+        const groupHeaders = Array.from(
+          document.querySelectorAll<HTMLElement>(
+            '[data-testid="issue-group-header"]',
+          ),
+        ).map((header) => {
+          const content = header.querySelector<HTMLElement>(
+            ".reef-issue-list-group-header",
+          );
+          const label = header.querySelector<HTMLElement>(
+            '[data-testid="issue-group-label"]',
+          );
+          const groupTitle = header.querySelector<HTMLElement>(
+            '[data-testid="issue-group-title"]',
+          );
+          const count = header.querySelector<HTMLElement>(
+            '[data-testid="issue-group-count"]',
+          );
+          const open = header.querySelector<HTMLElement>(
+            '[data-testid^="open-epic-"]',
+          );
+          const rect = (element: HTMLElement | null) =>
+            element?.getBoundingClientRect() ?? null;
+          const contentRect = rect(content);
+          const labelRect = rect(label);
+          const groupTitleRect = rect(groupTitle);
+          const countRect = rect(count);
+          const openRect = rect(open);
+          return {
+            groupId: header.getAttribute("data-group-id"),
+            contentRight: contentRect?.right ?? null,
+            labelLeft: labelRect?.left ?? null,
+            labelRight: labelRect?.right ?? null,
+            titleRight: groupTitleRect?.right ?? null,
+            titleClientWidth: groupTitle?.clientWidth ?? null,
+            titleScrollWidth: groupTitle?.scrollWidth ?? null,
+            countLeft: countRect?.left ?? null,
+            countRight: countRect?.right ?? null,
+            openLeft: openRect?.left ?? null,
+            openRight: openRect?.right ?? null,
+          };
+        });
+        return {
+          documentWidth: document.documentElement.scrollWidth,
+          bodyWidth: document.body.scrollWidth,
+          viewportWidth: window.innerWidth,
+          scrollClientWidth: scroll.clientWidth,
+          scrollWidth: scroll.scrollWidth,
+          titleLeft: titleRect.left,
+          titleRight: titleRect.right,
+          titleWidth: titleRect.width,
+          scrollLeft: scrollRect.left,
+          scrollRight: scrollRect.right,
+          groupHeaders,
+        };
+      });
+
+      expect(geometry.documentWidth).toBeLessThanOrEqual(
+        geometry.viewportWidth,
+      );
+      expect(geometry.bodyWidth).toBeLessThanOrEqual(geometry.viewportWidth);
+      expect(geometry.scrollWidth).toBeGreaterThan(geometry.scrollClientWidth);
+      expect(geometry.titleLeft).toBeGreaterThanOrEqual(
+        geometry.scrollLeft - 1,
+      );
+      expect(geometry.titleRight).toBeLessThanOrEqual(geometry.scrollRight + 1);
+      expect(geometry.titleWidth).toBeGreaterThan(0);
+      expect(geometry.groupHeaders).toHaveLength(4);
+      for (const header of geometry.groupHeaders) {
+        if (
+          header.contentRight === null ||
+          header.labelLeft === null ||
+          header.labelRight === null ||
+          header.countLeft === null ||
+          header.countRight === null
+        ) {
+          throw new Error(`Missing geometry for ${header.groupId ?? "group"}`);
+        }
+        expect(header.contentRight).toBeLessThanOrEqual(
+          geometry.scrollRight + 1,
+        );
+        expect(header.labelLeft).toBeGreaterThanOrEqual(
+          geometry.scrollLeft - 1,
+        );
+        expect(header.labelRight).toBeLessThanOrEqual(header.countLeft + 1);
+        expect(header.countLeft).toBeGreaterThanOrEqual(
+          geometry.scrollLeft - 1,
+        );
+        expect(header.countRight).toBeLessThanOrEqual(geometry.scrollRight + 1);
+        const isRealEpic =
+          header.groupId === "epic:REEF-100" ||
+          header.groupId === "epic:REEF-101";
+        if (isRealEpic) {
+          if (
+            header.titleRight === null ||
+            header.openLeft === null ||
+            header.openRight === null
+          ) {
+            throw new Error(
+              `Missing Epic control geometry for ${header.groupId}`,
+            );
+          }
+          expect(header.titleRight).toBeLessThanOrEqual(header.countLeft + 1);
+          expect(header.openLeft).toBeGreaterThanOrEqual(
+            geometry.scrollLeft - 1,
+          );
+          expect(header.openRight).toBeLessThanOrEqual(
+            geometry.scrollRight + 1,
+          );
+        } else {
+          expect(header.openLeft).toBeNull();
+          expect(header.openRight).toBeNull();
+        }
+      }
+      const longEpicHeader = geometry.groupHeaders.find(
+        (header) => header.groupId === "epic:REEF-101",
+      );
+      expect(longEpicHeader?.titleScrollWidth).toBeGreaterThan(
+        longEpicHeader?.titleClientWidth ?? 0,
+      );
+    }
+  });
+
   test("toggles grouped List headers with native Enter and Space activation", async ({
     page,
   }) => {

@@ -592,7 +592,7 @@ Malformed, inaccessible, and Reef-unconfigured vault roots never fall back to a
 different remembered vault or overwrite the browser default.
 
 **Kanban Board.** The board presents its issue collection as buckets by Status,
-Priority, Assignee, Sprint, or Label; Status uses the five workflow columns
+Priority, Assignee, Sprint, Label, or Epic; Status uses the five workflow columns
 (Open, In Progress, In Review, Done, Closed). The grouping choice is the
 `?group=` part of the shareable workspace URL and survives reload, back/forward,
 and Board/List switches; Board defaults to Status. A short drag distance
@@ -610,9 +610,21 @@ when the board view is filtered.
 Kanban columns use the subtle surface for their group frame, while repeated issue
 cards use the card surface; cards do not use the brighter elevated surface.
 
+When grouped by Epic, each root Epic is one flat column with read-only group
+dragging. Its header shows the Epic id, full title, own status, visible
+direct-child count, and the done-or-closed count over those visible children;
+a translated note explains the relationship restriction.
+Child cards retain their existing click, keyboard detail, quick-edit, and
+context-menu actions. Root Epics are headers only, never child cards; a filtered
+parent remains available through the compact whole-workspace relation catalog.
+Issues without a parent or with a non-Epic or unsupported deeper parent use the
+localized **No epic** fallback, while a parent id absent from the catalog uses
+**Unavailable parent**. Epic columns do not accept drag-and-drop; parent
+changes continue through Issue Detail.
+
 **List.** A dense, sortable table rendering the same issues with their field
 leaves. Active defaults to no grouping, and can group by None, Status, Priority,
-Assignee, Sprint, or Label. Backlog defaults to Priority grouping. Each populated bucket has a sticky, keyboard-focusable
+Assignee, Sprint, Label, or Epic. Backlog defaults to Priority grouping. Each populated bucket has a sticky, keyboard-focusable
 header with a localized label, count, and `aria-expanded` collapse control;
 collapsed rows leave the virtual item count and header count intact while their
 DOM rows are removed. Multi-label issues occur once under each distinct label,
@@ -620,8 +632,17 @@ but selection and mutation still use the issue id. Group headers and rows share
 the existing TanStack Virtual projection, cursor loading, bounded DOM,
 selection, focus, quick-edit, sticky-column, and anchor-preservation behavior.
 Grouping is UI-local: it is not stored in Dexie or akb, while the group choice
-itself remains in the URL for sharing and navigation. Timeline ignores the
-group choice.
+itself remains in the URL for sharing and navigation. At narrow mobile widths
+the default sticky prefix compresses inside the List scrollport so child titles
+and controls remain readable without page-level horizontal overflow; optional
+columns retain the table-local scroll. Timeline ignores the group choice.
+
+Epic List headers additionally expose the root Epic id/title/status and visible
+done-or-closed progress. The Epic title action opens the existing issue detail
+route, while the separate chevron control collapses or expands its child rows;
+collapsed children are absent from the virtual model and keyboard focus order.
+An Epic-only match therefore leaves a zero-count header in place, and root Epic
+rows are never duplicated beneath that header.
 
 **Multi-select and bulk edit.** List owns multi-select because its leading
 checkbox column and field-comparison layout fit batch work. Rows expose compact

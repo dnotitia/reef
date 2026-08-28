@@ -25,8 +25,9 @@ const dndHarness = vi.hoisted(() => ({
     | undefined,
   pointerWithin: vi.fn(),
 }));
+const routerPush = vi.hoisted(() => vi.fn());
 
-export { dndHarness };
+export { dndHarness, routerPush };
 
 vi.mock("@/lib/apiClient", async () => {
   const actual =
@@ -35,7 +36,7 @@ vi.mock("@/lib/apiClient", async () => {
 });
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: routerPush }),
   useSearchParams: () => new URLSearchParams(),
   useParams: () => ({ vault: "reef-acme" }),
 }));

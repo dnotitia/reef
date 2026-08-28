@@ -1676,6 +1676,51 @@ hr {
  * visible scrollport. Active rows raise that cell above the opaque sticky
  * title layer; otherwise the title background paints over the teal border. */
 
+/* Group headers live in table cells whose intrinsic width follows the table's
+ * horizontal scroll content. Give only their content the visible List
+ * scrollport width so the label yields to the count and open control. */
+[data-testid="issue-list-scroll-container"] {
+  container-type: inline-size;
+}
+
+.reef-issue-list-group-header {
+  width: min(100%, 100cqi);
+}
+
+/* At true narrow mobile widths the default List and an already-expanded List
+ * share the same readable sticky prefix. Optional columns still own the
+ * horizontal overflow, but they must not leave the title behind the viewport
+ * edge. The 481–767px gap intentionally preserves the effective-200% layout
+ * used by the existing sticky-boundary contract. */
+@media (max-width: 480px) {
+  .reef-issue-list-table {
+    min-width: 0 !important;
+  }
+
+  .reef-issue-list-table [data-column-key="select"] {
+    width: 32px !important;
+    left: 0 !important;
+  }
+
+  .reef-issue-list-table [data-column-key="id"] {
+    width: 64px !important;
+    left: 32px !important;
+  }
+
+  .reef-issue-list-table [data-column-key="type"] {
+    width: 56px !important;
+    left: 96px !important;
+  }
+
+  .reef-issue-list-table [data-column-key="title"] {
+    /* The 244px subtraction accounts for the mobile rail, PageBody inset,
+     * sticky prefix, and the title cell's leading padding. */
+    width: clamp(76px, calc(100vw - 244px), 144px) !important;
+    min-width: clamp(76px, calc(100vw - 244px), 144px) !important;
+    left: 152px !important;
+  }
+}
+
 /* The expanded desktop shell leaves 704px for the issue content at 992px.
  * Keep the fresh default List preset fully visible in that narrow desktop
  * content column; optional planning columns opt back into the table-local
@@ -1697,22 +1742,26 @@ hr {
   .reef-issue-list-table:not(.reef-issue-list-table-expanded)
     [data-column-key="select"] {
     width: 32px !important;
+    left: 0 !important;
   }
 
   .reef-issue-list-table:not(.reef-issue-list-table-expanded)
     [data-column-key="id"] {
     width: 64px !important;
+    left: 32px !important;
   }
 
   .reef-issue-list-table:not(.reef-issue-list-table-expanded)
     [data-column-key="type"] {
     width: 56px !important;
+    left: 96px !important;
   }
 
   .reef-issue-list-table:not(.reef-issue-list-table-expanded)
     [data-column-key="title"] {
     width: 144px !important;
     min-width: 144px !important;
+    left: 152px !important;
   }
 
   .reef-issue-list-table:not(.reef-issue-list-table-expanded)
@@ -1737,23 +1786,34 @@ hr {
     width: 72px !important;
   }
 
-  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+  /* Expanded tables at the 768–1311px content-width breakpoint keep their
+   * optional columns' intrinsic widths, but their sticky prefix still needs to
+   * fit the visible List scrollport. */
+  .reef-issue-list-table.reef-issue-list-table-expanded {
+    min-width: 0 !important;
+  }
+
+  .reef-issue-list-table.reef-issue-list-table-expanded
     [data-column-key="select"] {
+    width: 32px !important;
     left: 0 !important;
   }
 
-  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
-    [data-column-key="id"] {
+  .reef-issue-list-table.reef-issue-list-table-expanded [data-column-key="id"] {
+    width: 64px !important;
     left: 32px !important;
   }
 
-  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+  .reef-issue-list-table.reef-issue-list-table-expanded
     [data-column-key="type"] {
+    width: 56px !important;
     left: 96px !important;
   }
 
-  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+  .reef-issue-list-table.reef-issue-list-table-expanded
     [data-column-key="title"] {
+    width: 144px !important;
+    min-width: 144px !important;
     left: 152px !important;
   }
 }

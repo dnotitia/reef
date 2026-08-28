@@ -303,6 +303,12 @@ export const KanbanCard = memo(function KanbanCard({
     data: { issue, occurrenceKey, bucket },
     disabled: !dragEnabled,
   });
+  // Epic grouping disables relationship drag at the column/drop-target seam,
+  // but its child cards remain ordinary interactive issue surfaces. Omit the
+  // sortable ARIA attributes/listeners so dnd-kit's disabled drag state does
+  // not make an otherwise clickable card announce as disabled.
+  const sortableAttributes = bucket?.groupBy === "epic" ? {} : attributes;
+  const sortableListeners = bucket?.groupBy === "epic" ? {} : listeners;
   // Save-confirm flash: one-shot highlight when this card's edit lands
   // server-side. the flashing card re-renders; the hook auto-clears the
   // flag after the flash window so a later save can flash it again.
@@ -370,8 +376,8 @@ export const KanbanCard = memo(function KanbanCard({
     <KanbanCardSurface
       ref={setCardRef}
       style={style}
-      {...listeners}
-      {...attributes}
+      {...sortableListeners}
+      {...sortableAttributes}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       onFocus={() =>

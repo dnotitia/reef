@@ -1,6 +1,14 @@
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import type { IssueMetadata, IssueRelation } from "@reef/core";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
@@ -10,6 +18,7 @@ import {
   dndHarness,
   mockApiFetch,
   resetKanbanBoardMocks,
+  routerPush,
   wrap,
 } from "./KanbanBoard.testSupport";
 
@@ -48,6 +57,132 @@ describe("KanbanBoard filtering and rendering", () => {
     render(wrap(<KanbanBoard vault="reef-acme" />));
     expect(await screen.findByText("Open A")).toBeInTheDocument();
     expect(await screen.findByText("In progress B")).toBeInTheDocument();
+  });
+
+  it("renders flat read-only Epic columns with parent metadata and fallbacks", async () => {
+    const epicIssues: IssueMetadata[] = [
+      {
+        ...ISSUES[0],
+        id: "REEF-100",
+        title: "Foundation Epic",
+        status: "in_progress",
+        issue_type: "epic",
+        rank: 1,
+      },
+      {
+        ...ISSUES[1],
+        id: "REEF-101",
+        title: "Empty Epic",
+        status: "todo",
+        issue_type: "epic",
+        rank: 2,
+      },
+      {
+        ...ISSUES[0],
+        id: "REEF-001",
+        title: "Completed foundation work",
+        status: "done",
+        issue_type: "story",
+        parent_id: "REEF-100",
+        rank: 3,
+      },
+      {
+        ...ISSUES[1],
+        id: "REEF-002",
+        title: "Open foundation work",
+        status: "todo",
+        issue_type: "task",
+        parent_id: "REEF-100",
+        rank: 4,
+      },
+      {
+        ...ISSUES[0],
+        id: "REEF-003",
+        title: "Independent work",
+        status: "todo",
+        issue_type: "task",
+        rank: 5,
+      },
+      {
+        ...ISSUES[1],
+        id: "REEF-004",
+        title: "Missing parent work",
+        status: "todo",
+        issue_type: "task",
+        parent_id: "REEF-999",
+        rank: 6,
+      },
+    ];
+    const hierarchy: IssueRelation[] = epicIssues.map((issue) => ({
+      id: issue.id,
+      title: issue.title,
+      status: issue.status,
+      issue_type: issue.issue_type ?? "task",
+      parent_id: issue.parent_id ?? null,
+      rank: issue.rank ?? null,
+      depends_on: issue.depends_on ?? [],
+    }));
+    mockApiFetch.mockImplementation(async (url) => {
+      if (String(url).startsWith("/api/users/search")) {
+        return new Response(JSON.stringify({ users: [] }), { status: 200 });
+      }
+      if (String(url).startsWith("/api/issues/relations")) {
+        return new Response(JSON.stringify({ relations: hierarchy }), {
+          status: 200,
+        });
+      }
+      return new Response(JSON.stringify({ issues: epicIssues }), {
+        status: 200,
+      });
+    });
+
+    render(wrap(<KanbanBoard vault="reef-acme" groupBy="epic" />));
+
+    expect(
+      await screen.findByText("Completed foundation work"),
+    ).toBeInTheDocument();
+    expect(screen.getAllByTestId("epic-group-header")).toHaveLength(2);
+    expect(screen.getByText("REEF-100")).toBeInTheDocument();
+    expect(screen.getByText("Foundation Epic")).toBeInTheDocument();
+    for (const header of screen.getAllByTestId("epic-group-header")) {
+      expect(header).not.toHaveTextContent("In Progress");
+      expect(header).not.toHaveTextContent("1 of 2 done or closed");
+    }
+    expect(screen.getByText("Empty Epic")).toBeInTheDocument();
+    expect(screen.getByText("No epic")).toBeInTheDocument();
+    expect(screen.getByText("Unavailable parent")).toBeInTheDocument();
+    expect(screen.getAllByTestId("kanban-card")).toHaveLength(4);
+    expect(
+      screen.queryByText("Foundation Epic", { selector: "h4" }),
+    ).toBeNull();
+    expect(screen.queryByTestId("epic-group-read-only")).toBeNull();
+    expect(document.querySelectorAll('[data-group-by="epic"]')).toHaveLength(4);
+    expect(screen.getAllByTestId("epic-group-header")).toHaveLength(2);
+    for (const column of document.querySelectorAll('[data-group-by="epic"]')) {
+      expect(column).not.toHaveAttribute("aria-describedby");
+    }
+    for (const card of screen.getAllByTestId("kanban-card")) {
+      expect(card).not.toHaveAttribute("aria-disabled");
+      expect(card).not.toHaveAttribute(
+        "title",
+        "Epic groups are read-only. Change the parent from the issue details.",
+      );
+    }
+
+    const user = userEvent.setup();
+    const childCard = screen
+      .getAllByTestId("kanban-card")
+      .find((card) => card.textContent?.includes("Completed foundation work"));
+    if (!childCard) throw new Error("Missing Epic child card");
+    await user.click(childCard);
+    expect(routerPush).toHaveBeenCalledWith(
+      "/workspace/reef-acme/issues/REEF-001",
+    );
+    routerPush.mockClear();
+    fireEvent.keyDown(childCard, { key: "Enter" });
+    expect(routerPush).toHaveBeenCalledWith(
+      "/workspace/reef-acme/issues/REEF-001",
+    );
   });
 
   it("registers only rendered workflow cards for board keyboard focus", async () => {
