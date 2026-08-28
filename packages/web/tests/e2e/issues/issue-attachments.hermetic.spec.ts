@@ -10,6 +10,8 @@ const NOTE_BYTES = Buffer.from("download me", "utf8");
 const INLINE_TEXT_BEFORE =
   "Inline image proof: text before the uploaded image.";
 const INLINE_TEXT_AFTER = "Inline image proof: text after the uploaded image.";
+const SPECIAL_IMAGE_FILE_NAME = "reef'\\한글😀.png";
+const SPECIAL_IMAGE_MARKDOWN = `![${SPECIAL_IMAGE_FILE_NAME}](akb://reef-e2e/issues/reef-001/attachments/file/file-1)`;
 
 async function pasteFile(
   page: Page,
@@ -148,5 +150,111 @@ test.describe("Hermetic issue attachments (REEF-349)", () => {
     await page.locator('[data-testid="markdown-editor"]').screenshot({
       path: "test-results/reef-401-toolbar-attachment-live-proof.png",
     });
+  });
+
+  test("renders and reloads an uploaded image with a special filename", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues/REEF-001");
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+
+    const attachButton = page.getByTitle("Attach file");
+    const chooserPromise = page.waitForEvent("filechooser");
+    await attachButton.click();
+    const chooser = await chooserPromise;
+    await chooser.setFiles({
+      name: SPECIAL_IMAGE_FILE_NAME,
+      mimeType: "image/png",
+      buffer: INLINE_PNG,
+    });
+
+    await page.locator('[data-testid="markdown-source-toggle"] button').click();
+    const source = page.locator('[data-testid="markdown-source-textarea"]');
+    await expect
+      .poll(() => source.inputValue())
+      .toContain(SPECIAL_IMAGE_MARKDOWN);
+    const saveResponse = page.waitForResponse((response) => {
+      const request = response.request();
+      if (
+        new URL(response.url()).pathname !== "/api/issues/REEF-001" ||
+        request.method() !== "PATCH"
+      ) {
+        return false;
+      }
+      const body = request.postDataJSON() as {
+        update?: { content?: unknown };
+      };
+      return (
+        typeof body.update?.content === "string" &&
+        body.update.content.includes(SPECIAL_IMAGE_MARKDOWN)
+      );
+    });
+    await page.getByTestId("issue-title-input").click();
+    const persistedResponse = await saveResponse;
+    expect(
+      persistedResponse.ok(),
+      `body save failed with ${persistedResponse.status()}`,
+    ).toBeTruthy();
+    await page.locator('[data-testid="markdown-source-toggle"] button').click();
+
+    const image = page.getByRole("img", { name: SPECIAL_IMAGE_FILE_NAME });
+    await expect(image).toBeVisible();
+    await expect
+      .poll(() =>
+        image.evaluate(
+          (element) =>
+            element instanceof HTMLImageElement &&
+            element.complete &&
+            element.naturalWidth > 0,
+        ),
+      )
+      .toBe(true);
+    await expect(image).toHaveAttribute(
+      "src",
+      /\/api\/issues\/REEF-001\/attachments\/file/,
+    );
+
+    const imageSrc = await image.getAttribute("src");
+    if (!imageSrc) throw new Error("Special-name image is missing a src");
+    const imageResponse = await page.request.get(
+      new URL(imageSrc, page.url()).toString(),
+    );
+    expect(imageResponse.status()).toBe(200);
+    expect(imageResponse.headers()["content-type"]).toContain("image/png");
+    expect(await imageResponse.body()).toEqual(INLINE_PNG);
+
+    await page.reload();
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+    await page.locator('[data-testid="markdown-source-toggle"] button').click();
+    const reloadedSource = page.locator(
+      '[data-testid="markdown-source-textarea"]',
+    );
+    await expect
+      .poll(() => reloadedSource.inputValue())
+      .toContain(SPECIAL_IMAGE_MARKDOWN);
+    await page.locator('[data-testid="markdown-source-toggle"] button').click();
+    const reloadedImage = page.getByRole("img", {
+      name: SPECIAL_IMAGE_FILE_NAME,
+    });
+    await expect(reloadedImage).toBeVisible();
+    await expect
+      .poll(() =>
+        reloadedImage.evaluate(
+          (element) =>
+            element instanceof HTMLImageElement &&
+            element.complete &&
+            element.naturalWidth > 0,
+        ),
+      )
+      .toBe(true);
+    const reloadedSrc = await reloadedImage.getAttribute("src");
+    if (!reloadedSrc) throw new Error("Reloaded special-name image has no src");
+    const reloadedResponse = await page.request.get(
+      new URL(reloadedSrc, page.url()).toString(),
+    );
+    expect(reloadedResponse.status()).toBe(200);
+    expect(reloadedResponse.headers()["content-type"]).toContain("image/png");
+    expect(await reloadedResponse.body()).toEqual(INLINE_PNG);
   });
 });
