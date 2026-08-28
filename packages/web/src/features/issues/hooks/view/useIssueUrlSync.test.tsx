@@ -2,6 +2,9 @@
 // persisted filter from the Dexie config store.
 import "fake-indexeddb/auto";
 
+import { MyViewControl } from "@/features/issues/components/filters/MyViewControl";
+import { SearchBar } from "@/features/issues/components/filters/SearchBar";
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { setPersistedIssueFilter } from "@/lib/storage/config";
 import { db } from "@/lib/storage/db";
 import type { MyViewSnapshot } from "@reef/core";
@@ -50,6 +53,10 @@ vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   }),
 }));
 
+vi.mock("@/features/auth/hooks/useCurrentUserLogin", () => ({
+  useCurrentUserLogin: () => "alice",
+}));
+
 function Harness() {
   const { groupBy, setGroupBy, applyMyViewSnapshot } = useIssueUrlSync();
   const setFilter = useIssueStore((state) => state.setFilter);
@@ -85,6 +92,23 @@ function Harness() {
   );
 }
 
+function MyViewHarness() {
+  const { listOptionalColumns, applyMyViewSnapshot } = useIssueUrlSync();
+
+  return (
+    <IntlTestProvider locale="en">
+      <SearchBar />
+      <MyViewControl
+        scope="active"
+        layout="list"
+        groupBy="none"
+        listOptionalColumns={listOptionalColumns}
+        onApplySnapshot={applyMyViewSnapshot}
+      />
+    </IntlTestProvider>
+  );
+}
+
 describe("useIssueUrlSync", () => {
   beforeEach(async () => {
     mockPush.mockClear();
@@ -96,6 +120,7 @@ describe("useIssueUrlSync", () => {
       filter: {},
       filterVault: null,
       searchQuery: "",
+      searchQueryResetToken: 0,
       selectedIssueId: null,
       listOptionalColumns: [],
     });
@@ -407,6 +432,44 @@ describe("useIssueUrlSync", () => {
       "start",
       "release",
     ]);
+  });
+
+  it("clears a debounced SearchBar query when applying a saved My View", async () => {
+    const user = userEvent.setup();
+    render(<MyViewHarness />);
+
+    await waitFor(() =>
+      expect(useIssueStore.getState().filterVault).toBe("reef-acme"),
+    );
+    await user.click(screen.getByTestId("my-view-trigger"));
+    await user.click(
+      screen.getByRole("menuitem", { name: "Save current view…" }),
+    );
+    await user.type(screen.getByTestId("my-view-name-input"), "Triage");
+    await user.click(screen.getByRole("button", { name: /^Save$/ }));
+    await waitFor(() =>
+      expect(screen.getByTestId("my-view-trigger")).toHaveAttribute(
+        "aria-label",
+        expect.stringContaining("Triage"),
+      ),
+    );
+
+    fireEvent.change(screen.getByTestId("search-input"), {
+      target: { value: "temporary" },
+    });
+    expect(screen.getByTestId("search-input")).toHaveValue("temporary");
+
+    await user.click(screen.getByTestId("my-view-trigger"));
+    await user.click(screen.getByRole("menuitem", { name: /^Triage/ }));
+
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    await waitFor(() =>
+      expect(navigationState.searchParams.has("q")).toBe(false),
+    );
+    expect(useIssueStore.getState().searchQuery).toBe("");
+    await waitFor(() =>
+      expect(screen.getByTestId("search-input")).toHaveValue(""),
+    );
   });
 
   it("restores List optional columns from an explicit URL", async () => {

@@ -69,6 +69,8 @@ interface IssueState {
    */
   filterVault: string | null;
   searchQuery: string;
+  /** Monotonic signal for resetting a debounced input when its value is unchanged. */
+  searchQueryResetToken: number;
   selectedIssueId: string | null;
   listOptionalColumns: readonly MyViewListColumn[];
   setFilter: (filter: Partial<IssueFilter>) => void;
@@ -109,6 +111,7 @@ export const useIssueStore = create<IssueState>((set) => ({
   filter: {},
   filterVault: null,
   searchQuery: "",
+  searchQueryResetToken: 0,
   selectedIssueId: null,
   listOptionalColumns: [],
 

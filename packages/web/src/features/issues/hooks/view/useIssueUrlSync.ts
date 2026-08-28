@@ -637,12 +637,13 @@ export function useIssueUrlSync(): {
       // intermediate URL built from the previous workspace axes.
       skipNextWrite.current = true;
       pendingExplicitUrl.current = normalizeParams(query);
-      useIssueStore.setState({
+      useIssueStore.setState((state) => ({
         filter: applied.filter,
         searchQuery: "",
+        searchQueryResetToken: state.searchQueryResetToken + 1,
         filterVault: vault,
         listOptionalColumns: applied.listOptionalColumns ?? [],
-      });
+      }));
       lastUrlQuery.current = normalizeParams(query);
       router.push(`${pathname}${query ? `?${query}` : ""}`, {
         scroll: false,
