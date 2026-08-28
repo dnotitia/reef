@@ -1,6 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { SchemaValidationError } from "../../../errors";
-import { rowToIssue } from "./issueRows";
+import { makeSqlQueryResponse } from "../core/sqlTestSupport";
+import {
+  makeAdapter,
+  sqlRequestBody,
+  setupFetch,
+} from "../core/httpTestSupport";
+import { hydrateIssuesByDocumentUri, rowToIssue } from "./issueRows";
 
 // A minimal, schema-valid `reef_issues` row as akb's SQL endpoint returns it:
 // `meta` is a decoded object (not JSON text) and the semantic actors live under
@@ -128,5 +134,88 @@ describe("rowToIssue meta-ref resilience", () => {
     expect(() => rowToIssue({ ...validRow(), status: "nope" })).toThrow(
       SchemaValidationError,
     );
+  });
+});
+
+function hydrationRow(
+  documentUri: string,
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    ...validRow(),
+    document_uri: documentUri,
+    ...overrides,
+  };
+}
+
+describe("hydrateIssuesByDocumentUri", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("deduplicates URIs and binds them in SQL parameter order", async () => {
+    const firstUri = "akb://reef/coll/issues/doc/first-'한글😀.md";
+    const missingUri = "akb://reef/coll/issues/doc/missing.md";
+    const { calls } = setupFetch([
+      {
+        body: makeSqlQueryResponse([hydrationRow(firstUri)], ["document_uri"]),
+      },
+    ]);
+
+    const issues = await hydrateIssuesByDocumentUri(
+      // The duplicate must not become a duplicate SQL value or map entry.
+      makeAdapter(),
+      "reef",
+      [firstUri, firstUri, missingUri],
+    );
+
+    expect([...issues.keys()]).toEqual([firstUri]);
+    const request = sqlRequestBody(calls[0]);
+    expect(request.sql).toBe(
+      "SELECT * FROM reef_issues WHERE document_uri IN ($1, $2)",
+    );
+    expect(request.params).toEqual([firstUri, missingUri]);
+    expect(request.sql).not.toContain(firstUri);
+  });
+
+  it("skips missing, archived, and malformed rows independently", async () => {
+    const visibleUri = "akb://reef/coll/issues/doc/visible.md";
+    const archivedUri = "akb://reef/coll/issues/doc/archived.md";
+    const malformedUri = "akb://reef/coll/issues/doc/malformed.md";
+    setupFetch([
+      {
+        body: makeSqlQueryResponse(
+          [
+            hydrationRow(archivedUri, {
+              archived_at: "2026-07-03T00:00:00.000Z",
+            }),
+            hydrationRow(malformedUri, { status: "invalid" }),
+            hydrationRow(visibleUri),
+          ],
+          ["document_uri"],
+        ),
+      },
+    ]);
+
+    const issues = await hydrateIssuesByDocumentUri(makeAdapter(), "reef", [
+      "akb://reef/coll/issues/doc/missing.md",
+      archivedUri,
+      malformedUri,
+      visibleUri,
+    ]);
+
+    expect([...issues.keys()]).toEqual([visibleUri]);
+    expect(issues.get(visibleUri)?.id).toBe("CODE-100");
+  });
+
+  it("rejects a NUL URI before making the SQL request", async () => {
+    const { calls } = setupFetch([]);
+
+    await expect(
+      hydrateIssuesByDocumentUri(makeAdapter(), "reef", [
+        "akb://reef/coll/issues/doc/bad\0uri.md",
+      ]),
+    ).rejects.toBeInstanceOf(SchemaValidationError);
+    expect(calls).toHaveLength(0);
   });
 });

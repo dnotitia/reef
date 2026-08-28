@@ -294,6 +294,7 @@ export {
   reconcileJiraChangelogActivityEvents as akbReconcileJiraChangelogActivityEvents,
   type ActivityEventInput,
   searchDocuments as akbSearchDocuments,
+  hydrateIssuesByDocumentUri as akbHydrateIssuesByDocumentUri,
   quoteText as akbQuoteText,
   rowToIssue as akbRowToIssue,
   selectIssueRows as akbSelectIssueRows,
