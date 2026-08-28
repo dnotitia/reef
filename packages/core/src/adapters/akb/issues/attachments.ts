@@ -118,41 +118,34 @@ interface AttachmentSqlInput {
   meta: Record<string, unknown> | null;
 }
 
-const ATTACHMENT_COLUMNS = [
-  "reef_id",
-  "file_uri",
-  "filename",
-  "mime_type",
-  "size_bytes",
-  "author",
-  "source",
-  "inline",
-  "original_jira_attachment_id",
-  "meta",
-] as const;
-
-function attachmentSqlValues(
+function attachmentSqlFields(
   params: SqlParameterBuilder,
   input: AttachmentSqlInput,
-): string[] {
+): Array<[string, string]> {
   return [
-    params.add(input.reefId, "attachment reef_id"),
-    params.add(input.fileUri, "attachment file_uri"),
-    params.add(input.filename, "attachment filename"),
-    params.add(input.mimeType, "attachment mime_type"),
-    params.add(input.sizeBytes, "attachment size_bytes"),
-    params.add(input.author, "attachment author"),
-    params.add(input.source, "attachment source"),
-    params.add(input.inline, "attachment inline"),
-    params.add(
-      input.originalJiraAttachmentId,
-      "attachment original_jira_attachment_id",
-    ),
-    params.addJson(
-      { ...(input.meta ?? {}), created_at: input.createdAt },
-      "attachment meta",
-      "jsonb",
-    ),
+    ["reef_id", params.add(input.reefId, "attachment reef_id")],
+    ["file_uri", params.add(input.fileUri, "attachment file_uri")],
+    ["filename", params.add(input.filename, "attachment filename")],
+    ["mime_type", params.add(input.mimeType, "attachment mime_type")],
+    ["size_bytes", params.add(input.sizeBytes, "attachment size_bytes")],
+    ["author", params.add(input.author, "attachment author")],
+    ["source", params.add(input.source, "attachment source")],
+    ["inline", params.add(input.inline, "attachment inline")],
+    [
+      "original_jira_attachment_id",
+      params.add(
+        input.originalJiraAttachmentId,
+        "attachment original_jira_attachment_id",
+      ),
+    ],
+    [
+      "meta",
+      params.addJson(
+        { ...(input.meta ?? {}), created_at: input.createdAt },
+        "attachment meta",
+        "jsonb",
+      ),
+    ],
   ];
 }
 
@@ -166,7 +159,7 @@ function jiraIdempotencyKey(
 /** Validate every attachment value before the first AKB request. */
 function validateAttachmentSqlInput(input: AttachmentSqlInput): void {
   const params = new SqlParameterBuilder();
-  attachmentSqlValues(params, input);
+  attachmentSqlFields(params, input);
   const idempotencyKey = jiraIdempotencyKey(input.meta);
   if (idempotencyKey) {
     params.add(idempotencyKey, "attachment idempotency key");
@@ -213,8 +206,9 @@ async function insertAttachmentRow(
     createdAt: input.created_at,
     meta: input.meta ?? null,
   };
-  const columns = ATTACHMENT_COLUMNS.map(quoteIdent).join(", ");
-  const values = attachmentSqlValues(sqlParams, sqlInput).join(", ");
+  const fields = attachmentSqlFields(sqlParams, sqlInput);
+  const columns = fields.map(([column]) => quoteIdent(column)).join(", ");
+  const values = fields.map(([, value]) => value).join(", ");
   const idempotencyKey = jiraIdempotencyKey(sqlInput.meta);
   const idempotencyKeyParam = !idempotencyKey
     ? null
