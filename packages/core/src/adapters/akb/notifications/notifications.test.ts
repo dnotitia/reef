@@ -19,6 +19,7 @@ import {
 import {
   makeAdapter,
   makeSqlQueryResponse,
+  sqlRequestBody,
   setupFetch,
 } from "../core/akb.testSupport";
 
@@ -105,9 +106,105 @@ describe("notification adapter", () => {
       akbCreateNotification(adapter, "reef-sample", input),
     ).rejects.toBeInstanceOf(ConflictError);
 
-    const sql = JSON.parse(String(calls[0]?.init?.body)).sql as string;
-    expect(sql).toContain("ON CONFLICT (notification_key) DO UPDATE");
-    expect(sql).not.toContain("jwt.example.token");
+    const request = sqlRequestBody(calls[0]);
+    expect(request.sql).toContain("ON CONFLICT (notification_key) DO UPDATE");
+    expect(request.sql).toContain(
+      "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'unread', NULL, NULL, $9::jsonb, NULL)",
+    );
+    expect(request.params).toEqual([
+      buildNotificationKey({
+        recipient: input.recipient,
+        sourceType: input.sourceType,
+        sourceRef: input.sourceRef,
+      }),
+      input.recipient,
+      input.reefId,
+      input.sourceType,
+      input.sourceRef,
+      input.eventType,
+      input.actor,
+      input.occurredAt,
+      JSON.stringify(input.payload),
+    ]);
+    expect(request.sql).not.toContain(input.recipient);
+    expect(request.sql).not.toContain(input.reefId);
+    expect(request.sql).not.toContain(input.sourceRef);
+    expect(request.sql).not.toContain("jwt.example.token");
+  });
+
+  it("round-trips special scalar values and ordered JSON parameters", async () => {
+    const input = {
+      recipient: "kim'\\한글😀",
+      reefId: "REEF-'1",
+      sourceType: "issue_activity",
+      sourceRef: "status:'1\\\\",
+      eventType: "status_change",
+      actor: "lee'\\한글😀",
+      occurredAt: "2026-07-28T00:00:00.000Z",
+      payload: {
+        text: "it's \\\\ 한글😀",
+        nested: { enabled: true, count: 2, empty: null },
+      },
+      meta: { source: "manual'\\", nested: { issue: "REEF-'1" } },
+    };
+    const notificationKey = buildNotificationKey({
+      recipient: input.recipient,
+      sourceType: input.sourceType,
+      sourceRef: input.sourceRef,
+    });
+    const { calls } = setupFetch([
+      {
+        body: makeSqlQueryResponse(
+          [
+            notificationRow({
+              notification_key: notificationKey,
+              recipient: input.recipient,
+              reef_id: input.reefId,
+              source_ref: input.sourceRef,
+              actor: input.actor,
+              payload: JSON.stringify(input.payload),
+              meta: JSON.stringify(input.meta),
+            }),
+          ],
+          ["id"],
+        ),
+      },
+    ]);
+
+    await expect(
+      akbCreateNotification(makeAdapter(), "reef-sample", input),
+    ).resolves.toMatchObject({
+      notification_key: notificationKey,
+      recipient: input.recipient,
+      payload: input.payload,
+      meta: input.meta,
+    });
+
+    const request = sqlRequestBody(calls[0]);
+    expect(request.sql).toContain(
+      "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'unread', NULL, NULL, $9::jsonb, $10::jsonb)",
+    );
+    expect(request.params).toEqual([
+      notificationKey,
+      input.recipient,
+      input.reefId,
+      input.sourceType,
+      input.sourceRef,
+      input.eventType,
+      input.actor,
+      input.occurredAt,
+      JSON.stringify(input.payload),
+      JSON.stringify(input.meta),
+    ]);
+    for (const value of [
+      notificationKey,
+      input.recipient,
+      input.reefId,
+      input.sourceRef,
+      input.actor,
+    ]) {
+      expect(request.sql).not.toContain(value);
+    }
   });
 
   it("scopes, bounds, and stably sorts notification lists", async () => {
@@ -138,10 +235,15 @@ describe("notification adapter", () => {
     );
 
     expect(notifications.map((item) => item.id)).toEqual([SECOND_ID, FIRST_ID]);
-    const sql = JSON.parse(String(calls[0]?.init?.body)).sql as string;
-    expect(sql).toContain("recipient = 'kim'");
-    expect(sql).toContain("state = 'unread'");
-    expect(sql).toContain("ORDER BY occurred_at DESC, id DESC LIMIT 2");
+    const request = sqlRequestBody(calls[0]);
+    expect(request.sql).toContain("recipient = $1");
+    expect(request.sql).toContain("state = $2");
+    expect(request.sql).toContain(
+      "ORDER BY occurred_at DESC, id DESC LIMIT $3",
+    );
+    expect(request.params).toEqual(["kim", "unread", 2]);
+    expect(request.sql).not.toContain("kim");
+    expect(request.sql).not.toContain("unread");
   });
 
   it("normalizes state timestamps and never mutates another recipient", async () => {
@@ -179,10 +281,18 @@ describe("notification adapter", () => {
       }),
     ).rejects.toBeInstanceOf(NotFoundError);
 
-    const sql = JSON.parse(String(calls[0]?.init?.body)).sql as string;
-    expect(sql).toContain("read_at = COALESCE(read_at");
-    expect(sql).toContain("archived_at = COALESCE(archived_at");
-    expect(sql).toContain("recipient = 'kim'");
+    const request = sqlRequestBody(calls[0]);
+    expect(request.sql).toContain("read_at = COALESCE(read_at, $2)");
+    expect(request.sql).toContain("archived_at = COALESCE(archived_at, $2)");
+    expect(request.sql).toContain("recipient = $4");
+    expect(request.params).toEqual([
+      "archived",
+      "2026-07-29T00:00:00.000Z",
+      notificationKey,
+      "kim",
+    ]);
+    expect(request.sql).not.toContain(notificationKey);
+    expect(request.sql).not.toContain("kim");
   });
 
   it("rejects invalid input before any AKB request", async () => {
@@ -193,6 +303,58 @@ describe("notification adapter", () => {
         limit: 101,
       }),
     ).rejects.toBeInstanceOf(SchemaValidationError);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("rejects NUL and unserializable JSON before any AKB request", async () => {
+    const { calls } = setupFetch([]);
+    const adapter = makeAdapter();
+    const baseInput = {
+      reefId: "REEF-1",
+      sourceType: "issue_activity",
+      sourceRef: "status:1",
+      eventType: "status_change",
+      actor: "lee",
+      occurredAt: "2026-07-28T00:00:00.000Z",
+    };
+
+    await expect(
+      akbCreateNotification(adapter, "reef-sample", {
+        ...baseInput,
+        recipient: "bad\0recipient",
+      }),
+    ).rejects.toBeInstanceOf(SchemaValidationError);
+    await expect(
+      akbCreateNotification(adapter, "reef-sample", {
+        ...baseInput,
+        recipient: "kim",
+        payload: { nested: { value: "bad\0value" } },
+      }),
+    ).rejects.toBeInstanceOf(SchemaValidationError);
+    await expect(
+      akbCreateNotification(adapter, "reef-sample", {
+        ...baseInput,
+        recipient: "kim",
+        payload: { nested: { value: 1n } },
+      }),
+    ).rejects.toBeInstanceOf(SchemaValidationError);
+    await expect(
+      akbUpsertSubscription(adapter, "reef-sample", {
+        reefId: "REEF-1",
+        subscriber: "kim",
+        source: "manual",
+        meta: { nested: { value: "bad\0value" } },
+      }),
+    ).rejects.toBeInstanceOf(SchemaValidationError);
+    await expect(
+      akbUpsertSubscription(adapter, "reef-sample", {
+        reefId: "REEF-1",
+        subscriber: "kim",
+        source: "manual",
+        meta: { nested: { value: 1n } },
+      }),
+    ).rejects.toBeInstanceOf(SchemaValidationError);
+
     expect(calls).toHaveLength(0);
   });
 
@@ -254,9 +416,29 @@ describe("subscription adapter", () => {
       subscriber: "kim",
     });
 
-    const deleteSql = JSON.parse(String(calls[1]?.init?.body)).sql as string;
-    expect(deleteSql).toContain("source = 'manual'");
-    expect(deleteSql).toContain("subscriber = 'kim'");
+    const upsertRequest = sqlRequestBody(calls[0]);
+    expect(upsertRequest.sql).toContain(
+      "VALUES ($1, $2, $3, $4, $5, $6, NULL)",
+    );
+    expect(upsertRequest.params).toEqual([
+      requester.subscription_key,
+      "REEF-1",
+      "kim",
+      "requester",
+      "active",
+      "2026-07-28T00:00:00.000Z",
+    ]);
+
+    const deleteRequest = sqlRequestBody(calls[1]);
+    expect(deleteRequest.sql).toContain(
+      "WHERE reef_id = $1 AND subscriber = $2 AND source = $3",
+    );
+    expect(deleteRequest.params).toEqual(["REEF-1", "kim", "manual"]);
+    expect(deleteRequest.sql).not.toContain("manual");
+    expect(deleteRequest.sql).not.toContain("kim");
+
+    const listRequest = sqlRequestBody(calls[2]);
+    expect(listRequest.params).toEqual(["REEF-1", "kim"]);
   });
 
   it("makes manual mute authoritative and Watch restores manual active", async () => {
@@ -307,7 +489,15 @@ describe("subscription adapter", () => {
       }),
     ).resolves.toBe("watching");
 
-    const watchSql = JSON.parse(String(calls[2]?.init?.body)).sql as string;
-    expect(watchSql).toContain("status = EXCLUDED.status");
+    const watchRequest = sqlRequestBody(calls[2]);
+    expect(watchRequest.sql).toContain("status = EXCLUDED.status");
+    expect(watchRequest.params).toEqual([
+      active.subscription_key,
+      "REEF-1",
+      "kim",
+      "manual",
+      "active",
+      "2026-07-29T00:00:00.000Z",
+    ]);
   });
 });
