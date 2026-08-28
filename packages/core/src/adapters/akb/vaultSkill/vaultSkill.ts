@@ -13,12 +13,11 @@ import {
   ensureDocumentPutResponse,
   ensureReefTables,
   isMissingTableError,
-  quoteJson,
-  quoteText,
   runSql,
   tableRef,
   withSpan,
 } from "../core/shared";
+import { SqlParameterBuilder } from "../core/sql";
 import {
   type ReefVaultSkillDocument,
   buildReefVaultSkillDocuments,
@@ -132,21 +131,28 @@ async function stampVaultSkillVersion(
     synced_at: new Date().toISOString(),
   };
   await ensureReefTables({ adapter, vault });
-  await runSql(
-    adapter,
-    vault,
-    `DELETE FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key = ${quoteText(
-      REEF_SETTINGS_VAULT_SKILL_KEY,
-      "settings key",
-    )}`,
+  const deleteParams = new SqlParameterBuilder();
+  const deleteKey = deleteParams.add(
+    REEF_SETTINGS_VAULT_SKILL_KEY,
+    "settings key",
   );
   await runSql(
     adapter,
     vault,
-    `INSERT INTO ${tableRef(REEF_SETTINGS_TABLE)} (key, value) VALUES (${quoteText(
-      REEF_SETTINGS_VAULT_SKILL_KEY,
-      "settings key",
-    )}, ${quoteJson(stamp)})`,
+    `DELETE FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key = ${deleteKey}`,
+    deleteParams.params,
+  );
+  const insertParams = new SqlParameterBuilder();
+  const insertKey = insertParams.add(
+    REEF_SETTINGS_VAULT_SKILL_KEY,
+    "settings key",
+  );
+  const stampParam = insertParams.addJson(stamp, "vault skill stamp");
+  await runSql(
+    adapter,
+    vault,
+    `INSERT INTO ${tableRef(REEF_SETTINGS_TABLE)} (key, value) VALUES (${insertKey}, ${stampParam})`,
+    insertParams.params,
   );
   return stamp;
 }
@@ -163,13 +169,13 @@ async function readInstalledVaultSkill(
 ): Promise<StoredVaultSkill | null> {
   let response: AkbSqlResponse;
   try {
+    const params = new SqlParameterBuilder();
+    const keyParam = params.add(REEF_SETTINGS_VAULT_SKILL_KEY, "settings key");
     response = await runSql(
       adapter,
       vault,
-      `SELECT value FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key = ${quoteText(
-        REEF_SETTINGS_VAULT_SKILL_KEY,
-        "settings key",
-      )} LIMIT 1`,
+      `SELECT value FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key = ${keyParam} LIMIT 1`,
+      params.params,
     );
   } catch (err) {
     if (isMissingTableError(err)) return null;
