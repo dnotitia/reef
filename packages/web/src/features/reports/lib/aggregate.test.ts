@@ -1,8 +1,12 @@
 // @vitest-environment node
 
-import type { IssueMetadata } from "@reef/core";
+import type { ActivityEvent, IssueMetadata, Status } from "@reef/core";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_REPORT_FILTERS, computeAggregates } from "./aggregate";
+import {
+  DEFAULT_REPORT_FILTERS,
+  computeAggregates,
+  computeFlowMetrics,
+} from "./aggregate";
 
 function makeIssue(overrides: Partial<IssueMetadata>): IssueMetadata {
   return {
@@ -14,6 +18,25 @@ function makeIssue(overrides: Partial<IssueMetadata>): IssueMetadata {
     updated_at: "2026-04-13T00:00:00.000Z",
     updated_by: "alice",
     ...overrides,
+  };
+}
+
+function statusEvent(
+  reefId: string,
+  at: string,
+  from: Status,
+  to: Status,
+  eventKey = `status_change:${from}->${to}@${at}`,
+): ActivityEvent {
+  return {
+    id: `${reefId}-${at}`,
+    reef_id: reefId,
+    event_type: "status_change",
+    event_key: eventKey,
+    payload: { from, to },
+    actor: "alice",
+    at,
+    source: null,
   };
 }
 
@@ -421,6 +444,285 @@ describe("computeAggregates — report filters", () => {
       { name: "risk", count: 1, points: 0 },
       { name: "ui", count: 1, points: 0 },
     ]);
+  });
+});
+
+describe("computeFlowMetrics", () => {
+  const now = Date.parse("2026-06-30T12:00:00.000Z");
+
+  it("uses the first in-progress and first done events across regressions and reopenings", () => {
+    const issue = makeIssue({
+      id: "ISSUE-001",
+      created_at: "2026-06-15T00:00:00.000Z",
+      status: "in_progress",
+    });
+    const events = [
+      statusEvent(issue.id, "2026-06-16T00:00:00.000Z", "todo", "in_progress"),
+      statusEvent(issue.id, "2026-06-17T00:00:00.000Z", "in_progress", "todo"),
+      statusEvent(issue.id, "2026-06-18T00:00:00.000Z", "todo", "in_progress"),
+      statusEvent(issue.id, "2026-06-20T00:00:00.000Z", "in_progress", "done"),
+      statusEvent(issue.id, "2026-06-21T00:00:00.000Z", "done", "in_progress"),
+      statusEvent(issue.id, "2026-06-22T00:00:00.000Z", "in_progress", "done"),
+    ];
+
+    const { cycle, lead } = computeFlowMetrics([issue], events, {
+      now,
+      filters: { ...DEFAULT_REPORT_FILTERS, period: "all" },
+    });
+
+    expect(cycle.points).toEqual([
+      {
+        issueId: "ISSUE-001",
+        title: "Sample",
+        completionAt: "2026-06-20T00:00:00.000Z",
+        elapsedDays: 4,
+      },
+    ]);
+    expect(lead.points[0]?.elapsedDays).toBe(5);
+    expect(cycle.completionWindowCount).toBe(1);
+    expect(cycle.measuredCount).toBe(1);
+  });
+
+  it("applies facets before the completion window and keeps its boundaries deterministic", () => {
+    const inWindow = makeIssue({
+      id: "ISSUE-001",
+      labels: ["keep"],
+      created_at: "2026-06-04T00:00:00.000Z",
+    });
+    const filteredOut = makeIssue({ id: "ISSUE-002", labels: ["skip"] });
+    const beforeWindow = makeIssue({ id: "ISSUE-003", labels: ["keep"] });
+    const atWindowEnd = makeIssue({ id: "ISSUE-004", labels: ["keep"] });
+    const eventSet = [
+      statusEvent(
+        inWindow.id,
+        "2026-06-04T00:00:00.000Z",
+        "todo",
+        "in_progress",
+      ),
+      statusEvent(
+        inWindow.id,
+        "2026-06-05T00:00:00.000Z",
+        "in_progress",
+        "done",
+      ),
+      statusEvent(
+        filteredOut.id,
+        "2026-06-06T00:00:00.000Z",
+        "todo",
+        "in_progress",
+      ),
+      statusEvent(
+        filteredOut.id,
+        "2026-06-07T00:00:00.000Z",
+        "in_progress",
+        "done",
+      ),
+      statusEvent(
+        beforeWindow.id,
+        "2026-06-02T23:59:59.999Z",
+        "todo",
+        "in_progress",
+      ),
+      statusEvent(
+        beforeWindow.id,
+        "2026-06-02T23:59:59.999Z",
+        "in_progress",
+        "done",
+      ),
+      statusEvent(
+        atWindowEnd.id,
+        "2026-07-01T00:00:00.000Z",
+        "todo",
+        "in_progress",
+      ),
+      statusEvent(
+        atWindowEnd.id,
+        "2026-07-01T00:00:00.000Z",
+        "in_progress",
+        "done",
+      ),
+    ];
+
+    const result = computeFlowMetrics(
+      [inWindow, filteredOut, beforeWindow, atWindowEnd],
+      eventSet,
+      {
+        now,
+        filters: { ...DEFAULT_REPORT_FILTERS, period: "4w", label: "keep" },
+      },
+    );
+
+    expect(result.lead.completionWindowCount).toBe(1);
+    expect(result.lead.points.map((point) => point.issueId)).toEqual([
+      "ISSUE-001",
+    ]);
+  });
+
+  it("counts incomplete flow records in coverage without inferring missing dates", () => {
+    const valid = makeIssue({
+      id: "ISSUE-001",
+      created_at: "2026-06-15T00:00:00.000Z",
+    });
+    const noCycle = makeIssue({
+      id: "ISSUE-002",
+      created_at: "2026-06-15T00:00:00.000Z",
+    });
+    const createdAfterDone = makeIssue({
+      id: "ISSUE-003",
+      created_at: "2026-06-20T00:00:00.000Z",
+    });
+    const closedOnly = makeIssue({
+      id: "ISSUE-004",
+      status: "closed",
+      last_status_change: "2026-06-25T00:00:00.000Z",
+    });
+
+    const result = computeFlowMetrics(
+      [valid, noCycle, createdAfterDone, closedOnly],
+      [
+        statusEvent(
+          valid.id,
+          "2026-06-16T00:00:00.000Z",
+          "todo",
+          "in_progress",
+        ),
+        statusEvent(
+          valid.id,
+          "2026-06-18T00:00:00.000Z",
+          "in_progress",
+          "done",
+        ),
+        statusEvent(noCycle.id, "2026-06-19T00:00:00.000Z", "todo", "done"),
+        statusEvent(
+          createdAfterDone.id,
+          "2026-06-19T00:00:00.000Z",
+          "todo",
+          "done",
+        ),
+        statusEvent(
+          createdAfterDone.id,
+          "2026-06-21T00:00:00.000Z",
+          "todo",
+          "in_progress",
+        ),
+      ],
+      { now, filters: { ...DEFAULT_REPORT_FILTERS, period: "all" } },
+    );
+
+    expect(result.lead.completionWindowCount).toBe(3);
+    expect(result.lead.measuredCount).toBe(2);
+    expect(result.lead.coveragePercent).toBeCloseTo(200 / 3);
+    expect(result.cycle.completionWindowCount).toBe(3);
+    expect(result.cycle.measuredCount).toBe(1);
+    expect(result.cycle.coveragePercent).toBeCloseTo(100 / 3);
+  });
+
+  it("de-duplicates event keys, rejects reversed starts, and ignores closed-only history", () => {
+    const valid = makeIssue({
+      id: "ISSUE-001",
+      created_at: "2026-06-15T00:00:00.000Z",
+    });
+    const reversed = makeIssue({
+      id: "ISSUE-002",
+      created_at: "2026-06-15T00:00:00.000Z",
+    });
+    const malformed = makeIssue({
+      id: "ISSUE-003",
+      created_at: "2026-06-15T00:00:00.000Z",
+    });
+    const duplicateKey = "same-event";
+    const malformedAt = statusEvent(
+      malformed.id,
+      "not-a-date",
+      "todo",
+      "in_progress",
+    ) as unknown as ActivityEvent;
+
+    const result = computeFlowMetrics(
+      [valid, reversed, malformed],
+      [
+        statusEvent(
+          valid.id,
+          "2026-06-16T00:00:00.000Z",
+          "todo",
+          "in_progress",
+          duplicateKey,
+        ),
+        statusEvent(
+          valid.id,
+          "2026-06-16T00:00:00.000Z",
+          "todo",
+          "in_progress",
+          duplicateKey,
+        ),
+        statusEvent(
+          valid.id,
+          "2026-06-18T00:00:00.000Z",
+          "in_progress",
+          "done",
+        ),
+        statusEvent(
+          reversed.id,
+          "2026-06-20T00:00:00.000Z",
+          "todo",
+          "in_progress",
+        ),
+        statusEvent(
+          reversed.id,
+          "2026-06-18T00:00:00.000Z",
+          "in_progress",
+          "done",
+        ),
+        malformedAt,
+        statusEvent(
+          malformed.id,
+          "2026-06-19T00:00:00.000Z",
+          "in_progress",
+          "done",
+        ),
+      ],
+      { now, filters: { ...DEFAULT_REPORT_FILTERS, period: "all" } },
+    );
+
+    expect(result.lead.measuredCount).toBe(3);
+    expect(result.cycle.measuredCount).toBe(1);
+    expect(result.cycle.points[0]?.issueId).toBe(valid.id);
+  });
+
+  it("uses nearest-rank percentiles and lists only values above raw P95", () => {
+    const issues = Array.from({ length: 21 }, (_, index) =>
+      makeIssue({
+        id: `ISSUE-${String(index + 1).padStart(3, "0")}`,
+        title: `Flow sample ${index + 1}`,
+        status: "done",
+        created_at: "2026-06-01T00:00:00.000Z",
+      }),
+    );
+    const events = issues.flatMap((issue, index) => {
+      const completionAt = new Date(
+        Date.parse("2026-06-02T00:00:00.000Z") + index * DAY,
+      ).toISOString();
+      const startAt = new Date(
+        Date.parse(completionAt) - (index + 1) * DAY,
+      ).toISOString();
+      return [
+        statusEvent(issue.id, startAt, "todo", "in_progress"),
+        statusEvent(issue.id, completionAt, "in_progress", "done"),
+      ];
+    });
+
+    const result = computeFlowMetrics(issues, events, {
+      now: Date.parse("2026-08-01T00:00:00.000Z"),
+      filters: { ...DEFAULT_REPORT_FILTERS, period: "all" },
+    });
+
+    expect(result.cycle.percentiles).toEqual({ p50: 11, p85: 18, p95: 20 });
+    expect(result.cycle.sleDays).toBe(18);
+    expect(result.cycle.lowSample).toBe(false);
+    expect(result.cycle.outliers.map((point) => point.issueId)).toEqual([
+      "ISSUE-021",
+    ]);
+    expect(result.cycle.outliers[0]?.elapsedDays).toBe(21);
   });
 });
 

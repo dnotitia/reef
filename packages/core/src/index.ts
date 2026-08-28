@@ -286,6 +286,7 @@ export {
   downloadIssueAttachment as akbDownloadIssueAttachment,
   downloadIssueAttachmentByFileUri as akbDownloadIssueAttachmentByFileUri,
   listIssueActivity as akbListIssueActivity,
+  listReportActivity as akbListReportActivity,
   listIssueBodyHistory as akbListIssueBodyHistory,
   parseHistoryTrailers,
   projectIssueBodyHistoryEntry,
