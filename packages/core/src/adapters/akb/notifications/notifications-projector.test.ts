@@ -111,15 +111,27 @@ function response(items: Record<string, unknown>[]) {
   return { body: makeSqlQueryResponse(items, ["id"]) };
 }
 
-function sql(call: { init?: RequestInit } = {}): string {
-  return JSON.parse(String(call.init?.body)).sql as string;
+type SqlRequest = { sql: string; params?: unknown[] };
+type SqlCall = { init?: RequestInit };
+
+function request(call: SqlCall = {}): SqlRequest {
+  return JSON.parse(String(call.init?.body)) as SqlRequest;
 }
 
-function project() {
+function sql(call: SqlCall = {}): string {
+  return request(call).sql;
+}
+
+function params(call: SqlCall = {}): unknown[] {
+  return request(call).params ?? [];
+}
+
+function project(batchSize?: number) {
   return akbProjectNotifications({
     adapter: makeAdapter(),
     vault: "reef-sample",
     now: () => new Date(ACTIVATED_AT),
+    batchSize,
   });
 }
 
@@ -263,14 +275,149 @@ describe("notification projector", () => {
       comment: { scanned: 0 },
     });
 
+    expect(sql(calls[0] ?? {})).toContain("WHERE key = $1");
+    expect(params(calls[0] ?? {})).toEqual(["notification_projector"]);
     expect(sql(calls[1] ?? {})).toContain("INSERT INTO reef_settings");
-    expect(sql(calls[2] ?? {})).toContain(
-      "(meta->>'at') > '2026-08-01T00:00:00.000Z'",
-    );
+    expect(sql(calls[1] ?? {})).toContain("SELECT $1, $2::json");
+    expect(params(calls[1] ?? {})).toEqual([
+      "notification_projector",
+      JSON.stringify(checkpoint()),
+    ]);
+    expect(sql(calls[2] ?? {})).toContain("(meta->>'at') > $1");
+    expect(sql(calls[2] ?? {})).toContain("LIMIT $2");
+    expect(params(calls[2] ?? {})).toEqual([ACTIVATED_AT, 100]);
     expect(sql(calls[3] ?? {})).toContain(
-      "(COALESCE(meta->>'edited_at', meta->>'created_at')) > '2026-08-01T00:00:00.000Z'",
+      "(COALESCE(meta->>'edited_at', meta->>'created_at')) > $1",
     );
+    expect(sql(calls[3] ?? {})).toContain("LIMIT $2");
+    expect(params(calls[3] ?? {})).toEqual([ACTIVATED_AT, 100]);
     expect(calls.map(sql).join("\n")).not.toContain("reef_notifications");
+  });
+
+  it("binds existing cursors, activation, and batch size in source order", async () => {
+    const activityCursor = {
+      occurred_at: "activity-cursor'\\한글🚀",
+      id: "activity-id'\\한글🚀",
+    };
+    const commentCursor = {
+      occurred_at: "comment-cursor'\\한글🚀",
+      id: "comment-id'\\한글🚀",
+    };
+    const { calls } = setupFetch([
+      response([
+        {
+          value: JSON.stringify(
+            checkpoint({
+              activity_cursor: activityCursor,
+              comment_cursor: commentCursor,
+            }),
+          ),
+        },
+      ]),
+      response([]),
+      response([]),
+    ]);
+
+    await expect(project(7)).resolves.toMatchObject({
+      activated: false,
+      activity: { scanned: 0, failed: false },
+      comment: { scanned: 0, failed: false },
+    });
+
+    expect(sql(calls[0] ?? {})).toContain("WHERE key = $1");
+    expect(params(calls[0] ?? {})).toEqual(["notification_projector"]);
+    expect(sql(calls[1] ?? {})).toContain(
+      "(meta->>'at') > $1 AND ((meta->>'at') > $2 OR ((meta->>'at') = $2 AND id::text > $3))",
+    );
+    expect(sql(calls[1] ?? {})).toContain("LIMIT $4");
+    expect(params(calls[1] ?? {})).toEqual([
+      ACTIVATED_AT,
+      activityCursor.occurred_at,
+      activityCursor.id,
+      7,
+    ]);
+    expect(sql(calls[2] ?? {})).toContain(
+      "(COALESCE(meta->>'edited_at', meta->>'created_at')) > $1 AND ((COALESCE(meta->>'edited_at', meta->>'created_at')) > $2 OR ((COALESCE(meta->>'edited_at', meta->>'created_at')) = $2 AND id::text > $3))",
+    );
+    expect(sql(calls[2] ?? {})).toContain("LIMIT $4");
+    expect(params(calls[2] ?? {})).toEqual([
+      ACTIVATED_AT,
+      commentCursor.occurred_at,
+      commentCursor.id,
+      7,
+    ]);
+  });
+
+  it("round-trips special cursor ids through the checkpoint JSON parameter", async () => {
+    const source = activityRow({ id: "cursor-id'\\한글🚀" });
+    const nextCheckpoint = checkpoint({
+      activity_cursor: {
+        occurred_at: "2026-08-01T00:01:00.000Z",
+        id: source.id,
+      },
+    });
+    const { calls } = setupFetch([
+      response([{ value: JSON.stringify(checkpoint()) }]),
+      response([source]),
+      response([]),
+      response([{ value: JSON.stringify(nextCheckpoint) }]),
+      response([]),
+      response([]),
+    ]);
+
+    await expect(project()).resolves.toMatchObject({
+      activity: { scanned: 1, skippedNoRecipients: 1, failed: false },
+    });
+
+    const checkpointUpdate = calls.find((call) =>
+      sql(call).includes("UPDATE reef_settings"),
+    );
+    expect(checkpointUpdate).toBeDefined();
+    expect(sql(checkpointUpdate)).toContain("SET value = $1");
+    expect(sql(checkpointUpdate)).toContain("WHERE key = $2");
+    expect(JSON.parse(String(params(checkpointUpdate)[0]))).toEqual(
+      nextCheckpoint,
+    );
+    expect(params(checkpointUpdate)[1]).toBe("notification_projector");
+  });
+
+  it("does not send raw and nested NUL values to an AKB request", async () => {
+    const rawNul = setupFetch([
+      response([
+        {
+          value: JSON.stringify(
+            checkpoint({
+              activity_cursor: {
+                occurred_at: "2026-08-01T00:00:00.000Z",
+                id: "raw\0nul",
+              },
+            }),
+          ),
+        },
+      ]),
+      response([]),
+    ]);
+    await expect(project()).resolves.toMatchObject({
+      activity: { failed: true },
+      comment: { failed: false },
+    });
+    expect(rawNul.calls).toHaveLength(2);
+    expect(rawNul.calls.flatMap(params)).not.toContain("raw\0nul");
+
+    const nestedNul = activityRow({ id: "nested\0nul" });
+    const nested = setupFetch([
+      response([{ value: JSON.stringify(checkpoint()) }]),
+      response([nestedNul]),
+      response([]),
+      response([]),
+    ]);
+    await expect(project()).resolves.toMatchObject({
+      activity: { failed: true },
+      comment: { failed: false },
+    });
+    expect(
+      nested.calls.filter((call) => sql(call).includes("UPDATE reef_settings")),
+    ).toHaveLength(0);
   });
 
   it("maps both sources without reading comment bodies and excludes muted and self recipients", async () => {
@@ -324,6 +471,11 @@ describe("notification projector", () => {
     expect(notificationSql.join("\n")).toContain("'activity'");
     expect(notificationSql.join("\n")).toContain("'comment'");
     expect(notificationSql.join("\n")).not.toContain("comment body is private");
+    const subscriptionCalls = calls.filter((call) =>
+      sql(call).includes("reef_subscriptions"),
+    );
+    expect(subscriptionCalls).toHaveLength(2);
+    expect(subscriptionCalls.map(params)).toEqual([["REEF-1"], ["REEF-1"]]);
     expect(
       statements.find((statement) => statement.includes("reef_comments")),
     ).toContain("SELECT id, reef_id, meta");
@@ -462,12 +614,22 @@ describe("notification projector", () => {
         sourceRef: COMMENT_ID,
       }),
     );
-    expect(sql(first.calls.at(-1) ?? {})).toContain(
-      `"comment_cursor":{"id":"${COMMENT_ID}","occurred_at":"2026-08-01T00:02:00.000Z"`,
-    );
-    expect(sql(second.calls.at(-1) ?? {})).toContain(
-      `"comment_cursor":{"id":"${COMMENT_ID}","occurred_at":"2026-08-01T00:03:00.000Z"`,
-    );
+    expect(
+      JSON.parse(String(params(first.calls.at(-1) ?? {})[0])),
+    ).toMatchObject({
+      comment_cursor: {
+        id: COMMENT_ID,
+        occurred_at: "2026-08-01T00:02:00.000Z",
+      },
+    });
+    expect(
+      JSON.parse(String(params(second.calls.at(-1) ?? {})[0])),
+    ).toMatchObject({
+      comment_cursor: {
+        id: COMMENT_ID,
+        occurred_at: "2026-08-01T00:03:00.000Z",
+      },
+    });
   });
 
   it("treats a malformed persisted mention projection as an empty list", async () => {
@@ -591,7 +753,15 @@ describe("notification projector", () => {
       .map(sql)
       .filter((statement) => statement.includes("UPDATE reef_settings"));
     expect(checkpointSql).toHaveLength(1);
-    expect(checkpointSql[0]).toContain("comment_cursor");
+    const checkpointUpdate = calls.find((call) =>
+      sql(call).includes("UPDATE reef_settings"),
+    );
+    expect(JSON.parse(String(params(checkpointUpdate)[0]))).toMatchObject({
+      comment_cursor: {
+        id: COMMENT_ID,
+        occurred_at: "2026-08-01T00:02:00.000Z",
+      },
+    });
   });
 
   it("replays a partially completed fan-out with the same recipient identities", async () => {
