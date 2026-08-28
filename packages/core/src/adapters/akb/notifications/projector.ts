@@ -16,9 +16,8 @@ import {
   REEF_SETTINGS_NOTIFICATION_PROJECTOR_KEY,
   REEF_SETTINGS_TABLE,
   REEF_SUBSCRIPTIONS_TABLE,
+  SqlParameterBuilder,
   decodeSettingsValue,
-  quoteJson,
-  quoteText,
   runSql,
   tableRef,
   withSpan,
@@ -144,13 +143,18 @@ async function loadOrActivateCheckpoint(
   vault: string,
   activatedAt: string,
 ): Promise<{ checkpoint: ProjectorCheckpoint; activated: boolean }> {
+  const lookupParams = new SqlParameterBuilder();
+  const settingsKey = lookupParams.add(
+    REEF_SETTINGS_NOTIFICATION_PROJECTOR_KEY,
+    "notification projector settings key",
+  );
   const existing = await runSql(
     adapter,
     vault,
-    `SELECT value FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key = ${quoteText(
-      REEF_SETTINGS_NOTIFICATION_PROJECTOR_KEY,
-      "notification projector settings key",
-    )} LIMIT 1`,
+    `SELECT value FROM ${tableRef(
+      REEF_SETTINGS_TABLE,
+    )} WHERE key = ${settingsKey} LIMIT 1`,
+    lookupParams.params,
   );
   const value = rows(existing)[0]?.value;
   if (value !== undefined) {
@@ -162,25 +166,26 @@ async function loadOrActivateCheckpoint(
     activity_cursor: null,
     comment_cursor: null,
   };
+  const createParams = new SqlParameterBuilder();
+  const createKey = createParams.add(
+    REEF_SETTINGS_NOTIFICATION_PROJECTOR_KEY,
+    "notification projector settings key",
+  );
+  const checkpointValue = createParams.addJson(
+    initial,
+    "notification projector checkpoint",
+  );
   const created = await runSql(
     adapter,
     vault,
     `WITH inserted AS (INSERT INTO ${tableRef(
       REEF_SETTINGS_TABLE,
-    )} (key, value) SELECT ${quoteText(
-      REEF_SETTINGS_NOTIFICATION_PROJECTOR_KEY,
-      "notification projector settings key",
-    )}, ${quoteJson(initial)} WHERE NOT EXISTS (SELECT 1 FROM ${tableRef(
+    )} (key, value) SELECT ${createKey}, ${checkpointValue} WHERE NOT EXISTS (SELECT 1 FROM ${tableRef(
       REEF_SETTINGS_TABLE,
-    )} WHERE key = ${quoteText(
-      REEF_SETTINGS_NOTIFICATION_PROJECTOR_KEY,
-      "notification projector settings key",
-    )}) RETURNING value) SELECT value FROM inserted UNION ALL SELECT value FROM ${tableRef(
+    )} WHERE key = ${createKey}) RETURNING value) SELECT value FROM inserted UNION ALL SELECT value FROM ${tableRef(
       REEF_SETTINGS_TABLE,
-    )} WHERE key = ${quoteText(
-      REEF_SETTINGS_NOTIFICATION_PROJECTOR_KEY,
-      "notification projector settings key",
-    )} LIMIT 1`,
+    )} WHERE key = ${createKey} LIMIT 1`,
+    createParams.params,
   );
   return {
     checkpoint: parseCheckpoint(rows(created)[0]?.value),
@@ -193,15 +198,22 @@ async function persistCheckpoint(
   vault: string,
   checkpoint: ProjectorCheckpoint,
 ): Promise<void> {
+  const params = new SqlParameterBuilder();
+  const checkpointValue = params.addJson(
+    checkpoint,
+    "notification projector checkpoint",
+  );
+  const settingsKey = params.add(
+    REEF_SETTINGS_NOTIFICATION_PROJECTOR_KEY,
+    "notification projector settings key",
+  );
   const response = await runSql(
     adapter,
     vault,
     `WITH updated AS (UPDATE ${tableRef(
       REEF_SETTINGS_TABLE,
-    )} SET value = ${quoteJson(checkpoint)} WHERE key = ${quoteText(
-      REEF_SETTINGS_NOTIFICATION_PROJECTOR_KEY,
-      "notification projector settings key",
-    )} RETURNING value) SELECT value FROM updated`,
+    )} SET value = ${checkpointValue} WHERE key = ${settingsKey} RETURNING value) SELECT value FROM updated`,
+    params.params,
   );
   if (rows(response).length === 0) {
     throw new ConflictError({ path: "notification-projector-checkpoint" });
@@ -258,25 +270,34 @@ async function readSourceRows(
     source === "activity"
       ? "id, reef_id, event_type, event_key, payload, meta"
       : "id, reef_id, meta";
-  const cursorClause = cursor
-    ? ` AND ((${timeExpression}) > ${quoteText(
-        cursor.occurred_at,
-        "notification projector cursor time",
-      )} OR ((${timeExpression}) = ${quoteText(
-        cursor.occurred_at,
-        "notification projector cursor time",
-      )} AND id::text > ${quoteText(
-        cursor.id,
-        "notification projector cursor id",
-      )}))`
-    : "";
+  const params = new SqlParameterBuilder();
+  const activationParam = params.add(
+    activatedAt,
+    "notification projector activation time",
+  );
+  let cursorClause = "";
+  if (cursor) {
+    const cursorTimeParam = params.add(
+      cursor.occurred_at,
+      "notification projector cursor time",
+    );
+    const cursorIdParam = params.add(
+      cursor.id,
+      "notification projector cursor id",
+    );
+    cursorClause = ` AND ((${timeExpression}) > ${cursorTimeParam} OR ((${timeExpression}) = ${cursorTimeParam} AND id::text > ${cursorIdParam}))`;
+  }
+  const batchSizeParam = params.add(
+    batchSize,
+    "notification projector batch size",
+  );
   const response = await runSql(
     adapter,
     vault,
-    `SELECT ${columns} FROM ${tableRef(table)} WHERE (${timeExpression}) > ${quoteText(
-      activatedAt,
-      "notification projector activation time",
-    )}${cursorClause} ORDER BY (${timeExpression}) ASC, id ASC LIMIT ${batchSize}`,
+    `SELECT ${columns} FROM ${tableRef(
+      table,
+    )} WHERE (${timeExpression}) > ${activationParam}${cursorClause} ORDER BY (${timeExpression}) ASC, id ASC LIMIT ${batchSizeParam}`,
+    params.params,
   );
   return rows(response);
 }
@@ -352,12 +373,15 @@ async function recipientsForSource(
   vault: string,
   source: ProjectableSource,
 ): Promise<string[]> {
+  const params = new SqlParameterBuilder();
+  const reefIdParam = params.add(source.reefId, "notification reef id");
   const response = await runSql(
     adapter,
     vault,
     `SELECT subscriber, source, status FROM ${tableRef(
       REEF_SUBSCRIPTIONS_TABLE,
-    )} WHERE reef_id = ${quoteText(source.reefId, "notification reef id")} ORDER BY subscriber ASC, source ASC, id ASC`,
+    )} WHERE reef_id = ${reefIdParam} ORDER BY subscriber ASC, source ASC, id ASC`,
+    params.params,
   );
   const subscriptions = rows(response)
     .map((row) => RawSubscriptionSchema.safeParse(row))
