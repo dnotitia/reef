@@ -14,6 +14,7 @@ import {
   makeSqlMutationResponse,
   makeSqlQueryResponse,
   setupFetch,
+  sqlRequestBody,
   updateComment,
   updateIssue,
   writeIssue,
@@ -80,8 +81,8 @@ function commentRow(author: string, overrides: Record<string, unknown> = {}) {
   };
 }
 
-function sql(call: { init?: RequestInit } | undefined): string {
-  return JSON.parse(String(call?.init?.body)).sql as string;
+function sql(call: Parameters<typeof sqlRequestBody>[0]): string {
+  return sqlRequestBody(call).sql;
 }
 
 describe("automatic issue-participant subscriptions (REEF-429)", () => {
@@ -115,15 +116,26 @@ describe("automatic issue-participant subscriptions (REEF-429)", () => {
     });
 
     expect(calls).toHaveLength(4);
-    const subscriptionSql = [sql(calls[2]), sql(calls[3])];
+    const subscriptionRequests = [
+      sqlRequestBody(calls[2]),
+      sqlRequestBody(calls[3]),
+    ];
     expect(
-      subscriptionSql.every((statement) =>
-        statement.includes("ON CONFLICT (subscription_key) DO UPDATE"),
+      subscriptionRequests.every((request) =>
+        String(request.sql).includes(
+          "ON CONFLICT (subscription_key) DO UPDATE",
+        ),
       ),
     ).toBe(true);
-    expect(subscriptionSql[0]).toContain("'requester'");
-    expect(subscriptionSql[1]).toContain("'assignee'");
-    expect(subscriptionSql.join("\n")).not.toContain("'manual'");
+    expect(subscriptionRequests[0].params).toEqual(
+      expect.arrayContaining(["REEF-001", "requester", "active"]),
+    );
+    expect(subscriptionRequests[1].params).toEqual(
+      expect.arrayContaining(["REEF-001", "assignee", "active"]),
+    );
+    expect(
+      subscriptionRequests.map((request) => String(request.sql)).join("\n"),
+    ).not.toContain("'manual'");
   });
 
   it("reapplies matching requester and assignee values through the existing source keys", async () => {
@@ -172,14 +184,23 @@ describe("automatic issue-participant subscriptions (REEF-429)", () => {
     );
 
     expect(calls).toHaveLength(6);
-    const subscriptionSql = [sql(calls[3]), sql(calls[4])];
+    const subscriptionRequests = [
+      sqlRequestBody(calls[3]),
+      sqlRequestBody(calls[4]),
+    ];
     expect(
-      subscriptionSql.every((statement) =>
-        statement.includes("ON CONFLICT (subscription_key) DO UPDATE"),
+      subscriptionRequests.every((request) =>
+        String(request.sql).includes(
+          "ON CONFLICT (subscription_key) DO UPDATE",
+        ),
       ),
     ).toBe(true);
-    expect(subscriptionSql[0]).toContain("'requester'");
-    expect(subscriptionSql[1]).toContain("'assignee'");
+    expect(subscriptionRequests[0].params).toEqual(
+      expect.arrayContaining(["REEF-001", "requester", "active"]),
+    );
+    expect(subscriptionRequests[1].params).toEqual(
+      expect.arrayContaining(["REEF-001", "assignee", "active"]),
+    );
     expect(state).toBe("muted");
   });
 
@@ -212,16 +233,35 @@ describe("automatic issue-participant subscriptions (REEF-429)", () => {
       partial: { requester: "replacement", assigned_to: null },
     });
 
-    const lifecycleSql = calls.slice(3).map(sql);
-    expect(lifecycleSql).toHaveLength(3);
-    expect(lifecycleSql[0]).toContain("DELETE FROM reef_subscriptions");
-    expect(lifecycleSql[0]).toContain("'requester'");
-    expect(lifecycleSql[0]).toContain("'requester'");
-    expect(lifecycleSql[1]).toContain("'replacement'");
-    expect(lifecycleSql[1]).toContain("'requester'");
-    expect(lifecycleSql[2]).toContain("DELETE FROM reef_subscriptions");
-    expect(lifecycleSql[2]).toContain("'assignee'");
-    expect(lifecycleSql.join("\n")).not.toContain("'manual'");
+    const lifecycleRequests = calls.slice(3).map(sqlRequestBody);
+    expect(lifecycleRequests).toHaveLength(3);
+    expect(String(lifecycleRequests[0].sql)).toContain(
+      "DELETE FROM reef_subscriptions",
+    );
+    expect(lifecycleRequests[0].params).toEqual([
+      "REEF-001",
+      "requester",
+      "requester",
+    ]);
+    expect(lifecycleRequests[1].params).toEqual(
+      expect.arrayContaining([
+        "REEF-001",
+        "replacement",
+        "requester",
+        "active",
+      ]),
+    );
+    expect(String(lifecycleRequests[2].sql)).toContain(
+      "DELETE FROM reef_subscriptions",
+    );
+    expect(lifecycleRequests[2].params).toEqual([
+      "REEF-001",
+      "assignee",
+      "assignee",
+    ]);
+    expect(
+      lifecycleRequests.map((request) => String(request.sql)).join("\n"),
+    ).not.toContain("'manual'");
   });
 
   it("creates commenter sources for comments and replies, but never for an edit", async () => {
@@ -301,15 +341,21 @@ describe("automatic issue-participant subscriptions (REEF-429)", () => {
     );
 
     expect(calls).toHaveLength(8);
-    const subscriptionSql = calls.filter(
+    const subscriptionRequests = calls.filter(
       (call) =>
         call.url.includes("/sql") && sql(call).includes("reef_subscriptions"),
     );
-    expect(subscriptionSql).toHaveLength(2);
-    expect(sql(subscriptionSql[0])).toContain("'root-author'");
-    expect(sql(subscriptionSql[1])).toContain("'reply-author'");
+    expect(subscriptionRequests).toHaveLength(2);
+    expect(sqlRequestBody(subscriptionRequests[0]).params).toEqual(
+      expect.arrayContaining(["root-author", "commenter"]),
+    );
+    expect(sqlRequestBody(subscriptionRequests[1]).params).toEqual(
+      expect.arrayContaining(["reply-author", "commenter"]),
+    );
     expect(
-      subscriptionSql.every((call) => sql(call).includes("'commenter'")),
+      subscriptionRequests.every((call) =>
+        sqlRequestBody(call).params?.includes("commenter"),
+      ),
     ).toBe(true);
   });
 });

@@ -30,9 +30,8 @@ import {
   type AkbAdapter,
   REEF_NOTIFICATIONS_TABLE,
   REEF_SUBSCRIPTIONS_TABLE,
+  SqlParameterBuilder,
   decodeSettingsValue,
-  quoteJson,
-  quoteText,
   runSql,
   tableRef,
   withSpan,
@@ -97,29 +96,37 @@ export async function createNotification(
     "akb.notifications.create",
     { vault, source_type: parsed.sourceType },
     async () => {
+      const params = new SqlParameterBuilder();
       const fields: Array<[string, string]> = [
-        ["notification_key", quoteText(notificationKey, "notification key")],
-        ["recipient", quoteText(parsed.recipient, "notification recipient")],
-        ["reef_id", quoteText(parsed.reefId, "notification reef id")],
+        ["notification_key", params.add(notificationKey, "notification key")],
+        ["recipient", params.add(parsed.recipient, "notification recipient")],
+        ["reef_id", params.add(parsed.reefId, "notification reef id")],
         [
           "source_type",
-          quoteText(parsed.sourceType, "notification source type"),
+          params.add(parsed.sourceType, "notification source type"),
         ],
-        ["source_ref", quoteText(parsed.sourceRef, "notification source ref")],
-        ["event_type", quoteText(parsed.eventType, "notification event type")],
-        ["actor", quoteText(parsed.actor, "notification actor")],
+        ["source_ref", params.add(parsed.sourceRef, "notification source ref")],
+        ["event_type", params.add(parsed.eventType, "notification event type")],
+        ["actor", params.add(parsed.actor, "notification actor")],
         [
           "occurred_at",
-          quoteText(parsed.occurredAt, "notification occurred at"),
+          params.add(parsed.occurredAt, "notification occurred at"),
         ],
         ["state", "'unread'"],
         ["read_at", "NULL"],
         ["archived_at", "NULL"],
         [
           "payload",
-          parsed.payload == null ? "NULL" : quoteJson(parsed.payload),
+          parsed.payload == null
+            ? "NULL"
+            : params.addJson(parsed.payload, "notification payload", "jsonb"),
         ],
-        ["meta", parsed.meta == null ? "NULL" : quoteJson(parsed.meta)],
+        [
+          "meta",
+          parsed.meta == null
+            ? "NULL"
+            : params.addJson(parsed.meta, "notification meta", "jsonb"),
+        ],
       ];
       const columns = fields.map(([name]) => name).join(", ");
       const values = fields.map(([, value]) => value).join(", ");
@@ -129,6 +136,7 @@ export async function createNotification(
         `WITH upserted AS (INSERT INTO ${tableRef(
           REEF_NOTIFICATIONS_TABLE,
         )} (${columns}) VALUES (${values}) ON CONFLICT (notification_key) DO UPDATE SET notification_key = EXCLUDED.notification_key RETURNING *) SELECT * FROM upserted`,
+        params.params,
       );
       const row = firstRow(response);
       if (!row) {
@@ -158,18 +166,19 @@ export async function listNotifications(
     "akb.notifications.list",
     { vault, state: parsed.state },
     async (span) => {
+      const params = new SqlParameterBuilder();
+      const recipient = params.add(parsed.recipient, "notification recipient");
       const stateClause = parsed.state
-        ? ` AND state = ${quoteText(parsed.state, "notification state")}`
+        ? ` AND state = ${params.add(parsed.state, "notification state")}`
         : "";
+      const limit = params.add(parsed.limit, "notification list limit");
       const response = await runSql(
         adapter,
         vault,
         `SELECT * FROM ${tableRef(
           REEF_NOTIFICATIONS_TABLE,
-        )} WHERE recipient = ${quoteText(
-          parsed.recipient,
-          "notification recipient",
-        )}${stateClause} ORDER BY occurred_at DESC, id DESC LIMIT ${parsed.limit}`,
+        )} WHERE recipient = ${recipient}${stateClause} ORDER BY occurred_at DESC, id DESC LIMIT ${limit}`,
+        params.params,
       );
       const rows = response.kind === "table_query" ? response.items : [];
       const notifications = rows
@@ -191,21 +200,23 @@ export async function updateNotificationState(
 ): Promise<Notification> {
   const parsed = parseInput(NotificationStateUpdateInputSchema, input);
   const changedAt = parsed.changedAt ?? new Date().toISOString();
+  const params = new SqlParameterBuilder();
+  const state = params.add(parsed.state, "notification state");
+  const changedAtParam =
+    parsed.state === "unread"
+      ? undefined
+      : params.add(changedAt, "notification changed at");
   const timestamps =
     parsed.state === "unread"
       ? "read_at = NULL, archived_at = NULL"
       : parsed.state === "read"
-        ? `read_at = COALESCE(read_at, ${quoteText(
-            changedAt,
-            "notification changed at",
-          )}), archived_at = NULL`
-        : `read_at = COALESCE(read_at, ${quoteText(
-            changedAt,
-            "notification changed at",
-          )}), archived_at = COALESCE(archived_at, ${quoteText(
-            changedAt,
-            "notification changed at",
-          )})`;
+        ? `read_at = COALESCE(read_at, ${changedAtParam}), archived_at = NULL`
+        : `read_at = COALESCE(read_at, ${changedAtParam}), archived_at = COALESCE(archived_at, ${changedAtParam})`;
+  const notificationKey = params.add(
+    parsed.notificationKey,
+    "notification key",
+  );
+  const recipient = params.add(parsed.recipient, "notification recipient");
   return withSpan(
     "akb.notifications.update_state",
     { vault, state: parsed.state },
@@ -213,16 +224,10 @@ export async function updateNotificationState(
       const response = await runSql(
         adapter,
         vault,
-        `WITH updated AS (UPDATE ${tableRef(REEF_NOTIFICATIONS_TABLE)} SET state = ${quoteText(
-          parsed.state,
-          "notification state",
-        )}, ${timestamps} WHERE notification_key = ${quoteText(
-          parsed.notificationKey,
-          "notification key",
-        )} AND recipient = ${quoteText(
-          parsed.recipient,
-          "notification recipient",
-        )} RETURNING *) SELECT * FROM updated`,
+        `WITH updated AS (UPDATE ${tableRef(
+          REEF_NOTIFICATIONS_TABLE,
+        )} SET state = ${state}, ${timestamps} WHERE notification_key = ${notificationKey} AND recipient = ${recipient} RETURNING *) SELECT * FROM updated`,
+        params.params,
       );
       const row = firstRow(response);
       if (!row) throw new NotFoundError({ resource: "notification" });
@@ -249,24 +254,33 @@ export async function upsertSubscription(
     "akb.subscriptions.upsert",
     { vault, source: parsed.source, status: parsed.status },
     async () => {
+      const params = new SqlParameterBuilder();
+      const subscriptionKeyParam = params.add(
+        subscriptionKey,
+        "subscription key",
+      );
+      const reefIdParam = params.add(parsed.reefId, "subscription reef id");
+      const subscriberParam = params.add(
+        parsed.subscriber,
+        "subscription subscriber",
+      );
+      const sourceParam = params.add(parsed.source, "subscription source");
+      const statusParam = params.add(parsed.status, "subscription status");
+      const subscribedAtParam = params.add(
+        subscribedAt,
+        "subscription subscribed at",
+      );
+      const metaParam =
+        parsed.meta == null
+          ? "NULL"
+          : params.addJson(parsed.meta, "subscription meta", "jsonb");
       const response = await runSql(
         adapter,
         vault,
         `WITH upserted AS (INSERT INTO ${tableRef(
           REEF_SUBSCRIPTIONS_TABLE,
-        )} (subscription_key, reef_id, subscriber, source, status, subscribed_at, meta) VALUES (${quoteText(
-          subscriptionKey,
-          "subscription key",
-        )}, ${quoteText(parsed.reefId, "subscription reef id")}, ${quoteText(
-          parsed.subscriber,
-          "subscription subscriber",
-        )}, ${quoteText(parsed.source, "subscription source")}, ${quoteText(
-          parsed.status,
-          "subscription status",
-        )}, ${quoteText(
-          subscribedAt,
-          "subscription subscribed at",
-        )}, ${parsed.meta == null ? "NULL" : quoteJson(parsed.meta)}) ON CONFLICT (subscription_key) DO UPDATE SET status = EXCLUDED.status RETURNING *) SELECT * FROM upserted`,
+        )} (subscription_key, reef_id, subscriber, source, status, subscribed_at, meta) VALUES (${subscriptionKeyParam}, ${reefIdParam}, ${subscriberParam}, ${sourceParam}, ${statusParam}, ${subscribedAtParam}, ${metaParam}) ON CONFLICT (subscription_key) DO UPDATE SET status = EXCLUDED.status RETURNING *) SELECT * FROM upserted`,
+        params.params,
       );
       const row = firstRow(response);
       if (!row) {
@@ -296,21 +310,20 @@ export async function removeSubscription(
     "akb.subscriptions.remove",
     { vault, source: parsed.source },
     async (span) => {
+      const params = new SqlParameterBuilder();
+      const reefId = params.add(parsed.reefId, "subscription reef id");
+      const subscriber = params.add(
+        parsed.subscriber,
+        "subscription subscriber",
+      );
+      const source = params.add(parsed.source, "subscription source");
       const response = await runSql(
         adapter,
         vault,
         `WITH removed AS (DELETE FROM ${tableRef(
           REEF_SUBSCRIPTIONS_TABLE,
-        )} WHERE reef_id = ${quoteText(
-          parsed.reefId,
-          "subscription reef id",
-        )} AND subscriber = ${quoteText(
-          parsed.subscriber,
-          "subscription subscriber",
-        )} AND source = ${quoteText(
-          parsed.source,
-          "subscription source",
-        )} RETURNING id) SELECT id FROM removed`,
+        )} WHERE reef_id = ${reefId} AND subscriber = ${subscriber} AND source = ${source} RETURNING id) SELECT id FROM removed`,
+        params.params,
       );
       const removed =
         response.kind === "table_query" && response.items.length > 0;
@@ -330,24 +343,24 @@ export async function listSubscriptions(
     "akb.subscriptions.list",
     { vault, status: parsed.status },
     async (span) => {
+      const params = new SqlParameterBuilder();
+      const reefId = params.add(parsed.reefId, "subscription reef id");
       const subscriberClause = parsed.subscriber
-        ? ` AND subscriber = ${quoteText(
+        ? ` AND subscriber = ${params.add(
             parsed.subscriber,
             "subscription subscriber",
           )}`
         : "";
       const statusClause = parsed.status
-        ? ` AND status = ${quoteText(parsed.status, "subscription status")}`
+        ? ` AND status = ${params.add(parsed.status, "subscription status")}`
         : "";
       const response = await runSql(
         adapter,
         vault,
         `SELECT * FROM ${tableRef(
           REEF_SUBSCRIPTIONS_TABLE,
-        )} WHERE reef_id = ${quoteText(
-          parsed.reefId,
-          "subscription reef id",
-        )}${subscriberClause}${statusClause} ORDER BY subscriber ASC, source ASC, id ASC`,
+        )} WHERE reef_id = ${reefId}${subscriberClause}${statusClause} ORDER BY subscriber ASC, source ASC, id ASC`,
+        params.params,
       );
       const rows = response.kind === "table_query" ? response.items : [];
       const subscriptions = rows.map(subscriptionFromRow);
