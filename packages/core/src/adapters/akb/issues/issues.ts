@@ -188,7 +188,7 @@ async function selectIssueRowsById(
     `reef_id = ${params.add(id, "reef_id")}`,
     undefined,
     undefined,
-    params.params,
+    params,
   );
 }
 

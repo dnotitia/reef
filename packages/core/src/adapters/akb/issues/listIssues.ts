@@ -13,6 +13,7 @@ import {
   withSpan,
 } from "../core/shared";
 import type { ListIssuesParams, ListIssuesResult } from "../core/types";
+import { SqlParameterBuilder } from "../core/sql";
 
 export async function listIssues(
   params: ListIssuesParams,
@@ -34,7 +35,6 @@ export async function listIssues(
       ? buildIssueOrderBy(sortField, sortOrder)
       : undefined;
 
-    let baseWhere: string | undefined;
     // Explicit facets take precedence over the default landing view — just fall
     // into the default view when the request carries no narrowing filter. The
     // active-sprint pick and the My-Issues existence test are folded into this
@@ -43,32 +43,43 @@ export async function listIssues(
     // scope stays up-front-consistent across cursor pages because the `EXISTS`
     // test does not depend on the keyset appended below.
     const defaultViewActive = !!query?.default_view && !hasAnyFilter(query);
-    if (defaultViewActive) {
-      baseWhere = buildDefaultViewWhere({ actor: actor ?? null });
-      span.setAttribute("default_view", true);
-    } else if (query) {
-      baseWhere = buildIssueWhere(query);
-    }
+    if (defaultViewActive) span.setAttribute("default_view", true);
     span.setAttribute("filtered", query != null);
 
-    const keysetWhere =
-      query?.cursor && sortField
-        ? buildKeysetWhere(sortField, sortOrder, decodeCursor(query.cursor))
-        : undefined;
-    const combine = (base: string | undefined): string | undefined =>
-      base && keysetWhere
-        ? `${base} AND ${keysetWhere}`
-        : (keysetWhere ?? base);
+    const cursor =
+      query?.cursor && sortField ? decodeCursor(query.cursor) : undefined;
+    const buildWhere = (
+      sqlParams: SqlParameterBuilder,
+      withActiveSprint = true,
+    ): string | undefined => {
+      const baseWhere = defaultViewActive
+        ? buildDefaultViewWhere(
+            { actor: actor ?? null, withActiveSprint },
+            sqlParams,
+          )
+        : query
+          ? buildIssueWhere(query, sqlParams)
+          : undefined;
+      const keysetWhere =
+        cursor && sortField
+          ? buildKeysetWhere(sortField, sortOrder, cursor, sqlParams)
+          : undefined;
+      return baseWhere && keysetWhere
+        ? `${baseWhere} AND ${keysetWhere}`
+        : (keysetWhere ?? baseWhere);
+    };
     const fetchLimit = limit != null ? limit + 1 : undefined;
 
     let rawRows: Record<string, unknown>[];
     try {
+      const sqlParams = new SqlParameterBuilder();
       rawRows = await selectIssueRows(
         adapter,
         vault,
-        combine(baseWhere),
+        buildWhere(sqlParams),
         orderBy,
         fetchLimit,
+        sqlParams,
       );
     } catch (err) {
       if (!isMissingTableError(err)) throw err;
@@ -84,17 +95,14 @@ export async function listIssues(
         return { issues: [], next_cursor: null };
       }
       try {
+        const retryParams = new SqlParameterBuilder();
         rawRows = await selectIssueRows(
           adapter,
           vault,
-          combine(
-            buildDefaultViewWhere({
-              actor: actor ?? null,
-              withActiveSprint: false,
-            }),
-          ),
+          buildWhere(retryParams, false),
           orderBy,
           fetchLimit,
+          retryParams,
         );
       } catch (retryErr) {
         if (isMissingTableError(retryErr)) {

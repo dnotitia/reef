@@ -327,7 +327,7 @@ export async function assertPlanningItemNotReferenced(
     `${quoteIdent(column)} = ${params.add(id, "planning id")}`,
     undefined,
     undefined,
-    params.params,
+    params,
   );
   if (rows.length > 0) {
     throw new ConflictError();

@@ -17,7 +17,6 @@ import {
   isMissingTableError,
   SqlParameterBuilder,
   quoteIdent,
-  quoteIntOrNull,
   runSql,
   tableRef,
 } from "../core/sql";
@@ -426,7 +425,7 @@ export async function countIssuesByColumn(
 }
 
 /**
- * Run a `SELECT * FROM reef_issues [WHERE ...] [ORDER BY ...] [LIMIT n]` and
+ * Run a `SELECT * FROM reef_issues [WHERE ...] [ORDER BY ...] [LIMIT $n]` and
  * return the raw rows. `orderBy` / `limit` are optional so existing `WHERE`
  * callers (`readIssue`, `deleteIssue`, planning reference checks) are unchanged.
  */
@@ -436,13 +435,21 @@ export async function selectIssueRows(
   where?: string,
   orderBy?: string,
   limit?: number,
-  params?: readonly unknown[],
+  params?: SqlParameterBuilder,
 ): Promise<Record<string, unknown>[]> {
+  const sqlParams = params ?? new SqlParameterBuilder();
+  const limitParam =
+    limit != null ? sqlParams.add(limit, "issue list limit") : undefined;
   const sql = `SELECT * FROM ${tableRef(REEF_ISSUES_TABLE)}${
     where ? ` WHERE ${where}` : ""
   }${orderBy ? ` ORDER BY ${orderBy}` : ""}${
-    limit != null ? ` LIMIT ${quoteIntOrNull(limit)}` : ""
+    limitParam ? ` LIMIT ${limitParam}` : ""
   }`;
-  const res = await runSql(adapter, vault, sql, params);
+  const res = await runSql(
+    adapter,
+    vault,
+    sql,
+    sqlParams.params.length > 0 ? sqlParams.params : undefined,
+  );
   return res.kind === "table_query" ? res.items : [];
 }
