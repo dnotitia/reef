@@ -431,7 +431,7 @@ test.describe("Hermetic issue route surfaces", () => {
     await expect(page.locator('[data-testid="timeline-grid"]')).toBeVisible();
 
     await page.goto(
-      "/workspace/reef-e2e/issues?scope=active&view=timeline&status=todo&q=auth",
+      "/workspace/reef-e2e/issues?scope=active&view=timeline&status=todo&q=issue",
     );
     await expect(page.locator('[data-testid="timeline-grid"]')).toBeVisible();
 
@@ -482,7 +482,7 @@ test.describe("Hermetic issue route surfaces", () => {
     expect(url.searchParams.get("scope")).toBe("backlog");
     expect(url.searchParams.get("view")).toBe("list");
     expect(url.searchParams.get("status")).toBe("todo");
-    expect(url.searchParams.get("q")).toBe("auth");
+    expect(url.searchParams.get("q")).toBe("issue");
   });
 
   test("restores scope and layout independently and normalizes Backlog Timeline", async ({
