@@ -56,6 +56,11 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Breaking: removed the unused manual SQL value-quoting helpers and public
+  `akbQuoteText` export from the core AKB adapter surface.** Callers must pass
+  values through `runSql` positional parameters or typed AKB request bodies;
+  `quoteIdent` and `tableRef` remain available for identifiers.
+
 - **Breaking: Reef now accepts only the provider-neutral `REEF_LLM_*`
   deployment contract.** `OPENROUTER_API_KEY` and `OPENROUTER_BASE_URL` are no
   longer read or validated; deployments must provide `REEF_LLM_API_KEY`,

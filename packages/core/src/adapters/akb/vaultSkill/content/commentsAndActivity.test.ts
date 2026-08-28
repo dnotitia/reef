@@ -108,8 +108,8 @@ describe("comments-and-activity runbook (REEF-252)", () => {
     it("requires escaping the user-controlled body as data (double single quotes)", () => {
       // The body is the most user-controlled free text in the runbook, so the
       // single-quote-doubling rule is stated at the point of use to avoid a
-      // broken INSERT or an akb_sql injection path. Mirrors quoteText in
-      // adapters/akb/core/sql.ts (value.replace(/'/g, "''")).
+      // broken INSERT or an akb_sql injection path. Mirrors the SQL parameter
+      // boundary in adapters/akb/core/sql.ts.
       expect(content).toContain("user-controlled free text");
       expect(content).toContain("'it''s blocked'");
     });

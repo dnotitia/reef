@@ -57,7 +57,6 @@ export {
 } from "./core/shared";
 export {
   hydrateIssuesByDocumentUri,
-  quoteText,
   rowToIssue,
   selectIssueRows,
 } from "./core/shared";
