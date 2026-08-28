@@ -22,10 +22,7 @@ import {
   ensureReefTables,
   isMissingTableError,
   quoteIdent,
-  quoteJson,
-  quoteNumberOrNull,
-  quoteText,
-  quoteTextOrNull,
+  SqlParameterBuilder,
   runSql,
   tableRef,
   uploadAkbFile,
@@ -107,21 +104,51 @@ function rowToAttachment(row: Record<string, unknown>): IssueAttachment {
   }
 }
 
-function attachmentColumns(): string[] {
-  return [
-    "id",
-    "reef_id",
-    "file_uri",
-    "filename",
-    "mime_type",
-    "size_bytes",
-    "author",
-    "created_at",
-    "source",
-    "inline",
-    "original_jira_attachment_id",
-    "meta",
-  ];
+interface AttachmentSqlInput {
+  reefId: string;
+  fileUri?: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  author: string;
+  source: IssueAttachmentSource;
+  inline: boolean;
+  originalJiraAttachmentId: string | null;
+  createdAt: string;
+  meta: Record<string, unknown> | null;
+}
+
+function persistedAttachmentMeta(
+  input: AttachmentSqlInput,
+): Record<string, unknown> {
+  return { ...(input.meta ?? {}), created_at: input.createdAt };
+}
+
+/** Validate every attachment value before the first AKB request. */
+function validateAttachmentSqlInput(input: AttachmentSqlInput): void {
+  const params = new SqlParameterBuilder();
+  params.add(input.reefId, "attachment reef_id");
+  if (input.fileUri !== undefined) {
+    params.add(input.fileUri, "attachment file_uri");
+  }
+  params.add(input.filename, "attachment filename");
+  params.add(input.mimeType, "attachment mime_type");
+  params.add(input.sizeBytes, "attachment size_bytes");
+  params.add(input.author, "attachment author");
+  params.add(input.source, "attachment source");
+  params.add(input.inline, "attachment inline");
+  params.add(
+    input.originalJiraAttachmentId,
+    "attachment original_jira_attachment_id",
+  );
+  params.addJson(persistedAttachmentMeta(input), "attachment meta", "jsonb");
+  const idempotencyKey =
+    typeof input.meta?.jira_idempotency_key === "string"
+      ? input.meta.jira_idempotency_key
+      : null;
+  if (idempotencyKey !== null) {
+    params.add(idempotencyKey, "attachment idempotency key");
+  }
 }
 
 async function assertIssueExists(
@@ -129,13 +156,15 @@ async function assertIssueExists(
   vault: string,
   reefId: string,
 ): Promise<void> {
+  const params = new SqlParameterBuilder();
+  const reefIdParam = params.add(reefId, "attachment reef_id");
   const parent = await runSql(
     adapter,
     vault,
-    `SELECT reef_id FROM ${tableRef(REEF_ISSUES_TABLE)} WHERE reef_id = ${quoteText(
-      reefId,
-      "attachment reef_id",
-    )} LIMIT 1`,
+    `SELECT reef_id FROM ${tableRef(
+      REEF_ISSUES_TABLE,
+    )} WHERE reef_id = ${reefIdParam} LIMIT 1`,
+    params.params,
   );
   if (parent.kind !== "table_query" || parent.items.length === 0) {
     throw new NotFoundError({ resource: `issue ${reefId}` });
@@ -147,24 +176,38 @@ async function insertAttachmentRow(
   vault: string,
   input: IssueAttachmentCreateInput,
 ): Promise<IssueAttachment> {
-  const persistedMeta = { ...(input.meta ?? {}), created_at: input.created_at };
+  const sqlParams = new SqlParameterBuilder();
+  const inline = input.inline ?? false;
+  const persistedMeta = persistedAttachmentMeta({
+    reefId: input.reef_id,
+    fileUri: input.file_uri,
+    filename: input.filename,
+    mimeType: input.mime_type,
+    sizeBytes: input.size_bytes,
+    author: input.author,
+    source: input.source,
+    inline,
+    originalJiraAttachmentId: input.original_jira_attachment_id ?? null,
+    createdAt: input.created_at,
+    meta: input.meta ?? null,
+  });
   const fields: Array<[string, string]> = [
-    ["reef_id", quoteText(input.reef_id, "attachment reef_id")],
-    ["file_uri", quoteText(input.file_uri, "attachment file_uri")],
-    ["filename", quoteText(input.filename, "attachment filename")],
-    ["mime_type", quoteText(input.mime_type, "attachment mime_type")],
-    ["size_bytes", quoteNumberOrNull(input.size_bytes)],
-    ["author", quoteText(input.author, "attachment author")],
-    ["source", quoteText(input.source, "attachment source")],
-    ["inline", input.inline ? "TRUE" : "FALSE"],
+    ["reef_id", sqlParams.add(input.reef_id, "attachment reef_id")],
+    ["file_uri", sqlParams.add(input.file_uri, "attachment file_uri")],
+    ["filename", sqlParams.add(input.filename, "attachment filename")],
+    ["mime_type", sqlParams.add(input.mime_type, "attachment mime_type")],
+    ["size_bytes", sqlParams.add(input.size_bytes, "attachment size_bytes")],
+    ["author", sqlParams.add(input.author, "attachment author")],
+    ["source", sqlParams.add(input.source, "attachment source")],
+    ["inline", sqlParams.add(inline, "attachment inline")],
     [
       "original_jira_attachment_id",
-      quoteTextOrNull(
+      sqlParams.add(
         input.original_jira_attachment_id,
         "attachment original_jira_attachment_id",
       ),
     ],
-    ["meta", quoteJson(persistedMeta)],
+    ["meta", sqlParams.addJson(persistedMeta, "attachment meta", "jsonb")],
   ];
   const columns = fields
     .map(([column]) => column)
@@ -175,21 +218,18 @@ async function insertAttachmentRow(
     typeof input.meta?.jira_idempotency_key === "string"
       ? input.meta.jira_idempotency_key
       : null;
-  const claimCtes = idempotencyKey
-    ? `claim_lock AS (SELECT pg_advisory_xact_lock(hashtextextended(${quoteText(
-        idempotencyKey,
-        "attachment idempotency key",
-      )}, 0))), existing AS (SELECT attachment.* FROM ${tableRef(
+  const idempotencyKeyParam = !idempotencyKey
+    ? null
+    : sqlParams.add(idempotencyKey, "attachment idempotency key");
+  const claimCtes = idempotencyKeyParam
+    ? `claim_lock AS (SELECT pg_advisory_xact_lock(hashtextextended(${idempotencyKeyParam}, 0))), existing AS (SELECT attachment.* FROM ${tableRef(
         REEF_ATTACHMENTS_TABLE,
-      )} attachment CROSS JOIN claim_lock WHERE attachment.meta->>'jira_idempotency_key' = ${quoteText(
-        idempotencyKey,
-        "attachment idempotency key",
-      )} LIMIT 1), `
+      )} attachment CROSS JOIN claim_lock WHERE attachment.meta->>'jira_idempotency_key' = ${idempotencyKeyParam} LIMIT 1), `
     : "";
-  const insertSource = idempotencyKey
+  const insertSource = idempotencyKeyParam
     ? `SELECT ${values} FROM claim_lock WHERE NOT EXISTS (SELECT 1 FROM existing)`
     : `VALUES (${values})`;
-  const resultSelection = idempotencyKey
+  const resultSelection = idempotencyKeyParam
     ? "SELECT * FROM ins UNION ALL SELECT * FROM existing LIMIT 1"
     : "SELECT * FROM ins";
   const res = await runSql(
@@ -198,6 +238,7 @@ async function insertAttachmentRow(
     `WITH ${claimCtes}ins AS (INSERT INTO ${tableRef(
       REEF_ATTACHMENTS_TABLE,
     )} (${columns}) ${insertSource} RETURNING *) ${resultSelection}`,
+    sqlParams.params,
   );
   const row = res.kind === "table_query" ? res.items[0] : undefined;
   if (!row) {
@@ -213,15 +254,15 @@ async function attachmentByIdempotencyKey(
   vault: string,
   key: string,
 ): Promise<IssueAttachment | null> {
+  const params = new SqlParameterBuilder();
+  const keyParam = params.add(key, "attachment idempotency key");
   const result = await runSql(
     adapter,
     vault,
     `SELECT * FROM ${tableRef(
       REEF_ATTACHMENTS_TABLE,
-    )} WHERE meta->>'jira_idempotency_key' = ${quoteText(
-      key,
-      "attachment idempotency key",
-    )} LIMIT 2`,
+    )} WHERE meta->>'jira_idempotency_key' = ${keyParam} LIMIT 2`,
+    params.params,
   );
   const rows = result.kind === "table_query" ? result.items : [];
   if (rows.length > 1) {
@@ -299,13 +340,15 @@ export async function listIssueAttachments(
     { vault, reef_id: reefId },
     async (span) => {
       try {
+        const params = new SqlParameterBuilder();
+        const reefIdParam = params.add(reefId, "attachment reef_id");
         const res = await runSql(
           adapter,
           vault,
-          `SELECT * FROM ${tableRef(REEF_ATTACHMENTS_TABLE)} WHERE reef_id = ${quoteText(
-            reefId,
-            "attachment reef_id",
-          )} ORDER BY COALESCE(meta->>'created_at', created_at::text) ASC, id ASC`,
+          `SELECT * FROM ${tableRef(
+            REEF_ATTACHMENTS_TABLE,
+          )} WHERE reef_id = ${reefIdParam} ORDER BY COALESCE(meta->>'created_at', created_at::text) ASC, id ASC`,
+          params.params,
         );
         const rows = res.kind === "table_query" ? res.items : [];
         const attachments = rows.map(rowToAttachment);
@@ -331,6 +374,21 @@ export async function uploadIssueAttachment(
     "akb.upload_issue_attachment",
     { vault, reef_id: reefId },
     async () => {
+      const createdAt = params.createdAt ?? new Date().toISOString();
+      const inline = params.inline ?? false;
+      const originalJiraAttachmentId = params.originalJiraAttachmentId ?? null;
+      validateAttachmentSqlInput({
+        reefId,
+        filename,
+        mimeType,
+        sizeBytes: bytes.byteLength,
+        author,
+        source,
+        inline,
+        originalJiraAttachmentId,
+        createdAt,
+        meta: params.meta ?? null,
+      });
       await ensureReefTables({ adapter, vault });
       await assertIssueExists(adapter, vault, reefId);
       const idempotencyKey =
@@ -355,8 +413,8 @@ export async function uploadIssueAttachment(
               sizeBytes: bytes.byteLength,
               author,
               source,
-              inline: params.inline ?? false,
-              originalJiraAttachmentId: params.originalJiraAttachmentId ?? null,
+              inline,
+              originalJiraAttachmentId,
               meta: params.meta ?? null,
               bytes,
             },
@@ -383,10 +441,10 @@ export async function uploadIssueAttachment(
         mime_type: uploaded.mimeType,
         size_bytes: uploaded.sizeBytes,
         author,
-        created_at: params.createdAt ?? new Date().toISOString(),
+        created_at: createdAt,
         source,
-        inline: params.inline ?? false,
-        original_jira_attachment_id: params.originalJiraAttachmentId ?? null,
+        inline,
+        original_jira_attachment_id: originalJiraAttachmentId,
         meta: params.meta ?? null,
       });
       if (attachment.file_uri !== uploaded.uri) {
@@ -402,8 +460,8 @@ export async function uploadIssueAttachment(
               sizeBytes: uploaded.sizeBytes,
               author,
               source,
-              inline: params.inline ?? false,
-              originalJiraAttachmentId: params.originalJiraAttachmentId ?? null,
+              inline,
+              originalJiraAttachmentId,
               meta: params.meta ?? null,
               bytes,
             },
@@ -433,6 +491,19 @@ export async function createIssueAttachmentRecord(
     "akb.create_issue_attachment_record",
     { vault, reef_id: input.reef_id },
     async () => {
+      validateAttachmentSqlInput({
+        reefId: input.reef_id,
+        fileUri: input.file_uri,
+        filename: input.filename,
+        mimeType: input.mime_type,
+        sizeBytes: input.size_bytes,
+        author: input.author,
+        source: input.source,
+        inline: input.inline ?? false,
+        originalJiraAttachmentId: input.original_jira_attachment_id ?? null,
+        createdAt: input.created_at,
+        meta: input.meta ?? null,
+      });
       await ensureReefTables({ adapter, vault });
       await assertIssueExists(adapter, vault, input.reef_id);
       const attachment = await insertAttachmentRow(adapter, vault, input);
@@ -452,13 +523,16 @@ export async function downloadIssueAttachment(
     "akb.download_issue_attachment",
     { vault, reef_id: reefId },
     async () => {
+      const sqlParams = new SqlParameterBuilder();
+      const reefIdParam = sqlParams.add(reefId, "attachment reef_id");
+      const attachmentIdParam = sqlParams.add(attachmentId, "attachment id");
       const res = await runSql(
         adapter,
         vault,
-        `SELECT * FROM ${tableRef(REEF_ATTACHMENTS_TABLE)} WHERE reef_id = ${quoteText(
-          reefId,
-          "attachment reef_id",
-        )} AND id = ${quoteText(attachmentId, "attachment id")} LIMIT 1`,
+        `SELECT * FROM ${tableRef(
+          REEF_ATTACHMENTS_TABLE,
+        )} WHERE reef_id = ${reefIdParam} AND id = ${attachmentIdParam} LIMIT 1`,
+        sqlParams.params,
       );
       const row = res.kind === "table_query" ? res.items[0] : undefined;
       if (!row) {
@@ -479,13 +553,16 @@ export async function downloadIssueAttachmentByFileUri(
     "akb.download_issue_attachment_by_file_uri",
     { vault, reef_id: reefId },
     async () => {
+      const sqlParams = new SqlParameterBuilder();
+      const reefIdParam = sqlParams.add(reefId, "attachment reef_id");
+      const fileUriParam = sqlParams.add(fileUri, "attachment file_uri");
       const res = await runSql(
         adapter,
         vault,
-        `SELECT * FROM ${tableRef(REEF_ATTACHMENTS_TABLE)} WHERE reef_id = ${quoteText(
-          reefId,
-          "attachment reef_id",
-        )} AND file_uri = ${quoteText(fileUri, "attachment file_uri")} LIMIT 1`,
+        `SELECT * FROM ${tableRef(
+          REEF_ATTACHMENTS_TABLE,
+        )} WHERE reef_id = ${reefIdParam} AND file_uri = ${fileUriParam} LIMIT 1`,
+        sqlParams.params,
       );
       const row = res.kind === "table_query" ? res.items[0] : undefined;
       if (!row) {
