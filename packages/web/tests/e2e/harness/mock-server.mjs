@@ -4383,7 +4383,9 @@ function sha256(bytes) {
 }
 
 function headerQuoted(value) {
-  return String(value).replace(/["\\\r\n]/g, "_");
+  return String(value)
+    .replace(/["\\\r\n]/g, "_")
+    .replace(/[^\x20-\x7e]/g, "_");
 }
 
 function json(res, status, body) {
