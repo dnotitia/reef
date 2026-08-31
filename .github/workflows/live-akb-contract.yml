@@ -41,7 +41,8 @@ jobs:
         #   - `main` = drift detector. It builds akb's latest, so a new akb
         #     wire shape fails this leg BEFORE it reaches a reef deploy.
         akb_ref:
-          - a21b505a56ae9f7b55d0832f54b985ce2986d6f2
+          # backend-v0.14.2 — immutable release regression baseline.
+          - b28b345e687ae35441abec545961c9d09b39ea18
           - main
     steps:
       - name: Checkout reef
@@ -70,6 +71,19 @@ jobs:
         run: |
           cp config/app.yaml.example config/app.yaml
           cp config/secret.yaml.example config/secret.yaml
+          sed -i \
+            -e 's|^s3_endpoint_url:.*|s3_endpoint_url: "http://minio:9000"|' \
+            -e 's|^s3_public_url:.*|s3_public_url: "http://localhost:9000"|' \
+            -e 's|^s3_bucket:.*|s3_bucket: akb-files|' \
+            config/app.yaml
+          reef_minio_user="$(sed -n 's/^[[:space:]]*MINIO_ROOT_USER:[[:space:]]*//p' docker-compose.yaml | sed -n '1p')"
+          reef_minio_password="$(sed -n 's/^[[:space:]]*MINIO_ROOT_PASSWORD:[[:space:]]*//p' docker-compose.yaml | sed -n '1p')"
+          test -n "$reef_minio_user"
+          test -n "$reef_minio_password"
+          sed -i \
+            -e "s|^s3_access_key:.*|s3_access_key: \"${reef_minio_user}\"|" \
+            -e "s|^s3_secret_key:.*|s3_secret_key: \"${reef_minio_password}\"|" \
+            config/secret.yaml
 
       - name: Generate AKB local-session keyset
         if: matrix.akb_ref == 'main'
