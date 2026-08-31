@@ -92,4 +92,23 @@ describe("Intercepting route — /(dashboard)/@modal/(.)issues/[id]", () => {
     expect(useIssueNavStack.getState().trail).toEqual([]);
     expect(useIssueNavStack.getState().exitOwner).toBeNull();
   });
+
+  it("does not intercept the issue change-review route as a detail sheet", () => {
+    useIssueNavStack.setState({
+      trail: ["REEF-000"],
+      currentId: "REEF-001",
+      exitOwner: () => {},
+    });
+    mockUsePathname.mockReturnValue("/workspace/reef-acme/issues/changes");
+
+    render(
+      <IssueModalPage
+        params={{ id: "changes" } as unknown as Promise<{ id: string }>}
+      />,
+    );
+
+    expect(screen.queryByTestId("mock-issue-detail-sheet")).toBeNull();
+    expect(useIssueNavStack.getState().trail).toEqual([]);
+    expect(useIssueNavStack.getState().exitOwner).toBeNull();
+  });
 });

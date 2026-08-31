@@ -32,6 +32,18 @@ function issueGroup(page: Page, title: string): Locator {
   return page.getByTestId("issue-change-group").filter({ hasText: title });
 }
 
+async function expectNoIssueDetailInterception(page: Page): Promise<void> {
+  // The parallel route can settle after the review request; observe the final
+  // UI state so a delayed intercepted sheet cannot pass this assertion.
+  await page.waitForTimeout(500);
+  await expect(page.locator('[data-testid="issue-detail-modal"]')).toHaveCount(
+    0,
+  );
+  await expect(page.locator('[data-testid="issue-detail-error"]')).toHaveCount(
+    0,
+  );
+}
+
 test.describe("Hermetic issue change review", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
@@ -181,6 +193,64 @@ test.describe("Hermetic issue change review", () => {
     await expect(page.getByTestId("issue-change-review-loading")).toHaveCount(
       0,
     );
+  });
+
+  test("keeps relative and direct change-review ranges out of issue detail interception", async ({
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(await discoveredReviewStartPath(request));
+    await expect(page.getByTestId("issue-change-review-results")).toBeVisible({
+      timeout: 60_000,
+    });
+
+    const relativeResponse = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        url.pathname === "/api/issues/changes" &&
+        response.request().method() === "GET"
+      );
+    });
+    await page.getByTestId("issue-change-review-relative-3").click();
+    await relativeResponse;
+    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/changes$/u);
+    await expect(page.getByTestId("issue-change-review-results")).toBeVisible({
+      timeout: 30_000,
+    });
+    await expectNoIssueDetailInterception(page);
+
+    const directRangeResponse = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        url.pathname === "/api/issues/changes" &&
+        response.request().method() === "GET"
+      );
+    });
+    await page.getByTestId("issue-change-review-start").fill("2026-06-15");
+    await page.getByTestId("issue-change-review-end").fill("2026-06-19");
+    await page.getByTestId("issue-change-review-apply").click();
+    await directRangeResponse;
+    await expect(page.getByTestId("issue-change-review-results")).toBeVisible({
+      timeout: 30_000,
+    });
+    await expectNoIssueDetailInterception(page);
+
+    const emptyRangeResponse = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        url.pathname === "/api/issues/changes" &&
+        response.request().method() === "GET"
+      );
+    });
+    await page.getByTestId("issue-change-review-start").fill("2027-01-01");
+    await page.getByTestId("issue-change-review-end").fill("2027-01-02");
+    await page.getByTestId("issue-change-review-apply").click();
+    await emptyRangeResponse;
+    await expect(page.getByTestId("issue-change-review-empty")).toBeVisible({
+      timeout: 30_000,
+    });
+    await expectNoIssueDetailInterception(page);
   });
 
   test("copies fixed shared ranges and surfaces a review-query error distinctly from empty", async ({

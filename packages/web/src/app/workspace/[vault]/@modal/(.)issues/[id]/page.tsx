@@ -28,7 +28,10 @@ export default function IssueModalPage({ params }: IssueModalPageProps) {
   const router = useRouter();
   const pathname = usePathname();
   const clear = useIssueNavStack((state) => state.clear);
-  const isActiveIssuePath = pathname.endsWith(`/issues/${id}`);
+  // The static `/issues/changes` page can still pass through this dynamic
+  // intercepting segment during a soft navigation.
+  const isActiveIssuePath =
+    id !== "changes" && pathname.endsWith(`/issues/${id}`);
 
   useEffect(() => {
     if (!isActiveIssuePath) clear();
