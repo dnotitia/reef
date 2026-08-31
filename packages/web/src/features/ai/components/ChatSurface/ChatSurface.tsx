@@ -81,9 +81,8 @@ export function ChatSurface({
     if (!text) return;
     const accepted = await sendMessage({ text });
     // A failed or cancelled run keeps the exact submitted text available for
-    // retry. Existing callers that do not return a result retain the original
-    // clear-on-submit behavior.
-    if (accepted !== false) setInputText("");
+    // retry.
+    if (accepted) setInputText("");
   }
 
   return (

@@ -4,15 +4,13 @@ import { Button } from "@/components/ui/button";
 import { useKnownIssueIds } from "@/features/issues/stores/issueEntityStore";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useAiAvailable } from "@/features/settings/hooks/useAiAvailable";
-import { VAULT_HEADER } from "@/lib/akb/headers";
-import { apiFetch } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
 import { FileText, MessageSquarePlus, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo } from "react";
 import { useWorkspaceChat } from "../hooks/useWorkspaceChat";
-import type { AgentRunFetch } from "../runtime/types";
+import { createVaultAwareFetch } from "../runtime/createVaultAwareFetch";
 import { useAskAiStore } from "../stores/useAskAiStore";
 import { ChatSurface } from "./ChatSurface";
 
@@ -61,17 +59,7 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
 
   // Vault-aware fetch: pins the workspace header so the run targets this tab's
   // vault, not the shared Dexie pointer.
-  const chatFetch = useMemo<AgentRunFetch>(
-    () => (input, init) =>
-      apiFetch(input, {
-        ...init,
-        headers: {
-          ...((init?.headers as Record<string, string> | undefined) ?? {}),
-          ...(vault ? { [VAULT_HEADER]: vault } : {}),
-        },
-      }),
-    [vault],
-  );
+  const chatFetch = useMemo(() => createVaultAwareFetch(vault), [vault]);
 
   const { messages, sendMessage, status, stop, clear, messageCount } =
     useWorkspaceChat({

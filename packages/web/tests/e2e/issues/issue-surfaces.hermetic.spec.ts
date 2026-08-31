@@ -1465,12 +1465,13 @@ test.describe("Hermetic issue route surfaces", () => {
       await page.keyboard.press("Tab");
       await expect(enrich).toBeFocused();
       await page.keyboard.press("Tab");
-      await expect(draftConversationToggle).toBeFocused();
-      await page.keyboard.press("Tab");
       if (viewport.width < 900) {
         await expect(draftViewToggle).toBeFocused();
         await page.keyboard.press("Tab");
         await expect(conversationViewToggle).toBeFocused();
+        await page.keyboard.press("Tab");
+      } else {
+        await expect(draftConversationToggle).toBeFocused();
         await page.keyboard.press("Tab");
       }
       await expect(title).toBeFocused();

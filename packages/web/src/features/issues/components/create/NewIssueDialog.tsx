@@ -35,8 +35,6 @@ import {
 } from "@/features/ui/stores/useViewStore";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { akbDocumentSlugTitle } from "@/lib/akb/documentUri";
-import { VAULT_HEADER } from "@/lib/akb/headers";
-import { apiFetch } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
 import { DEFAULT_CONFIG } from "@reef/core";
@@ -55,6 +53,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ISSUE_TYPE_OPTIONS, NO_SELECTION } from "../../lib/metadataOptions";
+import { createVaultAwareFetch } from "@/features/ai/runtime/createVaultAwareFetch";
 import { IssueRefsEditor } from "../refs/IssueRefsEditor";
 import { IssueFieldRow } from "../shared/IssueFieldRow";
 import { SimilarIssuesSection } from "../shared/SimilarIssuesSection";
@@ -67,7 +66,6 @@ import { NewIssueRelationFields } from "./NewIssueRelationFields";
 import { TemplatePicker } from "./TemplatePicker";
 import { useNewIssueDialogGeometry } from "./newIssueDialogGeometry";
 import { useNewIssueEnrichment } from "./useNewIssueEnrichment";
-import type { AgentRunFetch } from "@/features/ai/runtime/types";
 import {
   type NewIssueFormDefaults,
   useNewIssueFormState,
@@ -244,17 +242,7 @@ export function NewIssueDialog({
     setReferenceCandidates,
   });
 
-  const chatFetch = useMemo<AgentRunFetch>(
-    () => (input, init) =>
-      apiFetch(input, {
-        ...init,
-        headers: {
-          ...((init?.headers as Record<string, string> | undefined) ?? {}),
-          ...(vault ? { [VAULT_HEADER]: vault } : {}),
-        },
-      }),
-    [vault],
-  );
+  const chatFetch = useMemo(() => createVaultAwareFetch(vault), [vault]);
   const draftConversation = useWorkspaceChat({
     fetch: chatFetch,
     route: null,
@@ -876,7 +864,7 @@ export function NewIssueDialog({
                 type="button"
                 variant={draftConversationOpen ? "secondary" : "outline"}
                 size="sm"
-                className="h-8 gap-1.5 px-3 text-xs"
+                className="hidden h-8 gap-1.5 px-3 text-xs min-[900px]:inline-flex"
                 onClick={toggleDraftConversation}
                 disabled={noVault}
                 aria-expanded={draftConversationOpen}

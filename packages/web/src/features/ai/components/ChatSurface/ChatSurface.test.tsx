@@ -195,7 +195,7 @@ describe("ChatSurface", () => {
   });
 
   it("clears the composer and disables submit after sending", async () => {
-    const sendMessage = vi.fn();
+    const sendMessage = vi.fn().mockResolvedValue(true);
     renderSurface({
       sendMessage,
       inputTestId: "surface-input",
