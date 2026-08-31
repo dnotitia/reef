@@ -682,7 +682,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
   });
 
   it("notification storage — public APIs preserve identity, recipient, state, and source contracts", async () => {
-    expect(REEF_SCHEMA_VERSION).toBe(2);
+    expect(REEF_SCHEMA_VERSION).toBe(3);
     expect(provisionCreateCount).toBe(REEF_DESIRED_TABLES.length);
     expect(provisionAlterCount).toBe(0);
 
