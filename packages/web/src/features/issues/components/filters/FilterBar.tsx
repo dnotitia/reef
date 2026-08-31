@@ -16,6 +16,7 @@ import { PlanningItemCombobox } from "@/features/planning/components/PlanningIte
 import { PlanningItemMultiCombobox } from "@/features/planning/components/PlanningItemMultiCombobox";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import {
+  useEnrichmentEmptyLabels,
   useDependencyLabels,
   useDueLabels,
   useFieldNameLabels,
@@ -26,16 +27,13 @@ import {
 } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { MyViewListColumn, MyViewSnapshot, Status } from "@reef/core";
-import { PRIORITY_OPTIONS } from "@reef/core/fields";
+import { PRIORITY_OPTIONS, SEVERITY_OPTIONS } from "@reef/core/fields";
 import { STATUS_OPTIONS } from "@reef/core/fields";
 import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useMemo } from "react";
 import { formatLabelFilter, parseLabelFilter } from "../../lib/issueListUtils";
-import {
-  ISSUE_TYPE_OPTIONS,
-  SEVERITY_OPTIONS,
-} from "../../lib/metadataOptions";
+import { ISSUE_TYPE_OPTIONS } from "../../lib/metadataOptions";
 import { type IssueFilter, useIssueStore } from "../../stores/useIssueStore";
 import { DisplayOptionsFilter } from "./DisplayOptionsFilter";
 import { MyViewControl } from "./MyViewControl";
@@ -145,13 +143,13 @@ function countActiveFilters(
   let count = 0;
   if (!backlogScope && filter.status?.length) count++;
   if (filter.issueType?.length) count++;
-  if (filter.priority?.length) count++;
-  if (filter.assignee?.length) count++;
+  if (filter.priority?.length || filter.priorityUnset) count++;
+  if (filter.assignee?.length || filter.assigneeUnset) count++;
   if (filter.requester?.length) count++;
   if (!backlogScope && filter.sprint_id?.length) count++;
   if (filter.milestone_id) count++;
   if (!backlogScope && filter.release_id?.length) count++;
-  if (filter.severity?.length) count++;
+  if (filter.severity?.length || filter.severityUnset) count++;
   if (!backlogScope && filter.due?.length) count++;
   if (filter.label?.trim()) count++;
   if (filter.dependencyFilter?.length) count++;
@@ -209,6 +207,7 @@ export function FilterBar({
   const issueTypeLabels = useIssueTypeLabels();
   const priorityLabels = usePriorityLabels();
   const severityLabels = useSeverityLabels();
+  const emptyLabels = useEnrichmentEmptyLabels();
   const dueLabels = useDueLabels();
   const dependencyLabels = useDependencyLabels();
   // Field-NAME labels for the facet triggers' aria/label text (REEF-301), so the
@@ -303,11 +302,22 @@ export function FilterBar({
         label={fieldNames.priority}
         values={filter.priority}
         onToggle={(value, checked) =>
-          setFilter({ priority: toggleFacet(filter.priority, value, checked) })
+          setFilter({
+            priority: toggleFacet(filter.priority, value, checked),
+          })
         }
         options={PRIORITY_FACET_OPTIONS}
-        summarizeValue={(p) => priorityLabels[p as keyof typeof priorityLabels]}
-        active={Boolean(filter.priority?.length)}
+        summarizeValue={(value) =>
+          priorityLabels[value as keyof typeof priorityLabels]
+        }
+        auxiliaryOption={{
+          label: emptyLabels.noPriority,
+          selected: Boolean(filter.priorityUnset),
+          onToggle: (checked) =>
+            setFilter({ priorityUnset: checked ? true : undefined }),
+          testId: "priority-option-unset",
+        }}
+        active={Boolean(filter.priority?.length || filter.priorityUnset)}
         ariaLabel={fieldNames.priority}
         triggerTestId="priority-dropdown-trigger"
         contentTestId="priority-dropdown-content"
@@ -318,11 +328,22 @@ export function FilterBar({
         label={fieldNames.severity}
         values={filter.severity}
         onToggle={(value, checked) =>
-          setFilter({ severity: toggleFacet(filter.severity, value, checked) })
+          setFilter({
+            severity: toggleFacet(filter.severity, value, checked),
+          })
         }
         options={SEVERITY_FACET_OPTIONS}
-        summarizeValue={(s) => severityLabels[s as keyof typeof severityLabels]}
-        active={Boolean(filter.severity?.length)}
+        summarizeValue={(value) =>
+          severityLabels[value as keyof typeof severityLabels]
+        }
+        auxiliaryOption={{
+          label: emptyLabels.noSeverity,
+          selected: Boolean(filter.severityUnset),
+          onToggle: (checked) =>
+            setFilter({ severityUnset: checked ? true : undefined }),
+          testId: "severity-option-unset",
+        }}
+        active={Boolean(filter.severity?.length || filter.severityUnset)}
         ariaLabel={fieldNames.severity}
         triggerTestId="severity-dropdown-trigger"
         contentTestId="severity-dropdown-content"
@@ -380,9 +401,13 @@ export function FilterBar({
               assignee: toggleFacet(filter.assignee, login, checked),
             })
           }
+          unassigned={filter.assigneeUnset}
+          onUnassignedToggle={(checked) =>
+            setFilter({ assigneeUnset: checked ? true : undefined })
+          }
           vault={vault}
           label={fieldNames.assignee}
-          active={Boolean(filter.assignee?.length)}
+          active={Boolean(filter.assignee?.length || filter.assigneeUnset)}
           triggerTestId="assignee-dropdown-trigger"
           contentTestId="assignee-dropdown-content"
           panelClassName={USER_FILTER_PANEL_CLASS}

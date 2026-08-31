@@ -96,6 +96,56 @@ describe("buildIssueWhere", () => {
     ).toEqual(["alice", "bob"]);
   });
 
+  it("matches only unset priority values", () => {
+    expect(issueWhere({ priority_unset: true, archived: true })).toEqual({
+      sql: `"priority" IS NULL`,
+      params: [],
+    });
+  });
+
+  it("OR-combines a real priority with unset priority", () => {
+    expect(
+      issueWhere({ priority: ["high"], priority_unset: true, archived: true }),
+    ).toEqual({
+      sql: `("priority" IN ($1) OR "priority" IS NULL)`,
+      params: ["high"],
+    });
+  });
+
+  it("matches only unset severity values", () => {
+    expect(issueWhere({ severity_unset: true, archived: true })).toEqual({
+      sql: `"severity" IS NULL`,
+      params: [],
+    });
+  });
+
+  it("includes null, empty, and whitespace-only assignees in the unset set", () => {
+    expect(issueWhere({ assigned_to_unset: true, archived: true })).toEqual({
+      sql: `COALESCE(BTRIM("assigned_to"), '') = ''`,
+      params: [],
+    });
+  });
+
+  it("OR-combines a real assignee with the unset set without a username sentinel", () => {
+    expect(
+      issueWhere({
+        assigned_to: ["__none__"],
+        assigned_to_unset: true,
+        archived: true,
+      }),
+    ).toEqual({
+      sql: `(LOWER("assigned_to") IN ($1) OR COALESCE(BTRIM("assigned_to"), '') = '')`,
+      params: ["__none__"],
+    });
+  });
+
+  it("matches only issues without a due date", () => {
+    expect(issueWhere({ due_unset: true, archived: true })).toEqual({
+      sql: `"due_date" IS NULL`,
+      params: [],
+    });
+  });
+
   it("uses a case-insensitive exact IN for requester (REEF-267)", () => {
     expect(
       issueWhere({ requester: ["carol", "dave"], archived: true }).sql,

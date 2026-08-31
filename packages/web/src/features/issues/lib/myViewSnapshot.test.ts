@@ -7,6 +7,11 @@ describe("My View workspace snapshot codec", () => {
     const snapshot = buildMyViewSnapshot({
       filter: {
         status: ["todo"],
+        priority: ["high"],
+        priorityUnset: true,
+        severityUnset: true,
+        assigneeUnset: true,
+        due: ["no_due"],
         sortField: "updated_at",
         sortOrder: "desc",
         showArchived: true,
@@ -19,7 +24,14 @@ describe("My View workspace snapshot codec", () => {
     });
 
     expect(snapshot).toEqual({
-      filter: { status: ["todo"] },
+      filter: {
+        status: ["todo"],
+        priority: ["high"],
+        priorityUnset: true,
+        severityUnset: true,
+        assigneeUnset: true,
+        due: ["no_due"],
+      },
       scope: "active",
       layout: "list",
       grouping: "label",

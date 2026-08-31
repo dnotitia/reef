@@ -39,6 +39,15 @@ function optionCommandValue(value: string): string {
   return `option:${value}`;
 }
 
+const AUXILIARY_COMMAND_VALUE = "auxiliary-option";
+
+interface AuxiliaryOption {
+  label: string;
+  selected: boolean;
+  onToggle: (checked: boolean) => void;
+  testId?: string;
+}
+
 interface MultiSelectComboboxProps<T extends string> {
   label: string;
   values: readonly T[] | undefined;
@@ -59,18 +68,26 @@ interface MultiSelectComboboxProps<T extends string> {
   contentClassName?: string;
   optionClassName?: string;
   summarizeValue?: (value: T) => string;
+  /** A filter-only choice that has its own state instead of a T value. */
+  auxiliaryOption?: AuxiliaryOption;
 }
 
 function facetSummary<T extends string>(
   values: readonly T[] | undefined,
   summarizeValue?: (value: T) => string,
+  auxiliaryOption?: AuxiliaryOption,
 ): string {
-  if (!values || values.length === 0) return "";
-  if (values.length === 1) {
-    const value = values[0];
+  const count = (values?.length ?? 0) + (auxiliaryOption?.selected ? 1 : 0);
+  if (count === 0) return "";
+  if (count === 1) {
+    if (auxiliaryOption?.selected && !values?.length) {
+      return ` (${auxiliaryOption.label})`;
+    }
+    const value = values?.[0];
+    if (value === undefined) return ` (${auxiliaryOption?.label ?? ""})`;
     return ` (${summarizeValue ? summarizeValue(value) : value})`;
   }
-  return ` (${values.length})`;
+  return ` (${count})`;
 }
 
 export function MultiSelectCombobox<T extends string>({
@@ -93,6 +110,7 @@ export function MultiSelectCombobox<T extends string>({
   contentClassName,
   optionClassName,
   summarizeValue,
+  auxiliaryOption,
 }: MultiSelectComboboxProps<T>) {
   const t = useTranslations("components.combobox");
   const [open, setOpenState] = useState(false);
@@ -102,10 +120,12 @@ export function MultiSelectCombobox<T extends string>({
   const searchRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const rows = loading ? [] : options;
-  const defaultCommandValue = optionCommandValue(
-    rows.find((option) => values?.includes(option.value) && !option.disabled)
-      ?.value ?? rows.find((option) => !option.disabled)?.value ?? "",
-  );
+  const defaultCommandValue = auxiliaryOption?.selected
+    ? AUXILIARY_COMMAND_VALUE
+    : optionCommandValue(
+        rows.find((option) => values?.includes(option.value) && !option.disabled)
+          ?.value ?? rows.find((option) => !option.disabled)?.value ?? "",
+      );
   const placement = useComboboxPlacement({
     open,
     align,
@@ -145,7 +165,7 @@ export function MultiSelectCombobox<T extends string>({
         )}
       >
         {label}
-        {facetSummary(values, summarizeValue)}
+        {facetSummary(values, summarizeValue, auxiliaryOption)}
         <ChevronDown data-open={open} className={CBX_CHEVRON} />
       </PopoverTrigger>
 
@@ -193,6 +213,28 @@ export function MultiSelectCombobox<T extends string>({
               active={Boolean(loading)}
               className="sticky top-0 bottom-auto"
             />
+            {auxiliaryOption ? (
+              <CommandItem
+                value={AUXILIARY_COMMAND_VALUE}
+                keywords={[auxiliaryOption.label]}
+                aria-checked={auxiliaryOption.selected}
+                data-checked={auxiliaryOption.selected}
+                data-testid={auxiliaryOption.testId}
+                onSelect={() =>
+                  auxiliaryOption.onToggle(!auxiliaryOption.selected)
+                }
+                className={cn(
+                  CBX_OPTION_BASE,
+                  optionClassName ?? CBX_OPTION_ROW,
+                  "data-[selected=true]:bg-surface-hover data-[selected=true]:text-foreground",
+                )}
+              >
+                <span>{auxiliaryOption.label}</span>
+                {auxiliaryOption.selected ? (
+                  <Check className={CBX_CHECK} aria-hidden />
+                ) : null}
+              </CommandItem>
+            ) : null}
             {rows.map((option) => {
               const selected = values?.includes(option.value) ?? false;
               return (

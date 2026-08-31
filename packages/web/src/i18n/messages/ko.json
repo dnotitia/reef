@@ -771,7 +771,8 @@
     },
     "due": {
       "overdue": "기한 초과",
-      "due_soon": "기한 임박"
+      "due_soon": "기한 임박",
+      "no_due": "기한 없음"
     },
     "dependency": {
       "blocked": "차단됨",

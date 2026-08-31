@@ -50,12 +50,15 @@ export function hasScopeFilters(
   return Boolean(
     filter.issueType?.length ||
       filter.priority?.length ||
+      filter.priorityUnset ||
       filter.assignee?.length ||
+      filter.assigneeUnset ||
       filter.requester?.length ||
       (scope === "active" && filter.sprint_id?.length) ||
       filter.milestone_id ||
       (scope === "active" && filter.release_id?.length) ||
       filter.severity?.length ||
+      filter.severityUnset ||
       (scope === "active" && filter.due?.length) ||
       filter.label?.trim() ||
       filter.dependencyFilter?.length ||

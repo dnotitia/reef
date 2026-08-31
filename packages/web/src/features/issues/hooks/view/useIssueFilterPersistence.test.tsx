@@ -38,6 +38,32 @@ describe("useIssueFilterPersistence", () => {
     });
   });
 
+  it("persists unset selections without introducing a stored issue sentinel", async () => {
+    renderHook(() => useIssueFilterPersistence("reef-acme", noSkip()));
+
+    act(() =>
+      useIssueStore.getState().setFilter({
+        priority: ["high"],
+        priorityUnset: true,
+        severityUnset: true,
+        assignee: ["__none__"],
+        assigneeUnset: true,
+        due: ["no_due"],
+      }),
+    );
+
+    await waitFor(async () => {
+      expect(await getPersistedIssueFilter("reef-acme")).toEqual({
+        priority: ["high"],
+        priorityUnset: true,
+        severityUnset: true,
+        assignee: ["__none__"],
+        assigneeUnset: true,
+        due: ["no_due"],
+      });
+    });
+  });
+
   it("persists a filter already active for the vault at mount (URL-applied)", async () => {
     // useIssueUrlSync applies a URL filter into the store before this hook's
     // subscription exists; mounting should persist it.

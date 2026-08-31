@@ -93,6 +93,45 @@ describe("FilterBar", () => {
     expect(screen.getByTestId("labels-input")).toBeTruthy();
   });
 
+  it("offers and toggles unset priority, severity, due, and assignee options", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useActiveVault).mockReturnValue({
+      vault: "reef-acme",
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    vi.mocked(apiFetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          users: [{ login: "alice", name: "Alice" }],
+        }),
+        { status: 200 },
+      ),
+    );
+    renderFilterBar();
+
+    await user.click(screen.getByTestId("priority-dropdown-trigger"));
+    await user.click(screen.getByTestId("priority-option-unset"));
+    expect(useIssueStore.getState().filter.priorityUnset).toBe(true);
+    await user.click(screen.getByTestId("priority-option-unset"));
+    expect(useIssueStore.getState().filter.priorityUnset).toBeUndefined();
+
+    await user.click(screen.getByTestId("severity-dropdown-trigger"));
+    await user.click(screen.getByTestId("severity-option-unset"));
+    expect(useIssueStore.getState().filter.severityUnset).toBe(true);
+
+    await user.click(screen.getByTestId("due-dropdown-trigger"));
+    await user.click(screen.getByTestId("due-option-no_due"));
+    expect(useIssueStore.getState().filter.due).toEqual(["no_due"]);
+
+    await user.click(screen.getByTestId("assignee-dropdown-trigger"));
+    await user.click(screen.getByTestId("assignee-option-unassigned"));
+    expect(useIssueStore.getState().filter.assigneeUnset).toBe(true);
+    expect(screen.getByTestId("active-filter-count")).toHaveTextContent(
+      "3 filters",
+    );
+  });
+
   it("offers view-scoped group choices and writes the selected group", async () => {
     const user = userEvent.setup();
     const setGroupBy = vi.fn();

@@ -184,10 +184,13 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
   const filtersActive = !!(
     backlogFilter.issueType?.length ||
     backlogFilter.priority?.length ||
+    backlogFilter.priorityUnset ||
     backlogFilter.assignee ||
+    backlogFilter.assigneeUnset ||
     backlogFilter.requester ||
     backlogFilter.milestone_id ||
     backlogFilter.severity?.length ||
+    backlogFilter.severityUnset ||
     backlogFilter.label ||
     backlogFilter.dependencyFilter?.length ||
     searchQuery

@@ -42,6 +42,31 @@ function Harness({ active }: { active?: boolean } = {}) {
   );
 }
 
+function AuxiliaryOptionHarness() {
+  const [values, setValues] = useState<Fruit[]>([]);
+  const [unassigned, setUnassigned] = useState(false);
+  return (
+    <MultiSelectCombobox
+      label="People"
+      values={values}
+      onToggle={(value, checked) =>
+        setValues((prev) =>
+          checked ? [...prev, value] : prev.filter((v) => v !== value),
+        )
+      }
+      options={OPTIONS}
+      auxiliaryOption={{
+        label: "Unassigned",
+        selected: unassigned,
+        onToggle: setUnassigned,
+        testId: "opt-unassigned",
+      }}
+      triggerTestId="people-trigger"
+      contentTestId="people-content"
+    />
+  );
+}
+
 describe("MultiSelectCombobox", () => {
   it("toggles multiple values while keeping the panel open (multi-select) — AC3", async () => {
     const user = userEvent.setup();
@@ -70,6 +95,24 @@ describe("MultiSelectCombobox", () => {
     expect(screen.getByTestId("opt-apple").getAttribute("aria-checked")).toBe(
       "false",
     );
+  });
+
+  it("supports a separate auxiliary selection without colliding with option values", async () => {
+    const user = userEvent.setup();
+    render(<AuxiliaryOptionHarness />);
+
+    await user.click(screen.getByTestId("people-trigger"));
+    await user.click(screen.getByTestId("opt-unassigned"));
+
+    expect(screen.getByTestId("opt-unassigned")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(screen.getByTestId("people-trigger")).toHaveTextContent(
+      "People (Unassigned)",
+    );
+    await user.click(screen.getByTestId("opt-apple"));
+    expect(screen.getByTestId("people-trigger")).toHaveTextContent("People (2)");
   });
 
   it("re-clicking an open trigger closes the panel (REEF-073) — AC3", async () => {

@@ -72,6 +72,7 @@ export const SEVERITY_COLORS: Record<Severity, string> = {
 export const DUE_COLORS: Record<DueFacet, string> = {
   overdue: "text-due-overdue",
   due_soon: "text-due-soon",
+  no_due: "text-muted-foreground",
 };
 
 /** Tailwind text-color classes for the dependency-facet glyph (icon currentColor). */
