@@ -686,11 +686,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
     expect(provisionCreateCount).toBe(REEF_DESIRED_TABLES.length);
     expect(provisionAlterCount).toBe(0);
 
-    const boundarySuffix =
-      `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`
-        .padEnd(20, "0")
-        .slice(0, 20);
-    const overlongVault = `reef-boundary-${boundarySuffix}`;
+    const overlongVault = `reef-boundary-${"x".repeat(50)}`;
     let overlongVaultAdapterCalls = 0;
     let overlongVaultTableCount = -1;
     await createVault({
@@ -1000,7 +996,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
           },
           {
             api: "akbEnsureReefTables boundary validation",
-            input: { vault_length: 34 },
+            input: { vault_length: overlongVault.length },
             output: {
               rejected: true,
               adapter_calls: overlongVaultAdapterCalls,
