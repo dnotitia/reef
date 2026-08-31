@@ -14,10 +14,10 @@ import { normalizeSafeRedirect } from "@/lib/akb/safeRedirect";
 import { apiFetch } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
 import { AkbAuthConfigSchema, isAkbAccountErrorCode } from "@reef/core";
-import { Building2, KeyRound, ShieldCheck } from "lucide-react";
+import { Building2, KeyRound } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export interface LoginPanelProps {
   redirectTo?: string;
@@ -26,10 +26,6 @@ export interface LoginPanelProps {
 interface AuthCapabilities {
   ssoEnabled: boolean;
   localAuthEnabled: boolean;
-}
-
-function akbPlatformToken(chunks: ReactNode) {
-  return <span translate="no">{chunks}</span>;
 }
 
 export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
@@ -179,17 +175,17 @@ export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
   }
 
   return (
-    <div className="w-full rounded-lg border border-border bg-surface-elevated/70 p-4 shadow-sm">
+    <div className="w-full rounded-lg border border-border bg-surface-elevated/70 p-4 text-left shadow-sm">
       <div className="flex items-center gap-2 border-b border-border pb-3 text-left">
         <div className="flex size-8 items-center justify-center rounded-md border border-border bg-surface-page text-brand-text">
           <Building2 className="size-4" aria-hidden="true" />
         </div>
         <div className="min-w-0">
           <p className="font-medium text-foreground text-sm">
-            {t("workspaceIdentity")}
+            {t("signInMethod")}
           </p>
-          <p className="text-muted-foreground text-xs">
-            {t.rich("akbPlatformAccess", { akb: akbPlatformToken })}
+          <p className="break-words text-muted-foreground text-xs">
+            {t("identityProviderDescription")}
           </p>
         </div>
       </div>
@@ -212,16 +208,12 @@ export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
             <a
               href={ssoStartUrl}
               className={cn(
-                "inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-brand-fill px-4 font-medium text-brand-on-fill text-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
+                "inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-brand-fill px-4 font-medium text-brand-on-fill text-sm whitespace-nowrap transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
               )}
             >
               <KeyRound className="size-4" aria-hidden="true" />
               {t("continueWithSso")}
             </a>
-            <div className="flex items-center justify-center gap-1.5 text-muted-foreground text-xs">
-              <ShieldCheck className="size-3.5" aria-hidden="true" />
-              <span>{t.rich("useAkbIdentity", { akb: akbPlatformToken })}</span>
-            </div>
           </div>
         )}
 
@@ -233,10 +225,10 @@ export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
       </div>
 
       {ssoEnabled && localAuthEnabled && (
-        <div className="my-4 flex items-center gap-3 text-muted-foreground text-xs">
-          <div className="h-px flex-1 bg-border" />
-          <span>{t("orUsePassword")}</span>
-          <div className="h-px flex-1 bg-border" />
+        <div className="my-4 flex min-w-0 items-center gap-3 text-muted-foreground text-xs">
+          <div aria-hidden="true" className="h-px min-w-0 flex-1 bg-border" />
+          <span className="max-w-full text-center">{t("orUsePassword")}</span>
+          <div aria-hidden="true" className="h-px min-w-0 flex-1 bg-border" />
         </div>
       )}
 

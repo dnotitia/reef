@@ -140,16 +140,69 @@ test.describe("SSO-first login auto-redirect", () => {
       "SSO could not complete",
     );
     await expect(
-      page.getByRole("link", { name: /continue with workspace sso/i }),
+      page.getByRole("link", { name: /continue with sso/i }),
     ).toBeVisible();
     await expect(page.locator('[data-testid="akb-login-form"]')).toHaveCount(0);
 
     await page.goto("/login?password=1");
 
     await expect(
-      page.getByRole("link", { name: /continue with workspace sso/i }),
+      page.getByRole("link", { name: /continue with sso/i }),
     ).toBeVisible();
     await expect(page.locator('[data-testid="akb-login-form"]')).toHaveCount(0);
+  });
+
+  test("hybrid login uses provider-neutral copy without narrow overflow", async ({
+    page,
+    request,
+  }) => {
+    await setKeycloakEnabled(request, true);
+
+    for (const width of [320, 375, 414, 768]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto("/login?password=1");
+
+      await expect(
+        page.getByRole("link", { name: "Continue with SSO" }),
+      ).toBeVisible();
+      await expect(
+        page.getByText("Sign-in method", { exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByText(
+          "Use the identity provider configured for this workspace.",
+          { exact: true },
+        ),
+      ).toBeVisible();
+      await expect(
+        page.getByText("Or sign in with username and password", {
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(
+        page.locator('[data-testid="akb-login-form"]'),
+      ).toBeVisible();
+      await expect(page.locator("body")).not.toContainText("akb-platform");
+
+      const geometry = await page.evaluate(() => {
+        const sso = document.querySelector<HTMLAnchorElement>(
+          'a[href^="/api/auth/akb/sso/start"]',
+        );
+        if (!sso) throw new Error("SSO link is missing");
+        const rect = sso.getBoundingClientRect();
+        return {
+          documentOverflow:
+            document.documentElement.scrollWidth >
+            document.documentElement.clientWidth,
+          ssoContained: rect.left >= 0 && rect.right <= window.innerWidth,
+          ssoWhiteSpace: getComputedStyle(sso).whiteSpace,
+        };
+      });
+
+      expect(geometry.documentOverflow, `viewport ${width}px`).toBe(false);
+      expect(geometry.ssoContained, `viewport ${width}px`).toBe(true);
+      expect(geometry.ssoWhiteSpace).toBe("nowrap");
+    }
   });
 
   test("AC5: SSO disabled keeps today's panel even with the opt-in on", async ({
