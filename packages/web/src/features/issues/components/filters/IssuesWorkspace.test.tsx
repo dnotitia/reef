@@ -154,6 +154,15 @@ describe("IssuesWorkspace", () => {
     expect(view.closest('[data-slot="page-header-actions"]')).not.toBeNull();
   });
 
+  it("links the Issues header to the vault-scoped change review", () => {
+    render(wrap(<IssuesWorkspace />));
+
+    expect(screen.getByRole("link", { name: "Change review" })).toHaveAttribute(
+      "href",
+      "/workspace/reef-acme/issues/changes",
+    );
+  });
+
   it("renders the list body when ?view=list", () => {
     navigationState.searchParams = new URLSearchParams("view=list");
     render(wrap(<IssuesWorkspace />));

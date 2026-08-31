@@ -5,10 +5,13 @@ import "fake-indexeddb/auto";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  clearAllIssueChangeReviewPeriods,
   getActiveVault,
   getConfigValue,
+  getIssueChangeReviewPeriod,
   setActiveVault,
   setConfigValue,
+  setIssueChangeReviewPeriod,
 } from "./config";
 import { db } from "./db";
 
@@ -66,6 +69,36 @@ describe("config setters — vault + key-value bag", () => {
       expect(await getConfigValue("custom_key")).toBe("v2");
       const rows = await db.config.where("key").equals("custom_key").toArray();
       expect(rows).toHaveLength(1);
+    });
+  });
+
+  describe("issue change-review period preference", () => {
+    it("round-trips per-vault relative days and rejects invalid values", async () => {
+      expect(await getIssueChangeReviewPeriod("reef-acme")).toBeUndefined();
+
+      await setIssueChangeReviewPeriod("reef-acme", 3);
+
+      expect(await getIssueChangeReviewPeriod("reef-acme")).toBe(3);
+      expect(await getIssueChangeReviewPeriod("reef-other")).toBeUndefined();
+      await expect(
+        setIssueChangeReviewPeriod("reef-acme", 0),
+      ).rejects.toBeInstanceOf(TypeError);
+      await expect(
+        setIssueChangeReviewPeriod("reef-acme", 366),
+      ).rejects.toBeInstanceOf(TypeError);
+    });
+
+    it("discards corrupt values and clears every vault slot", async () => {
+      await setConfigValue("change-review-period:reef-acme", "not-json");
+      await setIssueChangeReviewPeriod("reef-other", 14);
+
+      expect(await getIssueChangeReviewPeriod("reef-acme")).toBeUndefined();
+      expect(await getIssueChangeReviewPeriod("reef-other")).toBe(14);
+
+      await clearAllIssueChangeReviewPeriods();
+
+      expect(await getIssueChangeReviewPeriod("reef-acme")).toBeUndefined();
+      expect(await getIssueChangeReviewPeriod("reef-other")).toBeUndefined();
     });
   });
 });

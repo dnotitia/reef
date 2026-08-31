@@ -101,6 +101,7 @@ export {
 } from "./issues/references";
 export {
   listComments,
+  listVaultComments,
   createComment,
   deleteComment,
   reconcileJiraImportedComment,
@@ -108,6 +109,7 @@ export {
 } from "./issues/comments";
 export {
   listIssueAttachments,
+  listVaultAttachments,
   uploadIssueAttachment,
   createIssueAttachmentRecord,
   downloadIssueAttachment,
@@ -124,6 +126,7 @@ export {
   appendStatusChangeEvent,
   diffFieldActivityEvents,
   listIssueActivity,
+  listVaultActivity,
   listReportActivity,
   reconcileJiraImportedAttachmentActivityActor,
   reconcileJiraChangelogActivityEvents,
@@ -134,7 +137,9 @@ export {
   listIssueBodyHistory,
   parseHistoryTrailers,
   projectIssueBodyHistoryEntry,
+  type IssueBodyHistoryOptions,
 } from "./issues/history";
+export { listIssueChangeReview } from "./issues/changeReview";
 export { ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE } from "../../schemas/issues/activity";
 export {
   readTemplate,

@@ -12,6 +12,8 @@ export const AkbDocumentHistoryEntrySchema = z.object({
   author: z.string().min(1, "history author is required"),
   date: IsoDateFieldSchema,
   author_name: z.string().nullable().optional(),
+  /** Optional additive projection used by compatible history providers. */
+  diff: z.string().nullable().optional(),
 });
 export type AkbDocumentHistoryEntry = z.infer<
   typeof AkbDocumentHistoryEntrySchema
@@ -38,5 +40,7 @@ export const IssueBodyHistoryEventSchema = z.object({
   at: IsoDateFieldSchema,
   actor: z.string().nullable(),
   kind: z.literal("body_update"),
+  /** The source diff, when the history provider exposes one. */
+  diff: z.string().nullable().optional(),
 });
 export type IssueBodyHistoryEvent = z.infer<typeof IssueBodyHistoryEventSchema>;

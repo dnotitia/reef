@@ -203,6 +203,59 @@ export async function clearAllIssueFilters(): Promise<void> {
   return clearConfigByPrefix("filter:");
 }
 
+// ─── Issue change-review period preference ─────────────────────────────────
+// The selected relative length is a browser preference. A fixed date range is
+// never persisted: reopening the screen recomputes it from the new current
+// instant, while a shared URL carries its own explicit boundaries.
+
+const ISSUE_CHANGE_REVIEW_PERIOD_PREFIX = "change-review-period:";
+
+function issueChangeReviewPeriodKey(vault: string): string {
+  return `${ISSUE_CHANGE_REVIEW_PERIOD_PREFIX}${vault}`;
+}
+
+function isIssueChangeReviewPeriod(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value > 0 &&
+    value <= 365
+  );
+}
+
+export async function getIssueChangeReviewPeriod(
+  vault: string,
+): Promise<number | undefined> {
+  if (!vault) return undefined;
+  const raw = await getConfigValue(issueChangeReviewPeriodKey(vault));
+  if (!raw) return undefined;
+  try {
+    const value: unknown = JSON.parse(raw);
+    return isIssueChangeReviewPeriod(value) ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function setIssueChangeReviewPeriod(
+  vault: string,
+  days: number,
+): Promise<void> {
+  if (!vault)
+    throw new TypeError("setIssueChangeReviewPeriod: vault is required");
+  if (!isIssueChangeReviewPeriod(days)) {
+    throw new TypeError("setIssueChangeReviewPeriod: invalid period");
+  }
+  return setConfigValue(
+    issueChangeReviewPeriodKey(vault),
+    JSON.stringify(days),
+  );
+}
+
+export async function clearAllIssueChangeReviewPeriods(): Promise<void> {
+  return clearConfigByPrefix(ISSUE_CHANGE_REVIEW_PERIOD_PREFIX);
+}
+
 /**
  * Stores (or replaces) the active akb vault name in IndexedDB. Pass an
  * empty string to clear it. Throws TypeError on malformed input.

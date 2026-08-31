@@ -795,6 +795,26 @@ export function diffFieldActivityEvents(
     });
   }
 
+  const issueTypeFrom = before.issue_type ?? "task";
+  const issueTypeTo = after.issue_type ?? "task";
+  if (issueTypeFrom !== issueTypeTo) {
+    events.push({
+      ...base,
+      eventType: ACTIVITY_EVENT_ISSUE_TYPE_CHANGE,
+      payload: { from: issueTypeFrom, to: issueTypeTo },
+    });
+  }
+
+  const startDateFrom = before.start_date ?? null;
+  const startDateTo = after.start_date ?? null;
+  if (startDateFrom !== startDateTo) {
+    events.push({
+      ...base,
+      eventType: ACTIVITY_EVENT_START_DATE_CHANGE,
+      payload: { from: startDateFrom, to: startDateTo },
+    });
+  }
+
   const labelsDiff = diffStringSet(before.labels, after.labels);
   if (labelsDiff) {
     events.push({
@@ -925,6 +945,48 @@ function parseActivityRows(rows: Record<string, unknown>[]): ActivityEvent[] {
     }
   }
   return events;
+}
+
+/**
+ * Read every valid activity event in a vault in one query. The period review
+ * joins multiple issue ids, so fetching each issue independently would create
+ * an avoidable N+1 path and make complete-history reads harder to reason about.
+ * No LIMIT is used: the caller applies the requested time window after parsing.
+ */
+export async function listVaultActivity(
+  adapter: AkbAdapter,
+  vault: string,
+): Promise<ActivityEvent[]> {
+  return withSpan("akb.list_vault_activity", { vault }, async (span) => {
+    let rows: Record<string, unknown>[];
+    try {
+      const res = await runSql(
+        adapter,
+        vault,
+        `SELECT * FROM ${tableRef(
+          REEF_ACTIVITY_TABLE,
+        )} WHERE reef_id IS NOT NULL ORDER BY meta->>'at' ASC, reef_id ASC, id ASC`,
+      );
+      rows = res.kind === "table_query" ? res.items : [];
+    } catch (err) {
+      if (isMissingTableError(err)) {
+        span.setAttribute("table_exists", false);
+        return [];
+      }
+      throw err;
+    }
+
+    const seen = new Set<string>();
+    const events: ActivityEvent[] = [];
+    for (const event of parseActivityRows(rows)) {
+      const key = `${event.reef_id}:${event.event_key}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      events.push(event);
+    }
+    span.setAttribute("event_count", events.length);
+    return events;
+  });
 }
 
 /**

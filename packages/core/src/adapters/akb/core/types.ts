@@ -1,5 +1,9 @@
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
 import type {
+  IssueChangeReviewResponse,
+  IssueChangeReviewRange,
+} from "../../../schemas/issues/changeReview";
+import type {
   IssueListQuery,
   IssueReorderGroup,
 } from "../../../schemas/issues/requests";
@@ -187,6 +191,14 @@ export interface ListIssuesResult {
    */
   next_cursor?: string | null;
 }
+
+export interface ListIssueChangeReviewParams {
+  adapter: AkbAdapter;
+  vault: string;
+  range: IssueChangeReviewRange;
+}
+
+export type ListIssueChangeReviewResult = IssueChangeReviewResponse;
 
 export interface AllocateNextIssueIdParams {
   adapter: AkbAdapter;

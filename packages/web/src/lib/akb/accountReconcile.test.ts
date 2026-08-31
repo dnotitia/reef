@@ -14,12 +14,14 @@ import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import {
   getActiveVault,
   getAkbUserId,
+  getIssueChangeReviewPeriod,
   getPersistedIssueFilter,
   getConfigValue,
   setActiveVault,
   setAkbUserId,
   setConfigValue,
   setPersistedIssueFilter,
+  setIssueChangeReviewPeriod,
 } from "@/lib/storage/config";
 import { db } from "@/lib/storage/db";
 import { createMyView, listMyViews } from "@/lib/storage/myView";
@@ -57,6 +59,7 @@ describe("reconcileAkbAccount", () => {
     await setActiveVault("reef-acme");
     await setWorkspaceFavorites(["reef-acme"]);
     await setPersistedIssueFilter("reef-acme", { status: ["todo"] });
+    await setIssueChangeReviewPeriod("reef-acme", 3);
     await createMyView({
       actor: "user-1",
       vault: "reef-acme",
@@ -87,6 +90,7 @@ describe("reconcileAkbAccount", () => {
     expect(await getPersistedIssueFilter("reef-acme")).toEqual({
       status: ["todo"],
     });
+    expect(await getIssueChangeReviewPeriod("reef-acme")).toBe(3);
     expect(await listMyViews("user-1", "reef-acme")).toHaveLength(1);
     // Same account: in-memory filter is left intact.
     expect(useIssueStore.getState().filter).toEqual({ status: ["todo"] });
@@ -100,6 +104,8 @@ describe("reconcileAkbAccount", () => {
     await setConfigValue("theme", "dark");
     await setPersistedIssueFilter("reef-acme", { status: ["todo"] });
     await setPersistedIssueFilter("reef-zen", { priority: ["low"] });
+    await setIssueChangeReviewPeriod("reef-acme", 3);
+    await setIssueChangeReviewPeriod("reef-zen", 14);
     await createMyView({
       actor: "user-1",
       vault: "reef-acme",
@@ -143,6 +149,8 @@ describe("reconcileAkbAccount", () => {
     // A different account should not inherit the previous account's saved filters.
     expect(await getPersistedIssueFilter("reef-acme")).toEqual({});
     expect(await getPersistedIssueFilter("reef-zen")).toEqual({});
+    expect(await getIssueChangeReviewPeriod("reef-acme")).toBeUndefined();
+    expect(await getIssueChangeReviewPeriod("reef-zen")).toBeUndefined();
     expect(await listMyViews("user-1", "reef-acme")).toEqual([]);
     expect(await listMyViews("user-1", "reef-zen")).toEqual([]);
     // ...nor the previous account's in-memory filter (would otherwise leak if
@@ -173,6 +181,7 @@ describe("wipeAkbScopedBrowserState", () => {
     await setWorkspaceFavorites(["reef-acme"]);
     await setConfigValue("theme", "dark");
     await setPersistedIssueFilter("reef-acme", { status: ["todo"] });
+    await setIssueChangeReviewPeriod("reef-acme", 7);
     await createMyView({
       actor: "user-1",
       vault: "reef-acme",
@@ -204,6 +213,7 @@ describe("wipeAkbScopedBrowserState", () => {
     // drops the recorded id so the next login is a fresh-account wipe.
     expect(await getAkbUserId()).toBeUndefined();
     expect(await getPersistedIssueFilter("reef-acme")).toEqual({});
+    expect(await getIssueChangeReviewPeriod("reef-acme")).toBeUndefined();
     expect(await listMyViews("user-1", "reef-acme")).toEqual([]);
     expect(useIssueStore.getState().filter).toEqual({});
     expect(useIssueStore.getState().filterVault).toBeNull();

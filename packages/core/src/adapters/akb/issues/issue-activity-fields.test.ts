@@ -270,6 +270,25 @@ describe("diffFieldActivityEvents (REEF-277)", () => {
     ]);
     expect(new Set(events.map((e) => e.at))).toEqual(new Set([meta.at]));
   });
+
+  it("records issue type and start date changes without inventing no-op events", () => {
+    const events = diff({
+      issue_type: "bug",
+      start_date: "2026-07-21",
+    });
+    expect(events.map((event) => event.eventType)).toEqual([
+      "issue_type_change",
+      "start_date_change",
+    ]);
+    expect(events[0]?.payload).toEqual({ from: "task", to: "bug" });
+    expect(events[1]?.payload).toEqual({ from: null, to: "2026-07-21" });
+    expect(
+      diff(
+        { issue_type: "task", start_date: null },
+        { issue_type: "task", start_date: null },
+      ),
+    ).toEqual([]);
+  });
 });
 
 describe("appendActivityEvents (REEF-126)", () => {

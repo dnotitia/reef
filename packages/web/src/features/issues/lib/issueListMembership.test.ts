@@ -72,6 +72,8 @@ describe("patchAffectsActivityTimeline", () => {
       { depends_on: ["REEF-2"] },
       { blocks: ["REEF-3"] },
       { related_to: ["REEF-4"] },
+      { issue_type: "bug" },
+      { start_date: "2026-02-02" },
     ];
     for (const patch of logged) {
       expect(patchAffectsActivityTimeline(patch)).toBe(true);
@@ -81,10 +83,6 @@ describe("patchAffectsActivityTimeline", () => {
   it("is false for edits that append no activity event", () => {
     expect(patchAffectsActivityTimeline({ reporter: "bob" })).toBe(false);
     expect(patchAffectsActivityTimeline({ requester: "carol" })).toBe(false);
-    expect(patchAffectsActivityTimeline({ issue_type: "bug" })).toBe(false);
-    expect(patchAffectsActivityTimeline({ start_date: "2026-02-02" })).toBe(
-      false,
-    );
     expect(patchAffectsActivityTimeline({})).toBe(false);
   });
 });

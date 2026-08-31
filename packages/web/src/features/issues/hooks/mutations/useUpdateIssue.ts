@@ -311,10 +311,10 @@ export function useUpdateIssue(options: UseUpdateIssueOptions = {}) {
       // A logged field edit appends a `reef_activity` event server-side
       // (best-effort): status_change (REEF-063) and the field-change set
       // `diffFieldActivityEvents` records — assignee / priority / planning /
-      // impl refs (REEF-126) and title / due / estimate / parent / archive /
-      // labels / relations (REEF-277). Refetch the issue's activity query so the
-      // unified timeline shows the freshly logged event immediately, instead of
-      // the reconstructed fallback until the stale window elapses (REEF-064).
+      // impl refs (REEF-126), title / due / estimate / parent / archive /
+      // labels / relations (REEF-277), and issue type / start date. Refetch the
+      // issue's activity query so the freshly logged event appears immediately,
+      // instead of waiting for the stale window (REEF-064).
       if (patchAffectsActivityTimeline(patch)) {
         void queryClient.invalidateQueries({
           queryKey: activityKey(vault, id),

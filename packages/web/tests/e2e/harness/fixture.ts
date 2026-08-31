@@ -20,6 +20,7 @@ export type FixtureScenario =
   | "comment_mentions"
   | "large_vault"
   | "markdown_fixture"
+  | "issue_change_review"
   | "status_quick_edit"
   | "planning_overflow"
   | "epic_grouping";

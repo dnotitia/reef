@@ -20,12 +20,29 @@ explicitly in the entries below.
   local view identity, while Manual mode continues to read the shared server
   rank.
 
+- **Issues now provide a period-based Change review.** Select a relative or
+  calendar range, inspect grouped ticket changes with expandable body/comment
+  evidence and attachment details, and copy a link that preserves the exact
+  UTC range and timezone context.
+
+### Changed
+
+- **Change review now reads preserved history and activity as one bounded
+  period.** Completed, closed, and archived tickets remain eligible, while
+  metadata-only document commits are not presented as body edits and existing
+  issue activity, notifications, and report semantics remain unchanged.
+
 ### Migration
 
 - **No Dexie schema migration is required for My Views.** The new versioned
   actor/vault-scoped envelopes use the existing `config` key-value store; old
   legacy personal-filter keys are not read or migrated, and account reconciliation clears
   My Views along with the other account-scoped browser state.
+
+- **No Dexie schema migration is required for Change review preferences.** The
+  remembered relative period length uses the existing per-vault `config`
+  key-value store, and account reconciliation clears it with other
+  account-scoped browser state.
 
 ## v0.13.0 - 2026-08-31
 

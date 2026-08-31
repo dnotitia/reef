@@ -104,6 +104,7 @@ const SUPPORTED_SCENARIOS = [
   "comment_mentions",
   "large_vault",
   "markdown_fixture",
+  "issue_change_review",
   "status_quick_edit",
   "planning_overflow",
   "epic_grouping",
@@ -617,6 +618,40 @@ function runtimeDiscovery() {
             "open the fixture issue, inspect the supported Markdown elements, switch to Source, return to WYSIWYG, and compare the preserved structure",
         },
       },
+      issue_change_review: {
+        scenario: "issue_change_review",
+        workspace: REEF_VAULT,
+        start_path: `/workspace/${REEF_VAULT}/issues/changes?start_at=2026-06-15T00:00:00.000Z&end_at=2026-06-19T00:00:00.000Z&tz=UTC`,
+        fixture_facts: {
+          review_period: {
+            start_at: "2026-06-15T00:00:00.000Z",
+            end_at: "2026-06-19T00:00:00.000Z",
+            timezone: "UTC",
+          },
+          changed_issue_ids: [
+            "REEF-001",
+            "REEF-002",
+            "REEF-003",
+            "REEF-004",
+            "REEF-006",
+          ],
+          excluded_issue_ids: ["REEF-005", "REEF-099"],
+          change_kinds: [
+            "created",
+            "field_change",
+            "body_update",
+            "comment_added",
+            "attachment_added",
+            "attachment_removed",
+          ],
+          retained_history_entries: 105,
+        },
+        interaction: {
+          type: "issue_change_review",
+          operation:
+            "review grouped issue changes in a fixed UTC period, inspect field values/body diffs/comments/attachments, revisit a relative period, apply a date range, copy the fixed share link, and observe preserved lifecycle and long-history results",
+        },
+      },
       large_issue_list: {
         scenario: "large_vault",
         workspace: "reef-e2e",
@@ -717,6 +752,7 @@ function makeState(scenario) {
     scenario === "skill_outdated" ||
     scenario === "comment_mentions" ||
     scenario === "large_vault" ||
+    scenario === "issue_change_review" ||
     scenario === "status_quick_edit" ||
     scenario === "planning_overflow" ||
     scenario === "epic_grouping"
@@ -732,9 +768,11 @@ function makeState(scenario) {
               ? assigneePickerVault(REEF_VAULT)
               : scenario === "planning_overflow"
                 ? planningOverflowVault(REEF_VAULT)
-                : scenario === "epic_grouping"
-                  ? epicGroupingVault(REEF_VAULT)
-                  : configuredVault(REEF_VAULT);
+                : scenario === "issue_change_review"
+                  ? issueChangeReviewVault(REEF_VAULT)
+                  : scenario === "epic_grouping"
+                    ? epicGroupingVault(REEF_VAULT)
+                    : configuredVault(REEF_VAULT);
     if (scenario === "notifications") seedNotifications(vault);
     if (scenario === "skill_outdated") seedOutdatedVaultSkill(vault);
     if (scenario === "comment_mentions") {
@@ -939,6 +977,7 @@ function configuredVault(name) {
     issues,
     documents: new Map(),
     documentHistory: new Map(),
+    documentDiffs: new Map(),
     members: [
       {
         username: "alice",
@@ -1108,6 +1147,291 @@ function configuredVault(name) {
       "Spec overview for the hermetic Ask AI tool transparency workflow.",
     tags: ["docs", "ask-ai", "e2e"],
   });
+  return vault;
+}
+
+function issueReviewDocumentDiff(path, oldBody, newBody, titleChange = false) {
+  return [
+    `--- a/${path}`,
+    `+++ b/${path}`,
+    "@@ -1,7 +1,7 @@",
+    " ---",
+    ...(titleChange
+      ? ["-title: Previous review title", "+title: Current review title"]
+      : [" title: Current review title"]),
+    " type: task",
+    " ---",
+    `-${oldBody}`,
+    `+${newBody}`,
+  ].join("\n");
+}
+
+function issueReviewMetadataOnlyDiff(path) {
+  return [
+    `--- a/${path}`,
+    `+++ b/${path}`,
+    "@@ -1,7 +1,7 @@",
+    " ---",
+    "-title: Previous review title",
+    "+title: Current review title",
+    " type: task",
+    " ---",
+    " Same review body",
+  ].join("\n");
+}
+
+function issueChangeReviewVault(name) {
+  const vault = configuredVault(name);
+  const issues = [
+    issueRow({
+      id: "REEF-001",
+      title: "Completed and archived review issue",
+      status: "done",
+      issue_type: "story",
+      priority: "high",
+      assigned_to: "alice",
+      created_at: "2026-06-10T00:00:00.000Z",
+      updated_at: "2026-06-20T00:00:00.000Z",
+      archived_at: "2026-06-20T00:00:00.000Z",
+      labels: ["review"],
+    }),
+    issueRow({
+      id: "REEF-002",
+      title: "Closed review issue",
+      status: "closed",
+      issue_type: "task",
+      created_at: "2026-06-01T00:00:00.000Z",
+      updated_at: "2026-06-21T00:00:00.000Z",
+      closed_at: "2026-06-21T00:00:00.000Z",
+      closed_reason: "completed",
+    }),
+    issueRow({
+      id: "REEF-003",
+      title: "Archived attachment review issue",
+      status: "todo",
+      issue_type: "task",
+      created_at: "2026-06-01T00:00:00.000Z",
+      updated_at: "2026-06-22T00:00:00.000Z",
+      archived_at: "2026-06-22T00:00:00.000Z",
+    }),
+    issueRow({
+      id: "REEF-004",
+      title: "Long history review issue",
+      status: "done",
+      issue_type: "story",
+      created_at: "2026-06-01T00:00:00.000Z",
+      updated_at: "2026-06-23T00:00:00.000Z",
+    }),
+    issueRow({
+      id: "REEF-005",
+      title: "Only changed outside the period",
+      status: "todo",
+      issue_type: "task",
+      created_at: "2026-06-01T00:00:00.000Z",
+      updated_at: "2026-06-20T00:00:00.000Z",
+    }),
+    issueRow({
+      id: "REEF-006",
+      title: "Created during the review period",
+      status: "todo",
+      issue_type: "task",
+      created_at: "2026-06-17T12:00:00.000Z",
+      updated_at: "2026-06-17T12:00:00.000Z",
+    }),
+  ];
+  vault.issues = issues;
+  vault.documents = new Map();
+  vault.documentHistory = new Map();
+  vault.documentDiffs = new Map();
+  vault.comments = [
+    {
+      id: uuidFor(18001),
+      reef_id: "REEF-001",
+      body: "A review comment with the complete text visible when expanded.",
+      meta: {
+        author: "bob",
+        created_at: "2026-06-16T04:00:00.000Z",
+        edited_at: null,
+      },
+      created_at: "2026-06-16T04:00:00.000Z",
+      updated_at: "2026-06-16T04:00:00.000Z",
+      created_by: "bob",
+    },
+    {
+      id: uuidFor(18002),
+      reef_id: "REEF-001",
+      body: "This comment is outside the selected period.",
+      meta: {
+        author: "bob",
+        created_at: "2026-06-19T00:00:00.000Z",
+        edited_at: null,
+      },
+      created_at: "2026-06-19T00:00:00.000Z",
+      updated_at: "2026-06-19T00:00:00.000Z",
+      created_by: "bob",
+    },
+    {
+      id: uuidFor(18003),
+      reef_id: "REEF-002",
+      body: "Closed issues keep their period comments.",
+      meta: {
+        author: "alice",
+        created_at: "2026-06-17T05:00:00.000Z",
+        edited_at: null,
+      },
+      created_at: "2026-06-17T05:00:00.000Z",
+      updated_at: "2026-06-17T05:00:00.000Z",
+      created_by: "alice",
+    },
+  ];
+  vault.attachments = [
+    {
+      id: "review-attachment",
+      reef_id: "REEF-001",
+      file_uri: "akb://reef-e2e/file/review-attachment",
+      filename: "review-notes.pdf",
+      mime_type: "application/pdf",
+      size_bytes: 128,
+      author: "alice",
+      created_at: "2026-06-16T06:00:00.000Z",
+      source: "issue_body",
+      inline: false,
+      original_jira_attachment_id: null,
+      meta: null,
+    },
+  ];
+  const duplicateStatus = activityRow(
+    "REEF-001",
+    "status_change",
+    "2026-06-15T00:00:00.000Z",
+    { from: "todo", to: "in_progress" },
+  );
+  duplicateStatus.id = uuidFor(19002);
+  vault.activity = [
+    activityRow("REEF-001", "status_change", "2026-06-15T00:00:00.000Z", {
+      from: "todo",
+      to: "in_progress",
+    }),
+    duplicateStatus,
+    activityRow("REEF-001", "title_change", "2026-06-15T01:00:00.000Z", {
+      from: "Previous review title",
+      to: "Current review title",
+    }),
+    activityRow("REEF-001", "labels_change", "2026-06-15T02:00:00.000Z", {
+      added: ["review"],
+      removed: ["old-label"],
+    }),
+    activityRow("REEF-001", "relation_change", "2026-06-15T03:00:00.000Z", {
+      relation: "depends_on",
+      added: ["REEF-002"],
+      removed: [],
+    }),
+    activityRow("REEF-001", "attachment_added", "2026-06-16T06:00:00.000Z", {
+      attachment_id: "review-attachment",
+      file_uri: "akb://reef-e2e/file/review-attachment",
+      filename: "review-notes.pdf",
+      mime_type: "application/pdf",
+      size_bytes: 128,
+    }),
+    activityRow("REEF-003", "attachment_removed", "2026-06-16T07:00:00.000Z", {
+      attachment_id: "removed-attachment",
+      file_uri: "akb://reef-e2e/file/removed-attachment",
+      filename: "old-evidence.txt",
+      mime_type: "text/plain",
+      size_bytes: 64,
+    }),
+    activityRow("REEF-002", "status_change", "2026-06-17T00:00:00.000Z", {
+      from: "in_progress",
+      to: "closed",
+    }),
+    activityRow(
+      "REEF-001",
+      "issue_body_mentions_change",
+      "2026-06-17T01:00:00.000Z",
+      {
+        recipients: ["alice"],
+        added: ["alice"],
+        removed: [],
+        document_commit:
+          "0000000000000000000000000000000000000000000000000000000000000001",
+      },
+    ),
+    activityRow("REEF-001", "status_change", "2026-06-20T00:00:00.000Z", {
+      from: "done",
+      to: "closed",
+    }),
+    activityRow("REEF-005", "status_change", "2026-06-20T01:00:00.000Z", {
+      from: "todo",
+      to: "in_progress",
+    }),
+    activityRow("REEF-099", "status_change", "2026-06-16T08:00:00.000Z", {
+      from: "todo",
+      to: "done",
+    }),
+  ];
+
+  seedIssueDocument(vault, "REEF-001", "Current review body.");
+  seedIssueDocument(vault, "REEF-002", "Closed review body.");
+  seedIssueDocument(vault, "REEF-003", "Archived attachment review body.");
+  seedIssueDocument(vault, "REEF-004", "Long history review body.");
+  seedIssueDocument(vault, "REEF-005", "Outside period body.");
+  seedIssueDocument(vault, "REEF-006", "Created during period body.");
+
+  const firstPath = issuePathFor("REEF-001");
+  const firstHistory = [
+    {
+      hash: "0000000000000000000000000000000000000000000000000000000000000012",
+      message: "Update issue title\n\naction: update\nagent: alice",
+      author: "00000000-0000-4000-8000-000000000111",
+      author_name: "Alice Example",
+      date: "2026-06-15T01:00:00.000Z",
+    },
+    {
+      hash: "0000000000000000000000000000000000000000000000000000000000000011",
+      message: "Update issue body\n\naction: update\nagent: alice",
+      author: "00000000-0000-4000-8000-000000000112",
+      author_name: "Alice Example",
+      date: "2026-06-17T08:00:00.000Z",
+    },
+  ];
+  vault.documentHistory.set(firstPath, firstHistory);
+  vault.documentDiffs.set(`${firstPath}:${firstHistory[0].hash}`, {
+    type: "modified",
+    diff: issueReviewMetadataOnlyDiff(firstPath),
+  });
+  vault.documentDiffs.set(`${firstPath}:${firstHistory[1].hash}`, {
+    type: "modified",
+    diff: issueReviewDocumentDiff(
+      firstPath,
+      "Previous review body.",
+      "Current review body.",
+    ),
+  });
+
+  const longPath = issuePathFor("REEF-004");
+  const longHistory = [];
+  for (let index = 104; index >= 0; index -= 1) {
+    const hash = index.toString(16).padStart(64, "0");
+    const date = new Date(
+      Date.parse("2026-06-16T00:00:00.000Z") + index * 60_000,
+    ).toISOString();
+    longHistory.push({
+      hash,
+      message: "Update long review body\n\naction: update\nagent: alice",
+      author: "00000000-0000-4000-8000-000000000113",
+      author_name: "Alice Example",
+      date,
+    });
+    vault.documentDiffs.set(`${longPath}:${hash}`, {
+      type: "modified",
+      diff: issueReviewDocumentDiff(
+        longPath,
+        `Long body revision ${index}`,
+        `Long body revision ${index + 1}`,
+      ),
+    });
+  }
+  vault.documentHistory.set(longPath, longHistory);
   return vault;
 }
 
@@ -1721,6 +2045,7 @@ function rawVault(name) {
     issues: [],
     documents: new Map(),
     documentHistory: new Map(),
+    documentDiffs: new Map(),
     members: [],
     sprints: [],
     milestones: [],
@@ -1900,8 +2225,8 @@ function issueRow(input) {
     related_to: input.related_to ?? [],
     blocks: input.blocks ?? [],
     archived_at: input.archived_at ?? null,
-    created_at: NOW,
-    updated_at: NOW,
+    created_at: input.created_at ?? NOW,
+    updated_at: input.updated_at ?? NOW,
     meta: {
       author: input.author ?? "alice",
       last_editor: input.last_editor ?? "alice",
@@ -1954,6 +2279,11 @@ async function handleAkb(req, res, url) {
     return accountDenialResponse(res, state.accountDenialCode);
   }
   const user = state.users.get(username);
+
+  if (path === "/mcp/" && req.method === "POST") {
+    const body = await readJson(req);
+    return handleMcpRequest(res, body);
+  }
 
   if (path === "/api/v1/auth/me" && req.method === "GET") {
     if (!(await waitForAuthProbe(req))) return;
@@ -2189,6 +2519,23 @@ async function handleAkb(req, res, url) {
     if (!vault) return;
     const stored = putDocument(vault, body);
     return json(res, 200, documentPutResponse(vault, stored));
+  }
+
+  const diffMatch = path.match(/^\/api\/v1\/diff\/([^/]+)\/(.+)$/);
+  if (diffMatch && req.method === "GET") {
+    const vault = getVault(decodeURIComponent(diffMatch[1]), res);
+    if (!vault) return;
+    const docPath = decodeURIComponent(diffMatch[2]);
+    const commit = url.searchParams.get("commit") ?? "";
+    const stored = vault.documentDiffs?.get(`${docPath}:${commit}`);
+    return json(res, 200, {
+      kind: "document_diff",
+      file: docPath,
+      commit,
+      type: stored?.type ?? "unknown",
+      diff: stored?.diff ?? "",
+      ...(stored ? {} : { error: "commit not found" }),
+    });
   }
 
   const historyMatch = path.match(/^\/api\/v1\/history\/([^/]+)\/(.+)$/);
@@ -3591,6 +3938,65 @@ function tableQuery(columns, items) {
 
 function tableSql() {
   return { kind: "table_sql", result: "OK" };
+}
+
+function mcpJsonRpcResult(res, id, value, isError = false) {
+  return json(res, 200, {
+    jsonrpc: "2.0",
+    id: id ?? null,
+    result: {
+      content: [{ type: "text", text: JSON.stringify(value) }],
+      ...(isError ? { isError: true } : {}),
+    },
+  });
+}
+
+function documentPathFromUri(uri) {
+  const match = String(uri ?? "").match(
+    /^akb:\/\/([^/]+)\/(?:(?:coll\/(.+)\/doc\/(.+))|(?:doc\/(.+)))$/,
+  );
+  if (!match) return null;
+  return {
+    vault: match[1],
+    path: match[2] && match[3] ? `${match[2]}/${match[3]}` : match[4],
+  };
+}
+
+function handleMcpRequest(res, body) {
+  const params = body?.params;
+  const name = params?.name;
+  if (body?.method !== "tools/call" || name !== "akb_history") {
+    return mcpJsonRpcResult(
+      res,
+      body?.id,
+      { error: "unsupported fixture MCP tool" },
+      true,
+    );
+  }
+  const resource = documentPathFromUri(params?.arguments?.uri);
+  const vault = resource ? state.vaults.get(resource.vault) : null;
+  if (!resource || !vault) {
+    return mcpJsonRpcResult(
+      res,
+      body?.id,
+      { error: "document not found" },
+      true,
+    );
+  }
+  const requestedLimit = Number(params?.arguments?.limit ?? 20);
+  const limit =
+    Number.isFinite(requestedLimit) && requestedLimit > 0
+      ? Math.floor(requestedLimit)
+      : 20;
+  const history = (vault.documentHistory?.get(resource.path) ?? []).slice(
+    0,
+    limit,
+  );
+  return mcpJsonRpcResult(res, body?.id, {
+    kind: "document_history",
+    uri: docUri(vault.name, resource.path),
+    history,
+  });
 }
 
 async function handleOpenRouter(req, res) {

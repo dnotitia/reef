@@ -43,6 +43,7 @@ export {
   listComments,
   listIssueAttachments,
   listIssueActivity,
+  listIssueChangeReview,
   listReportActivity,
   listIssues,
   listPlanningCatalog,

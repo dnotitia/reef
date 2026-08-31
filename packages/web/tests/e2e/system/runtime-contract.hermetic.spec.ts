@@ -537,6 +537,25 @@ test.describe("Hermetic runtime discovery", () => {
             operation: expect.stringContaining("Source"),
           },
         },
+        issue_change_review: {
+          scenario: "issue_change_review",
+          workspace: "reef-e2e",
+          start_path: expect.stringContaining(
+            "/workspace/reef-e2e/issues/changes?start_at=",
+          ),
+          fixture_facts: {
+            review_period: {
+              start_at: "2026-06-15T00:00:00.000Z",
+              end_at: "2026-06-19T00:00:00.000Z",
+              timezone: "UTC",
+            },
+            retained_history_entries: 105,
+          },
+          interaction: {
+            type: "issue_change_review",
+            operation: expect.stringContaining("fixed UTC period"),
+          },
+        },
         empty_states: {
           scenario: "configured_empty",
           workspace: "reef-e2e",
@@ -599,6 +618,7 @@ test.describe("Hermetic runtime discovery", () => {
         "content_search",
         "large_vault",
         "markdown_fixture",
+        "issue_change_review",
         "status_quick_edit",
         "planning_overflow",
       ]),

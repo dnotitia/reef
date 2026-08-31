@@ -151,6 +151,47 @@ export async function listComments(
 }
 
 /**
+ * Read all comments in a vault for cross-issue review surfaces. This keeps the
+ * period review at one comments query while preserving the same malformed-row
+ * and thread validation as the issue detail read.
+ */
+export async function listVaultComments(
+  adapter: AkbAdapter,
+  vault: string,
+): Promise<Comment[]> {
+  return withSpan("akb.list_vault_comments", { vault }, async (span) => {
+    let rows: Record<string, unknown>[];
+    try {
+      const res = await runSql(
+        adapter,
+        vault,
+        `SELECT * FROM ${tableRef(
+          REEF_COMMENTS_TABLE,
+        )} ORDER BY meta->>'created_at' ASC, id ASC`,
+      );
+      rows = res.kind === "table_query" ? res.items : [];
+    } catch (err) {
+      if (isMissingTableError(err)) {
+        span.setAttribute("table_exists", false);
+        return [];
+      }
+      throw err;
+    }
+    const parsed: Comment[] = [];
+    for (const row of rows) {
+      try {
+        parsed.push(rowToComment(row));
+      } catch {
+        // A malformed comment must not hide other issue threads.
+      }
+    }
+    const comments = filterValidCommentThreadMembers(parsed);
+    span.setAttribute("comment_count", comments.length);
+    return comments;
+  });
+}
+
+/**
  * Create a comment on an issue and return it in a single statement. The INSERT
  * is wrapped in a data-modifying CTE so the akb-assigned uuid `id` and the
  * row's persisted state come back via RETURNING with no separate read-back

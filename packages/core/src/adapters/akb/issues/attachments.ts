@@ -357,6 +357,42 @@ export async function listIssueAttachments(
   );
 }
 
+/** Read every valid attachment row once for the cross-issue review surface. */
+export async function listVaultAttachments(
+  adapter: AkbAdapter,
+  vault: string,
+): Promise<IssueAttachment[]> {
+  return withSpan("akb.list_vault_attachments", { vault }, async (span) => {
+    let rows: Record<string, unknown>[];
+    try {
+      const res = await runSql(
+        adapter,
+        vault,
+        `SELECT * FROM ${tableRef(
+          REEF_ATTACHMENTS_TABLE,
+        )} ORDER BY COALESCE(meta->>'created_at', created_at::text) ASC, id ASC`,
+      );
+      rows = res.kind === "table_query" ? res.items : [];
+    } catch (err) {
+      if (isMissingTableError(err)) {
+        span.setAttribute("table_exists", false);
+        return [];
+      }
+      throw err;
+    }
+    const attachments: IssueAttachment[] = [];
+    for (const row of rows) {
+      try {
+        attachments.push(rowToAttachment(row));
+      } catch {
+        // A malformed attachment must not hide other issue changes.
+      }
+    }
+    span.setAttribute("attachment_count", attachments.length);
+    return attachments;
+  });
+}
+
 export async function uploadIssueAttachment(
   params: UploadIssueAttachmentParams,
 ): Promise<IssueAttachment> {
