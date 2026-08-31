@@ -947,26 +947,18 @@ function parseActivityRows(rows: Record<string, unknown>[]): ActivityEvent[] {
   return events;
 }
 
-/**
- * Read every valid activity event in a vault in one query. The period review
- * joins multiple issue ids, so fetching each issue independently would create
- * an avoidable N+1 path and make complete-history reads harder to reason about.
- * No LIMIT is used: the caller applies the requested time window after parsing.
- */
-export async function listVaultActivity(
+async function readBulkActivity(
   adapter: AkbAdapter,
   vault: string,
+  spanName: string,
+  sql: string,
+  params?: readonly unknown[],
+  eventType?: ActivityEventType,
 ): Promise<ActivityEvent[]> {
-  return withSpan("akb.list_vault_activity", { vault }, async (span) => {
+  return withSpan(spanName, { vault }, async (span) => {
     let rows: Record<string, unknown>[];
     try {
-      const res = await runSql(
-        adapter,
-        vault,
-        `SELECT * FROM ${tableRef(
-          REEF_ACTIVITY_TABLE,
-        )} WHERE reef_id IS NOT NULL ORDER BY meta->>'at' ASC, reef_id ASC, id ASC`,
-      );
+      const res = await runSql(adapter, vault, sql, params);
       rows = res.kind === "table_query" ? res.items : [];
     } catch (err) {
       if (isMissingTableError(err)) {
@@ -979,6 +971,7 @@ export async function listVaultActivity(
     const seen = new Set<string>();
     const events: ActivityEvent[] = [];
     for (const event of parseActivityRows(rows)) {
+      if (eventType && event.event_type !== eventType) continue;
       const key = `${event.reef_id}:${event.event_key}`;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -987,6 +980,26 @@ export async function listVaultActivity(
     span.setAttribute("event_count", events.length);
     return events;
   });
+}
+
+/**
+ * Read every valid activity event in a vault in one query. The period review
+ * joins multiple issue ids, so fetching each issue independently would create
+ * an avoidable N+1 path and make complete-history reads harder to reason about.
+ * No LIMIT is used: the caller applies the requested time window after parsing.
+ */
+export async function listVaultActivity(
+  adapter: AkbAdapter,
+  vault: string,
+): Promise<ActivityEvent[]> {
+  return readBulkActivity(
+    adapter,
+    vault,
+    "akb.list_vault_activity",
+    `SELECT * FROM ${tableRef(
+      REEF_ACTIVITY_TABLE,
+    )} WHERE reef_id IS NOT NULL ORDER BY meta->>'at' ASC, reef_id ASC, id ASC`,
+  );
 }
 
 /**
@@ -1051,40 +1064,18 @@ export async function listReportActivity(
   adapter: AkbAdapter,
   vault: string,
 ): Promise<ActivityEvent[]> {
-  return withSpan("akb.list_report_activity", { vault }, async (span) => {
-    let rows: Record<string, unknown>[];
-    try {
-      const sqlParams = new SqlParameterBuilder();
-      const res = await runSql(
-        adapter,
-        vault,
-        `SELECT * FROM ${tableRef(
-          REEF_ACTIVITY_TABLE,
-        )} WHERE event_type = ${sqlParams.add(
-          ACTIVITY_EVENT_STATUS_CHANGE,
-          "activity event_type",
-        )} ORDER BY meta->>'at' ASC, reef_id ASC, id ASC`,
-        sqlParams.params,
-      );
-      rows = res.kind === "table_query" ? res.items : [];
-    } catch (err) {
-      if (isMissingTableError(err)) {
-        span.setAttribute("table_exists", false);
-        return [];
-      }
-      throw err;
-    }
-
-    const seen = new Set<string>();
-    const events: ActivityEvent[] = [];
-    for (const event of parseActivityRows(rows)) {
-      if (event.event_type !== ACTIVITY_EVENT_STATUS_CHANGE) continue;
-      const dedupeKey = `${event.reef_id}:${event.event_key}`;
-      if (seen.has(dedupeKey)) continue;
-      seen.add(dedupeKey);
-      events.push(event);
-    }
-    span.setAttribute("event_count", events.length);
-    return events;
-  });
+  const sqlParams = new SqlParameterBuilder();
+  return readBulkActivity(
+    adapter,
+    vault,
+    "akb.list_report_activity",
+    `SELECT * FROM ${tableRef(
+      REEF_ACTIVITY_TABLE,
+    )} WHERE event_type = ${sqlParams.add(
+      ACTIVITY_EVENT_STATUS_CHANGE,
+      "activity event_type",
+    )} ORDER BY meta->>'at' ASC, reef_id ASC, id ASC`,
+    sqlParams.params,
+    ACTIVITY_EVENT_STATUS_CHANGE,
+  );
 }
