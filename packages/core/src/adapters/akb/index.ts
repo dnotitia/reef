@@ -101,7 +101,6 @@ export {
 } from "./issues/references";
 export {
   listComments,
-  listVaultComments,
   createComment,
   deleteComment,
   reconcileJiraImportedComment,
@@ -109,7 +108,6 @@ export {
 } from "./issues/comments";
 export {
   listIssueAttachments,
-  listVaultAttachments,
   uploadIssueAttachment,
   createIssueAttachmentRecord,
   downloadIssueAttachment,
@@ -126,7 +124,6 @@ export {
   appendStatusChangeEvent,
   diffFieldActivityEvents,
   listIssueActivity,
-  listVaultActivity,
   listReportActivity,
   reconcileJiraImportedAttachmentActivityActor,
   reconcileJiraChangelogActivityEvents,

@@ -237,8 +237,6 @@ describe("listIssueBodyHistory", () => {
     await expect(
       listIssueBodyHistory(makeAdapter(), "reef-sample", "REEF-127", {
         complete: true,
-        includeDiff: true,
-        onlyBodyChanges: true,
       }),
     ).resolves.toEqual([
       expect.objectContaining({

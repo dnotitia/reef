@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/features/ui/components/PageHeader";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useIssueChangeReview } from "@/features/issues/hooks/queries/useIssueChangeReview";
+import { parseIsoDate } from "@/features/issues/lib/dateHelpers";
 import {
   getIssueChangeReviewPeriod,
   setIssueChangeReviewPeriod,
@@ -34,17 +35,7 @@ type ChangeReviewTranslator = ReturnType<
   typeof useTranslations<"issues.changeReview">
 >;
 
-const KIND_KEYS = {
-  created: "kinds.created",
-  field_change: "kinds.field_change",
-  body_update: "kinds.body_update",
-  comment_added: "kinds.comment_added",
-  attachment_added: "kinds.attachment_added",
-  attachment_removed: "kinds.attachment_removed",
-} as const;
-
 type ReviewPeriod = IssueChangeReviewRange & {
-  mode: "relative" | "custom";
   relativeDays?: number;
   timezone: string;
 };
@@ -61,7 +52,6 @@ function relativePeriod(
   return {
     start_at: new Date(end.getTime() - days * DAY_MS).toISOString(),
     end_at: end.toISOString(),
-    mode: "relative",
     relativeDays: days,
     timezone,
   };
@@ -106,7 +96,6 @@ function readExplicitPeriod(searchParams: URLSearchParams): ExplicitPeriodRead {
     period: {
       start_at: new Date(startMs).toISOString(),
       end_at: new Date(endMs).toISOString(),
-      mode: "custom",
       timezone,
     },
   };
@@ -126,18 +115,8 @@ function dateInTimezone(iso: string, timezone: string): string {
 }
 
 function localDateStart(value: string): Date | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(value);
-  if (!match) return null;
-  const date = new Date(
-    Number(match[1]),
-    Number(match[2]) - 1,
-    Number(match[3]),
-  );
-  return date.getFullYear() === Number(match[1]) &&
-    date.getMonth() === Number(match[2]) - 1 &&
-    date.getDate() === Number(match[3])
-    ? date
-    : null;
+  const date = parseIsoDate(value);
+  return date ? new Date(date.year, date.month, date.day) : null;
 }
 
 function changeValue(value: unknown): string {
@@ -163,24 +142,14 @@ function fieldName(
   change: Extract<IssueChange, { kind: "field_change" }>,
   t: ChangeReviewTranslator,
 ): string {
-  const key = change.event_type;
-  const known: Record<string, string> = {
-    status_change: "status",
-    assignee_change: "assignee",
-    priority_change: "priority",
-    planning_link: change.field,
-    impl_ref_linked: "implementation_refs",
-    title_change: "title",
-    labels_change: "labels",
-    due_date_change: "due_date",
-    estimate_change: "estimate_points",
-    parent_change: "parent_id",
-    relation_change: change.field,
-    archived_change: "archived_at",
-    issue_type_change: "issue_type",
-    start_date_change: "start_date",
-  };
-  return t(`fields.${known[key] ?? "status_change"}` as never);
+  const key =
+    change.event_type === "impl_ref_linked"
+      ? "implementation_refs"
+      : change.event_type === "planning_link" ||
+          change.event_type === "relation_change"
+        ? change.field
+        : change.event_type;
+  return t(`fields.${key}` as never);
 }
 
 function ChangeDetails({
@@ -261,7 +230,7 @@ function ChangeRow({
       style={{ contentVisibility: "auto", containIntrinsicSize: "0 80px" }}
     >
       <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
-        <span>{t(KIND_KEYS[change.kind])}</span>
+        <span>{t(`kinds.${change.kind}` as never)}</span>
         <time dateTime={change.at} title={change.at}>
           {formatChangeTime(change.at, locale, timezone)}
         </time>
@@ -424,7 +393,6 @@ export function IssueChangeReviewPage() {
     const next: ReviewPeriod = {
       start_at: start.toISOString(),
       end_at: endExclusive.toISOString(),
-      mode: "custom",
       timezone: localTimezone(),
     };
     setRangeError(false);
@@ -521,10 +489,7 @@ export function IssueChangeReviewPage() {
                     type="button"
                     size="sm"
                     variant={
-                      period?.mode === "relative" &&
-                      period.relativeDays === days
-                        ? "default"
-                        : "outline"
+                      period?.relativeDays === days ? "default" : "outline"
                     }
                     onClick={() => selectRelative(days)}
                     data-testid={`issue-change-review-relative-${days}`}

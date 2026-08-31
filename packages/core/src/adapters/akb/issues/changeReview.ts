@@ -191,8 +191,6 @@ export async function listIssueChangeReview(
           issueId: issue.id,
           events: await listIssueBodyHistory(adapter, vault, issue.id, {
             complete: true,
-            includeDiff: true,
-            onlyBodyChanges: true,
           }),
         })),
       ),

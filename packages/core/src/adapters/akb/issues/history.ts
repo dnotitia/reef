@@ -29,10 +29,6 @@ interface HistoryTrailers {
 export interface IssueBodyHistoryOptions {
   /** Use the uncapped stateless MCP history contract. */
   complete?: boolean;
-  /** Include a source diff when the history provider can supply one. */
-  includeDiff?: boolean;
-  /** Keep only updates whose diff proves that the Markdown body changed. */
-  onlyBodyChanges?: boolean;
 }
 
 /**
@@ -170,35 +166,24 @@ export async function listIssueBodyHistory(
         }
 
         let diff: string | null | undefined;
-        let diffType: DocumentDiffType | null = null;
-        if (options.complete && options.includeDiff !== false) {
-          if (parsed.data.diff !== undefined) {
-            diff = parsed.data.diff;
-          } else {
-            const documentDiff = await requestDocumentDiff(
-              adapter,
-              vault,
-              path,
-              parsed.data.hash,
-            );
-            diff = documentDiff.diff;
-            diffType = documentDiff.type;
+        if (options.complete) {
+          const documentDiff = await requestDocumentDiff(
+            adapter,
+            vault,
+            path,
+            parsed.data.hash,
+          );
+          if (
+            documentDiff.type === "unknown" ||
+            documentDiff.type === "unchanged"
+          ) {
+            ignoredCount += 1;
+            continue;
           }
-          if (options.onlyBodyChanges) {
-            if (
-              diff == null ||
-              diffType === "unknown" ||
-              diffType === "unchanged"
-            ) {
-              ignoredCount += 1;
-              continue;
-            }
-            const bodyDiff = bodyDiffFromDocumentDiff(diff);
-            if (bodyDiff === null) {
-              ignoredCount += 1;
-              continue;
-            }
-            diff = bodyDiff;
+          diff = bodyDiffFromDocumentDiff(documentDiff.diff);
+          if (diff === null) {
+            ignoredCount += 1;
+            continue;
           }
         }
         const event = projectIssueBodyHistoryEntry(parsed.data, diff);
