@@ -266,9 +266,11 @@ describe("MyViewControl", () => {
     const user = userEvent.setup();
     const { getByTestId } = renderControl("ko");
     const trigger = getByTestId("my-view-trigger");
+    expect(trigger).toHaveAttribute("aria-label", "내 보기 메뉴");
+    expect(trigger).toHaveTextContent("내 보기");
     await user.click(trigger);
     expect(screen.getByTestId("my-view-menu")).toHaveTextContent(
-      "저장된 My View가 없습니다.",
+      "저장된 내 보기가 없습니다.",
     );
     await user.keyboard("{Escape}");
     await waitFor(() => expect(trigger).toHaveFocus());
