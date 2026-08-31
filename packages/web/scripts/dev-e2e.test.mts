@@ -367,6 +367,21 @@ describe("dev:e2e runtime contract", () => {
     ]);
   });
 
+  it("does not treat the issue change-review route as an issue-detail start", async () => {
+    const { page, selectors } = readinessPage();
+
+    await probeWorkspaceClickInteractions(page, 1_000, {
+      startPath:
+        "/workspace/reef-e2e/issues/changes?start_at=2026-06-15T00:00:00.000Z&end_at=2026-06-19T00:00:00.000Z&tz=UTC",
+    });
+
+    expect(selectors).toEqual([
+      CLIENT_READINESS_INTERACTIONS.newIssue.trigger,
+      CLIENT_READINESS_INTERACTIONS.newIssue.observable,
+      CLIENT_READINESS_INTERACTIONS.newIssue.close,
+    ]);
+  });
+
   it("fails readiness when the declared issue-detail start cannot close", async () => {
     await expect(
       probeWorkspaceClickInteractions(

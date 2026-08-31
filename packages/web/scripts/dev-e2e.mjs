@@ -292,7 +292,8 @@ function isIssueDetailStartPath(startPath) {
   return (
     segments[0] === "workspace" &&
     segments[2] === "issues" &&
-    segments.length >= 4
+    segments.length >= 4 &&
+    segments[3] !== "changes"
   );
 }
 
