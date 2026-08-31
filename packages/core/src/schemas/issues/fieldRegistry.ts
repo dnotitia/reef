@@ -71,8 +71,12 @@ export const CLOSED_REASON_OPTIONS = ClosedReasonEnum.options;
 // facets above. These are plain typed consts (not Zod enums) so the filter
 // schema, URL params, and persistence contract stay untouched.
 
-export type DueFacet = "overdue" | "due_soon";
-export const DUE_OPTIONS: readonly DueFacet[] = ["overdue", "due_soon"];
+export type DueFacet = "overdue" | "due_soon" | "no_due";
+export const DUE_OPTIONS: readonly DueFacet[] = [
+  "overdue",
+  "due_soon",
+  "no_due",
+];
 
 export type DependencyFacet = "blocked" | "blocking";
 export const DEPENDENCY_OPTIONS: readonly DependencyFacet[] = [
@@ -203,6 +207,7 @@ export const ISSUE_FIELD_MESSAGES_EN = {
   due: {
     overdue: "Overdue",
     due_soon: "Due soon",
+    no_due: "No due date",
   } satisfies Record<DueFacet, string>,
   dependency: {
     blocked: "Blocked",

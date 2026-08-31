@@ -49,6 +49,10 @@ describe("My View schema", () => {
       filter: {
         status: ["removed", "todo"],
         priority: ["high"],
+        priorityUnset: true,
+        severityUnset: true,
+        assigneeUnset: true,
+        due: ["no_due"],
         label: " UI, ui ",
       },
       scope: "backlog",
@@ -63,7 +67,15 @@ describe("My View schema", () => {
     });
 
     expect(snapshot).toEqual({
-      filter: { status: ["todo"], priority: ["high"], label: "ui" },
+      filter: {
+        status: ["todo"],
+        priority: ["high"],
+        priorityUnset: true,
+        severityUnset: true,
+        assigneeUnset: true,
+        due: ["no_due"],
+        label: "ui",
+      },
       scope: "backlog",
       layout: "list",
       grouping: "priority",

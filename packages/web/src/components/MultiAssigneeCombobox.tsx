@@ -26,6 +26,9 @@ interface MultiAssigneeComboboxProps {
   placeholder?: string;
   /** Filter affordance — paints the brand ring when set. */
   active?: boolean;
+  /** Include the filter-only choice for NULL/blank assigned_to values. */
+  unassigned?: boolean;
+  onUnassignedToggle?: (checked: boolean) => void;
   triggerTestId?: string;
   contentTestId?: string;
   /** Extra classes for the opened panel (a readable floor for long names). */
@@ -38,9 +41,11 @@ interface MultiAssigneeComboboxProps {
  * (REEF-267), used for both the Assignee and Requester issue filters. It runs the
  * same vault-member typeahead (`useUserSearch` + a 300ms debounce) but feeds the
  * searchable `MultiSelectCombobox`, so several logins OR-combine within the
- * facet. The closed trigger shows the shared "(N)" facet summary like every other
- * multi-select facet, which also keeps the trigger short regardless of how many
- * people are picked (REEF-246 truncation concern).
+ * facet. The optional unassigned choice is kept outside the login values so a
+ * real username can never collide with its filter marker. The closed trigger
+ * shows the shared "(N)" facet summary like every other multi-select facet,
+ * which also keeps the trigger short regardless of how many people are picked
+ * (REEF-246 truncation concern).
  *
  * Unlike the single-select picker there is no raw-text Input fallback on a
  * lookup error: a filter can narrow to logins that exist, and the trigger
@@ -53,6 +58,8 @@ export function MultiAssigneeCombobox({
   label,
   placeholder,
   active,
+  unassigned,
+  onUnassignedToggle,
   triggerTestId,
   contentTestId,
   panelClassName,
@@ -101,6 +108,16 @@ export function MultiAssigneeCombobox({
       triggerTestId={triggerTestId}
       contentTestId={contentTestId}
       contentClassName={panelClassName}
+      auxiliaryOption={
+        onUnassignedToggle
+          ? {
+              label: t("unassigned"),
+              selected: Boolean(unassigned),
+              onToggle: onUnassignedToggle,
+              testId: "assignee-option-unassigned",
+            }
+          : undefined
+      }
       align={align}
     />
   );

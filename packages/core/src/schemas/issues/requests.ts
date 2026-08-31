@@ -127,6 +127,11 @@ export const DEFAULT_ISSUE_SORT_ORDER = "desc" satisfies "asc" | "desc";
  * facets, and assigned_to / requester match exactly rather than by substring.
  * milestone_id stays a single scalar (narrowing to one milestone is the common
  * case — multi-select left out of scope per REEF-267 Scope).
+ * The `*_unset` flags are filter-only predicates; they do not add sentinels to
+ * the stored issue enums or values.
+ * `due_unset` is used only for a pure no-due-date request; mixed due-state
+ * selections remain client-side so their union preserves the existing date
+ * boundary and resolved-issue rules.
  */
 /**
  * A keyset cursor is opaque `base64url(JSON({k,id}))`. Validate decodability at
@@ -152,15 +157,19 @@ function isDecodableCursor(cursor: string): boolean {
 export const IssueListQuerySchema = z.object({
   status: z.array(StatusEnum).optional(),
   priority: z.array(PriorityEnum).optional(),
+  priority_unset: z.boolean().optional(),
   severity: z.array(SeverityEnum).optional(),
+  severity_unset: z.boolean().optional(),
   issue_type: z.array(IssueTypeEnum).optional(),
   assigned_to: z.array(z.string().min(1)).optional(),
+  assigned_to_unset: z.boolean().optional(),
   requester: z.array(z.string().min(1)).optional(),
   sprint_id: z.array(z.string().min(1)).optional(),
   milestone_id: z.string().min(1).optional(),
   release_id: z.array(z.string().min(1)).optional(),
   due_before: IsoDateFieldSchema.optional(),
   due_after: IsoDateFieldSchema.optional(),
+  due_unset: z.boolean().optional(),
   archived: z.boolean().default(false),
   /**
    * When true, the server resolves the narrow default landing view (My Issues
@@ -381,15 +390,19 @@ export type IssueRelationsResponse = z.infer<
 const FILTER_FACET_KEYS = [
   "status",
   "priority",
+  "priority_unset",
   "severity",
+  "severity_unset",
   "issue_type",
   "assigned_to",
+  "assigned_to_unset",
   "requester",
   "sprint_id",
   "milestone_id",
   "release_id",
   "due_before",
   "due_after",
+  "due_unset",
   "q",
 ] as const;
 
@@ -401,6 +414,7 @@ const FILTER_FACET_KEYS = [
 export function hasAnyFilter(query: IssueListQuery): boolean {
   return FILTER_FACET_KEYS.some((key) => {
     const value = query[key];
+    if (typeof value === "boolean") return value;
     return Array.isArray(value) ? value.length > 0 : value != null;
   });
 }

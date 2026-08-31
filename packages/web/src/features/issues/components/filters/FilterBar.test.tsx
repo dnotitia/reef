@@ -2,7 +2,13 @@ import { PLANNING_ITEM_PANEL_CLASS } from "@/features/planning/components/Planni
 import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import { applyMyViewSnapshot } from "../../lib/myViewSnapshot";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -91,6 +97,92 @@ describe("FilterBar", () => {
     expect(screen.getByTestId("assignee-filter")).toBeTruthy();
     expect(screen.getByTestId("requester-filter")).toBeTruthy();
     expect(screen.getByTestId("labels-input")).toBeTruthy();
+  });
+
+  it("offers and toggles unset priority, severity, due, and assignee options", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useActiveVault).mockReturnValue({
+      vault: "reef-acme",
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    vi.mocked(apiFetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          users: [{ login: "alice", name: "Alice" }],
+        }),
+        { status: 200 },
+      ),
+    );
+    renderFilterBar();
+
+    await user.click(screen.getByTestId("priority-dropdown-trigger"));
+    await user.click(screen.getByTestId("priority-option-unset"));
+    expect(useIssueStore.getState().filter.priorityUnset).toBe(true);
+    await user.click(screen.getByTestId("priority-option-unset"));
+    expect(useIssueStore.getState().filter.priorityUnset).toBeUndefined();
+
+    await user.click(screen.getByTestId("severity-dropdown-trigger"));
+    await user.click(screen.getByTestId("severity-option-unset"));
+    expect(useIssueStore.getState().filter.severityUnset).toBe(true);
+
+    await user.click(screen.getByTestId("due-dropdown-trigger"));
+    await user.click(screen.getByTestId("due-option-no_due"));
+    expect(useIssueStore.getState().filter.due).toEqual(["no_due"]);
+
+    await user.click(screen.getByTestId("assignee-dropdown-trigger"));
+    await user.click(screen.getByTestId("assignee-option-unassigned"));
+    expect(useIssueStore.getState().filter.assigneeUnset).toBe(true);
+    expect(screen.getByTestId("active-filter-count")).toHaveTextContent(
+      "3 filters",
+    );
+  });
+
+  it("renders unset priority and severity with field-option typography and icon columns", async () => {
+    const user = userEvent.setup();
+    renderFilterBar();
+
+    await user.click(screen.getByTestId("priority-dropdown-trigger"));
+    const priorityLabel = screen.getByText("No priority");
+    expect(priorityLabel.parentElement).toHaveClass(
+      "inline-flex",
+      "items-center",
+      "gap-1.5",
+      "text-xs",
+    );
+    expect(priorityLabel.parentElement?.firstElementChild).not.toBeNull();
+
+    await user.click(screen.getByTestId("severity-dropdown-trigger"));
+    const severityLabel = screen.getByText("No severity");
+    expect(severityLabel.parentElement).toHaveClass(
+      "inline-flex",
+      "items-center",
+      "gap-1.5",
+      "text-xs",
+    );
+    expect(severityLabel.parentElement?.firstElementChild).not.toBeNull();
+  });
+
+  it("keeps the fixed assignee choice out of member-search empty state", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useActiveVault).mockReturnValue({
+      vault: "reef-acme",
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    vi.mocked(apiFetch).mockResolvedValue(
+      new Response(JSON.stringify({ users: [] }), { status: 200 }),
+    );
+    renderFilterBar();
+
+    await user.click(screen.getByTestId("assignee-dropdown-trigger"));
+    await user.type(screen.getByRole("combobox"), "zzzz-no-member");
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("assignee-option-unassigned")).toBeNull();
+      expect(screen.getByText("No vault members found.")).toBeTruthy();
+      expect(screen.getByText("0 results")).toBeTruthy();
+    });
   });
 
   it("offers view-scoped group choices and writes the selected group", async () => {

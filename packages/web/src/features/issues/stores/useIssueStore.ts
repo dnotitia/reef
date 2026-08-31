@@ -15,14 +15,20 @@ export interface IssueFilter {
   status?: string[];
   issueType?: string[];
   priority?: string[];
+  /** Filter-only selection for issues with no priority value. */
+  priorityUnset?: boolean;
   assignee?: string[];
+  /** Filter-only selection for issues with no assigned_to value. */
+  assigneeUnset?: boolean;
   requester?: string[];
   reporter?: string;
   severity?: string[];
+  /** Filter-only selection for issues with no severity value. */
+  severityUnset?: boolean;
   sprint_id?: string[];
   milestone_id?: string;
   release_id?: string[];
-  due?: ("overdue" | "due_soon")[];
+  due?: ("overdue" | "due_soon" | "no_due")[];
   label?: string;
   /** Retired: Use top-level searchQuery instead */
   search?: string;

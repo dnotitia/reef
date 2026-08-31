@@ -31,10 +31,13 @@ export type IssueQueryParams = Record<string, string | string[]>;
  * when true; when false the client pipeline drops archived rows (keeping the
  * default request URL stable).
  *
- * consistently returns at least the default sort (priority desc, REEF-057), so the
- * board and list render deterministically even with no explicit filter. The
- * default is applied here just — does not written into the filter store / URL /
- * persisted slot — so an unset sort stays "pristine" for URL-sync and persistence.
+ * The builder consistently returns at least the default sort (priority desc,
+ * REEF-057), so the board and list render deterministically even with no
+ * explicit filter. A pure `no_due` selection is sent as the filter-only
+ * `due_unset` predicate; mixed due selections remain client-side so the existing
+ * relative-date rules can be unioned correctly. The default is applied here
+ * just — not written into the filter store / URL / persisted slot — so an unset
+ * sort stays "pristine" for URL-sync and persistence.
  */
 export function buildIssueQuery(
   filter: IssueFilter,
@@ -57,10 +60,12 @@ export function buildIssueQuery(
     (p) => PriorityEnum.safeParse(p).success,
   );
   if (priority?.length) q.priority = priority;
+  if (scopedFilter.priorityUnset) q.priority_unset = "true";
   const severity = scopedFilter.severity?.filter(
     (s) => SeverityEnum.safeParse(s).success,
   );
   if (severity?.length) q.severity = severity;
+  if (scopedFilter.severityUnset) q.severity_unset = "true";
   const issueType = scopedFilter.issueType?.filter(
     (t) => IssueTypeEnum.safeParse(t).success,
   );
@@ -72,6 +77,7 @@ export function buildIssueQuery(
   // simply skipped an empty value. milestone_id stays a single scalar.
   const assignee = scopedFilter.assignee?.filter((v) => v.trim());
   if (assignee?.length) q.assigned_to = assignee;
+  if (scopedFilter.assigneeUnset) q.assigned_to_unset = "true";
   const requester = scopedFilter.requester?.filter((v) => v.trim());
   if (requester?.length) q.requester = requester;
   const sprintId = scopedFilter.sprint_id?.filter((v) => v.trim());
@@ -88,6 +94,15 @@ export function buildIssueQuery(
     q.sort_field = "rank";
     q.sort_order = "asc";
     return q;
+  }
+  // A pure no-due selection can be resolved server-side so paginated List
+  // queries do not have to scan date-bearing pages before finding matches. A
+  // mixed selection stays client-side: the existing overdue/due-soon windows
+  // are now-relative and must be unioned with no-due rows without changing
+  // their resolved-issue exclusions. Manual ordering intentionally skips this
+  // optimization because it fetches the complete rank spine first.
+  if (scopedFilter.due?.length === 1 && scopedFilter.due[0] === "no_due") {
+    q.due_unset = "true";
   }
   // Sort is consistently present: fall back to the default (priority desc, REEF-057)
   // when the user has not picked a valid sort. Kept here (not in the filter

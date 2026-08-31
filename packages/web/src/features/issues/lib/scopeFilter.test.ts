@@ -37,5 +37,12 @@ describe("issue scope projection", () => {
   it("does not count a scope's pinned status as a filter", () => {
     expect(hasScopeFilters({}, "", "backlog")).toBe(false);
     expect(hasScopeFilters({ priority: ["high"] }, "", "backlog")).toBe(true);
+    expect(
+      hasScopeFilters(
+        { priorityUnset: true, severityUnset: true, assigneeUnset: true },
+        "",
+        "backlog",
+      ),
+    ).toBe(true);
   });
 });
