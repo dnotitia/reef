@@ -1,6 +1,7 @@
 "use client";
 
 import type { Status } from "@reef/core";
+import type { MyViewListColumn, MyViewSnapshot } from "@reef/core";
 import type { IssueGroupBy, IssueWorkspaceView } from "../../lib/groupBy";
 import type { IssueScope } from "../../lib/viewMode";
 import { FilterBar } from "./FilterBar";
@@ -22,6 +23,8 @@ interface IssueFilterToolbarProps {
   showsBacklogReorderHint?: boolean;
   groupBy?: IssueGroupBy;
   setGroupBy?: (groupBy: IssueGroupBy) => void;
+  listOptionalColumns?: readonly MyViewListColumn[];
+  applyMyViewSnapshot: (snapshot: MyViewSnapshot) => void;
 }
 
 export function IssueFilterToolbar({
@@ -34,6 +37,8 @@ export function IssueFilterToolbar({
   showsBacklogReorderHint = false,
   groupBy,
   setGroupBy,
+  listOptionalColumns,
+  applyMyViewSnapshot,
 }: IssueFilterToolbarProps) {
   return (
     <div
@@ -51,6 +56,8 @@ export function IssueFilterToolbar({
         showsBacklogReorderHint={showsBacklogReorderHint}
         groupBy={groupBy}
         setGroupBy={setGroupBy}
+        listOptionalColumns={listOptionalColumns}
+        applyMyViewSnapshot={applyMyViewSnapshot}
       />
     </div>
   );

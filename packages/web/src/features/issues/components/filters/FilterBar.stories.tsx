@@ -15,6 +15,9 @@ function createQueryClient() {
 const meta = {
   title: "Issues/FilterBar",
   component: FilterBar,
+  args: {
+    applyMyViewSnapshot: () => undefined,
+  },
   parameters: {
     layout: "padded",
   },

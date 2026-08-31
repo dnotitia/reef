@@ -714,12 +714,14 @@ Settings" empty state.
 
 **Filter toolbar menus.** Display is a compact checkable menu with independent
 Show archived and Show completed toggles; it stays open while the PM changes
-multiple options and hides the completed toggle in Backlog. My filters keeps
-filter selection separate from management actions: update, rename, duplicate,
+multiple options and hides the completed toggle in Backlog. My Views keeps
+view selection separate from management actions: update, rename, duplicate,
 and delete are direct keyboard-navigable menu items grouped under each saved
-filter, while loading failures, unavailable filters, active/changed state, and
-empty state remain visible in the main menu. Saved names truncate in constrained
-layouts but retain their full value in a title or accessible label.
+view, while loading failures, active/changed state, and empty state remain
+visible in the main menu. Saved names truncate in constrained layouts but
+retain their full value in a title or accessible label. A My View captures the
+current filter, scope/layout, grouping, ordering mode and direction, display
+options, and List optional columns in the browser-local snapshot.
 
 ### Issue Detail Slide-Over
 

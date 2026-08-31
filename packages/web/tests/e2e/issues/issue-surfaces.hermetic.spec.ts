@@ -1048,7 +1048,7 @@ test.describe("Hermetic issue route surfaces", () => {
             display?.parentElement?.nextElementSibling === sort,
           controlsContained: Array.from(
             root.querySelectorAll<HTMLElement>(
-              '[data-testid$="-dropdown-trigger"], [data-testid="sort-control"], [data-testid="milestone-filter"], [data-testid="labels-filter"], [data-testid="display-options-trigger"], [data-testid="named-filter-trigger"]',
+              '[data-testid$="-dropdown-trigger"], [data-testid="sort-control"], [data-testid="milestone-filter"], [data-testid="labels-filter"], [data-testid="display-options-trigger"], [data-testid="my-view-trigger"]',
             ),
           ).every((control) => {
             const rect = control.getBoundingClientRect();
@@ -1186,7 +1186,7 @@ test.describe("Hermetic issue route surfaces", () => {
         '[data-testid="milestone-filter"]',
         '[data-testid="labels-filter"]',
         '[data-testid="display-options-trigger"]',
-        '[data-testid="named-filter-trigger"]',
+        '[data-testid="my-view-trigger"]',
       ];
       const rootRect = root.getBoundingClientRect();
       return {

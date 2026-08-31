@@ -370,7 +370,7 @@ test.describe("Hermetic runtime discovery", () => {
     ).toHaveCount(1);
   });
 
-  test("publishes runtime controls and resets named-filter fixtures idempotently", async ({
+  test("publishes runtime controls and resets My View fixtures idempotently", async ({
     request,
   }) => {
     const response = await request.get(`${E2E_MOCK_URL}/__e2e/runtime`);

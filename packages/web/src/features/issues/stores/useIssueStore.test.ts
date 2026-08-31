@@ -10,6 +10,7 @@ describe("useIssueStore", () => {
       filter: {},
       searchQuery: "",
       selectedIssueId: null,
+      listOptionalColumns: [],
     });
   });
 
@@ -40,26 +41,6 @@ describe("useIssueStore", () => {
     useIssueStore.getState().setFilter({ status: ["todo"] });
     useIssueStore.getState().setFilter({ status: ["closed"] });
     expect(useIssueStore.getState().filter.status).toEqual(["closed"]);
-  });
-
-  it("applyFilter replaces the full filter and clears one-off search", () => {
-    useIssueStore
-      .getState()
-      .setFilter({ status: ["todo"], priority: ["high"] });
-    useIssueStore.getState().setSearchQuery("auth");
-
-    useIssueStore.getState().applyFilter({
-      status: ["in_progress"],
-      sortField: "updated_at",
-      sortOrder: "desc",
-    });
-
-    expect(useIssueStore.getState().filter).toEqual({
-      status: ["in_progress"],
-      sortField: "updated_at",
-      sortOrder: "desc",
-    });
-    expect(useIssueStore.getState().searchQuery).toBe("");
   });
 
   it("clearFilter resets filter to empty object and clears searchQuery", () => {
@@ -166,6 +147,12 @@ describe("useIssueStore", () => {
     useIssueStore.getState().setSelectedIssueId("reef-042");
     useIssueStore.getState().setSelectedIssueId(null);
     expect(useIssueStore.getState().selectedIssueId).toBeNull();
+  });
+
+  it("clears List optional columns with account scope", () => {
+    useIssueStore.setState({ listOptionalColumns: ["start", "release"] });
+    useIssueStore.getState().resetFilterScope();
+    expect(useIssueStore.getState().listOptionalColumns).toEqual([]);
   });
 
   it("granular selector: can select filter without subscribing to whole store", () => {

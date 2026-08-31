@@ -1,3 +1,5 @@
+import { MyViewListColumnEnum, type MyViewListColumn } from "@reef/core";
+
 export type IssueTableFieldColumnKey =
   | "id"
   | "type"
@@ -14,11 +16,9 @@ export type IssueTableFieldColumnKey =
 
 export type IssueTableColumnKey = "select" | "rank" | IssueTableFieldColumnKey;
 
-export type IssueListOptionalColumnKey =
-  | "start"
-  | "sprint"
-  | "milestone"
-  | "release";
+export type IssueListOptionalColumnKey = MyViewListColumn;
+
+export const ISSUE_LIST_OPTIONAL_COLUMNS = MyViewListColumnEnum.options;
 
 export const ISSUE_TABLE_HEADER_HEIGHT = 32;
 export const ISSUE_TABLE_ROW_HEIGHT = 40;
@@ -52,13 +52,6 @@ export const ISSUE_LIST_DEFAULT_COLUMNS = [
   "due",
   "updated",
 ] as const satisfies readonly IssueTableColumnKey[];
-
-export const ISSUE_LIST_OPTIONAL_COLUMNS = [
-  "start",
-  "sprint",
-  "milestone",
-  "release",
-] as const satisfies readonly IssueListOptionalColumnKey[];
 
 export const ISSUE_LIST_COLUMN_ORDER = [
   "select",

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { naturalSortOrder } from "./fieldRegistry";
 import {
   IssueTypeEnum,
   PriorityEnum,
@@ -102,6 +103,118 @@ export const PersistedIssueFilterSchema = z.object({
   sortOrder: z.enum(["asc", "desc"]).optional().catch(undefined),
   orderingMode: IssueOrderingModeEnum.optional().catch(undefined),
 });
+
+const ARRAY_FILTER_SCHEMAS: Record<string, z.ZodType<string>> = {
+  status: StatusEnum,
+  issueType: IssueTypeEnum,
+  priority: PriorityEnum,
+  assignee: z.string(),
+  requester: z.string(),
+  severity: SeverityEnum,
+  sprint_id: z.string(),
+  release_id: z.string(),
+  due: z.enum(["overdue", "due_soon"]),
+  dependencyFilter: z.enum(["blocked", "blocking"]),
+};
+
+const ARRAY_FILTER_KEYS = Object.keys(ARRAY_FILTER_SCHEMAS);
+const SCALAR_FILTER_KEYS = ["reporter", "milestone_id"] as const;
+const FILTER_KEYS = [
+  "status",
+  "issueType",
+  "priority",
+  "assignee",
+  "requester",
+  "reporter",
+  "severity",
+  "sprint_id",
+  "milestone_id",
+  "release_id",
+  "due",
+  "label",
+  "dependencyFilter",
+  "showArchived",
+  "showStale",
+  "sortField",
+  "sortOrder",
+  "orderingMode",
+] as const;
+
+function canonicalStringList(value: readonly string[]): string[] {
+  const members = value
+    .map((member) => member.trim())
+    .filter((member) => member.length > 0);
+  return [...new Set(members)].sort();
+}
+
+function canonicalLabelFilter(value: string): string | undefined {
+  const labels = canonicalStringList(
+    value.split(",").map((label) => label.toLowerCase()),
+  );
+  return labels.length > 0 ? labels.join(",") : undefined;
+}
+
+/**
+ * Sanitizes the filter portion shared by IndexedDB and My View snapshots.
+ * Invalid fields are dropped independently, arrays are sorted/deduplicated,
+ * and a sort direction is kept only when its field is valid.
+ */
+export function normalizePersistedIssueFilter(
+  value: unknown,
+): PersistedIssueFilter {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return {};
+  }
+  const input = value as Record<string, unknown>;
+  const normalized: Record<string, unknown> = {};
+
+  for (const key of ARRAY_FILTER_KEYS) {
+    const fieldValue = input[key];
+    if (fieldValue === undefined || fieldValue === null) continue;
+    const candidates = Array.isArray(fieldValue) ? fieldValue : [fieldValue];
+    const memberSchema = ARRAY_FILTER_SCHEMAS[key];
+    const members = candidates.flatMap((candidate) => {
+      const parsed = memberSchema.safeParse(candidate);
+      return parsed.success ? [parsed.data] : [];
+    });
+    const canonicalMembers = canonicalStringList(members);
+    if (canonicalMembers.length > 0) normalized[key] = canonicalMembers;
+  }
+
+  for (const key of SCALAR_FILTER_KEYS) {
+    const parsed = z.string().safeParse(input[key]);
+    if (parsed.success && parsed.data.trim()) {
+      normalized[key] = parsed.data.trim();
+    }
+  }
+
+  if (typeof input.label === "string") {
+    const label = canonicalLabelFilter(input.label);
+    if (label) normalized.label = label;
+  }
+  if (input.showArchived === true) normalized.showArchived = true;
+  if (input.showStale === true) normalized.showStale = true;
+
+  const sortField = z.enum(USER_SORT_FIELDS).safeParse(input.sortField);
+  const sortOrder = z.enum(["asc", "desc"]).safeParse(input.sortOrder);
+  if (sortField.success) {
+    normalized.sortField = sortField.data;
+    normalized.sortOrder = sortOrder.success
+      ? sortOrder.data
+      : naturalSortOrder(sortField.data);
+    normalized.orderingMode = "field";
+  } else if (input.orderingMode === "manual") {
+    normalized.orderingMode = "manual";
+  }
+
+  const ordered: Record<string, unknown> = {};
+  for (const key of FILTER_KEYS) {
+    if (normalized[key] !== undefined) ordered[key] = normalized[key];
+  }
+
+  const parsed = PersistedIssueFilterSchema.safeParse(ordered);
+  return parsed.success ? parsed.data : {};
+}
 
 /**
  * Versioned envelope stored in IndexedDB. A version mismatch fails the reader's

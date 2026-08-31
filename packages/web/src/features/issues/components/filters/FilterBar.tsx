@@ -25,7 +25,7 @@ import {
   useStatusLabels,
 } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
-import type { Status } from "@reef/core";
+import type { MyViewListColumn, MyViewSnapshot, Status } from "@reef/core";
 import { PRIORITY_OPTIONS } from "@reef/core/fields";
 import { STATUS_OPTIONS } from "@reef/core/fields";
 import { X } from "lucide-react";
@@ -38,7 +38,7 @@ import {
 } from "../../lib/metadataOptions";
 import { type IssueFilter, useIssueStore } from "../../stores/useIssueStore";
 import { DisplayOptionsFilter } from "./DisplayOptionsFilter";
-import { NamedIssueFilterControl } from "./NamedIssueFilterControl";
+import { MyViewControl } from "./MyViewControl";
 import { SortControl } from "./SortControl";
 import type { IssueGroupBy, IssueWorkspaceView } from "../../lib/groupBy";
 import type { IssueScope } from "../../lib/viewMode";
@@ -180,6 +180,8 @@ interface FilterBarProps {
   showsBacklogReorderHint?: boolean;
   groupBy?: IssueGroupBy;
   setGroupBy?: (groupBy: IssueGroupBy) => void;
+  listOptionalColumns?: readonly MyViewListColumn[];
+  applyMyViewSnapshot: (snapshot: MyViewSnapshot) => void;
 }
 
 export function FilterBar({
@@ -192,6 +194,8 @@ export function FilterBar({
   showsBacklogReorderHint = false,
   groupBy,
   setGroupBy,
+  listOptionalColumns,
+  applyMyViewSnapshot,
 }: FilterBarProps) {
   const filter = useIssueStore((state) => state.filter);
   const setFilter = useIssueStore((state) => state.setFilter);
@@ -522,7 +526,13 @@ export function FilterBar({
         />
       ) : null}
 
-      <NamedIssueFilterControl />
+      <MyViewControl
+        scope={scope}
+        layout={view ?? "board"}
+        groupBy={groupBy}
+        listOptionalColumns={listOptionalColumns}
+        onApplySnapshot={applyMyViewSnapshot}
+      />
 
       {/* Active filter count + clear */}
       {hasActiveFilters && (
