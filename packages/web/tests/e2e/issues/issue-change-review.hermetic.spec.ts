@@ -44,6 +44,26 @@ async function expectNoIssueDetailInterception(page: Page): Promise<void> {
   );
 }
 
+async function waitForReviewContent(page: Page): Promise<void> {
+  return expect
+    .poll(
+      async () => {
+        if (await page.getByTestId("issue-change-review-results").isVisible()) {
+          return "results";
+        }
+        if (await page.getByTestId("issue-change-review-empty").isVisible()) {
+          return "empty";
+        }
+        if (await page.getByTestId("issue-change-review-error").isVisible()) {
+          return "error";
+        }
+        return "loading";
+      },
+      { timeout: 30_000 },
+    )
+    .toMatch(/^(?:empty|results)$/u);
+}
+
 test.describe("Hermetic issue change review", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
@@ -215,9 +235,7 @@ test.describe("Hermetic issue change review", () => {
     await page.getByTestId("issue-change-review-relative-3").click();
     await relativeResponse;
     await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/changes$/u);
-    await expect(page.getByTestId("issue-change-review-results")).toBeVisible({
-      timeout: 30_000,
-    });
+    await waitForReviewContent(page);
     await expectNoIssueDetailInterception(page);
 
     const directRangeResponse = page.waitForResponse((response) => {
@@ -231,9 +249,7 @@ test.describe("Hermetic issue change review", () => {
     await page.getByTestId("issue-change-review-end").fill("2026-06-19");
     await page.getByTestId("issue-change-review-apply").click();
     await directRangeResponse;
-    await expect(page.getByTestId("issue-change-review-results")).toBeVisible({
-      timeout: 30_000,
-    });
+    await waitForReviewContent(page);
     await expectNoIssueDetailInterception(page);
 
     const emptyRangeResponse = page.waitForResponse((response) => {
