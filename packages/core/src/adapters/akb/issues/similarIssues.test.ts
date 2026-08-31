@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { SchemaValidationError } from "../../../errors";
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
 import {
   makeIssueQueryResponse,
@@ -94,6 +95,18 @@ describe("searchSimilarIssues", () => {
     expect(searchUrl.searchParams.get("collection")).toBe("issues");
     expect(searchUrl.searchParams.get("type")).toBe("task");
     expect(searchUrl.searchParams.get("q")).toBe("duplicate draft warning");
+
+    const hydrationRequest = JSON.parse(String(calls[1]?.init?.body)) as {
+      sql: string;
+      params?: unknown[];
+    };
+    expect(hydrationRequest.sql).toContain("document_uri IN ($1)");
+    expect(hydrationRequest.params).toEqual([
+      "akb://reef-acme/doc/issues/reef-001.md",
+    ]);
+    expect(hydrationRequest.sql).not.toContain(
+      "akb://reef-acme/doc/issues/reef-001.md",
+    );
   });
 
   it("does not show hits whose score is missing", async () => {
@@ -118,6 +131,19 @@ describe("searchSimilarIssues", () => {
         title: "ab",
       }),
     ).resolves.toEqual([]);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("rejects a NUL title before making the search request", async () => {
+    const { calls } = setupFetch([]);
+
+    await expect(
+      searchSimilarIssues({
+        adapter: makeTestAkbAdapter(),
+        vault: "reef-acme",
+        title: "a\0",
+      }),
+    ).rejects.toBeInstanceOf(SchemaValidationError);
     expect(calls).toHaveLength(0);
   });
 });

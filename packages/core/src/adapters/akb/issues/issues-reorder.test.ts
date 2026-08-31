@@ -308,17 +308,31 @@ describe("reorderIssue (REEF-570)", () => {
       at: "2026-05-02T00:00:00.000Z",
     });
 
-    const subscriptionSql = calls
-      .slice(3)
-      .map((call) => String(bodyOf(call).sql));
-    expect(subscriptionSql).toHaveLength(2);
-    expect(subscriptionSql[0]).toContain("DELETE FROM reef_subscriptions");
-    expect(subscriptionSql[0]).toContain("'alice'");
-    expect(subscriptionSql[0]).toContain("'assignee'");
-    expect(subscriptionSql[1]).toContain(
+    const subscriptionRequests = calls.slice(3).map(bodyOf);
+    expect(subscriptionRequests).toHaveLength(2);
+    expect(String(subscriptionRequests[0].sql)).toContain(
+      "DELETE FROM reef_subscriptions",
+    );
+    expect(subscriptionRequests[0].params).toEqual([
+      "REEF-003",
+      "alice",
+      "assignee",
+    ]);
+    expect(String(subscriptionRequests[1].sql)).toContain(
       "ON CONFLICT (subscription_key) DO UPDATE",
     );
-    expect(subscriptionSql[1]).toContain("'bob'");
-    expect(subscriptionSql[1]).toContain("'assignee'");
+    expect(subscriptionRequests[1].params).toEqual(
+      expect.arrayContaining([
+        buildSubscriptionKey({
+          reefId: "REEF-003",
+          subscriber: "bob",
+          source: "assignee",
+        }),
+        "REEF-003",
+        "bob",
+        "assignee",
+        "active",
+      ]),
+    );
   });
 });

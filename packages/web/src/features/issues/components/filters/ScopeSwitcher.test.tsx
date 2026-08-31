@@ -39,6 +39,14 @@ describe("ScopeSwitcher", () => {
     expect(screen.getByTestId("scope-switcher-backlog")).toHaveTextContent(
       "Backlog",
     );
+    expect(screen.getByTestId("scope-switcher-active")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByTestId("scope-switcher-backlog")).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 
   it("normalizes Timeline to List when entering Backlog", async () => {

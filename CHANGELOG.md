@@ -12,21 +12,7 @@ explicitly in the entries below.
 
 ## Unreleased
 
-### Fixed
-
-- **Timestamp-guarded issue writes no longer fail at the AKB SQL boundary.**
-  Manual reorder, Jira reservation, migration reconciliation, and orchestration
-  updates keep ISO timestamps text-bound until PostgreSQL performs the
-  `timestamptz` conversion.
-
-- **Manual group moves now preserve their full side effects and conflict
-  recovery.** Assignee moves synchronize automatic subscriptions, group changes
-  refresh Activity, and a stale 409 shows the latest order for a new drag
-  instead of blindly retrying obsolete anchors.
-
-- **Planning overflow tooltips no longer intercept pointer movement to adjacent
-  options**, so long milestone, sprint, and release values can be previewed
-  without blocking selection in the planning filters.
+## v0.13.0 - 2026-08-31
 
 ### Added
 
@@ -36,30 +22,43 @@ explicitly in the entries below.
   local view identity, while Manual mode continues to read the shared server
   rank.
 
+- **Reports now include Cycle Time and Lead Time flow metrics.** The Reports
+  page shows measurement coverage, P50/P85/P95 percentiles, P85 SLE, completion
+  distributions, outliers, and clear empty or low-sample states for the selected
+  window.
+
+- **Manual ordering is now shared across Issue Board and List views.** The
+  server-owned rank remains consistent across Active and Backlog workflows,
+  filtering, pagination, and grouping, while new issues stay at the
+  manual-order tail.
+
 - **Active Issue Board and List can now group work by Epic.** Root Epic headers
-  show their own status and visible child progress, direct children stay flat
-  and preserve the current filter/sort order, and missing or unsupported
-  parents remain visible in localized fallback groups. Epic grouping is
-  read-only for Board drag interactions and is shareable through the existing
-  `group=epic` URL state.
+  show status and visible child progress, direct children preserve the current
+  filter/sort order, and missing or unsupported parents use localized fallback
+  groups. Epic grouping is read-only for Board drag interactions and shareable
+  through `group=epic`.
 
 - **The sidebar workspace switcher now supports account-local Favorites.**
-  Favorites are stored in the existing browser IndexedDB `config` key-value
-  store, restored for the same account, removed when access becomes stale or
-  the account changes, and kept separate from URL-owned workspace identity.
-  Search, workspace navigation, keyboard focus, and the pinned New workspace
-  action remain available while favorites are toggled.
+  Favorites persist per account in the existing browser store without taking
+  ownership of URL workspace identity.
 
-- **Issue List and Board sorting now supports ticket numbers.** Numeric issue
-  numbers, including values beyond three-digit padding and gaps, use the same
-  order across the shared control, keyset pages, and client-rendered views.
+- **Issue List and Board sorting now supports numeric ticket numbers.** Numeric
+  ticket ordering is consistent across shared controls, keyset pages, and
+  client-rendered views, including non-padded numbers and gaps; locale-aware
+  title ordering and missing-date placement stay aligned across server and UI.
 
 ### Changed
 
+- **Breaking: Active/Backlog scope is now separate from Board/List/Timeline
+  layout.** Backlog has dedicated Priority Board and Rank-ordered List views,
+  both axes are shareable through URL and browser history, and the old
+  `view=backlog` path is removed. Scope and layout controls remain in stable
+  header areas when switching.
+
 - **Breaking: Reef now accepts only the provider-neutral `REEF_LLM_*`
   deployment contract.** `OPENROUTER_API_KEY` and `OPENROUTER_BASE_URL` are no
-  longer read or validated; deployments must provide `REEF_LLM_API_KEY`,
-  `REEF_LLM_BASE_URL`, and `REEF_LLM_MODEL` together.
+  longer read or validated; deployments must provide
+  `REEF_LLM_API_KEY`, `REEF_LLM_BASE_URL`, and `REEF_LLM_MODEL` together.
 
 - **Breaking: removed unused agent review and prompt surfaces.** The uncalled
   agent-artifact approve/edit/dismiss API, issue/status proposal schemas,
@@ -68,10 +67,25 @@ explicitly in the entries below.
   AI, backed by a direct enrichment pipeline and a small shared lifecycle event
   emitter.
 
-- **Breaking: Issues now separates Active/Backlog scope from Board/List/Timeline
-  layout.** Backlog provides a Priority Board and Rank-ordered List, restores
-  both axes through shareable URLs and browser history, and removes the mixed
-  `view=backlog` URL path.
+### Fixed
+
+- **Authentication revalidation and soft navigation now preserve the
+  established workspace experience.** Route changes stay non-blocking, the
+  shell remains mounted while revalidation completes, and a resource-level
+  workspace 403 no longer clears a valid session or causes a false logout.
+
+- **Manual issue reordering now keeps its related updates consistent.** Assignee
+  moves synchronize automatic subscriptions, group changes refresh Activity,
+  timestamp-guarded writes no longer fail at the AKB SQL boundary, and stale
+  conflicts present the latest order for a fresh retry.
+
+### Security
+
+- **Breaking: AKB SQL value handling is now parameterized across Reef's core
+  paths.** Dynamic values use `runSql` positional parameters or typed AKB
+  request bodies; manual value-quoting helpers and the public `akbQuoteText`
+  export are removed. `quoteIdent` and `tableRef` remain available for
+  identifiers.
 
 ### Migration
 
@@ -85,9 +99,21 @@ explicitly in the entries below.
   corrupt, unsupported, stale, or unavailable browser values degrade to an
   empty Favorites preference and do not affect the active workspace.
 
-- **Persisted query cache cleanup now removes empty snapshots after account or
-  session invalidation.** Existing non-empty snapshots remain readable; no
-  manual browser migration is required.
+- **AI-enabled deployments must migrate to the provider-neutral environment
+  variables before rollout.** Set `REEF_LLM_API_KEY`, `REEF_LLM_BASE_URL`, and
+  `REEF_LLM_MODEL` together; Reef no longer reads `OPENROUTER_API_KEY` or
+  `OPENROUTER_BASE_URL`. To roll back to v0.12.0, restore the legacy variables
+  before starting the old image.
+
+- **No manual browser-storage migration is required.** Favorites use the
+  existing IndexedDB `config` store, and account or session invalidation removes
+  empty persisted query snapshots while preserving non-empty snapshots.
+
+### Operational
+
+- **Publish immutable release image references alongside the convenience tag.**
+  Use `reef-web:v0.13.0` and the release commit SHA for deployment and
+  provenance; `latest` must not be the only deployable reference.
 
 ## v0.12.0 - 2026-08-24
 

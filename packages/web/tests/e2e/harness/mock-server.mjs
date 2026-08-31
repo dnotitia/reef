@@ -1020,6 +1020,42 @@ function configuredVault(name) {
     // relation/archive) in the hermetic runtime. Real edits append more rows
     // through the insert handler below.
     activity: [
+      activityRow("REEF-001", "status_change", "2026-06-16T00:00:00.000Z", {
+        from: "todo",
+        to: "in_progress",
+      }),
+      activityRow("REEF-001", "status_change", "2026-06-18T00:00:00.000Z", {
+        from: "in_progress",
+        to: "done",
+      }),
+      activityRow("REEF-001", "status_change", "2026-06-19T00:00:00.000Z", {
+        from: "done",
+        to: "todo",
+      }),
+      activityRow("REEF-002", "status_change", "2026-06-16T01:00:00.000Z", {
+        from: "todo",
+        to: "in_progress",
+      }),
+      activityRow("REEF-002", "status_change", "2026-06-26T00:00:00.000Z", {
+        from: "in_progress",
+        to: "done",
+      }),
+      activityRow("REEF-002", "status_change", "2026-06-27T00:00:00.000Z", {
+        from: "done",
+        to: "in_progress",
+      }),
+      activityRow("REEF-003", "status_change", "2026-06-15T00:00:00.000Z", {
+        from: "todo",
+        to: "in_progress",
+      }),
+      activityRow("REEF-003", "status_change", "2026-06-16T00:00:00.000Z", {
+        from: "in_progress",
+        to: "done",
+      }),
+      activityRow("REEF-003", "status_change", "2026-06-17T00:00:00.000Z", {
+        from: "done",
+        to: "backlog",
+      }),
       activityRow("REEF-001", "title_change", "2026-06-17T08:00:00.000Z", {
         from: "Initial issue Alpha",
         to: "Initial issue Alpha (revised)",
@@ -2924,10 +2960,17 @@ function handleSql(vault, sql) {
   // REEF-277: the issue activity timeline (reef_activity).
   if (lower.startsWith("select * from reef_activity where")) {
     const reefId = matchSqlString(normalized, /reef_id\s*=\s*'([^']+)'/i);
+    const eventType = matchSqlString(normalized, /event_type\s*=\s*'([^']+)'/i);
     const rows = vault.activity
-      .filter((event) => !reefId || event.reef_id === reefId)
-      .sort((a, b) =>
-        String(a.meta?.at ?? "").localeCompare(String(b.meta?.at ?? "")),
+      .filter(
+        (event) =>
+          (!reefId || event.reef_id === reefId) &&
+          (!eventType || event.event_type === eventType),
+      )
+      .sort(
+        (a, b) =>
+          String(a.meta?.at ?? "").localeCompare(String(b.meta?.at ?? "")) ||
+          String(a.id ?? "").localeCompare(String(b.id ?? "")),
       );
     return tableQuery(activityTimelineColumns(), rows);
   }
@@ -4383,7 +4426,9 @@ function sha256(bytes) {
 }
 
 function headerQuoted(value) {
-  return String(value).replace(/["\\\r\n]/g, "_");
+  return String(value)
+    .replace(/["\\\r\n]/g, "_")
+    .replace(/[^\x20-\x7e]/g, "_");
 }
 
 function json(res, status, body) {

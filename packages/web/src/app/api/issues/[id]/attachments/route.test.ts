@@ -214,6 +214,34 @@ describe("POST /api/issues/[id]/attachments", () => {
     );
   });
 
+  it("preserves a backslash in a special-character image filename", async () => {
+    const filename = "reef'\\한글😀.png";
+    mockUploadAttachment.mockResolvedValue({
+      ...ATTACHMENT,
+      filename,
+    });
+    const file = new File([new Uint8Array([1, 2, 3])], filename, {
+      type: "image/png",
+    });
+
+    const res = await POST(
+      new Request("http://localhost/api/issues/REEF-001/attachments?vault=v", {
+        method: "POST",
+        headers: authedHeaders(),
+        body: formWithFile(file, { source: "issue_body", inline: "true" }),
+      }),
+      params(),
+    );
+
+    expect(res.status).toBe(201);
+    expect((await res.json()).markdown).toBe(
+      `![${filename}](akb://reef-test/issues/file/file-1)`,
+    );
+    expect(mockUploadAttachment).toHaveBeenCalledWith(
+      expect.objectContaining({ filename }),
+    );
+  });
+
   it("returns null markdown for non-image files", async () => {
     mockUploadAttachment.mockResolvedValue({
       ...ATTACHMENT,

@@ -1,4 +1,4 @@
-import { AuthError } from "@reef/core";
+import { AuthError, SchemaValidationError } from "@reef/core";
 import { SearchIssuesOutputSchema } from "@reef/core";
 import type { IssueMetadata } from "@reef/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -85,7 +85,7 @@ describe("createSearchIssuesTool", () => {
   });
 
   it("returns metadata-only hybrid results for non-empty query", async () => {
-    setupFetch([
+    const { calls } = setupFetch([
       { body: { results: [searchHit(ISSUES[0])] } },
       { body: makeIssueQueryResponse([ISSUES[0]]) },
     ]);
@@ -108,6 +108,37 @@ describe("createSearchIssuesTool", () => {
     // No body field on search results — metadata just.
     // biome-ignore lint/suspicious/noExplicitAny: probing absence
     expect((result.issues[0] as any).body).toBeUndefined();
+
+    const hydrationBody = JSON.parse(String(calls[1]?.init?.body)) as {
+      sql: string;
+      params?: unknown[];
+    };
+    expect(hydrationBody.sql).toContain("document_uri IN ($1)");
+    expect(hydrationBody.params).toEqual([
+      "akb://reef-acme/doc/issues/reef-001.md",
+    ]);
+    expect(hydrationBody.sql).not.toContain(
+      "akb://reef-acme/doc/issues/reef-001.md",
+    );
+  });
+
+  it("rejects a NUL search value before making an AKB request", async () => {
+    const { calls } = setupFetch([]);
+    const tool = createSearchIssuesTool({
+      adapter: makeAdapter(),
+      vault: "reef-acme",
+    });
+
+    await expect(
+      callTool(tool, {
+        query: "bad\0needle",
+        status: null,
+        assigned_to: null,
+        labels: null,
+        limit: 20,
+      }),
+    ).rejects.toBeInstanceOf(SchemaValidationError);
+    expect(calls).toHaveLength(0);
   });
 
   it("does not exclude done issues when status is null", async () => {

@@ -54,8 +54,13 @@ function makeAdapter() {
   });
 }
 
-function bodyOf(call: FetchCall): Record<string, unknown> {
-  return JSON.parse(String(call.init?.body)) as Record<string, unknown>;
+function bodyOf(
+  call: FetchCall,
+): Record<string, unknown> & { params?: unknown[]; sql?: string } {
+  return JSON.parse(String(call.init?.body)) as Record<string, unknown> & {
+    params?: unknown[];
+    sql?: string;
+  };
 }
 
 const ALL_REEF_TABLES = [
@@ -149,12 +154,24 @@ describe("installReefVaultSkill", () => {
     const insert = calls[8];
     expect(listTables.url).toBe("https://akb.test/api/v1/tables/reef-new");
     expect(del.url).toBe("https://akb.test/api/v1/tables/reef-new/sql");
-    expect(String(bodyOf(del).sql)).toContain("DELETE FROM reef_settings");
+    expect(bodyOf(del)).toEqual({
+      sql: "DELETE FROM reef_settings WHERE key = $1",
+      params: ["vault_skill"],
+    });
     expect(insert.url).toBe("https://akb.test/api/v1/tables/reef-new/sql");
-    const insertSql = String(bodyOf(insert).sql);
-    expect(insertSql).toContain("INSERT INTO reef_settings");
-    expect(insertSql).toContain("'vault_skill'");
-    expect(insertSql).toContain(`"version":${REEF_VAULT_SKILL_VERSION}`);
+    const insertBody = bodyOf(insert);
+    expect(insertBody.sql).toBe(
+      "INSERT INTO reef_settings (key, value) VALUES ($1, $2::json)",
+    );
+    expect(insertBody.params).toEqual([
+      "vault_skill",
+      expect.stringMatching(
+        new RegExp(`\\"version\\":${REEF_VAULT_SKILL_VERSION}`),
+      ),
+    ]);
+    expect(JSON.parse(String(insertBody.params?.[1]))).toMatchObject({
+      version: REEF_VAULT_SKILL_VERSION,
+    });
   });
 
   it("creates a document when PATCH returns 404", async () => {
@@ -206,7 +223,7 @@ describe("getVaultSkillStatus", () => {
   });
 
   it("reports up to date when the stamp matches the current version", async () => {
-    setupFetch([
+    const calls = setupFetch([
       statusQueryResponse({
         version: REEF_VAULT_SKILL_VERSION,
         synced_at: "2026-06-09T00:00:00.000Z",
@@ -223,6 +240,10 @@ describe("getVaultSkillStatus", () => {
       current_version: REEF_VAULT_SKILL_VERSION,
       up_to_date: true,
       synced_at: "2026-06-09T00:00:00.000Z",
+    });
+    expect(bodyOf(calls[0])).toEqual({
+      sql: "SELECT value FROM reef_settings WHERE key = $1 LIMIT 1",
+      params: ["vault_skill"],
     });
   });
 

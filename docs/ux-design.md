@@ -570,11 +570,15 @@ workspaces to switch to). Vault-less dashboard paths are not part of the route
 tree; use the explicit workspace URL or the root workspace picker. The old
 mixed `view=backlog` URL is not a supported route.
 
-The Issues page header keeps two separate semantic controls in its action slot:
-an always-text `Active | Backlog` scope control and a layout control. Switching
-scope preserves the current layout when supported, keeps filters and search,
-and normalizes Backlog away from Timeline. Backlog has no count, badge, or
-notification dot; counts appear in Board group headers or List content.
+The Issues page header keeps two separate semantic controls in distinct areas:
+the always-text `Active | Backlog` scope control sits in a stable,
+title-adjacent scope area, while the `Board | List | Timeline` layout control
+stays in the right action area. Switching scope preserves the current layout
+when supported, keeps filters and search, and normalizes Backlog away from
+Timeline. Backlog has no count, badge, or notification dot; counts appear in
+Board group headers or List content. At narrow widths, the title-adjacent scope
+area remains before the layout actions in the header's wrap order and both
+controls stay contained in the viewport.
 
 Board, List, and Backlog render one shared sort control in the filter toolbar
 immediately after Display options, so sorting stays in the same collection-tool

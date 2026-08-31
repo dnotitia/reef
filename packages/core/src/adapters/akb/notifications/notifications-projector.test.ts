@@ -111,15 +111,27 @@ function response(items: Record<string, unknown>[]) {
   return { body: makeSqlQueryResponse(items, ["id"]) };
 }
 
-function sql(call: { init?: RequestInit } = {}): string {
-  return JSON.parse(String(call.init?.body)).sql as string;
+type SqlRequest = { sql: string; params?: unknown[] };
+type SqlCall = { init?: RequestInit };
+
+function request(call: SqlCall = {}): SqlRequest {
+  return JSON.parse(String(call.init?.body)) as SqlRequest;
 }
 
-function project() {
+function sql(call: SqlCall = {}): string {
+  return request(call).sql;
+}
+
+function params(call: SqlCall = {}): unknown[] {
+  return request(call).params ?? [];
+}
+
+function project(batchSize?: number) {
   return akbProjectNotifications({
     adapter: makeAdapter(),
     vault: "reef-sample",
     now: () => new Date(ACTIVATED_AT),
+    batchSize,
   });
 }
 
@@ -128,7 +140,7 @@ function setupMentionProjectionFetch(comment: Record<string, unknown>) {
   let commentReads = 0;
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     calls.push({ url, init });
-    const request = JSON.parse(String(init?.body)) as { sql: string };
+    const request = JSON.parse(String(init?.body)) as SqlRequest;
     const statement = request.sql;
     let items: Record<string, unknown>[];
 
@@ -157,8 +169,10 @@ function setupMentionProjectionFetch(comment: Record<string, unknown>) {
       statement.includes("INSERT INTO") &&
       statement.includes("reef_notifications")
     ) {
-      const recipient = statement.match(/VALUES \('[^']*', '([^']*)'/)?.[1];
-      if (!recipient) throw new Error(`recipient missing from ${statement}`);
+      const recipient = request.params?.[1];
+      if (typeof recipient !== "string") {
+        throw new Error(`recipient missing from ${statement}`);
+      }
       items = [
         notificationRow({
           recipient,
@@ -193,7 +207,8 @@ function setupActivityMentionProjectionFetch(options: {
   const activity = options.activity[0];
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     calls.push({ url, init });
-    const statement = JSON.parse(String(init?.body)).sql as string;
+    const sqlRequest = JSON.parse(String(init?.body)) as SqlRequest;
+    const statement = sqlRequest.sql;
     let items: Record<string, unknown>[];
 
     if (statement.includes("reef_settings")) {
@@ -206,8 +221,10 @@ function setupActivityMentionProjectionFetch(options: {
       statement.includes("INSERT INTO") &&
       statement.includes("reef_notifications")
     ) {
-      const recipient = statement.match(/VALUES \('[^']*', '([^']*)'/)?.[1];
-      if (!recipient) throw new Error(`recipient missing from ${statement}`);
+      const recipient = sqlRequest.params?.[1];
+      if (typeof recipient !== "string") {
+        throw new Error(`recipient missing from ${statement}`);
+      }
       if (options.failRecipients?.includes(recipient)) {
         throw new Error(`notification write failed for ${recipient}`);
       }
@@ -263,14 +280,149 @@ describe("notification projector", () => {
       comment: { scanned: 0 },
     });
 
+    expect(sql(calls[0] ?? {})).toContain("WHERE key = $1");
+    expect(params(calls[0] ?? {})).toEqual(["notification_projector"]);
     expect(sql(calls[1] ?? {})).toContain("INSERT INTO reef_settings");
-    expect(sql(calls[2] ?? {})).toContain(
-      "(meta->>'at') > '2026-08-01T00:00:00.000Z'",
-    );
+    expect(sql(calls[1] ?? {})).toContain("SELECT $1, $2::json");
+    expect(params(calls[1] ?? {})).toEqual([
+      "notification_projector",
+      JSON.stringify(checkpoint()),
+    ]);
+    expect(sql(calls[2] ?? {})).toContain("(meta->>'at') > $1");
+    expect(sql(calls[2] ?? {})).toContain("LIMIT $2");
+    expect(params(calls[2] ?? {})).toEqual([ACTIVATED_AT, 100]);
     expect(sql(calls[3] ?? {})).toContain(
-      "(COALESCE(meta->>'edited_at', meta->>'created_at')) > '2026-08-01T00:00:00.000Z'",
+      "(COALESCE(meta->>'edited_at', meta->>'created_at')) > $1",
     );
+    expect(sql(calls[3] ?? {})).toContain("LIMIT $2");
+    expect(params(calls[3] ?? {})).toEqual([ACTIVATED_AT, 100]);
     expect(calls.map(sql).join("\n")).not.toContain("reef_notifications");
+  });
+
+  it("binds existing cursors, activation, and batch size in source order", async () => {
+    const activityCursor = {
+      occurred_at: "activity-cursor'\\한글🚀",
+      id: "activity-id'\\한글🚀",
+    };
+    const commentCursor = {
+      occurred_at: "comment-cursor'\\한글🚀",
+      id: "comment-id'\\한글🚀",
+    };
+    const { calls } = setupFetch([
+      response([
+        {
+          value: JSON.stringify(
+            checkpoint({
+              activity_cursor: activityCursor,
+              comment_cursor: commentCursor,
+            }),
+          ),
+        },
+      ]),
+      response([]),
+      response([]),
+    ]);
+
+    await expect(project(7)).resolves.toMatchObject({
+      activated: false,
+      activity: { scanned: 0, failed: false },
+      comment: { scanned: 0, failed: false },
+    });
+
+    expect(sql(calls[0] ?? {})).toContain("WHERE key = $1");
+    expect(params(calls[0] ?? {})).toEqual(["notification_projector"]);
+    expect(sql(calls[1] ?? {})).toContain(
+      "(meta->>'at') > $1 AND ((meta->>'at') > $2 OR ((meta->>'at') = $2 AND id::text > $3))",
+    );
+    expect(sql(calls[1] ?? {})).toContain("LIMIT $4");
+    expect(params(calls[1] ?? {})).toEqual([
+      ACTIVATED_AT,
+      activityCursor.occurred_at,
+      activityCursor.id,
+      7,
+    ]);
+    expect(sql(calls[2] ?? {})).toContain(
+      "(COALESCE(meta->>'edited_at', meta->>'created_at')) > $1 AND ((COALESCE(meta->>'edited_at', meta->>'created_at')) > $2 OR ((COALESCE(meta->>'edited_at', meta->>'created_at')) = $2 AND id::text > $3))",
+    );
+    expect(sql(calls[2] ?? {})).toContain("LIMIT $4");
+    expect(params(calls[2] ?? {})).toEqual([
+      ACTIVATED_AT,
+      commentCursor.occurred_at,
+      commentCursor.id,
+      7,
+    ]);
+  });
+
+  it("round-trips special cursor ids through the checkpoint JSON parameter", async () => {
+    const source = activityRow({ id: "cursor-id'\\한글🚀" });
+    const nextCheckpoint = checkpoint({
+      activity_cursor: {
+        occurred_at: "2026-08-01T00:01:00.000Z",
+        id: source.id,
+      },
+    });
+    const { calls } = setupFetch([
+      response([{ value: JSON.stringify(checkpoint()) }]),
+      response([source]),
+      response([]),
+      response([{ value: JSON.stringify(nextCheckpoint) }]),
+      response([]),
+      response([]),
+    ]);
+
+    await expect(project()).resolves.toMatchObject({
+      activity: { scanned: 1, skippedNoRecipients: 1, failed: false },
+    });
+
+    const checkpointUpdate = calls.find((call) =>
+      sql(call).includes("UPDATE reef_settings"),
+    );
+    expect(checkpointUpdate).toBeDefined();
+    expect(sql(checkpointUpdate)).toContain("SET value = $1");
+    expect(sql(checkpointUpdate)).toContain("WHERE key = $2");
+    expect(JSON.parse(String(params(checkpointUpdate)[0]))).toEqual(
+      nextCheckpoint,
+    );
+    expect(params(checkpointUpdate)[1]).toBe("notification_projector");
+  });
+
+  it("does not send raw and nested NUL values to an AKB request", async () => {
+    const rawNul = setupFetch([
+      response([
+        {
+          value: JSON.stringify(
+            checkpoint({
+              activity_cursor: {
+                occurred_at: "2026-08-01T00:00:00.000Z",
+                id: "raw\0nul",
+              },
+            }),
+          ),
+        },
+      ]),
+      response([]),
+    ]);
+    await expect(project()).resolves.toMatchObject({
+      activity: { failed: true },
+      comment: { failed: false },
+    });
+    expect(rawNul.calls).toHaveLength(2);
+    expect(rawNul.calls.flatMap(params)).not.toContain("raw\0nul");
+
+    const nestedNul = activityRow({ id: "nested\0nul" });
+    const nested = setupFetch([
+      response([{ value: JSON.stringify(checkpoint()) }]),
+      response([nestedNul]),
+      response([]),
+      response([]),
+    ]);
+    await expect(project()).resolves.toMatchObject({
+      activity: { failed: true },
+      comment: { failed: false },
+    });
+    expect(
+      nested.calls.filter((call) => sql(call).includes("UPDATE reef_settings")),
+    ).toHaveLength(0);
   });
 
   it("maps both sources without reading comment bodies and excludes muted and self recipients", async () => {
@@ -317,13 +469,23 @@ describe("notification projector", () => {
     });
 
     const statements = calls.map(sql);
-    const notificationSql = statements.filter((statement) =>
-      statement.includes("INSERT INTO reef_notifications"),
+    const notificationRequests = calls
+      .map(request)
+      .filter((sqlRequest) =>
+        sqlRequest.sql.includes("INSERT INTO reef_notifications"),
+      );
+    expect(notificationRequests).toHaveLength(2);
+    expect(
+      notificationRequests.map((sqlRequest) => sqlRequest.params?.[3]),
+    ).toEqual(["activity", "comment"]);
+    expect(
+      notificationRequests.map((sqlRequest) => sqlRequest.sql).join("\n"),
+    ).not.toContain("comment body is private");
+    const subscriptionCalls = calls.filter((call) =>
+      sql(call).includes("reef_subscriptions"),
     );
-    expect(notificationSql).toHaveLength(2);
-    expect(notificationSql.join("\n")).toContain("'activity'");
-    expect(notificationSql.join("\n")).toContain("'comment'");
-    expect(notificationSql.join("\n")).not.toContain("comment body is private");
+    expect(subscriptionCalls).toHaveLength(2);
+    expect(subscriptionCalls.map(params)).toEqual([["REEF-1"], ["REEF-1"]]);
     expect(
       statements.find((statement) => statement.includes("reef_comments")),
     ).toContain("SELECT id, reef_id, meta");
@@ -347,16 +509,14 @@ describe("notification projector", () => {
       comment: { scanned: 1, fannedOut: 2, failed: false },
     });
 
-    const notificationSql = calls
-      .map(sql)
-      .filter((statement) =>
-        statement.includes("INSERT INTO reef_notifications"),
+    const notificationRequests = calls
+      .map(request)
+      .filter((sqlRequest) =>
+        sqlRequest.sql.includes("INSERT INTO reef_notifications"),
       );
-    expect(notificationSql).toHaveLength(2);
+    expect(notificationRequests).toHaveLength(2);
     expect(
-      notificationSql.map(
-        (statement) => statement.match(/VALUES \('[^']*', '([^']*)'/)?.[1],
-      ),
+      notificationRequests.map((sqlRequest) => sqlRequest.params?.[1]),
     ).toEqual(["bob", "dana"]);
   });
 
@@ -442,32 +602,34 @@ describe("notification projector", () => {
       comment: { scanned: 1, fannedOut: 2, failed: false },
     });
 
-    const secondNotificationSql = second.calls
-      .map(sql)
-      .filter((statement) =>
-        statement.includes("INSERT INTO reef_notifications"),
+    const secondNotificationRequests = second.calls
+      .map(request)
+      .filter((sqlRequest) =>
+        sqlRequest.sql.includes("INSERT INTO reef_notifications"),
       );
-    expect(secondNotificationSql).toHaveLength(2);
-    expect(secondNotificationSql.join("\n")).toContain(
-      buildNotificationKey({
-        recipient: "bob",
-        sourceType: "comment",
-        sourceRef: COMMENT_ID,
-      }),
-    );
-    expect(secondNotificationSql.join("\n")).toContain(
-      buildNotificationKey({
-        recipient: "carol",
-        sourceType: "comment",
-        sourceRef: COMMENT_ID,
-      }),
-    );
-    expect(sql(first.calls.at(-1) ?? {})).toContain(
-      `"comment_cursor":{"id":"${COMMENT_ID}","occurred_at":"2026-08-01T00:02:00.000Z"`,
-    );
-    expect(sql(second.calls.at(-1) ?? {})).toContain(
-      `"comment_cursor":{"id":"${COMMENT_ID}","occurred_at":"2026-08-01T00:03:00.000Z"`,
-    );
+    expect(secondNotificationRequests).toHaveLength(2);
+    expect(
+      secondNotificationRequests.map((sqlRequest) => sqlRequest.params?.[1]),
+    ).toEqual(["bob", "carol"]);
+    expect(
+      secondNotificationRequests.map((sqlRequest) => sqlRequest.params?.[4]),
+    ).toEqual([COMMENT_ID, COMMENT_ID]);
+    expect(
+      JSON.parse(String(params(first.calls.at(-1) ?? {})[0])),
+    ).toMatchObject({
+      comment_cursor: {
+        id: COMMENT_ID,
+        occurred_at: "2026-08-01T00:02:00.000Z",
+      },
+    });
+    expect(
+      JSON.parse(String(params(second.calls.at(-1) ?? {})[0])),
+    ).toMatchObject({
+      comment_cursor: {
+        id: COMMENT_ID,
+        occurred_at: "2026-08-01T00:03:00.000Z",
+      },
+    });
   });
 
   it("treats a malformed persisted mention projection as an empty list", async () => {
@@ -591,7 +753,15 @@ describe("notification projector", () => {
       .map(sql)
       .filter((statement) => statement.includes("UPDATE reef_settings"));
     expect(checkpointSql).toHaveLength(1);
-    expect(checkpointSql[0]).toContain("comment_cursor");
+    const checkpointUpdate = calls.find((call) =>
+      sql(call).includes("UPDATE reef_settings"),
+    );
+    expect(JSON.parse(String(params(checkpointUpdate)[0]))).toMatchObject({
+      comment_cursor: {
+        id: COMMENT_ID,
+        occurred_at: "2026-08-01T00:02:00.000Z",
+      },
+    });
   });
 
   it("replays a partially completed fan-out with the same recipient identities", async () => {
@@ -646,22 +816,26 @@ describe("notification projector", () => {
     });
 
     const firstBobInsert = first.calls
-      .map(sql)
-      .find((statement) => statement.includes("'bob'"));
+      .map(request)
+      .find((sqlRequest) => sqlRequest.params?.[1] === "bob");
     const retryBobInsert = retry.calls
-      .map(sql)
-      .find((statement) => statement.includes("'bob'"));
-    expect(firstBobInsert).toContain(
+      .map(request)
+      .find((sqlRequest) => sqlRequest.params?.[1] === "bob");
+    expect(firstBobInsert?.sql).toContain(
       "ON CONFLICT (notification_key) DO UPDATE",
     );
-    expect(retryBobInsert).toContain(
+    expect(retryBobInsert?.params?.[0]).toBe(
       buildNotificationKey({
         recipient: "bob",
         sourceType: "activity",
         sourceRef: String(activity.event_key),
       }),
     );
-    expect(retry.calls.map(sql).join("\n")).toContain("'carol'");
+    expect(
+      retry.calls
+        .map(request)
+        .some((sqlRequest) => sqlRequest.params?.includes("carol")),
+    ).toBe(true);
   });
 
   it("fans out only payload.added recipients, without requiring subscriptions", async () => {
@@ -685,22 +859,27 @@ describe("notification projector", () => {
       activity: { scanned: 1, fannedOut: 2, failed: false },
     });
 
-    const notificationSql = calls
-      .map(sql)
-      .filter((statement) =>
-        statement.includes("INSERT INTO reef_notifications"),
+    const notificationRequests = calls
+      .map(request)
+      .filter((sqlRequest) =>
+        sqlRequest.sql.includes("INSERT INTO reef_notifications"),
       );
-    expect(notificationSql).toHaveLength(2);
+    expect(notificationRequests).toHaveLength(2);
     expect(
-      notificationSql.map(
-        (statement) => statement.match(/VALUES \('[^']*', '([^']*)'/)?.[1],
-      ),
+      notificationRequests.map((sqlRequest) => sqlRequest.params?.[1]),
     ).toEqual(["bob", "erin"]);
-    expect(notificationSql.join("\n")).toContain(
-      "'issue_body_mentions_change'",
-    );
-    expect(notificationSql.join("\n")).not.toContain("'dana'");
-    expect(notificationSql.join("\n")).not.toContain("'carol'");
+    expect(
+      notificationRequests.map((sqlRequest) => sqlRequest.params?.[5]),
+    ).toEqual(["issue_body_mentions_change", "issue_body_mentions_change"]);
+    expect(
+      notificationRequests.map((sqlRequest) => sqlRequest.params?.[1]),
+    ).not.toContain("dana");
+    expect(
+      notificationRequests.map((sqlRequest) => sqlRequest.params?.[1]),
+    ).not.toContain("carol");
+    expect(
+      notificationRequests.map((sqlRequest) => sqlRequest.sql).join("\n"),
+    ).not.toContain("'issue_body_mentions_change'");
     expect(
       calls
         .map(sql)
@@ -792,18 +971,24 @@ describe("notification projector", () => {
     });
 
     const firstInsert = first.calls
-      .map(sql)
-      .find((statement) =>
-        statement.includes("INSERT INTO reef_notifications"),
+      .map(request)
+      .find((sqlRequest) =>
+        sqlRequest.sql.includes("INSERT INTO reef_notifications"),
       );
     const secondInsert = second.calls
-      .map(sql)
-      .find((statement) =>
-        statement.includes("INSERT INTO reef_notifications"),
+      .map(request)
+      .find((sqlRequest) =>
+        sqlRequest.sql.includes("INSERT INTO reef_notifications"),
       );
-    expect(firstInsert).toContain("document-commit-1");
-    expect(secondInsert).toContain("document-commit-2");
-    expect(secondInsert).not.toContain("document-commit-1");
+    expect(firstInsert?.params?.[4]).toBe(
+      "issue_body_mentions_change:document-commit-1",
+    );
+    expect(secondInsert?.params?.[4]).toBe(
+      "issue_body_mentions_change:document-commit-2",
+    );
+    expect(secondInsert?.params).not.toContain(
+      "issue_body_mentions_change:document-commit-1",
+    );
   });
 
   it("replays an identical event idempotently while preserving read and archived state", async () => {
@@ -833,17 +1018,19 @@ describe("notification projector", () => {
     });
 
     const inserts = [...first.calls, ...retry.calls]
-      .map(sql)
-      .filter((statement) =>
-        statement.includes("INSERT INTO reef_notifications"),
+      .map(request)
+      .filter((sqlRequest) =>
+        sqlRequest.sql.includes("INSERT INTO reef_notifications"),
       );
     expect(inserts).toHaveLength(2);
-    expect(inserts[0]).toContain("ON CONFLICT (notification_key) DO UPDATE");
-    expect(inserts[0]).toContain(
+    expect(inserts[0].sql).toContain(
+      "ON CONFLICT (notification_key) DO UPDATE",
+    );
+    expect(inserts[0].sql).toContain(
       "SET notification_key = EXCLUDED.notification_key",
     );
     expect(existing.state).toBe("archived");
-    expect(inserts[1]).toContain(
+    expect(inserts[1].params?.[0]).toBe(
       buildNotificationKey({
         recipient: "bob",
         sourceType: "activity",
@@ -872,12 +1059,14 @@ describe("notification projector", () => {
       activity: { failed: false, fannedOut: 2 },
     });
     const retryInserts = retry.calls
-      .map(sql)
-      .filter((statement) =>
-        statement.includes("INSERT INTO reef_notifications"),
+      .map(request)
+      .filter((sqlRequest) =>
+        sqlRequest.sql.includes("INSERT INTO reef_notifications"),
       );
     expect(retryInserts).toHaveLength(2);
-    expect(retryInserts.join("\n")).toContain("'bob'");
-    expect(retryInserts.join("\n")).toContain("'carol'");
+    expect(retryInserts.map((sqlRequest) => sqlRequest.params?.[1])).toEqual([
+      "bob",
+      "carol",
+    ]);
   });
 });

@@ -8,9 +8,8 @@ import type { AkbAdapter } from "./http";
 import {
   decodeSettingsValue,
   isMissingTableError,
-  quoteJson,
-  quoteText,
   runSql,
+  SqlParameterBuilder,
   tableRef,
 } from "./sql";
 import {
@@ -586,13 +585,16 @@ async function readStoredSchemaVersion(
 ): Promise<number> {
   if (!hasSettingsTable) return 0;
   try {
+    const params = new SqlParameterBuilder();
+    const keyParam = params.add(
+      REEF_SETTINGS_SCHEMA_VERSION_KEY,
+      "settings key",
+    );
     const response = await runSql(
       adapter,
       vault,
-      `SELECT value FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key = ${quoteText(
-        REEF_SETTINGS_SCHEMA_VERSION_KEY,
-        "settings key",
-      )} LIMIT 1`,
+      `SELECT value FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key = ${keyParam} LIMIT 1`,
+      params.params,
     );
     const rows = response.kind === "table_query" ? response.items : [];
     const raw = rows[0]?.value;
@@ -620,21 +622,28 @@ async function stampSchemaVersion(
     version: REEF_SCHEMA_VERSION,
     applied_at: new Date().toISOString(),
   };
-  await runSql(
-    adapter,
-    vault,
-    `DELETE FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key = ${quoteText(
-      REEF_SETTINGS_SCHEMA_VERSION_KEY,
-      "settings key",
-    )}`,
+  const deleteParams = new SqlParameterBuilder();
+  const deleteKey = deleteParams.add(
+    REEF_SETTINGS_SCHEMA_VERSION_KEY,
+    "settings key",
   );
   await runSql(
     adapter,
     vault,
-    `INSERT INTO ${tableRef(REEF_SETTINGS_TABLE)} (key, value) VALUES (${quoteText(
-      REEF_SETTINGS_SCHEMA_VERSION_KEY,
-      "settings key",
-    )}, ${quoteJson(stamp)})`,
+    `DELETE FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key = ${deleteKey}`,
+    deleteParams.params,
+  );
+  const insertParams = new SqlParameterBuilder();
+  const insertKey = insertParams.add(
+    REEF_SETTINGS_SCHEMA_VERSION_KEY,
+    "settings key",
+  );
+  const stampParam = insertParams.addJson(stamp, "schema version stamp");
+  await runSql(
+    adapter,
+    vault,
+    `INSERT INTO ${tableRef(REEF_SETTINGS_TABLE)} (key, value) VALUES (${insertKey}, ${stampParam})`,
+    insertParams.params,
   );
 }
 

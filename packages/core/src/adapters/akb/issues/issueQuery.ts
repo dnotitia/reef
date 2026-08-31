@@ -4,12 +4,7 @@ import { parseIssueId } from "../../../models/id";
 import { ACTIVE_STATUSES } from "../../../models/status";
 import type { IssueListQuery } from "../../../schemas/issues/requests";
 import { REEF_ISSUES_TABLE, REEF_SPRINTS_TABLE } from "../core/constants";
-import {
-  quoteIdent,
-  quoteNumberOrNull,
-  quoteText,
-  tableRef,
-} from "../core/sql";
+import { type SqlParameterBuilder, quoteIdent, tableRef } from "../core/sql";
 
 // ─── Issue list query builders (filter / sort / counts) ─────────────────────
 
@@ -25,41 +20,34 @@ export function priorityRankCase(): string {
 /**
  * A case-insensitive substring (`ILIKE '%value%'`) predicate. The value's LIKE
  * metacharacters (`%`, `_`, `\`) are escaped and an explicit `ESCAPE '\'` is
- * emitted, then the whole pattern is quoted via `quoteText`. Mirrors the client
+ * emitted, then the whole pattern is added as a SQL parameter. Mirrors the client
  * `searchIssues` substring semantics for the free-text `q` facet. (The
  * assignee/requester *facets* now match exactly — see `lowerInClause` — so this
  * substring form is reserved for the `q` search path, REEF-267.)
  */
-function likeContainsClause(
-  column: string,
-  value: string,
-  fieldDescriptor: string,
-): string {
+function likePattern(value: string): string {
   const escaped = value.replace(/[\\%_]/g, (ch) => `\\${ch}`);
-  return `${quoteIdent(column)} ILIKE ${quoteText(
-    `%${escaped}%`,
-    fieldDescriptor,
-  )} ESCAPE '\\'`;
+  return `%${escaped}%`;
+}
+
+function likeContainsClause(column: string, patternParam: string): string {
+  return `${quoteIdent(column)} ILIKE ${patternParam} ESCAPE '\\'`;
 }
 
 /**
  * A case-insensitive substring predicate against the JSON `labels` column,
  * cast to `text` so the serialized array (`["bug","ui"]`) is matched as a
- * string. The value's LIKE metacharacters are escaped and quoted exactly like
- * `likeContainsClause`; `labels` is a fixed column name so the cast is inlined.
+ * string. The value's LIKE metacharacters are escaped and parameterized exactly
+ * like `likeContainsClause`; `labels` is a fixed column name so the cast is inlined.
  * Used by the `q` free-text predicate to surface a label hit.
  */
-function labelsContainsClause(value: string, fieldDescriptor: string): string {
-  const escaped = value.replace(/[\\%_]/g, (ch) => `\\${ch}`);
-  return `"labels"::text ILIKE ${quoteText(
-    `%${escaped}%`,
-    fieldDescriptor,
-  )} ESCAPE '\\'`;
+function labelsContainsClause(patternParam: string): string {
+  return `"labels"::text ILIKE ${patternParam} ESCAPE '\\'`;
 }
 
 /**
- * A case-insensitive exact-match `IN` predicate: `LOWER("col") IN ('a', 'b')`,
- * each value lowercased and quoted. Used for the assignee / requester facets
+ * A case-insensitive exact-match `IN` predicate: `LOWER("col") IN ($1, $2)`,
+ * each value lowercased and parameterized. Used for the assignee / requester facets
  * (REEF-267) — exact equality, OR-combined within the facet — so a one-person
  * filter does not incidentally match a different login the way the old substring
  * `ILIKE` did (which forced My Work's client re-scope, REEF-181). Case-folding
@@ -71,9 +59,10 @@ function lowerInClause(
   column: string,
   values: readonly string[],
   descriptor: string,
+  params: SqlParameterBuilder,
 ): string {
   const list = values
-    .map((v) => quoteText(v.toLowerCase(), descriptor))
+    .map((v) => params.add(v.toLowerCase(), descriptor))
     .join(", ");
   return `LOWER(${quoteIdent(column)}) IN (${list})`;
 }
@@ -81,8 +70,8 @@ function lowerInClause(
 /**
  * Build the SQL `WHERE` body (without the `WHERE` keyword) for the issue-list
  * filter facets, or `undefined` when nothing narrows the set. Every value is
- * escaped via `quoteText` / `quoteIdent`; columns are quoted, the table is a
- * bare `tableRef`. No raw interpolation.
+ * added to the supplied parameter builder; columns are quoted and no user
+ * value is interpolated into the SQL fragment.
  *
  * The multi-select facets OR-combine their values via `IN`: `status` / `priority`
  * / `severity` / `sprint_id` / `release_id` by exact value, `assigned_to` /
@@ -99,7 +88,10 @@ function lowerInClause(
  * `labels` column matched via a `::text` cast — AND-combined with the other
  * facets so search narrows within the active filter rather than replacing it.
  */
-export function buildIssueWhere(filter: IssueListQuery): string | undefined {
+export function buildIssueWhere(
+  filter: IssueListQuery,
+  params: SqlParameterBuilder,
+): string | undefined {
   const clauses: string[] = [];
 
   const inClause = (
@@ -107,7 +99,7 @@ export function buildIssueWhere(filter: IssueListQuery): string | undefined {
     values: readonly string[],
     descriptor: string,
   ): string => {
-    const list = values.map((v) => quoteText(v, descriptor)).join(", ");
+    const list = values.map((v) => params.add(v, descriptor)).join(", ");
     return `${quoteIdent(column)} IN (${list})`;
   };
 
@@ -123,19 +115,24 @@ export function buildIssueWhere(filter: IssueListQuery): string | undefined {
   if (filter.issue_type?.length) {
     const parts = filter.issue_type.map((t) =>
       t === "task"
-        ? `("issue_type" = ${quoteText(t, "issue_type filter")} OR "issue_type" IS NULL)`
-        : `"issue_type" = ${quoteText(t, "issue_type filter")}`,
+        ? `("issue_type" = ${params.add(t, "issue_type filter")} OR "issue_type" IS NULL)`
+        : `"issue_type" = ${params.add(t, "issue_type filter")}`,
     );
     clauses.push(parts.length === 1 ? parts[0] : `(${parts.join(" OR ")})`);
   }
   if (filter.assigned_to?.length) {
     clauses.push(
-      lowerInClause("assigned_to", filter.assigned_to, "assigned_to filter"),
+      lowerInClause(
+        "assigned_to",
+        filter.assigned_to,
+        "assigned_to filter",
+        params,
+      ),
     );
   }
   if (filter.requester?.length) {
     clauses.push(
-      lowerInClause("requester", filter.requester, "requester filter"),
+      lowerInClause("requester", filter.requester, "requester filter", params),
     );
   }
   if (filter.sprint_id?.length) {
@@ -143,7 +140,10 @@ export function buildIssueWhere(filter: IssueListQuery): string | undefined {
   }
   if (filter.milestone_id) {
     clauses.push(
-      `"milestone_id" = ${quoteText(filter.milestone_id, "milestone_id filter")}`,
+      `"milestone_id" = ${params.add(
+        filter.milestone_id,
+        "milestone_id filter",
+      )}`,
     );
   }
   if (filter.release_id?.length) {
@@ -153,25 +153,26 @@ export function buildIssueWhere(filter: IssueListQuery): string | undefined {
   }
   if (filter.due_after) {
     clauses.push(
-      `"due_date" >= ${quoteText(filter.due_after, "due_after filter")}`,
+      `"due_date" >= ${params.add(filter.due_after, "due_after filter")}`,
     );
   }
   if (filter.due_before) {
     clauses.push(
-      `"due_date" <= ${quoteText(filter.due_before, "due_before filter")}`,
+      `"due_date" <= ${params.add(filter.due_before, "due_before filter")}`,
     );
   }
   if (filter.q) {
+    const patternParam = params.add(likePattern(filter.q), "q filter");
     const group = [
-      likeContainsClause("reef_id", filter.q, "q filter"),
-      likeContainsClause("title", filter.q, "q filter"),
-      likeContainsClause("assigned_to", filter.q, "q filter"),
-      likeContainsClause("requester", filter.q, "q filter"),
-      likeContainsClause("reporter", filter.q, "q filter"),
-      likeContainsClause("milestone_id", filter.q, "q filter"),
-      likeContainsClause("sprint_id", filter.q, "q filter"),
-      likeContainsClause("release_id", filter.q, "q filter"),
-      labelsContainsClause(filter.q, "q filter"),
+      likeContainsClause("reef_id", patternParam),
+      likeContainsClause("title", patternParam),
+      likeContainsClause("assigned_to", patternParam),
+      likeContainsClause("requester", patternParam),
+      likeContainsClause("reporter", patternParam),
+      likeContainsClause("milestone_id", patternParam),
+      likeContainsClause("sprint_id", patternParam),
+      likeContainsClause("release_id", patternParam),
+      labelsContainsClause(patternParam),
     ].join(" OR ");
     clauses.push(`(${group})`);
   }
@@ -358,31 +359,46 @@ export function decodeCursor(cursor: string): IssueCursorParts {
  * Build the keyset `WHERE` predicate selecting "rows after the cursor" in the
  * given sort direction, with the canonical numeric issue number DESC as the
  * tiebreaker. The lead expression matches `sortLeadExpr`; every cursor value
- * is validated and escaped.
+ * is validated and added to the supplied parameter builder.
  */
 export function buildKeysetWhere(
   sortField: IssueSortField,
   sortOrder: IssueSortOrder,
   cursor: IssueCursorParts,
+  params: SqlParameterBuilder,
 ): string {
   const lead = sortLeadExpr(sortField);
   const cmp = sortOrder === "asc" ? ">" : "<";
-  const kLit = NUMERIC_SORT_FIELDS.has(sortField)
-    ? quoteNumberOrNull(Number(cursor.k))
-    : quoteText(cursor.k, "cursor key");
-  const issueNumberLit = quoteNumberOrNull(parseIssueId(cursor.id).number);
   if (sortField === "reef_id") {
-    return `(${lead} ${cmp} ${kLit})`;
+    const kParam = NUMERIC_SORT_FIELDS.has(sortField)
+      ? params.add(Number(cursor.k), "cursor key")
+      : params.add(cursor.k, "cursor key");
+    return `(${lead} ${cmp} ${kParam})`;
   }
   if (isDateSortField(sortField)) {
     // Date cursors use the empty lead value as the NULL marker (ISO date
     // fields cannot contain an empty string). The bucket is always ASC so the
     // real dates precede the NULL tail for both date directions.
     const nullBucket = dateNullBucketExpr(sortField);
-    const cursorNullBucket = cursor.k === "" ? "1" : "0";
-    return `((${nullBucket} > ${cursorNullBucket}) OR (${nullBucket} = ${cursorNullBucket} AND ((${lead} ${cmp} ${kLit}) OR (${lead} = ${kLit} AND ${ISSUE_NUMBER_SORT_EXPR} < ${issueNumberLit}))))`;
+    const cursorNullBucket = params.add(
+      cursor.k === "" ? 1 : 0,
+      "cursor null bucket",
+    );
+    const kParam = params.add(cursor.k, "cursor key");
+    const issueNumberParam = params.add(
+      parseIssueId(cursor.id).number,
+      "cursor issue number",
+    );
+    return `((${nullBucket} > ${cursorNullBucket}) OR (${nullBucket} = ${cursorNullBucket} AND ((${lead} ${cmp} ${kParam}) OR (${lead} = ${kParam} AND ${ISSUE_NUMBER_SORT_EXPR} < ${issueNumberParam}))))`;
   }
-  return `((${lead} ${cmp} ${kLit}) OR (${lead} = ${kLit} AND ${ISSUE_NUMBER_SORT_EXPR} < ${issueNumberLit}))`;
+  const kParam = NUMERIC_SORT_FIELDS.has(sortField)
+    ? params.add(Number(cursor.k), "cursor key")
+    : params.add(cursor.k, "cursor key");
+  const issueNumberParam = params.add(
+    parseIssueId(cursor.id).number,
+    "cursor issue number",
+  );
+  return `((${lead} ${cmp} ${kParam}) OR (${lead} = ${kParam} AND ${ISSUE_NUMBER_SORT_EXPR} < ${issueNumberParam}))`;
 }
 
 /**
@@ -390,11 +406,11 @@ export function buildKeysetWhere(
  * backlog, not done/closed) that are not archived. The `IN (...)` list is
  * derived from the shared `ACTIVE_STATUSES` lifecycle constant (REEF-109) so
  * the SQL floor, the board/timeline columns, and the report metrics all exclude
- * the same set. Each member is a fixed enum constant quoted via `quoteText`.
+ * the same set. Each member is added to the supplied parameter builder.
  */
-export function defaultViewStatusFloor(): string {
+export function defaultViewStatusFloor(params: SqlParameterBuilder): string {
   const statuses = ACTIVE_STATUSES.map((s) =>
-    quoteText(s, "active status floor"),
+    params.add(s, "active status floor"),
   ).join(", ");
   return `"archived_at" IS NULL AND "status" IN (${statuses})`;
 }
@@ -416,10 +432,10 @@ export function defaultViewStatusFloor(): string {
  * — a negligible, data-degraded edge — and does not fail the query (the resilience
  * property is preserved; which sprint is picked could differ).
  */
-function activeSprintIdSubquery(): string {
+function activeSprintIdSubquery(params: SqlParameterBuilder): string {
   return `(SELECT "id" FROM ${tableRef(
     REEF_SPRINTS_TABLE,
-  )} WHERE "status" = ${quoteText(
+  )} WHERE "status" = ${params.add(
     "active",
     "active sprint status",
   )} ORDER BY "start_date" DESC NULLS LAST, "id" DESC LIMIT 1)`;
@@ -442,7 +458,7 @@ function activeSprintIdSubquery(): string {
  * sprint and the My-Issues test are SQL subqueries here rather than prior
  * round-trips. The active-sprint subquery returning NULL (no active sprint)
  * degrades to the floor alone, matching the old `getActiveSprint`→null behavior.
- * Every value is escaped via `quoteText`.
+ * Every dynamic value is added to the supplied parameter builder.
  *
  * `withActiveSprint: false` drops the active-sprint fold entirely (no
  * `reef_sprints` reference). `listIssues` uses it to retry on a vault that has
@@ -455,24 +471,28 @@ function activeSprintIdSubquery(): string {
  * the resolved scope stays consistent across paginated pages — the up-front
  * scope invariant that kept page 2 from landing on an empty My-Issues set.
  */
-export function buildDefaultViewWhere(params: {
-  actor: string | null;
-  withActiveSprint?: boolean;
-}): string {
-  const floor = defaultViewStatusFloor();
+export function buildDefaultViewWhere(
+  params: {
+    actor: string | null;
+    withActiveSprint?: boolean;
+  },
+  sqlParams: SqlParameterBuilder,
+): string {
+  const floor = defaultViewStatusFloor(sqlParams);
   // The sprint arm: the active sprint when one exists, else the floor alone.
   // Dropped to a no-op (`TRUE` / omitted) when the sprint table is unavailable.
   const sprintFallback =
     params.withActiveSprint === false
       ? null
       : (() => {
-          const sub = activeSprintIdSubquery();
+          const sub = activeSprintIdSubquery(sqlParams);
           return `(${sub} IS NULL OR "sprint_id" = ${sub})`;
         })();
   if (!params.actor) {
     return sprintFallback ? `${floor} AND ${sprintFallback}` : floor;
   }
-  const actorEq = `"assigned_to" = ${quoteText(params.actor, "default view actor")}`;
+  const actorParam = sqlParams.add(params.actor, "default view actor");
+  const actorEq = `"assigned_to" = ${actorParam}`;
   const hasMine = `EXISTS (SELECT 1 FROM ${tableRef(
     REEF_ISSUES_TABLE,
   )} WHERE ${floor} AND ${actorEq})`;

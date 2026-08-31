@@ -908,6 +908,26 @@ function rowToActivityEvent(row: Record<string, unknown>): ActivityEvent {
 }
 
 /**
+ * Project valid activity rows while keeping a single malformed row from
+ * blanking the whole read. The internal mention precursor is not part of any
+ * user-facing activity consumer.
+ */
+function parseActivityRows(rows: Record<string, unknown>[]): ActivityEvent[] {
+  const events: ActivityEvent[] = [];
+  for (const row of rows) {
+    try {
+      const event = rowToActivityEvent(row);
+      if (event.event_type !== ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE) {
+        events.push(event);
+      }
+    } catch {
+      // Skip a malformed event row rather than failing the whole history.
+    }
+  }
+  return events;
+}
+
+/**
  * List an issue's activity events oldest-first (REEF-063 Notes: events are
  * queryable per issue). Orders by the semantic `meta.at` (ISO-8601 sorts
  * lexically), with the akb uuid `id` as a stable tiebreak. The timeline render
@@ -947,19 +967,62 @@ export async function listIssueActivity(
         }
         throw err;
       }
-      const events: ActivityEvent[] = [];
-      for (const row of rows) {
-        try {
-          const event = rowToActivityEvent(row);
-          if (event.event_type !== ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE) {
-            events.push(event);
-          }
-        } catch {
-          // Skip a malformed event row rather than failing the whole history.
-        }
-      }
+      const events = parseActivityRows(rows);
       span.setAttribute("event_count", events.length);
       return events;
     },
   );
+}
+
+/**
+ * List status-change activity for the whole vault in one read. Reports uses
+ * this bulk seam to calculate flow metrics after applying its existing issue
+ * facets locally; fetching one issue at a time would turn the report into an
+ * N+1 request path.
+ *
+ * The query selects only status changes, projects them through the same parser
+ * as the issue timeline, skips malformed rows, and collapses duplicate
+ * `(reef_id, event_key)` records before returning. A missing activity table is
+ * an empty history, matching the per-issue read's resilience contract.
+ */
+export async function listReportActivity(
+  adapter: AkbAdapter,
+  vault: string,
+): Promise<ActivityEvent[]> {
+  return withSpan("akb.list_report_activity", { vault }, async (span) => {
+    let rows: Record<string, unknown>[];
+    try {
+      const sqlParams = new SqlParameterBuilder();
+      const res = await runSql(
+        adapter,
+        vault,
+        `SELECT * FROM ${tableRef(
+          REEF_ACTIVITY_TABLE,
+        )} WHERE event_type = ${sqlParams.add(
+          ACTIVITY_EVENT_STATUS_CHANGE,
+          "activity event_type",
+        )} ORDER BY meta->>'at' ASC, reef_id ASC, id ASC`,
+        sqlParams.params,
+      );
+      rows = res.kind === "table_query" ? res.items : [];
+    } catch (err) {
+      if (isMissingTableError(err)) {
+        span.setAttribute("table_exists", false);
+        return [];
+      }
+      throw err;
+    }
+
+    const seen = new Set<string>();
+    const events: ActivityEvent[] = [];
+    for (const event of parseActivityRows(rows)) {
+      if (event.event_type !== ACTIVITY_EVENT_STATUS_CHANGE) continue;
+      const dedupeKey = `${event.reef_id}:${event.event_key}`;
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+      events.push(event);
+    }
+    span.setAttribute("event_count", events.length);
+    return events;
+  });
 }

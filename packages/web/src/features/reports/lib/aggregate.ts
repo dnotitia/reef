@@ -4,6 +4,7 @@ import {
 } from "@/features/issues/lib/dependencyUtils";
 import { isActive } from "@/features/issues/lib/issueListUtils";
 import {
+  type ActivityEvent,
   type IssueListItem,
   type IssueType,
   type Priority,
@@ -21,6 +22,11 @@ import {
   DEFAULT_REPORT_FILTERS,
   type DueHealth,
   ISSUE_TYPE_OPTIONS,
+  type FlowMetricPoint,
+  type FlowMetricResult,
+  type FlowMetrics,
+  type FlowMetricsOptions,
+  type StatusActivityEvent,
   type NamedCount,
   REPORT_PERIOD_WEEKS,
   RISK_PRIORITIES,
@@ -37,6 +43,8 @@ import {
   isCriticalRisk,
   isOpenReportWork,
   matchesFilters,
+  nearestRankPercentile,
+  reportPeriodWindow,
   rankAndTake,
   tally,
 } from "./aggregateModel";
@@ -283,5 +291,150 @@ export function computeAggregates(
         count: riskBuckets.get(`${priority}:${aging}`) ?? 0,
       })),
     ),
+  };
+}
+
+function statusEventsByIssue(
+  activity: ReadonlyArray<ActivityEvent>,
+): Map<string, StatusActivityEvent[]> {
+  const eventsByIssue = new Map<string, StatusActivityEvent[]>();
+  const seen = new Set<string>();
+
+  for (const event of activity) {
+    if (event.event_type !== "status_change") continue;
+    if (!Number.isFinite(Date.parse(event.at))) continue;
+    const dedupeKey = `${event.reef_id}:${event.event_key}`;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    const events = eventsByIssue.get(event.reef_id);
+    if (events) events.push(event);
+    else eventsByIssue.set(event.reef_id, [event]);
+  }
+
+  for (const events of eventsByIssue.values()) {
+    events.sort(
+      (left, right) =>
+        Date.parse(left.at) - Date.parse(right.at) ||
+        left.event_key.localeCompare(right.event_key) ||
+        left.id.localeCompare(right.id),
+    );
+  }
+  return eventsByIssue;
+}
+
+function makeFlowMetricPoint(
+  issue: IssueListItem,
+  startMs: number,
+  completionAt: string,
+  completionMs: number,
+): FlowMetricPoint | null {
+  if (!Number.isFinite(startMs) || startMs > completionMs) return null;
+  return {
+    issueId: issue.id,
+    title: issue.title,
+    completionAt,
+    elapsedDays: (completionMs - startMs) / DAY_MS,
+  };
+}
+
+function buildFlowMetricResult(
+  completionWindowCount: number,
+  points: ReadonlyArray<FlowMetricPoint>,
+): FlowMetricResult {
+  const orderedPoints = [...points].sort(
+    (left, right) =>
+      Date.parse(left.completionAt) - Date.parse(right.completionAt) ||
+      left.issueId.localeCompare(right.issueId),
+  );
+  const values = orderedPoints.map((point) => point.elapsedDays);
+  const p50 = nearestRankPercentile(values, 0.5);
+  const p85 = nearestRankPercentile(values, 0.85);
+  const p95 = nearestRankPercentile(values, 0.95);
+  const outliers =
+    p95 == null
+      ? []
+      : orderedPoints
+          .filter((point) => point.elapsedDays > p95)
+          .sort(
+            (left, right) =>
+              right.elapsedDays - left.elapsedDays ||
+              left.issueId.localeCompare(right.issueId),
+          );
+
+  return {
+    completionWindowCount,
+    measuredCount: orderedPoints.length,
+    coveragePercent:
+      completionWindowCount > 0
+        ? (orderedPoints.length / completionWindowCount) * 100
+        : 0,
+    points: orderedPoints,
+    percentiles:
+      p50 == null || p85 == null || p95 == null ? null : { p50, p85, p95 },
+    sleDays: p85 == null ? null : Math.ceil(p85),
+    lowSample: orderedPoints.length > 0 && orderedPoints.length < 20,
+    outliers,
+  };
+}
+
+/**
+ * Calculate Cycle Time and Lead Time from the first flow cycle of each issue.
+ * The issue facet is evaluated before the completion window, and every status
+ * timestamp is taken from activity rather than inferred from issue row dates.
+ */
+export function computeFlowMetrics(
+  issues: ReadonlyArray<IssueListItem>,
+  activity: ReadonlyArray<ActivityEvent>,
+  options: FlowMetricsOptions = {},
+): FlowMetrics {
+  const filters = options.filters ?? DEFAULT_REPORT_FILTERS;
+  const now = options.now ?? Date.now();
+  const window = reportPeriodWindow(filters.period, now);
+  const eventsByIssue = statusEventsByIssue(activity);
+  const filteredIssues = issues.filter((issue) =>
+    matchesFilters(issue, filters),
+  );
+  const cyclePoints: FlowMetricPoint[] = [];
+  const leadPoints: FlowMetricPoint[] = [];
+  let completionWindowCount = 0;
+
+  for (const issue of filteredIssues) {
+    const events = eventsByIssue.get(issue.id) ?? [];
+    const completion = events.find((event) => event.payload.to === "done");
+    if (!completion) continue;
+    const completionMs = Date.parse(completion.at);
+    if (
+      !Number.isFinite(completionMs) ||
+      completionMs < window.start ||
+      completionMs >= window.end
+    ) {
+      continue;
+    }
+    completionWindowCount += 1;
+
+    const leadPoint = makeFlowMetricPoint(
+      issue,
+      Date.parse(issue.created_at),
+      completion.at,
+      completionMs,
+    );
+    if (leadPoint) leadPoints.push(leadPoint);
+
+    const firstInProgress = events.find(
+      (event) => event.payload.to === "in_progress",
+    );
+    if (!firstInProgress) continue;
+    const cyclePoint = makeFlowMetricPoint(
+      issue,
+      Date.parse(firstInProgress.at),
+      completion.at,
+      completionMs,
+    );
+    if (cyclePoint) cyclePoints.push(cyclePoint);
+  }
+
+  return {
+    cycle: buildFlowMetricResult(completionWindowCount, cyclePoints),
+    lead: buildFlowMetricResult(completionWindowCount, leadPoints),
   };
 }

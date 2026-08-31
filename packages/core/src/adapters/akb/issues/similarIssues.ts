@@ -1,13 +1,12 @@
 import {
-  type IssueMetadata,
   type SimilarIssue,
   SimilarIssueSchema,
 } from "../../../schemas/issues/metadata";
 import { searchDocuments } from "../core/documents";
 import type { AkbAdapter } from "../core/http";
-import { quoteText } from "../core/sql";
+import { assertNoNul } from "../core/sql";
 import { withSpan } from "../core/tracing";
-import { rowToIssue, selectIssueRows } from "./issueRows";
+import { hydrateIssuesByDocumentUri } from "./issueRows";
 
 const DEFAULT_SIMILAR_ISSUE_LIMIT = 5;
 export const DEFAULT_SIMILAR_ISSUE_MIN_SCORE = 0.03;
@@ -29,6 +28,7 @@ export async function searchSimilarIssues({
   minScore = DEFAULT_SIMILAR_ISSUE_MIN_SCORE,
 }: SearchSimilarIssuesParams): Promise<SimilarIssue[]> {
   const query = title.trim();
+  assertNoNul(query, "search query");
   if (query.length < 3) return [];
 
   const resultLimit = Math.max(1, Math.min(limit, DEFAULT_SIMILAR_ISSUE_LIMIT));
@@ -49,32 +49,10 @@ export async function searchSimilarIssues({
       const eligibleHits = hits.filter(
         (hit) => typeof hit.score === "number" && hit.score >= minScore,
       );
-      const uris = [...new Set(eligibleHits.map((hit) => hit.uri))];
-      if (uris.length === 0) {
-        span.setAttribute("candidate_count", 0);
-        span.setAttribute("issue_count", 0);
-        return [];
-      }
-
-      const rows = await selectIssueRows(
+      const byUri = await hydrateIssuesByDocumentUri(
         adapter,
         vault,
-        `document_uri IN (${uris
-          .map((uri) => quoteText(uri, "document_uri"))
-          .join(", ")})`,
-      );
-      const byUri = new Map(
-        rows
-          .map((row) => {
-            const uri = row.document_uri;
-            return typeof uri === "string"
-              ? ([uri, rowToIssue(row)] as const)
-              : null;
-          })
-          .filter(
-            (entry): entry is readonly [string, IssueMetadata] =>
-              entry !== null,
-          ),
+        eligibleHits.map((hit) => hit.uri),
       );
 
       const issues: SimilarIssue[] = [];

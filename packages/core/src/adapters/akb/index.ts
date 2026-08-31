@@ -55,7 +55,11 @@ export {
   type AkbTableUniqueKey,
   type ReefTableManifest,
 } from "./core/shared";
-export { quoteText, rowToIssue, selectIssueRows } from "./core/shared";
+export {
+  hydrateIssuesByDocumentUri,
+  rowToIssue,
+  selectIssueRows,
+} from "./core/shared";
 export {
   EnrichedVaultSummarySchema,
   VaultMemberSchema,
@@ -120,6 +124,7 @@ export {
   appendStatusChangeEvent,
   diffFieldActivityEvents,
   listIssueActivity,
+  listReportActivity,
   reconcileJiraImportedAttachmentActivityActor,
   reconcileJiraChangelogActivityEvents,
   statusChangeEventKey,

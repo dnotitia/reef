@@ -30,7 +30,7 @@ export const AkbSqlResponseSchema = z.discriminatedUnion("kind", [
 
 export type AkbSqlResponse = z.infer<typeof AkbSqlResponseSchema>;
 
-function rejectNul(value: string, fieldDescriptor: string): void {
+export function assertNoNul(value: string, fieldDescriptor: string): void {
   if (value.includes("\0")) {
     throw new SchemaValidationError({
       issues: [`${fieldDescriptor} must not contain a NUL byte`],
@@ -46,7 +46,7 @@ function normalizeSqlScalar(
 ): SqlScalar {
   if (value == null) return null;
   if (typeof value === "string") {
-    rejectNul(value, fieldDescriptor);
+    assertNoNul(value, fieldDescriptor);
     return value;
   }
   if (typeof value === "number") {
@@ -72,7 +72,7 @@ function serializeJsonValue(
   try {
     serialized = JSON.stringify(value, (key, nestedValue) => {
       if (key.length > 0) {
-        rejectNul(key, fieldDescriptor);
+        assertNoNul(key, fieldDescriptor);
       }
       if (
         nestedValue === undefined ||
@@ -89,7 +89,7 @@ function serializeJsonValue(
         });
       }
       if (typeof nestedValue === "string") {
-        rejectNul(nestedValue, fieldDescriptor);
+        assertNoNul(nestedValue, fieldDescriptor);
       }
       return nestedValue;
     });
@@ -129,44 +129,6 @@ export class SqlParameterBuilder {
     this.values.push(serialized);
     return `$${this.values.length}::${cast}`;
   }
-}
-
-export function quoteText(value: string, fieldDescriptor: string): string {
-  rejectNul(value, fieldDescriptor);
-  return `'${value.replace(/'/g, "''")}'`;
-}
-
-export function quoteTextOrNull(
-  value: string | null | undefined,
-  fieldDescriptor: string,
-): string {
-  if (value == null) return "NULL";
-  return quoteText(value, fieldDescriptor);
-}
-
-export function quoteIntOrNull(value: number | null | undefined): string {
-  if (value == null) return "NULL";
-  if (!Number.isInteger(value)) {
-    throw new SchemaValidationError({
-      issues: ["expected integer value for SQL int column"],
-    });
-  }
-  return String(value);
-}
-
-export function quoteNumberOrNull(value: number | null | undefined): string {
-  if (value == null) return "NULL";
-  if (!Number.isFinite(value)) {
-    throw new SchemaValidationError({
-      issues: ["expected finite number value for SQL number column"],
-    });
-  }
-  return String(value);
-}
-
-export function quoteJson(value: unknown): string {
-  const serialized = serializeJsonValue(value);
-  return `'${serialized.replace(/'/g, "''")}'::json`;
 }
 
 export function quoteIdent(name: string): string {

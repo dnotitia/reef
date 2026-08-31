@@ -22,6 +22,24 @@ describe("PageHeader", () => {
     expect(screen.getByText("reef-acme")).toBeInTheDocument();
   });
 
+  it("renders a title-adjacent control outside the right action slot", () => {
+    render(
+      <PageHeader
+        title="Issues"
+        titleAdjacent={<button type="button">Scope</button>}
+        actions={<button type="button">View</button>}
+      />,
+    );
+
+    const scope = screen.getByRole("button", { name: "Scope" });
+    const view = screen.getByRole("button", { name: "View" });
+    expect(
+      scope.closest('[data-slot="page-header-title-adjacent"]'),
+    ).not.toBeNull();
+    expect(scope.closest('[data-slot="page-header-actions"]')).toBeNull();
+    expect(view.closest('[data-slot="page-header-actions"]')).not.toBeNull();
+  });
+
   it("lets a node subtitle own its translation boundaries so mixed prose still translates (REEF-260)", () => {
     // My Work's `@login · N open` mixes an identifier with a prose count, so it
     // passes a node that protects the identifier while the prose is not

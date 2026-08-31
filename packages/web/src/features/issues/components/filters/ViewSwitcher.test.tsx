@@ -53,6 +53,20 @@ describe("ViewSwitcher", () => {
     );
   });
 
+  it("renders only the supported layouts for Backlog", () => {
+    render(<ViewSwitcher activeLayout="list" scope="backlog" />);
+
+    expect(screen.getByTestId("view-switcher-board")).toBeVisible();
+    expect(screen.getByTestId("view-switcher-list")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.queryByTestId("view-switcher-timeline")).toBeNull();
+    expect(
+      screen.getByTestId("view-switcher").querySelectorAll("button"),
+    ).toHaveLength(2);
+  });
+
   // The push now flows through a React transition (REEF-265); the `?view=` URL
   // should still update with the preserved filter params so deep links and
   // back/forward keep working (AC3).

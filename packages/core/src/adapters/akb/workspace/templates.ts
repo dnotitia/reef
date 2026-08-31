@@ -9,16 +9,14 @@ import {
   REEF_TEMPLATES_TABLE,
   buildRowAssignments,
   decodeStringArray,
+  ensureReefTables,
   isMissingTableError,
   quoteIdent,
-  quoteJson,
-  quoteText,
-  quoteTextOrNull,
   runSql,
   tableRef,
   withSpan,
 } from "../core/shared";
-import { ensureReefTables } from "../core/shared";
+import { SqlParameterBuilder } from "../core/sql";
 import type {
   DeleteTemplateParams,
   ListTemplatesParams,
@@ -53,22 +51,28 @@ function rowToTemplate(row: Record<string, unknown>): Template {
 }
 
 /**
- * The mutable template-row columns and their SQL value literals. Shared by
+ * The mutable template-row columns and their SQL value placeholders. Shared by
  * INSERT and UPDATE — `name` is the immutable key, added separately on INSERT
  * and used in the WHERE clause on UPDATE. `meta` is reserved for future
  * extension fields and is left untouched (NULL) by writes today.
  */
-function templateRowMutableFields(template: Template): Array<[string, string]> {
+function templateRowMutableFields(
+  template: Template,
+  params: SqlParameterBuilder,
+): Array<[string, string]> {
   return [
-    ["label", quoteText(template.label, "template label")],
-    ["description", quoteText(template.description, "template description")],
+    ["label", params.add(template.label, "template label")],
+    ["description", params.add(template.description, "template description")],
     [
       "title_prefix",
-      quoteTextOrNull(template.title_prefix, "template title_prefix"),
+      params.add(template.title_prefix ?? null, "template title_prefix"),
     ],
-    ["priority", quoteTextOrNull(template.priority, "template priority")],
-    ["default_labels", quoteJson(template.default_labels ?? [])],
-    ["body", quoteText(template.body, "template body")],
+    ["priority", params.add(template.priority ?? null, "template priority")],
+    [
+      "default_labels",
+      params.addJson(template.default_labels ?? [], "template default_labels"),
+    ],
+    ["body", params.add(template.body, "template body")],
   ];
 }
 
@@ -76,12 +80,20 @@ function templateRowMutableFields(template: Template): Array<[string, string]> {
 async function selectTemplateRows(
   adapter: AkbAdapter,
   vault: string,
-  where?: string,
+  name?: string,
 ): Promise<Record<string, unknown>[]> {
+  const params = new SqlParameterBuilder();
+  const nameParam =
+    name === undefined ? undefined : params.add(name, "template name");
   const sql = `SELECT * FROM ${tableRef(REEF_TEMPLATES_TABLE)}${
-    where ? ` WHERE ${where}` : ""
+    nameParam ? ` WHERE name = ${nameParam}` : ""
   }`;
-  const res = await runSql(adapter, vault, sql);
+  const res = await runSql(
+    adapter,
+    vault,
+    sql,
+    params.params.length > 0 ? params.params : undefined,
+  );
   return res.kind === "table_query" ? res.items : [];
 }
 
@@ -92,11 +104,7 @@ export async function readTemplate(
   return withSpan("akb.read_template", { vault, name }, async () => {
     let rows: Record<string, unknown>[];
     try {
-      rows = await selectTemplateRows(
-        adapter,
-        vault,
-        `name = ${quoteText(name, "template name")}`,
-      );
+      rows = await selectTemplateRows(adapter, vault, name);
     } catch (err) {
       // A does not-provisioned table reads as "no such template".
       if (isMissingTableError(err)) {
@@ -133,33 +141,35 @@ export async function writeTemplate(
     { vault, name: template.name },
     async (span) => {
       await ensureReefTables({ adapter, vault });
-      const nameLiteral = quoteText(template.name, "template name");
-      const existing = await selectTemplateRows(
-        adapter,
-        vault,
-        `name = ${nameLiteral}`,
-      );
-      const fields = templateRowMutableFields(template);
+      const existing = await selectTemplateRows(adapter, vault, template.name);
       if (existing.length > 0) {
         span.setAttribute("template_exists", true);
+        const params = new SqlParameterBuilder();
+        const fields = templateRowMutableFields(template, params);
+        const nameParam = params.add(template.name, "template name");
         await runSql(
           adapter,
           vault,
           `UPDATE ${tableRef(REEF_TEMPLATES_TABLE)} SET ${buildRowAssignments(
             fields,
-          )} WHERE name = ${nameLiteral}`,
+          )} WHERE name = ${nameParam}`,
+          params.params,
         );
         return;
       }
       span.setAttribute("template_exists", false);
+      const params = new SqlParameterBuilder();
+      const nameParam = params.add(template.name, "template name");
+      const fields = templateRowMutableFields(template, params);
       const columns = ["name", ...fields.map(([c]) => c)]
         .map(quoteIdent)
         .join(", ");
-      const values = [nameLiteral, ...fields.map(([, v]) => v)].join(", ");
+      const values = [nameParam, ...fields.map(([, v]) => v)].join(", ");
       await runSql(
         adapter,
         vault,
         `INSERT INTO ${tableRef(REEF_TEMPLATES_TABLE)} (${columns}) VALUES (${values})`,
+        params.params,
       );
     },
   );
@@ -171,13 +181,13 @@ export async function deleteTemplate(
   const { adapter, vault, name } = params;
   await withSpan("akb.delete_template", { vault, name }, async () => {
     try {
+      const params = new SqlParameterBuilder();
+      const nameParam = params.add(name, "template name");
       await runSql(
         adapter,
         vault,
-        `DELETE FROM ${tableRef(REEF_TEMPLATES_TABLE)} WHERE name = ${quoteText(
-          name,
-          "template name",
-        )}`,
+        `DELETE FROM ${tableRef(REEF_TEMPLATES_TABLE)} WHERE name = ${nameParam}`,
+        params.params,
       );
     } catch (err) {
       // Deleting from a does not-provisioned table is a no-op, not an error.
