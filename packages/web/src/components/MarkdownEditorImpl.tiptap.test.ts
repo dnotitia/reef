@@ -1,10 +1,13 @@
 import { Editor } from "@tiptap/react";
 import type { DocumentSearchHit, IssueListItem, VaultMember } from "@reef/core";
-import { afterEach, describe, expect, it } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { createElement } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMarkdownEditorExtensions } from "./MarkdownEditorImpl";
 import {
   filterIssueBodyMentionCandidates,
   insertIssueBodyReference,
+  MentionSuggestionList,
   prepareIssueBodyMentionMarkdown,
 } from "./issueBodyMentionExtension";
 import {
@@ -12,6 +15,12 @@ import {
   SLASH_COMMAND_DEFINITIONS,
   createLocalizedSlashCommandRegistry,
 } from "./slashCommandExtension";
+
+const currentLogin = vi.hoisted(() => ({ value: null as string | null }));
+
+vi.mock("@/features/auth/hooks/useCurrentUserLogin", () => ({
+  useCurrentUserLogin: () => currentLogin.value,
+}));
 
 const editors: Editor[] = [];
 
@@ -75,6 +84,7 @@ afterEach(() => {
   while (editors.length > 0) {
     editors.pop()?.destroy();
   }
+  currentLogin.value = null;
 });
 
 describe("MarkdownEditor Tiptap extensions", () => {
@@ -206,6 +216,55 @@ describe("MarkdownEditor Tiptap extensions", () => {
               : candidate.hit.uri,
       ),
     ).toEqual(["alice", "REEF-009"]);
+  });
+
+  it("uses the signed-in login for body mention candidate avatars", () => {
+    currentLogin.value = "alice";
+    render(
+      createElement(MentionSuggestionList, {
+        candidates: [
+          {
+            kind: "person",
+            member: {
+              username: "alice",
+              display_name: "Alice Kim",
+              role: "member",
+            },
+          },
+          {
+            kind: "person",
+            member: {
+              username: "bob",
+              display_name: "Bob Park",
+              role: "member",
+            },
+          },
+        ],
+        selectedIndex: 0,
+        listboxId: "body-mentions",
+        suggestionsLabel: "Mention suggestions",
+        mentionOptionLabel: (username) => `Mention @${username}`,
+        peopleSectionLabel: "People",
+        issuesSectionLabel: "Issues",
+        documentsSectionLabel: "Documents",
+        issueOptionLabel: (issue) => `${issue.id}: ${issue.title}`,
+        documentOptionLabel: (hit) => hit.title ?? hit.uri,
+        documentSearchStatus: "idle",
+        documentSearchLoadingLabel: "Searching documents…",
+        documentSearchErrorLabel: "Could not search documents.",
+        documentSearchEmptyLabel: "No matching documents.",
+        onSelect: vi.fn(),
+      }),
+    );
+
+    const ownAvatar = screen
+      .getByRole("option", { name: "Mention @alice" })
+      .querySelector('[aria-hidden="true"]');
+    const otherAvatar = screen
+      .getByRole("option", { name: "Mention @bob" })
+      .querySelector('[aria-hidden="true"]');
+    expect(ownAvatar).toHaveClass("bg-brand-fill");
+    expect(otherAvatar?.className).toMatch(/\bbg-av-\d\b/);
   });
 
   it("inserts people, issues, and documents with their canonical Markdown forms", () => {

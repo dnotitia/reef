@@ -440,10 +440,12 @@ export function KanbanCardPreview({
   blocked,
   planningCatalog,
 }: Omit<KanbanCardProps, "onClick">) {
+  const currentLogin = useCurrentUserLogin();
   return (
     <KanbanCardSurface
       aria-hidden="true"
       issue={issue}
+      currentLogin={currentLogin}
       blocked={blocked}
       planningCatalog={planningCatalog}
       className="pointer-events-none cursor-grabbing shadow-lg"

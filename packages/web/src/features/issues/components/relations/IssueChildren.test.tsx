@@ -13,6 +13,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { IssueChildren } from "./IssueChildren";
 
 const { mockReplace } = vi.hoisted(() => ({ mockReplace: vi.fn() }));
+const currentLogin = vi.hoisted(() => ({ value: null as string | null }));
+
+vi.mock("@/features/auth/hooks/useCurrentUserLogin", () => ({
+  useCurrentUserLogin: () => currentLogin.value,
+}));
 
 // next/link needs the app-router context for prefetch; in unit tests we just
 // care that it renders a navigable anchor, so stub it to a plain <a> that
@@ -51,6 +56,7 @@ vi.mock("@/features/settings/hooks/useActiveVault", () => ({
 afterEach(() => {
   cleanup();
   mockReplace.mockClear();
+  currentLogin.value = null;
   useIssueNavStack.setState({ trail: [], currentId: null });
 });
 
@@ -212,6 +218,50 @@ describe("IssueChildren", () => {
     expect(
       screen.getByTestId("issue-child-assignee-REEF-103"),
     ).toHaveTextContent("Unassigned");
+  });
+
+  it("uses the brand tone only for the signed-in child assignee", () => {
+    currentLogin.value = "alice";
+    render(
+      <IssueChildren
+        issueId={PARENT}
+        allIssues={[
+          makeIssue({
+            id: "REEF-101",
+            title: "Own child",
+            parent_id: PARENT,
+            assigned_to: "alice",
+          }),
+          makeIssue({
+            id: "REEF-102",
+            title: "Other child",
+            parent_id: PARENT,
+            assigned_to: "bob",
+          }),
+          makeIssue({
+            id: "REEF-103",
+            title: "Unassigned child",
+            parent_id: PARENT,
+            assigned_to: null,
+          }),
+        ]}
+        members={members}
+      />,
+    );
+
+    const ownAvatar = screen
+      .getByTestId("issue-child-assignee-REEF-101")
+      .querySelector('[aria-hidden="true"]');
+    const otherAvatar = screen
+      .getByTestId("issue-child-assignee-REEF-102")
+      .querySelector('[aria-hidden="true"]');
+    const unassignedAvatar = screen
+      .getByTestId("issue-child-assignee-REEF-103")
+      .querySelector('[aria-hidden="true"]');
+
+    expect(ownAvatar).toHaveClass("bg-brand-fill");
+    expect(otherAvatar?.className).toMatch(/\bbg-av-\d\b/);
+    expect(unassignedAvatar).toHaveClass("border-dashed");
   });
 
   it("keeps assignee typography, tracks, and focus rings consistent with issue rows", () => {

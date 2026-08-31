@@ -1,6 +1,7 @@
 import { DocumentOptionRow } from "@/components/fields/DocumentOptionRow";
 import { IssueOptionRow } from "@/components/fields/IssueOptionRow";
 import { PersonOption } from "@/components/fields/PersonOption";
+import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { rankIssueOptions } from "@/features/issues/lib/rankIssueOptions";
 import { akbDocumentSlugTitle } from "@/lib/akb/documentUri";
 import {
@@ -109,7 +110,7 @@ function candidateLabel(
   return options.documentOptionLabel(candidate.hit);
 }
 
-function MentionSuggestionList({
+export function MentionSuggestionList({
   candidates,
   selectedIndex,
   listboxId,
@@ -126,6 +127,7 @@ function MentionSuggestionList({
   documentSearchEmptyLabel,
   onSelect,
 }: MentionSuggestionListProps) {
+  const currentLogin = useCurrentUserLogin();
   const people = candidates.filter((candidate) => candidate.kind === "person");
   const issues = candidates.filter((candidate) => candidate.kind === "issue");
   const documents = candidates.filter(
@@ -162,7 +164,7 @@ function MentionSuggestionList({
             login={candidate.member.username}
             name={candidate.member.display_name ?? null}
             avatarUrl={null}
-            currentLogin={null}
+            currentLogin={currentLogin}
           />
         ) : candidate.kind === "issue" ? (
           <IssueOptionRow issue={candidate.issue} />
