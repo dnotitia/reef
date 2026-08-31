@@ -726,6 +726,11 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
     }
 
     const mismatchPreflight = [];
+    const preflightBaseManifests = REEF_DESIRED_TABLES.filter(
+      (manifest) =>
+        manifest.name !== REEF_NOTIFICATIONS_TABLE &&
+        manifest.name !== REEF_SUBSCRIPTIONS_TABLE,
+    );
     for (const variant of ["column", "unique_key", "index"] as const) {
       const suffix =
         `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`
@@ -739,7 +744,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
         description: "ephemeral Reef manifest mismatch preflight probe",
       });
       try {
-        for (const manifest of REEF_DESIRED_TABLES.slice(0, 11)) {
+        for (const manifest of preflightBaseManifests) {
           await adapter.request(
             `/api/v1/tables/${encodeURIComponent(mismatchVault)}`,
             {
@@ -810,7 +815,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
           `/api/v1/tables/${encodeURIComponent(mismatchVault)}`,
           { resource: "ephemeral mismatch vault tables" },
         )) as { items?: Array<Record<string, unknown>> };
-        expect(manifest.items).toHaveLength(12);
+        expect(manifest.items).toHaveLength(preflightBaseManifests.length + 1);
         expect(
           manifest.items?.some(
             (table) => table.name === REEF_SUBSCRIPTIONS_TABLE,
@@ -1008,7 +1013,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
             api: "akbEnsureReefTables mismatch preflight",
             input: {
               variants: ["column", "unique_key", "index"],
-              existing_manifest_count: 12,
+              existing_manifest_count: preflightBaseManifests.length + 1,
               missing_table: REEF_SUBSCRIPTIONS_TABLE,
             },
             output: mismatchPreflight,
