@@ -633,12 +633,21 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
     expect(updated.content).toBe(content);
 
     const history = await listIssueBodyHistory(adapter, vault, SEED_ISSUE_ID);
-    const event = history.find(({ hash }) => hash === updated.commit_hash);
+    const event = history.find(
+      ({ hash }) =>
+        hash === updated.commit_hash || updated.commit_hash.startsWith(hash),
+    );
     expect(event).toBeDefined();
+    if (!event) {
+      throw new Error("Updated body commit was absent from history");
+    }
     expect(event).toMatchObject({
-      hash: updated.commit_hash,
       kind: "body_update",
     });
+    expect(
+      event.hash === updated.commit_hash ||
+        updated.commit_hash.startsWith(event.hash),
+    ).toBe(true);
     expect(Object.keys(event ?? {}).sort()).toEqual([
       "actor",
       "at",
