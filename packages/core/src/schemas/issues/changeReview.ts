@@ -2,25 +2,18 @@ import { z } from "zod";
 import { IsoDateFieldSchema } from "../common/date";
 import { IssueMetadataSchema } from "./metadata";
 
-/**
- * A user-visible kind of change in a review period. The existing activity
- * table remains the source for field and attachment events; comments and
- * document history are joined into this read model at query time.
- */
-export const IssueChangeReviewKindEnum = z.enum([
-  "created",
-  "field_change",
-  "body_update",
-  "comment_added",
-  "attachment_added",
-  "attachment_removed",
-]);
-export type IssueChangeReviewKind = z.infer<typeof IssueChangeReviewKindEnum>;
-
 const changeBase = {
   id: z.string().min(1, "change id is required"),
   at: IsoDateFieldSchema,
   actor: z.string().nullable(),
+} as const;
+
+const attachmentChangeFields = {
+  attachment_id: z.string().min(1),
+  filename: z.string().min(1),
+  file_uri: z.string().min(1),
+  mime_type: z.string().min(1),
+  size_bytes: z.number().int().nonnegative(),
 } as const;
 
 /** One normalized change shown inside an Issue Change Group. */
@@ -58,20 +51,12 @@ export const IssueChangeSchema = z.discriminatedUnion("kind", [
   z.object({
     ...changeBase,
     kind: z.literal("attachment_added"),
-    attachment_id: z.string().min(1),
-    filename: z.string().min(1),
-    file_uri: z.string().min(1),
-    mime_type: z.string().min(1),
-    size_bytes: z.number().int().nonnegative(),
+    ...attachmentChangeFields,
   }),
   z.object({
     ...changeBase,
     kind: z.literal("attachment_removed"),
-    attachment_id: z.string().min(1),
-    filename: z.string().min(1),
-    file_uri: z.string().min(1),
-    mime_type: z.string().min(1),
-    size_bytes: z.number().int().nonnegative(),
+    ...attachmentChangeFields,
   }),
 ]);
 export type IssueChange = z.infer<typeof IssueChangeSchema>;

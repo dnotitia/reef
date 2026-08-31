@@ -157,12 +157,10 @@ export {
 } from "./history";
 
 export {
-  IssueChangeReviewKindEnum,
   IssueChangeSchema,
   IssueChangeReviewGroupSchema,
   IssueChangeReviewRangeSchema,
   IssueChangeReviewResponseSchema,
-  type IssueChangeReviewKind,
   type IssueChange,
   type IssueChangeReviewGroup,
   type IssueChangeReviewRange,
