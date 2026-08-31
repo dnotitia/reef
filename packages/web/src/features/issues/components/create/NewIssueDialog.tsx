@@ -18,6 +18,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { EnrichmentReviewBar } from "@/features/ai/components/EnrichmentReviewBar";
+import { useWorkspaceChat } from "@/features/ai/hooks/useWorkspaceChat";
 import { useCreateIssue } from "@/features/issues/hooks/mutations/useCreateIssue";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
@@ -34,6 +35,9 @@ import {
 } from "@/features/ui/stores/useViewStore";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { akbDocumentSlugTitle } from "@/lib/akb/documentUri";
+import { VAULT_HEADER } from "@/lib/akb/headers";
+import { apiFetch } from "@/lib/apiClient";
+import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
 import { DEFAULT_CONFIG } from "@reef/core";
 import type {
@@ -45,7 +49,7 @@ import type {
   Template,
 } from "@reef/core";
 import { useQueryClient } from "@tanstack/react-query";
-import { Maximize2, Minimize2, Sparkles } from "lucide-react";
+import { Maximize2, MessageSquare, Minimize2, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -55,6 +59,7 @@ import { IssueRefsEditor } from "../refs/IssueRefsEditor";
 import { IssueFieldRow } from "../shared/IssueFieldRow";
 import { SimilarIssuesSection } from "../shared/SimilarIssuesSection";
 import { DiscardDraftDialog } from "./DiscardDraftDialog";
+import { DraftConversationPanel } from "./DraftConversationPanel";
 import { EnrichmentReferencesPanel } from "./EnrichmentReferencesPanel";
 import { IssueDraftFields } from "./IssueDraftFields";
 import { NewIssueRailFields } from "./NewIssueRailFields";
@@ -62,6 +67,7 @@ import { NewIssueRelationFields } from "./NewIssueRelationFields";
 import { TemplatePicker } from "./TemplatePicker";
 import { useNewIssueDialogGeometry } from "./newIssueDialogGeometry";
 import { useNewIssueEnrichment } from "./useNewIssueEnrichment";
+import type { AgentRunFetch } from "@/features/ai/runtime/types";
 import {
   type NewIssueFormDefaults,
   useNewIssueFormState,
@@ -100,6 +106,7 @@ export function NewIssueDialog({
   const open = useViewStore((s) => s.newIssueDialogOpen);
   const dialogContext = useViewStore((s) => s.newIssueDialogContext);
   const closeDialog = useViewStore((s) => s.closeNewIssueDialog);
+  const [draftConversationOpen, setDraftConversationOpen] = useState(false);
   const formBodyRef = useRef<HTMLDivElement>(null);
   const {
     dialogRef: dialogContentRef,
@@ -109,7 +116,7 @@ export function NewIssueDialog({
     preferredDescriptionHeight: maximizedDescriptionHeight,
     dialogStyle,
     onToggleMaximize,
-  } = useNewIssueDialogGeometry(open, formBodyRef);
+  } = useNewIssueDialogGeometry(open, formBodyRef, draftConversationOpen);
   const { vault } = useActiveVault();
   const router = useRouter();
   const t = useTranslations("toasts");
@@ -194,6 +201,8 @@ export function NewIssueDialog({
   const titleInputRef = useRef<HTMLInputElement>(null);
   const seededContextRef = useRef<typeof dialogContext | undefined>(undefined);
   const focusOriginRef = useRef<HTMLElement | null>(null);
+  const subIssueContext =
+    dialogContext?.kind === "subIssue" ? dialogContext : null;
 
   // Local issue list still drives relation pickers; enrichment now fetches its
   // own AKB context server-side so the prompt sees a consistent workspace view.
@@ -235,6 +244,35 @@ export function NewIssueDialog({
     setReferenceCandidates,
   });
 
+  const chatFetch = useMemo<AgentRunFetch>(
+    () => (input, init) =>
+      apiFetch(input, {
+        ...init,
+        headers: {
+          ...((init?.headers as Record<string, string> | undefined) ?? {}),
+          ...(vault ? { [VAULT_HEADER]: vault } : {}),
+        },
+      }),
+    [vault],
+  );
+  const draftConversation = useWorkspaceChat({
+    fetch: chatFetch,
+    route: null,
+    reefId: null,
+    scopeKey: vault ?? null,
+    draft: {
+      fields: buildCreateFields({
+        fallbackTitle: "(untitled)",
+        status: subIssueContext && sprintId ? "todo" : undefined,
+      }),
+      content: body,
+    },
+  });
+  const knownIssueIds = useMemo(
+    () => new Set((existingIssues ?? []).map((issue) => issue.id)),
+    [existingIssues],
+  );
+
   // AI-proposed documents not yet accepted into `references` or dismissed.
   const candidateReferences = useMemo(
     () =>
@@ -245,8 +283,6 @@ export function NewIssueDialog({
       ),
     [referenceCandidates, references, dismissedRefs],
   );
-  const subIssueContext =
-    dialogContext?.kind === "subIssue" ? dialogContext : null;
   const issueBodyMentionConfig = useMemo(
     () =>
       vault
@@ -281,6 +317,8 @@ export function NewIssueDialog({
   function resetForm() {
     resetFields();
     setSubmitError(null);
+    setDraftConversationOpen(false);
+    draftConversation.clear();
     setCreateAnother(false);
     setDismissedRefs(new Set());
     setReferenceCandidates([]);
@@ -301,8 +339,24 @@ export function NewIssueDialog({
         : undefined,
     );
     setSubmitError(null);
+    setDraftConversationOpen(false);
+    draftConversation.clear();
     seededContextRef.current = dialogContext;
-  }, [dialogContext, open, resetFields]);
+  }, [dialogContext, draftConversation.clear, open, resetFields]);
+
+  useEffect(() => {
+    if (open) return;
+    setDraftConversationOpen(false);
+    draftConversation.clear();
+  }, [draftConversation.clear, open]);
+
+  const previousVaultRef = useRef(vault);
+  useEffect(() => {
+    if (previousVaultRef.current === vault) return;
+    previousVaultRef.current = vault;
+    setDraftConversationOpen(false);
+    draftConversation.clear();
+  }, [draftConversation.clear, vault]);
 
   function handleApplyTemplate(template: Template) {
     // Prefix the existing title when the user hasn't typed one yet —
@@ -485,6 +539,8 @@ export function NewIssueDialog({
       if (subIssueContext && createAnother) {
         resetFields(getSubIssueDefaults(subIssueContext));
         setSubmitError(null);
+        setDraftConversationOpen(false);
+        draftConversation.clear();
         setDismissedRefs(new Set());
         setReferenceCandidates([]);
         enrichment.reset();
@@ -570,6 +626,135 @@ export function NewIssueDialog({
     ? tc("restoreWindow")
     : tc("maximizeWindow");
 
+  function closeDraftConversation() {
+    if (
+      draftConversation.status === "submitted" ||
+      draftConversation.status === "streaming"
+    ) {
+      draftConversation.stop();
+    }
+    setDraftConversationOpen(false);
+  }
+
+  function toggleDraftConversation() {
+    if (draftConversationOpen) {
+      closeDraftConversation();
+      return;
+    }
+    setDraftConversationOpen(true);
+  }
+
+  const dialogWidthClass = draftConversationOpen
+    ? isMaximized
+      ? "max-w-[min(94vw,2100px)]"
+      : "max-w-[min(94vw,1620px)]"
+    : isMaximized
+      ? "max-w-[min(94vw,1680px)]"
+      : "max-w-[min(94vw,1200px)]";
+  const dialogMaxWidthLimit = draftConversationOpen
+    ? isMaximized
+      ? 2100
+      : 1620
+    : undefined;
+  const dialogWidth =
+    dialogMaxWidthLimit && typeof window !== "undefined"
+      ? Math.min(window.innerWidth * 0.94, dialogMaxWidthLimit)
+      : undefined;
+
+  const draftForm = (
+    <div className="flex flex-col gap-4">
+      {showEnrichmentBar && (
+        <EnrichmentReviewBar
+          pending={enrichment.counts.pending}
+          accepted={enrichment.counts.accepted}
+          onAcceptAll={handleAcceptAll}
+          onDismissAll={enrichment.dismissAll}
+          isLoading={enrichRun.isPending}
+          isEmpty={enrichIsEmpty}
+          error={enrichError?.message}
+          onRetry={() => {
+            const enrichmentRequest = buildEnrichmentRequest();
+            if (enrichmentRequest) enrichRun.mutate(enrichmentRequest);
+          }}
+          onClose={() => enrichRun.reset()}
+        />
+      )}
+
+      <IssueDraftFields
+        layout={draftConversationOpen ? "chat" : "split"}
+        titleInputRef={titleInputRef}
+        title={title}
+        onTitleChange={setTitle}
+        titleBelow={<SimilarIssuesSection title={title} vault={vault ?? ""} />}
+        priority={priority}
+        onPriorityChange={setPriority}
+        labels={labels}
+        onLabelsChange={setLabels}
+        body={body}
+        onBodyChange={setBody}
+        vault={vault ?? undefined}
+        mentionConfig={issueBodyMentionConfig}
+        enableHeightResize
+        preferredDescriptionHeight={resolvedPreferredDescriptionHeight}
+        descriptionBodyFrameRef={descriptionFrameRef}
+        bodyWysiwygPlaceholder={tc("descriptionWysiwygPlaceholder")}
+        bodySourcePlaceholder={tc("descriptionPlaceholder")}
+        disabled={isSubmitting}
+        renderField={renderEnrichable}
+        titleId="new-issue-title"
+        labelsId="new-issue-labels"
+        titleTestId="new-issue-title-input"
+        priorityTestId="new-issue-priority-select"
+        labelsTestId="new-issue-labels-input"
+        railSlot={
+          <>
+            {railFields}
+            {relationFields}
+          </>
+        }
+        mainExtra={externalRefFields}
+        primaryField={
+          // A row-shaped Type so split Details reads as a property list
+          // (REEF-167), matching the issue detail rail.
+          <IssueFieldRow label={fieldNames.type} labelId="new-issue-type-label">
+            {renderEnrichable(
+              "issue_type",
+              <EnumSelectField
+                value={issueType}
+                onValueChange={(value) => setIssueType(value as IssueType)}
+                options={ISSUE_TYPE_OPTIONS}
+                renderItem={(type) => <TypePill type={type} variant="badge" />}
+                placeholder={fieldNames.type}
+                ariaLabelledby="new-issue-type-label"
+                disabled={isSubmitting}
+              />,
+            )}
+          </IssueFieldRow>
+        }
+      />
+
+      <EnrichmentReferencesPanel
+        candidates={candidateReferences}
+        confirmed={references}
+        disabled={isSubmitting}
+        onAdd={(uri) => setReferences([...references, uri])}
+        onDismiss={(uri) => setDismissedRefs((prev) => new Set(prev).add(uri))}
+        onRemove={(uri) =>
+          setReferences(references.filter((existing) => existing !== uri))
+        }
+      />
+      {submitError ? (
+        <p
+          role="alert"
+          data-testid="new-issue-error"
+          className="rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text"
+        >
+          {submitError}
+        </p>
+      ) : null}
+    </div>
+  );
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
@@ -584,10 +769,13 @@ export function NewIssueDialog({
         onCloseAutoFocus={handleCloseAutoFocus}
         // Canvas matches the issue detail sheet (REEF-167) so the widened rail
         // doesn't steal width from the main column.
-        className={`grid max-h-[calc(100dvh-2rem)] min-h-0 ${
-          isMaximized ? "max-w-[min(94vw,1680px)]" : "max-w-[min(94vw,1200px)]"
-        } grid-rows-[auto_minmax(0,1fr)_auto] gap-5 overflow-hidden pb-[calc(1.25rem+env(safe-area-inset-bottom))]`}
-        style={dialogStyle}
+        className={`grid max-h-[calc(100dvh-2rem)] min-h-0 ${dialogWidthClass} grid-rows-[auto_minmax(0,1fr)_auto] gap-5 overflow-hidden pb-[calc(1.25rem+env(safe-area-inset-bottom))]`}
+        style={{
+          ...dialogStyle,
+          ...(dialogWidth
+            ? { width: `${dialogWidth}px`, maxWidth: `${dialogWidth}px` }
+            : {}),
+        }}
         onInteractOutside={(e) => {
           // The relation picker renders its dropdown in a body portal, so Radix
           // sees a click on one of its options as "outside" the dialog. That is
@@ -684,6 +872,22 @@ export function NewIssueDialog({
                 <Sparkles className="h-3.5 w-3.5" />
                 {enrichRun.isPending ? tc("enriching") : tc("enrichWithAi")}
               </Button>
+              <Button
+                type="button"
+                variant={draftConversationOpen ? "secondary" : "outline"}
+                size="sm"
+                className="h-8 gap-1.5 px-3 text-xs"
+                onClick={toggleDraftConversation}
+                disabled={noVault}
+                aria-expanded={draftConversationOpen}
+                aria-controls="draft-conversation-panel"
+                data-testid="draft-conversation-toggle"
+              >
+                <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
+                {draftConversationOpen
+                  ? tc("closeConversation")
+                  : tc("openConversation")}
+              </Button>
               {canMaximize ? (
                 <TooltipProvider>
                   <Tooltip>
@@ -712,113 +916,82 @@ export function NewIssueDialog({
               ) : null}
             </div>
           </div>
+          <div
+            data-testid="draft-conversation-mobile-toggle"
+            className="grid w-full grid-cols-2 gap-1 rounded-md border border-border-subtle bg-surface-subtle p-1 min-[900px]:hidden"
+          >
+            <Button
+              type="button"
+              size="sm"
+              variant={draftConversationOpen ? "ghost" : "secondary"}
+              aria-pressed={!draftConversationOpen}
+              data-testid="draft-view-draft"
+              onClick={() => {
+                if (draftConversationOpen) closeDraftConversation();
+              }}
+            >
+              {tc("draftView")}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={draftConversationOpen ? "secondary" : "ghost"}
+              aria-pressed={draftConversationOpen}
+              data-testid="draft-view-conversation"
+              onClick={() => setDraftConversationOpen(true)}
+              disabled={noVault}
+            >
+              {tc("conversationView")}
+            </Button>
+          </div>
         </DialogHeader>
 
         <div
           data-testid="new-issue-dialog-body"
-          className="min-w-0 min-h-0 overflow-y-auto overscroll-contain"
+          className={cn(
+            "min-w-0 min-h-0",
+            draftConversationOpen
+              ? "overflow-hidden"
+              : "overflow-y-auto overscroll-contain",
+          )}
           ref={formBodyRef}
         >
-          <div className="flex flex-col gap-4">
-            {showEnrichmentBar && (
-              <EnrichmentReviewBar
-                pending={enrichment.counts.pending}
-                accepted={enrichment.counts.accepted}
-                onAcceptAll={handleAcceptAll}
-                onDismissAll={enrichment.dismissAll}
-                isLoading={enrichRun.isPending}
-                isEmpty={enrichIsEmpty}
-                error={enrichError?.message}
-                onRetry={() => {
-                  const enrichmentRequest = buildEnrichmentRequest();
-                  if (enrichmentRequest) enrichRun.mutate(enrichmentRequest);
-                }}
-                onClose={() => enrichRun.reset()}
+          <div
+            data-testid={
+              draftConversationOpen ? "draft-conversation-layout" : undefined
+            }
+            className={
+              draftConversationOpen
+                ? "grid h-full min-h-0 min-w-0 grid-cols-1 gap-5 min-[900px]:grid-cols-[minmax(0,1fr)_400px]"
+                : "min-w-0"
+            }
+          >
+            <div
+              data-testid={
+                draftConversationOpen
+                  ? "draft-conversation-authoring"
+                  : undefined
+              }
+              className={cn(
+                "min-w-0",
+                draftConversationOpen
+                  ? "hidden min-h-0 overflow-y-auto overscroll-contain min-[900px]:block"
+                  : undefined,
+              )}
+            >
+              {draftForm}
+            </div>
+            {draftConversationOpen ? (
+              <DraftConversationPanel
+                messages={draftConversation.messages}
+                sendMessage={draftConversation.sendMessage}
+                status={draftConversation.status}
+                stop={draftConversation.stop}
+                vault={vault ?? ""}
+                knownIssueIds={knownIssueIds}
+                disabled={isSubmitting || noVault}
+                onClose={closeDraftConversation}
               />
-            )}
-
-            <IssueDraftFields
-              layout="split"
-              titleInputRef={titleInputRef}
-              title={title}
-              onTitleChange={setTitle}
-              titleBelow={
-                <SimilarIssuesSection title={title} vault={vault ?? ""} />
-              }
-              priority={priority}
-              onPriorityChange={setPriority}
-              labels={labels}
-              onLabelsChange={setLabels}
-              body={body}
-              onBodyChange={setBody}
-              vault={vault ?? undefined}
-              mentionConfig={issueBodyMentionConfig}
-              enableHeightResize
-              preferredDescriptionHeight={resolvedPreferredDescriptionHeight}
-              descriptionBodyFrameRef={descriptionFrameRef}
-              bodyWysiwygPlaceholder={tc("descriptionWysiwygPlaceholder")}
-              bodySourcePlaceholder={tc("descriptionPlaceholder")}
-              disabled={isSubmitting}
-              renderField={renderEnrichable}
-              titleId="new-issue-title"
-              labelsId="new-issue-labels"
-              titleTestId="new-issue-title-input"
-              priorityTestId="new-issue-priority-select"
-              labelsTestId="new-issue-labels-input"
-              railSlot={
-                <>
-                  {railFields}
-                  {relationFields}
-                </>
-              }
-              mainExtra={externalRefFields}
-              primaryField={
-                // A row-shaped Type so split Details reads as a property list
-                // (REEF-167), matching the issue detail rail.
-                <IssueFieldRow
-                  label={fieldNames.type}
-                  labelId="new-issue-type-label"
-                >
-                  {renderEnrichable(
-                    "issue_type",
-                    <EnumSelectField
-                      value={issueType}
-                      onValueChange={(value) =>
-                        setIssueType(value as IssueType)
-                      }
-                      options={ISSUE_TYPE_OPTIONS}
-                      renderItem={(type) => (
-                        <TypePill type={type} variant="badge" />
-                      )}
-                      placeholder={fieldNames.type}
-                      ariaLabelledby="new-issue-type-label"
-                      disabled={isSubmitting}
-                    />,
-                  )}
-                </IssueFieldRow>
-              }
-            />
-
-            <EnrichmentReferencesPanel
-              candidates={candidateReferences}
-              confirmed={references}
-              disabled={isSubmitting}
-              onAdd={(uri) => setReferences([...references, uri])}
-              onDismiss={(uri) =>
-                setDismissedRefs((prev) => new Set(prev).add(uri))
-              }
-              onRemove={(uri) =>
-                setReferences(references.filter((existing) => existing !== uri))
-              }
-            />
-            {submitError ? (
-              <p
-                role="alert"
-                data-testid="new-issue-error"
-                className="rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text"
-              >
-                {submitError}
-              </p>
             ) : null}
           </div>
         </div>

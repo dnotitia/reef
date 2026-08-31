@@ -12,6 +12,14 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Added
+
+- **New Issue now includes a Draft Conversation panel.** The unsaved title,
+  description, and properties remain visible beside a multi-turn read-only AI
+  chat on wide screens, with a responsive two-column and authoring/AI switcher
+  for narrower layouts. Chat suggestions never apply changes automatically and
+  end with the draft.
+
 ## v0.13.0 - 2026-08-31
 
 ### Added

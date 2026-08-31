@@ -90,6 +90,21 @@ const { mockEnrichmentState } = vi.hoisted(() => ({
   },
 }));
 
+const { mockWorkspaceChat } = vi.hoisted(() => ({
+  mockWorkspaceChat: {
+    messages: [] as never[],
+    sendMessage: vi.fn(),
+    stop: vi.fn(),
+    clear: vi.fn(),
+    status: "ready" as "ready" | "streaming",
+    messageCount: 0,
+  },
+}));
+
+vi.mock("@/features/ai/hooks/useWorkspaceChat", () => ({
+  useWorkspaceChat: () => mockWorkspaceChat,
+}));
+
 vi.mock("@/features/ui/stores/useViewStore", () => ({
   useViewStore: <T,>(
     selector: (s: {
@@ -295,6 +310,8 @@ describe("NewIssueDialog", () => {
     mockViewStore.state.newIssueDialogOpen = false;
     mockViewStore.state.newIssueDialogContext = null;
     mockEnrichmentState.exposeParentOverride = false;
+    mockWorkspaceChat.status = "ready";
+    mockWorkspaceChat.messages = [];
     Object.defineProperty(window, "innerWidth", {
       configurable: true,
       value: 1024,
@@ -383,6 +400,78 @@ describe("NewIssueDialog", () => {
     ).toBeTruthy();
   });
 
+  it("opens a separate draft conversation column without starting a run", async () => {
+    const user = userEvent.setup();
+    mockViewStore.state.newIssueDialogOpen = true;
+    render(wrap(<NewIssueDialog />));
+
+    await screen.findByText("New Issue");
+    await user.type(
+      screen.getByTestId("new-issue-title-input"),
+      "Keep this draft",
+    );
+    await user.type(screen.getByTestId("markdown-source-textarea"), "Body");
+    await user.click(screen.getByTestId("draft-conversation-toggle"));
+
+    expect(screen.getByTestId("draft-conversation-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("draft-conversation-context")).toHaveTextContent(
+      "Current draft",
+    );
+    expect(screen.getByTestId("new-issue-dialog")).toHaveClass(
+      "max-w-[min(94vw,1620px)]",
+    );
+    expect(
+      mockApiFetch.mock.calls.some(
+        ([url]) => typeof url === "string" && url.includes("/api/agents/runs"),
+      ),
+    ).toBe(false);
+
+    await user.click(screen.getByTestId("draft-conversation-close"));
+    expect(screen.queryByTestId("draft-conversation-panel")).toBeNull();
+    expect(screen.getByTestId("new-issue-title-input")).toHaveValue(
+      "Keep this draft",
+    );
+    expect(screen.getByTestId("markdown-source-textarea")).toHaveValue("Body");
+  });
+
+  it("stops a streaming draft conversation when it is folded", async () => {
+    const user = userEvent.setup();
+    mockWorkspaceChat.status = "streaming";
+    mockViewStore.state.newIssueDialogOpen = true;
+    render(wrap(<NewIssueDialog />));
+
+    await screen.findByText("New Issue");
+    await user.click(screen.getByTestId("draft-conversation-toggle"));
+    await user.click(screen.getByTestId("draft-conversation-close"));
+
+    expect(mockWorkspaceChat.stop).toHaveBeenCalled();
+    expect(screen.queryByTestId("draft-conversation-panel")).toBeNull();
+  });
+
+  it("switches between draft and AI views on a narrow canvas without losing values", async () => {
+    const user = userEvent.setup();
+    setViewport(390, 844);
+    mockViewStore.state.newIssueDialogOpen = true;
+    render(wrap(<NewIssueDialog />));
+
+    await screen.findByText("New Issue");
+    await user.type(
+      screen.getByTestId("new-issue-title-input"),
+      "Narrow draft",
+    );
+    await user.click(screen.getByTestId("draft-view-conversation"));
+    expect(screen.getByTestId("draft-conversation-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("draft-conversation-authoring")).toHaveClass(
+      "hidden",
+    );
+
+    await user.click(screen.getByTestId("draft-view-draft"));
+    expect(screen.queryByTestId("draft-conversation-panel")).toBeNull();
+    expect(screen.getByTestId("new-issue-title-input")).toHaveValue(
+      "Narrow draft",
+    );
+  });
+
   it("opts the create Description into the shared height contract", async () => {
     mockViewStore.state.newIssueDialogOpen = true;
     render(wrap(<NewIssueDialog preferredDescriptionHeight={640} />));
@@ -435,6 +524,35 @@ describe("NewIssueDialog", () => {
     expect(body).toHaveValue("Keep this body");
     expect(body.scrollTop).toBe(42);
     expect(geometry).toHaveBeenCalled();
+  });
+
+  it("adds the AI column to the selected maximized canvas and restores that width on close", async () => {
+    const user = userEvent.setup();
+    setViewport(1920, 1080);
+    mockDialogGeometry();
+    mockViewStore.state.newIssueDialogOpen = true;
+
+    render(wrap(<NewIssueDialog />));
+    await screen.findByText("New Issue");
+    await user.click(screen.getByRole("button", { name: /^Maximize window$/ }));
+    expect(screen.getByTestId("new-issue-dialog")).toHaveClass(
+      "max-w-[min(94vw,1680px)]",
+    );
+
+    await user.click(screen.getByTestId("draft-conversation-toggle"));
+    const dialog = screen.getByTestId("new-issue-dialog");
+    expect(dialog).toHaveClass("max-w-[min(94vw,2100px)]");
+    expect(dialog).toHaveStyle({
+      height: "calc(100dvh - 2rem)",
+      width: "1804.8px",
+    });
+    expect(screen.getByTestId("draft-conversation-close")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("draft-conversation-close"));
+    expect(dialog).toHaveClass("max-w-[min(94vw,1680px)]");
+    expect(dialog).toHaveStyle({
+      height: "calc(100dvh - 2rem)",
+    });
   });
 
   it("keeps the maximize control out when both axes gain less than 32px", async () => {

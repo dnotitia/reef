@@ -68,6 +68,29 @@ describe("agent run request schemas", () => {
     });
   });
 
+  it("accepts the current unsaved issue draft on workspace chat input", () => {
+    expect(
+      WorkspaceChatAgentInputSchema.parse({
+        messages: [
+          {
+            id: "m-1",
+            role: "user",
+            parts: [{ type: "text", text: "Make this clearer" }],
+          },
+        ],
+        draft: {
+          fields: issueDraftFields,
+          content: "Users cannot log in after token expiry.",
+        },
+      }),
+    ).toMatchObject({
+      draft: {
+        fields: { title: "Fix login bug" },
+        content: "Users cannot log in after token expiry.",
+      },
+    });
+  });
+
   it("rejects malformed issue enrichment vault ids", () => {
     expect(() =>
       AgentRunRequestSchema.parse({

@@ -54,6 +54,32 @@ describe("POST /api/agents/runs chat streaming", () => {
     );
   });
 
+  it("forwards the unsaved draft to the workspace chat agent", async () => {
+    const draftBody = {
+      ...chatRunBody,
+      input: {
+        ...chatRunBody.input,
+        draft: {
+          fields: {
+            title: "Draft title",
+            issue_type: "story",
+            priority: "high",
+          },
+          content: "Draft body",
+        },
+      },
+    };
+
+    const res = await POST(makeRequest(draftBody));
+
+    expect(res.status).toBe(200);
+    expect(mockCreateWorkspaceChatAgentResponse).toHaveBeenCalledWith(
+      expect.objectContaining({
+        draft: draftBody.input.draft,
+      }),
+    );
+  });
+
   it("sets the SSE no-buffering streaming headers (REEF-361 AC5)", async () => {
     const res = await POST(makeRequest(chatRunBody));
     expect(res.headers.get("content-type")).toContain("text/event-stream");

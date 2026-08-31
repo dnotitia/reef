@@ -26,7 +26,7 @@ import { ToolStepTrace } from "./ToolStepTrace";
 export interface ChatSurfaceProps {
   /** Structured conversation turns from `useWorkspaceChat`. */
   messages: ChatTurn[];
-  sendMessage: (input: { text: string }) => void | Promise<void>;
+  sendMessage: (input: { text: string }) => boolean | Promise<boolean>;
   status: ChatStatus;
   /** Aborts an in-flight stream — wired to the submit button while busy. */
   stop?: () => void;
@@ -79,8 +79,11 @@ export function ChatSurface({
   async function handleSubmit(message: PromptInputMessage) {
     const text = message.text.trim();
     if (!text) return;
-    await sendMessage({ text });
-    setInputText("");
+    const accepted = await sendMessage({ text });
+    // A failed or cancelled run keeps the exact submitted text available for
+    // retry. Existing callers that do not return a result retain the original
+    // clear-on-submit behavior.
+    if (accepted !== false) setInputText("");
   }
 
   return (
@@ -119,6 +122,7 @@ export function ChatSurface({
         <PromptInputBody className="px-3 py-2">
           <PromptInputTextarea
             data-testid={inputTestId}
+            value={inputText}
             placeholder={composerPlaceholder}
             onChange={(event) => setInputText(event.currentTarget.value)}
             // A placeholder is not an accessible name; label the message input

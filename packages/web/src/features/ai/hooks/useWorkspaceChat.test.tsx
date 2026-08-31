@@ -1,6 +1,7 @@
 import type { ChatAssistantTurn } from "@/features/ai/chat/chatTypes";
+import type { IssueCreateInput } from "@reef/core";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { useWorkspaceChat } from "./useWorkspaceChat";
 
 // A frame carries an agent-run event; the client parses `data:` SSE lines.
@@ -54,6 +55,21 @@ const HAPPY_EVENTS = [
   }),
 ];
 
+const FIRST_DRAFT = {
+  fields: { title: "First draft", issue_type: "story" as const },
+  content: "First body",
+} satisfies IssueCreateInput;
+
+const SECOND_DRAFT = {
+  fields: {
+    title: "Updated draft",
+    issue_type: "story" as const,
+    priority: "high" as const,
+    labels: ["latest"],
+  },
+  content: "Updated body after the first answer.",
+} satisfies IssueCreateInput;
+
 function assistant(turn: { role: string } | undefined): ChatAssistantTurn {
   if (!turn || turn.role !== "assistant") throw new Error("expected assistant");
   return turn as ChatAssistantTurn;
@@ -104,10 +120,170 @@ describe("useWorkspaceChat", () => {
       result.current.sendMessage({ text: "hi" });
     });
 
-    await waitFor(() => expect(result.current.status).toBe("ready"));
+    await waitFor(() => expect(result.current.status).toBe("error"));
     expect(result.current.messages).toHaveLength(2);
     const turn = assistant(result.current.messages[1]);
     expect(turn.errorMessage).toBeTruthy();
+  });
+
+  it("sends the latest draft together with the complete prior conversation", async () => {
+    const requests: Array<Record<string, unknown>> = [];
+    const fetch = (_input: RequestInfo | URL, init?: RequestInit) => {
+      requests.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      return Promise.resolve(sseResponse(HAPPY_EVENTS));
+    };
+    const { result, rerender } = renderHook(
+      ({ draft, scopeKey }: { draft: IssueCreateInput; scopeKey: string }) =>
+        useWorkspaceChat({
+          fetch,
+          route: null,
+          reefId: null,
+          draft,
+          scopeKey,
+        }),
+      { initialProps: { draft: FIRST_DRAFT, scopeKey: "draft-1" } },
+    );
+
+    await act(async () => {
+      await result.current.sendMessage({ text: "First question" });
+    });
+    rerender({ draft: SECOND_DRAFT, scopeKey: "draft-1" });
+    await act(async () => {
+      await result.current.sendMessage({ text: "Use my changes" });
+    });
+
+    expect(requests).toHaveLength(2);
+    expect(requests[0]).toMatchObject({
+      input: { draft: FIRST_DRAFT },
+    });
+    expect(requests[1]).toMatchObject({
+      input: {
+        draft: SECOND_DRAFT,
+        messages: [
+          { role: "user", parts: [{ text: "First question" }] },
+          { role: "assistant", parts: [{ text: "Found REEF-1." }] },
+          { role: "user", parts: [{ text: "Use my changes" }] },
+        ],
+      },
+    });
+  });
+
+  it("keeps a partial assistant answer after the user stops the run", async () => {
+    let signal: AbortSignal | null | undefined;
+    const fetch = (
+      _input: RequestInfo | URL,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      signal = init?.signal;
+      const encoder = new TextEncoder();
+      return Promise.resolve(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(
+                encoder.encode(
+                  `data: ${JSON.stringify(
+                    baseEvent(0, "run.started", {
+                      run_status: "running",
+                      input: {},
+                    }),
+                  )}\n\n`,
+                ),
+              );
+              controller.enqueue(
+                encoder.encode(
+                  `data: ${JSON.stringify(
+                    baseEvent(1, "model.delta", {
+                      delta: "Partial answer",
+                      channel: "text",
+                    }),
+                  )}\n\n`,
+                ),
+              );
+              signal?.addEventListener("abort", () => {
+                controller.error(new DOMException("Aborted", "AbortError"));
+              });
+            },
+          }),
+          {
+            status: 200,
+            headers: { "content-type": "text/event-stream" },
+          },
+        ),
+      );
+    };
+    const { result } = renderHook(() =>
+      useWorkspaceChat({ fetch, route: null, reefId: null }),
+    );
+
+    let send: Promise<boolean> | undefined;
+    act(() => {
+      send = result.current.sendMessage({ text: "stop now" });
+    });
+    await waitFor(() => expect(result.current.messages[1]).toBeDefined());
+    act(() => result.current.stop());
+    await act(async () => {
+      await send;
+    });
+
+    expect(signal?.aborted).toBe(true);
+    expect(result.current.messages).toHaveLength(2);
+    expect(result.current.messages[1]).toMatchObject({
+      role: "assistant",
+      text: "Partial answer",
+      streaming: false,
+      errorMessage: null,
+    });
+  });
+
+  it("clears a draft conversation on scope change and ignores its late response", async () => {
+    let resolveFirst: ((response: Response) => void) | undefined;
+    const fetch = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
+      .mockResolvedValueOnce(sseResponse(HAPPY_EVENTS));
+    const { result, rerender } = renderHook(
+      ({ scopeKey }: { scopeKey: string }) =>
+        useWorkspaceChat({
+          fetch,
+          route: null,
+          reefId: null,
+          draft: FIRST_DRAFT,
+          scopeKey,
+        }),
+      { initialProps: { scopeKey: "reef-a:draft-1" } },
+    );
+
+    let firstSend: Promise<boolean> | undefined;
+    act(() => {
+      firstSend = result.current.sendMessage({ text: "old workspace" });
+    });
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+
+    rerender({ scopeKey: "reef-b:draft-1" });
+    await waitFor(() => expect(result.current.messages).toHaveLength(0));
+
+    resolveFirst?.(sseResponse(HAPPY_EVENTS));
+    await act(async () => {
+      await firstSend;
+    });
+    expect(result.current.messages).toHaveLength(0);
+
+    await act(async () => {
+      await result.current.sendMessage({ text: "new workspace" });
+    });
+    expect(result.current.messages[0]).toMatchObject({
+      role: "user",
+      text: "new workspace",
+    });
+    expect(result.current.messages).not.toContainEqual(
+      expect.objectContaining({ text: "old workspace" }),
+    );
   });
 
   it("clear() resets the conversation", async () => {

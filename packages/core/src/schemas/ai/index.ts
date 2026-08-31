@@ -6,6 +6,7 @@ export {
 
 export {
   EnrichmentFieldEnum,
+  EnrichmentDraftSchema,
   EnrichmentRequestSchema,
   type EnrichmentField,
   type EnrichmentSuggestion,

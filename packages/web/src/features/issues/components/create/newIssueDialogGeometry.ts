@@ -132,6 +132,8 @@ export interface NewIssueDialogGeometry {
 export function useNewIssueDialogGeometry(
   open: boolean,
   formBodyRef: { current: HTMLDivElement | null },
+  /** Keep the closed dialog's baseline while the temporary AI column is open. */
+  chatOpen = false,
 ): NewIssueDialogGeometry {
   const [dialogElement, setDialogElement] = useState<HTMLDivElement | null>(
     null,
@@ -158,6 +160,7 @@ export function useNewIssueDialogGeometry(
     const element = dialogElement;
     if (
       !element ||
+      chatOpen ||
       (isMaximizedRef.current && normalHeightRef.current !== null)
     )
       return;
@@ -165,7 +168,7 @@ export function useNewIssueDialogGeometry(
     if (!Number.isFinite(height) || height <= 0) return;
     normalHeightRef.current = height;
     setNormalHeight(height);
-  }, [dialogElement]);
+  }, [chatOpen, dialogElement]);
 
   const measureMaximizedDescriptionHeight = useCallback(() => {
     if (!isMaximizedRef.current) return;

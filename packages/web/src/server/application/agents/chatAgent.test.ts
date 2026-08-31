@@ -59,6 +59,16 @@ const message = {
   parts: [{ type: "text" as const, text: "What changed?" }],
 };
 
+const draft = {
+  fields: {
+    title: "Draft title",
+    issue_type: "story" as const,
+    priority: "high" as const,
+    labels: ["ai"],
+  },
+  content: "Draft body",
+};
+
 const baseParams = () => ({
   adapter: { request: vi.fn() } as unknown as AkbAdapter,
   githubAdapter: {} as GitHubAdapter,
@@ -209,6 +219,20 @@ describe("workspace chat agent task", () => {
     expect(instructions).toContain("## Current issue");
     expect(instructions).toContain("SAASV31-360");
     expect(instructions).toContain("Ground the chat in this issue.");
+  });
+
+  it("grounds draft chat in the latest unsaved fields and body", async () => {
+    await createWorkspaceChatAgentResponse({
+      ...createParams(),
+      draft,
+    });
+
+    const { instructions } = getAgentSettings();
+    expect(instructions).toContain("## Current issue draft");
+    expect(instructions).toContain("title: Draft title");
+    expect(instructions).toContain("Draft body");
+    expect(instructions).toContain("no saved issue id");
+    expect(readIssueMock).not.toHaveBeenCalled();
   });
 
   it("degrades to no issue context when the prefetch fails (AC4)", async () => {

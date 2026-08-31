@@ -58,8 +58,11 @@ interface IssueDraftFieldsProps {
    * - `split` (REEF-075): a main column (Title + Description + `mainExtra`)
    *   beside a right rail (Details + `railSlot`), mirroring the issue detail
    *   screen so metadata does not pushes the description down the page.
+   * - `chat`: the same authoring/rail split, but it waits until a wider canvas
+   *   is available so the surrounding Draft Conversation can own the second
+   *   column at tablet-sized widths.
    */
-  layout?: "stack" | "split";
+  layout?: "stack" | "split" | "chat";
   /** Stack layout just: rendered between Details and Description. */
   beforeDescription?: ReactNode;
   /** Split layout just: rendered in the right rail, after Details. */
@@ -260,20 +263,33 @@ export function IssueDraftFields({
 
   // Split layout (REEF-075): Title + Description own the main column so the
   // writing area stays prominent, while Details and the injected `railSlot`
-  // (People / Planning / Parent / Relations) move to a right rail that stacks
-  // under the main column below `lg`. Mirrors the issue detail screen's
-  // main/aside split.
-  if (layout === "split") {
+  // (People / Planning / Parent / Relations) move to a right rail. The chat
+  // variant delays the rail's two-column breakpoint until the surrounding
+  // conversation can fit beside the complete authoring surface.
+  if (layout === "split" || layout === "chat") {
+    const chatLayout = layout === "chat";
     return (
       // Rail track 400px matches the issue detail rail (REEF-375) so the same
       // metadata reads at the same width on both the create and edit surfaces.
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_400px]">
+      <div
+        className={
+          chatLayout
+            ? "grid gap-5 min-[1536px]:grid-cols-[minmax(0,1fr)_400px]"
+            : "grid gap-5 lg:grid-cols-[minmax(0,1fr)_400px]"
+        }
+      >
         <div className="flex min-w-0 flex-col gap-4">
           {titleField}
           {descriptionField}
           {mainExtra}
         </div>
-        <aside className="flex min-w-0 flex-col gap-4 border-t border-border-subtle pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-5">
+        <aside
+          className={
+            chatLayout
+              ? "flex min-w-0 flex-col gap-4 border-t border-border-subtle pt-4 min-[1536px]:border-t-0 min-[1536px]:border-l min-[1536px]:pt-0 min-[1536px]:pl-5"
+              : "flex min-w-0 flex-col gap-4 border-t border-border-subtle pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-5"
+          }
+        >
           {/* Details as property rows (REEF-167): Type arrives as a row-shaped
               `primaryField`, Priority gets its own row, so the create rail
               mirrors the issue detail rail instead of a `grid-cols-2` half-grid.

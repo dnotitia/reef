@@ -1,0 +1,214 @@
+import { expect, test } from "@playwright/test";
+import {
+  REEF_E2E_VAULT,
+  openExistingWorkspace,
+  resetFixture,
+} from "../harness/fixture";
+
+test.describe("Hermetic New Issue draft conversation", () => {
+  test.beforeEach(async ({ context, request }) => {
+    await context.clearCookies();
+    await resetFixture(request, "configured");
+  });
+
+  test("opens beside the draft, sends the latest draft with conversation history, and folds without losing edits", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await page.getByTestId("new-issue-trigger").click();
+
+    const dialog = page.getByTestId("new-issue-dialog");
+    await expect(dialog).toBeVisible();
+    const closedBox = await dialog.boundingBox();
+    if (!closedBox) throw new Error("New Issue dialog has no closed geometry");
+
+    const agentRequests: string[] = [];
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname === "/api/agents/runs") {
+        agentRequests.push(request.url());
+      }
+    });
+
+    await dialog.getByTestId("new-issue-title-input").fill("Draft title");
+    await dialog
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+    await dialog.getByTestId("markdown-source-textarea").fill("First body");
+
+    await dialog.getByTestId("draft-conversation-toggle").click();
+    await expect(dialog.getByTestId("draft-conversation-panel")).toBeVisible();
+    await expect(dialog.getByTestId("new-issue-chat-input")).toBeVisible();
+    expect(agentRequests).toHaveLength(0);
+
+    await expect
+      .poll(async () => (await dialog.boundingBox())?.width ?? 0, {
+        timeout: 2_000,
+      })
+      .toBeGreaterThan(closedBox.width);
+    const openBox = await dialog.boundingBox();
+    if (!openBox) throw new Error("New Issue dialog has no chat geometry");
+    expect(openBox.width).toBeGreaterThan(closedBox.width);
+    expect(openBox.x + openBox.width).toBeLessThanOrEqual(1920);
+
+    const descriptionBox = await dialog
+      .getByText("Description", { exact: true })
+      .boundingBox();
+    const planningBox = await dialog
+      .getByText("Planning", { exact: true })
+      .boundingBox();
+    const chatBox = await dialog
+      .getByTestId("draft-conversation-panel")
+      .boundingBox();
+    if (!descriptionBox || !planningBox || !chatBox) {
+      throw new Error("Draft conversation columns did not render");
+    }
+    // The wide canvas keeps authoring, the 400px property rail, and AI in
+    // separate left-to-right columns.
+    expect(descriptionBox.x).toBeLessThan(planningBox.x);
+    expect(planningBox.x).toBeLessThan(chatBox.x);
+
+    const firstRequest = page.waitForRequest(
+      (request) =>
+        request.method() === "POST" &&
+        new URL(request.url()).pathname === "/api/agents/runs",
+    );
+    await dialog.getByTestId("new-issue-chat-input").fill("Clarify this");
+    await dialog.getByTestId("new-issue-chat-send").click();
+    const firstBody = (await firstRequest).postDataJSON();
+    expect(firstBody).toMatchObject({
+      task_id: "chat.workspace",
+      input: {
+        draft: {
+          fields: { title: "Draft title", issue_type: "task" },
+          content: "First body",
+        },
+      },
+    });
+    await expect(
+      dialog
+        .getByTestId("assistant-message")
+        .last()
+        .filter({ hasText: "Request: Clarify this" }),
+    ).toBeVisible();
+
+    await dialog.getByTestId("new-issue-title-input").fill("Updated title");
+    await dialog.getByTestId("markdown-source-textarea").fill("Updated body");
+
+    const secondRequest = page.waitForRequest(
+      (request) =>
+        request.method() === "POST" &&
+        new URL(request.url()).pathname === "/api/agents/runs",
+    );
+    await dialog
+      .getByTestId("new-issue-chat-input")
+      .fill("Use the latest draft");
+    await dialog.getByTestId("new-issue-chat-send").click();
+    const secondBody = (await secondRequest).postDataJSON();
+    expect(secondBody.input.draft).toMatchObject({
+      fields: { title: "Updated title" },
+      content: "Updated body",
+    });
+    expect(secondBody.input.messages).toEqual([
+      expect.objectContaining({
+        role: "user",
+        parts: [{ type: "text", text: "Clarify this" }],
+      }),
+      expect.objectContaining({
+        role: "assistant",
+        parts: [
+          { type: "text", text: expect.stringContaining("Clarify this") },
+        ],
+      }),
+      expect.objectContaining({
+        role: "user",
+        parts: [{ type: "text", text: "Use the latest draft" }],
+      }),
+    ]);
+    await expect(
+      dialog
+        .getByTestId("assistant-message")
+        .last()
+        .filter({ hasText: "Request: Use the latest draft" }),
+    ).toBeVisible();
+
+    await dialog.getByTestId("draft-conversation-close").click();
+    await expect(dialog.getByTestId("draft-conversation-panel")).toBeHidden();
+    await expect(dialog.getByTestId("new-issue-title-input")).toHaveValue(
+      "Updated title",
+    );
+    await expect(dialog.getByTestId("markdown-source-textarea")).toHaveValue(
+      "Updated body",
+    );
+
+    await dialog.getByTestId("new-issue-cancel").click();
+    await page.getByTestId("discard-draft-confirm-button").click();
+    await expect(dialog).toBeHidden();
+  });
+
+  test("keeps authoring and AI as a two-column surface, then switches views on a narrow screen", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await page.getByTestId("new-issue-trigger").click();
+    const dialog = page.getByTestId("new-issue-dialog");
+
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await dialog.getByTestId("draft-conversation-toggle").click();
+    await expect(dialog.getByTestId("draft-conversation-panel")).toBeVisible();
+    await expect(
+      dialog.getByTestId("draft-conversation-authoring"),
+    ).toBeVisible();
+    const twoColumnGeometry = await dialog.evaluate((root) => {
+      const authoring = root.querySelector(
+        '[data-testid="draft-conversation-authoring"]',
+      );
+      const chat = root.querySelector(
+        '[data-testid="draft-conversation-panel"]',
+      );
+      if (
+        !(authoring instanceof HTMLElement) ||
+        !(chat instanceof HTMLElement)
+      ) {
+        throw new Error("Two-column draft layout is missing");
+      }
+      return {
+        authoring: authoring.getBoundingClientRect(),
+        chat: chat.getBoundingClientRect(),
+        documentOverflow:
+          document.documentElement.scrollWidth >
+          document.documentElement.clientWidth,
+      };
+    });
+    expect(twoColumnGeometry.authoring.right).toBeLessThanOrEqual(
+      twoColumnGeometry.chat.left,
+    );
+    expect(twoColumnGeometry.documentOverflow).toBe(false);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(dialog.getByTestId("draft-conversation-panel")).toBeVisible();
+    await expect(
+      dialog.getByTestId("draft-conversation-authoring"),
+    ).toBeHidden();
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
+
+    await dialog.getByTestId("draft-view-draft").click();
+    await expect(dialog.getByTestId("draft-conversation-panel")).toBeHidden();
+    await expect(dialog.getByTestId("draft-view-draft")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await dialog.getByTestId("draft-view-conversation").click();
+    await expect(dialog.getByTestId("draft-conversation-panel")).toBeVisible();
+    await expect(dialog.getByTestId("new-issue-chat-input")).toBeVisible();
+  });
+});

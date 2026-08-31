@@ -212,6 +212,21 @@ describe("ChatSurface", () => {
     await vi.waitFor(() => expect(submit).toBeDisabled());
   });
 
+  it("keeps the submitted text when the run fails so it can be retried", async () => {
+    const sendMessage = vi.fn().mockResolvedValue(false);
+    renderSurface({
+      sendMessage,
+      inputTestId: "surface-input",
+      submitTestId: "surface-send",
+    });
+    const input = screen.getByTestId("surface-input");
+    fireEvent.change(input, { target: { value: "retry this" } });
+    fireEvent.submit(screen.getByTestId("prompt-input"));
+
+    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
+    expect(input).toHaveValue("retry this");
+  });
+
   it("surfaces an assistant turn error via role=alert", () => {
     renderSurface({
       messages: [assistantTurn("2", { errorMessage: "upstream timeout" })],

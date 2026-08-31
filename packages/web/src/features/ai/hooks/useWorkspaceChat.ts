@@ -9,7 +9,8 @@ import {
   collectReferencedIssueIds,
   extractChatCitations,
 } from "@/lib/ai/chatToolSummary";
-import { useCallback, useMemo, useRef, useState } from "react";
+import type { IssueCreateInput } from "@reef/core";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isTerminalPhase } from "../runtime/reducer";
 import { chatWorkspaceRun } from "../runtime/taskRequests";
 import type {
@@ -28,11 +29,16 @@ export interface UseWorkspaceChatOptions {
   /** Grounding hints read at send time (REEF-360): current route + open issue. */
   route: string | null;
   reefId: string | null;
+  /** Latest unsaved New Issue fields/body, read at each send. */
+  draft?: IssueCreateInput | null;
+  /** Identity of the conversation owner; changing it clears all chat state. */
+  scopeKey?: string | null;
 }
 
 export interface UseWorkspaceChatResult {
   messages: ChatTurn[];
-  sendMessage: (input: { text: string }) => void;
+  /** Resolves true when the run completed; false keeps the composer for retry. */
+  sendMessage: (input: { text: string }) => Promise<boolean>;
   status: ChatStatus;
   /** Aborts an in-flight run, keeping the partial answer + steps. */
   stop: () => void;
@@ -97,6 +103,7 @@ export function useWorkspaceChat(
   options: UseWorkspaceChatOptions,
 ): UseWorkspaceChatResult {
   const agentRun = useAgentRun(options.fetch ? { fetch: options.fetch } : {});
+  const { state: runState, start, cancel } = agentRun;
 
   const [turns, setTurns] = useState<ChatTurn[]>([]);
 
@@ -107,7 +114,6 @@ export function useWorkspaceChat(
     [],
   );
 
-  const runState = agentRun.state;
   const runActive = assistantId !== null && !isTerminalPhase(runState.phase);
 
   const currentAssistantTurn = useMemo<ChatAssistantTurn | null>(() => {
@@ -121,9 +127,9 @@ export function useWorkspaceChat(
   );
 
   const sendMessage = useCallback(
-    ({ text }: { text: string }) => {
+    async ({ text }: { text: string }): Promise<boolean> => {
       const trimmed = text.trim();
-      if (!trimmed || runActive) return;
+      if (!trimmed || runActive) return false;
       const userTurn: ChatTurn = {
         id: nextId("user"),
         role: "user",
@@ -132,38 +138,58 @@ export function useWorkspaceChat(
       const history = [...messages, userTurn];
       setTurns(history);
       setAssistantId(nextId("assistant"));
-      void agentRun
-        .start(
+      try {
+        await start(
           chatWorkspaceRun({
             messages: history.map(toRequestMessage),
             route: options.route,
             reefId: options.reefId,
+            ...(options.draft ? { draft: options.draft } : {}),
           }),
-        )
-        .catch(() => {
-          // A final error / cancel is already reflected in run state; the
-          // commit effect records the (partial) assistant turn. Swallow so the
-          // rejected start() promise does not surface as unhandled.
-        });
+        );
+        return true;
+      } catch {
+        // A final error / cancel is already reflected in run state. Returning
+        // false keeps the submitted text in the composer for a retry.
+        return false;
+      }
     },
-    [agentRun, messages, nextId, options.reefId, options.route, runActive],
+    [
+      messages,
+      nextId,
+      options.draft,
+      options.reefId,
+      options.route,
+      runActive,
+      start,
+    ],
   );
 
   const stop = useCallback(() => {
-    agentRun.cancel();
-  }, [agentRun]);
+    cancel();
+  }, [cancel]);
 
   const clear = useCallback(() => {
-    agentRun.cancel();
+    cancel();
     setAssistantId(null);
     setTurns([]);
-  }, [agentRun]);
+  }, [cancel]);
+
+  const scopeKeyRef = useRef(options.scopeKey ?? null);
+  useEffect(() => {
+    const nextScopeKey = options.scopeKey ?? null;
+    if (scopeKeyRef.current === nextScopeKey) return;
+    scopeKeyRef.current = nextScopeKey;
+    clear();
+  }, [clear, options.scopeKey]);
 
   const status: ChatStatus = runActive
     ? runState.phase === "running"
       ? "streaming"
       : "submitted"
-    : "ready";
+    : runState.phase === "error"
+      ? "error"
+      : "ready";
 
   return {
     messages,

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EnrichmentRequestSchema } from "./enrichment";
+import { EnrichmentDraftSchema, EnrichmentRequestSchema } from "./enrichment";
 
 const TextPartSchema = z.looseObject({
   type: z.literal("text"),
@@ -40,9 +40,12 @@ const AgentUIMessageSchema = CompatibleUIMessageSchema.extend({
 // sheet is open. Both are tolerant: absent → null. `reefId` is not regex-gated
 // here — core re-validates its shape before it reaches the akb read path, which
 // is the security boundary for the id (mirrors the `read_issue` tool contract).
+// `draft` reuses the issue-create contract for the unsaved New Issue surface;
+// unlike `reefId`, it is never a persisted issue lookup key.
 const ChatGroundingFieldsSchema = {
   route: z.string().nullable().optional(),
   reefId: z.string().nullable().optional(),
+  draft: EnrichmentDraftSchema.nullable().optional(),
 };
 
 export const WorkspaceChatRequestBodySchema = z

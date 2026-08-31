@@ -1344,6 +1344,13 @@ test.describe("Hermetic issue route surfaces", () => {
       const footer = page.getByTestId("new-issue-dialog-footer");
       const template = page.getByTestId("template-picker-trigger");
       const enrich = page.getByTestId("enrich-trigger");
+      const draftConversationToggle = page.getByTestId(
+        "draft-conversation-toggle",
+      );
+      const draftViewToggle = page.getByTestId("draft-view-draft");
+      const conversationViewToggle = page.getByTestId(
+        "draft-view-conversation",
+      );
       const title = page.getByTestId("new-issue-title-input");
       const cancel = page.getByTestId("new-issue-cancel");
       const submit = page.getByTestId("new-issue-submit");
@@ -1458,6 +1465,14 @@ test.describe("Hermetic issue route surfaces", () => {
       await page.keyboard.press("Tab");
       await expect(enrich).toBeFocused();
       await page.keyboard.press("Tab");
+      await expect(draftConversationToggle).toBeFocused();
+      await page.keyboard.press("Tab");
+      if (viewport.width < 900) {
+        await expect(draftViewToggle).toBeFocused();
+        await page.keyboard.press("Tab");
+        await expect(conversationViewToggle).toBeFocused();
+        await page.keyboard.press("Tab");
+      }
       await expect(title).toBeFocused();
       await cancel.focus();
       await expect(cancel).toBeFocused();
