@@ -109,6 +109,7 @@ export function useWorkspaceChat(
 
   const [assistantId, setAssistantId] = useState<string | null>(null);
   const idCounter = useRef(0);
+  const sendingRef = useRef(false);
   const nextId = useCallback(
     (prefix: string) => `${prefix}-${idCounter.current++}`,
     [],
@@ -129,7 +130,8 @@ export function useWorkspaceChat(
   const sendMessage = useCallback(
     async ({ text }: { text: string }): Promise<boolean> => {
       const trimmed = text.trim();
-      if (!trimmed || runActive) return false;
+      if (!trimmed || runActive || sendingRef.current) return false;
+      sendingRef.current = true;
       const userTurn: ChatTurn = {
         id: nextId("user"),
         role: "user",
@@ -152,6 +154,8 @@ export function useWorkspaceChat(
         // A final error / cancel is already reflected in run state. Returning
         // false keeps the submitted text in the composer for a retry.
         return false;
+      } finally {
+        sendingRef.current = false;
       }
     },
     [
@@ -166,10 +170,12 @@ export function useWorkspaceChat(
   );
 
   const stop = useCallback(() => {
+    sendingRef.current = false;
     cancel();
   }, [cancel]);
 
   const clear = useCallback(() => {
+    sendingRef.current = false;
     cancel();
     setAssistantId(null);
     setTurns([]);

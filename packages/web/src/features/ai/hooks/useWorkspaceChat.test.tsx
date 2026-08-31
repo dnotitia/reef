@@ -168,6 +168,41 @@ describe("useWorkspaceChat", () => {
     });
   });
 
+  it("blocks a duplicate send before React state reflects the active run", async () => {
+    let resolveFetch: ((response: Response) => void) | undefined;
+    const fetch = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
+    const { result } = renderHook(() =>
+      useWorkspaceChat({ fetch, route: null, reefId: null }),
+    );
+
+    let firstSend: Promise<boolean> | undefined;
+    act(() => {
+      firstSend = result.current.sendMessage({ text: "first" });
+    });
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+
+    let duplicateSend: Promise<boolean> | undefined;
+    act(() => {
+      duplicateSend = result.current.sendMessage({ text: "duplicate" });
+    });
+    if (!duplicateSend) throw new Error("duplicate send did not return");
+    await expect(duplicateSend).resolves.toBe(false);
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    resolveFetch?.(sseResponse(HAPPY_EVENTS));
+    await act(async () => {
+      await firstSend;
+    });
+    expect(result.current.messages).not.toContainEqual(
+      expect.objectContaining({ text: "duplicate" }),
+    );
+  });
+
   it("keeps a partial assistant answer after the user stops the run", async () => {
     let signal: AbortSignal | null | undefined;
     const fetch = (
