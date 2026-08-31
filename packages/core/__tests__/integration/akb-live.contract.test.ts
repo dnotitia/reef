@@ -7,11 +7,22 @@ import {
   createVault,
   ensureReefTables,
   login,
+  listIssueBodyHistory,
   readIssue,
   searchDocuments,
   updateIssue,
   writeIssue,
 } from "../../src/adapters/akb";
+import {
+  deleteAkbFile,
+  downloadAkbFile,
+  uploadAkbFile,
+} from "../../src/adapters/akb/core/files";
+import {
+  getResourceRelations,
+  linkResources,
+  unlinkResources,
+} from "../../src/adapters/akb/core/relations";
 import {
   AkbSearchResponseSchema,
   AkbSqlMutationResponseSchema,
@@ -54,7 +65,8 @@ import {
  * So it is never part of the always-green unit signal.
  *
  * Surfaces covered (the envelopes reef-web's fetch path actually receives):
- *   document put + get, search, sql (table_query + table_sql).
+ *   document put + get, search, sql (table_query + table_sql), files, resource
+ *   relations, and issue body history.
  * Provenance (`GET /provenance`) is intentionally OUT of scope: reef's fetch
  * path never calls it and reef mirrors no provenance envelope, so there is no
  * reef contract to pin. Adding one would test akb, not reef's contract.
@@ -101,6 +113,111 @@ async function ensureSeedUser(baseUrl: string): Promise<void> {
     // Swallow — a duplicate-user 4xx is expected on re-runs, and a genuine
     // network failure resurfaces from login() below with a clearer message.
   }
+}
+
+interface TemporaryDocument {
+  uri: string;
+  path: string;
+}
+
+async function createTemporaryRelationDocument(
+  adapter: AkbAdapter,
+  vault: string,
+  title: string,
+): Promise<TemporaryDocument> {
+  const raw = await adapter.request("/api/v1/documents", {
+    method: "POST",
+    body: {
+      vault,
+      collection: "contract-resources",
+      title,
+      content: "Temporary relation resource for the live contract.",
+      type: "note",
+      status: "active",
+      summary: title,
+      tags: [],
+    },
+    resource: "temporary relation document",
+  });
+  const document = DocumentPutResponseSchema.parse(raw);
+  return { uri: document.uri, path: document.path };
+}
+
+async function deleteTemporaryDocument(
+  adapter: AkbAdapter,
+  vault: string,
+  path: string,
+): Promise<void> {
+  await adapter.request(
+    `/api/v1/documents/${encodeURIComponent(vault)}/${path}`,
+    {
+      method: "DELETE",
+      resource: "temporary relation document",
+    },
+  );
+}
+
+interface FileRequestObservation {
+  surface: "akb" | "presigned";
+  hasAuthorization: boolean;
+  stage: string;
+}
+
+function installFileFetchObserver(options: { failUpload?: boolean } = {}): {
+  observations: FileRequestObservation[];
+  restore: () => void;
+} {
+  const observations: FileRequestObservation[] = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (...args: Parameters<typeof fetch>) => {
+    const [input, init] = args;
+    const request = new Request(input, init);
+    const method = request.method;
+    const url = new URL(request.url);
+    const isAkb = method !== "PUT" && url.pathname.startsWith("/api/v1/");
+    const stage =
+      method === "PUT"
+        ? "transfer_upload"
+        : method === "POST" && url.pathname.endsWith("/upload")
+          ? "initiate"
+          : method === "POST" && url.pathname.endsWith("/confirm")
+            ? "confirm"
+            : method === "GET" && url.pathname.endsWith("/download")
+              ? "download_metadata"
+              : method === "GET" && !isAkb
+                ? "transfer_download"
+                : method === "DELETE" && url.pathname.includes("/api/v1/files/")
+                  ? "delete"
+                  : "other";
+    observations.push({
+      surface: isAkb ? "akb" : "presigned",
+      hasAuthorization: request.headers.has("authorization"),
+      stage,
+    });
+    if (options.failUpload && method === "PUT") {
+      return new Response(null, { status: 503 });
+    }
+    return originalFetch(...args);
+  };
+  return {
+    observations,
+    restore: () => {
+      globalThis.fetch = originalFetch;
+    },
+  };
+}
+
+function expectFileCredentialBoundary(
+  observations: readonly FileRequestObservation[],
+): void {
+  const apiCalls = observations.filter(({ surface }) => surface === "akb");
+  const transferCalls = observations.filter(
+    ({ surface }) => surface === "presigned",
+  );
+  expect(apiCalls.every(({ hasAuthorization }) => hasAuthorization)).toBe(true);
+  expect(transferCalls.every(({ hasAuthorization }) => !hasAuthorization)).toBe(
+    true,
+  );
 }
 
 describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
@@ -316,6 +433,239 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
     expect(result.issue.id).toBe(SEED_ISSUE_ID);
   });
 
+  it("file lifecycle — live bytes, metadata, and credential boundaries hold", async () => {
+    const filename = `live-contract-${Date.now()}.txt`;
+    const mimeType = "text/plain";
+    const bytes = new TextEncoder().encode(
+      "Temporary file bytes for the live contract.",
+    );
+    const observer = installFileFetchObserver();
+
+    let fileUri: string | undefined;
+    try {
+      const uploaded = await uploadAkbFile({
+        adapter,
+        vault,
+        filename,
+        mimeType,
+        bytes,
+      });
+      fileUri = uploaded.uri;
+      expect(Object.keys(uploaded).sort()).toEqual([
+        "filename",
+        "mimeType",
+        "sizeBytes",
+        "uri",
+      ]);
+      expect(uploaded).toMatchObject({
+        filename,
+        mimeType,
+        sizeBytes: bytes.byteLength,
+      });
+      expect(uploaded.uri).toMatch(/^akb:\/\/[^/]+\/file\/[^/]+$/);
+      expect(uploaded).not.toHaveProperty("upload_url");
+
+      const downloaded = await downloadAkbFile(adapter, vault, uploaded.uri);
+      expect(Object.keys(downloaded).sort()).toEqual([
+        "body",
+        "contentType",
+        "filename",
+        "sizeBytes",
+      ]);
+      expect(downloaded).toMatchObject({
+        contentType: mimeType,
+        filename,
+        sizeBytes: bytes.byteLength,
+      });
+      expect(downloaded).not.toHaveProperty("download_url");
+      expect(Array.from(new Uint8Array(downloaded.body))).toEqual(
+        Array.from(bytes),
+      );
+
+      await deleteAkbFile(adapter, vault, uploaded.uri);
+      fileUri = undefined;
+
+      expect(observer.observations.map(({ stage }) => stage)).toEqual([
+        "initiate",
+        "transfer_upload",
+        "confirm",
+        "download_metadata",
+        "transfer_download",
+        "delete",
+      ]);
+      expectFileCredentialBoundary(observer.observations);
+    } finally {
+      observer.restore();
+      if (fileUri) {
+        await deleteAkbFile(adapter, vault, fileUri).catch(() => undefined);
+      }
+    }
+  });
+
+  it("file upload failure — initiated objects receive real delete compensation", async () => {
+    let cleanupSucceeded = false;
+    const cleanupAdapter: AkbAdapter = {
+      request: async (...args) => {
+        const [path, init] = args;
+        const response = await adapter.request(...args);
+        if (init?.method === "DELETE" && path.includes("/api/v1/files/")) {
+          cleanupSucceeded = true;
+        }
+        return response;
+      },
+    };
+    const observer = installFileFetchObserver({ failUpload: true });
+
+    try {
+      await expect(
+        uploadAkbFile({
+          adapter: cleanupAdapter,
+          vault,
+          filename: `live-failed-${Date.now()}.txt`,
+          mimeType: "text/plain",
+          bytes: new TextEncoder().encode("Intentional transfer failure."),
+        }),
+      ).rejects.toMatchObject({ name: "AkbApiError" });
+    } finally {
+      observer.restore();
+    }
+
+    expect(cleanupSucceeded).toBe(true);
+    expect(observer.observations.map(({ stage }) => stage)).toEqual([
+      "initiate",
+      "transfer_upload",
+      "delete",
+    ]);
+    expectFileCredentialBoundary(observer.observations);
+  });
+
+  it("resource relations — live link, read projection, unlink, and fixture cleanup hold", async () => {
+    const suffix = `${Date.now().toString(36)}${Math.random()
+      .toString(36)
+      .slice(2)}`;
+    let source: TemporaryDocument | undefined;
+    let target: TemporaryDocument | undefined;
+    let relationLinked = false;
+    try {
+      source = await createTemporaryRelationDocument(
+        adapter,
+        vault,
+        `Live relation source ${suffix}`,
+      );
+      target = await createTemporaryRelationDocument(
+        adapter,
+        vault,
+        `Live relation target ${suffix}`,
+      );
+
+      const before = await getResourceRelations(adapter, {
+        uri: source.uri,
+        relation: "related_to",
+        direction: "outgoing",
+      });
+      expect(before.some(({ uri }) => uri === target?.uri)).toBe(false);
+
+      await linkResources(adapter, {
+        source: source.uri,
+        target: target.uri,
+        relation: "related_to",
+      });
+      relationLinked = true;
+
+      const linked = await getResourceRelations(adapter, {
+        uri: source.uri,
+        relation: "related_to",
+        direction: "outgoing",
+      });
+      expect(linked).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            relation: "related_to",
+            uri: target.uri,
+          }),
+        ]),
+      );
+
+      await unlinkResources(adapter, {
+        source: source.uri,
+        target: target.uri,
+        relation: "related_to",
+      });
+      relationLinked = false;
+
+      const unlinked = await getResourceRelations(adapter, {
+        uri: source.uri,
+        relation: "related_to",
+        direction: "outgoing",
+      });
+      expect(unlinked.some(({ uri }) => uri === target?.uri)).toBe(false);
+    } finally {
+      if (relationLinked && source && target) {
+        await unlinkResources(adapter, {
+          source: source.uri,
+          target: target.uri,
+          relation: "related_to",
+        }).catch(() => undefined);
+      }
+      if (source) {
+        await deleteTemporaryDocument(adapter, vault, source.path).catch(
+          () => undefined,
+        );
+      }
+      if (target) {
+        await deleteTemporaryDocument(adapter, vault, target.path).catch(
+          () => undefined,
+        );
+      }
+    }
+  });
+
+  it("issue body history — live update projects only the public body event", async () => {
+    const content = `Live body history contract update ${Date.now()}`;
+    const updated = await updateIssue({
+      adapter,
+      vault,
+      id: SEED_ISSUE_ID,
+      partial: {},
+      content,
+      message: "Live body history contract update",
+    });
+    expect(updated.content).toBe(content);
+
+    const history = await listIssueBodyHistory(adapter, vault, SEED_ISSUE_ID);
+    const event = history.find(
+      ({ hash }) =>
+        hash === updated.commit_hash || updated.commit_hash.startsWith(hash),
+    );
+    expect(event).toBeDefined();
+    if (!event) {
+      throw new Error("Updated body commit was absent from history");
+    }
+    expect(event).toMatchObject({
+      kind: "body_update",
+    });
+    expect(
+      event.hash === updated.commit_hash ||
+        updated.commit_hash.startsWith(event.hash),
+    ).toBe(true);
+    expect(Object.keys(event ?? {}).sort()).toEqual([
+      "actor",
+      "at",
+      "hash",
+      "id",
+      "kind",
+    ]);
+    if (event?.actor !== null) {
+      expect(event?.actor).not.toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu,
+      );
+    }
+    expect(event).not.toHaveProperty("message");
+    expect(event).not.toHaveProperty("author");
+    expect(event).not.toHaveProperty("author_name");
+    expect(event).not.toHaveProperty("agent");
+  });
+
   it("updateIssue — live row OCC accepts an ISO expected_updated_at", async () => {
     const current = await readIssue({ adapter, vault, id: SEED_ISSUE_ID });
 
@@ -332,15 +682,11 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
   });
 
   it("notification storage — public APIs preserve identity, recipient, state, and source contracts", async () => {
-    expect(REEF_SCHEMA_VERSION).toBe(2);
+    expect(REEF_SCHEMA_VERSION).toBe(3);
     expect(provisionCreateCount).toBe(REEF_DESIRED_TABLES.length);
     expect(provisionAlterCount).toBe(0);
 
-    const boundarySuffix =
-      `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`
-        .padEnd(20, "0")
-        .slice(0, 20);
-    const overlongVault = `reef-boundary-${boundarySuffix}`;
+    const overlongVault = `reef-boundary-${"x".repeat(50)}`;
     let overlongVaultAdapterCalls = 0;
     let overlongVaultTableCount = -1;
     await createVault({
@@ -380,6 +726,11 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
     }
 
     const mismatchPreflight = [];
+    const preflightBaseManifests = REEF_DESIRED_TABLES.filter(
+      (manifest) =>
+        manifest.name !== REEF_NOTIFICATIONS_TABLE &&
+        manifest.name !== REEF_SUBSCRIPTIONS_TABLE,
+    );
     for (const variant of ["column", "unique_key", "index"] as const) {
       const suffix =
         `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`
@@ -393,7 +744,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
         description: "ephemeral Reef manifest mismatch preflight probe",
       });
       try {
-        for (const manifest of REEF_DESIRED_TABLES.slice(0, 11)) {
+        for (const manifest of preflightBaseManifests) {
           await adapter.request(
             `/api/v1/tables/${encodeURIComponent(mismatchVault)}`,
             {
@@ -464,7 +815,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
           `/api/v1/tables/${encodeURIComponent(mismatchVault)}`,
           { resource: "ephemeral mismatch vault tables" },
         )) as { items?: Array<Record<string, unknown>> };
-        expect(manifest.items).toHaveLength(12);
+        expect(manifest.items).toHaveLength(preflightBaseManifests.length + 1);
         expect(
           manifest.items?.some(
             (table) => table.name === REEF_SUBSCRIPTIONS_TABLE,
@@ -650,7 +1001,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
           },
           {
             api: "akbEnsureReefTables boundary validation",
-            input: { vault_length: 34 },
+            input: { vault_length: overlongVault.length },
             output: {
               rejected: true,
               adapter_calls: overlongVaultAdapterCalls,
@@ -662,7 +1013,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
             api: "akbEnsureReefTables mismatch preflight",
             input: {
               variants: ["column", "unique_key", "index"],
-              existing_manifest_count: 12,
+              existing_manifest_count: preflightBaseManifests.length + 1,
               missing_table: REEF_SUBSCRIPTIONS_TABLE,
             },
             output: mismatchPreflight,
