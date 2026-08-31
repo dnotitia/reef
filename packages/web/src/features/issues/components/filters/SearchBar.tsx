@@ -37,7 +37,10 @@ export function SearchBar() {
   // from elsewhere) back into the input.
   useEffect(() => {
     return useIssueStore.subscribe((state, previousState) => {
-      if (state.searchQuery !== previousState.searchQuery) {
+      if (
+        state.searchQuery !== previousState.searchQuery ||
+        state.searchQueryResetToken !== previousState.searchQueryResetToken
+      ) {
         reset(state.searchQuery);
       }
     });

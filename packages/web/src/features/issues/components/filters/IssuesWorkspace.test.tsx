@@ -112,6 +112,7 @@ describe("IssuesWorkspace", () => {
       filterVault: null,
       searchQuery: "",
       selectedIssueId: null,
+      listOptionalColumns: [],
     });
     useIssueSelectionStore.getState().setRunning(false);
     useIssueSelectionStore.getState().clearForContextChange();

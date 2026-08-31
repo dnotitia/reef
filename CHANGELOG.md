@@ -12,6 +12,21 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Added
+
+- **Issues now provide browser-local My Views.** A named My View captures the
+  current filters, scope/layout, grouping, ordering mode, display options, and
+  List columns; applying it updates the canonical URL without exposing the
+  local view identity, while Manual mode continues to read the shared server
+  rank.
+
+### Migration
+
+- **No Dexie schema migration is required for My Views.** The new versioned
+  actor/vault-scoped envelopes use the existing `config` key-value store; old
+  legacy personal-filter keys are not read or migrated, and account reconciliation clears
+  My Views along with the other account-scoped browser state.
+
 ## v0.13.0 - 2026-08-31
 
 ### Added
@@ -82,6 +97,11 @@ explicitly in the entries below.
   identifiers.
 
 ### Migration
+
+- **No Dexie schema migration is required for workspace Favorites.** The new
+  versioned preference envelope is additive within the existing `config` store;
+  corrupt, unsupported, stale, or unavailable browser values degrade to an
+  empty Favorites preference and do not affect the active workspace.
 
 - **AI-enabled deployments must migrate to the provider-neutral environment
   variables before rollout.** Set `REEF_LLM_API_KEY`, `REEF_LLM_BASE_URL`, and

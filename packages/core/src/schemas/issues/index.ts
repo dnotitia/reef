@@ -143,6 +143,7 @@ export {
 
 export {
   PersistedIssueFilterEnvelopeSchema,
+  normalizePersistedIssueFilter,
   type PersistedIssueFilter,
 } from "./persistedIssueFilter";
 
@@ -156,10 +157,28 @@ export {
 } from "./history";
 
 export {
-  buildNamedIssueFilterEnvelope,
-  canonicalizeNamedIssueFilterName,
-  hasNamedIssueFilterPayload,
-  normalizeNamedIssueFilterEnvelope,
-  serializeNamedIssueFilterPayload,
-  type NamedIssueFilterEnvelope,
-} from "./namedIssueFilter";
+  MY_VIEW_VERSION,
+  MyViewDisplayConfigSchema,
+  MyViewEnvelopeSchema,
+  MyViewFilterSchema,
+  MyViewGroupByEnum,
+  MyViewLayoutEnum,
+  MyViewListColumnEnum,
+  MyViewOrderingSchema,
+  MyViewScopeEnum,
+  MyViewSnapshotSchema,
+  buildMyViewEnvelope,
+  canonicalizeMyViewName,
+  normalizeMyViewEnvelope,
+  normalizeMyViewSnapshot,
+  serializeMyViewSnapshot,
+  type MyViewDisplayConfig,
+  type MyViewEnvelope,
+  type MyViewFilter,
+  type MyViewGroupBy,
+  type MyViewLayout,
+  type MyViewListColumn,
+  type MyViewOrdering,
+  type MyViewScope,
+  type MyViewSnapshot,
+} from "./myView";

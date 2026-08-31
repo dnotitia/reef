@@ -1,16 +1,9 @@
+import { MyViewGroupByEnum, type MyViewGroupBy } from "@reef/core";
 import type { IssueLayout, IssueScope } from "./viewMode";
 
-export const ISSUE_GROUP_BY_VALUES = [
-  "none",
-  "status",
-  "assignee",
-  "priority",
-  "sprint",
-  "label",
-  "epic",
-] as const;
+export const ISSUE_GROUP_BY_VALUES = MyViewGroupByEnum.options;
 
-export type IssueGroupBy = (typeof ISSUE_GROUP_BY_VALUES)[number];
+export type IssueGroupBy = MyViewGroupBy;
 export type IssueWorkspaceView = IssueLayout;
 
 const ISSUE_GROUP_BY_SET = new Set<string>(ISSUE_GROUP_BY_VALUES);

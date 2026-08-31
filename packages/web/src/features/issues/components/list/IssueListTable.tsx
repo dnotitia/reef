@@ -23,7 +23,6 @@ import {
   ISSUE_TABLE_ROW_HEIGHT,
   ISSUE_TABLE_TITLE_MIN_WIDTH,
   type IssueListColumnKey,
-  type IssueListOptionalColumnKey,
   isIssueTableStickyColumn,
   issueTableColumnOffset,
   issueTableWidth,
@@ -330,11 +329,12 @@ export function IssueListTable({
   const bulk = useTranslations("issues.bulk");
   const selectedIds = useIssueSelectionStore((state) => state.selectedIds);
   const selectionRunning = useIssueSelectionStore((state) => state.running);
+  const optionalColumns = useIssueStore((state) => state.listOptionalColumns);
+  const toggleOptionalColumn = useIssueStore(
+    (state) => state.toggleListOptionalColumn,
+  );
   const scrollElementRef = useRef<HTMLDivElement | null>(null);
   const anchorRef = useRef<{ id: string; offset: number } | null>(null);
-  const [optionalColumns, setOptionalColumns] = useState<
-    readonly IssueListOptionalColumnKey[]
-  >([]);
   const showReorderColumn = manualOrder && groupBy === "none";
   const columns = useMemo(
     () => resolveIssueListColumns(optionalColumns, showReorderColumn),
@@ -345,17 +345,6 @@ export function IssueListTable({
     "reef-issue-list-table table-fixed",
     optionalColumns.length > 0 && "reef-issue-list-table-expanded",
   );
-  const toggleOptionalColumn = useCallback(
-    (column: IssueListOptionalColumnKey) => {
-      setOptionalColumns((current) =>
-        current.includes(column)
-          ? current.filter((item) => item !== column)
-          : [...current, column],
-      );
-    },
-    [],
-  );
-
   const query = useMemo(
     () =>
       manualOrder

@@ -3,7 +3,13 @@
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { getPersistedIssueFilter } from "@/lib/storage/config";
 import { withVault } from "@/lib/workspaceHref";
-import { StatusEnum, USER_SORT_FIELDS } from "@reef/core";
+import {
+  MyViewListColumnEnum,
+  StatusEnum,
+  USER_SORT_FIELDS,
+  type MyViewListColumn,
+  type MyViewSnapshot,
+} from "@reef/core";
 import { type UserSortField, naturalSortOrder } from "@reef/core/fields";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type RefObject, useCallback, useEffect, useRef } from "react";
@@ -19,6 +25,8 @@ import {
   normalizeIssueViewState,
   parseIssueViewState,
 } from "../../lib/viewMode";
+import { applyMyViewSnapshot as applyStoredMyViewSnapshot } from "../../lib/myViewSnapshot";
+import { defaultIssueGroupBy } from "../../lib/groupBy";
 
 /**
  * The list/board workspace is scoped to the vault's issues list
@@ -50,6 +58,7 @@ const ISSUE_QUERY_KEYS = [
   "sort",
   "order",
   "q",
+  "columns",
 ] as const;
 
 const GROUP_QUERY_KEY = "group";
@@ -57,6 +66,7 @@ const GROUP_QUERY_KEY = "group";
 function readIssueUrlState(searchParams: URLSearchParams): {
   filter: IssueFilter;
   searchQuery: string;
+  listOptionalColumns: MyViewSnapshot["display"]["listColumns"];
 } {
   const filter: IssueFilter = {};
 
@@ -98,6 +108,12 @@ function readIssueUrlState(searchParams: URLSearchParams): {
   const order = searchParams.get("order");
   const archived = searchParams.get("archived");
   const stale = searchParams.get("stale");
+  const columns = new Set(
+    (searchParams.get("columns") ?? "")
+      .split(",")
+      .map((column) => column.trim())
+      .filter(Boolean),
+  );
 
   if (status.length) filter.status = status;
   if (issueType.length) filter.issueType = issueType;
@@ -140,6 +156,9 @@ function readIssueUrlState(searchParams: URLSearchParams): {
   return {
     filter: normalizeRestoredSort(filter),
     searchQuery: searchParams.get("q") ?? "",
+    listOptionalColumns: MyViewListColumnEnum.options.filter((column) =>
+      columns.has(column),
+    ),
   };
 }
 
@@ -186,6 +205,7 @@ function buildIssueSearchParams(
   filter: IssueFilter,
   searchQuery: string,
   base: URLSearchParams,
+  listOptionalColumns: readonly string[] = [],
 ): string {
   // Merge into the existing query string: clear the keys this hook manages so
   // unrelated params (notably `?view=`, owned by the workspace ViewSwitcher)
@@ -228,6 +248,10 @@ function buildIssueSearchParams(
     if (filter.sortOrder) params.set("order", filter.sortOrder);
   }
   if (searchQuery) params.set("q", searchQuery);
+  const columns = MyViewListColumnEnum.options.filter((column) =>
+    listOptionalColumns.includes(column),
+  );
+  if (columns.length > 0) params.set("columns", columns.join(","));
   return params.toString();
 }
 
@@ -260,9 +284,14 @@ export function useIssueUrlSync(): {
   skipNextSave: RefObject<boolean>;
   groupBy: IssueGroupBy;
   setGroupBy: (groupBy: IssueGroupBy) => void;
+  listOptionalColumns: readonly MyViewListColumn[];
+  applyMyViewSnapshot: (snapshot: MyViewSnapshot) => void;
 } {
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
+  const listOptionalColumns = useIssueStore(
+    (state) => state.listOptionalColumns,
+  );
   const { vault } = useActiveVault();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -290,12 +319,19 @@ export function useIssueUrlSync(): {
   // REPLACE the current history entry (hydration, not navigation) so no bare
   // /issues entry is stacked behind the restored filter (REEF-010).
   const replaceNextWrite = useRef(false);
+  // Tracks the last query this hook accepted or wrote. A changed query that
+  // is not ours is browser back/forward or another URL owner (scope/layout),
+  // so it must hydrate the filter and List display state instead of being
+  // overwritten by the store mirror.
+  const lastUrlQuery = useRef<string | null>(null);
+  const skipMirrorAfterUrlAdoption = useRef(false);
+  const pendingExplicitUrl = useRef<string | null>(null);
 
   // searchParams is read for the hydration decision (URL-wins vs
-  // IndexedDB restore) and the stale-URL clear on a vault switch. Re-running on the
-  // URL changes this hook ITSELF writes would abort the in-flight restore and drop
-  // the new vault's saved filter (REEF-010). Post-init URL→store reactivity is
-  // intentionally not wanted; the mirror effect below owns store→URL sync.
+  // IndexedDB restore) and the stale-URL clear on a vault switch. Re-running on
+  // URL changes this hook ITSELF writes would abort the in-flight restore and
+  // drop the new vault's saved filter (REEF-010). External URL changes are
+  // adopted by the separate post-init effect below.
   /* eslint-disable react-hooks/exhaustive-deps -- searchParams is read at hydration; self-written URL changes should not abort the restore. */
   // biome-ignore lint/correctness/useExhaustiveDependencies: searchParams is read once at hydration; re-running on self-written URL changes would abort the in-flight restore (REEF-010).
   useEffect(() => {
@@ -329,8 +365,10 @@ export function useIssueUrlSync(): {
     // reload). A genuine vault switch re-restores from the new vault's slot.
     if (!vaultChanged && hasIssueQueryParams(searchParams)) {
       skipNextWrite.current = true;
+      lastUrlQuery.current = normalizeParams(searchParams.toString());
+      const urlState = readIssueUrlState(searchParams);
       useIssueStore.setState({
-        ...readIssueUrlState(searchParams),
+        ...urlState,
         filterVault: vault || null,
       });
       initialized.current = true;
@@ -345,6 +383,7 @@ export function useIssueUrlSync(): {
     // Unblock writeback now (view-switch mirror / user edits); saving stays
     // gated on persistReady until the async read settles below.
     initialized.current = true;
+    lastUrlQuery.current = normalizeParams(searchParams.toString());
 
     // Claim the store filter for this vault. On a switch (incl. one that
     // happened while unmounted), drop the previous vault's in-memory filter so
@@ -366,6 +405,7 @@ export function useIssueUrlSync(): {
       useIssueStore.setState({
         filter: {},
         searchQuery: "",
+        listOptionalColumns: [],
         filterVault: vault,
       });
     } else {
@@ -424,6 +464,38 @@ export function useIssueUrlSync(): {
 
   useEffect(() => {
     if (!initialized.current) return;
+    const currentQuery = normalizeParams(searchParams.toString());
+    if (pendingExplicitUrl.current !== null) {
+      if (pendingExplicitUrl.current === currentQuery) {
+        pendingExplicitUrl.current = null;
+        lastUrlQuery.current = currentQuery;
+      }
+      return;
+    }
+    if (lastUrlQuery.current === null) {
+      lastUrlQuery.current = currentQuery;
+      return;
+    }
+    if (lastUrlQuery.current === currentQuery) return;
+
+    // This query was changed by browser history, a direct link, or the
+    // scope/layout owner. Adopt its filter and List display state before the
+    // mirror effect can write the old store state back over it.
+    lastUrlQuery.current = currentQuery;
+    skipMirrorAfterUrlAdoption.current = true;
+    const urlState = readIssueUrlState(searchParams);
+    useIssueStore.setState({
+      ...urlState,
+      filterVault: vault || null,
+    });
+  }, [searchParams, vault]);
+
+  useEffect(() => {
+    if (!initialized.current) return;
+    if (skipMirrorAfterUrlAdoption.current) {
+      skipMirrorAfterUrlAdoption.current = false;
+      return;
+    }
     if (skipNextWrite.current) {
       skipNextWrite.current = false;
       return;
@@ -439,6 +511,7 @@ export function useIssueUrlSync(): {
       filter,
       searchQuery,
       new URLSearchParams(currentParams),
+      listOptionalColumns,
     );
     // Compare order-insensitively: merging from `base` can reorder keys
     // without changing meaning, and we don't want a pure reorder to trigger
@@ -453,13 +526,22 @@ export function useIssueUrlSync(): {
       const useReplace = replaceNextWrite.current;
       replaceNextWrite.current = false;
       const href = `${pathname}${paramString ? `?${paramString}` : ""}`;
+      lastUrlQuery.current = normalizeParams(paramString);
       if (useReplace) {
         router.replace(href, { scroll: false });
       } else {
         router.push(href, { scroll: false });
       }
     }
-  }, [filter, pathname, router, searchParams, searchQuery, vault]);
+  }, [
+    filter,
+    listOptionalColumns,
+    pathname,
+    router,
+    searchParams,
+    searchQuery,
+    vault,
+  ]);
 
   useEffect(() => {
     if (pathname !== withVault(vault, ISSUES_LIST_BASE)) return;
@@ -484,6 +566,7 @@ export function useIssueUrlSync(): {
       params.set("scope", normalizedState.scope);
     }
     params.set("view", normalizedState.layout);
+    lastUrlQuery.current = normalizeParams(params.toString());
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }, [pathname, router, searchParams, scope, vault, view]);
 
@@ -501,6 +584,7 @@ export function useIssueUrlSync(): {
 
     const params = new URLSearchParams(searchParams);
     params.set(GROUP_QUERY_KEY, normalized);
+    lastUrlQuery.current = normalizeParams(params.toString());
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }, [groupBy, pathname, router, searchParams, vault, view]);
 
@@ -510,10 +594,69 @@ export function useIssueUrlSync(): {
       if (view !== "board" && view !== "list") return;
       const params = new URLSearchParams(searchParams);
       params.set(GROUP_QUERY_KEY, serializeIssueGroupBy(nextGroupBy));
+      lastUrlQuery.current = normalizeParams(params.toString());
       router.push(`${pathname}?${params.toString()}`, { scroll: false });
     },
     [pathname, router, searchParams, vault, view],
   );
 
-  return { skipNextSave, groupBy, setGroupBy };
+  const applyMyViewSnapshot = useCallback(
+    (snapshot: MyViewSnapshot) => {
+      if (!vault || pathname !== withVault(vault, ISSUES_LIST_BASE)) return;
+      const applied = applyStoredMyViewSnapshot(snapshot);
+      const normalizedView = normalizeIssueViewState(
+        applied.scope,
+        applied.layout,
+      );
+      const params = new URLSearchParams(searchParams);
+      for (const key of ISSUE_QUERY_KEYS) params.delete(key);
+      params.delete("scope");
+      params.delete("view");
+      params.delete(GROUP_QUERY_KEY);
+      if (normalizedView.scope !== "active") {
+        params.set("scope", normalizedView.scope);
+      }
+      if (normalizedView.layout !== "board") {
+        params.set("view", normalizedView.layout);
+      }
+      const defaultGroup = defaultIssueGroupBy(
+        normalizedView.scope,
+        normalizedView.layout,
+      );
+      if (applied.groupBy !== defaultGroup) {
+        params.set(GROUP_QUERY_KEY, applied.groupBy);
+      }
+      const query = buildIssueSearchParams(
+        applied.filter,
+        "",
+        params,
+        applied.listOptionalColumns ?? [],
+      );
+      // The explicit My View action owns the complete navigation. Suppress the
+      // store mirror effect for this one state replacement so it cannot push an
+      // intermediate URL built from the previous workspace axes.
+      skipNextWrite.current = true;
+      pendingExplicitUrl.current = normalizeParams(query);
+      useIssueStore.setState((state) => ({
+        filter: applied.filter,
+        searchQuery: "",
+        searchQueryResetToken: state.searchQueryResetToken + 1,
+        filterVault: vault,
+        listOptionalColumns: applied.listOptionalColumns ?? [],
+      }));
+      lastUrlQuery.current = normalizeParams(query);
+      router.push(`${pathname}${query ? `?${query}` : ""}`, {
+        scroll: false,
+      });
+    },
+    [pathname, router, searchParams, vault],
+  );
+
+  return {
+    skipNextSave,
+    groupBy,
+    setGroupBy,
+    listOptionalColumns,
+    applyMyViewSnapshot,
+  };
 }
