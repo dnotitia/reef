@@ -71,19 +71,36 @@ jobs:
         run: |
           cp config/app.yaml.example config/app.yaml
           cp config/secret.yaml.example config/secret.yaml
-          sed -i \
-            -e 's|^s3_endpoint_url:.*|s3_endpoint_url: "http://minio:9000"|' \
-            -e 's|^s3_public_url:.*|s3_public_url: "http://localhost:9000"|' \
-            -e 's|^s3_bucket:.*|s3_bucket: akb-files|' \
-            config/app.yaml
           reef_minio_user="$(sed -n 's/^[[:space:]]*MINIO_ROOT_USER:[[:space:]]*//p' docker-compose.yaml | sed -n '1p')"
           reef_minio_password="$(sed -n 's/^[[:space:]]*MINIO_ROOT_PASSWORD:[[:space:]]*//p' docker-compose.yaml | sed -n '1p')"
           test -n "$reef_minio_user"
           test -n "$reef_minio_password"
-          sed -i \
-            -e "s|^s3_access_key:.*|s3_access_key: \"${reef_minio_user}\"|" \
-            -e "s|^s3_secret_key:.*|s3_secret_key: \"${reef_minio_password}\"|" \
-            config/secret.yaml
+          reef_app_config_tmp="$(mktemp)"
+          awk '!/^[[:space:]]*(s3_endpoint_url|s3_public_url|s3_bucket):[[:space:]]*/' config/app.yaml > "$reef_app_config_tmp"
+          printf '%s\n' \
+            's3_endpoint_url: "http://minio:9000"' \
+            's3_public_url: "http://localhost:9000"' \
+            's3_bucket: akb-files' \
+            >> "$reef_app_config_tmp"
+          mv "$reef_app_config_tmp" config/app.yaml
+          reef_secret_config_tmp="$(mktemp)"
+          awk '!/^[[:space:]]*(s3_access_key|s3_secret_key):[[:space:]]*/' config/secret.yaml > "$reef_secret_config_tmp"
+          printf '%s\n' \
+            "s3_access_key: '$reef_minio_user'" \
+            "s3_secret_key: '$reef_minio_password'" \
+            >> "$reef_secret_config_tmp"
+          mv "$reef_secret_config_tmp" config/secret.yaml
+          for reef_key in s3_endpoint_url s3_public_url s3_bucket; do
+            test "$(awk -v key="$reef_key" '$1 == key ":" { count += 1 } END { print count + 0 }' config/app.yaml)" = "1"
+          done
+          for reef_key in s3_access_key s3_secret_key; do
+            test "$(awk -v key="$reef_key" '$1 == key ":" { count += 1 } END { print count + 0 }' config/secret.yaml)" = "1"
+          done
+          test "$(awk '$1 == "s3_endpoint_url:" { print $2; exit }' config/app.yaml)" = '"http://minio:9000"'
+          test "$(awk '$1 == "s3_public_url:" { print $2; exit }' config/app.yaml)" = '"http://localhost:9000"'
+          test "$(awk '$1 == "s3_bucket:" { print $2; exit }' config/app.yaml)" = "akb-files"
+          test "$(awk '$1 == "s3_access_key:" { print $2; exit }' config/secret.yaml)" = "'$reef_minio_user'"
+          test "$(awk '$1 == "s3_secret_key:" { print $2; exit }' config/secret.yaml)" = "'$reef_minio_password'"
 
       - name: Generate AKB local-session keyset
         if: matrix.akb_ref == 'main'
