@@ -312,6 +312,7 @@ export function FilterBar({
         }
         auxiliaryOption={{
           label: emptyLabels.noPriority,
+          content: <PriorityBadge priority={null} />,
           selected: Boolean(filter.priorityUnset),
           onToggle: (checked) =>
             setFilter({ priorityUnset: checked ? true : undefined }),
@@ -338,6 +339,12 @@ export function FilterBar({
         }
         auxiliaryOption={{
           label: emptyLabels.noSeverity,
+          content: (
+            <span className="inline-flex items-center gap-1.5 text-xs text-foreground/80">
+              <span className="size-3.5 shrink-0" aria-hidden="true" />
+              <span>{emptyLabels.noSeverity}</span>
+            </span>
+          ),
           selected: Boolean(filter.severityUnset),
           onToggle: (checked) =>
             setFilter({ severityUnset: checked ? true : undefined }),

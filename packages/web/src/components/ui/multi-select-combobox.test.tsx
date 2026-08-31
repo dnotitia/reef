@@ -405,6 +405,38 @@ describe("MultiSelectCombobox", () => {
       expect(screen.queryByTestId("opt-apple")).toBeNull();
       expect(screen.getByText("Loading…")).toBeTruthy();
     });
+
+    it("keeps a fixed auxiliary choice out of server-search results and counts", async () => {
+      const user = userEvent.setup();
+      render(
+        <MultiSelectCombobox
+          label="People"
+          values={[]}
+          onToggle={() => {}}
+          options={[]}
+          searchable
+          onQueryChange={() => {}}
+          emptyState="No vault members found."
+          auxiliaryOption={{
+            label: "Unassigned",
+            selected: false,
+            onToggle: () => {},
+            testId: "opt-unassigned",
+          }}
+          triggerTestId="people-trigger"
+          contentTestId="people-content"
+        />
+      );
+
+      await user.click(screen.getByTestId("people-trigger"));
+      await user.type(screen.getByRole("combobox"), "zzzz-no-member");
+
+      await waitFor(() => {
+        expect(screen.queryByTestId("opt-unassigned")).toBeNull();
+        expect(screen.getByText("No vault members found.")).toBeTruthy();
+        expect(screen.getByText("0 results")).toBeTruthy();
+      });
+    });
   });
 
   describe("summarizeValue (REEF-246/267)", () => {

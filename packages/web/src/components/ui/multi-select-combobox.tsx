@@ -46,6 +46,7 @@ interface AuxiliaryOption {
   selected: boolean;
   onToggle: (checked: boolean) => void;
   testId?: string;
+  content?: ReactNode;
 }
 
 interface MultiSelectComboboxProps<T extends string> {
@@ -120,6 +121,8 @@ export function MultiSelectCombobox<T extends string>({
   const searchRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const rows = loading ? [] : options;
+  const showAuxiliaryOption =
+    auxiliaryOption && (!searchable || !query.trim());
   const defaultCommandValue = auxiliaryOption?.selected
     ? AUXILIARY_COMMAND_VALUE
     : optionCommandValue(
@@ -213,7 +216,7 @@ export function MultiSelectCombobox<T extends string>({
               active={Boolean(loading)}
               className="sticky top-0 bottom-auto"
             />
-            {auxiliaryOption ? (
+            {showAuxiliaryOption ? (
               <CommandItem
                 value={AUXILIARY_COMMAND_VALUE}
                 keywords={[auxiliaryOption.label]}
@@ -229,7 +232,7 @@ export function MultiSelectCombobox<T extends string>({
                   "data-[selected=true]:bg-surface-hover data-[selected=true]:text-foreground",
                 )}
               >
-                <span>{auxiliaryOption.label}</span>
+                {auxiliaryOption.content ?? <span>{auxiliaryOption.label}</span>}
                 {auxiliaryOption.selected ? (
                   <Check className={CBX_CHECK} aria-hidden />
                 ) : null}
