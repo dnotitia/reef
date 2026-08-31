@@ -1,7 +1,8 @@
 "use client";
 
-import { PersonAvatar } from "@/components/fields/PersonAvatar";
+import { PersonAvatar, personToneFor } from "@/components/fields/PersonAvatar";
 import { useOverlayOpenRegistration } from "@/components/ui/overlayDismiss";
+import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import {
   type AttachmentMarkdownUploadResult,
   appendMarkdownSnippets,
@@ -81,6 +82,7 @@ export function CommentMentionTextarea({
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState(false);
   const t = useTranslations("issues.comments");
+  const currentLogin = useCurrentUserLogin();
 
   const mentionSuggestions = composing
     ? []
@@ -319,6 +321,7 @@ export function CommentMentionTextarea({
                 identityKey={member.username}
                 name={member.display_name ?? member.username}
                 size="xs"
+                tone={personToneFor(member.username, currentLogin)}
                 decorative
               />
               <span className="min-w-0 truncate" translate="no">

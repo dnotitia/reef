@@ -6,6 +6,10 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { CommentComposer } from "./CommentComposer";
 
+vi.mock("@/features/auth/hooks/useCurrentUserLogin", () => ({
+  useCurrentUserLogin: () => null,
+}));
+
 const MEMBERS: VaultMember[] = [
   { username: "Alice Smith", display_name: "Alice", role: "member" },
   { username: "bob", display_name: "Bob", role: "member" },

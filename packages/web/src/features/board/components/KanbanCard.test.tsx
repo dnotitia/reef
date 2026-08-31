@@ -9,7 +9,7 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { KanbanCard } from "./KanbanCard";
+import { KanbanCard, KanbanCardPreview } from "./KanbanCard";
 import type { IssueGroupBucket } from "../../issues/lib/grouping";
 
 // The card reads the signed-in login to decide whether the assignee avatar is
@@ -341,6 +341,15 @@ describe("KanbanCard", () => {
     const avatar = screen.getByRole("img", { name: "bob" });
     expect(/\bbg-av-\d\b/.test(avatar.className)).toBe(true);
     expect(avatar.className).not.toContain("bg-brand-fill");
+  });
+
+  it("keeps the signed-in assignee tone in the drag preview", () => {
+    currentLogin.value = "bob";
+    render(<KanbanCardPreview issue={mockIssue({ assigned_to: "bob" })} />);
+
+    const avatar = screen.getByRole("img", { name: "bob", hidden: true });
+    expect(avatar.className).toContain("bg-brand-fill");
+    expect(avatar.className).not.toMatch(/\bbg-av-\d\b/);
   });
 
   it("invokes onClick with the issue id when clicked", () => {

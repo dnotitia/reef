@@ -1,7 +1,9 @@
 "use client";
 
 import { IssueOptionRow } from "@/components/fields/IssueOptionRow";
+import { personToneFor } from "@/components/fields/PersonAvatar";
 import { PersonChip } from "@/components/fields/PersonChip";
+import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { useIssueDrill } from "@/features/issues/hooks/view/useIssueDrill";
 import {
   type IssueRelationLike,
@@ -52,6 +54,7 @@ interface IssueChildRowProps {
   blockerCount: number;
   getDrillProps: IssueDrillProps;
   membersByUsername: ReadonlyMap<string, VaultMember>;
+  currentLogin: string | null;
   resolved: boolean;
 }
 
@@ -60,6 +63,7 @@ function IssueChildRow({
   blockerCount,
   getDrillProps,
   membersByUsername,
+  currentLogin,
   resolved,
 }: IssueChildRowProps) {
   const t = useTranslations("issues.relations");
@@ -170,6 +174,7 @@ function IssueChildRow({
               name={member?.display_name ?? null}
               fallbackLabel={t("unassigned")}
               size="sm"
+              tone={personToneFor(assignedTo, currentLogin)}
               wrapperClassName="w-full min-w-0"
             />
           </button>
@@ -227,6 +232,7 @@ export const IssueChildren = memo(function IssueChildren({
   action,
 }: IssueChildrenProps) {
   const t = useTranslations("issues.relations");
+  const currentLogin = useCurrentUserLogin();
   const children = useMemo(() => {
     const mine = allIssues.filter((issue) => issue.parent_id === issueId);
     // Remaining first (lifecycle order), resolved last; stable id tiebreaker.
@@ -316,6 +322,7 @@ export const IssueChildren = memo(function IssueChildren({
                       )}
                       getDrillProps={getDrillProps}
                       membersByUsername={membersByUsername}
+                      currentLogin={currentLogin}
                       resolved={isResolvedStatus(child.status)}
                     />
                   </li>
