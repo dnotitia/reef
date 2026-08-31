@@ -12,8 +12,6 @@ explicitly in the entries below.
 
 ## Unreleased
 
-## v0.13.0 - 2026-08-31
-
 ### Added
 
 - **Issues now provide browser-local My Views.** A named My View captures the
@@ -21,6 +19,17 @@ explicitly in the entries below.
   List columns; applying it updates the canonical URL without exposing the
   local view identity, while Manual mode continues to read the shared server
   rank.
+
+### Migration
+
+- **No Dexie schema migration is required for My Views.** The new versioned
+  actor/vault-scoped envelopes use the existing `config` key-value store; old
+  legacy personal-filter keys are not read or migrated, and account reconciliation clears
+  My Views along with the other account-scoped browser state.
+
+## v0.13.0 - 2026-08-31
+
+### Added
 
 - **Reports now include Cycle Time and Lead Time flow metrics.** The Reports
   page shows measurement coverage, P50/P85/P95 percentiles, P85 SLE, completion
@@ -88,11 +97,6 @@ explicitly in the entries below.
   identifiers.
 
 ### Migration
-
-- **No Dexie schema migration is required for My Views.** The new versioned
-  actor/vault-scoped envelopes use the existing `config` key-value store; old
-  legacy personal-filter keys are not read or migrated, and account reconciliation clears
-  My Views along with the other account-scoped browser state.
 
 - **No Dexie schema migration is required for workspace Favorites.** The new
   versioned preference envelope is additive within the existing `config` store;
