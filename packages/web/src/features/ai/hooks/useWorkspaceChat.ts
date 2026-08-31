@@ -37,6 +37,9 @@ export interface UseWorkspaceChatOptions {
 
 export interface UseWorkspaceChatResult {
   messages: ChatTurn[];
+  /** The composer value survives panel/view unmounts until clear(). */
+  composerText: string;
+  setComposerText: (text: string) => void;
   /** Resolves true when the run completed; false keeps the composer for retry. */
   sendMessage: (input: { text: string }) => Promise<boolean>;
   status: ChatStatus;
@@ -106,6 +109,7 @@ export function useWorkspaceChat(
   const { state: runState, start, cancel } = agentRun;
 
   const [turns, setTurns] = useState<ChatTurn[]>([]);
+  const [composerText, setComposerText] = useState("");
 
   const [assistantId, setAssistantId] = useState<string | null>(null);
   const idCounter = useRef(0);
@@ -179,6 +183,7 @@ export function useWorkspaceChat(
     cancel();
     setAssistantId(null);
     setTurns([]);
+    setComposerText("");
   }, [cancel]);
 
   const scopeKeyRef = useRef(options.scopeKey ?? null);
@@ -199,6 +204,8 @@ export function useWorkspaceChat(
 
   return {
     messages,
+    composerText,
+    setComposerText,
     sendMessage,
     status,
     stop,

@@ -39,8 +39,24 @@ test.describe("Hermetic New Issue draft conversation", () => {
     await dialog.getByTestId("markdown-source-textarea").fill("First body");
 
     await dialog.getByTestId("draft-conversation-toggle").click();
-    await expect(dialog.getByTestId("draft-conversation-panel")).toBeVisible();
+    const panel = dialog.getByTestId("draft-conversation-panel");
+    const conversationToggle = dialog.getByTestId("draft-conversation-toggle");
+    await expect(panel).toBeVisible();
     await expect(dialog.getByTestId("new-issue-chat-input")).toBeVisible();
+    await expect(panel.getByRole("heading", { name: "AI chat" })).toBeVisible();
+    await expect(panel.getByTestId("draft-conversation-context")).toHaveCount(
+      0,
+    );
+    await expect(
+      panel.getByText(
+        "Ask for suggestions while you shape this issue. Nothing is applied automatically.",
+      ),
+    ).toHaveCount(0);
+    await expect(conversationToggle).toHaveAttribute(
+      "aria-controls",
+      "draft-conversation-panel",
+    );
+    await expect(panel).toHaveAttribute("id", "draft-conversation-panel");
     expect(agentRequests).toHaveLength(0);
 
     await expect
@@ -134,8 +150,17 @@ test.describe("Hermetic New Issue draft conversation", () => {
         .filter({ hasText: "Request: Use the latest draft" }),
     ).toBeVisible();
 
-    await dialog.getByTestId("draft-conversation-close").click();
-    await expect(dialog.getByTestId("draft-conversation-panel")).toBeHidden();
+    const unsentQuestion = dialog.getByTestId("new-issue-chat-input");
+    await unsentQuestion.fill("Keep this unsent question");
+    const panelClose = dialog.getByTestId("draft-conversation-close");
+    await panelClose.focus();
+    await page.keyboard.press("Enter");
+    await expect(panel).toBeHidden();
+    await expect(conversationToggle).toBeFocused();
+    await conversationToggle.click();
+    await expect(unsentQuestion).toHaveValue("Keep this unsent question");
+    await panelClose.click();
+    await expect(panel).toBeHidden();
     await expect(dialog.getByTestId("new-issue-title-input")).toHaveValue(
       "Updated title",
     );
@@ -189,7 +214,8 @@ test.describe("Hermetic New Issue draft conversation", () => {
     expect(twoColumnGeometry.documentOverflow).toBe(false);
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await expect(dialog.getByTestId("draft-conversation-panel")).toBeVisible();
+    const panel = dialog.getByTestId("draft-conversation-panel");
+    await expect(panel).toBeVisible();
     await expect(
       dialog.getByTestId("draft-conversation-authoring"),
     ).toBeHidden();
@@ -201,6 +227,24 @@ test.describe("Hermetic New Issue draft conversation", () => {
       ),
     ).toBe(true);
 
+    await page.setViewportSize({ width: 375, height: 844 });
+    const narrowInput = dialog.getByTestId("new-issue-chat-input");
+    await narrowInput.fill("Unsent narrow question");
+    const narrowClose = dialog.getByTestId("draft-conversation-close");
+    await narrowClose.focus();
+    await page.keyboard.press("Enter");
+    await expect(panel).toBeHidden();
+    await expect(dialog.getByTestId("draft-view-draft")).toBeFocused();
+    await dialog.getByTestId("draft-view-conversation").click();
+    await expect(narrowInput).toHaveValue("Unsent narrow question");
+
+    await dialog.getByTestId("draft-view-draft").click();
+    await dialog.getByTestId("new-issue-cancel").click();
+    await expect(page.getByTestId("discard-draft-confirm")).toBeVisible();
+    await page.getByTestId("discard-draft-cancel").click();
+    await dialog.getByTestId("draft-view-conversation").click();
+    await expect(narrowInput).toHaveValue("Unsent narrow question");
+
     await dialog.getByTestId("draft-view-draft").click();
     await expect(dialog.getByTestId("draft-conversation-panel")).toBeHidden();
     await expect(dialog.getByTestId("draft-view-draft")).toHaveAttribute(
@@ -210,5 +254,44 @@ test.describe("Hermetic New Issue draft conversation", () => {
     await dialog.getByTestId("draft-view-conversation").click();
     await expect(dialog.getByTestId("draft-conversation-panel")).toBeVisible();
     await expect(dialog.getByTestId("new-issue-chat-input")).toBeVisible();
+  });
+
+  test("keeps narrow draft controls and the chat input inside the viewport", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    for (const width of [320, 375, 414, 768]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+      await page.getByTestId("new-issue-trigger").click();
+
+      const dialog = page.getByTestId("new-issue-dialog");
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByTestId("new-issue-title-input")).toBeVisible();
+      await expect(dialog.getByTestId("new-issue-dialog-footer")).toBeVisible();
+      await expect(dialog.getByTestId("draft-view-draft")).toBeVisible();
+      await expect(dialog.getByTestId("draft-view-conversation")).toBeVisible();
+      expect(
+        await page.evaluate(
+          () =>
+            document.documentElement.scrollWidth <=
+            document.documentElement.clientWidth,
+        ),
+      ).toBe(true);
+
+      await dialog.getByTestId("draft-view-conversation").click();
+      await expect(dialog.getByTestId("new-issue-chat-input")).toBeVisible();
+      expect(
+        await page.evaluate(
+          () =>
+            document.documentElement.scrollWidth <=
+            document.documentElement.clientWidth,
+        ),
+      ).toBe(true);
+      await dialog.getByTestId("draft-view-draft").click();
+      await dialog.getByTestId("new-issue-cancel").click();
+      await expect(dialog).toBeHidden();
+    }
   });
 });

@@ -61,12 +61,20 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
   // vault, not the shared Dexie pointer.
   const chatFetch = useMemo(() => createVaultAwareFetch(vault), [vault]);
 
-  const { messages, sendMessage, status, stop, clear, messageCount } =
-    useWorkspaceChat({
-      fetch: chatFetch,
-      route: pathname ?? null,
-      reefId: issueContext?.reefId ?? null,
-    });
+  const {
+    messages,
+    composerText,
+    setComposerText,
+    sendMessage,
+    status,
+    stop,
+    clear,
+    messageCount,
+  } = useWorkspaceChat({
+    fetch: chatFetch,
+    route: pathname ?? null,
+    reefId: issueContext?.reefId ?? null,
+  });
 
   // ESC closes the panel — registers when open so it does not trap the
   // keystroke for other dialogs.
@@ -155,6 +163,8 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
       ) : (
         <ChatSurface
           messages={messages}
+          composerText={composerText}
+          onComposerTextChange={setComposerText}
           sendMessage={sendMessage}
           status={status}
           stop={stop}

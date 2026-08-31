@@ -26,6 +26,9 @@ import { ToolStepTrace } from "./ToolStepTrace";
 export interface ChatSurfaceProps {
   /** Structured conversation turns from `useWorkspaceChat`. */
   messages: ChatTurn[];
+  /** Optional caller-owned composer state for surfaces that can unmount it. */
+  composerText?: string;
+  onComposerTextChange?: (text: string) => void;
   sendMessage: (input: { text: string }) => boolean | Promise<boolean>;
   status: ChatStatus;
   /** Aborts an in-flight stream — wired to the submit button while busy. */
@@ -53,13 +56,15 @@ export interface ChatSurfaceProps {
 
 /**
  * Presentational chat shell: a `Conversation` of structured turns plus a
- * `PromptInput` composer. Owns no chat state — the caller supplies the
+ * `PromptInput` composer. Owns no conversation state — the caller supplies the
  * `useWorkspaceChat()` result. Assistant turns render the tool-call trace
  * (transparency), the Markdown answer with reef-mention deep links, and the
  * document citations (REEF-361).
  */
 export function ChatSurface({
   messages,
+  composerText,
+  onComposerTextChange,
   sendMessage,
   status,
   stop,
@@ -74,7 +79,9 @@ export function ChatSurface({
   className,
 }: ChatSurfaceProps) {
   const isBusy = status === "submitted" || status === "streaming";
-  const [inputText, setInputText] = useState("");
+  const [localComposerText, setLocalComposerText] = useState("");
+  const inputText = composerText ?? localComposerText;
+  const setInputText = onComposerTextChange ?? setLocalComposerText;
 
   async function handleSubmit(message: PromptInputMessage) {
     const text = message.text.trim();

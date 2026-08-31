@@ -101,9 +101,15 @@ const { mockWorkspaceChat } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/features/ai/hooks/useWorkspaceChat", () => ({
-  useWorkspaceChat: () => mockWorkspaceChat,
-}));
+vi.mock("@/features/ai/hooks/useWorkspaceChat", async () => {
+  const React = await vi.importActual<typeof import("react")>("react");
+  return {
+    useWorkspaceChat: () => {
+      const [composerText, setComposerText] = React.useState("");
+      return { ...mockWorkspaceChat, composerText, setComposerText };
+    },
+  };
+});
 
 vi.mock("@/features/ui/stores/useViewStore", () => ({
   useViewStore: <T,>(
@@ -414,8 +420,22 @@ describe("NewIssueDialog", () => {
     await user.click(screen.getByTestId("draft-conversation-toggle"));
 
     expect(screen.getByTestId("draft-conversation-panel")).toBeInTheDocument();
-    expect(screen.getByTestId("draft-conversation-context")).toHaveTextContent(
-      "Current draft",
+    expect(
+      screen.getByRole("heading", { name: "AI chat" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("draft-conversation-context")).toBeNull();
+    expect(
+      screen.queryByText(
+        "Ask for suggestions while you shape this issue. Nothing is applied automatically.",
+      ),
+    ).toBeNull();
+    expect(screen.getByTestId("draft-conversation-toggle")).toHaveAttribute(
+      "aria-controls",
+      "draft-conversation-panel",
+    );
+    expect(screen.getByTestId("draft-conversation-panel")).toHaveAttribute(
+      "id",
+      "draft-conversation-panel",
     );
     expect(screen.getByTestId("new-issue-dialog")).toHaveClass(
       "max-w-[min(94vw,1620px)]",
@@ -432,6 +452,66 @@ describe("NewIssueDialog", () => {
       "Keep this draft",
     );
     expect(screen.getByTestId("markdown-source-textarea")).toHaveValue("Body");
+    expect(screen.getByTestId("enrich-trigger")).toHaveTextContent(
+      "Get suggestions",
+    );
+  });
+
+  it("restores focus to the visible close target and preserves the unsent question", async () => {
+    const user = userEvent.setup();
+    setViewport(1024, 768);
+    mockViewStore.state.newIssueDialogOpen = true;
+    render(wrap(<NewIssueDialog />));
+
+    await screen.findByText("New Issue");
+    await user.click(screen.getByTestId("draft-conversation-toggle"));
+    const input = screen.getByTestId("new-issue-chat-input");
+    await user.type(input, "remember this question");
+    await user.click(screen.getByTestId("draft-conversation-close"));
+
+    expect(screen.getByTestId("draft-conversation-toggle")).toHaveFocus();
+    expect(screen.queryByTestId("new-issue-chat-input")).toBeNull();
+
+    await user.click(screen.getByTestId("draft-conversation-toggle"));
+    expect(screen.getByTestId("new-issue-chat-input")).toHaveValue(
+      "remember this question",
+    );
+  });
+
+  it("restores mobile focus to Draft and keeps composer text through discard cancel", async () => {
+    const user = userEvent.setup();
+    setViewport(375, 844);
+    mockViewStore.state.newIssueDialogOpen = true;
+    render(wrap(<NewIssueDialog />));
+
+    await screen.findByText("New Issue");
+    await user.click(screen.getByTestId("draft-view-conversation"));
+    expect(screen.getByTestId("draft-view-conversation")).toHaveAttribute(
+      "aria-controls",
+      "draft-conversation-panel",
+    );
+    await user.type(
+      screen.getByTestId("new-issue-chat-input"),
+      "mobile question",
+    );
+    await user.click(screen.getByTestId("draft-conversation-close"));
+
+    expect(screen.getByTestId("draft-view-draft")).toHaveFocus();
+    await user.click(screen.getByTestId("draft-view-conversation"));
+    expect(screen.getByTestId("new-issue-chat-input")).toHaveValue(
+      "mobile question",
+    );
+
+    await user.click(screen.getByTestId("draft-view-draft"));
+    await user.click(screen.getByTestId("new-issue-cancel"));
+    expect(
+      await screen.findByTestId("discard-draft-confirm"),
+    ).toBeInTheDocument();
+    await user.click(screen.getByTestId("discard-draft-cancel"));
+    await user.click(screen.getByTestId("draft-view-conversation"));
+    expect(screen.getByTestId("new-issue-chat-input")).toHaveValue(
+      "mobile question",
+    );
   });
 
   it("stops a streaming draft conversation when it is folded", async () => {

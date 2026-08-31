@@ -338,4 +338,23 @@ describe("useWorkspaceChat", () => {
     expect(result.current.messages).toHaveLength(0);
     expect(result.current.messageCount).toBe(0);
   });
+
+  it("keeps an unsent composer value until the conversation is cleared", () => {
+    const { result } = renderHook(() =>
+      useWorkspaceChat({
+        fetch: () => Promise.resolve(sseResponse([])),
+        route: null,
+        reefId: null,
+      }),
+    );
+
+    act(() => result.current.setComposerText("unsent question"));
+    expect(result.current.composerText).toBe("unsent question");
+
+    act(() => result.current.stop());
+    expect(result.current.composerText).toBe("unsent question");
+
+    act(() => result.current.clear());
+    expect(result.current.composerText).toBe("");
+  });
 });

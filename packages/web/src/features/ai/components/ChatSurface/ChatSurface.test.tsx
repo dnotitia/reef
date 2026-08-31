@@ -81,11 +81,13 @@ vi.mock("@/components/ai-elements/prompt-input", () => ({
   PromptInputTextarea: ({
     onChange,
     placeholder,
+    value,
     disabled,
     "data-testid": testId,
   }: {
     onChange?: ChangeEventHandler<HTMLTextAreaElement>;
     placeholder?: string;
+    value?: string;
     disabled?: boolean;
     "data-testid"?: string;
   }) => (
@@ -93,6 +95,7 @@ vi.mock("@/components/ai-elements/prompt-input", () => ({
       data-testid={testId ?? "prompt-input-textarea"}
       onChange={onChange}
       placeholder={placeholder}
+      value={value}
       disabled={disabled}
     />
   ),
@@ -225,6 +228,20 @@ describe("ChatSurface", () => {
 
     await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
     expect(input).toHaveValue("retry this");
+  });
+
+  it("uses caller-owned composer state when provided", () => {
+    const onComposerTextChange = vi.fn();
+    renderSurface({
+      composerText: "remember this",
+      onComposerTextChange,
+      inputTestId: "surface-input",
+    });
+
+    const input = screen.getByTestId("surface-input");
+    expect(input).toHaveValue("remember this");
+    fireEvent.change(input, { target: { value: "updated question" } });
+    expect(onComposerTextChange).toHaveBeenCalledWith("updated question");
   });
 
   it("surfaces an assistant turn error via role=alert", () => {

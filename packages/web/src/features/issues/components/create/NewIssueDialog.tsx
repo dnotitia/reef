@@ -199,6 +199,9 @@ export function NewIssueDialog({
   const titleInputRef = useRef<HTMLInputElement>(null);
   const seededContextRef = useRef<typeof dialogContext | undefined>(undefined);
   const focusOriginRef = useRef<HTMLElement | null>(null);
+  const draftConversationToggleRef = useRef<HTMLButtonElement>(null);
+  const draftViewDraftRef = useRef<HTMLButtonElement>(null);
+  const restoreDraftConversationFocusRef = useRef(false);
   const subIssueContext =
     dialogContext?.kind === "subIssue" ? dialogContext : null;
 
@@ -346,6 +349,18 @@ export function NewIssueDialog({
     draftConversation.clear();
   }, [draftConversation.clear, vault]);
 
+  useLayoutEffect(() => {
+    if (draftConversationOpen || !restoreDraftConversationFocusRef.current) {
+      return;
+    }
+    restoreDraftConversationFocusRef.current = false;
+    const target =
+      window.innerWidth >= 900
+        ? draftConversationToggleRef.current
+        : draftViewDraftRef.current;
+    target?.focus({ preventScroll: true });
+  }, [draftConversationOpen]);
+
   function handleApplyTemplate(template: Template) {
     // Prefix the existing title when the user hasn't typed one yet —
     // avoids producing "Bug: Bug: …" on a re-pick. The body consistently overwrites:
@@ -387,7 +402,8 @@ export function NewIssueDialog({
     blocks.length > 0 ||
     relatedTo.length > 0 ||
     externalRefs.length > 0 ||
-    references.length > 0;
+    references.length > 0 ||
+    draftConversation.composerText.trim() !== "";
 
   // Wraps the form body so the close path can also catch text buffered inside
   // child controls before it is committed — a label typed but not yet entered,
@@ -615,6 +631,7 @@ export function NewIssueDialog({
     : tc("maximizeWindow");
 
   function closeDraftConversation() {
+    restoreDraftConversationFocusRef.current = true;
     if (
       draftConversation.status === "submitted" ||
       draftConversation.status === "streaming"
@@ -749,7 +766,7 @@ export function NewIssueDialog({
         ref={dialogContentRef}
         data-testid="new-issue-dialog"
         // The header already owns the top-right action row (template picker +
-        // Enrich with AI). The shared close X overlaps those actions, and the
+        // Get suggestions). The shared close X overlaps those actions, and the
         // footer Cancel / Escape / outside-click / post-submit redirect all
         // still dismiss — so this dialog opts out of the built-in close X.
         showCloseButton={false}
@@ -862,6 +879,7 @@ export function NewIssueDialog({
               </Button>
               <Button
                 type="button"
+                ref={draftConversationToggleRef}
                 variant={draftConversationOpen ? "secondary" : "outline"}
                 size="sm"
                 className="hidden h-8 gap-1.5 px-3 text-xs min-[900px]:inline-flex"
@@ -910,6 +928,7 @@ export function NewIssueDialog({
           >
             <Button
               type="button"
+              ref={draftViewDraftRef}
               size="sm"
               variant={draftConversationOpen ? "ghost" : "secondary"}
               aria-pressed={!draftConversationOpen}
@@ -925,6 +944,7 @@ export function NewIssueDialog({
               size="sm"
               variant={draftConversationOpen ? "secondary" : "ghost"}
               aria-pressed={draftConversationOpen}
+              aria-controls="draft-conversation-panel"
               data-testid="draft-view-conversation"
               onClick={() => setDraftConversationOpen(true)}
               disabled={noVault}
@@ -972,6 +992,8 @@ export function NewIssueDialog({
             {draftConversationOpen ? (
               <DraftConversationPanel
                 messages={draftConversation.messages}
+                composerText={draftConversation.composerText}
+                onComposerTextChange={draftConversation.setComposerText}
                 sendMessage={draftConversation.sendMessage}
                 status={draftConversation.status}
                 stop={draftConversation.stop}
