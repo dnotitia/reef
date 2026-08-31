@@ -16,6 +16,10 @@ const streamdownCapture = vi.hoisted(() => ({
   remarkPlugins: undefined as unknown,
 }));
 
+vi.mock("@/features/auth/hooks/useCurrentUserLogin", () => ({
+  useCurrentUserLogin: () => null,
+}));
+
 vi.mock("streamdown", () => ({
   defaultRehypePlugins: {
     raw: () => undefined,

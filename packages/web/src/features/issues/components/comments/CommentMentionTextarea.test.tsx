@@ -5,7 +5,7 @@ import type { VaultMember } from "@reef/core";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommentMentionTextarea } from "./CommentMentionTextarea";
 import {
   type CommentMentionDraft,
@@ -15,6 +15,16 @@ import {
 const MEMBERS: VaultMember[] = [
   { username: "Bob Smith", display_name: "Bob Smith", role: "member" },
 ];
+
+const currentLogin = vi.hoisted(() => ({ value: null as string | null }));
+
+vi.mock("@/features/auth/hooks/useCurrentUserLogin", () => ({
+  useCurrentUserLogin: () => currentLogin.value,
+}));
+
+afterEach(() => {
+  currentLogin.value = null;
+});
 
 function SheetCommentHarness({ onEscape }: { onEscape: () => void }) {
   const [draft, setDraft] = useState<CommentMentionDraft>(() =>
@@ -98,5 +108,37 @@ describe("CommentMentionTextarea Escape behavior", () => {
     );
     expect(textbox).toHaveValue("@B");
     expect(onEscape).not.toHaveBeenCalled();
+  });
+});
+
+describe("CommentMentionTextarea avatar tone", () => {
+  it("uses the brand tone only for the signed-in mention candidate", async () => {
+    currentLogin.value = "Bob Smith";
+    const user = userEvent.setup();
+    render(
+      <IntlTestProvider>
+        <CommentMentionTextarea
+          draft={emptyCommentMentionDraft()}
+          members={MEMBERS}
+          pending={false}
+          name="comment"
+          ariaLabel="Add a comment"
+          placeholder="Write a comment"
+          rows={2}
+          className=""
+          onDraftChange={vi.fn()}
+        />
+      </IntlTestProvider>,
+    );
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Add a comment" }),
+      "@",
+    );
+
+    const option = screen.getByRole("option", { name: "Mention @Bob Smith" });
+    const avatar = option.querySelector('[aria-hidden="true"]');
+    expect(avatar).toHaveClass("bg-brand-fill");
+    expect(avatar?.className).not.toMatch(/\bbg-av-\d\b/);
   });
 });
