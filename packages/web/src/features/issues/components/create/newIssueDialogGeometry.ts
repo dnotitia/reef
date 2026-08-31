@@ -133,7 +133,7 @@ export function useNewIssueDialogGeometry(
   open: boolean,
   formBodyRef: { current: HTMLDivElement | null },
   /** Keep the closed dialog's baseline while the temporary AI column is open. */
-  chatOpen = false,
+  chatOpen: boolean,
 ): NewIssueDialogGeometry {
   const [dialogElement, setDialogElement] = useState<HTMLDivElement | null>(
     null,
