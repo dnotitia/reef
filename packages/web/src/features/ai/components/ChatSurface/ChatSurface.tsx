@@ -18,7 +18,7 @@ import type { ChatAssistantTurn, ChatTurn } from "@/features/ai/chat/chatTypes";
 import type { ChatStatus } from "@/features/ai/hooks/useWorkspaceChat";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useMemo } from "react";
 import { ChatCitations } from "./ChatCitations";
 import { ChatMarkdown } from "./ChatMarkdown";
 import { ToolStepTrace } from "./ToolStepTrace";
@@ -26,9 +26,9 @@ import { ToolStepTrace } from "./ToolStepTrace";
 export interface ChatSurfaceProps {
   /** Structured conversation turns from `useWorkspaceChat`. */
   messages: ChatTurn[];
-  /** Optional caller-owned composer state for surfaces that can unmount it. */
-  composerText?: string;
-  onComposerTextChange?: (text: string) => void;
+  /** Caller-owned composer state for surfaces that can unmount it. */
+  composerText: string;
+  onComposerTextChange: (text: string) => void;
   sendMessage: (input: { text: string }) => boolean | Promise<boolean>;
   status: ChatStatus;
   /** Aborts an in-flight stream — wired to the submit button while busy. */
@@ -79,9 +79,8 @@ export function ChatSurface({
   className,
 }: ChatSurfaceProps) {
   const isBusy = status === "submitted" || status === "streaming";
-  const [localComposerText, setLocalComposerText] = useState("");
-  const inputText = composerText ?? localComposerText;
-  const setInputText = onComposerTextChange ?? setLocalComposerText;
+  const inputText = composerText;
+  const setInputText = onComposerTextChange;
 
   async function handleSubmit(message: PromptInputMessage) {
     const text = message.text.trim();

@@ -1,7 +1,12 @@
 import type { ChatAssistantTurn, ChatTurn } from "@/features/ai/chat/chatTypes";
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { fireEvent, render as rtlRender, screen } from "@testing-library/react";
-import type { ChangeEventHandler, ReactElement, ReactNode } from "react";
+import {
+  type ChangeEventHandler,
+  type ReactElement,
+  type ReactNode,
+  useState,
+} from "react";
 import { describe, expect, it, vi } from "vitest";
 
 // ai-elements primitives lean on streamdown / radix scroll-area / textarea
@@ -108,7 +113,14 @@ function render(ui: ReactElement) {
 }
 
 function renderSurface(props: Partial<ChatSurfaceProps> = {}) {
-  return render(
+  return render(<StatefulSurface {...props} />);
+}
+
+function StatefulSurface(props: Partial<ChatSurfaceProps>) {
+  const [localComposerText, setLocalComposerText] = useState(
+    props.composerText ?? "",
+  );
+  return (
     <ChatSurface
       messages={[]}
       sendMessage={vi.fn()}
@@ -116,7 +128,13 @@ function renderSurface(props: Partial<ChatSurfaceProps> = {}) {
       vault="reef-e2e"
       knownIssueIds={new Set()}
       {...props}
-    />,
+      composerText={
+        props.onComposerTextChange
+          ? (props.composerText ?? "")
+          : localComposerText
+      }
+      onComposerTextChange={props.onComposerTextChange ?? setLocalComposerText}
+    />
   );
 }
 
