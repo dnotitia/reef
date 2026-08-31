@@ -331,7 +331,6 @@ describe("LoginPanel", () => {
     const ssoLink = await screen.findByRole("link", {
       name: "Continue with SSO",
     });
-    expect(ssoLink).toHaveAccessibleName("Continue with SSO");
     expect(ssoLink).toHaveAttribute(
       "href",
       "/api/auth/akb/sso/start?redirect=%2Fissues%3Fstatus%3Dopen",
@@ -357,7 +356,6 @@ describe("LoginPanel", () => {
     renderWithQueryClient(<LoginPanel redirectTo="/issues" />, "ko");
 
     const ssoLink = await screen.findByRole("link", { name: "SSO로 계속하기" });
-    expect(ssoLink).toHaveAccessibleName("SSO로 계속하기");
     expect(screen.getByText("로그인 방법", { exact: true })).toBeVisible();
     expect(
       screen.getByText("워크스페이스에 연결된 인증 제공자를 사용합니다.", {

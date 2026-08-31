@@ -204,17 +204,15 @@ export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
         )}
 
         {ssoEnabled && (
-          <div className="flex flex-col gap-2">
-            <a
-              href={ssoStartUrl}
-              className={cn(
-                "inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-brand-fill px-4 font-medium text-brand-on-fill text-sm whitespace-nowrap transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
-              )}
-            >
-              <KeyRound className="size-4" aria-hidden="true" />
-              {t("continueWithSso")}
-            </a>
-          </div>
+          <a
+            href={ssoStartUrl}
+            className={cn(
+              "inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-brand-fill px-4 font-medium text-brand-on-fill text-sm whitespace-nowrap transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
+            )}
+          >
+            <KeyRound className="size-4" aria-hidden="true" />
+            {t("continueWithSso")}
+          </a>
         )}
 
         {capabilities && !ssoEnabled && !localAuthEnabled && (
