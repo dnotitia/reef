@@ -11,8 +11,15 @@ import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { IssueQuickEditAnchor } from "@/features/issues/components/quick-edit/IssueQuickEditAnchor";
 import { useIssueUpdateState } from "@/features/issues/hooks/mutations/useUpdateIssue";
 import { IssueContextMenu } from "@/features/issues/components/context-menu/IssueContextMenu";
-import { useIssueFlash } from "@/features/issues/stores/useFlashStore";
+import {
+  useIssueFlash,
+  useIssueReorderFlash,
+} from "@/features/issues/stores/useFlashStore";
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
+import {
+  IssueReorderStatus,
+  type IssueReorderSurfaceState,
+} from "@/features/issues/components/shared/IssueReorderFeedback";
 import {
   type PlanningKind,
   findPlanningName,
@@ -73,6 +80,7 @@ interface KanbanCardProps {
   bucket?: IssueGroupBucket;
   pendingFields?: readonly QuickEditPatchField[];
   updateMessage?: string;
+  reorderState?: IssueReorderSurfaceState | null;
 }
 
 interface KanbanCardSurfaceProps extends HTMLAttributes<HTMLDivElement> {
@@ -86,6 +94,8 @@ interface KanbanCardSurfaceProps extends HTMLAttributes<HTMLDivElement> {
   readOnlyTooltipId?: string;
   pendingFields?: readonly QuickEditPatchField[];
   updateMessage?: string;
+  reorderState?: IssueReorderSurfaceState | null;
+  reorderSuccess?: boolean;
 }
 
 interface PlanningContextItem {
@@ -146,6 +156,8 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
       readOnlyTooltipId,
       pendingFields = [],
       updateMessage,
+      reorderState,
+      reorderSuccess = false,
       className,
       ...props
     },
@@ -171,6 +183,8 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
       "releases",
       issue.release_id,
     );
+    const surfaceReorderState =
+      reorderState ?? (reorderSuccess ? "success" : null);
 
     const planningContextItems: PlanningContextItem[] = [];
     if (sprintName) {
@@ -207,11 +221,17 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
           "focus-visible:outline-none focus-visible:border-brand-focus/60 focus-visible:bg-brand-fill/5",
           isDragging && "opacity-50 cursor-grabbing shadow-md",
           readOnlyReason && "cursor-not-allowed",
+          reorderSuccess && "reef-reorder-success-card",
           className,
         )}
+        aria-busy={
+          pendingFields.length > 0 || surfaceReorderState === "pending"
+            ? true
+            : undefined
+        }
         aria-describedby={readOnlyTooltipId}
         aria-disabled={readOnlyReason ? true : undefined}
-        aria-busy={pendingFields.length > 0 || undefined}
+        data-reorder-state={surfaceReorderState ?? undefined}
         title={readOnlyReason}
         {...props}
       >
@@ -252,7 +272,18 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
           </span>
           <span className="font-mono tabular-nums shrink-0">{issue.id}</span>
           <TypePill type={issue.issue_type} variant="kanban" />
-          {blocked && <BlockedBadge variant="kanban" className="ml-auto" />}
+          {surfaceReorderState && surfaceReorderState !== "success" && (
+            <IssueReorderStatus
+              state={surfaceReorderState}
+              className="ml-auto"
+            />
+          )}
+          {blocked && (
+            <BlockedBadge
+              variant="kanban"
+              className={surfaceReorderState ? undefined : "ml-auto"}
+            />
+          )}
         </div>
 
         {/* Row 2 — title: standalone, 2-line clamp, the visual anchor */}
@@ -373,6 +404,7 @@ const KanbanCardContent = memo(function KanbanCardContent({
   bucket,
   pendingFields = [],
   updateMessage,
+  reorderState = null,
 }: KanbanCardProps) {
   const currentLogin = useCurrentUserLogin();
   const {
@@ -398,6 +430,7 @@ const KanbanCardContent = memo(function KanbanCardContent({
   // server-side. the flashing card re-renders; the hook auto-clears the
   // flag after the flash window so a later save can flash it again.
   const isFlashing = useIssueFlash(vault ?? "", issue.id);
+  const reorderSuccess = useIssueReorderFlash(vault ?? "", issue.id);
   const keyboardOccurrenceKey = occurrenceKey ?? issue.id;
   const focused = useIssueKeyboardStore(
     (state) =>
@@ -490,6 +523,8 @@ const KanbanCardContent = memo(function KanbanCardContent({
       blocked={blocked}
       planningCatalog={planningCatalog}
       isDragging={isDragging}
+      reorderState={reorderState}
+      reorderSuccess={reorderSuccess}
       readOnlyReason={readOnlyReason}
       readOnlyTooltipId={
         readOnlyReason ? `kanban-read-only-${keyboardOccurrenceKey}` : undefined

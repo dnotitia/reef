@@ -1,4 +1,5 @@
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
+import { useFlashStore } from "@/features/issues/stores/useFlashStore";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import type { IssueMetadata } from "@reef/core";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -21,6 +22,10 @@ function isBefore(a: Element, b: Element): boolean {
 describe("KanbanBoard in-column sorting (REEF-059)", () => {
   beforeEach(() => {
     resetKanbanBoardMocks();
+    useFlashStore.setState({
+      flashedIssueKeys: new Set(),
+      reorderFlashedIssueKeys: new Set(),
+    });
   });
 
   // FILTER_ISSUES puts two cards in the Open column:
@@ -184,6 +189,79 @@ describe("KanbanBoard in-column sorting (REEF-059)", () => {
       after_id: "REEF-010",
     });
     expect(body.group).toBeUndefined();
+  });
+
+  it("keeps Board feedback on the moved identity until canonical success settles", async () => {
+    const manualIssues = FILTER_ISSUES.map((issue) =>
+      issue.id === "REEF-010"
+        ? { ...issue, rank: 1000 }
+        : issue.id === "REEF-013"
+          ? { ...issue, rank: 2000 }
+          : issue,
+    );
+    let resolveReorder: (response: Response) => void = () => {};
+    const pendingReorder = new Promise<Response>((resolve) => {
+      resolveReorder = resolve;
+    });
+    mockApiFetch.mockImplementation(async (url) => {
+      if (String(url).startsWith("/api/issues?vault=reef-acme")) {
+        return new Response(JSON.stringify({ issues: manualIssues }), {
+          status: 200,
+        });
+      }
+      if (String(url).startsWith("/api/issues/relations")) {
+        return new Response(JSON.stringify({ relations: [] }), { status: 200 });
+      }
+      if (url === "/api/issues/reorder") return pendingReorder;
+      return new Response("{}", { status: 200 });
+    });
+
+    render(wrap(<KanbanBoard vault="reef-acme" />));
+    await screen.findByText("Backend blocker");
+
+    act(() => {
+      dndHarness.contextProps?.onDragEnd?.({
+        active: { data: { current: { issue: manualIssues[3] } } },
+        over: { id: "todo:REEF-010" },
+      });
+    });
+
+    const movedCard = () =>
+      screen
+        .getAllByTestId("kanban-card")
+        .find((card) => card.textContent?.includes("Backend blocker"));
+    await waitFor(() =>
+      expect(movedCard()).toHaveAttribute("data-reorder-state", "pending"),
+    );
+    expect(movedCard()).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByTestId("issue-reorder-status")).toHaveAttribute(
+      "aria-label",
+      "Saving position",
+    );
+    expect(
+      screen.getByTestId("reorder-persistence-announcement"),
+    ).toHaveTextContent("Saving REEF-013's position…");
+    expect(useFlashStore.getState().flashedIssueKeys).toEqual(new Set());
+
+    await act(async () => {
+      resolveReorder(
+        new Response(
+          JSON.stringify({
+            ok: true,
+            assignments: [{ id: "REEF-013", rank: 1500 }],
+          }),
+          { status: 200 },
+        ),
+      );
+    });
+
+    await waitFor(() =>
+      expect(movedCard()).toHaveAttribute("data-reorder-state", "success"),
+    );
+    expect(movedCard()).toHaveClass("reef-flash-card");
+    expect(
+      screen.getByTestId("reorder-persistence-announcement"),
+    ).toHaveTextContent("REEF-013's position saved.");
   });
 
   it.each([

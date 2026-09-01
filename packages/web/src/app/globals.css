@@ -1884,6 +1884,15 @@ hr {
   .reef-flash-row {
     animation: none;
   }
+  /* Reorder success remains visibly settled for reduced-motion users. The
+   * normal save-confirm pulse still disappears without movement; only reorder
+   * carries an explicit success state and therefore needs this static cue. */
+  .reef-reorder-success-card::after {
+    opacity: 1;
+  }
+  .reef-reorder-success-row {
+    background-color: color-mix(in oklab, var(--brand-fill) 20%, transparent);
+  }
   /* Keep the static two-tone structure (the base fills) but drop the sweep so
    * nothing moves or freezes mid-highlight (REEF-250 AC3). */
   .reef-shimmer {

@@ -396,6 +396,16 @@ test.describe("Hermetic runtime discovery", () => {
             code: "membership_required|account_suspended|identity_conflict|null",
           },
         },
+        issue_reorder_control: {
+          method: "POST",
+          path: "/__e2e/issue-reorder-control",
+          content_type: "application/json",
+          body: {
+            vault: "<vault>",
+            delay_ms: "<milliseconds>",
+            failures: "<count>",
+          },
+        },
       },
       fixture_login: {
         ...fixtureLogin,

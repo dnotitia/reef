@@ -228,6 +228,22 @@ const server = createServer(async (req, res) => {
       return json(res, 200, { ok: true, vault, updates: controls });
     }
     if (
+      url.pathname === "/__e2e/issue-reorder-control" &&
+      req.method === "POST"
+    ) {
+      const body = await readJson(req);
+      state.issueReorderDelayMs = Math.max(
+        0,
+        Math.min(Number(body?.delay_ms ?? 0), 2_000),
+      );
+      state.issueReorderFailures = Math.max(0, Number(body?.failures ?? 0));
+      return json(res, 200, {
+        ok: true,
+        delay_ms: state.issueReorderDelayMs,
+        failures: state.issueReorderFailures,
+      });
+    }
+    if (
       url.pathname === "/__e2e/content-search-control" &&
       req.method === "POST"
     ) {
@@ -474,6 +490,16 @@ function runtimeDiscovery() {
         content_type: "application/json",
         body: { enabled: "<boolean>" },
       },
+      issue_reorder_control: {
+        method: "POST",
+        path: "/__e2e/issue-reorder-control",
+        content_type: "application/json",
+        body: {
+          vault: "<vault>",
+          delay_ms: "<milliseconds>",
+          failures: "<count>",
+        },
+      },
       auth_control: {
         method: "POST",
         path: "/__e2e/auth-control",
@@ -713,6 +739,8 @@ function makeState(scenario) {
     vaultListFailures: 0,
     issueUpdateFailures: new Map(),
     issueUpdateDelays: new Map(),
+    issueReorderFailures: 0,
+    issueReorderDelayMs: 0,
     issueUpdateCalls: new Map(),
     keycloakEnabled: false,
     localAuthEnabled: true,
@@ -2223,10 +2251,17 @@ async function handleAkb(req, res, url) {
     const issueId =
       /^\s*update\s+reef_issues\b/i.test(sql) &&
       matchSqlString(sql, /where "?reef_id"?\s*=\s*'([^']+)'/i);
+    const isReorder = /^\s*with updated as \(update reef_issues\b/i.test(sql);
     const delayMs = issueId
       ? (state.issueUpdateDelays.get(issueUpdateKey(vault.name, issueId)) ?? 0)
-      : 0;
+      : isReorder
+        ? state.issueReorderDelayMs
+        : 0;
     if (delayMs > 0) await sleep(delayMs);
+    if (isReorder && state.issueReorderFailures > 0) {
+      state.issueReorderFailures -= 1;
+      return json(res, 200, { error: "e2e forced issue reorder failure" });
+    }
     return json(res, 200, handleSql(vault, sql));
   }
 

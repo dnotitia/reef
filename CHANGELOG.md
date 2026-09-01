@@ -33,6 +33,12 @@ explicitly in the entries below.
   projector with per-Vault retry and cursor handling. No browser-facing API or
   UI surface changes.
 
+- **Manual-order moves now expose per-card and per-row persistence feedback.**
+  Board, List, and Backlog surfaces distinguish saving, saved, and failed
+  reorder states; the existing save-confirm pulse follows the canonical server
+  result, while conflicts retain rollback, retry, focus, and screen-reader
+  feedback.
+
 ### Migration
 
 - **No Dexie schema migration is required for My Views.** The new versioned

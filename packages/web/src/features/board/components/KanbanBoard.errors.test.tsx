@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
+import { useFlashStore } from "@/features/issues/stores/useFlashStore";
 
 // Capture the retry helper so the effect-free onError path can be asserted.
 const { notifyReorderFailure, notifyRetryableError } = vi.hoisted(() => ({
@@ -31,6 +32,10 @@ describe("KanbanBoard status-update errors", () => {
         sortField: "priority",
         sortOrder: "desc",
       },
+    });
+    useFlashStore.setState({
+      flashedIssueKeys: new Set(),
+      reorderFlashedIssueKeys: new Set(),
     });
     notifyReorderFailure.mockReset();
     notifyRetryableError.mockReset();
@@ -76,6 +81,20 @@ describe("KanbanBoard status-update errors", () => {
     expect(notifyReorderFailure.mock.calls[0][1]).toMatchObject({
       id: "kanban:REEF-001",
     });
+    const movedCard = screen
+      .getAllByTestId("kanban-card")
+      .find((card) => card.textContent?.includes("Open A"));
+    expect(movedCard).toHaveAttribute("data-reorder-state", "error");
+    expect(movedCard).not.toHaveAttribute("aria-busy");
+    expect(screen.getByTestId("issue-reorder-status")).toHaveAttribute(
+      "aria-label",
+      "Position not saved",
+    );
+    expect(
+      screen.getByTestId("reorder-persistence-announcement"),
+    ).toHaveTextContent("REEF-001's position was not saved.");
+    expect(useFlashStore.getState().flashedIssueKeys).toEqual(new Set());
+    expect(useFlashStore.getState().reorderFlashedIssueKeys).toEqual(new Set());
   });
 
   it("surfaces a retryable error toast from onError (not a mount effect) when a move fails", async () => {

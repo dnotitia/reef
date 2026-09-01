@@ -31,7 +31,10 @@ afterEach(() => {
     quickEditRequest: null,
   });
   useIssueSelectionStore.getState().clear();
-  useFlashStore.setState({ flashedIssueKeys: new Set() });
+  useFlashStore.setState({
+    flashedIssueKeys: new Set(),
+    reorderFlashedIssueKeys: new Set(),
+  });
 });
 
 const base = {
@@ -80,6 +83,7 @@ function renderRow(
   allIssues: IssueMetadata[] = [mockIssue],
   onClick?: (id: string) => void,
   assigneeNames?: Readonly<Record<string, string>>,
+  reorderState?: "pending" | "error",
 ) {
   return render(
     <table>
@@ -89,6 +93,7 @@ function renderRow(
           vault="reef-test"
           allIssues={allIssues}
           assigneeNames={assigneeNames}
+          reorderState={reorderState}
           logicalIds={["REEF-001", "REEF-002", "REEF-003"]}
           onClick={onClick}
         />
@@ -229,6 +234,32 @@ describe("IssueListRow", () => {
     expect(screen.getAllByTestId("issue-list-row")[1]).toHaveClass(
       "reef-flash-row",
     );
+  });
+
+  it.each([
+    ["pending", "Saving position"],
+    ["error", "Position not saved"],
+  ] as const)("keeps reorder %s state on the row", (state, label) => {
+    renderRow(mockIssue, [mockIssue], undefined, undefined, state);
+
+    const row = screen.getByTestId("issue-list-row");
+    expect(row).toHaveAttribute("data-reorder-state", state);
+    if (state === "pending") expect(row).toHaveAttribute("aria-busy", "true");
+    else expect(row).not.toHaveAttribute("aria-busy");
+    expect(screen.getByTestId("issue-reorder-status")).toHaveAttribute(
+      "aria-label",
+      label,
+    );
+  });
+
+  it("marks a canonical reorder success with the existing flash pulse", () => {
+    useFlashStore.getState().flashIssue("reef-test", mockIssue.id, "reorder");
+
+    renderRow();
+
+    const row = screen.getByTestId("issue-list-row");
+    expect(row).toHaveAttribute("data-reorder-state", "success");
+    expect(row).toHaveClass("reef-flash-row", "reef-reorder-success-row");
   });
 
   it("shows blocked indicator with count when issue is blocked", () => {

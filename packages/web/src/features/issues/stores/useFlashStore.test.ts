@@ -1,12 +1,19 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useFlashStore, useIssueFlash } from "./useFlashStore";
+import {
+  useFlashStore,
+  useIssueFlash,
+  useIssueReorderFlash,
+} from "./useFlashStore";
 
 const VAULT = "reef-test";
 
 beforeEach(() => {
   vi.useFakeTimers();
-  useFlashStore.setState({ flashedIssueKeys: new Set() });
+  useFlashStore.setState({
+    flashedIssueKeys: new Set(),
+    reorderFlashedIssueKeys: new Set(),
+  });
 });
 afterEach(() => {
   vi.runOnlyPendingTimers();
@@ -102,6 +109,44 @@ describe("useIssueFlash", () => {
     expect(flashing.current).toBe(true);
     expect(otherIssue.current).toBe(false);
     expect(otherVault.current).toBe(false);
+  });
+
+  it("distinguishes a reorder success pulse from a regular issue save", () => {
+    const { result: reorder } = renderHook(() =>
+      useIssueReorderFlash(VAULT, "REEF-1"),
+    );
+    const { result: regular } = renderHook(() =>
+      useIssueFlash(VAULT, "REEF-1"),
+    );
+
+    act(() => {
+      useFlashStore.getState().flashIssue(VAULT, "REEF-1", "reorder");
+    });
+
+    expect(reorder.current).toBe(true);
+    expect(regular.current).toBe(true);
+  });
+
+  it("does not mark a regular issue save as a reorder pulse", () => {
+    const { result } = renderHook(() => useIssueReorderFlash(VAULT, "REEF-1"));
+
+    act(() => {
+      useFlashStore.getState().flashIssue(VAULT, "REEF-1");
+    });
+
+    expect(result.current).toBe(false);
+  });
+
+  it("keeps reorder source identity while other issues flash concurrently", () => {
+    useFlashStore.getState().flashIssue(VAULT, "REEF-1");
+    useFlashStore.getState().flashIssue(VAULT, "REEF-2", "reorder");
+
+    expect(useFlashStore.getState().flashedIssueKeys).toEqual(
+      new Set([`${VAULT}:REEF-1`, `${VAULT}:REEF-2`]),
+    );
+    expect(useFlashStore.getState().reorderFlashedIssueKeys).toEqual(
+      new Set([`${VAULT}:REEF-2`]),
+    );
   });
 
   it("reflects store expiry after the flash window", () => {

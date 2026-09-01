@@ -13,6 +13,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { KanbanCard, KanbanCardPreview } from "./KanbanCard";
 import type { IssueGroupBucket } from "../../issues/lib/grouping";
+import { useFlashStore } from "../../issues/stores/useFlashStore";
 
 // The card reads the signed-in login to decide whether the assignee avatar is
 // "you" (brand tone). Mock it directly: KanbanCard renders without a
@@ -35,6 +36,10 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
   currentLogin.value = null;
+  useFlashStore.setState({
+    flashedIssueKeys: new Set(),
+    reorderFlashedIssueKeys: new Set(),
+  });
   useIssueKeyboardStore.setState({
     visibleIssueIds: { list: [], board: [], backlog: [] },
     focusedIssueId: { list: null, board: null, backlog: null },
@@ -167,6 +172,39 @@ describe("KanbanCard", () => {
     render(<KanbanCard issue={mockIssue()} />);
     expect(screen.getByText("Fix login bug")).toBeDefined();
     expect(screen.getByText("reef-001")).toBeDefined();
+  });
+
+  it.each([
+    ["pending", "Saving position"],
+    ["error", "Position not saved"],
+  ] as const)("keeps reorder %s state on the card", (state, label) => {
+    render(<KanbanCard issue={mockIssue()} reorderState={state} />);
+
+    const card = screen.getByTestId("kanban-card");
+    expect(card).toHaveAttribute("data-reorder-state", state);
+    if (state === "pending") expect(card).toHaveAttribute("aria-busy", "true");
+    else expect(card).not.toHaveAttribute("aria-busy");
+    expect(screen.getByTestId("issue-reorder-status")).toHaveAttribute(
+      "aria-label",
+      label,
+    );
+  });
+
+  it("marks a canonical reorder success with the existing flash pulse", () => {
+    useFlashStore.getState().flashIssue("reef-test", "reef-001", "reorder");
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <KanbanCard issue={mockIssue()} vault="reef-test" />
+      </QueryClientProvider>,
+    );
+
+    const card = screen.getByTestId("kanban-card");
+    expect(card).toHaveAttribute("data-reorder-state", "success");
+    expect(card).toHaveClass("reef-flash-card", "reef-reorder-success-card");
   });
 
   it("renders priority badge when priority is present", () => {

@@ -53,6 +53,10 @@ import type { IssueScope } from "@/features/issues/lib/viewMode";
 import { useFlashStore } from "@/features/issues/stores/useFlashStore";
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
 import {
+  IssueReorderAnnouncement,
+  type IssueReorderSurfaceState,
+} from "@/features/issues/components/shared/IssueReorderFeedback";
+import {
   isManualOrdering,
   useIssueStore,
 } from "@/features/issues/stores/useIssueStore";
@@ -167,6 +171,7 @@ export function KanbanBoard({
   const t = useTranslations("board");
   const groupT = useTranslations("issues.filters");
   const backlogT = useTranslations("issues.backlog");
+  const reorderT = useTranslations("issues.reorder");
   const common = useTranslations("common");
   const toasts = useTranslations("toasts");
   const locale = useLocale();
@@ -213,6 +218,7 @@ export function KanbanBoard({
     bucket: IssueGroupBucket;
     target?: IssueReorderTarget;
   } | null>(null);
+  const [reorderAnnouncement, setReorderAnnouncement] = useState<string>("");
   const lastPointerCoordinatesRef = useRef<{ x: number; y: number } | null>(
     null,
   );
@@ -389,6 +395,15 @@ export function KanbanBoard({
     !reorder.isPending;
   const canReorderBacklog =
     scope === "backlog" && canReorderManualBoard && !mutation.isPending;
+  const reorderIssueId =
+    reorder.variables?.vault === vault && reorder.variables.scope === scope
+      ? reorder.variables.issueId
+      : null;
+  const reorderState: IssueReorderSurfaceState | null = reorder.isPending
+    ? "pending"
+    : reorder.isError
+      ? "error"
+      : null;
 
   function operationForBucket(
     bucket: IssueGroupBucket,
@@ -456,6 +471,8 @@ export function KanbanBoard({
     target: IssueReorderTarget;
     group?: IssueReorderGroupInput;
   }) {
+    const issueId = input.target.issueId;
+    setReorderAnnouncement(reorderT("reorderSaving", { id: issueId }));
     useIssueKeyboardStore.getState().focusIssue("board", input.target.issueId, {
       requestDomFocus: true,
     });
@@ -467,13 +484,16 @@ export function KanbanBoard({
         ...(input.group ? { group: input.group } : {}),
       })
       .then(
-        () => toast.dismiss(kanbanToastId(input.target.issueId)),
+        () => {
+          toast.dismiss(kanbanToastId(issueId));
+          setReorderAnnouncement(reorderT("reorderSaved", { id: issueId }));
+        },
         (err: unknown) => {
-          const id = input.target.issueId;
+          setReorderAnnouncement(reorderT("reorderFailed", { id: issueId }));
           notifyReorderFailure(
             err,
             {
-              id: kanbanToastId(id),
+              id: kanbanToastId(issueId),
               title: backlogT("reorderErrorTitle"),
               description: backlogT("reorderErrorDescription"),
               labels: {
@@ -785,6 +805,7 @@ export function KanbanBoard({
 
   return (
     <div data-testid="kanban-board" className="flex h-full min-h-0 flex-col">
+      <IssueReorderAnnouncement message={reorderAnnouncement} />
       {isError && (
         <div className="mx-6 mt-4 rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text">
           {t("loadError")}
@@ -835,6 +856,8 @@ export function KanbanBoard({
               blockedIds={blockedIds}
               planningCatalog={planningCatalog}
               assignees={assignees}
+              reorderIssueId={reorderIssueId}
+              reorderState={reorderState}
               onIssueClick={openIssue}
               onGroupClick={bucket.epic ? openIssue : undefined}
               dragEnabled={
