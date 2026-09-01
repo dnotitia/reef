@@ -88,14 +88,8 @@ jobs:
           reset_path="${RUNNER_TEMP}/reef-live-akb-reset-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.lane }}.json"
           runtime_log="${RUNNER_TEMP}/reef-live-akb-runtime-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.lane }}.log"
           export REEF_SCENARIO="${{ matrix.scenario }}"
-          export REEF_LANE="${{ matrix.lane }}"
-          export REEF_AKB_REF="${{ matrix.akb_ref }}"
-          export AKB_E2E_USERNAME="akb-e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${REEF_LANE}"
+          export AKB_E2E_USERNAME="akb-e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.lane }}"
           export AKB_E2E_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(24))')"
-          export REEF_LIVE_AKB_USER="$AKB_E2E_USERNAME"
-          export REEF_LIVE_AKB_PW="$AKB_E2E_PASSWORD"
-          export REEF_LIVE_AKB_SCENARIO="$REEF_SCENARIO"
-          export REEF_LIVE_AKB_EVIDENCE=1
           export DESCRIPTOR_PATH="$descriptor_path"
           export DISCOVERY_PATH="$discovery_path"
           export RESET_PATH="$reset_path"
@@ -108,7 +102,7 @@ jobs:
               kill -TERM "$runtime_pid" 2>/dev/null || true
               wait "$runtime_pid" 2>/dev/null || true
             fi
-            unset AKB_E2E_USERNAME AKB_E2E_PASSWORD REEF_LIVE_AKB_PW
+            unset AKB_E2E_USERNAME AKB_E2E_PASSWORD
             exit "$reef_exit"
           }
           trap cleanup EXIT
@@ -251,5 +245,5 @@ jobs:
           print(f"fixture reset validated: scenario={reset['scenario']}")
           PY
 
-          echo "live AKB runtime contract validated: reef_sha=$(git rev-parse HEAD) akb_ref=$REEF_AKB_REF scenario=$REEF_SCENARIO"
+          echo "live AKB runtime contract validated: reef_sha=$(git rev-parse HEAD) akb_ref=${{ matrix.akb_ref }} scenario=$REEF_SCENARIO"
           pnpm --filter @reef/core test:live-akb

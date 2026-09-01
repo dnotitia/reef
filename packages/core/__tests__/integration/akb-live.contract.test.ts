@@ -83,15 +83,9 @@ import {
 
 const BASE_URL = process.env.REEF_LIVE_AKB_URL;
 const FIXTURE_BASE_URL = process.env.REEF_LIVE_AKB_FIXTURE_URL;
-const LIVE_SCENARIO = process.env.REEF_LIVE_AKB_SCENARIO;
-const USERNAME =
-  process.env.REEF_LIVE_AKB_USER ??
-  process.env.AKB_E2E_USERNAME ??
-  "reef-smoke";
-const PASSWORD =
-  process.env.REEF_LIVE_AKB_PW ??
-  process.env.AKB_E2E_PASSWORD ??
-  "reef-smoke-pw-123";
+const LIVE_SCENARIO = process.env.REEF_SCENARIO;
+const USERNAME = process.env.AKB_E2E_USERNAME ?? "reef-smoke";
+const PASSWORD = process.env.AKB_E2E_PASSWORD ?? "reef-smoke-pw-123";
 const EMAIL = process.env.REEF_LIVE_AKB_EMAIL ?? "reef-smoke@example.com";
 
 const SEED_ISSUE_ID = "REEF-001";
