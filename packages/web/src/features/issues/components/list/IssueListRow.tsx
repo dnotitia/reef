@@ -15,13 +15,20 @@ import { IssueQuickEditAnchor } from "@/features/issues/components/quick-edit/Is
 import { IssueContextMenu } from "@/features/issues/components/context-menu/IssueContextMenu";
 import { IssueSelectionCheckbox } from "@/features/issues/components/shared/IssueSelectionCheckbox";
 import {
+  IssueReorderStatus,
+  type IssueReorderSurfaceState,
+} from "@/features/issues/components/shared/IssueReorderFeedback";
+import {
   ISSUE_LIST_DEFAULT_COLUMNS,
   ISSUE_TABLE_COLUMN_WIDTHS,
   type IssueListColumnKey,
   isIssueTableStickyColumn,
   issueTableColumnOffset,
 } from "@/features/issues/components/shared/issueTableContract";
-import { useIssueFlash } from "@/features/issues/stores/useFlashStore";
+import {
+  useIssueFlash,
+  useIssueReorderFlash,
+} from "@/features/issues/stores/useFlashStore";
 import {
   type IssueQuickEditField,
   useIssueKeyboardStore,
@@ -69,6 +76,7 @@ interface IssueListRowProps {
   columns?: readonly IssueListColumnKey[];
   sortable?: boolean;
   reorderHint?: string;
+  reorderState?: IssueReorderSurfaceState | null;
   onClick?: (id: string) => void;
 }
 
@@ -157,6 +165,7 @@ export const IssueListRow = memo(function IssueListRow({
   columns = ISSUE_LIST_DEFAULT_COLUMNS,
   sortable = false,
   reorderHint,
+  reorderState = null,
   onClick,
 }: IssueListRowProps) {
   const issue = useIssueEntity(vault, seed.id) ?? seed;
@@ -165,6 +174,9 @@ export const IssueListRow = memo(function IssueListRow({
     ? getUnresolvedBlockerCount(issue, allIssues)
     : 0;
   const isFlashing = useIssueFlash(vault, issue.id);
+  const reorderSuccess = useIssueReorderFlash(vault, issue.id);
+  const surfaceReorderState =
+    reorderState ?? (reorderSuccess ? "success" : null);
   const keyboardOccurrenceKey = occurrenceKey ?? issue.id;
   const focused = useIssueKeyboardStore(
     (state) =>
@@ -294,7 +306,9 @@ export const IssueListRow = memo(function IssueListRow({
           visualState === "selected" && "ring-1 ring-inset ring-brand-focus/30",
           visualState === "context-open" && "hover:bg-transparent",
           isFlashing && "reef-flash-row",
+          reorderSuccess && "reef-reorder-success-row",
         )}
+        aria-busy={surfaceReorderState === "pending" ? true : undefined}
         tabIndex={focused || tabStopped ? 0 : -1}
         aria-selected={selected || undefined}
         onFocus={() => focusOccurrence("list", keyboardOccurrenceKey, issue.id)}
@@ -324,6 +338,7 @@ export const IssueListRow = memo(function IssueListRow({
         data-shortcut-surface="issue-list-row"
         data-keyboard-focused={focused ? "true" : undefined}
         data-context-open={contextOpen ? "true" : undefined}
+        data-reorder-state={surfaceReorderState ?? undefined}
       >
         <TableCell
           className={cn(issueListCellClass("select", visualState), "w-10 px-2")}
@@ -401,6 +416,9 @@ export const IssueListRow = memo(function IssueListRow({
               {issue.title}
             </span>
             {blocked && <BlockedBadge variant="list" count={blockerCount} />}
+            {surfaceReorderState && surfaceReorderState !== "success" && (
+              <IssueReorderStatus state={surfaceReorderState} />
+            )}
           </span>
         </TableCell>
 

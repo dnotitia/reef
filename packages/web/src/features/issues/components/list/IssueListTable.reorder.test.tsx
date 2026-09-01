@@ -1,5 +1,6 @@
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
+import { useFlashStore } from "@/features/issues/stores/useFlashStore";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -155,6 +156,10 @@ describe("IssueListTable Manual reorder boundary", () => {
       searchQuery: "",
       selectedIssueId: null,
     });
+    useFlashStore.setState({
+      flashedIssueKeys: new Set(),
+      reorderFlashedIssueKeys: new Set(),
+    });
   });
 
   it("loads another canonical page instead of sending an unsafe null after anchor", async () => {
@@ -209,5 +214,62 @@ describe("IssueListTable Manual reorder boundary", () => {
     await waitFor(() =>
       expect(screen.getByTestId("issue-list-grip-REEF-001")).toHaveFocus(),
     );
+  });
+
+  it("shows identity-bound persistence feedback through canonical settlement", async () => {
+    let resolveResponse: (response: Response) => void = () => {};
+    const pendingResponse = new Promise<Response>((resolve) => {
+      resolveResponse = resolve;
+    });
+    vi.mocked(apiFetch).mockImplementation(async (url) => {
+      if (url === "/api/issues/reorder") return pendingResponse;
+      return new Response("{}", { status: 200 });
+    });
+    render(wrap(<IssueListTable vault="reef-acme" />));
+    await screen.findByText("Second");
+
+    act(() => {
+      dndHarness.props?.onDragEnd?.({
+        active: { id: "REEF-002" },
+        over: { id: "REEF-001" },
+      });
+    });
+
+    const movedRow = () =>
+      screen
+        .getAllByTestId("issue-list-row")
+        .find((row) => row.getAttribute("data-issue-id") === "REEF-002");
+    await waitFor(() =>
+      expect(movedRow()).toHaveAttribute("data-reorder-state", "pending"),
+    );
+    const moved = movedRow();
+    expect(moved).toHaveAttribute("aria-busy", "true");
+    expect(
+      screen.getByTestId("reorder-persistence-announcement"),
+    ).toHaveTextContent("Saving REEF-002's position…");
+    expect(useFlashStore.getState().flashedIssueKeys).toEqual(new Set());
+
+    await act(async () => {
+      resolveResponse(
+        new Response(
+          JSON.stringify({
+            ok: true,
+            assignments: [{ id: "REEF-002", rank: 1500 }],
+          }),
+          { status: 200 },
+        ),
+      );
+    });
+
+    await waitFor(() =>
+      expect(useFlashStore.getState().reorderFlashedIssueKeys).toContain(
+        "reef-acme:REEF-002",
+      ),
+    );
+    expect(
+      screen.getByTestId("reorder-persistence-announcement"),
+    ).toHaveTextContent("REEF-002's position saved.");
+    expect(movedRow()).toHaveAttribute("data-reorder-state", "success");
+    expect(movedRow()).toHaveClass("reef-flash-row");
   });
 });

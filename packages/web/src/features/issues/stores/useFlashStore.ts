@@ -7,7 +7,8 @@ interface FlashState {
    * flash. A Set keeps simultaneous saves visible independently.
    */
   flashedIssueKeys: Set<string>;
-  flashIssue: (vault: string, id: string) => void;
+  reorderFlashedIssueKeys: Set<string>;
+  flashIssue: (vault: string, id: string, source?: "issue" | "reorder") => void;
   /** Clear only this vault/issue key, so another flash is never dropped. */
   clearFlash: (vault: string, id: string) => void;
 }
@@ -37,22 +38,28 @@ function flashKey(vault: string, issueId: string): string {
  */
 export const useFlashStore = create<FlashState>((set) => ({
   flashedIssueKeys: new Set(),
-  flashIssue: (vault, issueId) => {
+  reorderFlashedIssueKeys: new Set(),
+  flashIssue: (vault, issueId, source = "issue") => {
     const key = flashKey(vault, issueId);
     const previousTimer = flashTimers.get(key);
     if (previousTimer) clearTimeout(previousTimer);
     set((state) => {
       const flashedIssueKeys = new Set(state.flashedIssueKeys);
+      const reorderFlashedIssueKeys = new Set(state.reorderFlashedIssueKeys);
       flashedIssueKeys.add(key);
-      return { flashedIssueKeys };
+      if (source === "reorder") reorderFlashedIssueKeys.add(key);
+      else reorderFlashedIssueKeys.delete(key);
+      return { flashedIssueKeys, reorderFlashedIssueKeys };
     });
     const timer = setTimeout(() => {
       flashTimers.delete(key);
       set((state) => {
         if (!state.flashedIssueKeys.has(key)) return state;
         const flashedIssueKeys = new Set(state.flashedIssueKeys);
+        const reorderFlashedIssueKeys = new Set(state.reorderFlashedIssueKeys);
         flashedIssueKeys.delete(key);
-        return { flashedIssueKeys };
+        reorderFlashedIssueKeys.delete(key);
+        return { flashedIssueKeys, reorderFlashedIssueKeys };
       });
     }, FLASH_CLEAR_MS);
     flashTimers.set(key, timer);
@@ -67,8 +74,10 @@ export const useFlashStore = create<FlashState>((set) => ({
     set((state) => {
       if (!state.flashedIssueKeys.has(key)) return state;
       const flashedIssueKeys = new Set(state.flashedIssueKeys);
+      const reorderFlashedIssueKeys = new Set(state.reorderFlashedIssueKeys);
       flashedIssueKeys.delete(key);
-      return { flashedIssueKeys };
+      reorderFlashedIssueKeys.delete(key);
+      return { flashedIssueKeys, reorderFlashedIssueKeys };
     });
   },
 }));
@@ -81,4 +90,10 @@ export const useFlashStore = create<FlashState>((set) => ({
 export function useIssueFlash(vault: string, issueId: string): boolean {
   const key = flashKey(vault, issueId);
   return useFlashStore((s) => s.flashedIssueKeys.has(key));
+}
+
+/** Subscribe only to the reorder success pulse for an issue. */
+export function useIssueReorderFlash(vault: string, issueId: string): boolean {
+  const key = flashKey(vault, issueId);
+  return useFlashStore((s) => s.reorderFlashedIssueKeys.has(key));
 }

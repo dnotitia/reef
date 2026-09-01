@@ -1,5 +1,6 @@
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
 import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
+import { useFlashStore } from "@/features/issues/stores/useFlashStore";
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import type { IssueListItem } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -56,7 +57,10 @@ const issue: IssueListItem = {
   updated_by: "alice",
 };
 
-function renderRow(onOpen: (id: string) => void = vi.fn()) {
+function renderRow(
+  onOpen: (id: string) => void = vi.fn(),
+  reorderState?: "pending" | "error",
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -72,6 +76,7 @@ function renderRow(onOpen: (id: string) => void = vi.fn()) {
               logicalIds={[issue.id]}
               onOpen={onOpen}
               reorderHint="Drag to reorder in Rank order"
+              reorderState={reorderState}
               sortable
             />
           </tbody>
@@ -95,6 +100,10 @@ describe("BacklogRow", () => {
       focusRequest: null,
       quickEditRequest: null,
     });
+    useFlashStore.setState({
+      flashedIssueKeys: new Set(),
+      reorderFlashedIssueKeys: new Set(),
+    });
   });
 
   it("keeps issue links and interactive controls independently addressable", () => {
@@ -116,6 +125,32 @@ describe("BacklogRow", () => {
       "aria-label",
       "Status",
     );
+  });
+
+  it.each([
+    ["pending", "Saving position"],
+    ["error", "Position not saved"],
+  ] as const)("keeps reorder %s state on the row", (state, label) => {
+    renderRow(vi.fn(), state);
+
+    const row = screen.getByTestId("backlog-row");
+    expect(row).toHaveAttribute("data-reorder-state", state);
+    if (state === "pending") expect(row).toHaveAttribute("aria-busy", "true");
+    else expect(row).not.toHaveAttribute("aria-busy");
+    expect(screen.getByTestId("issue-reorder-status")).toHaveAttribute(
+      "aria-label",
+      label,
+    );
+  });
+
+  it("marks a canonical reorder success with the existing flash pulse", () => {
+    useFlashStore.getState().flashIssue("reef-acme", issue.id, "reorder");
+
+    renderRow();
+
+    const row = screen.getByTestId("backlog-row");
+    expect(row).toHaveAttribute("data-reorder-state", "success");
+    expect(row).toHaveClass("reef-flash-row", "reef-reorder-success-row");
   });
 
   it("toggles selection without opening the row", async () => {

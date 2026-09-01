@@ -14,6 +14,10 @@ import { notifyReorderFailure } from "@/components/ui/toastFeedback";
 import { BacklogRow } from "@/features/issues/components/backlog/BacklogRow";
 import { IssueSelectionCheckbox } from "@/features/issues/components/shared/IssueSelectionCheckbox";
 import {
+  IssueReorderAnnouncement,
+  type IssueReorderSurfaceState,
+} from "@/features/issues/components/shared/IssueReorderFeedback";
+import {
   BACKLOG_COLUMNS,
   ISSUE_TABLE_COLUMN_WIDTHS,
   type IssueTableColumnKey,
@@ -75,7 +79,7 @@ import { CircleDashed } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Fragment, useCallback, useEffect, useMemo } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 const EMPTY_ISSUES: IssueListItem[] = [];
@@ -139,6 +143,7 @@ interface BacklogViewProps {
  */
 export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
   const t = useTranslations("issues.backlog");
+  const reorderT = useTranslations("issues.reorder");
   const groupT = useTranslations("issues.filters");
   const c = useTranslations("common");
   const toasts = useTranslations("toasts");
@@ -254,6 +259,16 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
     !isPlaceholderData &&
     !isFetching &&
     !reorder.isPending;
+  const reorderIssueId =
+    reorder.variables?.vault === vault && reorder.variables.scope === "backlog"
+      ? reorder.variables.issueId
+      : null;
+  const reorderState: IssueReorderSurfaceState | null = reorder.isPending
+    ? "pending"
+    : reorder.isError
+      ? "error"
+      : null;
+  const [reorderAnnouncement, setReorderAnnouncement] = useState<string>("");
 
   const allIssues = issues ?? EMPTY_ISSUES;
   const graph = relations ?? allIssues;
@@ -336,12 +351,19 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
   }, []);
 
   function runReorder(input: IssueReorderTarget) {
+    setReorderAnnouncement(reorderT("reorderSaving", { id: input.issueId }));
     useIssueKeyboardStore.getState().focusIssue("backlog", input.issueId, {
       requestDomFocus: true,
     });
     reorder.mutateAsync({ vault, scope: "backlog", ...input }).then(
-      () => toast.dismiss(REORDER_TOAST_ID),
+      () => {
+        toast.dismiss(REORDER_TOAST_ID);
+        setReorderAnnouncement(reorderT("reorderSaved", { id: input.issueId }));
+      },
       (err: unknown) => {
+        setReorderAnnouncement(
+          reorderT("reorderFailed", { id: input.issueId }),
+        );
         notifyReorderFailure(
           err,
           {
@@ -425,6 +447,7 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
       pad="compact"
       className="flex h-full min-h-0 flex-col overflow-hidden"
     >
+      <IssueReorderAnnouncement message={reorderAnnouncement} />
       {/* Refetch hairline pinned to the list's top edge. The skeleton owns the
           first-load signal; this appears during refetches (REEF-369). */}
       <div className="pointer-events-none sticky top-0 z-10 h-0 overflow-visible">
@@ -501,6 +524,13 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
             collisionDetection={closestCenter}
             accessibility={{ announcements }}
             onDragEnd={handleDragEnd}
+            onDragCancel={(event) => {
+              useIssueKeyboardStore
+                .getState()
+                .focusIssue("backlog", String(event.active.id), {
+                  requestDomFocus: true,
+                });
+            }}
           >
             <Table
               className="table-fixed"
@@ -543,6 +573,11 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
                                 logicalIds={sortableIds}
                                 sortable={canReorder}
                                 reorderHint={reorderHint}
+                                reorderState={
+                                  reorderIssueId === issue.id
+                                    ? reorderState
+                                    : null
+                                }
                                 onOpen={openIssue}
                               />
                             </Fragment>
@@ -561,6 +596,9 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
                             logicalIds={sortableIds}
                             sortable={canReorder}
                             reorderHint={reorderHint}
+                            reorderState={
+                              reorderIssueId === issue.id ? reorderState : null
+                            }
                             onOpen={openIssue}
                           />
                         </Fragment>

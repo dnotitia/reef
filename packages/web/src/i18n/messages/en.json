@@ -695,6 +695,13 @@
       "fieldUpdated": "{field} updated.",
       "fieldUpdateFailed": "{field} update failed. Retry is available."
     },
+    "reorder": {
+      "pendingLabel": "Saving position",
+      "errorLabel": "Position not saved",
+      "reorderSaving": "Saving {id}'s position…",
+      "reorderSaved": "{id}'s position saved.",
+      "reorderFailed": "{id}'s position was not saved. The previous position is restored; retry is available."
+    },
     "backlog": {
       "loadError": "Failed to load the backlog.",
       "loading": "Loading backlog issues…",

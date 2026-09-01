@@ -198,6 +198,22 @@ export async function setIssueUpdateControl(
   expect(response.ok()).toBeTruthy();
 }
 
+export async function setIssueReorderControl(
+  request: APIRequestContext,
+  control: { delayMs?: number; failures?: number },
+): Promise<void> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/issue-reorder-control`,
+    {
+      data: {
+        delay_ms: control.delayMs ?? 0,
+        failures: control.failures ?? 0,
+      },
+    },
+  );
+  expect(response.ok()).toBeTruthy();
+}
+
 export async function removeFixtureIssue(
   request: APIRequestContext,
   id: string,

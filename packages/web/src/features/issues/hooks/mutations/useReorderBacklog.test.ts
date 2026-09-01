@@ -1,7 +1,7 @@
 import { apiFetch } from "@/lib/apiClient";
 import type { IssueListItem } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { type ReactNode, createElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -14,6 +14,7 @@ vi.mock("@/lib/apiClient", async () => {
 import { useReorderBacklog } from "./useReorderBacklog";
 import { buildIssueReorderTargetFromDrop } from "../../lib/issueReorder";
 import { activityKey } from "../queries/useActivity";
+import { useFlashStore } from "../../stores/useFlashStore";
 
 const mockApiFetch = vi.mocked(apiFetch);
 
@@ -58,6 +59,10 @@ function postBodies() {
 describe("useReorderBacklog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useFlashStore.setState({
+      flashedIssueKeys: new Set(),
+      reorderFlashedIssueKeys: new Set(),
+    });
     mockApiFetch.mockResolvedValue(
       new Response(
         JSON.stringify({ ok: true, assignments: [{ id: "C", rank: 1500 }] }),
@@ -229,5 +234,128 @@ describe("useReorderBacklog", () => {
       // Reverted to the original rank (3000), not the optimistic 1500.
       expect(cached?.find((i) => i.id === "C")?.rank).toBe(3000);
     });
+  });
+
+  it("exposes the moved issue identity while pending and flashes after canonical success", async () => {
+    let resolveResponse: (response: Response) => void = () => {};
+    mockApiFetch.mockReturnValue(
+      new Promise<Response>((resolve) => {
+        resolveResponse = resolve;
+      }),
+    );
+    const { queryClient, wrapper } = wrap();
+    const update = renderHook(() => useReorderBacklog(), { wrapper });
+    const flashSpy = vi.spyOn(useFlashStore.getState(), "flashIssue");
+    const rows = ordered(["A", 1000], ["B", 2000], ["C", 3000]);
+    queryClient.setQueryData(["issues", "list", "reef-acme"], rows);
+
+    act(() => {
+      update.result.current.mutate({
+        vault: "reef-acme",
+        scope: "backlog",
+        ...targetFor(rows, "C", "B"),
+      });
+    });
+
+    await waitFor(() => expect(update.result.current.isPending).toBe(true));
+    expect(update.result.current.variables).toMatchObject({
+      vault: "reef-acme",
+      issueId: "C",
+      scope: "backlog",
+    });
+    expect(update.result.current.variables?.group).toBeUndefined();
+    expect(flashSpy).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveResponse(
+        new Response(
+          JSON.stringify({
+            ok: true,
+            assignments: [{ id: "C", rank: 1500 }],
+          }),
+          { status: 200 },
+        ),
+      );
+    });
+
+    await waitFor(() => expect(update.result.current.isSuccess).toBe(true));
+    expect(flashSpy).toHaveBeenCalledTimes(1);
+    expect(flashSpy).toHaveBeenCalledWith("reef-acme", "C", "reorder");
+    expect(useFlashStore.getState().flashedIssueKeys).toContain("reef-acme:C");
+    expect(useFlashStore.getState().reorderFlashedIssueKeys).toContain(
+      "reef-acme:C",
+    );
+    expect(
+      queryClient
+        .getQueryData<IssueListItem[]>(["issues", "list", "reef-acme"])
+        ?.find((issue) => issue.id === "C")?.rank,
+    ).toBe(1500);
+  });
+
+  it("exposes an error identity without flashing a rejected reorder", async () => {
+    mockApiFetch.mockResolvedValue(
+      new Response(JSON.stringify({ error: "boom" }), { status: 500 }),
+    );
+    const { wrapper } = wrap();
+    const update = renderHook(() => useReorderBacklog(), { wrapper });
+    const rows = ordered(["A", 1000], ["B", 2000], ["C", 3000]);
+
+    await act(async () => {
+      await update.result.current
+        .mutateAsync({
+          vault: "reef-acme",
+          scope: "backlog",
+          ...targetFor(rows, "C", "B"),
+        })
+        .catch(() => {});
+    });
+
+    await waitFor(() => expect(update.result.current.isError).toBe(true));
+    expect(update.result.current.variables?.issueId).toBe("C");
+    expect(useFlashStore.getState().flashedIssueKeys).toEqual(new Set());
+    expect(useFlashStore.getState().reorderFlashedIssueKeys).toEqual(new Set());
+  });
+
+  it("retains the full atomic group command in the mutation identity", async () => {
+    let resolveResponse: (response: Response) => void = () => {};
+    mockApiFetch.mockReturnValue(
+      new Promise<Response>((resolve) => {
+        resolveResponse = resolve;
+      }),
+    );
+    const { wrapper } = wrap();
+    const update = renderHook(() => useReorderBacklog(), { wrapper });
+    const group = { field: "priority", value: "high" } as const;
+    const rows = ordered(["A", 1000], ["B", 2000], ["C", 3000]);
+
+    act(() => {
+      update.result.current.mutate({
+        vault: "reef-acme",
+        scope: "active",
+        ...targetFor(rows, "C", "B"),
+        group,
+      });
+    });
+
+    await waitFor(() => expect(update.result.current.isPending).toBe(true));
+    expect(update.result.current.variables).toMatchObject({
+      vault: "reef-acme",
+      issueId: "C",
+      scope: "active",
+      group,
+    });
+
+    await act(async () => {
+      resolveResponse(
+        new Response(
+          JSON.stringify({
+            ok: true,
+            assignments: [{ id: "C", rank: 1500 }],
+          }),
+          { status: 200 },
+        ),
+      );
+    });
+    await waitFor(() => expect(update.result.current.isSuccess).toBe(true));
   });
 });
