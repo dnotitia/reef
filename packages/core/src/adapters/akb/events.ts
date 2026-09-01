@@ -15,7 +15,7 @@ import {
 } from "../../schemas/events";
 import { VaultNameSchema } from "../../schemas/workspace/config";
 import { readAkbErrorResponse } from "./core/errorResponse";
-import type { AkbAdapter, AkbStreamRequestInit } from "./core/http";
+import type { AkbStreamAdapter, AkbStreamRequestInit } from "./core/http";
 
 export const CHANGE_EVENT_KIND = "table.rows_changed" as const;
 export const REEF_ACTIVITY_RESOURCE = "reef_activity" as const;
@@ -63,13 +63,7 @@ export interface AkbChangeEventTail {
 
 export type NotificationWakeupSource = "activity" | "comment";
 
-function schemaError(message: string): SchemaValidationError {
-  return new SchemaValidationError({
-    clientValidated: true,
-    issues: [message],
-  });
-}
-
+/** Build AKB's canonical table resource identity used by event filters. */
 export function tableResourceUri(vault: string, table: string): string {
   return `akb://${vault}/table/${table}`;
 }
@@ -85,11 +79,7 @@ export function notificationWakeupForChange(
   const parsed = ChangeEventEnvelopeV1Schema.safeParse(event);
   if (!parsed.success) return null;
   const envelope = parsed.data;
-  if (
-    envelope.version !== 1 ||
-    envelope.vault !== vault ||
-    envelope.kind !== CHANGE_EVENT_KIND
-  ) {
+  if (envelope.vault !== vault || envelope.kind !== CHANGE_EVENT_KIND) {
     return null;
   }
   const operation = TableRowsChangedOperationSchema.safeParse(
@@ -187,7 +177,10 @@ function recordFromMessage(message: EventSourceMessage): ChangeEventTailRecord {
 
 function validateTailInput(input: ChangeEventTailInput): void {
   if (!VaultNameSchema.safeParse(input.vault).success) {
-    throw schemaError("vault is invalid");
+    throw new SchemaValidationError({
+      clientValidated: true,
+      issues: ["vault is invalid"],
+    });
   }
   if (
     input.lastEventId !== undefined &&
@@ -238,12 +231,7 @@ export async function* readChangeEventStream(
       parserError = new EventTailError({ code: "protocol", status: 502 });
     },
   });
-  const drain = function* (): Generator<ChangeEventTailRecord> {
-    while (records.length > 0) {
-      const record = records.shift();
-      if (record) yield record;
-    }
-  };
+  const drain = () => records.splice(0);
 
   try {
     while (true) {
@@ -264,15 +252,11 @@ export async function* readChangeEventStream(
 }
 
 export function createAkbChangeEventTail(
-  adapter: AkbAdapter,
+  adapter: AkbStreamAdapter,
 ): AkbChangeEventTail {
   return {
     async *subscribe(input) {
       validateTailInput(input);
-      const stream = adapter.stream;
-      if (!stream) {
-        throw new EventTailError({ code: "protocol", status: 500 });
-      }
       const request: AkbStreamRequestInit = {
         query: {
           kind: CHANGE_EVENT_KIND,
@@ -284,7 +268,7 @@ export function createAkbChangeEventTail(
           ? { rawHeaders: { "Last-Event-ID": input.lastEventId } }
           : {}),
       };
-      const response = await stream(
+      const response = await adapter.stream(
         `/api/v1/events/${encodeURIComponent(input.vault)}`,
         request,
       );

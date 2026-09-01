@@ -54,6 +54,7 @@ export {
   searchDocuments,
   issueDocumentUri,
   type AkbAdapter,
+  type AkbStreamAdapter,
   type AkbRequestPolicy,
   type AkbStreamRequest,
   type AkbStreamRequestInit,

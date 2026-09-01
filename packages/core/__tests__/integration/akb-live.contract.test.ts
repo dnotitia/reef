@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AkbApiError, AuthError, ControlPlaneError } from "../../src/errors";
 import {
   type AkbAdapter,
+  type AkbStreamAdapter,
   buildIssueMetadataFromCreateInput,
   createAkbAdapter,
   createAkbAppInstallationReader,
@@ -269,7 +270,7 @@ function expectFileCredentialBoundary(
 
 describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
   const baseUrl = BASE_URL as string;
-  let adapter: AkbAdapter;
+  let adapter: AkbStreamAdapter;
   let sessionToken: string;
   let vault: string;
   let provisionCreateCount = 0;
@@ -1509,7 +1510,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
     const connected = new Promise<void>((resolve) => {
       resolveConnected = resolve;
     });
-    const observingAdapter: AkbAdapter = {
+    const observingAdapter: AkbStreamAdapter = {
       request: adapter.request,
       stream: async (path, init) => {
         const response = await baseStream(path, init);

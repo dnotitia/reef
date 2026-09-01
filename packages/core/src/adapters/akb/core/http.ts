@@ -23,8 +23,11 @@ type AkbFetchBody = Exclude<
 
 export interface AkbAdapter {
   request: AkbRequest;
-  /** Open a long-lived authenticated response without consuming its body. */
-  stream?: AkbStreamRequest;
+}
+
+/** Adapter capability for long-lived authenticated responses. */
+export interface AkbStreamAdapter extends AkbAdapter {
+  stream: AkbStreamRequest;
 }
 
 export interface AkbRequestPolicy {
@@ -382,7 +385,7 @@ export function createAkbAdapter(input: {
   baseUrl: string;
   jwt: string;
   requestPolicy?: AkbRequestPolicy;
-}): AkbAdapter {
+}): AkbStreamAdapter {
   if (
     input.requestPolicy &&
     (!Number.isSafeInteger(input.requestPolicy.timeoutMs) ||
