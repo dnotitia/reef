@@ -564,7 +564,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
         "keycloak-overlay specialist runtime with real Keycloak",
       follow_up:
         "Run the existing Keycloak login, code exchange, and logout callers against that specialist environment.",
-      owner: "김영로",
+      owner: "tracked internally",
     };
     authEvidence = {
       scenario: LIVE_SCENARIO ?? "not_declared",
@@ -796,7 +796,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
               "The app-control-plane discovery exposes active installations only; it has no blocked app-principal installation coordinate.",
             follow_up:
               "Use a repository-owned scenario that discovers a blocked app-principal installation, then run this same reader assertion.",
-            owner: "김영로",
+            owner: "tracked internally",
             terminal_success_claimed: false,
           },
           denials: {
