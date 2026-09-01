@@ -28,22 +28,33 @@ server-only `packages/web/src/server/` tree and must not be reintroduced here.
   only for filtering, sorting, joins, constraints/uniqueness, or indexing, then
   follow `docs/migration-policy.md`'s Expand → Backfill → Enforce → Contract
   policy.
-- Writes are last-write-wins and non-transactional across document + row.
-  `writeIssue` compensates a failed row insert by deleting the just-created
-  document, and `updateIssue` compensates a failed row update by re-PATCHing the
-  document back; keep that compensation-saga model. Do not add CAS / version
-  plumbing on the `reef_issues` *row* (no `sha` / `expectedHeadOid` / version
-  column), and do not try to make the document+row pair a CAS-coordinated
-  transaction.
-- The one sanctioned concurrency check is document-level OCC: `updateIssue` may
-  forward the caller's base commit as akb's existing `expected_commit`
-  precondition on the *document* PATCH, so a concurrent external edit to a
-  document-projected field (body, title, labels→tags,
-  depends_on/blocks/related_to→relations) is rejected as a retryable
-  `ConflictError` instead of silently overwritten (REEF-227). This uses a
-  capability akb already provides — it is not new row/cross-store plumbing.
-  Row-only scalar fields (status, priority, assignee, dates, planning ids,
-  estimate, severity, parent) stay last-write-wins with server-side read-merge.
+- Writes span the document and row non-transactionally, with a compensation saga
+  for partial failure. Ordinary row-only scalar updates remain last-write-wins
+  when no trusted precondition is supplied. `writeIssue` compensates a failed
+  row insert by deleting the just-created document, and `updateIssue`
+  compensates a failed row update by re-PATCHing the document back; keep that
+  saga model. Do not add a new generic row version/CAS schema (no `sha`,
+  `expectedHeadOid`, or version column), and do not try to make the
+  document+row pair a CAS-coordinated transaction.
+- The existing `UpdateIssueParams.expectedUpdatedAt` is the row guard for
+  trusted read-modify-write callers. When supplied, `updateIssue` adds the
+  persisted `updated_at` to the `reef_issues` predicate, uses conditional
+  `UPDATE ... RETURNING reef_id`, and turns an empty result into a retryable
+  `ConflictError`; when omitted, the row update stays last-write-wins. The
+  orchestration provider's `transition`/`linkArtifact` operations and the Jira
+  target adapter pass the `updated_at` from their read snapshot. The existing
+  `issues-update.test.ts` validation covers the predicate, `RETURNING`, and
+  conflict mapping. This is a trusted caller contract, not a new row schema or
+  cross-store transaction.
+- Document-level OCC is the separate document guard: `updateIssue` may forward
+  the caller's base commit as akb's existing `expected_commit` precondition on
+  the *document* PATCH, so a concurrent external edit to a document-projected
+  field (body, title, labels→tags, depends_on/blocks/related_to→relations) is
+  rejected as a retryable `ConflictError` instead of silently overwritten
+  (REEF-227). After a successful forward PATCH, document compensation uses the
+  returned forward commit as its `expected_commit` precondition, so it cannot
+  overwrite a later external document edit. These are existing AKB
+  capabilities, not new row/cross-store plumbing.
 - In the web request path, `createAkbAdapter({ ... })` is constructed per
   request from the `__reef_session` cookie and forwards
   `Authorization: Bearer <akb-jwt>` to `AKB_BACKEND_URL`. Operator and worker

@@ -620,11 +620,14 @@ export async function updateIssue(
         // base the editor read. One precondition guards every document-projected
         // field — body, title, labels→tags, depends_on/blocks/related_to→
         // relations — so a concurrent external edit surfaces as a retryable save
-        // conflict instead of being silently overwritten. Row-edits does not
-        // reach here, staying last-write-wins. A 409 fires before the row UPDATE
-        // below, so nothing diverges and no compensation is needed. The
-        // compensating re-PATCH deliberately omits the precondition: it is a
-        // forced rewind, not a user edit racing a concurrent writer.
+        // conflict instead of being silently overwritten. Row-edits do not
+        // reach here, staying last-write-wins unless a trusted caller supplied
+        // the separate expectedUpdatedAt row precondition below. A 409 fires
+        // before the row UPDATE below, so nothing diverges and no compensation
+        // is needed. If the row UPDATE later fails after this forward PATCH,
+        // restoreDocument uses this forward commit as its expected_commit
+        // precondition; a later external document edit therefore rejects the
+        // compensation instead of being overwritten.
         updateBody.expected_commit = expectedCommit;
       }
       const payload = await adapter.request(docPath, {
@@ -643,7 +646,10 @@ export async function updateIssue(
     // compensation is best-effort and the original error wins, mirroring the
     // sagas in `writeIssue` (delete the orphaned doc) and `deleteIssue` (restore
     // the row). A clean status/priority edit (docDirty=false) does not touch the
-    // document, so there is nothing to rewind.
+    // document, so there is nothing to rewind. A trusted read-modify-write
+    // caller may supply expectedUpdatedAt; the conditional UPDATE RETURNING
+    // below turns a stale row snapshot into ConflictError. Without it, this
+    // remains the ordinary last-write-wins row update.
     // Born-correct backlog rank (REEF-176): an issue demoted INTO the backlog
     // with no rank yet appends to the manual-order tail, so the backlog does not
     // gain an unranked row. A status change WITHIN the backlog, or the return

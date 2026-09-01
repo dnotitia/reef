@@ -144,9 +144,17 @@ metadata.
 - Keep credentials in headers or the httpOnly cookie, never URL query strings.
 - Do not include sensitive metadata such as tokens, user ids, or server internals
   in LLM prompts.
-- Managed-repo writes through akb are last-write-wins. Routine issue metadata
-  edits are SQL row updates; body edits go to the akb document. A `ConflictError`
-  is exceptional and should be surfaced as a retryable PM-facing save conflict.
+- Managed-repo writes through akb span the linked document and row and are
+  non-transactional, with compensation for partial failure. Ordinary issue
+  metadata edits remain last-write-wins; trusted read-modify-write callers may
+  pass the row's `updated_at` as `UpdateIssueParams.expectedUpdatedAt`, which
+  makes `updateIssue` use a conditional `UPDATE ... RETURNING` and surface a
+  `ConflictError` when the row no longer matches that snapshot. Document-
+  projected edits may pass the document commit as `expectedCommit`, which is
+  forwarded as akb's `expected_commit` precondition and likewise surfaces a
+  retryable `ConflictError` for a stale base. Routine issue metadata edits are
+  SQL row updates and body edits go to the akb document; do not infer a
+  cross-store transaction from either guard.
 
 ## Workflow
 

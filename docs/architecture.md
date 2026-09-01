@@ -165,14 +165,18 @@ Supporting state lives in sibling tables provisioned when a vault is set up:
 by uppercase A–Z, digits, or underscores; default `REEF`).
 
 Writes span the document and row non-transactionally, with a compensation saga
-for partial failure. Row-only scalar fields remain last-write-wins: there is no
-row `sha`, `expectedHeadOid`, version column, or cross-store CAS transaction.
-Document-projected edits are the one exception. When the caller supplies the
-base document commit, `updateIssue` forwards it as AKB's `expected_commit`
+for partial failure. Ordinary row-only scalar edits remain last-write-wins:
+there is no row `sha`, `expectedHeadOid`, version column, or cross-store CAS
+transaction. Trusted read-modify-write callers can pass the row's `updated_at`
+as `UpdateIssueParams.expectedUpdatedAt`; `updateIssue` then uses a conditional
+row `UPDATE ... RETURNING`, and an empty result becomes a retryable
+`ConflictError`. Document-projected edits can likewise receive the base
+document commit, which `updateIssue` forwards as AKB's `expected_commit`
 precondition; a concurrent change to body, title, tags, or relations becomes a
 retryable `ConflictError` instead of a silent overwrite. There is no diff/merge
-UI. This keeps queryable PM metadata fast while protecting externally editable
-document content from known stale-base writes.
+UI or cross-store CAS transaction. This keeps queryable PM metadata fast while
+protecting trusted read-modify-writes and externally editable document content
+from known stale-base writes.
 
 ## Stateless web tier and credential placement
 
