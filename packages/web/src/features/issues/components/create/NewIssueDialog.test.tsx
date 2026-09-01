@@ -428,10 +428,26 @@ describe("NewIssueDialog", () => {
       "text-ai-subtle-foreground",
       "hover:bg-ai-subtle",
     );
+    expect(conversationToggle).toHaveTextContent("Ask AI");
+    expect(conversationToggle).toHaveAttribute("aria-expanded", "false");
+    expect(conversationToggle.querySelector("svg")).toHaveClass(
+      "lucide-message-square",
+    );
     await user.click(conversationToggle);
 
     expect(screen.getByTestId("draft-conversation-panel")).toBeInTheDocument();
-    expect(screen.queryByTestId("draft-conversation-toggle")).toBeNull();
+    expect(screen.getByTestId("draft-conversation-toggle")).toHaveTextContent(
+      "Close chat",
+    );
+    expect(screen.getByTestId("draft-conversation-toggle")).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(
+      screen.getByTestId("draft-conversation-toggle").querySelector("svg"),
+    ).toHaveClass("lucide-x");
+    expect(screen.getByTestId("new-issue-chat-input")).toHaveFocus();
+    expect(screen.queryByTestId("draft-conversation-close")).toBeNull();
     expect(screen.getByTestId("draft-conversation-panel")).not.toHaveClass(
       "rounded-lg",
       "bg-surface-elevated",
@@ -473,7 +489,7 @@ describe("NewIssueDialog", () => {
       ),
     ).toBe(false);
 
-    await user.click(screen.getByTestId("draft-conversation-close"));
+    await user.click(screen.getByTestId("draft-conversation-toggle"));
     expect(screen.queryByTestId("draft-conversation-panel")).toBeNull();
     expect(screen.getByTestId("new-issue-title-input")).toHaveValue(
       "Keep this draft",
@@ -489,10 +505,48 @@ describe("NewIssueDialog", () => {
     );
     expect(
       screen.getByTestId("enrich-trigger").querySelector("svg"),
-    ).toBeNull();
+    ).toHaveClass("lucide-list-plus");
   });
 
-  it("restores focus to the visible close target and preserves the unsent question", async () => {
+  it("keeps the desktop action group to four ordered controls in both chat states", async () => {
+    const user = userEvent.setup();
+    setViewport(1920, 1080);
+    mockDialogGeometry();
+    mockViewStore.state.newIssueDialogOpen = true;
+    render(wrap(<NewIssueDialog />));
+
+    await screen.findByText("New Issue");
+    const actions = screen.getByTestId("new-issue-dialog-actions");
+    await waitFor(() =>
+      expect(
+        within(actions).getByTestId("new-issue-maximize-toggle"),
+      ).toBeVisible(),
+    );
+
+    const getActionIds = () =>
+      within(actions)
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("data-testid"));
+    expect(getActionIds()).toEqual([
+      "template-picker-trigger",
+      "enrich-trigger",
+      "draft-conversation-toggle",
+      "new-issue-maximize-toggle",
+    ]);
+
+    const toggle = within(actions).getByTestId("draft-conversation-toggle");
+    await user.click(toggle);
+    expect(getActionIds()).toEqual([
+      "template-picker-trigger",
+      "enrich-trigger",
+      "draft-conversation-toggle",
+      "new-issue-maximize-toggle",
+    ]);
+    expect(toggle).toHaveTextContent("Close chat");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("restores focus to the header chat action and preserves the unsent question", async () => {
     const user = userEvent.setup();
     setViewport(1024, 768);
     mockViewStore.state.newIssueDialogOpen = true;
@@ -501,10 +555,14 @@ describe("NewIssueDialog", () => {
     await screen.findByText("New Issue");
     await user.click(screen.getByTestId("draft-conversation-toggle"));
     const input = screen.getByTestId("new-issue-chat-input");
+    expect(input).toHaveFocus();
     fireEvent.change(input, { target: { value: "remember this question" } });
-    await user.click(screen.getByTestId("draft-conversation-close"));
+    await user.click(screen.getByTestId("draft-conversation-toggle"));
 
     expect(screen.getByTestId("draft-conversation-toggle")).toHaveFocus();
+    expect(screen.getByTestId("draft-conversation-toggle")).toHaveTextContent(
+      "Ask AI",
+    );
     expect(screen.queryByTestId("new-issue-chat-input")).toBeNull();
 
     await user.click(screen.getByTestId("draft-conversation-toggle"));
@@ -512,6 +570,30 @@ describe("NewIssueDialog", () => {
       expect(screen.getByTestId("new-issue-chat-input")).toHaveValue(
         "remember this question",
       ),
+    );
+  });
+
+  it("closes only the open conversation on Escape and restores header focus", async () => {
+    const user = userEvent.setup();
+    setViewport(1024, 768);
+    mockViewStore.state.newIssueDialogOpen = true;
+    render(wrap(<NewIssueDialog />));
+
+    await screen.findByText("New Issue");
+    const toggle = screen.getByTestId("draft-conversation-toggle");
+    await user.click(toggle);
+    const input = screen.getByTestId("new-issue-chat-input");
+    await user.type(input, "keep this question");
+    await user.keyboard("{Escape}");
+
+    expect(screen.getByTestId("new-issue-dialog")).toBeVisible();
+    expect(screen.queryByTestId("draft-conversation-panel")).toBeNull();
+    expect(screen.queryByTestId("discard-draft-confirm")).toBeNull();
+    expect(toggle).toHaveFocus();
+
+    await user.click(toggle);
+    expect(screen.getByTestId("new-issue-chat-input")).toHaveValue(
+      "keep this question",
     );
   });
 
@@ -523,6 +605,7 @@ describe("NewIssueDialog", () => {
 
     await screen.findByText("New Issue");
     await user.click(screen.getByTestId("draft-view-conversation"));
+    expect(screen.getByTestId("new-issue-chat-input")).toHaveFocus();
     expect(screen.getByTestId("draft-view-conversation")).toHaveAttribute(
       "aria-controls",
       "draft-conversation-panel",
@@ -535,6 +618,7 @@ describe("NewIssueDialog", () => {
 
     expect(screen.getByTestId("draft-view-draft")).toHaveFocus();
     await user.click(screen.getByTestId("draft-view-conversation"));
+    expect(screen.getByTestId("new-issue-chat-input")).toHaveFocus();
     expect(screen.getByTestId("new-issue-chat-input")).toHaveValue(
       "mobile question",
     );
@@ -559,7 +643,7 @@ describe("NewIssueDialog", () => {
 
     await screen.findByText("New Issue");
     await user.click(screen.getByTestId("draft-conversation-toggle"));
-    await user.click(screen.getByTestId("draft-conversation-close"));
+    await user.click(screen.getByTestId("draft-conversation-toggle"));
 
     expect(mockWorkspaceChat.stop).toHaveBeenCalled();
     expect(screen.queryByTestId("draft-conversation-panel")).toBeNull();
@@ -578,6 +662,7 @@ describe("NewIssueDialog", () => {
     );
     await user.click(screen.getByTestId("draft-view-conversation"));
     expect(screen.getByTestId("draft-conversation-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("new-issue-chat-input")).toHaveFocus();
     expect(screen.getByTestId("draft-view-conversation")).toHaveClass(
       "bg-ai-subtle",
       "text-ai-subtle-foreground",
@@ -672,9 +757,11 @@ describe("NewIssueDialog", () => {
       height: "calc(100dvh - 2rem)",
       width: "1804.8px",
     });
-    expect(screen.getByTestId("draft-conversation-close")).toBeInTheDocument();
+    expect(screen.getByTestId("draft-conversation-toggle")).toHaveTextContent(
+      "Close chat",
+    );
 
-    await user.click(screen.getByTestId("draft-conversation-close"));
+    await user.click(screen.getByTestId("draft-conversation-toggle"));
     expect(dialog).toHaveClass("max-w-[min(94vw,1680px)]");
     expect(dialog).toHaveStyle({
       height: "calc(100dvh - 2rem)",

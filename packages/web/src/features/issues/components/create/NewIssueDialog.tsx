@@ -47,7 +47,7 @@ import type {
   Template,
 } from "@reef/core";
 import { useQueryClient } from "@tanstack/react-query";
-import { Maximize2, Minimize2 } from "lucide-react";
+import { ListPlus, Maximize2, MessageSquare, Minimize2, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -756,9 +756,9 @@ export function NewIssueDialog({
       <DialogContent
         ref={dialogContentRef}
         data-testid="new-issue-dialog"
-        // The header already owns the top-right action row (template picker +
-        // Get suggestions). The shared close X overlaps those actions, and the
-        // footer Cancel / Escape / outside-click / post-submit redirect all
+        // The header owns the top-right action row (Template, Get suggestions,
+        // chat, and maximize). The shared close X overlaps those actions, and
+        // the footer Cancel / Escape / outside-click / post-submit redirect all
         // still dismiss — so this dialog opts out of the built-in close X.
         showCloseButton={false}
         onOpenAutoFocus={handleOpenAutoFocus}
@@ -793,6 +793,19 @@ export function NewIssueDialog({
           }
         }}
         onEscapeKeyDown={(e) => {
+          const escapeTargets = [e.target, document.activeElement];
+          const escapedFromConversation =
+            draftConversationOpen &&
+            escapeTargets.some(
+              (target) =>
+                target instanceof Element &&
+                target.closest('[data-testid="draft-conversation-panel"]'),
+            );
+          if (escapedFromConversation) {
+            e.preventDefault();
+            closeDraftConversation();
+            return;
+          }
           if (isSubmitting || hasUnsavedDraft()) {
             e.preventDefault();
             if (!isSubmitting) setDiscardOpen(true);
@@ -866,24 +879,41 @@ export function NewIssueDialog({
                 disabled={isSubmitting || enrichRun.isPending || noVault}
                 data-testid="enrich-trigger"
               >
+                <ListPlus className="size-3.5" aria-hidden="true" />
                 {enrichRun.isPending ? tc("enriching") : tc("enrichWithAi")}
               </Button>
-              {!draftConversationOpen ? (
-                <Button
-                  type="button"
-                  ref={draftConversationToggleRef}
-                  variant="outline"
-                  size="sm"
-                  className="hidden h-8 border-ai-border px-3 text-ai-subtle-foreground text-xs hover:bg-ai-subtle min-[900px]:inline-flex"
-                  onClick={() => setDraftConversationOpen(true)}
-                  disabled={noVault}
-                  aria-expanded={false}
-                  aria-controls="draft-conversation-panel"
-                  data-testid="draft-conversation-toggle"
-                >
-                  {tc("openConversation")}
-                </Button>
-              ) : null}
+              <Button
+                type="button"
+                ref={draftConversationToggleRef}
+                variant="outline"
+                size="sm"
+                className={cn(
+                  "hidden h-8 min-w-[7rem] shrink-0 justify-center gap-1.5 border-ai-border px-3 text-xs min-[900px]:inline-flex",
+                  draftConversationOpen
+                    ? "bg-ai-subtle text-ai-subtle-foreground hover:bg-ai-subtle"
+                    : "text-ai-subtle-foreground hover:bg-ai-subtle",
+                )}
+                onClick={() => {
+                  if (draftConversationOpen) {
+                    closeDraftConversation();
+                  } else {
+                    setDraftConversationOpen(true);
+                  }
+                }}
+                disabled={!draftConversationOpen && noVault}
+                aria-expanded={draftConversationOpen}
+                aria-controls="draft-conversation-panel"
+                data-testid="draft-conversation-toggle"
+              >
+                {draftConversationOpen ? (
+                  <X className="size-3.5" aria-hidden="true" />
+                ) : (
+                  <MessageSquare className="size-3.5" aria-hidden="true" />
+                )}
+                {draftConversationOpen
+                  ? tc("closeConversation")
+                  : tc("openConversation")}
+              </Button>
               {canMaximize ? (
                 <TooltipProvider>
                   <Tooltip>
@@ -995,7 +1025,6 @@ export function NewIssueDialog({
                 vault={vault ?? ""}
                 knownIssueIds={knownIssueIds}
                 disabled={isSubmitting || noVault}
-                onClose={closeDraftConversation}
               />
             ) : null}
           </div>

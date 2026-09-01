@@ -5,11 +5,9 @@ import {
   type ChatSurfaceProps,
 } from "@/features/ai/components/ChatSurface";
 import type { ChatStatus } from "@/features/ai/hooks/useWorkspaceChat";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useSyncExternalStore } from "react";
+import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
 
 function subscribeToViewport(onStoreChange: () => void) {
   window.addEventListener("resize", onStoreChange);
@@ -36,13 +34,12 @@ type DraftConversationPanelProps = Pick<
 > & {
   status: ChatStatus;
   disabled?: boolean;
-  onClose: () => void;
 };
 
 /**
  * The AI column for an unsaved New Issue draft. ChatSurface owns the
  * conversation rendering and composer; this wrapper owns the desktop title
- * and close affordance.
+ * and focuses the composer when the column is opened.
  */
 export function DraftConversationPanel({
   messages,
@@ -54,9 +51,9 @@ export function DraftConversationPanel({
   vault,
   knownIssueIds,
   disabled = false,
-  onClose,
 }: DraftConversationPanelProps) {
   const t = useTranslations("issues.create");
+  const panelRef = useRef<HTMLElement>(null);
   const isBusy = status === "submitted" || status === "streaming";
   const isDesktop =
     useSyncExternalStore(
@@ -65,8 +62,15 @@ export function DraftConversationPanel({
       getServerViewportWidth,
     ) >= 900;
 
+  useLayoutEffect(() => {
+    panelRef.current
+      ?.querySelector<HTMLTextAreaElement>("textarea")
+      ?.focus({ preventScroll: true });
+  }, []);
+
   return (
     <section
+      ref={panelRef}
       id="draft-conversation-panel"
       aria-label={t("conversationHeading")}
       aria-busy={isBusy}
@@ -79,17 +83,6 @@ export function DraftConversationPanel({
           <h2 className="font-display text-sm font-semibold text-ai-subtle-foreground">
             {t("conversationHeading")}
           </h2>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-7 shrink-0 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
-            aria-label={t("closeConversation")}
-            data-testid="draft-conversation-close"
-            onClick={onClose}
-          >
-            <X className="size-3.5" aria-hidden="true" />
-          </Button>
         </header>
       ) : null}
 

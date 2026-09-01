@@ -48,7 +48,15 @@ describe("TemplatePicker", () => {
       new Response(JSON.stringify({ entries: [] }), { status: 200 }),
     );
     render(wrap(<TemplatePicker vault="reef-acme" onSelect={() => {}} />));
-    expect(screen.getByTestId("template-picker-trigger")).not.toBeDisabled();
+    const trigger = screen.getByTestId("template-picker-trigger");
+    expect(trigger).not.toBeDisabled();
+    expect(trigger).toHaveClass(
+      "border",
+      "border-border",
+      "bg-surface-elevated",
+      "text-foreground",
+    );
+    expect(trigger.querySelector("svg")).toHaveClass("lucide-file-text");
   });
 
   it("calls /api/templates?vault={vault} via the hook", async () => {

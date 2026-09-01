@@ -26,10 +26,10 @@ export const CBX_TRIGGER_FIELD =
   "focus-visible:outline-none focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30 " +
   "disabled:cursor-not-allowed disabled:opacity-50";
 
-/** Action-style trigger (e.g. the Template apply button) — same height + hover. */
+/** Action-style trigger (e.g. the Template apply button) — neutral outline chrome. */
 export const CBX_TRIGGER_BUTTON =
-  "inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-secondary px-3 " +
-  "text-xs font-medium text-secondary-foreground transition-colors duration-150 " +
+  "inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border " +
+  "bg-surface-elevated px-3 text-xs font-medium text-foreground transition-colors duration-150 " +
   "hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/30 " +
   "disabled:cursor-not-allowed disabled:opacity-50";
 

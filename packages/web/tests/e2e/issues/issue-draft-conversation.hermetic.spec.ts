@@ -24,6 +24,42 @@ test.describe("Hermetic New Issue draft conversation", () => {
     const closedBox = await dialog.boundingBox();
     if (!closedBox) throw new Error("New Issue dialog has no closed geometry");
 
+    const toolbarTestIds = [
+      "template-picker-trigger",
+      "enrich-trigger",
+      "draft-conversation-toggle",
+      "new-issue-maximize-toggle",
+    ] as const;
+    const readToolbar = async () =>
+      Promise.all(
+        toolbarTestIds.map(async (testId) => {
+          const control = dialog.getByTestId(testId);
+          const box = await control.boundingBox();
+          if (!box) throw new Error(`${testId} has no toolbar geometry`);
+          return {
+            box,
+            testId,
+            text: await control.innerText(),
+          };
+        }),
+      );
+    await expect(dialog.getByTestId("new-issue-maximize-toggle")).toBeVisible();
+    const closedToolbar = await readToolbar();
+    expect(closedToolbar.map(({ testId }) => testId)).toEqual(toolbarTestIds);
+    expect(closedToolbar[2].text).toContain("Ask AI");
+    await expect(
+      dialog.getByTestId("template-picker-trigger").locator("svg"),
+    ).toHaveClass(/lucide-file-text/);
+    await expect(
+      dialog.getByTestId("enrich-trigger").locator("svg"),
+    ).toHaveClass(/lucide-list-plus/);
+    await expect(
+      dialog.getByTestId("draft-conversation-toggle").locator("svg"),
+    ).toHaveClass(/lucide-message-square/);
+    await expect(
+      dialog.getByTestId("new-issue-maximize-toggle").locator("svg"),
+    ).toHaveClass(/lucide-maximize-2/);
+
     const agentRequests: string[] = [];
     page.on("request", (request) => {
       if (new URL(request.url()).pathname === "/api/agents/runs") {
@@ -41,6 +77,9 @@ test.describe("Hermetic New Issue draft conversation", () => {
     await expect(
       dialog.getByTestId("draft-conversation-toggle"),
     ).toHaveAttribute("aria-controls", "draft-conversation-panel");
+    await expect(
+      dialog.getByTestId("draft-conversation-toggle"),
+    ).toHaveAttribute("aria-expanded", "false");
     await expect(dialog.getByTestId("draft-conversation-toggle")).toHaveClass(
       /border-ai-border/,
     );
@@ -49,9 +88,28 @@ test.describe("Hermetic New Issue draft conversation", () => {
     const conversationToggle = dialog.getByTestId("draft-conversation-toggle");
     await expect(panel).toBeVisible();
     await expect(dialog.getByTestId("new-issue-chat-input")).toBeVisible();
-    await expect(conversationToggle).toHaveCount(0);
+    await expect(conversationToggle).toHaveCount(1);
+    await expect(conversationToggle).toHaveText("Close chat");
+    await expect(conversationToggle).toHaveAttribute("aria-expanded", "true");
+    await expect(conversationToggle.locator("svg")).toHaveClass(/lucide-x/);
+    await expect(dialog.getByTestId("new-issue-chat-input")).toBeFocused();
     await expect(panel.getByRole("heading", { name: "AI chat" })).toBeVisible();
-    await expect(panel.getByTestId("draft-conversation-close")).toHaveCount(1);
+    await expect(panel.getByTestId("draft-conversation-close")).toHaveCount(0);
+    const openToolbar = await readToolbar();
+    expect(openToolbar.map(({ testId }) => testId)).toEqual(toolbarTestIds);
+    expect(openToolbar[2].text).toContain("Close chat");
+    for (const [index, closed] of closedToolbar.entries()) {
+      expect(
+        Math.abs(openToolbar[index].box.width - closed.box.width),
+      ).toBeLessThanOrEqual(1);
+      expect(
+        Math.abs(
+          openToolbar[index].box.x -
+            openToolbar[0].box.x -
+            (closed.box.x - closedToolbar[0].box.x),
+        ),
+      ).toBeLessThanOrEqual(2);
+    }
     expect(await panel.getAttribute("class")).not.toMatch(
       /rounded-lg|bg-surface-elevated/,
     );
@@ -72,7 +130,7 @@ test.describe("Hermetic New Issue draft conversation", () => {
     );
     await expect(
       dialog.getByTestId("enrich-trigger").locator("svg"),
-    ).toHaveCount(0);
+    ).toHaveClass(/lucide-list-plus/);
     await expect(panel.getByTestId("draft-conversation-context")).toHaveCount(
       0,
     );
@@ -184,14 +242,13 @@ test.describe("Hermetic New Issue draft conversation", () => {
 
     const unsentQuestion = dialog.getByTestId("new-issue-chat-input");
     await unsentQuestion.fill("Keep this unsent question");
-    const panelClose = dialog.getByTestId("draft-conversation-close");
-    await panelClose.focus();
+    await conversationToggle.focus();
     await page.keyboard.press("Enter");
     await expect(panel).toBeHidden();
     await expect(conversationToggle).toBeFocused();
     await conversationToggle.click();
     await expect(unsentQuestion).toHaveValue("Keep this unsent question");
-    await panelClose.click();
+    await conversationToggle.click();
     await expect(panel).toBeHidden();
     await expect(dialog.getByTestId("new-issue-title-input")).toHaveValue(
       "Updated title",
@@ -294,6 +351,76 @@ test.describe("Hermetic New Issue draft conversation", () => {
     await dialog.getByTestId("draft-view-conversation").click();
     await expect(dialog.getByTestId("draft-conversation-panel")).toBeVisible();
     await expect(dialog.getByTestId("new-issue-chat-input")).toBeVisible();
+
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await expect(dialog.getByTestId("draft-conversation-toggle")).toBeVisible();
+    await expect(dialog.getByTestId("draft-conversation-toggle")).toHaveText(
+      "Close chat",
+    );
+    await expect(
+      dialog.getByTestId("draft-conversation-toggle"),
+    ).toHaveAttribute("aria-expanded", "true");
+    await dialog.getByTestId("draft-conversation-toggle").click();
+    await expect(dialog.getByTestId("draft-conversation-panel")).toBeHidden();
+    await expect(dialog.getByTestId("draft-conversation-toggle")).toHaveText(
+      "Ask AI",
+    );
+    await expect(
+      dialog.getByTestId("draft-conversation-toggle"),
+    ).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("Escape closes only the open conversation and restores the right focus", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await page.getByTestId("new-issue-trigger").click();
+
+    const dialog = page.getByTestId("new-issue-dialog");
+    const toggle = dialog.getByTestId("draft-conversation-toggle");
+    await toggle.focus();
+    await page.keyboard.press("Enter");
+    const input = dialog.getByTestId("new-issue-chat-input");
+    await expect(input).toBeFocused();
+    await input.fill("Keep this question");
+    await input.press("Escape");
+
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByTestId("draft-conversation-panel")).toBeHidden();
+    await expect(dialog.getByTestId("discard-draft-confirm")).toHaveCount(0);
+    await expect(toggle).toHaveText("Ask AI");
+    await expect(toggle).toBeFocused();
+
+    await toggle.click();
+    await expect(input).toHaveValue("Keep this question");
+  });
+
+  test("mobile Escape folds AI and returns focus to Draft without losing the composer", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 844 });
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await page.getByTestId("new-issue-trigger").click();
+
+    const dialog = page.getByTestId("new-issue-dialog");
+    const aiView = dialog.getByTestId("draft-view-conversation");
+    const draftView = dialog.getByTestId("draft-view-draft");
+    await aiView.click();
+    const input = dialog.getByTestId("new-issue-chat-input");
+    await expect(input).toBeFocused();
+    await input.fill("Mobile question");
+    await input.press("Escape");
+
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByTestId("draft-conversation-panel")).toBeHidden();
+    await expect(dialog.getByTestId("discard-draft-confirm")).toHaveCount(0);
+    await expect(draftView).toBeFocused();
+
+    await aiView.click();
+    await expect(input).toHaveValue("Mobile question");
   });
 
   test("keeps narrow draft controls and the chat input inside the viewport", async ({
