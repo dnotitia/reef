@@ -139,7 +139,7 @@ export function IssueContextMenu({
     updateMutation.mutateAsync({ id: issue.id, vault, patch }).then(
       () => {
         toast.dismiss(kanbanToastId(issue.id));
-        flashIssue(issue.id);
+        flashIssue(vault, issue.id);
       },
       (error: unknown) => {
         notifyRetryableError({

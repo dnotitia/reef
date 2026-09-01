@@ -15,8 +15,8 @@ import {
   notifyRetryableError,
 } from "@/components/ui/toastFeedback";
 import {
-  hasPendingIssueStatusUpdate,
-  useIssueStatusUpdateState,
+  hasPendingIssueUpdate,
+  useIssueUpdateState,
   useUpdateIssue,
 } from "@/features/issues/hooks/mutations/useUpdateIssue";
 import { buildStatusPatch } from "@/features/issues/lib/statusPatch";
@@ -46,6 +46,7 @@ import {
 import { useTranslations } from "next-intl";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { LoaderCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { CloseIssueDialog } from "../detail/CloseIssueDialog";
@@ -71,6 +72,12 @@ const DEFAULT_QUICK_EDIT_WIDTH = "w-56";
 const COMPACT_QUICK_EDIT_WIDTH_PX = 192;
 const DEFAULT_QUICK_EDIT_WIDTH_PX = 224;
 const QUICK_EDIT_VIEWPORT_MARGIN_PX = 8;
+const QUICK_EDIT_PATCH_FIELDS = {
+  status: "status",
+  priority: "priority",
+  assignee: "assigned_to",
+  labels: "labels",
+} as const;
 
 function sameStringArray(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index]);
@@ -92,6 +99,7 @@ export function IssueQuickEditAnchor({
   const fieldNames = useFieldNameLabels();
   const empty = useEnrichmentEmptyLabels();
   const common = useTranslations("common");
+  const quickEdit = useTranslations("issues.quickEdit");
   const board = useTranslations("board");
   const toasts = useTranslations("toasts");
   const [pendingClose, setPendingClose] = useState(false);
@@ -116,8 +124,8 @@ export function IssueQuickEditAnchor({
 
   const resolvedOccurrenceKey = occurrenceKey ?? issue.id;
   const queryClient = useQueryClient();
-  const statusUpdate = useIssueStatusUpdateState(vault, issue.id);
-  const statusPending = statusUpdate.status === "pending";
+  const update = useIssueUpdateState(vault, issue.id);
+  const issuePending = update.status === "pending";
   const field =
     request?.scope === scope &&
     request.issueId === issue.id &&
@@ -125,6 +133,17 @@ export function IssueQuickEditAnchor({
     (allowedFields === undefined || allowedFields.includes(request.field))
       ? request.field
       : null;
+  const fieldUpdate =
+    field !== null && update.fields.includes(QUICK_EDIT_PATCH_FIELDS[field]);
+  const fieldPending = issuePending && fieldUpdate;
+  const fieldMessage =
+    field !== null && fieldUpdate && update.status === "pending"
+      ? quickEdit("fieldUpdating", { field: fieldNames[field] })
+      : field !== null && fieldUpdate && update.status === "success"
+        ? quickEdit("fieldUpdated", { field: fieldNames[field] })
+        : field !== null && fieldUpdate && update.status === "error"
+          ? quickEdit("fieldUpdateFailed", { field: fieldNames[field] })
+          : "";
   const handleDismissKeyDown = useCallback(
     (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
@@ -238,16 +257,11 @@ export function IssueQuickEditAnchor({
   ]);
 
   function commitPatch(patch: IssueUpdatePatch) {
-    if (
-      patch.status !== undefined &&
-      hasPendingIssueStatusUpdate(queryClient, vault, issue.id)
-    ) {
-      return;
-    }
+    if (hasPendingIssueUpdate(queryClient, vault, issue.id)) return;
     mutation.mutateAsync({ id: issue.id, vault, patch }).then(
       () => {
         toast.dismiss(kanbanToastId(issue.id));
-        flashIssue(issue.id);
+        flashIssue(vault, issue.id);
       },
       (err: unknown) => {
         notifyRetryableError({
@@ -310,6 +324,7 @@ export function IssueQuickEditAnchor({
           visibility: anchorPosition ? "visible" : "hidden",
         }}
         data-testid="issue-quick-edit-anchor"
+        aria-busy={issuePending || undefined}
         onClick={(event) => event.stopPropagation()}
         onKeyDown={(event) => event.stopPropagation()}
       >
@@ -323,7 +338,7 @@ export function IssueQuickEditAnchor({
             testId="issue-quick-edit-status"
             open
             onOpenChange={closeOpenField}
-            disabled={mutation.isPending || statusPending}
+            disabled={issuePending}
             triggerClassName="bg-surface-popover shadow-lg shadow-foreground/10"
             contentClassName={COMPACT_QUICK_EDIT_WIDTH}
           />
@@ -349,7 +364,7 @@ export function IssueQuickEditAnchor({
             testId="issue-quick-edit-priority"
             open
             onOpenChange={closeOpenField}
-            disabled={mutation.isPending}
+            disabled={issuePending}
             triggerClassName="bg-surface-popover shadow-lg shadow-foreground/10"
             contentClassName={COMPACT_QUICK_EDIT_WIDTH}
           />
@@ -371,7 +386,7 @@ export function IssueQuickEditAnchor({
             panelClassName="min-w-64"
             open
             onOpenChange={closeOpenField}
-            disabled={mutation.isPending}
+            disabled={issuePending}
           />
         )}
 
@@ -379,9 +394,17 @@ export function IssueQuickEditAnchor({
           <Popover open onOpenChange={closeOpenField}>
             <PopoverTrigger
               aria-haspopup="dialog"
+              aria-busy={fieldPending || undefined}
+              disabled={issuePending}
               className="h-8 w-full justify-start rounded-md border border-border bg-surface-popover px-2.5 text-[13px] text-foreground shadow-lg shadow-foreground/10"
             >
               {fieldNames.labels}
+              {fieldPending && (
+                <LoaderCircle
+                  className="ml-1.5 size-3.5 shrink-0 motion-safe:animate-spin"
+                  aria-hidden="true"
+                />
+              )}
             </PopoverTrigger>
             <PopoverContent
               role="dialog"
@@ -398,10 +421,20 @@ export function IssueQuickEditAnchor({
                 placeholder={common("addLabelPlaceholder")}
                 data-testid="issue-quick-edit-labels"
                 autoFocus
-                disabled={mutation.isPending}
+                disabled={issuePending}
               />
             </PopoverContent>
           </Popover>
+        )}
+        {fieldMessage && (
+          <span
+            role="status"
+            aria-live="polite"
+            className="sr-only"
+            data-issue-update-announcement
+          >
+            {fieldMessage}
+          </span>
         )}
       </div>
     );
@@ -422,7 +455,7 @@ export function IssueQuickEditAnchor({
       <CloseIssueDialog
         open={pendingClose}
         issueId={issue.id}
-        disabled={mutation.isPending || statusPending}
+        disabled={issuePending}
         onOpenChange={(open) => {
           if (!open) setPendingClose(false);
         }}

@@ -32,7 +32,11 @@ vi.mock("@/lib/storage/assigneeRecents", () => ({
 import { apiFetch } from "@/lib/apiClient";
 import type { IssueMetadata } from "@reef/core";
 import { issueBodyHistoryKey } from "../queries/useIssueBodyHistory";
-import { useIssueStatusUpdateState, useUpdateIssue } from "./useUpdateIssue";
+import {
+  hasPendingIssueUpdate,
+  useIssueUpdateState,
+  useUpdateIssue,
+} from "./useUpdateIssue";
 
 const mockApiFetch = vi.mocked(apiFetch);
 
@@ -624,7 +628,7 @@ describe("useUpdateIssue", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
   });
 
-  it("exposes pending and settled status mutation state per vault and issue", async () => {
+  it("exposes pending and settled mutation state per vault, issue, and changed fields", async () => {
     let resolveResponse: (response: Response) => void = () => {};
     mockApiFetch.mockReturnValue(
       new Promise<Response>((resolve) => {
@@ -634,11 +638,11 @@ describe("useUpdateIssue", () => {
     const queryClient = makeTestQueryClient();
     const update = renderUseUpdateIssue(queryClient);
     const status = renderHook(
-      () => useIssueStatusUpdateState("reef-acme", "REEF-001"),
+      () => useIssueUpdateState("reef-acme", "REEF-001"),
       { wrapper: makeWrapper(queryClient) },
     );
     const sibling = renderHook(
-      () => useIssueStatusUpdateState("reef-acme", "REEF-002"),
+      () => useIssueUpdateState("reef-acme", "REEF-002"),
       { wrapper: makeWrapper(queryClient) },
     );
 
@@ -650,7 +654,9 @@ describe("useUpdateIssue", () => {
       });
     });
     await waitFor(() => expect(status.result.current.status).toBe("pending"));
+    expect(status.result.current.fields).toEqual(["status"]);
     expect(sibling.result.current.status).toBe("idle");
+    expect(sibling.result.current.fields).toEqual([]);
 
     await act(async () => {
       resolveResponse(
@@ -660,7 +666,51 @@ describe("useUpdateIssue", () => {
       );
     });
     await waitFor(() => expect(status.result.current.status).toBe("success"));
+    expect(status.result.current.fields).toEqual(["status"]);
     expect(sibling.result.current.status).toBe("idle");
+  });
+
+  it("isolates the pending guard by vault and issue for non-status fields", async () => {
+    let resolveResponse: (response: Response) => void = () => {};
+    mockApiFetch.mockReturnValue(
+      new Promise<Response>((resolve) => {
+        resolveResponse = resolve;
+      }),
+    );
+    const queryClient = makeTestQueryClient();
+    const { result } = renderUseUpdateIssue(queryClient);
+
+    act(() => {
+      result.current.mutate({
+        id: "REEF-001",
+        vault: "reef-acme",
+        patch: { labels: ["quick-edit"] },
+      });
+    });
+
+    await waitFor(() =>
+      expect(hasPendingIssueUpdate(queryClient, "reef-acme", "REEF-001")).toBe(
+        true,
+      ),
+    );
+    expect(hasPendingIssueUpdate(queryClient, "reef-acme", "REEF-002")).toBe(
+      false,
+    );
+    expect(hasPendingIssueUpdate(queryClient, "reef-other", "REEF-001")).toBe(
+      false,
+    );
+
+    await act(async () => {
+      resolveResponse(
+        new Response(JSON.stringify({ issue: UPDATED, content: "" }), {
+          status: 200,
+        }),
+      );
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(hasPendingIssueUpdate(queryClient, "reef-acme", "REEF-001")).toBe(
+      false,
+    );
   });
 
   it("notifies callers with the restored detail snapshot after a failure", async () => {

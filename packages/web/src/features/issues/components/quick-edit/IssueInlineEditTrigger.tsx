@@ -5,7 +5,7 @@ import {
   type IssueQuickEditField,
   useIssueKeyboardStore,
 } from "@/features/issues/stores/useIssueKeyboardStore";
-import { useIssueStatusUpdateState } from "@/features/issues/hooks/mutations/useUpdateIssue";
+import { useIssueUpdateState } from "@/features/issues/hooks/mutations/useUpdateIssue";
 import type { KeyboardEvent, ReactNode, Ref } from "react";
 import { LoaderCircle } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -20,6 +20,13 @@ interface IssueInlineEditTriggerProps {
   children: ReactNode;
   anchorRef?: Ref<HTMLButtonElement>;
 }
+
+const QUICK_EDIT_PATCH_FIELDS = {
+  status: "status",
+  priority: "priority",
+  assignee: "assigned_to",
+  labels: "labels",
+} as const;
 
 /**
  * Shared field trigger for the List and Backlog quick-edit surfaces. The
@@ -36,18 +43,18 @@ export function IssueInlineEditTrigger({
   children,
   anchorRef,
 }: IssueInlineEditTriggerProps) {
-  const statusUpdate = useIssueStatusUpdateState(vault, issueId);
+  const update = useIssueUpdateState(vault, issueId);
   const quickEdit = useTranslations("issues.quickEdit");
-  const statusMessage =
-    field !== "status"
-      ? ""
-      : statusUpdate.status === "pending"
-        ? quickEdit("statusUpdating")
-        : statusUpdate.status === "success"
-          ? quickEdit("statusUpdated")
-          : statusUpdate.status === "error"
-            ? quickEdit("statusUpdateFailed")
-            : "";
+  const fieldUpdate = update.fields.includes(QUICK_EDIT_PATCH_FIELDS[field]);
+  const fieldPending = update.status === "pending" && fieldUpdate;
+  const fieldMessage =
+    fieldUpdate && update.status === "pending"
+      ? quickEdit("fieldUpdating", { field: label })
+      : fieldUpdate && update.status === "success"
+        ? quickEdit("fieldUpdated", { field: label })
+        : fieldUpdate && update.status === "error"
+          ? quickEdit("fieldUpdateFailed", { field: label })
+          : "";
   function requestEdit() {
     const keyboard = useIssueKeyboardStore.getState();
     keyboard.focusOccurrence(scope, occurrenceKey, issueId);
@@ -59,14 +66,10 @@ export function IssueInlineEditTrigger({
       <button
         ref={anchorRef}
         type="button"
-        disabled={field === "status" && statusUpdate.status === "pending"}
+        disabled={update.status === "pending"}
         className="inline-flex h-full max-w-full min-w-0 items-center rounded-sm text-left outline-none transition-colors duration-150 hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:ring-2 focus-visible:ring-brand-focus/40"
         aria-label={label}
-        aria-busy={
-          field === "status" && statusUpdate.status === "pending"
-            ? true
-            : undefined
-        }
+        aria-busy={fieldPending || undefined}
         data-testid={`issue-inline-edit-${field}`}
         onClick={(event) => {
           event.stopPropagation();
@@ -80,21 +83,21 @@ export function IssueInlineEditTrigger({
         }}
       >
         {children}
-        {field === "status" && statusUpdate.status === "pending" && (
+        {fieldPending && (
           <LoaderCircle
-            className="ml-1.5 size-3.5 shrink-0 animate-spin"
+            className="ml-1.5 size-3.5 shrink-0 motion-safe:animate-spin"
             aria-hidden="true"
           />
         )}
       </button>
-      {field === "status" && statusMessage && (
+      {fieldMessage && (
         <span
           role="status"
           aria-live="polite"
           className="sr-only"
-          data-status-update-announcement
+          data-issue-update-announcement
         >
-          {statusMessage}
+          {fieldMessage}
         </span>
       )}
     </>

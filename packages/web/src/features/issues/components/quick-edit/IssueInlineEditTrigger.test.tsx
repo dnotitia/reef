@@ -5,6 +5,7 @@ import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { apiFetch } from "@/lib/apiClient";
 import { StatusBadge } from "@/components/ui/status-icon";
 import { useUpdateIssue } from "@/features/issues/hooks/mutations/useUpdateIssue";
+import type { IssueQuickEditField } from "@/features/issues/stores/useIssueKeyboardStore";
 import { IssueInlineEditTrigger } from "./IssueInlineEditTrigger";
 
 vi.mock("@/lib/apiClient", async () => {
@@ -25,19 +26,38 @@ function makeQueryClient() {
   });
 }
 
-function Harness() {
+const FIELD_LABELS: Record<IssueQuickEditField, string> = {
+  status: "Status",
+  priority: "Priority",
+  assignee: "Assignee",
+  labels: "Labels",
+};
+
+function Harness({ field = "status" }: { field?: IssueQuickEditField }) {
   const mutation = useUpdateIssue();
+  const patch =
+    field === "status"
+      ? { status: "in_progress" as const }
+      : field === "priority"
+        ? { priority: "high" as const }
+        : field === "assignee"
+          ? { assigned_to: "bob" }
+          : { labels: ["ui"] };
   return (
     <>
       <IssueInlineEditTrigger
         scope="list"
-        field="status"
+        field={field}
         issueId="REEF-001"
         vault="reef-acme"
         occurrenceKey="REEF-001"
-        label="Status"
+        label={FIELD_LABELS[field]}
       >
-        <StatusBadge status="todo" />
+        {field === "status" ? (
+          <StatusBadge status="todo" />
+        ) : (
+          FIELD_LABELS[field]
+        )}
       </IssueInlineEditTrigger>
       <button
         type="button"
@@ -46,7 +66,7 @@ function Harness() {
           mutation.mutate({
             id: "REEF-001",
             vault: "reef-acme",
-            patch: { status: "in_progress" },
+            patch,
           })
         }
       >
@@ -56,13 +76,16 @@ function Harness() {
   );
 }
 
-function renderHarness(queryClient = makeQueryClient()) {
+function renderHarness(
+  field: IssueQuickEditField = "status",
+  queryClient = makeQueryClient(),
+) {
   return {
     queryClient,
     ...render(
       <QueryClientProvider client={queryClient}>
         <IntlTestProvider>
-          <Harness />
+          <Harness field={field} />
         </IntlTestProvider>
       </QueryClientProvider>,
     ),
@@ -74,68 +97,87 @@ describe("IssueInlineEditTrigger", () => {
     vi.clearAllMocks();
   });
 
-  it("announces pending and settled status updates while keeping other rows independent", async () => {
-    let resolveResponse: (response: Response) => void = () => {};
-    mockApiFetch.mockReturnValue(
-      new Promise<Response>((resolve) => {
-        resolveResponse = resolve;
-      }),
-    );
-    renderHarness();
+  it.each([
+    ["status", "Status"],
+    ["priority", "Priority"],
+    ["assignee", "Assignee"],
+    ["labels", "Labels"],
+  ] as const)(
+    "announces pending and settled %s updates while keeping the action name stable",
+    async (field, label) => {
+      let resolveResponse: (response: Response) => void = () => {};
+      mockApiFetch.mockReturnValue(
+        new Promise<Response>((resolve) => {
+          resolveResponse = resolve;
+        }),
+      );
+      renderHarness(field);
 
-    const trigger = screen.getByTestId("issue-inline-edit-status");
-    expect(trigger).toHaveAttribute("aria-label", "Status");
-    expect(trigger).not.toHaveAttribute("aria-busy");
+      const trigger = screen.getByTestId(`issue-inline-edit-${field}`);
+      expect(trigger).toHaveAttribute("aria-label", label);
+      expect(trigger).not.toHaveAttribute("aria-busy");
 
-    await act(async () => {
-      screen.getByTestId("start-status-update").click();
-    });
-    await waitFor(() => expect(trigger).toHaveAttribute("aria-busy", "true"));
-    expect(trigger).toHaveAccessibleName("Status");
-    expect(screen.getByRole("status")).toHaveTextContent("Updating status…");
+      await act(async () => {
+        screen.getByTestId("start-status-update").click();
+      });
+      await waitFor(() => expect(trigger).toHaveAttribute("aria-busy", "true"));
+      expect(trigger).toHaveAccessibleName(label);
+      expect(screen.getByRole("status")).toHaveTextContent(
+        `Updating ${label}…`,
+      );
 
-    await act(async () => {
-      resolveResponse(
-        new Response(
-          JSON.stringify({
-            issue: {
-              id: "REEF-001",
-              title: "Sample",
-              status: "in_progress",
-              created_at: "2026-05-01T00:00:00.000Z",
-              created_by: "alice",
-              updated_at: "2026-05-02T00:00:00.000Z",
-              updated_by: "alice",
-            },
-            content: "",
-          }),
-          { status: 200 },
+      await act(async () => {
+        resolveResponse(
+          new Response(
+            JSON.stringify({
+              issue: {
+                id: "REEF-001",
+                title: "Sample",
+                status: "in_progress",
+                created_at: "2026-05-01T00:00:00.000Z",
+                created_by: "alice",
+                updated_at: "2026-05-02T00:00:00.000Z",
+                updated_by: "alice",
+              },
+              content: "",
+            }),
+            { status: 200 },
+          ),
+        );
+      });
+      await waitFor(() => expect(trigger).toHaveAccessibleName(label));
+      expect(trigger).not.toHaveAttribute("aria-busy");
+      expect(trigger).toHaveAccessibleName(label);
+      expect(screen.getByRole("status")).toHaveTextContent(`${label} updated.`);
+    },
+  );
+
+  it.each([
+    ["status", "Status"],
+    ["priority", "Priority"],
+    ["assignee", "Assignee"],
+    ["labels", "Labels"],
+  ] as const)(
+    "keeps %s failure retry feedback out of the trigger action name",
+    async (field, label) => {
+      mockApiFetch.mockRejectedValueOnce(new Error("save failed"));
+      renderHarness(field);
+
+      const trigger = screen.getByTestId(`issue-inline-edit-${field}`);
+      await act(async () => {
+        screen.getByTestId("start-status-update").click();
+      });
+
+      await waitFor(() =>
+        expect(screen.getByRole("status")).toHaveTextContent(
+          `${label} update failed. Retry is available.`,
         ),
       );
-    });
-    await waitFor(() => expect(trigger).toHaveAccessibleName("Status"));
-    expect(trigger).not.toHaveAttribute("aria-busy");
-    expect(screen.getByRole("status")).toHaveTextContent("Status updated.");
-  });
-
-  it("keeps failure retry feedback out of the trigger action name", async () => {
-    mockApiFetch.mockRejectedValueOnce(new Error("save failed"));
-    renderHarness();
-
-    const trigger = screen.getByTestId("issue-inline-edit-status");
-    await act(async () => {
-      screen.getByTestId("start-status-update").click();
-    });
-
-    await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent(
-        "Status update failed. Retry is available.",
-      ),
-    );
-    expect(trigger).toHaveAccessibleName("Status");
-    expect(trigger).not.toHaveAttribute("aria-busy");
-    expect(
-      screen.queryByRole("button", { name: "Retry" }),
-    ).not.toBeInTheDocument();
-  });
+      expect(trigger).toHaveAccessibleName(label);
+      expect(trigger).not.toHaveAttribute("aria-busy");
+      expect(
+        screen.queryByRole("button", { name: "Retry" }),
+      ).not.toBeInTheDocument();
+    },
+  );
 });
