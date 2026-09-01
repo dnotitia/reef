@@ -27,6 +27,7 @@ vi.mock("@/features/settings/hooks/useActiveVault", () => ({
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mockReplace, push: vi.fn() }),
+  usePathname: () => "/workspace/reef-acme/issues/changes",
   useSearchParams: () => navigationState.searchParams,
 }));
 
@@ -149,6 +150,13 @@ describe("IssueChangeReviewPage", () => {
     expect(
       screen.getByTestId("issue-change-review-actions"),
     ).toBeInTheDocument();
+    expect(screen.getByTestId("issues-subnav-change-review")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByTestId("issues-subnav-issue-list")).not.toHaveAttribute(
+      "aria-current",
+    );
     expect(screen.queryByTestId("issue-change-review-share")).toBeNull();
     expect(
       screen.getByText("Removed attachment old-evidence.txt"),

@@ -18,6 +18,7 @@ import {
 import { PageHeader } from "@/features/ui/components/PageHeader";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
+import { IssuesSubNav } from "@/features/issues/components/shared/IssuesSubNav";
 import { useIssueChangeReview } from "@/features/issues/hooks/queries/useIssueChangeReview";
 import { parseIsoDate } from "@/features/issues/lib/dateHelpers";
 import {
@@ -344,6 +345,7 @@ export function IssueChangeReviewLoading() {
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
       <PageHeader title={nav("changeReview")} />
+      <IssuesSubNav />
       <PageBody width="wide" pad="compact">
         <ChangeReviewBodySkeleton label={t("loading")} />
       </PageBody>
@@ -645,6 +647,7 @@ export function IssueChangeReviewPage() {
           />
         }
       />
+      <IssuesSubNav />
 
       <PageBody width="wide" pad="compact" className="flex flex-col gap-4">
         <section

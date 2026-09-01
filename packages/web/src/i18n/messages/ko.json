@@ -876,6 +876,11 @@
     }
   },
   "issues": {
+    "navigation": {
+      "ariaLabel": "이슈 섹션",
+      "list": "이슈 목록",
+      "changeReview": "변경 검토"
+    },
     "quickEdit": {
       "statusUpdating": "상태 업데이트 중…",
       "statusUpdated": "상태를 업데이트했습니다.",

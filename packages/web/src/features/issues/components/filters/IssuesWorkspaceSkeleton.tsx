@@ -1,5 +1,6 @@
 import { BoardColumnsSkeleton } from "@/components/BoardColumnsSkeleton";
 import { Skeleton } from "@/components/ui/skeleton";
+import { IssuesSubNav } from "@/features/issues/components/shared/IssuesSubNav";
 import { PageHeader } from "@/features/ui/components/PageHeader";
 import { useTranslations } from "next-intl";
 
@@ -61,6 +62,7 @@ export function IssuesWorkspaceSkeleton() {
           so it is NOT under aria-hidden; PageHeader's h1 stays a real heading. */}
       <output className="sr-only">{c("loading")}</output>
       <PageHeader title={nav("issues")} />
+      <IssuesSubNav />
       {/* The placeholder body is decorative: aria-hidden keeps assistive tech
           from traversing the empty toolbar/board DOM. The wrapper inherits the
           column's flex sizing so the board still fills the remaining height. */}

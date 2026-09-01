@@ -10,6 +10,18 @@ vi.mock("@/features/issues/components/filters/IssuesWorkspace", async () => {
   return { IssuesWorkspace: lazy(() => new Promise<never>(() => {})) };
 });
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/workspace/reef-test/issues",
+}));
+
+vi.mock("@/features/settings/hooks/useActiveVault", () => ({
+  useActiveVault: () => ({
+    vault: "reef-test",
+    isLoading: false,
+    refetch: vi.fn(),
+  }),
+}));
+
 import IssuesLoading from "./loading";
 import IssuesPage from "./page";
 

@@ -176,10 +176,20 @@ test.describe("Hermetic issue change review", () => {
   }) => {
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/issues");
-    await page.getByRole("link", { name: "Change review" }).click();
+    await expect(page.getByTestId("issues-subnav-issue-list")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await expect(
+      page.getByRole("button", { name: "Change review" }),
+    ).toHaveCount(0);
+    await page.getByTestId("issues-subnav-change-review").click();
     await page.waitForURL(/\/workspace\/reef-e2e\/issues\/changes(?:\?|$)/u, {
       timeout: 30_000,
     });
+    await expect(
+      page.getByTestId("issues-subnav-change-review"),
+    ).toHaveAttribute("aria-current", "page");
     await expect(
       page.getByRole("heading", { name: "Review period", exact: true }),
     ).toBeVisible();
@@ -193,6 +203,37 @@ test.describe("Hermetic issue change review", () => {
     await expect(
       page.getByRole("heading", { name: "Issues", exact: true }),
     ).toBeVisible();
+  });
+
+  test("switches from change review to the Issues route through shared subnavigation", async ({
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(await discoveredReviewStartPath(request));
+    await waitForReviewContent(page);
+    await expect(
+      page.getByTestId("issues-subnav-change-review"),
+    ).toHaveAttribute("aria-current", "page");
+    await expect(page.getByTestId("issue-filter-toolbar")).toHaveCount(0);
+    await expect(page.getByTestId("view-switcher")).toHaveCount(0);
+    await expect(page.getByTestId("scope-switcher")).toHaveCount(0);
+
+    await page.getByTestId("issues-subnav-issue-list").click();
+    await page.waitForURL(/\/workspace\/reef-e2e\/issues$/u, {
+      timeout: 30_000,
+    });
+    await expect(
+      page.getByRole("heading", { name: "Issues", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByTestId("issues-subnav-issue-list")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await expect(page.getByTestId("issue-filter-toolbar")).toBeVisible();
+    await expect(page.getByTestId("issue-change-review-results")).toHaveCount(
+      0,
+    );
   });
 
   test("keeps the change-review chrome usable at narrow widths", async ({
@@ -210,6 +251,11 @@ test.describe("Hermetic issue change review", () => {
       ).toBeVisible();
       await expect(
         page.getByTestId("issue-change-review-actions"),
+      ).toBeVisible();
+      await expect(page.getByTestId("issues-subnav")).toBeVisible();
+      await expect(page.getByTestId("issues-subnav-issue-list")).toBeVisible();
+      await expect(
+        page.getByTestId("issues-subnav-change-review"),
       ).toBeVisible();
       const viewportFits = await page.evaluate(
         () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -396,7 +442,6 @@ test.describe("Hermetic issue change review", () => {
 
     await page.getByTestId("issue-change-review-actions").click();
     await page.getByTestId("issue-change-review-copy-link").click();
-    await expect(page.getByText("Review link copied.")).toBeVisible();
     await expect(
       page.getByTestId("issue-change-review-copy-feedback"),
     ).toHaveText("Review link copied.");

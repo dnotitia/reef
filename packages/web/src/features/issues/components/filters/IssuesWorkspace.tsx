@@ -7,6 +7,7 @@ import { IssueFilterToolbar } from "@/features/issues/components/filters/IssueFi
 import { ScopeSwitcher } from "@/features/issues/components/filters/ScopeSwitcher";
 import { ViewSwitcher } from "@/features/issues/components/filters/ViewSwitcher";
 import { IssueListTable } from "@/features/issues/components/list/IssueListTable";
+import { IssuesSubNav } from "@/features/issues/components/shared/IssuesSubNav";
 import { useIssueFilterPersistence } from "@/features/issues/hooks/view/useIssueFilterPersistence";
 import { useIssueUrlSync } from "@/features/issues/hooks/view/useIssueUrlSync";
 import { parseIssueViewState } from "@/features/issues/lib/viewMode";
@@ -16,8 +17,6 @@ import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { TimelineBody } from "@/features/timeline/components/TimelineBody";
 import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { PageHeader } from "@/features/ui/components/PageHeader";
-import { Button } from "@/components/ui/button";
-import { withVault } from "@/lib/workspaceHref";
 import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
@@ -75,19 +74,9 @@ export function IssuesWorkspace() {
           <ScopeSwitcher activeScope={scope} activeLayout={layout} />
         }
         className="h-auto min-h-12 flex-wrap py-2"
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            {vault ? (
-              <Button asChild size="sm" variant="outline">
-                <a href={withVault(vault, "/issues/changes")}>
-                  {nav("changeReview")}
-                </a>
-              </Button>
-            ) : null}
-            <ViewSwitcher scope={scope} activeLayout={layout} />
-          </div>
-        }
+        actions={<ViewSwitcher scope={scope} activeLayout={layout} />}
       />
+      <IssuesSubNav />
 
       {!vault && !isLoading ? (
         <EmptyWorkspaceNotice />

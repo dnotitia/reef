@@ -154,13 +154,19 @@ describe("IssuesWorkspace", () => {
     expect(view.closest('[data-slot="page-header-actions"]')).not.toBeNull();
   });
 
-  it("links the Issues header to the vault-scoped change review", () => {
+  it("renders the shared Issues subnavigation without an independent CTA", () => {
     render(wrap(<IssuesWorkspace />));
 
+    expect(screen.getByTestId("issues-subnav")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Issue list" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
     expect(screen.getByRole("link", { name: "Change review" })).toHaveAttribute(
       "href",
       "/workspace/reef-acme/issues/changes",
     );
+    expect(screen.queryByRole("button", { name: "Change review" })).toBeNull();
   });
 
   it("renders the list body when ?view=list", () => {

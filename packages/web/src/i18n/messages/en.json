@@ -691,6 +691,11 @@
     "undo": "Undo"
   },
   "issues": {
+    "navigation": {
+      "ariaLabel": "Issue sections",
+      "list": "Issue list",
+      "changeReview": "Change review"
+    },
     "quickEdit": {
       "statusUpdating": "Updating status…",
       "statusUpdated": "Status updated.",

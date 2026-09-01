@@ -1,5 +1,18 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/workspace/reef-acme/issues",
+}));
+
+vi.mock("@/features/settings/hooks/useActiveVault", () => ({
+  useActiveVault: () => ({
+    vault: "reef-acme",
+    isLoading: false,
+    refetch: vi.fn(),
+  }),
+}));
+
 import { IssuesWorkspaceSkeleton } from "./IssuesWorkspaceSkeleton";
 
 describe("IssuesWorkspaceSkeleton", () => {
@@ -11,6 +24,7 @@ describe("IssuesWorkspaceSkeleton", () => {
     // the board".
     expect(screen.getByTestId("issues-skeleton")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Issues" })).toBeInTheDocument();
+    expect(screen.getByTestId("issues-subnav")).toBeInTheDocument();
     expect(screen.getByTestId("issues-skeleton")).toHaveClass("min-w-0");
     expect(screen.getByTestId("board-columns-skeleton")).toHaveClass(
       "min-w-0",
