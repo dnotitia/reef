@@ -1590,9 +1590,11 @@ test.describe("Hermetic issue route surfaces", () => {
     await expect(body).toHaveValue("Description survives maximize");
 
     await expect(handle).toBeVisible();
+    // Read the maximized handle only after the editor has applied the expanded
+    // canvas height; the initial 320px value is the pre-measurement fallback.
     await expect
       .poll(async () => Number(await handle.getAttribute("aria-valuenow")))
-      .toBeGreaterThanOrEqual(normalDescriptionHeight);
+      .toBeGreaterThan(normalDescriptionHeight);
     expect(
       await page.evaluate(
         (key) => window.sessionStorage.getItem(key),
