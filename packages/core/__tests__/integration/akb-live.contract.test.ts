@@ -502,7 +502,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
     const schemaVersion = rawConfig.schema_version;
     // The pinned AKB ref predates the auth-config version field; moving main
     // publishes v2. Both responses still expose the fields Core consumes.
-    expect([undefined, 1, 2]).toContain(schemaVersion);
+    expect([undefined, 2]).toContain(schemaVersion);
     expect(localAuth.enabled).toBe(true);
     expect(keycloak.enabled).toBe(false);
     expect(JSON.stringify(rawConfig)).not.toContain(PASSWORD);
