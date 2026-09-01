@@ -1504,8 +1504,6 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
     expect(activation.activated).toBe(true);
 
     const baseStream = adapter.stream;
-    if (!baseStream)
-      throw new Error("AKB adapter did not expose event streaming");
     let resolveConnected: () => void = () => undefined;
     const connected = new Promise<void>((resolve) => {
       resolveConnected = resolve;
@@ -1683,7 +1681,6 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
         }
         return adapter.request(path, init);
       },
-      stream: adapter.stream,
     };
 
     const failedFanout = await akbProjectNotifications({
