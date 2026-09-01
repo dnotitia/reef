@@ -264,7 +264,11 @@ test.describe("auth soft navigation", () => {
     const sibling = await context.newPage();
     try {
       await sibling.goto(page.url());
-      await expect(sibling.locator(`a[href="${ISSUES_PATH}"]`)).toBeVisible();
+      await expect(
+        sibling
+          .getByRole("navigation", { name: "Main navigation" })
+          .getByRole("link", { name: "Issues", exact: true }),
+      ).toBeVisible();
 
       await sibling.evaluate(() => {
         const channel = new BroadcastChannel("reef:auth");
