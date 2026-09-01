@@ -31,13 +31,18 @@ describe("IssuesSubNav", () => {
 
     const nav = screen.getByRole("navigation", { name: "Issue sections" });
     expect(nav).toBeInTheDocument();
+    expect(nav).toHaveClass("inline-flex", "w-fit");
+    expect(nav).not.toHaveClass("bg-surface-elevated", "rounded-md");
     const issueList = screen.getByTestId("issues-subnav-issue-list");
     expect(issueList).toHaveAttribute("href", "/workspace/reef-test/issues");
+    expect(issueList).not.toHaveClass("flex-1");
     expect(issueList).toHaveAccessibleName(/Issue list.*Current page/u);
-    expect(screen.getByTestId("issues-subnav-change-review")).toHaveAttribute(
+    const changeReview = screen.getByTestId("issues-subnav-change-review");
+    expect(changeReview).toHaveAttribute(
       "href",
       "/workspace/reef-test/issues/changes",
     );
+    expect(changeReview).not.toHaveClass("flex-1");
   });
 
   it("marks the Issues route active only on the list surface", () => {

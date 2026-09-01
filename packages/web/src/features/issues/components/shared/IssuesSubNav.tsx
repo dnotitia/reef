@@ -1,11 +1,5 @@
 "use client";
 
-import {
-  SEGMENTED_CONTROL_ITEM,
-  SEGMENTED_CONTROL_ITEM_ACTIVE,
-  SEGMENTED_CONTROL_ITEM_INACTIVE,
-  SEGMENTED_CONTROL_TRACK,
-} from "@/components/segmentedControl";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
@@ -45,39 +39,34 @@ export function IssuesSubNav() {
     <nav
       aria-label={t("ariaLabel")}
       data-testid="issues-subnav"
-      className="flex min-w-0 shrink-0 border-b border-border-subtle px-6 py-2"
+      className="inline-flex w-fit max-w-full min-w-0 shrink-0 flex-wrap items-center gap-4 border-b border-border-subtle px-6 py-2"
     >
-      <div className={cn(SEGMENTED_CONTROL_TRACK, "w-full max-w-md")}>
-        {ISSUE_SUB_NAV_ITEMS.map(({ href, id, labelKey }) => {
-          const fullHref = withVault(vault, href);
-          const isActive =
-            id === "change-review"
-              ? isChangeReview
-              : !isChangeReview &&
-                (pathname === issueListHref ||
-                  pathname.startsWith(`${issueListHref}/`));
-          return (
-            <a
-              key={id}
-              href={fullHref}
-              aria-current={isActive ? "page" : undefined}
-              data-testid={`issues-subnav-${id}`}
-              className={cn(
-                SEGMENTED_CONTROL_ITEM,
-                "min-w-0 flex-1 justify-center whitespace-nowrap text-center",
-                isActive
-                  ? SEGMENTED_CONTROL_ITEM_ACTIVE
-                  : SEGMENTED_CONTROL_ITEM_INACTIVE,
-              )}
-            >
-              {t(labelKey)}
-              {isActive && (
-                <span className="sr-only"> ({t("currentPage")})</span>
-              )}
-            </a>
-          );
-        })}
-      </div>
+      {ISSUE_SUB_NAV_ITEMS.map(({ href, id, labelKey }) => {
+        const fullHref = withVault(vault, href);
+        const isActive =
+          id === "change-review"
+            ? isChangeReview
+            : !isChangeReview &&
+              (pathname === issueListHref ||
+                pathname.startsWith(`${issueListHref}/`));
+        return (
+          <a
+            key={id}
+            href={fullHref}
+            aria-current={isActive ? "page" : undefined}
+            data-testid={`issues-subnav-${id}`}
+            className={cn(
+              "-mb-px min-w-0 shrink-0 whitespace-nowrap border-b-2 px-0.5 py-2 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
+              isActive
+                ? "border-brand-focus text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {t(labelKey)}
+            {isActive && <span className="sr-only"> ({t("currentPage")})</span>}
+          </a>
+        );
+      })}
     </nav>
   );
 }
