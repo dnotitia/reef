@@ -1796,6 +1796,18 @@ hr {
  * edge. The 481–767px gap intentionally preserves the effective-200% layout
  * used by the existing sticky-boundary contract. */
 @media (max-width: 480px) {
+  .issue-detail-chrome {
+    flex-wrap: wrap;
+  }
+
+  .issue-detail-identity {
+    flex: 0 0 100%;
+  }
+
+  .issue-detail-actions {
+    margin-left: auto;
+  }
+
   .issue-detail-sheet {
     width: 100vw !important;
   }

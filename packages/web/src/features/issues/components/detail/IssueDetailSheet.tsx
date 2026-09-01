@@ -596,7 +596,7 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
             >
               <div
                 data-testid="issue-detail-chrome"
-                className="flex items-center gap-2 px-6 pt-4"
+                className="issue-detail-chrome flex items-center gap-2 px-6 pt-4"
               >
                 {backTo ? (
                   <IssueDrillBackBar backTo={backTo} onBack={goBack} />
@@ -610,7 +610,7 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
                   allIssues={allIssues ?? []}
                   allIssuesPending={allIssuesPending}
                 />
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="issue-detail-actions flex shrink-0 items-center gap-2">
                   {/* `display:contents` so the body's portaled save-status + ⋮
                       become flex siblings of Close, and the slot adds no gap
                       while it is empty during loading. */}

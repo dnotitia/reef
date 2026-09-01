@@ -73,7 +73,7 @@ export function IssueChromeIdentity({
     // whose title truncates first, matching Linear's breadcrumb. `flex-1`/
     // `min-w-0` lets it absorb the bar width while the right-side actions + Close
     // stay pinned.
-    <div className="flex min-w-0 flex-1 items-center gap-2 type-caption">
+    <div className="issue-detail-identity flex min-w-0 flex-1 items-center gap-2 type-caption">
       {/* Parent breadcrumb (REEF-266) — a click-through link up to the parent,
           placed before the current issue. This is *navigation*; the
           rail `Parent` combobox stays *reassignment*, so the two do not
