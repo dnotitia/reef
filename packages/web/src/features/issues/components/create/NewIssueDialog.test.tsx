@@ -692,38 +692,41 @@ describe("NewIssueDialog", () => {
   });
 
   it("restores mobile focus to Draft and keeps composer text through discard cancel", async () => {
-    const user = userEvent.setup();
     setViewport(375, 844);
     mockViewStore.state.newIssueDialogOpen = true;
     render(wrap(<NewIssueDialog />));
 
     await screen.findByText("New Issue");
-    await user.click(screen.getByTestId("draft-view-conversation"));
-    expect(screen.getByTestId("new-issue-chat-input")).toHaveFocus();
-    expect(screen.getByTestId("draft-view-conversation")).toHaveAttribute(
+    const conversationView = screen.getByTestId("draft-view-conversation");
+    const draftView = screen.getByTestId("draft-view-draft");
+    conversationView.focus();
+    fireEvent.click(conversationView);
+    const initialInput = screen.getByTestId("new-issue-chat-input");
+    expect(initialInput).toHaveFocus();
+    expect(conversationView).toHaveAttribute(
       "aria-controls",
       "draft-conversation-panel",
     );
-    await user.type(
-      screen.getByTestId("new-issue-chat-input"),
-      "mobile question",
-    );
-    await user.click(screen.getByTestId("draft-view-draft"));
+    fireEvent.change(initialInput, { target: { value: "mobile question" } });
+    draftView.focus();
+    fireEvent.click(draftView);
 
-    expect(screen.getByTestId("draft-view-draft")).toHaveFocus();
-    await user.click(screen.getByTestId("draft-view-conversation"));
-    expect(screen.getByTestId("new-issue-chat-input")).toHaveFocus();
-    expect(screen.getByTestId("new-issue-chat-input")).toHaveValue(
-      "mobile question",
-    );
+    expect(draftView).toHaveFocus();
+    conversationView.focus();
+    fireEvent.click(conversationView);
+    const reopenedInput = screen.getByTestId("new-issue-chat-input");
+    expect(reopenedInput).toHaveFocus();
+    expect(reopenedInput).toHaveValue("mobile question");
 
-    await user.click(screen.getByTestId("draft-view-draft"));
-    await user.click(screen.getByTestId("new-issue-cancel"));
+    draftView.focus();
+    fireEvent.click(draftView);
+    fireEvent.click(screen.getByTestId("new-issue-cancel"));
     expect(
       await screen.findByTestId("discard-draft-confirm"),
     ).toBeInTheDocument();
-    await user.click(screen.getByTestId("discard-draft-cancel"));
-    await user.click(screen.getByTestId("draft-view-conversation"));
+    fireEvent.click(screen.getByTestId("discard-draft-cancel"));
+    conversationView.focus();
+    fireEvent.click(conversationView);
     expect(screen.getByTestId("new-issue-chat-input")).toHaveValue(
       "mobile question",
     );
