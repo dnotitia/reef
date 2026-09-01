@@ -86,7 +86,6 @@ export function PlanningTable({
   const planningKindSingular = usePlanningKindSingularLabels();
   const fieldNames = useFieldNameLabels();
   const t = useTranslations("planning");
-  const common = useTranslations("common");
   const sections = useTranslations("sections");
   const items = itemsForKind(catalog, kind);
   const countById = useMemo(
@@ -122,7 +121,6 @@ export function PlanningTable({
         testId="planning-catalog-error"
         title={t("catalogLoadErrorTitle")}
         description={t("catalogLoadErrorDescription")}
-        retryLabel={common("retry")}
         isFetching={isCatalogFetching}
         onRetry={onRetryCatalog}
       />
@@ -149,7 +147,6 @@ export function PlanningTable({
         testId="planning-issue-error"
         title={t("issueLoadErrorTitle")}
         description={t("issueLoadErrorDescription")}
-        retryLabel={common("retry")}
         isFetching={isIssueFetching}
         onRetry={onRetryIssues}
       />
@@ -530,17 +527,17 @@ function PlanningLoadError({
   testId,
   title,
   description,
-  retryLabel,
   isFetching,
   onRetry,
 }: {
   testId: string;
   title: string;
   description: string;
-  retryLabel: string;
   isFetching: boolean;
   onRetry: () => void;
 }) {
+  const common = useTranslations("common");
+  const retryLabel = common("retry");
   const id = useId();
   return (
     <div

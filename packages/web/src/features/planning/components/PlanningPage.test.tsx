@@ -40,7 +40,6 @@ const { issueQueryStateRef } = vi.hoisted(() => ({
       isPending: false,
       isError: false,
       isFetching: false,
-      error: null as Error | null,
       refetch: vi.fn(() => Promise.resolve()),
     },
   },
@@ -137,7 +136,6 @@ describe("PlanningPage", () => {
       isPending: false,
       isError: false,
       isFetching: false,
-      error: null,
       refetch: vi.fn(() => Promise.resolve()),
     };
     navigationState.searchParams = new URLSearchParams();
@@ -273,7 +271,6 @@ describe("PlanningPage", () => {
         data: [],
         isError: false,
         isFetching: false,
-        error: null,
       };
       return Promise.resolve();
     });
@@ -282,7 +279,6 @@ describe("PlanningPage", () => {
       isPending: false,
       isError: true,
       isFetching: false,
-      error: new Error("issue list unavailable"),
       refetch,
     };
 
