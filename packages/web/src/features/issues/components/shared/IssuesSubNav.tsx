@@ -71,6 +71,9 @@ export function IssuesSubNav() {
               )}
             >
               {t(labelKey)}
+              {isActive && (
+                <span className="sr-only"> ({t("currentPage")})</span>
+              )}
             </a>
           );
         })}

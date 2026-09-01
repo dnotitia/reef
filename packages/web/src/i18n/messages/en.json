@@ -694,7 +694,8 @@
     "navigation": {
       "ariaLabel": "Issue sections",
       "list": "Issue list",
-      "changeReview": "Change review"
+      "changeReview": "Change review",
+      "currentPage": "Current page"
     },
     "quickEdit": {
       "statusUpdating": "Updating status…",

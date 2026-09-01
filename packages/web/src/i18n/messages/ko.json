@@ -879,7 +879,8 @@
     "navigation": {
       "ariaLabel": "이슈 섹션",
       "list": "이슈 목록",
-      "changeReview": "변경 검토"
+      "changeReview": "변경 검토",
+      "currentPage": "현재 페이지"
     },
     "quickEdit": {
       "statusUpdating": "상태 업데이트 중…",

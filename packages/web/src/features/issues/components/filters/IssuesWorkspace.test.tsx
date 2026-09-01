@@ -158,10 +158,9 @@ describe("IssuesWorkspace", () => {
     render(wrap(<IssuesWorkspace />));
 
     expect(screen.getByTestId("issues-subnav")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Issue list" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
+    const issueList = screen.getByTestId("issues-subnav-issue-list");
+    expect(issueList).toHaveAttribute("aria-current", "page");
+    expect(issueList).toHaveAccessibleName(/Issue list.*Current page/u);
     expect(screen.getByRole("link", { name: "Change review" })).toHaveAttribute(
       "href",
       "/workspace/reef-acme/issues/changes",
