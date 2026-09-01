@@ -63,7 +63,11 @@ test.describe("Hermetic New Issue draft conversation", () => {
     );
     await expect(dialog.getByTestId("enrich-trigger")).toHaveClass(
       /border-ai-border/,
+    );
+    await expect(dialog.getByTestId("enrich-trigger")).toHaveClass(
       /text-ai-subtle-foreground/,
+    );
+    await expect(dialog.getByTestId("enrich-trigger")).toHaveClass(
       /hover:bg-ai-subtle/,
     );
     await expect(
@@ -115,6 +119,8 @@ test.describe("Hermetic New Issue draft conversation", () => {
     await dialog.getByTestId("new-issue-chat-input").fill("Clarify this");
     await expect(dialog.getByTestId("new-issue-chat-send")).toHaveClass(
       /bg-ai/,
+    );
+    await expect(dialog.getByTestId("new-issue-chat-send")).toHaveClass(
       /text-ai-foreground/,
     );
     await dialog.getByTestId("new-issue-chat-send").dblclick();
@@ -267,6 +273,8 @@ test.describe("Hermetic New Issue draft conversation", () => {
     await expect(narrowInput).toHaveValue("Unsent narrow question");
     await expect(dialog.getByTestId("draft-view-conversation")).toHaveClass(
       /bg-ai-subtle/,
+    );
+    await expect(dialog.getByTestId("draft-view-conversation")).toHaveClass(
       /text-ai-subtle-foreground/,
     );
 
