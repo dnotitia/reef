@@ -6,59 +6,16 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
 
-const NEW_ISSUE_DIALOG_DEFAULT_MAX_WIDTH = 1200;
-const NEW_ISSUE_DIALOG_MAX_WIDTH = 1680;
-const NEW_ISSUE_DIALOG_EXPANSION_THRESHOLD = 32;
 const NEW_ISSUE_DIALOG_VIEWPORT_GUTTER = 32;
 const NEW_ISSUE_DIALOG_EXPANDED_SESSION_STORAGE_KEY =
   "reef:new-issue-dialog-expanded:v1";
 
-function getNewIssueDialogDefaultWidth(viewportWidth: number) {
-  return Math.min(viewportWidth * 0.94, NEW_ISSUE_DIALOG_DEFAULT_MAX_WIDTH);
-}
-
-function getNewIssueDialogMaxWidth(viewportWidth: number) {
-  return Math.min(viewportWidth * 0.94, NEW_ISSUE_DIALOG_MAX_WIDTH);
-}
-
 function getNewIssueDialogMaxHeight(viewportHeight: number) {
   return Math.max(0, viewportHeight - NEW_ISSUE_DIALOG_VIEWPORT_GUTTER);
-}
-
-function canExpandNewIssueDialog({
-  viewportWidth,
-  viewportHeight,
-  normalHeight,
-}: {
-  viewportWidth: number;
-  viewportHeight: number;
-  normalHeight: number | null;
-}) {
-  if (
-    !Number.isFinite(viewportWidth) ||
-    !Number.isFinite(viewportHeight) ||
-    normalHeight === null ||
-    !Number.isFinite(normalHeight) ||
-    viewportWidth <= 0 ||
-    viewportHeight <= 0 ||
-    (normalHeight ?? 0) <= 0
-  ) {
-    return false;
-  }
-
-  const widthGain =
-    getNewIssueDialogMaxWidth(viewportWidth) -
-    getNewIssueDialogDefaultWidth(viewportWidth);
-  const heightGain = getNewIssueDialogMaxHeight(viewportHeight) - normalHeight;
-  return (
-    widthGain >= NEW_ISSUE_DIALOG_EXPANSION_THRESHOLD ||
-    heightGain >= NEW_ISSUE_DIALOG_EXPANSION_THRESHOLD
-  );
 }
 
 function getMaximizedDescriptionHeight({
@@ -113,16 +70,14 @@ function storeExpanded(expanded: boolean) {
   }
 }
 
-function readViewport() {
-  if (typeof window === "undefined") return { width: 0, height: 0 };
-  return { width: window.innerWidth, height: window.innerHeight };
+function readViewportHeight() {
+  return typeof window === "undefined" ? 0 : window.innerHeight;
 }
 
 export interface NewIssueDialogGeometry {
   dialogRef: Ref<HTMLDivElement>;
   descriptionFrameRef: Ref<HTMLDivElement>;
   isMaximized: boolean;
-  canMaximize: boolean;
   preferredDescriptionHeight?: number;
   dialogStyle?: CSSProperties;
   onToggleMaximize: () => void;
@@ -146,12 +101,11 @@ export function useNewIssueDialogGeometry(
   const descriptionFrameRef = useCallback((element: HTMLDivElement | null) => {
     setDescriptionFrameElement(element);
   }, []);
-  const [viewport, setViewport] = useState(readViewport);
+  const [viewportHeight, setViewportHeight] = useState(readViewportHeight);
   const [normalHeight, setNormalHeight] = useState<number | null>(null);
   const normalHeightRef = useRef<number | null>(null);
   const [isMaximized, setIsMaximized] = useState(false);
   const isMaximizedRef = useRef(false);
-  const [sessionLoaded, setSessionLoaded] = useState(false);
   const [maximizedDescriptionHeight, setMaximizedDescriptionHeight] = useState<
     number | null
   >(null);
@@ -188,7 +142,7 @@ export function useNewIssueDialogGeometry(
   }, [descriptionFrameElement, formBodyRef]);
 
   const syncViewport = useCallback(() => {
-    setViewport(readViewport());
+    setViewportHeight(readViewportHeight());
     measureNormalHeight();
     measureMaximizedDescriptionHeight();
   }, [measureMaximizedDescriptionHeight, measureNormalHeight]);
@@ -197,7 +151,6 @@ export function useNewIssueDialogGeometry(
     const restored = readStoredExpanded();
     isMaximizedRef.current = restored;
     setIsMaximized(restored);
-    setSessionLoaded(true);
   }, []);
 
   useLayoutEffect(() => {
@@ -226,46 +179,19 @@ export function useNewIssueDialogGeometry(
     syncViewport,
   ]);
 
-  const canMaximize = useMemo(
-    () =>
-      open &&
-      sessionLoaded &&
-      canExpandNewIssueDialog({
-        viewportWidth: viewport.width,
-        viewportHeight: viewport.height,
-        normalHeight: normalHeightRef.current ?? normalHeight,
-      }),
-    [normalHeight, open, sessionLoaded, viewport.height, viewport.width],
-  );
-
-  useEffect(() => {
-    if (
-      !open ||
-      !sessionLoaded ||
-      !isMaximized ||
-      normalHeightRef.current === null ||
-      canMaximize
-    )
-      return;
-    isMaximizedRef.current = false;
-    setIsMaximized(false);
-    storeExpanded(false);
-  }, [canMaximize, isMaximized, open, sessionLoaded]);
-
   const onToggleMaximize = useCallback(() => {
-    if (!canMaximize) return;
     const next = !isMaximizedRef.current;
     isMaximizedRef.current = next;
     setIsMaximized(next);
     if (!next) setMaximizedDescriptionHeight(null);
     storeExpanded(next);
-  }, [canMaximize]);
+  }, []);
 
   const effectiveNormalHeight = normalHeightRef.current ?? normalHeight;
   const preferredDescriptionHeight =
-    isMaximized && canMaximize && effectiveNormalHeight !== null
+    isMaximized && effectiveNormalHeight !== null
       ? getMaximizedDescriptionHeight({
-          viewportHeight: viewport.height,
+          viewportHeight,
           normalHeight: effectiveNormalHeight,
           availableHeight: maximizedDescriptionHeight,
         })
@@ -275,7 +201,6 @@ export function useNewIssueDialogGeometry(
     dialogRef,
     descriptionFrameRef,
     isMaximized,
-    canMaximize,
     preferredDescriptionHeight,
     dialogStyle: isMaximized ? { height: "calc(100dvh - 2rem)" } : undefined,
     onToggleMaximize,

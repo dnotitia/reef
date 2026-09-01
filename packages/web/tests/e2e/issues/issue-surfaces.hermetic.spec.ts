@@ -1344,6 +1344,7 @@ test.describe("Hermetic issue route surfaces", () => {
       const footer = page.getByTestId("new-issue-dialog-footer");
       const template = page.getByTestId("template-picker-trigger");
       const enrich = page.getByTestId("enrich-trigger");
+      const maximize = page.getByTestId("new-issue-maximize-toggle");
       const draftConversationToggle = page.getByTestId(
         "draft-conversation-toggle",
       );
@@ -1359,6 +1360,29 @@ test.describe("Hermetic issue route surfaces", () => {
       await expect(header).toBeVisible();
       await expect(actions).toBeVisible();
       await expect(footer).toBeVisible();
+      await expect(maximize).toBeVisible();
+
+      const visibleHeaderActionIds = await actions
+        .getByRole("button")
+        .evaluateAll((buttons) =>
+          buttons.map((button) => button.getAttribute("data-testid")),
+        );
+      expect(visibleHeaderActionIds).toEqual(
+        viewport.width < 900
+          ? [
+              "template-picker-trigger",
+              "enrich-trigger",
+              "new-issue-maximize-toggle",
+            ]
+          : [
+              "template-picker-trigger",
+              "enrich-trigger",
+              "draft-conversation-toggle",
+              "new-issue-maximize-toggle",
+            ],
+      );
+      await expect(maximize).toHaveAttribute("aria-label", "Maximize window");
+      await expect(maximize).toHaveAttribute("aria-pressed", "false");
 
       const geometry = await dialog.evaluate((element) => {
         const root = element as HTMLElement;
@@ -1466,12 +1490,16 @@ test.describe("Hermetic issue route surfaces", () => {
       await expect(enrich).toBeFocused();
       await page.keyboard.press("Tab");
       if (viewport.width < 900) {
+        await expect(maximize).toBeFocused();
+        await page.keyboard.press("Tab");
         await expect(draftViewToggle).toBeFocused();
         await page.keyboard.press("Tab");
         await expect(conversationViewToggle).toBeFocused();
         await page.keyboard.press("Tab");
       } else {
         await expect(draftConversationToggle).toBeFocused();
+        await page.keyboard.press("Tab");
+        await expect(maximize).toBeFocused();
         await page.keyboard.press("Tab");
       }
       await expect(title).toBeFocused();
@@ -1666,9 +1694,13 @@ test.describe("Hermetic issue route surfaces", () => {
     await page.getByTestId("new-issue-trigger").click();
     const dialog = page.getByTestId("new-issue-dialog");
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByTestId("new-issue-maximize-toggle")).toHaveCount(
-      0,
-    );
+    const maximize = dialog.getByTestId("new-issue-maximize-toggle");
+    await expect(maximize).toBeVisible();
+    await expect(maximize).toHaveAttribute("aria-label", "Maximize window");
+    await maximize.click();
+    await expect(maximize).toHaveAttribute("aria-label", "Restore window");
+    await maximize.click();
+    await expect(maximize).toHaveAttribute("aria-label", "Maximize window");
     await dialog
       .getByTestId("new-issue-title-input")
       .fill("Created from mobile New Issue");

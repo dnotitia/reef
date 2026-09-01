@@ -77,6 +77,19 @@ export function DraftConversationPanel({
       aria-label={t("conversationHeading")}
       aria-busy={isBusy}
       data-testid="draft-conversation-panel"
+      tabIndex={-1}
+      onPointerDown={(event) => {
+        const target = event.target;
+        if (
+          target instanceof Element &&
+          target.closest(
+            "button,a,input,textarea,select,[contenteditable='true']",
+          )
+        ) {
+          return;
+        }
+        panelRef.current?.focus({ preventScroll: true });
+      }}
       className="flex min-h-0 min-w-0 flex-col overflow-hidden min-[900px]:border-l min-[900px]:border-ai-border min-[900px]:pl-5"
     >
       {isDesktop ? (

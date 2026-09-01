@@ -29,7 +29,7 @@ export interface ChatSurfaceProps {
   /** Caller-owned composer state for surfaces that can unmount it. */
   composerText: string;
   onComposerTextChange: (text: string) => void;
-  sendMessage: (input: { text: string }) => boolean | Promise<boolean>;
+  sendMessage: (input: { text: string }) => Promise<boolean>;
   status: ChatStatus;
   /** Aborts an in-flight stream — wired to the submit button while busy. */
   stop?: () => void;
@@ -110,7 +110,9 @@ export function ChatSurface({
             ) : (
               <Message key={m.id} from="user">
                 <MessageContent>
-                  <span data-testid="user-message">{m.text}</span>
+                  <span data-testid="user-message" tabIndex={-1}>
+                    {m.text}
+                  </span>
                 </MessageContent>
               </Message>
             ),
@@ -180,7 +182,11 @@ function AssistantTurn({
     turn.streaming && !turn.text && turn.toolSteps.length === 0;
 
   return (
-    <div data-testid="assistant-message" className="flex flex-col gap-2.5">
+    <div
+      data-testid="assistant-message"
+      tabIndex={-1}
+      className="flex flex-col gap-2.5"
+    >
       <ToolStepTrace steps={turn.toolSteps} streaming={turn.streaming} />
 
       {isThinking && (

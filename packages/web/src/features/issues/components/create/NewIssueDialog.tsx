@@ -110,7 +110,6 @@ export function NewIssueDialog({
     dialogRef: dialogContentRef,
     descriptionFrameRef,
     isMaximized,
-    canMaximize,
     preferredDescriptionHeight: maximizedDescriptionHeight,
     dialogStyle,
     onToggleMaximize,
@@ -917,32 +916,30 @@ export function NewIssueDialog({
                   ? tc("closeConversation")
                   : tc("openConversation")}
               </Button>
-              {canMaximize ? (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="size-8 shrink-0 p-0 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
-                        aria-label={maximizeLabel}
-                        aria-pressed={isMaximized}
-                        title={maximizeLabel}
-                        data-testid="new-issue-maximize-toggle"
-                        onClick={onToggleMaximize}
-                      >
-                        {isMaximized ? (
-                          <Minimize2 className="size-4" aria-hidden="true" />
-                        ) : (
-                          <Maximize2 className="size-4" aria-hidden="true" />
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>{maximizeLabel}</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              ) : null}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="size-8 shrink-0 p-0 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+                      aria-label={maximizeLabel}
+                      aria-pressed={isMaximized}
+                      title={maximizeLabel}
+                      data-testid="new-issue-maximize-toggle"
+                      onClick={onToggleMaximize}
+                    >
+                      {isMaximized ? (
+                        <Minimize2 className="size-4" aria-hidden="true" />
+                      ) : (
+                        <Maximize2 className="size-4" aria-hidden="true" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{maximizeLabel}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
           <div className="grid w-full grid-cols-2 gap-1 rounded-md border border-border-subtle bg-surface-subtle p-1 min-[900px]:hidden">

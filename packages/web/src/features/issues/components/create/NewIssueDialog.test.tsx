@@ -597,6 +597,71 @@ describe("NewIssueDialog", () => {
     );
   });
 
+  it("owns Escape from visible conversation messages without dismissing the dialog", async () => {
+    const user = userEvent.setup();
+    mockWorkspaceChat.messages = [
+      { id: "user-1", role: "user", text: "Visible question" },
+      {
+        id: "assistant-1",
+        role: "assistant",
+        text: "Visible answer",
+        toolSteps: [],
+        citations: [],
+        referencedIssueIds: [],
+        streaming: false,
+        errorMessage: null,
+      },
+    ] as never[];
+    mockWorkspaceChat.messageCount = 2;
+    setViewport(1024, 768);
+    mockViewStore.state.newIssueDialogOpen = true;
+    render(wrap(<NewIssueDialog />));
+
+    await screen.findByText("New Issue");
+    const toggle = screen.getByTestId("draft-conversation-toggle");
+    await user.click(toggle);
+    await user.click(screen.getByTestId("user-message"));
+    await user.keyboard("{Escape}");
+
+    expect(screen.getByTestId("new-issue-dialog")).toBeVisible();
+    expect(screen.queryByTestId("draft-conversation-panel")).toBeNull();
+    expect(screen.queryByTestId("discard-draft-confirm")).toBeNull();
+    expect(toggle).toHaveFocus();
+  });
+
+  it("owns Escape from assistant content even when the draft is dirty", async () => {
+    const user = userEvent.setup();
+    mockWorkspaceChat.messages = [
+      { id: "user-1", role: "user", text: "Visible question" },
+      {
+        id: "assistant-1",
+        role: "assistant",
+        text: "Visible answer",
+        toolSteps: [],
+        citations: [],
+        referencedIssueIds: [],
+        streaming: false,
+        errorMessage: null,
+      },
+    ] as never[];
+    mockWorkspaceChat.messageCount = 2;
+    setViewport(1024, 768);
+    mockViewStore.state.newIssueDialogOpen = true;
+    render(wrap(<NewIssueDialog />));
+
+    await screen.findByText("New Issue");
+    await user.type(screen.getByTestId("new-issue-title-input"), "Dirty draft");
+    const toggle = screen.getByTestId("draft-conversation-toggle");
+    await user.click(toggle);
+    await user.click(screen.getByTestId("assistant-message"));
+    await user.keyboard("{Escape}");
+
+    expect(screen.getByTestId("new-issue-dialog")).toBeVisible();
+    expect(screen.queryByTestId("draft-conversation-panel")).toBeNull();
+    expect(screen.queryByTestId("discard-draft-confirm")).toBeNull();
+    expect(toggle).toHaveFocus();
+  });
+
   it("restores mobile focus to Draft and keeps composer text through discard cancel", async () => {
     const user = userEvent.setup();
     setViewport(375, 844);
@@ -768,7 +833,7 @@ describe("NewIssueDialog", () => {
     });
   });
 
-  it("keeps the maximize control out when both axes gain less than 32px", async () => {
+  it("keeps the maximize utility available when both axes gain less than 32px", async () => {
     setViewport(1280, 752);
     const geometry = mockDialogGeometry();
     mockViewStore.state.newIssueDialogOpen = true;
@@ -776,10 +841,44 @@ describe("NewIssueDialog", () => {
     render(wrap(<NewIssueDialog />));
     await screen.findByText("New Issue");
 
+    const maximize = await screen.findByRole("button", {
+      name: /^Maximize window$/,
+    });
+    expect(maximize).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(maximize);
     expect(
-      screen.queryByRole("button", { name: /maximize window/i }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: /^Restore window$/ }),
+    ).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: /^Restore window$/ }));
+    expect(
+      screen.getByRole("button", { name: /^Maximize window$/ }),
+    ).toHaveAttribute("aria-pressed", "false");
     expect(geometry).toHaveBeenCalled();
+  });
+
+  it("keeps three header utilities at the narrow supported widths", async () => {
+    setViewport(375, 844);
+    mockDialogGeometry({ width: 343, height: 820 });
+    mockViewStore.state.newIssueDialogOpen = true;
+
+    render(wrap(<NewIssueDialog />));
+    await screen.findByText("New Issue");
+
+    const actions = screen.getByTestId("new-issue-dialog-actions");
+    expect(
+      within(actions)
+        .getAllByRole("button")
+        .filter((button) => !button.classList.contains("hidden"))
+        .map((button) => button.getAttribute("data-testid")),
+    ).toEqual([
+      "template-picker-trigger",
+      "enrich-trigger",
+      "new-issue-maximize-toggle",
+    ]);
+    expect(screen.getByTestId("new-issue-maximize-toggle")).toHaveAttribute(
+      "aria-label",
+      "Maximize window",
+    );
   });
 
   it("uses localized maximize and restore names and a visible tooltip", async () => {

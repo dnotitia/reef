@@ -262,6 +262,48 @@ test.describe("Hermetic New Issue draft conversation", () => {
     await expect(dialog).toBeHidden();
   });
 
+  test("keeps all four desktop toolbar slots at the narrow desktop breakpoint", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await page.getByTestId("new-issue-trigger").click();
+
+    const dialog = page.getByTestId("new-issue-dialog");
+    const actions = dialog.getByTestId("new-issue-dialog-actions");
+    const maximize = dialog.getByTestId("new-issue-maximize-toggle");
+    const toolbarIds = [
+      "template-picker-trigger",
+      "enrich-trigger",
+      "draft-conversation-toggle",
+      "new-issue-maximize-toggle",
+    ];
+    const readToolbarIds = () =>
+      actions
+        .getByRole("button")
+        .evaluateAll((buttons) =>
+          buttons.map((button) => button.getAttribute("data-testid")),
+        );
+
+    await expect(dialog).toBeVisible();
+    await expect(maximize).toBeVisible();
+    expect(await readToolbarIds()).toEqual(toolbarIds);
+    await expect(maximize).toHaveAttribute("aria-label", "Maximize window");
+
+    await dialog.getByTestId("draft-conversation-toggle").click();
+    await expect(dialog.getByTestId("draft-conversation-panel")).toBeVisible();
+    expect(await readToolbarIds()).toEqual(toolbarIds);
+    await expect(maximize).toHaveAttribute("aria-label", "Maximize window");
+
+    await maximize.click();
+    await expect(maximize).toHaveAttribute("aria-label", "Restore window");
+    await maximize.click();
+    await dialog.getByTestId("draft-conversation-toggle").click();
+    await dialog.getByTestId("new-issue-cancel").click();
+    await expect(dialog).toBeHidden();
+  });
+
   test("keeps authoring and AI as a two-column surface, then switches views on a narrow screen", async ({
     page,
   }) => {
@@ -423,18 +465,132 @@ test.describe("Hermetic New Issue draft conversation", () => {
     await expect(input).toHaveValue("Mobile question");
   });
 
+  test("Escape from visible conversation content folds only AI and restores the header slot", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await page.getByTestId("new-issue-trigger").click();
+
+    const dialog = page.getByTestId("new-issue-dialog");
+    const toggle = dialog.getByTestId("draft-conversation-toggle");
+    await toggle.click();
+    const input = dialog.getByTestId("new-issue-chat-input");
+    await input.fill("Visible conversation turn");
+    await dialog.getByTestId("new-issue-chat-send").click();
+    await expect(dialog.getByTestId("user-message")).toHaveText(
+      "Visible conversation turn",
+    );
+    await expect(dialog.getByTestId("assistant-message").last()).toContainText(
+      "Request: Visible conversation turn",
+      { timeout: 15_000 },
+    );
+
+    await dialog.getByTestId("user-message").click();
+    await page.keyboard.press("Escape");
+
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByTestId("draft-conversation-panel")).toBeHidden();
+    await expect(page.getByTestId("discard-draft-confirm")).toHaveCount(0);
+    await expect(toggle).toHaveText("Ask AI");
+    await expect(toggle).toBeFocused();
+
+    await toggle.click();
+    const assistant = dialog.getByTestId("assistant-message").last();
+    await expect(assistant).toContainText(
+      "Request: Visible conversation turn",
+      { timeout: 15_000 },
+    );
+    await assistant.click();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByTestId("draft-conversation-panel")).toBeHidden();
+    await expect(page.getByTestId("discard-draft-confirm")).toHaveCount(0);
+    await expect(toggle).toBeFocused();
+  });
+
+  test("Escape from conversation content never opens discard for a dirty draft", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await page.getByTestId("new-issue-trigger").click();
+
+    const dialog = page.getByTestId("new-issue-dialog");
+    await dialog.getByTestId("new-issue-title-input").fill("Dirty draft");
+    const toggle = dialog.getByTestId("draft-conversation-toggle");
+    await toggle.click();
+    const input = dialog.getByTestId("new-issue-chat-input");
+    await input.fill("Dirty conversation turn");
+    await dialog.getByTestId("new-issue-chat-send").click();
+    await expect(dialog.getByTestId("assistant-message").last()).toContainText(
+      "Request: Dirty conversation turn",
+      { timeout: 15_000 },
+    );
+
+    await dialog.getByTestId("assistant-message").last().click();
+    await page.keyboard.press("Escape");
+
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByTestId("draft-conversation-panel")).toBeHidden();
+    await expect(page.getByTestId("discard-draft-confirm")).toHaveCount(0);
+    await expect(toggle).toBeFocused();
+  });
+
+  test("Escape closes only the nested discard prompt while conversation stays open", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await page.getByTestId("new-issue-trigger").click();
+
+    const dialog = page.getByTestId("new-issue-dialog");
+    await dialog.getByTestId("new-issue-title-input").fill("Dirty draft");
+    await dialog.getByTestId("draft-conversation-toggle").click();
+    await dialog.getByTestId("new-issue-cancel").click();
+    await expect(page.getByTestId("discard-draft-confirm")).toBeVisible();
+
+    await page.keyboard.press("Escape");
+
+    await expect(page.getByTestId("discard-draft-confirm")).toBeHidden();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByTestId("draft-conversation-panel")).toBeVisible();
+  });
+
   test("keeps narrow draft controls and the chat input inside the viewport", async ({
     page,
   }) => {
     await openExistingWorkspace(page);
 
-    for (const width of [320, 375, 414, 768]) {
+    for (const width of [320, 375, 390, 414, 768]) {
       await page.setViewportSize({ width, height: 844 });
       await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
       await page.getByTestId("new-issue-trigger").click();
 
       const dialog = page.getByTestId("new-issue-dialog");
+      const actions = dialog.getByTestId("new-issue-dialog-actions");
+      const maximize = dialog.getByTestId("new-issue-maximize-toggle");
       await expect(dialog).toBeVisible();
+      await expect(maximize).toBeVisible();
+      expect(
+        await actions
+          .getByRole("button")
+          .evaluateAll((buttons) =>
+            buttons.map((button) => button.getAttribute("data-testid")),
+          ),
+      ).toEqual([
+        "template-picker-trigger",
+        "enrich-trigger",
+        "new-issue-maximize-toggle",
+      ]);
+      await expect(maximize).toHaveAttribute("aria-label", "Maximize window");
+      await maximize.click();
+      await expect(maximize).toHaveAttribute("aria-label", "Restore window");
+      await maximize.click();
+      await expect(maximize).toHaveAttribute("aria-label", "Maximize window");
       await expect(dialog.getByTestId("new-issue-title-input")).toBeVisible();
       await expect(dialog.getByTestId("new-issue-dialog-footer")).toBeVisible();
       await expect(dialog.getByTestId("draft-view-draft")).toBeVisible();
@@ -449,6 +605,18 @@ test.describe("Hermetic New Issue draft conversation", () => {
 
       await dialog.getByTestId("draft-view-conversation").click();
       await expect(dialog.getByTestId("new-issue-chat-input")).toBeVisible();
+      expect(
+        await actions
+          .getByRole("button")
+          .evaluateAll((buttons) =>
+            buttons.map((button) => button.getAttribute("data-testid")),
+          ),
+      ).toEqual([
+        "template-picker-trigger",
+        "enrich-trigger",
+        "new-issue-maximize-toggle",
+      ]);
+      await expect(maximize).toHaveAttribute("aria-label", "Maximize window");
       expect(
         await page.evaluate(
           () =>
