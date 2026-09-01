@@ -56,6 +56,8 @@ type ChangeValueLabels = {
   issueType: Record<string, string>;
 };
 
+type CopyFeedback = "success" | "error";
+
 type ReviewPeriod = IssueChangeReviewRange & {
   relativeDays?: number;
   timezone: string;
@@ -133,6 +135,19 @@ function dateInTimezone(iso: string, timezone: string): string {
     parts.map((part) => [part.type, part.value]),
   );
   return `${values.year}-${values.month}-${values.day}`;
+}
+
+function periodDisplayDates(period: ReviewPeriod): {
+  start: string;
+  end: string;
+} {
+  return {
+    start: dateInTimezone(period.start_at, period.timezone),
+    end: dateInTimezone(
+      new Date(Date.parse(period.end_at) - 1).toISOString(),
+      period.timezone,
+    ),
+  };
 }
 
 function localDateStart(value: string): Date | null {
@@ -391,7 +406,7 @@ function ChangeGroup({
       data-testid="issue-change-group"
     >
       <summary
-        className="flex min-w-0 cursor-pointer list-none items-center gap-3 px-3 py-3 [&::-webkit-details-marker]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
+        className="flex min-w-0 flex-wrap cursor-pointer list-none items-center gap-3 px-3 py-3 [&::-webkit-details-marker]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
         data-testid="issue-change-group-summary"
       >
         <ChevronDown
@@ -399,7 +414,10 @@ function ChangeGroup({
           aria-hidden="true"
         />
         <span className="min-w-0 flex-1">
-          <span className="block min-w-0 break-words font-medium text-foreground">
+          <span
+            className="block min-w-0 break-words font-medium text-foreground"
+            data-testid="issue-change-group-title"
+          >
             {group.issue.title}
           </span>
           <span
@@ -409,7 +427,7 @@ function ChangeGroup({
             {group.issue.id}
           </span>
         </span>
-        <span className="shrink-0 text-right text-xs text-muted-foreground">
+        <span className="shrink-0 text-right text-xs text-muted-foreground max-[639px]:basis-full max-[639px]:pl-7 max-[639px]:text-left">
           <span className="block tabular-nums">
             {t("changeCount", { count: group.changes.length })}
           </span>
@@ -469,6 +487,7 @@ export function IssueChangeReviewPage() {
   const [draftStart, setDraftStart] = useState("");
   const [draftEnd, setDraftEnd] = useState("");
   const [rangeError, setRangeError] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState<CopyFeedback | null>(null);
 
   const explicitQuery = searchParams.toString();
   useEffect(() => {
@@ -485,15 +504,9 @@ export function IssueChangeReviewPage() {
     if (explicit.period) {
       setRangeError(false);
       setPeriod(explicit.period);
-      setDraftStart(
-        dateInTimezone(explicit.period.start_at, explicit.period.timezone),
-      );
-      setDraftEnd(
-        dateInTimezone(
-          new Date(Date.parse(explicit.period.end_at) - 1).toISOString(),
-          explicit.period.timezone,
-        ),
-      );
+      const displayDates = periodDisplayDates(explicit.period);
+      setDraftStart(displayDates.start);
+      setDraftEnd(displayDates.end);
       return;
     }
     void getIssueChangeReviewPeriod(vault).then((days) => {
@@ -524,6 +537,7 @@ export function IssueChangeReviewPage() {
     (days: number) => {
       const next = relativePeriod(days);
       setRangeError(false);
+      setCopyFeedback(null);
       setPeriod(next);
       setDraftStart(dateInTimezone(next.start_at, next.timezone));
       setDraftEnd(dateInTimezone(next.end_at, next.timezone));
@@ -539,22 +553,37 @@ export function IssueChangeReviewPage() {
   );
 
   function applyCustomRange() {
-    const start = localDateStart(draftStart);
-    const end = localDateStart(draftEnd);
-    if (!start || !end || end.getTime() < start.getTime()) {
-      setRangeError(true);
-      return;
+    setCopyFeedback(null);
+    const preserveFixedPeriod =
+      period !== null &&
+      period.relativeDays === undefined &&
+      (() => {
+        const displayDates = periodDisplayDates(period);
+        return (
+          draftStart === displayDates.start && draftEnd === displayDates.end
+        );
+      })();
+    let next: ReviewPeriod;
+    if (preserveFixedPeriod && period) {
+      next = period;
+    } else {
+      const start = localDateStart(draftStart);
+      const end = localDateStart(draftEnd);
+      if (!start || !end || end.getTime() < start.getTime()) {
+        setRangeError(true);
+        return;
+      }
+      const endExclusive = new Date(
+        end.getFullYear(),
+        end.getMonth(),
+        end.getDate() + 1,
+      );
+      next = {
+        start_at: start.toISOString(),
+        end_at: endExclusive.toISOString(),
+        timezone: localTimezone(),
+      };
     }
-    const endExclusive = new Date(
-      end.getFullYear(),
-      end.getMonth(),
-      end.getDate() + 1,
-    );
-    const next: ReviewPeriod = {
-      start_at: start.toISOString(),
-      end_at: endExclusive.toISOString(),
-      timezone: localTimezone(),
-    };
     setRangeError(false);
     setPeriod(next);
     const nextUrl = new URL(window.location.href);
@@ -567,6 +596,7 @@ export function IssueChangeReviewPage() {
 
   async function sharePeriod() {
     if (!period) return;
+    setCopyFeedback(null);
     const url = new URL(window.location.href);
     url.search = "";
     url.searchParams.set("start_at", period.start_at);
@@ -574,8 +604,10 @@ export function IssueChangeReviewPage() {
     url.searchParams.set("tz", period.timezone);
     try {
       await navigator.clipboard.writeText(url.toString());
+      setCopyFeedback("success");
       toast.success(t("shareSuccess"));
     } catch {
+      setCopyFeedback("error");
       toast.error(t("shareError"));
     }
   }
@@ -698,6 +730,22 @@ export function IssueChangeReviewPage() {
             </p>
           ) : null}
         </section>
+
+        {copyFeedback ? (
+          <p
+            className={
+              copyFeedback === "error"
+                ? "text-xs text-destructive-text"
+                : "text-xs text-brand-text"
+            }
+            data-testid="issue-change-review-copy-feedback"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {copyFeedback === "error" ? t("shareError") : t("shareSuccess")}
+          </p>
+        ) : null}
 
         {!period && rangeError ? null : review.isPending ? (
           <ChangeReviewBodySkeleton label={t("loading")} />

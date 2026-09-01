@@ -187,6 +187,55 @@ describe("IssueChangeReviewPage", () => {
     );
   });
 
+  it("preserves a fixed shared timezone when unchanged and uses local time for a new range", async () => {
+    navigationState.searchParams = new URLSearchParams(
+      "start_at=2026-08-18T00:00:00.000Z&end_at=2026-08-19T00:00:00.000Z&tz=UTC",
+    );
+
+    render(wrap(<IssueChangeReviewPage />));
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("issue-change-review-results"),
+      ).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("issue-change-review-apply"));
+    const unchangedHref = mockReplace.mock.calls.at(-1)?.[0] as string;
+    const unchangedParams = new URL(unchangedHref, "http://localhost")
+      .searchParams;
+    expect(unchangedParams.get("start_at")).toBe("2026-08-18T00:00:00.000Z");
+    expect(unchangedParams.get("end_at")).toBe("2026-08-19T00:00:00.000Z");
+    expect(unchangedParams.get("tz")).toBe("UTC");
+
+    function enterDate(id: string, label: string, value: string) {
+      const trigger = document.getElementById(id);
+      if (!trigger) throw new Error(`Missing date picker trigger: ${id}`);
+      fireEvent.click(trigger);
+      const input = screen.getByRole("textbox", {
+        name: `${label} (YYYY-MM-DD)`,
+      });
+      fireEvent.change(input, { target: { value } });
+      fireEvent.keyDown(input, { key: "Enter" });
+    }
+
+    mockReplace.mockClear();
+    enterDate("issue-change-review-start", "Start date", "2026-08-01");
+    enterDate("issue-change-review-end", "End date", "2026-08-03");
+    fireEvent.click(screen.getByTestId("issue-change-review-apply"));
+
+    const changedHref = mockReplace.mock.calls.at(-1)?.[0] as string;
+    const changedParams = new URL(changedHref, "http://localhost").searchParams;
+    expect(changedParams.get("tz")).toBe(
+      Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+    );
+    expect(changedParams.get("start_at")).toBe(
+      new Date(2026, 7, 1).toISOString(),
+    );
+    expect(changedParams.get("end_at")).toBe(
+      new Date(2026, 7, 4).toISOString(),
+    );
+  });
+
   it("stores a relative selection per workspace and encodes custom ranges in the URL", async () => {
     navigationState.searchParams = new URLSearchParams();
     await setIssueChangeReviewPeriod("reef-acme", 3);

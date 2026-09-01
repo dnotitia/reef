@@ -216,6 +216,18 @@ test.describe("Hermetic issue change review", () => {
       );
       expect(viewportFits, `document overflows at ${width}px`).toBe(true);
       await expect(page.locator("main")).toHaveCount(1);
+      if (width === 320) {
+        const titleWidth = await issueGroup(
+          page,
+          "Completed and archived review issue",
+        )
+          .getByTestId("issue-change-group-title")
+          .evaluate((element) => element.getBoundingClientRect().width);
+        expect(
+          titleWidth,
+          "issue title must keep a readable line width",
+        ).toBeGreaterThan(150);
+      }
     }
   });
 
@@ -224,7 +236,17 @@ test.describe("Hermetic issue change review", () => {
     request,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/workspace/reef-e2e/issues/changes");
+    await page.goto(await discoveredReviewStartPath(request));
+    await waitForReviewContent(page);
+    await page.goto(
+      "/workspace/reef-e2e/issues/changes?start_at=2026-06-15T00:00:00.000Z&end_at=2026-06-19T00:00:00.000Z&tz=UTC",
+    );
+    await waitForReviewContent(page);
+    await page.getByTestId("issue-change-review-apply").click();
+    const reappliedFixed = new URL(page.url()).searchParams;
+    expect(reappliedFixed.get("start_at")).toBe("2026-06-15T00:00:00.000Z");
+    expect(reappliedFixed.get("end_at")).toBe("2026-06-19T00:00:00.000Z");
+    expect(reappliedFixed.get("tz")).toBe("UTC");
     await expect(
       page.getByTestId("issue-change-review-relative-3"),
     ).toBeVisible();
@@ -243,6 +265,7 @@ test.describe("Hermetic issue change review", () => {
     });
     await page.getByTestId("issue-change-review-relative-3").click();
     const firstRange = new URL((await relativeResponse).url()).searchParams;
+    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/changes$/u);
     expect(
       Date.parse(firstRange.get("end_at") ?? "") -
         Date.parse(firstRange.get("start_at") ?? ""),
@@ -324,6 +347,10 @@ test.describe("Hermetic issue change review", () => {
     );
     await page.getByTestId("issue-change-review-apply").click();
     await directRangeResponse;
+    const localTimezone = await page.evaluate(
+      () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+    );
+    expect(new URL(page.url()).searchParams.get("tz")).toBe(localTimezone);
     await waitForReviewContent(page);
     await expectNoIssueDetailInterception(page);
 
@@ -370,6 +397,9 @@ test.describe("Hermetic issue change review", () => {
     await page.getByTestId("issue-change-review-actions").click();
     await page.getByTestId("issue-change-review-copy-link").click();
     await expect(page.getByText("Review link copied.")).toBeVisible();
+    await expect(
+      page.getByTestId("issue-change-review-copy-feedback"),
+    ).toHaveText("Review link copied.");
     const shared = await page.evaluate(() => navigator.clipboard.readText());
     const sharedUrl = new URL(shared);
     expect(sharedUrl.pathname).toBe("/workspace/reef-e2e/issues/changes");
