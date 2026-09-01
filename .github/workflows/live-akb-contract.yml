@@ -1,13 +1,11 @@
 name: Live AKB Contract
 
-# REEF-056 — live contract smoke against a REAL akb backend.
+# Live contract smoke against a real AKB backend.
 #
 # Kept OFF the PR hot path (a separate workflow, never `pull_request`): it
-# source-builds akb and needs Docker, so it is slow. The static REEF-050
-# contract test still runs on every PR via ci.yml against CAPTURED responses;
-# THIS is the live drift detector that complements it — it re-applies reef's
-# hand-mirrored Zod envelopes to a running akb so a backend wire change fails
-# here instead of in production.
+# source-builds AKB and needs Docker, so it is slow. The static contract tests
+# still run on every PR via ci.yml against captured responses; this is the live
+# drift detector that complements them.
 on:
   push:
     branches: [main]
@@ -34,19 +32,36 @@ jobs:
       # pinned-ref regression vs. a `main` drift) on every run.
       fail-fast: false
       matrix:
-        # Two legs, one workflow:
-        #   - a PINNED ref = reproducible regression net. This SHA is the akb
-        #     HEAD the smoke was authored and verified against; bump it in
-        #     lockstep with the akb version reef actually deploys.
-        #   - `main` = drift detector. It builds akb's latest, so a new akb
-        #     wire shape fails this leg BEFORE it reaches a reef deploy.
-        akb_ref:
-          # backend-v0.14.2 — immutable release regression baseline.
-          - b28b345e687ae35441abec545961c9d09b39ea18
-          - main
+        # The pinned leg keeps the reproducible regression signal for the
+        # scenarios that existed at that ref. The moving leg exercises the
+        # current app-control-plane fixture and its app-principal reader.
+        include:
+          - akb_ref: b28b345e687ae35441abec545961c9d09b39ea18
+            scenario: app-installation-lifecycle
+            lane: pinned
+          - akb_ref: main
+            scenario: app-control-plane
+            lane: moving
     steps:
       - name: Checkout reef
         uses: actions/checkout@v5
+
+      # Do not restore or save tool caches: matrix.akb_ref selects external
+      # code, and this workflow runs on scheduled/manual privileged events.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          cache: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          cache: ""
+          package-manager-cache: false
+
+      - name: Install Reef dependencies
+        run: pnpm install --frozen-lockfile
 
       # akb is public, so no token is needed — just pin the ref.
       - name: Checkout akb
@@ -56,99 +71,175 @@ jobs:
           ref: ${{ matrix.akb_ref }}
           path: .akb-live
 
-      - name: Setup Python for AKB bootstrap
-        if: matrix.akb_ref == 'main'
+      - name: Setup Python for AKB runtime
         uses: actions/setup-python@v7
         with:
           python-version: "3.14"
+          cache: ""
 
-      - name: Setup uv for AKB bootstrap
-        if: matrix.akb_ref == 'main'
+      - name: Setup uv for AKB runtime
         uses: astral-sh/setup-uv@v10.0.0
-
-      - name: Configure akb (local-dev defaults)
-        working-directory: .akb-live
-        run: |
-          cp config/app.yaml.example config/app.yaml
-          cp config/secret.yaml.example config/secret.yaml
-          reef_minio_user="$(sed -n 's/^[[:space:]]*MINIO_ROOT_USER:[[:space:]]*//p' docker-compose.yaml | sed -n '1p')"
-          reef_minio_password="$(sed -n 's/^[[:space:]]*MINIO_ROOT_PASSWORD:[[:space:]]*//p' docker-compose.yaml | sed -n '1p')"
-          test -n "$reef_minio_user"
-          test -n "$reef_minio_password"
-          reef_app_config_tmp="$(mktemp)"
-          awk '!/^[[:space:]]*(s3_endpoint_url|s3_public_url|s3_bucket):[[:space:]]*/' config/app.yaml > "$reef_app_config_tmp"
-          printf '%s\n' \
-            's3_endpoint_url: "http://minio:9000"' \
-            's3_public_url: "http://localhost:9000"' \
-            's3_bucket: akb-files' \
-            >> "$reef_app_config_tmp"
-          mv "$reef_app_config_tmp" config/app.yaml
-          reef_secret_config_tmp="$(mktemp)"
-          awk '!/^[[:space:]]*(s3_access_key|s3_secret_key):[[:space:]]*/' config/secret.yaml > "$reef_secret_config_tmp"
-          printf '%s\n' \
-            "s3_access_key: '$reef_minio_user'" \
-            "s3_secret_key: '$reef_minio_password'" \
-            >> "$reef_secret_config_tmp"
-          mv "$reef_secret_config_tmp" config/secret.yaml
-          for reef_key in s3_endpoint_url s3_public_url s3_bucket; do
-            test "$(awk -v key="$reef_key" '$1 == key ":" { count += 1 } END { print count + 0 }' config/app.yaml)" = "1"
-          done
-          for reef_key in s3_access_key s3_secret_key; do
-            test "$(awk -v key="$reef_key" '$1 == key ":" { count += 1 } END { print count + 0 }' config/secret.yaml)" = "1"
-          done
-          test "$(awk '$1 == "s3_endpoint_url:" { print $2; exit }' config/app.yaml)" = '"http://minio:9000"'
-          test "$(awk '$1 == "s3_public_url:" { print $2; exit }' config/app.yaml)" = '"http://localhost:9000"'
-          test "$(awk '$1 == "s3_bucket:" { print $2; exit }' config/app.yaml)" = "akb-files"
-          test "$(awk '$1 == "s3_access_key:" { print $2; exit }' config/secret.yaml)" = "'$reef_minio_user'"
-          test "$(awk '$1 == "s3_secret_key:" { print $2; exit }' config/secret.yaml)" = "'$reef_minio_password'"
-
-      - name: Generate AKB local-session keyset
-        if: matrix.akb_ref == 'main'
-        working-directory: .akb-live/backend
-        run: |
-          uv run --locked python -m app.cli generate-local-session-keyset \
-            --output-dir ../config/local-session
-
-      # akb owns its compose topology (postgres + pgvector, minio); reef layers
-      # only ci/akb-live.override.yml (a backend healthcheck so `--wait` blocks
-      # until the API answers). No embed key needed: search degrades to BM25,
-      # which still returns a valid contract envelope. Only `backend` (+ its
-      # deps) is built — the frontend is not a dependency, so it is skipped.
-      - name: Build and start akb backend stack
-        run: |
-          docker compose \
-            -f .akb-live/docker-compose.yaml \
-            -f ci/akb-live.override.yml \
-            up -d --build --wait backend
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
         with:
-          node-version-file: .node-version
+          enable-cache: false
+          restore-cache: false
+          save-cache: false
 
-      # This job intentionally executes akb's moving `main` branch. Keep it
-      # isolated from GitHub Actions caches so upstream code cannot poison a
-      # cache later restored by another default-branch workflow.
+      - name: Install AKB runtime dependencies
+        working-directory: .akb-live
+        run: uv sync --locked --extra dev --project backend
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run live akb contract smoke
-        env:
-          REEF_LIVE_AKB_URL: http://localhost:8000
-        run: pnpm --filter @reef/core test:live-akb
-
-      - name: Dump akb backend logs on failure
-        if: failure()
+      - name: Run live AKB contract smoke
         run: |
-          docker compose -f .akb-live/docker-compose.yaml \
-            -f ci/akb-live.override.yml logs backend --tail 200
+          set -euo pipefail
 
-      - name: Tear down akb
-        if: always()
-        run: |
-          docker compose -f .akb-live/docker-compose.yaml \
-            -f ci/akb-live.override.yml down -v
+          akb_checkout="${GITHUB_WORKSPACE}/.akb-live"
+          runtime_root="${RUNNER_TEMP}/akb-e2e-runtime-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.lane }}"
+          descriptor_path="${RUNNER_TEMP}/reef-live-akb-descriptor-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.lane }}.json"
+          discovery_path="${RUNNER_TEMP}/reef-live-akb-discovery-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.lane }}.json"
+          reset_path="${RUNNER_TEMP}/reef-live-akb-reset-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.lane }}.json"
+          runtime_log="${RUNNER_TEMP}/reef-live-akb-runtime-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.lane }}.log"
+          export REEF_SCENARIO="${{ matrix.scenario }}"
+          export AKB_E2E_USERNAME="akb-e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.lane }}"
+          export AKB_E2E_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(24))')"
+          export DESCRIPTOR_PATH="$descriptor_path"
+          export DISCOVERY_PATH="$discovery_path"
+          export RESET_PATH="$reset_path"
+
+          runtime_pid=""
+          cleanup() {
+            reef_exit=$?
+            trap - EXIT
+            if [[ -n "$runtime_pid" ]]; then
+              kill -TERM "$runtime_pid" 2>/dev/null || true
+              wait "$runtime_pid" 2>/dev/null || true
+            fi
+            unset AKB_E2E_USERNAME AKB_E2E_PASSWORD
+            exit "$reef_exit"
+          }
+          trap cleanup EXIT
+
+          (
+            cd "$akb_checkout"
+            exec uv run --locked --project backend \
+              python backend/scripts/ci/e2e_runtime.py serve \
+              --scenario "$REEF_SCENARIO" \
+              --checkout "$akb_checkout" \
+              --runtime-root "$runtime_root" \
+              >"$descriptor_path" 2>"$runtime_log"
+          ) &
+          runtime_pid=$!
+
+          for reef_wait in $(seq 1 240); do
+            if [[ -s "$descriptor_path" ]]; then
+              break
+            fi
+            if ! kill -0 "$runtime_pid" 2>/dev/null; then
+              echo "AKB runtime exited before publishing its descriptor; raw logs remain private at $runtime_log" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          test -s "$descriptor_path"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          descriptor = json.loads(Path(os.environ["DESCRIPTOR_PATH"]).read_text())
+          assert descriptor["schema_version"] == 2
+          assert descriptor["status"] == "ready"
+          assert descriptor["scenario"] == os.environ["REEF_SCENARIO"]
+          assert set(descriptor["services"]) == {"app", "fixture"}
+          credentials = descriptor["credentials"]
+          assert credentials == {
+              "username_env": "AKB_E2E_USERNAME",
+              "password_env": "AKB_E2E_PASSWORD",
+              "login_path": "/api/v1/auth/login",
+          }
+          assert descriptor["services"]["fixture"]["reset"]["body"] == {
+              "scenario": os.environ["REEF_SCENARIO"]
+          }
+          serialized = json.dumps(descriptor, sort_keys=True)
+          for private in (os.environ["AKB_E2E_USERNAME"], os.environ["AKB_E2E_PASSWORD"]):
+              assert private not in serialized
+          print(f"schema-v2 runtime descriptor validated: scenario={descriptor['scenario']}, credential_values=omitted")
+          PY
+
+          export REEF_LIVE_AKB_URL="$(DESCRIPTOR_PATH="$descriptor_path" python -c 'import json, os; print(json.load(open(os.environ["DESCRIPTOR_PATH"]))["services"]["app"]["origin"])')"
+          export REEF_LIVE_AKB_FIXTURE_URL="$(DESCRIPTOR_PATH="$descriptor_path" python -c 'import json, os; print(json.load(open(os.environ["DESCRIPTOR_PATH"]))["services"]["fixture"]["origin"])')"
+
+          curl --fail --silent --show-error \
+            -X POST \
+            -H "Content-Type: application/json" \
+            --data "{\"scenario\":\"$REEF_SCENARIO\"}" \
+            "$REEF_LIVE_AKB_FIXTURE_URL/reset" \
+            --output "$reset_path"
+          curl --fail --silent --show-error \
+            "$REEF_LIVE_AKB_FIXTURE_URL/discover" \
+            --output "$discovery_path"
+
+          # Validate discovery before Vitest so a runtime-coordinate mismatch
+          # cannot be hidden by a stale or invented test fixture.
+          python - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          discovery = json.loads(Path(os.environ["DISCOVERY_PATH"]).read_text())
+          scenario = os.environ["REEF_SCENARIO"]
+          assert discovery["status"] == "ready"
+          assert discovery["scenario"] == scenario
+          assert discovery["access"]["login"] == {
+              "service": "app",
+              "method": "POST",
+              "path": "/api/v1/auth/login",
+              "fields": ["username", "password"],
+          }
+          serialized = json.dumps(discovery, sort_keys=True)
+          for private in (os.environ["AKB_E2E_USERNAME"], os.environ["AKB_E2E_PASSWORD"]):
+              assert private not in serialized
+          if scenario == "app-control-plane":
+              uuid_pattern = r"[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
+              runtime = discovery["runtime"]
+              assert re.fullmatch(r"[0-9a-f]{7,64}", runtime["source_revision"], re.I)
+              target_app_id = discovery["apps"]["target"]["id"]
+              assert re.fullmatch(uuid_pattern, target_app_id, re.I)
+              installations = discovery["installations"]
+              assert isinstance(installations, list) and installations
+              for installation in installations:
+                  assert isinstance(installation, dict)
+                  assert re.fullmatch(uuid_pattern, installation["id"], re.I)
+                  assert re.fullmatch(uuid_pattern, installation["vault_id"], re.I)
+                  assert isinstance(installation["fixture_id"], str)
+              scope_case = discovery["scope_cases"]["other_app"]
+              assert scope_case["app_id"] != target_app_id
+              for key in ("app_id", "vault_id", "installation_id"):
+                  assert re.fullmatch(uuid_pattern, scope_case[key], re.I)
+              coordinates = discovery["coordinates"]
+              assert coordinates["installation_status"]["method"] == "GET"
+              assert coordinates["admin"]["credential"]["method"] == "POST"
+              assert coordinates["admin"]["exchange"] == {
+                  "service": "app",
+                  "method": "POST",
+                  "path": "/api/v1/auth/app-token",
+                  "body": {"credential": "<issued-value>"},
+              }
+              print("fixture discovery validated: app-control-plane active installations and other-app scope present")
+          else:
+              print(f"fixture discovery validated: scenario={scenario}, app-control-plane coordinates not claimed")
+          PY
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          reset = json.loads(Path(os.environ["RESET_PATH"]).read_text())
+          assert reset == {"status": "ready", "scenario": os.environ["REEF_SCENARIO"]}
+          print(f"fixture reset validated: scenario={reset['scenario']}")
+          PY
+
+          echo "live AKB runtime contract validated: reef_sha=$(git rev-parse HEAD) akb_ref=${{ matrix.akb_ref }} scenario=$REEF_SCENARIO"
+          pnpm --filter @reef/core test:live-akb
