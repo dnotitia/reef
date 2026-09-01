@@ -34,7 +34,7 @@ import {
 } from "../hooks/usePlanningCatalog";
 import { PlanningDeleteDialog } from "./PlanningDeleteDialog";
 import { PlanningEditorDialog } from "./PlanningEditorDialog";
-import { PlanningTable } from "./PlanningTable";
+import { PlanningTable, type IssueAggregationState } from "./PlanningTable";
 import {
   type EditorState,
   PLANNING_KINDS,
@@ -79,7 +79,12 @@ export function PlanningPage() {
   const deleteMutation = useDeletePlanningItem(vault);
 
   const catalog = catalogQuery.data;
-  const issues = issueQuery.data ?? [];
+  const issues = issueQuery.data;
+  const issueAggregationState: IssueAggregationState = issueQuery.isError
+    ? "unavailable"
+    : issueQuery.isPending || !issues
+      ? "loading"
+      : "available";
 
   // Kind copy resolves in the active locale (REEF-292); captured here so the
   // toast handlers and the kind tabs below all read the same maps.
@@ -249,6 +254,12 @@ export function PlanningPage() {
           kind={activeKind}
           issues={issues}
           isLoading={catalogQuery.isPending}
+          isCatalogError={catalogQuery.isError}
+          isCatalogFetching={catalogQuery.isFetching}
+          onRetryCatalog={() => void catalogQuery.refetch()}
+          issueAggregationState={issueAggregationState}
+          isIssueFetching={issueQuery.isFetching}
+          onRetryIssues={() => void issueQuery.refetch()}
           expandedId={expandedId}
           onEdit={startEdit}
           onExpandedIdChange={setExpandedId}

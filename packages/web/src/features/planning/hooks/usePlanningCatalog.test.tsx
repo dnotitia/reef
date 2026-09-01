@@ -76,6 +76,30 @@ describe("usePlanningCatalog", () => {
     expect(mockApiFetch).toHaveBeenCalledWith("/api/planning?vault=reef-acme");
   });
 
+  it("keeps a catalog failure distinct and refetches to a successful catalog", async () => {
+    mockApiFetch
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "temporary failure" }), {
+          status: 503,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(CATALOG), { status: 200 }),
+      );
+
+    const { result } = renderHook(() => usePlanningCatalog("reef-acme"), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.data).toBeUndefined();
+
+    await result.current.refetch();
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual(CATALOG);
+    expect(mockApiFetch).toHaveBeenCalledTimes(2);
+  });
+
   it("is disabled when vault is empty", () => {
     const { result } = renderHook(() => usePlanningCatalog(""), {
       wrapper: createWrapper(),
