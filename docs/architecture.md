@@ -63,6 +63,9 @@ Two auxiliary runtimes stay outside the interactive web request path:
 - **`@reef/work-provider-reef`** is the concrete Reef work adapter for the
   orchestrator contract. It depends on `@reef/core` for AKB reads and writes,
   and owns no persistence, scheduler, or web surface.
+- **`@reef/event-processor`** is the private Change Event composition root. It
+  tails one explicitly configured AKB Vault and invokes Core's notification
+  projector; it has no browser, web, or orchestrator dependency.
 
 ```
 Browser (React UI, Zustand, TanStack Query, Dexie)
@@ -79,7 +82,7 @@ boundary for worker delivery: `@reef/scm-provider-github` may perform the
 contract-granted Git and GitHub pull-request writes against one validated local
 checkout. It is not part of the product's monitored-repository read adapter.
 
-The repository is a pnpm workspace with eleven private, unpublished packages
+The repository is a pnpm workspace with twelve private, unpublished packages
 under `packages/`: `core` (`@reef/core`), `web` (`@reef/web`), `orchestrator`
 (`@reef/orchestrator`), `orchestration-controller`
 (`@reef/orchestration-controller`), `orchestration-cli`
@@ -88,7 +91,8 @@ under `packages/`: `core` (`@reef/core`), `web` (`@reef/web`), `orchestrator`
 (`@reef/infrastructure-provider-local`), `validation-provider-local`
 (`@reef/validation-provider-local`), `scm-provider-github`
 (`@reef/scm-provider-github`), `jira-migrator` (`@reef/jira-migrator`), and
-`work-provider-reef` (`@reef/work-provider-reef`). The root
+`work-provider-reef` (`@reef/work-provider-reef`), and `event-processor`
+(`@reef/event-processor`). The root
 `package.json` is the single product version source of truth. New interactive
 product behavior that touches schemas, AKB, or shared contracts starts in
 `core`; provider adapters and agent application behavior live in web's
@@ -366,6 +370,8 @@ preserves Server-Sent Events.
 | AI agents and tools | `packages/web/src/server/application/agents/` (`chatAgent`, `enrichIssue`, `framework`, `prompts`, `tools`) |
 | Core observability seam | `packages/core/src/observability/index.ts` |
 | Error types | `packages/core/src/errors/` |
+| Change Event tail and notification reconciliation | `packages/core/src/adapters/akb/events.ts`, `packages/core/src/adapters/akb/notifications/` |
+| Private Event Processor composition root | `packages/event-processor/src/` |
 | Route Handlers (BFF) | `packages/web/src/app/api/*/route.ts` |
 | UI features | `packages/web/src/features/` |
 | Field leaves and styling | `packages/web/src/components/fields/` |

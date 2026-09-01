@@ -6,6 +6,7 @@ import {
   buildIssueMetadataFromCreateInput,
   createAkbAdapter,
   createAkbAppInstallationReader,
+  createAkbChangeEventTail,
   createVault,
   ensureReefTables,
   getAuthConfig,
@@ -42,6 +43,7 @@ import {
   REEF_NOTIFICATIONS_TABLE,
   REEF_SCHEMA_VERSION,
   REEF_SUBSCRIPTIONS_TABLE,
+  akbCreateComment,
   akbCreateNotification,
   akbGetEffectiveSubscriptionState,
   akbListNotifications,
@@ -51,6 +53,8 @@ import {
   akbUpdateNotificationState,
   akbUpsertSubscription,
   akbWatchIssue,
+  akbProjectNotifications,
+  notificationWakeupForChange,
 } from "../../src/index";
 
 /**
@@ -328,7 +332,10 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
     // Seed one issue through reef's REAL write path (doc PUT + reef_issues row).
     const issue = buildIssueMetadataFromCreateInput({
       id: SEED_ISSUE_ID,
-      create: { fields: { title: "Live contract smoke seed" } },
+      create: {
+        fields: { title: "Live contract smoke seed" },
+        content: "Seed body for the REEF-056 live contract smoke.",
+      },
       author: USERNAME,
     });
     await writeIssue({
@@ -1471,5 +1478,252 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
         `SOURCE_AWARE_EVIDENCE_SHA256 ${createHash("sha256").update(serialized).digest("hex")}`,
       );
     }
+  });
+
+  it("change event tail — live activity/comment wakes projector and preserves notification identity", async () => {
+    const runToken = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const recipient = `${USERNAME}-event-${runToken}`;
+    const fanoutRecipientA = `${USERNAME}-fanout-a-${runToken}`;
+    const fanoutRecipientB = `${USERNAME}-fanout-b-${runToken}`;
+
+    await akbWatchIssue(adapter, vault, {
+      reefId: SEED_ISSUE_ID,
+      subscriber: recipient,
+    });
+    await akbWatchIssue(adapter, vault, {
+      reefId: SEED_ISSUE_ID,
+      subscriber: fanoutRecipientA,
+    });
+    await akbWatchIssue(adapter, vault, {
+      reefId: SEED_ISSUE_ID,
+      subscriber: fanoutRecipientB,
+    });
+
+    const activation = await akbProjectNotifications({ adapter, vault });
+    expect(activation.activated).toBe(true);
+
+    const baseStream = adapter.stream;
+    if (!baseStream)
+      throw new Error("AKB adapter did not expose event streaming");
+    let resolveConnected: () => void = () => undefined;
+    const connected = new Promise<void>((resolve) => {
+      resolveConnected = resolve;
+    });
+    const observingAdapter: AkbAdapter = {
+      request: adapter.request,
+      stream: async (path, init) => {
+        const response = await baseStream(path, init);
+        resolveConnected();
+        return response;
+      },
+    };
+    const tail = createAkbChangeEventTail(observingAdapter);
+    const streamController = new AbortController();
+    const observedSources = new Set<string>();
+    const projectionResults: Array<{
+      source: string;
+      failed: boolean;
+    }> = [];
+    let activityCursor: string | undefined;
+
+    const consume = (async () => {
+      try {
+        for await (const record of tail.subscribe({
+          vault,
+          signal: streamController.signal,
+        })) {
+          if (record.type !== "change") continue;
+          const source = notificationWakeupForChange(record.event, vault);
+          if (!source || observedSources.has(source)) continue;
+
+          const result = await akbProjectNotifications({ adapter, vault });
+          projectionResults.push({
+            source,
+            failed: result.activity.failed || result.comment.failed,
+          });
+          expect(result.activity.failed).toBe(false);
+          expect(result.comment.failed).toBe(false);
+          observedSources.add(source);
+          if (source === "activity") activityCursor = record.cursor;
+          if (
+            observedSources.has("activity") &&
+            observedSources.has("comment")
+          ) {
+            streamController.abort();
+            return;
+          }
+        }
+      } catch (error) {
+        if (!streamController.signal.aborted) throw error;
+      }
+    })();
+
+    await connected;
+    const firstTransitionAt = new Date().toISOString();
+    await updateIssue({
+      adapter,
+      vault,
+      id: SEED_ISSUE_ID,
+      partial: {
+        status: "in_progress",
+        last_status_change: firstTransitionAt,
+      },
+    });
+    const comment = await akbCreateComment(
+      adapter,
+      vault,
+      SEED_ISSUE_ID,
+      `Live Change Event comment ${runToken}`,
+      USERNAME,
+    );
+    await consume;
+
+    expect([...observedSources].sort()).toEqual(["activity", "comment"]);
+    expect(projectionResults.every(({ failed }) => !failed)).toBe(true);
+    expect(activityCursor).toEqual(expect.any(String));
+
+    const firstNotifications = await akbListNotifications(adapter, vault, {
+      recipient,
+      limit: 100,
+    });
+    const firstActivityNotifications = firstNotifications.filter(
+      (notification) => notification.source_type === "activity",
+    );
+    const firstCommentNotifications = firstNotifications.filter(
+      (notification) =>
+        notification.source_type === "comment" &&
+        notification.source_ref === comment.id,
+    );
+    expect(firstActivityNotifications).toHaveLength(1);
+    expect(firstCommentNotifications).toHaveLength(1);
+    const activityNotification = firstActivityNotifications[0];
+    if (!activityNotification || !activityCursor) {
+      throw new Error("Live activity notification was not projected");
+    }
+
+    const archivedAt = new Date(Date.now() + 1_000).toISOString();
+    await akbUpdateNotificationState(adapter, vault, {
+      notificationKey: activityNotification.notification_key,
+      recipient,
+      state: "archived",
+      changedAt: archivedAt,
+    });
+
+    // Reconnect after the activity event. The next retained event is the
+    // already-processed comment event, so this exercises duplicate delivery
+    // without resetting either Source Cursor or notification state.
+    const reconnectController = new AbortController();
+    let replayedComment = false;
+    try {
+      for await (const record of tail.subscribe({
+        vault,
+        lastEventId: activityCursor,
+        signal: reconnectController.signal,
+      })) {
+        if (record.type !== "change") continue;
+        if (notificationWakeupForChange(record.event, vault) !== "comment") {
+          continue;
+        }
+        replayedComment = true;
+        const result = await akbProjectNotifications({ adapter, vault });
+        expect(result.activity.failed).toBe(false);
+        expect(result.comment.failed).toBe(false);
+        reconnectController.abort();
+        break;
+      }
+    } catch (error) {
+      if (!reconnectController.signal.aborted) throw error;
+    }
+    expect(replayedComment).toBe(true);
+
+    const afterReconnect = await akbListNotifications(adapter, vault, {
+      recipient,
+      limit: 100,
+    });
+    const archivedActivity = afterReconnect.filter(
+      (notification) =>
+        notification.source_type === "activity" &&
+        notification.source_ref === activityNotification.source_ref,
+    );
+    expect(archivedActivity).toHaveLength(1);
+    expect(archivedActivity[0]?.state).toBe("archived");
+
+    // Force a partial fan-out failure after a new activity event. The first
+    // recipient may be written, but the source checkpoint must remain behind;
+    // the retry then converges to the same identities.
+    const secondTransitionAt = new Date(Date.now() + 2_000).toISOString();
+    await updateIssue({
+      adapter,
+      vault,
+      id: SEED_ISSUE_ID,
+      partial: {
+        status: "in_review",
+        last_status_change: secondTransitionAt,
+      },
+    });
+    const sqlPath = `/api/v1/tables/${encodeURIComponent(vault)}/sql`;
+    const failingAdapter: AkbAdapter = {
+      request: async (path, init) => {
+        if (path === sqlPath && init?.method === "POST") {
+          const body = (
+            typeof init.body === "object" && init.body !== null
+              ? init.body
+              : JSON.parse(String(init.body))
+          ) as {
+            sql?: string;
+            params?: unknown[];
+          };
+          if (
+            body.sql?.includes("INSERT INTO reef_notifications") &&
+            body.params?.[1] === fanoutRecipientB
+          ) {
+            throw new Error("intentional live partial fan-out failure");
+          }
+        }
+        return adapter.request(path, init);
+      },
+      stream: adapter.stream,
+    };
+
+    const failedFanout = await akbProjectNotifications({
+      adapter: failingAdapter,
+      vault,
+    });
+    expect(failedFanout.activity.failed).toBe(true);
+    const retriedFanout = await akbProjectNotifications({ adapter, vault });
+    expect(retriedFanout.activity.failed).toBe(false);
+
+    const fanoutNotifications = await akbListNotifications(adapter, vault, {
+      recipient: fanoutRecipientA,
+      limit: 100,
+    });
+    const secondActivityForA = fanoutNotifications.filter(
+      (notification) =>
+        notification.source_type === "activity" &&
+        notification.occurred_at === secondTransitionAt,
+    );
+    expect(secondActivityForA).toHaveLength(1);
+    const secondActivityNotification = secondActivityForA[0];
+    if (!secondActivityNotification) {
+      throw new Error("Live retry notification was not projected");
+    }
+    await akbUpdateNotificationState(adapter, vault, {
+      notificationKey: secondActivityNotification.notification_key,
+      recipient: fanoutRecipientA,
+      state: "archived",
+      changedAt: new Date(Date.now() + 3_000).toISOString(),
+    });
+    await akbProjectNotifications({ adapter, vault });
+    const afterFanoutRetry = await akbListNotifications(adapter, vault, {
+      recipient: fanoutRecipientA,
+      limit: 100,
+    });
+    const preservedRetryNotification = afterFanoutRetry.filter(
+      (notification) =>
+        notification.notification_key ===
+        secondActivityNotification.notification_key,
+    );
+    expect(preservedRetryNotification).toHaveLength(1);
+    expect(preservedRetryNotification[0]?.state).toBe("archived");
   });
 });

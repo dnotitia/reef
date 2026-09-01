@@ -3,6 +3,7 @@ import { type AkbJsonBodyPolicy, readAkbJsonBody } from "./responseBody";
 export interface AkbErrorResponse {
   message: string;
   code?: string;
+  details?: Record<string, unknown>;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -33,6 +34,7 @@ export async function readAkbErrorResponse(
   const firstDetail = Array.isArray(detail) ? asRecord(detail[0]) : null;
 
   const code = nonEmptyString(root?.code) ?? nonEmptyString(detailRecord?.code);
+  const details = asRecord(detailRecord?.details) ?? asRecord(root?.details);
   const message =
     nonEmptyString(detailRecord?.message) ??
     nonEmptyString(detail) ??
@@ -41,5 +43,9 @@ export async function readAkbErrorResponse(
     nonEmptyString(root?.error) ??
     (response.statusText || "Unknown error");
 
-  return code ? { message, code } : { message };
+  return {
+    message,
+    ...(code ? { code } : {}),
+    ...(details ? { details } : {}),
+  };
 }

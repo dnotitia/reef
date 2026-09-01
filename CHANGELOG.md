@@ -25,6 +25,14 @@ explicitly in the entries below.
   local view identity, while Manual mode continues to read the shared server
   rank.
 
+### Changed
+
+- **AKB Change Events now wake private notification projection.** The new
+  Event Processor tails the authenticated `table.rows_changed` stream for
+  activity and comment Source State, then invokes the existing idempotent Inbox
+  projector with per-Vault retry and cursor handling. No browser-facing API or
+  UI surface changes.
+
 ### Migration
 
 - **No Dexie schema migration is required for My Views.** The new versioned

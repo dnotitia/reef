@@ -23,6 +23,8 @@ type AkbFetchBody = Exclude<
 
 export interface AkbAdapter {
   request: AkbRequest;
+  /** Open a long-lived authenticated response without consuming its body. */
+  stream?: AkbStreamRequest;
 }
 
 export interface AkbRequestPolicy {
@@ -47,6 +49,18 @@ export type AkbRequest = (
   path: string,
   init?: AkbRequestInit,
 ) => Promise<unknown>;
+
+export interface AkbStreamRequestInit {
+  query?: Record<string, string | number | undefined>;
+  rawHeaders?: Record<string, string>;
+  signal?: AbortSignal;
+  resource?: string;
+}
+
+export type AkbStreamRequest = (
+  path: string,
+  init?: AkbStreamRequestInit,
+) => Promise<Response>;
 
 export interface AkbBinaryResponse {
   body: ArrayBuffer;
@@ -307,6 +321,55 @@ function makeRequest(
   };
 }
 
+function makeStreamRequest(
+  baseUrl: string,
+  bearerToken: string,
+): AkbStreamRequest {
+  return async (path, init = {}) => {
+    const url = buildUrl(baseUrl, path, init.query);
+    return tracer.startActiveSpan("akb.http.stream", async (span) => {
+      span.setAttribute("http.method", "GET");
+      span.setAttribute("akb.http.path", path);
+      const startMs = Date.now();
+      try {
+        let response: Response;
+        try {
+          response = await fetch(url, {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${bearerToken}`,
+              Accept: "text/event-stream",
+              ...init.rawHeaders,
+            },
+            redirect: "manual",
+            ...(init.signal ? { signal: init.signal } : {}),
+          });
+        } catch (err) {
+          if (init.signal?.aborted) throw err;
+          const error = err instanceof Error ? err : new Error("Network error");
+          span.recordException(error);
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: error.message,
+          });
+          throw new AkbApiError({ status: 0, message: error.message });
+        }
+        span.setAttribute("http.status_code", response.status);
+        if (response.status >= 500) {
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: `akb upstream ${response.status}`,
+          });
+        }
+        return response;
+      } finally {
+        span.setAttribute("akb.http.duration_ms", Date.now() - startMs);
+        span.end();
+      }
+    });
+  };
+}
+
 // ─── Factory ──────────────────────────────────────────────────────────────────
 
 /**
@@ -332,5 +395,6 @@ export function createAkbAdapter(input: {
   }
   return {
     request: makeRequest(input.baseUrl, input.jwt, input.requestPolicy),
+    stream: makeStreamRequest(input.baseUrl, input.jwt),
   };
 }

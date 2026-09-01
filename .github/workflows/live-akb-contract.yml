@@ -36,7 +36,7 @@ jobs:
         # scenarios that existed at that ref. The moving leg exercises the
         # current app-control-plane fixture and its app-principal reader.
         include:
-          - akb_ref: b28b345e687ae35441abec545961c9d09b39ea18
+          - akb_ref: 62999c73d4bc83dc4d8cc3e587ca7b1207d8318d
             scenario: app-installation-lifecycle
             lane: pinned
           - akb_ref: main

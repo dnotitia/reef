@@ -4,6 +4,7 @@ reef is versioned as a single repository product: the deployed `reef-web`
 application plus its private core, worker, and operator packages.
 
 The pnpm workspace contains `packages/web`, `packages/core`,
+`packages/event-processor`,
 `packages/orchestration/runtime`, `packages/orchestration/controller`,
 `packages/orchestration/cli`,
 `packages/orchestration/providers/codex`,

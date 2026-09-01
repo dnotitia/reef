@@ -17,6 +17,19 @@ export {
   type NotificationProjectionSourceResult,
 } from "./notifications/projector";
 export {
+  CHANGE_EVENT_KIND,
+  REEF_ACTIVITY_RESOURCE,
+  REEF_COMMENTS_RESOURCE,
+  createAkbChangeEventTail,
+  notificationWakeupForChange,
+  readChangeEventStream,
+  tableResourceUri,
+  type AkbChangeEventTail,
+  type ChangeEventTailInput,
+  type ChangeEventTailRecord,
+  type NotificationWakeupSource,
+} from "./events";
+export {
   createAkbAdapter,
   ISSUES_COLLECTION,
   REEF_SETTINGS_TABLE,
@@ -41,6 +54,9 @@ export {
   searchDocuments,
   issueDocumentUri,
   type AkbAdapter,
+  type AkbRequestPolicy,
+  type AkbStreamRequest,
+  type AkbStreamRequestInit,
   type AkbSearchHit,
   type AkbAlterTableChanges,
   type AkbTableMigrationOperation,

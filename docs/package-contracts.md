@@ -13,6 +13,7 @@ under `dist/`. The table shows the current buildable packages:
 | Package | Role | Public entry |
 | --- | --- | --- |
 | `@reef/core` | Framework-agnostic domain, schema, AKB adapter, observability, and provider-neutral agent contracts | Root plus the existing `status`, `errors`, `fields`, and `fields/planning` subpaths |
+| `@reef/event-processor` | Private AKB Change Event tail and notification projection composition root | Root |
 | `@reef/orchestrator` | Provider-neutral one-run orchestration runtime | Root |
 | `@reef/orchestration-controller` | Controller-owned private run state, claims, inspection, and cleanup boundary | Root |
 | `@reef/orchestration-cli` | Private foreground work-URI invocation adapter and executable artifact | Root and the `reef-orchestration-cli` bin |
@@ -30,6 +31,7 @@ The allowed workspace dependency directions are:
 
 ```text
 core                         → (none)
+event-processor              → core
 orchestrator                 → core
 orchestration-controller     → orchestrator
 orchestration-cli            → core, orchestrator, orchestration-controller, concrete providers
