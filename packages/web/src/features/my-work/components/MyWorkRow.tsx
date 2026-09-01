@@ -38,7 +38,7 @@ function DueMeta({ item }: { item: MyWorkItem }) {
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 font-mono text-[11px] tabular-nums",
+        "inline-flex shrink-0 items-center gap-1 type-mono-value",
         tone,
       )}
     >
@@ -84,7 +84,7 @@ export const MyWorkRow = memo(function MyWorkRow({
           <StatusIcon status={issue.status} size={14} decorative />
         ) : null}
 
-        <span className="w-[64px] shrink-0 truncate font-mono text-xs tabular-nums text-muted-foreground">
+        <span className="w-[64px] shrink-0 truncate type-mono-value text-muted-foreground">
           {issue.id}
         </span>
 
@@ -98,7 +98,7 @@ export const MyWorkRow = memo(function MyWorkRow({
       <span
         data-testid="my-work-row-title"
         title={issue.title}
-        className="min-w-0 basis-full break-words text-[13px] text-foreground sm:flex-1 sm:basis-auto sm:truncate sm:whitespace-nowrap"
+        className="type-body min-w-0 basis-full break-words text-foreground sm:flex-1 sm:basis-auto sm:truncate sm:whitespace-nowrap"
       >
         {issue.title}
       </span>

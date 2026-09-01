@@ -68,7 +68,7 @@ export function FlowMetricsCard({
             );
           })}
         </div>
-        <span className="text-xs text-muted-foreground">
+        <span className="type-caption text-muted-foreground">
           {t("completionWindowLabel", { period: periodLabel })}
         </span>
       </div>
@@ -187,7 +187,7 @@ function FlowMetricResultView({
         />
       </dl>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-2 type-caption text-muted-foreground">
         <span>{t("sleValue", { days: result.sleDays ?? 0 })}</span>
         {result.lowSample ? (
           <span data-testid={`flow-metrics-low-sample-${metric}`}>
@@ -206,7 +206,7 @@ function FlowMetricResultView({
         >
           <h4
             id={`flow-outliers-${metric}`}
-            className="text-xs font-semibold uppercase tracking-wide text-foreground"
+            className="type-section-label text-foreground"
           >
             {t("outliers")}
           </h4>
@@ -221,14 +221,14 @@ function FlowMetricResultView({
                     vault,
                     `/issues/${encodeURIComponent(point.issueId)}`,
                   )}
-                  className="min-w-0 truncate text-sm text-brand-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+                  className="type-body min-w-0 truncate text-brand-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
                 >
-                  <span translate="no" className="font-mono text-xs">
+                  <span translate="no" className="type-mono-value">
                     {point.issueId}
                   </span>
                   <span className="ml-2">{point.title}</span>
                 </Link>
-                <span className="shrink-0 font-mono text-xs tabular-nums text-destructive-text">
+                <span className="shrink-0 type-mono-value text-destructive-text">
                   {t("elapsedDays", {
                     days: formatDays(point.elapsedDays, locale),
                   })}
@@ -245,10 +245,8 @@ function FlowMetricResultView({
 function FlowStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex min-h-12 flex-col justify-between gap-1 rounded-md bg-surface-hover px-2.5 py-2">
-      <dt className="truncate text-[11px] text-muted-foreground">{label}</dt>
-      <dd className="font-mono text-sm font-semibold tabular-nums text-foreground">
-        {value}
-      </dd>
+      <dt className="type-caption truncate text-muted-foreground">{label}</dt>
+      <dd className="type-mono-value font-semibold text-foreground">{value}</dd>
     </div>
   );
 }

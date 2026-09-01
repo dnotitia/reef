@@ -43,14 +43,14 @@ export function SettingsGroup({
           {/* The scope name lives in a sibling span, not inside the <h2>, so the
               heading's accessible name stays exactly the title. */}
           <div className="flex min-w-0 items-baseline gap-2">
-            <h2 className="shrink-0 font-display text-[15px] font-semibold text-foreground">
+            <h2 className="type-group-title shrink-0 text-foreground">
               {title}
             </h2>
             {scopeName ? (
               <span
                 translate="no"
                 data-testid="settings-group-scope"
-                className="min-w-0 truncate font-display text-[13px] font-medium text-brand-text"
+                className="type-body min-w-0 truncate font-medium text-brand-text"
               >
                 {scopeName}
               </span>
@@ -58,7 +58,7 @@ export function SettingsGroup({
           </div>
           {access ? <AccessBadge level={access} /> : null}
         </div>
-        <p className="text-xs text-muted-foreground">{description}</p>
+        <p className="type-caption text-muted-foreground">{description}</p>
       </div>
       <div className="flex flex-col gap-8">{children}</div>
     </section>

@@ -123,8 +123,10 @@ describe("CommentCard", () => {
       "reef-markdown-surface",
       "reef-markdown-comment",
       "comment-mention-renderer",
-      "text-[13px]",
     );
+    // The 13px comment rhythm is owned by the scoped Markdown CSS contract,
+    // not an arbitrary per-component utility.
+    expect(renderer).not.toHaveClass("text-[13px]");
   });
 
   it("passes markdown hrefs and image srcs distinctly to the URL resolver", () => {

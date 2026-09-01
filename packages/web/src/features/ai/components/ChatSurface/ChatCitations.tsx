@@ -33,7 +33,7 @@ export function ChatCitations({
       aria-label={t("chatSources.heading")}
       className="flex flex-col gap-1.5"
     >
-      <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <p className="type-section-label flex items-center gap-2 text-muted-foreground">
         {t("chatSources.heading")}
         <span aria-hidden="true" className="h-px flex-1 bg-border-subtle" />
       </p>
@@ -77,13 +77,13 @@ function ChatCitationCard({ citation }: { citation: ChatDocumentCitation }) {
       <DocumentTypeGlyph docType={citation.docType} className="mt-0.5 size-4" />
       <div className="min-w-0 flex-1">
         <p
-          className="truncate text-sm font-medium text-foreground"
+          className="type-body truncate font-medium text-foreground"
           title={title}
         >
           {title}
         </p>
         <p
-          className="truncate text-xs text-muted-foreground"
+          className="type-caption truncate text-muted-foreground"
           title={citation.uri}
         >
           {breadcrumb}

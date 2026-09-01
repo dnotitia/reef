@@ -6,18 +6,28 @@ import { ThemeSync } from "@/providers/ThemeSync";
 import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale } from "next-intl/server";
-import { Geist_Mono, Inter } from "next/font/google";
+import { Geist_Mono, Inter, Noto_Sans_KR } from "next/font/google";
 import { headers } from "next/headers";
 import "./globals.css";
 
-// A single Inter variable font carries the full weight range, so display
-// headers (font-semibold, …) and body text share one downloaded face instead
-// of two — the `--font-display` stack points back at it in globals.css.
-// (REEF-097 AC3)
+// Inter carries the full Latin weight range, so display headers
+// (font-semibold, …) and body text share one downloaded face. Noto Sans KR is
+// the explicitly loaded Hangul companion; the `--font-display` and
+// `--font-body` stacks point at both in globals.css. (REEF-097 AC3)
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
   display: "swap",
+});
+
+// Noto Sans KR is loaded as the deliberate Hangul companion for the Inter and
+// Geist Mono roles. Omitting a subset keeps the Korean glyph ranges in the
+// self-hosted font; `preload: false` avoids preloading every range before the
+// browser has a Korean sample to render.
+const notoSansKr = Noto_Sans_KR({
+  variable: "--font-noto-sans-kr",
+  display: "swap",
+  preload: false,
 });
 
 const geistMono = Geist_Mono({
@@ -71,7 +81,7 @@ export default async function RootLayout({
   return (
     <html
       lang={locale}
-      className={`${inter.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${notoSansKr.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">

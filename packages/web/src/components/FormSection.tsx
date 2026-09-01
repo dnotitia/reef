@@ -7,8 +7,7 @@ import type { ReactNode } from "react";
  * draft editors and the planning editor). Distinct from the per-field label
  * style so the visual hierarchy reads "section → field label → control".
  */
-export const SECTION_HEADER_CLASS =
-  "text-[11px] font-semibold uppercase tracking-wide text-muted-foreground";
+export const SECTION_HEADER_CLASS = "type-section-label text-muted-foreground";
 
 interface FormSectionProps {
   /** Section heading text (rendered verbatim; uppercasing is CSS). */

@@ -25,7 +25,7 @@ import { issueEnrichmentRun } from "@/features/ai/runtime/taskRequests";
 import { agentRunFailureFromUnknown } from "@/features/ai/runtime/streamClient";
 import { useAgentRun } from "@/features/ai/runtime/useAgentRun";
 
-const FIELD_LABEL_CLASS = "text-xs font-medium text-muted-foreground";
+const FIELD_LABEL_CLASS = "type-caption font-medium text-muted-foreground";
 
 export function useNewIssueEnrichment({
   vault,

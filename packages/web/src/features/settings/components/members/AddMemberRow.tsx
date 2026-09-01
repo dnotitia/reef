@@ -70,7 +70,7 @@ export function AddMemberRow({
       className="flex flex-col gap-2 rounded-lg border border-border-subtle bg-surface-subtle/40 p-3"
       data-testid="add-member-row"
     >
-      <p className="text-[13px] font-medium text-foreground/90">
+      <p className="type-body font-medium text-foreground/90">
         {t("addMember")}
       </p>
       <div className="flex flex-wrap items-center gap-2">

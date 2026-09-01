@@ -80,7 +80,7 @@ export function IssueChromeActions({
       ) : updatedAt ? (
         <span
           data-testid="issue-updated-at"
-          className="whitespace-nowrap text-[11px] text-muted-foreground tabular-nums"
+          className="whitespace-nowrap type-mono-value text-muted-foreground"
           title={t("lastEdited", {
             time: formatAbsoluteTime(updatedAt, locale),
           })}

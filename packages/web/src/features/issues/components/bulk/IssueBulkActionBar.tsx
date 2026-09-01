@@ -89,7 +89,7 @@ function LabelBulkAction({
       <PopoverTrigger
         disabled={disabled}
         aria-haspopup="dialog"
-        className="h-8 gap-1.5 rounded-md border border-border bg-surface-elevated px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40 disabled:pointer-events-none disabled:opacity-50"
+        className="h-8 gap-1.5 rounded-md border border-border bg-surface-elevated px-2.5 type-caption font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40 disabled:pointer-events-none disabled:opacity-50"
         data-testid={testId}
       >
         {label}
@@ -189,7 +189,7 @@ export function IssueBulkActionBar({
         aria-busy={runner.running}
       >
         <span
-          className="inline-flex min-h-8 min-w-max items-center gap-2 px-1 text-sm font-semibold tabular-nums"
+          className="inline-flex min-h-8 min-w-max items-center gap-2 px-1 type-mono-value font-semibold tabular-nums"
           aria-live="polite"
         >
           <CheckSquare2
@@ -295,7 +295,7 @@ export function IssueBulkActionBar({
             <Popover>
               <PopoverTrigger
                 aria-haspopup="dialog"
-                className="h-7 rounded-md bg-destructive-fill px-2.5 text-xs font-medium text-destructive-on-fill hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+                className="h-7 rounded-md bg-destructive-fill px-2.5 type-caption font-medium text-destructive-on-fill hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
               >
                 {bulk("failedCount", { count: runner.failures.length })}
               </PopoverTrigger>
@@ -312,7 +312,7 @@ export function IssueBulkActionBar({
                   {runner.failures.map((failure) => (
                     <div
                       key={failure.id}
-                      className="flex min-h-9 items-center gap-2 rounded-sm px-1 text-sm [contain-intrinsic-size:auto_2.25rem] [content-visibility:auto]"
+                      className="flex min-h-9 items-center gap-2 rounded-sm px-1 type-body [contain-intrinsic-size:auto_2.25rem] [content-visibility:auto]"
                     >
                       <span className="min-w-0 flex-1 truncate">
                         <strong translate="no">{failure.id}</strong> ·{" "}

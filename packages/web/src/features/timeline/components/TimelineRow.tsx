@@ -45,16 +45,16 @@ export function TimelineRow({
       >
         <StatusIcon status={item.issue.status} size={12} />
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-mono text-[11px] text-muted-foreground">
+          <span className="block truncate type-mono-value text-muted-foreground">
             {item.issue.id}
           </span>
-          <span className="block truncate text-[12px] font-medium text-foreground">
+          <span className="block truncate type-body font-medium text-foreground">
             {item.issue.title}
           </span>
         </span>
         {item.issue.assigned_to && (
           <span
-            className="hidden max-w-20 truncate text-[11px] text-muted-foreground lg:block"
+            className="hidden max-w-20 truncate type-caption text-muted-foreground lg:block"
             title={item.issue.assigned_to}
           >
             @{item.issue.assigned_to}

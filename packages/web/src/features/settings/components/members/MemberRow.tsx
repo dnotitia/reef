@@ -77,7 +77,7 @@ export const MemberRow = memo(function MemberRow({
           wrapperClassName="min-w-0"
         />
         {isSelf ? (
-          <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+          <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 type-caption font-medium text-muted-foreground">
             {t("you")}
           </span>
         ) : null}

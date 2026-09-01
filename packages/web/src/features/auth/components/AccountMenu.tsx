@@ -102,11 +102,11 @@ export function AccountMenu({
                 <Skeleton className="h-3.5 w-24" />
               ) : (
                 <>
-                  <span className="truncate text-[13px] leading-tight text-foreground">
+                  <span className="type-body truncate text-foreground">
                     {identity.name}
                   </span>
                   {identity.secondary && (
-                    <span className="truncate text-[11px] leading-tight text-muted-foreground">
+                    <span className="type-caption truncate text-muted-foreground">
                       {identity.secondary}
                     </span>
                   )}
@@ -116,11 +116,11 @@ export function AccountMenu({
           )
         ) : (
           <span className="hidden min-w-0 max-w-40 flex-col text-right sm:flex">
-            <span className="truncate text-[13px] leading-tight text-foreground">
+            <span className="type-body truncate text-foreground">
               {identity.name}
             </span>
             {identity.secondary && (
-              <span className="truncate text-[11px] leading-tight text-muted-foreground">
+              <span className="type-caption truncate text-muted-foreground">
                 {identity.secondary}
               </span>
             )}
@@ -143,11 +143,11 @@ export function AccountMenu({
         <div className="flex items-center gap-2 px-2 py-1.5">
           <AccountAvatar name={identity.name} login={identity.login} />
           <span className="flex min-w-0 flex-col">
-            <span className="truncate text-[13px] font-medium text-foreground">
+            <span className="type-body truncate font-medium text-foreground">
               {identity.name}
             </span>
             {identity.email && (
-              <span className="truncate text-[11px] text-muted-foreground">
+              <span className="type-caption truncate text-muted-foreground">
                 {identity.email}
               </span>
             )}
@@ -180,7 +180,7 @@ export function AccountMenu({
 
         <p
           aria-live="polite"
-          className="px-2 text-[11px] text-destructive-text empty:hidden"
+          className="px-2 type-caption text-destructive-text empty:hidden"
         >
           {signOut.isError ? t("signOutError") : null}
         </p>
@@ -196,7 +196,7 @@ export function AccountMenu({
             className="justify-between gap-3"
           >
             <span>{t("whatsNew")}</span>
-            <span className="flex items-center gap-1 font-mono text-[11px] tabular-nums text-muted-foreground">
+            <span className="flex items-center gap-1 type-mono-value text-muted-foreground">
               <span data-testid="account-version">{releaseVersion}</span>
               <ExternalLink aria-hidden="true" className="size-3" />
             </span>

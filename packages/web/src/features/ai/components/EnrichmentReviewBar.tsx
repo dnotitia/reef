@@ -60,7 +60,7 @@ export function EnrichmentReviewBar({
     return (
       <div className={base} data-testid="enrichment-review-loading">
         <Loader2 className="h-4 w-4 animate-spin text-ai-subtle-foreground" />
-        <span className="text-xs text-ai-subtle-foreground">
+        <span className="type-caption text-ai-subtle-foreground">
           {t("analyzingFields")}
         </span>
       </div>
@@ -74,14 +74,14 @@ export function EnrichmentReviewBar({
         data-testid="enrichment-review-error"
       >
         <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-        <div className="flex-1 text-xs text-muted-foreground">
+        <div className="flex-1 type-caption text-muted-foreground">
           <p>{error}</p>
           {onRetry && (
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="mt-1 h-7 px-2 text-xs"
+              className="mt-1 h-7 px-2 type-caption"
               onClick={onRetry}
             >
               {t("tryAgain")}
@@ -97,7 +97,7 @@ export function EnrichmentReviewBar({
     return (
       <div className={base} data-testid="enrichment-review-empty">
         <Sparkles className="h-4 w-4 text-ai-subtle-foreground" />
-        <span className="text-xs text-muted-foreground">
+        <span className="type-caption text-muted-foreground">
           {t("noSuggestions")}
         </span>
         {onClose && <CloseButton onClose={onClose} />}
@@ -111,12 +111,12 @@ export function EnrichmentReviewBar({
         className="h-4 w-4 text-ai-subtle-foreground"
         aria-hidden="true"
       />
-      <span className="text-xs text-ai-subtle-foreground">
+      <span className="type-caption text-ai-subtle-foreground">
         {t.rich("reviewStatus", {
           pending,
           accepted,
           mono: (chunks) => (
-            <span className="font-mono font-semibold">{chunks}</span>
+            <span className="type-mono-value font-semibold">{chunks}</span>
           ),
         })}
       </span>
@@ -125,7 +125,7 @@ export function EnrichmentReviewBar({
           type="button"
           variant="ghost"
           size="sm"
-          className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive-text"
+          className="h-7 px-2 type-caption text-muted-foreground hover:text-destructive-text"
           onClick={onDismissAll}
           disabled={pending === 0}
           data-testid="enrichment-dismiss-all"
@@ -135,7 +135,7 @@ export function EnrichmentReviewBar({
         <Button
           type="button"
           size="sm"
-          className="h-7 bg-ai px-3 text-xs text-ai-foreground hover:bg-ai/90"
+          className="h-7 bg-ai px-3 type-caption text-ai-foreground hover:bg-ai/90"
           onClick={onAcceptAll}
           disabled={pending === 0}
           data-testid="enrichment-accept-all"

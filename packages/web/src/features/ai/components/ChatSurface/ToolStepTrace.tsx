@@ -82,10 +82,10 @@ export function ToolStepTrace({
           aria-hidden="true"
           className="size-3.5 shrink-0 text-ai-subtle-foreground"
         />
-        <span className="text-xs font-medium text-foreground">
+        <span className="type-caption font-medium text-foreground">
           {streaming ? t("chatSteps.working") : t("chatSteps.header")}
         </span>
-        <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+        <span className="ml-auto type-caption text-muted-foreground tabular-nums">
           {t("chatSteps.stepCount", { count: steps.length })}
         </span>
         <ChevronRight
@@ -146,7 +146,7 @@ function ToolStepRow({
         <span className="flex size-4 shrink-0 items-center justify-center">
           <Loader2 className="size-3.5 text-ai-subtle-foreground motion-safe:animate-spin" />
         </span>
-        <span className="text-xs font-medium text-ai-subtle-foreground">
+        <span className="type-caption font-medium text-ai-subtle-foreground">
           {label}
         </span>
       </li>
@@ -173,10 +173,12 @@ function ToolStepRow({
             <ToolIcon toolName={step.toolName} />
           )}
         </span>
-        <span className="truncate text-xs text-foreground/90">{label}</span>
+        <span className="type-caption truncate text-foreground/90">
+          {label}
+        </span>
         <span className="ml-auto flex shrink-0 items-center gap-2">
           {count !== null && (
-            <span className="text-xs text-muted-foreground tabular-nums">
+            <span className="type-caption text-muted-foreground tabular-nums">
               {t("chatSteps.results", { count })}
             </span>
           )}
@@ -191,13 +193,13 @@ function ToolStepRow({
       </button>
 
       {isOpen && (
-        <dl className="flex flex-col gap-1.5 bg-surface-elevated px-2.5 pb-2.5 pl-9 pt-0.5 text-xs">
+        <dl className="flex flex-col gap-1.5 bg-surface-elevated px-2.5 pb-2.5 pl-9 pt-0.5 type-caption">
           <div className="flex gap-2">
             <dt className="w-14 shrink-0 text-muted-foreground">
               {t("chatSteps.detailTool")}
             </dt>
             <dd
-              className="rounded border border-ai-border bg-ai-subtle px-1.5 py-0.5 font-mono text-[11px] text-ai-subtle-foreground"
+              className="rounded border border-ai-border bg-ai-subtle px-1.5 py-0.5 type-mono-value text-ai-subtle-foreground"
               translate="no"
             >
               {step.toolName}
@@ -208,7 +210,7 @@ function ToolStepRow({
               <dt className="w-14 shrink-0 text-muted-foreground">
                 {t("chatSteps.detailArgs")}
               </dt>
-              <dd className="min-w-0 break-words font-mono text-[11px] text-foreground">
+              <dd className="min-w-0 break-words type-mono-value text-foreground">
                 {args}
               </dd>
             </div>
@@ -218,7 +220,7 @@ function ToolStepRow({
               <dt className="w-14 shrink-0 text-muted-foreground">
                 {t("chatSteps.detailError")}
               </dt>
-              <dd className="min-w-0 break-words text-[11px] text-destructive-text">
+              <dd className="min-w-0 break-words type-caption text-destructive-text">
                 {step.errorMessage}
               </dd>
             </div>

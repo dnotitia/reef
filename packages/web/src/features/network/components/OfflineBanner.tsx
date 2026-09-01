@@ -15,7 +15,7 @@ export function OfflineBanner() {
       data-testid="offline-banner"
       role="status"
       aria-live="polite"
-      className="flex w-full items-center justify-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-[12px] text-amber-700 dark:text-amber-200"
+      className="flex w-full items-center justify-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-3 py-1.5 type-caption text-amber-700 dark:text-amber-200"
     >
       <WifiOff className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       <span>{t("offlineBanner")}</span>

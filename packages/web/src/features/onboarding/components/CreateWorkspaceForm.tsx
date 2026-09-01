@@ -216,7 +216,7 @@ export function CreateWorkspaceForm({
             }}
             placeholder={/* i18n-exempt: example vault name */ "reef-acme"}
             data-testid={nameId}
-            className="font-mono"
+            className="type-mono-value"
             autoComplete="off"
             required
             aria-invalid={fieldErrors.name ? true : undefined}
@@ -247,7 +247,7 @@ export function CreateWorkspaceForm({
             }}
             placeholder={/* i18n-exempt: example issue prefix (brand) */ "REEF"}
             data-testid={prefixId}
-            className="font-mono uppercase"
+            className="type-mono-value uppercase"
             autoComplete="off"
             required
             aria-invalid={fieldErrors.prefix ? true : undefined}

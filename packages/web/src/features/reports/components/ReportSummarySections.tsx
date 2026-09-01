@@ -118,7 +118,7 @@ export function HealthSummary({ agg }: { agg: ReportAggregates }) {
               )}
             />
           )}
-          <span className="truncate text-[11px] uppercase tracking-wide text-muted-foreground">
+          <span className="type-section-label truncate text-muted-foreground">
             {t.label}
           </span>
           <span className="flex min-w-0 items-end justify-between gap-2">
@@ -132,7 +132,7 @@ export function HealthSummary({ agg }: { agg: ReportAggregates }) {
               {t.value}
             </span>
             {t.hint && (
-              <span className="truncate text-right text-[11px] font-medium text-muted-foreground">
+              <span className="type-caption truncate text-right font-medium text-muted-foreground">
                 {t.hint}
               </span>
             )}
@@ -175,15 +175,17 @@ export function StatusFunnel({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between">
-        <span className="text-xs text-muted-foreground">{t("completion")}</span>
-        <span className="font-mono text-sm font-semibold tabular-nums text-foreground">
+        <span className="type-caption text-muted-foreground">
+          {t("completion")}
+        </span>
+        <span className="type-mono-value font-semibold text-foreground">
           {completion}%
         </span>
       </div>
       <SegmentedBar segments={segments} />
       {/* In-review count is already in the funnel legend above; the
           distinct WIP ratio earns a supplementary metric line (REEF-192). */}
-      <div className="text-xs text-muted-foreground">
+      <div className="type-caption text-muted-foreground">
         <MetricLine label={t("wip")} value={`${wip}%`} />
       </div>
     </div>
@@ -252,7 +254,7 @@ export function DeadlineCard({ agg }: { agg: ReportAggregates }) {
 export function RowEmpty({ label }: { label?: string }) {
   const t = useTranslations("reports.page");
   return (
-    <p className="text-xs text-muted-foreground">{label ?? t("noData")}</p>
+    <p className="type-caption text-muted-foreground">{label ?? t("noData")}</p>
   );
 }
 
@@ -266,7 +268,7 @@ function MetricLine({
   return (
     <span className="flex items-center justify-between gap-2 rounded-md bg-surface-hover px-2 py-1">
       <span>{label}</span>
-      <span className="font-mono tabular-nums text-foreground">{value}</span>
+      <span className="type-mono-value text-foreground">{value}</span>
     </span>
   );
 }
@@ -292,13 +294,13 @@ export function NamedRows({
           className="grid grid-cols-[120px_1fr_40px] items-center gap-3"
         >
           <span
-            className="truncate text-xs text-foreground/90"
+            className="type-chart-label truncate text-foreground/90"
             title={row.name === "Unassigned" ? empty.unassigned : row.name}
           >
             {row.name === "Unassigned" ? empty.unassigned : row.name}
           </span>
           <Bar value={value(row)} max={max} />
-          <span className="text-right text-xs font-mono tabular-nums text-muted-foreground">
+          <span className="text-right type-mono-value text-muted-foreground">
             {value(row)}
           </span>
         </li>

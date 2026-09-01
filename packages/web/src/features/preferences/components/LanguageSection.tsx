@@ -25,11 +25,11 @@ export function LanguageSection() {
       <header className="flex flex-col gap-1">
         <h3
           id="language-heading"
-          className="font-display text-[13px] font-semibold uppercase tracking-wider text-muted-foreground"
+          className="type-section-label text-muted-foreground"
         >
           {t("heading")}
         </h3>
-        <p className="text-xs text-muted-foreground">{t("description")}</p>
+        <p className="type-caption text-muted-foreground">{t("description")}</p>
       </header>
 
       <div
@@ -55,7 +55,7 @@ export function LanguageSection() {
                   : "border-border hover:border-border-subtle hover:bg-surface-hover",
               )}
             >
-              <span className="min-w-0 text-[13px] font-medium text-foreground">
+              <span className="type-body min-w-0 font-medium text-foreground">
                 {opt.label}
               </span>
             </button>

@@ -24,7 +24,7 @@ describe("TypePill", () => {
     const el = screen.getByText("Story").parentElement as HTMLElement;
     expect(el.className).toContain("rounded-sm");
     expect(el.className).toContain("bg-surface-subtle");
-    expect(el.className).toContain("text-[10px]");
+    expect(el.className).toContain("type-caption");
   });
 
   it("applies the list variant classes verbatim", () => {
@@ -32,7 +32,7 @@ describe("TypePill", () => {
     const el = screen.getByText("Story").parentElement as HTMLElement;
     expect(el.className).toContain("rounded-full");
     expect(el.className).toContain("bg-secondary");
-    expect(el.className).toContain("text-[11px]");
+    expect(el.className).toContain("type-caption");
   });
 
   it("applies the activity variant classes verbatim", () => {

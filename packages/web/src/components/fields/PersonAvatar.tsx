@@ -33,7 +33,9 @@ export function personToneFor(
   return key && me && key === me ? "brand" : "identity";
 }
 
-// xs board · sm list/picker · md sidebar-expanded · lg sidebar-collapsed.
+// xs board · sm list/picker · md sidebar-expanded · lg sidebar-collapsed. These
+// below-floor sizes are limited to the glyphic monogram exception: every
+// non-decorative avatar exposes the full identity through its accessible name.
 const SIZE_CLASS: Record<PersonAvatarSize, string> = {
   xs: "size-4 rounded text-[8.5px]",
   sm: "size-5 rounded-[5px] text-[10px]",

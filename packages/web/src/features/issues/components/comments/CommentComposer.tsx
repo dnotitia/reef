@@ -82,7 +82,7 @@ export function CommentComposer({
       <div className="flex min-w-0 flex-1 flex-col rounded-md border border-border bg-surface-elevated transition-colors focus-within:border-brand-focus focus-within:ring-2 focus-within:ring-inset focus-within:ring-brand-focus/30">
         {replyToAuthor ? (
           <div className="flex min-w-0 items-center justify-between gap-2 border-b border-border-subtle px-3 py-1.5">
-            <span className="min-w-0 truncate text-[11px] font-medium text-muted-foreground">
+            <span className="type-caption min-w-0 truncate font-medium text-muted-foreground">
               {t.rich("replyingTo", {
                 author: replyToAuthor,
                 target: (chunks) => <span translate="no">{chunks}</span>,
@@ -114,7 +114,7 @@ export function CommentComposer({
           }
           placeholder={replyToAuthor ? t("replyPlaceholder") : t("placeholder")}
           rows={2}
-          className="max-h-60 w-full resize-none bg-transparent px-3 py-2 text-[13px] text-foreground outline-none [field-sizing:content] placeholder:text-muted-foreground disabled:opacity-50"
+          className="max-h-60 w-full resize-none bg-transparent px-3 py-2 type-body text-foreground outline-none [field-sizing:content] placeholder:text-muted-foreground disabled:opacity-50"
           onDraftChange={setDraft}
           onSubmit={() => void submit()}
           onUploadFiles={onUploadFiles}
@@ -122,7 +122,7 @@ export function CommentComposer({
         />
         {submitError ? (
           <div
-            className="px-3 pb-1 text-[11px] text-destructive-text"
+            className="px-3 pb-1 type-caption text-destructive-text"
             role="alert"
           >
             {t("submitError")}
@@ -130,7 +130,7 @@ export function CommentComposer({
         ) : null}
         <div className="flex items-center justify-end gap-2 px-2 pb-2">
           <span
-            className="text-[11px] text-muted-foreground"
+            className="type-caption text-muted-foreground"
             aria-hidden="true"
           >
             ⌘↵

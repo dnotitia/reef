@@ -28,23 +28,20 @@ export function ErrorSurface({
       >
         <div className="flex items-center gap-2.5 border-b border-border-subtle pb-5">
           <ReefMark className="size-8" decorative />
-          <span
-            className="font-display text-[15px] font-semibold tracking-tight"
-            translate="no"
-          >
+          <span className="type-group-title" translate="no">
             reef{/* i18n-exempt: product wordmark */}
           </span>
         </div>
 
         <div className="flex flex-col gap-3 pt-6">
           {code ? (
-            <p className="font-mono text-xs font-medium tracking-[0.16em] text-brand-text">
+            <p className="type-mono-value font-medium text-brand-text">
               {code}
             </p>
           ) : null}
           <h1
             id="error-surface-title"
-            className="text-balance font-display text-2xl font-semibold tracking-tight text-foreground"
+            className="type-page-title text-balance text-foreground"
           >
             {title}
           </h1>

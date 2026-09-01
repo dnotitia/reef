@@ -102,7 +102,7 @@ export function LabelChipInput({
     // biome-ignore lint/a11y/useKeyWithClickEvents: the inline <input> handles all keyboard input; clicking the wrapper just refocuses it
     <div
       className={cn(
-        "flex min-h-8 w-full flex-wrap items-center gap-1 rounded-md border border-border bg-surface-elevated px-1.5 py-1 text-[13px] text-foreground transition-colors duration-150",
+        "flex min-h-8 w-full flex-wrap items-center gap-1 rounded-md border border-border bg-surface-elevated px-1.5 py-1 type-caption text-foreground transition-colors duration-150",
         "focus-within:border-brand-focus focus-within:ring-2 focus-within:ring-brand-focus/30",
         disabled && "cursor-not-allowed opacity-50",
         className,
@@ -147,7 +147,7 @@ export function LabelChipInput({
         // tag entry everywhere this control is reused.
         autoComplete="off"
         spellCheck={false}
-        className="min-w-[6rem] flex-1 border-0 bg-transparent px-1 py-0.5 text-[13px] outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
+        className="min-w-[6rem] flex-1 border-0 bg-transparent px-1 py-0.5 type-caption outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
       />
     </div>
   );

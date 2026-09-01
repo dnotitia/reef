@@ -22,6 +22,13 @@ describe("PageHeader", () => {
     expect(screen.getByText("reef-acme")).toBeInTheDocument();
   });
 
+  it("uses the canonical page-title role without an inline tracking override", () => {
+    render(<PageHeader title="Issues" />);
+    const heading = screen.getByRole("heading", { name: "Issues", level: 1 });
+    expect(heading).toHaveClass("type-page-title");
+    expect(heading).not.toHaveAttribute("style");
+  });
+
   it("renders a title-adjacent control outside the right action slot", () => {
     render(
       <PageHeader

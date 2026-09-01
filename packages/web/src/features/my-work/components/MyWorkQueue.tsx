@@ -52,10 +52,10 @@ export function MyWorkQueue({ items, mode, onModeChange }: MyWorkQueueProps) {
     <section className="flex flex-col gap-3" data-testid="my-work-queue">
       <header className="flex items-baseline justify-between gap-3">
         <div className="flex items-baseline gap-2">
-          <h2 className="text-sm font-semibold text-foreground">
+          <h2 className="type-group-title text-foreground">
             {t("queueTitle")}
           </h2>
-          <span className="font-mono text-xs tabular-nums text-muted-foreground">
+          <span className="type-mono-value text-muted-foreground">
             {items.length}
           </span>
         </div>
@@ -74,7 +74,7 @@ export function MyWorkQueue({ items, mode, onModeChange }: MyWorkQueueProps) {
                 onClick={() => onModeChange(option.value)}
                 data-testid={`my-work-group-${option.value}`}
                 className={cn(
-                  "rounded-md px-2.5 py-1 text-xs font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
+                  "rounded-md px-2.5 py-1 type-caption font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
                   active
                     ? "bg-surface-page text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground",
@@ -124,11 +124,11 @@ function GroupHeader({ status, count }: { status: Status; count: number }) {
   return (
     <h3
       data-testid={`my-work-group-header-${status}`}
-      className="flex items-center gap-2 border-t border-border-subtle bg-surface-subtle px-3 py-1.5 text-xs font-semibold text-foreground/90 first:border-t-0"
+      className="flex items-center gap-2 border-t border-border-subtle bg-surface-subtle px-3 py-1.5 type-group-title text-foreground/90 first:border-t-0"
     >
       <StatusIcon status={status} size={13} decorative />
       {statusLabels[status]}
-      <span className="font-mono text-[11px] font-normal tabular-nums text-muted-foreground">
+      <span className="type-mono-value font-normal text-muted-foreground">
         {count}
       </span>
     </h3>

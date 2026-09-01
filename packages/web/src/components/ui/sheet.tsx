@@ -140,10 +140,9 @@ function SheetTitle({
     <DialogPrimitive.Title
       data-slot="sheet-title"
       className={cn(
-        "font-display text-base font-semibold text-foreground",
+        "type-group-title text-foreground",
         className,
       )}
-      style={{ letterSpacing: "-0.01em" }}
       {...props}
     />
   );

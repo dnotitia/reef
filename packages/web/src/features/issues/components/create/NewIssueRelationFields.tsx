@@ -74,13 +74,13 @@ export function NewIssueRelationFields({
             <div
               id="new-issue-parent"
               data-testid="new-issue-parent-locked"
-              className="flex h-8 min-w-0 items-center gap-2 rounded-md border border-border bg-surface-elevated px-2 text-xs text-foreground"
+              className="flex h-8 min-w-0 items-center gap-2 rounded-md border border-border bg-surface-elevated px-2 type-caption text-foreground"
             >
-              <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+              <span className="shrink-0 type-mono-value text-muted-foreground">
                 {lockedParent.id}
               </span>
               <span className="min-w-0 truncate">{lockedParent.title}</span>
-              <span className="ml-auto shrink-0 rounded-sm bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+              <span className="ml-auto shrink-0 rounded-sm bg-secondary px-1.5 py-0.5 type-caption font-medium text-muted-foreground">
                 {t("parentLocked")}
               </span>
             </div>

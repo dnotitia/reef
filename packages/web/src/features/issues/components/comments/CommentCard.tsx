@@ -348,14 +348,14 @@ export function CommentCard({
           <time
             dateTime={comment.created_at}
             title={formatAbsoluteTime(comment.created_at, locale)}
-            className="shrink-0 text-[11px] text-muted-foreground tabular-nums"
+            className="shrink-0 type-mono-value text-muted-foreground"
           >
             {formatRelativeTime(comment.created_at, nowMs, locale)}
           </time>
           {comment.edited_at ? (
             <span
               title={formatAbsoluteTime(comment.edited_at, locale)}
-              className="shrink-0 text-[11px] text-muted-foreground"
+              className="shrink-0 type-caption text-muted-foreground"
             >
               · {t("edited")}
             </span>
@@ -369,7 +369,7 @@ export function CommentCard({
                   size="sm"
                   hitTarget="compact"
                   onClick={onReply}
-                  className="h-7 gap-1 px-2 text-xs text-muted-foreground opacity-100 motion-safe:transition-opacity motion-safe:duration-150 motion-safe:ease-[var(--ease-signature)] hover:text-foreground focus-visible:opacity-100 sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100"
+                  className="h-7 gap-1 px-2 type-caption text-muted-foreground opacity-100 motion-safe:transition-opacity motion-safe:duration-150 motion-safe:ease-[var(--ease-signature)] hover:text-foreground focus-visible:opacity-100 sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100"
                 >
                   <Reply className="size-3.5" aria-hidden="true" />
                   {t("reply")}
@@ -408,7 +408,7 @@ export function CommentCard({
         </div>
 
         {replyToAuthor ? (
-          <p className="mt-0.5 break-words text-[11px] text-muted-foreground">
+          <p className="type-caption mt-0.5 break-words text-muted-foreground">
             {t.rich("replyingTo", {
               author: replyToAuthor,
               target: (chunks) => <span translate="no">{chunks}</span>,
@@ -430,7 +430,7 @@ export function CommentCard({
               onDraftChange={handleDraftChange}
               onSubmit={() => void save()}
               onEscape={() => setEditing(false)}
-              className="max-h-60 w-full resize-none bg-transparent px-3 py-2 text-[13px] text-foreground outline-none [field-sizing:content] disabled:opacity-50"
+              className="max-h-60 w-full resize-none bg-transparent px-3 py-2 type-body text-foreground outline-none [field-sizing:content] disabled:opacity-50"
             />
             <div className="flex items-center justify-end gap-2 px-2 pb-2">
               <Button
@@ -456,7 +456,7 @@ export function CommentCard({
         ) : (
           <Streamdown
             key={markdownFingerprint}
-            className="reef-markdown-surface reef-markdown-comment comment-mention-renderer mt-1 w-full min-w-0 break-words text-[13px] text-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+            className="reef-markdown-surface reef-markdown-comment comment-mention-renderer mt-1 w-full min-w-0 break-words text-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
             components={commentMarkdownComponents}
             linkSafety={linkSafetyConfig}
             rehypePlugins={issueMarkdownRehypePlugins}

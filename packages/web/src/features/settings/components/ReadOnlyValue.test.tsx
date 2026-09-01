@@ -20,6 +20,6 @@ describe("ReadOnlyValue", () => {
 
   it("applies the mono stack for code-shaped values", () => {
     render(<ReadOnlyValue value="main" mono testId="v" />);
-    expect(screen.getByTestId("v").className).toContain("font-mono");
+    expect(screen.getByTestId("v").className).toContain("type-mono-value");
   });
 });

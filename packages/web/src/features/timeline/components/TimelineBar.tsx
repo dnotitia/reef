@@ -50,7 +50,7 @@ export function TimelineBar({ item, onClick }: TimelineBarProps) {
       onClick={() => onClick(item.issue.id)}
       className={cn(
         "relative z-10 my-1 h-7 min-w-0 overflow-hidden rounded-md border px-2 text-left",
-        "text-[11px] font-medium leading-7 transition-colors duration-150",
+        "type-chart-label font-medium leading-7 transition-colors duration-150",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
         barTone(item),
         isMarker && "px-0 text-center",
@@ -63,7 +63,7 @@ export function TimelineBar({ item, onClick }: TimelineBarProps) {
       {item.startsBeforeRange && (
         <span
           aria-hidden="true"
-          className="absolute left-1 top-1/2 -translate-y-1/2 text-[10px] opacity-70"
+          className="type-chart-label absolute left-1 top-1/2 -translate-y-1/2 opacity-70"
         >
           &lt;{/* i18n-exempt */}
         </span>
@@ -84,7 +84,7 @@ export function TimelineBar({ item, onClick }: TimelineBarProps) {
       {item.endsAfterRange && (
         <span
           aria-hidden="true"
-          className="absolute right-1 top-1/2 -translate-y-1/2 text-[10px] opacity-70"
+          className="type-chart-label absolute right-1 top-1/2 -translate-y-1/2 opacity-70"
         >
           &gt;{/* i18n-exempt */}
         </span>

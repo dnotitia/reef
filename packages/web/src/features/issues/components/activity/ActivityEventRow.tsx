@@ -624,14 +624,14 @@ export const ActivityEventRow = memo(function ActivityEventRow({
       <span className="flex size-5 shrink-0 items-center justify-center">
         {glyphFor(event)}
       </span>
-      <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
+      <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 type-caption text-muted-foreground">
         <span className="min-w-0">
           {lineFor(event, resolvePlanning, labels, t)}
         </span>
         <time
           dateTime={event.at}
           title={formatAbsoluteTime(event.at, locale)}
-          className="shrink-0 text-[11px] text-muted-foreground tabular-nums"
+          className="shrink-0 type-mono-value text-muted-foreground"
         >
           {formatRelativeTime(event.at, nowMs, locale)}
         </time>

@@ -90,7 +90,7 @@ export function ActiveWorkspaceSection() {
             governs (REEF-174). */}
         <h2
           id="active-workspace-heading"
-          className="font-display text-[15px] font-semibold text-foreground"
+          className="type-group-title text-foreground"
         >
           {t("activeWorkspace.heading")}
         </h2>

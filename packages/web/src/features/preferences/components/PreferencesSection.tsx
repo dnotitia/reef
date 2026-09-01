@@ -18,11 +18,11 @@ export function PreferencesSection() {
       <header className="flex flex-col gap-1">
         <h3
           id="preferences-heading"
-          className="font-display text-[13px] font-semibold uppercase tracking-wider text-muted-foreground"
+          className="type-section-label text-muted-foreground"
         >
           {t("heading")}
         </h3>
-        <p className="text-xs text-muted-foreground">{t("description")}</p>
+        <p className="type-caption text-muted-foreground">{t("description")}</p>
       </header>
 
       <div
@@ -54,11 +54,11 @@ export function PreferencesSection() {
                   aria-hidden
                   className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
                 />
-                <span className="min-w-0 text-[13px] font-medium text-foreground">
+                <span className="type-body min-w-0 font-medium text-foreground">
                   {opt.label}
                 </span>
               </span>
-              <span className="text-[11px] text-muted-foreground">
+              <span className="type-caption text-muted-foreground">
                 {opt.description}
               </span>
             </button>

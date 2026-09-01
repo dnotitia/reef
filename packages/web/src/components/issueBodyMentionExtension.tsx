@@ -188,7 +188,7 @@ export function MentionSuggestionList({
           aria-label={peopleSectionLabel}
           data-reference-section="people"
         >
-          <div className="px-2 pb-1 pt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          <div className="type-section-label px-2 pb-1 pt-1 text-muted-foreground">
             {peopleSectionLabel}
           </div>
           {people.map(renderCandidate)}
@@ -200,7 +200,7 @@ export function MentionSuggestionList({
           aria-label={issuesSectionLabel}
           data-reference-section="issues"
         >
-          <div className="px-2 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          <div className="type-section-label px-2 pb-1 pt-2 text-muted-foreground">
             {issuesSectionLabel}
           </div>
           {issues.map((candidate, index) =>
@@ -214,7 +214,7 @@ export function MentionSuggestionList({
           aria-label={documentsSectionLabel}
           data-reference-section="documents"
         >
-          <div className="px-2 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          <div className="type-section-label px-2 pb-1 pt-2 text-muted-foreground">
             {documentsSectionLabel}
           </div>
           {documents.map((candidate, index) =>

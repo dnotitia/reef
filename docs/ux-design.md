@@ -317,20 +317,33 @@ is `system`.
 
 ### Typography
 
-The product font is **Inter** (loaded once via `next/font`); display and body
-roles intentionally share that same Inter variable face and fallback stack.
-Code, IDs, and timestamps use **Geist Mono**. Issue IDs and SHAs render in the
-monospace stack with tabular numerals.
+The product Latin font is **Inter**, loaded once as a variable face through
+`next/font` with `font-display: swap`. Display and body roles share the same
+stack: `Inter, Noto Sans KR, ui-sans-serif, system-ui, sans-serif`. **Noto Sans
+KR** is the fixed variable Hangul companion, so mixed Korean/Latin copy never
+falls through to a host-OS generic face. Code, IDs, timestamps, and numeric
+values use **Geist Mono** first, followed by the same Noto Sans KR companion and
+the generic monospace fallback; issue IDs and SHAs keep tabular numerals.
 The scale is compact on purpose:
 
 | Level | Size | Weight | Line height | Tracking | Usage |
 |-------|------|--------|-------------|----------|-------|
-| Page title | `text-xl` to `text-2xl` | 600 | Tight | 0 | Main app page headers |
-| Group title | `15px` | 600 | Normal | 0 | Settings group headings |
-| Section label | `13px` | 600 | Normal | Wide uppercase | Settings section labels |
-| Body | `14px` | 400 | Normal | 0 | Dense app text |
-| Caption | `12px` | 400 to 500 | Normal | 0 | Helper copy and metadata |
-| Mono value | `13px` | 400 | Normal | 0 | IDs, prefixes, branch-like values |
+| Page title | `20px` | 600 | `24px` | 0 | Main app page headers |
+| Group title | `15px` | 600 | `20px` | 0 | Settings and grouped-surface headings |
+| Section label | `13px` | 600 | `16px` | `0.08em` uppercase | Form, report, settings, and detail sections |
+| Body | `14px` | 400 | `20px` | 0 | Dense app text |
+| Caption | `12px` | 400 to 500 | `16px` | 0 | Helper copy and metadata |
+| Mono value | `13px` | 400 | `20px` | 0 | IDs, prefixes, branch-like values |
+| Chart label | `12px` | 400 | `16px` | 0 | Axes, legends, and compact data labels |
+
+Routed product surfaces consume the named `type-page-title`, `type-group-title`,
+`type-section-label`, `type-body`, `type-caption`, `type-mono-value`, and
+`type-chart-label` roles. Meaningful user-facing text stays at or above the
+12px caption floor. The only below-floor text exception is a minimal glyphic
+identity mark such as an avatar monogram whose enclosing element exposes the
+full identity through an accessible name. Login/onboarding brand titles remain
+their separate branded scale, and the established issue Markdown body,
+comment, heading, and code rhythm remains scoped to its Markdown surfaces.
 
 Hero-scale type does not belong inside dashboard panels. Routed product
 surfaces should not drop below 12px captions or 14px body copy.

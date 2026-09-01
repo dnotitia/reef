@@ -44,7 +44,7 @@ function WorkspaceMonogram({ name, large }: { name: string; large?: boolean }) {
       data-testid="workspace-monogram"
       className={cn(
         "inline-flex shrink-0 select-none items-center justify-center rounded-md bg-surface-elevated font-mono font-medium leading-none text-foreground ring-1 ring-border",
-        large ? "size-9 text-[12px]" : "size-7 text-[11px]",
+        large ? "size-9 type-caption" : "size-7 type-caption",
       )}
     >
       {initials}
@@ -179,7 +179,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
             aria-current={isCurrent ? "true" : undefined}
             onClick={() => void handleSelect(v.name)}
             className={cn(
-              "flex min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[13px] transition-colors hover:bg-surface-hover",
+              "flex min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-1.5 text-left type-caption transition-colors hover:bg-surface-hover",
               isCurrent
                 ? "font-medium text-foreground"
                 : "text-muted-foreground hover:text-foreground",
@@ -250,10 +250,10 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
                 <Skeleton className="h-3.5 w-24" />
               ) : (
                 <>
-                  <span className="truncate text-[13px] leading-tight text-foreground">
+                  <span className="type-body truncate text-foreground">
                     {label}
                   </span>
-                  <span className="truncate text-[11px] leading-tight text-muted-foreground">
+                  <span className="type-caption truncate text-muted-foreground">
                     {tw("workspace")}
                   </span>
                 </>
@@ -279,7 +279,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
         >
           <input
             type="text"
-            className="mb-2 w-full rounded-md border border-border bg-surface-elevated px-2 py-1 text-[13px] text-foreground outline-none transition-colors focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30"
+            className="mb-2 w-full rounded-md border border-border bg-surface-elevated px-2 py-1 type-caption text-foreground outline-none transition-colors focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30"
             placeholder={tw("searchPlaceholder")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -293,7 +293,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
             <p
               role="alert"
               data-testid="workspace-switcher-favorites-error"
-              className="mb-2 px-2 text-[11px] text-destructive-text"
+              className="mb-2 px-2 type-caption text-destructive-text"
             >
               {tw("favoritesSaveError")}
             </p>
@@ -303,7 +303,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
             {vaultsQuery.isError ? (
               <li
                 role="alert"
-                className="px-2 py-1.5 text-[13px] text-destructive-text"
+                className="px-2 py-1.5 type-caption text-destructive-text"
                 data-testid="workspace-switcher-error"
               >
                 {tw("loadError")}
@@ -312,14 +312,14 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
               // Don't claim "no workspaces" before the list has loaded — a cold
               // load / slow vault fan-out would flash a false empty state.
               <li
-                className="px-2 py-1.5 text-[13px] text-muted-foreground"
+                className="px-2 py-1.5 type-caption text-muted-foreground"
                 data-testid="workspace-switcher-loading"
               >
                 {tw("loading")}
               </li>
             ) : filtered.length === 0 ? (
               <li
-                className="px-2 py-1.5 text-[13px] text-muted-foreground"
+                className="px-2 py-1.5 type-caption text-muted-foreground"
                 data-testid="workspace-switcher-empty"
               >
                 {reefVaults.length === 0
@@ -330,7 +330,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
               <>
                 {favoriteVaults.length > 0 && (
                   <li data-testid="workspace-switcher-favorites">
-                    <h3 className="px-2 pb-1 pt-1 text-[11px] font-semibold text-muted-foreground">
+                    <h3 className="type-section-label px-2 pb-1 pt-1 text-muted-foreground">
                       {tw("favorites")}
                     </h3>
                     <ul>{favoriteVaults.map(renderWorkspaceOption)}</ul>
@@ -338,7 +338,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
                 )}
                 {otherVaults.length > 0 && (
                   <li data-testid="workspace-switcher-other">
-                    <h3 className="px-2 pb-1 pt-2 text-[11px] font-semibold text-muted-foreground">
+                    <h3 className="type-section-label px-2 pb-1 pt-2 text-muted-foreground">
                       {tw("otherWorkspaces")}
                     </h3>
                     <ul>{otherVaults.map(renderWorkspaceOption)}</ul>
@@ -358,7 +358,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
             type="button"
             data-testid="workspace-switcher-new"
             onClick={handleNewWorkspace}
-            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-[13px] text-foreground transition-colors hover:bg-surface-hover"
+            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 type-caption text-foreground transition-colors hover:bg-surface-hover"
           >
             <Plus aria-hidden="true" className="size-3.5 shrink-0" />
             <span>{tw("newWorkspace")}</span>
