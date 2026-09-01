@@ -126,17 +126,6 @@ function requiredString(
   return candidate as string;
 }
 
-function installationCoordinates(
-  value: unknown,
-  label: string,
-): { vaultId: string; installationId: string } {
-  const fixture = record(value, label);
-  return {
-    vaultId: requiredString(fixture, "vault_id", label),
-    installationId: requiredString(fixture, "id", label),
-  };
-}
-
 function expectSafeControlPlaneError(
   thrown: unknown,
   expected: {
@@ -666,10 +655,19 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
       expect(Array.isArray(discovery.installations)).toBe(true);
       const installations = discovery.installations as unknown[];
       expect(installations.length).toBeGreaterThan(0);
-      const active = installationCoordinates(
-        installations[0],
-        "active installation",
-      );
+      const activeFixture = record(installations[0], "active installation");
+      const active = {
+        vaultId: requiredString(
+          activeFixture,
+          "vault_id",
+          "active installation",
+        ),
+        installationId: requiredString(
+          activeFixture,
+          "id",
+          "active installation",
+        ),
+      };
       const scopeCases = record(
         discovery.scope_cases,
         "fixture discovery scope cases",
@@ -756,13 +754,11 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
         // The current app-control-plane discovery has no blocked app-principal
         // coordinate. Keep that domain-state proof explicitly not-run instead
         // of inventing a fixture key or treating setup state as an observation.
-        for (const projection of [activeResult]) {
-          expect(projection).not.toHaveProperty("ownedResources");
-          expect(projection).not.toHaveProperty("checkpoint");
-          expect(projection).not.toHaveProperty("recentError");
-          expect(projection).not.toHaveProperty("commandStatus");
-          expect(projection).not.toHaveProperty("replayed");
-        }
+        expect(activeResult).not.toHaveProperty("ownedResources");
+        expect(activeResult).not.toHaveProperty("checkpoint");
+        expect(activeResult).not.toHaveProperty("recentError");
+        expect(activeResult).not.toHaveProperty("commandStatus");
+        expect(activeResult).not.toHaveProperty("replayed");
 
         const foreignError = await reader
           .getInstallation(foreignVaultId)
