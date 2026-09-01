@@ -73,14 +73,17 @@ vi.mock("@/components/ai-elements/prompt-input", () => ({
   PromptInputSubmit: ({
     "data-testid": testId,
     disabled,
+    className,
   }: {
     "data-testid"?: string;
     disabled?: boolean;
+    className?: string;
   }) => (
     <button
       type="submit"
       data-testid={testId ?? "prompt-input-submit"}
       disabled={disabled}
+      className={className}
     />
   ),
   PromptInputTextarea: ({
@@ -272,6 +275,29 @@ describe("ChatSurface", () => {
   it("disables the composer textarea while streaming", () => {
     renderSurface({ status: "streaming", inputTestId: "surface-input" });
     expect(screen.getByTestId("surface-input")).toBeDisabled();
+  });
+
+  it("uses the AI color for an enabled submit", () => {
+    renderSurface({
+      composerText: "ready to send",
+      submitTestId: "surface-send",
+    });
+
+    expect(screen.getByTestId("surface-send")).toHaveClass(
+      "bg-ai",
+      "text-ai-foreground",
+      "hover:bg-ai/90",
+    );
+  });
+
+  it("keeps the busy stop affordance out of the AI submit state", () => {
+    renderSurface({
+      composerText: "in flight",
+      status: "streaming",
+      submitTestId: "surface-send",
+    });
+
+    expect(screen.getByTestId("surface-send")).not.toHaveClass("bg-ai");
   });
 
   it("respects composerDisabled even when status is ready", () => {

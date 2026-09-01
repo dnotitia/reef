@@ -41,6 +41,9 @@ test.describe("Hermetic New Issue draft conversation", () => {
     await expect(
       dialog.getByTestId("draft-conversation-toggle"),
     ).toHaveAttribute("aria-controls", "draft-conversation-panel");
+    await expect(dialog.getByTestId("draft-conversation-toggle")).toHaveClass(
+      /border-ai-border/,
+    );
     await dialog.getByTestId("draft-conversation-toggle").click();
     const panel = dialog.getByTestId("draft-conversation-panel");
     const conversationToggle = dialog.getByTestId("draft-conversation-toggle");
@@ -50,9 +53,19 @@ test.describe("Hermetic New Issue draft conversation", () => {
     await expect(panel.getByRole("heading", { name: "AI chat" })).toBeVisible();
     await expect(panel.getByTestId("draft-conversation-close")).toHaveCount(1);
     expect(await panel.getAttribute("class")).not.toMatch(
-      /rounded-lg|border-ai-border|bg-surface-elevated/,
+      /rounded-lg|bg-surface-elevated/,
     );
-    await expect(dialog.getByTestId("enrich-trigger")).not.toHaveClass(/bg-ai/);
+    expect(await panel.getAttribute("class")).toContain(
+      "min-[900px]:border-ai-border",
+    );
+    await expect(panel.getByRole("heading", { name: "AI chat" })).toHaveClass(
+      /text-ai-subtle-foreground/,
+    );
+    await expect(dialog.getByTestId("enrich-trigger")).toHaveClass(
+      /border-ai-border/,
+      /text-ai-subtle-foreground/,
+      /hover:bg-ai-subtle/,
+    );
     await expect(
       dialog.getByTestId("enrich-trigger").locator("svg"),
     ).toHaveCount(0);
@@ -100,6 +113,10 @@ test.describe("Hermetic New Issue draft conversation", () => {
         new URL(request.url()).pathname === "/api/agents/runs",
     );
     await dialog.getByTestId("new-issue-chat-input").fill("Clarify this");
+    await expect(dialog.getByTestId("new-issue-chat-send")).toHaveClass(
+      /bg-ai/,
+      /text-ai-foreground/,
+    );
     await dialog.getByTestId("new-issue-chat-send").dblclick();
     const firstBody = (await firstRequest).postDataJSON();
     expect(firstBody).toMatchObject({
@@ -248,6 +265,10 @@ test.describe("Hermetic New Issue draft conversation", () => {
     await expect(dialog.getByTestId("draft-view-draft")).toBeFocused();
     await dialog.getByTestId("draft-view-conversation").click();
     await expect(narrowInput).toHaveValue("Unsent narrow question");
+    await expect(dialog.getByTestId("draft-view-conversation")).toHaveClass(
+      /bg-ai-subtle/,
+      /text-ai-subtle-foreground/,
+    );
 
     await dialog.getByTestId("draft-view-draft").click();
     await dialog.getByTestId("new-issue-cancel").click();

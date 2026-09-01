@@ -81,6 +81,7 @@ export function ChatSurface({
   const isBusy = status === "submitted" || status === "streaming";
   const inputText = composerText;
   const setInputText = onComposerTextChange;
+  const canSubmit = !composerDisabled && !isBusy && inputText.trim().length > 0;
 
   async function handleSubmit(message: PromptInputMessage) {
     const text = message.text.trim();
@@ -140,6 +141,9 @@ export function ChatSurface({
           <PromptInputSubmit
             status={status}
             onStop={stop}
+            className={
+              canSubmit ? "bg-ai text-ai-foreground hover:bg-ai/90" : undefined
+            }
             disabled={
               composerDisabled || (!isBusy && inputText.trim().length === 0)
             }

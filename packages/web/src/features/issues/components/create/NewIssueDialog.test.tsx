@@ -418,27 +418,35 @@ describe("NewIssueDialog", () => {
     fireEvent.change(screen.getByTestId("markdown-source-textarea"), {
       target: { value: "Body" },
     });
-    expect(screen.getByTestId("draft-conversation-toggle")).toHaveAttribute(
+    const conversationToggle = screen.getByTestId("draft-conversation-toggle");
+    expect(conversationToggle).toHaveAttribute(
       "aria-controls",
       "draft-conversation-panel",
     );
-    await user.click(screen.getByTestId("draft-conversation-toggle"));
+    expect(conversationToggle).toHaveClass(
+      "border-ai-border",
+      "text-ai-subtle-foreground",
+      "hover:bg-ai-subtle",
+    );
+    await user.click(conversationToggle);
 
     expect(screen.getByTestId("draft-conversation-panel")).toBeInTheDocument();
     expect(screen.queryByTestId("draft-conversation-toggle")).toBeNull();
     expect(screen.getByTestId("draft-conversation-panel")).not.toHaveClass(
       "rounded-lg",
-      "border-ai-border",
       "bg-surface-elevated",
+    );
+    expect(screen.getByTestId("draft-conversation-panel").className).toContain(
+      "min-[900px]:border-ai-border",
     );
     expect(
       screen
         .getByTestId("draft-conversation-panel")
         .querySelector(".lucide-sparkles"),
     ).toBeNull();
-    expect(
-      screen.getByRole("heading", { name: "AI chat" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "AI chat" })).toHaveClass(
+      "text-ai-subtle-foreground",
+    );
     expect(screen.queryByTestId("draft-conversation-context")).toBeNull();
     expect(
       screen.queryByText(
@@ -451,6 +459,13 @@ describe("NewIssueDialog", () => {
     );
     expect(screen.getByTestId("new-issue-dialog")).toHaveClass(
       "max-w-[min(94vw,1620px)]",
+    );
+    fireEvent.change(screen.getByTestId("new-issue-chat-input"), {
+      target: { value: "ask this" },
+    });
+    expect(screen.getByTestId("new-issue-chat-send")).toHaveClass(
+      "bg-ai",
+      "text-ai-foreground",
     );
     expect(
       mockApiFetch.mock.calls.some(
@@ -467,7 +482,11 @@ describe("NewIssueDialog", () => {
     expect(screen.getByTestId("enrich-trigger")).toHaveTextContent(
       "Get suggestions",
     );
-    expect(screen.getByTestId("enrich-trigger")).not.toHaveClass(/bg-ai/);
+    expect(screen.getByTestId("enrich-trigger")).toHaveClass(
+      "border-ai-border",
+      "text-ai-subtle-foreground",
+      "hover:bg-ai-subtle",
+    );
     expect(
       screen.getByTestId("enrich-trigger").querySelector("svg"),
     ).toBeNull();
@@ -559,6 +578,10 @@ describe("NewIssueDialog", () => {
     );
     await user.click(screen.getByTestId("draft-view-conversation"));
     expect(screen.getByTestId("draft-conversation-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("draft-view-conversation")).toHaveClass(
+      "bg-ai-subtle",
+      "text-ai-subtle-foreground",
+    );
     expect(screen.getByTestId("draft-conversation-authoring")).toHaveClass(
       "hidden",
     );
@@ -567,6 +590,9 @@ describe("NewIssueDialog", () => {
 
     await user.click(screen.getByTestId("draft-view-draft"));
     expect(screen.queryByTestId("draft-conversation-panel")).toBeNull();
+    expect(screen.getByTestId("draft-view-conversation")).not.toHaveClass(
+      "bg-ai-subtle",
+    );
     expect(screen.getByTestId("new-issue-title-input")).toHaveValue(
       "Narrow draft",
     );

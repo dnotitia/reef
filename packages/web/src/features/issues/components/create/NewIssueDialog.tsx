@@ -861,7 +861,7 @@ export function NewIssueDialog({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-8 gap-1.5 px-3 text-xs"
+                className="h-8 gap-1.5 border-ai-border px-3 text-ai-subtle-foreground text-xs hover:bg-ai-subtle"
                 onClick={handleEnrichClick}
                 disabled={isSubmitting || enrichRun.isPending || noVault}
                 data-testid="enrich-trigger"
@@ -874,7 +874,7 @@ export function NewIssueDialog({
                   ref={draftConversationToggleRef}
                   variant="outline"
                   size="sm"
-                  className="hidden h-8 px-3 text-xs min-[900px]:inline-flex"
+                  className="hidden h-8 border-ai-border px-3 text-ai-subtle-foreground text-xs hover:bg-ai-subtle min-[900px]:inline-flex"
                   onClick={() => setDraftConversationOpen(true)}
                   disabled={noVault}
                   aria-expanded={false}
@@ -933,6 +933,11 @@ export function NewIssueDialog({
               type="button"
               size="sm"
               variant={draftConversationOpen ? "secondary" : "ghost"}
+              className={
+                draftConversationOpen
+                  ? "bg-ai-subtle text-ai-subtle-foreground hover:bg-ai-subtle"
+                  : undefined
+              }
               aria-pressed={draftConversationOpen}
               aria-controls="draft-conversation-panel"
               data-testid="draft-view-conversation"

@@ -72,11 +72,11 @@ export function DraftConversationPanel({
       aria-busy={isBusy}
       data-testid="draft-conversation-panel"
       data-chat-status={status}
-      className="flex min-h-0 min-w-0 flex-col overflow-hidden min-[900px]:border-l min-[900px]:border-border-subtle min-[900px]:pl-5"
+      className="flex min-h-0 min-w-0 flex-col overflow-hidden min-[900px]:border-l min-[900px]:border-ai-border min-[900px]:pl-5"
     >
       {isDesktop ? (
         <header className="flex shrink-0 items-center justify-between gap-3 pb-2">
-          <h2 className="font-display text-sm font-semibold text-foreground">
+          <h2 className="font-display text-sm font-semibold text-ai-subtle-foreground">
             {t("conversationHeading")}
           </h2>
           <Button

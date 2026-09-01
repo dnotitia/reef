@@ -82,6 +82,8 @@ test.describe("Hermetic Ask AI tool transparency (REEF-372)", () => {
     const askInput = page.locator('[data-testid="ask-ai-input"]');
     const askSend = page.locator('[data-testid="ask-ai-send"]');
     await askInput.fill("rapid Ask AI activation");
+    await expect(askSend).toHaveClass(/bg-ai/);
+    await expect(askSend).toHaveClass(/text-ai-foreground/);
 
     await askSend.dblclick();
 
