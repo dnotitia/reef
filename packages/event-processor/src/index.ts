@@ -15,7 +15,6 @@ export interface EventProcessorOptions {
   jwt: string;
   vault: string;
   batchSize?: number;
-  now?: () => Date;
   reconnectDelayMs?: number;
   onError?: (error: unknown) => void;
   requestPolicy?: AkbRequestPolicy;
@@ -48,7 +47,6 @@ export function createEventProcessor(
         ...(options.batchSize === undefined
           ? {}
           : { batchSize: options.batchSize }),
-        ...(options.now === undefined ? {} : { now: options.now }),
       }),
   };
   const runOptions = (signal?: AbortSignal): RunEventProcessorOptions => ({
@@ -61,10 +59,3 @@ export function createEventProcessor(
     run: (signal) => runEventProcessor(runtime, runOptions(signal)),
   };
 }
-
-export {
-  NotificationProjectionFailedError,
-  runEventProcessor,
-  type EventProcessorRuntime,
-  type RunEventProcessorOptions,
-} from "./processor.js";

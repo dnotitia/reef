@@ -27,7 +27,8 @@ export class NotificationProjectionFailedError extends Error {
 }
 
 class NotificationReconciliationQueue {
-  private readonly pending: ChangeEventTailRecord[] = [];
+  private pendingCursor: string | undefined;
+  private pendingWakesProjection = false;
   private worker: Promise<void> | null = null;
   private failure: unknown = null;
   private _committedCursor: string | undefined;
@@ -52,7 +53,13 @@ class NotificationReconciliationQueue {
 
   accept(record: ChangeEventTailRecord): void {
     if (this.failure !== null) return;
-    this.pending.push(record);
+    this.pendingCursor = record.cursor;
+    if (
+      record.type === "change" &&
+      notificationWakeupForChange(record.event, this.vault) !== null
+    ) {
+      this.pendingWakesProjection = true;
+    }
     if (!this.worker) {
       // Let synchronously delivered SSE frames form one burst before the first
       // projection starts. A later frame arriving while that projection is
@@ -70,22 +77,18 @@ class NotificationReconciliationQueue {
   private async drain(): Promise<void> {
     try {
       await this.ready;
-      while (this.pending.length > 0) {
-        const batch = this.pending.splice(0);
-        if (
-          batch.some(
-            (record) =>
-              record.type === "change" &&
-              notificationWakeupForChange(record.event, this.vault) !== null,
-          )
-        ) {
+      while (this.pendingCursor !== undefined) {
+        const cursor = this.pendingCursor;
+        const wakesProjection = this.pendingWakesProjection;
+        this.pendingCursor = undefined;
+        this.pendingWakesProjection = false;
+        if (wakesProjection) {
           const result = await this.projectNotifications();
           if (result.activity.failed || result.comment.failed) {
             throw new NotificationProjectionFailedError();
           }
         }
-        const last = batch.at(-1);
-        if (last) this._committedCursor = last.cursor;
+        this._committedCursor = cursor;
       }
     } catch (error) {
       this.failure = error;
