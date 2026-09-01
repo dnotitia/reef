@@ -20,8 +20,16 @@ vi.mock("@/features/issues/components/filters/IssuesWorkspace", async () => {
 vi.mock("@/features/issues/components/detail/IssueDetailSheet", () => ({
   IssueDetailSheet: () => null,
 }));
+vi.mock("@/features/settings/hooks/useActiveVault", () => ({
+  useActiveVault: () => ({
+    vault: "reef-acme",
+    isLoading: false,
+    refetch: vi.fn(),
+  }),
+}));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), back: vi.fn() }),
+  usePathname: () => "/workspace/reef-acme/issues/REEF-1",
   useSearchParams: () => new URLSearchParams(),
 }));
 
