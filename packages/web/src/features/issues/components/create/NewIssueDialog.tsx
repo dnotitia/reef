@@ -346,8 +346,7 @@ export function NewIssueDialog({
     if (previousVaultRef.current === vault) return;
     previousVaultRef.current = vault;
     setDraftConversationOpen(false);
-    draftConversation.clear();
-  }, [draftConversation.clear, vault]);
+  }, [vault]);
 
   useLayoutEffect(() => {
     if (draftConversationOpen || !restoreDraftConversationFocusRef.current) {

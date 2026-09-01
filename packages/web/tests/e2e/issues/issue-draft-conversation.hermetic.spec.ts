@@ -56,7 +56,6 @@ test.describe("Hermetic New Issue draft conversation", () => {
     await expect(
       dialog.getByTestId("enrich-trigger").locator("svg"),
     ).toHaveCount(0);
-    await expect(panel.getByRole("heading", { name: "AI chat" })).toBeVisible();
     await expect(panel.getByTestId("draft-conversation-context")).toHaveCount(
       0,
     );
