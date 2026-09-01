@@ -196,6 +196,35 @@ jobs:
           if scenario == "app-control-plane":
               runtime = discovery["runtime"]
               assert re.fullmatch(r"[0-9a-f]{7,64}", runtime["source_revision"], re.I)
+              target_app_id = discovery["apps"]["target"]["id"]
+              assert re.fullmatch(
+                  r"[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}",
+                  target_app_id,
+                  re.I,
+              )
+              installations = discovery["installations"]
+              assert isinstance(installations, list) and installations
+              for installation in installations:
+                  assert isinstance(installation, dict)
+                  assert re.fullmatch(
+                      r"[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}",
+                      installation["id"],
+                      re.I,
+                  )
+                  assert re.fullmatch(
+                      r"[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}",
+                      installation["vault_id"],
+                      re.I,
+                  )
+                  assert isinstance(installation["fixture_id"], str)
+              scope_case = discovery["scope_cases"]["other_app"]
+              assert scope_case["app_id"] != target_app_id
+              for key in ("app_id", "vault_id", "installation_id"):
+                  assert re.fullmatch(
+                      r"[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}",
+                      scope_case[key],
+                      re.I,
+                  )
               coordinates = discovery["coordinates"]
               assert coordinates["installation_status"]["method"] == "GET"
               assert coordinates["admin"]["credential"]["method"] == "POST"
@@ -205,10 +234,7 @@ jobs:
                   "path": "/api/v1/auth/app-token",
                   "body": {"credential": "<issued-value>"},
               }
-              assert "status_active" in discovery["fixtures"]
-              assert "status_blocked" in discovery["fixtures"]
-              assert "foreign_installation" in discovery
-              print("fixture discovery validated: app-control-plane coordinates and bounded targets present")
+              print("fixture discovery validated: app-control-plane active installations and other-app scope present")
           else:
               print(f"fixture discovery validated: scenario={scenario}, app-control-plane coordinates not claimed")
           PY

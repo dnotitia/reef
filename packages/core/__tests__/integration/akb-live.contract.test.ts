@@ -126,20 +126,14 @@ function requiredString(
   return candidate as string;
 }
 
-function fixtureCoordinates(
-  discovery: Record<string, unknown>,
-  fixtureName: string,
-): { appId: string; vaultId: string; installationId: string } {
-  const fixtures = record(discovery.fixtures, "fixture discovery fixtures");
-  const fixture = record(fixtures[fixtureName], `fixture ${fixtureName}`);
+function installationCoordinates(
+  value: unknown,
+  label: string,
+): { vaultId: string; installationId: string } {
+  const fixture = record(value, label);
   return {
-    appId: requiredString(fixture, "app_id", `fixture ${fixtureName}`),
-    vaultId: requiredString(fixture, "vault_id", `fixture ${fixtureName}`),
-    installationId: requiredString(
-      fixture,
-      "installation_id",
-      `fixture ${fixtureName}`,
-    ),
+    vaultId: requiredString(fixture, "vault_id", label),
+    installationId: requiredString(fixture, "id", label),
   };
 }
 
@@ -297,9 +291,13 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
   let installationEvidence: Record<string, unknown> = {
     status: "not_run",
     reason:
-      "The pinned AKB runtime does not expose the app-control-plane scenario or app-principal installation GET.",
+      LIVE_SCENARIO === "app-control-plane"
+        ? "The app-control-plane discovery exposes active installations only; it has no blocked app-principal installation coordinate."
+        : "The pinned AKB runtime does not expose the app-control-plane scenario or app-principal installation GET.",
     follow_up:
-      "Run the moving-main app-control-plane leg with its discovered app credential and fixture installation coordinates.",
+      LIVE_SCENARIO === "app-control-plane"
+        ? "Add or select a repository-owned scenario that discovers a blocked app-principal installation, then run this same reader proof against it."
+        : "Run the moving-main app-control-plane leg with its discovered app credential and fixture installation coordinates.",
   };
 
   beforeAll(async () => {
@@ -662,18 +660,32 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
         path: "/api/v1/auth/app-token",
       });
 
-      const active = fixtureCoordinates(discovery, "status_active");
-      const blocked = fixtureCoordinates(discovery, "status_blocked");
-      const foreignInstallation = record(
-        discovery.foreign_installation,
-        "foreign installation fixture",
+      const apps = record(discovery.apps, "fixture discovery apps");
+      const targetApp = record(apps.target, "target app");
+      const targetAppId = requiredString(targetApp, "id", "target app");
+      expect(Array.isArray(discovery.installations)).toBe(true);
+      const installations = discovery.installations as unknown[];
+      expect(installations.length).toBeGreaterThan(0);
+      const active = installationCoordinates(
+        installations[0],
+        "active installation",
+      );
+      const scopeCases = record(
+        discovery.scope_cases,
+        "fixture discovery scope cases",
+      );
+      const otherApp = record(scopeCases.other_app, "other-app scope case");
+      const foreignAppId = requiredString(
+        otherApp,
+        "app_id",
+        "other-app scope case",
       );
       const foreignVaultId = requiredString(
-        foreignInstallation,
+        otherApp,
         "vault_id",
-        "foreign installation fixture",
+        "other-app scope case",
       );
-      const targetAppId = active.appId;
+      expect(foreignAppId === targetAppId).toBe(false);
       const deployment = `live-contract-${Date.now().toString(36)}-${Math.random()
         .toString(36)
         .slice(2, 8)}`;
@@ -736,20 +748,15 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
         // randomized fixture IDs or the raw upstream projection.
         expect(
           activeResult.installationId === active.installationId &&
-            activeResult.appId === active.appId &&
+            activeResult.appId === targetAppId &&
             activeResult.vaultId === active.vaultId &&
             activeResult.lifecycle === "active",
         ).toBe(true);
 
-        const blockedResult = await reader.getInstallation(blocked.vaultId);
-        expect(
-          blockedResult.installationId === blocked.installationId &&
-            blockedResult.appId === blocked.appId &&
-            blockedResult.vaultId === blocked.vaultId &&
-            blockedResult.lifecycle === "blocked" &&
-            typeof blockedResult.blockedReason === "string",
-        ).toBe(true);
-        for (const projection of [activeResult, blockedResult]) {
+        // The current app-control-plane discovery has no blocked app-principal
+        // coordinate. Keep that domain-state proof explicitly not-run instead
+        // of inventing a fixture key or treating setup state as an observation.
+        for (const projection of [activeResult]) {
           expect(projection).not.toHaveProperty("ownedResources");
           expect(projection).not.toHaveProperty("checkpoint");
           expect(projection).not.toHaveProperty("recentError");
@@ -794,12 +801,16 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
             projection: "bounded",
           },
           blocked: {
-            lifecycle: "blocked",
-            domain_state_preserved: true,
+            status: "not_run",
+            reason:
+              "The app-control-plane discovery exposes active installations only; it has no blocked app-principal installation coordinate.",
+            follow_up:
+              "Use a repository-owned scenario that discovers a blocked app-principal installation, then run this same reader assertion.",
+            owner: "김영로",
             terminal_success_claimed: false,
           },
           denials: {
-            foreign_installation: {
+            other_app_scope: {
               status: "denied",
               category: "authorization",
               http_status: 403,
