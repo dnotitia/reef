@@ -67,6 +67,10 @@ function lowerInClause(
   return `LOWER(${quoteIdent(column)}) IN (${list})`;
 }
 
+function orGroup(parts: readonly string[]): string {
+  return parts.length === 1 ? (parts[0] ?? "") : `(${parts.join(" OR ")})`;
+}
+
 /**
  * Build the SQL `WHERE` body (without the `WHERE` keyword) for the issue-list
  * filter facets, or `undefined` when nothing narrows the set. Every value is
@@ -106,11 +110,21 @@ export function buildIssueWhere(
   if (filter.status?.length) {
     clauses.push(inClause("status", filter.status, "status filter"));
   }
-  if (filter.priority?.length) {
-    clauses.push(inClause("priority", filter.priority, "priority filter"));
+  if (filter.priority?.length || filter.priority_unset) {
+    const parts: string[] = [];
+    if (filter.priority?.length) {
+      parts.push(inClause("priority", filter.priority, "priority filter"));
+    }
+    if (filter.priority_unset) parts.push(`"priority" IS NULL`);
+    clauses.push(orGroup(parts));
   }
-  if (filter.severity?.length) {
-    clauses.push(inClause("severity", filter.severity, "severity filter"));
+  if (filter.severity?.length || filter.severity_unset) {
+    const parts: string[] = [];
+    if (filter.severity?.length) {
+      parts.push(inClause("severity", filter.severity, "severity filter"));
+    }
+    if (filter.severity_unset) parts.push(`"severity" IS NULL`);
+    clauses.push(orGroup(parts));
   }
   if (filter.issue_type?.length) {
     const parts = filter.issue_type.map((t) =>
@@ -120,15 +134,22 @@ export function buildIssueWhere(
     );
     clauses.push(parts.length === 1 ? parts[0] : `(${parts.join(" OR ")})`);
   }
-  if (filter.assigned_to?.length) {
-    clauses.push(
-      lowerInClause(
-        "assigned_to",
-        filter.assigned_to,
-        "assigned_to filter",
-        params,
-      ),
-    );
+  if (filter.assigned_to?.length || filter.assigned_to_unset) {
+    const parts: string[] = [];
+    if (filter.assigned_to?.length) {
+      parts.push(
+        lowerInClause(
+          "assigned_to",
+          filter.assigned_to,
+          "assigned_to filter",
+          params,
+        ),
+      );
+    }
+    if (filter.assigned_to_unset) {
+      parts.push(`COALESCE(BTRIM("assigned_to"), '') = ''`);
+    }
+    clauses.push(orGroup(parts));
   }
   if (filter.requester?.length) {
     clauses.push(
@@ -161,6 +182,7 @@ export function buildIssueWhere(
       `"due_date" <= ${params.add(filter.due_before, "due_before filter")}`,
     );
   }
+  if (filter.due_unset) clauses.push(`"due_date" IS NULL`);
   if (filter.q) {
     const patternParam = params.add(likePattern(filter.q), "q filter");
     const group = [

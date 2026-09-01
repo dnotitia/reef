@@ -44,12 +44,15 @@ const ISSUE_QUERY_KEYS = [
   "status",
   "type",
   "priority",
+  "priority_unset",
   "assignee",
+  "assignee_unset",
   "requester",
   "sprint_id",
   "milestone_id",
   "release_id",
   "severity",
+  "severity_unset",
   "due",
   "labels",
   "dep",
@@ -96,7 +99,8 @@ function readIssueUrlState(searchParams: URLSearchParams): {
   const due = searchParams
     .getAll("due")
     .filter(
-      (d): d is "overdue" | "due_soon" => d === "overdue" || d === "due_soon",
+      (d): d is "overdue" | "due_soon" | "no_due" =>
+        d === "overdue" || d === "due_soon" || d === "no_due",
     );
   const label = searchParams.get("labels");
   const dep = searchParams
@@ -106,6 +110,9 @@ function readIssueUrlState(searchParams: URLSearchParams): {
     );
   const sort = searchParams.get("sort");
   const order = searchParams.get("order");
+  const priorityUnset = searchParams.get("priority_unset");
+  const severityUnset = searchParams.get("severity_unset");
+  const assigneeUnset = searchParams.get("assignee_unset");
   const archived = searchParams.get("archived");
   const stale = searchParams.get("stale");
   const columns = new Set(
@@ -118,12 +125,21 @@ function readIssueUrlState(searchParams: URLSearchParams): {
   if (status.length) filter.status = status;
   if (issueType.length) filter.issueType = issueType;
   if (priority.length) filter.priority = priority;
+  if (priorityUnset === "1" || priorityUnset === "true") {
+    filter.priorityUnset = true;
+  }
   if (assignee.length) filter.assignee = assignee;
+  if (assigneeUnset === "1" || assigneeUnset === "true") {
+    filter.assigneeUnset = true;
+  }
   if (requester.length) filter.requester = requester;
   if (sprintId.length) filter.sprint_id = sprintId;
   if (milestoneId) filter.milestone_id = milestoneId;
   if (releaseId.length) filter.release_id = releaseId;
   if (severity.length) filter.severity = severity;
+  if (severityUnset === "1" || severityUnset === "true") {
+    filter.severityUnset = true;
+  }
   if (due.length) filter.due = due;
   if (label) filter.label = label;
   if (dep.length) filter.dependencyFilter = dep;
@@ -218,10 +234,12 @@ function buildIssueSearchParams(
     for (const v of filter.issueType) params.append("type", v);
   if (filter.priority)
     for (const v of filter.priority) params.append("priority", v);
+  if (filter.priorityUnset) params.set("priority_unset", "1");
   // Multi-select people/planning facets (REEF-267) emit one repeated param per
   // value; milestone stays a single param.
   if (filter.assignee)
     for (const v of filter.assignee) params.append("assignee", v);
+  if (filter.assigneeUnset) params.set("assignee_unset", "1");
   if (filter.requester)
     for (const v of filter.requester) params.append("requester", v);
   if (filter.sprint_id)
@@ -231,6 +249,7 @@ function buildIssueSearchParams(
     for (const v of filter.release_id) params.append("release_id", v);
   if (filter.severity)
     for (const v of filter.severity) params.append("severity", v);
+  if (filter.severityUnset) params.set("severity_unset", "1");
   if (filter.due) for (const v of filter.due) params.append("due", v);
   if (filter.label) params.set("labels", filter.label);
   if (filter.dependencyFilter)

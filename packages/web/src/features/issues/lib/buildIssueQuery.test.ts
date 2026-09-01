@@ -31,6 +31,34 @@ describe("buildIssueQuery", () => {
     });
   });
 
+  it("maps unset filter flags separately from real values", () => {
+    expect(
+      buildIssueQuery({
+        priority: ["high"],
+        priorityUnset: true,
+        severityUnset: true,
+        assignee: ["__none__"],
+        assigneeUnset: true,
+      }),
+    ).toEqual({
+      priority: ["high"],
+      priority_unset: "true",
+      severity_unset: "true",
+      assigned_to: ["__none__"],
+      assigned_to_unset: "true",
+      ...DEFAULT_SORT,
+    });
+  });
+
+  it("uses the server absence predicate only for a pure no-due selection", () => {
+    expect(buildIssueQuery({ due: ["no_due"] })).toMatchObject({
+      due_unset: "true",
+    });
+    expect(buildIssueQuery({ due: ["no_due", "overdue"] })).not.toHaveProperty(
+      "due_unset",
+    );
+  });
+
   it("maps multi-value people/planning facets to repeated wire arrays (REEF-267)", () => {
     expect(
       buildIssueQuery({

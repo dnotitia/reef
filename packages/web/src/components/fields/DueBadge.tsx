@@ -2,15 +2,22 @@ import { DUE_COLORS } from "@/components/fields/fieldKit";
 import { useDueLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { DueFacet } from "@reef/core/fields";
-import { CalendarClock, CalendarX, type LucideIcon } from "lucide-react";
+import {
+  CalendarClock,
+  CalendarOff,
+  CalendarX,
+  type LucideIcon,
+} from "lucide-react";
 
 /**
  * Shared due-facet leaf. The Due filter buckets an issue by deadline STATE
- * (overdue / due soon), not by a concrete date — so it gets its own glyph+color
- * language instead of reusing `DateDisplay`, which renders an actual YYYY-MM-DD.
+ * (overdue / due soon / no due date), not by a concrete date — so it gets its
+ * own glyph+color language instead of reusing `DateDisplay`, which renders an
+ * actual YYYY-MM-DD.
  * Each value is encoded REDUNDANTLY by a distinct glyph AND a color
  * (color-blind-safe): a calendar-with-X for the missed deadline, a
- * calendar-with-clock for the approaching one. Mirrors how `SeverityBadge` /
+ * calendar-with-clock for the approaching one, and a crossed-out calendar for
+ * no due date. Mirrors how `SeverityBadge` /
  * `StatusBadge` split the bare glyph from the labelled badge, so the Due option
  * reads identically to the other facet leaves sitting beside it in a filter
  * dropdown. The label is locale-resolved via `useDueLabels()` (REEF-292); the
@@ -19,6 +26,7 @@ import { CalendarClock, CalendarX, type LucideIcon } from "lucide-react";
 const DUE_ICON: Record<DueFacet, LucideIcon> = {
   overdue: CalendarX,
   due_soon: CalendarClock,
+  no_due: CalendarOff,
 };
 
 interface DueIconProps {

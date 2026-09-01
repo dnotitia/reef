@@ -235,6 +235,33 @@ describe("KanbanBoard filtering and rendering", () => {
     expect(screen.queryByText("Backend blocker")).toBeNull();
   });
 
+  it("applies unset metadata filters through the same board pipeline", async () => {
+    useIssueStore.setState({
+      filter: { priorityUnset: true, assigneeUnset: true },
+      searchQuery: "",
+      selectedIssueId: null,
+    });
+    mockApiFetch.mockImplementation(async (url) =>
+      issueApiResponse(url, {
+        issues: [
+          FILTER_ISSUES[0],
+          {
+            ...FILTER_ISSUES[1],
+            id: "REEF-014",
+            title: "Unset metadata",
+            priority: null,
+            assigned_to: "   ",
+          },
+        ],
+      }),
+    );
+
+    render(wrap(<KanbanBoard vault="reef-acme" />));
+
+    expect(await screen.findByText("Unset metadata")).toBeInTheDocument();
+    expect(screen.queryByText("UI board polish")).toBeNull();
+  });
+
   it("applies status filters while keeping every status column visible", async () => {
     useIssueStore.setState({
       filter: { status: ["todo"] },

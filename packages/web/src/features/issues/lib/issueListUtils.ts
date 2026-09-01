@@ -142,6 +142,8 @@ export function sortIssuesByRankOrder(
  */
 export interface SharedIssueFacets {
   assignee?: string | readonly string[];
+  /** Match NULL, empty, and whitespace-only assigned_to values. */
+  assigneeUnset?: boolean;
   label?: string;
   sprint_id?: string | readonly string[];
   milestone_id?: string;
@@ -162,12 +164,15 @@ export function hasActiveIssueFilters(
     filter.status?.length ||
       filter.issueType?.length ||
       filter.priority?.length ||
+      filter.priorityUnset ||
       filter.assignee?.length ||
+      filter.assigneeUnset ||
       filter.requester?.length ||
       filter.sprint_id?.length ||
       filter.milestone_id ||
       filter.release_id?.length ||
       filter.severity?.length ||
+      filter.severityUnset ||
       filter.due?.length ||
       filter.label?.trim() ||
       filter.dependencyFilter?.length ||
@@ -237,9 +242,16 @@ export function matchesSharedFacets(
   facets: SharedIssueFacets,
 ): boolean {
   const assignees = facetValues(facets.assignee);
-  if (assignees.length) {
+  if (assignees.length || facets.assigneeUnset) {
     const who = issue.assigned_to?.toLowerCase() ?? "";
-    if (!assignees.some((a) => a.toLowerCase() === who)) return false;
+    const matchesAssigned = assignees.some(
+      (assignee) =>
+        assignee.trim().length > 0 && assignee.toLowerCase() === who,
+    );
+    const matchesUnset = Boolean(
+      facets.assigneeUnset && !issue.assigned_to?.trim(),
+    );
+    if (!matchesAssigned && !matchesUnset) return false;
   }
   const sprints = facetValues(facets.sprint_id);
   if (sprints.length && !sprints.includes(issue.sprint_id ?? "")) return false;
@@ -304,13 +316,21 @@ export function filterIssues(
     )
       return false;
     if (
-      filter.priority?.length &&
-      !filter.priority.includes(issue.priority ?? "")
+      (filter.priority?.length || filter.priorityUnset) &&
+      !(
+        (filter.priority?.length &&
+          filter.priority.includes(issue.priority ?? "")) ||
+        (filter.priorityUnset && issue.priority == null)
+      )
     )
       return false;
     if (
-      filter.severity?.length &&
-      !filter.severity.includes(issue.severity ?? "")
+      (filter.severity?.length || filter.severityUnset) &&
+      !(
+        (filter.severity?.length &&
+          filter.severity.includes(issue.severity ?? "")) ||
+        (filter.severityUnset && issue.severity == null)
+      )
     )
       return false;
     // Requester mirrors assignee: case-insensitive exact match, OR-combined
@@ -320,16 +340,19 @@ export function filterIssues(
       if (!filter.requester.some((r) => r.toLowerCase() === who)) return false;
     }
     if (filter.due?.length) {
-      if (!issue.due_date) return false;
-      if (isResolvedStatus(issue.status)) return false;
-      const due = new Date(issue.due_date).getTime();
-      const sevenDays = 7 * 24 * 60 * 60 * 1000;
-      const isOverdue = due < now;
-      const isDueSoon = due >= now && due <= now + sevenDays;
-      const matchesDue =
-        (filter.due.includes("overdue") && isOverdue) ||
-        (filter.due.includes("due_soon") && isDueSoon);
-      if (!matchesDue) return false;
+      if (issue.due_date == null) {
+        if (!filter.due.includes("no_due")) return false;
+      } else {
+        if (isResolvedStatus(issue.status)) return false;
+        const due = new Date(issue.due_date).getTime();
+        const sevenDays = 7 * 24 * 60 * 60 * 1000;
+        const isOverdue = due < now;
+        const isDueSoon = due >= now && due <= now + sevenDays;
+        const matchesDue =
+          (filter.due.includes("overdue") && isOverdue) ||
+          (filter.due.includes("due_soon") && isDueSoon);
+        if (!matchesDue) return false;
+      }
     }
     // Assignee, sprint, milestone, release, and label share their matching
     // semantics with the reports scope bar (REEF-074).

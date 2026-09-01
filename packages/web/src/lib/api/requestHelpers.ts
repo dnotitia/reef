@@ -104,6 +104,13 @@ const ISSUE_LIST_SINGLE_KEYS = [
   "cursor",
 ] as const;
 
+const ISSUE_LIST_BOOLEAN_KEYS = [
+  "priority_unset",
+  "severity_unset",
+  "assigned_to_unset",
+  "due_unset",
+] as const;
+
 /**
  * Extract issue-list query facets from a request URL into the shape
  * `IssueListQuerySchema` expects (arrays for multi-value facets, coerced
@@ -123,6 +130,10 @@ export function parseIssueListQueryParams(
   for (const key of ISSUE_LIST_SINGLE_KEYS) {
     const value = searchParams.get(key);
     if (value != null) out[key] = value;
+  }
+  for (const key of ISSUE_LIST_BOOLEAN_KEYS) {
+    const value = searchParams.get(key);
+    if (value != null) out[key] = value === "true" || value === "1";
   }
   const archived = searchParams.get("archived");
   if (archived != null) out.archived = archived === "true";

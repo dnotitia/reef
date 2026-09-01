@@ -20,6 +20,11 @@ explicitly in the entries below.
   for narrower layouts. Chat suggestions never apply changes automatically and
   end with the draft.
 
+- **Issue filters can now find unset metadata.** Priority, severity, due date,
+  and assignee facets support unset/unassigned selections, including mixed
+  OR-within-facet filters that remain consistent across Board, List, sorting,
+  URLs, and browser-local My Views.
+
 - **Issues now provide browser-local My Views.** A named My View captures the
   current filters, scope/layout, grouping, ordering mode, display options, and
   List columns; applying it updates the canonical URL without exposing the

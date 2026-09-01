@@ -24,7 +24,7 @@ import { IssueOrderingModeEnum, USER_SORT_FIELDS } from "./requests";
  * one-off exploration, not restored (REEF-009 decision #1). View mode (`?view=`)
  * is URL and likewise absent.
  *
- * Each field uses `.optional().catch(undefined)` so a single stale/garbage value (e.g. a
+ * Each persisted field uses `.optional().catch(undefined)` so a single stale/garbage value (e.g. a
  * `status` enum member removed in a later release) is dropped to `undefined`
  * while its valid siblings survive — implementing AC5 ("drop invalid fields,
  * fall back to safe defaults") at field granularity. `z.object` also strips
@@ -86,15 +86,18 @@ export const PersistedIssueFilterSchema = z.object({
   status: multiEnumFacet(StatusEnum),
   issueType: multiEnumFacet(IssueTypeEnum),
   priority: multiEnumFacet(PriorityEnum),
+  priorityUnset: z.literal(true).optional().catch(undefined),
   assignee: multiStringFacet(),
+  assigneeUnset: z.literal(true).optional().catch(undefined),
   requester: multiStringFacet(),
   reporter: z.string().optional().catch(undefined),
   severity: multiEnumFacet(SeverityEnum),
+  severityUnset: z.literal(true).optional().catch(undefined),
   sprint_id: multiStringFacet(),
   // milestone_id stays a single scalar — multi-select out of scope (REEF-267).
   milestone_id: z.string().optional().catch(undefined),
   release_id: multiStringFacet(),
-  due: multiEnumFacet(z.enum(["overdue", "due_soon"])),
+  due: multiEnumFacet(z.enum(["overdue", "due_soon", "no_due"])),
   label: z.string().optional().catch(undefined),
   dependencyFilter: multiEnumFacet(z.enum(["blocked", "blocking"])),
   showArchived: z.boolean().optional().catch(undefined),
@@ -113,7 +116,7 @@ const ARRAY_FILTER_SCHEMAS: Record<string, z.ZodType<string>> = {
   severity: SeverityEnum,
   sprint_id: z.string(),
   release_id: z.string(),
-  due: z.enum(["overdue", "due_soon"]),
+  due: z.enum(["overdue", "due_soon", "no_due"]),
   dependencyFilter: z.enum(["blocked", "blocking"]),
 };
 
@@ -123,10 +126,13 @@ const FILTER_KEYS = [
   "status",
   "issueType",
   "priority",
+  "priorityUnset",
   "assignee",
+  "assigneeUnset",
   "requester",
   "reporter",
   "severity",
+  "severityUnset",
   "sprint_id",
   "milestone_id",
   "release_id",
@@ -192,6 +198,9 @@ export function normalizePersistedIssueFilter(
     const label = canonicalLabelFilter(input.label);
     if (label) normalized.label = label;
   }
+  if (input.priorityUnset === true) normalized.priorityUnset = true;
+  if (input.severityUnset === true) normalized.severityUnset = true;
+  if (input.assigneeUnset === true) normalized.assigneeUnset = true;
   if (input.showArchived === true) normalized.showArchived = true;
   if (input.showStale === true) normalized.showStale = true;
 

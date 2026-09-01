@@ -69,6 +69,21 @@ function Harness() {
       <button type="button" onClick={() => setFilter({ priority: ["high"] })}>
         Set priority
       </button>
+      <button
+        type="button"
+        onClick={() =>
+          setFilter({
+            priority: ["high"],
+            priorityUnset: true,
+            severityUnset: true,
+            assignee: ["__none__"],
+            assigneeUnset: true,
+            due: ["no_due"],
+          })
+        }
+      >
+        Set unset filters
+      </button>
       <button type="button" onClick={() => setGroupBy("label")}>
         Set group
       </button>
@@ -187,6 +202,43 @@ describe("useIssueUrlSync", () => {
     // URL-wins keeps skipNextWrite, so neither push nor replace fires.
     expect(mockPush).not.toHaveBeenCalled();
     expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it("restores unset and real mixed selections from the URL without a username sentinel", async () => {
+    navigationState.searchParams = new URLSearchParams(
+      "priority=high&priority_unset=1&severity_unset=true&assignee=__none__&assignee_unset=1&due=no_due",
+    );
+
+    render(<Harness />);
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.priority).toEqual(["high"]);
+    });
+
+    expect(useIssueStore.getState().filter).toMatchObject({
+      priority: ["high"],
+      priorityUnset: true,
+      severityUnset: true,
+      assignee: ["__none__"],
+      assigneeUnset: true,
+      due: ["no_due"],
+    });
+  });
+
+  it("round-trips unset and real selections through a shareable URL", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    await user.click(screen.getByRole("button", { name: "Set unset filters" }));
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "priority=high&priority_unset=1&assignee=__none__&assignee_unset=1&severity_unset=1&due=no_due",
+        ),
+        { scroll: false },
+      );
+    });
   });
 
   it("restores the shared Manual ordering mode without a direction", async () => {

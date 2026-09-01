@@ -12,6 +12,7 @@ vi.unmock("@/i18n/fieldLabels");
 import {
   useClosedReasonHints,
   useDirectionLabel,
+  useDueLabels,
   useFieldNameLabels,
   usePriorityLabels,
   useSprintStatusLabels,
@@ -54,6 +55,11 @@ describe("field label hooks (REEF-292)", () => {
       wrapper: withLocale("ko"),
     });
     expect(priority.result.current.critical).toBe("긴급");
+
+    const due = renderHook(() => useDueLabels(), {
+      wrapper: withLocale("ko"),
+    });
+    expect(due.result.current.no_due).toBe("기한 없음");
   });
 
   it("resolves the natural-language direction label per field and order", () => {

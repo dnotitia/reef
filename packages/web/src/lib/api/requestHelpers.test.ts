@@ -11,6 +11,7 @@ import {
 import {
   getAkbAdapter,
   getAkbCurrentActor,
+  parseIssueListQueryParams,
   resolveOptionalActor,
   respondWithError,
 } from "./requestHelpers";
@@ -112,6 +113,30 @@ describe("resolveOptionalActor", () => {
       await resolveOptionalActor(requestWithSession(EXPIRED_JWT)),
     ).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("parseIssueListQueryParams", () => {
+  it("parses unset filter flags alongside repeated real values", () => {
+    const parsed = parseIssueListQueryParams(
+      new URLSearchParams(
+        "priority=high&priority_unset=true&severity_unset=1&assigned_to=__none__&assigned_to_unset=true",
+      ),
+    );
+
+    expect(parsed).toEqual({
+      priority: ["high"],
+      priority_unset: true,
+      severity_unset: true,
+      assigned_to: ["__none__"],
+      assigned_to_unset: true,
+    });
+  });
+
+  it("parses the pure no-due server predicate", () => {
+    expect(
+      parseIssueListQueryParams(new URLSearchParams("due_unset=1")),
+    ).toEqual({ due_unset: true });
   });
 });
 

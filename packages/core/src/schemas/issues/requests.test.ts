@@ -96,6 +96,26 @@ describe("IssueListQuerySchema", () => {
     expect(parsed.milestone_id).toBe("m1");
   });
 
+  it("accepts unset filter flags without changing stored field enums", () => {
+    const parsed = IssueListQuerySchema.parse({
+      priority: ["high"],
+      priority_unset: true,
+      severity_unset: true,
+      assigned_to: ["__none__"],
+      assigned_to_unset: true,
+      due_unset: true,
+    });
+
+    expect(parsed).toMatchObject({
+      priority: ["high"],
+      priority_unset: true,
+      severity_unset: true,
+      assigned_to: ["__none__"],
+      assigned_to_unset: true,
+      due_unset: true,
+    });
+  });
+
   it("rejects an out-of-range limit", () => {
     expect(() => IssueListQuerySchema.parse({ limit: 0 })).toThrow();
     expect(() => IssueListQuerySchema.parse({ limit: 101 })).toThrow();
@@ -153,6 +173,12 @@ describe("hasAnyFilter", () => {
       hasAnyFilter(IssueListQuerySchema.parse({ assigned_to: ["alice"] })),
     ).toBe(true);
     expect(hasAnyFilter(IssueListQuerySchema.parse({ q: "login" }))).toBe(true);
+    expect(
+      hasAnyFilter(IssueListQuerySchema.parse({ priority_unset: true })),
+    ).toBe(true);
+    expect(
+      hasAnyFilter(IssueListQuerySchema.parse({ priority_unset: false })),
+    ).toBe(false);
   });
 });
 

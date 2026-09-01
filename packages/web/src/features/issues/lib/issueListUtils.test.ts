@@ -78,6 +78,8 @@ describe("hasActiveIssueFilters", () => {
     ).toBe(false);
     expect(hasActiveIssueFilters({ priority: ["high"] }, "")).toBe(true);
     expect(hasActiveIssueFilters({}, "missing issue")).toBe(true);
+    expect(hasActiveIssueFilters({ priorityUnset: true }, "")).toBe(true);
+    expect(hasActiveIssueFilters({ assigneeUnset: true }, "")).toBe(true);
   });
 });
 
@@ -258,6 +260,29 @@ describe("filterIssues", () => {
     expect(result[0].id).toBe("REEF-002");
   });
 
+  it("filters unset priority and severity without adding enum values", () => {
+    const candidates = [
+      makeIssue({ id: "REEF-010", priority: null, severity: null }),
+      makeIssue({ id: "REEF-011", priority: undefined, severity: undefined }),
+      makeIssue({ id: "REEF-012", priority: "low", severity: "minor" }),
+    ];
+
+    expect(
+      filterIssues(candidates, { priorityUnset: true }).map((i) => i.id),
+    ).toEqual(["REEF-010", "REEF-011"]);
+    expect(
+      filterIssues(candidates, { severityUnset: true }).map((i) => i.id),
+    ).toEqual(["REEF-010", "REEF-011"]);
+    expect(
+      filterIssues(candidates, {
+        priority: ["low"],
+        priorityUnset: true,
+        severity: ["minor"],
+        severityUnset: true,
+      }).map((i) => i.id),
+    ).toEqual(["REEF-010", "REEF-011", "REEF-012"]);
+  });
+
   it("filters by assignee (case-insensitive exact match) (REEF-267)", () => {
     const result = filterIssues(issues, { assignee: ["alice"] });
     expect(result.map((i) => i.id).sort()).toEqual(["REEF-001", "REEF-003"]);
@@ -275,6 +300,25 @@ describe("filterIssues", () => {
       "REEF-002",
       "REEF-003",
     ]);
+  });
+
+  it("matches null, empty, and whitespace-only assignees as unset", () => {
+    const candidates = [
+      makeIssue({ id: "REEF-010", assigned_to: null }),
+      makeIssue({ id: "REEF-011", assigned_to: "" }),
+      makeIssue({ id: "REEF-012", assigned_to: "   " }),
+      makeIssue({ id: "REEF-013", assigned_to: "alice" }),
+    ];
+
+    expect(
+      filterIssues(candidates, { assigneeUnset: true }).map((i) => i.id),
+    ).toEqual(["REEF-010", "REEF-011", "REEF-012"]);
+    expect(
+      filterIssues(candidates, {
+        assignee: ["alice"],
+        assigneeUnset: true,
+      }).map((i) => i.id),
+    ).toEqual(["REEF-010", "REEF-011", "REEF-012", "REEF-013"]);
   });
 
   it("filters by requester exactly, OR-combined (REEF-267)", () => {
@@ -387,6 +431,54 @@ describe("filterIssues", () => {
       );
 
       expect(result.map((issue) => issue.id)).toEqual(["REEF-101", "REEF-102"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("matches no due date regardless of completion state", () => {
+    const result = filterIssues(
+      [
+        makeIssue({ id: "REEF-101", status: "todo", due_date: null }),
+        makeIssue({ id: "REEF-102", status: "done", due_date: undefined }),
+        makeIssue({ id: "REEF-103", status: "closed", due_date: null }),
+        makeIssue({ id: "REEF-104", status: "todo", due_date: "2026-06-01" }),
+      ],
+      { due: ["no_due"] },
+    );
+
+    expect(result.map((issue) => issue.id)).toEqual([
+      "REEF-101",
+      "REEF-102",
+      "REEF-103",
+    ]);
+  });
+
+  it("unions no due with active overdue/due-soon while keeping resolved date rules", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-10T00:00:00.000Z"));
+
+    try {
+      const result = filterIssues(
+        [
+          makeIssue({ id: "REEF-101", status: "todo", due_date: null }),
+          makeIssue({ id: "REEF-102", status: "done", due_date: null }),
+          makeIssue({ id: "REEF-103", status: "todo", due_date: "2026-06-01" }),
+          makeIssue({ id: "REEF-104", status: "done", due_date: "2026-06-01" }),
+          makeIssue({ id: "REEF-105", status: "todo", due_date: "2026-06-12" }),
+          makeIssue({ id: "REEF-107", status: "todo", due_date: "2026-06-17" }),
+          makeIssue({ id: "REEF-106", status: "todo", due_date: "2026-06-20" }),
+        ],
+        { due: ["no_due", "overdue", "due_soon"] },
+      );
+
+      expect(result.map((issue) => issue.id)).toEqual([
+        "REEF-101",
+        "REEF-102",
+        "REEF-103",
+        "REEF-105",
+        "REEF-107",
+      ]);
     } finally {
       vi.useRealTimers();
     }
@@ -597,6 +689,27 @@ describe("matchesSharedFacets", () => {
     expect(matchesSharedFacets(issue, { assignee: ["bob", "ALICE"] })).toBe(
       true,
     );
+  });
+
+  it("OR-combines an unset assignee with selected logins", () => {
+    const unset = makeIssue({ id: "REEF-101", assigned_to: "  " });
+    const assigned = makeIssue({ id: "REEF-102", assigned_to: "Alice" });
+    const other = makeIssue({ id: "REEF-103", assigned_to: "bob" });
+
+    expect(matchesSharedFacets(unset, { assigneeUnset: true })).toBe(true);
+    expect(matchesSharedFacets(assigned, { assigneeUnset: true })).toBe(false);
+    expect(
+      matchesSharedFacets(assigned, {
+        assignee: ["alice"],
+        assigneeUnset: true,
+      }),
+    ).toBe(true);
+    expect(
+      matchesSharedFacets(other, {
+        assignee: ["alice"],
+        assigneeUnset: true,
+      }),
+    ).toBe(false);
   });
 
   it("requires exact planning-id equality, OR-combined for multi-select (REEF-267)", () => {

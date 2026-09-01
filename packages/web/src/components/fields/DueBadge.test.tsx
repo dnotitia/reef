@@ -13,6 +13,9 @@ describe("DueBadge", () => {
     cleanup();
     render(<DueBadge due="due_soon" />);
     expect(screen.getByText("Due soon")).toBeInTheDocument();
+    cleanup();
+    render(<DueBadge due="no_due" />);
+    expect(screen.getByText("No due date")).toBeInTheDocument();
   });
 
   it("renders a colored glyph hidden from the a11y tree (label is the name)", () => {
