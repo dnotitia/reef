@@ -19,7 +19,6 @@ import { PageHeader } from "@/features/ui/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { withVault } from "@/lib/workspaceHref";
 import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
-import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
@@ -80,9 +79,9 @@ export function IssuesWorkspace() {
           <div className="flex flex-wrap items-center gap-2">
             {vault ? (
               <Button asChild size="sm" variant="outline">
-                <Link href={withVault(vault, "/issues/changes")}>
+                <a href={withVault(vault, "/issues/changes")}>
                   {nav("changeReview")}
-                </Link>
+                </a>
               </Button>
             ) : null}
             <ViewSwitcher scope={scope} activeLayout={layout} />

@@ -32,6 +32,20 @@ function issueGroup(page: Page, title: string): Locator {
   return page.getByTestId("issue-change-group").filter({ hasText: title });
 }
 
+async function setReviewDate(
+  page: Page,
+  id: string,
+  label: string,
+  value: string,
+): Promise<void> {
+  await page.locator(`#${id}`).click();
+  const input = page.getByRole("textbox", {
+    name: `${label} (YYYY-MM-DD)`,
+  });
+  await input.fill(value);
+  await input.press("Enter");
+}
+
 async function expectNoIssueDetailInterception(page: Page): Promise<void> {
   // The parallel route can settle after the review request; observe the final
   // UI state so a delayed intercepted sheet cannot pass this assertion.
@@ -87,11 +101,13 @@ test.describe("Hermetic issue change review", () => {
       issueGroup(page, "Completed and archived review issue"),
     ).toBeVisible();
     await expect(issueGroup(page, "Closed review issue")).toBeVisible();
-    await expect(
-      issueGroup(page, "Archived attachment review issue"),
-    ).toBeVisible();
+    const archivedGroup = issueGroup(page, "Archived attachment review issue");
+    await expect(archivedGroup).toBeVisible();
+    await archivedGroup.getByTestId("issue-change-group-summary").click();
     const longHistory = issueGroup(page, "Long history review issue");
     await expect(longHistory).toContainText("105 changes");
+    await longHistory.getByTestId("issue-change-group-summary").click();
+    await expect(longHistory.getByTestId("issue-change-row")).toHaveCount(105);
     await expect(
       issueGroup(page, "Created during the review period"),
     ).toBeVisible();
@@ -103,6 +119,7 @@ test.describe("Hermetic issue change review", () => {
     ).toHaveCount(0);
 
     const firstGroup = issueGroup(page, "Completed and archived review issue");
+    await firstGroup.getByTestId("issue-change-group-summary").click();
     await expect(firstGroup.getByText("Status", { exact: true })).toBeVisible();
     await expect(firstGroup.getByText("Title", { exact: true })).toBeVisible();
     await expect(firstGroup.getByText("Labels", { exact: true })).toBeVisible();
@@ -117,7 +134,7 @@ test.describe("Hermetic issue change review", () => {
     ).toHaveCount(0);
 
     const bodyDetails = firstGroup
-      .locator("details")
+      .locator("li details")
       .filter({ hasText: "Body updated" });
     await expect(bodyDetails).toHaveCount(1);
     await expect(bodyDetails).toContainText("Body updated");
@@ -133,7 +150,7 @@ test.describe("Hermetic issue change review", () => {
     );
 
     const commentDetails = firstGroup
-      .locator("details")
+      .locator("li details")
       .filter({ hasText: "Comment added" });
     await expect(commentDetails).toHaveCount(1);
     await commentDetails.locator("summary").click();
@@ -141,17 +158,65 @@ test.describe("Hermetic issue change review", () => {
       "A review comment with the complete text",
     );
     await expect(
-      page.getByText("Removed attachment old-evidence.txt"),
+      archivedGroup.getByText("Removed attachment old-evidence.txt"),
     ).toBeVisible();
 
     const firstGroupTimes = await firstGroup
-      .locator("time")
+      .locator("li time")
       .evaluateAll((nodes) =>
         nodes.map((node) => Date.parse(node.getAttribute("dateTime") ?? "")),
       );
     expect(firstGroupTimes).toEqual(
       [...firstGroupTimes].sort((left, right) => left - right),
     );
+  });
+
+  test("enters change review from Issues and returns to the Issues screen", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues");
+    await page.getByRole("link", { name: "Change review" }).click();
+    await page.waitForURL(/\/workspace\/reef-e2e\/issues\/changes(?:\?|$)/u, {
+      timeout: 30_000,
+    });
+    await expect(
+      page.getByRole("heading", { name: "Review period", exact: true }),
+    ).toBeVisible();
+    await waitForReviewContent(page);
+    await expectNoIssueDetailInterception(page);
+
+    await page.goBack();
+    await page.waitForURL(/\/workspace\/reef-e2e\/issues$/u, {
+      timeout: 30_000,
+    });
+    await expect(
+      page.getByRole("heading", { name: "Issues", exact: true }),
+    ).toBeVisible();
+  });
+
+  test("keeps the change-review chrome usable at narrow widths", async ({
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(await discoveredReviewStartPath(request));
+    await waitForReviewContent(page);
+
+    for (const width of [320, 375, 414, 768]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(
+        page.getByRole("heading", { name: "Review period", exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByTestId("issue-change-review-actions"),
+      ).toBeVisible();
+      const viewportFits = await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      );
+      expect(viewportFits, `document overflows at ${width}px`).toBe(true);
+      await expect(page.locator("main")).toHaveCount(1);
+    }
   });
 
   test("recomputes and remembers relative ranges, then rejects an invalid shared URL", async ({
@@ -245,8 +310,18 @@ test.describe("Hermetic issue change review", () => {
         response.request().method() === "GET"
       );
     });
-    await page.getByTestId("issue-change-review-start").fill("2026-06-15");
-    await page.getByTestId("issue-change-review-end").fill("2026-06-19");
+    await setReviewDate(
+      page,
+      "issue-change-review-start",
+      "Start date",
+      "2026-06-15",
+    );
+    await setReviewDate(
+      page,
+      "issue-change-review-end",
+      "End date",
+      "2026-06-19",
+    );
     await page.getByTestId("issue-change-review-apply").click();
     await directRangeResponse;
     await waitForReviewContent(page);
@@ -259,8 +334,18 @@ test.describe("Hermetic issue change review", () => {
         response.request().method() === "GET"
       );
     });
-    await page.getByTestId("issue-change-review-start").fill("2027-01-01");
-    await page.getByTestId("issue-change-review-end").fill("2027-01-02");
+    await setReviewDate(
+      page,
+      "issue-change-review-start",
+      "Start date",
+      "2027-01-01",
+    );
+    await setReviewDate(
+      page,
+      "issue-change-review-end",
+      "End date",
+      "2027-01-02",
+    );
     await page.getByTestId("issue-change-review-apply").click();
     await emptyRangeResponse;
     await expect(page.getByTestId("issue-change-review-empty")).toBeVisible({
@@ -282,8 +367,9 @@ test.describe("Hermetic issue change review", () => {
       timeout: 60_000,
     });
 
-    await page.getByTestId("issue-change-review-share").click();
-    await expect(page.getByText("Share link copied.")).toBeVisible();
+    await page.getByTestId("issue-change-review-actions").click();
+    await page.getByTestId("issue-change-review-copy-link").click();
+    await expect(page.getByText("Review link copied.")).toBeVisible();
     const shared = await page.evaluate(() => navigator.clipboard.readText());
     const sharedUrl = new URL(shared);
     expect(sharedUrl.pathname).toBe("/workspace/reef-e2e/issues/changes");
@@ -296,6 +382,11 @@ test.describe("Hermetic issue change review", () => {
     expect(sharedUrl.searchParams.get("tz")).toBe("UTC");
 
     await setIssueListFailure(request, true);
+    await page.evaluate(() => {
+      // The app persists React Query results across reloads. Drop the cached
+      // review response so this assertion exercises the forced upstream error.
+      window.localStorage.removeItem("REACT_QUERY_OFFLINE_CACHE");
+    });
     await page.reload();
     await expect(page.getByTestId("issue-change-review-error")).toBeVisible({
       timeout: 30_000,
@@ -335,6 +426,7 @@ test.describe("Hermetic issue change review", () => {
     ).toBeVisible();
     await page.getByTestId("issue-change-review-relative-1").click();
     const group = issueGroup(page, "Completed and archived review issue");
+    await group.getByTestId("issue-change-group-summary").click();
     const commentDetails = group
       .locator("details")
       .filter({ hasText: "Comment added" });

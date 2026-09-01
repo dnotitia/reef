@@ -137,9 +137,19 @@ describe("IssueChangeReviewPage", () => {
         screen.getByTestId("issue-change-review-results"),
       ).toBeInTheDocument(),
     );
+    const group = screen.getByTestId("issue-change-group");
     expect(screen.getAllByTestId("issue-change-group")).toHaveLength(1);
+    expect(group.querySelector("ol")).not.toBeVisible();
+    fireEvent.click(screen.getByTestId("issue-change-group-summary"));
     expect(screen.getByText("Completed review issue")).toBeInTheDocument();
     expect(screen.getByText("Status")).toBeInTheDocument();
+    expect(screen.getByText("Todo")).toBeInTheDocument();
+    expect(screen.getByText("Done")).toBeInTheDocument();
+    expect(screen.getAllByText("Changed by alice")).not.toHaveLength(0);
+    expect(
+      screen.getByTestId("issue-change-review-actions"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("issue-change-review-share")).toBeNull();
     expect(
       screen.getByText("Removed attachment old-evidence.txt"),
     ).toBeInTheDocument();
@@ -155,6 +165,7 @@ describe("IssueChangeReviewPage", () => {
     const commentSummary = screen.getByText(/Comment added/);
     fireEvent.click(commentSummary);
     expect(screen.getByText("The complete review comment.")).toBeVisible();
+    expect(document.querySelectorAll("main")).toHaveLength(0);
   });
 
   it("rejects a malformed shared range without falling back to the personal default", async () => {
@@ -187,17 +198,30 @@ describe("IssueChangeReviewPage", () => {
         screen.getByTestId("issue-change-review-results"),
       ).toBeInTheDocument(),
     );
+    expect(
+      screen.getByTestId("issue-change-review-relative-14"),
+    ).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(screen.getByTestId("issue-change-review-relative-14"));
+    expect(
+      screen.getByTestId("issue-change-review-relative-14"),
+    ).toHaveAttribute("aria-pressed", "true");
     await waitFor(async () =>
       expect(await getIssueChangeReviewPeriod("reef-acme")).toBe(14),
     );
 
-    fireEvent.change(screen.getByTestId("issue-change-review-start"), {
-      target: { value: "2026-08-01" },
-    });
-    fireEvent.change(screen.getByTestId("issue-change-review-end"), {
-      target: { value: "2026-08-03" },
-    });
+    function enterDate(id: string, label: string, value: string) {
+      const trigger = document.getElementById(id);
+      if (!trigger) throw new Error(`Missing date picker trigger: ${id}`);
+      fireEvent.click(trigger);
+      const input = screen.getByRole("textbox", {
+        name: `${label} (YYYY-MM-DD)`,
+      });
+      fireEvent.change(input, { target: { value } });
+      fireEvent.keyDown(input, { key: "Enter" });
+    }
+
+    enterDate("issue-change-review-start", "Start date", "2026-08-01");
+    enterDate("issue-change-review-end", "End date", "2026-08-03");
     fireEvent.click(screen.getByTestId("issue-change-review-apply"));
 
     const expectedStart = new Date(2026, 7, 1).toISOString();

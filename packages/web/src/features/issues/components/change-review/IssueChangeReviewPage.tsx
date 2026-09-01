@@ -1,7 +1,22 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { DatePickerField } from "@/components/fields/DatePickerField";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  useIssueTypeLabels,
+  usePriorityLabels,
+  useStatusLabels,
+} from "@/i18n/fieldLabels";
 import { PageHeader } from "@/features/ui/components/PageHeader";
+import { PageBody } from "@/features/ui/components/PageBody";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useIssueChangeReview } from "@/features/issues/hooks/queries/useIssueChangeReview";
 import { parseIsoDate } from "@/features/issues/lib/dateHelpers";
@@ -15,7 +30,7 @@ import type {
   IssueChangeReviewGroup,
   IssueChangeReviewRange,
 } from "@reef/core";
-import { ChevronDown, Clipboard, RotateCcw } from "lucide-react";
+import { ChevronDown, Link2, MoreHorizontal, RotateCcw } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -34,6 +49,12 @@ const DAY_MS = 86_400_000;
 type ChangeReviewTranslator = ReturnType<
   typeof useTranslations<"issues.changeReview">
 >;
+
+type ChangeValueLabels = {
+  status: Record<string, string>;
+  priority: Record<string, string>;
+  issueType: Record<string, string>;
+};
 
 type ReviewPeriod = IssueChangeReviewRange & {
   relativeDays?: number;
@@ -119,10 +140,31 @@ function localDateStart(value: string): Date | null {
   return date ? new Date(date.year, date.month, date.day) : null;
 }
 
-function changeValue(value: unknown): string {
+function changeValue(
+  value: unknown,
+  eventType: string,
+  labels: ChangeValueLabels,
+  t: ChangeReviewTranslator,
+): string {
   if (value == null) return "—";
-  if (Array.isArray(value)) return value.length > 0 ? value.join(", ") : "—";
-  if (typeof value === "object") return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    return value.length > 0
+      ? value.map((item) => changeValue(item, eventType, labels, t)).join(", ")
+      : "—";
+  }
+  if (typeof value === "boolean" && eventType === "archived_change") {
+    return t(value ? "values.archived" : "values.active");
+  }
+  const valueLabels =
+    eventType === "status_change"
+      ? labels.status
+      : eventType === "priority_change"
+        ? labels.priority
+        : eventType === "issue_type_change"
+          ? labels.issueType
+          : undefined;
+  if (typeof value === "string") return valueLabels?.[value] ?? value;
+  if (typeof value === "object") return JSON.stringify(value) ?? "—";
   return String(value);
 }
 
@@ -155,9 +197,11 @@ function fieldName(
 function ChangeDetails({
   change,
   t,
+  valueLabels,
 }: {
   change: IssueChange;
   t: ChangeReviewTranslator;
+  valueLabels: ChangeValueLabels;
 }): ReactNode {
   switch (change.kind) {
     case "created":
@@ -166,29 +210,29 @@ function ChangeDetails({
       return (
         <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
           <span className="font-medium">{fieldName(change, t)}</span>
-          <span className="break-words text-muted-foreground">
-            {changeValue(change.from)}
+          <span className="break-words tabular-nums text-muted-foreground">
+            {changeValue(change.from, change.event_type, valueLabels, t)}
           </span>
           <span aria-hidden="true" className="text-muted-foreground">
             →
           </span>
-          <span className="break-words font-medium">
-            {changeValue(change.to)}
+          <span className="break-words font-medium tabular-nums">
+            {changeValue(change.to, change.event_type, valueLabels, t)}
           </span>
         </div>
       );
     case "body_update":
       return (
-        <details className="min-w-0 rounded-md border border-border-subtle bg-surface-subtle px-3 py-2">
-          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium [&::-webkit-details-marker]:hidden">
+        <details className="group min-w-0">
+          <summary className="flex cursor-pointer list-none items-center gap-2 rounded-md px-1 py-1 text-sm font-medium [&::-webkit-details-marker]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40">
             <ChevronDown
-              className="size-3.5 text-muted-foreground transition-transform [[open]>&]:rotate-180"
+              className="size-3.5 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none"
               aria-hidden="true"
             />
             {t("bodyUpdated")}
           </summary>
           {change.diff ? (
-            <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded border border-border-subtle bg-surface-page p-2 font-mono text-xs text-foreground">
+            <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words border-l-2 border-brand-fill bg-surface-subtle px-3 py-2 font-mono text-xs leading-relaxed text-foreground">
               {change.diff}
             </pre>
           ) : null}
@@ -196,11 +240,11 @@ function ChangeDetails({
       );
     case "comment_added":
       return (
-        <details className="min-w-0 rounded-md border border-border-subtle bg-surface-subtle px-3 py-2">
-          <summary className="cursor-pointer text-sm font-medium">
+        <details className="min-w-0">
+          <summary className="cursor-pointer rounded-md px-1 py-1 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40">
             {t("commentAdded")}
           </summary>
-          <p className="mt-2 whitespace-pre-wrap break-words text-sm text-foreground">
+          <p className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words border-l-2 border-border-subtle pl-3 text-sm leading-relaxed text-foreground">
             {change.body}
           </p>
         </details>
@@ -217,11 +261,13 @@ function ChangeRow({
   t,
   locale,
   timezone,
+  valueLabels,
 }: {
   change: IssueChange;
   t: ChangeReviewTranslator;
   locale: string;
   timezone: string;
+  valueLabels: ChangeValueLabels;
 }) {
   return (
     <li
@@ -231,12 +277,16 @@ function ChangeRow({
     >
       <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
         <span>{t(`kinds.${change.kind}` as never)}</span>
-        <time dateTime={change.at} title={change.at}>
+        <time
+          className="whitespace-nowrap tabular-nums"
+          dateTime={change.at}
+          title={change.at}
+        >
           {formatChangeTime(change.at, locale, timezone)}
         </time>
       </div>
       <div className="min-w-0 text-sm text-foreground">
-        <ChangeDetails change={change} t={t} />
+        <ChangeDetails change={change} t={t} valueLabels={valueLabels} />
       </div>
       <div className="text-xs text-muted-foreground">
         {change.actor ? (
@@ -249,46 +299,145 @@ function ChangeRow({
   );
 }
 
+function ChangeReviewBodySkeleton({ label }: { label: string }) {
+  return (
+    <div
+      className="flex min-w-0 flex-col gap-3"
+      data-testid="issue-change-review-loading"
+      role="status"
+      aria-label={label}
+    >
+      <span className="sr-only">{label}</span>
+      <div className="flex flex-col gap-3" aria-hidden="true">
+        {["summary", "group", "group-short"].map((key) => (
+          <div
+            key={key}
+            className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-border-subtle bg-surface-card px-3 py-3"
+          >
+            <Skeleton tone="secondary" className="h-4 w-2/3 max-w-72" />
+            <Skeleton className="h-4 w-16 shrink-0" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function IssueChangeReviewLoading() {
+  const nav = useTranslations("nav");
+  const t = useTranslations("issues.changeReview");
+  return (
+    <div className="flex h-full min-h-0 min-w-0 flex-col">
+      <PageHeader title={nav("changeReview")} />
+      <PageBody width="wide" pad="compact">
+        <ChangeReviewBodySkeleton label={t("loading")} />
+      </PageBody>
+    </div>
+  );
+}
+
+function ChangeReviewActions({
+  canCopy,
+  onCopy,
+  t,
+}: {
+  canCopy: boolean;
+  onCopy: () => void | Promise<void>;
+  t: ChangeReviewTranslator;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        type="button"
+        data-testid="issue-change-review-actions"
+        aria-label={t("actions")}
+        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+      >
+        <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuItem
+          data-testid="issue-change-review-copy-link"
+          disabled={!canCopy}
+          leading={<Link2 className="size-3.5" />}
+          onSelect={() => void onCopy()}
+        >
+          {t("copyLink")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function ChangeGroup({
   group,
   t,
   locale,
   timezone,
   vault,
+  valueLabels,
 }: {
   group: IssueChangeReviewGroup;
   t: ChangeReviewTranslator;
   locale: string;
   timezone: string;
   vault: string;
+  valueLabels: ChangeValueLabels;
 }) {
+  const latestChange = group.changes[group.changes.length - 1];
   return (
-    <article
-      className="min-w-0 overflow-hidden rounded-lg border border-border-subtle bg-surface-card"
+    <details
+      className="group min-w-0 overflow-hidden rounded-lg border border-border-subtle bg-surface-card"
       data-testid="issue-change-group"
     >
-      <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2 border-b border-border-subtle px-3 py-3">
-        <div className="min-w-0">
-          <Link
-            href={withVault(
-              vault,
-              `/issues/${encodeURIComponent(group.issue.id)}`,
-            )}
-            className="font-medium text-foreground underline-offset-2 hover:underline"
-            data-testid="issue-change-issue-link"
-          >
+      <summary
+        className="flex min-w-0 cursor-pointer list-none items-center gap-3 px-3 py-3 [&::-webkit-details-marker]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
+        data-testid="issue-change-group-summary"
+      >
+        <ChevronDown
+          className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none"
+          aria-hidden="true"
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block min-w-0 break-words font-medium text-foreground">
             {group.issue.title}
-          </Link>
+          </span>
           <span
-            className="ml-2 font-mono text-xs text-muted-foreground"
+            className="font-mono text-xs tabular-nums text-muted-foreground"
             translate="no"
           >
             {group.issue.id}
           </span>
-        </div>
-        <span className="text-xs text-muted-foreground">
-          {t("changeCount", { count: group.changes.length })}
         </span>
+        <span className="shrink-0 text-right text-xs text-muted-foreground">
+          <span className="block tabular-nums">
+            {t("changeCount", { count: group.changes.length })}
+          </span>
+          {latestChange ? (
+            <time
+              className="mt-0.5 block whitespace-nowrap tabular-nums"
+              dateTime={latestChange.at}
+              title={latestChange.at}
+            >
+              {t("lastChange", {
+                time: formatChangeTime(latestChange.at, locale, timezone),
+              })}
+            </time>
+          ) : null}
+        </span>
+      </summary>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border-subtle px-3 py-2">
+        <span className="text-xs text-muted-foreground">{t("details")}</span>
+        <Link
+          href={withVault(
+            vault,
+            `/issues/${encodeURIComponent(group.issue.id)}`,
+          )}
+          className="text-xs font-medium text-brand-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+          data-testid="issue-change-issue-link"
+        >
+          {t("openIssue")}
+        </Link>
       </div>
       <ol className="m-0 list-none p-0">
         {group.changes.map((change) => (
@@ -298,10 +447,11 @@ function ChangeGroup({
             t={t}
             locale={locale}
             timezone={timezone}
+            valueLabels={valueLabels}
           />
         ))}
       </ol>
-    </article>
+    </details>
   );
 }
 
@@ -312,6 +462,9 @@ export function IssueChangeReviewPage() {
   const locale = useLocale();
   const nav = useTranslations("nav");
   const t = useTranslations("issues.changeReview");
+  const statusLabels = useStatusLabels();
+  const priorityLabels = usePriorityLabels();
+  const issueTypeLabels = useIssueTypeLabels();
   const [period, setPeriod] = useState<ReviewPeriod | null>(null);
   const [draftStart, setDraftStart] = useState("");
   const [draftEnd, setDraftEnd] = useState("");
@@ -361,6 +514,12 @@ export function IssueChangeReviewPage() {
     : null;
   const review = useIssueChangeReview(vault, range);
 
+  const valueLabels = {
+    status: statusLabels,
+    priority: priorityLabels,
+    issueType: issueTypeLabels,
+  };
+
   const selectRelative = useCallback(
     (days: number) => {
       const next = relativePeriod(days);
@@ -369,8 +528,9 @@ export function IssueChangeReviewPage() {
       setDraftStart(dateInTimezone(next.start_at, next.timezone));
       setDraftEnd(dateInTimezone(next.end_at, next.timezone));
       void setIssueChangeReviewPeriod(vault, days).catch(() => undefined);
-      // A relative preference is intentionally not put in the URL. A copied
-      // link is made explicit by `share`, while reopening recomputes this range.
+      // A relative preference is intentionally not put in the URL. The
+      // overflow action makes copied links explicit, while reopening
+      // recomputes this range.
       if (new URLSearchParams(explicitQuery).size > 0) {
         router.replace(withVault(vault, "/issues/changes"));
       }
@@ -446,157 +606,149 @@ export function IssueChangeReviewPage() {
         title={nav("changeReview")}
         description={vault || undefined}
         actions={
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => void sharePeriod()}
-            disabled={!period}
-            data-testid="issue-change-review-share"
-          >
-            <Clipboard className="size-3.5" aria-hidden="true" />
-            {t("share")}
-          </Button>
+          <ChangeReviewActions
+            canCopy={period !== null}
+            onCopy={sharePeriod}
+            t={t}
+          />
         }
       />
 
-      <main className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
-        <div className="mx-auto flex w-full max-w-4xl min-w-0 flex-col gap-4">
-          <section
-            className="rounded-lg border border-border-subtle bg-surface-card p-3"
-            aria-labelledby="issue-change-review-period"
-          >
-            <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2
-                  id="issue-change-review-period"
-                  className="text-sm font-semibold text-foreground"
-                >
-                  {t("periodTitle")}
-                </h2>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {period ? rangeLabel : t("loading")}
-                </p>
-              </div>
-              <div
-                className="flex flex-wrap gap-1.5"
-                role="group"
-                aria-label={t("relativeGroupLabel")}
+      <PageBody width="wide" pad="compact" className="flex flex-col gap-4">
+        <section
+          className="rounded-lg border border-border-subtle bg-surface-card p-3"
+          aria-labelledby="issue-change-review-period"
+        >
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2
+                id="issue-change-review-period"
+                className="text-sm font-semibold text-foreground"
               >
-                {RELATIVE_DAYS.map((days) => (
-                  <Button
-                    key={days}
-                    type="button"
-                    size="sm"
-                    variant={
-                      period?.relativeDays === days ? "default" : "outline"
-                    }
-                    onClick={() => selectRelative(days)}
-                    data-testid={`issue-change-review-relative-${days}`}
-                  >
-                    {t("lastDays", { days })}
-                  </Button>
-                ))}
-              </div>
-            </div>
-            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-              <label className="flex min-w-0 flex-col gap-1 text-xs text-muted-foreground">
-                {t("start")}
-                <input
-                  className="h-9 rounded-md border border-border bg-surface-page px-2 text-sm text-foreground"
-                  type="date"
-                  value={draftStart}
-                  onChange={(event) => setDraftStart(event.target.value)}
-                  data-testid="issue-change-review-start"
-                />
-              </label>
-              <label className="flex min-w-0 flex-col gap-1 text-xs text-muted-foreground">
-                {t("end")}
-                <input
-                  className="h-9 rounded-md border border-border bg-surface-page px-2 text-sm text-foreground"
-                  type="date"
-                  value={draftEnd}
-                  onChange={(event) => setDraftEnd(event.target.value)}
-                  data-testid="issue-change-review-end"
-                />
-              </label>
-              <Button
-                type="button"
-                size="sm"
-                onClick={applyCustomRange}
-                data-testid="issue-change-review-apply"
-              >
-                {t("apply")}
-              </Button>
-            </div>
-            {rangeError ? (
-              <p className="mt-2 text-xs text-destructive-text" role="alert">
-                {t("invalidRange")}
-              </p>
-            ) : null}
-          </section>
-
-          {!period && rangeError ? null : review.isPending ? (
-            <p
-              className="rounded-lg border border-border-subtle bg-surface-card p-6 text-sm text-muted-foreground"
-              role="status"
-              data-testid="issue-change-review-loading"
-            >
-              {t("loading")}
-            </p>
-          ) : review.isError ? (
-            <section
-              className="rounded-lg border border-destructive-text/30 bg-surface-card p-6"
-              role="alert"
-              data-testid="issue-change-review-error"
-            >
-              <p className="text-sm text-destructive-text">{t("loadError")}</p>
-              <Button
-                className="mt-3"
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => void review.refetch()}
-              >
-                <RotateCcw className="size-3.5" aria-hidden="true" />
-                {t("retry")}
-              </Button>
-            </section>
-          ) : groups.length === 0 ? (
-            <section
-              className="rounded-lg border border-border-subtle bg-surface-card p-8 text-center"
-              data-testid="issue-change-review-empty"
-            >
-              <h2 className="text-sm font-semibold text-foreground">
-                {t("emptyTitle")}
+                {t("periodTitle")}
               </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {t("emptyDescription")}
+              <p className="mt-1 text-xs text-muted-foreground">
+                {period ? rangeLabel : t("loading")}
               </p>
-            </section>
-          ) : (
-            <section
-              className="flex min-w-0 flex-col gap-3"
-              aria-label={t("resultsLabel")}
-              data-testid="issue-change-review-results"
+            </div>
+            <div
+              className="flex flex-wrap gap-1.5"
+              role="group"
+              aria-label={t("relativeGroupLabel")}
             >
-              <p className="text-xs text-muted-foreground">
-                {t("resultCount", { issues: groups.length })}
-              </p>
-              {groups.map((group) => (
-                <ChangeGroup
-                  key={group.issue.id}
-                  group={group}
-                  t={t}
-                  locale={locale}
-                  timezone={period?.timezone ?? "UTC"}
-                  vault={vault}
-                />
+              {RELATIVE_DAYS.map((days) => (
+                <Button
+                  key={days}
+                  type="button"
+                  size="sm"
+                  aria-pressed={period?.relativeDays === days}
+                  variant={
+                    period?.relativeDays === days ? "default" : "outline"
+                  }
+                  onClick={() => selectRelative(days)}
+                  data-testid={`issue-change-review-relative-${days}`}
+                >
+                  {t("lastDays", { days })}
+                </Button>
               ))}
-            </section>
-          )}
-        </div>
-      </main>
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+            <div className="min-w-0">
+              <label
+                htmlFor="issue-change-review-start"
+                className="mb-1 block text-xs text-muted-foreground"
+              >
+                {t("start")}
+              </label>
+              <DatePickerField
+                id="issue-change-review-start"
+                value={draftStart}
+                label={t("start")}
+                onChange={setDraftStart}
+              />
+            </div>
+            <div className="min-w-0">
+              <label
+                htmlFor="issue-change-review-end"
+                className="mb-1 block text-xs text-muted-foreground"
+              >
+                {t("end")}
+              </label>
+              <DatePickerField
+                id="issue-change-review-end"
+                value={draftEnd}
+                label={t("end")}
+                onChange={setDraftEnd}
+              />
+            </div>
+            <Button
+              type="button"
+              size="default"
+              hitTarget="compact"
+              onClick={applyCustomRange}
+              data-testid="issue-change-review-apply"
+            >
+              {t("apply")}
+            </Button>
+          </div>
+          {rangeError ? (
+            <p className="mt-2 text-xs text-destructive-text" role="alert">
+              {t("invalidRange")}
+            </p>
+          ) : null}
+        </section>
+
+        {!period && rangeError ? null : review.isPending ? (
+          <ChangeReviewBodySkeleton label={t("loading")} />
+        ) : review.isError ? (
+          <section
+            className="rounded-lg border border-destructive-text/30 bg-surface-card p-6"
+            role="alert"
+            data-testid="issue-change-review-error"
+          >
+            <p className="text-sm text-destructive-text">{t("loadError")}</p>
+            <Button
+              className="mt-3"
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => void review.refetch()}
+            >
+              <RotateCcw className="size-3.5" aria-hidden="true" />
+              {t("retry")}
+            </Button>
+          </section>
+        ) : groups.length === 0 ? (
+          <EmptyState
+            className="rounded-lg border border-border-subtle bg-surface-card p-8 text-center"
+            data-testid="issue-change-review-empty"
+            title={t("emptyTitle")}
+            description={t("emptyDescription")}
+          />
+        ) : (
+          <section
+            className="flex min-w-0 flex-col gap-3"
+            aria-label={t("resultsLabel")}
+            data-testid="issue-change-review-results"
+          >
+            <p className="text-xs text-muted-foreground">
+              {t("resultCount", { issues: groups.length })}
+            </p>
+            {groups.map((group) => (
+              <ChangeGroup
+                key={group.issue.id}
+                group={group}
+                t={t}
+                locale={locale}
+                timezone={period?.timezone ?? "UTC"}
+                vault={vault}
+                valueLabels={valueLabels}
+              />
+            ))}
+          </section>
+        )}
+      </PageBody>
     </div>
   );
 }
