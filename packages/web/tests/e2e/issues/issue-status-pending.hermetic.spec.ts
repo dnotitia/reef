@@ -74,27 +74,14 @@ async function chooseBoardAssignee(
   await page.getByRole("option", { name: label }).click();
 }
 
-async function addListLabel(
+async function addLabel(
   page: Parameters<typeof openExistingWorkspace>[0],
   id: string,
   label: string,
+  surface: "list" | "board",
 ) {
-  const row = issueRow(page, id);
-  await row.focus();
-  await page.keyboard.press("l");
-  const input = page.getByTestId("issue-quick-edit-labels");
-  await expect(input).toBeVisible();
-  await input.fill(label);
-  await input.press("Enter");
-}
-
-async function addBoardLabel(
-  page: Parameters<typeof openExistingWorkspace>[0],
-  id: string,
-  label: string,
-) {
-  const card = issueCard(page, id);
-  await card.focus();
+  const target = surface === "list" ? issueRow(page, id) : issueCard(page, id);
+  await target.focus();
   await page.keyboard.press("l");
   const input = page.getByTestId("issue-quick-edit-labels");
   await expect(input).toBeVisible();
@@ -112,16 +99,6 @@ async function fixtureIssue(
     ?.issues.find((candidate) => candidate.id === id);
   if (!issue) throw new Error(`Missing fixture issue: ${id}`);
   return issue;
-}
-
-async function fixtureIssueStatus(
-  request: Parameters<typeof readFixtureState>[0],
-  id: string,
-) {
-  const state = await readFixtureState(request);
-  return state.vaults
-    .find((vault) => vault.name === REEF_E2E_VAULT)
-    ?.issues.find((issue) => issue.id === id)?.status;
 }
 
 test.describe("Hermetic issue quick-edit save state", () => {
@@ -176,7 +153,9 @@ test.describe("Hermetic issue quick-edit save state", () => {
 
     await expect(trigger).not.toHaveAttribute("aria-busy");
     await expect(trigger).toHaveAccessibleName("Status");
-    expect(await fixtureIssueStatus(request, "REEF-001")).toBe("in_progress");
+    expect((await fixtureIssue(request, "REEF-001")).status).toBe(
+      "in_progress",
+    );
   });
 
   test("shows pending and success for List priority, assignee, and labels", async ({
@@ -209,7 +188,7 @@ test.describe("Hermetic issue quick-edit save state", () => {
       .poll(async () => (await fixtureIssue(request, "REEF-001")).priority)
       .toBe("medium");
 
-    await addListLabel(page, "REEF-001", "quick-edit");
+    await addLabel(page, "REEF-001", "quick-edit", "list");
     const labelsInput = page.getByTestId("issue-quick-edit-labels");
     const labelsAnchor = page.getByTestId("issue-quick-edit-anchor");
     await expect(labelsInput).toBeDisabled();
@@ -338,7 +317,7 @@ test.describe("Hermetic issue quick-edit save state", () => {
       .poll(async () => (await fixtureIssue(request, "REEF-001")).priority)
       .toBe("medium");
 
-    await addBoardLabel(page, "REEF-001", "board-edit");
+    await addLabel(page, "REEF-001", "board-edit", "board");
     const labelsInput = page.getByTestId("issue-quick-edit-labels");
     await expect(labelsInput).toBeDisabled();
     await expect(page.getByTestId("issue-quick-edit-anchor")).toHaveAttribute(
@@ -388,7 +367,7 @@ test.describe("Hermetic issue quick-edit save state", () => {
 
     await expect(secondTrigger).not.toHaveAttribute("aria-busy");
     await expect(firstTrigger).toHaveAttribute("aria-busy", "true");
-    expect(await fixtureIssueStatus(request, "REEF-002")).toBe("done");
+    expect((await fixtureIssue(request, "REEF-002")).status).toBe("done");
 
     await expect(firstTrigger).not.toHaveAttribute("aria-busy");
     await expect(firstTrigger).toContainText("Todo");
@@ -397,7 +376,7 @@ test.describe("Hermetic issue quick-edit save state", () => {
       "Status update failed. Retry is available.",
     );
     await expect(secondTrigger).toContainText("Done");
-    expect(await fixtureIssueStatus(request, "REEF-001")).toBe("todo");
+    expect((await fixtureIssue(request, "REEF-001")).status).toBe("todo");
     await expect.poll(() => firstPatchCount).toBe(1);
 
     const retry = page.getByRole("button", { name: "Retry", exact: true });
@@ -408,7 +387,9 @@ test.describe("Hermetic issue quick-edit save state", () => {
     await expect.poll(() => firstPatchCount).toBe(2);
     await expect(firstTrigger).not.toHaveAttribute("aria-busy");
     await expect(firstTrigger).toContainText("In Progress");
-    expect(await fixtureIssueStatus(request, "REEF-001")).toBe("in_progress");
+    expect((await fixtureIssue(request, "REEF-001")).status).toBe(
+      "in_progress",
+    );
     await expect(secondTrigger).toContainText("Done");
   });
 });

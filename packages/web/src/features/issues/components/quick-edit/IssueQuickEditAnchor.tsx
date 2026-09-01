@@ -72,13 +72,6 @@ const DEFAULT_QUICK_EDIT_WIDTH = "w-56";
 const COMPACT_QUICK_EDIT_WIDTH_PX = 192;
 const DEFAULT_QUICK_EDIT_WIDTH_PX = 224;
 const QUICK_EDIT_VIEWPORT_MARGIN_PX = 8;
-const QUICK_EDIT_PATCH_FIELDS = {
-  status: "status",
-  priority: "priority",
-  assignee: "assigned_to",
-  labels: "labels",
-} as const;
-
 function sameStringArray(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index]);
 }
@@ -134,7 +127,8 @@ export function IssueQuickEditAnchor({
       ? request.field
       : null;
   const fieldUpdate =
-    field !== null && update.fields.includes(QUICK_EDIT_PATCH_FIELDS[field]);
+    field !== null &&
+    update.fields.includes(field === "assignee" ? "assigned_to" : field);
   const fieldPending = issuePending && fieldUpdate;
   const fieldMessage =
     field !== null && fieldUpdate && update.status === "pending"

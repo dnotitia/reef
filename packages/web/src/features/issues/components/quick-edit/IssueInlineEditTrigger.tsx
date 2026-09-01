@@ -21,13 +21,6 @@ interface IssueInlineEditTriggerProps {
   anchorRef?: Ref<HTMLButtonElement>;
 }
 
-const QUICK_EDIT_PATCH_FIELDS = {
-  status: "status",
-  priority: "priority",
-  assignee: "assigned_to",
-  labels: "labels",
-} as const;
-
 /**
  * Shared field trigger for the List and Backlog quick-edit surfaces. The
  * trigger owns keyboard/focus intent; mutation and the portaled editor
@@ -45,7 +38,9 @@ export function IssueInlineEditTrigger({
 }: IssueInlineEditTriggerProps) {
   const update = useIssueUpdateState(vault, issueId);
   const quickEdit = useTranslations("issues.quickEdit");
-  const fieldUpdate = update.fields.includes(QUICK_EDIT_PATCH_FIELDS[field]);
+  const fieldUpdate = update.fields.includes(
+    field === "assignee" ? "assigned_to" : field,
+  );
   const fieldPending = update.status === "pending" && fieldUpdate;
   const fieldMessage =
     fieldUpdate && update.status === "pending"
