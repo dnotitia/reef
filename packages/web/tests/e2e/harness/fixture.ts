@@ -134,6 +134,17 @@ export async function setIssueListFailure(
   expect(response.ok()).toBeTruthy();
 }
 
+export async function setPlanningCatalogFailure(
+  request: APIRequestContext,
+  enabled: boolean,
+): Promise<void> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/planning-catalog-failure`,
+    { data: { enabled } },
+  );
+  expect(response.ok()).toBeTruthy();
+}
+
 export async function setContentSearchMode(
   request: APIRequestContext,
   mode: "healthy" | "degraded" | "error" | "missing-comments",

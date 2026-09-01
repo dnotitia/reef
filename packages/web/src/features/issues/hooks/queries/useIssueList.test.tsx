@@ -84,6 +84,30 @@ describe("useIssueList", () => {
     expect(result.current.error?.message).toContain("Workspace not found");
   });
 
+  it("refetches an issue failure into a successful empty result", async () => {
+    mockApiFetch
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "temporary failure" }), {
+          status: 503,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ issues: [] }), { status: 200 }),
+      );
+
+    const { result } = renderHook(() => useIssueList("reef-acme"), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.data).toBeUndefined();
+
+    await result.current.refetch();
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual([]);
+    expect(mockApiFetch).toHaveBeenCalledTimes(2);
+  });
+
   it("keeps prior same-vault rows as placeholder by default during a key change", async () => {
     const aliceRows = [{ ...ISSUES[0], id: "REEF-A" }] as IssueMetadata[];
     mockApiFetch.mockResolvedValueOnce(

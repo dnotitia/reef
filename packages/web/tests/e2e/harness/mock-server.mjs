@@ -185,6 +185,17 @@ const server = createServer(async (req, res) => {
         issue_list_next_page_failures: state.issueListNextPageFailures,
       });
     }
+    if (
+      url.pathname === "/__e2e/planning-catalog-failure" &&
+      req.method === "POST"
+    ) {
+      const body = await readJson(req);
+      state.planningCatalogFailure = body?.enabled === true;
+      return json(res, 200, {
+        ok: true,
+        planning_catalog_failure: state.planningCatalogFailure,
+      });
+    }
     if (url.pathname === "/__e2e/vault-list-control" && req.method === "POST") {
       const body = await readJson(req);
       state.vaultListDelayMs = Math.max(0, Number(body?.delay_ms ?? 0));
@@ -451,6 +462,18 @@ function runtimeDiscovery() {
           ],
         },
       },
+      issue_list_failure: {
+        method: "POST",
+        path: "/__e2e/issue-list-failure",
+        content_type: "application/json",
+        body: { enabled: "<boolean>", next_page_failures: "<count>" },
+      },
+      planning_catalog_control: {
+        method: "POST",
+        path: "/__e2e/planning-catalog-failure",
+        content_type: "application/json",
+        body: { enabled: "<boolean>" },
+      },
       auth_control: {
         method: "POST",
         path: "/__e2e/auth-control",
@@ -545,6 +568,20 @@ function runtimeDiscovery() {
           type: "planning_overflow_tooltip",
           operation:
             "open the Issues Milestone filter, move the pointer from an overflowing milestone through its tooltip to the adjacent short option, observe active transition and tooltip dismissal, select it, and verify the filter URL and displayed value update at 1280x900 and 390x844",
+        },
+      },
+      planning_read_failures: {
+        scenario: "configured",
+        workspace: "reef-e2e",
+        start_path: "/workspace/reef-e2e/planning",
+        controls: {
+          planning_catalog_control: ["toggle planning catalog failure"],
+          issue_list_failure: ["toggle linked issue list failure"],
+        },
+        interaction: {
+          type: "planning_read_failures",
+          operation:
+            "observe catalog and linked-issue read failures separately from true empty planning data, retry each failed read, and verify the planning rows converge to accurate counts and safe deletion availability",
         },
       },
       named_issue_filters: {
@@ -669,6 +706,7 @@ function makeState(scenario) {
     vaults: new Map(),
     issueListFailure: false,
     issueListNextPageFailures: 0,
+    planningCatalogFailure: false,
     contentSearchMode: "healthy",
     contentSearchDelayMs: 0,
     vaultListDelayMs: 0,
@@ -2723,6 +2761,9 @@ function handleSql(vault, sql) {
 
   for (const table of ["reef_sprints", "reef_milestones", "reef_releases"]) {
     if (lower.startsWith(`select * from ${table}`)) {
+      if (state.planningCatalogFailure) {
+        return { error: "e2e forced planning catalog failure" };
+      }
       return tableQuery(
         planningColumns(table),
         selectPlanningRows(vault, table, normalized),
