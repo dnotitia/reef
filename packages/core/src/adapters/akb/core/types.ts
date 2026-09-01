@@ -101,12 +101,16 @@ export interface UpdateIssueParams {
    * edit is document-dirty (body/title/labels/relations) it is sent as akb's
    * `expected_commit` precondition so a concurrent external edit is rejected
    * with a `ConflictError` instead of silently overwritten (REEF-227). Ignored
-   * for row-edits, which stay last-write-wins.
+   * for row-edits, which use `expectedUpdatedAt` when a trusted caller needs a
+   * row freshness guard and otherwise stay last-write-wins.
    */
   expectedCommit?: string;
   /**
-   * Row-level OCC base for trusted read-modify-write callers. The update
-   * proceeds when the persisted row still carries this `updated_at` value.
+   * Row freshness base for trusted read-modify-write callers. The value should
+   * come from the same issue snapshot; `updateIssue` includes it in a
+   * conditional row UPDATE and expects `RETURNING reef_id`, mapping an empty
+   * result to `ConflictError`. Omit it for ordinary metadata edits, which stay
+   * last-write-wins.
    */
   expectedUpdatedAt?: string;
 }

@@ -50,8 +50,15 @@ table rows in `reef_templates`, not searchable AKB documents.
   types instead of redefining them in `web`.
 - Wire fields from AKB rows/documents and GitHub payloads stay `snake_case`.
   TypeScript variables and function names stay camelCase.
-- AKB writes are last-write-wins and non-transactional across document plus row.
-  Do not add CAS, `sha`, or `expectedHeadOid` plumbing in this repository.
+- AKB issue writes span the linked document and row non-transactionally, with
+  compensation for partial failure. Ordinary metadata updates remain
+  last-write-wins; trusted read-modify-write callers may pass the row's
+  `updated_at` as `UpdateIssueParams.expectedUpdatedAt`, which guards a
+  conditional row update and turns an empty `RETURNING` result into a
+  `ConflictError`. Document-projected edits may pass `expectedCommit`, which
+  is forwarded as the document's `expected_commit` precondition. Do not add a
+  new generic row version/CAS schema (`sha`, `expectedHeadOid`, or a version
+  column) or a cross-store CAS transaction.
 - Async AKB boundaries should be wrapped in OpenTelemetry spans. Web-owned
   GitHub and LLM boundaries use the same core observability seam from their
   server-only adapters.
