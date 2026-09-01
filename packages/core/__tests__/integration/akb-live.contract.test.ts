@@ -268,6 +268,25 @@ function expectFileCredentialBoundary(
   );
 }
 
+function wrapLiveAdapter(
+  baseAdapter: AkbStreamAdapter,
+  request: AkbStreamAdapter["request"],
+): AkbStreamAdapter {
+  return { request, stream: baseAdapter.stream };
+}
+
+describe("AKB live adapter construction", () => {
+  it("preserves the stream capability when request instrumentation wraps the adapter", () => {
+    const baseAdapter = createAkbAdapter({
+      baseUrl: "https://akb.test",
+      jwt: "test-jwt",
+    });
+    const wrapped = wrapLiveAdapter(baseAdapter, baseAdapter.request);
+
+    expect(typeof wrapped.stream).toBe("function");
+  });
+});
+
 describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
   const baseUrl = BASE_URL as string;
   let adapter: AkbStreamAdapter;
@@ -297,24 +316,22 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
     });
     sessionToken = token;
     const baseAdapter = createAkbAdapter({ baseUrl, jwt: token });
-    adapter = {
-      request: async (...args) => {
-        const [path, init] = args;
-        if (
-          path === `/api/v1/tables/${encodeURIComponent(vault)}` &&
-          init?.method === "POST"
-        ) {
-          provisionCreateCount += 1;
-        }
-        if (
-          path.startsWith(`/api/v1/tables/${encodeURIComponent(vault)}/`) &&
-          init?.method === "PATCH"
-        ) {
-          provisionAlterCount += 1;
-        }
-        return baseAdapter.request(...args);
-      },
-    };
+    adapter = wrapLiveAdapter(baseAdapter, async (...args) => {
+      const [path, init] = args;
+      if (
+        path === `/api/v1/tables/${encodeURIComponent(vault)}` &&
+        init?.method === "POST"
+      ) {
+        provisionCreateCount += 1;
+      }
+      if (
+        path.startsWith(`/api/v1/tables/${encodeURIComponent(vault)}/`) &&
+        init?.method === "PATCH"
+      ) {
+        provisionAlterCount += 1;
+      }
+      return baseAdapter.request(...args);
+    });
 
     // Throwaway vault per run so local re-runs never collide; teardown below.
     const vaultSuffix =
