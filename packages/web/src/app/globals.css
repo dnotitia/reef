@@ -1796,6 +1796,10 @@ hr {
  * edge. The 481–767px gap intentionally preserves the effective-200% layout
  * used by the existing sticky-boundary contract. */
 @media (max-width: 480px) {
+  .issue-detail-sheet {
+    width: 100vw !important;
+  }
+
   .reef-issue-list-table {
     min-width: 0 !important;
   }
