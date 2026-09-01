@@ -514,14 +514,11 @@ describe("useIssueUrlSync", () => {
     await user.click(screen.getByTestId("my-view-trigger"));
     await user.click(screen.getByRole("menuitem", { name: /^Triage/ }));
 
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    await waitFor(() =>
-      expect(navigationState.searchParams.has("q")).toBe(false),
-    );
-    expect(useIssueStore.getState().searchQuery).toBe("");
-    await waitFor(() =>
-      expect(screen.getByTestId("search-input")).toHaveValue(""),
-    );
+    await waitFor(() => {
+      expect(navigationState.searchParams.has("q")).toBe(false);
+      expect(useIssueStore.getState().searchQuery).toBe("");
+      expect(screen.getByTestId("search-input")).toHaveValue("");
+    });
   });
 
   it("restores List optional columns from an explicit URL", async () => {
