@@ -412,11 +412,12 @@ describe("NewIssueDialog", () => {
     render(wrap(<NewIssueDialog />));
 
     await screen.findByText("New Issue");
-    await user.type(
-      screen.getByTestId("new-issue-title-input"),
-      "Keep this draft",
-    );
-    await user.type(screen.getByTestId("markdown-source-textarea"), "Body");
+    fireEvent.change(screen.getByTestId("new-issue-title-input"), {
+      target: { value: "Keep this draft" },
+    });
+    fireEvent.change(screen.getByTestId("markdown-source-textarea"), {
+      target: { value: "Body" },
+    });
     expect(screen.getByTestId("draft-conversation-toggle")).toHaveAttribute(
       "aria-controls",
       "draft-conversation-panel",
@@ -481,15 +482,17 @@ describe("NewIssueDialog", () => {
     await screen.findByText("New Issue");
     await user.click(screen.getByTestId("draft-conversation-toggle"));
     const input = screen.getByTestId("new-issue-chat-input");
-    await user.type(input, "remember this question");
+    fireEvent.change(input, { target: { value: "remember this question" } });
     await user.click(screen.getByTestId("draft-conversation-close"));
 
     expect(screen.getByTestId("draft-conversation-toggle")).toHaveFocus();
     expect(screen.queryByTestId("new-issue-chat-input")).toBeNull();
 
     await user.click(screen.getByTestId("draft-conversation-toggle"));
-    expect(screen.getByTestId("new-issue-chat-input")).toHaveValue(
-      "remember this question",
+    await waitFor(() =>
+      expect(screen.getByTestId("new-issue-chat-input")).toHaveValue(
+        "remember this question",
+      ),
     );
   });
 
