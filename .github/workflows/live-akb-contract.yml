@@ -46,6 +46,23 @@ jobs:
       - name: Checkout reef
         uses: actions/checkout@v5
 
+      # Do not restore or save tool caches: matrix.akb_ref selects external
+      # code, and this workflow runs on scheduled/manual privileged events.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          cache: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          cache: ""
+          package-manager-cache: false
+
+      - name: Install Reef dependencies
+        run: pnpm install --frozen-lockfile
+
       # akb is public, so no token is needed — just pin the ref.
       - name: Checkout akb
         uses: actions/checkout@v5
@@ -70,23 +87,6 @@ jobs:
       - name: Install AKB runtime dependencies
         working-directory: .akb-live
         run: uv sync --locked --extra dev --project backend
-
-      # Do not restore or save tool caches: matrix.akb_ref selects external
-      # code, and this workflow runs on scheduled/manual privileged events.
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          cache: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version-file: .node-version
-          cache: ""
-          package-manager-cache: false
-
-      - name: Install Reef dependencies
-        run: pnpm install --frozen-lockfile
 
       - name: Run live AKB contract smoke
         run: |
