@@ -37,7 +37,7 @@ export function InlineWordDiff({
 }) {
   const keyed = withKeys(wordDiff(before, after));
   return (
-    <p className="text-xs leading-relaxed">
+    <p className="type-caption leading-relaxed">
       {keyed.map(({ key, segment }, index) => (
         <span key={key} className={SEGMENT_CLASS[segment.type]}>
           {segment.text}
@@ -89,7 +89,7 @@ export function CollapsibleLineDiff({
           <div
             key={key}
             className={cn(
-              "flex gap-2 px-2 py-1 font-mono text-[11px] leading-snug",
+              "flex gap-2 px-2 py-1 type-mono-value",
               type === "remove" && "bg-muted/40 text-muted-foreground",
               type === "add" && "bg-ai-subtle text-ai-subtle-foreground",
               type === "equal" && "text-foreground/60",
@@ -109,7 +109,7 @@ export function CollapsibleLineDiff({
           type="button"
           variant="ghost"
           size="sm"
-          className="h-7 w-full justify-start rounded-none border-t border-ai-border text-[11px] text-ai-subtle-foreground"
+          className="h-7 w-full justify-start rounded-none border-t border-ai-border type-caption text-ai-subtle-foreground"
           onClick={() => setExpanded((prev) => !prev)}
           data-testid={`field-suggestion-diff-toggle-${fieldTestId}`}
         >

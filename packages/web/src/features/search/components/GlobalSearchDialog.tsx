@@ -691,14 +691,14 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
                       className="flex min-w-0 flex-1 flex-col gap-1.5 py-0.5"
                     >
                       <span className="flex min-w-0 items-center gap-2">
-                        <span className="shrink-0 font-mono text-xs font-semibold text-brand-text">
+                        <span className="shrink-0 type-mono-value font-semibold text-brand-text">
                           {result.reef_id}
                         </span>
                         <span className="truncate text-sm font-medium">
                           {result.title}
                         </span>
                       </span>
-                      <span className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                      <span className="type-caption line-clamp-2 leading-relaxed text-muted-foreground">
                         <span
                           className="font-medium text-muted-foreground"
                           data-testid={`global-search-content-source-${result.source}`}
@@ -732,7 +732,7 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
                     data-testid="global-search-content-more"
                     disabled={contentInFlight}
                     onClick={loadMore}
-                    className="mx-auto mt-1 block rounded-md px-3 py-1.5 text-xs font-medium text-brand-text transition-colors hover:bg-brand-fill/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus disabled:pointer-events-none disabled:opacity-50"
+                    className="mx-auto mt-1 block rounded-md px-3 py-1.5 type-caption font-medium text-brand-text transition-colors hover:bg-brand-fill/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus disabled:pointer-events-none disabled:opacity-50"
                   >
                     {contentInFlight ? t("loadingMore") : t("loadMore")}
                   </button>

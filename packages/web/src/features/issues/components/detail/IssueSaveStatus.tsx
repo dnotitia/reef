@@ -29,7 +29,7 @@ function IssueSaveStatusComponent({
     return (
       <span
         data-testid="issue-save-status"
-        className="text-[11px] text-muted-foreground"
+        className="type-caption text-muted-foreground"
       >
         {t("saving")}
       </span>
@@ -39,7 +39,7 @@ function IssueSaveStatusComponent({
     return (
       <span
         data-testid="issue-save-status"
-        className="inline-flex items-center gap-1 text-[11px] text-muted-foreground"
+        className="inline-flex items-center gap-1 type-caption text-muted-foreground"
       >
         <Check className="h-3 w-3" aria-hidden="true" />
         {t("saved")}
@@ -50,7 +50,7 @@ function IssueSaveStatusComponent({
     return (
       <span
         data-testid="issue-save-status"
-        className="inline-flex items-center gap-1 text-[11px] text-destructive-text"
+        className="inline-flex items-center gap-1 type-caption text-destructive-text"
       >
         <AlertTriangle className="h-3 w-3" aria-hidden="true" />
         {t("notSaved")}

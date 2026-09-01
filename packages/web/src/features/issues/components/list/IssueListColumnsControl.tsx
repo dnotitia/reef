@@ -30,7 +30,7 @@ export function IssueListColumnsControl({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className="h-8 gap-1.5 rounded-md border border-border bg-surface-elevated px-2.5 text-[13px] text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground"
+        className="h-8 gap-1.5 rounded-md border border-border bg-surface-elevated px-2.5 type-caption text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground"
         aria-label={t("columns")}
         data-testid="issue-list-columns-control"
       >

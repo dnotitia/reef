@@ -122,12 +122,7 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
       )}
     >
       <div className="flex shrink-0 items-center justify-between border-b border-border-subtle px-4 py-2.5">
-        <h2
-          className="font-display text-sm font-semibold text-foreground"
-          style={{ letterSpacing: "-0.01em" }}
-        >
-          {t("title")}
-        </h2>
+        <h2 className="type-group-title text-foreground">{t("title")}</h2>
         <div className="flex items-center gap-0.5">
           <Button
             variant="ghost"
@@ -157,7 +152,7 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
       {!isAvailable && !aiLoading ? (
         <div
           data-testid="ai-unavailable-banner"
-          className="px-4 py-3 text-sm text-muted-foreground"
+          className="px-4 py-3 type-body text-muted-foreground"
         >
           <p className="font-semibold text-foreground">
             {t("unavailableTitle")}
@@ -173,7 +168,7 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
           vault={vault}
           knownIssueIds={knownIssueIds}
           emptyState={
-            <p className="pt-8 text-center text-sm text-muted-foreground">
+            <p className="pt-8 text-center type-body text-muted-foreground">
               {t("emptyState")}
             </p>
           }
@@ -188,10 +183,13 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
                 aria-label={t("issueContextChipLabel", {
                   id: issueContext.reefId,
                 })}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface-subtle px-2 py-1 text-xs text-muted-foreground"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface-subtle px-2 py-1 type-caption text-muted-foreground"
               >
                 <FileText className="h-3 w-3 shrink-0" aria-hidden="true" />
-                <span className="font-medium text-foreground" translate="no">
+                <span
+                  className="type-mono-value font-medium text-foreground"
+                  translate="no"
+                >
                   {issueContext.reefId}
                 </span>
                 <button

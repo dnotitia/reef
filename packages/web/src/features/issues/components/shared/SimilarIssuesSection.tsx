@@ -95,11 +95,11 @@ export function SimilarIssuesSection({
                 aria-label={`${statusLabels[issue.status]} ${issue.id} ${issue.title}`}
                 title={t("openIssue", { id: issue.id })}
                 data-testid="similar-issue-row"
-                className="group grid min-h-8 min-w-0 touch-manipulation grid-cols-[minmax(0,1fr)_1.25rem] items-center gap-2 rounded-sm py-1.5 text-foreground text-xs hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+                className="group grid min-h-8 min-w-0 touch-manipulation grid-cols-[minmax(0,1fr)_1.25rem] items-center gap-2 rounded-sm py-1.5 type-caption text-foreground hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
               >
                 <span className="flex min-w-0 items-center gap-2">
                   <StatusIcon status={issue.status} size={12} />
-                  <span className="shrink-0 font-mono text-muted-foreground group-hover:text-foreground">
+                  <span className="shrink-0 type-mono-value text-muted-foreground group-hover:text-foreground">
                     {issue.id}
                   </span>
                   <span className="min-w-0 flex-1 truncate">{issue.title}</span>

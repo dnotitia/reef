@@ -177,12 +177,50 @@
   --av-9: hsl(320 52% 48%);
   --av-fg: hsl(0 0% 100%);
 
-  /* font stacks — display and body share the single Inter variable face
-     (REEF-097 AC3); weight is set per-element (font-semibold, …). */
-  --font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-body: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  /* font stacks — Inter owns Latin display/body glyphs, Noto Sans KR owns
+     Hangul, and Geist Mono remains first for code-like values. Keeping the
+     companion in the explicit stack removes host-OS font selection drift. */
+  --font-display:
+    var(--font-inter), var(--font-noto-sans-kr), ui-sans-serif, system-ui,
+    sans-serif;
+  --font-body:
+    var(--font-inter), var(--font-noto-sans-kr), ui-sans-serif, system-ui,
+    sans-serif;
   --font-mono-stack:
-    var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+    var(--font-geist-mono), var(--font-noto-sans-kr), ui-monospace,
+    SFMono-Regular, Menlo, monospace;
+
+  /* Canonical product typography roles. Keep the complete role contract here
+     so shared components consume one definition instead of recreating a size,
+     weight, leading, or tracking tuple in feature-local classes. */
+  --type-page-title-size: 20px;
+  --type-page-title-weight: 600;
+  --type-page-title-line-height: 24px;
+  --type-page-title-tracking: 0;
+  --type-group-title-size: 15px;
+  --type-group-title-weight: 600;
+  --type-group-title-line-height: 20px;
+  --type-group-title-tracking: 0;
+  --type-section-label-size: 13px;
+  --type-section-label-weight: 600;
+  --type-section-label-line-height: 16px;
+  --type-section-label-tracking: 0.08em;
+  --type-body-size: 14px;
+  --type-body-weight: 400;
+  --type-body-line-height: 20px;
+  --type-body-tracking: 0;
+  --type-caption-size: 12px;
+  --type-caption-weight: 400;
+  --type-caption-line-height: 16px;
+  --type-caption-tracking: 0;
+  --type-mono-value-size: 13px;
+  --type-mono-value-weight: 400;
+  --type-mono-value-line-height: 20px;
+  --type-mono-value-tracking: 0;
+  --type-chart-label-size: 12px;
+  --type-chart-label-weight: 400;
+  --type-chart-label-line-height: 16px;
+  --type-chart-label-tracking: 0;
 
   /* motion — one signature easing curve + a small duration scale.
    * Quick entry, soft settle. Consumed via Tailwind arbitrary
@@ -486,6 +524,69 @@ body {
     outline: 2px solid var(--focus-ring);
     outline-offset: 1px;
     border-radius: 2px;
+  }
+}
+
+/* Named role utilities are the only shared source for routed product
+ * typography. Markdown surfaces intentionally do not consume these classes;
+ * their established rhythm is scoped below. */
+@layer components {
+  .type-page-title {
+    font-family: var(--font-display);
+    font-size: var(--type-page-title-size);
+    font-weight: var(--type-page-title-weight);
+    line-height: var(--type-page-title-line-height);
+    letter-spacing: var(--type-page-title-tracking);
+  }
+
+  .type-group-title {
+    font-family: var(--font-display);
+    font-size: var(--type-group-title-size);
+    font-weight: var(--type-group-title-weight);
+    line-height: var(--type-group-title-line-height);
+    letter-spacing: var(--type-group-title-tracking);
+  }
+
+  .type-section-label {
+    font-family: var(--font-display);
+    font-size: var(--type-section-label-size);
+    font-weight: var(--type-section-label-weight);
+    line-height: var(--type-section-label-line-height);
+    letter-spacing: var(--type-section-label-tracking);
+    text-transform: uppercase;
+  }
+
+  .type-body {
+    font-family: var(--font-body);
+    font-size: var(--type-body-size);
+    font-weight: var(--type-body-weight);
+    line-height: var(--type-body-line-height);
+    letter-spacing: var(--type-body-tracking);
+  }
+
+  .type-caption {
+    font-family: var(--font-body);
+    font-size: var(--type-caption-size);
+    font-weight: var(--type-caption-weight);
+    line-height: var(--type-caption-line-height);
+    letter-spacing: var(--type-caption-tracking);
+  }
+
+  .type-mono-value {
+    font-family: var(--font-mono-stack);
+    font-size: var(--type-mono-value-size);
+    font-weight: var(--type-mono-value-weight);
+    line-height: var(--type-mono-value-line-height);
+    letter-spacing: var(--type-mono-value-tracking);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .type-chart-label {
+    font-family: var(--font-body);
+    font-size: var(--type-chart-label-size);
+    font-weight: var(--type-chart-label-weight);
+    line-height: var(--type-chart-label-line-height);
+    letter-spacing: var(--type-chart-label-tracking);
   }
 }
 
@@ -1012,7 +1113,8 @@ hr {
   background: var(--surface-elevated);
   color: var(--foreground);
   box-shadow: 0 12px 32px color-mix(in srgb, var(--foreground) 14%, transparent);
-  font-size: 13px;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line-height);
 }
 
 .reef-slash-command-header,
@@ -1031,7 +1133,8 @@ hr {
 .reef-slash-command-escape,
 .reef-slash-command-footer {
   color: var(--muted-foreground);
-  font-size: 11px;
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line-height);
 }
 
 .reef-slash-command-escape {
@@ -1058,9 +1161,10 @@ hr {
 .reef-slash-command-section-label {
   padding: 4px 8px 3px;
   color: var(--muted-foreground);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-size: var(--type-section-label-size);
+  font-weight: var(--type-section-label-weight);
+  line-height: var(--type-section-label-line-height);
+  letter-spacing: var(--type-section-label-tracking);
   text-transform: uppercase;
 }
 
@@ -1105,8 +1209,8 @@ hr {
 .reef-slash-command-description {
   margin-top: 1px;
   color: var(--muted-foreground);
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line-height);
 }
 
 .reef-slash-command-empty {
@@ -1336,10 +1440,9 @@ hr {
   flex: 0 0 auto;
   color: var(--muted-foreground);
   font-family: var(--font-mono-stack);
-  font-size: 0.6875rem;
+  font-size: var(--type-caption-size);
   font-weight: 600;
-  line-height: 1;
-  letter-spacing: 0.04em;
+  line-height: var(--type-caption-line-height);
 }
 
 /* Tiptap's Placeholder extension owns the marker and localized text. During a
@@ -1693,6 +1796,22 @@ hr {
  * edge. The 481–767px gap intentionally preserves the effective-200% layout
  * used by the existing sticky-boundary contract. */
 @media (max-width: 480px) {
+  .issue-detail-chrome {
+    flex-wrap: wrap;
+  }
+
+  .issue-detail-identity {
+    flex: 0 0 100%;
+  }
+
+  .issue-detail-actions {
+    margin-left: auto;
+  }
+
+  .issue-detail-sheet {
+    width: 100vw !important;
+  }
+
   .reef-issue-list-table {
     min-width: 0 !important;
   }
@@ -1732,6 +1851,7 @@ hr {
 @media (min-width: 768px) and (max-width: 1311px) {
   .reef-issue-list-table:not(.reef-issue-list-table-expanded) {
     min-width: 0 !important;
+    overflow: hidden;
   }
 
   .reef-issue-list-table:not(.reef-issue-list-table-expanded)

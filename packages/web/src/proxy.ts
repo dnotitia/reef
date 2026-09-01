@@ -203,7 +203,8 @@ export function proxy(request: NextRequest) {
   //                                   AssigneeCombobox, not next/image)
   //   connect-src 'self'            — fetch() / XHR to own BFF just; blocks credential
   //                                   exfiltration to attacker-controlled endpoints
-  //   font-src 'self'               — Geist font loaded from same origin
+  //   font-src 'self'               — Inter, Noto Sans KR, and Geist fonts are
+  //                                  loaded from the same origin
   //   object-src 'none'             — block Flash / plugin execution entirely
   //   base-uri 'self'               — prevent <base> tag hijacking
   //   form-action 'self'            — prevent <form action="evil.com"> credential

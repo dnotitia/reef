@@ -240,7 +240,7 @@ function IssueListGroupHeader({
         colSpan={columnCount}
         className="h-8 border-y border-border-subtle p-0"
       >
-        <div className="reef-issue-list-group-header flex h-8 min-w-0 w-full items-center gap-2 px-3 text-left text-xs font-semibold text-foreground">
+        <div className="reef-issue-list-group-header flex h-8 min-w-0 w-full items-center gap-2 px-3 text-left type-group-title text-foreground">
           <button
             type="button"
             className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-sm text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
@@ -260,7 +260,7 @@ function IssueListGroupHeader({
                 className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden whitespace-nowrap"
                 data-testid="issue-group-label"
               >
-                <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+                <span className="shrink-0 type-mono-value text-muted-foreground">
                   {epic.id}
                 </span>
                 <span
@@ -280,7 +280,7 @@ function IssueListGroupHeader({
               </span>
             )}
             <span
-              className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground"
+              className="shrink-0 type-mono-value text-muted-foreground"
               data-testid="issue-group-count"
             >
               {count}
@@ -894,7 +894,7 @@ export function IssueListTable({
           <p className="text-sm text-muted-foreground">{t("loadError")}</p>
           <button
             type="button"
-            className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-[13px] font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
+            className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 type-caption font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
             onClick={() => refetch()}
           >
             {common("retry")}
@@ -907,7 +907,7 @@ export function IssueListTable({
               <p className="text-sm text-muted-foreground">{t("noMatches")}</p>
               <button
                 type="button"
-                className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-[13px] font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
+                className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 type-caption font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
                 onClick={() => {
                   useIssueStore.getState().clearFilter();
                 }}
@@ -999,7 +999,7 @@ export function IssueListTable({
                   {sorted.length === 0 && isFetchingNextPage && (
                     <tr>
                       <td colSpan={columns.length} className="px-3 py-4">
-                        <output className="text-sm text-muted-foreground">
+                        <output className="type-body text-muted-foreground">
                           {t("loadingMore")}
                         </output>
                       </td>
@@ -1009,12 +1009,12 @@ export function IssueListTable({
                     <tr>
                       <td colSpan={columns.length} className="px-3 py-4">
                         <div className="flex items-center gap-3" role="alert">
-                          <span className="text-sm text-muted-foreground">
+                          <span className="type-body text-muted-foreground">
                             {t("loadMoreError")}
                           </span>
                           <button
                             type="button"
-                            className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-[13px] font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
+                            className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 type-caption font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
                             onClick={() => fetchNextPage()}
                           >
                             {common("retry")}

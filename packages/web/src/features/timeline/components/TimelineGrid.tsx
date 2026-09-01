@@ -235,7 +235,7 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
             <div className="sticky top-0 z-30 border-b border-border-subtle bg-surface-page/95 backdrop-blur">
               <div className="grid h-8" style={gridStyle}>
                 <div
-                  className="sticky left-0 z-40 flex items-center border-r border-border-subtle bg-surface-page px-3 text-xs font-medium text-muted-foreground"
+                  className="sticky left-0 z-40 flex items-center border-r border-border-subtle bg-surface-page px-3 type-caption font-medium text-muted-foreground"
                   style={{ gridColumn: 1 }}
                 >
                   {range.label}
@@ -243,7 +243,7 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                 {monthSpans.map((span) => (
                   <div
                     key={span.key}
-                    className="flex items-center justify-center border-r border-border-subtle text-[11px] font-semibold text-foreground"
+                    className="type-chart-label flex items-center justify-center border-r border-border-subtle font-semibold text-foreground"
                     style={{
                       gridColumn: `${span.startIndex + 2} / ${span.endIndex + 3}`,
                     }}
@@ -254,7 +254,7 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
               </div>
               <div className="grid h-7" style={gridStyle}>
                 <div
-                  className="sticky left-0 z-40 flex items-center border-r border-border-subtle bg-surface-page px-3 text-[11px] text-muted-foreground"
+                  className="sticky left-0 z-40 flex items-center border-r border-border-subtle bg-surface-page px-3 type-chart-label text-muted-foreground"
                   style={{ gridColumn: 1 }}
                 >
                   {t("issue")}
@@ -263,7 +263,7 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                   <div
                     key={day.key}
                     className={cn(
-                      "flex items-center justify-center border-r border-border-subtle/70 text-[10px] text-muted-foreground",
+                      "flex items-center justify-center border-r border-border-subtle/70 type-chart-label text-muted-foreground",
                       todayIndex === index && "font-semibold text-brand-text",
                     )}
                     style={{ gridColumn: index + 2 }}
@@ -282,7 +282,7 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                   style={gridStyle}
                 >
                   <div
-                    className="sticky left-0 z-20 flex items-center border-r border-border-subtle bg-surface-page px-3 text-xs text-muted-foreground"
+                    className="sticky left-0 z-20 flex items-center border-r border-border-subtle bg-surface-page px-3 type-caption text-muted-foreground"
                     style={{ gridColumn: 1 }}
                   >
                     {t("scheduled")}
@@ -305,14 +305,14 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                       style={gridStyle}
                     >
                       <div
-                        className="sticky left-0 z-20 flex items-center gap-2 border-r border-border-subtle bg-surface-subtle px-3 text-xs font-semibold text-foreground"
+                        className="sticky left-0 z-20 flex items-center gap-2 border-r border-border-subtle bg-surface-subtle px-3 type-group-title text-foreground"
                         style={{ gridColumn: 1 }}
                       >
                         <StatusIcon status={group.status} size={13} />
                         {statusLabels[group.status]}
                       </div>
                       <div
-                        className="flex items-center px-3 text-[11px] text-muted-foreground"
+                        className="flex items-center px-3 type-chart-label text-muted-foreground"
                         style={{ gridColumn: `2 / ${days.length + 2}` }}
                       >
                         {t("scheduledCount", { count: group.items.length })}
@@ -339,17 +339,17 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                 aria-label={t("unscheduled")}
               >
                 <div className="sticky left-3 z-20 mb-3 max-w-[760px]">
-                  <h2 className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
+                  <h2 className="type-section-label text-muted-foreground">
                     {t("unscheduled")}
                   </h2>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="mt-1 type-caption text-muted-foreground">
                     {t("unscheduledHint")}
                   </p>
                 </div>
                 <div className="sticky left-3 z-20 flex max-w-[760px] flex-col gap-3">
                   {groupedUnscheduled.map((group) => (
                     <div key={group.status}>
-                      <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-foreground">
+                      <div className="mb-1.5 flex items-center gap-1.5 type-caption font-medium text-foreground">
                         <StatusIcon status={group.status} size={12} />
                         {statusLabels[group.status]}
                         <span className="text-muted-foreground">
@@ -369,10 +369,10 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                             })}
                             className="min-w-0 rounded-md border border-border bg-surface-elevated px-2.5 py-2 text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
                           >
-                            <span className="block truncate font-mono text-[11px] text-muted-foreground">
+                            <span className="block truncate type-mono-value text-muted-foreground">
                               {issue.id}
                             </span>
-                            <span className="block truncate text-[12px] font-medium text-foreground">
+                            <span className="block truncate type-body font-medium text-foreground">
                               {issue.title}
                             </span>
                           </button>
@@ -406,7 +406,7 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
           data-off=""
           onClick={scrollToToday}
           aria-label={t("scrollToToday")}
-          className="group absolute top-2 z-[3] hidden items-center gap-1 rounded-full border border-brand-focus/40 bg-surface-elevated px-2.5 py-1 text-[11px] font-medium text-foreground shadow-sm transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40 data-[off=left]:left-3 data-[off=left]:flex data-[off=right]:right-3 data-[off=right]:flex"
+          className="group absolute top-2 z-[3] hidden items-center gap-1 rounded-full border border-brand-focus/40 bg-surface-elevated px-2.5 py-1 type-caption font-medium text-foreground shadow-sm transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40 data-[off=left]:left-3 data-[off=left]:flex data-[off=right]:right-3 data-[off=right]:flex"
         >
           <ChevronLeft
             aria-hidden="true"

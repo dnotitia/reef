@@ -40,7 +40,7 @@ export function FieldSuggestion({
         {entry.needsReview ? (
           <span
             data-testid={`field-suggestion-needs-review-${field}`}
-            className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
+            className="rounded bg-amber-100 px-1.5 py-0.5 type-caption font-semibold text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
           >
             {t("review")}
           </span>
@@ -48,7 +48,7 @@ export function FieldSuggestion({
       </div>
 
       {diff ?? (
-        <div className="flex min-w-0 flex-col gap-0.5 text-xs">
+        <div className="flex min-w-0 flex-col gap-0.5 type-caption">
           <span className="min-w-0 break-words text-muted-foreground line-through decoration-muted-foreground/40">
             {currentDisplay}
           </span>
@@ -58,7 +58,7 @@ export function FieldSuggestion({
         </div>
       )}
 
-      <p className="mt-1.5 min-w-0 line-clamp-2 whitespace-pre-wrap break-words text-[11px] italic leading-snug text-muted-foreground">
+      <p className="type-caption mt-1.5 min-w-0 line-clamp-2 whitespace-pre-wrap break-words italic text-muted-foreground">
         {entry.suggestion.reasoning}
       </p>
 
@@ -70,7 +70,7 @@ export function FieldSuggestion({
           onClick={onDismiss}
           aria-label={t("dismiss")}
           data-testid={`field-suggestion-dismiss-${field}`}
-          className="h-6 px-2 text-[11px]"
+          className="h-6 px-2 type-caption"
         >
           <X className="h-3 w-3" />
           {t("dismiss")}
@@ -81,7 +81,7 @@ export function FieldSuggestion({
           onClick={onAccept}
           aria-label={t("apply")}
           data-testid={`field-suggestion-accept-${field}`}
-          className="h-6 bg-ai px-2 text-[11px] text-ai-foreground hover:bg-ai/90"
+          className="h-6 bg-ai px-2 type-caption text-ai-foreground hover:bg-ai/90"
         >
           <Check className="h-3 w-3" />
           {t("apply")}

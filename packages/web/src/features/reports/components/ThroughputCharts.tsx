@@ -129,13 +129,13 @@ export function NetThroughputChart({
             x={Math.min(W - 28, Math.max(18, x(i)))}
             y={H - 4}
             textAnchor={i === 0 ? "start" : i === n - 1 ? "end" : "middle"}
-            className="fill-muted-foreground text-[11px]"
+            className="type-chart-label fill-muted-foreground"
           >
             {points[i] ? tickLabel(points[i].start) : ""}
           </text>
         ))}
       </svg>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+      <div className="type-chart-label flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
         <LegendLine color="var(--brand-chart)" label={t("created")} />
         <LegendLine
           color="var(--status-done-chart)"

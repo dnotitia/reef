@@ -216,10 +216,10 @@ describe("MultiSelectCombobox", () => {
 
     await user.click(screen.getByTestId("fruit-trigger"));
     const cls = screen.getByTestId("opt-apple").className;
-    // CBX_OPTION_BASE — the px-2 py-1.5 / text-[13px] the single-select uses,
+    // CBX_OPTION_BASE — the px-2 py-1.5 / type-caption role the single-select uses,
     // NOT the old facet checkbox item's px-2 py-1.
     expect(cls).toContain("py-1.5");
-    expect(cls).toContain("text-[13px]");
+    expect(cls).toContain("type-caption");
   });
 
   it("rotates the trigger chevron on open and rings the trigger when active — AC4", async () => {

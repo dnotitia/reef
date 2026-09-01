@@ -44,7 +44,7 @@ export function AccountThemeToggle() {
             data-testid={`account-theme-${value}`}
             leading={<Icon aria-hidden="true" className="size-3.5" />}
             className={cn(
-              "min-h-11 flex-col gap-1 rounded-sm border px-1.5 py-1.5 pr-1.5 text-[11px] transition-colors duration-150 [touch-action:manipulation]",
+              "min-h-11 flex-col gap-1 rounded-sm border px-1.5 py-1.5 pr-1.5 type-caption transition-colors duration-150 [touch-action:manipulation]",
               "focus-visible:ring-2 focus-visible:ring-brand-focus/40",
               isSelected
                 ? "border-brand-focus bg-surface-subtle text-foreground"

@@ -153,7 +153,7 @@ function DeliveryActivityRow({
 
   const refChip = (
     <span
-      className="max-w-[16ch] shrink-0 truncate rounded border border-border-subtle px-1 font-mono tabular-nums"
+      className="max-w-[16ch] shrink-0 truncate rounded border border-border-subtle px-1 type-mono-value"
       title={refItem.ref}
     >
       {displayRef}
@@ -166,7 +166,7 @@ function DeliveryActivityRow({
   ) : null;
 
   return (
-    <div className="group flex min-w-0 items-center gap-2 rounded-md bg-surface-subtle px-2 py-1 text-xs">
+    <div className="group flex min-w-0 items-center gap-2 rounded-md bg-surface-subtle px-2 py-1 type-caption">
       <ImplementationIcon type={refItem.type} />
       {safeUrl ? (
         <a
@@ -228,7 +228,7 @@ function ExternalRefRow({
   const copyValue = refItem.url ?? refItem.ref ?? label;
 
   return (
-    <div className="group flex min-w-0 items-center gap-2 rounded-md bg-surface-subtle px-2 py-1 text-xs">
+    <div className="group flex min-w-0 items-center gap-2 rounded-md bg-surface-subtle px-2 py-1 type-caption">
       <Link2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       <span className="shrink-0 text-muted-foreground">{typeLabel}</span>
       {safeUrl ? (

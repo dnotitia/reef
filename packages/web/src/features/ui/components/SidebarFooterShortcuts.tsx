@@ -38,7 +38,7 @@ export function SidebarFooterShortcuts({
           "inline-flex shrink-0 items-center rounded-md text-muted-foreground/80 transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
           collapsed
             ? "h-8 w-8 justify-center"
-            : "h-7 w-full justify-between gap-2 px-2 text-left text-[12px]",
+            : "h-7 w-full justify-between gap-2 px-2 text-left type-caption",
         )}
       >
         <span className={cn("flex items-center", !collapsed && "gap-2")}>
@@ -53,7 +53,7 @@ export function SidebarFooterShortcuts({
         {!collapsed && (
           <span
             aria-hidden="true"
-            className="font-mono text-[10px] text-muted-foreground/60"
+            className="type-mono-value text-muted-foreground/60"
           >
             ⌘?
           </span>

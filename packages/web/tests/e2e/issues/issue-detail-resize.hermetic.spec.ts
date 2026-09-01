@@ -207,4 +207,82 @@ test.describe("Hermetic issue detail splitter", () => {
       )
       .toBe(true);
   });
+
+  test("keeps the mobile detail chrome controls non-overlapping", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/settings/preferences");
+    const language = page.getByRole("region", { name: /^(Language|언어)$/ });
+    await language.getByTestId("locale-option-ko").click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 320, height: 800 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto("/workspace/reef-e2e/issues/REEF-001");
+      await expect(page.getByTestId("issue-detail")).toBeVisible();
+      await expect(page.getByTestId("issue-updated-at")).toBeVisible();
+      await expect(
+        page.getByTestId("issue-subscription-trigger"),
+      ).toBeVisible();
+      await expect(page.getByTestId("issue-more-trigger")).toBeVisible();
+      await expect(page.getByTestId("issue-close")).toBeVisible();
+
+      const geometry = await page
+        .getByTestId("issue-detail-chrome")
+        .evaluate((root) => {
+          const identity = root.querySelector<HTMLElement>(
+            ".issue-detail-identity",
+          );
+          if (!identity)
+            throw new Error("Missing issue detail identity cluster");
+
+          const box = (element: Element) => {
+            const rect = element.getBoundingClientRect();
+            return {
+              left: rect.left,
+              right: rect.right,
+              top: rect.top,
+              bottom: rect.bottom,
+            };
+          };
+          const separate = (boxes: ReturnType<typeof box>[]) =>
+            boxes.every((left, leftIndex) =>
+              boxes
+                .slice(leftIndex + 1)
+                .every(
+                  (right) =>
+                    left.right <= right.left + 0.5 ||
+                    right.right <= left.left + 0.5 ||
+                    left.bottom <= right.top + 0.5 ||
+                    right.bottom <= left.top + 0.5,
+                ),
+            );
+          const identityBoxes = Array.from(identity.children, box);
+          const actionBoxes = [
+            "issue-updated-at",
+            "issue-subscription-trigger",
+            "issue-more-trigger",
+            "issue-close",
+          ].map((testId) => {
+            const element = root.querySelector<HTMLElement>(
+              `[data-testid="${testId}"]`,
+            );
+            if (!element) throw new Error(`Missing ${testId}`);
+            return box(element);
+          });
+
+          return {
+            allItemsAreSeparate: separate([...identityBoxes, ...actionBoxes]),
+          };
+        });
+
+      expect(geometry, `${viewport.width}px detail chrome`).toEqual({
+        allItemsAreSeparate: true,
+      });
+    }
+  });
 });

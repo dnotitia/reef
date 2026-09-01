@@ -48,9 +48,7 @@ export function WorkspaceAccessDenied({
       <div className="flex w-full max-w-md flex-col items-center gap-6 text-center">
         <ReefMark className="size-10" decorative />
         <div className="flex flex-col gap-2">
-          <h1 className="font-display text-lg font-semibold text-foreground">
-            {t("title")}
-          </h1>
+          <h1 className="type-page-title text-foreground">{t("title")}</h1>
           <p className="text-sm text-muted-foreground">
             {t("body", { vault })}
           </p>
@@ -61,7 +59,7 @@ export function WorkspaceAccessDenied({
             aria-label={t("switchHeading")}
             className="flex w-full flex-col gap-1.5 rounded-lg border border-border-subtle bg-surface-subtle p-2 text-left"
           >
-            <span className="px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            <span className="px-2 py-1 type-caption font-medium text-muted-foreground">
               {t("switchHeading")}
             </span>
             {reefVaults.map((v) => (
@@ -70,7 +68,7 @@ export function WorkspaceAccessDenied({
                 href={withVault(v.name, "/issues")}
                 data-testid={`access-denied-workspace-${v.name}`}
                 className={cn(
-                  "truncate rounded-md px-2 py-1.5 text-[13px] text-foreground transition-colors hover:bg-surface-hover",
+                  "truncate rounded-md px-2 py-1.5 type-caption text-foreground transition-colors hover:bg-surface-hover",
                 )}
               >
                 {v.name}
@@ -83,7 +81,7 @@ export function WorkspaceAccessDenied({
             <Link
               href="/onboarding"
               data-testid="access-denied-onboarding"
-              className="rounded-md bg-brand-fill px-3 py-1.5 text-[13px] font-medium text-brand-on-fill transition-colors hover:bg-brand-fill/90"
+              className="rounded-md bg-brand-fill px-3 py-1.5 type-caption font-medium text-brand-on-fill transition-colors hover:bg-brand-fill/90"
             >
               {t("onboardingCta")}
             </Link>

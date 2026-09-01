@@ -633,7 +633,7 @@ export function NewIssueDialog({
                         vault,
                         parent: `${subIssueContext.parent.id} ${subIssueContext.parent.title}`,
                         mono: (chunks) => (
-                          <span className="font-mono">{chunks}</span>
+                          <span className="type-mono-value">{chunks}</span>
                         ),
                         strong: (chunks) => (
                           <span className="font-medium text-foreground">
@@ -644,7 +644,7 @@ export function NewIssueDialog({
                     : tc.rich("createIn", {
                         vault,
                         mono: (chunks) => (
-                          <span className="font-mono">{chunks}</span>
+                          <span className="type-mono-value">{chunks}</span>
                         ),
                       })
                   : tc("configureFirst")}
@@ -652,13 +652,13 @@ export function NewIssueDialog({
               {subIssueContext && vault ? (
                 <div
                   aria-hidden="true"
-                  className="mt-1.5 flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs"
+                  className="mt-1.5 flex min-w-0 items-center gap-1.5 type-caption text-muted-foreground"
                 >
-                  <span className="max-w-[12rem] shrink-0 truncate font-mono text-[11px]">
+                  <span className="max-w-[12rem] shrink-0 truncate type-mono-value">
                     {vault}
                   </span>
                   <span className="text-muted-foreground/50">/</span>
-                  <span className="shrink-0 font-mono text-[11px] text-foreground">
+                  <span className="shrink-0 type-mono-value text-foreground">
                     {subIssueContext.parent.id}
                   </span>
                 </div>
@@ -676,7 +676,7 @@ export function NewIssueDialog({
               <Button
                 type="button"
                 size="sm"
-                className="h-8 gap-1.5 bg-ai px-3 text-xs text-ai-foreground hover:bg-ai/90"
+                className="h-8 gap-1.5 bg-ai px-3 type-caption text-ai-foreground hover:bg-ai/90"
                 onClick={handleEnrichClick}
                 disabled={isSubmitting || enrichRun.isPending || noVault}
                 data-testid="enrich-trigger"
@@ -828,7 +828,7 @@ export function NewIssueDialog({
           className="min-w-0 items-center gap-2 sm:flex-row sm:justify-end"
         >
           {subIssueContext ? (
-            <label className="mr-auto flex items-center gap-2 text-xs text-muted-foreground">
+            <label className="mr-auto flex items-center gap-2 type-caption text-muted-foreground">
               <input
                 type="checkbox"
                 className="size-3.5 rounded border-border accent-brand"

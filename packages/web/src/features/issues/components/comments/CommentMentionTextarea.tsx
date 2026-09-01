@@ -313,7 +313,7 @@ export function CommentMentionTextarea({
               aria-label={t("mentionOption", {
                 username: `@${member.username}`,
               })}
-              className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs text-foreground hover:bg-muted aria-selected:bg-muted"
+              className="flex w-full items-center gap-2 px-2 py-1.5 text-left type-caption text-foreground hover:bg-muted aria-selected:bg-muted"
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => selectMention(member)}
             >
@@ -328,7 +328,7 @@ export function CommentMentionTextarea({
                 {member.display_name ?? member.username}
               </span>
               <span
-                className="ml-auto shrink-0 text-[11px] text-muted-foreground"
+                className="ml-auto shrink-0 type-caption text-muted-foreground"
                 translate="no"
               >
                 @{member.username}
@@ -339,7 +339,7 @@ export function CommentMentionTextarea({
       ) : null}
       {(uploading || uploadError) && (
         <div
-          className="px-3 pb-1 text-[11px] text-muted-foreground"
+          className="px-3 pb-1 type-caption text-muted-foreground"
           role={uploadError ? "alert" : "status"}
         >
           {uploadError ? t("uploadError") : t("uploading")}

@@ -91,7 +91,7 @@ function CloseIssueDialogContent({
             renderItem={(option) => (
               <span className="flex min-w-0 flex-col">
                 <span>{closedReasonLabels[option]}</span>
-                <span className="truncate text-[11px] font-normal text-muted-foreground">
+                <span className="type-caption truncate font-normal text-muted-foreground">
                   {closedReasonHints[option]}
                 </span>
               </span>

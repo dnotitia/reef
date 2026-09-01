@@ -166,7 +166,7 @@ export function TimelineBody({ vault, scope = "active" }: TimelineBodyProps) {
     <div className="flex h-full min-h-0 min-w-0 flex-col">
       {/* Timeline-specific sub-toolbar: range label + quarter navigation. */}
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border-subtle px-6 py-2">
-        <span className="min-w-0 truncate text-[12px] text-muted-foreground">
+        <span className="type-caption min-w-0 truncate text-muted-foreground">
           {range.label}
         </span>
         <div className="shrink-0">

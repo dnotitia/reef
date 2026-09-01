@@ -19,7 +19,7 @@ export function ReadOnlyValue({ value, mono, testId }: ReadOnlyValueProps) {
   return (
     <p
       data-testid={testId}
-      className={cn("text-sm text-foreground", mono && "font-mono text-[13px]")}
+      className={cn("type-body text-foreground", mono && "type-mono-value")}
     >
       {isEmpty ? <span className="text-muted-foreground">—</span> : value}
     </p>

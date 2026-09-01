@@ -73,7 +73,7 @@ export function IssueChromeIdentity({
     // whose title truncates first, matching Linear's breadcrumb. `flex-1`/
     // `min-w-0` lets it absorb the bar width while the right-side actions + Close
     // stay pinned.
-    <div className="flex min-w-0 flex-1 items-center gap-2 text-xs">
+    <div className="issue-detail-identity flex min-w-0 flex-1 items-center gap-2 type-caption">
       {/* Parent breadcrumb (REEF-266) — a click-through link up to the parent,
           placed before the current issue. This is *navigation*; the
           rail `Parent` combobox stays *reassignment*, so the two do not
@@ -140,7 +140,7 @@ export function IssueChromeIdentity({
               // title to render. Fall back to the raw id so the link is not
               // empty and stays navigable (REEF-279 AC4). `translate="no"` keeps
               // machine translation from mangling the reef id.
-              <span translate="no" className="shrink-0 font-mono tabular-nums">
+              <span translate="no" className="shrink-0 type-mono-value">
                 {parentId}
               </span>
             )}
@@ -155,14 +155,14 @@ export function IssueChromeIdentity({
       {/* Current status glyph — once the issue lands; until then the bar
           shows the route-param id alone (no glyph flash). */}
       {status ? <StatusIcon status={status} size={12} /> : null}
-      <span className="shrink-0 font-mono text-muted-foreground tabular-nums">
+      <span className="shrink-0 type-mono-value text-muted-foreground">
         {issueId}
       </span>
       {issueType ? <TypePill type={issueType} variant="detail" /> : null}
       {isArchived && (
         <span
           data-testid="issue-archived-badge"
-          className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground"
+          className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 type-caption text-muted-foreground"
         >
           <Archive className="h-3 w-3" />
           {t("archived")}

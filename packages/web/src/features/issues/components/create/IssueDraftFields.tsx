@@ -151,7 +151,7 @@ export function IssueDraftFields({
     <div className="flex flex-col gap-1">
       <div className="flex items-end justify-between gap-2">
         <label
-          className="text-xs font-medium text-muted-foreground"
+          className="type-caption font-medium text-muted-foreground"
           htmlFor={titleId}
         >
           {fieldNames.title}
@@ -202,7 +202,7 @@ export function IssueDraftFields({
       <div className="flex flex-col gap-1">
         <span
           id={priorityLabelId}
-          className="text-xs font-medium text-muted-foreground"
+          className="type-caption font-medium text-muted-foreground"
         >
           {fieldNames.priority}
         </span>
@@ -216,7 +216,7 @@ export function IssueDraftFields({
   const labelsField = (
     <div className="flex flex-col gap-1">
       <label
-        className="text-xs font-medium text-muted-foreground"
+        className="type-caption font-medium text-muted-foreground"
         htmlFor={labelsId}
       >
         {fieldNames.labels}

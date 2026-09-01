@@ -330,15 +330,105 @@ describe("global focus styles", () => {
     }
   });
 
-  it("keeps Inter as the single display/body sans fallback contract", () => {
+  it("keeps the Inter + Noto Sans KR display/body fallback contract", () => {
     const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
     expect(css).toContain(
-      "--font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;",
+      "--font-display:\n    var(--font-inter), var(--font-noto-sans-kr), ui-sans-serif, system-ui,\n    sans-serif;",
     );
     expect(css).toContain(
-      "--font-body: var(--font-inter), ui-sans-serif, system-ui, sans-serif;",
+      "--font-body:\n    var(--font-inter), var(--font-noto-sans-kr), ui-sans-serif, system-ui,\n    sans-serif;",
+    );
+    expect(css).toContain(
+      "var(--font-geist-mono), var(--font-noto-sans-kr), ui-monospace,",
     );
     expect(css).toContain("--font-sans: var(--font-body);");
+  });
+
+  it("loads the three root variable font roles through next/font", () => {
+    const layout = readFileSync(
+      new URL("./layout.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(layout).toContain(
+      'import { Geist_Mono, Inter, Noto_Sans_KR } from "next/font/google";',
+    );
+    expect(layout).toContain('variable: "--font-inter"');
+    expect(layout).toContain('variable: "--font-noto-sans-kr"');
+    expect(layout).toContain('variable: "--font-geist-mono"');
+    expect(layout).toContain('display: "swap"');
+    expect(layout).toContain("${notoSansKr.variable}");
+  });
+
+  it("defines one complete named contract for routed product typography", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const roles = {
+      "type-page-title": [
+        "font-size: var(--type-page-title-size);",
+        "font-weight: var(--type-page-title-weight);",
+        "line-height: var(--type-page-title-line-height);",
+        "letter-spacing: var(--type-page-title-tracking);",
+      ],
+      "type-group-title": [
+        "font-size: var(--type-group-title-size);",
+        "font-weight: var(--type-group-title-weight);",
+        "line-height: var(--type-group-title-line-height);",
+        "letter-spacing: var(--type-group-title-tracking);",
+      ],
+      "type-section-label": [
+        "font-size: var(--type-section-label-size);",
+        "font-weight: var(--type-section-label-weight);",
+        "line-height: var(--type-section-label-line-height);",
+        "letter-spacing: var(--type-section-label-tracking);",
+        "text-transform: uppercase;",
+      ],
+      "type-body": [
+        "font-size: var(--type-body-size);",
+        "font-weight: var(--type-body-weight);",
+        "line-height: var(--type-body-line-height);",
+      ],
+      "type-caption": [
+        "font-size: var(--type-caption-size);",
+        "font-weight: var(--type-caption-weight);",
+        "line-height: var(--type-caption-line-height);",
+      ],
+      "type-mono-value": [
+        "font-family: var(--font-mono-stack);",
+        "font-size: var(--type-mono-value-size);",
+        "font-variant-numeric: tabular-nums;",
+      ],
+      "type-chart-label": [
+        "font-size: var(--type-chart-label-size);",
+        "font-weight: var(--type-chart-label-weight);",
+        "line-height: var(--type-chart-label-line-height);",
+      ],
+    } as const;
+
+    for (const [role, declarations] of Object.entries(roles)) {
+      const start = css.indexOf(`.${role} {`);
+      expect(start, role).toBeGreaterThan(-1);
+      const end = findCssBlockEnd(css, start);
+      expect(end, role).toBeGreaterThan(start);
+      const block = css.slice(start, end);
+      for (const declaration of declarations) {
+        expect(block, `${role}: ${declaration}`).toContain(declaration);
+      }
+    }
+    expect(css).toContain("--type-page-title-size: 20px;");
+    expect(css).toContain("--type-group-title-size: 15px;");
+    expect(css).toContain("--type-section-label-size: 13px;");
+    expect(css).toContain("--type-caption-size: 12px;");
+    for (const source of [
+      "../features/ui/components/PageHeader.tsx",
+      "../features/ui/components/DashboardShell.tsx",
+      "../features/ai/components/AskAiDialog.tsx",
+      "../components/ui/dialog.tsx",
+      "../components/ui/sheet.tsx",
+    ]) {
+      expect(
+        readFileSync(new URL(source, import.meta.url), "utf8"),
+        `${source} inline tracking`,
+      ).not.toContain("letterSpacing");
+    }
   });
 
   it("renders the Tiptap empty-editor placeholder marker", () => {

@@ -64,7 +64,7 @@ describe("SettingsTabs (REEF-183)", () => {
       .className.split(/\s+/);
     expect(classes).toContain("px-2");
     expect(classes).not.toContain("px-2.5");
-    expect(classes).toContain("text-[12px]");
+    expect(classes).toContain("type-caption");
     expect(classes).toContain("font-medium");
     expect(classes).toContain("focus-visible:ring-brand-focus");
   });

@@ -172,20 +172,20 @@ function NotificationItem({
           aria-label={t("openNotification", { issue: notification.reef_id })}
         >
           <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="text-[13px] font-semibold text-foreground">
+            <span className="type-body font-semibold text-foreground">
               {eventLabel}
             </span>
-            <span className="text-[12px] text-muted-foreground" translate="no">
+            <span className="type-caption text-muted-foreground" translate="no">
               {notification.actor}
             </span>
             <span
-              className="rounded border border-border-subtle px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground"
+              className="rounded border border-border-subtle px-1.5 py-0.5 type-mono-value text-muted-foreground"
               translate="no"
             >
               {notification.reef_id}
             </span>
           </span>
-          <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted-foreground">
+          <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 type-caption text-muted-foreground">
             <time
               dateTime={notification.occurred_at}
               title={formatAbsoluteTime(notification.occurred_at, locale)}

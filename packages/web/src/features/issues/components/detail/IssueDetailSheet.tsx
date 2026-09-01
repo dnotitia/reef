@@ -506,9 +506,11 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
           }}
           // Wider canvas (REEF-149) so the rail's property rows get full width
           // and Planning dates / Relationship inputs stop truncating. The
-          // inline width is desktop-specific; the CSS fallback keeps the existing
-          // narrow responsive sheet geometry. The issue body below owns the
-          // scroll and uses `overscroll-contain` to stop chaining to the page.
+          // Desktop uses the user-resizable width; the narrow sheet keeps the
+          // established 94vw inset, while the small-mobile CSS breakpoint fills
+          // the viewport so fixed chrome controls cannot spill past the edge.
+          // The issue body below owns the scroll and uses `overscroll-contain`
+          // to stop chaining to the page.
           // Keep the sheet viewport fixed while the issue body owns vertical
           // scrolling. The resize splitter is anchored to this viewport; if
           // the sheet itself scrolls, its absolute handle scrolls away with the
@@ -594,7 +596,7 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
             >
               <div
                 data-testid="issue-detail-chrome"
-                className="flex items-center gap-2 px-6 pt-4"
+                className="issue-detail-chrome flex items-center gap-2 px-6 pt-4"
               >
                 {backTo ? (
                   <IssueDrillBackBar backTo={backTo} onBack={goBack} />
@@ -608,7 +610,7 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
                   allIssues={allIssues ?? []}
                   allIssuesPending={allIssuesPending}
                 />
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="issue-detail-actions flex shrink-0 items-center gap-2">
                   {/* `display:contents` so the body's portaled save-status + ⋮
                       become flex siblings of Close, and the slot adds no gap
                       while it is empty during loading. */}

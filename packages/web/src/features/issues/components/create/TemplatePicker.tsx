@@ -45,10 +45,10 @@ export function TemplatePicker({
         keywords: template.description,
         content: (
           <>
-            <span className="text-[13px] font-medium text-foreground">
+            <span className="type-body font-medium text-foreground">
               {template.label}
             </span>
-            <span className="text-xs text-muted-foreground">
+            <span className="type-caption text-muted-foreground">
               {template.description}
             </span>
           </>

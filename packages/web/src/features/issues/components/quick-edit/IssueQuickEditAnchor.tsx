@@ -422,7 +422,7 @@ export function IssueQuickEditAnchor({
               aria-haspopup="dialog"
               aria-busy={fieldPending || undefined}
               disabled={issuePending}
-              className="h-8 w-full justify-start rounded-md border border-border bg-surface-popover px-2.5 text-[13px] text-foreground shadow-lg shadow-foreground/10"
+              className="h-8 w-full justify-start rounded-md border border-border bg-surface-popover px-2.5 type-caption text-foreground shadow-lg shadow-foreground/10"
             >
               {fieldNames.labels}
               {fieldPending && (

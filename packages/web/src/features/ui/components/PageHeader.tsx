@@ -54,12 +54,7 @@ export function PageHeader({
             "flex-wrap max-[767px]:w-full max-[767px]:items-center",
         )}
       >
-        <h1
-          className="font-display text-[14px] font-semibold tracking-tight text-foreground"
-          style={{ letterSpacing: "-0.01em" }}
-        >
-          {title}
-        </h1>
+        <h1 className="type-page-title text-foreground">{title}</h1>
         {hasTitleAdjacent && (
           <div
             data-slot="page-header-title-adjacent"
@@ -69,7 +64,7 @@ export function PageHeader({
           </div>
         )}
         <span
-          className="truncate text-[12px] text-muted-foreground"
+          className="type-caption truncate text-muted-foreground"
           translate={identifierOnly ? "no" : undefined}
           aria-hidden={!renderedDescription}
         >

@@ -137,7 +137,7 @@ export function PivotCard({
       </div>
       <PivotMatrix result={result} fieldLabels={fieldLabels} />
       {foldedText && (
-        <p className="text-[11px] text-muted-foreground">
+        <p className="type-caption text-muted-foreground">
           {t("foldedNote", { folded: foldedText })}
         </p>
       )}
@@ -174,7 +174,7 @@ function FieldPicker({
   }));
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-[11px] text-muted-foreground">{label}</span>
+      <span className="type-caption text-muted-foreground">{label}</span>
       <Combobox<PivotFieldKey>
         ariaLabel={t("fieldPickerAria", { label })}
         value={value}

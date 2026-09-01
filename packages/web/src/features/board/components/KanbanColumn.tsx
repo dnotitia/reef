@@ -113,15 +113,10 @@ export const KanbanColumn = memo(function KanbanColumn({
         {bucket.groupBy === "status" && bucket.value ? (
           <StatusIcon status={bucket.value as Status} size={12} />
         ) : null}
-        <h3
-          className={cn(
-            "min-w-0 flex-1 text-xs font-semibold text-foreground/80",
-            !epic && "uppercase tracking-wide",
-          )}
-        >
+        <h3 className="type-group-title min-w-0 flex-1 text-foreground/80">
           {epic ? (
             <span className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap">
-              <span className="shrink-0 font-mono text-[10.5px] tabular-nums text-muted-foreground">
+              <span className="shrink-0 type-mono-value text-muted-foreground">
                 {epic.id}
               </span>
               <span className="min-w-0 truncate" title={epic.title}>
@@ -132,7 +127,7 @@ export const KanbanColumn = memo(function KanbanColumn({
             bucket.label
           )}
         </h3>
-        <span className="ml-auto shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+        <span className="ml-auto shrink-0 type-mono-value text-muted-foreground">
           {issues.length}
         </span>
         {epic ? (

@@ -33,6 +33,12 @@ explicitly in the entries below.
   result, while conflicts retain rollback, retry, focus, and screen-reader
   feedback.
 
+- **Product typography now follows one role-based contract.** Authenticated
+  page and group headings, section labels, body/caption copy, chart labels, and
+  mono values use the documented scale. Inter remains the Latin face, Noto Sans
+  KR is the fixed Hangul companion, and Geist Mono remains the code/ID/value
+  face with no host-OS-dependent Hangul fallback.
+
 ### Migration
 
 - **No Dexie schema migration is required for My Views.** The new versioned

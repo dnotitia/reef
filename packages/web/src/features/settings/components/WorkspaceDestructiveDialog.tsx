@@ -121,7 +121,7 @@ export function WorkspaceDestructiveDialog({
               autoComplete="off"
               autoCapitalize="off"
               spellCheck={false}
-              className="font-mono"
+              className="type-mono-value"
               data-testid="workspace-delete-confirm-input"
             />
           </div>

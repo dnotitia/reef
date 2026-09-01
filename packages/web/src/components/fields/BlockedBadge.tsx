@@ -53,7 +53,7 @@ export function BlockedBadge({
     return (
       <span
         className={cn(
-          "inline-flex items-center gap-1 rounded-sm bg-destructive-fill/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-destructive-text",
+          "inline-flex items-center gap-1 rounded-sm bg-destructive-fill/10 px-1.5 py-0.5 type-caption font-semibold uppercase text-destructive-text",
           className,
         )}
         title={t("blocked")}

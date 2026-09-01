@@ -447,7 +447,7 @@ describe("DashboardShell", () => {
       "h-7",
       "w-full",
       "justify-between",
-      "text-[12px]",
+      "type-caption",
       "text-muted-foreground/80",
     );
     expect(utility.compareDocumentPosition(workspace)).toBe(

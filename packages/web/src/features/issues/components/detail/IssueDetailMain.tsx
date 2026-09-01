@@ -132,7 +132,7 @@ export function IssueDetailMain({
       type="button"
       variant="ghost"
       size="sm"
-      className="group h-6 gap-1 px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+      className="group h-6 gap-1 px-1.5 type-caption text-muted-foreground hover:text-foreground"
       onClick={handleAddSubIssue}
       disabled={!issue}
       data-testid="add-sub-issue-trigger"
