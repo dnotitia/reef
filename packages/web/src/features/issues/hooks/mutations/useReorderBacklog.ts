@@ -21,6 +21,7 @@ import type {
   IssueReorderGroupInput,
   IssueReorderTarget,
 } from "../../lib/issueReorder";
+import { useFlashStore } from "../../stores/useFlashStore";
 import { activityKey } from "../queries/useActivity";
 
 export interface ReorderIssueInput extends IssueReorderTarget {
@@ -173,6 +174,9 @@ export function useReorderBacklog() {
       return IssueReorderResponseSchema.parse(await res.json());
     },
     onMutate: async (input) => {
+      // A new reorder supersedes any older save-confirm pulse for this issue;
+      // the next pulse may only be emitted by this mutation's canonical result.
+      useFlashStore.getState().clearFlash(input.vault, input.issueId);
       const listKey = ["issues", "list", input.vault] as const;
       await queryClient.cancelQueries({ queryKey: listKey });
       const previousLists = updateIssueListCaches(
@@ -205,6 +209,11 @@ export function useReorderBacklog() {
       updateIssueListCaches(queryClient, input.vault, (issue) =>
         mapOptimisticIssue(issue, input, rankById, input.expected.issueRank),
       );
+      // The shared save-confirm pulse is emitted only after the response's
+      // canonical assignments have replaced the optimistic projection.
+      useFlashStore
+        .getState()
+        .flashIssue(input.vault, input.issueId, "reorder");
     },
     onSettled: async (_data, error, input) => {
       if (error) return;

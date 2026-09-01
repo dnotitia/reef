@@ -20,6 +20,7 @@ import { memo } from "react";
 import { useStatusLabels } from "@/i18n/fieldLabels";
 import { useTranslations } from "next-intl";
 import type { IssueGroupBucket } from "../../issues/lib/grouping";
+import type { IssueReorderSurfaceState } from "../../issues/components/shared/IssueReorderFeedback";
 import { KanbanCard } from "./KanbanCard";
 
 const EMPTY_BLOCKED_IDS: ReadonlySet<string> = new Set();
@@ -40,6 +41,8 @@ export interface KanbanColumnProps {
   onGroupClick?: (id: string) => void;
   dragEnabled?: boolean;
   readOnlyReason?: string;
+  reorderIssueId?: string | null;
+  reorderState?: IssueReorderSurfaceState | null;
 }
 
 // Drop hover uses neutral surface + brand ring, not purple, to avoid
@@ -55,6 +58,8 @@ export const KanbanColumn = memo(function KanbanColumn({
   onGroupClick,
   dragEnabled,
   readOnlyReason,
+  reorderIssueId,
+  reorderState,
 }: KanbanColumnProps) {
   const t = useTranslations("board");
   const statusLabels = useStatusLabels();
@@ -169,6 +174,9 @@ export const KanbanColumn = memo(function KanbanColumn({
               planningCatalog={planningCatalog}
               assignees={assignees}
               onClick={onIssueClick}
+              reorderState={
+                reorderIssueId === issue.id ? (reorderState ?? null) : null
+              }
             />
           ))}
         </div>

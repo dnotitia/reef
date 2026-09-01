@@ -881,6 +881,13 @@
       "fieldUpdated": "{field}을(를) 업데이트했습니다.",
       "fieldUpdateFailed": "{field} 업데이트에 실패했습니다. 재시도할 수 있습니다."
     },
+    "reorder": {
+      "pendingLabel": "위치 저장 중",
+      "errorLabel": "위치를 저장하지 못함",
+      "reorderSaving": "{id} 위치를 저장하는 중…",
+      "reorderSaved": "{id} 위치를 저장했습니다.",
+      "reorderFailed": "{id} 위치를 저장하지 못했습니다. 이전 위치로 돌아갔으며 다시 시도할 수 있습니다."
+    },
     "backlog": {
       "loadError": "백로그를 불러오지 못했습니다.",
       "loading": "백로그 이슈를 불러오는 중…",

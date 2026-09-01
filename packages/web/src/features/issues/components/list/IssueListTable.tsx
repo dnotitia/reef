@@ -16,6 +16,10 @@ import {
 import { IssueListColumnsControl } from "@/features/issues/components/list/IssueListColumnsControl";
 import { IssueListRow } from "@/features/issues/components/list/IssueListRow";
 import { IssueListSkeleton } from "@/features/issues/components/list/IssueListSkeleton";
+import {
+  IssueReorderAnnouncement,
+  type IssueReorderSurfaceState,
+} from "@/features/issues/components/shared/IssueReorderFeedback";
 import { IssueSelectionCheckbox } from "@/features/issues/components/shared/IssueSelectionCheckbox";
 import {
   ISSUE_TABLE_COLUMN_WIDTHS,
@@ -322,6 +326,7 @@ export function IssueListTable({
   const statusLabels = useStatusLabels();
   const priorityLabels = usePriorityLabels();
   const t = useTranslations("issues.list");
+  const reorderT = useTranslations("issues.reorder");
   const groupT = useTranslations("issues.filters");
   const locale = useLocale();
   const common = useTranslations("common");
@@ -494,6 +499,16 @@ export function IssueListTable({
     !isFetching &&
     !isFetchingNextPage &&
     !reorder.isPending;
+  const reorderIssueId =
+    reorder.variables?.vault === vault && reorder.variables.scope === scope
+      ? reorder.variables.issueId
+      : null;
+  const reorderState: IssueReorderSurfaceState | null = reorder.isPending
+    ? "pending"
+    : reorder.isError
+      ? "error"
+      : null;
+  const [reorderAnnouncement, setReorderAnnouncement] = useState<string>("");
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, {
@@ -527,9 +542,18 @@ export function IssueListTable({
 
   function runReorder(target: IssueReorderTarget | null) {
     if (!target) return;
-    reorder.mutateAsync({ vault, scope: "active", ...target }).then(
-      () => toast.dismiss(kanbanToastId(target.issueId)),
+    setReorderAnnouncement(reorderT("reorderSaving", { id: target.issueId }));
+    reorder.mutateAsync({ vault, scope, ...target }).then(
+      () => {
+        toast.dismiss(kanbanToastId(target.issueId));
+        setReorderAnnouncement(
+          reorderT("reorderSaved", { id: target.issueId }),
+        );
+      },
       (error: unknown) => {
+        setReorderAnnouncement(
+          reorderT("reorderFailed", { id: target.issueId }),
+        );
         notifyReorderFailure(
           error,
           {
@@ -784,6 +808,7 @@ export function IssueListTable({
       pad="compact"
       className="flex h-full min-h-0 flex-col overflow-hidden"
     >
+      <IssueReorderAnnouncement message={reorderAnnouncement} />
       <div className="pointer-events-none sticky top-0 z-10 h-0 overflow-visible">
         <SearchProgressBar
           active={isFetching && !isPending && !isFetchingNextPage}
@@ -960,6 +985,9 @@ export function IssueListTable({
                         columns={columns}
                         sortable={canReorder && groupBy === "none"}
                         reorderHint={t("reorderGrip", { id: item.issue.id })}
+                        reorderState={
+                          reorderIssueId === item.issue.id ? reorderState : null
+                        }
                         onClick={openIssue}
                       />
                     );

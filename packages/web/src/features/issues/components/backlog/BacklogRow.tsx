@@ -11,10 +11,15 @@ import { IssueInlineEditTrigger } from "@/features/issues/components/quick-edit/
 import { IssueQuickEditAnchor } from "@/features/issues/components/quick-edit/IssueQuickEditAnchor";
 import { IssueSelectionCheckbox } from "@/features/issues/components/shared/IssueSelectionCheckbox";
 import {
+  IssueReorderStatus,
+  type IssueReorderSurfaceState,
+} from "@/features/issues/components/shared/IssueReorderFeedback";
+import {
   ISSUE_TABLE_COLUMN_WIDTHS,
   type IssueTableColumnKey,
 } from "@/features/issues/components/shared/issueTableContract";
 import { formatRelativeTime } from "@/features/issues/lib/formatRelativeTime";
+import { useIssueReorderFlash } from "@/features/issues/stores/useFlashStore";
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
 import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
@@ -47,6 +52,7 @@ interface BacklogRowProps {
    */
   sortable?: boolean;
   reorderHint: string;
+  reorderState?: IssueReorderSurfaceState | null;
 }
 
 const BACKLOG_QUICK_EDIT_FIELDS = ["status", "priority", "assignee"] as const;
@@ -92,6 +98,7 @@ export const BacklogRow = memo(function BacklogRow({
   onOpen,
   sortable = false,
   reorderHint,
+  reorderState = null,
 }: BacklogRowProps) {
   const {
     attributes,
@@ -114,6 +121,9 @@ export const BacklogRow = memo(function BacklogRow({
   );
   const focusRequest = useIssueKeyboardStore((state) => state.focusRequest);
   const focusIssue = useIssueKeyboardStore((state) => state.focusIssue);
+  const reorderSuccess = useIssueReorderFlash(vault, issue.id);
+  const surfaceReorderState =
+    reorderState ?? (reorderSuccess ? "success" : null);
   const selected = useIssueSelectionStore((state) =>
     state.selectedIds.has(issue.id),
   );
@@ -165,11 +175,14 @@ export const BacklogRow = memo(function BacklogRow({
         "group h-10 cursor-pointer transition-colors duration-150 focus-visible:outline-none hover:bg-surface-hover",
         focused && "bg-brand-fill/5",
         selected && "bg-brand-fill/5 ring-1 ring-inset ring-brand-focus/30",
+        reorderSuccess && "reef-flash-row",
+        reorderSuccess && "reef-reorder-success-row",
         // Lift the dragged row out of the flow with the board's drag treatment.
         isDragging &&
           "relative z-10 bg-surface-elevated shadow-md ring-1 ring-brand-focus/40",
       )}
       tabIndex={focused || tabStopped ? 0 : -1}
+      aria-busy={surfaceReorderState === "pending" ? true : undefined}
       aria-selected={selected || undefined}
       onFocus={() => focusIssue("backlog", issue.id)}
       onKeyDown={(event: KeyboardEvent<HTMLTableRowElement>) => {
@@ -196,6 +209,7 @@ export const BacklogRow = memo(function BacklogRow({
       data-issue-id={issue.id}
       data-shortcut-surface="issue-backlog-row"
       data-keyboard-focused={focused ? "true" : undefined}
+      data-reorder-state={surfaceReorderState ?? undefined}
     >
       <TableCell
         className={cn(backlogCellClass("select"), "w-10 px-2")}
@@ -285,13 +299,18 @@ export const BacklogRow = memo(function BacklogRow({
         style={backlogCellStyle("title")}
         data-column-key="title"
       >
-        <Link
-          href={href}
-          className="block min-w-0 truncate rounded-sm font-medium text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
-          onClick={(event) => event.stopPropagation()}
-        >
-          {issue.title}
-        </Link>
+        <span className="flex min-w-0 items-center gap-2">
+          <Link
+            href={href}
+            className="block min-w-0 flex-1 truncate rounded-sm font-medium text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {issue.title}
+          </Link>
+          {surfaceReorderState && surfaceReorderState !== "success" && (
+            <IssueReorderStatus state={surfaceReorderState} />
+          )}
+        </span>
       </TableCell>
 
       {/* Status — the shared quick-edit trigger stops row navigation. */}
