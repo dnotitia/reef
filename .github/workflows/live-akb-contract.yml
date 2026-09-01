@@ -58,21 +58,32 @@ jobs:
         uses: actions/setup-python@v7
         with:
           python-version: "3.14"
+          cache: ""
 
       - name: Setup uv for AKB runtime
         uses: astral-sh/setup-uv@v10.0.0
+        with:
+          enable-cache: false
+          restore-cache: false
+          save-cache: false
 
       - name: Install AKB runtime dependencies
         working-directory: .akb-live
         run: uv sync --locked --extra dev --project backend
 
+      # Do not restore or save tool caches: matrix.akb_ref selects external
+      # code, and this workflow runs on scheduled/manual privileged events.
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
+        with:
+          cache: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
           node-version-file: .node-version
+          cache: ""
+          package-manager-cache: false
 
       - name: Install Reef dependencies
         run: pnpm install --frozen-lockfile
