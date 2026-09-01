@@ -18,8 +18,6 @@ export {
 } from "./notifications/projector";
 export {
   CHANGE_EVENT_KIND,
-  REEF_ACTIVITY_RESOURCE,
-  REEF_COMMENTS_RESOURCE,
   createAkbChangeEventTail,
   notificationWakeupForChange,
   readChangeEventStream,

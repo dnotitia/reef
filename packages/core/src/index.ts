@@ -288,8 +288,6 @@ export {
   type NotificationProjectionResult as AkbNotificationProjectionResult,
   type NotificationProjectionSourceResult as AkbNotificationProjectionSourceResult,
   CHANGE_EVENT_KIND,
-  REEF_ACTIVITY_RESOURCE,
-  REEF_COMMENTS_RESOURCE,
   createAkbChangeEventTail,
   notificationWakeupForChange,
   readChangeEventStream,

@@ -2,13 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 import { EventTailError } from "../../errors";
 import {
   CHANGE_EVENT_KIND,
-  REEF_ACTIVITY_RESOURCE,
-  REEF_COMMENTS_RESOURCE,
   createAkbChangeEventTail,
   notificationWakeupForChange,
   readChangeEventStream,
   tableResourceUri,
 } from "./events";
+import { REEF_ACTIVITY_TABLE, REEF_COMMENTS_TABLE } from "./core/constants";
 import { createAkbAdapter } from "./core/http";
 
 function streamResponse(chunks: string[], status = 200): Response {
@@ -37,7 +36,7 @@ function changeFrame(
     occurred_at: "2026-09-01T10:00:00.000Z",
     vault: "reef-sample",
     kind: CHANGE_EVENT_KIND,
-    resource_uri: tableResourceUri("reef-sample", REEF_ACTIVITY_RESOURCE),
+    resource_uri: tableResourceUri("reef-sample", REEF_ACTIVITY_TABLE),
     actor: "alice",
     payload: { operation: "insert" },
     ...overrides,
@@ -142,13 +141,13 @@ describe("AKB Change Event Tail", () => {
       occurred_at: "2026-09-01T10:00:00.000Z",
       vault: "reef-sample",
       kind: CHANGE_EVENT_KIND,
-      resource_uri: tableResourceUri("reef-sample", REEF_ACTIVITY_RESOURCE),
+      resource_uri: tableResourceUri("reef-sample", REEF_ACTIVITY_TABLE),
       payload: { operation: "insert" },
     };
     const commentInsert = {
       ...activityInsert,
       cursor: "c1",
-      resource_uri: tableResourceUri("reef-sample", REEF_COMMENTS_RESOURCE),
+      resource_uri: tableResourceUri("reef-sample", REEF_COMMENTS_TABLE),
       payload: { operation: "insert" },
     };
     const commentUpdate = {

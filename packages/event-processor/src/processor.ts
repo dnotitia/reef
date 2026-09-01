@@ -19,7 +19,7 @@ export interface RunEventProcessorOptions {
   onError?: (error: unknown) => void;
 }
 
-export class NotificationProjectionFailedError extends Error {
+class NotificationProjectionFailedError extends Error {
   constructor() {
     super("Notification projection did not complete successfully");
     this.name = "NotificationProjectionFailedError";
@@ -111,10 +111,7 @@ function isAbortError(
 }
 
 function isTerminalTailError(error: unknown): boolean {
-  if (error instanceof EventTailError) {
-    return error.code !== "upstream";
-  }
-  return false;
+  return error instanceof EventTailError && error.code !== "upstream";
 }
 
 async function waitForReconnect(

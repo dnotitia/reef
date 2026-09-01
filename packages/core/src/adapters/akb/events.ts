@@ -14,12 +14,11 @@ import {
   type TailCheckpointV1,
 } from "../../schemas/events";
 import { VaultNameSchema } from "../../schemas/workspace/config";
+import { REEF_ACTIVITY_TABLE, REEF_COMMENTS_TABLE } from "./core/constants";
 import { readAkbErrorResponse } from "./core/errorResponse";
 import type { AkbStreamAdapter, AkbStreamRequestInit } from "./core/http";
 
 export const CHANGE_EVENT_KIND = "table.rows_changed" as const;
-export const REEF_ACTIVITY_RESOURCE = "reef_activity" as const;
-export const REEF_COMMENTS_RESOURCE = "reef_comments" as const;
 
 const MAX_EVENT_CURSOR_LENGTH = 4_096;
 
@@ -87,13 +86,13 @@ export function notificationWakeupForChange(
   );
   if (!operation.success) return null;
   if (
-    envelope.resource_uri === tableResourceUri(vault, REEF_ACTIVITY_RESOURCE) &&
+    envelope.resource_uri === tableResourceUri(vault, REEF_ACTIVITY_TABLE) &&
     operation.data === "insert"
   ) {
     return "activity";
   }
   if (
-    envelope.resource_uri === tableResourceUri(vault, REEF_COMMENTS_RESOURCE) &&
+    envelope.resource_uri === tableResourceUri(vault, REEF_COMMENTS_TABLE) &&
     (operation.data === "insert" || operation.data === "update")
   ) {
     return "comment";

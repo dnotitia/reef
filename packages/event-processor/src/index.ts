@@ -35,7 +35,7 @@ export function createEventProcessor(
   const adapter = createAkbAdapter({
     baseUrl: options.baseUrl,
     jwt: options.jwt,
-    ...(options.requestPolicy ? { requestPolicy: options.requestPolicy } : {}),
+    requestPolicy: options.requestPolicy,
   });
   const tail = createAkbChangeEventTail(adapter);
   const runtime: EventProcessorRuntime = {
@@ -44,9 +44,7 @@ export function createEventProcessor(
       akbProjectNotifications({
         adapter,
         vault: options.vault,
-        ...(options.batchSize === undefined
-          ? {}
-          : { batchSize: options.batchSize }),
+        batchSize: options.batchSize,
       }),
   };
   const runOptions = (signal?: AbortSignal): RunEventProcessorOptions => ({
