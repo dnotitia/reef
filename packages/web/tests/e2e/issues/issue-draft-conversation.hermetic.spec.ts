@@ -101,7 +101,7 @@ test.describe("Hermetic New Issue draft conversation", () => {
         new URL(request.url()).pathname === "/api/agents/runs",
     );
     await dialog.getByTestId("new-issue-chat-input").fill("Clarify this");
-    await dialog.getByTestId("new-issue-chat-send").click();
+    await dialog.getByTestId("new-issue-chat-send").dblclick();
     const firstBody = (await firstRequest).postDataJSON();
     expect(firstBody).toMatchObject({
       task_id: "chat.workspace",
@@ -118,6 +118,7 @@ test.describe("Hermetic New Issue draft conversation", () => {
         .last()
         .filter({ hasText: "Request: Clarify this" }),
     ).toBeVisible();
+    await expect(dialog.getByTestId("user-message")).toHaveCount(1);
 
     await dialog.getByTestId("new-issue-title-input").fill("Updated title");
     await dialog.getByTestId("markdown-source-textarea").fill("Updated body");
@@ -304,5 +305,40 @@ test.describe("Hermetic New Issue draft conversation", () => {
       await dialog.getByTestId("new-issue-cancel").click();
       await expect(dialog).toBeHidden();
     }
+  });
+
+  test("keeps global and draft conversations isolated", async ({ page }) => {
+    await openExistingWorkspace(page);
+
+    await page.getByTestId("ask-ai-fab").click();
+    const globalDialog = page.getByTestId("ask-ai-dialog");
+    await globalDialog.getByTestId("ask-ai-input").fill("Global question");
+    await globalDialog.getByTestId("ask-ai-send").click();
+    await expect(
+      globalDialog.getByTestId("assistant-message").last(),
+    ).toContainText("Request: Global question", { timeout: 15_000 });
+    await globalDialog.getByTestId("ask-ai-close").click();
+
+    await page.getByTestId("new-issue-trigger").click();
+    const dialog = page.getByTestId("new-issue-dialog");
+    await dialog.getByTestId("draft-conversation-toggle").click();
+    const draftPanel = dialog.getByTestId("draft-conversation-panel");
+    await draftPanel.getByTestId("new-issue-chat-input").fill("Draft question");
+    await draftPanel.getByTestId("new-issue-chat-send").click();
+    await expect(
+      draftPanel.getByTestId("assistant-message").last(),
+    ).toContainText("Request: Draft question", { timeout: 15_000 });
+    await expect(
+      draftPanel.getByTestId("assistant-message").last(),
+    ).not.toContainText("Global question");
+
+    await dialog.getByTestId("new-issue-cancel").click();
+    await expect(dialog).toBeHidden();
+    await page.getByTestId("ask-ai-fab").click();
+    await expect(globalDialog).toHaveAttribute("aria-hidden", "false");
+    await expect(
+      globalDialog.getByTestId("assistant-message").last(),
+    ).toContainText("Request: Global question");
+    await expect(globalDialog).not.toContainText("Draft question");
   });
 });

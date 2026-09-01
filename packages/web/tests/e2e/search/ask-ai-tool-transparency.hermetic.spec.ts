@@ -64,6 +64,36 @@ test.describe("Hermetic Ask AI tool transparency (REEF-372)", () => {
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
   });
 
+  test("accepts one rapid Ask AI send and clears the composer", async ({
+    page,
+  }) => {
+    const agentRequests: string[] = [];
+    page.on("request", (request) => {
+      if (
+        request.method() === "POST" &&
+        new URL(request.url()).pathname === "/api/agents/runs"
+      ) {
+        agentRequests.push(request.url());
+      }
+    });
+
+    await openExistingWorkspace(page);
+    await page.locator('[data-testid="ask-ai-fab"]').click();
+    const askInput = page.locator('[data-testid="ask-ai-input"]');
+    const askSend = page.locator('[data-testid="ask-ai-send"]');
+    await askInput.fill("rapid Ask AI activation");
+
+    await askSend.dblclick();
+
+    await expect(page.locator('[data-testid="user-message"]')).toHaveCount(1);
+    await expect(
+      page.locator('[data-testid="assistant-message"]').last(),
+    ).toContainText("Request: rapid Ask AI activation", { timeout: 15_000 });
+    await expect(askInput).toHaveValue("");
+    await expect(askSend).toBeDisabled();
+    expect(agentRequests).toHaveLength(1);
+  });
+
   test("answers exact issue questions with completed traces across close/reopen", async ({
     page,
   }) => {

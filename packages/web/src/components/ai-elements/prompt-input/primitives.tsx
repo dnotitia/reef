@@ -39,6 +39,10 @@ export const PromptInputSubmit = ({
     (e: MouseEvent<HTMLButtonElement>) => {
       if (isGenerating && onStop) {
         e.preventDefault();
+        // A fast double activation can cross the ready → generating render
+        // between clicks. Ignore the second click instead of treating it as a
+        // stop command for the run the first click just accepted.
+        if (e.detail > 1) return;
         onStop();
         return;
       }
