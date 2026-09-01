@@ -231,18 +231,7 @@ describe("AKB Change Event Tail", () => {
       jwt: "jwt",
     });
 
-    await expect(
-      (async () => {
-        for await (const _record of createAkbChangeEventTail(adapter).subscribe(
-          {
-            vault: "reef-sample",
-            lastEventId: "old",
-          },
-        )) {
-          void _record;
-        }
-      })(),
-    ).rejects.toBeInstanceOf(EventTailError);
+    let caught: unknown;
     try {
       for await (const _record of createAkbChangeEventTail(adapter).subscribe({
         vault: "reef-sample",
@@ -251,11 +240,13 @@ describe("AKB Change Event Tail", () => {
         void _record;
       }
     } catch (error) {
-      expect(error).toMatchObject({
-        code: "event_gap",
-        status: 410,
-        context: { earliestCursor: "earliest", latestCursor: "latest" },
-      });
+      caught = error;
     }
+    expect(caught).toBeInstanceOf(EventTailError);
+    expect(caught).toMatchObject({
+      code: "event_gap",
+      status: 410,
+      context: { earliestCursor: "earliest", latestCursor: "latest" },
+    });
   });
 });

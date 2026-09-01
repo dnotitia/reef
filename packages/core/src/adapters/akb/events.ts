@@ -304,7 +304,6 @@ export function createAkbChangeEventTail(
         ...(input.lastEventId
           ? { rawHeaders: { "Last-Event-ID": input.lastEventId } }
           : {}),
-        resource: `event tail for vault ${input.vault}`,
       };
       const response = await stream(
         `/api/v1/events/${encodeURIComponent(input.vault)}`,

@@ -54,7 +54,6 @@ export interface AkbStreamRequestInit {
   query?: Record<string, string | number | undefined>;
   rawHeaders?: Record<string, string>;
   signal?: AbortSignal;
-  resource?: string;
 }
 
 export type AkbStreamRequest = (

@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import {
   EventTailError,
   notificationWakeupForChange,
@@ -32,7 +33,6 @@ interface PendingRecord {
 
 interface Deferred<T> {
   promise: Promise<T>;
-  settled: boolean;
   resolve(value: T): void;
   reject(reason: unknown): void;
 }
@@ -40,24 +40,14 @@ interface Deferred<T> {
 function createDeferred<T>(): Deferred<T> {
   let resolvePromise: (value: T) => void = () => undefined;
   let rejectPromise: (reason: unknown) => void = () => undefined;
-  const deferred: Deferred<T> = {
+  return {
     promise: new Promise<T>((resolve, reject) => {
       resolvePromise = resolve;
       rejectPromise = reject;
     }),
-    settled: false,
-    resolve(value) {
-      if (deferred.settled) return;
-      deferred.settled = true;
-      resolvePromise(value);
-    },
-    reject(reason) {
-      if (deferred.settled) return;
-      deferred.settled = true;
-      rejectPromise(reason);
-    },
+    resolve: resolvePromise,
+    reject: rejectPromise,
   };
-  return deferred;
 }
 
 class NotificationReconciliationQueue {
@@ -147,23 +137,17 @@ function isTerminalTailError(error: unknown): boolean {
   return false;
 }
 
-function waitForReconnect(
+async function waitForReconnect(
   delayMs: number,
   signal: AbortSignal | undefined,
 ): Promise<void> {
   if (delayMs === 0 || signal?.aborted) return Promise.resolve();
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => {
-      signal?.removeEventListener("abort", onAbort);
-      resolve();
-    }, delayMs);
-    const onAbort = () => {
-      clearTimeout(timer);
-      signal?.removeEventListener("abort", onAbort);
-      resolve();
-    };
-    signal?.addEventListener("abort", onAbort, { once: true });
-  });
+  try {
+    if (signal) await sleep(delayMs, undefined, { signal });
+    else await sleep(delayMs);
+  } catch (error) {
+    if (!signal?.aborted) throw error;
+  }
 }
 
 function combineSignals(
@@ -173,12 +157,9 @@ function combineSignals(
   if (!externalSignal) {
     return { signal: internalController.signal, cleanup: () => undefined };
   }
-  const abortInternal = () => internalController.abort();
-  if (externalSignal.aborted) abortInternal();
-  else externalSignal.addEventListener("abort", abortInternal, { once: true });
   return {
-    signal: internalController.signal,
-    cleanup: () => externalSignal.removeEventListener("abort", abortInternal),
+    signal: AbortSignal.any([externalSignal, internalController.signal]),
+    cleanup: () => undefined,
   };
 }
 
