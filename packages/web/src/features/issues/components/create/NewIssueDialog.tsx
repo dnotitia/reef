@@ -942,10 +942,7 @@ export function NewIssueDialog({
               ) : null}
             </div>
           </div>
-          <div
-            data-testid="draft-conversation-mobile-toggle"
-            className="grid w-full grid-cols-2 gap-1 rounded-md border border-border-subtle bg-surface-subtle p-1 min-[900px]:hidden"
-          >
+          <div className="grid w-full grid-cols-2 gap-1 rounded-md border border-border-subtle bg-surface-subtle p-1 min-[900px]:hidden">
             <Button
               type="button"
               ref={draftViewDraftRef}
