@@ -1,3 +1,4 @@
+import { createParser, type EventSourceMessage } from "eventsource-parser";
 import {
   AuthError,
   ConflictError,
@@ -152,58 +153,34 @@ async function assertStreamResponse(response: Response): Promise<void> {
   throw eventTailErrorFromHttp(response.status, error.code, error.details);
 }
 
-interface SseFrame {
-  event?: string;
-  id?: string;
-  data: string[];
-}
-
-function lineFromBuffer(buffer: string): { line: string; rest: string } | null {
-  const match = /\r\n|\r|\n/u.exec(buffer);
-  if (!match || match.index === undefined) return null;
-  return {
-    line: buffer.slice(0, match.index),
-    rest: buffer.slice(match.index + match[0].length),
-  };
-}
-
-function applySseLine(frame: SseFrame, line: string): void {
-  if (line.startsWith(":")) return;
-  if (line === "") return;
-  const separator = line.indexOf(":");
-  const field = separator === -1 ? line : line.slice(0, separator);
-  let value = separator === -1 ? "" : line.slice(separator + 1);
-  if (value.startsWith(" ")) value = value.slice(1);
-  if (field === "event") frame.event = value;
-  else if (field === "id") frame.id = value;
-  else if (field === "data") frame.data.push(value);
-}
-
-function recordFromFrame(frame: SseFrame): ChangeEventTailRecord | null {
-  if (frame.data.length === 0) return null;
-  if (!frame.event || !frame.id || !isSafeCursor(frame.id)) {
+function recordFromMessage(message: EventSourceMessage): ChangeEventTailRecord {
+  if (!message.event || !message.id || !isSafeCursor(message.id)) {
     throw new EventTailError({ code: "protocol", status: 502 });
   }
   let payload: unknown;
   try {
-    payload = JSON.parse(frame.data.join("\n")) as unknown;
+    payload = JSON.parse(message.data) as unknown;
   } catch {
     throw new EventTailError({ code: "protocol", status: 502 });
   }
 
-  if (frame.event === "change") {
+  if (message.event === "change") {
     const parsed = ChangeEventEnvelopeV1Schema.safeParse(payload);
-    if (!parsed.success || parsed.data.cursor !== frame.id) {
+    if (!parsed.success || parsed.data.cursor !== message.id) {
       throw new EventTailError({ code: "protocol", status: 502 });
     }
-    return { type: "change", cursor: frame.id, event: parsed.data };
+    return { type: "change", cursor: message.id, event: parsed.data };
   }
-  if (frame.event === "checkpoint") {
+  if (message.event === "checkpoint") {
     const parsed = TailCheckpointV1Schema.safeParse(payload);
-    if (!parsed.success || parsed.data.cursor !== frame.id) {
+    if (!parsed.success || parsed.data.cursor !== message.id) {
       throw new EventTailError({ code: "protocol", status: 502 });
     }
-    return { type: "checkpoint", cursor: frame.id, checkpoint: parsed.data };
+    return {
+      type: "checkpoint",
+      cursor: message.id,
+      checkpoint: parsed.data,
+    };
   }
   throw new EventTailError({ code: "protocol", status: 502 });
 }
@@ -251,34 +228,36 @@ export async function* readChangeEventStream(
   }
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
-  let buffer = "";
-  let frame: SseFrame = { data: [] };
-
-  const dispatch = function* (): Generator<ChangeEventTailRecord> {
-    const record = recordFromFrame(frame);
-    frame = { data: [] };
-    if (record) yield record;
+  const records: ChangeEventTailRecord[] = [];
+  let parserError: EventTailError | undefined;
+  const parser = createParser({
+    onEvent(message) {
+      records.push(recordFromMessage(message));
+    },
+    onError() {
+      parserError = new EventTailError({ code: "protocol", status: 502 });
+    },
+  });
+  const drain = function* (): Generator<ChangeEventTailRecord> {
+    while (records.length > 0) {
+      const record = records.shift();
+      if (record) yield record;
+    }
   };
 
   try {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      while (true) {
-        const line = lineFromBuffer(buffer);
-        if (!line) break;
-        buffer = line.rest;
-        if (line.line === "") {
-          yield* dispatch();
-        } else {
-          applySseLine(frame, line.line);
-        }
-      }
+      parser.feed(decoder.decode(value, { stream: true }));
+      if (parserError) throw parserError;
+      yield* drain();
     }
-    buffer += decoder.decode();
-    if (buffer.length > 0) applySseLine(frame, buffer);
-    if (frame.data.length > 0) yield* dispatch();
+    const remainder = decoder.decode();
+    if (remainder.length > 0) parser.feed(remainder);
+    parser.reset({ consume: true });
+    if (parserError) throw parserError;
+    yield* drain();
   } finally {
     reader.releaseLock();
   }

@@ -46,6 +46,7 @@
   },
   "dependencies": {
     "@opentelemetry/api": "catalog:",
+    "eventsource-parser": "3.0.8",
     "zod": "catalog:"
   }
 }

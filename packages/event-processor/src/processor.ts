@@ -153,14 +153,11 @@ async function waitForReconnect(
 function combineSignals(
   externalSignal: AbortSignal | undefined,
   internalController: AbortController,
-): { signal: AbortSignal; cleanup: () => void } {
+): AbortSignal {
   if (!externalSignal) {
-    return { signal: internalController.signal, cleanup: () => undefined };
+    return internalController.signal;
   }
-  return {
-    signal: AbortSignal.any([externalSignal, internalController.signal]),
-    cleanup: () => undefined,
-  };
+  return AbortSignal.any([externalSignal, internalController.signal]);
 }
 
 async function consumeTail(
@@ -170,7 +167,7 @@ async function consumeTail(
   ready: Promise<void>,
 ): Promise<string | undefined> {
   const internalController = new AbortController();
-  const combined = combineSignals(options.signal, internalController);
+  const signal = combineSignals(options.signal, internalController);
   void ready.catch(() => internalController.abort());
   const queue = new NotificationReconciliationQueue(
     options.vault,
@@ -184,7 +181,7 @@ async function consumeTail(
     for await (const record of runtime.tail.subscribe({
       vault: options.vault,
       ...(lastEventId ? { lastEventId } : {}),
-      signal: combined.signal,
+      signal,
     })) {
       queue.accept(record);
       if (queue.error !== null) throw queue.error;
@@ -200,7 +197,6 @@ async function consumeTail(
     throw error;
   } finally {
     internalController.abort();
-    combined.cleanup();
   }
 }
 

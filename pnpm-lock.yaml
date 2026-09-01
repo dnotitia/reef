@@ -96,6 +96,9 @@ importers:
       '@opentelemetry/api':
         specifier: 'catalog:'
         version: 1.9.1
+      eventsource-parser:
+        specifier: 3.0.8
+        version: 3.0.8
       zod:
         specifier: 'catalog:'
         version: 4.4.3
