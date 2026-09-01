@@ -506,9 +506,10 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
           }}
           // Wider canvas (REEF-149) so the rail's property rows get full width
           // and Planning dates / Relationship inputs stop truncating. The
-          // inline width is desktop-specific; the CSS fallback keeps the existing
-          // narrow responsive sheet geometry. The issue body below owns the
-          // scroll and uses `overscroll-contain` to stop chaining to the page.
+          // Desktop uses the user-resizable width; the mobile sheet fills the
+          // viewport so its fixed chrome controls cannot spill past the edge.
+          // The issue body below owns the scroll and uses `overscroll-contain`
+          // to stop chaining to the page.
           // Keep the sheet viewport fixed while the issue body owns vertical
           // scrolling. The resize splitter is anchored to this viewport; if
           // the sheet itself scrolls, its absolute handle scrolls away with the
@@ -517,9 +518,7 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
           style={
             {
               "--issue-detail-width": `${panelWidth}px`,
-              width: isDesktop
-                ? "var(--issue-detail-width)"
-                : "min(94vw, var(--issue-detail-width-default))",
+              width: isDesktop ? "var(--issue-detail-width)" : "100vw",
               maxWidth: isDesktop
                 ? "var(--issue-detail-width-max)"
                 : "var(--issue-detail-width-default)",

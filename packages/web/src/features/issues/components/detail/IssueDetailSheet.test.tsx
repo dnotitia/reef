@@ -748,9 +748,7 @@ describe("IssueDetailSheet", () => {
       ).not.toBeInTheDocument();
       expect(screen.getByTestId("issue-close")).toBeVisible();
       const sheet = document.querySelector('[data-slot="sheet-content"]');
-      expect(sheet?.getAttribute("style")).toContain(
-        "width: min(94vw, var(--issue-detail-width-default))",
-      );
+      expect(sheet?.getAttribute("style")).toContain("width: 100vw");
     });
   });
 });
