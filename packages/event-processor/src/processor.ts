@@ -26,32 +26,8 @@ export class NotificationProjectionFailedError extends Error {
   }
 }
 
-interface PendingRecord {
-  record: ChangeEventTailRecord;
-  wakesProjection: boolean;
-}
-
-interface Deferred<T> {
-  promise: Promise<T>;
-  resolve(value: T): void;
-  reject(reason: unknown): void;
-}
-
-function createDeferred<T>(): Deferred<T> {
-  let resolvePromise: (value: T) => void = () => undefined;
-  let rejectPromise: (reason: unknown) => void = () => undefined;
-  return {
-    promise: new Promise<T>((resolve, reject) => {
-      resolvePromise = resolve;
-      rejectPromise = reject;
-    }),
-    resolve: resolvePromise,
-    reject: rejectPromise,
-  };
-}
-
 class NotificationReconciliationQueue {
-  private readonly pending: PendingRecord[] = [];
+  private readonly pending: ChangeEventTailRecord[] = [];
   private worker: Promise<void> | null = null;
   private failure: unknown = null;
   private _committedCursor: string | undefined;
@@ -76,12 +52,7 @@ class NotificationReconciliationQueue {
 
   accept(record: ChangeEventTailRecord): void {
     if (this.failure !== null) return;
-    this.pending.push({
-      record,
-      wakesProjection:
-        record.type === "change" &&
-        notificationWakeupForChange(record.event, this.vault) !== null,
-    });
+    this.pending.push(record);
     if (!this.worker) {
       // Let synchronously delivered SSE frames form one burst before the first
       // projection starts. A later frame arriving while that projection is
@@ -100,15 +71,21 @@ class NotificationReconciliationQueue {
     try {
       await this.ready;
       while (this.pending.length > 0) {
-        const batch = this.pending.splice(0, this.pending.length);
-        if (batch.some((item) => item.wakesProjection)) {
+        const batch = this.pending.splice(0);
+        if (
+          batch.some(
+            (record) =>
+              record.type === "change" &&
+              notificationWakeupForChange(record.event, this.vault) !== null,
+          )
+        ) {
           const result = await this.projectNotifications();
           if (result.activity.failed || result.comment.failed) {
             throw new NotificationProjectionFailedError();
           }
         }
         const last = batch.at(-1);
-        if (last) this._committedCursor = last.record.cursor;
+        if (last) this._committedCursor = last.cursor;
       }
     } catch (error) {
       this.failure = error;
@@ -210,7 +187,7 @@ export async function runEventProcessor(
   let activationPrepared = false;
 
   while (!options.signal?.aborted) {
-    const activationReady = createDeferred<void>();
+    const activationReady = Promise.withResolvers<void>();
     const consumePromise = consumeTail(
       runtime,
       options,

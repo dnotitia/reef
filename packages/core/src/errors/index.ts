@@ -281,6 +281,12 @@ export interface EventTailErrorContext {
   latestCursor?: string;
 }
 
+function eventTailMessageKey(code: EventTailErrorCode): string {
+  if (code === "invalid_event_cursor") return "invalidEventCursor";
+  if (code === "event_gap") return "eventGap";
+  return code;
+}
+
 /** Safe, typed failures from AKB's authenticated Change Event Tail. */
 export class EventTailError extends ReefError {
   readonly context: EventTailErrorContext;
@@ -288,13 +294,7 @@ export class EventTailError extends ReefError {
   readonly status: number;
 
   constructor(context: EventTailErrorContext) {
-    const messageKey =
-      context.code === "invalid_event_cursor"
-        ? "invalidEventCursor"
-        : context.code === "event_gap"
-          ? "eventGap"
-          : context.code;
-    super(resolveEnMessage(`eventTail.${messageKey}`));
+    super(resolveEnMessage(`eventTail.${eventTailMessageKey(context.code)}`));
     this.name = "EventTailError";
     this.context = context;
     this.code = context.code;
@@ -566,12 +566,7 @@ function resolveApiHttpStatus(
 export function describeError(err: unknown): ErrorDescriptor {
   if (err instanceof ConflictError) return { code: "conflict", status: 409 };
   if (err instanceof EventTailError) {
-    const code =
-      err.code === "invalid_event_cursor"
-        ? "eventTail.invalidEventCursor"
-        : err.code === "event_gap"
-          ? "eventTail.eventGap"
-          : `eventTail.${err.code}`;
+    const code = `eventTail.${eventTailMessageKey(err.code)}`;
     return { code, status: err.status === 0 ? 502 : err.status };
   }
   if (err instanceof ControlPlaneError) {
