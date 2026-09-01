@@ -31,13 +31,21 @@ vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   }),
 }));
 
-// The issue list just feeds per-item counts here. Back it with a mutable ref so
-// individual tests can vary the linked-issue set (count rendering + delete guard).
-const { issuesRef } = vi.hoisted(() => ({
-  issuesRef: { current: [] as unknown[] },
+// Keep the mocked query state mutable so tests can cover available, failed, and
+// successfully retried linked-issue reads without a real network query.
+const { issueQueryStateRef } = vi.hoisted(() => ({
+  issueQueryStateRef: {
+    current: {
+      data: [] as unknown[] | undefined,
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(() => Promise.resolve()),
+    },
+  },
 }));
 vi.mock("@/features/issues/hooks/queries/useIssueList", () => ({
-  useIssueList: () => ({ data: issuesRef.current }),
+  useIssueList: () => issueQueryStateRef.current,
 }));
 
 // Stub the Tiptap editor (jsdom-heavy) with a textarea so planning tests stay
@@ -123,7 +131,13 @@ function wrap(ui: ReactNode, queryClient = createTestQueryClient()) {
 describe("PlanningPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    issuesRef.current = [];
+    issueQueryStateRef.current = {
+      data: [],
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(() => Promise.resolve()),
+    };
     navigationState.searchParams = new URLSearchParams();
     mockApiFetch.mockImplementation(
       (input: RequestInfo | URL, init?: RequestInit) => {
@@ -217,6 +231,96 @@ describe("PlanningPage", () => {
       ).not.toBeInTheDocument();
       expect(trigger).toHaveFocus();
     });
+  });
+
+  it("shows a named catalog error with retry instead of the empty state", async () => {
+    mockApiFetch
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "temporary failure" }), {
+          status: 503,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(catalog), { status: 200 }),
+      );
+
+    const user = userEvent.setup();
+    render(wrap(<PlanningPage />));
+
+    const error = await screen.findByTestId("planning-catalog-error");
+    expect(error).toHaveAttribute("role", "alert");
+    expect(within(error).getByText("Couldn't load planning.")).toBeVisible();
+    expect(
+      within(error).getByText("Planning items couldn't be loaded. Try again."),
+    ).toBeVisible();
+    expect(
+      screen.queryByTestId("planning-empty-sprints"),
+    ).not.toBeInTheDocument();
+
+    await user.click(within(error).getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(screen.getByText("Sprint One")).toBeVisible());
+    expect(
+      screen.queryByTestId("planning-catalog-error"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps issue aggregation unavailable and delete fail-closed until retry succeeds", async () => {
+    const refetch = vi.fn(() => {
+      issueQueryStateRef.current = {
+        ...issueQueryStateRef.current,
+        data: [],
+        isError: false,
+        isFetching: false,
+      };
+      return Promise.resolve();
+    });
+    issueQueryStateRef.current = {
+      data: undefined,
+      isPending: false,
+      isError: true,
+      isFetching: false,
+      refetch,
+    };
+
+    const user = userEvent.setup();
+    const queryClient = createTestQueryClient();
+    const view = render(wrap(<PlanningPage />, queryClient));
+    const row = await screen.findByText("Sprint One");
+    const tableRow = row.closest("tr") as HTMLElement;
+    const issueError = screen.getByTestId("planning-issue-error");
+    expect(issueError).toHaveAttribute("role", "alert");
+    expect(
+      within(issueError).getByText("Couldn't verify linked issues."),
+    ).toBeVisible();
+    expect(within(tableRow).getByText("Unable to verify")).toBeVisible();
+
+    const deleteButton = within(tableRow).getByRole("button", {
+      name: "Delete Sprint One",
+    });
+    expect(deleteButton).toHaveAttribute("aria-disabled", "true");
+    expect(deleteButton).toHaveAttribute(
+      "title",
+      "Can't delete while linked issues can't be verified",
+    );
+    expect(deleteButton).toHaveAttribute("aria-describedby");
+    deleteButton.focus();
+    expect(deleteButton).toHaveFocus();
+    expect(
+      screen.getByText("Can't delete while linked issues can't be verified"),
+    ).toHaveClass("sr-only");
+
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(refetch).toHaveBeenCalledOnce();
+    view.rerender(wrap(<PlanningPage />, queryClient));
+    await waitFor(() => expect(screen.getByText("0")).toBeVisible());
+    expect(
+      screen.queryByTestId("planning-issue-error"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(
+        screen.getByText("Sprint One").closest("tr") as HTMLElement,
+      ).getByRole("button", { name: "Delete Sprint One" }),
+    ).not.toHaveAttribute("aria-disabled");
   });
 
   it("renders sprint dates via the shared DateDisplay", async () => {
@@ -492,7 +596,10 @@ describe("PlanningPage", () => {
   });
 
   it("renders the linked-issue count and disables delete for a linked item", async () => {
-    issuesRef.current = [{ sprint_id: SPRINT_ID }, { sprint_id: SPRINT_ID }];
+    issueQueryStateRef.current.data = [
+      { sprint_id: SPRINT_ID },
+      { sprint_id: SPRINT_ID },
+    ];
     render(wrap(<PlanningPage />));
     await screen.findByText("Sprint One");
 

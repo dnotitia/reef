@@ -1,9 +1,12 @@
 import { expect, test } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
+  clearPersistedQueryCacheOnLoad,
   openExistingWorkspace,
   readFixtureState,
   resetFixture,
+  setIssueListFailure,
+  setPlanningCatalogFailure,
 } from "../harness/fixture";
 
 function sprintNames(
@@ -106,5 +109,94 @@ test.describe("Hermetic planning workflow", () => {
     await expect(panel).toBeVisible();
     await page.keyboard.press(" ");
     await expect(panel).toHaveCount(0);
+  });
+
+  test("separates catalog failure from the true empty state and converges after retry", async ({
+    page,
+    request,
+  }) => {
+    await clearPersistedQueryCacheOnLoad(page);
+    await setPlanningCatalogFailure(request, true);
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
+
+    const error = page.getByTestId("planning-catalog-error");
+    await expect(error).toBeVisible({ timeout: 20_000 });
+    await expect(error).toHaveAttribute("role", "alert");
+    await expect(error.getByText("Couldn't load planning.")).toBeVisible();
+    await expect(page.getByTestId("planning-empty-sprints")).toHaveCount(0);
+
+    await setPlanningCatalogFailure(request, false);
+    await error.getByRole("button", { name: "Retry" }).click();
+
+    await expect(page.getByText("Sprint Alpha")).toBeVisible();
+    await expect(error).toHaveCount(0);
+  });
+
+  test("keeps linked-issue aggregation and delete fail-closed until issue retry succeeds", async ({
+    page,
+    request,
+  }) => {
+    await clearPersistedQueryCacheOnLoad(page);
+    await setIssueListFailure(request, true);
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
+
+    const row = page.getByText("Sprint Alpha").locator("xpath=ancestor::tr");
+    await expect(row).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("planning-issue-error")).toBeVisible();
+    await expect(row.getByText("Unable to verify")).toBeVisible();
+
+    const deleteButton = row.getByRole("button", {
+      name: "Delete Sprint Alpha",
+    });
+    await expect(deleteButton).toHaveAttribute("aria-disabled", "true");
+    await expect(deleteButton).toHaveAttribute(
+      "title",
+      "Can't delete while linked issues can't be verified",
+    );
+    await expect(deleteButton).toHaveAttribute("aria-describedby", /.+/u);
+    await deleteButton.focus();
+    await expect(deleteButton).toBeFocused();
+
+    await setIssueListFailure(request, false);
+    await page
+      .getByTestId("planning-issue-error")
+      .getByRole("button", { name: "Retry" })
+      .click();
+
+    // The configured fixture has one real issue linked to Sprint Alpha. Once
+    // the issue read succeeds, the accurate count keeps deletion disabled for
+    // the ordinary linked-item guard rather than the unknown-integrity guard.
+    await expect(row.getByText("1")).toBeVisible();
+    await expect(deleteButton).toBeDisabled();
+    await expect(deleteButton).not.toHaveAttribute("aria-disabled", "true");
+    await expect(deleteButton).toHaveAttribute(
+      "title",
+      "Remove linked issues before deleting",
+    );
+  });
+
+  test("keeps the existing empty planning state and create entry point for a successful empty catalog", async ({
+    page,
+    request,
+  }) => {
+    // The runtime-contract task publishes empty-state starting points but does
+    // not execute this composed page, so keep the routed Planning proof here.
+    await resetFixture(request, "configured_empty");
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
+
+    await expect(page.getByTestId("planning-empty-sprints")).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(
+      page.getByRole("heading", { name: "No sprints yet." }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "New sprint" }),
+    ).toBeVisible();
+    await expect(page.getByTestId("planning-catalog-error")).toHaveCount(0);
   });
 });
