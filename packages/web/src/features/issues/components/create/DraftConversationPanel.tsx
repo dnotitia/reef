@@ -55,6 +55,9 @@ export function DraftConversationPanel({
   const t = useTranslations("issues.create");
   const panelRef = useRef<HTMLElement>(null);
   const isBusy = status === "submitted" || status === "streaming";
+  // Keep the desktop heading out of the mobile DOM. The mobile view uses the
+  // Draft/AI switcher as its only view chrome, so CSS-only hiding would leave
+  // an extra panel header in that state.
   const isDesktop =
     useSyncExternalStore(
       subscribeToViewport,
