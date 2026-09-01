@@ -118,7 +118,10 @@ test.describe("Hermetic Ask AI tool transparency (REEF-372)", () => {
       "aria-hidden",
       "true",
     );
-    await page.locator('a[href="/workspace/reef-e2e/issues"]').click();
+    await page
+      .getByRole("navigation", { name: "Main navigation" })
+      .getByRole("link", { name: "Issues", exact: true })
+      .click();
     await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues$/);
     await expect(page.locator('[data-testid="kanban-board"]')).toBeVisible();
     await expect(page.locator('[data-testid="ask-ai-fab"]')).toBeVisible();
