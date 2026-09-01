@@ -417,9 +417,24 @@ describe("NewIssueDialog", () => {
       "Keep this draft",
     );
     await user.type(screen.getByTestId("markdown-source-textarea"), "Body");
+    expect(screen.getByTestId("draft-conversation-toggle")).toHaveAttribute(
+      "aria-controls",
+      "draft-conversation-panel",
+    );
     await user.click(screen.getByTestId("draft-conversation-toggle"));
 
     expect(screen.getByTestId("draft-conversation-panel")).toBeInTheDocument();
+    expect(screen.queryByTestId("draft-conversation-toggle")).toBeNull();
+    expect(screen.getByTestId("draft-conversation-panel")).not.toHaveClass(
+      "rounded-lg",
+      "border-ai-border",
+      "bg-surface-elevated",
+    );
+    expect(
+      screen
+        .getByTestId("draft-conversation-panel")
+        .querySelector(".lucide-sparkles"),
+    ).toBeNull();
     expect(
       screen.getByRole("heading", { name: "AI chat" }),
     ).toBeInTheDocument();
@@ -429,10 +444,6 @@ describe("NewIssueDialog", () => {
         "Ask for suggestions while you shape this issue. Nothing is applied automatically.",
       ),
     ).toBeNull();
-    expect(screen.getByTestId("draft-conversation-toggle")).toHaveAttribute(
-      "aria-controls",
-      "draft-conversation-panel",
-    );
     expect(screen.getByTestId("draft-conversation-panel")).toHaveAttribute(
       "id",
       "draft-conversation-panel",
@@ -455,6 +466,10 @@ describe("NewIssueDialog", () => {
     expect(screen.getByTestId("enrich-trigger")).toHaveTextContent(
       "Get suggestions",
     );
+    expect(screen.getByTestId("enrich-trigger")).not.toHaveClass(/bg-ai/);
+    expect(
+      screen.getByTestId("enrich-trigger").querySelector("svg"),
+    ).toBeNull();
   });
 
   it("restores focus to the visible close target and preserves the unsent question", async () => {
@@ -494,7 +509,7 @@ describe("NewIssueDialog", () => {
       screen.getByTestId("new-issue-chat-input"),
       "mobile question",
     );
-    await user.click(screen.getByTestId("draft-conversation-close"));
+    await user.click(screen.getByTestId("draft-view-draft"));
 
     expect(screen.getByTestId("draft-view-draft")).toHaveFocus();
     await user.click(screen.getByTestId("draft-view-conversation"));
@@ -544,6 +559,8 @@ describe("NewIssueDialog", () => {
     expect(screen.getByTestId("draft-conversation-authoring")).toHaveClass(
       "hidden",
     );
+    expect(screen.queryByTestId("draft-conversation-close")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "AI chat" })).toBeNull();
 
     await user.click(screen.getByTestId("draft-view-draft"));
     expect(screen.queryByTestId("draft-conversation-panel")).toBeNull();

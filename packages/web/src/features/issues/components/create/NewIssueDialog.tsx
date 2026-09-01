@@ -47,7 +47,7 @@ import type {
   Template,
 } from "@reef/core";
 import { useQueryClient } from "@tanstack/react-query";
-import { Maximize2, MessageSquare, Minimize2, Sparkles } from "lucide-react";
+import { Maximize2, Minimize2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -641,14 +641,6 @@ export function NewIssueDialog({
     setDraftConversationOpen(false);
   }
 
-  function toggleDraftConversation() {
-    if (draftConversationOpen) {
-      closeDraftConversation();
-      return;
-    }
-    setDraftConversationOpen(true);
-  }
-
   const dialogWidthClass = draftConversationOpen
     ? isMaximized
       ? "max-w-[min(94vw,2100px)]"
@@ -868,32 +860,31 @@ export function NewIssueDialog({
               />
               <Button
                 type="button"
+                variant="outline"
                 size="sm"
-                className="h-8 gap-1.5 bg-ai px-3 text-xs text-ai-foreground hover:bg-ai/90"
+                className="h-8 gap-1.5 px-3 text-xs"
                 onClick={handleEnrichClick}
                 disabled={isSubmitting || enrichRun.isPending || noVault}
                 data-testid="enrich-trigger"
               >
-                <Sparkles className="h-3.5 w-3.5" />
                 {enrichRun.isPending ? tc("enriching") : tc("enrichWithAi")}
               </Button>
-              <Button
-                type="button"
-                ref={draftConversationToggleRef}
-                variant={draftConversationOpen ? "secondary" : "outline"}
-                size="sm"
-                className="hidden h-8 gap-1.5 px-3 text-xs min-[900px]:inline-flex"
-                onClick={toggleDraftConversation}
-                disabled={noVault}
-                aria-expanded={draftConversationOpen}
-                aria-controls="draft-conversation-panel"
-                data-testid="draft-conversation-toggle"
-              >
-                <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
-                {draftConversationOpen
-                  ? tc("closeConversation")
-                  : tc("openConversation")}
-              </Button>
+              {!draftConversationOpen ? (
+                <Button
+                  type="button"
+                  ref={draftConversationToggleRef}
+                  variant="outline"
+                  size="sm"
+                  className="hidden h-8 px-3 text-xs min-[900px]:inline-flex"
+                  onClick={() => setDraftConversationOpen(true)}
+                  disabled={noVault}
+                  aria-expanded={false}
+                  aria-controls="draft-conversation-panel"
+                  data-testid="draft-conversation-toggle"
+                >
+                  {tc("openConversation")}
+                </Button>
+              ) : null}
               {canMaximize ? (
                 <TooltipProvider>
                   <Tooltip>

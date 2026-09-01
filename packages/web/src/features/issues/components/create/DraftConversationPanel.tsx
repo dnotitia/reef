@@ -9,6 +9,20 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useSyncExternalStore } from "react";
+
+function subscribeToViewport(onStoreChange: () => void) {
+  window.addEventListener("resize", onStoreChange);
+  return () => window.removeEventListener("resize", onStoreChange);
+}
+
+function getViewportWidth() {
+  return window.innerWidth;
+}
+
+function getServerViewportWidth() {
+  return 0;
+}
 
 type DraftConversationPanelProps = Pick<
   ChatSurfaceProps,
@@ -27,8 +41,8 @@ type DraftConversationPanelProps = Pick<
 
 /**
  * The AI column for an unsaved New Issue draft. ChatSurface owns the
- * conversation rendering and composer; this wrapper owns only the create
- * surface's title and close affordance.
+ * conversation rendering and composer; this wrapper owns the desktop title
+ * and close affordance.
  */
 export function DraftConversationPanel({
   messages,
@@ -44,35 +58,40 @@ export function DraftConversationPanel({
 }: DraftConversationPanelProps) {
   const t = useTranslations("issues.create");
   const isBusy = status === "submitted" || status === "streaming";
+  const isDesktop =
+    useSyncExternalStore(
+      subscribeToViewport,
+      getViewportWidth,
+      getServerViewportWidth,
+    ) >= 900;
 
   return (
     <section
       id="draft-conversation-panel"
-      aria-labelledby="draft-conversation-heading"
+      aria-label={t("conversationHeading")}
       aria-busy={isBusy}
       data-testid="draft-conversation-panel"
       data-chat-status={status}
-      className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-ai-border bg-surface-elevated"
+      className="flex min-h-0 min-w-0 flex-col overflow-hidden min-[900px]:border-l min-[900px]:border-border-subtle min-[900px]:pl-5"
     >
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-ai-border bg-ai-subtle/50 px-3 py-2.5">
-        <h2
-          id="draft-conversation-heading"
-          className="font-display text-sm font-semibold text-foreground"
-        >
-          {t("conversationHeading")}
-        </h2>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-7 shrink-0 text-muted-foreground hover:bg-ai-subtle hover:text-foreground"
-          aria-label={t("closeConversation")}
-          data-testid="draft-conversation-close"
-          onClick={onClose}
-        >
-          <X className="size-3.5" aria-hidden="true" />
-        </Button>
-      </header>
+      {isDesktop ? (
+        <header className="flex shrink-0 items-center justify-between gap-3 pb-2">
+          <h2 className="font-display text-sm font-semibold text-foreground">
+            {t("conversationHeading")}
+          </h2>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-7 shrink-0 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+            aria-label={t("closeConversation")}
+            data-testid="draft-conversation-close"
+            onClick={onClose}
+          >
+            <X className="size-3.5" aria-hidden="true" />
+          </Button>
+        </header>
+      ) : null}
 
       <ChatSurface
         messages={messages}

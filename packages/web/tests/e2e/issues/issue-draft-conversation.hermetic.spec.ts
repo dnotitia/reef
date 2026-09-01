@@ -38,11 +38,24 @@ test.describe("Hermetic New Issue draft conversation", () => {
       .click();
     await dialog.getByTestId("markdown-source-textarea").fill("First body");
 
+    await expect(
+      dialog.getByTestId("draft-conversation-toggle"),
+    ).toHaveAttribute("aria-controls", "draft-conversation-panel");
     await dialog.getByTestId("draft-conversation-toggle").click();
     const panel = dialog.getByTestId("draft-conversation-panel");
     const conversationToggle = dialog.getByTestId("draft-conversation-toggle");
     await expect(panel).toBeVisible();
     await expect(dialog.getByTestId("new-issue-chat-input")).toBeVisible();
+    await expect(conversationToggle).toHaveCount(0);
+    await expect(panel.getByRole("heading", { name: "AI chat" })).toBeVisible();
+    await expect(panel.getByTestId("draft-conversation-close")).toHaveCount(1);
+    expect(await panel.getAttribute("class")).not.toMatch(
+      /rounded-lg|border-ai-border|bg-surface-elevated/,
+    );
+    await expect(dialog.getByTestId("enrich-trigger")).not.toHaveClass(/bg-ai/);
+    await expect(
+      dialog.getByTestId("enrich-trigger").locator("svg"),
+    ).toHaveCount(0);
     await expect(panel.getByRole("heading", { name: "AI chat" })).toBeVisible();
     await expect(panel.getByTestId("draft-conversation-context")).toHaveCount(
       0,
@@ -52,10 +65,6 @@ test.describe("Hermetic New Issue draft conversation", () => {
         "Ask for suggestions while you shape this issue. Nothing is applied automatically.",
       ),
     ).toHaveCount(0);
-    await expect(conversationToggle).toHaveAttribute(
-      "aria-controls",
-      "draft-conversation-panel",
-    );
     await expect(panel).toHaveAttribute("id", "draft-conversation-panel");
     expect(agentRequests).toHaveLength(0);
 
@@ -216,6 +225,10 @@ test.describe("Hermetic New Issue draft conversation", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     const panel = dialog.getByTestId("draft-conversation-panel");
     await expect(panel).toBeVisible();
+    await expect(panel.getByTestId("draft-conversation-close")).toHaveCount(0);
+    await expect(panel.getByRole("heading", { name: "AI chat" })).toHaveCount(
+      0,
+    );
     await expect(
       dialog.getByTestId("draft-conversation-authoring"),
     ).toBeHidden();
@@ -230,9 +243,7 @@ test.describe("Hermetic New Issue draft conversation", () => {
     await page.setViewportSize({ width: 375, height: 844 });
     const narrowInput = dialog.getByTestId("new-issue-chat-input");
     await narrowInput.fill("Unsent narrow question");
-    const narrowClose = dialog.getByTestId("draft-conversation-close");
-    await narrowClose.focus();
-    await page.keyboard.press("Enter");
+    await dialog.getByTestId("draft-view-draft").click();
     await expect(panel).toBeHidden();
     await expect(dialog.getByTestId("draft-view-draft")).toBeFocused();
     await dialog.getByTestId("draft-view-conversation").click();
