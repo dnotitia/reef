@@ -50,6 +50,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ListPlus, Maximize2, MessageSquare, Minimize2, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
+import { flushSync } from "react-dom";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ISSUE_TYPE_OPTIONS, NO_SELECTION } from "../../lib/metadataOptions";
@@ -91,6 +92,25 @@ function getSubIssueDefaults(
     parentId: context.parent.id,
     labels: [...context.defaults.labels],
   };
+}
+
+const DRAFT_CONVERSATION_PANEL_SELECTOR =
+  '[data-testid="draft-conversation-panel"]';
+
+function isWithinDraftConversation(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    target.closest(DRAFT_CONVERSATION_PANEL_SELECTOR) !== null
+  );
+}
+
+function isWithinNestedOverlay(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    target.closest(
+      '[role="dialog"]:not([data-testid="new-issue-dialog"]), [data-slot="dialog-content"]:not([data-testid="new-issue-dialog"]), [data-radix-popper-content-wrapper], [role="menu"], [role="listbox"]',
+    ) !== null
+  );
 }
 
 export function NewIssueDialog({
@@ -199,10 +219,6 @@ export function NewIssueDialog({
   const seededContextRef = useRef<typeof dialogContext | undefined>(undefined);
   const focusOriginRef = useRef<HTMLElement | null>(null);
   const draftConversationToggleRef = useRef<HTMLButtonElement>(null);
-  // Radix handles Escape on document capture. Keep a synchronous pointer
-  // origin so a clicked message remains owned by the conversation even if its
-  // non-interactive content cannot retain focus before that listener runs.
-  const draftConversationInteractionRef = useRef(false);
   const draftViewDraftRef = useRef<HTMLButtonElement>(null);
   const restoreDraftConversationFocusRef = useRef(false);
   const subIssueContext =
@@ -312,7 +328,6 @@ export function NewIssueDialog({
     resetFields();
     setSubmitError(null);
     setDraftConversationOpen(false);
-    draftConversationInteractionRef.current = false;
     // Abort the live draft chat synchronously before the !open effect runs.
     draftConversation.clear();
     setCreateAnother(false);
@@ -326,7 +341,6 @@ export function NewIssueDialog({
   useEffect(() => {
     if (!open) {
       seededContextRef.current = undefined;
-      draftConversationInteractionRef.current = false;
       return;
     }
     if (seededContextRef.current === dialogContext) return;
@@ -636,7 +650,6 @@ export function NewIssueDialog({
     : tc("maximizeWindow");
 
   function closeDraftConversation() {
-    draftConversationInteractionRef.current = false;
     restoreDraftConversationFocusRef.current = true;
     if (
       draftConversation.status === "submitted" ||
@@ -644,7 +657,7 @@ export function NewIssueDialog({
     ) {
       draftConversation.stop();
     }
-    setDraftConversationOpen(false);
+    flushSync(() => setDraftConversationOpen(false));
   }
 
   const dialogWidthClass = draftConversationOpen
@@ -782,7 +795,6 @@ export function NewIssueDialog({
             : {}),
         }}
         onInteractOutside={(e) => {
-          draftConversationInteractionRef.current = false;
           // The relation picker renders its dropdown in a body portal, so Radix
           // sees a click on one of its options as "outside" the dialog. That is
           // a normal in-dialog selection, not a dismiss — keep the dialog open
@@ -802,25 +814,20 @@ export function NewIssueDialog({
             if (!isSubmitting) setDiscardOpen(true);
           }
         }}
-        onPointerDownCapture={() => {
-          // The panel capture handler marks its own pointer after this reset.
-          draftConversationInteractionRef.current = false;
-        }}
-        onKeyDownCapture={(e) => {
-          if (e.key !== "Escape") {
-            draftConversationInteractionRef.current = false;
-          }
-        }}
         onEscapeKeyDown={(e) => {
-          const escapeTargets = [e.target, document.activeElement];
+          if (e.defaultPrevented) return;
+          const escapeTargets = [
+            e.target,
+            document.activeElement,
+            ...e.composedPath(),
+          ];
+          if (escapeTargets.some(isWithinNestedOverlay)) {
+            e.preventDefault();
+            return;
+          }
           const escapedFromConversation =
             draftConversationOpen &&
-            (escapeTargets.some(
-              (target) =>
-                target instanceof Element &&
-                target.closest('[data-testid="draft-conversation-panel"]'),
-            ) ||
-              draftConversationInteractionRef.current);
+            escapeTargets.some(isWithinDraftConversation);
           if (escapedFromConversation) {
             e.preventDefault();
             closeDraftConversation();
@@ -1039,9 +1046,6 @@ export function NewIssueDialog({
                 stop={draftConversation.stop}
                 vault={vault ?? ""}
                 knownIssueIds={knownIssueIds}
-                onConversationPointerDown={() => {
-                  draftConversationInteractionRef.current = true;
-                }}
                 disabled={isSubmitting || noVault}
               />
             ) : null}

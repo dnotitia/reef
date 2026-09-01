@@ -514,7 +514,6 @@ describe("useIssueUrlSync", () => {
     await user.click(screen.getByTestId("my-view-trigger"));
     await user.click(screen.getByRole("menuitem", { name: /^Triage/ }));
 
-    await new Promise((resolve) => setTimeout(resolve, 200));
     await waitFor(() =>
       expect(navigationState.searchParams.has("q")).toBe(false),
     );

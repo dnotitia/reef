@@ -630,7 +630,7 @@ describe("NewIssueDialog", () => {
     expect(toggle).toHaveFocus();
   });
 
-  it("keeps Escape owned by conversation after focus leaves its content", async () => {
+  it("focuses the conversation boundary for noninteractive Escape content", async () => {
     const user = userEvent.setup();
     mockWorkspaceChat.messages = [
       { id: "user-1", role: "user", text: "Visible question" },
@@ -643,11 +643,11 @@ describe("NewIssueDialog", () => {
     await screen.findByText("New Issue");
     const toggle = screen.getByTestId("draft-conversation-toggle");
     await user.click(toggle);
-    const message = screen.getByTestId("user-message");
-    fireEvent.pointerDown(message);
+    const panel = screen.getByTestId("draft-conversation-panel");
+    fireEvent.pointerDown(panel);
+    expect(panel).toHaveFocus();
     const dialog = screen.getByTestId("new-issue-dialog");
-    dialog.focus();
-    fireEvent.keyDown(dialog, { key: "Escape", code: "Escape" });
+    fireEvent.keyDown(panel, { key: "Escape", code: "Escape" });
 
     expect(dialog).toBeVisible();
     expect(screen.queryByTestId("draft-conversation-panel")).toBeNull();
@@ -730,17 +730,41 @@ describe("NewIssueDialog", () => {
   });
 
   it("stops a streaming draft conversation when it is folded", async () => {
-    const user = userEvent.setup();
     mockWorkspaceChat.status = "streaming";
     mockViewStore.state.newIssueDialogOpen = true;
     render(wrap(<NewIssueDialog />));
 
     await screen.findByText("New Issue");
-    await user.click(screen.getByTestId("draft-conversation-toggle"));
-    await user.click(screen.getByTestId("draft-conversation-toggle"));
+    fireEvent.click(screen.getByTestId("draft-conversation-toggle"));
+    fireEvent.click(screen.getByTestId("draft-conversation-toggle"));
 
     expect(mockWorkspaceChat.stop).toHaveBeenCalled();
     expect(screen.queryByTestId("draft-conversation-panel")).toBeNull();
+  });
+
+  it("lets a nested discard dialog own Escape after a conversation pointer", async () => {
+    const user = userEvent.setup();
+    setViewport(1024, 768);
+    mockViewStore.state.newIssueDialogOpen = true;
+    render(wrap(<NewIssueDialog />));
+
+    await screen.findByText("New Issue");
+    fireEvent.change(screen.getByTestId("new-issue-title-input"), {
+      target: { value: "Dirty draft" },
+    });
+    await user.click(screen.getByTestId("draft-conversation-toggle"));
+    fireEvent.pointerDown(screen.getByTestId("draft-conversation-panel"));
+
+    // Exercise the nested-dialog path without another pointerdown that would
+    // clear the conversation origin before the child dialog opens.
+    fireEvent.click(screen.getByTestId("new-issue-cancel"));
+    const discard = screen.getByTestId("discard-draft-confirm");
+    expect(discard).toBeVisible();
+    fireEvent.keyDown(discard, { key: "Escape", code: "Escape" });
+
+    expect(screen.queryByTestId("discard-draft-confirm")).toBeNull();
+    expect(screen.getByTestId("new-issue-dialog")).toBeVisible();
+    expect(screen.getByTestId("draft-conversation-panel")).toBeVisible();
   });
 
   it("switches between draft and AI views on a narrow canvas without losing values", async () => {

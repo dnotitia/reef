@@ -33,7 +33,6 @@ type DraftConversationPanelProps = Pick<
   | "knownIssueIds"
 > & {
   disabled?: boolean;
-  onConversationPointerDown: () => void;
 };
 
 /**
@@ -51,7 +50,6 @@ export function DraftConversationPanel({
   vault,
   knownIssueIds,
   disabled = false,
-  onConversationPointerDown,
 }: DraftConversationPanelProps) {
   const t = useTranslations("issues.create");
   const panelRef = useRef<HTMLElement>(null);
@@ -80,7 +78,6 @@ export function DraftConversationPanel({
       aria-busy={isBusy}
       data-testid="draft-conversation-panel"
       tabIndex={-1}
-      onPointerDownCapture={onConversationPointerDown}
       onPointerDown={(event) => {
         const target = event.target;
         if (

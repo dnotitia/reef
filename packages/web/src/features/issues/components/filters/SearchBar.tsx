@@ -13,6 +13,10 @@ import { useIssueStore } from "../../stores/useIssueStore";
 export function SearchBar() {
   const t = useTranslations("issues.filters");
   const setSearchQuery = useIssueStore((state) => state.setSearchQuery);
+  const searchQueryResetToken = useIssueStore(
+    (state) => state.searchQueryResetToken,
+  );
+  const skipNextDebouncedSyncRef = useRef(false);
 
   // The issue store is the search's data owner; the shared warm-tier debounce
   // (REEF-370) replaces the previous inline 150ms timer. `initial` seeds the
@@ -30,6 +34,10 @@ export function SearchBar() {
 
   // Push the settled value into the store so the list query re-runs on it.
   useEffect(() => {
+    if (skipNextDebouncedSyncRef.current) {
+      skipNextDebouncedSyncRef.current = false;
+      return;
+    }
     setSearchQuery(debounced);
   }, [debounced, setSearchQuery]);
 
@@ -37,10 +45,12 @@ export function SearchBar() {
   // from elsewhere) back into the input.
   useEffect(() => {
     return useIssueStore.subscribe((state, previousState) => {
-      if (
-        state.searchQuery !== previousState.searchQuery ||
-        state.searchQueryResetToken !== previousState.searchQueryResetToken
-      ) {
+      const resetRequested =
+        state.searchQueryResetToken !== previousState.searchQueryResetToken;
+      if (resetRequested) {
+        skipNextDebouncedSyncRef.current = true;
+      }
+      if (state.searchQuery !== previousState.searchQuery || resetRequested) {
         reset(state.searchQuery);
       }
     });
