@@ -1,11 +1,16 @@
 import { createHash } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { AkbApiError, AuthError, ControlPlaneError } from "../../src/errors";
 import {
   type AkbAdapter,
   buildIssueMetadataFromCreateInput,
   createAkbAdapter,
+  createAkbAppInstallationReader,
   createVault,
   ensureReefTables,
+  getAuthConfig,
+  getCurrentActor,
+  getMe,
   login,
   listIssueBodyHistory,
   readIssue,
@@ -49,7 +54,7 @@ import {
 } from "../../src/index";
 
 /**
- * REEF-056 — live akb contract smoke (parent REEF-084).
+ * Live AKB contract smoke through the repository-owned isolated runtime.
  *
  * The static REEF-050 suite pins reef's hand-mirrored Zod envelopes against
  * CAPTURED akb responses; a capture freezes the wire shape at capture time, so
@@ -58,23 +63,35 @@ import {
  * (docker-compose), through reef's real adapter fetch path, so backend drift
  * fails here at the integration level instead of in production (REEF-049 class).
  *
- * Hermetic by design — OFF unless REEF_LIVE_AKB_URL points at a reachable akb.
+ * Hermetic by design — OFF unless REEF_LIVE_AKB_URL points at a reachable AKB.
  * The default `pnpm --filter @reef/core test` does NOT include
  * `__tests__/integration/**` (vitest `include` is `src/**`); this file runs only
  * via the dedicated `test:live-akb` script, on a protected-branch-only CI job.
  * So it is never part of the always-green unit signal.
  *
- * Surfaces covered (the envelopes reef-web's fetch path actually receives):
+ * Surfaces covered (the envelopes Reef's fetch paths actually receive):
  *   document put + get, search, sql (table_query + table_sql), files, resource
- *   relations, and issue body history.
+ *   relations, issue body history, human auth/config/me, and the app-principal
+ *   installation reader when the selected runtime exposes that scenario.
+ * Auth denial and SSO coverage is scenario-aware: local auth and invalid-session
+ * cases run in every supported live leg, while account denial codes and browser
+ * Keycloak callers remain explicit not-run evidence without a real IdP.
  * Provenance (`GET /provenance`) is intentionally OUT of scope: reef's fetch
  * path never calls it and reef mirrors no provenance envelope, so there is no
  * reef contract to pin. Adding one would test akb, not reef's contract.
  */
 
 const BASE_URL = process.env.REEF_LIVE_AKB_URL;
-const USERNAME = process.env.REEF_LIVE_AKB_USER ?? "reef-smoke";
-const PASSWORD = process.env.REEF_LIVE_AKB_PW ?? "reef-smoke-pw-123";
+const FIXTURE_BASE_URL = process.env.REEF_LIVE_AKB_FIXTURE_URL;
+const LIVE_SCENARIO = process.env.REEF_LIVE_AKB_SCENARIO;
+const USERNAME =
+  process.env.REEF_LIVE_AKB_USER ??
+  process.env.AKB_E2E_USERNAME ??
+  "reef-smoke";
+const PASSWORD =
+  process.env.REEF_LIVE_AKB_PW ??
+  process.env.AKB_E2E_PASSWORD ??
+  "reef-smoke-pw-123";
 const EMAIL = process.env.REEF_LIVE_AKB_EMAIL ?? "reef-smoke@example.com";
 
 const SEED_ISSUE_ID = "REEF-001";
@@ -89,6 +106,55 @@ function strippedKeys(
   return Object.keys(raw)
     .filter((key) => !declared.has(key))
     .sort();
+}
+
+function record(value: unknown, label: string): Record<string, unknown> {
+  expect(value, label).not.toBeNull();
+  expect(typeof value, label).toBe("object");
+  expect(Array.isArray(value), label).toBe(false);
+  return value as Record<string, unknown>;
+}
+
+function requiredString(
+  value: Record<string, unknown>,
+  key: string,
+  label: string,
+): string {
+  const candidate = value[key];
+  expect(typeof candidate, `${label}.${key}`).toBe("string");
+  expect((candidate as string).length, `${label}.${key}`).toBeGreaterThan(0);
+  return candidate as string;
+}
+
+function fixtureCoordinates(
+  discovery: Record<string, unknown>,
+  fixtureName: string,
+): { appId: string; vaultId: string; installationId: string } {
+  const fixtures = record(discovery.fixtures, "fixture discovery fixtures");
+  const fixture = record(fixtures[fixtureName], `fixture ${fixtureName}`);
+  return {
+    appId: requiredString(fixture, "app_id", `fixture ${fixtureName}`),
+    vaultId: requiredString(fixture, "vault_id", `fixture ${fixtureName}`),
+    installationId: requiredString(
+      fixture,
+      "installation_id",
+      `fixture ${fixtureName}`,
+    ),
+  };
+}
+
+function expectSafeControlPlaneError(
+  thrown: unknown,
+  expected: {
+    category: ControlPlaneError["category"];
+    upstreamStatus: number;
+    httpStatus: number;
+    retryable: boolean;
+  },
+): void {
+  expect(thrown).toBeInstanceOf(ControlPlaneError);
+  expect(thrown).toMatchObject(expected);
+  expect(JSON.stringify(thrown)).not.toContain(PASSWORD);
 }
 
 /**
@@ -223,9 +289,18 @@ function expectFileCredentialBoundary(
 describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
   const baseUrl = BASE_URL as string;
   let adapter: AkbAdapter;
+  let sessionToken: string;
   let vault: string;
   let provisionCreateCount = 0;
   let provisionAlterCount = 0;
+  let authEvidence: Record<string, unknown> | undefined;
+  let installationEvidence: Record<string, unknown> = {
+    status: "not_run",
+    reason:
+      "The pinned AKB runtime does not expose the app-control-plane scenario or app-principal installation GET.",
+    follow_up:
+      "Run the moving-main app-control-plane leg with its discovered app credential and fixture installation coordinates.",
+  };
 
   beforeAll(async () => {
     await ensureSeedUser(baseUrl);
@@ -234,6 +309,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
       username: USERNAME,
       password: PASSWORD,
     });
+    sessionToken = token;
     const baseAdapter = createAkbAdapter({ baseUrl, jwt: token });
     adapter = {
       request: async (...args) => {
@@ -432,6 +508,325 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
     const result = await readIssue({ adapter, vault, id: SEED_ISSUE_ID });
     expect(result.issue.id).toBe(SEED_ISSUE_ID);
   });
+
+  it("auth — live config, local login, me, actor, and safe denial contracts hold", async () => {
+    const configResponse = await fetch(
+      `${baseUrl.replace(/\/+$/, "")}/api/v1/auth/config`,
+      { redirect: "manual" },
+    );
+    expect(configResponse.status).toBe(200);
+    const rawConfig = record(await configResponse.json(), "auth config");
+    const localAuth = record(rawConfig.local_auth, "auth config local_auth");
+    const keycloak = record(rawConfig.keycloak, "auth config keycloak");
+    const schemaVersion = rawConfig.schema_version;
+    // The pinned AKB ref predates the auth-config version field; moving main
+    // publishes v2. Both responses still expose the fields Core consumes.
+    expect([undefined, 1, 2]).toContain(schemaVersion);
+    expect(localAuth.enabled).toBe(true);
+    expect(keycloak.enabled).toBe(false);
+    expect(JSON.stringify(rawConfig)).not.toContain(PASSWORD);
+
+    const hasLegacyLoginUrl = Object.prototype.hasOwnProperty.call(
+      keycloak,
+      "login_url",
+    );
+    let coreConfigBoundary: "parsed" | "not_run_current_v2_shape" = "parsed";
+    if (hasLegacyLoginUrl) {
+      const parsed = await getAuthConfig({ baseUrl });
+      expect(parsed.config.local_auth.enabled).toBe(true);
+      expect(parsed.config.keycloak.enabled).toBe(false);
+    } else {
+      // AKB main's v2 config intentionally no longer carries the legacy
+      // login_url field. Preserve the existing Core public schema and record
+      // this moving-main incompatibility instead of silently normalizing it.
+      const error = await getAuthConfig({ baseUrl }).catch((caught) => caught);
+      expect(error).toBeInstanceOf(AkbApiError);
+      expect(error).toMatchObject({ status: 502 });
+      coreConfigBoundary = "not_run_current_v2_shape";
+    }
+
+    const { profile } = await getMe({ adapter });
+    expect(typeof profile.username).toBe("string");
+    expect((profile.username ?? "").length).toBeGreaterThan(0);
+    expect(profile.username === USERNAME).toBe(true);
+    const actor = await getCurrentActor({ adapter, jwt: sessionToken });
+    expect(actor.actor === USERNAME).toBe(true);
+
+    const invalidCredential = await login({
+      baseUrl,
+      username: USERNAME,
+      password: `${PASSWORD}-invalid`,
+    }).catch((caught) => caught);
+    expect(invalidCredential).toBeInstanceOf(AuthError);
+    expect(invalidCredential).toMatchObject({
+      context: { origin: "akb", status: 401 },
+    });
+    expect(JSON.stringify(invalidCredential)).not.toContain(PASSWORD);
+
+    const invalidSessionAdapter = createAkbAdapter({
+      baseUrl,
+      jwt: "invalid-session-token",
+    });
+    const invalidSession = await getMe({
+      adapter: invalidSessionAdapter,
+    }).catch((caught) => caught);
+    expect(invalidSession).toBeInstanceOf(AuthError);
+    expect(invalidSession).toMatchObject({
+      context: { origin: "akb", status: 401 },
+    });
+
+    const notRunSso = {
+      status: "not_run",
+      reason:
+        "The repository-owned runtime uses local auth and does not provide a real Keycloak browser session.",
+      required_environment:
+        "keycloak-overlay specialist runtime with real Keycloak",
+      follow_up:
+        "Run the existing Keycloak login, code exchange, and logout callers against that specialist environment.",
+      owner: "김영로",
+    };
+    authEvidence = {
+      scenario: LIVE_SCENARIO ?? "not_declared",
+      config: {
+        status: "observed",
+        schema_version: schemaVersion,
+        local_auth_enabled: true,
+        keycloak_enabled: false,
+        core_boundary: coreConfigBoundary,
+      },
+      success: {
+        login: "observed",
+        me: "observed",
+        current_actor: "observed",
+        credential_values: "omitted",
+      },
+      denials: {
+        invalid_credentials: { status: "denied", http_status: 401 },
+        invalid_session: { status: "denied", http_status: 401 },
+        membership_required: notRunSso,
+        account_suspended: notRunSso,
+        identity_conflict: notRunSso,
+      },
+      sso: {
+        startKeycloakLogin: notRunSso,
+        exchangeKeycloakCode: notRunSso,
+        startKeycloakLogout: notRunSso,
+      },
+    };
+  });
+
+  it.skipIf(!FIXTURE_BASE_URL || LIVE_SCENARIO !== "app-control-plane")(
+    "app principal — discovered credential exchange and installation GET preserve the public projection",
+    async () => {
+      const discoveryResponse = await fetch(
+        `${FIXTURE_BASE_URL?.replace(/\/+$/, "")}/discover`,
+        { redirect: "manual" },
+      );
+      expect(discoveryResponse.status).toBe(200);
+      const discovery = record(
+        await discoveryResponse.json(),
+        "fixture discovery",
+      );
+      expect(discovery.scenario).toBe("app-control-plane");
+      const runtime = record(discovery.runtime, "fixture discovery runtime");
+      expect(requiredString(runtime, "source_revision", "runtime")).toMatch(
+        /^[0-9a-f]{7,64}$/iu,
+      );
+      const coordinates = record(
+        discovery.coordinates,
+        "fixture discovery coordinates",
+      );
+      const installationStatus = record(
+        coordinates.installation_status,
+        "installation status coordinate",
+      );
+      expect(installationStatus).toMatchObject({
+        service: "app",
+        method: "GET",
+      });
+      const adminCoordinates = record(
+        coordinates.admin,
+        "admin control-plane coordinates",
+      );
+      expect(
+        record(adminCoordinates.credential, "credential coordinate"),
+      ).toMatchObject({
+        service: "app",
+        method: "POST",
+      });
+      expect(
+        record(adminCoordinates.exchange, "exchange coordinate"),
+      ).toMatchObject({
+        service: "app",
+        method: "POST",
+        path: "/api/v1/auth/app-token",
+      });
+
+      const active = fixtureCoordinates(discovery, "status_active");
+      const blocked = fixtureCoordinates(discovery, "status_blocked");
+      const foreignInstallation = record(
+        discovery.foreign_installation,
+        "foreign installation fixture",
+      );
+      const foreignVaultId = requiredString(
+        foreignInstallation,
+        "vault_id",
+        "foreign installation fixture",
+      );
+      const targetAppId = active.appId;
+      const deployment = `live-contract-${Date.now().toString(36)}-${Math.random()
+        .toString(36)
+        .slice(2, 8)}`;
+      let credentialId: string | undefined;
+
+      try {
+        const issued = record(
+          await adapter.request(`/api/v1/apps/${targetAppId}/credentials`, {
+            method: "POST",
+            body: { deployment },
+            resource: "ephemeral app credential",
+          }),
+          "issued app credential",
+        );
+        const issuedCredential = requiredString(
+          issued,
+          "credential",
+          "issued app credential",
+        );
+        credentialId = requiredString(
+          issued,
+          "credential_id",
+          "issued app credential",
+        );
+        expect(issuedCredential.startsWith("akb_app_")).toBe(true);
+        expect(issued.app_id === targetAppId).toBe(true);
+        expect(issued.deployment).toBe(deployment);
+
+        const exchangeResponse = await fetch(
+          `${baseUrl.replace(/\/+$/, "")}/api/v1/auth/app-token`,
+          {
+            method: "POST",
+            headers: {
+              Accept: "application/json",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ credential: issuedCredential }),
+            redirect: "manual",
+          },
+        );
+        expect(exchangeResponse.status).toBe(200);
+        const exchange = record(
+          await exchangeResponse.json(),
+          "app token exchange",
+        );
+        const appToken = requiredString(
+          exchange,
+          "access_token",
+          "app token exchange",
+        );
+        expect(exchange.token_type).toBe("Bearer");
+        expect(exchange.expires_in).toEqual(expect.any(Number));
+
+        const reader = createAkbAppInstallationReader({
+          baseUrl,
+          appToken,
+        });
+        const activeResult = await reader.getInstallation(active.vaultId);
+        // Keep the identity checks scalar so assertion failures cannot print
+        // randomized fixture IDs or the raw upstream projection.
+        expect(
+          activeResult.installationId === active.installationId &&
+            activeResult.appId === active.appId &&
+            activeResult.vaultId === active.vaultId &&
+            activeResult.lifecycle === "active",
+        ).toBe(true);
+
+        const blockedResult = await reader.getInstallation(blocked.vaultId);
+        expect(
+          blockedResult.installationId === blocked.installationId &&
+            blockedResult.appId === blocked.appId &&
+            blockedResult.vaultId === blocked.vaultId &&
+            blockedResult.lifecycle === "blocked" &&
+            typeof blockedResult.blockedReason === "string",
+        ).toBe(true);
+        for (const projection of [activeResult, blockedResult]) {
+          expect(projection).not.toHaveProperty("ownedResources");
+          expect(projection).not.toHaveProperty("checkpoint");
+          expect(projection).not.toHaveProperty("recentError");
+          expect(projection).not.toHaveProperty("commandStatus");
+          expect(projection).not.toHaveProperty("replayed");
+        }
+
+        const foreignError = await reader
+          .getInstallation(foreignVaultId)
+          .catch((caught) => caught);
+        expectSafeControlPlaneError(foreignError, {
+          category: "authorization",
+          upstreamStatus: 403,
+          httpStatus: 403,
+          retryable: false,
+        });
+
+        const invalidTokenReader = createAkbAppInstallationReader({
+          baseUrl,
+          appToken: "invalid-app-token",
+        });
+        const invalidTokenError = await invalidTokenReader
+          .getInstallation(active.vaultId)
+          .catch((caught) => caught);
+        expectSafeControlPlaneError(invalidTokenError, {
+          category: "authentication",
+          upstreamStatus: 401,
+          httpStatus: 401,
+          retryable: false,
+        });
+
+        installationEvidence = {
+          status: "observed",
+          scenario: "app-control-plane",
+          credential_exchange: {
+            admin_issue: "observed",
+            app_token_exchange: "observed",
+            credential_values: "omitted",
+          },
+          success: {
+            active_installation: "observed",
+            projection: "bounded",
+          },
+          blocked: {
+            lifecycle: "blocked",
+            domain_state_preserved: true,
+            terminal_success_claimed: false,
+          },
+          denials: {
+            foreign_installation: {
+              status: "denied",
+              category: "authorization",
+              http_status: 403,
+            },
+            invalid_app_token: {
+              status: "denied",
+              category: "authentication",
+              http_status: 401,
+            },
+          },
+          cleanup: "ephemeral credential revoked",
+        };
+      } finally {
+        if (credentialId) {
+          await adapter
+            .request(
+              `/api/v1/apps/${targetAppId}/credentials/${credentialId}`,
+              {
+                method: "DELETE",
+                resource: "ephemeral app credential",
+              },
+            )
+            .catch(() => undefined);
+        }
+      }
+    },
+  );
 
   it("file lifecycle — live bytes, metadata, and credential boundaries hold", async () => {
     const filename = `live-contract-${Date.now()}.txt`;
@@ -986,6 +1381,8 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
       const evidence = {
         surface: "@reef/core public notification contract",
         runtime: "unique throwaway AKB vault",
+        auth: authEvidence ?? { status: "not_run" },
+        app_installation: installationEvidence,
         transcript: [
           {
             api: "akbEnsureReefTables",
