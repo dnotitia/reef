@@ -583,8 +583,8 @@ describe("NewIssueDialog", () => {
     const toggle = screen.getByTestId("draft-conversation-toggle");
     await user.click(toggle);
     const input = screen.getByTestId("new-issue-chat-input");
-    await user.type(input, "keep this question");
-    await user.keyboard("{Escape}");
+    fireEvent.change(input, { target: { value: "keep this question" } });
+    fireEvent.keyDown(input, { key: "Escape", code: "Escape" });
 
     expect(screen.getByTestId("new-issue-dialog")).toBeVisible();
     expect(screen.queryByTestId("draft-conversation-panel")).toBeNull();
@@ -620,10 +620,36 @@ describe("NewIssueDialog", () => {
     await screen.findByText("New Issue");
     const toggle = screen.getByTestId("draft-conversation-toggle");
     await user.click(toggle);
-    await user.click(screen.getByTestId("user-message"));
-    await user.keyboard("{Escape}");
+    const message = screen.getByTestId("user-message");
+    await user.click(message);
+    fireEvent.keyDown(message, { key: "Escape", code: "Escape" });
 
     expect(screen.getByTestId("new-issue-dialog")).toBeVisible();
+    expect(screen.queryByTestId("draft-conversation-panel")).toBeNull();
+    expect(screen.queryByTestId("discard-draft-confirm")).toBeNull();
+    expect(toggle).toHaveFocus();
+  });
+
+  it("keeps Escape owned by conversation after focus leaves its content", async () => {
+    const user = userEvent.setup();
+    mockWorkspaceChat.messages = [
+      { id: "user-1", role: "user", text: "Visible question" },
+    ] as never[];
+    mockWorkspaceChat.messageCount = 1;
+    setViewport(1024, 768);
+    mockViewStore.state.newIssueDialogOpen = true;
+    render(wrap(<NewIssueDialog />));
+
+    await screen.findByText("New Issue");
+    const toggle = screen.getByTestId("draft-conversation-toggle");
+    await user.click(toggle);
+    const message = screen.getByTestId("user-message");
+    fireEvent.pointerDown(message);
+    const dialog = screen.getByTestId("new-issue-dialog");
+    dialog.focus();
+    fireEvent.keyDown(dialog, { key: "Escape", code: "Escape" });
+
+    expect(dialog).toBeVisible();
     expect(screen.queryByTestId("draft-conversation-panel")).toBeNull();
     expect(screen.queryByTestId("discard-draft-confirm")).toBeNull();
     expect(toggle).toHaveFocus();
@@ -650,11 +676,14 @@ describe("NewIssueDialog", () => {
     render(wrap(<NewIssueDialog />));
 
     await screen.findByText("New Issue");
-    await user.type(screen.getByTestId("new-issue-title-input"), "Dirty draft");
+    fireEvent.change(screen.getByTestId("new-issue-title-input"), {
+      target: { value: "Dirty draft" },
+    });
     const toggle = screen.getByTestId("draft-conversation-toggle");
     await user.click(toggle);
-    await user.click(screen.getByTestId("assistant-message"));
-    await user.keyboard("{Escape}");
+    const assistant = screen.getByTestId("assistant-message");
+    await user.click(assistant);
+    fireEvent.keyDown(assistant, { key: "Escape", code: "Escape" });
 
     expect(screen.getByTestId("new-issue-dialog")).toBeVisible();
     expect(screen.queryByTestId("draft-conversation-panel")).toBeNull();
