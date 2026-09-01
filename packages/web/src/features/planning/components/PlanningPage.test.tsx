@@ -31,14 +31,12 @@ vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   }),
 }));
 
-// The issue list just feeds per-item counts here. Back it with a mutable ref so
-// individual tests can vary the linked-issue set (count rendering + delete guard).
-const { issuesRef, issueQueryStateRef } = vi.hoisted(() => ({
-  issuesRef: { current: [] as unknown[] },
+// Keep the mocked query state mutable so tests can cover available, failed, and
+// successfully retried linked-issue reads without a real network query.
+const { issueQueryStateRef } = vi.hoisted(() => ({
   issueQueryStateRef: {
     current: {
-      useRefData: true,
-      data: undefined as unknown[] | undefined,
+      data: [] as unknown[] | undefined,
       isPending: false,
       isError: false,
       isFetching: false,
@@ -48,17 +46,7 @@ const { issuesRef, issueQueryStateRef } = vi.hoisted(() => ({
   },
 }));
 vi.mock("@/features/issues/hooks/queries/useIssueList", () => ({
-  useIssueList: () => {
-    const state = issueQueryStateRef.current;
-    return {
-      data: state.useRefData ? issuesRef.current : state.data,
-      isPending: state.isPending,
-      isError: state.isError,
-      isFetching: state.isFetching,
-      error: state.error,
-      refetch: state.refetch,
-    };
-  },
+  useIssueList: () => issueQueryStateRef.current,
 }));
 
 // Stub the Tiptap editor (jsdom-heavy) with a textarea so planning tests stay
@@ -144,10 +132,8 @@ function wrap(ui: ReactNode, queryClient = createTestQueryClient()) {
 describe("PlanningPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    issuesRef.current = [];
     issueQueryStateRef.current = {
-      useRefData: true,
-      data: undefined,
+      data: [],
       isPending: false,
       isError: false,
       isFetching: false,
@@ -250,26 +236,15 @@ describe("PlanningPage", () => {
   });
 
   it("shows a named catalog error with retry instead of the empty state", async () => {
-    let catalogAttempts = 0;
-    mockApiFetch.mockImplementation(
-      (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = typeof input === "string" ? input : String(input);
-        if (url.startsWith("/api/planning?") && !init?.method) {
-          catalogAttempts += 1;
-          if (catalogAttempts === 1) {
-            return Promise.resolve(
-              new Response(JSON.stringify({ error: "temporary failure" }), {
-                status: 503,
-              }),
-            );
-          }
-          return Promise.resolve(
-            new Response(JSON.stringify(catalog), { status: 200 }),
-          );
-        }
-        return Promise.resolve(new Response(null, { status: 204 }));
-      },
-    );
+    mockApiFetch
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "temporary failure" }), {
+          status: 503,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(catalog), { status: 200 }),
+      );
 
     const user = userEvent.setup();
     render(wrap(<PlanningPage />));
@@ -295,7 +270,6 @@ describe("PlanningPage", () => {
     const refetch = vi.fn(() => {
       issueQueryStateRef.current = {
         ...issueQueryStateRef.current,
-        useRefData: false,
         data: [],
         isError: false,
         isFetching: false,
@@ -304,7 +278,6 @@ describe("PlanningPage", () => {
       return Promise.resolve();
     });
     issueQueryStateRef.current = {
-      useRefData: false,
       data: undefined,
       isPending: false,
       isError: true,
@@ -627,7 +600,10 @@ describe("PlanningPage", () => {
   });
 
   it("renders the linked-issue count and disables delete for a linked item", async () => {
-    issuesRef.current = [{ sprint_id: SPRINT_ID }, { sprint_id: SPRINT_ID }];
+    issueQueryStateRef.current.data = [
+      { sprint_id: SPRINT_ID },
+      { sprint_id: SPRINT_ID },
+    ];
     render(wrap(<PlanningPage />));
     await screen.findByText("Sprint One");
 

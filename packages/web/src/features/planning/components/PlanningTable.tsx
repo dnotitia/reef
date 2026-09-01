@@ -86,6 +86,7 @@ export function PlanningTable({
   const planningKindSingular = usePlanningKindSingularLabels();
   const fieldNames = useFieldNameLabels();
   const t = useTranslations("planning");
+  const common = useTranslations("common");
   const sections = useTranslations("sections");
   const items = itemsForKind(catalog, kind);
   const countById = useMemo(
@@ -117,7 +118,11 @@ export function PlanningTable({
 
   if (isCatalogError) {
     return (
-      <PlanningCatalogError
+      <PlanningLoadError
+        testId="planning-catalog-error"
+        title={t("catalogLoadErrorTitle")}
+        description={t("catalogLoadErrorDescription")}
+        retryLabel={common("retry")}
         isFetching={isCatalogFetching}
         onRetry={onRetryCatalog}
       />
@@ -140,7 +145,11 @@ export function PlanningTable({
 
   const issueError =
     issueAggregationState === "unavailable" ? (
-      <PlanningIssueAggregationError
+      <PlanningLoadError
+        testId="planning-issue-error"
+        title={t("issueLoadErrorTitle")}
+        description={t("issueLoadErrorDescription")}
+        retryLabel={common("retry")}
         isFetching={isIssueFetching}
         onRetry={onRetryIssues}
       />
@@ -517,19 +526,25 @@ function PlanningDeleteAction({
   );
 }
 
-function PlanningCatalogError({
+function PlanningLoadError({
+  testId,
+  title,
+  description,
+  retryLabel,
   isFetching,
   onRetry,
 }: {
+  testId: string;
+  title: string;
+  description: string;
+  retryLabel: string;
   isFetching: boolean;
   onRetry: () => void;
 }) {
-  const t = useTranslations("planning");
-  const common = useTranslations("common");
   const id = useId();
   return (
     <div
-      data-testid="planning-catalog-error"
+      data-testid={testId}
       role="alert"
       aria-labelledby={`${id}-title`}
       aria-describedby={`${id}-description`}
@@ -540,13 +555,13 @@ function PlanningCatalogError({
           id={`${id}-title`}
           className="text-sm font-medium text-destructive-text"
         >
-          {t("catalogLoadErrorTitle")}
+          {title}
         </h2>
         <p
           id={`${id}-description`}
           className="mt-1 text-sm text-muted-foreground"
         >
-          {t("catalogLoadErrorDescription")}
+          {description}
         </p>
       </div>
       <Button
@@ -555,55 +570,9 @@ function PlanningCatalogError({
         variant="outline"
         busy={isFetching}
         onClick={onRetry}
-        aria-label={common("retry")}
+        aria-label={retryLabel}
       >
-        {common("retry")}
-      </Button>
-    </div>
-  );
-}
-
-function PlanningIssueAggregationError({
-  isFetching,
-  onRetry,
-}: {
-  isFetching: boolean;
-  onRetry: () => void;
-}) {
-  const t = useTranslations("planning");
-  const common = useTranslations("common");
-  const id = useId();
-  return (
-    <div
-      data-testid="planning-issue-error"
-      role="alert"
-      aria-labelledby={`${id}-title`}
-      aria-describedby={`${id}-description`}
-      className="mb-3 flex flex-wrap items-start justify-between gap-3 rounded-md border border-destructive-focus/30 bg-destructive-fill/[0.04] px-3 py-3"
-    >
-      <div className="min-w-0">
-        <h2
-          id={`${id}-title`}
-          className="text-sm font-medium text-destructive-text"
-        >
-          {t("issueLoadErrorTitle")}
-        </h2>
-        <p
-          id={`${id}-description`}
-          className="mt-1 text-sm text-muted-foreground"
-        >
-          {t("issueLoadErrorDescription")}
-        </p>
-      </div>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        busy={isFetching}
-        onClick={onRetry}
-        aria-label={common("retry")}
-      >
-        {common("retry")}
+        {retryLabel}
       </Button>
     </div>
   );

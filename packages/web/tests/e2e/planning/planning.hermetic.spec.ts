@@ -181,6 +181,8 @@ test.describe("Hermetic planning workflow", () => {
     page,
     request,
   }) => {
+    // The runtime-contract task publishes empty-state starting points but does
+    // not execute this composed page, so keep the routed Planning proof here.
     await resetFixture(request, "configured_empty");
     await clearPersistedQueryCacheOnLoad(page);
     await openExistingWorkspace(page);
