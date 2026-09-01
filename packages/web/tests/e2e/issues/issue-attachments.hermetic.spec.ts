@@ -163,17 +163,6 @@ test.describe("Hermetic issue attachments (REEF-349)", () => {
     const chooserPromise = page.waitForEvent("filechooser");
     await attachButton.click();
     const chooser = await chooserPromise;
-    await chooser.setFiles({
-      name: SPECIAL_IMAGE_FILE_NAME,
-      mimeType: "image/png",
-      buffer: INLINE_PNG,
-    });
-
-    await page.locator('[data-testid="markdown-source-toggle"] button').click();
-    const source = page.locator('[data-testid="markdown-source-textarea"]');
-    await expect
-      .poll(() => source.inputValue())
-      .toContain(SPECIAL_IMAGE_MARKDOWN);
     const saveResponse = page.waitForResponse((response) => {
       const request = response.request();
       if (
@@ -190,6 +179,17 @@ test.describe("Hermetic issue attachments (REEF-349)", () => {
         body.update.content.includes(SPECIAL_IMAGE_MARKDOWN)
       );
     });
+    await chooser.setFiles({
+      name: SPECIAL_IMAGE_FILE_NAME,
+      mimeType: "image/png",
+      buffer: INLINE_PNG,
+    });
+
+    await page.locator('[data-testid="markdown-source-toggle"] button').click();
+    const source = page.locator('[data-testid="markdown-source-textarea"]');
+    await expect
+      .poll(() => source.inputValue())
+      .toContain(SPECIAL_IMAGE_MARKDOWN);
     await page.getByTestId("issue-title-input").click();
     const persistedResponse = await saveResponse;
     expect(

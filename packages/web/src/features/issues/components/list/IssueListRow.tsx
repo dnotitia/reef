@@ -164,7 +164,7 @@ export const IssueListRow = memo(function IssueListRow({
   const blockerCount = blocked
     ? getUnresolvedBlockerCount(issue, allIssues)
     : 0;
-  const isFlashing = useIssueFlash(issue.id);
+  const isFlashing = useIssueFlash(vault, issue.id);
   const keyboardOccurrenceKey = occurrenceKey ?? issue.id;
   const focused = useIssueKeyboardStore(
     (state) =>

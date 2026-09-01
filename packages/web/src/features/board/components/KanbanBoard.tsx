@@ -432,7 +432,7 @@ export function KanbanBoard({
       () => {
         toast.dismiss(kanbanToastId(input.id));
         // Confirm the move landed server-side with a one-shot flash on the card.
-        flashIssue(input.id);
+        flashIssue(vault, input.id);
       },
       (err: unknown) => {
         notifyRetryableError({

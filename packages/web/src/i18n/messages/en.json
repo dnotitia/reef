@@ -691,9 +691,9 @@
   },
   "issues": {
     "quickEdit": {
-      "statusUpdating": "Updating status…",
-      "statusUpdated": "Status updated.",
-      "statusUpdateFailed": "Status update failed. Retry is available."
+      "fieldUpdating": "Updating {field}…",
+      "fieldUpdated": "{field} updated.",
+      "fieldUpdateFailed": "{field} update failed. Retry is available."
     },
     "backlog": {
       "loadError": "Failed to load the backlog.",

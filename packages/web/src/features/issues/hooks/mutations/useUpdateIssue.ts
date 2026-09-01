@@ -38,10 +38,11 @@ export type UpdateIssueResult = IssueDocument;
 
 const UPDATE_ISSUE_MUTATION_KEY = ["issues", "update"] as const;
 
-export type IssueStatusUpdateState = {
+export type IssueUpdateState = {
   status: "idle" | "pending" | "success" | "error";
   error: Error | null;
   submittedAt: number;
+  fields: Array<keyof IssueUpdatePatch>;
 };
 
 export interface UpdateIssueRollbackContext {
@@ -67,7 +68,7 @@ interface UpdateIssueMutationContext extends UpdateIssueRollbackContext {
   previousLists?: Array<[QueryKey, unknown]>;
 }
 
-function isStatusUpdateInput(value: unknown): value is UpdateIssueInput {
+function isIssueUpdateInput(value: unknown): value is UpdateIssueInput {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const candidate = value as {
     id?: unknown;
@@ -83,20 +84,20 @@ function isStatusUpdateInput(value: unknown): value is UpdateIssueInput {
   ) {
     return false;
   }
-  return typeof (candidate.patch as { status?: unknown }).status === "string";
+  return true;
 }
 
-function matchesStatusUpdate(
+function matchesIssueUpdate(
   value: unknown,
   vault: string,
   issueId: string,
 ): value is UpdateIssueInput {
   return (
-    isStatusUpdateInput(value) && value.vault === vault && value.id === issueId
+    isIssueUpdateInput(value) && value.vault === vault && value.id === issueId
   );
 }
 
-export function hasPendingIssueStatusUpdate(
+export function hasPendingIssueUpdate(
   queryClient: QueryClient,
   vault: string,
   issueId: string,
@@ -106,40 +107,63 @@ export function hasPendingIssueStatusUpdate(
       mutationKey: UPDATE_ISSUE_MUTATION_KEY,
       predicate: (mutation) =>
         mutation.state.status === "pending" &&
-        matchesStatusUpdate(mutation.state.variables, vault, issueId),
+        matchesIssueUpdate(mutation.state.variables, vault, issueId),
     }) > 0
   );
 }
 
-export function useIssueStatusUpdateState(
+export function useIssueUpdateState(
   vault: string,
   issueId: string,
-): IssueStatusUpdateState {
+): IssueUpdateState {
   const states = useMutationState({
     filters: {
       mutationKey: UPDATE_ISSUE_MUTATION_KEY,
       predicate: (mutation) =>
-        matchesStatusUpdate(mutation.state.variables, vault, issueId),
+        matchesIssueUpdate(mutation.state.variables, vault, issueId),
     },
-    select: (mutation) => ({
-      status: mutation.state.status,
-      error:
-        mutation.state.error instanceof Error ? mutation.state.error : null,
-      submittedAt: mutation.state.submittedAt,
-    }),
+    select: (mutation) => {
+      const input = mutation.state.variables;
+      return {
+        status: mutation.state.status,
+        error:
+          mutation.state.error instanceof Error ? mutation.state.error : null,
+        submittedAt: mutation.state.submittedAt,
+        fields: isIssueUpdateInput(input)
+          ? (Object.keys(input.patch) as Array<keyof IssueUpdatePatch>)
+          : [],
+      };
+    },
   });
-  const latest = states.reduce<IssueStatusUpdateState | undefined>(
+  const latest = states.reduce<IssueUpdateState | undefined>(
     (current, candidate) =>
       current === undefined || candidate.submittedAt >= current.submittedAt
         ? candidate
         : current,
     undefined,
   );
+  const pending = states.filter((candidate) => candidate.status === "pending");
+  const latestPending = pending.reduce<IssueUpdateState | undefined>(
+    (current, candidate) =>
+      current === undefined || candidate.submittedAt >= current.submittedAt
+        ? candidate
+        : current,
+    undefined,
+  );
+  if (latestPending) {
+    return {
+      ...latestPending,
+      fields: Array.from(
+        new Set(pending.flatMap((candidate) => candidate.fields)),
+      ),
+    };
+  }
   return (
     latest ?? {
       status: "idle",
       error: null,
       submittedAt: 0,
+      fields: [],
     }
   );
 }

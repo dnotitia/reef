@@ -557,7 +557,7 @@ function runtimeDiscovery() {
         interaction: {
           type: "status_quick_edit",
           operation:
-            "configure delayed status updates for two issues, observe optimistic status changes and per-row pending state, repeat the same activation while pending, and verify independent delayed success or failure with retry",
+            "configure delayed priority, assignee, labels, and status updates, observe optimistic target values and field-near pending state in List, Backlog, and Board, repeat the same issue activation while pending, and verify independent delayed success, failure rollback, retry, and concurrent success confirmation",
         },
       },
       planning_overflow: {
@@ -781,6 +781,15 @@ function makeState(scenario) {
         display_name: "Bob Smith",
         email: "bob@example.com",
         role: "member",
+        since: NOW,
+      });
+    }
+    if (scenario === "status_quick_edit") {
+      vault.members.push({
+        username: "bob",
+        display_name: "Bob Example",
+        email: "bob@example.com",
+        role: "writer",
         since: NOW,
       });
     }

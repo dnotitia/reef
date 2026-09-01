@@ -12,6 +12,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { purgeAll } from "../../stores/issueEntityStore";
+import { useFlashStore } from "../../stores/useFlashStore";
 import { useIssueKeyboardStore } from "../../stores/useIssueKeyboardStore";
 import { useIssueSelectionStore } from "../../stores/useIssueSelectionStore";
 import { IssueListRow } from "./IssueListRow";
@@ -30,6 +31,7 @@ afterEach(() => {
     quickEditRequest: null,
   });
   useIssueSelectionStore.getState().clear();
+  useFlashStore.setState({ flashedIssueKeys: new Set() });
 });
 
 const base = {
@@ -188,6 +190,45 @@ describe("IssueListRow", () => {
     renderRow();
     const rows = screen.getAllByTestId("issue-list-row");
     expect(rows.length).toBe(1);
+  });
+
+  it("keeps simultaneous save-confirm flashes on separate issue rows", () => {
+    const secondIssue = { ...mockIssue, id: "REEF-002", title: "Second row" };
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <table>
+          <tbody>
+            <IssueListRow
+              issue={mockIssue}
+              vault="reef-test"
+              allIssues={[mockIssue, secondIssue]}
+              logicalIds={[mockIssue.id, secondIssue.id]}
+            />
+            <IssueListRow
+              issue={secondIssue}
+              vault="reef-test"
+              allIssues={[mockIssue, secondIssue]}
+              logicalIds={[mockIssue.id, secondIssue.id]}
+            />
+          </tbody>
+        </table>
+      </QueryClientProvider>,
+    );
+
+    act(() => {
+      useFlashStore.getState().flashIssue("reef-test", mockIssue.id);
+      useFlashStore.getState().flashIssue("reef-test", secondIssue.id);
+    });
+
+    expect(screen.getAllByTestId("issue-list-row")[0]).toHaveClass(
+      "reef-flash-row",
+    );
+    expect(screen.getAllByTestId("issue-list-row")[1]).toHaveClass(
+      "reef-flash-row",
+    );
   });
 
   it("shows blocked indicator with count when issue is blocked", () => {

@@ -2,13 +2,15 @@ import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboard
 import type { IssueListItem, PlanningCatalog } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { KanbanCard, KanbanCardPreview } from "./KanbanCard";
 import type { IssueGroupBucket } from "../../issues/lib/grouping";
 
@@ -19,6 +21,15 @@ const currentLogin = vi.hoisted(() => ({ value: null as string | null }));
 vi.mock("@/features/auth/hooks/useCurrentUserLogin", () => ({
   useCurrentUserLogin: () => currentLogin.value,
 }));
+
+const { mockApiFetch } = vi.hoisted(() => ({
+  mockApiFetch: vi.fn(),
+}));
+vi.mock("@/lib/apiClient", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/lib/apiClient")>("@/lib/apiClient");
+  return { ...actual, apiFetch: mockApiFetch };
+});
 
 afterEach(() => {
   cleanup();
@@ -71,6 +82,7 @@ vi.mock("@dnd-kit/sortable", () => ({
 }));
 
 import { useSortable } from "@dnd-kit/sortable";
+import { useUpdateIssue } from "@/features/issues/hooks/mutations/useUpdateIssue";
 
 const mockIssue = (overrides: Partial<IssueListItem> = {}): IssueListItem => ({
   id: "reef-001",
@@ -129,6 +141,10 @@ const epicCardBucket = {
 } satisfies IssueGroupBucket;
 
 describe("KanbanCard", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("opens its context menu from the board keyboard menu key without opening detail", () => {
     const onClick = vi.fn();
     const queryClient = new QueryClient({
@@ -158,6 +174,74 @@ describe("KanbanCard", () => {
     // The card shows the locale-resolved priority label (REEF-292), not the raw
     // enum value; tests resolve to the en base via the global fieldLabels mock.
     expect(screen.getByText("High")).toBeDefined();
+  });
+
+  it("shows a pending field indicator and settled announcement for a card update", async () => {
+    let resolveResponse: (response: Response) => void = () => {};
+    mockApiFetch.mockReturnValue(
+      new Promise<Response>((resolve) => {
+        resolveResponse = resolve;
+      }),
+    );
+
+    function Harness() {
+      const mutation = useUpdateIssue();
+      return (
+        <>
+          <KanbanCard
+            issue={mockIssue({ priority: "high" })}
+            vault="reef-test"
+          />
+          <button
+            type="button"
+            data-testid="start-card-update"
+            onClick={() =>
+              mutation.mutate({
+                id: "reef-001",
+                vault: "reef-test",
+                patch: { priority: "medium" },
+              })
+            }
+          >
+            start
+          </button>
+        </>
+      );
+    }
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Harness />
+      </QueryClientProvider>,
+    );
+
+    const card = screen.getByTestId("kanban-card");
+    await act(async () => {
+      screen.getByTestId("start-card-update").click();
+    });
+
+    await waitFor(() => expect(card).toHaveAttribute("aria-busy", "true"));
+    expect(
+      card.querySelector('[data-issue-update-field="priority"]'),
+    ).toHaveAttribute("aria-busy", "true");
+    expect(card).toHaveTextContent("Updating Priority…");
+
+    await act(async () => {
+      resolveResponse(
+        new Response(
+          JSON.stringify({
+            issue: mockIssue({ priority: "medium" }),
+            content: "",
+          }),
+          { status: 200 },
+        ),
+      );
+    });
+    await waitFor(() => expect(card).not.toHaveAttribute("aria-busy"));
+    expect(card).toHaveTextContent("Priority updated.");
   });
 
   it("omits priority badge when priority is undefined", () => {
