@@ -79,9 +79,8 @@ export function ChatSurface({
   className,
 }: ChatSurfaceProps) {
   const isBusy = status === "submitted" || status === "streaming";
-  const inputText = composerText;
-  const setInputText = onComposerTextChange;
-  const canSubmit = !composerDisabled && !isBusy && inputText.trim().length > 0;
+  const canSubmit =
+    !composerDisabled && !isBusy && composerText.trim().length > 0;
 
   async function handleSubmit(message: PromptInputMessage) {
     const text = message.text.trim();
@@ -89,7 +88,7 @@ export function ChatSurface({
     const accepted = await sendMessage({ text });
     // A failed or cancelled run keeps the exact submitted text available for
     // retry.
-    if (accepted) setInputText("");
+    if (accepted) onComposerTextChange("");
   }
 
   return (
@@ -128,9 +127,11 @@ export function ChatSurface({
         <PromptInputBody className="px-3 py-2">
           <PromptInputTextarea
             data-testid={inputTestId}
-            value={inputText}
+            value={composerText}
             placeholder={composerPlaceholder}
-            onChange={(event) => setInputText(event.currentTarget.value)}
+            onChange={(event) =>
+              onComposerTextChange(event.currentTarget.value)
+            }
             // A placeholder is not an accessible name; label the message input
             // explicitly for screen readers.
             aria-label={composerPlaceholder}
@@ -145,7 +146,7 @@ export function ChatSurface({
               canSubmit ? "bg-ai text-ai-foreground hover:bg-ai/90" : undefined
             }
             disabled={
-              composerDisabled || (!isBusy && inputText.trim().length === 0)
+              composerDisabled || (!isBusy && composerText.trim().length === 0)
             }
             data-testid={submitTestId}
           />

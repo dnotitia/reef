@@ -309,6 +309,7 @@ export function NewIssueDialog({
     resetFields();
     setSubmitError(null);
     setDraftConversationOpen(false);
+    // Abort the live draft chat synchronously before the !open effect runs.
     draftConversation.clear();
     setCreateAnother(false);
     setDismissedRefs(new Set());
@@ -647,6 +648,8 @@ export function NewIssueDialog({
     : isMaximized
       ? "max-w-[min(94vw,1680px)]"
       : "max-w-[min(94vw,1200px)]";
+  // The temporary AI rail needs an explicit viewport-capped width so its
+  // grid slots stay deterministic while the dialog opens and closes.
   const dialogMaxWidthLimit = draftConversationOpen
     ? isMaximized
       ? 2100

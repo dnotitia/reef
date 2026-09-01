@@ -4,7 +4,6 @@ import {
   ChatSurface,
   type ChatSurfaceProps,
 } from "@/features/ai/components/ChatSurface";
-import type { ChatStatus } from "@/features/ai/hooks/useWorkspaceChat";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
@@ -29,10 +28,10 @@ type DraftConversationPanelProps = Pick<
   | "onComposerTextChange"
   | "sendMessage"
   | "stop"
+  | "status"
   | "vault"
   | "knownIssueIds"
 > & {
-  status: ChatStatus;
   disabled?: boolean;
 };
 
