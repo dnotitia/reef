@@ -254,6 +254,25 @@ test.describe("Hermetic issue keyboard navigation", () => {
     }
   });
 
+  test("returns focus to the List trigger after canceling a quick edit", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+
+    const rows = await expectIssueListKeyboardReady(page);
+    const row = rows.filter({ hasText: "Initial issue Alpha" });
+    const trigger = row.getByTestId("issue-inline-edit-priority");
+    await trigger.focus();
+    await trigger.press("Enter");
+
+    const editor = page.getByTestId("issue-quick-edit-priority");
+    await expect(editor).toBeVisible();
+    await editor.press("Escape");
+    await expect(editor).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+  });
+
   test("collision-places the narrow List Priority editor inside a 640px viewport", async ({
     page,
   }) => {

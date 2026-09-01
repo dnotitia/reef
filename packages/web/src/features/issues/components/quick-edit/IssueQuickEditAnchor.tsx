@@ -101,6 +101,7 @@ export function IssueQuickEditAnchor({
     top: number;
   } | null>(null);
   const anchorOriginRef = useRef<HTMLSpanElement>(null);
+  const focusRestoreRef = useRef<HTMLElement | null>(null);
   const viewportSizeRef = useRef<{ width: number; height: number } | null>(
     null,
   );
@@ -138,6 +139,37 @@ export function IssueQuickEditAnchor({
         : field !== null && fieldUpdate && update.status === "error"
           ? quickEdit("fieldUpdateFailed", { field: fieldNames[field] })
           : "";
+
+  useLayoutEffect(() => {
+    if (field !== null) {
+      const trigger = getAnchorElement?.(field);
+      const origin = anchorOriginRef.current?.parentElement;
+      const active = document.activeElement;
+      // Global shortcuts start on the row/card, while direct field activation
+      // starts on that field trigger. Preserve either origin; if Radix has
+      // already moved focus into the portal, fall back to the field trigger.
+      const activeOutsideEditor =
+        active instanceof HTMLElement &&
+        active !== document.body &&
+        active !== document.documentElement &&
+        active.isConnected &&
+        !active.closest('[data-testid="issue-quick-edit-anchor"]');
+      focusRestoreRef.current =
+        (activeOutsideEditor ? active : null) ??
+        trigger ??
+        (origin instanceof HTMLElement && origin.hasAttribute("tabindex")
+          ? origin
+          : null);
+      return;
+    }
+
+    const restoreTarget = focusRestoreRef.current;
+    focusRestoreRef.current = null;
+    if (restoreTarget?.isConnected) {
+      restoreTarget.focus({ preventScroll: true });
+    }
+  }, [field, getAnchorElement]);
+
   const handleDismissKeyDown = useCallback(
     (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
