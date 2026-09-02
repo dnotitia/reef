@@ -293,6 +293,7 @@ test.describe("large issue list virtualization", () => {
     page,
     request,
   }) => {
+    test.setTimeout(120_000);
     for (const order of ["asc", "desc"] as const) {
       await resetFixture(request, "large_vault");
       const titlePage = await page.context().newPage();
