@@ -25,39 +25,21 @@ package.
 
 ## Repository layout
 
-reef is a monorepo with nine private, non-published packages:
+reef is a monorepo with four private, non-published packages:
 
 - **`packages/core`** — framework-agnostic TypeScript library (`@reef/core`).
-  No Next.js imports, no DOM APIs. Product AKB, monitored-repository GitHub,
-  and LLM I/O originates here. The separate orchestration GitHub SCM provider
-  owns only the write-capable provider contract described below. New product
-  behavior that touches schemas, adapters, agents, or shared contracts starts
-  in `core`.
+  No Next.js imports, no DOM APIs. Product AKB I/O originates here. New product
+  behavior that touches schemas, models, AKB adapters, or shared contracts
+  starts in `core`.
 - **`packages/web` (`@reef/web`)** — the Next.js App Router application and its
   stateless BFF. Route Handlers under `src/app/api/*` are thin wrappers that
   validate requests, manage the session cookie, call `core`, and translate
   errors.
-- **`packages/orchestration/runtime` (`@reef/orchestrator`)** — the long-running
-  background runtime for worker scheduling, polling, and graceful shutdown
-  outside the web process.
-- **`packages/orchestration/providers/codex` (`@reef/harness-provider-codex`)** —
-  the private Codex App Server harness adapter for local stdio lifecycle and
-  secret-free harness events.
-- **`packages/orchestration/providers/local` (`@reef/infrastructure-provider-local`)** —
-  the private local infrastructure provider for isolated Git-backed run
-  workspaces and bounded process execution.
-- **`packages/orchestration/providers/local-validation` (`@reef/validation-provider-local`)** —
-  the private validation provider for exact clean-checkout checks, bounded
-  redacted proof, and process-tree cleanup.
-- **`packages/orchestration/providers/github` (`@reef/scm-provider-github`)** —
-  the private GitHub SCM provider for explicit repository-bound ref, branch,
-  commit, push, and draft-PR operations. GitHub writes stay outside the
-  read-only monitored-repository adapter and never force-push or merge.
-- **`packages/orchestration/providers/reef` (`@reef/work-provider-reef`)** — the
-  private Reef work adapter for the orchestrator contract.
 - **`packages/jira-migrator` (`@reef/jira-migrator`)** — the operator-run,
   one-shot Jira-to-Reef migration package. Jira access stays read-only; apply
   stages reconcile Reef targets through explicit target contracts.
+- **`packages/event-processor` (`@reef/event-processor`)** — the private AKB
+  Change Event composition root for notification projection.
 
 Cross-cutting engineering rules live in [`AGENTS.md`](AGENTS.md), with
 package-local rules in each workspace package's `AGENTS.md` and implementation rules in

@@ -53,11 +53,6 @@
       "includeEntryExports": false,
       "project": ["src/**/*.ts"]
     },
-    "packages/orchestration/runtime": {
-      "entry": ["src/index.ts", "src/cli.ts"],
-      "includeEntryExports": false,
-      "project": ["src/**/*.ts"]
-    },
     "packages/web": {
       "entry": [
         "src/app/**/*.{ts,tsx}",

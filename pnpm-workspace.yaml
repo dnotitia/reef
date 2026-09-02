@@ -1,9 +1,5 @@
 packages:
   - "packages/*"
-  - "packages/orchestration/runtime"
-  - "packages/orchestration/controller"
-  - "packages/orchestration/cli"
-  - "packages/orchestration/providers/*"
 
 catalog:
   "@octokit/rest": ^22.0.1

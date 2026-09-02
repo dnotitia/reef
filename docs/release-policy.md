@@ -1,22 +1,14 @@
 # Release Policy
 
 reef is versioned as a single repository product: the deployed `reef-web`
-application plus its private core, worker, and operator packages.
+application plus its private core, event-processing, and operator packages.
 
 The pnpm workspace contains `packages/web`, `packages/core`,
-`packages/event-processor`,
-`packages/orchestration/runtime`, `packages/orchestration/controller`,
-`packages/orchestration/cli`,
-`packages/orchestration/providers/codex`,
-`packages/orchestration/providers/local`,
-`packages/orchestration/providers/local-validation`,
-`packages/orchestration/providers/github`, `packages/jira-migrator`, and
-`packages/orchestration/providers/reef`. None is published or versioned
-independently. Repository versioning therefore follows the product release, not
-per-package library compatibility. A release may ship reef-web as
-a container while distributing the orchestrator or Jira migrator from source or
-build artifacts; those packages still follow the same root version and
-changelog.
+`packages/event-processor`, and `packages/jira-migrator`. None is published or
+versioned independently. Repository versioning therefore follows the product
+release, not per-package library compatibility. A release may ship reef-web as
+a container while distributing the Jira migrator from source or build
+artifacts; those packages still follow the same root version and changelog.
 
 ## Version Source
 

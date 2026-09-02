@@ -126,7 +126,7 @@ Credentials come only from environment variables or local secret files.
 | `--board-id` | — | Repeatable explicit board selection; no board inference. |
 | `--mapping-policy PROJECT=PATH` | — | Required private JSON mapping policy for every selected project. |
 | `--akb-base-url` | `AKB_BACKEND_URL` | HTTPS AKB API origin. |
-| `--vault` | `REEF_JIRA_MIGRATOR_VAULT`, `REEF_ORCHESTRATOR_VAULT`, or `REEF_VAULT` | Target Reef workspace vault. |
+| `--vault` | `REEF_JIRA_MIGRATOR_VAULT` or `REEF_VAULT` | Target Reef workspace vault. |
 | `--run-id` | — | Stable execution identity shared by dry-run/apply/resume. |
 | `--ledger-path` | `REEF_JIRA_LEDGER_PATH` | Required private checkpoint ledger. |
 | `--archive-root` | `REEF_JIRA_ARCHIVE_ROOT` | Required private raw archive root. |
@@ -328,7 +328,7 @@ equivalent.
 
 Field-mapping results and changelog classifications store this opaque
 reference. The migration ledger persists the same reference, and the apply
-runner passes it through report/apply/resume orchestration. None of those
+runner passes it through report/apply/resume coordination. None of those
 surfaces should duplicate or stringify the raw payload. `readRawArchiveReference`
 and `verifyRawArchive` validate the envelope version, manifest checksum,
 reference, object presence, byte size, object digest, canonical JSON, file
@@ -694,7 +694,7 @@ database uniqueness remain outside this planning API.
 ## Migration Ledger And Checkpoint
 
 The migration ledger is the operator-owned local execution-state artifact used
-by apply orchestration. It is deliberately separate from the raw archive: the
+by the apply flow. It is deliberately separate from the raw archive: the
 archive owns canonical source payloads, while the ledger stores only stable
 identity, sanitized fingerprints, opaque archive references, successful target
 bindings, and immutable run results. The ledger is not stored in reef-web or an

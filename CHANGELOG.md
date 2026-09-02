@@ -27,6 +27,11 @@ explicitly in the entries below.
 
 ### Changed
 
+- **The Reef workspace now contains only product-owned packages.** Obsolete
+  private execution packages and their build, test, CI, release, and maintenance
+  integration have been removed. The existing `@reef/core` pnpm Git dependency
+  contract remains supported.
+
 - **`@reef/core` now supports development-stage pnpm Git consumers.** The
   `packages/core` subdirectory prepares its dist-only ESM artifact outside the
   Reef workspace, while a local Git consumer gate verifies commit-pinned
