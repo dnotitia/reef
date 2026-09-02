@@ -47,6 +47,27 @@ describe("persisted issue filter (config helpers)", () => {
     });
   });
 
+  it.each(["created_at", "start_date", "due_date"] as const)(
+    "round-trips a %s date range through the persisted slot",
+    async (field) => {
+      await setPersistedIssueFilter("reef-acme", {
+        dateRange: {
+          field,
+          from: "2026-06-01",
+          to: "2026-06-02",
+        },
+      });
+
+      expect(await getPersistedIssueFilter("reef-acme")).toEqual({
+        dateRange: {
+          field,
+          from: "2026-06-01",
+          to: "2026-06-02",
+        },
+      });
+    },
+  );
+
   it("uses the canonical `filter:{vault}` key, wrapped in a version envelope", async () => {
     await setPersistedIssueFilter("reef-acme", { status: ["todo"] });
     const raw = await getConfigValue("filter:reef-acme");

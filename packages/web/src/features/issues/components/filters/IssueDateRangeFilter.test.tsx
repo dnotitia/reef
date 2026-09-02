@@ -2,12 +2,13 @@ import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { IssueDateRange } from "@reef/core";
 import { IssueDateRangeFilter } from "./IssueDateRangeFilter";
 
 afterEach(cleanup);
 
 function renderFilter(
-  range?: { field: "updated_at"; from: string; to: string },
+  range?: IssueDateRange,
   onChange = vi.fn(),
   locale: "en" | "ko" = "en",
 ) {
@@ -71,6 +72,51 @@ describe("IssueDateRangeFilter", () => {
         .getByTestId("updated-at-range-editor-criterion")
         .querySelector("button"),
     ).toBeNull();
+  });
+
+  it("switches the single date criterion without changing the range shape", async () => {
+    const user = userEvent.setup();
+    const onChange = renderFilter({
+      field: "updated_at",
+      from: "2026-06-01",
+      to: "2026-06-02",
+    });
+
+    await user.click(screen.getByTestId("updated-at-filter-trigger"));
+    const field = screen.getByRole("combobox", { name: "Date field" });
+    expect(field).toHaveValue("updated_at");
+    expect(screen.getByRole("option", { name: "Created date" })).toBeVisible();
+    expect(screen.getByRole("option", { name: "Start date" })).toBeVisible();
+    expect(screen.getByRole("option", { name: "Due date" })).toBeVisible();
+
+    await user.selectOptions(field, "created_at");
+    expect(onChange).toHaveBeenCalledWith({
+      field: "created_at",
+      from: "2026-06-01",
+      to: "2026-06-02",
+    });
+  });
+
+  it("uses the selected criterion in the trigger and accessible names", async () => {
+    const user = userEvent.setup();
+    renderFilter({
+      field: "due_date",
+      from: "2026-06-01",
+      to: "2026-06-02",
+    });
+
+    const trigger = screen.getByTestId("updated-at-filter-trigger");
+    expect(trigger).toHaveTextContent("Due date · Jun 1, 2026 → Jun 2, 2026");
+    expect(trigger).toHaveAccessibleName(
+      "Due date · Jun 1, 2026 → Jun 2, 2026",
+    );
+    expect(screen.getByTestId("updated-at-range-clear")).toHaveAccessibleName(
+      "Clear Due date range",
+    );
+    await user.click(trigger);
+    expect(
+      screen.getByTestId("updated-at-range-editor-criterion"),
+    ).toHaveTextContent("Due date");
   });
 
   it("localizes the compound summary and editor labels in Korean", async () => {

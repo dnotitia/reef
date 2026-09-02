@@ -1346,6 +1346,11 @@ function updatedAtRangeVault(name) {
   alpha.updated_at = "2026-06-15T00:00:00.000Z";
   beta.updated_at = "2026-06-16T00:00:00.000Z";
   gamma.updated_at = "2026-06-15T00:00:00.000Z";
+  alpha.created_at = "2026-06-10T00:00:00.000Z";
+  beta.created_at = "2026-06-11T00:00:00.000Z";
+  gamma.created_at = "2026-06-12T00:00:00.000Z";
+  beta.start_date = null;
+  beta.due_date = null;
   return vault;
 }
 
@@ -2042,7 +2047,7 @@ function issueRow(input) {
     related_to: input.related_to ?? [],
     blocks: input.blocks ?? [],
     archived_at: input.archived_at ?? null,
-    created_at: NOW,
+    created_at: input.created_at ?? NOW,
     updated_at: NOW,
     meta: {
       author: input.author ?? "alice",
@@ -3541,20 +3546,21 @@ function filterIssueRows(rows, sql, vault) {
     );
   }
 
-  const updatedAtRange = sql.match(
-    /"updated_at"\s+>=\s+'([^']+)'\s+AND\s+"updated_at"\s+<\s+'([^']+)'/i,
+  const dateRange = sql.match(
+    /"(created_at|updated_at|start_date|due_date)"\s+>=\s+'([^']+)'\s+AND\s+"\1"\s+<\s+'([^']+)'/i,
   );
-  if (updatedAtRange) {
-    const from = Date.parse(updatedAtRange[1]);
-    const to = Date.parse(updatedAtRange[2]);
+  if (dateRange) {
+    const [, dateField, rawFrom, rawTo] = dateRange;
+    const from = Date.parse(rawFrom);
+    const to = Date.parse(rawTo);
     out = out.filter((row) => {
-      const updatedAt = Date.parse(String(row.updated_at ?? ""));
+      const rowDate = Date.parse(String(row[dateField] ?? ""));
       return (
-        !Number.isNaN(updatedAt) &&
+        !Number.isNaN(rowDate) &&
         !Number.isNaN(from) &&
         !Number.isNaN(to) &&
-        updatedAt >= from &&
-        updatedAt < to
+        rowDate >= from &&
+        rowDate < to
       );
     });
   }

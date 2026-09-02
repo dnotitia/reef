@@ -198,9 +198,27 @@ describe("GET /api/issues", () => {
     expect(mockAkbListIssues).not.toHaveBeenCalled();
   });
 
-  it("returns 400 for an unregistered date field and skips the adapter", async () => {
+  it("forwards a registered created date field to the adapter", async () => {
+    mockAkbListIssues.mockResolvedValueOnce({ issues: [] });
     const req = new Request(
       "http://localhost/api/issues?vault=reef-acme&date_field=created_at&date_from=2026-06-01T00:00:00.000Z&date_to=2026-06-03T00:00:00.000Z",
+      { headers: authedHeaders() },
+    );
+    const res = await GET(req);
+
+    expect(res.status).toBe(200);
+    expect(mockAkbListIssues.mock.calls[0]?.[0].query).toMatchObject({
+      date_range: {
+        field: "created_at",
+        from: "2026-06-01T00:00:00.000Z",
+        to: "2026-06-03T00:00:00.000Z",
+      },
+    });
+  });
+
+  it("returns 400 for an unregistered date field and skips the adapter", async () => {
+    const req = new Request(
+      "http://localhost/api/issues?vault=reef-acme&date_field=custom_date&date_from=2026-06-01T00:00:00.000Z&date_to=2026-06-03T00:00:00.000Z",
       { headers: authedHeaders() },
     );
     const res = await GET(req);

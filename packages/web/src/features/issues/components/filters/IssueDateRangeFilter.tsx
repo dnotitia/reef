@@ -14,7 +14,13 @@ import {
 } from "@/components/ui/popover";
 import { formatDisplayDate } from "@/features/issues/lib/dateHelpers";
 import { cn } from "@/lib/utils";
-import { type IssueDateRange, validateIssueDateRange } from "@reef/core";
+import {
+  ISSUE_DATE_FIELD_REGISTRY,
+  getIssueDateField,
+  type IssueDateFieldId,
+  type IssueDateRange,
+  validateIssueDateRange,
+} from "@reef/core";
 import { Calendar as CalendarIcon, ChevronDown, X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useMemo } from "react";
@@ -25,10 +31,68 @@ interface IssueDateRangeFilterProps {
 }
 
 type DateRangeMessageKey =
+  | "dateRangeFilterLabel"
+  | "dateRangeField"
+  | "updatedAtRange"
+  | "createdAtRange"
+  | "startDateRange"
+  | "dueDateRange"
+  | "updatedAtRangeStart"
+  | "updatedAtRangeEnd"
+  | "createdAtRangeStart"
+  | "createdAtRangeEnd"
+  | "startDateRangeStart"
+  | "startDateRangeEnd"
+  | "dueDateRangeStart"
+  | "dueDateRangeEnd"
+  | "updatedAtRangeOrder"
+  | "updatedAtRangeEditorStart"
+  | "updatedAtRangeEditorEnd"
+  | "updatedAtRangeEndPlaceholder"
+  | "updatedAtRangeStartPlaceholder"
+  | "updatedAtRangeEditorClear"
+  | "clearDateRange"
   | "updatedAtRangeStartRequired"
   | "updatedAtRangeStartInvalid"
   | "updatedAtRangeEndRequired"
   | "updatedAtRangeEndInvalid";
+
+type DateRangeFieldCopy = {
+  label: DateRangeMessageKey;
+  from: DateRangeMessageKey;
+  to: DateRangeMessageKey;
+};
+
+const DATE_RANGE_FIELD_COPY = {
+  updated_at: {
+    label: "updatedAtRange",
+    from: "updatedAtRangeStart",
+    to: "updatedAtRangeEnd",
+  },
+  created_at: {
+    label: "createdAtRange",
+    from: "createdAtRangeStart",
+    to: "createdAtRangeEnd",
+  },
+  start_date: {
+    label: "startDateRange",
+    from: "startDateRangeStart",
+    to: "startDateRangeEnd",
+  },
+  due_date: {
+    label: "dueDateRange",
+    from: "dueDateRangeStart",
+    to: "dueDateRangeEnd",
+  },
+} as const satisfies Record<IssueDateFieldId, DateRangeFieldCopy>;
+
+const DATE_RANGE_FIELD_IDS = Object.keys(
+  ISSUE_DATE_FIELD_REGISTRY,
+) as IssueDateFieldId[];
+
+function isIssueDateFieldId(value: string): value is IssueDateFieldId {
+  return getIssueDateField(value) !== undefined;
+}
 
 function errorMessage(
   code: "from_required" | "from_invalid" | "to_required" | "to_invalid",
@@ -52,15 +116,15 @@ export function IssueDateRangeFilter({
 }: IssueDateRangeFilterProps) {
   const t = useTranslations("issues.filters");
   const locale = useLocale();
-  const selected = useMemo(
-    () =>
-      range?.field === "updated_at"
-        ? range
-        : { field: "updated_at", from: "", to: "" },
-    [range],
-  );
+  const selected = useMemo<IssueDateRange>(() => {
+    const field =
+      range && isIssueDateFieldId(range.field) ? range.field : "updated_at";
+    return range && field === range.field ? range : { field, from: "", to: "" };
+  }, [range]);
+  const copy = DATE_RANGE_FIELD_COPY[selected.field as IssueDateFieldId];
+  const fieldLabel = t(copy.label);
   const validation =
-    range?.field === "updated_at"
+    range && isIssueDateFieldId(range.field)
       ? validateIssueDateRange(selected)
       : {
           valid: true,
@@ -85,8 +149,15 @@ export function IssueDateRangeFilter({
     ? formatDisplayDate(selected.to, locale)
     : t("updatedAtRangeEndPlaceholder");
   const summary = hasSelection
-    ? `${t("updatedAtRange")} · ${startSummary} → ${endSummary}`
-    : t("updatedAtRange");
+    ? `${fieldLabel} · ${startSummary} → ${endSummary}`
+    : fieldLabel;
+
+  const updateField = useCallback(
+    (field: IssueDateFieldId) => {
+      onChange({ ...selected, field });
+    },
+    [onChange, selected],
+  );
 
   const updateBound = useCallback(
     (bound: "from" | "to", value: string) => {
@@ -101,9 +172,10 @@ export function IssueDateRangeFilter({
       className="w-fit max-w-full min-w-0"
       data-testid="updated-at-filter"
       role="group"
-      aria-label={t("updatedAtRange")}
+      aria-label={t("dateRangeFilterLabel", { field: fieldLabel })}
       data-active={hasSelection ? "true" : undefined}
       data-invalid={fromError || toError ? "true" : undefined}
+      data-field={selected.field}
     >
       <Popover className="w-fit max-w-full">
         <div className="inline-flex min-w-0 max-w-full items-stretch">
@@ -137,8 +209,8 @@ export function IssueDateRangeFilter({
           {hasSelection ? (
             <button
               type="button"
-              aria-label={t("clearUpdatedAtRange")}
-              title={t("clearUpdatedAtRange")}
+              aria-label={t("clearDateRange", { field: fieldLabel })}
+              title={t("clearDateRange", { field: fieldLabel })}
               data-testid="updated-at-range-clear"
               onClick={(event) => {
                 event.stopPropagation();
@@ -172,8 +244,40 @@ export function IssueDateRangeFilter({
               aria-hidden="true"
             />
             <span className="type-control font-medium text-foreground">
-              {t("updatedAtRange")}
+              {fieldLabel}
             </span>
+          </div>
+
+          <div className="mb-3 min-w-0">
+            <label
+              htmlFor="issue-date-range-field"
+              className="mb-1 block type-caption font-medium text-foreground"
+            >
+              {t("dateRangeField")}
+            </label>
+            <div className="relative min-w-0">
+              <select
+                id="issue-date-range-field"
+                aria-label={t("dateRangeField")}
+                data-testid="issue-date-range-field"
+                value={selected.field}
+                onChange={(event) => {
+                  const field = event.target.value;
+                  if (isIssueDateFieldId(field)) updateField(field);
+                }}
+                className="h-8 w-full min-w-0 appearance-none rounded-md border border-border bg-surface-elevated px-2.5 pr-8 type-control text-foreground outline-none transition-colors duration-150 hover:bg-surface-hover focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30"
+              >
+                {DATE_RANGE_FIELD_IDS.map((field) => (
+                  <option key={field} value={field}>
+                    {t(DATE_RANGE_FIELD_COPY[field].label)}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+                aria-hidden="true"
+              />
+            </div>
           </div>
 
           <div
@@ -191,7 +295,7 @@ export function IssueDateRangeFilter({
               <DatePickerField
                 value={selected.from}
                 onChange={(value) => updateBound("from", value)}
-                label={t("updatedAtRangeStart")}
+                label={t(copy.from)}
                 placeholder={t("updatedAtRangeStartPlaceholder")}
                 id="updated-at-range-start"
                 clearable={false}
@@ -221,7 +325,7 @@ export function IssueDateRangeFilter({
               <DatePickerField
                 value={selected.to}
                 onChange={(value) => updateBound("to", value)}
-                label={t("updatedAtRangeEnd")}
+                label={t(copy.to)}
                 placeholder={t("updatedAtRangeEndPlaceholder")}
                 id="updated-at-range-end"
                 clearable={false}

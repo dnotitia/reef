@@ -33,15 +33,22 @@ async function chooseDate(
   value: string,
 ): Promise<void> {
   await openRangeEditor(page);
-  const fieldId =
-    label === "Updated from"
-      ? "updated-at-range-start"
-      : "updated-at-range-end";
+  const fieldId = label.endsWith(" from")
+    ? "updated-at-range-start"
+    : "updated-at-range-end";
   await page.locator(`#${fieldId}`).click();
   await page
     .getByRole("textbox", { name: `${label} (YYYY-MM-DD)`, exact: true })
     .fill(value);
   await page.keyboard.press("Enter");
+}
+
+async function chooseDateField(
+  page: Page,
+  field: "created_at" | "start_date" | "due_date",
+): Promise<void> {
+  await openRangeEditor(page);
+  await page.getByTestId("issue-date-range-field").selectOption(field);
 }
 
 async function browserToday(page: Page): Promise<string> {
@@ -393,6 +400,70 @@ test.describe("Hermetic updated-at date range filter", () => {
       page.getByText("Initial issue Alpha", { exact: true }),
     ).toBeHidden();
     await expect(page.getByTestId("updated-at-filter")).toBeVisible();
+  });
+
+  test("filters each registered date field with its own storage semantics", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(LIST_URL);
+    await expect(
+      page.getByText("Initial issue Alpha", { exact: true }),
+    ).toBeVisible({ timeout: 15_000 });
+
+    const cases = [
+      {
+        field: "created_at" as const,
+        fromLabel: "Created from",
+        throughLabel: "Created through",
+        day: "2026-06-10",
+        summary: "Created date",
+      },
+      {
+        field: "start_date" as const,
+        fromLabel: "Start from",
+        throughLabel: "Start through",
+        day: "2026-06-10",
+        summary: "Start date",
+      },
+      {
+        field: "due_date" as const,
+        fromLabel: "Due from",
+        throughLabel: "Due through",
+        day: "2026-06-24",
+        summary: "Due date",
+      },
+    ];
+
+    for (const dateCase of cases) {
+      const clear = page.getByTestId("updated-at-range-clear");
+      if ((await clear.count()) > 0) await clear.click();
+      await chooseDateField(page, dateCase.field);
+      await expect(page.getByTestId("updated-at-filter-summary")).toHaveText(
+        dateCase.summary,
+      );
+      const responsePromise = page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return (
+          response.request().method() === "GET" &&
+          url.pathname === "/api/issues" &&
+          url.searchParams.get("date_field") === dateCase.field
+        );
+      });
+      await chooseDate(page, dateCase.fromLabel, dateCase.day);
+      await chooseDate(page, dateCase.throughLabel, dateCase.day);
+      await responsePromise;
+
+      await expect(page.getByTestId("updated-at-filter-summary")).toContainText(
+        `${dateCase.summary} ·`,
+      );
+      await expect(
+        page.getByText("Initial issue Alpha", { exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByText("Initial issue Beta", { exact: true }),
+      ).toBeHidden();
+    }
   });
 
   test("does not narrow the list until both bounds form a valid range", async ({

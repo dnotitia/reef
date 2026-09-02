@@ -658,6 +658,24 @@ describe("filterIssues — issue date range", () => {
     });
     expect(result).toHaveLength(issues.length);
   });
+
+  it.each([
+    ["created_at", "2026-04-01T12:00:00.000Z"],
+    ["start_date", "2026-04-03"],
+    ["due_date", "2026-04-04"],
+  ] as const)("matches the registered %s field", (field, value) => {
+    const candidates = [
+      makeIssue({ id: "REEF-101", [field]: value }),
+      makeIssue({ id: "REEF-102", [field]: null }),
+    ];
+    expect(
+      filterIssues(
+        candidates,
+        { dateRange: { field, from: "2026-04-03", to: "2026-04-04" } },
+        { timeZone: "UTC" },
+      ).map((issue) => issue.id),
+    ).toEqual(field === "created_at" ? [] : ["REEF-101"]);
+  });
 });
 
 describe("searchIssues", () => {

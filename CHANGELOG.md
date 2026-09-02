@@ -14,10 +14,11 @@ explicitly in the entries below.
 
 ### Added
 
-- **Issue views now filter by an updated-date range.** List, Board, and Backlog
-  accept a browser-timezone calendar range for the current `updated_at` value;
-  the range is combined with existing facets and restored through the URL,
-  browser-local filters, and My Views.
+- **Issue views now filter by four issue-date ranges.** List, Board, and Backlog
+  accept browser-timezone timestamp ranges for `updated_at` / `created_at` and
+  date-only calendar ranges for nullable `start_date` / `due_date`; the range
+  is combined with existing facets and restored through the URL, browser-local
+  filters, and My Views.
 
 - **Planning now shows lifecycle progress and capacity rollups.** Sprint,
   milestone, and release rows show linked issue counts, completion, estimated
@@ -73,7 +74,7 @@ explicitly in the entries below.
 
 ### Migration
 
-- **No browser storage migration is required for updated-date ranges.** The
+- **No browser storage migration is required for issue-date ranges.** The
   optional range uses the existing versioned issue-filter and My View envelopes;
   saved filters without a range remain valid.
 

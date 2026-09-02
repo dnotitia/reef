@@ -31,6 +31,27 @@ export const ISSUE_DATE_FIELD_REGISTRY = {
     nullable: false,
     column: "updated_at",
   },
+  created_at: {
+    id: "created_at",
+    label: "Created",
+    storage: "timestamp",
+    nullable: false,
+    column: "created_at",
+  },
+  start_date: {
+    id: "start_date",
+    label: "Start date",
+    storage: "date-only",
+    nullable: true,
+    column: "start_date",
+  },
+  due_date: {
+    id: "due_date",
+    label: "Due date",
+    storage: "date-only",
+    nullable: true,
+    column: "due_date",
+  },
 } as const satisfies Readonly<Record<string, IssueDateField>>;
 
 export type IssueDateFieldId = keyof typeof ISSUE_DATE_FIELD_REGISTRY;
@@ -66,12 +87,30 @@ export const IssueDateRangeQuerySchema = z
       .refine(isValidDateBoundary, "date range end must be a valid ISO date"),
   })
   .superRefine((range, ctx) => {
-    if (!getIssueDateField(range.field)) {
+    const definition = getIssueDateField(range.field);
+    if (!definition) {
       ctx.addIssue({
         code: "custom",
         path: ["field"],
         message: "date range field is not registered",
       });
+    }
+    if (definition) {
+      const validStorageBoundaries =
+        definition.storage === "date-only"
+          ? Boolean(parseDateOnly(range.from) && parseDateOnly(range.to))
+          : isValidTimestampBoundary(range.from) &&
+            isValidTimestampBoundary(range.to);
+      if (!validStorageBoundaries) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["from"],
+          message:
+            definition.storage === "date-only"
+              ? "date-only range boundaries must be calendar dates"
+              : "timestamp range boundaries must be ISO instants",
+        });
+      }
     }
     if (Date.parse(range.from) >= Date.parse(range.to)) {
       ctx.addIssue({
@@ -114,6 +153,10 @@ function isValidDateBoundary(value: string): boolean {
   const datePart = value.slice(0, 10);
   if (!parseDateOnly(datePart)) return false;
   if (value.length === 10) return true;
+  return isValidTimestampBoundary(value);
+}
+
+function isValidTimestampBoundary(value: string): boolean {
   return ISO_INSTANT_RE.test(value) && !Number.isNaN(Date.parse(value));
 }
 

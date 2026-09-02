@@ -236,6 +236,27 @@ describe("useIssueUrlSync", () => {
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
+  it.each(["created_at", "start_date", "due_date"] as const)(
+    "restores the registered %s date-range value from the issue URL",
+    async (field) => {
+      navigationState.searchParams = new URLSearchParams(
+        `date_field=${field}&date_from=2026-06-01&date_to=2026-06-02`,
+      );
+
+      render(<Harness />);
+
+      await waitFor(() => {
+        expect(useIssueStore.getState().filter.dateRange).toEqual({
+          field,
+          from: "2026-06-01",
+          to: "2026-06-02",
+        });
+      });
+      expect(mockPush).not.toHaveBeenCalled();
+      expect(mockReplace).not.toHaveBeenCalled();
+    },
+  );
+
   it("serializes the generic date-range value without changing other URL axes", async () => {
     navigationState.searchParams = new URLSearchParams("view=list&group=label");
 

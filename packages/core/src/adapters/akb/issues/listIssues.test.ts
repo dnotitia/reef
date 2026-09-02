@@ -93,6 +93,27 @@ describe("listIssues → SQL", () => {
       3,
     ]);
   });
+
+  it("pushes a nullable date-only range into the paginated server query", async () => {
+    const { calls } = setupFetch([{ body: makeIssueQueryResponse([]) }]);
+    await listIssues({
+      adapter: makeTestAkbAdapter(),
+      vault: "reef-acme",
+      query: IssueListQuerySchema.parse({
+        date_range: {
+          field: "due_date",
+          from: "2026-06-01",
+          to: "2026-06-03",
+        },
+        archived: true,
+        limit: 2,
+      }),
+    });
+    expect(capturedSql(calls)).toContain(
+      `WHERE "due_date" IS NOT NULL AND "due_date" >= $1 AND "due_date" < $2`,
+    );
+    expect(capturedParams(calls)).toEqual(["2026-06-01", "2026-06-03", 3]);
+  });
 });
 
 function makeIssue(over: Partial<IssueMetadata>): IssueMetadata {
