@@ -3,6 +3,7 @@ import {
   unresolvedBlockerCountIn,
 } from "@/features/issues/lib/dependencyUtils";
 import {
+  computePlanningRollup,
   type IssueListItem,
   type Milestone,
   type PlanningCatalog,
@@ -23,11 +24,9 @@ import {
 
 /**
  * Per-planning-item health rollup (REEF-191). A pure derivation over the
- * already-loaded issue list — it lives beside `computeAggregates` in the web
- * reports feature rather than in `core`, because the reports aggregation
- * pipeline (its blocker/aging/throughput classifiers, `matchesFilters`) is a
- * web-local concern operating on `IssueListItem`s the client already holds, not
- * a data-plane boundary call.
+ * already-loaded issue list — the shared planning lifecycle/point derivation
+ * lives in core, while the reports-specific blocker/aging/throughput classifiers
+ * and `matchesFilters` remain local to this feature.
  *
  * The RAG thresholds live in `classifyHealth`, so the
  * verdict stays "clear and consistent" (REEF-191 AC3). `computeHealthRollup`
@@ -303,7 +302,6 @@ interface GroupStats {
   createdInWindow: number;
   closedInWindow: number;
   minCreated: number; // earliest created_at (ms), used as the timeline start
-  donePoints: number; // sum of estimate_points over resolved issues
 }
 
 function emptyStats(): GroupStats {
@@ -316,7 +314,6 @@ function emptyStats(): GroupStats {
     createdInWindow: 0,
     closedInWindow: 0,
     minCreated: Number.POSITIVE_INFINITY,
-    donePoints: 0,
   };
 }
 
@@ -346,6 +343,18 @@ export function computeHealthRollup(
     matchesFilters(issue, rollupFilters),
   );
 
+  const planningKind =
+    dimension === "sprint"
+      ? "sprints"
+      : dimension === "milestone"
+        ? "milestones"
+        : dimension === "release"
+          ? "releases"
+          : null;
+  const planningRollups = planningKind
+    ? computePlanningRollup(planningKind, catalog[planningKind], matched)
+    : undefined;
+
   const dependencyIndex = indexIssuesById(issues);
 
   const throughputWeeks =
@@ -372,9 +381,8 @@ export function computeHealthRollup(
     const closed = completionTime(issue);
     if (closed != null && inWindow(closed)) stats.closedInWindow++;
 
-    if (isResolvedStatus(issue.status)) {
+    if (dimension === "parent" && isResolvedStatus(issue.status)) {
       stats.resolved++;
-      stats.donePoints += issue.estimate_points ?? 0;
     } else if (isOpenReportWork(issue)) {
       stats.open++;
       if (issue.due_date && Date.parse(issue.due_date) < now) stats.overdue++;
@@ -385,12 +393,23 @@ export function computeHealthRollup(
   const rows: HealthRollupRow[] = rollupItems(dimension, catalog, issues).map(
     (item) => {
       const stats = groups.get(item.id) ?? emptyStats();
+      const planningRollup = planningRollups?.get(item.id);
       const { shipped, targetDate } = item;
-      const completion = stats.total > 0 ? stats.resolved / stats.total : 0;
+      const total = planningRollup?.total ?? stats.total;
+      const resolved = planningRollup?.completed ?? stats.resolved;
+      // Reports define `open` as committed active work, which intentionally
+      // excludes backlog. The shared rollup's lifecycle total is broader and is
+      // used for the common completion contract, not this health-only signal.
+      const open = stats.open;
+      const completion = planningRollup
+        ? (planningRollup.completionRate ?? 0)
+        : total > 0
+          ? resolved / total
+          : 0;
       const net = stats.createdInWindow - stats.closedInWindow;
 
       let verdict: HealthVerdict | null;
-      if (stats.total === 0) {
+      if (total === 0) {
         verdict = null; // empty item — nothing to judge
       } else if (shipped) {
         // Finished work is on track by definition; a closed/released item should
@@ -414,7 +433,9 @@ export function computeHealthRollup(
         // issue completion. (capacity_points null → graceful fallback.)
         const capacity = item.capacityPoints;
         const paceCompletion =
-          capacity && capacity > 0 ? stats.donePoints / capacity : completion;
+          capacity && capacity > 0
+            ? (planningRollup?.completedPoints ?? 0) / capacity
+            : completion;
 
         verdict = classifyHealth({
           overdue: stats.overdue,
@@ -432,9 +453,9 @@ export function computeHealthRollup(
         kind: dimension,
         shipped,
         targetDate,
-        total: stats.total,
-        resolved: stats.resolved,
-        open: stats.open,
+        total,
+        resolved,
+        open,
         overdue: stats.overdue,
         blocked: stats.blocked,
         net,

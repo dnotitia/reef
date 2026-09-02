@@ -251,6 +251,7 @@ export {
   backlogRankSortKey,
   mapJiraRanksToIssueOrder,
   JIRA_RANK_MAPPED,
+  computePlanningRollup,
 } from "./models";
 export type {
   RankedItem,
@@ -259,6 +260,8 @@ export type {
   JiraRankMappingClassification,
   JiraRankMappingResult,
   JiraRankUnmappedReason,
+  PlanningRollup,
+  PlanningRollupItem,
 } from "./models";
 export {
   ReefError,

@@ -170,6 +170,91 @@ describe("PlanningPage", () => {
     expect(screen.queryByText("active")).not.toBeInTheDocument();
   });
 
+  it("renders the shared lifecycle, points, and capacity rollup as one drilldown link", async () => {
+    issueQueryStateRef.current.data = [
+      { sprint_id: SPRINT_ID, status: "done", estimate_points: 5 },
+      { sprint_id: SPRINT_ID, status: "closed", estimate_points: 2 },
+      { sprint_id: SPRINT_ID, status: "in_progress", estimate_points: null },
+      { sprint_id: SPRINT_ID, status: "in_review", estimate_points: 3 },
+      { sprint_id: SPRINT_ID, status: "backlog" },
+      { sprint_id: SPRINT_ID, status: "todo", estimate_points: 0 },
+    ];
+
+    render(wrap(<PlanningPage />));
+
+    const rollup = await screen.findByTestId(`planning-rollup-${SPRINT_ID}`);
+    expect(within(rollup).getByText("6")).toBeInTheDocument();
+    expect(within(rollup).getByText("33% complete")).toBeInTheDocument();
+    expect(within(rollup).getByText("2 completed")).toBeInTheDocument();
+    expect(within(rollup).getByText("2 in progress")).toBeInTheDocument();
+    expect(within(rollup).getByText("2 not started")).toBeInTheDocument();
+    expect(
+      within(rollup).getByText("10 pts total · 7 pts complete"),
+    ).toBeInTheDocument();
+    expect(within(rollup).getByText("2 unestimated")).toBeInTheDocument();
+    expect(within(rollup).getByText("Capacity not set")).toBeInTheDocument();
+    expect(rollup).toHaveAttribute(
+      "href",
+      `/workspace/reef-acme/issues?sprint_id=${SPRINT_ID}`,
+    );
+    expect(
+      within(rollup).getByTestId(`planning-rollup-segments-${SPRINT_ID}`),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps an available empty item at zero without inventing a completion ratio", async () => {
+    render(wrap(<PlanningPage />));
+
+    const rollup = await screen.findByTestId(`planning-rollup-${SPRINT_ID}`);
+    expect(within(rollup).getByText("0")).toBeInTheDocument();
+    expect(within(rollup).getByText("No completion rate")).toBeInTheDocument();
+    expect(rollup).not.toHaveTextContent("0% complete");
+  });
+
+  it.each([
+    { kind: "sprints", id: SPRINT_ID, filter: "sprint_id" },
+    { kind: "milestones", id: MILESTONE_ID, filter: "milestone_id" },
+    { kind: "releases", id: RELEASE_ID, filter: "release_id" },
+  ] as const)(
+    "uses the existing $filter Issues URL contract",
+    async ({ kind, id, filter }) => {
+      navigationState.searchParams = new URLSearchParams(`kind=${kind}`);
+      issueQueryStateRef.current.data = [{ [filter]: id, status: "todo" }];
+
+      render(wrap(<PlanningPage />));
+
+      const rollup = await screen.findByTestId(`planning-rollup-${id}`);
+      expect(rollup).toHaveAttribute(
+        "href",
+        `/workspace/reef-acme/issues?${filter}=${id}`,
+      );
+    },
+  );
+
+  it("distinguishes explicit zero sprint capacity from an unset capacity", async () => {
+    mockApiFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ...catalog,
+          sprints: [{ ...catalog.sprints[0], capacity_points: 0 }],
+        }),
+        { status: 200 },
+      ),
+    );
+    issueQueryStateRef.current.data = [
+      { sprint_id: SPRINT_ID, status: "todo", estimate_points: 2 },
+    ];
+
+    render(wrap(<PlanningPage />));
+
+    const rollup = await screen.findByTestId(`planning-rollup-${SPRINT_ID}`);
+    expect(within(rollup).getByText("0 pts capacity")).toBeInTheDocument();
+    expect(within(rollup).getByText("2 pts over")).toBeInTheDocument();
+    expect(
+      within(rollup).queryByText("Capacity not set"),
+    ).not.toBeInTheDocument();
+  });
+
   it("uses the shared empty frame and keeps the normal create flow", async () => {
     mockApiFetch.mockImplementation(
       (input: RequestInfo | URL, init?: RequestInit) => {
@@ -321,6 +406,23 @@ describe("PlanningPage", () => {
         screen.getByText("Sprint One").closest("tr") as HTMLElement,
       ).getByRole("button", { name: "Delete Sprint One" }),
     ).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("does not synthesize rollup values while linked issues are loading", async () => {
+    issueQueryStateRef.current = {
+      data: undefined,
+      isPending: true,
+      isError: false,
+      isFetching: true,
+      refetch: vi.fn(() => Promise.resolve()),
+    };
+
+    render(wrap(<PlanningPage />));
+
+    const rollup = await screen.findByTestId(`planning-rollup-${SPRINT_ID}`);
+    expect(rollup).toHaveTextContent("Loading…");
+    expect(rollup).not.toHaveTextContent("0");
+    expect(rollup).not.toHaveAttribute("href");
   });
 
   it("renders sprint dates via the shared DateDisplay", async () => {
@@ -530,6 +632,9 @@ describe("PlanningPage", () => {
           dispatchEvent: () => false,
         }) as unknown as MediaQueryList,
     );
+    issueQueryStateRef.current.data = [
+      { sprint_id: SPRINT_ID, status: "done", estimate_points: 5 },
+    ];
     const view = render(wrap(<PlanningPage />));
 
     try {
@@ -538,6 +643,15 @@ describe("PlanningPage", () => {
       expect(compact).toHaveTextContent("Active");
       expect(compact).toHaveTextContent("2026-06-01");
       expect(compact).toHaveTextContent("2026-06-14");
+      const rollup = within(compact).getByTestId(
+        `planning-rollup-${SPRINT_ID}`,
+      );
+      expect(rollup).toHaveTextContent("100% complete");
+      expect(rollup).toHaveTextContent("1 completed");
+      expect(rollup).toHaveAttribute(
+        "href",
+        `/workspace/reef-acme/issues?sprint_id=${SPRINT_ID}`,
+      );
       expect(
         within(compact).getByRole("button", { name: "Edit Sprint One" }),
       ).toBeInTheDocument();
@@ -597,8 +711,8 @@ describe("PlanningPage", () => {
 
   it("renders the linked-issue count and disables delete for a linked item", async () => {
     issueQueryStateRef.current.data = [
-      { sprint_id: SPRINT_ID },
-      { sprint_id: SPRINT_ID },
+      { sprint_id: SPRINT_ID, status: "todo" },
+      { sprint_id: SPRINT_ID, status: "done" },
     ];
     render(wrap(<PlanningPage />));
     await screen.findByText("Sprint One");

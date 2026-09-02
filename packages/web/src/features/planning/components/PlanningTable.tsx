@@ -20,20 +20,20 @@ import {
   usePlanningKindSingularLabels,
 } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
-import type {
-  IssueListItem,
-  Milestone,
-  PlanningCatalog,
-  Release,
-  Sprint,
+import {
+  computePlanningRollup,
+  type IssueListItem,
+  type PlanningRollup as PlanningRollupData,
 } from "@reef/core";
+import type { Milestone, PlanningCatalog, Release, Sprint } from "@reef/core";
 import { ChevronRight, Pencil, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Fragment, useEffect, useId, useMemo, useState } from "react";
 import type { PlanningItem, PlanningKind } from "../hooks/usePlanningCatalog";
-import { countIssuesByPlanningId, itemsForKind } from "../lib/planningItems";
+import { itemsForKind } from "../lib/planningItems";
+import { PlanningRollup, type IssueAggregationState } from "./PlanningRollup";
 
-export type IssueAggregationState = "loading" | "unavailable" | "available";
+export type { IssueAggregationState } from "./PlanningRollup";
 
 const MARKDOWN_TOKENS = /[#>*_`~]+|\[([^\]]*)\]\([^)]*\)/g;
 const NOOP = () => {};
@@ -51,6 +51,7 @@ function detailBody(kind: PlanningKind, item: PlanningItem): string {
 
 export function PlanningTable({
   catalog,
+  vault,
   kind,
   issues,
   isLoading,
@@ -67,6 +68,7 @@ export function PlanningTable({
   deletingId,
 }: {
   catalog: PlanningCatalog | undefined;
+  vault: string;
   kind: PlanningKind;
   issues: readonly IssueListItem[] | undefined;
   isLoading: boolean;
@@ -88,12 +90,12 @@ export function PlanningTable({
   const t = useTranslations("planning");
   const sections = useTranslations("sections");
   const items = itemsForKind(catalog, kind);
-  const countById = useMemo(
+  const rollups = useMemo(
     () =>
       issueAggregationState === "available" && issues
-        ? countIssuesByPlanningId(issues, kind)
+        ? computePlanningRollup(kind, items, issues)
         : undefined,
-    [issueAggregationState, issues, kind],
+    [issueAggregationState, issues, kind, items],
   );
   const [isCompact, setIsCompact] = useState(false);
 
@@ -157,9 +159,10 @@ export function PlanningTable({
       <>
         {issueError}
         <PlanningCompactList
+          vault={vault}
           items={items}
           kind={kind}
-          countById={countById}
+          rollups={rollups}
           issueAggregationState={issueAggregationState}
           expandedId={expandedId}
           onEdit={onEdit}
@@ -187,7 +190,7 @@ export function PlanningTable({
         </TableHeader>
         <TableBody>
           {items.map((item) => {
-            const count = countById?.get(item.id);
+            const rollup = rollups?.get(item.id);
             const isDeleting = deletingId === item.id;
             const body = detailBody(kind, item);
             const summary = body ? stripMarkdown(body) : "";
@@ -246,7 +249,13 @@ export function PlanningTable({
                     <PlanningDates kind={kind} item={item} />
                   </TableCell>
                   <TableCell className="text-sm tabular-nums">
-                    <IssueCount count={count} state={issueAggregationState} />
+                    <PlanningRollup
+                      vault={vault}
+                      kind={kind}
+                      item={item}
+                      rollup={rollup}
+                      state={issueAggregationState}
+                    />
                   </TableCell>
                   <TableCell className="max-w-sm text-sm text-muted-foreground">
                     <span className="line-clamp-1" title={summary || undefined}>
@@ -268,7 +277,7 @@ export function PlanningTable({
                       </Button>
                       <PlanningDeleteAction
                         itemName={item.name}
-                        issueCount={count}
+                        issueCount={rollup?.total}
                         state={issueAggregationState}
                         isDeleting={isDeleting}
                         onRequestDelete={() => onRequestDelete(kind, item)}
@@ -310,9 +319,10 @@ export function PlanningTable({
  * column.
  */
 function PlanningCompactList({
+  vault,
   items,
   kind,
-  countById,
+  rollups,
   issueAggregationState,
   expandedId,
   onEdit,
@@ -320,9 +330,10 @@ function PlanningCompactList({
   onRequestDelete,
   deletingId,
 }: {
+  vault: string;
   items: readonly PlanningItem[];
   kind: PlanningKind;
-  countById: ReadonlyMap<string, number> | undefined;
+  rollups: ReadonlyMap<string, PlanningRollupData> | undefined;
   issueAggregationState: IssueAggregationState;
   expandedId: string | null;
   onEdit: (kind: PlanningKind, item: PlanningItem) => void;
@@ -341,7 +352,7 @@ function PlanningCompactList({
       role="list"
     >
       {items.map((item) => {
-        const count = countById?.get(item.id);
+        const rollup = rollups?.get(item.id);
         const isDeleting = deletingId === item.id;
         const body = detailBody(kind, item);
         const summary = body ? stripMarkdown(body) : "";
@@ -404,7 +415,7 @@ function PlanningCompactList({
                 </Button>
                 <PlanningDeleteAction
                   itemName={item.name}
-                  issueCount={count}
+                  issueCount={rollup?.total}
                   state={issueAggregationState}
                   isDeleting={isDeleting}
                   onRequestDelete={() => onRequestDelete(kind, item)}
@@ -423,7 +434,13 @@ function PlanningCompactList({
               </dd>
               <dt className="text-muted-foreground">{t("issues")}</dt>
               <dd className="text-right tabular-nums">
-                <IssueCount count={count} state={issueAggregationState} />
+                <PlanningRollup
+                  vault={vault}
+                  kind={kind}
+                  item={item}
+                  rollup={rollup}
+                  state={issueAggregationState}
+                />
               </dd>
               <dt className="text-muted-foreground">{sections("details")}</dt>
               <dd className="min-w-0 break-words text-right text-muted-foreground">
@@ -449,19 +466,6 @@ function PlanningCompactList({
       })}
     </div>
   );
-}
-
-function IssueCount({
-  count,
-  state,
-}: {
-  count: number | undefined;
-  state: IssueAggregationState;
-}) {
-  const t = useTranslations("planning");
-  if (state === "loading") return <span>{t("issuesLoading")}</span>;
-  if (state === "unavailable") return <span>{t("issuesUnavailable")}</span>;
-  return <span>{count ?? 0}</span>;
 }
 
 function PlanningDeleteAction({

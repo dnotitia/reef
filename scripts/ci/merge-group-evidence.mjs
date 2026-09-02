@@ -38,10 +38,6 @@ async function githubJson(endpoint) {
 }
 
 async function resolve() {
-  if (process.env.GITHUB_EVENT_NAME !== "merge_group") {
-    return writeDecision(false, "not a merge_group event");
-  }
-
   const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
   const pullRequestNumber = parseQueuePullRequestNumber(
     event.merge_group?.head_ref,
