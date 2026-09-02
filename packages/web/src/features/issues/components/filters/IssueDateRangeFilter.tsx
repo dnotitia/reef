@@ -1,8 +1,22 @@
 "use client";
 
+import {
+  CBX_CHEVRON,
+  CBX_TRIGGER_CHIP,
+  CBX_TRIGGER_CHIP_ACTIVE,
+  CBX_TRIGGER_CHIP_INACTIVE,
+} from "@/components/ui/comboboxChrome";
 import { DatePickerField } from "@/components/fields/DatePickerField";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { formatDisplayDate } from "@/features/issues/lib/dateHelpers";
+import { cn } from "@/lib/utils";
 import { type IssueDateRange, validateIssueDateRange } from "@reef/core";
-import { useTranslations } from "next-intl";
+import { Calendar as CalendarIcon, ChevronDown, X } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useMemo } from "react";
 
 interface IssueDateRangeFilterProps {
@@ -37,6 +51,7 @@ export function IssueDateRangeFilter({
   onChange,
 }: IssueDateRangeFilterProps) {
   const t = useTranslations("issues.filters");
+  const locale = useLocale();
   const selected = useMemo(
     () =>
       range?.field === "updated_at"
@@ -63,6 +78,15 @@ export function IssueDateRangeFilter({
       ? t("updatedAtRangeOrder")
       : undefined;
   const hasSelection = Boolean(selected.from || selected.to);
+  const startSummary = selected.from
+    ? formatDisplayDate(selected.from, locale)
+    : t("updatedAtRangeStartPlaceholder");
+  const endSummary = selected.to
+    ? formatDisplayDate(selected.to, locale)
+    : t("updatedAtRangeEndPlaceholder");
+  const summary = hasSelection
+    ? `${t("updatedAtRange")} · ${startSummary} → ${endSummary}`
+    : t("updatedAtRange");
 
   const updateBound = useCallback(
     (bound: "from" | "to", value: string) => {
@@ -74,77 +98,164 @@ export function IssueDateRangeFilter({
 
   return (
     <div
-      className="w-[20rem] max-w-full min-w-0"
+      className="w-fit max-w-full min-w-0"
       data-testid="updated-at-filter"
       role="group"
       aria-label={t("updatedAtRange")}
-      aria-labelledby="updated-at-filter-label"
       data-active={hasSelection ? "true" : undefined}
       data-invalid={fromError || toError ? "true" : undefined}
     >
-      <span
-        id="updated-at-filter-label"
-        className="mb-1 block type-caption font-medium leading-4 text-muted-foreground"
-        data-testid="updated-at-filter-label"
-      >
-        {t("updatedAtRange")}
-      </span>
-      <div
-        className="grid min-w-0 max-w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-1.5 max-[769px]:grid-cols-1"
-        data-testid="updated-at-range-controls"
-      >
-        <div className="min-w-0">
-          <DatePickerField
-            value={selected.from}
-            onChange={(value) => updateBound("from", value)}
-            label={t("updatedAtRangeStart")}
-            placeholder={t("updatedAtRangeStartPlaceholder")}
-            id="updated-at-range-start"
-            active={hasSelection}
-            ariaDescribedBy={
-              fromError ? "updated-at-range-start-error" : undefined
-            }
-            ariaInvalid={Boolean(fromError)}
-          />
-          {fromError ? (
-            <p
-              className="mt-1 max-w-full text-[0.6875rem] leading-4 text-destructive-text"
-              data-testid="updated-at-range-start-error"
-              role="alert"
+      <Popover className="w-fit max-w-full">
+        <div className="inline-flex min-w-0 max-w-full items-stretch">
+          <PopoverTrigger
+            aria-label={summary}
+            data-testid="updated-at-filter-trigger"
+            data-active={hasSelection ? "true" : undefined}
+            className={cn(
+              CBX_TRIGGER_CHIP,
+              hasSelection
+                ? CBX_TRIGGER_CHIP_ACTIVE
+                : CBX_TRIGGER_CHIP_INACTIVE,
+              "min-w-0 max-w-full flex-1 justify-between whitespace-nowrap",
+              hasSelection && "rounded-r-none border-r-0",
+            )}
+          >
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+              <CalendarIcon
+                className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <span
+                className="min-w-0 truncate"
+                data-testid="updated-at-filter-summary"
+              >
+                {summary}
+              </span>
+            </span>
+            <ChevronDown className={CBX_CHEVRON} aria-hidden="true" />
+          </PopoverTrigger>
+          {hasSelection ? (
+            <button
+              type="button"
+              aria-label={t("clearUpdatedAtRange")}
+              title={t("clearUpdatedAtRange")}
+              data-testid="updated-at-range-clear"
+              onClick={(event) => {
+                event.stopPropagation();
+                onChange(undefined);
+              }}
+              className={cn(
+                CBX_TRIGGER_CHIP,
+                CBX_TRIGGER_CHIP_ACTIVE,
+                "size-8 shrink-0 justify-center rounded-l-none border-l-0 px-0",
+              )}
             >
-              {fromError}
-            </p>
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
           ) : null}
         </div>
-        <span
-          className="inline-flex h-8 shrink-0 items-center justify-center text-muted-foreground max-[769px]:h-4 max-[769px]:justify-self-center"
-          data-testid="updated-at-range-separator"
-          aria-hidden="true"
+
+        <PopoverContent
+          role="dialog"
+          aria-labelledby="updated-at-range-editor-label"
+          align="end"
+          data-testid="updated-at-range-editor"
+          className="w-[min(24rem,calc(100vw-5rem))] max-w-[calc(100vw-5rem)] p-3"
         >
-          –
-        </span>
-        <div className="min-w-0">
-          <DatePickerField
-            value={selected.to}
-            onChange={(value) => updateBound("to", value)}
-            label={t("updatedAtRangeEnd")}
-            placeholder={t("updatedAtRangeEndPlaceholder")}
-            id="updated-at-range-end"
-            active={hasSelection}
-            ariaDescribedBy={toError ? "updated-at-range-end-error" : undefined}
-            ariaInvalid={Boolean(toError)}
-          />
-          {toError ? (
-            <p
-              className="mt-1 max-w-full text-[0.6875rem] leading-4 text-destructive-text"
-              data-testid="updated-at-range-end-error"
-              role="alert"
-            >
-              {toError}
-            </p>
+          <div
+            id="updated-at-range-editor-label"
+            className="mb-3 flex items-center gap-2 border-b border-border-subtle pb-2"
+            data-testid="updated-at-range-editor-criterion"
+          >
+            <CalendarIcon
+              className="h-3.5 w-3.5 shrink-0 text-brand-text"
+              aria-hidden="true"
+            />
+            <span className="type-control font-medium text-foreground">
+              {t("updatedAtRange")}
+            </span>
+          </div>
+
+          <div
+            className="grid min-w-0 grid-cols-2 gap-3 max-[480px]:grid-cols-1"
+            data-testid="updated-at-range-editor-fields"
+          >
+            <div className="min-w-0">
+              <label
+                htmlFor="updated-at-range-start"
+                className="mb-1 block type-caption font-medium text-foreground"
+                data-testid="updated-at-range-start-label"
+              >
+                {t("updatedAtRangeEditorStart")}
+              </label>
+              <DatePickerField
+                value={selected.from}
+                onChange={(value) => updateBound("from", value)}
+                label={t("updatedAtRangeStart")}
+                placeholder={t("updatedAtRangeStartPlaceholder")}
+                id="updated-at-range-start"
+                clearable={false}
+                ariaDescribedBy={
+                  fromError ? "updated-at-range-start-error" : undefined
+                }
+                ariaInvalid={Boolean(fromError)}
+              />
+              {fromError ? (
+                <p
+                  className="mt-1 max-w-full text-[0.6875rem] leading-4 text-destructive-text"
+                  data-testid="updated-at-range-start-error"
+                  role="alert"
+                >
+                  {fromError}
+                </p>
+              ) : null}
+            </div>
+            <div className="min-w-0">
+              <label
+                htmlFor="updated-at-range-end"
+                className="mb-1 block type-caption font-medium text-foreground"
+                data-testid="updated-at-range-end-label"
+              >
+                {t("updatedAtRangeEditorEnd")}
+              </label>
+              <DatePickerField
+                value={selected.to}
+                onChange={(value) => updateBound("to", value)}
+                label={t("updatedAtRangeEnd")}
+                placeholder={t("updatedAtRangeEndPlaceholder")}
+                id="updated-at-range-end"
+                clearable={false}
+                ariaDescribedBy={
+                  toError ? "updated-at-range-end-error" : undefined
+                }
+                ariaInvalid={Boolean(toError)}
+              />
+              {toError ? (
+                <p
+                  className="mt-1 max-w-full text-[0.6875rem] leading-4 text-destructive-text"
+                  data-testid="updated-at-range-end-error"
+                  role="alert"
+                >
+                  {toError}
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          {hasSelection ? (
+            <div className="mt-3 flex justify-end border-t border-border-subtle pt-2">
+              <button
+                type="button"
+                onClick={() => onChange(undefined)}
+                data-testid="updated-at-range-editor-clear"
+                className="rounded-md px-2 py-1 type-caption font-medium text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/30"
+              >
+                {t("updatedAtRangeEditorClear")}
+              </button>
+            </div>
           ) : null}
-        </div>
-      </div>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

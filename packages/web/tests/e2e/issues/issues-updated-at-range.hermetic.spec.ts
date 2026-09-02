@@ -13,18 +13,31 @@ const LIST_URL =
 
 const VISUAL_VIEWPORTS = [
   { name: "desktop", width: 1440, height: 900 },
-  { name: "320", width: 320, height: 844 },
-  { name: "375", width: 375, height: 844 },
-  { name: "414", width: 414, height: 844 },
   { name: "768", width: 768, height: 844 },
+  { name: "414", width: 414, height: 844 },
+  { name: "375", width: 375, height: 844 },
+  { name: "320", width: 320, height: 844 },
 ] as const;
+
+async function openRangeEditor(page: Page): Promise<void> {
+  const editor = page.getByTestId("updated-at-range-editor");
+  if (!(await editor.isVisible())) {
+    await page.getByTestId("updated-at-filter-trigger").click();
+  }
+  await expect(editor).toBeVisible();
+}
 
 async function chooseDate(
   page: Page,
   label: string,
   value: string,
 ): Promise<void> {
-  await page.getByRole("button", { name: label, exact: true }).click();
+  await openRangeEditor(page);
+  const fieldId =
+    label === "Updated from"
+      ? "updated-at-range-start"
+      : "updated-at-range-end";
+  await page.locator(`#${fieldId}`).click();
   await page
     .getByRole("textbox", { name: `${label} (YYYY-MM-DD)`, exact: true })
     .fill(value);
@@ -51,36 +64,37 @@ function dateRangeUrl(from: string, to: string): string {
   return `/workspace/reef-e2e/issues?view=list&group=none&columns=start&sort=updated_at&order=asc&date_field=updated_at&date_from=${from}&date_to=${to}`;
 }
 
-async function assertUpdatedAtVisualContract(
+async function assertCompoundTriggerVisual(
   page: Page,
   viewport: (typeof VISUAL_VIEWPORTS)[number],
 ): Promise<void> {
   const group = page.getByTestId("updated-at-filter");
-  const label = page.getByTestId("updated-at-filter-label");
-  const dateTriggers = group.locator('[data-testid="date-picker-trigger"]');
-  const statusTrigger = page.getByTestId("status-dropdown-trigger");
+  const trigger = group.getByTestId("updated-at-filter-trigger");
+  const summary = group.getByTestId("updated-at-filter-summary");
+  const clear = group.getByTestId("updated-at-range-clear");
 
   await expect(group).toBeVisible();
-  await expect(label).toBeVisible();
-  await expect(label).toHaveText("수정일");
+  await expect(trigger).toBeVisible();
+  await expect(summary).toHaveText(/수정일 · .+ → .+/);
   await expect(group).toHaveAttribute("data-active", "true");
-  await expect(dateTriggers).toHaveCount(2);
-  await expect(dateTriggers.nth(0)).toHaveAttribute("data-active", "true");
-  await expect(dateTriggers.nth(1)).toHaveAttribute("data-active", "true");
+  await expect(trigger).toHaveAttribute("data-active", "true");
+  await expect(clear).toBeVisible();
+  await expect(
+    group.locator('[data-testid="date-picker-trigger"]'),
+  ).toHaveCount(0);
+  await expect(group.locator('[data-testid="date-picker-clear"]')).toHaveCount(
+    0,
+  );
 
   const geometry = await page.evaluate(() => {
-    const groupElement = document.querySelector<HTMLElement>(
-      '[data-testid="updated-at-filter"]',
+    const triggerElement = document.querySelector<HTMLElement>(
+      '[data-testid="updated-at-filter-trigger"]',
     );
-    const triggerElements = groupElement
-      ? Array.from(
-          groupElement.querySelectorAll<HTMLButtonElement>(
-            '[data-testid="date-picker-trigger"]',
-          ),
-        )
-      : [];
-    const separatorElement = document.querySelector<HTMLElement>(
-      '[data-testid="updated-at-range-separator"]',
+    const summaryElement = document.querySelector<HTMLElement>(
+      '[data-testid="updated-at-filter-summary"]',
+    );
+    const clearElement = document.querySelector<HTMLElement>(
+      '[data-testid="updated-at-range-clear"]',
     );
     const statusElement = document.querySelector<HTMLElement>(
       '[data-testid="status-dropdown-trigger"]',
@@ -93,37 +107,25 @@ async function assertUpdatedAtVisualContract(
         bottom: rect.bottom,
         height: rect.height,
         left: rect.left,
-        marginTop: styles.marginTop,
         right: rect.right,
         top: rect.top,
         width: rect.width,
-      };
-    };
-    const triggerStyles = triggerElements.map((element) => {
-      const styles = getComputedStyle(element);
-      return {
         borderRadius: styles.borderRadius,
         borderTopWidth: styles.borderTopWidth,
         fontSize: styles.fontSize,
         lineHeight: styles.lineHeight,
-        rect: measure(element),
       };
-    });
-    const statusStyles = statusElement
+    };
+    const summaryStyles = summaryElement
       ? (() => {
-          const styles = getComputedStyle(statusElement);
+          const styles = getComputedStyle(summaryElement);
           return {
-            borderRadius: styles.borderRadius,
-            borderTopWidth: styles.borderTopWidth,
-            fontSize: styles.fontSize,
+            lineCount: summaryElement.getClientRects().length,
             lineHeight: styles.lineHeight,
-            rect: measure(statusElement),
+            whiteSpace: styles.whiteSpace,
           };
         })()
       : null;
-    const clearElement = groupElement?.querySelector<HTMLElement>(
-      '[data-testid="date-picker-clear"]',
-    );
     const clearStyles = clearElement
       ? (() => {
           const styles = getComputedStyle(clearElement);
@@ -133,119 +135,181 @@ async function assertUpdatedAtVisualContract(
           };
         })()
       : null;
-    const groupStyles = groupElement
-      ? (() => {
-          const styles = getComputedStyle(groupElement);
-          return {
-            active: groupElement.dataset.active,
-            className: groupElement.className,
-            display: styles.display,
-          };
-        })()
-      : null;
-    const controlsElement = document.querySelector<HTMLElement>(
-      '[data-testid="updated-at-range-controls"]',
-    );
     return {
       clearStyles,
-      controlsClassName: controlsElement?.className ?? null,
       documentWidth: document.documentElement.scrollWidth,
-      groupStyles,
       innerWidth: window.innerWidth,
-      separator: measure(separatorElement),
-      statusStyles,
-      triggerStyles,
+      summaryStyles,
+      status: measure(statusElement),
+      trigger: measure(triggerElement),
     };
   });
 
-  expect(geometry.triggerStyles).toHaveLength(2);
-  expect(geometry.statusStyles).not.toBeNull();
-  expect(geometry.separator).not.toBeNull();
-  expect(geometry.groupStyles?.active).toBe("true");
-  expect(geometry.groupStyles?.display).toBe("block");
-  expect(geometry.controlsClassName).toContain("max-[769px]:grid-cols-1");
+  expect(geometry.trigger).not.toBeNull();
+  expect(geometry.status).not.toBeNull();
+  expect(geometry.summaryStyles).not.toBeNull();
+  expect(geometry.trigger?.height).toBe(32);
+  expect(geometry.trigger?.height).toBe(geometry.status?.height);
+  expect(geometry.trigger?.borderTopWidth).toBe(
+    geometry.status?.borderTopWidth,
+  );
+  expect(geometry.trigger?.fontSize).toBe(geometry.status?.fontSize);
+  expect(geometry.trigger?.lineHeight).toBe(geometry.status?.lineHeight);
+  expect(geometry.summaryStyles?.lineCount).toBe(1);
+  expect(geometry.summaryStyles?.whiteSpace).toBe("nowrap");
   expect(geometry.clearStyles?.opacity).toBe("1");
   expect(geometry.clearStyles?.pointerEvents).not.toBe("none");
   expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.innerWidth + 1);
+  await expect(trigger).toHaveClass(/border-brand-focus/);
+  await expect(trigger).toHaveClass(/ring-1/);
+  await expect(clear).toHaveClass(/border-brand-focus/);
+  await expect(clear).toHaveClass(/ring-1/);
 
-  const [from, to] = geometry.triggerStyles;
-  const status = geometry.statusStyles;
-  const separator = geometry.separator;
-  expect(from.rect).not.toBeNull();
-  expect(to.rect).not.toBeNull();
-  expect(status?.rect).not.toBeNull();
-  expect(from.rect?.height).toBe(32);
-  expect(to.rect?.height).toBe(32);
-  expect(from.rect?.height).toBe(status?.rect?.height);
-  expect(to.rect?.height).toBe(status?.rect?.height);
-  expect(from.borderRadius).toBe(status?.borderRadius);
-  expect(from.borderTopWidth).toBe(status?.borderTopWidth);
-  expect(from.fontSize).toBe(status?.fontSize);
-  expect(from.lineHeight).toBe(status?.lineHeight);
-  expect(separator?.marginTop).toBe("0px");
+  const editor = page.getByTestId("updated-at-range-editor");
+  await trigger.focus();
+  await expect(trigger).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(editor).toBeVisible();
+  await expect(
+    page.getByTestId("updated-at-range-editor-criterion"),
+  ).toHaveText("수정일");
+  await expect(page.getByTestId("updated-at-range-start-label")).toHaveText(
+    "시작일",
+  );
+  await expect(page.getByTestId("updated-at-range-end-label")).toHaveText(
+    "종료일",
+  );
+  await expect(
+    page.getByTestId("updated-at-range-editor-criterion").locator("button"),
+  ).toHaveCount(0);
+  await expect(editor.locator('[data-testid="date-picker-clear"]')).toHaveCount(
+    0,
+  );
+  await expect(
+    editor.getByTestId("updated-at-range-editor-clear"),
+  ).toBeVisible();
 
-  if (viewport.width <= 768) {
-    expect(separator?.top).toBeGreaterThanOrEqual((from.rect?.bottom ?? 0) - 1);
-    expect(to.rect?.top).toBeGreaterThanOrEqual((separator?.bottom ?? 0) - 1);
-    expect(separator?.left).toBeGreaterThanOrEqual(from.rect?.left ?? 0);
-    expect(separator?.right).toBeLessThanOrEqual(to.rect?.right ?? 0);
-  } else {
-    const fromCenter = ((from.rect?.top ?? 0) + (from.rect?.bottom ?? 0)) / 2;
-    const separatorCenter =
-      ((separator?.top ?? 0) + (separator?.bottom ?? 0)) / 2;
-    expect(Math.abs(fromCenter - separatorCenter)).toBeLessThanOrEqual(1);
-    expect(
-      Math.abs((from.rect?.top ?? 0) - (to.rect?.top ?? 0)),
-    ).toBeLessThanOrEqual(1);
-  }
+  const editorGeometry = await page.evaluate(() => {
+    const editorElement = document.querySelector<HTMLElement>(
+      '[data-testid="updated-at-range-editor"]',
+    );
+    const fieldsElement = document.querySelector<HTMLElement>(
+      '[data-testid="updated-at-range-editor-fields"]',
+    );
+    const rect = editorElement?.getBoundingClientRect();
+    const fieldsStyles = fieldsElement
+      ? getComputedStyle(fieldsElement)
+      : undefined;
+    return {
+      bottom: rect?.bottom ?? null,
+      fieldsColumns: fieldsStyles?.gridTemplateColumns.split(" ").length ?? 0,
+      innerHeight: window.innerHeight,
+      innerWidth: window.innerWidth,
+      left: rect?.left ?? null,
+      right: rect?.right ?? null,
+    };
+  });
+  expect(editorGeometry.left).toBeGreaterThanOrEqual(0);
+  expect(editorGeometry.right).toBeLessThanOrEqual(editorGeometry.innerWidth);
+  expect(editorGeometry.bottom).toBeLessThanOrEqual(editorGeometry.innerHeight);
+  expect(editorGeometry.fieldsColumns).toBe(viewport.width <= 480 ? 1 : 2);
+  const openScreenshotPath = test
+    .info()
+    .outputPath(`updated-at-range-${viewport.name}-open.png`);
+  await page.screenshot({ animations: "disabled", path: openScreenshotPath });
+  await test.info().attach(`updated-at-range-${viewport.name}-open`, {
+    path: openScreenshotPath,
+  });
 
-  const screenshotPath = test
+  await page.keyboard.press("Escape");
+  await expect(editor).toBeHidden();
+  await expect(trigger).toBeFocused();
+  const closedScreenshotPath = test
     .info()
     .outputPath(`updated-at-range-${viewport.name}.png`);
-  await page.screenshot({
-    animations: "disabled",
-    fullPage: true,
-    path: screenshotPath,
-  });
+  await page.screenshot({ animations: "disabled", path: closedScreenshotPath });
   await test.info().attach(`updated-at-range-${viewport.name}`, {
-    path: screenshotPath,
+    path: closedScreenshotPath,
   });
 }
 
-async function assertUpdatedAtInlineError(page: Page): Promise<void> {
-  const endTrigger = page
-    .getByTestId("updated-at-filter")
-    .locator('[data-testid="date-picker-trigger"]')
-    .nth(1);
-  const error = page.getByTestId("updated-at-range-end-error");
-  await expect(error).toHaveText("종료일을 선택하세요.");
-  const triggerBox = await endTrigger.boundingBox();
-  expect(triggerBox).not.toBeNull();
-  const placement = await error.evaluate((element) => {
-    const errorRect = element.getBoundingClientRect();
+async function assertUpdatedAtInlineError(
+  page: Page,
+  viewport: (typeof VISUAL_VIEWPORTS)[number],
+): Promise<void> {
+  await openRangeEditor(page);
+  const editor = page.getByTestId("updated-at-range-editor");
+  await expect(page.getByTestId("updated-at-range-end-error")).toHaveText(
+    "종료일을 선택하세요.",
+  );
+  const placement = await page.evaluate(() => {
+    const error = document.querySelector<HTMLElement>(
+      '[data-testid="updated-at-range-end-error"]',
+    );
+    const endTrigger = document.querySelector<HTMLElement>(
+      "#updated-at-range-end",
+    );
+    const editorElement = document.querySelector<HTMLElement>(
+      '[data-testid="updated-at-range-editor"]',
+    );
+    const errorRect = error?.getBoundingClientRect();
+    const endRect = endTrigger?.getBoundingClientRect();
+    const editorRect = editorElement?.getBoundingClientRect();
     return {
-      errorBottom: errorRect.bottom,
-      errorLeft: errorRect.left,
-      errorTop: errorRect.top,
-      errorWidth: errorRect.width,
-      innerWidth: window.innerWidth,
+      bottom: errorRect?.bottom ?? null,
+      editorBottom: editorRect?.bottom ?? null,
+      editorLeft: editorRect?.left ?? null,
+      editorRight: editorRect?.right ?? null,
+      endBottom: endRect?.bottom ?? null,
+      errorLeft: errorRect?.left ?? null,
+      errorTop: errorRect?.top ?? null,
       innerHeight: window.innerHeight,
+      innerWidth: window.innerWidth,
     };
   });
-  expect(placement.errorTop).toBeGreaterThan(
-    (triggerBox?.y ?? 0) + (triggerBox?.height ?? 0),
-  );
-  expect(placement.errorLeft).toBeGreaterThanOrEqual(0);
-  expect(placement.errorBottom).toBeLessThanOrEqual(placement.innerHeight);
-  expect(placement.errorLeft + placement.errorWidth).toBeLessThanOrEqual(
-    placement.innerWidth,
-  );
+  expect(placement.errorTop).toBeGreaterThan(placement.endBottom ?? 0);
+  expect(placement.errorLeft).toBeGreaterThanOrEqual(placement.editorLeft ?? 0);
+  expect(placement.errorLeft).toBeLessThanOrEqual(placement.editorRight ?? 0);
+  expect(placement.bottom).toBeLessThanOrEqual(placement.innerHeight);
+  expect(placement.editorRight).toBeLessThanOrEqual(placement.innerWidth);
+  expect(placement.editorBottom).toBeLessThanOrEqual(placement.innerHeight);
+  const screenshotPath = test
+    .info()
+    .outputPath(`updated-at-range-${viewport.name}-error.png`);
+  await page.screenshot({ animations: "disabled", path: screenshotPath });
+  await test.info().attach(`updated-at-range-${viewport.name}-error`, {
+    path: screenshotPath,
+  });
+  await expect(editor).toBeVisible();
+  await page.keyboard.press("Escape");
 }
 
 test.describe("Hermetic updated-at date range filter", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
     await resetFixture(request, "updated_at_range");
+  });
+
+  test("renders updated_at as one compound filter trigger", async ({
+    context,
+    page,
+  }) => {
+    await context.addCookies([
+      { name: "NEXT_LOCALE", value: "ko", domain: "localhost", path: "/" },
+    ]);
+    await openExistingWorkspace(page);
+    await page.goto(LIST_URL);
+    await expect(
+      page.getByText("Initial issue Alpha", { exact: true }),
+    ).toBeVisible({ timeout: 15_000 });
+
+    const group = page.getByTestId("updated-at-filter");
+    const trigger = group.getByTestId("updated-at-filter-trigger");
+    await expect(trigger).toBeVisible();
+    await expect(trigger).toHaveText("수정일");
+    await expect(
+      group.locator('[data-testid="date-picker-trigger"]'),
+    ).toHaveCount(0);
   });
 
   test("filters List, Board, and Backlog by the current updated_at day", async ({
@@ -262,12 +326,15 @@ test.describe("Hermetic updated-at date range filter", () => {
     await expect(
       page.getByText("Initial issue Beta", { exact: true }),
     ).toBeVisible();
+    await expect(page.getByTestId("updated-at-filter-trigger")).toBeVisible();
+    await expect(page.getByTestId("updated-at-filter-summary")).toHaveText(
+      "Updated date",
+    );
     await expect(
-      page.getByRole("button", { name: "Updated from", exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Updated through", exact: true }),
-    ).toBeVisible();
+      page.locator(
+        '[data-testid="updated-at-filter"] [data-testid="date-picker-trigger"]',
+      ),
+    ).toHaveCount(0);
 
     await chooseDate(page, "Updated from", "2026-06-15");
     await expect(page.getByTestId("updated-at-range-end-error")).toHaveText(
@@ -411,7 +478,7 @@ test.describe("Hermetic updated-at date range filter", () => {
     ).toBeHidden();
   });
 
-  test("renders the updated-at filter as an identified, responsive active group", async ({
+  test("proves the compound trigger and editor at exact desktop and narrow widths", async ({
     context,
     page,
   }) => {
@@ -430,19 +497,23 @@ test.describe("Hermetic updated-at date range filter", () => {
         width: viewport.width,
         height: viewport.height,
       });
-      await assertUpdatedAtVisualContract(page, viewport);
+      await assertCompoundTriggerVisual(page, viewport);
     }
 
+    await page.setViewportSize({ width: 320, height: 844 });
+    await page.getByTestId("updated-at-range-clear").click();
+    await expect(page.getByTestId("updated-at-filter-summary")).toHaveText(
+      "수정일",
+    );
+    await expect(page.getByTestId("updated-at-range-clear")).toHaveCount(0);
+
     await page.goto(`${LIST_URL}&date_field=updated_at&date_from=2026-06-15`);
-    await expect(page.getByTestId("updated-at-range-end-error")).toBeVisible({
-      timeout: 15_000,
-    });
     for (const viewport of VISUAL_VIEWPORTS) {
       await page.setViewportSize({
         width: viewport.width,
         height: viewport.height,
       });
-      await assertUpdatedAtInlineError(page);
+      await assertUpdatedAtInlineError(page, viewport);
     }
   });
 
@@ -587,5 +658,31 @@ test.describe("Hermetic updated-at date range filter", () => {
     await expect(
       page.getByText("No issues match your filters.", { exact: true }),
     ).toBeVisible({ timeout: 15_000 });
+  });
+
+  test.describe("touch clear affordance", () => {
+    test.use({ hasTouch: true, viewport: { width: 320, height: 844 } });
+
+    test("clears the compound range with a touch tap", async ({
+      context,
+      page,
+    }) => {
+      await context.addCookies([
+        { name: "NEXT_LOCALE", value: "ko", domain: "localhost", path: "/" },
+      ]);
+      await openExistingWorkspace(page);
+      await page.goto(dateRangeUrl("2026-06-15", "2026-06-15"));
+      await expect(
+        page.getByText("Initial issue Alpha", { exact: true }),
+      ).toBeVisible({ timeout: 15_000 });
+
+      const clear = page.getByTestId("updated-at-range-clear");
+      await expect(clear).toBeVisible();
+      await expect(clear).toHaveCSS("opacity", "1");
+      await clear.tap();
+      await expect(page.getByTestId("updated-at-filter-summary")).toHaveText(
+        "수정일",
+      );
+    });
   });
 });

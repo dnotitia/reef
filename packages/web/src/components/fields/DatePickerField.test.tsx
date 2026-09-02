@@ -1,9 +1,6 @@
 import { localTodayIso } from "@/features/issues/lib/dateHelpers";
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
-import {
-  CBX_TRIGGER_ACTIVE,
-  CBX_TRIGGER_FIELD,
-} from "@/components/ui/comboboxChrome";
+import { CBX_TRIGGER_FIELD } from "@/components/ui/comboboxChrome";
 import {
   cleanup,
   fireEvent,
@@ -30,32 +27,32 @@ describe("DatePickerField", () => {
     expect(screen.queryByTestId("date-picker-clear")).not.toBeInTheDocument();
   });
 
-  it("uses shared field chrome and keeps the selected clear action visible", () => {
-    render(
+  it("uses shared field chrome and can defer clearing to a parent", () => {
+    const { rerender } = render(
       <DatePickerField
         value="2026-06-01"
         onChange={vi.fn()}
         label="Start date"
-        active
       />,
     );
     const trigger = screen.getByTestId("date-picker-trigger");
     for (const token of CBX_TRIGGER_FIELD.split(/\s+/)) {
-      // The active layer intentionally replaces the inactive border/fill.
-      if (token === "border-border" || token === "bg-surface-elevated") {
-        continue;
-      }
       expect(trigger).toHaveClass(token);
     }
-    for (const token of CBX_TRIGGER_ACTIVE.split(/\s+/)) {
-      expect(trigger).toHaveClass(token);
-    }
-    expect(trigger).toHaveAttribute("data-active", "true");
-
     const clear = screen.getByTestId("date-picker-clear");
     expect(clear).toBeVisible();
     expect(clear.className).not.toContain("opacity-0");
     expect(clear.className).not.toContain("group-hover");
+
+    rerender(
+      <DatePickerField
+        value="2026-06-01"
+        onChange={vi.fn()}
+        label="Start date"
+        clearable={false}
+      />,
+    );
+    expect(screen.queryByTestId("date-picker-clear")).not.toBeInTheDocument();
   });
 
   it("localizes the empty placeholder in ko (REEF-309)", () => {

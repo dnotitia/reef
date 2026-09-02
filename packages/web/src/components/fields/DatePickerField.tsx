@@ -7,10 +7,7 @@ import {
   PopoverTrigger,
   type PopoverDismissReason,
 } from "@/components/ui/popover";
-import {
-  CBX_TRIGGER_ACTIVE,
-  CBX_TRIGGER_FIELD,
-} from "@/components/ui/comboboxChrome";
+import { CBX_TRIGGER_FIELD } from "@/components/ui/comboboxChrome";
 import {
   formatDisplayDate,
   isValidIsoDate,
@@ -44,8 +41,8 @@ interface DatePickerFieldProps {
   /** Trigger placeholder when empty. */
   placeholder?: string;
   disabled?: boolean;
-  /** Applies the shared filter-active chrome when a bound is selected. */
-  active?: boolean;
+  /** Hides the field-level clear controls when a parent owns clearing. */
+  clearable?: boolean;
   /** Horizontal anchoring of the panel; "end" opens leftward. */
   align?: "start" | "end" | "center";
   className?: string;
@@ -70,7 +67,7 @@ export function DatePickerField({
   label,
   placeholder,
   disabled,
-  active = false,
+  clearable = true,
   align = "start",
   className,
   ariaDescribedBy,
@@ -255,12 +252,7 @@ export function DatePickerField({
             normalized ? `${resolvedLabel}: ${displayValue}` : resolvedLabel
           }
           data-testid="date-picker-trigger"
-          data-active={active ? "true" : undefined}
-          className={cn(
-            CBX_TRIGGER_FIELD,
-            "pl-2.5 pr-8",
-            active && CBX_TRIGGER_ACTIVE,
-          )}
+          className={cn(CBX_TRIGGER_FIELD, "pl-2.5 pr-8")}
         >
           <CalendarIcon
             className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
@@ -275,7 +267,7 @@ export function DatePickerField({
           )}
         </PopoverTrigger>
 
-        {normalized && !disabled ? (
+        {normalized && clearable && !disabled ? (
           <button
             type="button"
             onClick={handleClear}
@@ -327,7 +319,7 @@ export function DatePickerField({
               />
               {t("today")}
             </button>
-            {normalized ? (
+            {normalized && clearable ? (
               <button
                 type="button"
                 onClick={handleClear}

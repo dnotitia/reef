@@ -98,17 +98,14 @@ describe("FilterBar", () => {
     expect(screen.getByTestId("requester-filter")).toBeTruthy();
     expect(screen.getByTestId("labels-input")).toBeTruthy();
     expect(screen.getByTestId("updated-at-filter")).toBeTruthy();
-    expect(screen.getByTestId("updated-at-filter-label")).toHaveTextContent(
+    expect(screen.getByTestId("updated-at-filter-trigger")).toHaveTextContent(
       "Updated date",
     );
-    expect(screen.getByRole("button", { name: "Updated from" })).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: "Updated through" }),
-    ).toBeTruthy();
+    expect(screen.queryByTestId("date-picker-trigger")).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("keeps both updated-at bounds in one shared active filter group", () => {
+  it("keeps both updated-at bounds behind one shared active trigger", async () => {
     useIssueStore.setState({
       filter: {
         dateRange: {
@@ -124,26 +121,32 @@ describe("FilterBar", () => {
 
     const group = screen.getByTestId("updated-at-filter");
     expect(group).toHaveAttribute("data-active", "true");
-    expect(screen.getByTestId("updated-at-filter-label")).toHaveTextContent(
-      "Updated date",
+    expect(screen.getByTestId("updated-at-filter-summary")).toHaveTextContent(
+      "Updated date · Jun 1, 2026 → Jun 2, 2026",
     );
-    expect(screen.getByTestId("updated-at-range-controls")).toHaveClass(
-      "grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]",
-      "max-[769px]:grid-cols-1",
-    );
+    expect(screen.getByTestId("updated-at-range-clear")).toBeVisible();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("updated-at-filter-trigger"));
     expect(
-      screen.getByTestId("updated-at-range-separator"),
-    ).toBeInTheDocument();
-    for (const trigger of screen.getAllByTestId("date-picker-trigger")) {
-      expect(trigger).toHaveAttribute("data-active", "true");
-      expect(trigger).toHaveClass("border-brand-focus", "ring-1");
-    }
+      screen.getByTestId("updated-at-range-editor-criterion"),
+    ).toHaveTextContent("Updated date");
+    expect(
+      screen.getByTestId("updated-at-range-start-label"),
+    ).toHaveTextContent("Start date");
+    expect(screen.getByTestId("updated-at-range-end-label")).toHaveTextContent(
+      "End date",
+    );
+    expect(screen.getAllByTestId("date-picker-trigger")).toHaveLength(2);
+    expect(screen.queryAllByTestId("date-picker-clear")).toHaveLength(0);
+    expect(screen.getByTestId("updated-at-range-editor-clear")).toBeVisible();
   });
 
   it("keeps an incomplete updated-at range visible with an inline correction", async () => {
     const user = userEvent.setup();
     renderFilterBar();
 
+    await user.click(screen.getByTestId("updated-at-filter-trigger"));
     await user.click(screen.getByRole("button", { name: "Updated from" }));
     await user.type(
       screen.getByLabelText("Updated from (YYYY-MM-DD)"),
@@ -173,7 +176,7 @@ describe("FilterBar", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("shows a correction on the end input for a reversed range", () => {
+  it("shows a correction on the end input for a reversed range", async () => {
     useIssueStore.setState({
       filter: {
         dateRange: {
@@ -187,6 +190,8 @@ describe("FilterBar", () => {
     });
     renderFilterBar();
 
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("updated-at-filter-trigger"));
     expect(screen.getByTestId("updated-at-range-end-error")).toHaveTextContent(
       "End date must be on or after the start date.",
     );

@@ -32,11 +32,9 @@ describe("IssuesWorkspaceSkeleton", () => {
     expect(searchRow).not.toBeNull();
 
     // FilterBar placeholder: the wrapping chip row, one chip per facet/value
-    // field plus two bounds for the updated-at group (15 h-8 controls total).
+    // group including the single compound updated-at trigger (14 h-8 controls).
     const chips = toolbar.querySelectorAll(".reef-shimmer.h-8");
-    expect(chips).toHaveLength(15);
-    // The date group also reserves its visible criterion label height.
-    expect(toolbar.querySelector(".reef-shimmer.h-3.w-14")).not.toBeNull();
+    expect(chips).toHaveLength(14);
     // The whole chip group sits in a single flex-wrap container so it wraps to
     // the same row count as the live FilterBar.
     expect(container.querySelector(".flex.flex-wrap")).not.toBeNull();
