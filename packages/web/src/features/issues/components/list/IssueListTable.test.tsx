@@ -3,7 +3,13 @@ import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { apiFetch } from "@/lib/apiClient";
 import type { IssueMetadata, IssueRelation } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -54,10 +60,22 @@ const issues: IssueMetadata[] = [
 ];
 
 function wrap(ui: ReactNode) {
-  const queryClient = new QueryClient({
+  return wrapWithClient(
+    new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    }),
+    ui,
+  );
+}
+
+function wrapWithClient(queryClient: QueryClient, ui: ReactNode) {
+  return <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>;
+}
+
+function createTestQueryClient() {
+  return new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>;
 }
 
 describe("IssueListTable", () => {
@@ -365,6 +383,66 @@ describe("IssueListTable", () => {
     expect(
       await screen.findByText("No issues match your filters."),
     ).toBeInTheDocument();
+  });
+
+  it("shows a query error instead of reusing the filtered empty state", async () => {
+    useIssueStore.setState({
+      filter: {
+        dateRange: {
+          field: "updated_at",
+          from: "2026-06-01",
+          to: "2026-06-01",
+        },
+      },
+      searchQuery: "",
+      selectedIssueId: null,
+    });
+    let issueListRequests = 0;
+    mockApiFetch.mockImplementation(async (url) => {
+      const path = String(url);
+      if (path.startsWith("/api/issues?vault=")) {
+        issueListRequests += 1;
+        return issueListRequests === 1
+          ? new Response(JSON.stringify({ issues: [], next_cursor: null }), {
+              status: 200,
+            })
+          : new Response(
+              JSON.stringify({ error: "forced issue list failure" }),
+              {
+                status: 500,
+              },
+            );
+      }
+      if (path.startsWith("/api/vaults/") && path.endsWith("/members")) {
+        return new Response(JSON.stringify({ members: [] }), { status: 200 });
+      }
+      if (path.startsWith("/api/vault-members")) {
+        return new Response(JSON.stringify({ users: [] }), { status: 200 });
+      }
+      if (path.startsWith("/api/issues/relations")) {
+        return new Response(JSON.stringify({ relations: [] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ issues: [] }), { status: 200 });
+    });
+
+    const queryClient = createTestQueryClient();
+    render(wrapWithClient(queryClient, <IssueListTable vault="reef-acme" />));
+    expect(
+      await screen.findByText("No issues match your filters."),
+    ).toBeInTheDocument();
+
+    const listQuery = queryClient.getQueryCache().findAll({
+      queryKey: ["issues", "list", "reef-acme", "infinite"],
+    })[0];
+    if (!listQuery) throw new Error("missing issue-list query");
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: listQuery.queryKey });
+    });
+
+    expect(
+      await screen.findByText("Failed to load issues."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("No issues match your filters.")).toBeNull();
   });
 
   it("renders grouped label occurrences, a None bucket, and collapses rows in the virtual model", async () => {

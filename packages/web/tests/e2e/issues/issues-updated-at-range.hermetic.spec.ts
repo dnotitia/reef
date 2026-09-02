@@ -1,7 +1,8 @@
 import { type Page, expect, test } from "@playwright/test";
-import { openExistingWorkspace, resetFixture } from "../harness/fixture";
 import {
   clearPersistedQueryCacheOnLoad,
+  openExistingWorkspace,
+  resetFixture,
   readIndexedDbConfig,
 } from "../harness/fixture";
 
@@ -18,6 +19,26 @@ async function chooseDate(
     .getByRole("textbox", { name: `${label} (YYYY-MM-DD)`, exact: true })
     .fill(value);
   await page.keyboard.press("Enter");
+}
+
+async function browserToday(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date());
+    const values = Object.fromEntries(
+      parts
+        .filter(({ type }) => type !== "literal")
+        .map(({ type, value }) => [type, value]),
+    );
+    return `${values.year}-${values.month}-${values.day}`;
+  });
+}
+
+function dateRangeUrl(from: string, to: string): string {
+  return `/workspace/reef-e2e/issues?view=list&group=none&columns=start&sort=updated_at&order=asc&date_field=updated_at&date_from=${from}&date_to=${to}`;
 }
 
 test.describe("Hermetic updated-at date range filter", () => {
@@ -187,5 +208,51 @@ test.describe("Hermetic updated-at date range filter", () => {
     await expect(
       restored.getByText("Initial issue Beta", { exact: true }),
     ).toBeHidden();
+  });
+
+  test("refreshes current updated_at membership after an ordinary issue save", async ({
+    page,
+  }) => {
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page);
+    const today = await browserToday(page);
+    const currentRange = dateRangeUrl(today, today);
+
+    await page.goto(currentRange);
+    await expect(
+      page.getByText("No issues match your filters.", { exact: true }),
+    ).toBeVisible({
+      timeout: 15_000,
+    });
+    await page
+      .getByRole("button", { name: "Clear filters", exact: true })
+      .click();
+    await expect(
+      page.getByText("Initial issue Alpha", { exact: true }),
+    ).toBeVisible();
+
+    await page.getByText("Initial issue Alpha", { exact: true }).click();
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    const title = page.getByTestId("issue-title-input");
+    await title.fill("Initial issue Alpha (updated)");
+    await title.press("Enter");
+    await expect(page.getByTestId("issue-save-status")).toContainText("Saved", {
+      timeout: 15_000,
+    });
+    await page.getByTestId("issue-close").click();
+    await expect(page.getByTestId("issue-detail")).toHaveCount(0);
+
+    await page.goto(currentRange);
+    await expect(
+      page.getByText("Initial issue Alpha (updated)", { exact: true }),
+    ).toBeVisible({ timeout: 15_000 });
+
+    await page.goto(dateRangeUrl("2026-06-15", "2026-06-15"));
+    await expect(
+      page.getByText("Initial issue Alpha (updated)", { exact: true }),
+    ).toBeHidden();
+    await expect(
+      page.getByText("No issues match your filters.", { exact: true }),
+    ).toBeVisible();
   });
 });

@@ -762,7 +762,10 @@ export function IssueListTable({
     0,
     totalSize - (lastVirtualItem?.end ?? fallbackLastEnd),
   );
-  const initialLoadError = isError && !data?.pages.length;
+  // A refetch error is still a failed issue-list read even when React Query
+  // keeps the prior empty page as stale data. Only next-page failures retain
+  // the loaded table so their inline retry row can remain visible.
+  const initialLoadError = isError && !isFetchNextPageError;
   const showTable =
     projectionItems.length > 0 ||
     hasNextPage === true ||

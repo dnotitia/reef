@@ -125,16 +125,15 @@ const AUTH_PROBE_HANG_MAX_MS = 8_000;
 
 // A monotonically-advancing "edit clock". Each issue-row UPDATE stamps an
 // `updated_at` strictly later than the seeded `NOW`, mirroring real akb, which
-// stamps now() at edit time — always after the fixture's seed timestamp. A
-// single static NOW instead ties every row's `updated_at`, collapsing the
-// "recently updated" order so an edit never visibly re-sorts the list — hiding
-// exactly the sort-staleness fix REEF-325 covers. Deterministic (a pure
-// function of an incrementing counter), so runs stay reproducible.
+// stamps now() at edit time. A single static NOW instead leaves an edited row
+// in the old calendar range, hiding the current-date membership behavior this
+// fixture is meant to exercise. The clock remains monotonic when several writes
+// share one millisecond or the host clock moves backwards.
 const NOW_MS = Date.parse(NOW);
-let editTick = 0;
+let lastEditTimestampMs = NOW_MS;
 function nextEditTimestamp() {
-  editTick += 1;
-  return new Date(NOW_MS + editTick * 1000).toISOString();
+  lastEditTimestampMs = Math.max(Date.now(), lastEditTimestampMs + 1_000);
+  return new Date(lastEditTimestampMs).toISOString();
 }
 
 let state = makeState("configured");
