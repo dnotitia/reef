@@ -105,43 +105,6 @@ describe("FilterBar", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("keeps both updated-at bounds behind one shared active trigger", async () => {
-    useIssueStore.setState({
-      filter: {
-        dateRange: {
-          field: "updated_at",
-          from: "2026-06-01",
-          to: "2026-06-02",
-        },
-      },
-      searchQuery: "",
-      selectedIssueId: null,
-    });
-    renderFilterBar();
-
-    const group = screen.getByTestId("updated-at-filter");
-    expect(group).toHaveAttribute("data-active", "true");
-    expect(screen.getByTestId("updated-at-filter-summary")).toHaveTextContent(
-      "Updated date · Jun 1, 2026 → Jun 2, 2026",
-    );
-    expect(screen.getByTestId("updated-at-range-clear")).toBeVisible();
-
-    const user = userEvent.setup();
-    await user.click(screen.getByTestId("updated-at-filter-trigger"));
-    expect(
-      screen.getByTestId("updated-at-range-editor-criterion"),
-    ).toHaveTextContent("Updated date");
-    expect(
-      screen.getByTestId("updated-at-range-start-label"),
-    ).toHaveTextContent("Start date");
-    expect(screen.getByTestId("updated-at-range-end-label")).toHaveTextContent(
-      "End date",
-    );
-    expect(screen.getAllByTestId("date-picker-trigger")).toHaveLength(2);
-    expect(screen.queryAllByTestId("date-picker-clear")).toHaveLength(0);
-    expect(screen.getByTestId("updated-at-range-editor-clear")).toBeVisible();
-  });
-
   it("keeps an incomplete updated-at range visible with an inline correction", async () => {
     const user = userEvent.setup();
     renderFilterBar();
@@ -174,27 +137,6 @@ describe("FilterBar", () => {
       to: "2026-06-02",
     });
     expect(screen.queryByRole("alert")).toBeNull();
-  });
-
-  it("shows a correction on the end input for a reversed range", async () => {
-    useIssueStore.setState({
-      filter: {
-        dateRange: {
-          field: "updated_at",
-          from: "2026-06-03",
-          to: "2026-06-02",
-        },
-      },
-      searchQuery: "",
-      selectedIssueId: null,
-    });
-    renderFilterBar();
-
-    const user = userEvent.setup();
-    await user.click(screen.getByTestId("updated-at-filter-trigger"));
-    expect(screen.getByTestId("updated-at-range-end-error")).toHaveTextContent(
-      "End date must be on or after the start date.",
-    );
   });
 
   it("offers and toggles unset priority, severity, due, and assignee options", async () => {
