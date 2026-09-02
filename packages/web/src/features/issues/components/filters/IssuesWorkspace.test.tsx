@@ -37,13 +37,39 @@ vi.mock("next/navigation", () => ({
 // Mock the heavy body components and the filter toolbar so the test focuses
 // on the workspace's view-switching and chrome wiring.
 vi.mock("@/features/board/components/KanbanBoard", () => ({
-  KanbanBoard: ({ vault, groupBy }: { vault: string; groupBy?: string }) => (
-    <div data-testid="board-body" data-vault={vault} data-group-by={groupBy} />
+  KanbanBoard: ({
+    vault,
+    groupBy,
+    fixedSprintId,
+  }: {
+    vault: string;
+    groupBy?: string;
+    fixedSprintId?: string;
+  }) => (
+    <div
+      data-testid="board-body"
+      data-vault={vault}
+      data-group-by={groupBy}
+      data-fixed-sprint-id={fixedSprintId}
+    />
   ),
 }));
 vi.mock("@/features/issues/components/list/IssueListTable", () => ({
-  IssueListTable: ({ vault, groupBy }: { vault: string; groupBy?: string }) => (
-    <div data-testid="list-body" data-vault={vault} data-group-by={groupBy} />
+  IssueListTable: ({
+    vault,
+    groupBy,
+    fixedSprintId,
+  }: {
+    vault: string;
+    groupBy?: string;
+    fixedSprintId?: string;
+  }) => (
+    <div
+      data-testid="list-body"
+      data-vault={vault}
+      data-group-by={groupBy}
+      data-fixed-sprint-id={fixedSprintId}
+    />
   ),
 }));
 vi.mock("@/features/issues/components/bulk/IssueBulkActionBar", () => ({
@@ -62,11 +88,15 @@ vi.mock("@/features/issues/components/filters/IssueFilterToolbar", () => ({
     showSortControl,
     supportsRankOrder,
     showsBacklogReorderHint,
+    fixedSprintId,
+    fixedSprintName,
   }: {
     groupBy?: string;
     showSortControl?: boolean;
     supportsRankOrder?: boolean;
     showsBacklogReorderHint?: boolean;
+    fixedSprintId?: string;
+    fixedSprintName?: string;
   }) => (
     <div
       data-testid="filter-toolbar"
@@ -74,6 +104,8 @@ vi.mock("@/features/issues/components/filters/IssueFilterToolbar", () => ({
       data-show-sort={showSortControl}
       data-supports-rank={supportsRankOrder}
       data-shows-drag-hint={showsBacklogReorderHint}
+      data-fixed-sprint-id={fixedSprintId}
+      data-fixed-sprint-name={fixedSprintName}
     >
       {showSortControl ? (
         <span data-testid="sort-control" data-location="filter-toolbar" />
@@ -164,6 +196,32 @@ describe("IssuesWorkspace", () => {
     );
     expect(screen.getByTestId("issue-bulk-action-bar")).toBeInTheDocument();
     expect(screen.queryByTestId("board-body")).toBeNull();
+  });
+
+  it("pins a detail workspace to its sprint without exposing scope switching", () => {
+    navigationState.pathname =
+      "/workspace/reef-acme/planning/sprints/fixed-sprint";
+    navigationState.searchParams = new URLSearchParams("view=list");
+    render(
+      wrap(
+        <IssuesWorkspace
+          hideHeader
+          fixedSprintId="fixed-sprint"
+          fixedSprintName="Sprint One"
+        />,
+      ),
+    );
+
+    expect(screen.getByTestId("list-body")).toHaveAttribute(
+      "data-fixed-sprint-id",
+      "fixed-sprint",
+    );
+    expect(screen.getByTestId("filter-toolbar")).toHaveAttribute(
+      "data-fixed-sprint-name",
+      "Sprint One",
+    );
+    expect(screen.queryByTestId("scope-switcher")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Issues" })).toBeNull();
   });
 
   it("passes the shareable group choice to the toolbar and active view", () => {

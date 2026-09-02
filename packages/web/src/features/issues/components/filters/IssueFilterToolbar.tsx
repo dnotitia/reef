@@ -21,6 +21,10 @@ interface IssueFilterToolbarProps {
   supportsRankOrder?: boolean;
   /** Add the backlog-only drag affordance to the rank option. */
   showsBacklogReorderHint?: boolean;
+  /** Pin the sprint facet to a detail route without changing shared filters. */
+  fixedSprintId?: string;
+  fixedSprintName?: string;
+  fixedSprintUnlockHref?: string;
   groupBy?: IssueGroupBy;
   setGroupBy?: (groupBy: IssueGroupBy) => void;
   listOptionalColumns?: readonly MyViewListColumn[];
@@ -35,6 +39,9 @@ export function IssueFilterToolbar({
   showSortControl,
   supportsRankOrder = false,
   showsBacklogReorderHint = false,
+  fixedSprintId,
+  fixedSprintName,
+  fixedSprintUnlockHref,
   groupBy,
   setGroupBy,
   listOptionalColumns,
@@ -54,6 +61,9 @@ export function IssueFilterToolbar({
         showSortControl={showSortControl}
         supportsRankOrder={supportsRankOrder}
         showsBacklogReorderHint={showsBacklogReorderHint}
+        fixedSprintId={fixedSprintId}
+        fixedSprintName={fixedSprintName}
+        fixedSprintUnlockHref={fixedSprintUnlockHref}
         groupBy={groupBy}
         setGroupBy={setGroupBy}
         listOptionalColumns={listOptionalColumns}

@@ -891,6 +891,16 @@ monitored repos, templates, and authoring language. These pages share the
 standard page header + body chrome and the same field leaves where issue fields
 appear.
 
+Planning sprint names open the vault-scoped `/workspace/{vault}/planning/sprints/{id}`
+detail surface through ordinary anchors, as does the active-sprint context strip
+at the top of the Board. The detail header shows the planning status, date range,
+end-date posture, goal disclosure, health verdict, and resolved/total rollup.
+Its body reuses the Issues Board and List with a locked `sprint_id` facet; the
+unlock action returns to the general Issues surface. Missing sprints show a
+Planning recovery link, while catalog and issue load failures stay explicit and
+retryable. A named, non-rendering burnup slot remains below the header for a
+future reporting card.
+
 Settings groups follow a consistent dense form pattern: a group header with the
 title, optional scope, optional access badge, description, and hairline, followed
 by vertically stacked sections. The access badge is omitted while role
@@ -972,6 +982,9 @@ that exist and define the experience:
 - **Issue surfaces.** `IssuesWorkspace`, `IssueDetailSheet`, `IssueDetail`,
   `NewIssueDialog`, the list table/row, `BacklogView`, the filter toolbar,
   linked documents, the activity timeline, and the relations/refs editors.
+- **Planning detail.** `SprintDetailPage`, `SprintDetailHeader`, and the
+  hydration-shaped sprint detail skeleton compose the dedicated sprint route
+  from the existing planning and issue leaves.
 - **AI surfaces.** `EnrichmentReviewBar` (the purple strip with loading/empty/
   error/progress states), `FieldSuggestion` (the inline per-field review card),
   `ConfidenceBadge`, `TextDiff` (word/line diffs), and the Ask AI

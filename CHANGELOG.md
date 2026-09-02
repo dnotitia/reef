@@ -19,6 +19,11 @@ explicitly in the entries below.
   the range is combined with existing facets and restored through the URL,
   browser-local filters, and My Views.
 
+- **Planning sprints now have dedicated detail surfaces.** Sprint names and the
+  active-board context link to a vault-owned detail page with progress,
+  health, goal, and a fixed Board/List issue scope; missing and failed data
+  remain distinct and retryable.
+
 - **Planning now shows lifecycle progress and capacity rollups.** Sprint,
   milestone, and release rows show linked issue counts, completion, estimated
   and completed points, unestimated work, and Sprint capacity state. Each
