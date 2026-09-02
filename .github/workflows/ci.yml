@@ -6,12 +6,9 @@ on:
       - main
   # Merge queue. When a PR enters the queue GitHub builds a temporary
   # `gh-readonly-queue/main/...` ref — the PR merged onto the *current* tip of
-  # main — and fires `merge_group`. CI must run here and report the same
-  # required contexts so the queue can verify each PR against the latest base
-  # exactly once at merge time. This replaces the manual "Update branch" click
-  # plus full-CI rerun that every stale PR otherwise needs, and collapses the
-  # stale-PR domino (PR A merges -> B, C, D all go out-of-date -> each reruns)
-  # into a single queued check per PR.
+  # main — and fires `merge_group`. Exact-tree evidence lets that event reuse a
+  # successful PR run only when the PR head, resulting Git tree, and workflow
+  # are identical. A changed base or grouped queue tree falls back to full CI.
   merge_group:
   # Intentionally NOT `push: branches: [main]`. The merge queue is the only path
   # to main, so the commit it fast-forwards onto main is byte-identical to the
@@ -20,8 +17,10 @@ on:
   # separate concern owned by live-akb-contract.yml, which keeps its own push
   # trigger.) If direct pushes to main are ever allowed again, restore this.
 
-# Least-privilege default: jobs only need to read the checked-out repo.
+# Least-privilege default: jobs read the repo, and the reuse decision reads the
+# immutable evidence artifacts published by earlier CI runs.
 permissions:
+  actions: read
   contents: read
 
 # Cancel superseded runs for the same workflow + ref (e.g. new pushes to a PR).
@@ -32,9 +31,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  reuse-pr-ci:
+    name: PR CI reuse decision
+    runs-on: ubuntu-latest
+    outputs:
+      reuse: ${{ steps.evidence.outputs.reuse }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+
+      - name: Find exact-tree PR CI evidence
+        id: evidence
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/ci/merge-group-evidence.mjs resolve
+
   lint:
     name: Biome Check
     runs-on: ubuntu-latest
+    needs: reuse-pr-ci
+    if: ${{ always() && needs.reuse-pr-ci.outputs.reuse != 'true' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -57,6 +79,8 @@ jobs:
   package-contract:
     name: Package Contract / Architecture
     runs-on: ubuntu-latest
+    needs: reuse-pr-ci
+    if: ${{ always() && needs.reuse-pr-ci.outputs.reuse != 'true' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -79,6 +103,8 @@ jobs:
   typecheck:
     name: TypeScript Typecheck
     runs-on: ubuntu-latest
+    needs: reuse-pr-ci
+    if: ${{ always() && needs.reuse-pr-ci.outputs.reuse != 'true' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -104,7 +130,8 @@ jobs:
   production-build:
     name: Next production artifact
     runs-on: ubuntu-latest
-    needs: [lint, typecheck]
+    needs: [reuse-pr-ci, lint, typecheck]
+    if: ${{ always() && needs.reuse-pr-ci.outputs.reuse != 'true' && needs.lint.result == 'success' && needs.typecheck.result == 'success' }}
     outputs:
       sha256: ${{ steps.production_artifact.outputs.sha256 }}
     steps:
@@ -146,6 +173,8 @@ jobs:
   test:
     name: Vitest
     runs-on: ubuntu-latest
+    needs: reuse-pr-ci
+    if: ${{ always() && needs.reuse-pr-ci.outputs.reuse != 'true' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -179,8 +208,8 @@ jobs:
     # E2E even though the two are independent — now they run in parallel. We
     # still gate on lint/typecheck and the exact production build so E2E does
     # not burn runner time on an artifact that cannot even compile.
-    needs: [lint, typecheck, production-build]
-    if: success()
+    needs: [reuse-pr-ci, lint, typecheck, production-build]
+    if: ${{ always() && needs.reuse-pr-ci.outputs.reuse != 'true' && needs.lint.result == 'success' && needs.typecheck.result == 'success' && needs.production-build.result == 'success' }}
     strategy:
       # One shard failing should not cancel the others — we want every shard's
       # result so a flake in one is not masked by an early abort in another.
@@ -264,14 +293,13 @@ jobs:
   # Stable aggregate gate. Branch protection requires the context "Playwright
   # E2E"; the sharded matrix jobs report under per-shard names, so this job
   # keeps that exact name and passes only when every shard passed. A `skipped`
-  # matrix (because lint/typecheck gated E2E out) is treated as non-blocking,
-  # mirroring the old `if: success()` behavior — those failed gates already
-  # block the PR on their own required checks.
+  # matrix (because lint/typecheck gated E2E out) is treated as non-blocking;
+  # those failed gates already block the PR on their own required checks.
   e2e:
     name: Playwright E2E
     runs-on: ubuntu-latest
-    needs: [e2e-shard, production-build]
-    if: ${{ !cancelled() }}
+    needs: [reuse-pr-ci, e2e-shard, production-build]
+    if: ${{ always() && needs.reuse-pr-ci.outputs.reuse != 'true' && !cancelled() }}
     steps:
       - name: Aggregate E2E shard results
         run: |

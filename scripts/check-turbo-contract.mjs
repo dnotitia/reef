@@ -299,13 +299,18 @@ function verifyRepositoryHandoffs() {
     "CI must upload and download the candidate-bound production artifact",
   );
   assert(
-    /needs:\s*\[lint, typecheck, production-build\]/u.test(ciWorkflow),
+    /\n {2}e2e-shard:\n[\s\S]*?needs:\s*\[[^\]\n]*production-build[^\]\n]*\]/u.test(
+      ciWorkflow,
+    ),
     "every E2E shard must depend on the production artifact job",
   );
   assert(
-    /\n {2}e2e:\n[\s\S]*?needs:\s*\[e2e-shard, production-build\]/u.test(
+    /\n {2}e2e:\n[\s\S]*?needs:\s*\[[^\]\n]*production-build[^\]\n]*\]/u.test(
       ciWorkflow,
-    ),
+    ) &&
+      /artifact_result='\$\{\{ needs\.production-build\.result \}\}'/u.test(
+        ciWorkflow,
+      ),
     "the aggregate E2E check must fail when the production artifact fails",
   );
   assert(

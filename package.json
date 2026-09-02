@@ -25,7 +25,7 @@
     "toolchain:check": "turbo run '//#toolchain:check:root'",
     "toolchain:check:root": "node scripts/check-toolchain-policy.mjs",
     "toolchain:check:test": "turbo run '//#toolchain:check:test:root'",
-    "toolchain:check:test:root": "node --test scripts/check-toolchain-policy.test.mjs",
+    "toolchain:check:test:root": "node --test scripts/check-toolchain-policy.test.mjs scripts/ci/merge-group-evidence.test.mjs",
     "package-contract:smoke": "turbo run '//#package-contract:smoke:root'",
     "package-contract:smoke:root": "node scripts/package-contract-smoke.mjs",
     "core-git-consumer:smoke": "turbo run '//#core-git-consumer:smoke:root'",
