@@ -177,6 +177,44 @@ test.describe("Hermetic planning workflow", () => {
     );
   });
 
+  test("shows the shared lifecycle rollup and opens its filtered Issues view by keyboard", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "demo_board");
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
+
+    const state = await readFixtureState(request);
+    const vault = state.vaults.find(
+      (candidate) => candidate.name === REEF_E2E_VAULT,
+    );
+    const sprint = vault?.sprints[0];
+    expect(sprint).toBeDefined();
+
+    const rollup = page.getByTestId(`planning-rollup-${sprint?.id}`);
+    await expect(rollup).toBeVisible();
+    await expect(rollup).toContainText("7");
+    await expect(rollup).toContainText("1 completed");
+    await expect(rollup).toContainText("4 in progress");
+    await expect(rollup).toContainText("2 not started");
+    await expect(rollup).toContainText("25 pts total · 5 pts complete");
+    await expect(rollup).toContainText("3 pts remaining");
+    await expect(rollup).toHaveAttribute(
+      "href",
+      `/workspace/${REEF_E2E_VAULT}/issues?sprint_id=${sprint?.id}`,
+    );
+
+    await rollup.focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(
+      new RegExp(
+        `/workspace/${REEF_E2E_VAULT}/issues\\?sprint_id=${sprint?.id}$`,
+      ),
+    );
+  });
+
   test("keeps the existing empty planning state and create entry point for a successful empty catalog", async ({
     page,
     request,

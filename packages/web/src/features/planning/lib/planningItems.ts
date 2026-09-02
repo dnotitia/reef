@@ -1,10 +1,4 @@
-import type {
-  IssueListItem,
-  Milestone,
-  PlanningCatalog,
-  Release,
-  Sprint,
-} from "@reef/core";
+import type { Milestone, PlanningCatalog, Release, Sprint } from "@reef/core";
 
 // Kind keys are canonical in `@reef/core/fields/planning` (single source shared
 // with the `PlanningKindIcon` glyph leaf). The kind type is re-exported so the
@@ -36,31 +30,6 @@ export function findPlanningName(
   return (
     itemsForKind(catalog, kind).find((item) => item.id === id)?.name ?? null
   );
-}
-
-/**
- * Count issues per planning item for one kind in a single pass.
- *
- * Replaces a per-row `issues.filter().length` (O(items × issues)) with one
- * O(issues) build; callers then read each item's count via Map.get (O(1)).
- * Issues whose planning id is unset are skipped.
- */
-export function countIssuesByPlanningId(
-  issues: readonly IssueListItem[],
-  kind: PlanningKind,
-): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const issue of issues) {
-    const id =
-      kind === "sprints"
-        ? issue.sprint_id
-        : kind === "milestones"
-          ? issue.milestone_id
-          : issue.release_id;
-    if (!id) continue;
-    counts.set(id, (counts.get(id) ?? 0) + 1);
-  }
-  return counts;
 }
 
 export function isAssignablePlanningItem(
