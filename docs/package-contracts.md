@@ -26,6 +26,10 @@ under `dist/`. The table shows the current buildable packages:
 
 Package exports point only at emitted files. Production consumers must not
 resolve workspace `src/` files, TypeScript files, or compatibility wrappers.
+`@reef/core` additionally supports pnpm Git-subdirectory consumption for
+development integrations. Its `prepare` lifecycle builds the same `dist/`
+contract, and its manifest uses concrete dependency ranges so it remains valid
+after pnpm selects `packages/core` outside the Reef workspace.
 
 The allowed workspace dependency directions are:
 
@@ -58,6 +62,7 @@ release-policy checks:
 pnpm run check:turbo-contract
 pnpm run build:packages
 pnpm run package-contract:smoke
+pnpm run core-git-consumer:smoke
 pnpm run architecture:check
 pnpm run check
 ```
@@ -69,3 +74,13 @@ and exported subpath plus any discovered CLI bin. It rejects source/TypeScript
 files, source exports, and workspace links.
 The temporary consumer and its package manager state are removed after the
 check.
+
+The separate core Git-consumer smoke creates a local Git snapshot of the
+current checkout, installs `packages/core` by commit and `path:` into a fresh
+external pnpm project, and imports `createAkbAdapter` from the prepared ESM
+artifact. It then removes `node_modules` and repeats the install with
+`--frozen-lockfile`. This covers Git-only failure modes—unresolved `catalog:`,
+missing `prepare` output, the wrong monorepo subdirectory, and an unpinned
+lockfile—without using mutable GitHub `main` or duplicating the tarball smoke.
+The fixture approves only the exact package/source/commit/subdirectory selector
+through pnpm 11.10's `allowBuilds` policy.

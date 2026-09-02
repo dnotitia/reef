@@ -35,18 +35,20 @@
   },
   "scripts": {
     "build": "tsdown --config ../../tsdown.config.mjs --filter @reef/core",
+    "prepare": "pnpm run build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:live-akb": "vitest run --config vitest.live.config.ts"
   },
   "devDependencies": {
-    "@types/node": "catalog:",
-    "typescript": "catalog:",
-    "vitest": "catalog:"
+    "@types/node": "^24.13.3",
+    "tsdown": "0.22.14",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.10"
   },
   "dependencies": {
-    "@opentelemetry/api": "catalog:",
+    "@opentelemetry/api": "^1.9.1",
     "eventsource-parser": "3.0.8",
-    "zod": "catalog:"
+    "zod": "^4.4.3"
   }
 }
