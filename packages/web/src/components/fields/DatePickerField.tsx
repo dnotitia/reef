@@ -43,6 +43,9 @@ interface DatePickerFieldProps {
   /** Horizontal anchoring of the panel; "end" opens leftward. */
   align?: "start" | "end" | "center";
   className?: string;
+  /** Optional accessibility association for an adjacent validation message. */
+  ariaDescribedBy?: string;
+  ariaInvalid?: boolean;
 }
 
 /**
@@ -63,6 +66,8 @@ export function DatePickerField({
   disabled,
   align = "start",
   className,
+  ariaDescribedBy,
+  ariaInvalid,
 }: DatePickerFieldProps) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
@@ -241,6 +246,8 @@ export function DatePickerField({
           id={id}
           disabled={disabled}
           aria-haspopup="dialog"
+          aria-describedby={ariaDescribedBy}
+          aria-invalid={ariaInvalid || undefined}
           aria-label={
             normalized ? `${resolvedLabel}: ${displayValue}` : resolvedLabel
           }

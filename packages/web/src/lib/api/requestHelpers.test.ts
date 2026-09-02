@@ -138,6 +138,22 @@ describe("parseIssueListQueryParams", () => {
       parseIssueListQueryParams(new URLSearchParams("due_unset=1")),
     ).toEqual({ due_unset: true });
   });
+
+  it("groups normalized date-range query parameters into one range value", () => {
+    expect(
+      parseIssueListQueryParams(
+        new URLSearchParams(
+          "date_field=updated_at&date_from=2026-06-01T00:00:00.000Z&date_to=2026-06-03T00:00:00.000Z",
+        ),
+      ),
+    ).toEqual({
+      date_range: {
+        field: "updated_at",
+        from: "2026-06-01T00:00:00.000Z",
+        to: "2026-06-03T00:00:00.000Z",
+      },
+    });
+  });
 });
 
 describe("respondWithError", () => {

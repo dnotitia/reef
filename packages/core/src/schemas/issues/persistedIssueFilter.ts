@@ -7,6 +7,41 @@ import {
   StatusEnum,
 } from "./metadata";
 import { IssueOrderingModeEnum, USER_SORT_FIELDS } from "./requests";
+import { IssueDateRangeSchema, validateIssueDateRange } from "./dateRange";
+
+const PersistedIssueDateRangeSchema = IssueDateRangeSchema.superRefine(
+  (range, ctx) => {
+    const validation = validateIssueDateRange(range);
+    if (validation.field) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["field"],
+        message: "date range field is not registered",
+      });
+    }
+    if (validation.from) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["from"],
+        message: "date range start is invalid",
+      });
+    }
+    if (validation.to) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["to"],
+        message: "date range end is invalid",
+      });
+    }
+    if (validation.order) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["to"],
+        message: "date range end must be on or after its start",
+      });
+    }
+  },
+);
 
 /**
  * Persisted representation of the client issue filter — the payload that crosses
@@ -100,6 +135,7 @@ export const PersistedIssueFilterSchema = z.object({
   due: multiEnumFacet(z.enum(["overdue", "due_soon", "no_due"])),
   label: z.string().optional().catch(undefined),
   dependencyFilter: multiEnumFacet(z.enum(["blocked", "blocking"])),
+  dateRange: PersistedIssueDateRangeSchema.optional().catch(undefined),
   showArchived: z.boolean().optional().catch(undefined),
   showStale: z.boolean().optional().catch(undefined),
   sortField: z.enum(USER_SORT_FIELDS).optional().catch(undefined),
@@ -139,6 +175,7 @@ const FILTER_KEYS = [
   "due",
   "label",
   "dependencyFilter",
+  "dateRange",
   "showArchived",
   "showStale",
   "sortField",
@@ -197,6 +234,10 @@ export function normalizePersistedIssueFilter(
   if (typeof input.label === "string") {
     const label = canonicalLabelFilter(input.label);
     if (label) normalized.label = label;
+  }
+  const dateRange = IssueDateRangeSchema.safeParse(input.dateRange);
+  if (dateRange.success && validateIssueDateRange(dateRange.data).valid) {
+    normalized.dateRange = dateRange.data;
   }
   if (input.priorityUnset === true) normalized.priorityUnset = true;
   if (input.severityUnset === true) normalized.severityUnset = true;

@@ -106,6 +106,14 @@ function variantHasFreeText(variant: IssueQueryParams | undefined): boolean {
   return typeof variant?.q === "string" && variant.q.length > 0;
 }
 
+function variantHasDateRange(variant: IssueQueryParams | undefined): boolean {
+  return (
+    typeof variant?.date_field === "string" &&
+    typeof variant?.date_from === "string" &&
+    typeof variant?.date_to === "string"
+  );
+}
+
 /**
  * Build an `invalidateQueries` predicate that refetches the list variants a
  * single issue `patch` can actually change — membership, order, or free-text
@@ -172,6 +180,10 @@ export function listInvalidationPredicate(
       | undefined;
     if (!variant) return false;
     if (variantHasFreeText(variant)) return true;
+    // Every successful issue edit bumps the row's current updated_at. A date
+    // range is therefore a membership predicate even when the edited field is
+    // otherwise unrelated to the selected facets.
+    if (variantHasDateRange(variant)) return true;
     // A pure content/order edit leaves default_view membership unchanged, so gate
     // this on an actual membership-key change.
     if (membershipKeys.length > 0 && variant.default_view === "true")
@@ -202,7 +214,11 @@ export function rankReorderInvalidationPredicate({
   const variant = issueListQueryFromKey(queryKey) as
     | IssueQueryParams
     | undefined;
-  return variant?.sort_field === "rank" || variant?.sort_field === "updated_at";
+  return (
+    variantHasDateRange(variant) ||
+    variant?.sort_field === "rank" ||
+    variant?.sort_field === "updated_at"
+  );
 }
 
 function issuePatchForReorderGroup(group: IssueReorderGroup): IssueUpdatePatch {

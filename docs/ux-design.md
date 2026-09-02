@@ -736,6 +736,16 @@ retain their full value in a title or accessible label. A My View captures the
 current filter, scope/layout, grouping, ordering mode and direction, display
 options, and List optional columns in the browser-local snapshot.
 
+The shared filter bar also exposes one generic issue-date range for the current
+updated timestamp. Its two calendar bounds are date-only choices interpreted
+from local midnight through the next local midnight in the browser time zone;
+there is no automatic initial range. An incomplete or reversed range stays
+visible for correction with an inline error and does not narrow the results.
+The selected range travels with the existing URL, browser-local filter, and My
+View state without changing sort, grouping, layout, or display columns. Future
+date criteria are not shown in this control until their own product contract is
+ready.
+
 ### Issue Detail Slide-Over
 
 Opening an issue routes to `/workspace/{vault}/issues/[id]`, intercepted by a

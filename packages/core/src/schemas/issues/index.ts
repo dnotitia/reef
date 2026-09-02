@@ -148,6 +148,25 @@ export {
 } from "./persistedIssueFilter";
 
 export {
+  ISSUE_DATE_FIELD_REGISTRY,
+  IssueDateRangeQuerySchema,
+  IssueDateRangeSchema,
+  createIssueDateRangeMatcher,
+  getIssueDateField,
+  getIssueDateTimeZone,
+  matchesIssueDateRange,
+  toIssueDateRangeQuery,
+  validateIssueDateRange,
+  type IssueDateField,
+  type IssueDateFieldId,
+  type IssueDateFieldStorage,
+  type IssueDateRange,
+  type IssueDateRangeErrorCode,
+  type IssueDateRangeQuery,
+  type IssueDateRangeValidation,
+} from "./dateRange";
+
+export {
   AkbDocumentHistoryEntrySchema,
   AkbDocumentHistoryResponseSchema,
   IssueBodyHistoryEventSchema,

@@ -307,6 +307,22 @@ describe("buildIssueWhere", () => {
       }).params,
     ).toEqual(["2026-01-01", "2026-03-31"]);
   });
+
+  it("renders a registered updated-at range as an inclusive half-open window", () => {
+    expect(
+      issueWhere({
+        date_range: {
+          field: "updated_at",
+          from: "2026-06-01T07:00:00.000Z",
+          to: "2026-06-03T07:00:00.000Z",
+        },
+        archived: true,
+      }),
+    ).toEqual({
+      sql: `"updated_at" >= $1 AND "updated_at" < $2`,
+      params: ["2026-06-01T07:00:00.000Z", "2026-06-03T07:00:00.000Z"],
+    });
+  });
 });
 
 describe("buildIssueOrderBy / priorityRankCase", () => {

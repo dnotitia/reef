@@ -9,6 +9,7 @@ export type FixtureScenario =
   | "configured"
   | "configured_empty"
   | "configured_caught_up"
+  | "updated_at_range"
   | "content_search"
   | "configured_multi"
   | "assignee_picker"

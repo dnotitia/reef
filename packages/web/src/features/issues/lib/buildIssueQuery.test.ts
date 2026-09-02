@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
+import { toIssueDateRangeQuery } from "@reef/core";
 import type { IssueFilter } from "../stores/useIssueStore";
 import {
   buildIssueQuery,
@@ -29,6 +30,46 @@ describe("buildIssueQuery", () => {
       assigned_to: ["alice"],
       ...DEFAULT_SORT,
     });
+  });
+
+  it("normalizes a complete updated-at calendar range for the server", () => {
+    const dateRange = {
+      field: "updated_at",
+      from: "2026-06-01",
+      to: "2026-06-02",
+    };
+    const normalized = toIssueDateRangeQuery(dateRange);
+    expect(
+      buildIssueQuery({
+        dateRange,
+      }),
+    ).toMatchObject({
+      date_field: normalized?.field,
+      date_from: normalized?.from,
+      date_to: normalized?.to,
+      ...DEFAULT_SORT,
+    });
+  });
+
+  it("omits an incomplete date range instead of narrowing the query", () => {
+    expect(
+      buildIssueQuery({
+        dateRange: { field: "updated_at", from: "2026-06-01", to: "" },
+      }),
+    ).toEqual({ ...DEFAULT_SORT });
+  });
+
+  it("keeps the complete rank spine for Manual date filtering", () => {
+    expect(
+      buildIssueQuery({
+        orderingMode: "manual",
+        dateRange: {
+          field: "updated_at",
+          from: "2026-06-01",
+          to: "2026-06-02",
+        },
+      }),
+    ).toEqual({ sort_field: "rank", sort_order: "asc" });
   });
 
   it("maps unset filter flags separately from real values", () => {

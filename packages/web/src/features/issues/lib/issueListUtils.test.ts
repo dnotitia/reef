@@ -80,6 +80,12 @@ describe("hasActiveIssueFilters", () => {
     expect(hasActiveIssueFilters({}, "missing issue")).toBe(true);
     expect(hasActiveIssueFilters({ priorityUnset: true }, "")).toBe(true);
     expect(hasActiveIssueFilters({ assigneeUnset: true }, "")).toBe(true);
+    expect(
+      hasActiveIssueFilters(
+        { dateRange: { field: "updated_at", from: "2026-04-01", to: "" } },
+        "",
+      ),
+    ).toBe(true);
   });
 });
 
@@ -615,6 +621,32 @@ describe("filterIssues — stale resolved auto-hide (REEF-275)", () => {
     expect(filterIssues(archivedDone, {}, { searchActive: true })).toHaveLength(
       0,
     );
+  });
+});
+
+describe("filterIssues — issue date range", () => {
+  it("uses the current updated_at value and keeps the end day inclusive", () => {
+    const range = {
+      field: "updated_at",
+      from: "2026-04-03",
+      to: "2026-04-04",
+    };
+    const result = filterIssues(
+      [
+        makeIssue({ id: "REEF-101", updated_at: "2026-04-03T00:00:00.000Z" }),
+        makeIssue({ id: "REEF-102", updated_at: "2026-04-04T14:59:59.999Z" }),
+        makeIssue({ id: "REEF-103", updated_at: "2026-04-04T15:00:00.000Z" }),
+      ],
+      { dateRange: range },
+    );
+    expect(result.map((issue) => issue.id)).toEqual(["REEF-101", "REEF-102"]);
+  });
+
+  it("does not apply a partial range", () => {
+    const result = filterIssues(issues, {
+      dateRange: { field: "updated_at", from: "2026-04-03", to: "" },
+    });
+    expect(result).toHaveLength(issues.length);
   });
 });
 

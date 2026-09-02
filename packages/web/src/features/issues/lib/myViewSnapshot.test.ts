@@ -12,6 +12,11 @@ describe("My View workspace snapshot codec", () => {
         severityUnset: true,
         assigneeUnset: true,
         due: ["no_due"],
+        dateRange: {
+          field: "updated_at",
+          from: "2026-06-01",
+          to: "2026-06-02",
+        },
         sortField: "updated_at",
         sortOrder: "desc",
         showArchived: true,
@@ -31,6 +36,11 @@ describe("My View workspace snapshot codec", () => {
         severityUnset: true,
         assigneeUnset: true,
         due: ["no_due"],
+        dateRange: {
+          field: "updated_at",
+          from: "2026-06-01",
+          to: "2026-06-02",
+        },
       },
       scope: "active",
       layout: "list",

@@ -31,7 +31,7 @@ test("keeps the repository test layout within its approved domains", async () =>
 
   assert.deepEqual(result.errors, []);
   assert.equal(result.counts.rootE2eHermeticSpecs, 0);
-  assert.equal(result.counts.hermeticSpecs, 54);
+  assert.equal(result.counts.hermeticSpecs, 55);
   assert.equal(result.counts.rootAdapterTests, 0);
   assert.equal(result.counts.rootAdapterFixtures, 0);
   assert.equal(result.counts.rootAdapterSupport, 0);

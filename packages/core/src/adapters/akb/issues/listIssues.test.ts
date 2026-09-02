@@ -67,6 +67,32 @@ describe("listIssues → SQL", () => {
     expect(capturedSql(calls)).not.toContain("ORDER BY");
     expect(capturedParams(calls)).toEqual(["todo"]);
   });
+
+  it("pushes the date-range predicate into the paginated server query", async () => {
+    const { calls } = setupFetch([{ body: makeIssueQueryResponse([]) }]);
+    await listIssues({
+      adapter: makeTestAkbAdapter(),
+      vault: "reef-acme",
+      query: IssueListQuerySchema.parse({
+        date_range: {
+          field: "updated_at",
+          from: "2026-06-01T07:00:00.000Z",
+          to: "2026-06-03T07:00:00.000Z",
+        },
+        archived: true,
+        limit: 2,
+      }),
+    });
+    expect(capturedSql(calls)).toContain(
+      `WHERE "updated_at" >= $1 AND "updated_at" < $2`,
+    );
+    expect(capturedSql(calls)).toContain("LIMIT $3");
+    expect(capturedParams(calls)).toEqual([
+      "2026-06-01T07:00:00.000Z",
+      "2026-06-03T07:00:00.000Z",
+      3,
+    ]);
+  });
 });
 
 function makeIssue(over: Partial<IssueMetadata>): IssueMetadata {

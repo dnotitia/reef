@@ -97,6 +97,64 @@ describe("FilterBar", () => {
     expect(screen.getByTestId("assignee-filter")).toBeTruthy();
     expect(screen.getByTestId("requester-filter")).toBeTruthy();
     expect(screen.getByTestId("labels-input")).toBeTruthy();
+    expect(screen.getByTestId("updated-at-filter")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Updated from" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Updated through" }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("keeps an incomplete updated-at range visible with an inline correction", async () => {
+    const user = userEvent.setup();
+    renderFilterBar();
+
+    await user.click(screen.getByRole("button", { name: "Updated from" }));
+    await user.type(
+      screen.getByLabelText("Updated from (YYYY-MM-DD)"),
+      "2026-06-01{Enter}",
+    );
+
+    expect(useIssueStore.getState().filter.dateRange).toEqual({
+      field: "updated_at",
+      from: "2026-06-01",
+      to: "",
+    });
+    expect(screen.getByTestId("updated-at-range-end-error")).toHaveTextContent(
+      "Choose an end date.",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Updated through" }));
+    await user.type(
+      screen.getByLabelText("Updated through (YYYY-MM-DD)"),
+      "2026-06-02{Enter}",
+    );
+
+    expect(useIssueStore.getState().filter.dateRange).toEqual({
+      field: "updated_at",
+      from: "2026-06-01",
+      to: "2026-06-02",
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("shows a correction on the end input for a reversed range", () => {
+    useIssueStore.setState({
+      filter: {
+        dateRange: {
+          field: "updated_at",
+          from: "2026-06-03",
+          to: "2026-06-02",
+        },
+      },
+      searchQuery: "",
+      selectedIssueId: null,
+    });
+    renderFilterBar();
+
+    expect(screen.getByTestId("updated-at-range-end-error")).toHaveTextContent(
+      "End date must be on or after the start date.",
+    );
   });
 
   it("offers and toggles unset priority, severity, due, and assignee options", async () => {
