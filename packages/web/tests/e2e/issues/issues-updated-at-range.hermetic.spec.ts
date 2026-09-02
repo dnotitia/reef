@@ -1,9 +1,11 @@
 import { type Page, expect, test } from "@playwright/test";
 import {
   clearPersistedQueryCacheOnLoad,
+  clearPersistedQueryCache,
   openExistingWorkspace,
   resetFixture,
   readIndexedDbConfig,
+  setIssueListFailure,
 } from "../harness/fixture";
 
 const LIST_URL =
@@ -254,5 +256,102 @@ test.describe("Hermetic updated-at date range filter", () => {
     await expect(
       page.getByText("No issues match your filters.", { exact: true }),
     ).toBeVisible();
+  });
+
+  test("surfaces a retryable error when a cached no-match list refetch fails", async ({
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    await clearPersistedQueryCache(page);
+    const today = await browserToday(page);
+    const currentRange = dateRangeUrl(today, today);
+
+    await page.goto(currentRange);
+    await expect(
+      page.getByText("No issues match your filters.", { exact: true }),
+    ).toBeVisible({ timeout: 15_000 });
+    await page
+      .getByRole("button", { name: "Clear filters", exact: true })
+      .click();
+    await expect(
+      page.getByText("Initial issue Alpha", { exact: true }),
+    ).toBeVisible();
+
+    await page.getByText("Initial issue Alpha", { exact: true }).click();
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    const title = page.getByTestId("issue-title-input");
+    await title.fill("Initial issue Alpha (updated for failure)");
+    await title.press("Enter");
+    await expect(page.getByTestId("issue-save-status")).toContainText("Saved", {
+      timeout: 15_000,
+    });
+    await page.getByTestId("issue-close").click();
+    await expect(page.getByTestId("issue-detail")).toHaveCount(0);
+
+    const noMatchRange = dateRangeUrl("2026-06-15", "2026-06-15");
+    await page.goto(noMatchRange);
+    await expect(
+      page.getByText("No issues match your filters.", { exact: true }),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          window.localStorage
+            .getItem("REACT_QUERY_OFFLINE_CACHE")
+            ?.includes("2026-06-15"),
+        ),
+      )
+      .toBe(true);
+
+    const issueListResponses: Array<{ status: number; url: string }> = [];
+    page.on("response", (response) => {
+      const url = new URL(response.url());
+      if (
+        response.request().method() === "GET" &&
+        url.pathname === "/api/issues"
+      ) {
+        issueListResponses.push({
+          status: response.status(),
+          url: response.url(),
+        });
+      }
+    });
+    const responsesBeforeFailure = issueListResponses.length;
+    await setIssueListFailure(request, true, 0);
+    await page.reload();
+    await expect(page).toHaveURL(/date_field=updated_at/);
+    await expect(page).toHaveURL(/date_from=2026-06-15/);
+    await expect(page).toHaveURL(/date_to=2026-06-15/);
+    await expect
+      .poll(() =>
+        issueListResponses
+          .slice(responsesBeforeFailure)
+          .some(
+            ({ status, url }) =>
+              status >= 400 &&
+              new URL(url).searchParams.get("date_field") === "updated_at",
+          ),
+      )
+      .toBe(true);
+
+    await expect(page.getByText("Failed to load issues.")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(
+      page.getByText("No issues match your filters.", { exact: true }),
+    ).toBeHidden();
+
+    await setIssueListFailure(request, false, 0);
+    await page.getByRole("button", { name: "Retry", exact: true }).click();
+    await expect(
+      page.getByText("No issues match your filters.", { exact: true }),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Failed to load issues.")).toBeHidden();
+
+    await page.goto(noMatchRange);
+    await expect(
+      page.getByText("No issues match your filters.", { exact: true }),
+    ).toBeVisible({ timeout: 15_000 });
   });
 });

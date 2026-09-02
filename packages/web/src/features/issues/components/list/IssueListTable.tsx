@@ -766,7 +766,8 @@ export function IssueListTable({
   // prior empty page as stale data. Preserve populated rows during a transient
   // background failure; only next-page failures retain their inline retry row.
   const hasLoadedIssueRows =
-    data?.pages.some((page) => page.issues.length > 0) ?? false;
+    !isPlaceholderData &&
+    (data?.pages.some((page) => page.issues.length > 0) ?? false);
   const initialLoadError =
     isError && !isFetchNextPageError && !hasLoadedIssueRows;
   const showTable =
