@@ -91,6 +91,10 @@
       "cache": false,
       "inputs": ["$TURBO_DEFAULT$"]
     },
+    "//#core-git-consumer:smoke:root": {
+      "cache": false,
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
     "//#architecture:check:root": {
       "cache": false,
       "inputs": ["$TURBO_DEFAULT$"]

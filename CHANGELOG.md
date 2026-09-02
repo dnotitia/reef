@@ -27,6 +27,11 @@ explicitly in the entries below.
 
 ### Changed
 
+- **`@reef/core` now supports development-stage pnpm Git consumers.** The
+  `packages/core` subdirectory prepares its dist-only ESM artifact outside the
+  Reef workspace, while a local Git consumer gate verifies commit-pinned
+  installation and public import without introducing a registry release.
+
 - **AKB Change Events now wake private notification projection.** The new
   Event Processor tails the authenticated `table.rows_changed` stream for
   activity and comment Source State, then invokes the existing idempotent Inbox

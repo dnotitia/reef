@@ -115,8 +115,9 @@ akb-platform gateway. Leaving all three unset keeps AI disabled.
 ## Repository layout
 
 This is a public pnpm monorepo. The root `package.json` is the single product
-version source of truth; the workspace packages are private and consumed only
-inside this repository.
+version source of truth; the workspace packages are private and unpublished.
+`@reef/core` also supports development-stage pnpm Git-subdirectory consumers;
+it does not have an independent registry or version lifecycle.
 
 | Path | Purpose |
 | --- | --- |
@@ -159,6 +160,7 @@ Run these from the repository root.
 | `pnpm build:affected` | Build only changed workspaces and their downstream dependents when Git history is available. |
 | `pnpm check:turbo-contract` | Prove the discovered Turbo graph, cache inputs/outputs, invalidation, and affected/downstream selection. |
 | `pnpm package-contract:smoke` | Pack every discovered buildable artifact, install it in an isolated consumer, and exercise its public imports and CLI. |
+| `pnpm core-git-consumer:smoke` | Install `@reef/core` from a local Git snapshot and prove subdirectory preparation, frozen-lockfile reuse, and ESM import. |
 | `pnpm architecture:check` | Check dependency cycles, resolution, production/test boundaries, and workspace directions. |
 | `pnpm lint` | Run the repository Biome check through the canonical Turbo root task. |
 | `pnpm format` | Run `biome format --write .`. |

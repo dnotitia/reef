@@ -172,6 +172,59 @@ test("rejects a direct catalog version even when the dependency is used once", a
   );
 });
 
+test("accepts concrete catalog ranges and a build tool for a Git-prepared package", async () => {
+  await withFixture(
+    async (root) => {
+      const rootManifest = JSON.parse(
+        await readFile(path.join(root, "package.json"), "utf8"),
+      );
+      rootManifest.devDependencies["git-build-tool"] = "1.2.3";
+      await writeFile(
+        path.join(root, "package.json"),
+        `${JSON.stringify(rootManifest, null, 2)}\n`,
+      );
+
+      const manifest = await readManifest(root, "one");
+      manifest.scripts = { prepare: "git-build-tool" };
+      manifest.dependencies.zod = "^3.25.76";
+      manifest.devDependencies = {
+        "@types/node": "^24.13.3",
+        "git-build-tool": "1.2.3",
+        typescript: "^6.0.2",
+        vitest: "^3.2.6",
+      };
+      await writeManifest(root, "one", manifest);
+    },
+    async ({ root, pnpmCommand }) => {
+      const result = await inspectToolchain({ root, pnpmCommand });
+      assert.deepEqual(result.violations, []);
+    },
+  );
+});
+
+test("rejects catalog protocol and version drift in a Git-prepared package", async () => {
+  await withFixture(
+    async (root) => {
+      const manifest = await readManifest(root, "one");
+      manifest.scripts = { prepare: "build" };
+      manifest.dependencies.zod = "catalog:";
+      manifest.devDependencies.typescript = "^6.1.0";
+      await writeManifest(root, "one", manifest);
+    },
+    async ({ root, pnpmCommand }) => {
+      const result = await inspectToolchain({ root, pnpmCommand });
+      assert.ok(
+        result.violations.some(({ code }) => code === "git-package-catalog"),
+      );
+      assert.ok(
+        result.violations.some(
+          ({ code }) => code === "git-package-catalog-drift",
+        ),
+      );
+    },
+  );
+});
+
 test("rejects a root-owned tool duplicated in a workspace", async () => {
   await withFixture(
     async (root) => {

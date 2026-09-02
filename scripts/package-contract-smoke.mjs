@@ -312,6 +312,11 @@ async function packArtifactPackages(packRoot, packages, version, catalog) {
     manifest.files = ["dist"];
     rewriteCatalogDependencies(manifest, catalog);
     manifest.devDependencies = undefined;
+    if (manifest.scripts) {
+      delete manifest.scripts.prepare;
+      if (Object.keys(manifest.scripts).length === 0)
+        manifest.scripts = undefined;
+    }
     rewriteWorkspaceDependencies(manifest, version);
     await writeFile(
       path.join(stageDir, "package.json"),

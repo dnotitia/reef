@@ -216,6 +216,20 @@ function dependencyEntries(entries) {
   );
 }
 
+function isGitPreparedPackage(entry) {
+  return (
+    entry.key !== "root" && typeof entry.manifest.scripts?.prepare === "string"
+  );
+}
+
+function rootDependencySpec(rootManifest, name) {
+  for (const field of DEPENDENCY_FIELDS) {
+    const spec = rootManifest[field]?.[name];
+    if (typeof spec === "string") return spec;
+  }
+  return null;
+}
+
 function validateCatalogToolchain({ catalog, violations }) {
   const requirements = [
     {
@@ -362,17 +376,38 @@ function validateDependencies({
         );
         continue;
       }
+      if (isGitPreparedPackage(entry)) {
+        addViolation(
+          violations,
+          "git-package-catalog",
+          `${manifestPath} ${entry.name} must use the catalog's concrete range so pnpm can prepare it outside this workspace`,
+          [manifestPath, "pnpm-workspace.yaml"],
+        );
+        continue;
+      }
       catalogUsage.add(entry.name);
       continue;
     }
 
     if (Object.hasOwn(catalog, entry.name)) {
-      addViolation(
-        violations,
-        "catalog-bypass",
-        `${manifestPath} ${entry.name} must use the default catalog: protocol`,
-        [manifestPath, "pnpm-workspace.yaml"],
-      );
+      if (isGitPreparedPackage(entry)) {
+        catalogUsage.add(entry.name);
+        if (entry.spec !== catalog[entry.name]) {
+          addViolation(
+            violations,
+            "git-package-catalog-drift",
+            `${manifestPath} ${entry.name} must match the default catalog range ${catalog[entry.name]}`,
+            [manifestPath, "pnpm-workspace.yaml"],
+          );
+        }
+      } else {
+        addViolation(
+          violations,
+          "catalog-bypass",
+          `${manifestPath} ${entry.name} must use the default catalog: protocol`,
+          [manifestPath, "pnpm-workspace.yaml"],
+        );
+      }
     }
   }
 
@@ -387,14 +422,26 @@ function validateDependencies({
       rootTools.has(name) &&
       packageOccurrences.some((entry) => entry.key !== "root")
     ) {
-      addViolation(
-        violations,
-        "root-tool-duplicate",
-        `${name} is a root-owned tool and must not be declared in a workspace manifest`,
-        packageOccurrences.map((entry) =>
-          relativePath(root, path.join(entry.dir, "package.json")),
-        ),
+      const rootSpec = rootDependencySpec(rootManifest, name);
+      const workspaceOccurrences = packageOccurrences.filter(
+        (entry) => entry.key !== "root",
       );
+      const isStandaloneBuildTool = workspaceOccurrences.every(
+        (entry) =>
+          isGitPreparedPackage(entry) &&
+          entry.field === "devDependencies" &&
+          entry.spec === rootSpec,
+      );
+      if (!isStandaloneBuildTool) {
+        addViolation(
+          violations,
+          "root-tool-duplicate",
+          `${name} is a root-owned tool and must not be declared in a workspace manifest`,
+          packageOccurrences.map((entry) =>
+            relativePath(root, path.join(entry.dir, "package.json")),
+          ),
+        );
+      }
       continue;
     }
     if (Object.hasOwn(catalog, name)) continue;
