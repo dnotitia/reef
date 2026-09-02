@@ -625,21 +625,31 @@ describe("filterIssues — stale resolved auto-hide (REEF-275)", () => {
 });
 
 describe("filterIssues — issue date range", () => {
-  it("uses the current updated_at value and keeps the end day inclusive", () => {
+  it("uses the selected browser timezone for an inclusive end day", () => {
     const range = {
       field: "updated_at",
       from: "2026-04-03",
       to: "2026-04-04",
     };
-    const result = filterIssues(
-      [
-        makeIssue({ id: "REEF-101", updated_at: "2026-04-03T00:00:00.000Z" }),
-        makeIssue({ id: "REEF-102", updated_at: "2026-04-04T14:59:59.999Z" }),
-        makeIssue({ id: "REEF-103", updated_at: "2026-04-04T15:00:00.000Z" }),
-      ],
-      { dateRange: range },
-    );
-    expect(result.map((issue) => issue.id)).toEqual(["REEF-101", "REEF-102"]);
+    const candidates = [
+      makeIssue({ id: "REEF-101", updated_at: "2026-04-03T00:00:00.000Z" }),
+      makeIssue({ id: "REEF-102", updated_at: "2026-04-04T14:59:59.999Z" }),
+      makeIssue({ id: "REEF-103", updated_at: "2026-04-04T15:00:00.000Z" }),
+    ];
+    expect(
+      filterIssues(
+        candidates,
+        { dateRange: range },
+        {
+          timeZone: "Asia/Seoul",
+        },
+      ).map((issue) => issue.id),
+    ).toEqual(["REEF-101", "REEF-102"]);
+    expect(
+      filterIssues(candidates, { dateRange: range }, { timeZone: "UTC" }).map(
+        (issue) => issue.id,
+      ),
+    ).toEqual(["REEF-101", "REEF-102", "REEF-103"]);
   });
 
   it("does not apply a partial range", () => {

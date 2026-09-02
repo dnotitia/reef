@@ -185,6 +185,8 @@ export function hasActiveIssueFilters(
 
 interface FilterIssuesOptions {
   searchActive?: boolean;
+  /** Explicit timezone seam for deterministic date-range tests. */
+  timeZone?: string;
   staleWindowDays?: {
     completed?: number;
     canceled?: number;
@@ -289,7 +291,10 @@ export function filterIssues(
   // render is compared against the same instant (shared by the stale-resolved
   // auto-hide and the `due` overdue/due-soon window below).
   const now = Date.now();
-  const matchesDateRange = createIssueDateRangeMatcher(filter.dateRange);
+  const matchesDateRange = createIssueDateRangeMatcher(
+    filter.dateRange,
+    opts.timeZone,
+  );
   return issues.filter((issue) => {
     if (!filter.showArchived && !isActive(issue)) return false;
     // Hide resolved issues that have aged past their auto-hide window unless the
