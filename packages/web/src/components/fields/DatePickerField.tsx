@@ -8,6 +8,10 @@ import {
   type PopoverDismissReason,
 } from "@/components/ui/popover";
 import {
+  CBX_TRIGGER_ACTIVE,
+  CBX_TRIGGER_FIELD,
+} from "@/components/ui/comboboxChrome";
+import {
   formatDisplayDate,
   isValidIsoDate,
   localTodayIso,
@@ -40,6 +44,8 @@ interface DatePickerFieldProps {
   /** Trigger placeholder when empty. */
   placeholder?: string;
   disabled?: boolean;
+  /** Applies the shared filter-active chrome when a bound is selected. */
+  active?: boolean;
   /** Horizontal anchoring of the panel; "end" opens leftward. */
   align?: "start" | "end" | "center";
   className?: string;
@@ -64,6 +70,7 @@ export function DatePickerField({
   label,
   placeholder,
   disabled,
+  active = false,
   align = "start",
   className,
   ariaDescribedBy,
@@ -236,11 +243,7 @@ export function DatePickerField({
       onBlur={handleRootBlur}
       onKeyDown={handleRootKeyDown}
     >
-      <Popover
-        open={open}
-        onOpenChange={handleOpenChange}
-        className="group w-full"
-      >
+      <Popover open={open} onOpenChange={handleOpenChange} className="w-full">
         <PopoverTrigger
           ref={triggerRef}
           id={id}
@@ -252,7 +255,12 @@ export function DatePickerField({
             normalized ? `${resolvedLabel}: ${displayValue}` : resolvedLabel
           }
           data-testid="date-picker-trigger"
-          className="flex h-8 w-full min-w-0 items-center gap-2 rounded-md border border-border bg-surface-elevated pl-2.5 pr-8 text-left type-control text-foreground transition-colors duration-150 hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
+          data-active={active ? "true" : undefined}
+          className={cn(
+            CBX_TRIGGER_FIELD,
+            "pl-2.5 pr-8",
+            active && CBX_TRIGGER_ACTIVE,
+          )}
         >
           <CalendarIcon
             className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
@@ -273,7 +281,7 @@ export function DatePickerField({
             onClick={handleClear}
             aria-label={t("clearField", { field: resolvedLabel })}
             data-testid="date-picker-clear"
-            className="absolute right-1 top-1/2 -translate-y-1/2 rounded-sm p-1 text-muted-foreground opacity-0 transition-opacity duration-150 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+            className="absolute right-0.5 top-1/2 -translate-y-1/2 rounded-sm p-1.5 text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/30"
           >
             <X className="h-3 w-3" aria-hidden />
           </button>

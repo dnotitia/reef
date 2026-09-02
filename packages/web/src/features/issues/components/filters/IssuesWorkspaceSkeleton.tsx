@@ -8,7 +8,8 @@ import { useTranslations } from "next-intl";
  * The first six mirror the auto-width facet chips (Status / Type / Priority /
  * Severity / Due / Dependency — each hugs a short label), then the six value
  * fields (Assignee / Requester / Sprint / Milestone / Release / Labels) sit at
- * the shared `9rem` (`w-36`) floor, and Display closes the row. Reproducing the
+ * the shared `9rem` (`w-36`) floor, the updated-at group mirrors its visible
+ * label and two date bounds, and Display closes the row. Reproducing the
  * real chip count and widths in the same `flex flex-wrap gap-2` container makes
  * the skeleton wrap to the same number of rows as the live FilterBar at any
  * width, so the toolbar holds its height when the real bar hydrates (REEF-258).
@@ -26,6 +27,7 @@ const FILTER_CHIPS = [
   { key: "milestone", width: "w-36" },
   { key: "release", width: "w-36" },
   { key: "labels", width: "w-36" },
+  { key: "updatedAtRange", width: "w-80" },
   { key: "display", width: "w-24" },
 ] as const;
 
@@ -75,14 +77,33 @@ export function IssuesWorkspaceSkeleton() {
           {/* SearchBar row (Input h-9, full width). */}
           <Skeleton tone="secondary" className="h-9 w-full" />
           {/* FilterBar row — the wrapping facet/value chips (each h-8). */}
-          <div className="flex flex-wrap items-center gap-2">
-            {FILTER_CHIPS.map((chip) => (
-              <Skeleton
-                key={chip.key}
-                tone="secondary"
-                className={`h-8 ${chip.width}`}
-              />
-            ))}
+          <div className="flex flex-wrap items-start gap-2">
+            {FILTER_CHIPS.map((chip) =>
+              chip.key === "updatedAtRange" ? (
+                <div
+                  key={chip.key}
+                  className={`flex ${chip.width} max-w-full min-w-0 flex-col`}
+                >
+                  <Skeleton tone="secondary" className="mb-1 h-3 w-14" />
+                  <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-1.5 max-[769px]:grid-cols-1">
+                    <Skeleton tone="secondary" className="h-8 w-full" />
+                    <span
+                      className="inline-flex h-8 items-center justify-center text-transparent max-[769px]:h-4"
+                      aria-hidden="true"
+                    >
+                      –
+                    </span>
+                    <Skeleton tone="secondary" className="h-8 w-full" />
+                  </div>
+                </div>
+              ) : (
+                <Skeleton
+                  key={chip.key}
+                  tone="secondary"
+                  className={`h-8 ${chip.width}`}
+                />
+              ),
+            )}
           </div>
         </div>
         <BoardColumnsSkeleton />

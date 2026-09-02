@@ -98,11 +98,46 @@ describe("FilterBar", () => {
     expect(screen.getByTestId("requester-filter")).toBeTruthy();
     expect(screen.getByTestId("labels-input")).toBeTruthy();
     expect(screen.getByTestId("updated-at-filter")).toBeTruthy();
+    expect(screen.getByTestId("updated-at-filter-label")).toHaveTextContent(
+      "Updated date",
+    );
     expect(screen.getByRole("button", { name: "Updated from" })).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "Updated through" }),
     ).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("keeps both updated-at bounds in one shared active filter group", () => {
+    useIssueStore.setState({
+      filter: {
+        dateRange: {
+          field: "updated_at",
+          from: "2026-06-01",
+          to: "2026-06-02",
+        },
+      },
+      searchQuery: "",
+      selectedIssueId: null,
+    });
+    renderFilterBar();
+
+    const group = screen.getByTestId("updated-at-filter");
+    expect(group).toHaveAttribute("data-active", "true");
+    expect(screen.getByTestId("updated-at-filter-label")).toHaveTextContent(
+      "Updated date",
+    );
+    expect(screen.getByTestId("updated-at-range-controls")).toHaveClass(
+      "grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]",
+      "max-[769px]:grid-cols-1",
+    );
+    expect(
+      screen.getByTestId("updated-at-range-separator"),
+    ).toBeInTheDocument();
+    for (const trigger of screen.getAllByTestId("date-picker-trigger")) {
+      expect(trigger).toHaveAttribute("data-active", "true");
+      expect(trigger).toHaveClass("border-brand-focus", "ring-1");
+    }
   });
 
   it("keeps an incomplete updated-at range visible with an inline correction", async () => {
