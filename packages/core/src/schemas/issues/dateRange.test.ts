@@ -58,6 +58,19 @@ describe("issue date range module", () => {
     });
   });
 
+  it("starts at the first valid instant when local midnight is skipped", () => {
+    expect(
+      toIssueDateRangeQuery(
+        { field: "updated_at", from: "2026-03-08", to: "2026-03-08" },
+        "America/Havana",
+      ),
+    ).toEqual({
+      field: "updated_at",
+      from: "2026-03-08T05:00:00.000Z",
+      to: "2026-03-09T04:00:00.000Z",
+    });
+  });
+
   it("includes both boundary instants and excludes the next local day", () => {
     const range = { field: "updated_at", from: "2026-06-01", to: "2026-06-02" };
     const zone = "America/Los_Angeles";

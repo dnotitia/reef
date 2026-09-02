@@ -292,24 +292,26 @@ export function createIssueDateRangeMatcher(
 }
 
 function zonedMidnight(date: DateOnly, timeZone: string): number {
+  const dayMs = 24 * 60 * 60 * 1000;
   const target = Date.UTC(date.year, date.month - 1, date.day);
-  let instant = target;
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    const actual = datePartsInTimeZone(instant, timeZone);
-    const actualAsUtc = Date.UTC(
-      actual.year,
-      actual.month - 1,
-      actual.day,
-      actual.hour,
-      actual.minute,
-      actual.second,
-    );
-    const targetAsUtc = Date.UTC(date.year, date.month - 1, date.day);
-    const delta = targetAsUtc - actualAsUtc;
-    if (delta === 0) return instant;
-    instant += delta;
+  const targetKey = dateOnlyToIso(date);
+  let low = target - 3 * dayMs;
+  let high = target + 3 * dayMs;
+
+  // Local dates advance monotonically with instants, even when a timezone
+  // skips a local midnight. Find the first instant whose local date is the
+  // requested date (or the first date after it when the whole date is skipped)
+  // so a midnight DST gap cannot return an instant from the previous day.
+  while (low < high) {
+    const middle = low + Math.floor((high - low) / 2);
+    const localDate = dateOnlyToIso(datePartsInTimeZone(middle, timeZone));
+    if (localDate >= targetKey) {
+      high = middle;
+    } else {
+      low = middle + 1;
+    }
   }
-  return instant;
+  return low;
 }
 
 function datePartsInTimeZone(
