@@ -27,6 +27,11 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Merge queue CI now reuses exact-tree PR validation.** When the queued Git
+  tree, PR head, and CI workflow are unchanged, required queue checks complete
+  from the successful PR evidence; changed bases and grouped queue trees fall
+  back to the full build, unit, and Playwright suites.
+
 - **The Reef workspace now contains only product-owned packages.** Obsolete
   private execution packages and their build, test, CI, release, and maintenance
   integration have been removed. The existing `@reef/core` pnpm Git dependency
