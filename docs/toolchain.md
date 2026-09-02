@@ -15,12 +15,20 @@ of truth; generated lockfile entries are derived from them.
 | Enforcement | `pnpm run toolchain:check` |
 
 The default catalog owns the shared versions for `@opentelemetry/api`,
-`@types/node`, `ai`, `tsx`, `typescript`, `vitest`, and `zod`. The repository's
-TypeScript baseline is 6.0.2, declared as `^6.0.2` in the catalog and consumed
-through `catalog:` by every workspace that runs the compiler. Workspace
-manifests reference those versions with `catalog:`. Internal package edges
-remain owned by the consuming package and use `workspace:`; root-only build
-and analysis tools remain owned by the root manifest.
+`@types/node`, `tsdown`, `tsx`, `typescript`, `vitest`, and `zod`. The
+repository's TypeScript baseline is 6.0.2, declared as `^6.0.2` in the catalog
+and normally consumed through `catalog:` by workspaces that run the compiler.
+Workspace manifests reference those versions with `catalog:` except for the
+Git-prepared package rule below. Internal package edges remain owned by the
+consuming package and use `workspace:`; root-only build and analysis tools
+remain owned by the root manifest.
+
+The exception is a package with a `prepare` lifecycle that is intentionally
+consumable as a pnpm Git dependency. Its manifest must be self-contained outside
+the workspace, so it repeats the catalog's concrete ranges. The policy checker
+rejects `catalog:` in such a manifest and rejects any repeated range that drifts
+from the root source of truth. `@reef/core` is currently the only package with
+this contract.
 
 TypeScript 7 is intentionally deferred. TypeScript 7.0 does not yet provide
 the stable program API used by the i18n literal scanner and typed lint path.
@@ -36,6 +44,6 @@ one runtime.
 
 The policy checker discovers packages through the repository's existing
 workspace discovery helper and rejects direct shared-version declarations,
-duplicate root tools, invalid workspace protocols, unused or named catalogs,
-and runtime drift. Its normal and negative regression tests run as part of
-`pnpm run check`.
+duplicate root-only tools, Git-prepared package drift, invalid workspace
+protocols, unused or named catalogs, and runtime drift. Its normal and negative
+regression tests run as part of `pnpm run check`.

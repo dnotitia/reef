@@ -11,17 +11,17 @@
  * Pure strings, no React — the same shape as `fieldKit.ts` (colors) and
  * FilterBar's local `TRIGGER_BASE`. Each conflicting axis resolves to ONE
  * winner, drawn from the existing design tokens:
- *   - trigger:    h-8 · border-border · bg-surface-elevated · type-caption · hover:bg-surface-hover
+ *   - trigger:    h-8 · border-border · bg-surface-elevated · type-control · hover:bg-surface-hover
  *   - active:     brand ring (filter "this is set" affordance)
  *   - chevron:    h-3.5 (14px) · text-muted-foreground · always present · rotates on open
- *   - option:     type-caption · px-2 py-1.5 · bg-surface-hover highlight
+ *   - option:     type-control · px-2 py-1.5 · bg-surface-hover highlight
  *   - selected:   trailing brand Check
  */
 
 /** Field-style trigger (Assignee / Planning / Period / Scope / Status …). */
 export const CBX_TRIGGER_FIELD =
   "flex h-8 w-full min-w-0 items-center justify-between gap-2 rounded-md border " +
-  "border-border bg-surface-elevated px-2.5 text-left type-caption text-foreground " +
+  "border-border bg-surface-elevated px-2.5 text-left type-control text-foreground " +
   "transition-colors duration-150 hover:bg-surface-hover " +
   "focus-visible:outline-none focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30 " +
   "disabled:cursor-not-allowed disabled:opacity-50";
@@ -44,7 +44,7 @@ export const CBX_TRIGGER_ACTIVE = "border-brand-focus bg-brand-fill/10 ring-1 ri
  * the inactive/active tokens below.
  */
 export const CBX_TRIGGER_CHIP =
-  "inline-flex h-8 items-center gap-1 rounded-md border px-2.5 type-caption " +
+  "inline-flex h-8 items-center gap-1 rounded-md border px-2.5 type-control " +
   "transition-colors duration-150 focus-visible:outline-none " +
   "focus-visible:ring-2 focus-visible:ring-brand-focus/30 " +
   "disabled:cursor-not-allowed disabled:opacity-50";
@@ -84,7 +84,7 @@ export const CBX_LIST = "max-h-64 overflow-y-auto overscroll-contain";
  * primary-label truncation can't jump when a row becomes selected (REEF-144).
  */
 export const CBX_OPTION_BASE =
-  "relative w-full min-w-0 cursor-default rounded-sm pl-2 pr-7 py-1.5 text-left type-caption " +
+  "relative w-full min-w-0 cursor-default rounded-sm pl-2 pr-7 py-1.5 text-left type-control " +
   "text-foreground transition-colors duration-150 hover:bg-surface-hover";
 
 /** Default single-line row layout. */
@@ -108,9 +108,9 @@ export const CBX_CHECK =
 
 /** In-panel search input (searchable comboboxes). */
 export const CBX_SEARCH =
-  "mb-1 h-8 w-full rounded-md border border-border bg-surface-elevated px-2.5 type-caption " +
+  "mb-1 h-8 w-full rounded-md border border-border bg-surface-elevated px-2.5 type-control " +
   "text-foreground outline-none transition-colors placeholder:text-muted-foreground " +
   "focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30";
 
 /** Empty / loading row text. */
-export const CBX_EMPTY = "px-2 py-1.5 type-caption text-muted-foreground";
+export const CBX_EMPTY = "px-2 py-1.5 type-control text-muted-foreground";

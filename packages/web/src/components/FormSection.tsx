@@ -3,11 +3,11 @@
 import type { ReactNode } from "react";
 
 /**
- * Unified section-header style shared by every form surface (issue new/detail/
- * draft editors and the planning editor). Distinct from the per-field label
- * style so the visual hierarchy reads "section → field label → control".
+ * Detail/form section headers keep the established compact hierarchy. They are
+ * distinct from the per-field label style so the visual hierarchy reads
+ * "section → field label → control".
  */
-export const SECTION_HEADER_CLASS = "type-section-label text-muted-foreground";
+export const SECTION_HEADER_CLASS = "type-detail-section text-muted-foreground";
 
 interface FormSectionProps {
   /** Section heading text (rendered verbatim; uppercasing is CSS). */

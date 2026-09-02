@@ -252,7 +252,7 @@ export function DatePickerField({
             normalized ? `${resolvedLabel}: ${displayValue}` : resolvedLabel
           }
           data-testid="date-picker-trigger"
-          className="flex h-8 w-full min-w-0 items-center gap-2 rounded-md border border-border bg-surface-elevated pl-2.5 pr-8 text-left type-caption text-foreground transition-colors duration-150 hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex h-8 w-full min-w-0 items-center gap-2 rounded-md border border-border bg-surface-elevated pl-2.5 pr-8 text-left type-control text-foreground transition-colors duration-150 hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
           <CalendarIcon
             className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
@@ -297,7 +297,7 @@ export function DatePickerField({
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={handleDraftKeyDown}
             data-testid="date-picker-input"
-            className="mb-2 w-full rounded-md border border-border bg-surface-elevated px-2 py-1 type-mono-value text-foreground outline-none transition-colors focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30"
+            className="mb-2 w-full rounded-md border border-border bg-surface-elevated px-2 py-1 type-control font-mono text-foreground outline-none transition-colors focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30"
           />
 
           <Calendar

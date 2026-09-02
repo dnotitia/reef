@@ -15,16 +15,65 @@ const VIEWPORTS = [
 ] as const;
 
 const ROLE = {
-  pageTitle: { size: 20, weight: 600, lineHeight: 24, tracking: 0 },
+  pageTitle: { size: 14, weight: 600, lineHeight: 21, tracking: -0.14 },
   groupTitle: { size: 15, weight: 600, lineHeight: 20, tracking: 0 },
+  navigation: { size: 13, lineHeight: 19.5, tracking: 0 },
+  control: { size: 13, lineHeight: 19.5, tracking: 0 },
+  boardStatus: {
+    size: 12,
+    weight: 600,
+    lineHeight: 16,
+    tracking: 12 * 0.025,
+    textTransform: "uppercase",
+  },
+  boardEpic: {
+    size: 12,
+    weight: 600,
+    lineHeight: 16,
+    tracking: 0,
+    textTransform: "none",
+  },
   sectionLabel: {
     size: 13,
     weight: 600,
     lineHeight: 16,
     tracking: 13 * 0.08,
+    textTransform: "uppercase",
   },
   body: { size: 14, weight: 500, lineHeight: 20, tracking: 0 },
-  cardTitle: { size: 14, weight: 600, lineHeight: 20, tracking: 0 },
+  cardTitle: {
+    size: 13,
+    weight: 500,
+    lineHeight: 18.5625,
+    tracking: 0,
+  },
+  cardMetadata: { size: 11, lineHeight: 16.5, tracking: 0 },
+  cardContext: { size: 10.5, weight: 500, lineHeight: 16, tracking: 0 },
+  compactMono: { size: 11, lineHeight: 16.5, tracking: 0 },
+  detailSection: {
+    size: 11,
+    weight: 600,
+    lineHeight: 16.5,
+    tracking: 11 * 0.025,
+    textTransform: "uppercase",
+  },
+  comment: { size: 13, weight: 400, lineHeight: 20, tracking: 0 },
+  reportSection: {
+    size: 11,
+    weight: 500,
+    lineHeight: 16.5,
+    tracking: 11 * 0.08,
+    textTransform: "uppercase",
+  },
+  tableHeader: {
+    size: 10,
+    weight: 600,
+    lineHeight: 16,
+    tracking: 10 * 0.025,
+    textTransform: "uppercase",
+  },
+  chartTick: { size: 10, weight: 400, lineHeight: 16, tracking: 0 },
+  chartMetadata: { size: 11, weight: 400, lineHeight: 16.5, tracking: 0 },
   caption: { size: 12, weight: 400, lineHeight: 16, tracking: 0 },
   monoValue: { size: 13, weight: 400, lineHeight: 20, tracking: 0 },
   chartLabel: { size: 12, weight: 400, lineHeight: 16, tracking: 0 },
@@ -37,6 +86,7 @@ interface ComputedTypography {
   lineHeight: number | null;
   letterSpacing: number;
   fontVariantNumeric: string;
+  textTransform: string;
 }
 
 async function readTypography(locator: Locator): Promise<ComputedTypography> {
@@ -54,6 +104,7 @@ async function readTypography(locator: Locator): Promise<ComputedTypography> {
       lineHeight: px(style.lineHeight),
       letterSpacing: px(style.letterSpacing) ?? 0,
       fontVariantNumeric: style.fontVariantNumeric,
+      textTransform: style.textTransform,
     };
   });
 }
@@ -65,6 +116,7 @@ async function expectTypography(
     weight?: number;
     lineHeight?: number;
     tracking?: number;
+    textTransform?: string;
   },
   label: string,
 ): Promise<ComputedTypography> {
@@ -93,6 +145,11 @@ async function expectTypography(
       Math.abs(typography.letterSpacing - expected.tracking),
       `${label} letter-spacing`,
     ).toBeLessThan(0.02);
+  }
+  if (expected.textTransform !== undefined) {
+    expect(typography.textTransform, `${label} text-transform`).toBe(
+      expected.textTransform,
+    );
   }
   return typography;
 }
@@ -247,12 +304,43 @@ async function verifyIssues(
     ROLE.cardTitle,
     `${viewport.name} Issues card title`,
   );
+  const navigation = page.locator("aside nav a:visible").first();
+  if (await navigation.count()) {
+    await expectTypography(
+      navigation,
+      ROLE.navigation,
+      `${viewport.name} sidebar navigation`,
+    );
+  }
+  await expectTypography(
+    page.getByTestId("new-issue-trigger"),
+    ROLE.control,
+    `${viewport.name} New Issue control`,
+  );
+  await expectTypography(
+    page.getByTestId("kanban-group-header").first().locator("h3"),
+    ROLE.boardStatus,
+    `${viewport.name} board status group`,
+  );
+  await expectTypography(
+    card.locator('[data-issue-update-field="priority"]').locator(".."),
+    ROLE.cardMetadata,
+    `${viewport.name} card metadata`,
+  );
+  const planningContext = card.getByTestId("kanban-planning-context");
+  if (await planningContext.count()) {
+    await expectTypography(
+      planningContext,
+      ROLE.cardContext,
+      `${viewport.name} card planning context`,
+    );
+  }
   const monoId = card
     .locator('[data-issue-update-field="status"] + span')
     .first();
   const monoTypography = await expectTypography(
     monoId,
-    ROLE.monoValue,
+    ROLE.compactMono,
     `${viewport.name} Issues identifier`,
   );
   expect(monoTypography.fontVariantNumeric).toContain("tabular-nums");
@@ -270,7 +358,7 @@ async function verifyIssues(
     .first();
   await expectTypography(
     tableHeader,
-    ROLE.sectionLabel,
+    ROLE.tableHeader,
     `${viewport.name} Issues table header`,
   );
   await expectContainedLayout(page, `${viewport.name} Issues list`);
@@ -292,17 +380,17 @@ async function verifyReports(
 
   await expectTypography(
     main.locator("h2:visible").first(),
-    ROLE.sectionLabel,
+    ROLE.reportSection,
     `${viewport.name} Reports section label`,
   );
   await expectTypography(
     page.getByTestId("report-card-flow-metrics").locator("h3:visible"),
-    ROLE.cardTitle,
+    { size: 14, weight: 600, lineHeight: 20, tracking: 0 },
     `${viewport.name} Reports card title`,
   );
   await expectTypography(
     page.getByTestId("report-card-flow-metrics").locator("header > span"),
-    ROLE.caption,
+    ROLE.cardMetadata,
     `${viewport.name} Reports card caption`,
   );
 
@@ -310,12 +398,12 @@ async function verifyReports(
   await expect(chart).toBeVisible();
   await expectTypography(
     chart.locator("text:visible").first(),
-    ROLE.chartLabel,
+    ROLE.chartTick,
     `${viewport.name} Reports chart label`,
   );
   await expectTypography(
     main.locator("th:visible").first(),
-    ROLE.chartLabel,
+    ROLE.chartTick,
     `${viewport.name} Reports table label`,
   );
   await expectFontStacks(
@@ -365,7 +453,7 @@ async function verifyPreferences(
       .locator('[data-testid="preferences-section"]:visible [role="radio"]')
       .first()
       .locator(":scope > span:first-child > span"),
-    ROLE.body,
+    ROLE.control,
     `${viewport.name} Settings body label`,
   );
   await expectFontStacks(page, `${viewport.name} Settings`);
@@ -396,14 +484,14 @@ async function verifyAdditionalSectionLabels(
     `${viewport.name} Deployment section label`,
   );
 
-  await openRoute(page, `/workspace/${REEF_E2E_VAULT}/issues/REEF-002`);
+  await openRoute(page, `/workspace/${REEF_E2E_VAULT}/issues/REEF-001`);
   const issueDetail = page.getByTestId("issue-detail");
   await expect(issueDetail).toBeVisible();
   await expectTypography(
     issueDetail
       .locator('[data-testid="issue-detail-sidebar"] h3:visible')
       .first(),
-    ROLE.sectionLabel,
+    ROLE.detailSection,
     `${viewport.name} Issue detail section label`,
   );
   const markdown = issueDetail.locator(".reef-markdown-editor:visible").first();
@@ -414,6 +502,37 @@ async function verifyAdditionalSectionLabels(
       markdownParagraph,
       { size: 14, lineHeight: 22 },
       `${viewport.name} Markdown body rhythm`,
+    );
+  }
+  await expectTypography(
+    issueDetail.getByTestId("issue-type-select"),
+    ROLE.control,
+    `${viewport.name} Issue detail select`,
+  );
+  await expectTypography(
+    issueDetail.getByTestId("issue-title-input"),
+    ROLE.control,
+    `${viewport.name} Issue detail input`,
+  );
+  await expectTypography(
+    issueDetail.locator('textarea[name="comment"]'),
+    ROLE.comment,
+    `${viewport.name} Comment input`,
+  );
+  const updatedAt = issueDetail.locator('[data-testid="issue-updated-at"]');
+  if (await updatedAt.count()) {
+    await expectTypography(
+      updatedAt,
+      ROLE.compactMono,
+      `${viewport.name} Issue detail activity time`,
+    );
+  }
+  const commentSurface = issueDetail.locator(".reef-markdown-comment:visible");
+  if (await commentSurface.count()) {
+    await expectTypography(
+      commentSurface.first(),
+      ROLE.comment,
+      `${viewport.name} Comment projection`,
     );
   }
   await expectContainedLayout(page, `${viewport.name} Issue detail`);
@@ -449,5 +568,71 @@ test.describe("Hermetic typography role contract", () => {
         await verifyAdditionalSectionLabels(page, VIEWPORTS[1]);
       }
     }
+  });
+
+  test("keeps Epic groups title-case instead of inheriting the status grammar", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "epic_grouping");
+    await openExistingWorkspace(page);
+    await page.setViewportSize(VIEWPORTS[0]);
+    await openRoute(
+      page,
+      `/workspace/${REEF_E2E_VAULT}/issues?view=board&group=epic`,
+    );
+
+    const epicHeader = page
+      .getByTestId("epic-group-header")
+      .first()
+      .locator("h3");
+    await expectTypography(epicHeader, ROLE.boardEpic, "Epic group header");
+  });
+
+  test("keeps the representative 79-card board dense across mixed-script titles", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "typography");
+    await openExistingWorkspace(page);
+    await page.setViewportSize(VIEWPORTS[0]);
+    await openRoute(page, `/workspace/${REEF_E2E_VAULT}/issues?view=board`);
+
+    const cards = page.getByTestId("kanban-card");
+    await expect
+      .poll(() => cards.count(), {
+        message: "all representative board cards are rendered",
+      })
+      .toBe(79);
+    await expect(page.getByText(/한글 제목/).first()).toBeVisible();
+    await expect(page.getByText(/English title/).first()).toBeVisible();
+    await expect(page.getByText(/Mixed 제목/).first()).toBeVisible();
+
+    const geometry = await cards.evaluateAll((elements) => {
+      const heights = elements.map(
+        (element) =>
+          Math.round(element.getBoundingClientRect().height * 100) / 100,
+      );
+      const titleLines = elements.map((element) => {
+        const title = element.querySelector<HTMLElement>("h4");
+        if (!title) return 0;
+        const lineHeight = Number.parseFloat(
+          getComputedStyle(title).lineHeight,
+        );
+        return lineHeight > 0 ? Math.round(title.scrollHeight / lineHeight) : 0;
+      });
+      const sorted = [...heights].sort((left, right) => left - right);
+      const median = sorted[Math.floor(sorted.length / 2)] ?? 0;
+      return {
+        heights,
+        median,
+        withinOnePx: heights.filter((height) => Math.abs(height - median) <= 1)
+          .length,
+        titleLines,
+      };
+    });
+
+    expect(geometry.withinOnePx).toBeGreaterThanOrEqual(78);
+    expect(geometry.titleLines.filter((lines) => lines > 1)).toHaveLength(0);
   });
 });

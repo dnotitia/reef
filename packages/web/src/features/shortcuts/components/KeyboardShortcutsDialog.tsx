@@ -49,7 +49,7 @@ export function KeyboardShortcutsDialog() {
         <div className="flex flex-col gap-4 text-sm">
           {SHORTCUT_GROUPS.map((group) => (
             <section key={group.titleKey}>
-              <h3 className="type-section-label mb-1.5 text-muted-foreground">
+              <h3 className="type-card-metadata mb-1.5 font-semibold uppercase tracking-wider text-muted-foreground">
                 {commands(`groups.${group.titleKey}`)}
               </h3>
               <ul className="flex flex-col gap-1">
@@ -94,7 +94,7 @@ export function KeyboardShortcutsDialog() {
                                     +
                                   </span>
                                 )}
-                                <kbd className="inline-flex h-5 min-w-[20px] items-center justify-center rounded border border-border-subtle bg-surface-subtle px-1.5 type-mono-value font-medium text-foreground shadow-[0_1px_0_0_rgb(0_0_0_/_0.05)]">
+                                <kbd className="inline-flex h-5 min-w-[20px] items-center justify-center rounded border border-border-subtle bg-surface-subtle px-1.5 type-compact-mono font-medium text-foreground shadow-[0_1px_0_0_rgb(0_0_0_/_0.05)]">
                                   {formatKey(key, mac)}
                                 </kbd>
                               </Fragment>

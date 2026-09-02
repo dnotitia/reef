@@ -216,6 +216,12 @@ function dependencyEntries(entries) {
   );
 }
 
+function isGitPreparedPackage(entry) {
+  return (
+    entry.key !== "root" && typeof entry.manifest.scripts?.prepare === "string"
+  );
+}
+
 function validateCatalogToolchain({ catalog, violations }) {
   const requirements = [
     {
@@ -362,17 +368,38 @@ function validateDependencies({
         );
         continue;
       }
+      if (isGitPreparedPackage(entry)) {
+        addViolation(
+          violations,
+          "git-package-catalog",
+          `${manifestPath} ${entry.name} must use the catalog's concrete range so pnpm can prepare it outside this workspace`,
+          [manifestPath, "pnpm-workspace.yaml"],
+        );
+        continue;
+      }
       catalogUsage.add(entry.name);
       continue;
     }
 
     if (Object.hasOwn(catalog, entry.name)) {
-      addViolation(
-        violations,
-        "catalog-bypass",
-        `${manifestPath} ${entry.name} must use the default catalog: protocol`,
-        [manifestPath, "pnpm-workspace.yaml"],
-      );
+      if (isGitPreparedPackage(entry)) {
+        catalogUsage.add(entry.name);
+        if (entry.spec !== catalog[entry.name]) {
+          addViolation(
+            violations,
+            "git-package-catalog-drift",
+            `${manifestPath} ${entry.name} must match the default catalog range ${catalog[entry.name]}`,
+            [manifestPath, "pnpm-workspace.yaml"],
+          );
+        }
+      } else {
+        addViolation(
+          violations,
+          "catalog-bypass",
+          `${manifestPath} ${entry.name} must use the default catalog: protocol`,
+          [manifestPath, "pnpm-workspace.yaml"],
+        );
+      }
     }
   }
 
@@ -382,6 +409,7 @@ function validateDependencies({
       (entry) => entry.key !== "root" && workspaceNames.has(name),
     );
     if (workspaceOccurrence) continue;
+    if (Object.hasOwn(catalog, name)) continue;
 
     if (
       rootTools.has(name) &&
@@ -397,7 +425,6 @@ function validateDependencies({
       );
       continue;
     }
-    if (Object.hasOwn(catalog, name)) continue;
     if (packageOccurrences.length < 2) continue;
 
     const nonCatalog = packageOccurrences.filter(

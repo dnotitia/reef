@@ -260,7 +260,7 @@ function IssueListGroupHeader({
                 className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden whitespace-nowrap"
                 data-testid="issue-group-label"
               >
-                <span className="shrink-0 type-mono-value text-muted-foreground">
+                <span className="shrink-0 type-compact-mono text-muted-foreground">
                   {epic.id}
                 </span>
                 <span
@@ -280,7 +280,7 @@ function IssueListGroupHeader({
               </span>
             )}
             <span
-              className="shrink-0 type-mono-value text-muted-foreground"
+              className="shrink-0 type-compact-mono text-muted-foreground"
               data-testid="issue-group-count"
             >
               {count}
@@ -900,7 +900,7 @@ export function IssueListTable({
           <p className="text-sm text-muted-foreground">{t("loadError")}</p>
           <button
             type="button"
-            className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 type-caption font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
+            className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 type-control font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
             onClick={() => refetch()}
           >
             {common("retry")}
@@ -913,7 +913,7 @@ export function IssueListTable({
               <p className="text-sm text-muted-foreground">{t("noMatches")}</p>
               <button
                 type="button"
-                className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 type-caption font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
+                className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 type-control font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
                 onClick={() => {
                   useIssueStore.getState().clearFilter();
                 }}
@@ -1020,7 +1020,7 @@ export function IssueListTable({
                           </span>
                           <button
                             type="button"
-                            className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 type-caption font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
+                            className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 type-control font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
                             onClick={() => fetchNextPage()}
                           >
                             {common("retry")}

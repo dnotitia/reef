@@ -138,7 +138,7 @@ describe("ViewSwitcher", () => {
     const classes = board.className.split(/\s+/);
     expect(classes).toContain("focus-visible:ring-2");
     expect(classes).toContain("focus-visible:ring-brand-focus");
-    expect(classes).toContain("type-caption");
+    expect(classes).toContain("type-control");
     expect(classes).toContain("px-2");
     expect(classes).toContain("font-medium");
     // The segment's glyph is decorative — the button already carries an

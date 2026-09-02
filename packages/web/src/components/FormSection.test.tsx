@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { FormSection } from "./FormSection";
 
 describe("FormSection", () => {
-  it("uses the canonical section-label role for form headings", () => {
+  it("uses the canonical detail-section role for form headings", () => {
     render(
       <FormSection title="Details">
         <div>content</div>
@@ -12,6 +12,6 @@ describe("FormSection", () => {
 
     expect(
       screen.getByRole("heading", { name: "Details", level: 3 }),
-    ).toHaveClass("type-section-label");
+    ).toHaveClass("type-detail-section");
   });
 });

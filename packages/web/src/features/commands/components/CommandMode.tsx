@@ -226,7 +226,7 @@ function PageRow({
       <Icon className="size-4 text-muted-foreground" aria-hidden="true" />
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {targetId ? (
-        <span className="shrink-0 type-mono-value text-muted-foreground">
+        <span className="shrink-0 type-compact-mono text-muted-foreground">
           {targetId}
         </span>
       ) : null}

@@ -32,6 +32,16 @@ explicitly in the entries below.
 
 ### Changed
 
+- **The Reef workspace now contains only product-owned packages.** Obsolete
+  private execution packages and their build, test, CI, release, and maintenance
+  integration have been removed. The existing `@reef/core` pnpm Git dependency
+  contract remains supported.
+
+- **`@reef/core` now supports development-stage pnpm Git consumers.** The
+  `packages/core` subdirectory prepares its dist-only ESM artifact outside the
+  Reef workspace, while a local Git consumer gate verifies commit-pinned
+  installation and public import without introducing a registry release.
+
 - **AKB Change Events now wake private notification projection.** The new
   Event Processor tails the authenticated `table.rows_changed` stream for
   activity and comment Source State, then invokes the existing idempotent Inbox
@@ -111,6 +121,12 @@ explicitly in the entries below.
   emitter.
 
 ### Fixed
+
+- **Contextual typography roles restore the established UI hierarchy.** Sidebar
+  navigation and editing controls return to their readable 13px scale, Board
+  status headings regain compact uppercase treatment, Epic headings remain
+  title case, and card/detail/report metadata uses explicit compact roles while
+  the Noto Sans KR font stack and Markdown rhythm stay unchanged.
 
 - **Authentication revalidation and soft navigation now preserve the
   established workspace experience.** Route changes stay non-blocking, the

@@ -26,7 +26,7 @@ export interface EventProcessor {
 
 /**
  * Compose the private processor from deployment-managed AKB credentials and
- * Core's public adapter/projector contracts. No browser or orchestrator code
+ * Core's public adapter/projector contracts. No browser or web code
  * is reachable from this package.
  */
 export function createEventProcessor(

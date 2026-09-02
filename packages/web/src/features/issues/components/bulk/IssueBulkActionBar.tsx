@@ -89,7 +89,7 @@ function LabelBulkAction({
       <PopoverTrigger
         disabled={disabled}
         aria-haspopup="dialog"
-        className="h-8 gap-1.5 rounded-md border border-border bg-surface-elevated px-2.5 type-caption font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40 disabled:pointer-events-none disabled:opacity-50"
+        className="h-8 gap-1.5 rounded-md border border-border bg-surface-elevated px-2.5 type-control font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40 disabled:pointer-events-none disabled:opacity-50"
         data-testid={testId}
       >
         {label}
@@ -295,7 +295,7 @@ export function IssueBulkActionBar({
             <Popover>
               <PopoverTrigger
                 aria-haspopup="dialog"
-                className="h-7 rounded-md bg-destructive-fill px-2.5 type-caption font-medium text-destructive-on-fill hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+                className="h-7 rounded-md bg-destructive-fill px-2.5 type-control font-medium text-destructive-on-fill hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
               >
                 {bulk("failedCount", { count: runner.failures.length })}
               </PopoverTrigger>

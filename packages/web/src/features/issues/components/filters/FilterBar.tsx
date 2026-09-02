@@ -577,7 +577,7 @@ export function FilterBar({
       {hasActiveFilters && (
         <div className="flex items-center gap-2">
           <span
-            className="inline-flex items-center gap-1.5 rounded-full bg-brand-fill/10 px-2 py-0.5 type-caption font-medium text-foreground/80"
+            className="inline-flex items-center gap-1.5 rounded-full bg-brand-fill/10 px-2 py-0.5 type-card-metadata font-medium text-foreground/80"
             data-testid="active-filter-count"
           >
             <span
@@ -588,7 +588,7 @@ export function FilterBar({
           </span>
           <button
             type="button"
-            className="inline-flex items-center gap-1 rounded-md px-2 py-1 type-caption text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground"
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 type-control text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground"
             onClick={() => {
               clearFiltersOnly();
             }}

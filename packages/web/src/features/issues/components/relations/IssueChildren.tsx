@@ -300,7 +300,7 @@ export const IssueChildren = memo(function IssueChildren({
                   style={{ transform: `scaleX(${doneCount / total})` }}
                 />
               </div>
-              <span className="shrink-0 type-mono-value text-muted-foreground">
+              <span className="shrink-0 type-compact-mono text-muted-foreground">
                 {t("progressCount", { done: doneCount, total })}
               </span>
             </div>

@@ -3,7 +3,8 @@
 Framework-agnostic TypeScript package for reef's domain layer. `core` owns the
 schemas, models, AKB adapter, observability seam, and error types used by the
 web and operator packages. It is consumed in-workspace as `@reef/core` and is
-private; it is not published independently.
+private; it is not published independently to a registry. Development-stage
+external consumers may install it directly from the public Reef Git repository.
 
 `web` uses this package for AKB and domain behavior. Its server-only tree owns
 GitHub, LLM, and agent application code.
@@ -82,12 +83,31 @@ pnpm --filter @reef/core run typecheck
 pnpm --filter @reef/core run test
 ```
 
+For a pnpm consumer that intentionally follows Reef `main` during development:
+
+```json
+{
+  "dependencies": {
+    "@reef/core": "github:dnotitia/reef#main&path:packages/core"
+  }
+}
+```
+
+pnpm records the resolved commit in `pnpm-lock.yaml`; commit that lockfile so a
+later `main` update does not silently change an existing install. The Git
+dependency runs `prepare` to build the package's dist-only ESM exports. pnpm
+11.10 also requires `allowBuilds` approval for the exact resolved
+`@reef/core@github:dnotitia/reef#<commit>&path:packages/core` selector; do not
+approve all dependency scripts globally. This is not an npm registry
+publication or an independent Reef package release.
+
 Workspace-wide gates:
 
 ```bash
 pnpm biome check .
 pnpm -r run typecheck
 pnpm -r run test
+pnpm run core-git-consumer:smoke
 ```
 
 ## Related docs

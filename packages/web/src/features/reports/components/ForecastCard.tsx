@@ -65,7 +65,7 @@ export function ForecastCard({
           {lowConfidence && (
             <p
               data-testid="forecast-low-confidence"
-              className="type-caption text-priority-high"
+              className="type-card-metadata text-priority-high"
             >
               {t("thinSample")}
             </p>
@@ -110,10 +110,12 @@ function ForecastColumn({
   return (
     <div className="flex flex-col gap-2">
       <header className="flex items-baseline justify-between gap-2">
-        <h4 className="type-caption font-medium text-foreground/90">
+        <h4 className="type-card-metadata font-medium text-foreground/90">
           {heading}
         </h4>
-        <span className="type-caption text-muted-foreground">{caption}</span>
+        <span className="type-card-metadata text-muted-foreground">
+          {caption}
+        </span>
       </header>
       <ul className="flex flex-col gap-1.5">{children}</ul>
     </div>
@@ -136,10 +138,10 @@ function ForecastRow({
       data-testid={testId}
       className="flex items-baseline justify-between gap-3"
     >
-      <span className="type-mono-value text-muted-foreground">
+      <span className="type-compact-mono text-muted-foreground">
         {confidence}%
       </span>
-      <span className="type-caption min-w-0 truncate text-right text-foreground">
+      <span className="type-card-metadata min-w-0 truncate text-right text-foreground">
         {value}
       </span>
     </li>
@@ -157,7 +159,7 @@ function CompletionRow({ row, now }: { row: CompletionForecast; now: number }) {
         confidence={row.confidence}
         testId={`forecast-completion-${row.confidence}`}
         value={
-          <span className="type-mono-value text-muted-foreground">
+          <span className="type-compact-mono text-muted-foreground">
             {/* i18n-exempt: ">" is a comparison glyph, not copy */}&gt;
             {MAX_FORECAST_WEEKS}w
           </span>
@@ -179,7 +181,7 @@ function CompletionRow({ row, now }: { row: CompletionForecast; now: number }) {
           )}
           <span
             className={cn(
-              "type-mono-value text-muted-foreground",
+              "type-compact-mono text-muted-foreground",
               date && "ml-1.5",
             )}
           >
@@ -197,7 +199,7 @@ function CountRow({ row }: { row: CountForecast }) {
       confidence={row.confidence}
       testId={`forecast-bydate-${row.confidence}`}
       value={
-        <span className="type-mono-value text-foreground">≥ {row.count}</span>
+        <span className="type-compact-mono text-foreground">≥ {row.count}</span>
       }
     />
   );

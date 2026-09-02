@@ -1,9 +1,5 @@
 packages:
   - "packages/*"
-  - "packages/orchestration/runtime"
-  - "packages/orchestration/controller"
-  - "packages/orchestration/cli"
-  - "packages/orchestration/providers/*"
 
 catalog:
   "@octokit/rest": ^22.0.1
@@ -11,6 +7,7 @@ catalog:
   "@types/node": ^24.13.3
   msw: 2.15.0
   tsx: 4.23.9
+  tsdown: 0.22.14
   typescript: ^6.0.2
   vitest: ^4.1.10
   zod: ^4.4.3

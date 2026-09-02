@@ -99,7 +99,7 @@ export function SimilarIssuesSection({
               >
                 <span className="flex min-w-0 items-center gap-2">
                   <StatusIcon status={issue.status} size={12} />
-                  <span className="shrink-0 type-mono-value text-muted-foreground group-hover:text-foreground">
+                  <span className="shrink-0 type-compact-mono text-muted-foreground group-hover:text-foreground">
                     {issue.id}
                   </span>
                   <span className="min-w-0 flex-1 truncate">{issue.title}</span>

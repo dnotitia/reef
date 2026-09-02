@@ -91,7 +91,7 @@ export function IssueOptionRow({
           <HighlightText
             text={issue.id}
             query={query}
-            className="block truncate type-mono-value text-muted-foreground"
+            className="block truncate type-compact-mono text-muted-foreground"
           />
         </span>
         <span
@@ -102,7 +102,7 @@ export function IssueOptionRow({
             <BlockedBadge
               variant="compact"
               count={blockerCount}
-              className="shrink-0 gap-0 type-caption leading-none [&>svg]:size-2.5"
+              className="shrink-0 gap-0 type-card-metadata leading-none [&>svg]:size-2.5"
             />
           ) : null}
         </span>

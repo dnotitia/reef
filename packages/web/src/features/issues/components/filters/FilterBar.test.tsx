@@ -309,7 +309,7 @@ describe("FilterBar", () => {
               milestones: [
                 {
                   id: "11111111-1111-4111-8111-111111111113",
-                  name: "Autonomous Orchestration & Codex Runner",
+                  name: "Autonomous Agent Runtime & Codex Runner",
                   status: "open",
                   target_date: null,
                 },

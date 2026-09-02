@@ -328,21 +328,35 @@ The scale is compact on purpose:
 
 | Level | Size | Weight | Line height | Tracking | Usage |
 |-------|------|--------|-------------|----------|-------|
-| Page title | `20px` | 600 | `24px` | 0 | Main app page headers |
+| Page title | `14px` | 600 | `21px` | `-0.01em` | Compact routed page headers |
 | Group title | `15px` | 600 | `20px` | 0 | Settings and grouped-surface headings |
-| Section label | `13px` | 600 | `16px` | `0.08em` uppercase | Form, report, settings, and detail sections |
+| Section label | `13px` | 600 | `16px` | `0.08em` uppercase | Settings and standard product sections |
 | Body | `14px` | 400 | `20px` | 0 | Dense app text |
 | Caption | `12px` | 400 to 500 | `16px` | 0 | Helper copy and metadata |
 | Mono value | `13px` | 400 | `20px` | 0 | IDs, prefixes, branch-like values |
 | Chart label | `12px` | 400 | `16px` | 0 | Axes, legends, and compact data labels |
 
-Routed product surfaces consume the named `type-page-title`, `type-group-title`,
-`type-section-label`, `type-body`, `type-caption`, `type-mono-value`, and
-`type-chart-label` roles. Meaningful user-facing text stays at or above the
-12px caption floor. The only below-floor text exception is a minimal glyphic
-identity mark such as an avatar monogram whose enclosing element exposes the
-full identity through an accessible name. Login/onboarding brand titles remain
-their separate branded scale, and the established issue Markdown body,
+Routed product surfaces use explicit contextual roles in addition to the scale
+above. `type-navigation` and `type-control` are separate 13px/19.5px roles for
+sidebar/settings navigation and interactive controls. The Board owns
+`type-board-status` (12px/600/16px, `0.025em`, uppercase) and
+`type-board-epic` (12px/600/16px, no transform), so an Epic heading cannot
+inherit the status grammar. `type-card-title` is the Noto Sans KR optical
+correction at 13px/500/18.5625px; `type-card-metadata` is 11px/16.5px, and
+`type-card-context` is the 10.5px/16px planning-strip exception.
+`type-compact-mono` is the 11px/16.5px tabular-mono role for card IDs, dates,
+activity times, and other secondary identifiers; full-size IDs and values keep
+`type-mono-value`. `type-detail-section` is the 11px/600/16.5px compact
+uppercase role for issue form/detail section headers, while settings and report
+groups retain their own `type-section-label` and `type-report-section` roles.
+
+These roles are consumption boundaries, not aliases for arbitrary size
+utilities: navigation and controls never inherit compact metadata, and compact
+metadata is limited to secondary information with an accessible full-value
+path. The below-caption `type-card-context`, `type-card-metadata`,
+`type-compact-mono`, and `type-detail-section` roles are intentionally scoped to
+the board/detail/report chrome described above. Login/onboarding brand titles
+remain their separate branded scale, and the established issue Markdown body,
 comment, heading, and code rhythm remains scoped to its Markdown surfaces.
 
 Hero-scale type does not belong inside dashboard panels. Routed product

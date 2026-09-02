@@ -133,7 +133,7 @@ describe("KanbanColumn", () => {
       screen.getByRole("heading", {
         name: ISSUE_FIELD_MESSAGES_EN.status.todo,
       }),
-    ).toBeDefined();
+    ).toHaveClass("type-board-status");
   });
 
   it("renders in_progress label correctly", () => {
@@ -208,6 +208,7 @@ describe("KanbanColumn", () => {
     });
 
     const header = screen.getByTestId("epic-group-header");
+    expect(header.querySelector("h3")).toHaveClass("type-board-epic");
     const openEpic = screen.getByTestId("open-epic-REEF-100");
     expect(screen.getByTestId("epic-group-header")).toHaveClass(
       "items-center",

@@ -16,13 +16,16 @@ const ROOT = path.resolve(
   "../..",
 );
 
-test("discovers nested pnpm workspaces without recursive package.json guesses", async () => {
+test("discovers pnpm workspaces without recursive package.json guesses", async () => {
   const packages = await discoverWorkspacePackages({ root: ROOT });
   const packageDirs = new Set(packages.map(({ relativeDir }) => relativeDir));
 
-  assert.ok(packageDirs.has("packages/orchestration/runtime"));
-  assert.ok(packageDirs.has("packages/orchestration/providers/reef"));
-  assert.ok(packageDirs.has("packages/orchestration/providers/codex"));
+  assert.deepEqual([...packageDirs].sort(), [
+    "packages/core",
+    "packages/event-processor",
+    "packages/jira-migrator",
+    "packages/web",
+  ]);
   assert.ok(!packageDirs.has("scripts/maintenance/fixtures/non-workspace"));
 });
 
