@@ -92,6 +92,28 @@ describe("computePanelPlacement", () => {
     expect(result.horizontal).toBe("end");
   });
 
+  it("keeps a date-range panel inside a fixed sidebar boundary", () => {
+    const result = computePanelPlacement({
+      trigger: triggerAt(500, 100, 96),
+      panel: { width: 384, height: 200 },
+      viewport: { width: 1200, height: 800 },
+      boundary: { top: 0, bottom: 800, left: 240, right: 1200 },
+      preferredHorizontal: "end",
+    });
+    expect(result.horizontal).toBe("start");
+  });
+
+  it("keeps a narrow date-range panel inside the padded content boundary", () => {
+    const result = computePanelPlacement({
+      trigger: triggerAt(80, 475, 96),
+      panel: { width: 216, height: 246 },
+      viewport: { width: 320, height: 844 },
+      boundary: { top: 0, bottom: 844, left: 56, right: 320 },
+      preferredHorizontal: "end",
+    });
+    expect(result).toEqual({ vertical: "down", horizontal: "start" });
+  });
+
   it("does NOT flip a wide panel to a side that would overflow off-screen (REEF-134)", () => {
     // Preferred start overflows right (400 + 600 = 1000 > 992), but end would
     // overflow LEFT too (right - width = 600 - 600 = 0 < margin) → keep start,

@@ -200,10 +200,20 @@ async function assertCompoundTriggerVisual(
     const editorElement = document.querySelector<HTMLElement>(
       '[data-testid="updated-at-range-editor"]',
     );
+    const sidebarElement = document.querySelector<HTMLElement>("aside");
+    const startElement = document.querySelector<HTMLElement>(
+      "#updated-at-range-start",
+    );
+    const endElement = document.querySelector<HTMLElement>(
+      "#updated-at-range-end",
+    );
     const fieldsElement = document.querySelector<HTMLElement>(
       '[data-testid="updated-at-range-editor-fields"]',
     );
     const rect = editorElement?.getBoundingClientRect();
+    const sidebarRect = sidebarElement?.getBoundingClientRect();
+    const startRect = startElement?.getBoundingClientRect();
+    const endRect = endElement?.getBoundingClientRect();
     const fieldsStyles = fieldsElement
       ? getComputedStyle(fieldsElement)
       : undefined;
@@ -214,11 +224,23 @@ async function assertCompoundTriggerVisual(
       innerWidth: window.innerWidth,
       left: rect?.left ?? null,
       right: rect?.right ?? null,
+      sidebarRight: sidebarRect?.right ?? 0,
+      startLeft: startRect?.left ?? null,
+      endRight: endRect?.right ?? null,
     };
   });
   expect(editorGeometry.left).toBeGreaterThanOrEqual(0);
   expect(editorGeometry.right).toBeLessThanOrEqual(editorGeometry.innerWidth);
   expect(editorGeometry.bottom).toBeLessThanOrEqual(editorGeometry.innerHeight);
+  expect(editorGeometry.left).toBeGreaterThanOrEqual(
+    editorGeometry.sidebarRight,
+  );
+  expect(editorGeometry.startLeft).toBeGreaterThanOrEqual(
+    editorGeometry.sidebarRight,
+  );
+  expect(editorGeometry.endRight).toBeLessThanOrEqual(
+    editorGeometry.innerWidth,
+  );
   expect(editorGeometry.fieldsColumns).toBe(viewport.width <= 480 ? 1 : 2);
   const openScreenshotPath = test
     .info()
@@ -586,6 +608,59 @@ test.describe("Hermetic updated-at date range filter", () => {
       });
       await assertUpdatedAtInlineError(page, viewport);
     }
+  });
+
+  test("flips the editor into view in a short 320px viewport", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(dateRangeUrl("2026-06-15", "2026-06-15"));
+    await expect(
+      page.getByText("Initial issue Alpha", { exact: true }),
+    ).toBeVisible({ timeout: 15_000 });
+    await page.setViewportSize({ width: 320, height: 600 });
+    await openRangeEditor(page);
+
+    const geometry = await page.evaluate(() => {
+      const box = (selector: string) => {
+        const element = document.querySelector<HTMLElement>(selector);
+        if (!element) return null;
+        const rect = element.getBoundingClientRect();
+        return {
+          left: rect.left,
+          right: rect.right,
+          top: rect.top,
+          bottom: rect.bottom,
+        };
+      };
+      return {
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        sidebar: box("aside"),
+        popover: box('[data-testid="updated-at-range-editor"]'),
+        start: box("#updated-at-range-start"),
+        end: box("#updated-at-range-end"),
+        documentWidth: document.documentElement.scrollWidth,
+      };
+    });
+
+    expect(geometry.popover?.left).toBeGreaterThanOrEqual(
+      geometry.sidebar?.right ?? 0,
+    );
+    expect(geometry.popover?.right).toBeLessThanOrEqual(
+      geometry.viewport.width,
+    );
+    expect(geometry.popover?.top).toBeGreaterThanOrEqual(0);
+    expect(geometry.popover?.bottom).toBeLessThanOrEqual(
+      geometry.viewport.height,
+    );
+    expect(geometry.start?.top).toBeGreaterThanOrEqual(
+      geometry.popover?.top ?? 0,
+    );
+    expect(geometry.end?.bottom).toBeLessThanOrEqual(
+      geometry.popover?.bottom ?? geometry.viewport.height,
+    );
+    expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.viewport.width);
+    await page.keyboard.press("Escape");
   });
 
   test("refreshes current updated_at membership after an ordinary issue save", async ({

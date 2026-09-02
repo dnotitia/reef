@@ -12,6 +12,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useComboboxPlacement } from "@/components/ui/useComboboxPlacement";
 import { formatDisplayDate } from "@/features/issues/lib/dateHelpers";
 import { cn } from "@/lib/utils";
 import {
@@ -23,7 +24,7 @@ import {
 } from "@reef/core";
 import { Calendar as CalendarIcon, ChevronDown, X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 interface IssueDateRangeFilterProps {
   range?: IssueDateRange;
@@ -116,6 +117,9 @@ export function IssueDateRangeFilter({
 }: IssueDateRangeFilterProps) {
   const t = useTranslations("issues.filters");
   const locale = useLocale();
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const selected = useMemo<IssueDateRange>(() => {
     const field =
       range && isIssueDateFieldId(range.field) ? range.field : "updated_at";
@@ -151,6 +155,13 @@ export function IssueDateRangeFilter({
   const summary = hasSelection
     ? `${fieldLabel} · ${startSummary} → ${endSummary}`
     : fieldLabel;
+  const placement = useComboboxPlacement({
+    open,
+    align: "end",
+    triggerRef,
+    panelRef,
+    measureKey: `${selected.field}:${selected.from}:${selected.to}:${fromError ?? ""}:${toError ?? ""}`,
+  });
 
   const updateField = useCallback(
     (field: IssueDateFieldId) => {
@@ -177,9 +188,14 @@ export function IssueDateRangeFilter({
       data-invalid={fromError || toError ? "true" : undefined}
       data-field={selected.field}
     >
-      <Popover className="w-fit max-w-full">
+      <Popover
+        open={open}
+        onOpenChange={(next) => setOpen(next)}
+        className="w-fit max-w-full"
+      >
         <div className="inline-flex min-w-0 max-w-full items-stretch">
           <PopoverTrigger
+            ref={triggerRef}
             aria-label={summary}
             data-testid="updated-at-filter-trigger"
             data-active={hasSelection ? "true" : undefined}
@@ -228,11 +244,13 @@ export function IssueDateRangeFilter({
         </div>
 
         <PopoverContent
+          ref={panelRef}
           role="dialog"
           aria-labelledby="updated-at-range-editor-label"
-          align="end"
+          align={placement.horizontal}
+          side={placement.vertical === "up" ? "top" : "bottom"}
           data-testid="updated-at-range-editor"
-          className="w-[min(24rem,calc(100vw-5rem))] max-w-[calc(100vw-5rem)] p-3"
+          className="w-[min(24rem,calc(100vw-6.5rem))] max-w-[calc(100vw-6.5rem)] p-3"
         >
           <div
             id="updated-at-range-editor-label"
