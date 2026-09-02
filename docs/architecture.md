@@ -30,42 +30,23 @@ reef has three runtime tiers:
   Route Handlers validate input, resolve those use cases, call core for AKB/domain
   behavior, and translate errors. It persists no user-specific server state.
 
-Two auxiliary runtimes stay outside the interactive web request path:
+Two Reef-owned auxiliary runtimes stay outside the interactive web request path:
 
-- **`@reef/orchestrator`** owns the provider-neutral one-run execution envelope:
-  registry preflight, lifecycle events, cancellation, cleanup, terminal result
-  normalization, and process signal registration. Callers own scheduling,
-  persistence, delivery ordering, and concrete provider adapters; long-running
-  worker loops do not run inside reef-web.
-- **`@reef/orchestration-controller`** owns the private, controller-local
-  versioned run journal, exclusive work claims, process-identity classification,
-  and safe cleanup boundary. It depends only on `@reef/orchestrator`; it does
-  not persist to Reef/AKB or reconstruct infrastructure paths.
-- **`@reef/harness-provider-codex`** is a private concrete adapter for Codex App
-  Server. It owns the local stdio JSONL process boundary and exposes only the
-  provider-neutral harness contract to callers.
-- **`@reef/infrastructure-provider-local`** is a private concrete infrastructure
-  provider for isolated Git-backed run workspaces and bounded process
-  execution. It depends only on the provider-neutral orchestrator contract.
-- **`@reef/validation-provider-local`** is a private concrete validation
-  provider for ordered, trusted checks against one exact clean Git checkout.
-  It owns explicit-environment process execution, bounded redacted proof, and
-  process-tree cleanup; it depends only on the provider-neutral orchestrator
-  contract and is separate from the local infrastructure provider.
-- **`@reef/scm-provider-github`** is a private concrete SCM provider for an
-  explicitly bound GitHub repository and local working tree. It owns Git ref,
-  branch, commit, non-force push, and draft pull-request operations through the
-  provider-neutral SCM contract. It never uses the read-only monitored-repo
-  adapter, force-pushes, writes the default branch, or merges automatically.
 - **`@reef/jira-migrator`** is an operator-run, one-shot Jira-to-Reef migration
   package. Jira is a read-only source, while explicitly selected apply stages
   may reconcile Reef targets.
-- **`@reef/work-provider-reef`** is the concrete Reef work adapter for the
-  orchestrator contract. It depends on `@reef/core` for AKB reads and writes,
-  and owns no persistence, scheduler, or web surface.
 - **`@reef/event-processor`** is the private Change Event composition root. It
   tails one explicitly configured AKB Vault and invokes Core's notification
-  projector; it has no browser, web, or orchestrator dependency.
+  projector; it has no browser or web dependency.
+
+Agent delivery orchestration is owned by the separate
+[reef-bot](https://github.com/younglokim-oss/reef-bot) repository. In that
+bounded context, the **Orchestrator** remains the provider-neutral engine that
+coordinates provider lifecycle and cleanup for one immutable `RunPlan`; it is
+not an Agent Job, queue, scheduler, persistence layer, or background process.
+reef-bot consumes `@reef/core` from this repository through a pnpm Git
+dependency, so Reef retains the core Git-consumer contract without owning the
+orchestration source, build, tests, CI, release, or maintenance surface.
 
 ```
 Browser (React UI, Zustand, TanStack Query, Dexie)
@@ -77,22 +58,9 @@ reef-web (stateless Next.js BFF)
        └── OpenAI-compatible LLM endpoint                    — chat + agents
 ```
 
-The provider-neutral orchestration runtime has a separate, explicit SCM
-boundary for worker delivery: `@reef/scm-provider-github` may perform the
-contract-granted Git and GitHub pull-request writes against one validated local
-checkout. It is not part of the product's monitored-repository read adapter.
-
-The repository is a pnpm workspace with twelve private, unpublished packages
-under `packages/`: `core` (`@reef/core`), `web` (`@reef/web`), `orchestrator`
-(`@reef/orchestrator`), `orchestration-controller`
-(`@reef/orchestration-controller`), `orchestration-cli`
-(`@reef/orchestration-cli`), `harness-provider-codex`
-(`@reef/harness-provider-codex`), `infrastructure-provider-local`
-(`@reef/infrastructure-provider-local`), `validation-provider-local`
-(`@reef/validation-provider-local`), `scm-provider-github`
-(`@reef/scm-provider-github`), `jira-migrator` (`@reef/jira-migrator`), and
-`work-provider-reef` (`@reef/work-provider-reef`), and `event-processor`
-(`@reef/event-processor`). The root
+The repository is a pnpm workspace with four private, unpublished packages
+under `packages/`: `core` (`@reef/core`), `web` (`@reef/web`), `jira-migrator`
+(`@reef/jira-migrator`), and `event-processor` (`@reef/event-processor`). The root
 `package.json` is the single product version source of truth. New interactive
 product behavior that touches schemas, AKB, or shared contracts starts in
 `core`; provider adapters and agent application behavior live in web's
@@ -104,10 +72,8 @@ The runtime and dependency source-of-truth matrix is documented in the
 ## The core/web boundary and thin Route Handlers
 
 `core` and `web` exist to keep two concerns apart: framework-agnostic domain
-logic, and the Next.js web/BFF surface. The orchestration provider packages are
-a separate backend boundary with their own provider-neutral contracts. Mixing
-these surfaces would bind domain logic to Next.js and scatter external I/O
-across the app.
+logic, and the Next.js web/BFF surface. Mixing these surfaces would bind domain
+logic to Next.js and scatter external I/O across the app.
 
 - **`core` owns AKB product I/O** — data-plane reads and writes plus auth/session
   calls (`login`, `getMe`, `getCurrentActor`). The AKB adapter is constructed per
@@ -184,8 +150,8 @@ from known stale-base writes.
 
 ## Stateless web tier and credential placement
 
-reef-web is Reef's interactive server; the optional orchestrator is a separate
-worker process and the Jira migrator is an operator-run process. To keep data
+reef-web is Reef's interactive server; the Jira migrator is an operator-run
+process and the Event Processor is a private deployment process. To keep data
 ownership with the team and avoid per-user storage, **reef-web persists nothing
 that belongs to a specific user**: no database, no server-side session store, no
 Redis, no per-user cache, no KMS. Per-user state lives at the edges. The three
@@ -381,14 +347,7 @@ preserves Server-Sent Events.
 | Field leaves and styling | `packages/web/src/components/fields/` |
 | Browser state and storage | `packages/web/src/lib/` (`storage`, `api`, session, and client helpers) |
 | CSP / security headers | `packages/web/src/proxy.ts` |
-| Provider-neutral execution core | `packages/orchestration/runtime/src/` |
-| Controller-owned run state | `packages/orchestration/controller/src/` |
-| Foreground work-URI invocation adapter | `packages/orchestration/cli/src/` |
-| Codex harness adapter | `packages/orchestration/providers/codex/src/` |
-| Local validation provider | `packages/orchestration/providers/local-validation/src/` |
-| GitHub SCM provider | `packages/orchestration/providers/github/src/` |
 | Jira migration runtime | `packages/jira-migrator/src/` |
-| Reef work provider | `packages/orchestration/providers/reef/src/` |
 
 ## Related documentation
 
@@ -397,11 +356,4 @@ preserves Server-Sent Events.
 - [Release policy](release-policy.md) and [migration policy](migration-policy.md)
 - [Core package README](../packages/core/README.md) and
   [`@reef/web` package README](../packages/web/README.md)
-- [`@reef/orchestrator` package README](../packages/orchestration/runtime/README.md)
-- [`@reef/orchestration-controller` package README](../packages/orchestration/controller/README.md)
-- [`@reef/orchestration-cli` package README](../packages/orchestration/cli/README.md)
-- [`@reef/harness-provider-codex` package README](../packages/orchestration/providers/codex/README.md)
-- [`@reef/validation-provider-local` package README](../packages/orchestration/providers/local-validation/README.md)
-- [`@reef/scm-provider-github` package README](../packages/orchestration/providers/github/README.md)
 - [`@reef/jira-migrator` package README](../packages/jira-migrator/README.md)
-- [`@reef/work-provider-reef` package README](../packages/orchestration/providers/reef/README.md)

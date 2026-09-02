@@ -97,32 +97,8 @@ const SLOW_TEST_SUPPRESSIONS = new Set([
   "IssueDetail requests /api/issues/{id}?vault={vault} on mount",
   "IssueDetail asks for a close reason before closing from the detail panel",
   "i18n hardcoded-string guard matches the committed baseline (no new hardcoded JSX strings)",
-  "Codex harness provider runs the fixed app-server protocol, emits a terminal event, and redacts raw data",
-  "Codex harness provider resumes an opaque thread reference on a new connection",
-  "Codex harness provider validates policy combinations and maps explicit sandbox modes",
   "runJiraMigration runs dry-run then approved apply with the same plan and zero dry-run mutation",
-  "portable E2E user-behavior runner packs one executable checkout-independent artifact",
   "NamedIssueFilterControl saves, applies, updates, renames, duplicates, and deletes a filter",
-  // Process-backed provider contracts intentionally exercise real git and
-  // subprocess lifecycles; split reusable setup when another provider
-  // suite can share the same fixture without weakening the boundary checks.
-  "GitHub SCM provider rejects missing, ambiguous-or-unsafe, non-commit refs and remote identity mismatch before mutation",
-  "GitHub SCM provider resolves the configured base and remote branch to full commits and canonical HTTPS commit URIs",
-  "GitHub SCM provider creates and checks out a deterministic branch, reuses its same-history local state, and fails closed on local-remote collision",
-  "GitHub SCM provider enforces commit permission, exact branch, clean control state, non-empty changes, and secret-safe messages",
-  "GitHub SCM provider commits one non-empty exact-branch change and returns only a full commit reference",
-  "GitHub SCM provider pushes only fast-forward branch refs, treats the same remote SHA as a no-op, and rejects default, tag, force, and refspec inputs",
-  "GitHub SCM provider creates one draft pull request, reuses an exact open draft, and leaves an existing ready PR unchanged",
-  "GitHub SCM provider does not reuse closed or mismatched pull requests and rejects multiple open candidates",
-  "GitHub SCM provider distinguishes cancellation and GitHub permission failures while redacting tokens, paths, and raw payloads",
-  "GitHub SCM provider runs the real fetch-branch-commit-push-draft-PR-artifact flow without external repository mutation",
-  "local infrastructure provider provisions an exact detached worktree, bootstraps once, executes with bounded explicit output, syncs, and cleans only its worktree",
-  "local infrastructure provider rejects unknown targets, forged references, invalid cwd paths, and symlink escapes before executing",
-  "local infrastructure provider does not inherit ambient secrets and cancels the process group before cleanup",
-  "local infrastructure provider cleans a failed bootstrap and rejects pre-aborted provision without creating a worktree",
-  "local validation provider returns a timed-out check and leaves no process-tree descendant",
-  "local validation provider distinguishes pre-abort and mid-run cancellation",
-  "local validation provider rejects candidate, dirty-worktree, symlink, and concurrent drift before validation commands",
   // Multi-control UI contracts cover the complete interaction surface; split
   // scenario fixtures when a focused renderer can replace the shared harness.
   "KanbanBoard drag and status updates asks for a close reason before closing a card from the board",
@@ -134,10 +110,6 @@ const SLOW_TEST_SUPPRESSIONS = new Set([
 const LARGE_FILE_EXTRA_ROOTS = ["scripts"];
 
 const LARGE_FILE_SUPPRESSIONS = new Map([
-  [
-    "packages/orchestration/providers/codex/src/provider.ts",
-    "Single Codex stdio provider boundary: policy validation, session state, JSON-RPC lifecycle, process teardown, and operation routing share Session/error invariants; extract transport/session helpers when a second process provider reuses them.",
-  ],
   [
     "packages/web/src/features/search/components/GlobalSearchDialog.test.tsx",
     "Single global palette suite sharing corpus, command registry, query mocks, and anchor interactions across search, command, and content cases; split command/content fixtures when another palette suite reuses them.",
@@ -183,10 +155,6 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
     "Single raw-archive security contract suite sharing temp-directory and envelope helpers across canonicalization, permissions, dedupe, and integrity cases; split helpers when another archive implementation needs them.",
   ],
   [
-    "packages/orchestration/runtime/src/provider.ts",
-    "Single provider-neutral contract module keeping capability schemas, provider maps, operation types, and secret-free error normalization aligned; split schemas and errors when independently consumed.",
-  ],
-  [
     "packages/jira-migrator/src/cli/config.ts",
     "Single CLI configuration boundary combining argument parsing, environment/secret resolution, validation, public projection, and redaction; extract a parser or loader when another CLI needs it.",
   ],
@@ -197,10 +165,6 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
   [
     "packages/core/src/index.ts",
     "Package root barrel intentionally holds the public contract exports; split into a subpath entry only when a new independently owned public surface appears.",
-  ],
-  [
-    "packages/orchestration/runtime/src/engine.ts",
-    "Single provider-neutral run engine owning lifecycle types, preflight, cleanup, cancellation, and terminal normalization; split the type contract from runtime when another runtime consumes it.",
   ],
   [
     "packages/jira-migrator/src/runner/approval.ts",
@@ -338,36 +302,16 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
     "Global Tailwind/theme token entrypoint; split when theme tokens or editor/task styles gain separate owners.",
   ],
   [
-    "packages/orchestration/providers/local/src/provider.ts",
-    "Single local infrastructure provider boundary covering worktree lifecycle, bounded child processes, Git inspection, and cleanup; extract a lifecycle helper when another provider shares it.",
-  ],
-  [
     "packages/web/tests/e2e/issues/markdown-editor.hermetic.spec.ts",
     "Hermetic Markdown editor scenario suite sharing one seeded browser fixture; split scenario groups when another editor suite reuses the setup.",
-  ],
-  [
-    "packages/orchestration/providers/github/src/provider.ts",
-    "Single GitHub SCM provider boundary covering repository policy, Git transport, commits, and pull-request delivery; extract transport helpers when another SCM provider shares them.",
   ],
   [
     "packages/web/tests/e2e/system/runtime-contract.hermetic.spec.ts",
     "One hermetic runtime contract suite sharing fixture startup, auth, and cleanup; split a capability group when another runtime suite reuses it.",
   ],
   [
-    "packages/orchestration/controller/src/store.ts",
-    "Controller persistence boundary keeping state validation, file locking, atomic writes, and recovery rules together; extract a storage helper when another controller store consumes it.",
-  ],
-  [
-    "packages/orchestration/providers/local-validation/src/provider.ts",
-    "Single validation provider boundary covering command execution, bounded output, and result normalization; extract a process helper when another validation provider shares it.",
-  ],
-  [
     "packages/core/src/adapters/akb/notifications/notifications-projector.test.ts",
     "Notification projection contract suite sharing wire fixtures and cursor assertions; split fixtures when another projector suite reuses them.",
-  ],
-  [
-    "packages/orchestration/providers/github/src/provider.test.ts",
-    "GitHub provider contract suite sharing repository, Git, and API fakes across operation scenarios; split a fixture harness when another SCM suite reuses it.",
   ],
   [
     "packages/web/src/features/issues/components/list/IssueListRow.test.tsx",
@@ -376,10 +320,6 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
   [
     "packages/web/src/components/MarkdownEditorImpl.tiptap.test.ts",
     "Tiptap editor integration suite sharing one extension and transaction harness; split an extension family when another editor test reuses it.",
-  ],
-  [
-    "packages/orchestration/controller/src/store.test.ts",
-    "Controller store contract suite sharing lock, atomic-write, and recovery fixtures; split a persistence scenario family when another store suite reuses it.",
   ],
   [
     "packages/web/src/components/issueBodyMentionExtension.tsx",
@@ -404,10 +344,6 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
   [
     "packages/web/src/features/issues/hooks/mutations/useUpdateIssue.test.tsx",
     "Issue mutation cache contract suite sharing query, optimistic, and persistence fixtures; split a cache scenario family when another mutation suite reuses it.",
-  ],
-  [
-    "packages/orchestration/cli/src/runner.ts",
-    "Single CLI runner boundary coordinating config, providers, lifecycle events, and terminal output; extract a phase when another CLI entrypoint shares it.",
   ],
   [
     "packages/web/src/features/issues/components/detail/IssueDetailSheet.tsx",
@@ -438,10 +374,6 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
     "Single comment adapter boundary keeping ownership, notification cascade, projection, and SQL mutations aligned; extract a query phase when another comment surface shares it.",
   ],
   [
-    "packages/orchestration/controller/src/schema.ts",
-    "Single controller wire contract module keeping request, lifecycle, URI, and artifact schemas aligned; split a schema family when another controller consumes it.",
-  ],
-  [
     "packages/jira-migrator/src/related/issueLinks.ts",
     "Single related issue-link projection pipeline keeping mapping, dedupe, target validation, and report accounting together; extract a classifier when another relation source shares it.",
   ],
@@ -452,10 +384,6 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
   [
     "packages/web/src/features/issues/components/filters/FilterBar.tsx",
     "Single issue filter composition keeping field controls, URL synchronization, and responsive layout together; extract a filter group when another view shares it.",
-  ],
-  [
-    "packages/orchestration/cli/src/delivery.ts",
-    "Single CLI delivery boundary keeping terminal rendering, event streaming, and bounded diagnostics together; extract a renderer when another caller shares it.",
   ],
   [
     "packages/web/src/lib/api/requestHelpers.ts",

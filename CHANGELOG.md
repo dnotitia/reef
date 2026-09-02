@@ -27,6 +27,12 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Agent delivery orchestration is now owned by reef-bot.** Reef no longer
+  carries the Orchestrator runtime, controller, CLI, concrete providers, or
+  their build, test, CI, release, and maintenance surfaces. The separate
+  [reef-bot repository](https://github.com/younglokim-oss/reef-bot) continues to
+  consume `@reef/core` through the existing pnpm Git dependency contract.
+
 - **`@reef/core` now supports development-stage pnpm Git consumers.** The
   `packages/core` subdirectory prepares its dist-only ESM artifact outside the
   Reef workspace, while a local Git consumer gate verifies commit-pinned

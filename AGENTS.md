@@ -2,11 +2,7 @@
 
 > Root-level, cross-cutting rules for reef. Package-local rules live in
 > `packages/core/AGENTS.md`, `packages/web/AGENTS.md`,
-> `packages/jira-migrator/AGENTS.md`, `packages/orchestration/runtime/AGENTS.md`,
-> `packages/orchestration/controller/AGENTS.md`,
-> `packages/orchestration/providers/reef/AGENTS.md`,
-> `packages/orchestration/providers/codex/AGENTS.md`, and
-> `packages/orchestration/providers/github/AGENTS.md`,
+> `packages/jira-migrator/AGENTS.md`,
 > nested `AGENTS.md` files under those package trees; the `CLAUDE.md` files only
 > point back to these `AGENTS.md` files.
 
@@ -32,11 +28,9 @@
   the server-only application and provider adapters in `web` own GitHub, LLM,
   and agent execution before the result surfaces through the UI. Operator-run
   migration behavior for
-  Jira lives in `packages/jira-migrator`; the provider-neutral one-run
-  execution core and process signal seam live in `packages/orchestration/runtime`, while
-  callers own scheduling and delivery orchestration. Concrete orchestration
-  providers, including the private GitHub SCM adapter, own only the backend I/O
-  granted by their provider contract.
+  Jira lives in `packages/jira-migrator`; private AKB Change Event handling lives
+  in `packages/event-processor`. Agent delivery orchestration is owned by the
+  separate reef-bot repository, which consumes `@reef/core` as a Git dependency.
 - `core` is framework-agnostic: no Next.js imports, no DOM APIs, and no Node-only
   globals where avoidable.
 
@@ -75,9 +69,7 @@ metadata.
   (`login`, `getMe`, `getCurrentActor`) originate. The server-only `web`
   application owns monitored-repository GitHub I/O, deployment-managed LLM I/O,
   and agent execution; it consumes core's public schemas, errors, models, and
-  AKB adapter. Separate orchestration provider packages own only provider I/O
-  explicitly granted by their provider-neutral contracts, such as SCM Git
-  transport and GitHub pull-request delivery. Route Handlers remain thin: they
+  AKB adapter. Route Handlers remain thin: they
   own session/cookie lifecycle (set/clear the `__reef_session` cookie, decode
   it, translate `ReefError` to PM-facing language), never an inline `fetch` or
   an inline AKB wire schema.

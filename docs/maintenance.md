@@ -57,7 +57,7 @@ Workspace package discovery is delegated to pnpm with
 `pnpm --recursive list --depth=-1 --json`. The scanner uses that workspace list
 for package source and test roots; it does not recursively guess `package.json`
 files under fixtures, build output, or other non-workspace directories. Run
-`pnpm run maintenance:test` to verify that nested orchestration packages are
+`pnpm run maintenance:test` to verify that all declared workspace packages are
 included and a maintenance fixture outside the workspace is excluded.
 
 A scanner's exit code is advisory: a non-zero exit usually means it reported

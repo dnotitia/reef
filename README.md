@@ -121,13 +121,8 @@ version source of truth; the workspace packages are private and unpublished.
 | --- | --- |
 | `packages/core` | Framework-agnostic TypeScript library (`@reef/core`) for schemas, models, AKB access, observability, and errors. |
 | `packages/web` | Next.js App Router application package (`@reef/web`) and stateless Backend-for-Frontend. Its server-only adapters own GitHub/LLM I/O and its application tree owns agents; Route Handlers remain thin. |
-| `packages/orchestration/runtime` | Provider-neutral execution core (`@reef/orchestrator`) for registry preflight, lifecycle, cancellation, cleanup, terminal results, and graceful shutdown outside the web process. |
-| `packages/orchestration/cli` | Private foreground work-URI invocation adapter (`@reef/orchestration-cli`) for strict config resolution, controller binding, bounded progress, cancellation, and terminal results. |
-| `packages/orchestration/providers/codex` | Private Codex App Server harness adapter (`@reef/harness-provider-codex`) for stdio lifecycle, policy enforcement, and secret-free harness events. |
-| `packages/orchestration/providers/local` | Private local infrastructure provider (`@reef/infrastructure-provider-local`) for isolated Git-backed run workspaces and bounded process execution. |
-| `packages/orchestration/providers/local-validation` | Private local validation provider (`@reef/validation-provider-local`) for ordered trusted checks, bounded redacted proof, and process-tree cleanup. |
 | `packages/jira-migrator` | Operator-run Jira-to-Reef migration package (`@reef/jira-migrator`) for read-only Jira discovery, private migration artifacts, import planning, and dependency-injected Reef apply/reconciliation. |
-| `packages/orchestration/providers/reef` | Private Reef work adapter (`@reef/work-provider-reef`) that implements the orchestrator `WorkProvider` contract through core's AKB issue and activity funnels. |
+| `packages/event-processor` | Private AKB Change Event composition root (`@reef/event-processor`) for notification projection. |
 | `docs/` | Architecture, package contracts, UX, deployment, migration, release, and maintenance documentation. |
 | `deploy/` | Kubernetes deployment assets. |
 | `scripts/` | Repository automation, including release-policy and maintenance checks. |
@@ -190,12 +185,12 @@ reef has three runtime tiers:
   Backend-for-Frontend; its server-only tree owns GitHub/LLM adapters and agent
   application code.
 
-Provider-neutral one-run execution lives separately in `@reef/orchestrator`; a
-caller may schedule it outside the web process. The private
-`@reef/validation-provider-local` adapter supplies exact-checkout validation
-proof without owning scheduling or persistence. One-shot Jira migrations run
-separately in `@reef/jira-migrator`, while Reef issue work is exposed through
-`@reef/work-provider-reef`; neither runtime loop is hosted inside reef web.
+Agent delivery orchestration lives in the separate
+[reef-bot](https://github.com/younglokim-oss/reef-bot) repository. Its
+Orchestrator remains a provider-neutral engine for one immutable RunPlan, and
+reef-bot consumes this repository's `@reef/core` through a pnpm Git dependency.
+One-shot Jira migrations and private AKB Change Event processing remain outside
+the reef-web request path in their Reef-owned packages.
 
 For the full boundary, storage, credential, and streaming contracts, read
 [docs/architecture.md](docs/architecture.md).
@@ -224,13 +219,7 @@ reef origin. See [docs/deployment.md](docs/deployment.md) and
 - [Maintenance](docs/maintenance.md)
 - [Core package README](packages/core/README.md)
 - [`@reef/web` package README](packages/web/README.md)
-- [`@reef/orchestrator` package README](packages/orchestration/runtime/README.md)
-- [`@reef/orchestration-cli` package README](packages/orchestration/cli/README.md)
-- [`@reef/harness-provider-codex` package README](packages/orchestration/providers/codex/README.md)
-- [`@reef/infrastructure-provider-local` package README](packages/orchestration/providers/local/README.md)
-- [`@reef/validation-provider-local` package README](packages/orchestration/providers/local-validation/README.md)
 - [`@reef/jira-migrator` package README](packages/jira-migrator/README.md)
-- [`@reef/work-provider-reef` package README](packages/orchestration/providers/reef/README.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 - [Changelog](CHANGELOG.md)

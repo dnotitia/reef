@@ -126,7 +126,7 @@ Credentials come only from environment variables or local secret files.
 | `--board-id` | — | Repeatable explicit board selection; no board inference. |
 | `--mapping-policy PROJECT=PATH` | — | Required private JSON mapping policy for every selected project. |
 | `--akb-base-url` | `AKB_BACKEND_URL` | HTTPS AKB API origin. |
-| `--vault` | `REEF_JIRA_MIGRATOR_VAULT`, `REEF_ORCHESTRATOR_VAULT`, or `REEF_VAULT` | Target Reef workspace vault. |
+| `--vault` | `REEF_JIRA_MIGRATOR_VAULT` or `REEF_VAULT` | Target Reef workspace vault. |
 | `--run-id` | — | Stable execution identity shared by dry-run/apply/resume. |
 | `--ledger-path` | `REEF_JIRA_LEDGER_PATH` | Required private checkpoint ledger. |
 | `--archive-root` | `REEF_JIRA_ARCHIVE_ROOT` | Required private raw archive root. |

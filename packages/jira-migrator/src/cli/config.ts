@@ -523,12 +523,7 @@ export function loadJiraMigratorConfig({
   }
   const projectKeys = parseProjects(parsed, env);
   const vault = parseVault(
-    firstValue(
-      parsed.vault,
-      env.REEF_JIRA_MIGRATOR_VAULT,
-      env.REEF_ORCHESTRATOR_VAULT,
-      env.REEF_VAULT,
-    ),
+    firstValue(parsed.vault, env.REEF_JIRA_MIGRATOR_VAULT, env.REEF_VAULT),
   );
   const reportPath = firstValue(
     parsed.reportPath,

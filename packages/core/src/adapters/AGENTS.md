@@ -41,8 +41,8 @@ server-only `packages/web/src/server/` tree and must not be reintroduced here.
   persisted `updated_at` to the `reef_issues` predicate, uses conditional
   `UPDATE ... RETURNING reef_id`, and turns an empty result into a retryable
   `ConflictError`; when omitted, the row update stays last-write-wins. The
-  orchestration provider's `transition`/`linkArtifact` operations and the Jira
-  target adapter pass the `updated_at` from their read snapshot. The existing
+  Trusted external consumers and the Jira target adapter pass the `updated_at`
+  from their read snapshot. The existing
   `issues-update.test.ts` validation covers the predicate, `RETURNING`, and
   conflict mapping. This is a trusted caller contract, not a new row schema or
   cross-store transaction.
