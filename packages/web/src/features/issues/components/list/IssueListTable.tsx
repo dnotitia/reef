@@ -764,10 +764,9 @@ export function IssueListTable({
   );
   // A refetch error is still a failed issue-list read when React Query keeps a
   // prior empty page as stale data. Preserve populated rows during a transient
-  // background failure; only next-page failures retain their inline retry row.
-  const hasLoadedIssueRows =
-    !isPlaceholderData &&
-    (data?.pages.some((page) => page.issues.length > 0) ?? false);
+  // Preserve visible stale rows during a background failure, but do not treat
+  // a raw manual-order spine hidden by residual filters as visible results.
+  const hasLoadedIssueRows = !isPlaceholderData && sorted.length > 0;
   const initialLoadError =
     isError && !isFetchNextPageError && !hasLoadedIssueRows;
   const showTable =
