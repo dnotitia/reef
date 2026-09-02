@@ -10,11 +10,12 @@ const packageRoots = {
   localValidation: "packages/orchestration/providers/local-validation",
   github: "packages/orchestration/providers/github",
   reef: "packages/orchestration/providers/reef",
+  eventProcessor: "packages/event-processor",
 };
 
 const packagePath = (root) => `^${root}/(?:src|dist)(?:/|$)`;
 const sourcePath =
-  "^packages/(?:core|web|jira-migrator|orchestration)/(?:src|dist)(?:/|$)";
+  "^packages/(?:core|web|jira-migrator|event-processor|orchestration)/(?:src|dist)(?:/|$)";
 const sourceExtension = "(?:js|jsx|ts|tsx|mjs|mts|cjs|cts)";
 const testOrFixturePath = `(?:^|/)(?:__(?:test-helpers|stories|fixtures)__(?:/|$)|[^/]+\\.(?:test|spec|testSupport|stories)\\.${sourceExtension}|[^/]+(?:TestSupport|Fixtures)\\.${sourceExtension}|fixtures(?:/|\\.${sourceExtension}$))`;
 const productionSource = {
@@ -94,6 +95,7 @@ module.exports = {
     forbiddenWorkspaceDirection("localValidation", ["orchestrator"]),
     forbiddenWorkspaceDirection("github", ["orchestrator"]),
     forbiddenWorkspaceDirection("reef", ["core", "orchestrator"]),
+    forbiddenWorkspaceDirection("eventProcessor", ["core"]),
   ],
   options: {
     doNotFollow: {

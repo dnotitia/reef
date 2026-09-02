@@ -102,6 +102,12 @@ export const ERROR_MESSAGES_EN = {
     unknown:
       "An error occurred while communicating with the workspace backend. Please try again.",
   },
+  eventTail: {
+    invalidEventCursor: "The event tail cursor is invalid.",
+    eventGap: "The event tail cursor is no longer retained.",
+    protocol: "The event tail returned an invalid response.",
+    upstream: "The event tail service is unavailable. Please try again later.",
+  },
 };
 
 /**
@@ -259,6 +265,58 @@ export class AkbApiError extends ReefError {
 
   toUserMessage(): string {
     return this.message;
+  }
+}
+
+export type EventTailErrorCode =
+  | "invalid_event_cursor"
+  | "event_gap"
+  | "protocol"
+  | "upstream";
+
+export interface EventTailErrorContext {
+  code: EventTailErrorCode;
+  status: number;
+  earliestCursor?: string;
+  latestCursor?: string;
+}
+
+function eventTailMessageKey(code: EventTailErrorCode): string {
+  if (code === "invalid_event_cursor") return "invalidEventCursor";
+  if (code === "event_gap") return "eventGap";
+  return code;
+}
+
+/** Safe, typed failures from AKB's authenticated Change Event Tail. */
+export class EventTailError extends ReefError {
+  readonly context: EventTailErrorContext;
+  readonly code: EventTailErrorCode;
+  readonly status: number;
+
+  constructor(context: EventTailErrorContext) {
+    super(resolveEnMessage(`eventTail.${eventTailMessageKey(context.code)}`));
+    this.name = "EventTailError";
+    this.context = context;
+    this.code = context.code;
+    this.status = context.status;
+  }
+
+  toUserMessage(): string {
+    return this.message;
+  }
+
+  toJSON(): Record<string, unknown> {
+    return {
+      name: this.name,
+      code: this.code,
+      status: this.status,
+      ...(this.context.earliestCursor
+        ? { earliestCursor: this.context.earliestCursor }
+        : {}),
+      ...(this.context.latestCursor
+        ? { latestCursor: this.context.latestCursor }
+        : {}),
+    };
   }
 }
 
@@ -507,6 +565,10 @@ function resolveApiHttpStatus(
  */
 export function describeError(err: unknown): ErrorDescriptor {
   if (err instanceof ConflictError) return { code: "conflict", status: 409 };
+  if (err instanceof EventTailError) {
+    const code = `eventTail.${eventTailMessageKey(err.code)}`;
+    return { code, status: err.status === 0 ? 502 : err.status };
+  }
   if (err instanceof ControlPlaneError) {
     return {
       code: `controlPlane.${CONTROL_PLANE_ERROR_CODES[err.category]}`,

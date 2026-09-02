@@ -78,4 +78,7 @@ export default [
     index: "src/index.ts",
     cli: "src/cli.ts",
   }),
+  packageConfig("packages/event-processor", "@reef/event-processor", {
+    index: "src/index.ts",
+  }),
 ];

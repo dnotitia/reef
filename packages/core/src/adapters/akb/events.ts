@@ -1,0 +1,283 @@
+import { createParser, type EventSourceMessage } from "eventsource-parser";
+import {
+  AuthError,
+  ConflictError,
+  EventTailError,
+  NotFoundError,
+  SchemaValidationError,
+} from "../../errors";
+import {
+  ChangeEventEnvelopeV1Schema,
+  type ChangeEventEnvelopeV1,
+  TableRowsChangedOperationSchema,
+  TailCheckpointV1Schema,
+  type TailCheckpointV1,
+} from "../../schemas/events";
+import { VaultNameSchema } from "../../schemas/workspace/config";
+import { REEF_ACTIVITY_TABLE, REEF_COMMENTS_TABLE } from "./core/constants";
+import { readAkbErrorResponse } from "./core/errorResponse";
+import type { AkbStreamAdapter, AkbStreamRequestInit } from "./core/http";
+
+export const CHANGE_EVENT_KIND = "table.rows_changed" as const;
+
+const MAX_EVENT_CURSOR_LENGTH = 4_096;
+
+function isSafeCursor(value: string): boolean {
+  if (value.length === 0 || value.length > MAX_EVENT_CURSOR_LENGTH) {
+    return false;
+  }
+  for (const character of value) {
+    const codePoint = character.codePointAt(0) ?? 0;
+    if (codePoint <= 0x1f || codePoint === 0x7f) return false;
+  }
+  return true;
+}
+
+export interface ChangeEventTailInput {
+  vault: string;
+  /** Opaque cursor sent as the HTTP `Last-Event-ID` header on reconnect. */
+  lastEventId?: string;
+  /** Opaque cursor sent as the query parameter when a header is unavailable. */
+  cursor?: string;
+  /** Start at the earliest retained event; mutually exclusive with cursors. */
+  start?: "earliest";
+  signal?: AbortSignal;
+}
+
+export type ChangeEventTailRecord =
+  | {
+      type: "change";
+      cursor: string;
+      event: ChangeEventEnvelopeV1;
+    }
+  | {
+      type: "checkpoint";
+      cursor: string;
+      checkpoint: TailCheckpointV1;
+    };
+
+export interface AkbChangeEventTail {
+  subscribe(input: ChangeEventTailInput): AsyncGenerator<ChangeEventTailRecord>;
+}
+
+export type NotificationWakeupSource = "activity" | "comment";
+
+/** Build AKB's canonical table resource identity used by event filters. */
+export function tableResourceUri(vault: string, table: string): string {
+  return `akb://${vault}/table/${table}`;
+}
+
+/**
+ * Select the two Source State tables that can wake notification projection.
+ * The event remains a wake-up hint; the projector rereads Source State.
+ */
+export function notificationWakeupForChange(
+  event: unknown,
+  vault: string,
+): NotificationWakeupSource | null {
+  const parsed = ChangeEventEnvelopeV1Schema.safeParse(event);
+  if (!parsed.success) return null;
+  const envelope = parsed.data;
+  if (envelope.vault !== vault || envelope.kind !== CHANGE_EVENT_KIND) {
+    return null;
+  }
+  const operation = TableRowsChangedOperationSchema.safeParse(
+    envelope.payload.operation,
+  );
+  if (!operation.success) return null;
+  if (
+    envelope.resource_uri === tableResourceUri(vault, REEF_ACTIVITY_TABLE) &&
+    operation.data === "insert"
+  ) {
+    return "activity";
+  }
+  if (
+    envelope.resource_uri === tableResourceUri(vault, REEF_COMMENTS_TABLE) &&
+    (operation.data === "insert" || operation.data === "update")
+  ) {
+    return "comment";
+  }
+  return null;
+}
+
+function eventTailErrorFromHttp(
+  status: number,
+  code: string | undefined,
+  details: Record<string, unknown> | undefined,
+):
+  | EventTailError
+  | AuthError
+  | NotFoundError
+  | ConflictError
+  | SchemaValidationError {
+  if (status === 400 || code === "invalid_event_cursor") {
+    return new EventTailError({ code: "invalid_event_cursor", status });
+  }
+  if (status === 410 || code === "event_gap") {
+    const earliestCursor = details?.earliest_cursor;
+    const latestCursor = details?.latest_cursor;
+    return new EventTailError({
+      code: "event_gap",
+      status,
+      ...(typeof earliestCursor === "string" ? { earliestCursor } : {}),
+      ...(typeof latestCursor === "string" ? { latestCursor } : {}),
+    });
+  }
+  if (status === 401 || status === 403) {
+    return new AuthError({ origin: "akb", status, code });
+  }
+  if (status === 404) return new NotFoundError({ resource: "event tail" });
+  if (status === 409) return new ConflictError({ path: "event tail" });
+  if (status === 422) {
+    return new SchemaValidationError({
+      issues: ["AKB event tail request was rejected"],
+    });
+  }
+  return new EventTailError({ code: "upstream", status });
+}
+
+async function assertStreamResponse(response: Response): Promise<void> {
+  if (response.ok) return;
+  const error = await readAkbErrorResponse(response);
+  throw eventTailErrorFromHttp(response.status, error.code, error.details);
+}
+
+function recordFromMessage(message: EventSourceMessage): ChangeEventTailRecord {
+  if (!message.event || !message.id || !isSafeCursor(message.id)) {
+    throw new EventTailError({ code: "protocol", status: 502 });
+  }
+  let payload: unknown;
+  try {
+    payload = JSON.parse(message.data) as unknown;
+  } catch {
+    throw new EventTailError({ code: "protocol", status: 502 });
+  }
+
+  if (message.event === "change") {
+    const parsed = ChangeEventEnvelopeV1Schema.safeParse(payload);
+    if (!parsed.success || parsed.data.cursor !== message.id) {
+      throw new EventTailError({ code: "protocol", status: 502 });
+    }
+    return { type: "change", cursor: message.id, event: parsed.data };
+  }
+  if (message.event === "checkpoint") {
+    const parsed = TailCheckpointV1Schema.safeParse(payload);
+    if (!parsed.success || parsed.data.cursor !== message.id) {
+      throw new EventTailError({ code: "protocol", status: 502 });
+    }
+    return {
+      type: "checkpoint",
+      cursor: message.id,
+      checkpoint: parsed.data,
+    };
+  }
+  throw new EventTailError({ code: "protocol", status: 502 });
+}
+
+function validateTailInput(input: ChangeEventTailInput): void {
+  if (!VaultNameSchema.safeParse(input.vault).success) {
+    throw new SchemaValidationError({
+      clientValidated: true,
+      issues: ["vault is invalid"],
+    });
+  }
+  if (
+    input.lastEventId !== undefined &&
+    (typeof input.lastEventId !== "string" || !isSafeCursor(input.lastEventId))
+  ) {
+    throw new EventTailError({ code: "invalid_event_cursor", status: 400 });
+  }
+  if (
+    input.cursor !== undefined &&
+    (typeof input.cursor !== "string" || !isSafeCursor(input.cursor))
+  ) {
+    throw new EventTailError({ code: "invalid_event_cursor", status: 400 });
+  }
+  if (
+    input.start !== undefined &&
+    (input.start !== "earliest" ||
+      input.lastEventId !== undefined ||
+      input.cursor !== undefined)
+  ) {
+    throw new EventTailError({ code: "invalid_event_cursor", status: 400 });
+  }
+}
+
+/** Parse a single AKB SSE response into validated public tail records. */
+export async function* readChangeEventStream(
+  response: Response,
+): AsyncGenerator<ChangeEventTailRecord> {
+  if (
+    !response.headers
+      .get("content-type")
+      ?.toLowerCase()
+      .includes("text/event-stream")
+  ) {
+    throw new EventTailError({ code: "protocol", status: 502 });
+  }
+  if (!response.body) {
+    throw new EventTailError({ code: "protocol", status: 502 });
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const records: ChangeEventTailRecord[] = [];
+  let parserError: EventTailError | undefined;
+  const parser = createParser({
+    onEvent(message) {
+      records.push(recordFromMessage(message));
+    },
+    onError() {
+      parserError = new EventTailError({ code: "protocol", status: 502 });
+    },
+  });
+  const drain = () => records.splice(0);
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      parser.feed(decoder.decode(value, { stream: true }));
+      if (parserError) throw parserError;
+      yield* drain();
+    }
+    const remainder = decoder.decode();
+    if (remainder.length > 0) parser.feed(remainder);
+    parser.reset({ consume: true });
+    if (parserError) throw parserError;
+    yield* drain();
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+export function createAkbChangeEventTail(
+  adapter: AkbStreamAdapter,
+): AkbChangeEventTail {
+  return {
+    async *subscribe(input) {
+      validateTailInput(input);
+      const request: AkbStreamRequestInit = {
+        query: {
+          kind: CHANGE_EVENT_KIND,
+          ...(input.cursor ? { cursor: input.cursor } : {}),
+          ...(input.start ? { start: input.start } : {}),
+        },
+        signal: input.signal,
+        ...(input.lastEventId
+          ? { rawHeaders: { "Last-Event-ID": input.lastEventId } }
+          : {}),
+      };
+      const response = await adapter.stream(
+        `/api/v1/events/${encodeURIComponent(input.vault)}`,
+        request,
+      );
+      await assertStreamResponse(response);
+      for await (const record of readChangeEventStream(response)) {
+        if (record.type === "change" && record.event.vault !== input.vault) {
+          throw new EventTailError({ code: "protocol", status: 502 });
+        }
+        yield record;
+      }
+    },
+  };
+}

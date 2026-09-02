@@ -27,6 +27,12 @@ explicitly in the entries below.
 
 ### Changed
 
+- **AKB Change Events now wake private notification projection.** The new
+  Event Processor tails the authenticated `table.rows_changed` stream for
+  activity and comment Source State, then invokes the existing idempotent Inbox
+  projector with per-Vault retry and cursor handling. No browser-facing API or
+  UI surface changes.
+
 - **Manual-order moves now expose per-card and per-row persistence feedback.**
   Board, List, and Backlog surfaces distinguish saving, saved, and failed
   reorder states; the existing save-confirm pulse follows the canonical server
