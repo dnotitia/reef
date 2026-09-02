@@ -160,7 +160,7 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
   ],
   [
     "packages/jira-migrator/src/runner/runner.ts",
-    "Single one-shot Jira migration orchestrator owning scope locking, checkpoints, plan/apply delivery, and report classification; split a phase when a second caller needs it.",
+    "Single one-shot Jira migration coordinator owning scope locking, checkpoints, plan/apply delivery, and report classification; split a phase when a second caller needs it.",
   ],
   [
     "packages/core/src/index.ts",
@@ -172,7 +172,7 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
   ],
   [
     "packages/jira-migrator/src/related/import.ts",
-    "Single public related-data reconciliation orchestrator coordinating description, media, links, and attachments through one target ledger; extract a phase when another import entrypoint reuses it.",
+    "Single public related-data reconciliation coordinator covering description, media, links, and attachments through one target ledger; extract a phase when another import entrypoint reuses it.",
   ],
   [
     "packages/web/src/components/MarkdownEditorImpl.test.tsx",
@@ -232,7 +232,7 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
   ],
   [
     "scripts/maintenance/scan.mjs",
-    "Single CLI scanner orchestrator; split when a category grows its own configuration surface.",
+    "Single CLI scanner coordinator; split when a category grows its own configuration surface.",
   ],
   [
     "Approval policy matrix; extract fixtures when another approval suite reuses them.",
@@ -1035,7 +1035,7 @@ function largeFileSuggestion(candidate) {
     return "Check repeated setup, fixtures, render helpers, and scenario groups before splitting assertions.";
   }
   if (candidate.kind === "script") {
-    return "Check whether CLI parsing, scanning, rendering, and orchestration have separate owners.";
+    return "Check whether CLI parsing, scanning, rendering, and coordination have separate owners.";
   }
   if (candidate.file.endsWith(".tsx")) {
     return "Check whether state, effects, UI leaves, and formatting helpers can move behind named boundaries.";

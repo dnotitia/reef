@@ -188,7 +188,7 @@ hook, pure helper, parser/renderer helper, test fixture, repeated setup helper, 
 script subroutine. Keep the original call path covered by focused tests. For test
 files, prefer shared fixtures and scenario helpers before splitting assertions
 across files. For scripts, prefer separating CLI parsing, scanning, rendering,
-and orchestration when those roles are already distinct.
+and coordination when those roles are already distinct.
 
 Do not split a file solely to satisfy the threshold. Suppress only after
 verifying the file is intentionally cohesive, generated or vendored, or already

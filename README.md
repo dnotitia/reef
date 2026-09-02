@@ -185,11 +185,8 @@ reef has three runtime tiers:
   Backend-for-Frontend; its server-only tree owns GitHub/LLM adapters and agent
   application code.
 
-Agent delivery orchestration lives in a separate private repository. Its
-Orchestrator remains a provider-neutral engine for one immutable RunPlan, and
-the external consumer uses this repository's `@reef/core` through a pnpm Git
-dependency. One-shot Jira migrations and private AKB Change Event processing
-remain outside the reef-web request path in their Reef-owned packages.
+One-shot Jira migrations and private AKB Change Event processing remain outside
+the reef-web request path in their Reef-owned packages.
 
 For the full boundary, storage, credential, and streaming contracts, read
 [docs/architecture.md](docs/architecture.md).

@@ -27,10 +27,10 @@ explicitly in the entries below.
 
 ### Changed
 
-- **Agent delivery orchestration has moved out of Reef.** Reef no longer carries
-  the Orchestrator runtime, controller, CLI, concrete providers, or their build,
-  test, CI, release, and maintenance surfaces. The existing `@reef/core` pnpm
-  Git dependency contract remains supported for external consumers.
+- **The Reef workspace now contains only product-owned packages.** Obsolete
+  private execution packages and their build, test, CI, release, and maintenance
+  integration have been removed. The existing `@reef/core` pnpm Git dependency
+  contract remains supported.
 
 - **`@reef/core` now supports development-stage pnpm Git consumers.** The
   `packages/core` subdirectory prepares its dist-only ESM artifact outside the

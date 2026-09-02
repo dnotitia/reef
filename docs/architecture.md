@@ -39,14 +39,6 @@ Two Reef-owned auxiliary runtimes stay outside the interactive web request path:
   tails one explicitly configured AKB Vault and invokes Core's notification
   projector; it has no browser or web dependency.
 
-Agent delivery orchestration is owned by a separate private repository. In that
-bounded context, the **Orchestrator** remains the provider-neutral engine that
-coordinates provider lifecycle and cleanup for one immutable `RunPlan`; it is
-not an Agent Job, queue, scheduler, persistence layer, or background process.
-The external consumer uses `@reef/core` from this repository through a pnpm Git
-dependency, so Reef retains the core Git-consumer contract without owning the
-orchestration source, build, tests, CI, release, or maintenance surface.
-
 ```
 Browser (React UI, Zustand, TanStack Query, Dexie)
    │  apiFetch → /api/* Route Handlers

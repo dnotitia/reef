@@ -328,7 +328,7 @@ equivalent.
 
 Field-mapping results and changelog classifications store this opaque
 reference. The migration ledger persists the same reference, and the apply
-runner passes it through report/apply/resume orchestration. None of those
+runner passes it through report/apply/resume coordination. None of those
 surfaces should duplicate or stringify the raw payload. `readRawArchiveReference`
 and `verifyRawArchive` validate the envelope version, manifest checksum,
 reference, object presence, byte size, object digest, canonical JSON, file
@@ -694,7 +694,7 @@ database uniqueness remain outside this planning API.
 ## Migration Ledger And Checkpoint
 
 The migration ledger is the operator-owned local execution-state artifact used
-by apply orchestration. It is deliberately separate from the raw archive: the
+by the apply flow. It is deliberately separate from the raw archive: the
 archive owns canonical source payloads, while the ledger stores only stable
 identity, sanitized fingerprints, opaque archive references, successful target
 bindings, and immutable run results. The ledger is not stored in reef-web or an
