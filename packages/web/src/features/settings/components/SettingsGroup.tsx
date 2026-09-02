@@ -50,7 +50,7 @@ export function SettingsGroup({
               <span
                 translate="no"
                 data-testid="settings-group-scope"
-                className="type-body min-w-0 truncate font-medium text-brand-text"
+                className="type-control min-w-0 truncate font-medium text-brand-text"
               >
                 {scopeName}
               </span>
@@ -58,7 +58,9 @@ export function SettingsGroup({
           </div>
           {access ? <AccessBadge level={access} /> : null}
         </div>
-        <p className="type-caption text-muted-foreground">{description}</p>
+        <p className="type-card-metadata text-muted-foreground">
+          {description}
+        </p>
       </div>
       <div className="flex flex-col gap-8">{children}</div>
     </section>

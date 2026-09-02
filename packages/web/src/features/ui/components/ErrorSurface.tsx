@@ -41,7 +41,7 @@ export function ErrorSurface({
           ) : null}
           <h1
             id="error-surface-title"
-            className="type-page-title text-balance text-foreground"
+            className="font-display text-2xl font-semibold text-balance text-foreground"
           >
             {title}
           </h1>

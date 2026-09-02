@@ -65,7 +65,7 @@ export function SegmentedBar({
         {visible.map((s) => (
           <li
             key={s.key}
-            className="type-chart-label inline-flex items-center gap-1.5 text-muted-foreground"
+            className="type-chart-metadata inline-flex items-center gap-1.5 text-muted-foreground"
           >
             <span
               aria-hidden="true"
@@ -73,7 +73,7 @@ export function SegmentedBar({
               style={{ backgroundColor: s.color }}
             />
             <span className="text-foreground/80">{s.label}</span>
-            <span className="type-mono-value">{s.value}</span>
+            <span className="type-compact-mono">{s.value}</span>
           </li>
         ))}
       </ul>
@@ -137,7 +137,7 @@ export function RankedBarList({
               }}
             />
           </div>
-          <span className="text-right type-mono-value text-muted-foreground">
+          <span className="text-right type-compact-mono text-muted-foreground">
             {row.value}
           </span>
         </li>
@@ -169,7 +169,7 @@ const AGING_BUCKETS: readonly AgingBucketKey[] = [
 // and axes, not by accidental styling drift (REEF-248).
 
 const HEAT_CELL =
-  "h-9 rounded-md border border-border-subtle bg-surface-hover text-center align-middle type-mono-value text-foreground";
+  "h-9 rounded-md border border-border-subtle bg-surface-hover text-center align-middle type-compact-mono text-foreground";
 
 /** Neutral density fill for a count cell. A single gray ramp — distinct from the
  *  brand-tinted value bars — so a heat cell does not compete with a quantity bar
@@ -229,7 +229,7 @@ export function RiskMatrix({
               <th
                 key={aging}
                 scope="col"
-                className="type-chart-label px-1 pb-0.5 text-center align-bottom text-muted-foreground"
+                className="type-chart-tick px-1 pb-0.5 text-center align-bottom text-muted-foreground"
               >
                 {agingLabel(aging)}
               </th>
@@ -241,7 +241,7 @@ export function RiskMatrix({
             <tr key={priority}>
               <th
                 scope="row"
-                className="type-chart-label text-left text-foreground/80"
+                className="type-chart-tick text-left text-foreground/80"
               >
                 {priorityLabel(priority)}
               </th>
@@ -314,14 +314,14 @@ export function PivotMatrix({
                 key={c.key}
                 scope="col"
                 title={c.label}
-                className="type-chart-label truncate px-1 pb-0.5 text-center align-bottom text-muted-foreground"
+                className="type-chart-metadata truncate px-1 pb-0.5 text-center align-bottom text-muted-foreground"
               >
                 {c.label}
               </th>
             ))}
             <th
               scope="col"
-              className="type-chart-label px-1 pb-0.5 text-center align-bottom font-semibold text-foreground"
+              className="type-chart-metadata px-1 pb-0.5 text-center align-bottom font-semibold text-foreground"
             >
               {t("total")}
             </th>
@@ -340,7 +340,7 @@ export function PivotMatrix({
           <tr>
             <th
               scope="row"
-              className="type-chart-label truncate text-left font-semibold text-foreground"
+              className="type-chart-metadata truncate text-left font-semibold text-foreground"
             >
               {t("total")}
             </th>
@@ -387,7 +387,7 @@ function PivotRow({
       <th
         scope="row"
         title={row.label}
-        className="type-chart-label truncate text-left text-foreground/80"
+        className="type-chart-metadata truncate text-left text-foreground/80"
       >
         {row.label}
       </th>
@@ -497,7 +497,7 @@ export function FlowMetricsChart({
               x={padLeft - 8}
               y={y(tick) + 4}
               textAnchor="end"
-              className="type-chart-label fill-muted-foreground"
+              className="type-chart-tick fill-muted-foreground"
             >
               {formatFlowDays(tick, locale)}
             </text>
@@ -528,7 +528,7 @@ export function FlowMetricsChart({
               x={W - padRight - 2}
               y={y(line.value) - 4}
               textAnchor="end"
-              className="type-chart-label fill-foreground font-medium"
+              className="type-chart-tick fill-foreground font-medium"
             >
               {t(line.key)}
             </text>
@@ -575,7 +575,7 @@ export function FlowMetricsChart({
                     ? "end"
                     : "middle"
               }
-              className="type-chart-label fill-muted-foreground"
+              className="type-chart-tick fill-muted-foreground"
             >
               {formatTimestampMonthDay(point.completionAt, locale) ?? ""}
             </text>
@@ -585,7 +585,7 @@ export function FlowMetricsChart({
           x={W / 2}
           y={H - 3}
           textAnchor="middle"
-          className="type-chart-label fill-muted-foreground"
+          className="type-chart-tick fill-muted-foreground"
         >
           {t("completionTimeAxis")}
         </text>
@@ -594,12 +594,12 @@ export function FlowMetricsChart({
           y={padTop + innerH / 2}
           textAnchor="middle"
           transform={`rotate(-90 12 ${padTop + innerH / 2})`}
-          className="type-chart-label fill-muted-foreground"
+          className="type-chart-tick fill-muted-foreground"
         >
           {t("elapsedDaysAxis")}
         </text>
       </svg>
-      <ul className="type-chart-label flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+      <ul className="type-chart-metadata flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
         {percentileLines.map((line) => (
           <li key={line.key} className="inline-flex items-center gap-1.5">
             <span

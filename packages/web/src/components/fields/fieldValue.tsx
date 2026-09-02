@@ -29,7 +29,7 @@ export function LabelChips({ labels }: { labels: readonly string[] }) {
       {labels.map((label) => (
         <span
           key={label}
-          className="rounded bg-surface-subtle px-1.5 py-0.5 type-caption text-muted-foreground"
+          className="rounded bg-surface-subtle px-1.5 py-0.5 type-card-metadata text-muted-foreground"
         >
           {label}
         </span>
@@ -42,7 +42,7 @@ export function RelationIds({ ids }: { ids: readonly string[] }) {
   const empty = useEnrichmentEmptyLabels();
   if (ids.length === 0) return <Muted>{empty.none}</Muted>;
   return (
-    <span className="min-w-0 break-words type-mono-value text-muted-foreground">
+    <span className="min-w-0 break-words type-compact-mono text-muted-foreground">
       {ids.join(", ")}
     </span>
   );

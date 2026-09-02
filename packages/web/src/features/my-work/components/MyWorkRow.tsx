@@ -38,7 +38,7 @@ function DueMeta({ item }: { item: MyWorkItem }) {
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 type-mono-value",
+        "inline-flex shrink-0 items-center gap-1 type-compact-mono",
         tone,
       )}
     >
@@ -84,7 +84,7 @@ export const MyWorkRow = memo(function MyWorkRow({
           <StatusIcon status={issue.status} size={14} decorative />
         ) : null}
 
-        <span className="w-[64px] shrink-0 truncate type-mono-value text-muted-foreground">
+        <span className="w-[64px] shrink-0 truncate type-compact-mono text-muted-foreground">
           {issue.id}
         </span>
 

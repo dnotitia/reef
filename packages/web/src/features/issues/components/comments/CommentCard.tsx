@@ -348,14 +348,14 @@ export function CommentCard({
           <time
             dateTime={comment.created_at}
             title={formatAbsoluteTime(comment.created_at, locale)}
-            className="shrink-0 type-mono-value text-muted-foreground"
+            className="shrink-0 type-compact-mono text-muted-foreground"
           >
             {formatRelativeTime(comment.created_at, nowMs, locale)}
           </time>
           {comment.edited_at ? (
             <span
               title={formatAbsoluteTime(comment.edited_at, locale)}
-              className="shrink-0 type-caption text-muted-foreground"
+              className="shrink-0 type-card-metadata text-muted-foreground"
             >
               · {t("edited")}
             </span>
@@ -408,7 +408,7 @@ export function CommentCard({
         </div>
 
         {replyToAuthor ? (
-          <p className="type-caption mt-0.5 break-words text-muted-foreground">
+          <p className="type-card-metadata mt-0.5 break-words text-muted-foreground">
             {t.rich("replyingTo", {
               author: replyToAuthor,
               target: (chunks) => <span translate="no">{chunks}</span>,
@@ -430,7 +430,7 @@ export function CommentCard({
               onDraftChange={handleDraftChange}
               onSubmit={() => void save()}
               onEscape={() => setEditing(false)}
-              className="max-h-60 w-full resize-none bg-transparent px-3 py-2 type-body text-foreground outline-none [field-sizing:content] disabled:opacity-50"
+              className="max-h-60 w-full resize-none bg-transparent px-3 py-2 type-comment text-foreground outline-none [field-sizing:content] disabled:opacity-50"
             />
             <div className="flex items-center justify-end gap-2 px-2 pb-2">
               <Button

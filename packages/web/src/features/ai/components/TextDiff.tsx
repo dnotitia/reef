@@ -89,7 +89,7 @@ export function CollapsibleLineDiff({
           <div
             key={key}
             className={cn(
-              "flex gap-2 px-2 py-1 type-mono-value",
+              "flex gap-2 px-2 py-1 type-compact-mono",
               type === "remove" && "bg-muted/40 text-muted-foreground",
               type === "add" && "bg-ai-subtle text-ai-subtle-foreground",
               type === "equal" && "text-foreground/60",

@@ -34,7 +34,7 @@ export function EnrichmentReferencesPanel({
 
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <span className="type-section-label text-muted-foreground">
+      <span className="type-caption font-medium text-muted-foreground">
         {t("linkedDocuments")}
       </span>
 

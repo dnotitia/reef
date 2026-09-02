@@ -144,7 +144,7 @@ function CalendarComponent({
         </button>
         <span
           aria-live="polite"
-          className="type-body font-medium text-foreground"
+          className="type-control font-medium text-foreground"
         >
           {formatMonthYear(view.year, view.month, locale)}
         </span>
@@ -162,7 +162,7 @@ function CalendarComponent({
         {weekdayLabels(locale).map((w) => (
           <div
             key={w}
-            className="type-section-label flex h-6 items-center justify-center text-muted-foreground"
+            className="type-card-metadata flex h-6 items-center justify-center font-medium uppercase tracking-wide text-muted-foreground"
           >
             {w}
           </div>
@@ -186,7 +186,7 @@ function CalendarComponent({
               onClick={() => onSelect(cell.iso)}
               onKeyDown={handleKeyDown}
               className={cn(
-                "flex h-8 w-8 items-center justify-center rounded-md type-mono-value transition-colors duration-150",
+                "flex h-8 w-8 items-center justify-center rounded-md type-control font-mono transition-colors duration-150",
                 isSelected
                   ? "bg-brand-fill text-brand-on-fill"
                   : isToday

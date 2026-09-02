@@ -113,6 +113,12 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Contextual typography roles restore the established UI hierarchy.** Sidebar
+  navigation and editing controls return to their readable 13px scale, Board
+  status headings regain compact uppercase treatment, Epic headings remain
+  title case, and card/detail/report metadata uses explicit compact roles while
+  the Noto Sans KR font stack and Markdown rhythm stay unchanged.
+
 - **Authentication revalidation and soft navigation now preserve the
   established workspace experience.** Route changes stay non-blocking, the
   shell remains mounted while revalidation completes, and a resource-level

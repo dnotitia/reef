@@ -381,6 +381,97 @@ describe("global focus styles", () => {
         "letter-spacing: var(--type-section-label-tracking);",
         "text-transform: uppercase;",
       ],
+      "type-navigation": [
+        "font-size: var(--type-navigation-size);",
+        "font-weight: var(--type-navigation-weight);",
+        "line-height: var(--type-navigation-line-height);",
+        "letter-spacing: var(--type-navigation-tracking);",
+      ],
+      "type-control": [
+        "font-size: var(--type-control-size);",
+        "font-weight: var(--type-control-weight);",
+        "line-height: var(--type-control-line-height);",
+        "letter-spacing: var(--type-control-tracking);",
+      ],
+      "type-board-status": [
+        "font-size: var(--type-board-status-size);",
+        "font-weight: var(--type-board-status-weight);",
+        "line-height: var(--type-board-status-line-height);",
+        "letter-spacing: var(--type-board-status-tracking);",
+        "text-transform: uppercase;",
+      ],
+      "type-board-epic": [
+        "font-size: var(--type-board-epic-size);",
+        "font-weight: var(--type-board-epic-weight);",
+        "line-height: var(--type-board-epic-line-height);",
+        "letter-spacing: var(--type-board-epic-tracking);",
+        "text-transform: none;",
+      ],
+      "type-card-title": [
+        "font-size: var(--type-card-title-size);",
+        "font-weight: var(--type-card-title-weight);",
+        "line-height: var(--type-card-title-line-height);",
+        "letter-spacing: var(--type-card-title-tracking);",
+      ],
+      "type-card-metadata": [
+        "font-size: var(--type-card-metadata-size);",
+        "font-weight: var(--type-card-metadata-weight);",
+        "line-height: var(--type-card-metadata-line-height);",
+        "letter-spacing: var(--type-card-metadata-tracking);",
+      ],
+      "type-card-context": [
+        "font-size: var(--type-card-context-size);",
+        "font-weight: var(--type-card-context-weight);",
+        "line-height: var(--type-card-context-line-height);",
+        "letter-spacing: var(--type-card-context-tracking);",
+      ],
+      "type-compact-mono": [
+        "font-family: var(--font-mono-stack);",
+        "font-size: var(--type-compact-mono-size);",
+        "font-weight: var(--type-compact-mono-weight);",
+        "line-height: var(--type-compact-mono-line-height);",
+        "letter-spacing: var(--type-compact-mono-tracking);",
+        "font-variant-numeric: tabular-nums;",
+      ],
+      "type-detail-section": [
+        "font-size: var(--type-detail-section-size);",
+        "font-weight: var(--type-detail-section-weight);",
+        "line-height: var(--type-detail-section-line-height);",
+        "letter-spacing: var(--type-detail-section-tracking);",
+        "text-transform: uppercase;",
+      ],
+      "type-comment": [
+        "font-size: var(--type-comment-size);",
+        "font-weight: var(--type-comment-weight);",
+        "line-height: var(--type-comment-line-height);",
+        "letter-spacing: var(--type-comment-tracking);",
+      ],
+      "type-report-section": [
+        "font-size: var(--type-report-section-size);",
+        "font-weight: var(--type-report-section-weight);",
+        "line-height: var(--type-report-section-line-height);",
+        "letter-spacing: var(--type-report-section-tracking);",
+        "text-transform: uppercase;",
+      ],
+      "type-table-header": [
+        "font-size: var(--type-table-header-size);",
+        "font-weight: var(--type-table-header-weight);",
+        "line-height: var(--type-table-header-line-height);",
+        "letter-spacing: var(--type-table-header-tracking);",
+        "text-transform: uppercase;",
+      ],
+      "type-chart-metadata": [
+        "font-size: var(--type-chart-metadata-size);",
+        "font-weight: var(--type-chart-metadata-weight);",
+        "line-height: var(--type-chart-metadata-line-height);",
+        "letter-spacing: var(--type-chart-metadata-tracking);",
+      ],
+      "type-chart-tick": [
+        "font-size: var(--type-chart-tick-size);",
+        "font-weight: var(--type-chart-tick-weight);",
+        "line-height: var(--type-chart-tick-line-height);",
+        "letter-spacing: var(--type-chart-tick-tracking);",
+      ],
       "type-body": [
         "font-size: var(--type-body-size);",
         "font-weight: var(--type-body-weight);",
@@ -413,10 +504,17 @@ describe("global focus styles", () => {
         expect(block, `${role}: ${declaration}`).toContain(declaration);
       }
     }
-    expect(css).toContain("--type-page-title-size: 20px;");
+    expect(css).toContain("--type-page-title-size: 14px;");
     expect(css).toContain("--type-group-title-size: 15px;");
     expect(css).toContain("--type-section-label-size: 13px;");
     expect(css).toContain("--type-caption-size: 12px;");
+    expect(css).toContain("--type-navigation-size: 13px;");
+    expect(css).toContain("--type-control-size: 13px;");
+    expect(css).toContain("--type-board-status-size: 12px;");
+    expect(css).toContain("--type-card-title-size: 13px;");
+    expect(css).toContain("--type-card-metadata-size: 11px;");
+    expect(css).toContain("--type-compact-mono-size: 11px;");
+    expect(css).toContain("--type-detail-section-size: 11px;");
     for (const source of [
       "../features/ui/components/PageHeader.tsx",
       "../features/ui/components/DashboardShell.tsx",

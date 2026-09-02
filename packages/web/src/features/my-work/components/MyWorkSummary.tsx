@@ -56,7 +56,7 @@ function Tile({
           )}
         />
       )}
-      <span className="type-section-label truncate text-muted-foreground">
+      <span className="type-card-metadata truncate uppercase tracking-wide text-muted-foreground">
         {label}
       </span>
       <span className="flex min-w-0 items-end justify-between gap-2">
@@ -89,7 +89,7 @@ function SprintTile({ sprint }: { sprint: MyWorkSprint }) {
       className="relative flex min-h-[78px] flex-col justify-between gap-1.5 overflow-hidden rounded-lg border border-border-subtle bg-surface-subtle p-3"
     >
       <span
-        className="type-section-label truncate text-muted-foreground"
+        className="type-card-metadata truncate uppercase tracking-wide text-muted-foreground"
         title={sprint.name}
       >
         {t("sprintLabel", { name: sprint.name })}
@@ -119,7 +119,7 @@ function SprintTile({ sprint }: { sprint: MyWorkSprint }) {
             style={{ transform: `scaleX(${pct})` }}
           />
         </div>
-        <span className="type-mono-value text-muted-foreground">
+        <span className="type-compact-mono text-muted-foreground">
           {t("sprintDone", { done: sprint.done, total: sprint.total })}
         </span>
       </div>
@@ -144,7 +144,7 @@ function StageBar({
       data-testid="my-work-stagebar"
       className="flex flex-col gap-2 rounded-lg border border-border-subtle bg-surface-subtle p-3"
     >
-      <span className="type-section-label text-muted-foreground">
+      <span className="type-card-metadata uppercase tracking-wide text-muted-foreground">
         {t("openWorkByStage")}
       </span>
       <div
@@ -182,7 +182,7 @@ function StageBar({
             <span className="text-foreground/80">
               {statusLabels[segment.status]}
             </span>
-            <span className="type-mono-value">{segment.count}</span>
+            <span className="type-compact-mono">{segment.count}</span>
           </li>
         ))}
       </ul>

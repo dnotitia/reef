@@ -44,7 +44,7 @@ export function DocumentOptionRow({
             query={query}
             className="min-w-0 flex-1 truncate text-sm"
           />
-          <span className="shrink-0 type-caption text-muted-foreground">
+          <span className="shrink-0 type-card-metadata text-muted-foreground">
             {documentTypeLabel(hit.doc_type)}
           </span>
         </div>

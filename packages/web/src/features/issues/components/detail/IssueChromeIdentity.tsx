@@ -140,7 +140,7 @@ export function IssueChromeIdentity({
               // title to render. Fall back to the raw id so the link is not
               // empty and stays navigable (REEF-279 AC4). `translate="no"` keeps
               // machine translation from mangling the reef id.
-              <span translate="no" className="shrink-0 type-mono-value">
+              <span translate="no" className="shrink-0 type-compact-mono">
                 {parentId}
               </span>
             )}
@@ -155,14 +155,14 @@ export function IssueChromeIdentity({
       {/* Current status glyph — once the issue lands; until then the bar
           shows the route-param id alone (no glyph flash). */}
       {status ? <StatusIcon status={status} size={12} /> : null}
-      <span className="shrink-0 type-mono-value text-muted-foreground">
+      <span className="shrink-0 type-compact-mono text-muted-foreground">
         {issueId}
       </span>
       {issueType ? <TypePill type={issueType} variant="detail" /> : null}
       {isArchived && (
         <span
           data-testid="issue-archived-badge"
-          className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 type-caption text-muted-foreground"
+          className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 type-card-metadata text-muted-foreground"
         >
           <Archive className="h-3 w-3" />
           {t("archived")}

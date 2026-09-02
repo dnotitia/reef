@@ -179,7 +179,7 @@ function NotificationItem({
               {notification.actor}
             </span>
             <span
-              className="rounded border border-border-subtle px-1.5 py-0.5 type-mono-value text-muted-foreground"
+              className="rounded border border-border-subtle px-1.5 py-0.5 type-compact-mono text-muted-foreground"
               translate="no"
             >
               {notification.reef_id}
