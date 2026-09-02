@@ -66,6 +66,7 @@ export function PlanningEditorDialog({
   const nameInputId = useId();
   const nameErrorId = useId();
   const capacityInputId = useId();
+  const formId = useId();
   const nameInputRef = useRef<HTMLInputElement>(null);
   const nameMissing = !String(item.name ?? "").trim();
   const nameError = nameMissing ? formError : null;
@@ -91,7 +92,7 @@ export function PlanningEditorDialog({
       <DialogContent
         data-testid="planning-editor-dialog"
         showCloseButton={false}
-        className="max-h-[88vh] max-w-3xl gap-5 overflow-y-auto overscroll-contain"
+        className="grid max-h-[calc(100dvh-2rem)] min-h-0 max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto] gap-5 overflow-hidden pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
         onInteractOutside={(e) => {
           if (isSaving) e.preventDefault();
         }}
@@ -106,7 +107,7 @@ export function PlanningEditorDialog({
           origin.focus({ preventScroll: true });
         }}
       >
-        <DialogHeader>
+        <DialogHeader data-testid="planning-editor-dialog-header">
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
             {editor?.mode === "edit"
@@ -119,195 +120,207 @@ export function PlanningEditorDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form
-          noValidate
-          className="grid gap-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            onSave();
-          }}
+        <div
+          data-testid="planning-editor-dialog-body"
+          className="min-h-0 min-w-0 overflow-y-auto overscroll-contain"
         >
-          <FormSection title={sections("details")}>
-            <label
-              htmlFor={nameInputId}
-              className={cn("flex flex-col gap-1", FIELD_LABEL_CLASS)}
-            >
-              {t("name")}
-              <Input
-                id={nameInputId}
-                ref={nameInputRef}
-                name="planning-name"
-                data-testid="planning-name-input"
-                value={item.name ?? ""}
-                onChange={(e) => onChange({ name: e.target.value })}
-                autoComplete="off"
-                disabled={isSaving}
-                aria-invalid={nameError ? true : undefined}
-                aria-describedby={nameError ? nameErrorId : undefined}
-              />
-              {nameError && (
-                <span
-                  id={nameErrorId}
-                  role="alert"
-                  className="text-xs text-destructive-text"
-                >
-                  {nameError}
-                </span>
-              )}
-            </label>
-            <StatusField
-              kind={kind}
-              value={item.status}
-              onChange={onChange}
-              disabled={isSaving}
-            />
-            {kind === "sprints" && (
+          <form
+            id={formId}
+            noValidate
+            className="grid gap-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              onSave();
+            }}
+          >
+            <FormSection title={sections("details")}>
               <label
-                htmlFor={capacityInputId}
+                htmlFor={nameInputId}
                 className={cn("flex flex-col gap-1", FIELD_LABEL_CLASS)}
               >
-                {t("capacity")}
+                {t("name")}
                 <Input
-                  id={capacityInputId}
-                  name="capacity_points"
-                  type="number"
-                  inputMode="decimal"
-                  min="0"
-                  step="0.5"
-                  value={(item as Partial<Sprint>).capacity_points ?? ""}
-                  onChange={(e) =>
-                    onChange({
-                      capacity_points: e.target.value
-                        ? Number(e.target.value)
-                        : null,
-                    } as Partial<PlanningItem>)
-                  }
+                  id={nameInputId}
+                  ref={nameInputRef}
+                  name="planning-name"
+                  data-testid="planning-name-input"
+                  value={item.name ?? ""}
+                  onChange={(e) => onChange({ name: e.target.value })}
+                  autoComplete="off"
                   disabled={isSaving}
+                  aria-invalid={nameError ? true : undefined}
+                  aria-describedby={nameError ? nameErrorId : undefined}
                 />
+                {nameError && (
+                  <span
+                    id={nameErrorId}
+                    role="alert"
+                    className="text-xs text-destructive-text"
+                  >
+                    {nameError}
+                  </span>
+                )}
               </label>
-            )}
-          </FormSection>
-
-          <FormSection title={t("schedule")}>
-            {kind === "sprints" && (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <DateField
-                  label={fieldNames.start}
-                  value={(item as Partial<Sprint>).start_date}
-                  disabled={isSaving}
-                  onChange={(value) =>
-                    onChange({ start_date: value } as Partial<PlanningItem>)
-                  }
-                />
-                <DateField
-                  label={t("end")}
-                  align="end"
-                  value={(item as Partial<Sprint>).end_date}
-                  disabled={isSaving}
-                  onChange={(value) =>
-                    onChange({ end_date: value } as Partial<PlanningItem>)
-                  }
-                />
-              </div>
-            )}
-            {kind === "milestones" && (
-              <DateField
-                label={t("target")}
-                value={(item as Partial<Milestone>).target_date}
+              <StatusField
+                kind={kind}
+                value={item.status}
+                onChange={onChange}
                 disabled={isSaving}
-                onChange={(value) =>
-                  onChange({ target_date: value } as Partial<PlanningItem>)
-                }
               />
-            )}
-            {kind === "releases" && (
-              <div className="grid gap-3 sm:grid-cols-2">
+              {kind === "sprints" && (
+                <label
+                  htmlFor={capacityInputId}
+                  className={cn("flex flex-col gap-1", FIELD_LABEL_CLASS)}
+                >
+                  {t("capacity")}
+                  <Input
+                    id={capacityInputId}
+                    name="capacity_points"
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.5"
+                    value={(item as Partial<Sprint>).capacity_points ?? ""}
+                    onChange={(e) =>
+                      onChange({
+                        capacity_points: e.target.value
+                          ? Number(e.target.value)
+                          : null,
+                      } as Partial<PlanningItem>)
+                    }
+                    disabled={isSaving}
+                  />
+                </label>
+              )}
+            </FormSection>
+
+            <FormSection title={t("schedule")}>
+              {kind === "sprints" && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <DateField
+                    label={fieldNames.start}
+                    value={(item as Partial<Sprint>).start_date}
+                    disabled={isSaving}
+                    onChange={(value) =>
+                      onChange({ start_date: value } as Partial<PlanningItem>)
+                    }
+                  />
+                  <DateField
+                    label={t("end")}
+                    align="end"
+                    value={(item as Partial<Sprint>).end_date}
+                    disabled={isSaving}
+                    onChange={(value) =>
+                      onChange({ end_date: value } as Partial<PlanningItem>)
+                    }
+                  />
+                </div>
+              )}
+              {kind === "milestones" && (
                 <DateField
                   label={t("target")}
-                  value={(item as Partial<Release>).target_date}
+                  value={(item as Partial<Milestone>).target_date}
                   disabled={isSaving}
                   onChange={(value) =>
                     onChange({ target_date: value } as Partial<PlanningItem>)
                   }
                 />
-                <DateField
-                  label={t("released")}
-                  align="end"
-                  value={(item as Partial<Release>).released_at}
+              )}
+              {kind === "releases" && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <DateField
+                    label={t("target")}
+                    value={(item as Partial<Release>).target_date}
+                    disabled={isSaving}
+                    onChange={(value) =>
+                      onChange({ target_date: value } as Partial<PlanningItem>)
+                    }
+                  />
+                  <DateField
+                    label={t("released")}
+                    align="end"
+                    value={(item as Partial<Release>).released_at}
+                    disabled={isSaving}
+                    onChange={(value) =>
+                      onChange({ released_at: value } as Partial<PlanningItem>)
+                    }
+                  />
+                </div>
+              )}
+            </FormSection>
+
+            <FormSection title={t("notes")}>
+              {kind === "sprints" && (
+                <MarkdownField
+                  label={t("goal")}
+                  value={(item as Partial<Sprint>).goal}
                   disabled={isSaving}
+                  placeholder={t("notesPlaceholder.sprints")}
                   onChange={(value) =>
-                    onChange({ released_at: value } as Partial<PlanningItem>)
+                    onChange({ goal: value } as Partial<PlanningItem>)
                   }
                 />
-              </div>
+              )}
+              {kind === "milestones" && (
+                <MarkdownField
+                  label={fieldNames.description}
+                  value={(item as Partial<Milestone>).description}
+                  disabled={isSaving}
+                  placeholder={t("notesPlaceholder.milestones")}
+                  onChange={(value) =>
+                    onChange({ description: value } as Partial<PlanningItem>)
+                  }
+                />
+              )}
+              {kind === "releases" && (
+                <MarkdownField
+                  label={t("notes")}
+                  value={(item as Partial<Release>).notes}
+                  disabled={isSaving}
+                  placeholder={t("notesPlaceholder.releases")}
+                  onChange={(value) =>
+                    onChange({ notes: value } as Partial<PlanningItem>)
+                  }
+                />
+              )}
+            </FormSection>
+            {formLevelError && (
+              <p
+                role="alert"
+                data-testid="planning-editor-error"
+                className="rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text"
+              >
+                {formLevelError}
+              </p>
             )}
-          </FormSection>
+          </form>
+        </div>
 
-          <FormSection title={t("notes")}>
-            {kind === "sprints" && (
-              <MarkdownField
-                label={t("goal")}
-                value={(item as Partial<Sprint>).goal}
-                disabled={isSaving}
-                placeholder={t("notesPlaceholder.sprints")}
-                onChange={(value) =>
-                  onChange({ goal: value } as Partial<PlanningItem>)
-                }
-              />
-            )}
-            {kind === "milestones" && (
-              <MarkdownField
-                label={fieldNames.description}
-                value={(item as Partial<Milestone>).description}
-                disabled={isSaving}
-                placeholder={t("notesPlaceholder.milestones")}
-                onChange={(value) =>
-                  onChange({ description: value } as Partial<PlanningItem>)
-                }
-              />
-            )}
-            {kind === "releases" && (
-              <MarkdownField
-                label={t("notes")}
-                value={(item as Partial<Release>).notes}
-                disabled={isSaving}
-                placeholder={t("notesPlaceholder.releases")}
-                onChange={(value) =>
-                  onChange({ notes: value } as Partial<PlanningItem>)
-                }
-              />
-            )}
-          </FormSection>
-          {formLevelError && (
-            <p
-              role="alert"
-              data-testid="planning-editor-error"
-              className="rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text"
-            >
-              {formLevelError}
-            </p>
-          )}
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              disabled={isSaving}
-            >
-              {common("cancel")}
-            </Button>
-            <Button
-              type="submit"
-              data-testid="planning-save"
-              disabled={isSaving}
-              busy={isSaving}
-              aria-label={common("save")}
-            >
-              {isSaving ? t("saving") : common("save")}
-            </Button>
-          </DialogFooter>
-        </form>
+        <DialogFooter
+          data-testid="planning-editor-dialog-footer"
+          className="min-w-0 flex-col gap-2 sm:flex-row sm:justify-end"
+        >
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={isSaving}
+            className="w-full sm:w-auto"
+          >
+            {common("cancel")}
+          </Button>
+          <Button
+            type="submit"
+            form={formId}
+            data-testid="planning-save"
+            disabled={isSaving}
+            busy={isSaving}
+            aria-label={common("save")}
+            className="w-full sm:w-auto"
+          >
+            {isSaving ? t("saving") : common("save")}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

@@ -416,6 +416,35 @@ describe("PlanningPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("keeps dialog chrome outside the scrollable planning form body", async () => {
+    const user = userEvent.setup();
+    render(wrap(<PlanningPage />));
+    await screen.findByText("Sprint One");
+
+    await user.click(screen.getByRole("button", { name: "New sprint" }));
+    const dialog = await screen.findByTestId("planning-editor-dialog");
+    const body = within(dialog).getByTestId("planning-editor-dialog-body");
+    const form = body.querySelector("form");
+    const footer = within(dialog).getByTestId("planning-editor-dialog-footer");
+
+    expect(dialog).toHaveClass(
+      "grid-rows-[auto_minmax(0,1fr)_auto]",
+      "overflow-hidden",
+    );
+    expect(dialog).not.toHaveClass("overflow-y-auto");
+    expect(body).toHaveClass("min-h-0", "overflow-y-auto");
+    expect(form).not.toBeNull();
+    expect(form?.parentElement).toBe(body);
+    expect(footer).toHaveClass("flex-col");
+
+    const footerButtons = within(footer).getAllByRole("button");
+    expect(footerButtons.map((button) => button.textContent)).toEqual([
+      "Cancel",
+      "Save",
+    ]);
+    expect(footerButtons[1]).toHaveAttribute("form", form?.getAttribute("id"));
+  });
+
   it("exposes busy semantics while creating a planning item", async () => {
     let resolveCreate: ((response: Response) => void) | undefined;
     const createResponse = new Promise<Response>((resolve) => {
@@ -643,7 +672,11 @@ describe("PlanningPage", () => {
       await user.click(screen.getByRole("button", { name: editName }));
       const dialog = await screen.findByTestId("planning-editor-dialog");
 
-      expect(dialog).toHaveClass("max-h-[88vh]", "max-w-3xl");
+      expect(dialog).toHaveClass(
+        "max-h-[calc(100dvh-2rem)]",
+        "grid-rows-[auto_minmax(0,1fr)_auto]",
+        "max-w-3xl",
+      );
       expect(
         within(dialog).queryByRole("button", { name: "Close" }),
       ).not.toBeInTheDocument();

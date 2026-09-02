@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
   clearPersistedQueryCacheOnLoad,
@@ -15,6 +15,138 @@ function sprintNames(
   return (
     state.vaults.find((vault) => vault.name === REEF_E2E_VAULT)?.sprints ?? []
   ).map((sprint) => sprint.name);
+}
+
+const planningKinds = [
+  { tab: "Sprints", singular: "sprint", row: "Sprint Alpha" },
+  {
+    tab: "Milestones",
+    singular: "milestone",
+    row: "Coverage Complete",
+  },
+  { tab: "Releases", singular: "release", row: "June E2E" },
+] as const;
+
+async function readEditorGeometry(page: Page) {
+  const dialog = page.locator('[data-testid="planning-editor-dialog"]');
+  return dialog.evaluate((element) => {
+    const header = element.querySelector<HTMLElement>(
+      '[data-testid="planning-editor-dialog-header"]',
+    );
+    const body = element.querySelector<HTMLElement>(
+      '[data-testid="planning-editor-dialog-body"]',
+    );
+    const footer = element.querySelector<HTMLElement>(
+      '[data-testid="planning-editor-dialog-footer"]',
+    );
+    if (!header || !body || !footer) {
+      throw new Error("Planning editor chrome is incomplete");
+    }
+
+    const rect = (node: HTMLElement) => {
+      const box = node.getBoundingClientRect();
+      return {
+        top: box.top,
+        bottom: box.bottom,
+        left: box.left,
+        right: box.right,
+      };
+    };
+
+    return {
+      dialog: rect(element as HTMLElement),
+      header: rect(header),
+      body: {
+        ...rect(body),
+        clientHeight: body.clientHeight,
+        scrollHeight: body.scrollHeight,
+        scrollTop: body.scrollTop,
+      },
+      footer: rect(footer),
+      dialogScrollTop: element.scrollTop,
+    };
+  });
+}
+
+async function expectEditorChromeInViewport(page: Page, title: string) {
+  const dialog = page.locator('[data-testid="planning-editor-dialog"]');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: title })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Cancel" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Save" })).toBeVisible();
+
+  const geometry = await readEditorGeometry(page);
+  const viewport = page.viewportSize();
+  expect(viewport).not.toBeNull();
+  expect(geometry.dialog.top).toBeGreaterThanOrEqual(0);
+  expect(geometry.dialog.bottom).toBeLessThanOrEqual(viewport?.height ?? 0);
+  expect(geometry.header.top).toBeGreaterThanOrEqual(geometry.dialog.top);
+  expect(geometry.footer.bottom).toBeLessThanOrEqual(geometry.dialog.bottom);
+}
+
+async function expectEditorBodyToOwnScroll(page: Page) {
+  const dialog = page.locator('[data-testid="planning-editor-dialog"]');
+  const body = dialog.getByTestId("planning-editor-dialog-body");
+  const initial = await readEditorGeometry(page);
+  expect(initial.body.scrollHeight).toBeGreaterThan(initial.body.clientHeight);
+
+  for (const fraction of [0, 0.5, 1]) {
+    await body.evaluate((element, position: number) => {
+      element.scrollTop =
+        (element.scrollHeight - element.clientHeight) * position;
+    }, fraction);
+    await expect
+      .poll(() => body.evaluate((element) => element.scrollTop))
+      .toBeGreaterThanOrEqual(fraction === 0 ? 0 : 1);
+
+    const current = await readEditorGeometry(page);
+    expect(current.dialogScrollTop).toBe(0);
+    expect(current.header.top).toBeCloseTo(initial.header.top, 1);
+    expect(current.footer.bottom).toBeCloseTo(initial.footer.bottom, 1);
+  }
+}
+
+async function expectNotesControlsAccessible(page: Page) {
+  const editor = page.getByTestId("markdown-editor");
+  await expect(editor).toBeVisible();
+  const toolbar = editor.getByTestId("markdown-toolbar");
+  for (const label of [
+    "Bold",
+    "Italic",
+    "Strikethrough",
+    "Inline Code",
+    "Heading 1",
+    "Heading 2",
+    "Heading 3",
+    "Bullet List",
+    "Numbered List",
+    "Quote",
+    "Code Block",
+    "Divider",
+    "Link",
+    "Source",
+  ]) {
+    await expect(toolbar.getByRole("button", { name: label })).toBeVisible();
+  }
+
+  const toolbarButtons = toolbar.getByRole("button");
+  await expect(toolbarButtons).toHaveCount(14);
+  await toolbarButtons.first().focus();
+  for (let index = 0; index < 14; index += 1) {
+    await expect(toolbarButtons.nth(index)).toBeFocused();
+    if (index < 13) await page.keyboard.press("Tab");
+  }
+
+  await toolbar.getByRole("button", { name: "Source" }).click();
+  const source = editor.getByTestId("markdown-source-textarea");
+  await expect(source).toBeVisible();
+  await source.fill(
+    Array.from({ length: 40 }, (_, index) => `Planning note ${index + 1}`).join(
+      "\n",
+    ),
+  );
+  await toolbar.getByRole("button", { name: "Source" }).click();
+  await expect(editor.locator('[contenteditable="true"]')).toBeVisible();
 }
 
 test.describe("Hermetic planning workflow", () => {
@@ -75,6 +207,94 @@ test.describe("Hermetic planning workflow", () => {
     await expect
       .poll(async () => sprintNames(await readFixtureState(request)))
       .not.toContain("E2E Sprint Edited");
+  });
+
+  test("keeps planning editor chrome visible while the form body scrolls", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/planning");
+
+    for (const [index, planningKind] of planningKinds.entries()) {
+      if (index > 0) {
+        await page.getByRole("button", { name: planningKind.tab }).click();
+        await expect(page.getByText(planningKind.row)).toBeVisible();
+      }
+
+      await page
+        .getByRole("button", { name: `New ${planningKind.singular}` })
+        .click();
+      await expectEditorChromeInViewport(page, `New ${planningKind.singular}`);
+      await expectEditorBodyToOwnScroll(page);
+      await expectNotesControlsAccessible(page);
+      await page
+        .locator('[data-testid="planning-editor-dialog"]')
+        .getByRole("button", { name: "Cancel" })
+        .click();
+      await expect(
+        page.locator('[data-testid="planning-editor-dialog"]'),
+      ).toBeHidden();
+    }
+
+    for (const planningKind of planningKinds) {
+      await page.getByRole("button", { name: planningKind.tab }).click();
+      await expect(page.getByText(planningKind.row)).toBeVisible();
+
+      await page
+        .getByRole("button", { name: `Edit ${planningKind.row}` })
+        .click();
+      await expectEditorChromeInViewport(page, `Edit ${planningKind.singular}`);
+      await page
+        .locator('[data-testid="planning-editor-dialog"]')
+        .getByRole("button", { name: "Cancel" })
+        .click();
+      await expect(
+        page.locator('[data-testid="planning-editor-dialog"]'),
+      ).toBeHidden();
+    }
+  });
+
+  test("reflows planning actions without horizontal overflow on a narrow viewport", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/planning");
+    await page.getByRole("button", { name: "New sprint" }).click();
+
+    await expectEditorChromeInViewport(page, "New sprint");
+    const dialog = page.locator('[data-testid="planning-editor-dialog"]');
+    const footer = dialog.getByTestId("planning-editor-dialog-footer");
+    const buttons = footer.getByRole("button");
+    await expect(buttons).toHaveCount(2);
+    await expect
+      .poll(() =>
+        page.evaluate(() => ({
+          documentWidth: document.documentElement.scrollWidth,
+          viewportWidth: window.innerWidth,
+        })),
+      )
+      .toEqual({ documentWidth: 390, viewportWidth: 390 });
+    const widths = await dialog.evaluate((element) => ({
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+    }));
+    expect(widths.scrollWidth).toBeLessThanOrEqual(widths.clientWidth);
+
+    const cancel = buttons.nth(0);
+    const save = buttons.nth(1);
+    const [cancelBox, saveBox] = await Promise.all([
+      cancel.boundingBox(),
+      save.boundingBox(),
+    ]);
+    expect(cancelBox).not.toBeNull();
+    expect(saveBox).not.toBeNull();
+    expect(cancelBox?.y ?? 0).toBeLessThanOrEqual(saveBox?.y ?? 0);
+
+    await cancel.focus();
+    await page.keyboard.press("Tab");
+    await expect(save).toBeFocused();
   });
 
   test("expands a planning row by clicking its name, with one keyboard-operable toggle (REEF-264)", async ({
