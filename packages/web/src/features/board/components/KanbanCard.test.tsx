@@ -170,8 +170,11 @@ describe("KanbanCard", () => {
 
   it("renders issue title and id", () => {
     render(<KanbanCard issue={mockIssue()} />);
-    expect(screen.getByText("Fix login bug")).toBeDefined();
-    expect(screen.getByText("reef-001")).toBeDefined();
+    expect(screen.getByText("Fix login bug")).toHaveClass("type-card-title");
+    expect(screen.getByText("reef-001")).toHaveClass("type-compact-mono");
+    expect(screen.getByTestId("kanban-card").firstElementChild).toHaveClass(
+      "type-card-metadata",
+    );
   });
 
   it.each([

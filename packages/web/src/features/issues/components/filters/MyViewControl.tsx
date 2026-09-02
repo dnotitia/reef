@@ -177,7 +177,7 @@ function MyViewMenu({
                     isActive ? (
                       <span
                         className={cn(
-                          "type-caption font-medium",
+                          "type-card-metadata font-medium",
                           activeChanged
                             ? "text-amber-700 dark:text-amber-300"
                             : "text-brand-text",

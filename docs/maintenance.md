@@ -57,7 +57,7 @@ Workspace package discovery is delegated to pnpm with
 `pnpm --recursive list --depth=-1 --json`. The scanner uses that workspace list
 for package source and test roots; it does not recursively guess `package.json`
 files under fixtures, build output, or other non-workspace directories. Run
-`pnpm run maintenance:test` to verify that nested orchestration packages are
+`pnpm run maintenance:test` to verify that all declared workspace packages are
 included and a maintenance fixture outside the workspace is excluded.
 
 A scanner's exit code is advisory: a non-zero exit usually means it reported
@@ -188,7 +188,7 @@ hook, pure helper, parser/renderer helper, test fixture, repeated setup helper, 
 script subroutine. Keep the original call path covered by focused tests. For test
 files, prefer shared fixtures and scenario helpers before splitting assertions
 across files. For scripts, prefer separating CLI parsing, scanning, rendering,
-and orchestration when those roles are already distinct.
+and coordination when those roles are already distinct.
 
 Do not split a file solely to satisfy the threshold. Suppress only after
 verifying the file is intentionally cohesive, generated or vendored, or already

@@ -153,7 +153,7 @@ function DeliveryActivityRow({
 
   const refChip = (
     <span
-      className="max-w-[16ch] shrink-0 truncate rounded border border-border-subtle px-1 type-mono-value"
+      className="max-w-[16ch] shrink-0 truncate rounded border border-border-subtle px-1 type-compact-mono"
       title={refItem.ref}
     >
       {displayRef}

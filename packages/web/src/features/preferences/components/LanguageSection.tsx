@@ -55,7 +55,7 @@ export function LanguageSection() {
                   : "border-border hover:border-border-subtle hover:bg-surface-hover",
               )}
             >
-              <span className="type-body min-w-0 font-medium text-foreground">
+              <span className="type-control min-w-0 font-medium text-foreground">
                 {opt.label}
               </span>
             </button>

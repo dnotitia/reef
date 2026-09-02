@@ -37,43 +37,6 @@ export default [
     },
     { unbundle: true },
   ),
-  packageConfig("packages/orchestration/runtime", "@reef/orchestrator", {
-    index: "src/index.ts",
-  }),
-  packageConfig(
-    "packages/orchestration/controller",
-    "@reef/orchestration-controller",
-    { index: "src/index.ts" },
-  ),
-  packageConfig("packages/orchestration/cli", "@reef/orchestration-cli", {
-    index: "src/index.ts",
-    cli: "src/cli.ts",
-  }),
-  packageConfig(
-    "packages/orchestration/providers/codex",
-    "@reef/harness-provider-codex",
-    { index: "src/index.ts" },
-  ),
-  packageConfig(
-    "packages/orchestration/providers/local",
-    "@reef/infrastructure-provider-local",
-    { index: "src/index.ts" },
-  ),
-  packageConfig(
-    "packages/orchestration/providers/local-validation",
-    "@reef/validation-provider-local",
-    { index: "src/index.ts" },
-  ),
-  packageConfig(
-    "packages/orchestration/providers/github",
-    "@reef/scm-provider-github",
-    { index: "src/index.ts" },
-  ),
-  packageConfig(
-    "packages/orchestration/providers/reef",
-    "@reef/work-provider-reef",
-    { index: "src/index.ts" },
-  ),
   packageConfig("packages/jira-migrator", "@reef/jira-migrator", {
     index: "src/index.ts",
     cli: "src/cli.ts",

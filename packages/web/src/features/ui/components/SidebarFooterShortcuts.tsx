@@ -53,7 +53,7 @@ export function SidebarFooterShortcuts({
         {!collapsed && (
           <span
             aria-hidden="true"
-            className="type-mono-value text-muted-foreground/60"
+            className="type-compact-mono text-muted-foreground/60"
           >
             ⌘?
           </span>

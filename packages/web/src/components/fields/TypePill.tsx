@@ -32,10 +32,10 @@ export type TypePillVariant =
 
 const VARIANT_CLASS: Record<TypePillVariant, string> = {
   kanban:
-    "inline-flex items-center gap-1 shrink-0 rounded-sm border border-border/70 bg-surface-subtle px-1.5 py-px type-caption font-medium leading-none",
-  list: "inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 type-caption font-medium text-foreground",
+    "inline-flex items-center gap-1 shrink-0 rounded-sm border border-border/70 bg-surface-subtle px-1.5 py-px type-card-metadata font-medium leading-none",
+  list: "inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 type-card-metadata font-medium text-foreground",
   detail:
-    "inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 type-caption font-medium text-foreground",
+    "inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 type-card-metadata font-medium text-foreground",
   activity:
     "inline-flex items-center gap-1 rounded-full bg-surface-page/70 px-2 py-0.5",
   // Chrome-less: mirrors the StatusBadge / PriorityBadge / SeverityBadge leaves

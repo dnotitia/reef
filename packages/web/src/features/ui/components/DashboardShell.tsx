@@ -591,7 +591,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                     title={sidebarCollapsed ? label : undefined}
                     aria-label={badge ? `${label} ${badge.label}` : label}
                     className={cn(
-                      "flex items-center gap-2 rounded-md px-3 py-1.5 type-caption transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
+                      "flex items-center gap-2 rounded-md px-3 py-1.5 type-navigation transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
                       isActive
                         ? "bg-surface-hover text-foreground font-medium"
                         : "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
@@ -642,7 +642,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                               aria-live="polite"
                               aria-label={badge.label}
                               className={cn(
-                                "ml-auto inline-flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 type-caption font-semibold leading-none tabular-nums",
+                                "ml-auto inline-flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 type-card-metadata font-semibold leading-none tabular-nums",
                                 NAV_BADGE_PILL[badge.tone],
                               )}
                             >

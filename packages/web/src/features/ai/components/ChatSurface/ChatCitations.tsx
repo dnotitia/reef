@@ -33,7 +33,7 @@ export function ChatCitations({
       aria-label={t("chatSources.heading")}
       className="flex flex-col gap-1.5"
     >
-      <p className="type-section-label flex items-center gap-2 text-muted-foreground">
+      <p className="type-card-metadata flex items-center gap-2 font-semibold uppercase tracking-wide text-muted-foreground">
         {t("chatSources.heading")}
         <span aria-hidden="true" className="h-px flex-1 bg-border-subtle" />
       </p>

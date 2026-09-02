@@ -53,7 +53,7 @@ export function WorkspaceSubNav() {
             aria-current={isActive ? "page" : undefined}
             data-testid={`workspace-subnav-${id}`}
             className={cn(
-              "-mb-px min-w-0 border-b-2 px-0.5 py-2 type-caption font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
+              "-mb-px min-w-0 border-b-2 px-0.5 py-2 type-navigation font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
               isActive
                 ? "border-brand-focus text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground",

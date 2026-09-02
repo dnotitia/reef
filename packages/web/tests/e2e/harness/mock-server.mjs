@@ -104,6 +104,7 @@ const SUPPORTED_SCENARIOS = [
   "comment_mentions",
   "large_vault",
   "markdown_fixture",
+  "typography",
   "status_quick_edit",
   "planning_overflow",
   "epic_grouping",
@@ -685,6 +686,11 @@ function runtimeDiscovery() {
         workspace: "reef-e2e",
         start_path: "/workspace/reef-e2e/issues?view=list",
       },
+      typography_regression: {
+        scenario: "typography",
+        workspace: "reef-e2e",
+        start_path: "/workspace/reef-e2e/issues?view=board",
+      },
       empty_states: {
         scenario: "configured_empty",
         workspace: "reef-e2e",
@@ -782,6 +788,7 @@ function makeState(scenario) {
     scenario === "notifications" ||
     scenario === "skill_outdated" ||
     scenario === "comment_mentions" ||
+    scenario === "typography" ||
     scenario === "large_vault" ||
     scenario === "status_quick_edit" ||
     scenario === "planning_overflow" ||
@@ -800,7 +807,9 @@ function makeState(scenario) {
                 ? planningOverflowVault(REEF_VAULT)
                 : scenario === "epic_grouping"
                   ? epicGroupingVault(REEF_VAULT)
-                  : configuredVault(REEF_VAULT);
+                  : scenario === "typography"
+                    ? typographyVault(REEF_VAULT)
+                    : configuredVault(REEF_VAULT);
     if (scenario === "notifications") seedNotifications(vault);
     if (scenario === "skill_outdated") seedOutdatedVaultSkill(vault);
     if (scenario === "comment_mentions") {
@@ -1183,6 +1192,42 @@ function configuredVault(name) {
       "Spec overview for the hermetic Ask AI tool transparency workflow.",
     tags: ["docs", "ask-ai", "e2e"],
   });
+  return vault;
+}
+
+function typographyVault(name) {
+  const vault = configuredVault(name);
+  const sprintId = vault.sprints[0]?.id ?? null;
+  const milestoneId = vault.milestones[0]?.id ?? null;
+  const releaseId = vault.releases[0]?.id ?? null;
+  const statusCycle = ["todo", "in_progress", "in_review", "done"];
+  const titleCycle = ["한글 제목", "English title", "혼합 Mixed 제목"];
+  const issues = Array.from({ length: 79 }, (_, index) => {
+    const issueNumber = index + 1;
+    const id = `REEF-${String(issueNumber).padStart(3, "0")}`;
+    return issueRow({
+      id,
+      title: `${titleCycle[index % titleCycle.length]} ${String(issueNumber).padStart(2, "0")}`,
+      status: statusCycle[index % statusCycle.length],
+      priority: "medium",
+      assigned_to: "alice",
+      start_date: "2026-12-10",
+      due_date: "2026-12-24",
+      sprint_id: sprintId,
+      milestone_id: milestoneId,
+      release_id: releaseId,
+      labels: ["typography"],
+    });
+  });
+
+  vault.issues = issues;
+  vault.documents = new Map();
+  vault.documentHistory = new Map();
+  vault.comments = [];
+  vault.activity = [];
+  for (const issue of issues) {
+    seedIssueDocument(vault, issue.reef_id, `${issue.title} fixture body.`);
+  }
   return vault;
 }
 

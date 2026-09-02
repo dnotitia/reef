@@ -55,7 +55,7 @@ export function MyWorkQueue({ items, mode, onModeChange }: MyWorkQueueProps) {
           <h2 className="type-group-title text-foreground">
             {t("queueTitle")}
           </h2>
-          <span className="type-mono-value text-muted-foreground">
+          <span className="type-compact-mono text-muted-foreground">
             {items.length}
           </span>
         </div>
@@ -128,7 +128,7 @@ function GroupHeader({ status, count }: { status: Status; count: number }) {
     >
       <StatusIcon status={status} size={13} decorative />
       {statusLabels[status]}
-      <span className="type-mono-value font-normal text-muted-foreground">
+      <span className="type-compact-mono font-normal text-muted-foreground">
         {count}
       </span>
     </h3>

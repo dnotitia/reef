@@ -498,7 +498,7 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
           <p className="text-sm text-muted-foreground">{t("loadError")}</p>
           <button
             type="button"
-            className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 type-caption font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
+            className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 type-control font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
             onClick={() => refetch()}
           >
             {c("retry")}
@@ -695,7 +695,7 @@ function BacklogGroupHeader({
       >
         <div className="flex h-8 items-center gap-2 bg-surface-page px-3 type-group-title text-foreground">
           <span className="min-w-0 flex-1 truncate">{label}</span>
-          <span className="type-mono-value text-muted-foreground">
+          <span className="type-compact-mono text-muted-foreground">
             {t("groupHeader", { label, count })}
           </span>
         </div>
@@ -711,7 +711,7 @@ function BacklogUnrankedDivider() {
   return (
     <tr data-testid="backlog-unranked-divider">
       <td colSpan={BACKLOG_COL_COUNT} className="px-3 py-1">
-        <div className="flex items-center gap-2 type-section-label text-muted-foreground">
+        <div className="flex items-center gap-2 type-card-metadata uppercase tracking-wider text-muted-foreground">
           <span className="h-px flex-1 bg-border-subtle" />
           <span className="inline-flex items-center gap-1 whitespace-nowrap">
             <CircleDashed className="h-3 w-3" aria-hidden="true" />
@@ -737,7 +737,7 @@ function BacklogNoMatches() {
       <p className="text-sm text-muted-foreground">{t("noMatches")}</p>
       <button
         type="button"
-        className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 type-caption font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
+        className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 type-control font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
         onClick={() => useIssueStore.getState().clearFilter()}
       >
         {c("clearFilters")}
@@ -794,7 +794,7 @@ function BacklogEmptyState({ vault }: { vault: string }) {
       </div>
       <Link
         href={withVault(vault, "/issues?scope=active&view=board")}
-        className="type-caption font-medium text-brand-text hover:underline"
+        className="type-control font-medium text-brand-text hover:underline"
       >
         {t("goToBoard")}
       </Link>

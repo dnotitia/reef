@@ -199,7 +199,7 @@ function ToolStepRow({
               {t("chatSteps.detailTool")}
             </dt>
             <dd
-              className="rounded border border-ai-border bg-ai-subtle px-1.5 py-0.5 type-mono-value text-ai-subtle-foreground"
+              className="rounded border border-ai-border bg-ai-subtle px-1.5 py-0.5 type-compact-mono text-ai-subtle-foreground"
               translate="no"
             >
               {step.toolName}
@@ -210,7 +210,7 @@ function ToolStepRow({
               <dt className="w-14 shrink-0 text-muted-foreground">
                 {t("chatSteps.detailArgs")}
               </dt>
-              <dd className="min-w-0 break-words type-mono-value text-foreground">
+              <dd className="min-w-0 break-words type-compact-mono text-foreground">
                 {args}
               </dd>
             </div>

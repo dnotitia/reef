@@ -53,7 +53,9 @@ export function Card({
       <header className="flex items-baseline justify-between gap-2">
         <h3 className="type-body font-semibold text-foreground">{title}</h3>
         {subtitle && (
-          <span className="type-caption text-muted-foreground">{subtitle}</span>
+          <span className="type-card-metadata text-muted-foreground">
+            {subtitle}
+          </span>
         )}
       </header>
       {children}
@@ -80,7 +82,7 @@ export function ReportSection({
 }) {
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="type-section-label text-muted-foreground">{label}</h2>
+      <h2 className="type-report-section text-muted-foreground">{label}</h2>
       {children}
     </section>
   );
