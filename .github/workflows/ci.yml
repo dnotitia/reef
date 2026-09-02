@@ -34,6 +34,7 @@ jobs:
   reuse-pr-ci:
     name: PR CI reuse decision
     runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'merge_group' }}
     outputs:
       reuse: ${{ steps.evidence.outputs.reuse }}
     steps:

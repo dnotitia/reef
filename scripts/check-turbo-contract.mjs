@@ -290,6 +290,12 @@ async function runCacheProof(packageName) {
 
 function verifyRepositoryHandoffs() {
   assert(
+    /\n {2}reuse-pr-ci:\n[\s\S]*?if:\s*\$\{\{ github\.event_name == 'merge_group' \}\}/u.test(
+      ciWorkflow,
+    ),
+    "PR CI reuse lookup must run only for merge-group events",
+  );
+  assert(
     /production-build:/u.test(ciWorkflow) && /pnpm run build/u.test(ciWorkflow),
     "CI must have one canonical production-build job",
   );
