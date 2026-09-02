@@ -1,5 +1,6 @@
 import { localTodayIso } from "@/features/issues/lib/dateHelpers";
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
+import { CBX_TRIGGER_FIELD } from "@/components/ui/comboboxChrome";
 import {
   cleanup,
   fireEvent,
@@ -23,6 +24,34 @@ describe("DatePickerField", () => {
     expect(trigger).toHaveTextContent("Set date");
     // Theming comes from design tokens, not hard-coded colors → dark mode works.
     expect(trigger.className).toContain("bg-surface-elevated");
+    expect(screen.queryByTestId("date-picker-clear")).not.toBeInTheDocument();
+  });
+
+  it("uses shared field chrome and can defer clearing to a parent", () => {
+    const { rerender } = render(
+      <DatePickerField
+        value="2026-06-01"
+        onChange={vi.fn()}
+        label="Start date"
+      />,
+    );
+    const trigger = screen.getByTestId("date-picker-trigger");
+    for (const token of CBX_TRIGGER_FIELD.split(/\s+/)) {
+      expect(trigger).toHaveClass(token);
+    }
+    const clear = screen.getByTestId("date-picker-clear");
+    expect(clear).toBeVisible();
+    expect(clear.className).not.toContain("opacity-0");
+    expect(clear.className).not.toContain("group-hover");
+
+    rerender(
+      <DatePickerField
+        value="2026-06-01"
+        onChange={vi.fn()}
+        label="Start date"
+        clearable={false}
+      />,
+    );
     expect(screen.queryByTestId("date-picker-clear")).not.toBeInTheDocument();
   });
 

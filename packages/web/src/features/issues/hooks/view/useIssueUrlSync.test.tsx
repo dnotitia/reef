@@ -73,6 +73,20 @@ function Harness() {
         type="button"
         onClick={() =>
           setFilter({
+            dateRange: {
+              field: "updated_at",
+              from: "2026-06-01",
+              to: "2026-06-02",
+            },
+          })
+        }
+      >
+        Set date range
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          setFilter({
             priority: ["high"],
             priorityUnset: true,
             severityUnset: true,
@@ -202,6 +216,41 @@ describe("useIssueUrlSync", () => {
     // URL-wins keeps skipNextWrite, so neither push nor replace fires.
     expect(mockPush).not.toHaveBeenCalled();
     expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it("restores one generic date-range value from the issue URL", async () => {
+    navigationState.searchParams = new URLSearchParams(
+      "date_field=updated_at&date_from=2026-06-01&date_to=2026-06-02",
+    );
+
+    render(<Harness />);
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.dateRange).toEqual({
+        field: "updated_at",
+        from: "2026-06-01",
+        to: "2026-06-02",
+      });
+    });
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it("serializes the generic date-range value without changing other URL axes", async () => {
+    navigationState.searchParams = new URLSearchParams("view=list&group=label");
+
+    render(<Harness />);
+
+    await waitFor(() => expect(mockPush).not.toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "Set date range" }));
+    await waitFor(() => expect(mockPush).toHaveBeenCalledTimes(1));
+    const href = mockPush.mock.calls[0]?.[0] as string;
+    const params = new URLSearchParams(href.split("?")[1] ?? "");
+    expect(params.get("view")).toBe("list");
+    expect(params.get("group")).toBe("label");
+    expect(params.get("date_field")).toBe("updated_at");
+    expect(params.get("date_from")).toBe("2026-06-01");
+    expect(params.get("date_to")).toBe("2026-06-02");
   });
 
   it("restores unset and real mixed selections from the URL without a username sentinel", async () => {

@@ -25,10 +25,11 @@ const issue = (id: string): IssueListItem => ({
   updated_by: "alice",
 });
 
-function createWrapper() {
-  const queryClient = new QueryClient({
+function createWrapper(
+  queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
-  });
+  }),
+) {
   return function Wrapper({ children }: { children: ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -86,5 +87,36 @@ describe("useInfiniteIssueList", () => {
       issue("REEF-001"),
       issue("REEF-002"),
     ]);
+  });
+
+  it("refetches a fresh cached list when the hook remounts", async () => {
+    const query = {
+      sort_field: "priority",
+      sort_order: "desc",
+    } as const;
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    mockApiFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ issues: [] }), { status: 200 }),
+    );
+
+    const first = renderHook(() => useInfiniteIssueList("reef-acme", query), {
+      wrapper: createWrapper(queryClient),
+    });
+    await waitFor(() => expect(first.result.current.isSuccess).toBe(true));
+    first.unmount();
+
+    mockApiFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "forced issue-list failure" }), {
+        status: 500,
+      }),
+    );
+    const second = renderHook(() => useInfiniteIssueList("reef-acme", query), {
+      wrapper: createWrapper(queryClient),
+    });
+    await waitFor(() => expect(second.result.current.isError).toBe(true));
+
+    expect(mockApiFetch).toHaveBeenCalledTimes(2);
   });
 });

@@ -6,6 +6,7 @@ import {
   SeverityEnum,
   StatusEnum,
   USER_SORT_FIELDS,
+  toIssueDateRangeQuery,
 } from "@reef/core";
 import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import type { IssueFilter } from "../stores/useIssueStore";
@@ -94,6 +95,17 @@ export function buildIssueQuery(
     q.sort_field = "rank";
     q.sort_order = "asc";
     return q;
+  }
+  // Date ranges are normalized to absolute half-open instants only for the
+  // server query. The browser URL/persistence value remains the selected
+  // calendar dates so a restore can use the current browser timezone. Manual
+  // rank queries intentionally keep their complete ordering spine and apply
+  // the residual date predicate client-side.
+  const dateRange = toIssueDateRangeQuery(scopedFilter.dateRange);
+  if (dateRange) {
+    q.date_field = dateRange.field;
+    q.date_from = dateRange.from;
+    q.date_to = dateRange.to;
   }
   // A pure no-due selection can be resolved server-side so paginated List
   // queries do not have to scan date-bearing pages before finding matches. A

@@ -62,6 +62,8 @@ export function hasScopeFilters(
       (scope === "active" && filter.due?.length) ||
       filter.label?.trim() ||
       filter.dependencyFilter?.length ||
+      filter.dateRange?.from ||
+      filter.dateRange?.to ||
       (scope === "active" && filter.status?.length) ||
       searchQuery.trim(),
   );

@@ -126,6 +126,49 @@ describe("IssueListQuerySchema", () => {
     expect(() => IssueListQuerySchema.parse({ status: ["bogus"] })).toThrow();
   });
 
+  it("accepts only a registered, ordered date-range query", () => {
+    expect(
+      IssueListQuerySchema.parse({
+        date_range: {
+          field: "updated_at",
+          from: "2026-06-01T00:00:00.000Z",
+          to: "2026-06-02T00:00:00.000Z",
+        },
+      }).date_range,
+    ).toEqual({
+      field: "updated_at",
+      from: "2026-06-01T00:00:00.000Z",
+      to: "2026-06-02T00:00:00.000Z",
+    });
+    expect(() =>
+      IssueListQuerySchema.parse({
+        date_range: {
+          field: "created_at",
+          from: "2026-06-01T00:00:00.000Z",
+          to: "2026-06-02T00:00:00.000Z",
+        },
+      }),
+    ).toThrow();
+    expect(() =>
+      IssueListQuerySchema.parse({
+        date_range: {
+          field: "updated_at",
+          from: "2026-06-02T00:00:00.000Z",
+          to: "2026-06-01T00:00:00.000Z",
+        },
+      }),
+    ).toThrow();
+    expect(() =>
+      IssueListQuerySchema.parse({
+        date_range: {
+          field: "updated_at",
+          from: "2026-02-30T00:00:00.000Z",
+          to: "2026-03-01T00:00:00.000Z",
+        },
+      }),
+    ).toThrow();
+  });
+
   it("accepts rank for internal issue-order queries but keeps it out of user sorts (REEF-393)", () => {
     expect(IssueListQuerySchema.parse({ sort_field: "rank" }).sort_field).toBe(
       "rank",
@@ -179,6 +222,17 @@ describe("hasAnyFilter", () => {
     expect(
       hasAnyFilter(IssueListQuerySchema.parse({ priority_unset: false })),
     ).toBe(false);
+    expect(
+      hasAnyFilter(
+        IssueListQuerySchema.parse({
+          date_range: {
+            field: "updated_at",
+            from: "2026-06-01T00:00:00.000Z",
+            to: "2026-06-02T00:00:00.000Z",
+          },
+        }),
+      ),
+    ).toBe(true);
   });
 });
 

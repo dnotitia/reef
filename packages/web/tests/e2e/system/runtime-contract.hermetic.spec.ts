@@ -516,6 +516,11 @@ test.describe("Hermetic runtime discovery", () => {
               "open Ask AI, submit distinct questions, and observe each assistant response",
           },
         },
+        updated_at_range: {
+          scenario: "updated_at_range",
+          workspace: "reef-e2e",
+          start_path: "/workspace/reef-e2e/issues?view=list",
+        },
         notifications: {
           scenario: "notifications",
           workspace: "reef-e2e",
@@ -611,6 +616,7 @@ test.describe("Hermetic runtime discovery", () => {
         "markdown_fixture",
         "status_quick_edit",
         "planning_overflow",
+        "updated_at_range",
       ]),
     );
 

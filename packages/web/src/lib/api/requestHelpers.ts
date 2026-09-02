@@ -135,6 +135,16 @@ export function parseIssueListQueryParams(
     const value = searchParams.get(key);
     if (value != null) out[key] = value === "true" || value === "1";
   }
+  const dateField = searchParams.get("date_field");
+  const dateFrom = searchParams.get("date_from");
+  const dateTo = searchParams.get("date_to");
+  if (dateField !== null || dateFrom !== null || dateTo !== null) {
+    out.date_range = {
+      field: dateField ?? "",
+      from: dateFrom ?? "",
+      to: dateTo ?? "",
+    };
+  }
   const archived = searchParams.get("archived");
   if (archived != null) out.archived = archived === "true";
   const defaultView = searchParams.get("default_view");

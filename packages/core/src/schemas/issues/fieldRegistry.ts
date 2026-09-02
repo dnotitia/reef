@@ -267,3 +267,25 @@ export const ISSUE_FIELD_MESSAGES_EN = {
     externalRefs: "External references",
   } satisfies Record<FieldNameKey, string>,
 };
+
+// Date-field metadata belongs to the same framework-agnostic field surface as
+// the enum-backed registry. Re-exporting the module keeps `@reef/core/fields`
+// useful to consumers without making this label registry depend on its schema.
+export {
+  ISSUE_DATE_FIELD_REGISTRY,
+  IssueDateRangeQuerySchema,
+  IssueDateRangeSchema,
+  createIssueDateRangeMatcher,
+  getIssueDateField,
+  getIssueDateTimeZone,
+  matchesIssueDateRange,
+  toIssueDateRangeQuery,
+  validateIssueDateRange,
+  type IssueDateField,
+  type IssueDateFieldId,
+  type IssueDateFieldStorage,
+  type IssueDateRange,
+  type IssueDateRangeErrorCode,
+  type IssueDateRangeQuery,
+  type IssueDateRangeValidation,
+} from "./dateRange";

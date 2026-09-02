@@ -1,6 +1,7 @@
 import {
   MyViewListColumnEnum,
   type IssueOrderingMode,
+  type IssueDateRange,
   type MyViewListColumn,
 } from "@reef/core";
 import type { UserSortField } from "@reef/core/fields";
@@ -39,6 +40,8 @@ export interface IssueFilter {
   /** Shared ordering choice; omitted legacy filters resolve to Manual. */
   orderingMode?: IssueOrderingMode;
   dependencyFilter?: ("blocked" | "blocking")[];
+  /** One generic issue-date range; the current UI exposes updated_at. */
+  dateRange?: IssueDateRange;
   /**
    * Controls whether archived issues (`archived_at != null`) appear in the
    * board/list. Default false — archived items are out of the way unless

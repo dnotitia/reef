@@ -14,6 +14,11 @@ explicitly in the entries below.
 
 ### Added
 
+- **Issue views now filter by an updated-date range.** List, Board, and Backlog
+  accept a browser-timezone calendar range for the current `updated_at` value;
+  the range is combined with existing facets and restored through the URL,
+  browser-local filters, and My Views.
+
 - **Planning now shows lifecycle progress and capacity rollups.** Sprint,
   milestone, and release rows show linked issue counts, completion, estimated
   and completed points, unestimated work, and Sprint capacity state. Each
@@ -67,6 +72,10 @@ explicitly in the entries below.
   face with no host-OS-dependent Hangul fallback.
 
 ### Migration
+
+- **No browser storage migration is required for updated-date ranges.** The
+  optional range uses the existing versioned issue-filter and My View envelopes;
+  saved filters without a range remain valid.
 
 - **No Dexie schema migration is required for My Views.** The new versioned
   actor/vault-scoped envelopes use the existing `config` key-value store; old

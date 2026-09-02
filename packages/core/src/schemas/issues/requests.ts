@@ -11,6 +11,7 @@ import {
   ClosedReasonEnum,
 } from "./metadata";
 import { AKB_DOCUMENT_URI_RE } from "./references";
+import { IssueDateRangeQuerySchema } from "./dateRange";
 
 /**
  * Request body for POST /api/issues — commits a human or AI issue proposal to
@@ -170,6 +171,8 @@ export const IssueListQuerySchema = z.object({
   due_before: IsoDateFieldSchema.optional(),
   due_after: IsoDateFieldSchema.optional(),
   due_unset: z.boolean().optional(),
+  /** Server-ready `[from, to)` range produced from a browser calendar choice. */
+  date_range: IssueDateRangeQuerySchema.optional(),
   archived: z.boolean().default(false),
   /**
    * When true, the server resolves the narrow default landing view (My Issues
@@ -403,6 +406,7 @@ const FILTER_FACET_KEYS = [
   "due_before",
   "due_after",
   "due_unset",
+  "date_range",
   "q",
 ] as const;
 

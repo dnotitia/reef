@@ -8,7 +8,8 @@ import { useTranslations } from "next-intl";
  * The first six mirror the auto-width facet chips (Status / Type / Priority /
  * Severity / Due / Dependency — each hugs a short label), then the six value
  * fields (Assignee / Requester / Sprint / Milestone / Release / Labels) sit at
- * the shared `9rem` (`w-36`) floor, and Display closes the row. Reproducing the
+ * the shared `9rem` (`w-36`) floor, the compound updated-at trigger gets one
+ * bounded placeholder, and Display closes the row. Reproducing the
  * real chip count and widths in the same `flex flex-wrap gap-2` container makes
  * the skeleton wrap to the same number of rows as the live FilterBar at any
  * width, so the toolbar holds its height when the real bar hydrates (REEF-258).
@@ -26,6 +27,7 @@ const FILTER_CHIPS = [
   { key: "milestone", width: "w-36" },
   { key: "release", width: "w-36" },
   { key: "labels", width: "w-36" },
+  { key: "updatedAtRange", width: "w-36" },
   { key: "display", width: "w-24" },
 ] as const;
 

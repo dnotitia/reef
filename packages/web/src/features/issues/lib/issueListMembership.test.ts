@@ -201,6 +201,20 @@ describe("listInvalidationPredicate", () => {
       expect(predicate(key({ sort_field: "updated_at" }))).toBe(true);
     });
 
+    it("refetches a date-range variant on any edit because updated_at is restamped", () => {
+      const predicate = listInvalidationPredicate({ title: "Renamed" });
+      expect(
+        predicate(
+          key({
+            date_field: "updated_at",
+            date_from: "2026-06-01T00:00:00.000Z",
+            date_to: "2026-06-03T00:00:00.000Z",
+            sort_field: "created_at",
+          }),
+        ),
+      ).toBe(true);
+    });
+
     it("refetches a variant sorted by the edited non-membership field", () => {
       const predicate = listInvalidationPredicate({ due_date: "2026-02-02" });
       expect(predicate(key({ sort_field: "due_date" }))).toBe(true);
@@ -264,6 +278,16 @@ describe("rankReorderInvalidationPredicate", () => {
     );
     expect(
       rankReorderInvalidationPredicate(key({ sort_field: "updated_at" })),
+    ).toBe(true);
+    expect(
+      rankReorderInvalidationPredicate(
+        key({
+          date_field: "updated_at",
+          date_from: "2026-06-01T00:00:00.000Z",
+          date_to: "2026-06-02T00:00:00.000Z",
+          sort_field: "created_at",
+        }),
+      ),
     ).toBe(true);
   });
 

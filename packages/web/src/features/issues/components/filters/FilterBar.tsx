@@ -36,6 +36,7 @@ import { formatLabelFilter, parseLabelFilter } from "../../lib/issueListUtils";
 import { ISSUE_TYPE_OPTIONS } from "../../lib/metadataOptions";
 import { type IssueFilter, useIssueStore } from "../../stores/useIssueStore";
 import { DisplayOptionsFilter } from "./DisplayOptionsFilter";
+import { IssueDateRangeFilter } from "./IssueDateRangeFilter";
 import { MyViewControl } from "./MyViewControl";
 import { SortControl } from "./SortControl";
 import type { IssueGroupBy, IssueWorkspaceView } from "../../lib/groupBy";
@@ -153,6 +154,7 @@ function countActiveFilters(
   if (!backlogScope && filter.due?.length) count++;
   if (filter.label?.trim()) count++;
   if (filter.dependencyFilter?.length) count++;
+  if (filter.dateRange?.from || filter.dateRange?.to) count++;
   return count;
 }
 
@@ -540,6 +542,11 @@ export function FilterBar({
           )}
         />
       </div>
+
+      <IssueDateRangeFilter
+        range={filter.dateRange}
+        onChange={(dateRange) => setFilter({ dateRange })}
+      />
 
       <DisplayOptionsFilter
         backlogScope={backlogScope}

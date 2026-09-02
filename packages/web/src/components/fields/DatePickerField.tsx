@@ -7,6 +7,7 @@ import {
   PopoverTrigger,
   type PopoverDismissReason,
 } from "@/components/ui/popover";
+import { CBX_TRIGGER_FIELD } from "@/components/ui/comboboxChrome";
 import {
   formatDisplayDate,
   isValidIsoDate,
@@ -40,9 +41,14 @@ interface DatePickerFieldProps {
   /** Trigger placeholder when empty. */
   placeholder?: string;
   disabled?: boolean;
+  /** Hides the field-level clear controls when a parent owns clearing. */
+  clearable?: boolean;
   /** Horizontal anchoring of the panel; "end" opens leftward. */
   align?: "start" | "end" | "center";
   className?: string;
+  /** Optional accessibility association for an adjacent validation message. */
+  ariaDescribedBy?: string;
+  ariaInvalid?: boolean;
 }
 
 /**
@@ -61,8 +67,11 @@ export function DatePickerField({
   label,
   placeholder,
   disabled,
+  clearable = true,
   align = "start",
   className,
+  ariaDescribedBy,
+  ariaInvalid,
 }: DatePickerFieldProps) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
@@ -231,21 +240,19 @@ export function DatePickerField({
       onBlur={handleRootBlur}
       onKeyDown={handleRootKeyDown}
     >
-      <Popover
-        open={open}
-        onOpenChange={handleOpenChange}
-        className="group w-full"
-      >
+      <Popover open={open} onOpenChange={handleOpenChange} className="w-full">
         <PopoverTrigger
           ref={triggerRef}
           id={id}
           disabled={disabled}
           aria-haspopup="dialog"
+          aria-describedby={ariaDescribedBy}
+          aria-invalid={ariaInvalid || undefined}
           aria-label={
             normalized ? `${resolvedLabel}: ${displayValue}` : resolvedLabel
           }
           data-testid="date-picker-trigger"
-          className="flex h-8 w-full min-w-0 items-center gap-2 rounded-md border border-border bg-surface-elevated pl-2.5 pr-8 text-left type-control text-foreground transition-colors duration-150 hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
+          className={cn(CBX_TRIGGER_FIELD, "pl-2.5 pr-8")}
         >
           <CalendarIcon
             className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
@@ -260,13 +267,13 @@ export function DatePickerField({
           )}
         </PopoverTrigger>
 
-        {normalized && !disabled ? (
+        {normalized && clearable && !disabled ? (
           <button
             type="button"
             onClick={handleClear}
             aria-label={t("clearField", { field: resolvedLabel })}
             data-testid="date-picker-clear"
-            className="absolute right-1 top-1/2 -translate-y-1/2 rounded-sm p-1 text-muted-foreground opacity-0 transition-opacity duration-150 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+            className="absolute right-0.5 top-1/2 -translate-y-1/2 rounded-sm p-1.5 text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/30"
           >
             <X className="h-3 w-3" aria-hidden />
           </button>
@@ -312,7 +319,7 @@ export function DatePickerField({
               />
               {t("today")}
             </button>
-            {normalized ? (
+            {normalized && clearable ? (
               <button
                 type="button"
                 onClick={handleClear}

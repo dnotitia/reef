@@ -25,6 +25,11 @@ describe("PersistedIssueFilterSchema", () => {
       assigneeUnset: true,
       label: "ui",
       dependencyFilter: ["blocked"],
+      dateRange: {
+        field: "updated_at",
+        from: "2026-06-01",
+        to: "2026-06-02",
+      },
       showArchived: true,
       sortField: "updated_at",
       sortOrder: "desc",
@@ -100,6 +105,27 @@ describe("PersistedIssueFilterSchema", () => {
     } as Record<string, unknown>);
     expect(parsed.showArchived).toBeUndefined();
     expect(parsed.assignee).toBeUndefined();
+  });
+
+  it("keeps a complete registered date range and drops an invalid one", () => {
+    expect(
+      PersistedIssueFilterSchema.parse({
+        dateRange: {
+          field: "updated_at",
+          from: "2026-06-01",
+          to: "2026-06-02",
+        },
+      }).dateRange,
+    ).toEqual({ field: "updated_at", from: "2026-06-01", to: "2026-06-02" });
+    expect(
+      PersistedIssueFilterSchema.parse({
+        dateRange: {
+          field: "created_at",
+          from: "2026-06-01",
+          to: "2026-06-02",
+        },
+      }).dateRange,
+    ).toBeUndefined();
   });
 
   it("parses an empty object to all-undefined", () => {

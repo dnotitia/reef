@@ -7,6 +7,7 @@ import {
   MyViewListColumnEnum,
   StatusEnum,
   USER_SORT_FIELDS,
+  getIssueDateField,
   type MyViewListColumn,
   type MyViewSnapshot,
 } from "@reef/core";
@@ -56,6 +57,9 @@ const ISSUE_QUERY_KEYS = [
   "due",
   "labels",
   "dep",
+  "date_field",
+  "date_from",
+  "date_to",
   "archived",
   "stale",
   "sort",
@@ -108,6 +112,15 @@ function readIssueUrlState(searchParams: URLSearchParams): {
     .filter(
       (d): d is "blocked" | "blocking" => d === "blocked" || d === "blocking",
     );
+  const hasDateRangeParams =
+    searchParams.has("date_field") ||
+    searchParams.has("date_from") ||
+    searchParams.has("date_to");
+  const dateField = hasDateRangeParams
+    ? (searchParams.get("date_field") ?? "updated_at")
+    : null;
+  const dateFrom = searchParams.get("date_from") ?? "";
+  const dateTo = searchParams.get("date_to") ?? "";
   const sort = searchParams.get("sort");
   const order = searchParams.get("order");
   const priorityUnset = searchParams.get("priority_unset");
@@ -143,6 +156,9 @@ function readIssueUrlState(searchParams: URLSearchParams): {
   if (due.length) filter.due = due;
   if (label) filter.label = label;
   if (dep.length) filter.dependencyFilter = dep;
+  if (dateField && getIssueDateField(dateField)) {
+    filter.dateRange = { field: dateField, from: dateFrom, to: dateTo };
+  }
   // Validate against the single source (USER_SORT_FIELDS) so a new sort field
   // is restorable from a shared URL without editing this guard. Order is read
   // read alongside a valid field (a fieldless `order` is dropped here); an
@@ -254,6 +270,11 @@ function buildIssueSearchParams(
   if (filter.label) params.set("labels", filter.label);
   if (filter.dependencyFilter)
     for (const v of filter.dependencyFilter) params.append("dep", v);
+  if (filter.dateRange && getIssueDateField(filter.dateRange.field)) {
+    params.set("date_field", filter.dateRange.field);
+    if (filter.dateRange.from) params.set("date_from", filter.dateRange.from);
+    if (filter.dateRange.to) params.set("date_to", filter.dateRange.to);
+  }
   // REEF-010: emit `archived=1` when the toggle is on. FilterBar stores
   // `undefined` when off, so a default landing URL stays
   // bare. NOTE: the wire codec (buildIssueQuery) sends `archived=true` to the

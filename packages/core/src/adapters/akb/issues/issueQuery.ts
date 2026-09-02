@@ -2,6 +2,10 @@ import { SchemaValidationError } from "../../../errors";
 import { RANK_NULL_SORT_SENTINEL } from "../../../models/backlogRank";
 import { parseIssueId } from "../../../models/id";
 import { ACTIVE_STATUSES } from "../../../models/status";
+import {
+  getIssueDateField,
+  type IssueDateRangeQuery,
+} from "../../../schemas/issues/dateRange";
 import type { IssueListQuery } from "../../../schemas/issues/requests";
 import { REEF_ISSUES_TABLE, REEF_SPRINTS_TABLE } from "../core/constants";
 import { type SqlParameterBuilder, quoteIdent, tableRef } from "../core/sql";
@@ -69,6 +73,28 @@ function lowerInClause(
 
 function orGroup(parts: readonly string[]): string {
   return parts.length === 1 ? (parts[0] ?? "") : `(${parts.join(" OR ")})`;
+}
+
+/**
+ * Build the safe half-open predicate for a registered issue date field. The
+ * field-to-column mapping is resolved from the core registry; a caller cannot
+ * interpolate an arbitrary SQL identifier through `date_range.field`.
+ */
+export function buildIssueDateRangeWhere(
+  range: IssueDateRangeQuery,
+  params: SqlParameterBuilder,
+): string {
+  const definition = getIssueDateField(range.field);
+  if (!definition) {
+    throw new SchemaValidationError({
+      issues: ["date range field is not registered"],
+    });
+  }
+  const column = quoteIdent(definition.column);
+  const from = params.add(range.from, "date range start");
+  const to = params.add(range.to, "date range end");
+  const nullableGuard = definition.nullable ? `${column} IS NOT NULL AND ` : "";
+  return `${nullableGuard}${column} >= ${from} AND ${column} < ${to}`;
 }
 
 /**
@@ -171,6 +197,9 @@ export function buildIssueWhere(
     clauses.push(
       inClause("release_id", filter.release_id, "release_id filter"),
     );
+  }
+  if (filter.date_range) {
+    clauses.push(buildIssueDateRangeWhere(filter.date_range, params));
   }
   if (filter.due_after) {
     clauses.push(

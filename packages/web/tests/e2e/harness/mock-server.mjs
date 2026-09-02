@@ -93,6 +93,7 @@ const SUPPORTED_SCENARIOS = [
   "configured",
   "configured_empty",
   "configured_caught_up",
+  "updated_at_range",
   "configured_multi",
   "assignee_picker",
   "backlog_bulk_partial_failure",
@@ -125,16 +126,15 @@ const AUTH_PROBE_HANG_MAX_MS = 8_000;
 
 // A monotonically-advancing "edit clock". Each issue-row UPDATE stamps an
 // `updated_at` strictly later than the seeded `NOW`, mirroring real akb, which
-// stamps now() at edit time — always after the fixture's seed timestamp. A
-// single static NOW instead ties every row's `updated_at`, collapsing the
-// "recently updated" order so an edit never visibly re-sorts the list — hiding
-// exactly the sort-staleness fix REEF-325 covers. Deterministic (a pure
-// function of an incrementing counter), so runs stay reproducible.
+// stamps now() at edit time. A single static NOW instead leaves an edited row
+// in the old calendar range, hiding the current-date membership behavior this
+// fixture is meant to exercise. The clock remains monotonic when several writes
+// share one millisecond or the host clock moves backwards.
 const NOW_MS = Date.parse(NOW);
-let editTick = 0;
+let lastEditTimestampMs = NOW_MS;
 function nextEditTimestamp() {
-  editTick += 1;
-  return new Date(NOW_MS + editTick * 1000).toISOString();
+  lastEditTimestampMs = Math.max(Date.now(), lastEditTimestampMs + 1_000);
+  return new Date(lastEditTimestampMs).toISOString();
 }
 
 let state = makeState("configured");
@@ -651,6 +651,11 @@ function runtimeDiscovery() {
             "open Ask AI, submit distinct questions, and observe each assistant response",
         },
       },
+      updated_at_range: {
+        scenario: "updated_at_range",
+        workspace: "reef-e2e",
+        start_path: "/workspace/reef-e2e/issues?view=list",
+      },
       notifications: {
         scenario: "notifications",
         workspace: "reef-e2e",
@@ -782,6 +787,7 @@ function makeState(scenario) {
     scenario === "configured" ||
     scenario === "configured_empty" ||
     scenario === "configured_caught_up" ||
+    scenario === "updated_at_range" ||
     scenario === "configured_multi" ||
     scenario === "assignee_picker" ||
     scenario === "backlog_bulk_partial_failure" ||
@@ -801,15 +807,17 @@ function makeState(scenario) {
           ? configuredEmptyVault(REEF_VAULT)
           : scenario === "configured_caught_up"
             ? configuredCaughtUpVault(REEF_VAULT)
-            : scenario === "assignee_picker"
-              ? assigneePickerVault(REEF_VAULT)
-              : scenario === "planning_overflow"
-                ? planningOverflowVault(REEF_VAULT)
-                : scenario === "epic_grouping"
-                  ? epicGroupingVault(REEF_VAULT)
-                  : scenario === "typography"
-                    ? typographyVault(REEF_VAULT)
-                    : configuredVault(REEF_VAULT);
+            : scenario === "updated_at_range"
+              ? updatedAtRangeVault(REEF_VAULT)
+              : scenario === "assignee_picker"
+                ? assigneePickerVault(REEF_VAULT)
+                : scenario === "planning_overflow"
+                  ? planningOverflowVault(REEF_VAULT)
+                  : scenario === "epic_grouping"
+                    ? epicGroupingVault(REEF_VAULT)
+                    : scenario === "typography"
+                      ? typographyVault(REEF_VAULT)
+                      : configuredVault(REEF_VAULT);
     if (scenario === "notifications") seedNotifications(vault);
     if (scenario === "skill_outdated") seedOutdatedVaultSkill(vault);
     if (scenario === "comment_mentions") {
@@ -1324,6 +1332,20 @@ function epicGroupingVault(name) {
   for (const issue of issues) {
     seedIssueDocument(vault, issue.reef_id, `${issue.title} fixture body.`);
   }
+  return vault;
+}
+
+function updatedAtRangeVault(name) {
+  const vault = configuredVault(name);
+  const alpha = vault.issues.find((issue) => issue.reef_id === "REEF-001");
+  const beta = vault.issues.find((issue) => issue.reef_id === "REEF-002");
+  const gamma = vault.issues.find((issue) => issue.reef_id === "REEF-003");
+  if (!alpha || !beta || !gamma) {
+    throw new Error("updated-at range fixture requires configured issues");
+  }
+  alpha.updated_at = "2026-06-15T00:00:00.000Z";
+  beta.updated_at = "2026-06-16T00:00:00.000Z";
+  gamma.updated_at = "2026-06-15T00:00:00.000Z";
   return vault;
 }
 
@@ -3517,6 +3539,24 @@ function filterIssueRows(rows, sql, vault) {
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(needle)),
     );
+  }
+
+  const updatedAtRange = sql.match(
+    /"updated_at"\s+>=\s+'([^']+)'\s+AND\s+"updated_at"\s+<\s+'([^']+)'/i,
+  );
+  if (updatedAtRange) {
+    const from = Date.parse(updatedAtRange[1]);
+    const to = Date.parse(updatedAtRange[2]);
+    out = out.filter((row) => {
+      const updatedAt = Date.parse(String(row.updated_at ?? ""));
+      return (
+        !Number.isNaN(updatedAt) &&
+        !Number.isNaN(from) &&
+        !Number.isNaN(to) &&
+        updatedAt >= from &&
+        updatedAt < to
+      );
+    });
   }
 
   if (/"archived_at"\s+IS\s+NULL/i.test(sql)) {

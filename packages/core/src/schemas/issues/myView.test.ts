@@ -53,6 +53,11 @@ describe("My View schema", () => {
         severityUnset: true,
         assigneeUnset: true,
         due: ["no_due"],
+        dateRange: {
+          field: "updated_at",
+          from: "2026-06-01",
+          to: "2026-06-02",
+        },
         label: " UI, ui ",
       },
       scope: "backlog",
@@ -74,6 +79,11 @@ describe("My View schema", () => {
         severityUnset: true,
         assigneeUnset: true,
         due: ["no_due"],
+        dateRange: {
+          field: "updated_at",
+          from: "2026-06-01",
+          to: "2026-06-02",
+        },
         label: "ui",
       },
       scope: "backlog",

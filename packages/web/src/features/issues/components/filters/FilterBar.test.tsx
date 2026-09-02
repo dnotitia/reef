@@ -97,6 +97,46 @@ describe("FilterBar", () => {
     expect(screen.getByTestId("assignee-filter")).toBeTruthy();
     expect(screen.getByTestId("requester-filter")).toBeTruthy();
     expect(screen.getByTestId("labels-input")).toBeTruthy();
+    expect(screen.getByTestId("updated-at-filter")).toBeTruthy();
+    expect(screen.getByTestId("updated-at-filter-trigger")).toHaveTextContent(
+      "Updated date",
+    );
+    expect(screen.queryByTestId("date-picker-trigger")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("keeps an incomplete updated-at range visible with an inline correction", async () => {
+    const user = userEvent.setup();
+    renderFilterBar();
+
+    await user.click(screen.getByTestId("updated-at-filter-trigger"));
+    await user.click(screen.getByRole("button", { name: "Updated from" }));
+    await user.type(
+      screen.getByLabelText("Updated from (YYYY-MM-DD)"),
+      "2026-06-01{Enter}",
+    );
+
+    expect(useIssueStore.getState().filter.dateRange).toEqual({
+      field: "updated_at",
+      from: "2026-06-01",
+      to: "",
+    });
+    expect(screen.getByTestId("updated-at-range-end-error")).toHaveTextContent(
+      "Choose an end date.",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Updated through" }));
+    await user.type(
+      screen.getByLabelText("Updated through (YYYY-MM-DD)"),
+      "2026-06-02{Enter}",
+    );
+
+    expect(useIssueStore.getState().filter.dateRange).toEqual({
+      field: "updated_at",
+      from: "2026-06-01",
+      to: "2026-06-02",
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("offers and toggles unset priority, severity, due, and assignee options", async () => {
