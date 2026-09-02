@@ -23,3 +23,5 @@ export {
 } from "./status";
 export { buildIssueUpdateMetadataPatch } from "./issueUpdate";
 export { filterValidCommentThreadMembers } from "./commentThreads";
+export { computePlanningRollup } from "./planningRollup";
+export type { PlanningRollup, PlanningRollupItem } from "./planningRollup";

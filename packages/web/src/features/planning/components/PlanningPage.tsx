@@ -34,7 +34,8 @@ import {
 } from "../hooks/usePlanningCatalog";
 import { PlanningDeleteDialog } from "./PlanningDeleteDialog";
 import { PlanningEditorDialog } from "./PlanningEditorDialog";
-import { PlanningTable, type IssueAggregationState } from "./PlanningTable";
+import { PlanningTable } from "./PlanningTable";
+import type { IssueAggregationState } from "./PlanningRollup";
 import {
   type EditorState,
   PLANNING_KINDS,
@@ -251,6 +252,7 @@ export function PlanningPage() {
 
         <PlanningTable
           catalog={catalog}
+          vault={vault}
           kind={activeKind}
           issues={issues}
           isLoading={catalogQuery.isPending}

@@ -14,6 +14,12 @@ explicitly in the entries below.
 
 ### Added
 
+- **Planning now shows lifecycle progress and capacity rollups.** Sprint,
+  milestone, and release rows show linked issue counts, completion, estimated
+  and completed points, unestimated work, and Sprint capacity state. Each
+  rollup opens the current workspace's filtered Issues view from the desktop
+  table or compact list.
+
 - **Issue filters can now find unset metadata.** Priority, severity, due date,
   and assignee facets support unset/unassigned selections, including mixed
   OR-within-facet filters that remain consistent across Board, List, sorting,
