@@ -445,6 +445,59 @@ describe("IssueListTable", () => {
     expect(screen.queryByText("No issues match your filters.")).toBeNull();
   });
 
+  it("keeps populated rows when a background issue-list refetch fails", async () => {
+    useIssueStore.setState({
+      filter: {},
+      searchQuery: "",
+      selectedIssueId: null,
+    });
+    let issueListRequests = 0;
+    mockApiFetch.mockImplementation(async (url) => {
+      const path = String(url);
+      if (path.startsWith("/api/issues?vault=")) {
+        issueListRequests += 1;
+        return issueListRequests === 1
+          ? new Response(JSON.stringify({ issues }), { status: 200 })
+          : new Response(
+              JSON.stringify({ error: "forced issue list failure" }),
+              {
+                status: 500,
+              },
+            );
+      }
+      if (path.startsWith("/api/vaults/") && path.endsWith("/members")) {
+        return new Response(JSON.stringify({ members: [] }), { status: 200 });
+      }
+      if (path.startsWith("/api/vault-members")) {
+        return new Response(JSON.stringify({ users: [] }), { status: 200 });
+      }
+      if (path.startsWith("/api/issues/relations")) {
+        return new Response(JSON.stringify({ relations: [] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ issues: [] }), { status: 200 });
+    });
+
+    const queryClient = createTestQueryClient();
+    render(wrapWithClient(queryClient, <IssueListTable vault="reef-acme" />));
+    expect(await screen.findByText("First task")).toBeInTheDocument();
+
+    const listQuery = queryClient.getQueryCache().findAll({
+      queryKey: ["issues", "list", "reef-acme", "infinite"],
+    })[0];
+    if (!listQuery) throw new Error("missing issue-list query");
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: listQuery.queryKey });
+    });
+    await waitFor(() =>
+      expect(queryClient.getQueryState(listQuery.queryKey)?.status).toBe(
+        "error",
+      ),
+    );
+
+    expect(screen.getByText("First task")).toBeInTheDocument();
+    expect(screen.queryByText("Failed to load issues.")).toBeNull();
+  });
+
   it("renders grouped label occurrences, a None bucket, and collapses rows in the virtual model", async () => {
     const groupedIssues: IssueMetadata[] = [
       { ...issues[0], labels: ["Zebra", "alpha"] },
