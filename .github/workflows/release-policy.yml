@@ -28,14 +28,16 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
 
-      # No `cache: pnpm` here: this job runs a dependency-free node script and
-      # never `pnpm install`s, so there is no store to cache (and the cache-save
-      # post-step would otherwise fail with a path-validation error).
+      # The release gate rebuilds the framework-agnostic core artifact so the
+      # committed Blueprint is checked against the schema SSOT.
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
           node-version-file: .node-version
           package-manager-cache: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Run release policy check
         run: pnpm run check:release

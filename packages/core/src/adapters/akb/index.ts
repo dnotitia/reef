@@ -196,6 +196,19 @@ export {
   type ControlPlaneTokenSource,
 } from "./controlPlane/installationReader";
 export {
+  REEF_APP_DEFINITION,
+  buildDesiredSchemaProjection,
+  buildReleaseBlueprint,
+  calculateReleaseManifestChecksum,
+  canonicalJson,
+  canonicalTableProjection,
+  finalizeAppReleaseManifest,
+  sha256Hex,
+  tableSchemaFingerprint,
+  verifyFinalizedRelease,
+  type FinalizeAppReleaseManifestInput,
+} from "./controlPlane/releaseManifest";
+export {
   login,
   getAuthConfig,
   startKeycloakLogin,

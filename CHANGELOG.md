@@ -14,6 +14,12 @@ explicitly in the entries below.
 
 ### Added
 
+- **Release builds now carry a source-committed Reef Release Blueprint.** The
+  Blueprint derives the complete schema-v3 table projection and fresh install
+  plan from the Core schema source, while the release finalizer binds the root
+  SemVer, full source revision, and immutable OCI image digest into an AKB App
+  Release Manifest v2 checksum.
+
 - **Issue views now filter by an updated-date range.** List, Board, and Backlog
   accept a browser-timezone calendar range for the current `updated_at` value;
   the range is combined with existing facets and restored through the URL,
@@ -37,6 +43,10 @@ explicitly in the entries below.
   rank.
 
 ### Changed
+
+- **Breaking: Reef table artifacts now use AKB canonical `numeric` and `jsonb`
+  types.** The obsolete `number` and `json` aliases are no longer emitted or
+  accepted by the Reef schema manifest and table mutation contract.
 
 - **Merge queue CI now reuses exact-tree PR validation.** When the queued Git
   tree, PR head, and CI workflow are unchanged, required queue checks complete

@@ -1,0 +1,1214 @@
+{
+  "app_definition": {
+    "app_key": "reef",
+    "display_name": "Reef",
+    "description": "Reef project management workspace"
+  },
+  "schema_version": 3,
+  "schema": {
+    "tables": [
+      {
+        "name": "monitored_repos",
+        "columns": [
+          {
+            "name": "description",
+            "type": "text"
+          },
+          {
+            "name": "github_id",
+            "type": "numeric",
+            "required": true
+          },
+          {
+            "name": "name",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "owner",
+            "type": "text",
+            "required": true
+          }
+        ],
+        "unique_keys": [],
+        "indexes": []
+      },
+      {
+        "name": "reef_activity",
+        "columns": [
+          {
+            "name": "event_key",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "event_type",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "meta",
+            "type": "jsonb"
+          },
+          {
+            "name": "payload",
+            "type": "jsonb"
+          },
+          {
+            "name": "reef_id",
+            "type": "text",
+            "required": true
+          }
+        ],
+        "unique_keys": [],
+        "indexes": []
+      },
+      {
+        "name": "reef_attachments",
+        "columns": [
+          {
+            "name": "author",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "file_uri",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "filename",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "inline",
+            "type": "boolean"
+          },
+          {
+            "name": "meta",
+            "type": "jsonb"
+          },
+          {
+            "name": "mime_type",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "original_jira_attachment_id",
+            "type": "text"
+          },
+          {
+            "name": "reef_id",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "size_bytes",
+            "type": "numeric",
+            "required": true
+          },
+          {
+            "name": "source",
+            "type": "text",
+            "required": true
+          }
+        ],
+        "unique_keys": [],
+        "indexes": []
+      },
+      {
+        "name": "reef_comments",
+        "columns": [
+          {
+            "name": "body",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "meta",
+            "type": "jsonb"
+          },
+          {
+            "name": "reef_id",
+            "type": "text",
+            "required": true
+          }
+        ],
+        "unique_keys": [],
+        "indexes": []
+      },
+      {
+        "name": "reef_issues",
+        "columns": [
+          {
+            "name": "archived_at",
+            "type": "text"
+          },
+          {
+            "name": "assigned_to",
+            "type": "text"
+          },
+          {
+            "name": "blocks",
+            "type": "jsonb"
+          },
+          {
+            "name": "closed_at",
+            "type": "text"
+          },
+          {
+            "name": "closed_reason",
+            "type": "text"
+          },
+          {
+            "name": "depends_on",
+            "type": "jsonb"
+          },
+          {
+            "name": "document_uri",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "due_date",
+            "type": "text"
+          },
+          {
+            "name": "estimate_points",
+            "type": "numeric"
+          },
+          {
+            "name": "issue_type",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "labels",
+            "type": "jsonb"
+          },
+          {
+            "name": "meta",
+            "type": "jsonb"
+          },
+          {
+            "name": "milestone_id",
+            "type": "text"
+          },
+          {
+            "name": "parent_id",
+            "type": "text"
+          },
+          {
+            "name": "priority",
+            "type": "text"
+          },
+          {
+            "name": "rank",
+            "type": "numeric"
+          },
+          {
+            "name": "reef_id",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "related_to",
+            "type": "jsonb"
+          },
+          {
+            "name": "release_id",
+            "type": "text"
+          },
+          {
+            "name": "reporter",
+            "type": "text"
+          },
+          {
+            "name": "requester",
+            "type": "text"
+          },
+          {
+            "name": "severity",
+            "type": "text"
+          },
+          {
+            "name": "sprint_id",
+            "type": "text"
+          },
+          {
+            "name": "start_date",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "title",
+            "type": "text",
+            "required": true
+          }
+        ],
+        "unique_keys": [],
+        "indexes": []
+      },
+      {
+        "name": "reef_milestones",
+        "columns": [
+          {
+            "name": "description",
+            "type": "text"
+          },
+          {
+            "name": "meta",
+            "type": "jsonb"
+          },
+          {
+            "name": "name",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "status",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "target_date",
+            "type": "text"
+          }
+        ],
+        "unique_keys": [],
+        "indexes": []
+      },
+      {
+        "name": "reef_notifications",
+        "columns": [
+          {
+            "name": "actor",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "archived_at",
+            "type": "text"
+          },
+          {
+            "name": "event_type",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "meta",
+            "type": "jsonb"
+          },
+          {
+            "name": "notification_key",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "occurred_at",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "payload",
+            "type": "jsonb"
+          },
+          {
+            "name": "read_at",
+            "type": "text"
+          },
+          {
+            "name": "recipient",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "reef_id",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "source_ref",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "source_type",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "state",
+            "type": "text",
+            "required": true
+          }
+        ],
+        "unique_keys": [
+          {
+            "columns": ["notification_key"]
+          },
+          {
+            "columns": ["recipient", "source_type", "source_ref"]
+          }
+        ],
+        "indexes": [
+          {
+            "columns": [
+              {
+                "name": "recipient",
+                "order": "asc"
+              },
+              {
+                "name": "state",
+                "order": "asc"
+              },
+              {
+                "name": "occurred_at",
+                "order": "desc"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "reef_releases",
+        "columns": [
+          {
+            "name": "meta",
+            "type": "jsonb"
+          },
+          {
+            "name": "name",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "notes",
+            "type": "text"
+          },
+          {
+            "name": "released_at",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "target_date",
+            "type": "text"
+          }
+        ],
+        "unique_keys": [],
+        "indexes": []
+      },
+      {
+        "name": "reef_settings",
+        "columns": [
+          {
+            "name": "key",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "value",
+            "type": "jsonb",
+            "required": true
+          }
+        ],
+        "unique_keys": [],
+        "indexes": []
+      },
+      {
+        "name": "reef_sprints",
+        "columns": [
+          {
+            "name": "capacity_points",
+            "type": "numeric"
+          },
+          {
+            "name": "end_date",
+            "type": "text"
+          },
+          {
+            "name": "goal",
+            "type": "text"
+          },
+          {
+            "name": "meta",
+            "type": "jsonb"
+          },
+          {
+            "name": "name",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "start_date",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "type": "text",
+            "required": true
+          }
+        ],
+        "unique_keys": [],
+        "indexes": []
+      },
+      {
+        "name": "reef_subscriptions",
+        "columns": [
+          {
+            "name": "meta",
+            "type": "jsonb"
+          },
+          {
+            "name": "reef_id",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "source",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "status",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "subscribed_at",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "subscriber",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "subscription_key",
+            "type": "text",
+            "required": true
+          }
+        ],
+        "unique_keys": [
+          {
+            "columns": ["reef_id", "subscriber", "source"]
+          },
+          {
+            "columns": ["subscription_key"]
+          }
+        ],
+        "indexes": [
+          {
+            "columns": [
+              {
+                "name": "reef_id",
+                "order": "asc"
+              },
+              {
+                "name": "status",
+                "order": "asc"
+              },
+              {
+                "name": "subscriber",
+                "order": "asc"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "reef_templates",
+        "columns": [
+          {
+            "name": "body",
+            "type": "text"
+          },
+          {
+            "name": "default_labels",
+            "type": "jsonb"
+          },
+          {
+            "name": "description",
+            "type": "text"
+          },
+          {
+            "name": "label",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "meta",
+            "type": "jsonb"
+          },
+          {
+            "name": "name",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "priority",
+            "type": "text"
+          },
+          {
+            "name": "title_prefix",
+            "type": "text"
+          }
+        ],
+        "unique_keys": [],
+        "indexes": []
+      }
+    ],
+    "fingerprint": "dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727"
+  },
+  "transition_plans": [
+    {
+      "source": "fresh",
+      "steps": [
+        {
+          "id": "create_monitored_repos",
+          "phase": "expand",
+          "operation": "create_table",
+          "payload": {
+            "table": "monitored_repos",
+            "columns": [
+              {
+                "name": "description",
+                "type": "text"
+              },
+              {
+                "name": "github_id",
+                "type": "numeric",
+                "required": true
+              },
+              {
+                "name": "name",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "owner",
+                "type": "text",
+                "required": true
+              }
+            ],
+            "unique_keys": [],
+            "indexes": []
+          },
+          "checksum": "a6554b13bda6a1560a2bbf4787163b53cd5086d2b2bae2610812dd5ed923229e"
+        },
+        {
+          "id": "create_reef_activity",
+          "phase": "expand",
+          "operation": "create_table",
+          "payload": {
+            "table": "reef_activity",
+            "columns": [
+              {
+                "name": "event_key",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "event_type",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "meta",
+                "type": "jsonb"
+              },
+              {
+                "name": "payload",
+                "type": "jsonb"
+              },
+              {
+                "name": "reef_id",
+                "type": "text",
+                "required": true
+              }
+            ],
+            "unique_keys": [],
+            "indexes": []
+          },
+          "checksum": "64547845adc612bb832dddd28c9869357b4218b38426d3d23be9b31869e08139"
+        },
+        {
+          "id": "create_reef_attachments",
+          "phase": "expand",
+          "operation": "create_table",
+          "payload": {
+            "table": "reef_attachments",
+            "columns": [
+              {
+                "name": "author",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "file_uri",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "filename",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "inline",
+                "type": "boolean"
+              },
+              {
+                "name": "meta",
+                "type": "jsonb"
+              },
+              {
+                "name": "mime_type",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "original_jira_attachment_id",
+                "type": "text"
+              },
+              {
+                "name": "reef_id",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "size_bytes",
+                "type": "numeric",
+                "required": true
+              },
+              {
+                "name": "source",
+                "type": "text",
+                "required": true
+              }
+            ],
+            "unique_keys": [],
+            "indexes": []
+          },
+          "checksum": "81b4c416ffe1fa5d857661f3b8faa06f3806669f79dab74a44d4689e2e7ab05f"
+        },
+        {
+          "id": "create_reef_comments",
+          "phase": "expand",
+          "operation": "create_table",
+          "payload": {
+            "table": "reef_comments",
+            "columns": [
+              {
+                "name": "body",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "meta",
+                "type": "jsonb"
+              },
+              {
+                "name": "reef_id",
+                "type": "text",
+                "required": true
+              }
+            ],
+            "unique_keys": [],
+            "indexes": []
+          },
+          "checksum": "e6490d6f69c8b38b83d20608afb7fad8a96eb88084396fef0bfe439bb6800231"
+        },
+        {
+          "id": "create_reef_issues",
+          "phase": "expand",
+          "operation": "create_table",
+          "payload": {
+            "table": "reef_issues",
+            "columns": [
+              {
+                "name": "archived_at",
+                "type": "text"
+              },
+              {
+                "name": "assigned_to",
+                "type": "text"
+              },
+              {
+                "name": "blocks",
+                "type": "jsonb"
+              },
+              {
+                "name": "closed_at",
+                "type": "text"
+              },
+              {
+                "name": "closed_reason",
+                "type": "text"
+              },
+              {
+                "name": "depends_on",
+                "type": "jsonb"
+              },
+              {
+                "name": "document_uri",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "due_date",
+                "type": "text"
+              },
+              {
+                "name": "estimate_points",
+                "type": "numeric"
+              },
+              {
+                "name": "issue_type",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "labels",
+                "type": "jsonb"
+              },
+              {
+                "name": "meta",
+                "type": "jsonb"
+              },
+              {
+                "name": "milestone_id",
+                "type": "text"
+              },
+              {
+                "name": "parent_id",
+                "type": "text"
+              },
+              {
+                "name": "priority",
+                "type": "text"
+              },
+              {
+                "name": "rank",
+                "type": "numeric"
+              },
+              {
+                "name": "reef_id",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "related_to",
+                "type": "jsonb"
+              },
+              {
+                "name": "release_id",
+                "type": "text"
+              },
+              {
+                "name": "reporter",
+                "type": "text"
+              },
+              {
+                "name": "requester",
+                "type": "text"
+              },
+              {
+                "name": "severity",
+                "type": "text"
+              },
+              {
+                "name": "sprint_id",
+                "type": "text"
+              },
+              {
+                "name": "start_date",
+                "type": "text"
+              },
+              {
+                "name": "status",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "title",
+                "type": "text",
+                "required": true
+              }
+            ],
+            "unique_keys": [],
+            "indexes": []
+          },
+          "checksum": "99991248175e3bc8032df6eed00a61cc53d82d3e11fcc279966736fe2464c978"
+        },
+        {
+          "id": "create_reef_milestones",
+          "phase": "expand",
+          "operation": "create_table",
+          "payload": {
+            "table": "reef_milestones",
+            "columns": [
+              {
+                "name": "description",
+                "type": "text"
+              },
+              {
+                "name": "meta",
+                "type": "jsonb"
+              },
+              {
+                "name": "name",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "status",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "target_date",
+                "type": "text"
+              }
+            ],
+            "unique_keys": [],
+            "indexes": []
+          },
+          "checksum": "8af50e892745bcf926f6572b46f9499be6046552a5b63a3e055daf31c9b9b632"
+        },
+        {
+          "id": "create_reef_notifications",
+          "phase": "expand",
+          "operation": "create_table",
+          "payload": {
+            "table": "reef_notifications",
+            "columns": [
+              {
+                "name": "actor",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "archived_at",
+                "type": "text"
+              },
+              {
+                "name": "event_type",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "meta",
+                "type": "jsonb"
+              },
+              {
+                "name": "notification_key",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "occurred_at",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "payload",
+                "type": "jsonb"
+              },
+              {
+                "name": "read_at",
+                "type": "text"
+              },
+              {
+                "name": "recipient",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "reef_id",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "source_ref",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "source_type",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "state",
+                "type": "text",
+                "required": true
+              }
+            ],
+            "unique_keys": [
+              {
+                "columns": ["notification_key"]
+              },
+              {
+                "columns": ["recipient", "source_type", "source_ref"]
+              }
+            ],
+            "indexes": [
+              {
+                "columns": [
+                  {
+                    "name": "recipient",
+                    "order": "asc"
+                  },
+                  {
+                    "name": "state",
+                    "order": "asc"
+                  },
+                  {
+                    "name": "occurred_at",
+                    "order": "desc"
+                  }
+                ]
+              }
+            ]
+          },
+          "checksum": "6ddfb118444cfb39be004475ad3c53532aa24dc0cef8129cbba906574bb7553b"
+        },
+        {
+          "id": "create_reef_releases",
+          "phase": "expand",
+          "operation": "create_table",
+          "payload": {
+            "table": "reef_releases",
+            "columns": [
+              {
+                "name": "meta",
+                "type": "jsonb"
+              },
+              {
+                "name": "name",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "notes",
+                "type": "text"
+              },
+              {
+                "name": "released_at",
+                "type": "text"
+              },
+              {
+                "name": "status",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "target_date",
+                "type": "text"
+              }
+            ],
+            "unique_keys": [],
+            "indexes": []
+          },
+          "checksum": "f5696ff989e4b55d6781d8d528cabba804e275b5582473065f8919d6705db5a8"
+        },
+        {
+          "id": "create_reef_settings",
+          "phase": "expand",
+          "operation": "create_table",
+          "payload": {
+            "table": "reef_settings",
+            "columns": [
+              {
+                "name": "key",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "value",
+                "type": "jsonb",
+                "required": true
+              }
+            ],
+            "unique_keys": [],
+            "indexes": []
+          },
+          "checksum": "af3da69645761c0835e839dc00976f2ed729c60a8bc89716a4318cdb87d9d9c5"
+        },
+        {
+          "id": "create_reef_sprints",
+          "phase": "expand",
+          "operation": "create_table",
+          "payload": {
+            "table": "reef_sprints",
+            "columns": [
+              {
+                "name": "capacity_points",
+                "type": "numeric"
+              },
+              {
+                "name": "end_date",
+                "type": "text"
+              },
+              {
+                "name": "goal",
+                "type": "text"
+              },
+              {
+                "name": "meta",
+                "type": "jsonb"
+              },
+              {
+                "name": "name",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "start_date",
+                "type": "text"
+              },
+              {
+                "name": "status",
+                "type": "text",
+                "required": true
+              }
+            ],
+            "unique_keys": [],
+            "indexes": []
+          },
+          "checksum": "5555f5a15e247090db8893085c2517dcc77c9aa8d76a235182d4fd2e3bb8c551"
+        },
+        {
+          "id": "create_reef_subscriptions",
+          "phase": "expand",
+          "operation": "create_table",
+          "payload": {
+            "table": "reef_subscriptions",
+            "columns": [
+              {
+                "name": "meta",
+                "type": "jsonb"
+              },
+              {
+                "name": "reef_id",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "source",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "status",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "subscribed_at",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "subscriber",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "subscription_key",
+                "type": "text",
+                "required": true
+              }
+            ],
+            "unique_keys": [
+              {
+                "columns": ["reef_id", "subscriber", "source"]
+              },
+              {
+                "columns": ["subscription_key"]
+              }
+            ],
+            "indexes": [
+              {
+                "columns": [
+                  {
+                    "name": "reef_id",
+                    "order": "asc"
+                  },
+                  {
+                    "name": "status",
+                    "order": "asc"
+                  },
+                  {
+                    "name": "subscriber",
+                    "order": "asc"
+                  }
+                ]
+              }
+            ]
+          },
+          "checksum": "9868ad47a936fbcdb07a996aafd215b4f88c73b9e21de3cf7a8a46b99d821d96"
+        },
+        {
+          "id": "create_reef_templates",
+          "phase": "expand",
+          "operation": "create_table",
+          "payload": {
+            "table": "reef_templates",
+            "columns": [
+              {
+                "name": "body",
+                "type": "text"
+              },
+              {
+                "name": "default_labels",
+                "type": "jsonb"
+              },
+              {
+                "name": "description",
+                "type": "text"
+              },
+              {
+                "name": "label",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "meta",
+                "type": "jsonb"
+              },
+              {
+                "name": "name",
+                "type": "text",
+                "required": true
+              },
+              {
+                "name": "priority",
+                "type": "text"
+              },
+              {
+                "name": "title_prefix",
+                "type": "text"
+              }
+            ],
+            "unique_keys": [],
+            "indexes": []
+          },
+          "checksum": "232a42878bfeb618a0b80837ebc5e618d6d5bcca924232d67b396c4cfa854f1a"
+        }
+      ]
+    }
+  ]
+}

@@ -19,6 +19,7 @@ import {
   AkbTableColumnTypeSchema,
   type AkbTableIndex,
   type AkbTableUniqueKey,
+  canonicalReefTableProjection,
   REEF_DESIRED_TABLES,
   REEF_SCHEMA_VERSION,
   type ReefTableManifest,
@@ -38,29 +39,14 @@ export {
 
 // ─── Tables: HTTP primitives ──────────────────────────────────────────────────
 //
-// akb accepts the number/json aliases on create, then returns their canonical
-// numeric/jsonb forms when listing the table. SQL escaping for the DML endpoint
-// lives in `sql.ts`.
+// Reef sends the canonical AKB column types on every table operation. SQL
+// escaping for the DML endpoint lives in `sql.ts`.
 
 const NonEmptyStringSchema = z.string().min(1);
 const AKB_TABLE_IDENTIFIER_MAX_LENGTH = 63;
 const AKB_TABLE_IDENTIFIER_FIXED_LENGTH = "vt_".length + "__".length;
 
-export const AkbTableMutationColumnTypeSchema = z.enum([
-  "text",
-  "int",
-  "float",
-  "numeric",
-  "number",
-  "boolean",
-  "uuid",
-  "date",
-  "timestamp",
-  "jsonb",
-  "json",
-  "text[]",
-  "enum",
-]);
+export const AkbTableMutationColumnTypeSchema = AkbTableColumnTypeSchema;
 
 const AkbAddedColumnSchema = z.looseObject({
   name: NonEmptyStringSchema,
@@ -423,9 +409,15 @@ async function createAkbTable(
   body: AkbCreateTableRequest,
 ): Promise<void> {
   assertNoAkbManagedColumns(body);
+  const projection = canonicalReefTableProjection(body);
   await adapter.request(`/api/v1/tables/${encodeURIComponent(vault)}`, {
     method: "POST",
-    body,
+    body: {
+      ...body,
+      columns: projection.columns,
+      unique_keys: projection.unique_keys,
+      indexes: projection.indexes,
+    },
     resource: `table ${body.name}`,
   });
 }
@@ -456,12 +448,6 @@ function tableHasColumnMetadata(table: AkbTableSummary | undefined): boolean {
   return Array.isArray(table?.columns);
 }
 
-function canonicalColumnType(type: AkbTableColumn["type"]): string {
-  if (type === "number" || type === "numeric") return "numeric";
-  if (type === "json" || type === "jsonb") return "jsonb";
-  return type;
-}
-
 function columnsMatch(
   expected: readonly AkbTableColumn[],
   actual: readonly AkbTableColumn[] | undefined,
@@ -473,8 +459,7 @@ function columnsMatch(
     const actualColumn = actualByName.get(expectedColumn.name);
     return (
       actualColumn !== undefined &&
-      canonicalColumnType(actualColumn.type) ===
-        canonicalColumnType(expectedColumn.type) &&
+      actualColumn.type === expectedColumn.type &&
       Boolean(actualColumn.required) === Boolean(expectedColumn.required)
     );
   });
