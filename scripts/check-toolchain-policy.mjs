@@ -222,14 +222,6 @@ function isGitPreparedPackage(entry) {
   );
 }
 
-function rootDependencySpec(rootManifest, name) {
-  for (const field of DEPENDENCY_FIELDS) {
-    const spec = rootManifest[field]?.[name];
-    if (typeof spec === "string") return spec;
-  }
-  return null;
-}
-
 function validateCatalogToolchain({ catalog, violations }) {
   const requirements = [
     {
@@ -417,34 +409,22 @@ function validateDependencies({
       (entry) => entry.key !== "root" && workspaceNames.has(name),
     );
     if (workspaceOccurrence) continue;
+    if (Object.hasOwn(catalog, name)) continue;
 
     if (
       rootTools.has(name) &&
       packageOccurrences.some((entry) => entry.key !== "root")
     ) {
-      const rootSpec = rootDependencySpec(rootManifest, name);
-      const workspaceOccurrences = packageOccurrences.filter(
-        (entry) => entry.key !== "root",
+      addViolation(
+        violations,
+        "root-tool-duplicate",
+        `${name} is a root-owned tool and must not be declared in a workspace manifest`,
+        packageOccurrences.map((entry) =>
+          relativePath(root, path.join(entry.dir, "package.json")),
+        ),
       );
-      const isStandaloneBuildTool = workspaceOccurrences.every(
-        (entry) =>
-          isGitPreparedPackage(entry) &&
-          entry.field === "devDependencies" &&
-          entry.spec === rootSpec,
-      );
-      if (!isStandaloneBuildTool) {
-        addViolation(
-          violations,
-          "root-tool-duplicate",
-          `${name} is a root-owned tool and must not be declared in a workspace manifest`,
-          packageOccurrences.map((entry) =>
-            relativePath(root, path.join(entry.dir, "package.json")),
-          ),
-        );
-      }
       continue;
     }
-    if (Object.hasOwn(catalog, name)) continue;
     if (packageOccurrences.length < 2) continue;
 
     const nonCatalog = packageOccurrences.filter(

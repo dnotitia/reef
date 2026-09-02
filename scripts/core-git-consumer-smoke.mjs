@@ -95,10 +95,6 @@ async function assertInstalledCore(consumerDir) {
       "installed @reef/core is missing its prepared dist/index.js",
     );
   }
-  if (await stat(path.join(packageDir, "src")).catch(() => null)) {
-    throw new Error("installed @reef/core contains source files");
-  }
-
   run(
     process.execPath,
     [

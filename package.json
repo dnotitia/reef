@@ -73,7 +73,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "jscpd": "5.0.14",
     "knip": "6.32.0",
-    "tsdown": "0.22.14",
+    "tsdown": "catalog:",
     "turbo": "2.10.8",
     "typescript-eslint": "8.66.0",
     "yaml": "^2.9.0"

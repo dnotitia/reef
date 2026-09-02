@@ -18,6 +18,9 @@ catalogs:
     msw:
       specifier: 2.15.0
       version: 2.15.0
+    tsdown:
+      specifier: 0.22.14
+      version: 0.22.14
     tsx:
       specifier: 4.23.9
       version: 4.23.9
@@ -79,7 +82,7 @@ importers:
         specifier: 6.32.0
         version: 6.32.0
       tsdown:
-        specifier: 0.22.14
+        specifier: 'catalog:'
         version: 0.22.14(oxc-resolver@11.24.2)(tsx@4.23.9)(typescript@6.0.2)(unrun@0.2.39)
       turbo:
         specifier: 2.10.8

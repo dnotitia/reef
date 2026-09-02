@@ -172,24 +172,23 @@ test("rejects a direct catalog version even when the dependency is used once", a
   );
 });
 
-test("accepts concrete catalog ranges and a build tool for a Git-prepared package", async () => {
+test("accepts concrete catalog ranges and a cataloged build tool for a Git-prepared package", async () => {
   await withFixture(
     async (root) => {
       const rootManifest = JSON.parse(
         await readFile(path.join(root, "package.json"), "utf8"),
       );
-      rootManifest.devDependencies["git-build-tool"] = "1.2.3";
+      rootManifest.devDependencies.typescript = "catalog:";
       await writeFile(
         path.join(root, "package.json"),
         `${JSON.stringify(rootManifest, null, 2)}\n`,
       );
 
       const manifest = await readManifest(root, "one");
-      manifest.scripts = { prepare: "git-build-tool" };
+      manifest.scripts = { prepare: "tsc" };
       manifest.dependencies.zod = "^3.25.76";
       manifest.devDependencies = {
         "@types/node": "^24.13.3",
-        "git-build-tool": "1.2.3",
         typescript: "^6.0.2",
         vitest: "^3.2.6",
       };

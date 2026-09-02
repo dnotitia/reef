@@ -97,10 +97,7 @@ under `packages/`: `core` (`@reef/core`), `web` (`@reef/web`), `orchestrator`
 product behavior that touches schemas, AKB, or shared contracts starts in
 `core`; provider adapters and agent application behavior live in web's
 server-only tree. Background and operator processes consume the same core
-contracts from their separate runtimes. `@reef/core` may also be consumed from
-the public repository as a pnpm Git subdirectory during external integration
-development; its `prepare` lifecycle emits the same dist-only ESM contract and
-does not create a separate release or compatibility policy.
+contracts from their separate runtimes.
 The runtime and dependency source-of-truth matrix is documented in the
 [repository toolchain policy](toolchain.md).
 

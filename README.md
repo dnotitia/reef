@@ -116,8 +116,6 @@ akb-platform gateway. Leaving all three unset keeps AI disabled.
 
 This is a public pnpm monorepo. The root `package.json` is the single product
 version source of truth; the workspace packages are private and unpublished.
-`@reef/core` also supports development-stage pnpm Git-subdirectory consumers;
-it does not have an independent registry or version lifecycle.
 
 | Path | Purpose |
 | --- | --- |
