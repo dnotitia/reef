@@ -29,8 +29,8 @@
   and agent execution before the result surfaces through the UI. Operator-run
   migration behavior for
   Jira lives in `packages/jira-migrator`; private AKB Change Event handling lives
-  in `packages/event-processor`. Agent delivery orchestration is owned by the
-  separate reef-bot repository, which consumes `@reef/core` as a Git dependency.
+  in `packages/event-processor`. Agent delivery orchestration is owned by a
+  separate private repository, which consumes `@reef/core` as a Git dependency.
 - `core` is framework-agnostic: no Next.js imports, no DOM APIs, and no Node-only
   globals where avoidable.
 
