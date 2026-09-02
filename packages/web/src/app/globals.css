@@ -193,10 +193,10 @@
   /* Canonical product typography roles. Keep the complete role contract here
      so shared components consume one definition instead of recreating a size,
      weight, leading, or tracking tuple in feature-local classes. */
-  --type-page-title-size: 20px;
+  --type-page-title-size: 14px;
   --type-page-title-weight: 600;
-  --type-page-title-line-height: 24px;
-  --type-page-title-tracking: 0;
+  --type-page-title-line-height: 21px;
+  --type-page-title-tracking: -0.01em;
   --type-group-title-size: 15px;
   --type-group-title-weight: 600;
   --type-group-title-line-height: 20px;
@@ -205,6 +205,62 @@
   --type-section-label-weight: 600;
   --type-section-label-line-height: 16px;
   --type-section-label-tracking: 0.08em;
+  --type-navigation-size: 13px;
+  --type-navigation-weight: 400;
+  --type-navigation-line-height: 19.5px;
+  --type-navigation-tracking: 0;
+  --type-control-size: 13px;
+  --type-control-weight: 400;
+  --type-control-line-height: 19.5px;
+  --type-control-tracking: 0;
+  --type-board-status-size: 12px;
+  --type-board-status-weight: 600;
+  --type-board-status-line-height: 16px;
+  --type-board-status-tracking: 0.025em;
+  --type-board-epic-size: 12px;
+  --type-board-epic-weight: 600;
+  --type-board-epic-line-height: 16px;
+  --type-board-epic-tracking: 0;
+  --type-card-title-size: 13px;
+  --type-card-title-weight: 500;
+  --type-card-title-line-height: 18.5625px;
+  --type-card-title-tracking: 0;
+  --type-card-metadata-size: 11px;
+  --type-card-metadata-weight: 400;
+  --type-card-metadata-line-height: 16.5px;
+  --type-card-metadata-tracking: 0;
+  --type-card-context-size: 10.5px;
+  --type-card-context-weight: 500;
+  --type-card-context-line-height: 16px;
+  --type-card-context-tracking: 0;
+  --type-compact-mono-size: 11px;
+  --type-compact-mono-weight: 400;
+  --type-compact-mono-line-height: 16.5px;
+  --type-compact-mono-tracking: 0;
+  --type-detail-section-size: 11px;
+  --type-detail-section-weight: 600;
+  --type-detail-section-line-height: 16.5px;
+  --type-detail-section-tracking: 0.025em;
+  --type-comment-size: 13px;
+  --type-comment-weight: 400;
+  --type-comment-line-height: 20px;
+  --type-comment-tracking: 0;
+  --type-report-section-size: 11px;
+  --type-report-section-weight: 500;
+  --type-report-section-line-height: 16.5px;
+  --type-report-section-tracking: 0.08em;
+  --type-table-header-size: 10px;
+  --type-table-header-weight: 600;
+  --type-table-header-line-height: 16px;
+  --type-table-header-tracking: 0.025em;
+  --type-chart-metadata-size: 11px;
+  --type-chart-metadata-weight: 400;
+  --type-chart-metadata-line-height: 16.5px;
+  --type-chart-metadata-tracking: 0;
+  --type-chart-tick-size: 10px;
+  --type-chart-tick-weight: 400;
+  --type-chart-tick-line-height: 16px;
+  --type-chart-tick-tracking: 0;
   --type-body-size: 14px;
   --type-body-weight: 400;
   --type-body-line-height: 20px;
@@ -554,6 +610,124 @@ body {
     line-height: var(--type-section-label-line-height);
     letter-spacing: var(--type-section-label-tracking);
     text-transform: uppercase;
+  }
+
+  .type-navigation {
+    font-family: var(--font-body);
+    font-size: var(--type-navigation-size);
+    font-weight: var(--type-navigation-weight);
+    line-height: var(--type-navigation-line-height);
+    letter-spacing: var(--type-navigation-tracking);
+  }
+
+  .type-control {
+    font-family: var(--font-body);
+    font-size: var(--type-control-size);
+    font-weight: var(--type-control-weight);
+    line-height: var(--type-control-line-height);
+    letter-spacing: var(--type-control-tracking);
+  }
+
+  .type-board-status {
+    font-family: var(--font-display);
+    font-size: var(--type-board-status-size);
+    font-weight: var(--type-board-status-weight);
+    line-height: var(--type-board-status-line-height);
+    letter-spacing: var(--type-board-status-tracking);
+    text-transform: uppercase;
+  }
+
+  .type-board-epic {
+    font-family: var(--font-display);
+    font-size: var(--type-board-epic-size);
+    font-weight: var(--type-board-epic-weight);
+    line-height: var(--type-board-epic-line-height);
+    letter-spacing: var(--type-board-epic-tracking);
+    text-transform: none;
+  }
+
+  .type-card-title {
+    font-family: var(--font-body);
+    font-size: var(--type-card-title-size);
+    font-weight: var(--type-card-title-weight);
+    line-height: var(--type-card-title-line-height);
+    letter-spacing: var(--type-card-title-tracking);
+  }
+
+  .type-card-metadata {
+    font-family: var(--font-body);
+    font-size: var(--type-card-metadata-size);
+    font-weight: var(--type-card-metadata-weight);
+    line-height: var(--type-card-metadata-line-height);
+    letter-spacing: var(--type-card-metadata-tracking);
+  }
+
+  .type-card-context {
+    font-family: var(--font-body);
+    font-size: var(--type-card-context-size);
+    font-weight: var(--type-card-context-weight);
+    line-height: var(--type-card-context-line-height);
+    letter-spacing: var(--type-card-context-tracking);
+  }
+
+  .type-compact-mono {
+    font-family: var(--font-mono-stack);
+    font-size: var(--type-compact-mono-size);
+    font-weight: var(--type-compact-mono-weight);
+    line-height: var(--type-compact-mono-line-height);
+    letter-spacing: var(--type-compact-mono-tracking);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .type-detail-section {
+    font-family: var(--font-display);
+    font-size: var(--type-detail-section-size);
+    font-weight: var(--type-detail-section-weight);
+    line-height: var(--type-detail-section-line-height);
+    letter-spacing: var(--type-detail-section-tracking);
+    text-transform: uppercase;
+  }
+
+  .type-comment {
+    font-family: var(--font-body);
+    font-size: var(--type-comment-size);
+    font-weight: var(--type-comment-weight);
+    line-height: var(--type-comment-line-height);
+    letter-spacing: var(--type-comment-tracking);
+  }
+
+  .type-report-section {
+    font-family: var(--font-display);
+    font-size: var(--type-report-section-size);
+    font-weight: var(--type-report-section-weight);
+    line-height: var(--type-report-section-line-height);
+    letter-spacing: var(--type-report-section-tracking);
+    text-transform: uppercase;
+  }
+
+  .type-table-header {
+    font-family: var(--font-display);
+    font-size: var(--type-table-header-size);
+    font-weight: var(--type-table-header-weight);
+    line-height: var(--type-table-header-line-height);
+    letter-spacing: var(--type-table-header-tracking);
+    text-transform: uppercase;
+  }
+
+  .type-chart-metadata {
+    font-family: var(--font-body);
+    font-size: var(--type-chart-metadata-size);
+    font-weight: var(--type-chart-metadata-weight);
+    line-height: var(--type-chart-metadata-line-height);
+    letter-spacing: var(--type-chart-metadata-tracking);
+  }
+
+  .type-chart-tick {
+    font-family: var(--font-body);
+    font-size: var(--type-chart-tick-size);
+    font-weight: var(--type-chart-tick-weight);
+    line-height: var(--type-chart-tick-line-height);
+    letter-spacing: var(--type-chart-tick-tracking);
   }
 
   .type-body {
@@ -1113,8 +1287,8 @@ hr {
   background: var(--surface-elevated);
   color: var(--foreground);
   box-shadow: 0 12px 32px color-mix(in srgb, var(--foreground) 14%, transparent);
-  font-size: var(--type-body-size);
-  line-height: var(--type-body-line-height);
+  font-size: var(--type-control-size);
+  line-height: var(--type-control-line-height);
 }
 
 .reef-slash-command-header,
@@ -1133,8 +1307,8 @@ hr {
 .reef-slash-command-escape,
 .reef-slash-command-footer {
   color: var(--muted-foreground);
-  font-size: var(--type-caption-size);
-  line-height: var(--type-caption-line-height);
+  font-size: var(--type-card-metadata-size);
+  line-height: var(--type-card-metadata-line-height);
 }
 
 .reef-slash-command-escape {
@@ -1161,9 +1335,9 @@ hr {
 .reef-slash-command-section-label {
   padding: 4px 8px 3px;
   color: var(--muted-foreground);
-  font-size: var(--type-section-label-size);
-  font-weight: var(--type-section-label-weight);
-  line-height: var(--type-section-label-line-height);
+  font-size: var(--type-card-metadata-size);
+  font-weight: 600;
+  line-height: var(--type-card-metadata-line-height);
   letter-spacing: var(--type-section-label-tracking);
   text-transform: uppercase;
 }
@@ -1209,8 +1383,8 @@ hr {
 .reef-slash-command-description {
   margin-top: 1px;
   color: var(--muted-foreground);
-  font-size: var(--type-caption-size);
-  line-height: var(--type-caption-line-height);
+  font-size: var(--type-card-metadata-size);
+  line-height: var(--type-card-metadata-line-height);
 }
 
 .reef-slash-command-empty {
@@ -1440,9 +1614,9 @@ hr {
   flex: 0 0 auto;
   color: var(--muted-foreground);
   font-family: var(--font-mono-stack);
-  font-size: var(--type-caption-size);
+  font-size: var(--type-card-metadata-size);
   font-weight: 600;
-  line-height: var(--type-caption-line-height);
+  line-height: 1;
 }
 
 /* Tiptap's Placeholder extension owns the marker and localized text. During a

@@ -339,7 +339,7 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                 aria-label={t("unscheduled")}
               >
                 <div className="sticky left-3 z-20 mb-3 max-w-[760px]">
-                  <h2 className="type-section-label text-muted-foreground">
+                  <h2 className="type-caption font-semibold uppercase text-muted-foreground">
                     {t("unscheduled")}
                   </h2>
                   <p className="mt-1 type-caption text-muted-foreground">
@@ -369,7 +369,7 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                             })}
                             className="min-w-0 rounded-md border border-border bg-surface-elevated px-2.5 py-2 text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
                           >
-                            <span className="block truncate type-mono-value text-muted-foreground">
+                            <span className="block truncate type-compact-mono text-muted-foreground">
                               {issue.id}
                             </span>
                             <span className="block truncate type-body font-medium text-foreground">

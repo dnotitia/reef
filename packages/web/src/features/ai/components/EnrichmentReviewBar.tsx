@@ -116,7 +116,7 @@ export function EnrichmentReviewBar({
           pending,
           accepted,
           mono: (chunks) => (
-            <span className="type-mono-value font-semibold">{chunks}</span>
+            <span className="type-compact-mono font-semibold">{chunks}</span>
           ),
         })}
       </span>

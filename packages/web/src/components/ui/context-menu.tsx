@@ -311,7 +311,7 @@ const ContextMenuItem = React.forwardRef<HTMLDivElement, ContextMenuItemProps>(
           onSelect?.(event);
         }}
         className={cn(
-          "flex min-h-8 cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-left type-caption text-foreground outline-none transition-colors duration-150",
+          "flex min-h-8 cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-left type-control text-foreground outline-none transition-colors duration-150",
           "data-[highlighted]:bg-surface-hover data-[highlighted]:text-foreground focus-visible:bg-surface-hover",
           "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
           "data-[selected=true]:font-medium",
@@ -340,7 +340,7 @@ function ContextMenuLabel({
   return (
     <ContextMenuPrimitive.Label
       className={cn(
-        "type-section-label px-2 py-1 text-muted-foreground",
+        "type-card-metadata px-2 py-1 font-semibold uppercase tracking-wider text-muted-foreground",
         className,
       )}
       {...props}
@@ -442,7 +442,7 @@ const ContextMenuSubTrigger = React.forwardRef<
     <ContextMenuPrimitive.SubTrigger
       ref={ref}
       className={cn(
-          "flex min-h-8 cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-left type-caption text-foreground outline-none transition-colors duration-150",
+          "flex min-h-8 cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-left type-control text-foreground outline-none transition-colors duration-150",
         "data-[highlighted]:bg-surface-hover data-[highlighted]:text-foreground focus-visible:bg-surface-hover",
         "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         className,

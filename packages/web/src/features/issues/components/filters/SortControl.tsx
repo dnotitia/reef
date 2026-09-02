@@ -327,7 +327,7 @@ export function SortControl({
                 type="button"
                 onClick={toggleDirection}
                 className={cn(
-                  "inline-flex h-8 shrink-0 items-center rounded-r-md border border-l-0 px-2.5 type-caption transition-colors duration-150 hover:bg-surface-hover focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/30",
+                  "inline-flex h-8 shrink-0 items-center rounded-r-md border border-l-0 px-2.5 type-control transition-colors duration-150 hover:bg-surface-hover focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/30",
                   sortIsActive
                     ? "border-brand-focus bg-brand-fill/10 text-foreground ring-1 ring-brand-focus/30"
                     : "border-border bg-surface-elevated text-muted-foreground",

@@ -76,7 +76,7 @@ export function NewIssueRelationFields({
               data-testid="new-issue-parent-locked"
               className="flex h-8 min-w-0 items-center gap-2 rounded-md border border-border bg-surface-elevated px-2 type-caption text-foreground"
             >
-              <span className="shrink-0 type-mono-value text-muted-foreground">
+              <span className="shrink-0 type-compact-mono text-muted-foreground">
                 {lockedParent.id}
               </span>
               <span className="min-w-0 truncate">{lockedParent.title}</span>

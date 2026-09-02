@@ -948,7 +948,7 @@ function BacklogBoardEmpty({ vault }: { vault: string }) {
       </p>
       <Link
         href={withVault(vault, "/issues?scope=backlog&view=list")}
-        className="type-caption font-medium text-brand-text hover:underline"
+        className="type-control font-medium text-brand-text hover:underline"
       >
         {t("goToList")}
       </Link>

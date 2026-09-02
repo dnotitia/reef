@@ -263,7 +263,7 @@ export const BacklogRow = memo(function BacklogRow({
       <TableCell
         className={cn(
           backlogCellClass("id"),
-          "type-mono-value text-muted-foreground",
+          "type-compact-mono text-muted-foreground",
         )}
         style={backlogCellStyle("id")}
         data-column-key="id"

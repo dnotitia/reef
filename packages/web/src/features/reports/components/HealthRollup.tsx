@@ -160,7 +160,7 @@ export function HealthRollup({
           <h3 className="text-sm font-semibold text-foreground">
             {t("portfolioHealth")}
           </h3>
-          <span className="type-caption text-muted-foreground">
+          <span className="type-card-metadata text-muted-foreground">
             {visibleRows.length}{" "}
             {(visibleRows.length === 1 ? label.one : label.many).toLowerCase()}
             {flags.length > 0 ? ` · ${flags.join(" · ")}` : ""}
@@ -174,7 +174,7 @@ export function HealthRollup({
               onClick={() => setShowShipped((s) => !s)}
               data-testid="health-rollup-show-shipped"
               className={cn(
-                "rounded-md border border-border-subtle px-2 py-1 type-caption font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
+                "rounded-md border border-border-subtle px-2 py-1 type-control font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
                 showShipped
                   ? "bg-surface-hover text-foreground"
                   : "text-muted-foreground hover:text-foreground",
@@ -194,7 +194,7 @@ export function HealthRollup({
       </header>
 
       {visibleRows.length === 0 ? (
-        <p className="type-caption text-muted-foreground">
+        <p className="type-card-metadata text-muted-foreground">
           {t("noneToShow", { dimension: label.many.toLowerCase() })}
         </p>
       ) : (
@@ -241,7 +241,7 @@ function DimensionToggle({
             onClick={() => onSelect(dim)}
             data-testid={`health-rollup-dimension-${dim}`}
             className={cn(
-              "rounded-[5px] px-2 py-1 type-caption font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
+              "rounded-[5px] px-2 py-1 type-control font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
               isActive
                 ? "bg-surface-hover text-foreground"
                 : "text-muted-foreground hover:text-foreground",
@@ -308,18 +308,18 @@ const HealthRow = memo(function HealthRow({
             </span>
             {meta ? (
               <span
-                className="shrink-0 type-caption font-medium"
+                className="shrink-0 type-card-metadata font-medium"
                 style={{ color: meta.color }}
               >
                 {meta.label}
               </span>
             ) : (
-              <span className="shrink-0 type-caption text-muted-foreground">
+              <span className="shrink-0 type-card-metadata text-muted-foreground">
                 {empty.empty}
               </span>
             )}
           </div>
-          <span className="type-caption truncate text-muted-foreground">
+          <span className="type-card-metadata truncate text-muted-foreground">
             <Subline row={row} />
           </span>
         </div>
@@ -392,7 +392,7 @@ function CompletionBar({ value }: { value: number }) {
           }}
         />
       </div>
-      <span className="type-mono-value text-muted-foreground">
+      <span className="type-compact-mono text-muted-foreground">
         {Math.round(value * 100)}%
       </span>
     </div>

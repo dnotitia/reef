@@ -121,7 +121,7 @@ function PlanningContextStrip({
 
   return (
     <div
-      className="type-caption mt-1.5 grid min-w-0 gap-0.5 border-t border-border-subtle pt-1.5 font-medium text-muted-foreground"
+      className="type-card-context mt-1.5 grid min-w-0 gap-0.5 border-t border-border-subtle pt-1.5 text-muted-foreground"
       data-testid="kanban-planning-context"
     >
       {items.map((item) => {
@@ -239,7 +239,7 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
           <span
             id={readOnlyTooltipId}
             role="tooltip"
-            className="pointer-events-none absolute left-1/2 top-0 z-20 w-max max-w-[16rem] -translate-x-1/2 -translate-y-[calc(100%+0.35rem)] rounded-md border border-border bg-surface-popover px-2 py-1 type-caption font-medium text-foreground opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
+            className="pointer-events-none absolute left-1/2 top-0 z-20 w-max max-w-[16rem] -translate-x-1/2 -translate-y-[calc(100%+0.35rem)] rounded-md border border-border bg-surface-popover px-2 py-1 type-card-metadata font-medium text-foreground opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
           >
             {readOnlyReason}
           </span>
@@ -256,7 +256,7 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
         )}
         {quickEditAnchor}
         {/* Row 1 — header: status · id · type · (blocked, right) */}
-        <div className="flex min-w-0 items-center gap-1.5 type-caption text-muted-foreground">
+        <div className="flex min-w-0 items-center gap-1.5 type-card-metadata text-muted-foreground">
           <span
             data-issue-update-field="status"
             aria-busy={statusPending || undefined}
@@ -270,7 +270,7 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
               />
             )}
           </span>
-          <span className="type-mono-value shrink-0">{issue.id}</span>
+          <span className="type-compact-mono shrink-0">{issue.id}</span>
           <TypePill type={issue.issue_type} variant="kanban" />
           {surfaceReorderState && surfaceReorderState !== "success" && (
             <IssueReorderStatus
@@ -287,7 +287,7 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
         </div>
 
         {/* Row 2 — title: standalone, 2-line clamp, the visual anchor */}
-        <h4 className="type-body mt-1.5 min-w-0 line-clamp-2 font-semibold text-foreground">
+        <h4 className="type-card-title mt-1.5 min-w-0 line-clamp-2 text-foreground">
           {issue.title}
         </h4>
 
@@ -296,7 +296,7 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
             it lands at the same x on every card, independent of which other
             fields are present (REEF-128). */}
         {hasPrimaryMeta && (
-          <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 type-caption text-muted-foreground">
+          <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 type-card-metadata text-muted-foreground">
             {issue.priority && (
               <span
                 className="inline-flex items-center gap-1 shrink-0"
@@ -333,7 +333,7 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
               assigneePending) && (
               <div className="ml-auto flex min-w-0 max-w-full shrink items-center gap-2">
                 {(issue.start_date || issue.due_date) && (
-                  <span className="inline-flex shrink-0 items-center gap-1.5 type-mono-value">
+                  <span className="inline-flex shrink-0 items-center gap-1.5 type-compact-mono">
                     {issue.start_date && (
                       <DateDisplay
                         date={issue.start_date}

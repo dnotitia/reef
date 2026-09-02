@@ -73,7 +73,7 @@ function LinkSafetyDialog({
         </DialogHeader>
         <div className="flex items-start gap-2 rounded-md border border-border bg-muted p-3">
           <span
-            className="min-w-0 flex-1 break-all type-mono-value leading-relaxed text-foreground"
+            className="min-w-0 flex-1 break-all type-control font-mono leading-relaxed text-foreground"
             translate="no"
           >
             {url}

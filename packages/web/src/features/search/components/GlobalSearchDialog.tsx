@@ -691,7 +691,7 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
                       className="flex min-w-0 flex-1 flex-col gap-1.5 py-0.5"
                     >
                       <span className="flex min-w-0 items-center gap-2">
-                        <span className="shrink-0 type-mono-value font-semibold text-brand-text">
+                        <span className="shrink-0 type-compact-mono font-semibold text-brand-text">
                           {result.reef_id}
                         </span>
                         <span className="truncate text-sm font-medium">

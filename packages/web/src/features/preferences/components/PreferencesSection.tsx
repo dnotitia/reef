@@ -54,7 +54,7 @@ export function PreferencesSection() {
                   aria-hidden
                   className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
                 />
-                <span className="type-body min-w-0 font-medium text-foreground">
+                <span className="type-control min-w-0 font-medium text-foreground">
                   {opt.label}
                 </span>
               </span>

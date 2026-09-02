@@ -36,7 +36,7 @@ import { createPortal } from "react-dom";
 /** Mirrors the shared `<Input>` chrome so the combobox field reads as a plain
  *  text input (the dropdown supplies the richer affordances). */
 const INPUT_CLASS =
-  "flex h-8 flex-1 min-w-0 rounded-md border border-border bg-surface-elevated px-2.5 py-1 type-caption text-foreground transition-colors duration-150 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/30 disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-8 flex-1 min-w-0 rounded-md border border-border bg-surface-elevated px-2.5 py-1 type-control text-foreground transition-colors duration-150 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/30 disabled:cursor-not-allowed disabled:opacity-50";
 
 /** How many candidates to surface before the user has typed anything. */
 const RECENT_LIMIT = 8;
@@ -634,7 +634,7 @@ export function IssueRelationInput({
                             {t.rich("useOption", {
                               id: option.id,
                               mono: (chunks) => (
-                                <span className="type-mono-value">
+                                <span className="type-compact-mono">
                                   {chunks}
                                 </span>
                               ),
@@ -836,7 +836,7 @@ function RelationSelectedRow({
   ) : (
     // Relation target absent from allIssues (archived, etc.): keep an id-based
     // fallback and leave it outside the title-overflow policy.
-    <span translate="no" className="type-mono-value text-muted-foreground">
+    <span translate="no" className="type-compact-mono text-muted-foreground">
       {relationId}
     </span>
   );
