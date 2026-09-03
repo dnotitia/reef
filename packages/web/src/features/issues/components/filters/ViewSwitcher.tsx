@@ -12,7 +12,7 @@ import { withVault } from "@/lib/workspaceHref";
 import { Columns3, GanttChart, List } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import {
   ISSUE_LAYOUTS,
   type IssueLayout,
@@ -45,6 +45,7 @@ export function ViewSwitcher({
   const searchParams = useSearchParams();
   const { vault } = useActiveVault();
   const [isPending, startTransition] = useTransition();
+  const [pendingLayout, setPendingLayout] = useState<IssueLayout | null>(null);
   const t = useTranslations("issues.filters");
   const layouts =
     scope === "backlog" || hideTimeline
@@ -53,19 +54,33 @@ export function ViewSwitcher({
 
   const selectLayout = useCallback(
     (layout: IssueLayout) => {
-      if (layout === activeLayout) return;
+      if (layout === activeLayout || pendingLayout === layout) return;
       const next = new URLSearchParams(searchParams);
       if (includeScope) next.set("scope", scope);
       else next.delete("scope");
       next.set("view", layout);
+      setPendingLayout(layout);
       startTransition(() => {
         router.push(withVault(vault, `${basePath}?${next.toString()}`), {
           scroll: false,
         });
       });
     },
-    [activeLayout, basePath, includeScope, router, scope, searchParams, vault],
+    [
+      activeLayout,
+      basePath,
+      includeScope,
+      pendingLayout,
+      router,
+      scope,
+      searchParams,
+      vault,
+    ],
   );
+
+  useEffect(() => {
+    if (!isPending) setPendingLayout(null);
+  }, [isPending]);
 
   return (
     <div
@@ -76,7 +91,7 @@ export function ViewSwitcher({
       className={cn(
         SEGMENTED_CONTROL_TRACK,
         "motion-safe:transition-opacity motion-safe:duration-150",
-        isPending && "cursor-progress opacity-60",
+        isPending && "opacity-60",
       )}
     >
       {layouts.map((layout) => {
@@ -88,6 +103,7 @@ export function ViewSwitcher({
             key={layout}
             type="button"
             aria-pressed={isActive}
+            aria-busy={pendingLayout === layout ? true : undefined}
             aria-label={label}
             title={label}
             data-testid={`view-switcher-${layout}`}

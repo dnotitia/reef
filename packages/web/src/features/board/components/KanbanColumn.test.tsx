@@ -96,18 +96,18 @@ vi.mock("./KanbanCard", () => ({
   KanbanCard: ({
     issue,
     onClick,
-    readOnlyReason,
+    dragRestrictionReason,
     dragEnabled,
   }: {
     issue: IssueListItem;
     onClick?: (id: string) => void;
-    readOnlyReason?: string;
+    dragRestrictionReason?: string;
     dragEnabled?: boolean;
   }) => (
     <button
       type="button"
       data-testid="kanban-card"
-      data-read-only-reason={readOnlyReason}
+      data-drag-restriction-reason={dragRestrictionReason}
       data-drag-enabled={String(dragEnabled)}
       onClick={() => onClick?.(issue.id)}
     >
@@ -263,14 +263,14 @@ describe("KanbanColumn", () => {
     expect(openEpic).not.toHaveTextContent(longTitle);
   });
 
-  it("keeps Epic child cards interactive while the group remains read-only", () => {
+  it("keeps Epic child cards interactive while the group remains drag-restricted", () => {
     const onIssueClick = vi.fn();
     renderColumn({
       bucket: epicBucket(),
       issues: [makeTestIssue("reef-001")],
       onIssueClick,
       dragEnabled: false,
-      readOnlyReason: "Epic groups are read-only",
+      dragRestrictionReason: "Epic groups cannot be moved by dragging",
     });
 
     expect(screen.queryByTestId("epic-group-read-only")).toBeNull();
@@ -278,7 +278,7 @@ describe("KanbanColumn", () => {
       /In Progress|1 of 2 done or closed/,
     );
     const card = screen.getByTestId("kanban-card");
-    expect(card).not.toHaveAttribute("data-read-only-reason");
+    expect(card).not.toHaveAttribute("data-drag-restriction-reason");
     expect(card).toHaveAttribute("data-drag-enabled", "false");
     fireEvent.click(card);
     expect(onIssueClick).toHaveBeenCalledWith("reef-001");

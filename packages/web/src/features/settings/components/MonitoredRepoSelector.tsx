@@ -51,7 +51,7 @@ function MonitoredRepoOption({
         disabled={disabled}
         aria-label={repo.full_name}
         aria-pressed={checked}
-        className="flex w-full min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+        className="flex w-full min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground disabled:opacity-50 disabled:hover:bg-transparent"
         onClick={() => {
           close("select");
           onToggle(repo.full_name);
@@ -156,7 +156,7 @@ export function MonitoredRepoSelector({
         <PopoverTrigger
           data-testid={`${testIdPrefix}-trigger`}
           aria-haspopup="dialog"
-          disabled={disabled}
+          disabled={disabled || busy}
           aria-busy={busy || undefined}
           className="inline-flex h-8 w-full max-w-full min-w-0 items-center justify-between rounded-md border border-border bg-surface-elevated px-2.5 type-control text-foreground transition-colors duration-150 hover:bg-surface-hover disabled:opacity-50"
           aria-label={
@@ -225,7 +225,7 @@ export function MonitoredRepoSelector({
               <button
                 type="button"
                 disabled={disabled || busy}
-                className="shrink-0 text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground"
+                className="shrink-0 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50 disabled:hover:text-muted-foreground"
                 aria-label={t("removeRepo", { repo })}
                 onClick={() => onToggle(repo)}
               >

@@ -7,6 +7,7 @@ import {
   resetFixture,
   writeIndexedDbConfig,
 } from "../harness/fixture";
+import { expectCursorAtPointer } from "../harness/cursor";
 
 function reefVault(
   state: Awaited<ReturnType<typeof readFixtureState>>,
@@ -483,6 +484,84 @@ test.describe("Hermetic issue route surfaces", () => {
     expect(url.searchParams.get("view")).toBe("list");
     expect(url.searchParams.get("status")).toBe("todo");
     expect(url.searchParams.get("q")).toBe("issue");
+  });
+
+  test("uses the real cursor policy across controls, rows, menus, and detail", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openExistingWorkspace(page);
+
+    for (const theme of ["light", "dark"] as const) {
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+      await setVisualTheme(page, theme);
+      await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
+
+      await expectCursorAtPointer(
+        page.getByTestId("new-issue-trigger"),
+        "pointer",
+      );
+      await expectCursorAtPointer(
+        page.getByRole("link", { name: "Issues", exact: true }),
+        "pointer",
+      );
+      await expectCursorAtPointer(
+        page.getByTestId("view-switcher-list"),
+        "pointer",
+      );
+      await expectCursorAtPointer(
+        page.getByTestId("scope-switcher-active"),
+        "pointer",
+      );
+      await expectCursorAtPointer(
+        page.getByTestId("status-dropdown-trigger"),
+        "pointer",
+      );
+      await expectCursorAtPointer(page.getByTestId("search-input"), "text");
+      await expectCursorAtPointer(
+        page.getByTestId("sidebar-brand-name"),
+        "auto",
+      );
+
+      const row = page.getByTestId("issue-list-row").first();
+      await expectCursorAtPointer(row, "pointer");
+      await expectCursorAtPointer(
+        row.getByTestId("issue-inline-edit-status"),
+        "pointer",
+      );
+      await expectCursorAtPointer(
+        row.getByTestId("issue-row-checkbox"),
+        "pointer",
+      );
+
+      await page.getByTestId("display-options-trigger").click();
+      await expectCursorAtPointer(
+        page.getByTestId("show-archived-toggle"),
+        "pointer",
+      );
+      await page.keyboard.press("Escape");
+
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=board`);
+      const card = page.getByTestId("kanban-card").first();
+      await expect(card).toBeVisible();
+      await expectCursorAtPointer(card, "pointer");
+
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/issues/REEF-001`);
+      await expect(page.getByTestId("issue-detail")).toBeVisible();
+      await expectCursorAtPointer(
+        page.getByTestId("issue-title-input"),
+        "text",
+      );
+      await expectCursorAtPointer(
+        page.locator('[data-testid="issue-detail"] [contenteditable="true"]'),
+        "text",
+      );
+      await expectCursorAtPointer(
+        page.getByTestId("issue-detail-resize-handle"),
+        "col-resize",
+      );
+      await page.getByTestId("issue-close").click();
+    }
   });
 
   test("restores scope and layout independently and normalizes Backlog Timeline", async ({

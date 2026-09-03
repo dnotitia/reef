@@ -1,10 +1,12 @@
 import { type Locator, expect, test } from "@playwright/test";
 import {
   clearPersistedQueryCacheOnLoad,
+  REEF_E2E_VAULT,
   openExistingWorkspace,
   readFixtureState,
   resetFixture,
 } from "../harness/fixture";
+import { expectCursorAtPointer } from "../harness/cursor";
 
 const WORKSPACE = "/workspace/reef-e2e/issues";
 
@@ -113,9 +115,15 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
     await page.getByTestId("view-switcher-board").click();
     await page.waitForURL(/view=board.*group=label|group=label.*view=board/);
     await expect(page.locator('[data-testid="kanban-board"]')).toBeVisible();
-    await expect(
-      page.locator('[data-group-by="label"] [aria-disabled="true"]').first(),
-    ).toHaveAttribute("title", /Label groups are read-only/);
+    const labelCard = page
+      .locator('[data-group-by="label"] [data-testid="kanban-card"]')
+      .first();
+    await expect(labelCard).not.toHaveAttribute("aria-disabled");
+    await expectCursorAtPointer(labelCard, "pointer");
+    await expect(labelCard).toHaveAttribute(
+      "title",
+      /Label groups cannot be moved by dragging/,
+    );
     await page.getByTestId("view-switcher-list").click();
     await page.waitForURL(/view=list.*group=label|group=label.*view=list/);
   });
@@ -572,25 +580,46 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
       page.locator('[data-testid="kanban-card"]').first(),
     ).toBeVisible();
     const labelCard = page.getByTestId("kanban-card").first();
-    await expect(labelCard).toHaveAttribute("aria-disabled", "true");
+    await expect(labelCard).not.toHaveAttribute("aria-disabled");
+    await expectCursorAtPointer(labelCard, "pointer");
     await expect(labelCard).toHaveAttribute(
       "title",
-      /Label groups are read-only/,
+      /Label groups cannot be moved by dragging/,
     );
     await expect(
       page.locator('[data-group-by="label"] [role="tooltip"]').first(),
-    ).toContainText("Label groups are read-only");
+    ).toContainText("Label groups cannot be moved by dragging");
   });
 
   test("keeps Label Board cards tabbable and opens detail with Enter", async ({
     page,
+    request,
   }) => {
     await openExistingWorkspace(page);
     await page.goto(`${WORKSPACE}?view=board&group=label`);
 
     const labelCard = page.getByTestId("kanban-card").first();
-    await expect(labelCard).toHaveAttribute("aria-disabled", "true");
+    await expect(labelCard).not.toHaveAttribute("aria-disabled");
+    await expect(labelCard).toHaveAttribute(
+      "title",
+      /Label groups cannot be moved by dragging/,
+    );
     await expect(labelCard).toHaveAttribute("tabindex", "0");
+
+    const issueId = await labelCard.getAttribute("data-issue-id");
+    if (!issueId) throw new Error("Missing label card issue id");
+    const before = await readFixtureState(request);
+    const beforeUpdates =
+      before.issue_update_calls[`${REEF_E2E_VAULT}:${issueId}`] ?? 0;
+    const labelColumns = page.locator('[data-group-by="label"]');
+    expect(await labelColumns.count()).toBeGreaterThan(1);
+    await dragCardToColumn(labelCard, labelColumns.nth(1));
+    await page.waitForTimeout(200);
+    const after = await readFixtureState(request);
+    expect(after.issue_update_calls[`${REEF_E2E_VAULT}:${issueId}`] ?? 0).toBe(
+      beforeUpdates,
+    );
+
     await labelCard.focus();
     await expect(labelCard).toBeFocused();
 

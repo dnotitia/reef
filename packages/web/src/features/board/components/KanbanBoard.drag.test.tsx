@@ -382,17 +382,17 @@ describe("KanbanBoard drag and status updates", () => {
     await screen.findByText("UI board polish");
 
     // Keep the DnD sensor dependency shape stable across group changes; the
-    // label group's cards and columns remain disabled below, so no drag can
-    // activate while the context avoids React's variable-length dependency.
+    // Label-group cards stay interactive while their drag surface remains
+    // unavailable; the context still avoids React's variable-length dependency.
     expect(dndHarness.contextProps?.sensors).toHaveLength(2);
     expect(screen.getAllByTestId("kanban-card").length).toBeGreaterThan(0);
     expect(
       screen
         .getAllByTestId("kanban-card")
-        .every((card) => card.getAttribute("aria-disabled") === "true"),
+        .every((card) => !card.hasAttribute("aria-disabled")),
     ).toBe(true);
     expect(
-      screen.getAllByTitle(/Label groups are read-only/i).length,
+      screen.getAllByTitle(/Label groups cannot be moved by dragging/i).length,
     ).toBeGreaterThan(0);
 
     act(() => {

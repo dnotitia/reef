@@ -543,7 +543,8 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
                 aria-valuetext={`${panelWidth}px`}
                 data-testid="issue-detail-resize-handle"
                 data-resizing={isResizing ? "true" : "false"}
-                className="group absolute inset-y-0 left-0 z-10 flex w-3 touch-none select-none cursor-col-resize items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/60"
+                className="group absolute inset-y-0 left-0 z-10 flex w-3 touch-none select-none items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/60"
+                data-reef-interaction="resize-panel"
                 onKeyDown={onKeyDown}
                 onPointerCancel={onPointerCancel}
                 onPointerDown={onPointerDown}

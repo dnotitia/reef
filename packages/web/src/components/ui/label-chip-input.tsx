@@ -104,9 +104,11 @@ export function LabelChipInput({
       className={cn(
         "flex min-h-8 w-full flex-wrap items-center gap-1 rounded-md border border-border bg-surface-elevated px-1.5 py-1 type-control text-foreground transition-colors duration-150",
         "focus-within:border-brand-focus focus-within:ring-2 focus-within:ring-brand-focus/30",
-        disabled && "cursor-not-allowed opacity-50",
+        disabled && "opacity-50",
         className,
       )}
+      data-reef-interaction="text-input"
+      data-disabled={disabled ? "true" : undefined}
       onClick={() => inputRef.current?.focus()}
     >
       {value.map((label, i) => (
@@ -122,7 +124,7 @@ export function LabelChipInput({
               removeAt(i);
             }}
             disabled={disabled}
-            className="-mr-0.5 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground disabled:cursor-not-allowed"
+            className="-mr-0.5 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
             aria-label={t("removeLabel", { label })}
           >
             <X className="h-2.5 w-2.5" />
@@ -147,7 +149,7 @@ export function LabelChipInput({
         // tag entry everywhere this control is reused.
         autoComplete="off"
         spellCheck={false}
-        className="min-w-[6rem] flex-1 border-0 bg-transparent px-1 py-0.5 type-control outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
+        className="min-w-[6rem] flex-1 border-0 bg-transparent px-1 py-0.5 type-control outline-none placeholder:text-muted-foreground"
       />
     </div>
   );

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { Button } from "./button";
@@ -67,5 +67,25 @@ describe("Button focus indicator", () => {
 
     await user.click(button);
     expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it("keeps a disabled asChild control from activating or bubbling", () => {
+    const parentClick = vi.fn();
+    const childClick = vi.fn();
+    render(
+      <div onClick={parentClick}>
+        <Button asChild disabled onClick={childClick}>
+          <a href="/issues">Open issue</a>
+        </Button>
+      </div>,
+    );
+
+    const link = screen.getByRole("link", { name: "Open issue" });
+    fireEvent.click(link);
+    fireEvent.keyDown(link, { key: "Enter" });
+
+    expect(link).toHaveAttribute("aria-disabled", "true");
+    expect(childClick).not.toHaveBeenCalled();
+    expect(parentClick).not.toHaveBeenCalled();
   });
 });

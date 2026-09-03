@@ -13,6 +13,7 @@ import {
   resetFixture,
   setIssueReorderControl,
 } from "../harness/fixture";
+import { expectCursorAtPointer } from "../harness/cursor";
 
 /**
  * REEF-325: editing a non-membership field (title / labels / due date / …) must
@@ -50,6 +51,7 @@ async function dragGrip(
   gripTestIdPrefix: "issue-list-grip" | "backlog-grip",
   sourceId: string,
   targetId: string,
+  onDragging?: (source: Locator) => Promise<void>,
 ): Promise<void> {
   const source = page.getByTestId(`${gripTestIdPrefix}-${sourceId}`);
   const target = page.getByTestId(`${gripTestIdPrefix}-${targetId}`);
@@ -62,6 +64,11 @@ async function dragGrip(
     sourceBox.y + sourceBox.height / 2,
   );
   await page.mouse.down();
+  await page.mouse.move(
+    sourceBox.x + sourceBox.width / 2 + 8,
+    sourceBox.y + sourceBox.height / 2,
+  );
+  await onDragging?.(source);
   await page.mouse.move(
     targetBox.x + targetBox.width / 2,
     targetBox.y + targetBox.height / 2,
@@ -96,6 +103,37 @@ async function dragBoardTarget(
           : Math.min(24, targetBox.height / 2),
     },
   });
+}
+
+async function dragBoardTargetWithCursor(
+  page: Page,
+  source: Locator,
+  target: Locator,
+  point: "card" | "body",
+): Promise<void> {
+  const sourceBox = await source.boundingBox();
+  const targetBox = await target.boundingBox();
+  if (!sourceBox || !targetBox) throw new Error("missing Board drag bounds");
+  const sourceX = sourceBox.x + sourceBox.width / 2;
+  const sourceY = sourceBox.y + sourceBox.height / 2;
+  const targetX = targetBox.x + targetBox.width / 2;
+  const targetY =
+    targetBox.y +
+    (point === "card"
+      ? targetBox.height / 2
+      : Math.min(24, targetBox.height / 2));
+
+  await page.mouse.move(sourceX, sourceY);
+  await page.mouse.down();
+  const activationPoint = { x: sourceX + 8, y: sourceY };
+  await page.mouse.move(activationPoint.x, activationPoint.y);
+  await expectCursorAtPointer(
+    page.locator(".reef-drag-overlay"),
+    "grabbing",
+    activationPoint,
+  );
+  await page.mouse.move(targetX, targetY, { steps: 8 });
+  await page.mouse.up();
 }
 
 async function expectCanonicalReorderSuccessPulse(
@@ -301,13 +339,15 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => 
         response.request().method() === "POST" &&
         new URL(response.url()).pathname === "/api/issues/reorder",
     );
-    await dragBoardTarget(
+    await dragBoardTargetWithCursor(
+      page,
       movedCard,
       todo.getByTestId("kanban-card").filter({ hasText: "Polish onboarding" }),
       "card",
     );
     await expect(movedCard).toHaveAttribute("data-reorder-state", "pending");
     await expect(movedCard).toHaveAttribute("aria-busy", "true");
+    await expectCursorAtPointer(movedCard, "progress");
     await expect(
       page.getByTestId("reorder-persistence-announcement"),
     ).toHaveText(`Saving ${movedIssueId}'s position…`);
@@ -611,6 +651,10 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => 
     await expect(page.getByTestId("issue-list-scroll-container")).toBeVisible();
     await expect(page.getByTestId("issue-list-grip-REEF-001")).toBeVisible();
     await expect(page.getByTestId("issue-list-grip-REEF-002")).toBeVisible();
+    await expectCursorAtPointer(
+      page.getByTestId("issue-list-grip-REEF-001"),
+      "grab",
+    );
     const movedRow = page
       .getByTestId("issue-list-row")
       .filter({ hasText: "Initial issue Alpha" });
@@ -623,9 +667,15 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => 
         response.request().method() === "POST" &&
         new URL(response.url()).pathname === "/api/issues/reorder",
     );
-    await dragGrip(page, "issue-list-grip", "REEF-001", "REEF-002");
+    await dragGrip(page, "issue-list-grip", "REEF-001", "REEF-002", (source) =>
+      expectCursorAtPointer(source, "grabbing"),
+    );
     await expect(movedRow).toHaveAttribute("data-reorder-state", "pending");
     await expect(movedRow).toHaveAttribute("aria-busy", "true");
+    await expectCursorAtPointer(
+      movedRow.locator('[data-column-key="title"]'),
+      "progress",
+    );
     await expect(
       page.getByTestId("reorder-persistence-announcement"),
     ).toHaveText(`Saving ${movedIssueId}'s position…`);

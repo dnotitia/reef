@@ -8,6 +8,7 @@ import {
   setIssueListFailure,
   setPlanningCatalogFailure,
 } from "../harness/fixture";
+import { expectCursorAtPointer } from "../harness/cursor";
 
 function sprintNames(
   state: Awaited<ReturnType<typeof readFixtureState>>,
@@ -404,6 +405,7 @@ test.describe("Hermetic planning workflow", () => {
       name: "Delete Sprint Alpha",
     });
     await expect(deleteButton).toHaveAttribute("aria-disabled", "true");
+    await expectCursorAtPointer(deleteButton, "not-allowed");
     await expect(deleteButton).toHaveAttribute(
       "title",
       "Can't delete while linked issues can't be verified",
@@ -423,6 +425,7 @@ test.describe("Hermetic planning workflow", () => {
     // the ordinary linked-item guard rather than the unknown-integrity guard.
     await expect(row.getByText("1")).toBeVisible();
     await expect(deleteButton).toBeDisabled();
+    await expectCursorAtPointer(deleteButton, "not-allowed");
     await expect(deleteButton).not.toHaveAttribute("aria-disabled", "true");
     await expect(deleteButton).toHaveAttribute(
       "title",

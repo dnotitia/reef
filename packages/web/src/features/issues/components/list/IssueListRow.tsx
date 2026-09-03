@@ -299,7 +299,7 @@ export const IssueListRow = memo(function IssueListRow({
       <TableRow
         ref={setRowRef}
         className={cn(
-          "reef-issue-list-row group h-10 cursor-pointer transition-colors duration-150 focus-visible:outline-none",
+          "reef-issue-list-row group h-10 transition-colors duration-150 focus-visible:outline-none",
           visualState === "idle" && onClick && "hover:bg-surface-hover",
           (visualState === "focused" || visualState === "selected") &&
             "bg-brand-fill/5 hover:bg-brand-fill/5",
@@ -333,6 +333,7 @@ export const IssueListRow = memo(function IssueListRow({
           onClick?.(issue.id);
         }}
         data-testid="issue-list-row"
+        data-reef-interaction={onClick ? "clickable" : undefined}
         data-issue-id={issue.id}
         data-occurrence-key={keyboardOccurrenceKey}
         data-shortcut-surface="issue-list-row"
