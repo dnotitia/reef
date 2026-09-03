@@ -535,6 +535,17 @@ test.describe("Hermetic issue keyboard navigation", () => {
     await selectedRow.getByTestId("issue-row-checkbox").click();
     await expect(selectedRow).toHaveAttribute("aria-selected", "true");
 
+    await selectedRow.focus();
+    await expect(selectedRow).toBeFocused();
+    await expect(selectedRow).toHaveAttribute("data-keyboard-focused", "true");
+    const selectedFocusBoundary = await selectedRow.evaluate((row) => {
+      const boundary = row.querySelector<HTMLElement>(
+        'td[data-column-key="select"]',
+      );
+      return boundary ? getComputedStyle(boundary, "::after").content : "";
+    });
+    expect(selectedFocusBoundary).not.toBe("none");
+
     const geometry = await selectedRow.evaluate((row) => {
       const rowRect = row.getBoundingClientRect();
       const scroll = row.closest<HTMLElement>(

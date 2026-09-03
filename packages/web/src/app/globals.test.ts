@@ -111,6 +111,12 @@ describe("global focus styles", () => {
     expect(css).toContain(
       '.reef-issue-list-row[aria-selected="true"] > td:first-child::after',
     );
+    expect(css).toContain(
+      '.reef-issue-list-row[aria-selected="true"]:focus-visible',
+    );
+    expect(css).toContain(
+      '.reef-issue-list-row[aria-selected="true"][data-keyboard-focused="true"]',
+    );
     expect(css).toContain('.reef-issue-list-row[aria-selected="true"] > td');
     expect(css).toContain("left: 1px");
     expect(css).toContain("width: calc(var(--reef-list-focus-width) - 2px)");

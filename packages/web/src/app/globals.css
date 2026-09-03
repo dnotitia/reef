@@ -763,11 +763,21 @@ body {
   pointer-events: none;
 }
 
-/* A selected state is intentionally only a fill. The checkbox owns its own
- * keyboard focus ring, so selecting with a pointer cannot create a second
- * row-sized border. */
+/* A selected state is intentionally only a fill while a child owns focus. The
+ * checkbox owns its own keyboard focus ring, so selecting with a pointer
+ * cannot create a second row-sized border. Restore the boundary when the row
+ * itself is the keyboard navigation owner. */
 .reef-issue-list-row[aria-selected="true"] > td:first-child::after {
   content: none;
+}
+
+.reef-issue-list-row[aria-selected="true"]:focus-visible
+  > td:first-child::after,
+.reef-issue-list-row[aria-selected="true"][data-keyboard-focused="true"]:not(
+    :has(:focus)
+  )
+  > td:first-child::after {
+  content: "";
 }
 
 /* Backlog uses the same dense table contract but has no virtualized boundary
