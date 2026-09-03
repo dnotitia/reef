@@ -19,20 +19,33 @@
     "fontReadiness": "document.fonts.ready plus Noto Sans KR Hangul load"
   },
   "conditions": {
-    "desktop": {
-      "width": 1440,
-      "height": 900
+    "measured": {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "locale": "en",
+      "theme": "light",
+      "availableWidth": "surface-specific; no single normalized width was captured"
     },
-    "narrowDesktop": {
-      "width": 1024,
-      "height": 800
-    },
-    "narrow": {
-      "width": 390,
-      "height": 844
-    },
-    "locales": ["en", "ko"],
-    "themes": ["light", "dark"]
+    "tested": {
+      "viewports": {
+        "desktop": {
+          "width": 1440,
+          "height": 900
+        },
+        "narrowDesktop": {
+          "width": 1024,
+          "height": 800
+        },
+        "narrow": {
+          "width": 390,
+          "height": 844
+        }
+      },
+      "locales": ["en", "ko"],
+      "themes": ["light", "dark"]
+    }
   },
   "roles": {
     "listGroupLabel": {

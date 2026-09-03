@@ -385,9 +385,11 @@ descriptions use `type-settings-description` (12px/400/16px),
 progress count, and DialogTitle keep their own `type-segmented-control`
 (12px/500/18px), `type-small-button` (12px/500/16px),
 `type-subissue-progress` (12px/400/16px), and `type-dialog-title`
-(16px/600/16px, -0.16px tracking) roles. These values are derived from the
-same-browser historical baseline and are checked at the actual composed
-consumers; they are not a new density setting or a second font system.
+(16px/600/16px, -0.16px tracking) roles. The committed historical tuple
+measurement is the English/light 1440×900 run; the hermetic matrix separately
+checks the composed consumers across English/Korean, light/dark, and
+1440×900, 1024×800, and 390×844. These are not a new density setting or a
+second font system.
 
 Hero-scale type does not belong inside dashboard panels. Routed product
 surfaces should not drop below 12px captions or 14px body copy.

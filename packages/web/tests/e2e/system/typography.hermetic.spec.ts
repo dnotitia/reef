@@ -278,6 +278,39 @@ async function expectContainedLayout(page: Page, label: string): Promise<void> {
   expect(geometry.clippedActions, `${label} clipped actions`).toBe(0);
 }
 
+async function expectSmallButton(
+  locator: Locator,
+  label: string,
+): Promise<void> {
+  await expectTypography(locator, ROLE.smallButton, label);
+  await locator.focus();
+  await expect(locator, `${label} focusability`).toBeFocused();
+  const geometry = await locator.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return {
+      width: rect.width,
+      height: rect.height,
+      clientWidth: element.clientWidth,
+      clientHeight: element.clientHeight,
+      scrollWidth: element.scrollWidth,
+      scrollHeight: element.scrollHeight,
+      whiteSpace: style.whiteSpace,
+    };
+  });
+  expect(geometry.width, `${label} hit width`).toBeGreaterThanOrEqual(28);
+  expect(geometry.height, `${label} hit height`).toBeGreaterThanOrEqual(28);
+  expect(geometry.whiteSpace, `${label} one-line label`).toBe("nowrap");
+  expect(
+    geometry.scrollWidth,
+    `${label} horizontal clipping`,
+  ).toBeLessThanOrEqual(geometry.clientWidth + 1);
+  expect(
+    geometry.scrollHeight,
+    `${label} vertical clipping`,
+  ).toBeLessThanOrEqual(geometry.clientHeight + 1);
+}
+
 async function openRoute(page: Page, path: string): Promise<Locator> {
   await page.goto(path, { waitUntil: "domcontentloaded" });
   const main = page.getByRole("main").first();
@@ -312,9 +345,21 @@ async function choosePreferences(
   await settleFonts(page);
 }
 
+async function prepareStableRegressionSurface(
+  page: Page,
+  locale: Locale,
+  theme: Theme,
+): Promise<void> {
+  await openExistingWorkspace(page);
+  await choosePreferences(page, locale, theme);
+  await page.setViewportSize(VIEWPORTS[0]);
+}
+
 async function verifyIssues(
   page: Page,
   viewport: (typeof VIEWPORTS)[number],
+  locale: Locale,
+  theme: Theme,
 ): Promise<void> {
   const main = await openRoute(
     page,
@@ -345,9 +390,8 @@ async function verifyIssues(
       `${viewport.name} sidebar navigation`,
     );
   }
-  await expectTypography(
+  await expectSmallButton(
     page.getByTestId("new-issue-trigger"),
-    ROLE.smallButton,
     `${viewport.name} New Issue control`,
   );
   await expectTypography(
@@ -404,7 +448,10 @@ async function verifyIssues(
     ROLE.tableHeader,
     `${viewport.name} Issues table header`,
   );
-  const listId = listMain.locator('td[data-column-key="id"]:visible').first();
+  const listId = listMain
+    .locator('td[data-column-key="id"]:visible')
+    .filter({ hasText: /REEF-/ })
+    .first();
   const listIdTypography = await expectTypography(
     listId,
     ROLE.listId,
@@ -419,47 +466,61 @@ async function verifyIssues(
     ROLE.cardMetadata,
     `${viewport.name} List type pill`,
   );
-  if (viewport.width === VIEWPORTS[0].width) {
-    for (const group of [
-      "status",
-      "priority",
-      "assignee",
-      "sprint",
-      "label",
-    ] as const) {
+  if (
+    viewport.width === VIEWPORTS[0].width ||
+    (viewport.width === VIEWPORTS[1].width &&
+      locale === "ko" &&
+      theme === "light")
+  ) {
+    const groups =
+      viewport.width === VIEWPORTS[0].width
+        ? (["status", "priority", "assignee", "sprint", "label"] as const)
+        : (["priority"] as const);
+    for (const group of groups) {
       const groupedMain = await openRoute(
         page,
         `/workspace/${REEF_E2E_VAULT}/issues?view=list&group=${group}`,
       );
+      const groupLabels = groupedMain.getByTestId("issue-group-label");
+      const groupLabel =
+        group === "priority" && locale === "ko" && theme === "light"
+          ? groupLabels.filter({ hasText: "높음" }).first()
+          : groupLabels.first();
       await expectTypography(
-        groupedMain.getByTestId("issue-group-label").first(),
+        groupLabel,
         ROLE.listGroup,
-        `${viewport.name} List ${group} group label`,
+        `${locale}/${theme} ${viewport.name} List ${group} group label`,
       );
       const groupCount = groupedMain.getByTestId("issue-group-count").first();
       const groupCountTypography = await expectTypography(
         groupCount,
         ROLE.listGroupCount,
-        `${viewport.name} List ${group} group count`,
+        `${locale}/${theme} ${viewport.name} List ${group} group count`,
       );
       expect(groupCountTypography.fontVariantNumeric).toContain("tabular-nums");
     }
 
-    const backlogMain = await openRoute(
-      page,
-      `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`,
-    );
-    await expectTypography(
-      backlogMain.locator('[data-typography-role="list-group"]').first(),
-      ROLE.listGroup,
-      `${viewport.name} Backlog group label`,
-    );
-    const backlogCountTypography = await expectTypography(
-      backlogMain.locator('[data-typography-role="list-group-count"]').first(),
-      ROLE.listGroupCount,
-      `${viewport.name} Backlog group count`,
-    );
-    expect(backlogCountTypography.fontVariantNumeric).toContain("tabular-nums");
+    if (viewport.width === VIEWPORTS[0].width) {
+      const backlogMain = await openRoute(
+        page,
+        `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`,
+      );
+      await expectTypography(
+        backlogMain.locator('[data-typography-role="list-group"]').first(),
+        ROLE.listGroup,
+        `${viewport.name} Backlog group label`,
+      );
+      const backlogCountTypography = await expectTypography(
+        backlogMain
+          .locator('[data-typography-role="list-group-count"]')
+          .first(),
+        ROLE.listGroupCount,
+        `${viewport.name} Backlog group count`,
+      );
+      expect(backlogCountTypography.fontVariantNumeric).toContain(
+        "tabular-nums",
+      );
+    }
   }
   await expectContainedLayout(page, `${viewport.name} Issues list`);
 }
@@ -558,11 +619,43 @@ async function verifyTimeline(
     ROLE.timelineGroup,
     `${viewport.name} Timeline status group`,
   );
+  const timelineTitle = grid
+    .locator('[data-typography-role="timeline-title"]')
+    .first();
   await expectTypography(
-    grid.locator('[data-typography-role="timeline-title"]').first(),
+    timelineTitle,
     ROLE.timelineTitle,
     `${viewport.name} Timeline issue title`,
   );
+  const titleGeometry = await timelineTitle.evaluate((element) => {
+    const titleRect = element.getBoundingClientRect();
+    const container = element.closest("button") ?? element.parentElement;
+    const containerRect = container?.getBoundingClientRect();
+    return {
+      titleWidth: titleRect.width,
+      titleLeft: titleRect.left,
+      titleRight: titleRect.right,
+      clientWidth: element.clientWidth,
+      containerLeft: containerRect?.left ?? titleRect.left,
+      containerRight: containerRect?.right ?? titleRect.right,
+    };
+  });
+  expect(
+    titleGeometry.titleWidth,
+    `${viewport.name} Timeline title width`,
+  ).toBeGreaterThan(0);
+  expect(
+    Math.abs(titleGeometry.titleWidth - titleGeometry.clientWidth),
+    `${viewport.name} Timeline title available width`,
+  ).toBeLessThanOrEqual(1);
+  expect(
+    titleGeometry.titleLeft,
+    `${viewport.name} Timeline title left`,
+  ).toBeGreaterThanOrEqual(titleGeometry.containerLeft - 1);
+  expect(
+    titleGeometry.titleRight,
+    `${viewport.name} Timeline title right`,
+  ).toBeLessThanOrEqual(titleGeometry.containerRight + 1);
   await expectTypography(
     grid.locator('[data-typography-role="timeline-month"]').first(),
     ROLE.timelineMonth,
@@ -752,9 +845,8 @@ async function verifyAdditionalSectionLabels(
     ROLE.dialogTitle,
     `${detailViewport.name} New Issue dialog title`,
   );
-  await expectTypography(
+  await expectSmallButton(
     newIssueDialog.getByTestId("new-issue-submit"),
-    ROLE.smallButton,
     `${detailViewport.name} New Issue small button`,
   );
   await newIssueDialog.getByTestId("new-issue-cancel").click();
@@ -780,7 +872,7 @@ test.describe("Hermetic typography role contract", () => {
 
         for (const viewport of VIEWPORTS) {
           await page.setViewportSize(viewport);
-          await verifyIssues(page, viewport);
+          await verifyIssues(page, viewport, locale, theme);
           if (viewport.width >= VIEWPORTS[1].width) {
             await verifyTimeline(page, viewport);
           }
@@ -794,6 +886,107 @@ test.describe("Hermetic typography role contract", () => {
         await verifyAdditionalSectionLabels(page, VIEWPORTS[1]);
       }
     }
+  });
+
+  // These regression checks deliberately use selectors that already existed
+  // at the prechange head, so a missing new data marker cannot masquerade as
+  // style evidence when the same contract runs against both products.
+  test("stable historical regression keeps the English High list group", async ({
+    page,
+  }) => {
+    await prepareStableRegressionSurface(page, "en", "dark");
+    const main = await openRoute(
+      page,
+      `/workspace/${REEF_E2E_VAULT}/issues?view=list&group=priority`,
+    );
+    await expectTypography(
+      main.getByTestId("issue-group-label").filter({ hasText: "High" }).first(),
+      ROLE.listGroup,
+      "Stable English High list group",
+    );
+  });
+
+  test("stable historical regression keeps the Korean 높음 list group at 1024px", async ({
+    page,
+  }) => {
+    await prepareStableRegressionSurface(page, "ko", "light");
+    await page.setViewportSize(VIEWPORTS[1]);
+    const main = await openRoute(
+      page,
+      `/workspace/${REEF_E2E_VAULT}/issues?view=list&group=priority`,
+    );
+    await expectTypography(
+      main.getByTestId("issue-group-label").filter({ hasText: "높음" }).first(),
+      ROLE.listGroup,
+      "Stable Korean 높음 list group at 1024px",
+    );
+  });
+
+  test("stable historical regression keeps the Kanban blocked chip", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "demo_board");
+    await prepareStableRegressionSurface(page, "en", "dark");
+    const main = await openRoute(
+      page,
+      `/workspace/${REEF_E2E_VAULT}/issues?view=board`,
+    );
+    const blockedCard = main
+      .getByTestId("kanban-card")
+      .filter({ hasText: "Blocked" })
+      .first();
+    await expectTypography(
+      blockedCard.getByText("Blocked", { exact: true }),
+      ROLE.boardBlocked,
+      "Stable Kanban blocked chip",
+    );
+  });
+
+  test("stable historical regression keeps the List ID", async ({ page }) => {
+    await prepareStableRegressionSurface(page, "en", "dark");
+    const main = await openRoute(
+      page,
+      `/workspace/${REEF_E2E_VAULT}/issues?view=list`,
+    );
+    const listId = main
+      .locator('td[data-column-key="id"]:visible')
+      .filter({ hasText: /REEF-/ })
+      .first();
+    const typography = await expectTypography(
+      listId,
+      ROLE.listId,
+      "Stable List ID",
+    );
+    expect(typography.fontVariantNumeric).toContain("tabular-nums");
+    await expectFontStacks(page, "Stable List ID", listId);
+  });
+
+  test("stable historical regression keeps the Timeline title", async ({
+    page,
+  }) => {
+    await prepareStableRegressionSurface(page, "en", "dark");
+    const main = await openRoute(
+      page,
+      `/workspace/${REEF_E2E_VAULT}/issues?view=timeline`,
+    );
+    await page.getByRole("button", { name: "Previous quarter" }).click();
+    const title = main
+      .getByText("Initial issue Alpha", { exact: true })
+      .first();
+    await expectTypography(title, ROLE.timelineTitle, "Stable Timeline title");
+  });
+
+  test("stable historical regression keeps the Reports Risk row", async ({
+    page,
+  }) => {
+    await prepareStableRegressionSurface(page, "en", "dark");
+    const main = await openRoute(page, `/workspace/${REEF_E2E_VAULT}/reports`);
+    await expectTypography(
+      main.locator('th[scope="row"]:visible').first(),
+      ROLE.reportRowLabel,
+      "Stable Reports Risk row",
+    );
   });
 
   test("keeps Epic groups title-case instead of inheriting the status grammar", async ({
@@ -813,18 +1006,32 @@ test.describe("Hermetic typography role contract", () => {
       .first()
       .locator("h3");
     await expectTypography(epicHeader, ROLE.boardEpic, "Epic group header");
+    const boardEpicId = epicHeader.locator(".type-compact-mono").first();
+    await expectTypography(boardEpicId, ROLE.compactMono, "Board Epic ID");
+    await expectFontStacks(page, "Board Epic", boardEpicId);
+    await expectTypography(
+      epicHeader.locator('[title="Platform foundation"]'),
+      ROLE.boardEpic,
+      "Board Epic title",
+    );
 
     const epicList = await openRoute(
       page,
       `/workspace/${REEF_E2E_VAULT}/issues?view=list&group=epic`,
     );
-    await expectTypography(
-      epicList.getByTestId("issue-group-label").first(),
-      ROLE.listGroup,
-      "Epic List group label",
+    const epicListHeader = epicList.locator(
+      '[data-testid="issue-group-header"][data-group-id="epic:REEF-100"]',
     );
     await expectTypography(
-      epicList.getByTestId("issue-group-count").first(),
+      epicListHeader.getByTestId("issue-group-title"),
+      ROLE.listGroup,
+      "Epic List group title",
+    );
+    const listEpicId = epicListHeader.locator(".type-compact-mono").first();
+    await expectTypography(listEpicId, ROLE.compactMono, "Epic List ID");
+    await expectFontStacks(page, "Epic List", listEpicId);
+    await expectTypography(
+      epicListHeader.getByTestId("issue-group-count"),
       ROLE.listGroupCount,
       "Epic List group count",
     );
@@ -846,6 +1053,27 @@ test.describe("Hermetic typography role contract", () => {
       blockedCard.getByText("Blocked", { exact: true }),
       ROLE.boardBlocked,
       "Kanban blocked badge",
+    );
+  });
+
+  test("keeps detail sub-issue progress on its historical body role", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "demo_board");
+    await openExistingWorkspace(page);
+    await page.setViewportSize(VIEWPORTS[0]);
+    const issueDetail = await openRoute(
+      page,
+      `/workspace/${REEF_E2E_VAULT}/issues/REEF-101`,
+    );
+    await expectTypography(
+      issueDetail
+        .getByTestId("issue-children")
+        .locator('[data-typography-role="subissue-progress"]:visible')
+        .first(),
+      ROLE.subissueProgress,
+      "Issue detail sub-issue progress",
     );
   });
 
