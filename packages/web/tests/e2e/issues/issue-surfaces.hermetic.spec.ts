@@ -273,124 +273,49 @@ async function readCurrentSprintFocus(page: Page) {
     .getByTestId("current-sprint-shortcut")
     .getByRole("link")
     .evaluate((element) => {
-      type Rgb = { r: number; g: number; b: number; a: number };
-
-      const parseColor = (value: string): Rgb | null => {
-        const normalized = value.trim().toLowerCase();
-        const hexMatch = normalized.match(/^#([\da-f]{3,8})$/u);
-        if (hexMatch) {
-          const hex = hexMatch[1] ?? "";
-          const expanded =
-            hex.length <= 4
-              ? [...hex].map((character) => `${character}${character}`).join("")
-              : hex;
-          if (expanded.length === 6 || expanded.length === 8) {
-            return {
-              r: Number.parseInt(expanded.slice(0, 2), 16),
-              g: Number.parseInt(expanded.slice(2, 4), 16),
-              b: Number.parseInt(expanded.slice(4, 6), 16),
-              a:
-                expanded.length === 8
-                  ? Number.parseInt(expanded.slice(6, 8), 16) / 255
-                  : 1,
-            };
-          }
-        }
-        const rgbMatch = normalized.match(/^rgba?\(([^)]+)\)$/u);
-        if (rgbMatch) {
-          const parts = rgbMatch[1]
-            .replaceAll("/", " ")
-            .split(/[\s,]+/u)
-            .filter(Boolean)
-            .map(Number);
-          if (parts.length >= 3 && parts.every(Number.isFinite)) {
-            return {
-              r: parts[0] ?? 0,
-              g: parts[1] ?? 0,
-              b: parts[2] ?? 0,
-              a: parts[3] ?? 1,
-            };
-          }
-        }
-
-        const srgbMatch = normalized.match(
-          /^color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+))?\)$/u,
-        );
-        if (srgbMatch) {
-          return {
-            r: Number(srgbMatch[1]) * 255,
-            g: Number(srgbMatch[2]) * 255,
-            b: Number(srgbMatch[3]) * 255,
-            a: Number(srgbMatch[4] ?? 1),
-          };
-        }
-
-        const hslMatch = normalized.match(
-          /^hsla?\(\s*([\d.]+)(?:deg)?[\s,]+([\d.]+)%[\s,]+([\d.]+)%(?:[\s,/]+([\d.]+))?\s*\)$/u,
-        );
-        if (!hslMatch) return null;
-        const hue = (Number(hslMatch[1]) % 360) / 60;
-        const saturation = Number(hslMatch[2]) / 100;
-        const lightness = Number(hslMatch[3]) / 100;
-        const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
-        const second = chroma * (1 - Math.abs((hue % 2) - 1));
-        const match =
-          hue < 1
-            ? [chroma, second, 0]
-            : hue < 2
-              ? [second, chroma, 0]
-              : hue < 3
-                ? [0, chroma, second]
-                : hue < 4
-                  ? [0, second, chroma]
-                  : hue < 5
-                    ? [second, 0, chroma]
-                    : [chroma, 0, second];
-        const offset = lightness - chroma / 2;
-        return {
-          r: (match[0] + offset) * 255,
-          g: (match[1] + offset) * 255,
-          b: (match[2] + offset) * 255,
-          a: Number(hslMatch[4] ?? 1),
-        };
+      type Rgb = [number, number, number];
+      const parseNormalizedRgb = (value: string): Rgb | null => {
+        const channels = value.match(/^rgb\(([^)]+)\)$/u)?.[1];
+        const parts = channels
+          ?.split(/[\s,]+/u)
+          .filter(Boolean)
+          .map(Number);
+        return parts?.length === 3 && parts.every(Number.isFinite)
+          ? [parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0]
+          : null;
       };
-
-      const luminance = (channel: number) => {
-        const normalized = channel / 255;
-        return normalized <= 0.03928
-          ? normalized / 12.92
-          : ((normalized + 0.055) / 1.055) ** 2.4;
+      const readTokenRgb = (token: string): Rgb | null => {
+        const probe = document.createElement("span");
+        probe.style.backgroundColor = `var(${token})`;
+        document.body.append(probe);
+        const color = parseNormalizedRgb(
+          getComputedStyle(probe).backgroundColor,
+        );
+        probe.remove();
+        return color;
       };
-      const relativeLuminance = (color: Rgb) =>
-        0.2126 * luminance(color.r) +
-        0.7152 * luminance(color.g) +
-        0.0722 * luminance(color.b);
-      const composite = (foreground: Rgb, background: Rgb): Rgb => ({
-        r: foreground.r * foreground.a + background.r * (1 - foreground.a),
-        g: foreground.g * foreground.a + background.g * (1 - foreground.a),
-        b: foreground.b * foreground.a + background.b * (1 - foreground.a),
-        a: 1,
-      });
-
+      const luminance = (color: Rgb) =>
+        color.reduce((total, channel, index) => {
+          const normalized = channel / 255;
+          const linear =
+            normalized <= 0.03928
+              ? normalized / 12.92
+              : ((normalized + 0.055) / 1.055) ** 2.4;
+          return total + linear * [0.2126, 0.7152, 0.0722][index];
+        }, 0);
       const styles = getComputedStyle(element);
-      const backgroundValue = getComputedStyle(
-        document.documentElement,
-      ).getPropertyValue("--surface-page");
-      const background = parseColor(backgroundValue);
-      const shadowMatches =
-        styles.boxShadow.match(/(?:rgba?\([^)]*\)|color\(srgb[^)]*\))/gu) ?? [];
-      const shadowColor = shadowMatches
-        .map(parseColor)
-        .find((color): color is Rgb => color !== null && color.a > 0);
+      const background = readTokenRgb("--surface-page");
+      const ring = parseNormalizedRgb(
+        styles.boxShadow.match(/rgb\([^)]*\)/u)?.[0] ?? "",
+      );
       const contrast =
-        background && shadowColor
+        background && ring
           ? (() => {
-              const ring = composite(shadowColor, background);
-              const foregroundLuminance = relativeLuminance(ring);
-              const backgroundLuminance = relativeLuminance(background);
+              const ringLuminance = luminance(ring);
+              const backgroundLuminance = luminance(background);
               return (
-                (Math.max(foregroundLuminance, backgroundLuminance) + 0.05) /
-                (Math.min(foregroundLuminance, backgroundLuminance) + 0.05)
+                (Math.max(ringLuminance, backgroundLuminance) + 0.05) /
+                (Math.min(ringLuminance, backgroundLuminance) + 0.05)
               );
             })()
           : null;
