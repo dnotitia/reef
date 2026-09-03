@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { Button } from "./button";
@@ -67,5 +67,55 @@ describe("Button focus indicator", () => {
 
     await user.click(button);
     expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it("keeps a disabled asChild control from activating or bubbling", () => {
+    const parentClick = vi.fn();
+    const childClick = vi.fn();
+    const slottedChildClick = vi.fn();
+    const slottedChildKeyDown = vi.fn();
+    render(
+      <div onClick={parentClick}>
+        <Button asChild disabled onClick={childClick}>
+          <a
+            href="/issues"
+            onClick={slottedChildClick}
+            onKeyDown={slottedChildKeyDown}
+          >
+            Open issue
+          </a>
+        </Button>
+      </div>,
+    );
+
+    const link = screen.getByRole("link", { name: "Open issue" });
+    fireEvent.click(link);
+    fireEvent.keyDown(link, { key: "Enter" });
+
+    expect(link).toHaveAttribute("aria-disabled", "true");
+    expect(childClick).not.toHaveBeenCalled();
+    expect(slottedChildClick).not.toHaveBeenCalled();
+    expect(slottedChildKeyDown).not.toHaveBeenCalled();
+    expect(parentClick).not.toHaveBeenCalled();
+  });
+
+  it("keeps an aria-disabled control from activating or bubbling", () => {
+    const parentClick = vi.fn();
+    const childClick = vi.fn();
+    render(
+      <div onClick={parentClick}>
+        <Button aria-disabled onClick={childClick}>
+          Delete issue
+        </Button>
+      </div>,
+    );
+
+    const button = screen.getByRole("button", { name: "Delete issue" });
+    fireEvent.click(button);
+    fireEvent.keyDown(button, { key: "Enter" });
+    fireEvent.keyDown(button, { key: " " });
+
+    expect(childClick).not.toHaveBeenCalled();
+    expect(parentClick).not.toHaveBeenCalled();
   });
 });

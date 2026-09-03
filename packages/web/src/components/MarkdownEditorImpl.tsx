@@ -2069,7 +2069,8 @@ export function MarkdownEditor({
             aria-valuetext={`${editorCurrentHeight}px`}
             data-testid="markdown-editor-resize-handle"
             data-resizing={isHeightResizing ? "true" : "false"}
-            className="group absolute bottom-0 right-0 z-10 flex size-8 touch-none select-none cursor-se-resize items-end justify-end focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/60"
+            className="group absolute bottom-0 right-0 z-10 flex size-8 touch-none select-none items-end justify-end focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/60"
+            data-reef-interaction="resize-editor"
             onKeyDown={onHeightResizeKeyDown}
             onPointerCancel={onHeightResizePointerCancel}
             onPointerDown={onHeightResizePointerDown}

@@ -73,7 +73,7 @@ export function IssueSubscriptionControl({
         aria-busy={pending}
         aria-label={t("controlLabel", { state: stateLabel })}
         disabled={pending}
-        className="h-7 gap-1 rounded-md px-2 type-caption font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+        className="h-7 gap-1 rounded-md px-2 type-caption font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground disabled:opacity-60"
       >
         {state === "muted" ? (
           <EyeOff aria-hidden="true" className="h-3.5 w-3.5" />

@@ -731,8 +731,9 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
                     type="button"
                     data-testid="global-search-content-more"
                     disabled={contentInFlight}
+                    aria-busy={contentInFlight || undefined}
                     onClick={loadMore}
-                    className="mx-auto mt-1 block rounded-md px-3 py-1.5 type-caption font-medium text-brand-text transition-colors hover:bg-brand-fill/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus disabled:pointer-events-none disabled:opacity-50"
+                    className="mx-auto mt-1 block rounded-md px-3 py-1.5 type-caption font-medium text-brand-text transition-colors hover:bg-brand-fill/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus disabled:opacity-50"
                   >
                     {contentInFlight ? t("loadingMore") : t("loadMore")}
                   </button>

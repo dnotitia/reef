@@ -365,7 +365,7 @@ describe("KanbanCard", () => {
     expect(screen.queryByTestId("kanban-planning-context")).toBeNull();
   });
 
-  it("applies dragging style class when isDragging is true", () => {
+  it("exposes dragging state without choosing a cursor utility", () => {
     vi.mocked(useSortable).mockReturnValueOnce({
       attributes: {
         role: "button",
@@ -386,7 +386,7 @@ describe("KanbanCard", () => {
     const { container } = render(<KanbanCard issue={mockIssue()} />);
     const card = container.firstChild as HTMLElement;
     expect(card.className).toContain("opacity-50");
-    expect(card.className).toContain("cursor-grabbing");
+    expect(card).toHaveAttribute("data-dragging", "true");
   });
 
   it("does not apply dragging class when not dragging", () => {
@@ -514,19 +514,23 @@ describe("KanbanCard", () => {
     expect(onClick).toHaveBeenCalledWith("reef-001");
   });
 
-  it("keeps read-only cards tabbable and keyboard-operable", () => {
+  it("keeps drag-restricted cards tabbable and keyboard-operable", () => {
     const onClick = vi.fn();
     render(
       <KanbanCard
         issue={mockIssue()}
         onClick={onClick}
         dragEnabled={false}
-        readOnlyReason="Label groups are read-only"
+        dragRestrictionReason="Label groups cannot be moved by dragging"
       />,
     );
 
     const card = screen.getByTestId("kanban-card");
-    expect(card).toHaveAttribute("aria-disabled", "true");
+    expect(card).not.toHaveAttribute("aria-disabled");
+    expect(card).toHaveAttribute(
+      "title",
+      "Label groups cannot be moved by dragging",
+    );
     expect(card).toHaveAttribute("tabindex", "0");
     fireEvent.keyDown(card, { key: "Enter" });
     expect(onClick).toHaveBeenCalledWith("reef-001");

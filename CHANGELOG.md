@@ -50,6 +50,15 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Cursor semantics are now centralized by interaction and real state.**
+  Enabled controls, editable text, disabled and busy controls, clickable rows
+  and cards, drag handles, and resize handles share one policy; label-group
+  cards remain pointer-openable while label dragging stays unavailable.
+
+- **Monitored repository saves now preserve trigger focus.** The selector keeps
+  its trigger focusable while a save is busy, while option/removal controls and
+  the existing duplicate-save guard retain their protections.
+
 - **Breaking: Reef table artifacts now use AKB canonical `numeric` and `jsonb`
   types.** The obsolete `number` and `json` aliases are no longer emitted or
   accepted by the Reef schema manifest and table mutation contract.

@@ -41,7 +41,7 @@ function SelectTrigger({
         "*:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2",
         "outline-none focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30",
         "aria-invalid:border-destructive-focus aria-invalid:ring-2 aria-invalid:ring-destructive-focus/30",
-        "disabled:cursor-not-allowed disabled:opacity-50",
+        "disabled:opacity-50",
         className,
       )}
       {...props}
@@ -62,7 +62,7 @@ function SelectScrollUpButton({
     <SelectPrimitive.ScrollUpButton
       data-slot="select-scroll-up-button"
       className={cn(
-        "flex cursor-default items-center justify-center py-1 text-muted-foreground",
+        "flex items-center justify-center py-1 text-muted-foreground",
         className,
       )}
       {...props}
@@ -80,7 +80,7 @@ function SelectScrollDownButton({
     <SelectPrimitive.ScrollDownButton
       data-slot="select-scroll-down-button"
       className={cn(
-        "flex cursor-default items-center justify-center py-1 text-muted-foreground",
+        "flex items-center justify-center py-1 text-muted-foreground",
         className,
       )}
       {...props}
@@ -151,10 +151,10 @@ function SelectItem({
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        "relative flex w-full cursor-default select-none items-center gap-2 rounded-sm py-1 pr-7 pl-2 type-control text-foreground outline-none transition-colors duration-150",
+        "relative flex w-full select-none items-center gap-2 rounded-sm py-1 pr-7 pl-2 type-control text-foreground outline-none transition-colors duration-150",
         "data-[highlighted]:bg-surface-hover data-[highlighted]:text-foreground",
         "data-[state=checked]:font-medium",
-        "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        "data-[disabled]:opacity-50",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5 [&_svg:not([class*='text-'])]:text-muted-foreground",
         className,
       )}

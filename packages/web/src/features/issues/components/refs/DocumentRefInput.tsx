@@ -23,7 +23,7 @@ import { createPortal } from "react-dom";
 
 /** Mirrors the shared `<Input>` chrome, with room for a leading search glyph. */
 const INPUT_CLASS =
-  "flex h-8 w-full min-w-0 rounded-md border border-border bg-surface-elevated pl-8 pr-8 py-1 type-control text-foreground transition-colors duration-150 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/30 disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-8 w-full min-w-0 rounded-md border border-border bg-surface-elevated pl-8 pr-8 py-1 type-control text-foreground transition-colors duration-150 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/30 disabled:opacity-50";
 
 interface DocumentRefInputProps {
   vault: string;
@@ -248,7 +248,7 @@ export function DocumentRefInput({
                         onClick={() => selectHit(hit.uri)}
                         onMouseEnter={() => setActiveIndex(index)}
                         className={cn(
-                          "flex w-full cursor-default items-start gap-2 rounded-sm px-2 py-1.5 text-left touch-manipulation",
+                          "flex w-full items-start gap-2 rounded-sm px-2 py-1.5 text-left touch-manipulation",
                           isActive && "bg-accent text-accent-foreground",
                         )}
                       >

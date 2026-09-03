@@ -311,9 +311,9 @@ const ContextMenuItem = React.forwardRef<HTMLDivElement, ContextMenuItemProps>(
           onSelect?.(event);
         }}
         className={cn(
-          "flex min-h-8 cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-left type-control text-foreground outline-none transition-colors duration-150",
+          "flex min-h-8 select-none items-center gap-2 rounded-sm px-2 py-1.5 text-left type-control text-foreground outline-none transition-colors duration-150",
           "data-[highlighted]:bg-surface-hover data-[highlighted]:text-foreground focus-visible:bg-surface-hover",
-          "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+          "data-[disabled]:opacity-50",
           "data-[selected=true]:font-medium",
           destructive &&
             "text-destructive-text data-[highlighted]:bg-destructive-fill/10 data-[highlighted]:text-destructive-text",
@@ -397,7 +397,7 @@ const ContextMenuRadioItem = React.forwardRef<
         CBX_OPTION_BASE,
         CBX_OPTION_ROW,
         CBX_OPTION_HIGHLIGHT,
-        "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        "data-[disabled]:opacity-50",
         "data-[state=checked]:font-medium",
         className,
       )}
@@ -442,9 +442,9 @@ const ContextMenuSubTrigger = React.forwardRef<
     <ContextMenuPrimitive.SubTrigger
       ref={ref}
       className={cn(
-          "flex min-h-8 cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-left type-control text-foreground outline-none transition-colors duration-150",
+          "flex min-h-8 select-none items-center gap-2 rounded-sm px-2 py-1.5 text-left type-control text-foreground outline-none transition-colors duration-150",
         "data-[highlighted]:bg-surface-hover data-[highlighted]:text-foreground focus-visible:bg-surface-hover",
-        "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        "data-[disabled]:opacity-50",
         className,
       )}
       {...props}

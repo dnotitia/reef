@@ -40,7 +40,7 @@ export interface KanbanColumnProps {
   onIssueClick?: (id: string) => void;
   onGroupClick?: (id: string) => void;
   dragEnabled?: boolean;
-  readOnlyReason?: string;
+  dragRestrictionReason?: string;
   reorderIssueId?: string | null;
   reorderState?: IssueReorderSurfaceState | null;
 }
@@ -57,7 +57,7 @@ export const KanbanColumn = memo(function KanbanColumn({
   onIssueClick,
   onGroupClick,
   dragEnabled,
-  readOnlyReason,
+  dragRestrictionReason,
   reorderIssueId,
   reorderState,
 }: KanbanColumnProps) {
@@ -65,7 +65,9 @@ export const KanbanColumn = memo(function KanbanColumn({
   const statusLabels = useStatusLabels();
   const isEpicGroup = bucket.groupBy === "epic";
   const epic = bucket.epic;
-  const cardReadOnlyReason = isEpicGroup ? undefined : readOnlyReason;
+  const cardDragRestrictionReason = isEpicGroup
+    ? undefined
+    : dragRestrictionReason;
   const canDrag = dragEnabled ?? bucket.droppable;
   const { setNodeRef, isOver } = useDroppable({
     id: bucket.id,
@@ -169,7 +171,7 @@ export const KanbanColumn = memo(function KanbanColumn({
               bucket={bucket}
               occurrenceKey={`${bucket.id}:${issue.id}`}
               dragEnabled={canDrag}
-              readOnlyReason={cardReadOnlyReason}
+              dragRestrictionReason={cardDragRestrictionReason}
               blocked={blockedIds.has(issue.id)}
               planningCatalog={planningCatalog}
               assignees={assignees}

@@ -154,7 +154,7 @@ export function SprintDetailHeader({
       </div>
 
       <details data-testid="sprint-detail-goal" className="mt-3 min-w-0">
-        <summary className="flex min-w-0 cursor-pointer list-none items-center gap-2 rounded-md border border-border-subtle bg-surface-subtle px-3 py-2 type-control font-medium text-foreground transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40 [&::-webkit-details-marker]:hidden">
+        <summary className="flex min-w-0 list-none items-center gap-2 rounded-md border border-border-subtle bg-surface-subtle px-3 py-2 type-control font-medium text-foreground transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40 [&::-webkit-details-marker]:hidden">
           <span className="shrink-0 text-muted-foreground">{t("goal")}</span>
           <span className="min-w-0 truncate text-muted-foreground">
             {preview || t("noGoal")}

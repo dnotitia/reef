@@ -4,6 +4,7 @@ import {
   openExistingWorkspace,
   resetFixture,
 } from "../harness/fixture";
+import { expectCursorAtPointer } from "../harness/cursor";
 
 const HEIGHT_KEY = "reef:issue-description-height:v1";
 const MIN_HEIGHT = 200;
@@ -71,6 +72,7 @@ test.describe("Hermetic issue description height resize", () => {
     const editor = page.getByTestId("markdown-editor");
     await expect(frame).toBeVisible();
     await expect(handle).toBeVisible();
+    await expectCursorAtPointer(handle, "se-resize");
     await expect(handle).toHaveAttribute(
       "aria-valuenow",
       String(DEFAULT_HEIGHT),
@@ -265,6 +267,7 @@ test.describe("Hermetic issue description height resize", () => {
     await page.mouse.move(startX, startY);
     await page.mouse.down();
     await expect(handle).toHaveAttribute("data-resizing", "true");
+    await expectCursorAtPointer(handle, "se-resize");
     await page.mouse.move(startX, startY + 96, { steps: 3 });
     await page.mouse.up();
     await expect(handle).toHaveAttribute(
@@ -272,6 +275,7 @@ test.describe("Hermetic issue description height resize", () => {
       String(MIN_HEIGHT + 96),
     );
     await expect(handle).toHaveAttribute("data-resizing", "false");
+    await expectCursorAtPointer(handle, "se-resize");
     await expect(
       page.locator("[data-testid='markdown-editor-resize-handle']"),
     ).toBeFocused();

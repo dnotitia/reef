@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import type { IssueLayout, IssueScope } from "../../lib/viewMode";
 
 interface ScopeSwitcherProps {
@@ -28,11 +28,12 @@ export function ScopeSwitcher({
   const searchParams = useSearchParams();
   const { vault } = useActiveVault();
   const [isPending, startTransition] = useTransition();
+  const [pendingScope, setPendingScope] = useState<IssueScope | null>(null);
   const t = useTranslations("issues.filters");
 
   const selectScope = useCallback(
     (scope: IssueScope) => {
-      if (scope === activeScope) return;
+      if (scope === activeScope || pendingScope === scope) return;
       const next = new URLSearchParams(searchParams);
       next.set("scope", scope);
       next.set(
@@ -41,14 +42,19 @@ export function ScopeSwitcher({
           ? "list"
           : activeLayout,
       );
+      setPendingScope(scope);
       startTransition(() => {
         router.push(withVault(vault, `/issues?${next.toString()}`), {
           scroll: false,
         });
       });
     },
-    [activeLayout, activeScope, router, searchParams, vault],
+    [activeLayout, activeScope, pendingScope, router, searchParams, vault],
   );
+
+  useEffect(() => {
+    if (!isPending) setPendingScope(null);
+  }, [isPending]);
 
   return (
     <div
@@ -59,7 +65,7 @@ export function ScopeSwitcher({
       className={cn(
         SEGMENTED_CONTROL_TRACK,
         "motion-safe:transition-opacity motion-safe:duration-150",
-        isPending && "cursor-progress opacity-60",
+        isPending && "opacity-60",
       )}
     >
       {(["active", "backlog"] as const).map((scope) => {
@@ -70,6 +76,7 @@ export function ScopeSwitcher({
             key={scope}
             type="button"
             aria-pressed={isActive}
+            aria-busy={pendingScope === scope ? true : undefined}
             aria-label={label}
             title={label}
             data-testid={`scope-switcher-${scope}`}
