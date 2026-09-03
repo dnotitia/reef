@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { openExistingWorkspace, resetFixture } from "../harness/fixture";
+import { expectCursorAtPointer } from "../harness/cursor";
 
 const splitter = '[data-testid="issue-detail-resize-handle"]';
 const expandWidthName = "Expand issue detail panel to maximum width";
@@ -24,6 +25,7 @@ test.describe("Hermetic issue detail splitter", () => {
 
     const handle = page.locator(splitter);
     await expect(handle).toBeVisible();
+    await expectCursorAtPointer(handle, "col-resize");
     await expect(handle).toHaveAttribute("role", "separator");
     await expect(handle).toHaveAttribute("aria-orientation", "vertical");
     await expect(handle).toHaveAttribute("aria-valuemin", "1200");

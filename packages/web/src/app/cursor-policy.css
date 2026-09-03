@@ -1,0 +1,131 @@
+/*
+ * Cursor policy for the routed Reef UI.
+ *
+ * Interactive components expose their native element or accessible role and
+ * state here; feature components do not choose cursor values themselves.
+ * `data-reef-interaction` is reserved for non-native surfaces whose behavior
+ * cannot be expressed by an element or role alone.
+ */
+@layer components {
+  :where(
+    button:not(:disabled):not([aria-disabled="true"]):not([data-disabled]),
+    a[href]:not([aria-disabled="true"]):not([data-disabled]),
+    input[type="button"]:not(:disabled),
+    input[type="file"]:not(:disabled),
+    input[type="reset"]:not(:disabled),
+    input[type="submit"]:not(:disabled),
+    input[type="checkbox"]:not(:disabled),
+    input[type="radio"]:not(:disabled),
+    input[type="range"]:not(:disabled),
+    select:not(:disabled),
+    summary:not([aria-disabled="true"]):not([data-disabled]),
+    [role="button"]:not([aria-disabled="true"]):not([data-disabled]),
+    [role="link"]:not([aria-disabled="true"]):not([data-disabled]),
+    [role="combobox"]:not([aria-disabled="true"]):not([data-disabled]),
+    [role="menuitem"]:not([aria-disabled="true"]):not([data-disabled]),
+    [role="menuitemcheckbox"]:not([aria-disabled="true"]):not([data-disabled]),
+    [role="menuitemradio"]:not([aria-disabled="true"]):not([data-disabled]),
+    [role="option"]:not([aria-disabled="true"]):not([data-disabled]),
+    [role="checkbox"]:not([aria-disabled="true"]):not([data-disabled]),
+    [role="radio"]:not([aria-disabled="true"]):not([data-disabled]),
+    [role="switch"]:not([aria-disabled="true"]):not([data-disabled]),
+    [role="tab"]:not([aria-disabled="true"]):not([data-disabled]),
+    label:has(> input[type="checkbox"]:not(:disabled)),
+    label:has(> input[type="radio"]:not(:disabled)),
+    [data-reef-interaction="clickable"]:not([aria-disabled="true"]):not(
+      [data-disabled]
+    )
+  ) {
+    cursor: pointer;
+  }
+
+  :where(
+    input:not(
+      [type="button"],
+      [type="checkbox"],
+      [type="file"],
+      [type="hidden"],
+      [type="image"],
+      [type="radio"],
+      [type="range"],
+      [type="reset"],
+      [type="submit"]
+    ):not(:disabled):not([readonly]),
+    textarea:not(:disabled):not([readonly]),
+    [contenteditable="true"]:not([aria-disabled="true"]):not(
+      [aria-readonly="true"]
+    ),
+    [data-reef-interaction="text-input"]:not([aria-disabled="true"]):not(
+      [data-disabled]
+    )
+  ) {
+    cursor: text;
+  }
+
+  :where(
+    input[readonly],
+    textarea[readonly],
+    [aria-readonly="true"],
+    [contenteditable="false"]
+  ) {
+    cursor: auto;
+  }
+
+  :where(
+    :disabled,
+    [aria-disabled="true"],
+    [data-disabled],
+    [data-reef-disabled="true"],
+    label:has(> input:disabled)
+  ):not([data-disabled="false"]) {
+    cursor: not-allowed;
+  }
+
+  /* Busy controls remain the hit target and advertise progress even when the
+   * component also uses native disabled semantics to prevent a second action.
+   * Do not target generic aria-busy containers such as a whole page or group. */
+  button[aria-busy="true"],
+  a[href][aria-busy="true"],
+  input[aria-busy="true"],
+  textarea[aria-busy="true"],
+  select[aria-busy="true"],
+  [role="button"][aria-busy="true"],
+  [role="menuitem"][aria-busy="true"],
+  [role="menuitemcheckbox"][aria-busy="true"],
+  [role="menuitemradio"][aria-busy="true"],
+  [role="option"][aria-busy="true"],
+  [role="checkbox"][aria-busy="true"],
+  [role="radio"][aria-busy="true"],
+  [role="switch"][aria-busy="true"],
+  [role="tab"][aria-busy="true"],
+  [data-busy="true"],
+  [data-reef-interaction="clickable"][aria-busy="true"] {
+    cursor: progress;
+  }
+
+  :where([data-reef-interaction="drag-handle"]) {
+    cursor: grab;
+  }
+
+  :where(
+    [data-reef-interaction="drag-handle"][data-dragging="true"],
+    [data-reef-interaction="drag-surface"][data-dragging="true"]
+  ) {
+    cursor: grabbing;
+  }
+
+  /* dnd-kit positions this wrapper under the pointer while the preview card
+   * itself is intentionally hit-test transparent. */
+  .reef-drag-overlay,
+  .reef-drag-overlay * {
+    cursor: grabbing;
+  }
+
+  :where([data-reef-interaction="resize-panel"]) {
+    cursor: col-resize;
+  }
+
+  :where([data-reef-interaction="resize-editor"]) {
+    cursor: se-resize;
+  }
+}

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./cursor-policy.css";
 @plugin "@tailwindcss/typography";
 
 /* Streamdown markdown renderer ships utility-class-styled output; Tailwind v4

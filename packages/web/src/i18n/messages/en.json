@@ -1165,6 +1165,9 @@
     "noMatchDescription": "Try widening your filters or search to see more issues.",
     "groupNone": "None",
     "groupReadOnly": "Label groups are read-only. Change labels from the issue details.",
+    "groupDragUnavailable": "Label groups cannot be moved by dragging. Open issue details to change labels.",
+    "activeSprint": "Active sprint",
+    "openSprintDetails": "Open {name} sprint details",
     "openEpic": "Open Epic {id}: {title}",
     "epicColumnLabel": "Epic {id}: {title}; status {status}; {count} visible children; {done} of {total} done or closed"
   },

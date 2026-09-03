@@ -5,6 +5,7 @@ import {
   readIndexedDbConfig,
   resetFixture,
 } from "../harness/fixture";
+import { expectCursorAtPointer } from "../harness/cursor";
 
 test.describe("Hermetic i18n locale switch + persistence", () => {
   test.beforeEach(async ({ context, request }) => {
@@ -95,6 +96,20 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
         .getByRole("region", { name: "언어" })
         .getByTestId("locale-option-ko"),
     ).toHaveAttribute("aria-checked", "true");
+
+    // The same cursor semantics remain attached to the Korean UI, not to the
+    // English labels used by the policy test.
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+    await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
+    await expectCursorAtPointer(
+      page.getByRole("link", { name: "이슈", exact: true }),
+      "pointer",
+    );
+    await expectCursorAtPointer(
+      page.getByTestId("new-issue-trigger"),
+      "pointer",
+    );
+    await expectCursorAtPointer(page.getByTestId("search-input"), "text");
   });
 
   test("renders core field labels in the active locale on the board (REEF-292)", async ({

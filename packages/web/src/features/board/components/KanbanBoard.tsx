@@ -870,8 +870,10 @@ export function KanbanBoard({
                   : canReorderBacklog &&
                     (bucket.droppable || effectiveGroupBy === "none")
               }
-              readOnlyReason={
-                effectiveGroupBy === "label" ? t("groupReadOnly") : undefined
+              dragRestrictionReason={
+                effectiveGroupBy === "label"
+                  ? t("groupDragUnavailable")
+                  : undefined
               }
             />
           ))}
@@ -911,6 +913,7 @@ export function KanbanBoard({
           )}
         </div>
         <DragOverlay
+          className="reef-drag-overlay"
           dropAnimation={prefersReducedMotion() ? undefined : DROP_ANIMATION}
         >
           {activeIssue ? (

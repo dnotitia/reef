@@ -559,19 +559,13 @@ function PlanningDeleteAction({
         size="sm"
         hitTarget="compact"
         variant="ghost"
-        onClick={(event) => {
-          if (isAriaDisabled) {
-            event.preventDefault();
-            return;
-          }
-          onRequestDelete();
-        }}
+        onClick={onRequestDelete}
         disabled={hasLinkedIssues || isDeleting}
         busy={isDeleting}
         aria-disabled={isAriaDisabled ? true : undefined}
         aria-describedby={reason ? descriptionId : undefined}
         title={reason}
-        className={isAriaDisabled ? "cursor-not-allowed opacity-50" : undefined}
+        className={isAriaDisabled ? "opacity-50" : undefined}
         aria-label={t("deleteItem", { name: itemName })}
       >
         <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />

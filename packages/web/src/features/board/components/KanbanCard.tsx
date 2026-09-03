@@ -76,7 +76,7 @@ interface KanbanCardProps {
   onClick?: (id: string) => void;
   occurrenceKey?: string;
   dragEnabled?: boolean;
-  readOnlyReason?: string;
+  dragRestrictionReason?: string;
   bucket?: IssueGroupBucket;
   pendingFields?: readonly QuickEditPatchField[];
   updateMessage?: string;
@@ -90,8 +90,8 @@ interface KanbanCardSurfaceProps extends HTMLAttributes<HTMLDivElement> {
   planningCatalog?: PlanningCatalog;
   isDragging?: boolean;
   quickEditAnchor?: ReactNode;
-  readOnlyReason?: string;
-  readOnlyTooltipId?: string;
+  dragRestrictionReason?: string;
+  dragRestrictionTooltipId?: string;
   pendingFields?: readonly QuickEditPatchField[];
   updateMessage?: string;
   reorderState?: IssueReorderSurfaceState | null;
@@ -152,8 +152,8 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
       planningCatalog,
       isDragging = false,
       quickEditAnchor,
-      readOnlyReason,
-      readOnlyTooltipId,
+      dragRestrictionReason,
+      dragRestrictionTooltipId,
       pendingFields = [],
       updateMessage,
       reorderState,
@@ -216,11 +216,10 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
         data-issue-id={issue.id}
         className={cn(
           "group relative min-w-0 rounded-md border border-border bg-surface-card px-3 py-2.5",
-          "cursor-pointer select-none transition-colors duration-[var(--duration-base)] ease-[var(--ease-signature)]",
+          "select-none transition-colors duration-[var(--duration-base)] ease-[var(--ease-signature)]",
           "hover:border-border hover:bg-surface-hover",
           "focus-visible:outline-none focus-visible:border-brand-focus/60 focus-visible:bg-brand-fill/5",
-          isDragging && "opacity-50 cursor-grabbing shadow-md",
-          readOnlyReason && "cursor-not-allowed",
+          isDragging && "opacity-50 shadow-md",
           reorderSuccess && "reef-reorder-success-card",
           className,
         )}
@@ -229,19 +228,20 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
             ? true
             : undefined
         }
-        aria-describedby={readOnlyTooltipId}
-        aria-disabled={readOnlyReason ? true : undefined}
+        data-reef-interaction="drag-surface"
+        data-dragging={isDragging ? "true" : undefined}
+        aria-describedby={dragRestrictionTooltipId}
         data-reorder-state={surfaceReorderState ?? undefined}
-        title={readOnlyReason}
+        title={dragRestrictionReason}
         {...props}
       >
-        {readOnlyReason && readOnlyTooltipId ? (
+        {dragRestrictionReason && dragRestrictionTooltipId ? (
           <span
-            id={readOnlyTooltipId}
+            id={dragRestrictionTooltipId}
             role="tooltip"
             className="pointer-events-none absolute left-1/2 top-0 z-20 w-max max-w-[16rem] -translate-x-1/2 -translate-y-[calc(100%+0.35rem)] rounded-md border border-border bg-surface-popover px-2 py-1 type-card-metadata font-medium text-foreground opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
           >
-            {readOnlyReason}
+            {dragRestrictionReason}
           </span>
         ) : null}
         {updateMessage && (
@@ -400,7 +400,7 @@ const KanbanCardContent = memo(function KanbanCardContent({
   onClick,
   occurrenceKey,
   dragEnabled = true,
-  readOnlyReason,
+  dragRestrictionReason,
   bucket,
   pendingFields = [],
   updateMessage,
@@ -420,12 +420,12 @@ const KanbanCardContent = memo(function KanbanCardContent({
     data: { issue, occurrenceKey, bucket },
     disabled: !dragEnabled,
   });
-  // Epic grouping disables relationship drag at the column/drop-target seam,
-  // but its child cards remain ordinary interactive issue surfaces. Omit the
-  // sortable ARIA attributes/listeners so dnd-kit's disabled drag state does
-  // not make an otherwise clickable card announce as disabled.
-  const sortableAttributes = bucket?.groupBy === "epic" ? {} : attributes;
-  const sortableListeners = bucket?.groupBy === "epic" ? {} : listeners;
+  // Drag can be unavailable for a grouping or a temporarily locked board, but
+  // the card remains an ordinary interactive issue surface. Omit dnd-kit's
+  // sortable ARIA attributes/listeners whenever drag is unavailable so the
+  // disabled drag state does not make the clickable card announce as disabled.
+  const sortableAttributes = dragEnabled ? attributes : {};
+  const sortableListeners = dragEnabled ? listeners : {};
   // Save-confirm flash: one-shot highlight when this card's edit lands
   // server-side. the flashing card re-renders; the hook auto-clears the
   // flag after the flash window so a later save can flash it again.
@@ -511,7 +511,7 @@ const KanbanCardContent = memo(function KanbanCardContent({
         isFlashing && "reef-flash-card",
       )}
       role="button"
-      tabIndex={readOnlyReason || focused || tabStopped ? 0 : -1}
+      tabIndex={dragRestrictionReason || focused || tabStopped ? 0 : -1}
       aria-selected={focused || undefined}
       data-shortcut-surface="issue-kanban-card"
       data-occurrence-key={keyboardOccurrenceKey}
@@ -525,9 +525,11 @@ const KanbanCardContent = memo(function KanbanCardContent({
       isDragging={isDragging}
       reorderState={reorderState}
       reorderSuccess={reorderSuccess}
-      readOnlyReason={readOnlyReason}
-      readOnlyTooltipId={
-        readOnlyReason ? `kanban-read-only-${keyboardOccurrenceKey}` : undefined
+      dragRestrictionReason={dragRestrictionReason}
+      dragRestrictionTooltipId={
+        dragRestrictionReason
+          ? `kanban-drag-restriction-${keyboardOccurrenceKey}`
+          : undefined
       }
       quickEditAnchor={
         vault ? (
@@ -618,7 +620,8 @@ export function KanbanCardPreview({
       currentLogin={currentLogin}
       blocked={blocked}
       planningCatalog={planningCatalog}
-      className="pointer-events-none cursor-grabbing shadow-lg"
+      isDragging
+      className="pointer-events-none shadow-lg"
     />
   );
 }

@@ -6,6 +6,7 @@ import {
   resetFixture,
   setIssueUpdateControl,
 } from "../harness/fixture";
+import { expectCursorAtPointer } from "../harness/cursor";
 
 function issueRow(
   page: Parameters<typeof openExistingWorkspace>[0],
@@ -135,6 +136,7 @@ test.describe("Hermetic issue quick-edit save state", () => {
     await expect(trigger).toHaveAttribute("aria-busy", "true");
     await expect(trigger).toBeDisabled();
     await expect(trigger).toHaveAccessibleName("Status");
+    await expectCursorAtPointer(trigger, "progress");
     await expect(row.locator("[data-issue-update-announcement]")).toHaveText(
       "Updating Status…",
     );
@@ -153,6 +155,7 @@ test.describe("Hermetic issue quick-edit save state", () => {
 
     await expect(trigger).not.toHaveAttribute("aria-busy");
     await expect(trigger).toHaveAccessibleName("Status");
+    await expectCursorAtPointer(trigger, "pointer");
     expect((await fixtureIssue(request, "REEF-001")).status).toBe(
       "in_progress",
     );

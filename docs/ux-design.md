@@ -547,6 +547,31 @@ click or Enter and do not open the detail sheet. The portaled editor is
 positioned from the activated field trigger itself, not the row's ID cell, and
 re-measures after window or table scrolling so it follows sticky-column motion.
 
+Cursor meaning follows the real interaction at the pointer location. The single
+`packages/web/src/app/cursor-policy.css` module imported by the global stylesheet
+owns these rules; components expose native semantics, ARIA state, or a small
+semantic interaction marker rather than selecting cursor utilities locally.
+
+| Element or state | Cursor | Interaction contract |
+| --- | --- | --- |
+| Enabled button, link, menu item, option, selection control, clickable row/card | `pointer` | The mouse, keyboard, or touch activation is available. |
+| Editable text field, editor, or search input | `text` | Text entry and selection remain available. |
+| General content or read-only value | `auto` | Browser text selection and the contextual default remain available. |
+| Actually disabled control | `not-allowed` | The mouse and Enter/Space activation are both blocked, while the disabled element remains the hit target. |
+| Control handling a request | `progress` | Progress takes precedence over the ordinary disabled cursor; duplicate activation remains blocked and accessible busy feedback stays. |
+| Drag-only handle | `grab` / `grabbing` | The handle is grab-ready, changes only for the lifetime of the real drag, and restores after completion or cancellation. |
+| Clickable card that also supports drag | `pointer` / `grabbing` | The card opens detail by default; only an active drag changes the cursor. A card in a label group is not disabled because its label move is unavailable. |
+| Resize handle | Directional resize cursor | The detail splitter uses `col-resize`; the Markdown editor handle uses `se-resize`, with existing pointer and keyboard bounds unchanged. |
+
+State is local to the actual control. A pending view transition marks only the
+clicked segment, a pending field marks only its field trigger, and a pending
+reorder marks only the affected row/card. Parent rows and containers do not
+force a progress cursor onto unrelated children. Disabled controls keep their
+native or ARIA event guards and do not use `pointer-events: none`, so the
+visible `not-allowed` cursor and the browser hit target agree. Theme, locale,
+keyboard focus, and coarse-pointer behavior do not change the policy; hover is
+an affordance, never the only way to operate a control.
+
 The shared account menu uses a visible focus ring, an `계정 메뉴`/`Account menu`
 ARIA label, and at least a 44px trigger and action-row hit target. Its sign-out
 progress and failure copy are exposed through polite live feedback.

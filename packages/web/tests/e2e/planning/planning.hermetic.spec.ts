@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
   clearPersistedQueryCacheOnLoad,
@@ -8,6 +8,45 @@ import {
   setIssueListFailure,
   setPlanningCatalogFailure,
 } from "../harness/fixture";
+import { expectCursorAtPointer } from "../harness/cursor";
+
+async function copySelection(page: Page, locator: Locator): Promise<void> {
+  const selectedText = await locator.evaluate((element) => {
+    const selection = window.getSelection();
+    if (!selection) throw new Error("Browser selection API is unavailable");
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    return selection.toString();
+  });
+  expect(selectedText.trim()).not.toBe("");
+  await page.evaluate(() => {
+    const browserWindow = window as Window & {
+      __reefCopySelection?: string | null;
+    };
+    browserWindow.__reefCopySelection = null;
+    document.addEventListener(
+      "copy",
+      () => {
+        browserWindow.__reefCopySelection =
+          window.getSelection()?.toString() ?? "";
+      },
+      { once: true },
+    );
+  });
+  const copySucceeded = await page.evaluate(() => document.execCommand("copy"));
+  expect(copySucceeded).toBe(true);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as Window & { __reefCopySelection?: string | null })
+            .__reefCopySelection,
+      ),
+    )
+    .toBe(selectedText);
+}
 
 function sprintNames(
   state: Awaited<ReturnType<typeof readFixtureState>>,
@@ -364,6 +403,34 @@ test.describe("Hermetic planning workflow", () => {
     await expect(panel).toHaveCount(0);
   });
 
+  test("keeps normal and read-only planning content selectable and copyable", async ({
+    context,
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await context.grantPermissions(["clipboard-read", "clipboard-write"], {
+      origin: new URL(page.url()).origin,
+    });
+    await page.goto("/workspace/reef-e2e/planning");
+
+    const summary = page.getByText("Finish the hermetic E2E spine.", {
+      exact: true,
+    });
+    await expect(summary).toBeVisible();
+    await expectCursorAtPointer(summary, "auto");
+    await copySelection(page, summary);
+
+    await page
+      .getByRole("button", { name: "Expand Sprint Alpha details" })
+      .click();
+    const panel = page.locator('[id^="planning-detail-"]').first();
+    const editor = panel.getByTestId("markdown-editor");
+    const readOnlyContent = editor.locator('[contenteditable="false"]');
+    await expect(readOnlyContent).toBeVisible();
+    await expectCursorAtPointer(readOnlyContent, "auto");
+    await copySelection(page, readOnlyContent);
+  });
+
   test("separates catalog failure from the true empty state and converges after retry", async ({
     page,
     request,
@@ -404,13 +471,21 @@ test.describe("Hermetic planning workflow", () => {
       name: "Delete Sprint Alpha",
     });
     await expect(deleteButton).toHaveAttribute("aria-disabled", "true");
+    await expectCursorAtPointer(deleteButton, "not-allowed");
     await expect(deleteButton).toHaveAttribute(
       "title",
       "Can't delete while linked issues can't be verified",
     );
     await expect(deleteButton).toHaveAttribute("aria-describedby", /.+/u);
+    await expect(deleteButton).not.toHaveAttribute("disabled");
+    await deleteButton.click({ force: true });
     await deleteButton.focus();
     await expect(deleteButton).toBeFocused();
+    await page.keyboard.press("Enter");
+    await page.keyboard.press(" ");
+    await expect(page.getByTestId("planning-delete-confirm-btn")).toHaveCount(
+      0,
+    );
 
     await setIssueListFailure(request, false);
     await page
@@ -423,6 +498,7 @@ test.describe("Hermetic planning workflow", () => {
     // the ordinary linked-item guard rather than the unknown-integrity guard.
     await expect(row.getByText("1")).toBeVisible();
     await expect(deleteButton).toBeDisabled();
+    await expectCursorAtPointer(deleteButton, "not-allowed");
     await expect(deleteButton).not.toHaveAttribute("aria-disabled", "true");
     await expect(deleteButton).toHaveAttribute(
       "title",

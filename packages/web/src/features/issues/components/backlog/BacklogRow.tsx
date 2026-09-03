@@ -172,7 +172,7 @@ export const BacklogRow = memo(function BacklogRow({
       ref={setRowRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
-        "group h-10 cursor-pointer transition-colors duration-150 focus-visible:outline-none hover:bg-surface-hover",
+        "group h-10 transition-colors duration-150 focus-visible:outline-none hover:bg-surface-hover",
         focused && "bg-brand-fill/5",
         selected && "bg-brand-fill/5 ring-1 ring-inset ring-brand-focus/30",
         reorderSuccess && "reef-flash-row",
@@ -206,6 +206,7 @@ export const BacklogRow = memo(function BacklogRow({
         onOpen(issue.id);
       }}
       data-testid="backlog-row"
+      data-reef-interaction="clickable"
       data-issue-id={issue.id}
       data-shortcut-surface="issue-backlog-row"
       data-keyboard-focused={focused ? "true" : undefined}
@@ -247,7 +248,9 @@ export const BacklogRow = memo(function BacklogRow({
             aria-label={t("reorderGrip", { id: issue.id })}
             title={reorderHint}
             data-testid={`backlog-grip-${issue.id}`}
-            className="flex h-8 w-8 cursor-grab touch-none items-center justify-center rounded-sm opacity-40 transition-opacity duration-150 group-hover:opacity-100 focus:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40 active:cursor-grabbing"
+            className="flex h-8 w-8 touch-none items-center justify-center rounded-sm opacity-40 transition-opacity duration-150 group-hover:opacity-100 focus:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+            data-reef-interaction="drag-handle"
+            data-dragging={isDragging ? "true" : undefined}
             onClick={(e) => e.stopPropagation()}
             {...attributes}
             {...listeners}

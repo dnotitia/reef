@@ -53,6 +53,9 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       busy = false,
       disabled = false,
       onClick,
+      onClickCapture,
+      onKeyDown,
+      onKeyDownCapture,
       ...props
     },
     ref,
@@ -60,13 +63,52 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const Comp = asChild ? Slot : "button";
     const resolvedHitTarget = hitTarget ?? "coarse";
     const isDisabled = disabled || busy;
+    const isAriaDisabled =
+      props["aria-disabled"] === true || props["aria-disabled"] === "true";
+    const isActivationDisabled = isDisabled || isAriaDisabled;
+    const blockActivation = (
+      event: React.SyntheticEvent<HTMLButtonElement>,
+    ) => {
+      event.preventDefault();
+      event.stopPropagation();
+    };
 
     const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-      if (isDisabled) {
-        event.preventDefault();
+      if (isActivationDisabled) {
+        blockActivation(event);
         return;
       }
       onClick?.(event);
+    };
+
+    const handleClickCapture = (
+      event: React.MouseEvent<HTMLButtonElement>,
+    ) => {
+      if (isActivationDisabled) {
+        blockActivation(event);
+        return;
+      }
+      onClickCapture?.(event);
+    };
+
+    const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+      const isActivationKey = event.key === "Enter" || event.key === " ";
+      if (isActivationDisabled && isActivationKey) {
+        blockActivation(event);
+        return;
+      }
+      onKeyDown?.(event);
+    };
+
+    const handleKeyDownCapture = (
+      event: React.KeyboardEvent<HTMLButtonElement>,
+    ) => {
+      const isActivationKey = event.key === "Enter" || event.key === " ";
+      if (isActivationDisabled && isActivationKey) {
+        blockActivation(event);
+        return;
+      }
+      onKeyDownCapture?.(event);
     };
 
     return (
@@ -75,7 +117,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         data-slot="button"
         data-busy={busy ? "true" : undefined}
         className={cn(
-          "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-1 disabled:pointer-events-none disabled:opacity-50 [touch-action:manipulation]",
+          "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-1 disabled:opacity-50 [touch-action:manipulation]",
           variantClasses[variant],
           sizeClasses[size],
           resolvedHitTarget === "coarse" &&
@@ -87,6 +129,9 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         aria-disabled={asChild && isDisabled ? true : props["aria-disabled"]}
         disabled={isDisabled}
         onClick={handleClick}
+        onClickCapture={handleClickCapture}
+        onKeyDown={handleKeyDown}
+        onKeyDownCapture={handleKeyDownCapture}
       />
     );
   },

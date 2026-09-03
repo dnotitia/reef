@@ -1351,6 +1351,9 @@
     "noMatchDescription": "필터나 검색어를 넓혀 더 많은 이슈를 확인해 보세요.",
     "groupNone": "없음",
     "groupReadOnly": "라벨 그룹은 읽기 전용입니다. 이슈 상세에서 라벨을 변경하세요.",
+    "groupDragUnavailable": "라벨 그룹은 드래그로 이동할 수 없습니다. 이슈 상세에서 라벨을 변경하세요.",
+    "activeSprint": "활성 스프린트",
+    "openSprintDetails": "{name} 스프린트 상세 열기",
     "openEpic": "에픽 {id}: {title} 열기",
     "epicColumnLabel": "에픽 {id}: {title}; 상태 {status}; 하위 이슈 {count}개 표시; {total}개 중 {done}개 완료·종료"
   },

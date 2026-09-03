@@ -31,10 +31,12 @@ export function IssueSelectionCheckbox({
   return (
     <label
       className={cn(
-        "group/checkbox relative -m-2 inline-flex size-8 shrink-0 touch-manipulation cursor-pointer items-center justify-center rounded-md focus-within:ring-2 focus-within:ring-brand-focus/40",
-        disabled && "cursor-not-allowed opacity-50",
+        "group/checkbox relative -m-2 inline-flex size-8 shrink-0 touch-manipulation items-center justify-center rounded-md focus-within:ring-2 focus-within:ring-brand-focus/40",
+        disabled && "opacity-50",
         className,
       )}
+      data-reef-interaction="clickable"
+      data-disabled={disabled ? "true" : undefined}
       onClick={(event) => event.stopPropagation()}
       onKeyDown={(event) => event.stopPropagation()}
     >
@@ -45,7 +47,7 @@ export function IssueSelectionCheckbox({
         disabled={disabled}
         aria-checked={indeterminate ? "mixed" : checked}
         data-testid={testId}
-        className="absolute inset-0 size-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+        className="absolute inset-0 size-full opacity-0"
         onClick={(event) => event.stopPropagation()}
         onKeyDown={(event) => {
           event.stopPropagation();
