@@ -53,7 +53,9 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       busy = false,
       disabled = false,
       onClick,
+      onClickCapture,
       onKeyDown,
+      onKeyDownCapture,
       ...props
     },
     ref,
@@ -64,24 +66,49 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const isAriaDisabled =
       props["aria-disabled"] === true || props["aria-disabled"] === "true";
     const isActivationDisabled = isDisabled || isAriaDisabled;
+    const blockActivation = (
+      event: React.SyntheticEvent<HTMLButtonElement>,
+    ) => {
+      event.preventDefault();
+      event.stopPropagation();
+    };
 
     const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
       if (isActivationDisabled) {
-        event.preventDefault();
-        event.stopPropagation();
+        blockActivation(event);
         return;
       }
       onClick?.(event);
     };
 
+    const handleClickCapture = (
+      event: React.MouseEvent<HTMLButtonElement>,
+    ) => {
+      if (isActivationDisabled) {
+        blockActivation(event);
+        return;
+      }
+      onClickCapture?.(event);
+    };
+
     const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
       const isActivationKey = event.key === "Enter" || event.key === " ";
       if (isActivationDisabled && isActivationKey) {
-        event.preventDefault();
-        event.stopPropagation();
+        blockActivation(event);
         return;
       }
       onKeyDown?.(event);
+    };
+
+    const handleKeyDownCapture = (
+      event: React.KeyboardEvent<HTMLButtonElement>,
+    ) => {
+      const isActivationKey = event.key === "Enter" || event.key === " ";
+      if (isActivationDisabled && isActivationKey) {
+        blockActivation(event);
+        return;
+      }
+      onKeyDownCapture?.(event);
     };
 
     return (
@@ -102,7 +129,9 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         aria-disabled={asChild && isDisabled ? true : props["aria-disabled"]}
         disabled={isDisabled}
         onClick={handleClick}
+        onClickCapture={handleClickCapture}
         onKeyDown={handleKeyDown}
+        onKeyDownCapture={handleKeyDownCapture}
       />
     );
   },

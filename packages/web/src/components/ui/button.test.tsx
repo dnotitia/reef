@@ -72,10 +72,18 @@ describe("Button focus indicator", () => {
   it("keeps a disabled asChild control from activating or bubbling", () => {
     const parentClick = vi.fn();
     const childClick = vi.fn();
+    const slottedChildClick = vi.fn();
+    const slottedChildKeyDown = vi.fn();
     render(
       <div onClick={parentClick}>
         <Button asChild disabled onClick={childClick}>
-          <a href="/issues">Open issue</a>
+          <a
+            href="/issues"
+            onClick={slottedChildClick}
+            onKeyDown={slottedChildKeyDown}
+          >
+            Open issue
+          </a>
         </Button>
       </div>,
     );
@@ -86,6 +94,8 @@ describe("Button focus indicator", () => {
 
     expect(link).toHaveAttribute("aria-disabled", "true");
     expect(childClick).not.toHaveBeenCalled();
+    expect(slottedChildClick).not.toHaveBeenCalled();
+    expect(slottedChildKeyDown).not.toHaveBeenCalled();
     expect(parentClick).not.toHaveBeenCalled();
   });
 
