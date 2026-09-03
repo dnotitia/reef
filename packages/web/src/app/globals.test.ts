@@ -492,6 +492,177 @@ describe("global focus styles", () => {
         "font-weight: var(--type-chart-label-weight);",
         "line-height: var(--type-chart-label-line-height);",
       ],
+      "type-list-group": [
+        "font-size: var(--type-list-group-size);",
+        "font-weight: var(--type-list-group-weight);",
+        "line-height: var(--type-list-group-line-height);",
+        "letter-spacing: var(--type-list-group-tracking);",
+        "text-transform: none;",
+      ],
+      "type-list-group-count": [
+        "font-family: var(--font-mono-stack);",
+        "font-size: var(--type-list-group-count-size);",
+        "font-weight: var(--type-list-group-count-weight);",
+        "line-height: var(--type-list-group-count-line-height);",
+        "letter-spacing: var(--type-list-group-count-tracking);",
+        "font-variant-numeric: tabular-nums;",
+      ],
+      "type-board-type": [
+        "font-size: var(--type-board-type-size);",
+        "font-weight: var(--type-board-type-weight);",
+        "line-height: var(--type-board-type-line-height);",
+        "letter-spacing: var(--type-board-type-tracking);",
+        "text-transform: none;",
+      ],
+      "type-detail-type": [
+        "font-size: var(--type-detail-type-size);",
+        "font-weight: var(--type-detail-type-weight);",
+        "line-height: var(--type-detail-type-line-height);",
+        "letter-spacing: var(--type-detail-type-tracking);",
+        "text-transform: none;",
+      ],
+      "type-board-blocked": [
+        "font-size: var(--type-board-blocked-size);",
+        "font-weight: var(--type-board-blocked-weight);",
+        "line-height: var(--type-board-blocked-line-height);",
+        "letter-spacing: var(--type-board-blocked-tracking);",
+        "text-transform: uppercase;",
+      ],
+      "type-list-id": [
+        "font-family: var(--font-mono-stack);",
+        "font-size: var(--type-list-id-size);",
+        "font-weight: var(--type-list-id-weight);",
+        "line-height: var(--type-list-id-line-height);",
+        "letter-spacing: var(--type-list-id-tracking);",
+        "font-variant-numeric: tabular-nums;",
+      ],
+      "type-timeline-group": [
+        "font-size: var(--type-timeline-group-size);",
+        "font-weight: var(--type-timeline-group-weight);",
+        "line-height: var(--type-timeline-group-line-height);",
+        "letter-spacing: var(--type-timeline-group-tracking);",
+        "text-transform: none;",
+      ],
+      "type-timeline-title": [
+        "font-size: var(--type-timeline-title-size);",
+        "font-weight: var(--type-timeline-title-weight);",
+        "line-height: var(--type-timeline-title-line-height);",
+        "letter-spacing: var(--type-timeline-title-tracking);",
+        "text-transform: none;",
+      ],
+      "type-timeline-month": [
+        "font-size: var(--type-timeline-month-size);",
+        "font-weight: var(--type-timeline-month-weight);",
+        "line-height: var(--type-timeline-month-line-height);",
+        "letter-spacing: var(--type-timeline-month-tracking);",
+        "text-transform: none;",
+      ],
+      "type-timeline-tick": [
+        "font-size: var(--type-timeline-tick-size);",
+        "font-weight: var(--type-timeline-tick-weight);",
+        "line-height: var(--type-timeline-tick-line-height);",
+        "letter-spacing: var(--type-timeline-tick-tracking);",
+        "text-transform: none;",
+      ],
+      "type-timeline-assignee": [
+        "font-size: var(--type-timeline-assignee-size);",
+        "font-weight: var(--type-timeline-assignee-weight);",
+        "line-height: var(--type-timeline-assignee-line-height);",
+        "letter-spacing: var(--type-timeline-assignee-tracking);",
+        "text-transform: none;",
+      ],
+      "type-report-row-label": [
+        "font-size: var(--type-report-row-label-size);",
+        "font-weight: var(--type-report-row-label-weight);",
+        "line-height: var(--type-report-row-label-line-height);",
+        "letter-spacing: var(--type-report-row-label-tracking);",
+        "text-transform: none;",
+      ],
+      "type-report-cell": [
+        "font-family: var(--font-mono-stack);",
+        "font-size: var(--type-report-cell-size);",
+        "font-weight: var(--type-report-cell-weight);",
+        "line-height: var(--type-report-cell-line-height);",
+        "letter-spacing: var(--type-report-cell-tracking);",
+        "font-variant-numeric: tabular-nums;",
+      ],
+      "type-report-header": [
+        "font-size: var(--type-report-header-size);",
+        "font-weight: var(--type-report-header-weight);",
+        "line-height: var(--type-report-header-line-height);",
+        "letter-spacing: var(--type-report-header-tracking);",
+        "text-transform: uppercase;",
+      ],
+      "type-throughput-tick": [
+        "font-size: var(--type-throughput-tick-size);",
+        "font-weight: var(--type-throughput-tick-weight);",
+        "line-height: var(--type-throughput-tick-line-height);",
+        "letter-spacing: var(--type-throughput-tick-tracking);",
+        "text-transform: none;",
+      ],
+      "type-snapshot-label": [
+        "font-size: var(--type-snapshot-label-size);",
+        "font-weight: var(--type-snapshot-label-weight);",
+        "line-height: var(--type-snapshot-label-line-height);",
+        "letter-spacing: var(--type-snapshot-label-tracking);",
+        "text-transform: uppercase;",
+      ],
+      "type-settings-description": [
+        "font-size: var(--type-settings-description-size);",
+        "font-weight: var(--type-settings-description-weight);",
+        "line-height: var(--type-settings-description-line-height);",
+        "letter-spacing: var(--type-settings-description-tracking);",
+        "text-transform: none;",
+      ],
+      "type-settings-section": [
+        "font-size: var(--type-settings-section-size);",
+        "font-weight: var(--type-settings-section-weight);",
+        "line-height: var(--type-settings-section-line-height);",
+        "letter-spacing: var(--type-settings-section-tracking);",
+        "text-transform: uppercase;",
+      ],
+      "type-settings-group": [
+        "font-size: var(--type-settings-group-size);",
+        "font-weight: var(--type-settings-group-weight);",
+        "line-height: var(--type-settings-group-line-height);",
+        "letter-spacing: var(--type-settings-group-tracking);",
+        "text-transform: none;",
+      ],
+      "type-theme-description": [
+        "font-size: var(--type-theme-description-size);",
+        "font-weight: var(--type-theme-description-weight);",
+        "line-height: var(--type-theme-description-line-height);",
+        "letter-spacing: var(--type-theme-description-tracking);",
+        "text-transform: none;",
+      ],
+      "type-segmented-control": [
+        "font-size: var(--type-segmented-control-size);",
+        "font-weight: var(--type-segmented-control-weight);",
+        "line-height: var(--type-segmented-control-line-height);",
+        "letter-spacing: var(--type-segmented-control-tracking);",
+        "text-transform: none;",
+      ],
+      "type-small-button": [
+        "font-size: var(--type-small-button-size);",
+        "font-weight: var(--type-small-button-weight);",
+        "line-height: var(--type-small-button-line-height);",
+        "letter-spacing: var(--type-small-button-tracking);",
+        "text-transform: none;",
+      ],
+      "type-subissue-progress": [
+        "font-size: var(--type-subissue-progress-size);",
+        "font-weight: var(--type-subissue-progress-weight);",
+        "line-height: var(--type-subissue-progress-line-height);",
+        "letter-spacing: var(--type-subissue-progress-tracking);",
+        "text-transform: none;",
+      ],
+      "type-dialog-title": [
+        "font-size: var(--type-dialog-title-size);",
+        "font-weight: var(--type-dialog-title-weight);",
+        "line-height: var(--type-dialog-title-line-height);",
+        "letter-spacing: var(--type-dialog-title-tracking);",
+        "text-transform: none;",
+      ],
     } as const;
 
     for (const [role, declarations] of Object.entries(roles)) {
@@ -515,6 +686,28 @@ describe("global focus styles", () => {
     expect(css).toContain("--type-card-metadata-size: 11px;");
     expect(css).toContain("--type-compact-mono-size: 11px;");
     expect(css).toContain("--type-detail-section-size: 11px;");
+    expect(css).toContain("--type-table-header-weight: 500;");
+    expect(css).toContain("--type-table-header-line-height: 15px;");
+    expect(css).toContain("--type-table-header-tracking: 0.05em;");
+    expect(css).toContain("--type-list-group-size: 12px;");
+    expect(css).toContain("--type-board-type-size: 10px;");
+    expect(css).toContain("--type-detail-type-line-height: 14.6667px;");
+    expect(css).toContain("--type-board-blocked-tracking: 0.25px;");
+    expect(css).toContain("--type-list-id-size: 12px;");
+    expect(css).toContain("--type-timeline-title-size: 12px;");
+    expect(css).toContain("--type-timeline-month-size: 11px;");
+    expect(css).toContain("--type-timeline-tick-line-height: 15px;");
+    expect(css).toContain("--type-report-row-label-size: 12px;");
+    expect(css).toContain("--type-report-cell-size: 12px;");
+    expect(css).toContain("--type-report-header-tracking: 0.25px;");
+    expect(css).toContain("--type-throughput-tick-size: 11px;");
+    expect(css).toContain("--type-snapshot-label-tracking: 0.275px;");
+    expect(css).toContain("--type-settings-group-line-height: 22.5px;");
+    expect(css).toContain("--type-theme-description-size: 11px;");
+    expect(css).toContain("--type-segmented-control-size: 12px;");
+    expect(css).toContain("--type-small-button-size: 12px;");
+    expect(css).toContain("--type-subissue-progress-size: 12px;");
+    expect(css).toContain("--type-dialog-title-size: 16px;");
     for (const source of [
       "../features/ui/components/PageHeader.tsx",
       "../features/ui/components/DashboardShell.tsx",

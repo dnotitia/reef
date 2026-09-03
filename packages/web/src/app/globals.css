@@ -250,9 +250,9 @@
   --type-report-section-line-height: 16.5px;
   --type-report-section-tracking: 0.08em;
   --type-table-header-size: 10px;
-  --type-table-header-weight: 600;
-  --type-table-header-line-height: 16px;
-  --type-table-header-tracking: 0.025em;
+  --type-table-header-weight: 500;
+  --type-table-header-line-height: 15px;
+  --type-table-header-tracking: 0.05em;
   --type-chart-metadata-size: 11px;
   --type-chart-metadata-weight: 400;
   --type-chart-metadata-line-height: 16.5px;
@@ -277,6 +277,105 @@
   --type-chart-label-weight: 400;
   --type-chart-label-line-height: 16px;
   --type-chart-label-tracking: 0;
+
+  /* Contextual legacy consumers. These roles intentionally keep nearby
+     consumers separate when the historical rendering contracts differ. */
+  --type-list-group-size: 12px;
+  --type-list-group-weight: 600;
+  --type-list-group-line-height: 16px;
+  --type-list-group-tracking: 0;
+  --type-list-group-count-size: 11px;
+  --type-list-group-count-weight: 600;
+  --type-list-group-count-line-height: 14.6667px;
+  --type-list-group-count-tracking: 0;
+  --type-board-type-size: 10px;
+  --type-board-type-weight: 500;
+  --type-board-type-line-height: 10px;
+  --type-board-type-tracking: 0;
+  --type-detail-type-size: 11px;
+  --type-detail-type-weight: 500;
+  --type-detail-type-line-height: 14.6667px;
+  --type-detail-type-tracking: 0;
+  --type-board-blocked-size: 10px;
+  --type-board-blocked-weight: 600;
+  --type-board-blocked-line-height: 15px;
+  --type-board-blocked-tracking: 0.25px;
+  --type-list-id-size: 12px;
+  --type-list-id-weight: 400;
+  --type-list-id-line-height: 16px;
+  --type-list-id-tracking: 0;
+  --type-timeline-group-size: 12px;
+  --type-timeline-group-weight: 600;
+  --type-timeline-group-line-height: 16px;
+  --type-timeline-group-tracking: 0;
+  --type-timeline-title-size: 12px;
+  --type-timeline-title-weight: 500;
+  --type-timeline-title-line-height: 18px;
+  --type-timeline-title-tracking: 0;
+  --type-timeline-month-size: 11px;
+  --type-timeline-month-weight: 600;
+  --type-timeline-month-line-height: 16.5px;
+  --type-timeline-month-tracking: 0;
+  --type-timeline-tick-size: 10px;
+  --type-timeline-tick-weight: 400;
+  --type-timeline-tick-line-height: 15px;
+  --type-timeline-tick-tracking: 0;
+  --type-timeline-assignee-size: 11px;
+  --type-timeline-assignee-weight: 400;
+  --type-timeline-assignee-line-height: 16.5px;
+  --type-timeline-assignee-tracking: 0;
+  --type-report-row-label-size: 12px;
+  --type-report-row-label-weight: 400;
+  --type-report-row-label-line-height: 16px;
+  --type-report-row-label-tracking: 0;
+  --type-report-cell-size: 12px;
+  --type-report-cell-weight: 400;
+  --type-report-cell-line-height: 16px;
+  --type-report-cell-tracking: 0;
+  --type-report-header-size: 10px;
+  --type-report-header-weight: 400;
+  --type-report-header-line-height: 15px;
+  --type-report-header-tracking: 0.25px;
+  --type-throughput-tick-size: 11px;
+  --type-throughput-tick-weight: 400;
+  --type-throughput-tick-line-height: 16.5px;
+  --type-throughput-tick-tracking: 0;
+  --type-snapshot-label-size: 11px;
+  --type-snapshot-label-weight: 400;
+  --type-snapshot-label-line-height: 16.5px;
+  --type-snapshot-label-tracking: 0.275px;
+  --type-settings-description-size: 12px;
+  --type-settings-description-weight: 400;
+  --type-settings-description-line-height: 16px;
+  --type-settings-description-tracking: 0;
+  --type-settings-section-size: 13px;
+  --type-settings-section-weight: 600;
+  --type-settings-section-line-height: 19.5px;
+  --type-settings-section-tracking: 0.65px;
+  --type-settings-group-size: 15px;
+  --type-settings-group-weight: 600;
+  --type-settings-group-line-height: 22.5px;
+  --type-settings-group-tracking: 0;
+  --type-theme-description-size: 11px;
+  --type-theme-description-weight: 400;
+  --type-theme-description-line-height: 16.5px;
+  --type-theme-description-tracking: 0;
+  --type-segmented-control-size: 12px;
+  --type-segmented-control-weight: 500;
+  --type-segmented-control-line-height: 18px;
+  --type-segmented-control-tracking: 0;
+  --type-small-button-size: 12px;
+  --type-small-button-weight: 500;
+  --type-small-button-line-height: 16px;
+  --type-small-button-tracking: 0;
+  --type-subissue-progress-size: 12px;
+  --type-subissue-progress-weight: 400;
+  --type-subissue-progress-line-height: 16px;
+  --type-subissue-progress-tracking: 0;
+  --type-dialog-title-size: 16px;
+  --type-dialog-title-weight: 600;
+  --type-dialog-title-line-height: 16px;
+  --type-dialog-title-tracking: -0.16px;
 
   /* motion — one signature easing curve + a small duration scale.
    * Quick entry, soft settle. Consumed via Tailwind arbitrary
@@ -761,6 +860,225 @@ body {
     font-weight: var(--type-chart-label-weight);
     line-height: var(--type-chart-label-line-height);
     letter-spacing: var(--type-chart-label-tracking);
+  }
+
+  .type-list-group {
+    font-family: var(--font-display);
+    font-size: var(--type-list-group-size);
+    font-weight: var(--type-list-group-weight);
+    line-height: var(--type-list-group-line-height);
+    letter-spacing: var(--type-list-group-tracking);
+    text-transform: none;
+  }
+
+  .type-list-group-count {
+    font-family: var(--font-mono-stack);
+    font-size: var(--type-list-group-count-size);
+    font-weight: var(--type-list-group-count-weight);
+    line-height: var(--type-list-group-count-line-height);
+    letter-spacing: var(--type-list-group-count-tracking);
+    font-variant-numeric: tabular-nums;
+    text-transform: none;
+  }
+
+  .type-board-type {
+    font-family: var(--font-body);
+    font-size: var(--type-board-type-size);
+    font-weight: var(--type-board-type-weight);
+    line-height: var(--type-board-type-line-height);
+    letter-spacing: var(--type-board-type-tracking);
+    text-transform: none;
+  }
+
+  .type-detail-type {
+    font-family: var(--font-body);
+    font-size: var(--type-detail-type-size);
+    font-weight: var(--type-detail-type-weight);
+    line-height: var(--type-detail-type-line-height);
+    letter-spacing: var(--type-detail-type-tracking);
+    text-transform: none;
+  }
+
+  .type-board-blocked {
+    font-family: var(--font-body);
+    font-size: var(--type-board-blocked-size);
+    font-weight: var(--type-board-blocked-weight);
+    line-height: var(--type-board-blocked-line-height);
+    letter-spacing: var(--type-board-blocked-tracking);
+    text-transform: uppercase;
+  }
+
+  .type-list-id {
+    font-family: var(--font-mono-stack);
+    font-size: var(--type-list-id-size);
+    font-weight: var(--type-list-id-weight);
+    line-height: var(--type-list-id-line-height);
+    letter-spacing: var(--type-list-id-tracking);
+    font-variant-numeric: tabular-nums;
+    text-transform: none;
+  }
+
+  .type-timeline-group {
+    font-family: var(--font-display);
+    font-size: var(--type-timeline-group-size);
+    font-weight: var(--type-timeline-group-weight);
+    line-height: var(--type-timeline-group-line-height);
+    letter-spacing: var(--type-timeline-group-tracking);
+    text-transform: none;
+  }
+
+  .type-timeline-title {
+    font-family: var(--font-body);
+    font-size: var(--type-timeline-title-size);
+    font-weight: var(--type-timeline-title-weight);
+    line-height: var(--type-timeline-title-line-height);
+    letter-spacing: var(--type-timeline-title-tracking);
+    text-transform: none;
+  }
+
+  .type-timeline-month {
+    font-family: var(--font-display);
+    font-size: var(--type-timeline-month-size);
+    font-weight: var(--type-timeline-month-weight);
+    line-height: var(--type-timeline-month-line-height);
+    letter-spacing: var(--type-timeline-month-tracking);
+    text-transform: none;
+  }
+
+  .type-timeline-tick {
+    font-family: var(--font-body);
+    font-size: var(--type-timeline-tick-size);
+    font-weight: var(--type-timeline-tick-weight);
+    line-height: var(--type-timeline-tick-line-height);
+    letter-spacing: var(--type-timeline-tick-tracking);
+    text-transform: none;
+  }
+
+  .type-timeline-assignee {
+    font-family: var(--font-body);
+    font-size: var(--type-timeline-assignee-size);
+    font-weight: var(--type-timeline-assignee-weight);
+    line-height: var(--type-timeline-assignee-line-height);
+    letter-spacing: var(--type-timeline-assignee-tracking);
+    text-transform: none;
+  }
+
+  .type-report-row-label {
+    font-family: var(--font-body);
+    font-size: var(--type-report-row-label-size);
+    font-weight: var(--type-report-row-label-weight);
+    line-height: var(--type-report-row-label-line-height);
+    letter-spacing: var(--type-report-row-label-tracking);
+    text-transform: none;
+  }
+
+  .type-report-cell {
+    font-family: var(--font-mono-stack);
+    font-size: var(--type-report-cell-size);
+    font-weight: var(--type-report-cell-weight);
+    line-height: var(--type-report-cell-line-height);
+    letter-spacing: var(--type-report-cell-tracking);
+    font-variant-numeric: tabular-nums;
+    text-transform: none;
+  }
+
+  .type-report-header {
+    font-family: var(--font-display);
+    font-size: var(--type-report-header-size);
+    font-weight: var(--type-report-header-weight);
+    line-height: var(--type-report-header-line-height);
+    letter-spacing: var(--type-report-header-tracking);
+    text-transform: uppercase;
+  }
+
+  .type-throughput-tick {
+    font-family: var(--font-body);
+    font-size: var(--type-throughput-tick-size);
+    font-weight: var(--type-throughput-tick-weight);
+    line-height: var(--type-throughput-tick-line-height);
+    letter-spacing: var(--type-throughput-tick-tracking);
+    text-transform: none;
+  }
+
+  .type-snapshot-label {
+    font-family: var(--font-body);
+    font-size: var(--type-snapshot-label-size);
+    font-weight: var(--type-snapshot-label-weight);
+    line-height: var(--type-snapshot-label-line-height);
+    letter-spacing: var(--type-snapshot-label-tracking);
+    text-transform: uppercase;
+  }
+
+  .type-settings-description {
+    font-family: var(--font-body);
+    font-size: var(--type-settings-description-size);
+    font-weight: var(--type-settings-description-weight);
+    line-height: var(--type-settings-description-line-height);
+    letter-spacing: var(--type-settings-description-tracking);
+    text-transform: none;
+  }
+
+  .type-settings-section {
+    font-family: var(--font-display);
+    font-size: var(--type-settings-section-size);
+    font-weight: var(--type-settings-section-weight);
+    line-height: var(--type-settings-section-line-height);
+    letter-spacing: var(--type-settings-section-tracking);
+    text-transform: uppercase;
+  }
+
+  .type-settings-group {
+    font-family: var(--font-display);
+    font-size: var(--type-settings-group-size);
+    font-weight: var(--type-settings-group-weight);
+    line-height: var(--type-settings-group-line-height);
+    letter-spacing: var(--type-settings-group-tracking);
+    text-transform: none;
+  }
+
+  .type-theme-description {
+    font-family: var(--font-body);
+    font-size: var(--type-theme-description-size);
+    font-weight: var(--type-theme-description-weight);
+    line-height: var(--type-theme-description-line-height);
+    letter-spacing: var(--type-theme-description-tracking);
+    text-transform: none;
+  }
+
+  .type-segmented-control {
+    font-family: var(--font-body);
+    font-size: var(--type-segmented-control-size);
+    font-weight: var(--type-segmented-control-weight);
+    line-height: var(--type-segmented-control-line-height);
+    letter-spacing: var(--type-segmented-control-tracking);
+    text-transform: none;
+  }
+
+  .type-small-button {
+    font-family: var(--font-body);
+    font-size: var(--type-small-button-size);
+    font-weight: var(--type-small-button-weight);
+    line-height: var(--type-small-button-line-height);
+    letter-spacing: var(--type-small-button-tracking);
+    text-transform: none;
+  }
+
+  .type-subissue-progress {
+    font-family: var(--font-body);
+    font-size: var(--type-subissue-progress-size);
+    font-weight: var(--type-subissue-progress-weight);
+    line-height: var(--type-subissue-progress-line-height);
+    letter-spacing: var(--type-subissue-progress-tracking);
+    text-transform: none;
+  }
+
+  .type-dialog-title {
+    font-family: var(--font-display);
+    font-size: var(--type-dialog-title-size);
+    font-weight: var(--type-dialog-title-weight);
+    line-height: var(--type-dialog-title-line-height);
+    letter-spacing: var(--type-dialog-title-tracking);
+    text-transform: none;
   }
 }
 

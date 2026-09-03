@@ -118,7 +118,10 @@ export function HealthSummary({ agg }: { agg: ReportAggregates }) {
               )}
             />
           )}
-          <span className="type-report-section truncate text-muted-foreground">
+          <span
+            data-typography-role="snapshot-label"
+            className="type-snapshot-label truncate text-muted-foreground"
+          >
             {t.label}
           </span>
           <span className="flex min-w-0 items-end justify-between gap-2">

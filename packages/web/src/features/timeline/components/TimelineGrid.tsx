@@ -243,7 +243,8 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                 {monthSpans.map((span) => (
                   <div
                     key={span.key}
-                    className="type-chart-label flex items-center justify-center border-r border-border-subtle font-semibold text-foreground"
+                    data-typography-role="timeline-month"
+                    className="type-timeline-month flex items-center justify-center border-r border-border-subtle text-foreground"
                     style={{
                       gridColumn: `${span.startIndex + 2} / ${span.endIndex + 3}`,
                     }}
@@ -262,8 +263,9 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                 {days.map((day, index) => (
                   <div
                     key={day.key}
+                    data-typography-role="timeline-tick"
                     className={cn(
-                      "flex items-center justify-center border-r border-border-subtle/70 type-chart-label text-muted-foreground",
+                      "flex items-center justify-center border-r border-border-subtle/70 type-timeline-tick text-muted-foreground",
                       todayIndex === index && "font-semibold text-brand-text",
                     )}
                     style={{ gridColumn: index + 2 }}
@@ -305,7 +307,8 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                       style={gridStyle}
                     >
                       <div
-                        className="sticky left-0 z-20 flex items-center gap-2 border-r border-border-subtle bg-surface-subtle px-3 type-group-title text-foreground"
+                        data-typography-role="timeline-group"
+                        className="sticky left-0 z-20 flex items-center gap-2 border-r border-border-subtle bg-surface-subtle px-3 type-timeline-group text-foreground"
                         style={{ gridColumn: 1 }}
                       >
                         <StatusIcon status={group.status} size={13} />
@@ -372,7 +375,10 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                             <span className="block truncate type-compact-mono text-muted-foreground">
                               {issue.id}
                             </span>
-                            <span className="block truncate type-body font-medium text-foreground">
+                            <span
+                              data-typography-role="timeline-title"
+                              className="block truncate type-timeline-title text-foreground"
+                            >
                               {issue.title}
                             </span>
                           </button>

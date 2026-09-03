@@ -359,6 +359,36 @@ the board/detail/report chrome described above. Login/onboarding brand titles
 remain their separate branded scale, and the established issue Markdown body,
 comment, heading, and code rhythm remains scoped to its Markdown surfaces.
 
+The remaining pre-REEF-603 consumer contracts are explicit as well. List group
+labels/counts/IDs use `type-list-group` (12px/600/16px),
+`type-list-group-count` (11px/600/14.6667px mono), and `type-list-id`
+(12px/400/16px mono); the shared table header keeps
+`type-table-header` at 10px/500/15px with 0.5px tracking. Kanban and detail
+type pills use separate `type-board-type` (10px/500/10px) and
+`type-detail-type` (11px/500/14.6667px) roles, while the Kanban blocked badge
+uses `type-board-blocked` (10px/600/15px, 0.25px tracking, uppercase).
+Timeline status groups, titles, month headers, date ticks, and assignees use
+`type-timeline-group`, `type-timeline-title`, `type-timeline-month`,
+`type-timeline-tick`, and `type-timeline-assignee` respectively; their tuples
+are 12px/600/16px, 12px/500/18px, 11px/600/16.5px, 10px/400/15px, and
+11px/400/16.5px. Reports keep Risk map row labels and cells distinct from its
+headers: `type-report-row-label` is 12px/400/16px, `type-report-cell` is
+12px/400/16px tabular mono, `type-report-header` is 10px/400/15px with
+0.25px tracking and uppercase, and Throughput ticks use
+`type-throughput-tick` at 11px/400/16.5px. Snapshot labels use
+`type-snapshot-label` at 11px/400/16.5px with 0.275px tracking and uppercase.
+Settings group descriptions, section headings, group headings, and theme
+descriptions use `type-settings-description` (12px/400/16px),
+`type-settings-section` (13px/600/19.5px with 0.65px tracking and uppercase),
+`type-settings-group` (15px/600/22.5px), and `type-theme-description`
+(11px/400/16.5px). The shared segmented control, small Button, sub-issue
+progress count, and DialogTitle keep their own `type-segmented-control`
+(12px/500/18px), `type-small-button` (12px/500/16px),
+`type-subissue-progress` (12px/400/16px), and `type-dialog-title`
+(16px/600/16px, -0.16px tracking) roles. These values are derived from the
+same-browser historical baseline and are checked at the actual composed
+consumers; they are not a new density setting or a second font system.
+
 Hero-scale type does not belong inside dashboard panels. Routed product
 surfaces should not drop below 12px captions or 14px body copy.
 

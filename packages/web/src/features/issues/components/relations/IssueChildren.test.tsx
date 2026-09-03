@@ -140,6 +140,12 @@ describe("IssueChildren", () => {
   it("summarizes resolved vs total and exposes a progressbar", () => {
     render(<IssueChildren issueId={PARENT} allIssues={ALL} />);
     expect(screen.getByText("1 of 3 done")).toBeTruthy();
+    const progress = screen.getByText("1 of 3 done");
+    expect(progress).toHaveClass("type-subissue-progress");
+    expect(progress).toHaveAttribute(
+      "data-typography-role",
+      "subissue-progress",
+    );
     const bar = screen.getByRole("progressbar");
     expect(bar.getAttribute("aria-valuenow")).toBe("1");
     expect(bar.getAttribute("aria-valuemax")).toBe("3");

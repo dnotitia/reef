@@ -24,7 +24,7 @@ describe("TypePill", () => {
     const el = screen.getByText("Story").parentElement as HTMLElement;
     expect(el.className).toContain("rounded-sm");
     expect(el.className).toContain("bg-surface-subtle");
-    expect(el.className).toContain("type-card-metadata");
+    expect(el.className).toContain("type-board-type");
   });
 
   it("applies the list variant classes verbatim", () => {

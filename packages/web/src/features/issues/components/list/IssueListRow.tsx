@@ -381,7 +381,7 @@ export const IssueListRow = memo(function IssueListRow({
         <TableCell
           className={cn(
             issueListCellClass("id", visualState),
-            "relative type-compact-mono text-muted-foreground",
+            "relative type-list-id text-muted-foreground",
           )}
           style={issueListCellStyle(columns, "id", visualState)}
           data-column-key="id"

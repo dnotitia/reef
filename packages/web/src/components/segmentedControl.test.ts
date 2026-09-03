@@ -24,8 +24,7 @@ describe("segmentedControl shared tokens (REEF-261)", () => {
     const classes = SEGMENTED_CONTROL_ITEM.split(/\s+/);
     expect(classes).toContain("px-2");
     expect(classes).toContain("py-1");
-    expect(classes).toContain("type-control");
-    expect(classes).toContain("font-medium");
+    expect(classes).toContain("type-segmented-control");
     expect(classes).toContain("focus-visible:ring-2");
     expect(classes).toContain("focus-visible:ring-brand-focus");
     // None of the prior Planning-toggle outlier classes.

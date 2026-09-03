@@ -352,7 +352,7 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
           </p>
 
           <section className="grid gap-3">
-            <h3 className="type-section-label text-foreground">
+            <h3 className="type-settings-section text-foreground">
               {tt("basics")}
             </h3>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -447,7 +447,7 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
           </section>
 
           <section className="grid gap-3">
-            <h3 className="type-section-label text-foreground">
+            <h3 className="type-settings-section text-foreground">
               {tt("defaults")}
             </h3>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

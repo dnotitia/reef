@@ -11,7 +11,8 @@ describe("BlockedBadge", () => {
     render(<BlockedBadge variant="kanban" />);
     const el = screen.getByText("Blocked");
     expect(el).toBeInTheDocument();
-    expect(el.className).toContain("uppercase");
+    expect(el.className).toContain("type-board-blocked");
+    expect(el.getAttribute("data-typography-role")).toBe("board-blocked");
     expect(el.className).toContain("bg-destructive-fill/10");
     expect(el.getAttribute("title")).toBe("Blocked");
   });

@@ -241,7 +241,7 @@ function IssueListGroupHeader({
         colSpan={columnCount}
         className="h-8 border-y border-border-subtle p-0"
       >
-        <div className="reef-issue-list-group-header flex h-8 min-w-0 w-full items-center gap-2 px-3 text-left type-group-title text-foreground">
+        <div className="reef-issue-list-group-header flex h-8 min-w-0 w-full items-center gap-2 px-3 text-left type-list-group text-foreground">
           <button
             type="button"
             className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-sm text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
@@ -281,7 +281,7 @@ function IssueListGroupHeader({
               </span>
             )}
             <span
-              className="shrink-0 type-compact-mono text-muted-foreground"
+              className="shrink-0 type-list-group-count text-muted-foreground"
               data-testid="issue-group-count"
             >
               {count}

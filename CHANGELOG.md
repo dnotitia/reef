@@ -155,6 +155,12 @@ explicitly in the entries below.
   title case, and card/detail/report metadata uses explicit compact roles while
   the Noto Sans KR font stack and Markdown rhythm stay unchanged.
 
+- **Remaining typography consumers now retain their historical metrics.** List
+  grouping, type badges, timeline labels, report matrices, settings headings,
+  segmented controls, dialog titles, and sub-issue progress use explicit
+  consumer roles, with the representative mixed-script Board fixture guarding
+  the established card geometry.
+
 - **Authentication revalidation and soft navigation now preserve the
   established workspace experience.** Route changes stay non-blocking, the
   shell remains mounted while revalidation completes, and a resource-level

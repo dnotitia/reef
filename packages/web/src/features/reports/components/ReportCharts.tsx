@@ -169,7 +169,7 @@ const AGING_BUCKETS: readonly AgingBucketKey[] = [
 // and axes, not by accidental styling drift (REEF-248).
 
 const HEAT_CELL =
-  "h-9 rounded-md border border-border-subtle bg-surface-hover text-center align-middle type-compact-mono text-foreground";
+  "h-9 rounded-md border border-border-subtle bg-surface-hover text-center align-middle type-report-cell text-foreground";
 
 /** Neutral density fill for a count cell. A single gray ramp — distinct from the
  *  brand-tinted value bars — so a heat cell does not compete with a quantity bar
@@ -229,7 +229,8 @@ export function RiskMatrix({
               <th
                 key={aging}
                 scope="col"
-                className="type-chart-tick px-1 pb-0.5 text-center align-bottom text-muted-foreground"
+                data-typography-role="report-header"
+                className="type-report-header px-1 pb-0.5 text-center align-bottom text-muted-foreground"
               >
                 {agingLabel(aging)}
               </th>
@@ -241,7 +242,8 @@ export function RiskMatrix({
             <tr key={priority}>
               <th
                 scope="row"
-                className="type-chart-tick text-left text-foreground/80"
+                data-typography-role="report-row-label"
+                className="type-report-row-label text-left text-foreground/80"
               >
                 {priorityLabel(priority)}
               </th>
@@ -250,6 +252,7 @@ export function RiskMatrix({
                 return (
                   <td
                     key={aging}
+                    data-typography-role="report-cell"
                     className={HEAT_CELL}
                     style={{ backgroundColor: heatFill(count, max) }}
                     title={`${priorityLabel(priority)} ${agingLabel(aging)}: ${count}`}

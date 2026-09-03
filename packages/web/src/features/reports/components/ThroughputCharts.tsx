@@ -57,6 +57,7 @@ export function NetThroughputChart({
   return (
     <div className="flex flex-col gap-2">
       <svg
+        data-testid="throughput-chart"
         viewBox={`0 0 ${W} ${H}`}
         className="h-auto w-full"
         role="img"
@@ -126,10 +127,11 @@ export function NetThroughputChart({
         {tickIdx.map((i) => (
           <text
             key={i}
+            data-typography-role="throughput-tick"
             x={Math.min(W - 28, Math.max(18, x(i)))}
             y={H - 4}
             textAnchor={i === 0 ? "start" : i === n - 1 ? "end" : "middle"}
-            className="type-chart-tick fill-muted-foreground"
+            className="type-throughput-tick fill-muted-foreground"
           >
             {points[i] ? tickLabel(points[i].start) : ""}
           </text>

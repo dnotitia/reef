@@ -1,0 +1,535 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "commit": "e85139b4b6b8b7cdee047537628846c00109807a",
+    "provenance": "git archive of the pre-REEF-603 product source",
+    "fixtureScenario": "demo_board",
+    "typographyFixtureScenario": "typography",
+    "fixtureInputs": [
+      {
+        "path": "packages/web/tests/e2e/harness/mock-server.mjs",
+        "sha256": "a7849070dc384a7779622a556f79037efba28610ea0a34b7349cdd0170d2fcfd"
+      },
+      {
+        "path": "packages/web/tests/e2e/harness/fixture-login.json",
+        "sha256": "1de20c13cf493b9501c90e00ff5d1cd462fc865b7bcf46740dbe0916e3a590ac"
+      }
+    ],
+    "browser": "Chromium via Playwright",
+    "fontReadiness": "document.fonts.ready plus Noto Sans KR Hangul load"
+  },
+  "conditions": {
+    "desktop": {
+      "width": 1440,
+      "height": 900
+    },
+    "narrowDesktop": {
+      "width": 1024,
+      "height": 800
+    },
+    "narrow": {
+      "width": 390,
+      "height": 844
+    },
+    "locales": ["en", "ko"],
+    "themes": ["light", "dark"]
+  },
+  "roles": {
+    "listGroupLabel": {
+      "fontSize": 12,
+      "fontWeight": 600,
+      "lineHeight": 16,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "listGroupCount": {
+      "fontSize": 11,
+      "fontWeight": 600,
+      "lineHeight": 14.6667,
+      "letterSpacing": 0,
+      "textTransform": "none",
+      "fontFamily": "mono"
+    },
+    "boardType": {
+      "fontSize": 10,
+      "fontWeight": 500,
+      "lineHeight": 10,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "detailType": {
+      "fontSize": 11,
+      "fontWeight": 500,
+      "lineHeight": 14.6667,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "boardBlocked": {
+      "fontSize": 10,
+      "fontWeight": 600,
+      "lineHeight": 15,
+      "letterSpacing": 0.25,
+      "textTransform": "uppercase"
+    },
+    "listId": {
+      "fontSize": 12,
+      "fontWeight": 400,
+      "lineHeight": 16,
+      "letterSpacing": 0,
+      "textTransform": "none",
+      "fontFamily": "mono"
+    },
+    "tableHeader": {
+      "fontSize": 10,
+      "fontWeight": 500,
+      "lineHeight": 15,
+      "letterSpacing": 0.5,
+      "textTransform": "uppercase"
+    },
+    "timelineGroup": {
+      "fontSize": 12,
+      "fontWeight": 600,
+      "lineHeight": 16,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "timelineTitle": {
+      "fontSize": 12,
+      "fontWeight": 500,
+      "lineHeight": 18,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "timelineMonth": {
+      "fontSize": 11,
+      "fontWeight": 600,
+      "lineHeight": 16.5,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "timelineTick": {
+      "fontSize": 10,
+      "fontWeight": 400,
+      "lineHeight": 15,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "timelineAssignee": {
+      "fontSize": 11,
+      "fontWeight": 400,
+      "lineHeight": 16.5,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "reportRowLabel": {
+      "fontSize": 12,
+      "fontWeight": 400,
+      "lineHeight": 16,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "reportCell": {
+      "fontSize": 12,
+      "fontWeight": 400,
+      "lineHeight": 16,
+      "letterSpacing": 0,
+      "textTransform": "none",
+      "fontFamily": "mono"
+    },
+    "reportHeader": {
+      "fontSize": 10,
+      "fontWeight": 400,
+      "lineHeight": 15,
+      "letterSpacing": 0.25,
+      "textTransform": "uppercase"
+    },
+    "throughputTick": {
+      "fontSize": 11,
+      "fontWeight": 400,
+      "lineHeight": 16.5,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "snapshotLabel": {
+      "fontSize": 11,
+      "fontWeight": 400,
+      "lineHeight": 16.5,
+      "letterSpacing": 0.275,
+      "textTransform": "uppercase"
+    },
+    "settingsDescription": {
+      "fontSize": 12,
+      "fontWeight": 400,
+      "lineHeight": 16,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "settingsSection": {
+      "fontSize": 13,
+      "fontWeight": 600,
+      "lineHeight": 19.5,
+      "letterSpacing": 0.65,
+      "textTransform": "uppercase"
+    },
+    "settingsGroup": {
+      "fontSize": 15,
+      "fontWeight": 600,
+      "lineHeight": 22.5,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "themeDescription": {
+      "fontSize": 11,
+      "fontWeight": 400,
+      "lineHeight": 16.5,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "segmentedControl": {
+      "fontSize": 12,
+      "fontWeight": 500,
+      "lineHeight": 18,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "smallButton": {
+      "fontSize": 12,
+      "fontWeight": 500,
+      "lineHeight": 16,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "subissueProgress": {
+      "fontSize": 12,
+      "fontWeight": 400,
+      "lineHeight": 16,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "dialogTitle": {
+      "fontSize": 16,
+      "fontWeight": 600,
+      "lineHeight": 16,
+      "letterSpacing": -0.16,
+      "textTransform": "none"
+    }
+  },
+  "cards": {
+    "REEF-001": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-002": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-003": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-004": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-005": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-006": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-007": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-008": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-009": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-010": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-011": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-012": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-013": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-014": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-015": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-016": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-017": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-018": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-019": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-020": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-021": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-022": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-023": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-024": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-025": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-026": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-027": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-028": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-029": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-030": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-031": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-032": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-033": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-034": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-035": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-036": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-037": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-038": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-039": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-040": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-041": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-042": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-043": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-044": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-045": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-046": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-047": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-048": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-049": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-050": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-051": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-052": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-053": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-054": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-055": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-056": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-057": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-058": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-059": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-060": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-061": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-062": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-063": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-064": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-065": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-066": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-067": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-068": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-069": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-070": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-071": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-072": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-073": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-074": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-075": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-076": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-077": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-078": {
+      "height": 152.56,
+      "titleLines": 1
+    },
+    "REEF-079": {
+      "height": 152.56,
+      "titleLines": 1
+    }
+  }
+}

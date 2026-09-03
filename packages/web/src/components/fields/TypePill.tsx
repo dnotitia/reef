@@ -32,10 +32,10 @@ export type TypePillVariant =
 
 const VARIANT_CLASS: Record<TypePillVariant, string> = {
   kanban:
-    "inline-flex items-center gap-1 shrink-0 rounded-sm border border-border/70 bg-surface-subtle px-1.5 py-px type-card-metadata font-medium leading-none",
+    "inline-flex items-center gap-1 shrink-0 rounded-sm border border-border/70 bg-surface-subtle px-1.5 py-px type-board-type text-foreground",
   list: "inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 type-card-metadata font-medium text-foreground",
   detail:
-    "inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 type-card-metadata font-medium text-foreground",
+    "inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 type-detail-type text-foreground",
   activity:
     "inline-flex items-center gap-1 rounded-full bg-surface-page/70 px-2 py-0.5",
   // Chrome-less: mirrors the StatusBadge / PriorityBadge / SeverityBadge leaves
@@ -89,8 +89,19 @@ export function TypePill({
   const issueTypeLabels = useIssueTypeLabels();
   const resolved = type ?? "task";
   const Icon = TYPE_ICON[resolved];
+  const typographyRole =
+    variant === "kanban"
+      ? "board-type"
+      : variant === "detail"
+        ? "detail-type"
+        : variant === "list"
+          ? "list-type"
+          : undefined;
   return (
-    <span className={cn(VARIANT_CLASS[variant], className)}>
+    <span
+      className={cn(VARIANT_CLASS[variant], className)}
+      data-typography-role={typographyRole}
+    >
       {/* Redundant with the visible label, so hidden from the a11y tree. */}
       <Icon
         className={cn(

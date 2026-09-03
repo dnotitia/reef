@@ -18,7 +18,7 @@ export function PreferencesSection() {
       <header className="flex flex-col gap-1">
         <h3
           id="preferences-heading"
-          className="type-section-label text-muted-foreground"
+          className="type-settings-section text-muted-foreground"
         >
           {t("heading")}
         </h3>
@@ -58,7 +58,7 @@ export function PreferencesSection() {
                   {opt.label}
                 </span>
               </span>
-              <span className="type-caption text-muted-foreground">
+              <span className="type-theme-description text-muted-foreground">
                 {opt.description}
               </span>
             </button>
