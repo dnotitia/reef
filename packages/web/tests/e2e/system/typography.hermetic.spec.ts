@@ -9,8 +9,7 @@ import historicalBaseline from "./typography-baseline.json";
 type Locale = "en" | "ko";
 type Theme = "light" | "dark";
 type HistoricalRoleName = keyof typeof historicalBaseline.roles;
-const CARD_BASELINE: Record<string, { height: number; titleLines: number }> =
-  historicalBaseline.cards;
+const CARD_BASELINE = historicalBaseline.cards;
 
 const VIEWPORTS = [
   { name: "desktop", width: 1440, height: 900 },
@@ -725,10 +724,7 @@ async function verifyPreferences(
     `${viewport.name} Settings body label`,
   );
   await expectTypography(
-    page
-      .locator('[data-testid="theme-option-light"]:visible span')
-      .filter({ hasText: /light palette/i })
-      .first(),
+    page.locator('[data-testid="theme-option-light"]:visible > span').last(),
     ROLE.themeDescription,
     `${viewport.name} Theme card description`,
   );
@@ -1114,19 +1110,28 @@ test.describe("Hermetic typography role contract", () => {
       }),
     );
 
-    expect(geometry).toHaveLength(Object.keys(CARD_BASELINE).length);
-    const deltas = geometry.map((actual) => {
-      if (!actual.id)
+    expect(geometry).toHaveLength(CARD_BASELINE.count);
+    const cardIds = geometry.map((actual) => {
+      if (!actual.id) {
         throw new Error("typography card is missing its issue id");
-      const expected = CARD_BASELINE[actual.id];
-      if (!expected) throw new Error(`missing baseline for ${actual.id}`);
-      return {
-        id: actual.id,
-        heightDelta: actual.height - expected.height,
-        titleLines: actual.titleLines,
-        expectedTitleLines: expected.titleLines,
-      };
+      }
+      return actual.id;
     });
+    const expectedCardIds = Array.from(
+      { length: CARD_BASELINE.count },
+      (_, index) => `REEF-${String(index + 1).padStart(3, "0")}`,
+    );
+    expect(new Set(cardIds).size, "representative card IDs").toBe(
+      CARD_BASELINE.count,
+    );
+    expect([...cardIds].sort(), "representative card IDs").toEqual(
+      expectedCardIds,
+    );
+    const deltas = geometry.map((actual) => ({
+      heightDelta: actual.height - CARD_BASELINE.geometry.height,
+      titleLines: actual.titleLines,
+      expectedTitleLines: CARD_BASELINE.geometry.titleLines,
+    }));
     const sortedDeltas = deltas
       .map(({ heightDelta }) => heightDelta)
       .sort((left, right) => left - right);
