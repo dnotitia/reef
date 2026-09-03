@@ -172,9 +172,9 @@ export const BacklogRow = memo(function BacklogRow({
       ref={setRowRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
-        "group h-10 transition-colors duration-150 focus-visible:outline-none hover:bg-surface-hover",
+        "reef-issue-backlog-row group h-10 transition-colors duration-150 focus-visible:outline-none hover:bg-surface-hover",
         focused && "bg-brand-fill/5",
-        selected && "bg-brand-fill/5 ring-1 ring-inset ring-brand-focus/30",
+        selected && "bg-brand-fill/5",
         reorderSuccess && "reef-flash-row",
         reorderSuccess && "reef-reorder-success-row",
         // Lift the dragged row out of the flow with the board's drag treatment.
@@ -248,7 +248,7 @@ export const BacklogRow = memo(function BacklogRow({
             aria-label={t("reorderGrip", { id: issue.id })}
             title={reorderHint}
             data-testid={`backlog-grip-${issue.id}`}
-            className="flex h-8 w-8 touch-none items-center justify-center rounded-sm opacity-40 transition-opacity duration-150 group-hover:opacity-100 focus:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+            className="flex h-8 w-8 touch-none items-center justify-center rounded-sm opacity-40 transition-opacity duration-150 group-hover:opacity-100 focus:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
             data-reef-interaction="drag-handle"
             data-dragging={isDragging ? "true" : undefined}
             onClick={(e) => e.stopPropagation()}
@@ -273,7 +273,7 @@ export const BacklogRow = memo(function BacklogRow({
       >
         <Link
           href={href}
-          className="rounded-sm hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+          className="rounded-sm hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
           onClick={(event) => event.stopPropagation()}
         >
           {issue.id}
@@ -305,7 +305,7 @@ export const BacklogRow = memo(function BacklogRow({
         <span className="flex min-w-0 items-center gap-2">
           <Link
             href={href}
-            className="block min-w-0 flex-1 truncate rounded-sm font-medium text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+            className="block min-w-0 flex-1 truncate rounded-sm font-medium text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
             onClick={(event) => event.stopPropagation()}
           >
             {issue.title}

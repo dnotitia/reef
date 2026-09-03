@@ -67,38 +67,42 @@ async function expectVisibleFocus(
   await locator.focus();
   await expect(locator).toBeFocused();
 
-  const expectedForeground = await locator.evaluate(() => {
-    const probe = document.createElement("span");
-    probe.style.color = getComputedStyle(
-      document.documentElement,
-    ).getPropertyValue("--foreground");
-    document.body.append(probe);
-    const color = getComputedStyle(probe).color;
-    probe.remove();
-    return color;
-  });
   await expect
     .poll(() =>
-      locator.evaluate((element) => getComputedStyle(element).outlineColor),
+      locator.evaluate((element) => {
+        const styles = getComputedStyle(element);
+        return styles.outlineStyle === "solid" || styles.boxShadow !== "none";
+      }),
     )
-    .toBe(expectedForeground);
+    .toBe(true);
 
   const proof = await locator.evaluate((element) => {
     const styles = getComputedStyle(element);
     const rootStyles = getComputedStyle(document.documentElement);
-    const foregroundProbe = document.createElement("span");
-    foregroundProbe.style.color = rootStyles.getPropertyValue("--foreground");
-    document.body.append(foregroundProbe);
-    const foregroundColor = getComputedStyle(foregroundProbe).color;
-    foregroundProbe.remove();
+    const focusProbe = document.createElement("span");
+    focusProbe.style.color = rootStyles.getPropertyValue("--brand-focus");
+    document.body.append(focusProbe);
+    const focusColor = getComputedStyle(focusProbe).color;
+    focusProbe.remove();
+    const ringColor = styles.getPropertyValue("--tw-ring-color").trim();
+    const ringProbe = document.createElement("span");
+    ringProbe.style.color = ringColor;
+    document.body.append(ringProbe);
+    const ringColorResolved = ringColor
+      ? getComputedStyle(ringProbe).color
+      : "";
+    ringProbe.remove();
 
     const rect = element.getBoundingClientRect();
     return {
-      foregroundColor,
+      focusColor,
       outlineColor: styles.outlineColor,
       outlineOffset: styles.outlineOffset,
       outlineStyle: styles.outlineStyle,
       outlineWidth: styles.outlineWidth,
+      ringColor,
+      ringColorResolved,
+      boxShadow: styles.boxShadow,
       rect: {
         height: rect.height,
         width: rect.width,
@@ -109,12 +113,21 @@ async function expectVisibleFocus(
     };
   });
 
-  expect(proof.outlineStyle).toBe("solid");
-  expect(Number.parseFloat(proof.outlineWidth)).toBeGreaterThanOrEqual(2);
-  expect(proof.outlineOffset).toBe("1px");
-  expect(proof.outlineColor).not.toBe("transparent");
-  expect(proof.outlineColor).not.toBe("rgba(0, 0, 0, 0)");
-  expect(proof.outlineColor).toBe(proof.foregroundColor);
+  const hasOutline = proof.outlineStyle === "solid";
+  const hasRing = proof.boxShadow !== "none";
+  expect(hasOutline || hasRing).toBe(true);
+  if (hasOutline) {
+    expect(Number.parseFloat(proof.outlineWidth)).toBeGreaterThanOrEqual(2);
+    expect(proof.outlineOffset).toBe("2px");
+    expect(proof.outlineColor).not.toBe("transparent");
+    expect(proof.outlineColor).not.toBe("rgba(0, 0, 0, 0)");
+    expect(proof.outlineColor).toBe(proof.focusColor);
+  } else {
+    expect(proof.ringColor).not.toBe("");
+    expect(proof.ringColor).not.toBe("transparent");
+    expect(proof.ringColorResolved).toBe(proof.focusColor);
+    expect(proof.boxShadow).toContain("2px");
+  }
   expect(proof.rect.width).toBeGreaterThan(0);
   expect(proof.rect.height).toBeGreaterThan(0);
   expect(proof.rect.x).toBeGreaterThanOrEqual(0);

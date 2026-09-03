@@ -117,7 +117,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         data-slot="button"
         data-busy={busy ? "true" : undefined}
         className={cn(
-          "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-1 disabled:opacity-50 [touch-action:manipulation]",
+          "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus disabled:opacity-50 [touch-action:manipulation]",
           variantClasses[variant],
           sizeClasses[size],
           resolvedHitTarget === "coarse" &&

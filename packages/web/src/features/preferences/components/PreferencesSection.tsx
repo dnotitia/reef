@@ -43,7 +43,7 @@ export function PreferencesSection() {
               onClick={() => void setTheme(opt.value)}
               className={cn(
                 "flex min-w-0 flex-col items-start gap-1.5 rounded-md border px-3 py-2.5 text-left transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
                 isSelected
                   ? "border-brand-focus bg-surface-subtle"
                   : "border-border hover:border-border-subtle hover:bg-surface-hover",

@@ -283,7 +283,7 @@ export function IssueDateRangeFilter({
                   const field = event.target.value;
                   if (isIssueDateFieldId(field)) updateField(field);
                 }}
-                className="h-8 w-full min-w-0 appearance-none rounded-md border border-border bg-surface-elevated px-2.5 pr-8 type-control text-foreground outline-none transition-colors duration-150 hover:bg-surface-hover focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30"
+                className="h-8 w-full min-w-0 appearance-none rounded-md border border-border bg-surface-elevated px-2.5 pr-8 type-control text-foreground outline-none transition-colors duration-150 hover:bg-surface-hover focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus"
               >
                 {DATE_RANGE_FIELD_IDS.map((field) => (
                   <option key={field} value={field}>
@@ -370,7 +370,7 @@ export function IssueDateRangeFilter({
                 type="button"
                 onClick={() => onChange(undefined)}
                 data-testid="updated-at-range-editor-clear"
-                className="rounded-md px-2 py-1 type-caption font-medium text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/30"
+                className="rounded-md px-2 py-1 type-caption font-medium text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
               >
                 {t("updatedAtRangeEditorClear")}
               </button>

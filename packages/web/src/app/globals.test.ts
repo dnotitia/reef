@@ -84,7 +84,7 @@ function tokenRgb(css: string, selector: string, token: string): Rgb {
 }
 
 describe("global focus styles", () => {
-  it("keeps the fallback focus-visible outline in the base layer", () => {
+  it("keeps the canonical teal focus-visible outline in the base layer", () => {
     const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
     const focusRuleStart = css.indexOf("*:focus-visible");
     expect(focusRuleStart).toBeGreaterThan(-1);
@@ -92,6 +92,10 @@ describe("global focus styles", () => {
     const baseLayerStart = css.lastIndexOf("@layer base", focusRuleStart);
     expect(baseLayerStart).toBeGreaterThan(-1);
     expect(focusRuleStart).toBeLessThan(findCssBlockEnd(css, baseLayerStart));
+    const focusRuleEnd = findCssBlockEnd(css, focusRuleStart);
+    const focusRule = css.slice(focusRuleStart, focusRuleEnd);
+    expect(focusRule).toContain("outline: 2px solid var(--brand-focus);");
+    expect(focusRule).toContain("outline-offset: 2px;");
   });
 
   it("keeps issue list row focus as one scrollport-scoped rounded border above dividers", () => {
@@ -110,12 +114,24 @@ describe("global focus styles", () => {
     expect(css).toContain('.reef-issue-list-row[aria-selected="true"] > td');
     expect(css).toContain("left: 1px");
     expect(css).toContain("width: calc(var(--reef-list-focus-width) - 2px)");
-    expect(css).toContain("border: 1px solid var(--reef-issue-list-row-ring)");
+    expect(css).toContain("border: 2px solid var(--reef-issue-list-row-ring)");
     expect(css).toContain("border-block-color: transparent");
     expect(css).toContain(
       ".reef-issue-list-row:has(+ .reef-issue-list-row:focus-visible) > td",
     );
     expect(css).toContain("border-bottom-color: transparent");
+    expect(css).toContain(
+      '.reef-issue-list-row[data-keyboard-focused="true"]:not(:has(:focus))',
+    );
+    expect(css).toContain(
+      '.reef-issue-list-row[aria-selected="true"] > td:first-child::after {\n  content: none;',
+    );
+    expect(css).toContain(
+      ".reef-issue-backlog-row:focus-visible {\n  outline: 2px solid var(--brand-focus);",
+    );
+    expect(css).toContain(
+      ".reef-selection-checkbox:has(> input:focus-visible) {\n  outline: 2px solid var(--brand-focus);",
+    );
   });
 
   it("compresses the default List sticky columns through narrow viewports", () => {

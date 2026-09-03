@@ -218,7 +218,7 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
           "group relative min-w-0 rounded-md border border-border bg-surface-card px-3 py-2.5",
           "select-none transition-colors duration-[var(--duration-base)] ease-[var(--ease-signature)]",
           "hover:border-border hover:bg-surface-hover",
-          "focus-visible:outline-none focus-visible:border-brand-focus/60 focus-visible:bg-brand-fill/5",
+          "focus-visible:outline-none focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus focus-visible:bg-brand-fill/5",
           isDragging && "opacity-50 shadow-md",
           reorderSuccess && "reef-reorder-success-card",
           className,
@@ -504,7 +504,7 @@ const KanbanCardContent = memo(function KanbanCardContent({
           .focusOccurrence("board", keyboardOccurrenceKey, issue.id)
       }
       className={cn(
-        focused && "border-brand-focus/60 bg-brand-fill/5",
+        focused && "border-brand-focus bg-brand-fill/5",
         isOver &&
           !isDragging &&
           "border-brand-focus/60 ring-2 ring-brand-focus/20",

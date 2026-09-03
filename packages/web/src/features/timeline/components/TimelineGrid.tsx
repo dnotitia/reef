@@ -213,7 +213,7 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
             scroller rather than being buried under the sticky header. */}
         <div
           ref={scrollRef}
-          className="isolate h-full overflow-auto overscroll-x-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/30"
+          className="isolate h-full overflow-auto overscroll-x-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus"
           role="region"
           // biome-ignore lint/a11y/noNoninteractiveTabindex: The labeled overflow region is the keyboard scrollport.
           tabIndex={0}
@@ -370,7 +370,7 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                               start: formatCalendarDay(null),
                               due: formatCalendarDay(null),
                             })}
-                            className="min-w-0 rounded-md border border-border bg-surface-elevated px-2.5 py-2 text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+                            className="min-w-0 rounded-md border border-border bg-surface-elevated px-2.5 py-2 text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
                           >
                             <span className="block truncate type-compact-mono text-muted-foreground">
                               {issue.id}
@@ -412,7 +412,7 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
           data-off=""
           onClick={scrollToToday}
           aria-label={t("scrollToToday")}
-          className="group absolute top-2 z-[3] hidden items-center gap-1 rounded-full border border-brand-focus/40 bg-surface-elevated px-2.5 py-1 type-caption font-medium text-foreground shadow-sm transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40 data-[off=left]:left-3 data-[off=left]:flex data-[off=right]:right-3 data-[off=right]:flex"
+          className="group absolute top-2 z-[3] hidden items-center gap-1 rounded-full border border-brand-focus/40 bg-surface-elevated px-2.5 py-1 type-caption font-medium text-foreground shadow-sm transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus data-[off=left]:left-3 data-[off=left]:flex data-[off=right]:right-3 data-[off=right]:flex"
         >
           <ChevronLeft
             aria-hidden="true"

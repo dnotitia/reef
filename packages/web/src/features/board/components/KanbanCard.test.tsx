@@ -407,11 +407,11 @@ describe("KanbanCard", () => {
 
     const card = screen.getByTestId("kanban-card");
     expect(card).toHaveAttribute("data-keyboard-focused", "true");
-    expect(card.className).toContain("focus-visible:border-brand-focus/60");
-    expect(card.className).toContain("border-brand-focus/60");
+    expect(card.className).toContain("focus-visible:border-brand-focus");
+    expect(card.className).toContain("focus-visible:ring-2");
+    expect(card.className).toContain("focus-visible:ring-brand-focus");
+    expect(card.className).toContain("border-brand-focus");
     expect(card.className).toContain("bg-brand-fill/5");
-    expect(card.className).not.toContain("ring-2");
-    expect(card.className).not.toContain("ring-inset");
     expect(card.className).not.toContain("ring-offset");
   });
 

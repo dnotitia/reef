@@ -559,7 +559,7 @@ the detail panel is comfortable for reading and editing.
 The target is **WCAG AA**. Radix supplies keyboard operability, focus trapping
 in dialogs/sheets, focus restoration, and ARIA roles. On top of that the
 product adds: meaning encoded redundantly (shape/glyph/label alongside color),
-visible focus rings (`focus-visible:ring-brand-focus/40`) on custom interactive
+visible focus rings (`focus-visible:ring-2 focus-visible:ring-brand-focus`) on custom interactive
 elements including the draggable Kanban card, `role="alert"` on inline error
 messages, `aria-live` toast semantics via Sonner, screen-reader-only
 titles/descriptions on the issue Sheet, and keyboard activation (Enter/Space)
@@ -607,6 +607,44 @@ an affordance, never the only way to operate a control.
 The shared account menu uses a visible focus ring, an `계정 메뉴`/`Account menu`
 ARIA label, and at least a 44px trigger and action-row hit target. Its sign-out
 progress and failure copy are exposed through polite live feedback.
+
+### Focus and selection policy
+
+Focus, selection, input context, and menu navigation are separate meanings with
+separate visual owners:
+
+- Independent buttons, links, selection controls, rows, and cards use the
+  browser's `:focus-visible` decision. The shared fallback and component-owned
+  rings are a solid 2px `--brand-focus`; a pointer activation does not add a
+  focus border that duplicates a selected or active fill.
+- Text inputs, search fields, textareas, and the Markdown editing surface use
+  `:focus` or `:focus-within`. Clicking into an editing surface is itself the
+  action that establishes the insertion context, so it remains visibly marked
+  for pointer and keyboard entry. These rings are inset when the field owns a
+  clipped lane.
+- Checked, mixed, selected, active, and pressed state stays in its existing
+  native or ARIA representation. A selected issue row or backlog row receives
+  its selection fill, not a row-sized focus outline; the checkbox or other
+  actual control owns the focus indicator. Moving focus does not clear or
+  replace that state.
+- A composite row may provide a quiet context fill, but its parent does not
+  draw the same-strength border as a focused child. Child links, buttons, and
+  quick-edit triggers own their own focus indicator. Menus and listboxes keep
+  their highlighted/active item treatment and Radix roving focus rather than
+  inheriting an independent button border for every option.
+- Dense and clipped surfaces choose a local safe treatment: the List boundary
+  is painted inside its scrollport, Backlog uses an inset boundary, and the
+  shared input/editor context uses inset rings. These choices preserve sticky
+  columns, row heights, overflow owners, and the existing keyboard scroll
+  regions instead of changing global overflow to hide a clipped edge.
+
+The global `*:focus-visible` rule is a fallback for native and custom
+interactive elements without a more specific owner. Component styles that own
+their ring explicitly suppress that fallback, so one target does not render two
+competing outlines. The contract is checked in Light and Dark at the standard
+and narrow desktop viewports, including the four edges of the List/Backlog
+scrollports and the visible input context in composed dialogs and detail
+surfaces.
 
 ### Surface, Depth & Motion
 

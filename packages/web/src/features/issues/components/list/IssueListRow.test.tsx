@@ -352,7 +352,7 @@ describe("IssueListRow", () => {
     ]);
     expect(row).toHaveAttribute("data-context-open", "true");
     expect(row.className).toContain("bg-brand-fill/5");
-    expect(row.className).toContain("ring-1");
+    expect(row.className).not.toContain("ring-1");
     expect(Number(boundaryCell?.style.zIndex)).toBeGreaterThan(
       Number(titleCell?.style.zIndex),
     );

@@ -244,7 +244,7 @@ function IssueListGroupHeader({
         <div className="reef-issue-list-group-header flex h-8 min-w-0 w-full items-center gap-2 px-3 text-left type-list-group text-foreground">
           <button
             type="button"
-            className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-sm text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
+            className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-sm text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus"
             aria-expanded={!collapsed}
             aria-label={`${actionLabel} · ${groupSummary}`}
             onClick={onToggle}
@@ -290,7 +290,7 @@ function IssueListGroupHeader({
           {epic ? (
             <button
               type="button"
-              className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
+              className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus"
               aria-label={t("openEpic", { id: epic.id, title: epic.title })}
               data-testid={`open-epic-${epic.id}`}
               title={epic.title}
@@ -848,7 +848,7 @@ export function IssueListTable({
         >
           <span className="sr-only">{t("loading")}</span>
           <div
-            className="min-h-0 h-full min-w-0 overflow-auto overscroll-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/30"
+            className="min-h-0 h-full min-w-0 overflow-auto overscroll-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus"
             role="region"
             // biome-ignore lint/a11y/noNoninteractiveTabindex: The labeled overflow region is the keyboard scrollport.
             tabIndex={0}
@@ -932,7 +932,7 @@ export function IssueListTable({
       ) : (
         <div
           ref={scrollElementRef}
-          className="min-h-0 h-full min-w-0 flex-1 overflow-auto overscroll-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/30"
+          className="min-h-0 h-full min-w-0 flex-1 overflow-auto overscroll-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus"
           role="region"
           // biome-ignore lint/a11y/noNoninteractiveTabindex: The labeled overflow region is the keyboard scrollport.
           tabIndex={0}

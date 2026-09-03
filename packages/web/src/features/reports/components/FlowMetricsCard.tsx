@@ -221,7 +221,7 @@ function FlowMetricResultView({
                     vault,
                     `/issues/${encodeURIComponent(point.issueId)}`,
                   )}
-                  className="type-body min-w-0 truncate text-brand-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+                  className="type-body min-w-0 truncate text-brand-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
                 >
                   <span translate="no" className="type-compact-mono">
                     {point.issueId}

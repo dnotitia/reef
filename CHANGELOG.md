@@ -50,6 +50,12 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Focus and selection indicators now share one visible teal contract.**
+  Keyboard focus uses a solid 2px brand ring, text-entry context remains
+  visible when entered by pointer, and selected rows keep their state fill
+  without a duplicate row-sized focus border. Dense List/Backlog boundaries
+  and composite child controls retain safe, non-clipping focus ownership.
+
 - **Cursor semantics are now centralized by interaction and real state.**
   Enabled controls, editable text, disabled and busy controls, clickable rows
   and cards, drag handles, and resize handles share one policy; label-group

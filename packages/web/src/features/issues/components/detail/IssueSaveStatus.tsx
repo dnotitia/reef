@@ -59,7 +59,7 @@ function IssueSaveStatusComponent({
           type="button"
           data-testid="issue-save-retry"
           onClick={onRetry}
-          className="rounded-sm font-medium underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive-focus/40"
+          className="rounded-sm font-medium underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive-focus"
         >
           {c("retry")}
         </button>

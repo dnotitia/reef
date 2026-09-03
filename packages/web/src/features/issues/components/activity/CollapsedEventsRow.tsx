@@ -62,8 +62,8 @@ export function CollapsedEventsRow({
         </span>
         {/* Focus ring rides on the visible pill (driven by the button's
             focus-visible state) so keyboard focus is shown without a full-width
-            ring — canonical ring-brand-focus/40, matching the other buttons. */}
-        <span className="rounded-full border border-border bg-surface-subtle px-2 py-0.5 text-xs text-muted-foreground transition-colors group-hover/collapse:bg-surface-hover group-focus-visible/collapse:ring-2 group-focus-visible/collapse:ring-brand-focus/40">
+            ring — canonical ring-brand-focus, matching the other buttons. */}
+        <span className="rounded-full border border-border bg-surface-subtle px-2 py-0.5 text-xs text-muted-foreground transition-colors group-hover/collapse:bg-surface-hover group-focus-visible/collapse:ring-2 group-focus-visible/collapse:ring-brand-focus">
           {t(bodyUpdates ? "bodyUpdates" : "statusChanges", {
             count: events.length,
           })}

@@ -303,7 +303,6 @@ export const IssueListRow = memo(function IssueListRow({
           visualState === "idle" && onClick && "hover:bg-surface-hover",
           (visualState === "focused" || visualState === "selected") &&
             "bg-brand-fill/5 hover:bg-brand-fill/5",
-          visualState === "selected" && "ring-1 ring-inset ring-brand-focus/30",
           visualState === "context-open" && "hover:bg-transparent",
           isFlashing && "reef-flash-row",
           reorderSuccess && "reef-reorder-success-row",

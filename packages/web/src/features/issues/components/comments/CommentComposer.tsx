@@ -79,7 +79,7 @@ export function CommentComposer({
         decorative
         className="mt-1 shrink-0"
       />
-      <div className="flex min-w-0 flex-1 flex-col rounded-md border border-border bg-surface-elevated transition-colors focus-within:border-brand-focus focus-within:ring-2 focus-within:ring-inset focus-within:ring-brand-focus/30">
+      <div className="flex min-w-0 flex-1 flex-col rounded-md border border-border bg-surface-elevated transition-colors focus-within:border-brand-focus focus-within:ring-2 focus-within:ring-inset focus-within:ring-brand-focus">
         {replyToAuthor ? (
           <div className="flex min-w-0 items-center justify-between gap-2 border-b border-border-subtle px-3 py-1.5">
             <span className="type-card-metadata min-w-0 truncate font-medium text-muted-foreground">

@@ -993,7 +993,7 @@ function ActiveSprintContextStrip({
       <a
         href={sprintDetailHref(vault, sprint.id)}
         aria-label={t("openSprintDetails", { name: sprint.name })}
-        className="min-w-0 truncate font-medium text-brand-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+        className="min-w-0 truncate font-medium text-brand-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
       >
         {sprint.name}
       </a>
