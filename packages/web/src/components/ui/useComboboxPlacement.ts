@@ -6,7 +6,7 @@ import {
   findScrollBoundaryRect,
 } from "@/lib/panelPlacement";
 import type { RefObject } from "react";
-import { useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 
 export function useComboboxPlacement({
   open,
@@ -25,6 +25,16 @@ export function useComboboxPlacement({
     vertical: "down",
     horizontal: align,
   });
+  const [viewportRevision, setViewportRevision] = useState(0);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleResize = () => {
+      setViewportRevision((revision) => revision + 1);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [open]);
 
   useLayoutEffect(() => {
     if (!open) {
@@ -47,7 +57,7 @@ export function useComboboxPlacement({
         ? current
         : next,
     );
-  }, [align, measureKey, open, panelRef, triggerRef]);
+  }, [align, measureKey, open, panelRef, triggerRef, viewportRevision]);
 
   return placement;
 }

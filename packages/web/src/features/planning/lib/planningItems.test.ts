@@ -6,6 +6,7 @@ import {
   findPlanningName,
   isAssignablePlanningItem,
   itemsForKind,
+  selectActiveSprint,
 } from "./planningItems";
 
 const catalog: PlanningCatalog = {
@@ -54,6 +55,37 @@ describe("findPlanningName", () => {
     expect(findPlanningName(catalog, "sprints", "spr-1")).toBe("Sprint One");
     expect(findPlanningName(catalog, "sprints", "spr-x")).toBeNull();
     expect(findPlanningName(catalog, "sprints", null)).toBeNull();
+  });
+});
+
+describe("selectActiveSprint", () => {
+  it("chooses the latest active start date, then the highest id", () => {
+    expect(
+      selectActiveSprint([
+        {
+          ...catalog.sprints[0],
+          id: "spr-1",
+          start_date: "2026-06-10",
+        },
+        {
+          ...catalog.sprints[0],
+          id: "spr-2",
+          start_date: "2026-06-11",
+        },
+        {
+          ...catalog.sprints[0],
+          id: "spr-3",
+          start_date: "2026-06-11",
+          status: "planned",
+        },
+      ]),
+    ).toMatchObject({ id: "spr-2" });
+  });
+
+  it("returns null when no sprint is active", () => {
+    expect(
+      selectActiveSprint([{ ...catalog.sprints[0], status: "planned" }]),
+    ).toBeNull();
   });
 });
 

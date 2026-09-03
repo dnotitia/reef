@@ -123,6 +123,7 @@ interface IssueListTableProps {
   vault: string;
   scope?: IssueScope;
   groupBy?: IssueGroupBy;
+  fixedSprintId?: string;
 }
 
 function IssueListColumnGroup({
@@ -313,13 +314,14 @@ export function IssueListTable({
   vault,
   scope = "active",
   groupBy = "none",
+  fixedSprintId,
 }: IssueListTableProps) {
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
-  const scopedFilter = useMemo(
-    () => filterForIssueScope(filter, scope),
-    [filter, scope],
-  );
+  const scopedFilter = useMemo(() => {
+    const scoped = filterForIssueScope(filter, scope);
+    return fixedSprintId ? { ...scoped, sprint_id: [fixedSprintId] } : scoped;
+  }, [filter, fixedSprintId, scope]);
   const manualOrder = isManualOrdering(filter);
   const openIssue = useOpenIssue();
   const columnLabels = useFieldNameLabels();
@@ -353,9 +355,9 @@ export function IssueListTable({
   const query = useMemo(
     () =>
       manualOrder
-        ? buildManualIssueQuery(filter, scope)
-        : buildIssueQuery(filter, searchQuery, scope),
-    [filter, manualOrder, scope, searchQuery],
+        ? buildManualIssueQuery(filter, scope, fixedSprintId)
+        : buildIssueQuery(filter, searchQuery, scope, fixedSprintId),
+    [filter, fixedSprintId, manualOrder, scope, searchQuery],
   );
   const {
     data,

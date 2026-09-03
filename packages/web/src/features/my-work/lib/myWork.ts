@@ -9,6 +9,7 @@ import {
   type Status,
   isResolvedStatus,
 } from "@reef/core";
+import { selectActiveSprint } from "@/features/planning/lib/planningItems";
 
 /**
  * My Work — pure derivation for the personal `/my-work` view (REEF-181).
@@ -127,18 +128,7 @@ export interface MyWork {
  * "current sprint".
  */
 export function selectCurrentSprint(sprints: readonly Sprint[]): Sprint | null {
-  let current: Sprint | null = null;
-  for (const sprint of sprints) {
-    if (sprint.status !== "active") continue;
-    if (current === null) {
-      current = sprint;
-      continue;
-    }
-    const a = sprint.start_date ?? "";
-    const b = current.start_date ?? "";
-    if (a !== b ? a > b : sprint.id > current.id) current = sprint;
-  }
-  return current;
+  return selectActiveSprint(sprints);
 }
 
 /**

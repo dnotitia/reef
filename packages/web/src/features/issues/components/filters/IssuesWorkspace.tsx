@@ -16,10 +16,34 @@ import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { TimelineBody } from "@/features/timeline/components/TimelineBody";
 import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { PageHeader } from "@/features/ui/components/PageHeader";
+import { sprintDetailPath } from "@/features/planning/lib/planningUrls";
+import { withVault } from "@/lib/workspaceHref";
 import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import { useTranslations } from "next-intl";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
+
+export interface IssuesWorkspaceProps {
+  /** Pin all issue queries to a sprint while keeping the shared filter store intact. */
+  fixedSprintId?: string;
+  fixedSprintName?: string;
+  fixedSprintUnlockHref?: string;
+  /** Omit the standard Issues page header when another surface owns the chrome. */
+  hideHeader?: boolean;
+}
+
+function unlockedIssuesHref(
+  vault: string,
+  searchParams: URLSearchParams,
+  layout: "board" | "list",
+): string {
+  const next = new URLSearchParams(searchParams);
+  next.delete("scope");
+  next.delete("sprint_id");
+  next.set("view", layout);
+  const query = next.toString();
+  return withVault(vault, query ? `/issues?${query}` : "/issues");
+}
 
 /**
  * Unified issues workspace. Scope (`active` / `backlog`) and layout
@@ -30,10 +54,21 @@ import { useEffect, useRef } from "react";
  * Used both by the `/issues` page and as the backdrop behind the
  * `/issues/[id]` detail slide-over on hard navigation.
  */
-export function IssuesWorkspace() {
+export function IssuesWorkspace({
+  fixedSprintId,
+  fixedSprintName,
+  fixedSprintUnlockHref,
+  hideHeader = false,
+}: IssuesWorkspaceProps = {}) {
   const { vault, isLoading } = useActiveVault();
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const { scope, layout } = parseIssueViewState(searchParams);
+  const parsedView = parseIssueViewState(searchParams);
+  const scope = fixedSprintId ? "active" : parsedView.scope;
+  const layout =
+    fixedSprintId && parsedView.layout === "timeline"
+      ? "board"
+      : parsedView.layout;
   const nav = useTranslations("nav");
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
@@ -55,8 +90,25 @@ export function IssuesWorkspace() {
     setGroupBy,
     listOptionalColumns,
     applyMyViewSnapshot,
-  } = useIssueUrlSync();
+  } = useIssueUrlSync({
+    preserveFilterOnNonListRoute: Boolean(fixedSprintId),
+  });
   useIssueFilterPersistence(vault, skipNextSave);
+
+  useEffect(() => {
+    if (!fixedSprintId) return;
+    const hasUnsupportedScope = searchParams.get("scope") != null;
+    const hasUnsupportedLayout = searchParams.get("view") === "timeline";
+    if (!hasUnsupportedScope && !hasUnsupportedLayout) return;
+
+    const next = new URLSearchParams(searchParams);
+    next.delete("scope");
+    next.set("view", layout);
+    router.replace(
+      withVault(vault, `${sprintDetailPath(fixedSprintId)}?${next.toString()}`),
+      { scroll: false },
+    );
+  }, [fixedSprintId, layout, router, searchParams, vault]);
 
   useEffect(() => {
     if (previousSelectionContext.current === selectionContext) return;
@@ -66,35 +118,71 @@ export function IssuesWorkspace() {
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
-      <PageHeader
-        title={nav("issues")}
-        description={vault || undefined}
-        titleAdjacent={
-          <ScopeSwitcher activeScope={scope} activeLayout={layout} />
-        }
-        className="h-auto min-h-12 flex-wrap py-2"
-        actions={<ViewSwitcher scope={scope} activeLayout={layout} />}
-      />
+      {hideHeader ? null : (
+        <PageHeader
+          title={nav("issues")}
+          description={vault || undefined}
+          titleAdjacent={
+            <ScopeSwitcher activeScope={scope} activeLayout={layout} />
+          }
+          className="h-auto min-h-12 flex-wrap py-2"
+          actions={
+            <ViewSwitcher
+              scope={scope}
+              activeLayout={layout}
+              basePath={
+                fixedSprintId ? sprintDetailPath(fixedSprintId) : "/issues"
+              }
+              hideTimeline={Boolean(fixedSprintId)}
+            />
+          }
+        />
+      )}
 
       {!vault && !isLoading ? (
         <EmptyWorkspaceNotice />
       ) : (
         <>
-          {/* Backlog scope drops the facets it pins or does not partition on
-              (Status/Sprint/Release/Due); Active keeps only workflow statuses. */}
-          <IssueFilterToolbar
-            backlogScope={scope === "backlog"}
-            scope={scope}
-            statusOptions={WORKFLOW_STATUS_OPTIONS}
-            view={layout}
-            showSortControl={layout !== "timeline"}
-            supportsRankOrder={layout !== "timeline"}
-            showsBacklogReorderHint={scope === "backlog"}
-            groupBy={groupBy}
-            setGroupBy={setGroupBy}
-            listOptionalColumns={listOptionalColumns}
-            applyMyViewSnapshot={applyMyViewSnapshot}
-          />
+          {fixedSprintId ? (
+            <IssueFilterToolbar
+              backlogScope={false}
+              scope="active"
+              statusOptions={WORKFLOW_STATUS_OPTIONS}
+              view={layout}
+              showSortControl
+              supportsRankOrder
+              fixedSprintId={fixedSprintId}
+              fixedSprintName={fixedSprintName}
+              fixedSprintUnlockHref={
+                fixedSprintUnlockHref ??
+                unlockedIssuesHref(
+                  vault,
+                  searchParams,
+                  layout === "timeline" ? "board" : layout,
+                )
+              }
+              groupBy={groupBy}
+              setGroupBy={setGroupBy}
+              listOptionalColumns={listOptionalColumns}
+              applyMyViewSnapshot={applyMyViewSnapshot}
+            />
+          ) : (
+            // Backlog scope drops the facets it pins or does not partition on
+            // (Status/Sprint/Release/Due); Active keeps only workflow statuses.
+            <IssueFilterToolbar
+              backlogScope={scope === "backlog"}
+              scope={scope}
+              statusOptions={WORKFLOW_STATUS_OPTIONS}
+              view={layout}
+              showSortControl={layout !== "timeline"}
+              supportsRankOrder={layout !== "timeline"}
+              showsBacklogReorderHint={scope === "backlog"}
+              groupBy={groupBy}
+              setGroupBy={setGroupBy}
+              listOptionalColumns={listOptionalColumns}
+              applyMyViewSnapshot={applyMyViewSnapshot}
+            />
+          )}
           {layout === "list" ? (
             <IssueBulkActionBar
               vault={vault}
@@ -109,9 +197,19 @@ export function IssuesWorkspace() {
             }
           >
             {layout === "board" ? (
-              <KanbanBoard vault={vault} scope={scope} groupBy={groupBy} />
+              <KanbanBoard
+                vault={vault}
+                scope={scope}
+                groupBy={groupBy}
+                fixedSprintId={fixedSprintId}
+              />
             ) : layout === "list" && scope === "active" ? (
-              <IssueListTable vault={vault} scope={scope} groupBy={groupBy} />
+              <IssueListTable
+                vault={vault}
+                scope={scope}
+                groupBy={groupBy}
+                fixedSprintId={fixedSprintId}
+              />
             ) : layout === "list" ? (
               <BacklogView vault={vault} groupBy={groupBy} />
             ) : (

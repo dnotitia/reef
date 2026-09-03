@@ -107,7 +107,7 @@ describe("PersistedIssueFilterSchema", () => {
     expect(parsed.assignee).toBeUndefined();
   });
 
-  it("keeps a complete registered date range and drops an invalid one", () => {
+  it("keeps complete registered date ranges and drops an invalid one", () => {
     expect(
       PersistedIssueFilterSchema.parse({
         dateRange: {
@@ -121,6 +121,33 @@ describe("PersistedIssueFilterSchema", () => {
       PersistedIssueFilterSchema.parse({
         dateRange: {
           field: "created_at",
+          from: "2026-06-01",
+          to: "2026-06-02",
+        },
+      }).dateRange,
+    ).toEqual({ field: "created_at", from: "2026-06-01", to: "2026-06-02" });
+    expect(
+      PersistedIssueFilterSchema.parse({
+        dateRange: {
+          field: "start_date",
+          from: "2026-06-01",
+          to: "2026-06-02",
+        },
+      }).dateRange,
+    ).toEqual({ field: "start_date", from: "2026-06-01", to: "2026-06-02" });
+    expect(
+      PersistedIssueFilterSchema.parse({
+        dateRange: {
+          field: "due_date",
+          from: "2026-06-01",
+          to: "2026-06-02",
+        },
+      }).dateRange,
+    ).toEqual({ field: "due_date", from: "2026-06-01", to: "2026-06-02" });
+    expect(
+      PersistedIssueFilterSchema.parse({
+        dateRange: {
+          field: "custom_date",
           from: "2026-06-01",
           to: "2026-06-02",
         },

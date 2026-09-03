@@ -51,6 +51,27 @@ describe("buildIssueQuery", () => {
     });
   });
 
+  it.each(["created_at", "start_date", "due_date"] as const)(
+    "normalizes a complete %s range for the server",
+    (field) => {
+      const normalized = toIssueDateRangeQuery({
+        field,
+        from: "2026-06-01",
+        to: "2026-06-01",
+      });
+      expect(
+        buildIssueQuery({
+          dateRange: { field, from: "2026-06-01", to: "2026-06-01" },
+        }),
+      ).toMatchObject({
+        date_field: field,
+        date_from: normalized?.from,
+        date_to: normalized?.to,
+        ...DEFAULT_SORT,
+      });
+    },
+  );
+
   it("omits an incomplete date range instead of narrowing the query", () => {
     expect(
       buildIssueQuery({
@@ -209,6 +230,23 @@ describe("buildIssueQuery", () => {
     });
   });
 
+  it("overrides the shared sprint facet for a fixed sprint surface", () => {
+    expect(
+      buildIssueQuery(
+        { sprint_id: ["other-sprint"], priority: ["high"] },
+        "auth",
+        "active",
+        "fixed-sprint",
+      ),
+    ).toEqual({
+      status: ["todo", "in_progress", "in_review", "done", "closed"],
+      priority: ["high"],
+      sprint_id: ["fixed-sprint"],
+      q: "auth",
+      ...DEFAULT_SORT,
+    });
+  });
+
   it("omits `q` for an empty or whitespace-only search (default sort only)", () => {
     expect(buildIssueQuery({})).toEqual({ ...DEFAULT_SORT });
     expect(buildIssueQuery({}, "")).toEqual({ ...DEFAULT_SORT });
@@ -234,6 +272,15 @@ describe("buildManualIssueQuery", () => {
     expect(buildManualIssueQuery({ showArchived: true }, "backlog")).toEqual({
       status: ["backlog"],
       archived: "true",
+      sort_field: "rank",
+      sort_order: "asc",
+    });
+  });
+
+  it("keeps a fixed sprint on the manual ordering spine", () => {
+    expect(buildManualIssueQuery({}, "active", "fixed-sprint")).toEqual({
+      status: ["todo", "in_progress", "in_review", "done", "closed"],
+      sprint_id: ["fixed-sprint"],
       sort_field: "rank",
       sort_order: "asc",
     });

@@ -320,13 +320,17 @@ function normalizeParams(query: string): string {
  * the restore's own write is marked; user edits (including ones made while the
  * restore is still in flight) are left unmarked and saved normally.
  */
-export function useIssueUrlSync(): {
+export function useIssueUrlSync(options?: {
+  preserveFilterOnNonListRoute?: boolean;
+}): {
   skipNextSave: RefObject<boolean>;
   groupBy: IssueGroupBy;
   setGroupBy: (groupBy: IssueGroupBy) => void;
   listOptionalColumns: readonly MyViewListColumn[];
   applyMyViewSnapshot: (snapshot: MyViewSnapshot) => void;
 } {
+  const preserveFilterOnNonListRoute =
+    options?.preserveFilterOnNonListRoute ?? false;
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
   const listOptionalColumns = useIssueStore(
@@ -518,6 +522,17 @@ export function useIssueUrlSync(): {
     }
     if (lastUrlQuery.current === currentQuery) return;
 
+    // A fixed planning detail surface owns the URL's view axis but keeps the
+    // user's ordinary issue filters in the shared store. A view switch on that
+    // route should not interpret the view-only query as an empty filter.
+    if (
+      preserveFilterOnNonListRoute &&
+      pathname !== withVault(vault, ISSUES_LIST_BASE)
+    ) {
+      lastUrlQuery.current = currentQuery;
+      return;
+    }
+
     // This query was changed by browser history, a direct link, or the
     // scope/layout owner. Adopt its filter and List display state before the
     // mirror effect can write the old store state back over it.
@@ -528,7 +543,7 @@ export function useIssueUrlSync(): {
       ...urlState,
       filterVault: vault || null,
     });
-  }, [searchParams, vault]);
+  }, [pathname, preserveFilterOnNonListRoute, searchParams, vault]);
 
   useEffect(() => {
     if (!initialized.current) return;

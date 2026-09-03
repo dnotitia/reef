@@ -20,6 +20,7 @@ import {
   usePlanningKindSingularLabels,
 } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
+import { sprintDetailHref } from "../lib/planningUrls";
 import {
   computePlanningRollup,
   type IssueListItem,
@@ -47,6 +48,112 @@ function detailBody(kind: PlanningKind, item: PlanningItem): string {
   if (kind === "sprints") return (item as Sprint).goal ?? "";
   if (kind === "milestones") return (item as Milestone).description ?? "";
   return (item as Release).notes ?? "";
+}
+
+function PlanningNameCell({
+  vault,
+  kind,
+  item,
+  hasDetails,
+  isExpanded,
+  panelId,
+  onToggle,
+  compact = false,
+}: {
+  vault: string;
+  kind: PlanningKind;
+  item: PlanningItem;
+  hasDetails: boolean;
+  isExpanded: boolean;
+  panelId: string;
+  onToggle: () => void;
+  compact?: boolean;
+}) {
+  const t = useTranslations("planning");
+  const chevron = (
+    <span
+      className={cn(
+        "flex shrink-0 items-center justify-center rounded",
+        compact ? "h-6 w-6" : "h-5 w-5",
+      )}
+    >
+      <ChevronRight
+        aria-hidden="true"
+        className={cn(
+          "h-3.5 w-3.5 text-muted-foreground transition-transform motion-reduce:transition-none",
+          isExpanded && "rotate-90",
+        )}
+      />
+    </span>
+  );
+  const disclosure = hasDetails ? (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={isExpanded}
+      aria-controls={panelId}
+      aria-label={
+        isExpanded
+          ? t("collapseDetails", { name: item.name })
+          : t("expandDetails", { name: item.name })
+      }
+      className={cn(
+        "group/disclosure flex shrink-0 items-center justify-center rounded text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring",
+        compact ? "h-6 w-6" : "h-5 w-5",
+      )}
+    >
+      {chevron}
+    </button>
+  ) : null;
+
+  if (kind === "sprints") {
+    return (
+      <div className="flex min-w-0 items-center gap-1.5">
+        <a
+          href={sprintDetailHref(vault, item.id)}
+          data-testid={`planning-sprint-link-${item.id}`}
+          aria-label={t("openSprintDetail", { name: item.name })}
+          className={cn(
+            "min-w-0 flex-1 rounded font-medium text-brand-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring",
+            compact ? "break-words" : "line-clamp-1",
+          )}
+        >
+          {item.name}
+        </a>
+        {disclosure}
+      </div>
+    );
+  }
+
+  if (hasDetails) {
+    return (
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={isExpanded}
+        aria-controls={panelId}
+        aria-label={
+          isExpanded
+            ? t("collapseDetails", { name: item.name })
+            : t("expandDetails", { name: item.name })
+        }
+        className={cn(
+          "group/disclosure flex w-full min-w-0 items-center gap-1.5 rounded text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring",
+          compact ? "font-medium" : undefined,
+        )}
+      >
+        {chevron}
+        <span className="min-w-0 line-clamp-1">{item.name}</span>
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex min-w-0 items-center gap-1.5">
+      <span className="w-5 shrink-0" aria-hidden="true" />
+      <span className="min-w-0 break-words font-medium">{item.name}</span>
+    </div>
+  );
 }
 
 export function PlanningTable({
@@ -200,47 +307,17 @@ export function PlanningTable({
               <Fragment key={item.id}>
                 <TableRow className="transition-colors duration-150 hover:bg-surface-hover">
                   <TableCell className="max-w-xs font-medium">
-                    {body ? (
-                      // REEF-264: chevron + title are one disclosure button so the
-                      // whole name is the hit target and the panel has a single
-                      // aria-expanded control. The row supplies the surface hover;
-                      // the chevron darkens on group-hover to mark this strip as the
-                      // toggle. Scoped to the Name cell — the row is not clickable.
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onExpandedIdChange(isExpanded ? null : item.id)
-                        }
-                        aria-expanded={isExpanded}
-                        aria-controls={panelId}
-                        aria-label={
-                          isExpanded
-                            ? t("collapseDetails", { name: item.name })
-                            : t("expandDetails", { name: item.name })
-                        }
-                        className="group/disclosure flex w-full min-w-0 items-center gap-1.5 rounded text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-                      >
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center text-muted-foreground transition-colors group-hover/disclosure:text-foreground">
-                          <ChevronRight
-                            aria-hidden="true"
-                            className={cn(
-                              "h-3.5 w-3.5 transition-transform motion-reduce:transition-none",
-                              isExpanded && "rotate-90",
-                            )}
-                          />
-                        </span>
-                        <span className="min-w-0 line-clamp-1">
-                          {item.name}
-                        </span>
-                      </button>
-                    ) : (
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <span className="w-5 shrink-0" aria-hidden="true" />
-                        <span className="min-w-0 line-clamp-1">
-                          {item.name}
-                        </span>
-                      </div>
-                    )}
+                    <PlanningNameCell
+                      vault={vault}
+                      kind={kind}
+                      item={item}
+                      hasDetails={Boolean(body)}
+                      isExpanded={isExpanded}
+                      panelId={panelId}
+                      onToggle={() =>
+                        onExpandedIdChange(isExpanded ? null : item.id)
+                      }
+                    />
                   </TableCell>
                   <TableCell>
                     <PlanningStatusBadge kind={kind} status={item.status} />
@@ -368,37 +445,18 @@ function PlanningCompactList({
           >
             <div className="flex min-w-0 items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
-                {body ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onExpandedIdChange(isExpanded ? null : item.id)
-                    }
-                    aria-expanded={isExpanded}
-                    aria-controls={panelId}
-                    aria-label={
-                      isExpanded
-                        ? t("collapseDetails", { name: item.name })
-                        : t("expandDetails", { name: item.name })
-                    }
-                    className="group/disclosure flex w-full min-w-0 items-center gap-1.5 rounded text-left font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-                  >
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center text-muted-foreground transition-colors group-hover/disclosure:text-foreground">
-                      <ChevronRight
-                        aria-hidden="true"
-                        className={cn(
-                          "h-3.5 w-3.5 transition-transform motion-reduce:transition-none",
-                          isExpanded && "rotate-90",
-                        )}
-                      />
-                    </span>
-                    <span className="min-w-0 break-words">{item.name}</span>
-                  </button>
-                ) : (
-                  <span className="block min-w-0 break-words font-medium">
-                    {item.name}
-                  </span>
-                )}
+                <PlanningNameCell
+                  vault={vault}
+                  kind={kind}
+                  item={item}
+                  hasDetails={Boolean(body)}
+                  isExpanded={isExpanded}
+                  panelId={panelId}
+                  compact
+                  onToggle={() =>
+                    onExpandedIdChange(isExpanded ? null : item.id)
+                  }
+                />
               </div>
 
               <div className="flex shrink-0 items-center gap-1">

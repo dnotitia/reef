@@ -33,15 +33,22 @@ async function chooseDate(
   value: string,
 ): Promise<void> {
   await openRangeEditor(page);
-  const fieldId =
-    label === "Updated from"
-      ? "updated-at-range-start"
-      : "updated-at-range-end";
+  const fieldId = label.endsWith(" from")
+    ? "updated-at-range-start"
+    : "updated-at-range-end";
   await page.locator(`#${fieldId}`).click();
   await page
     .getByRole("textbox", { name: `${label} (YYYY-MM-DD)`, exact: true })
     .fill(value);
   await page.keyboard.press("Enter");
+}
+
+async function chooseDateField(
+  page: Page,
+  field: "created_at" | "start_date" | "due_date",
+): Promise<void> {
+  await openRangeEditor(page);
+  await page.getByTestId("issue-date-range-field").selectOption(field);
 }
 
 async function browserToday(page: Page): Promise<string> {
@@ -193,10 +200,20 @@ async function assertCompoundTriggerVisual(
     const editorElement = document.querySelector<HTMLElement>(
       '[data-testid="updated-at-range-editor"]',
     );
+    const sidebarElement = document.querySelector<HTMLElement>("aside");
+    const startElement = document.querySelector<HTMLElement>(
+      "#updated-at-range-start",
+    );
+    const endElement = document.querySelector<HTMLElement>(
+      "#updated-at-range-end",
+    );
     const fieldsElement = document.querySelector<HTMLElement>(
       '[data-testid="updated-at-range-editor-fields"]',
     );
     const rect = editorElement?.getBoundingClientRect();
+    const sidebarRect = sidebarElement?.getBoundingClientRect();
+    const startRect = startElement?.getBoundingClientRect();
+    const endRect = endElement?.getBoundingClientRect();
     const fieldsStyles = fieldsElement
       ? getComputedStyle(fieldsElement)
       : undefined;
@@ -207,11 +224,23 @@ async function assertCompoundTriggerVisual(
       innerWidth: window.innerWidth,
       left: rect?.left ?? null,
       right: rect?.right ?? null,
+      sidebarRight: sidebarRect?.right ?? 0,
+      startLeft: startRect?.left ?? null,
+      endRight: endRect?.right ?? null,
     };
   });
   expect(editorGeometry.left).toBeGreaterThanOrEqual(0);
   expect(editorGeometry.right).toBeLessThanOrEqual(editorGeometry.innerWidth);
   expect(editorGeometry.bottom).toBeLessThanOrEqual(editorGeometry.innerHeight);
+  expect(editorGeometry.left).toBeGreaterThanOrEqual(
+    editorGeometry.sidebarRight,
+  );
+  expect(editorGeometry.startLeft).toBeGreaterThanOrEqual(
+    editorGeometry.sidebarRight,
+  );
+  expect(editorGeometry.endRight).toBeLessThanOrEqual(
+    editorGeometry.innerWidth,
+  );
   expect(editorGeometry.fieldsColumns).toBe(viewport.width <= 480 ? 1 : 2);
   const openScreenshotPath = test
     .info()
@@ -395,6 +424,70 @@ test.describe("Hermetic updated-at date range filter", () => {
     await expect(page.getByTestId("updated-at-filter")).toBeVisible();
   });
 
+  test("filters each registered date field with its own storage semantics", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(LIST_URL);
+    await expect(
+      page.getByText("Initial issue Alpha", { exact: true }),
+    ).toBeVisible({ timeout: 15_000 });
+
+    const cases = [
+      {
+        field: "created_at" as const,
+        fromLabel: "Created from",
+        throughLabel: "Created through",
+        day: "2026-06-10",
+        summary: "Created date",
+      },
+      {
+        field: "start_date" as const,
+        fromLabel: "Start from",
+        throughLabel: "Start through",
+        day: "2026-06-10",
+        summary: "Start date",
+      },
+      {
+        field: "due_date" as const,
+        fromLabel: "Due from",
+        throughLabel: "Due through",
+        day: "2026-06-24",
+        summary: "Due date",
+      },
+    ];
+
+    for (const dateCase of cases) {
+      const clear = page.getByTestId("updated-at-range-clear");
+      if ((await clear.count()) > 0) await clear.click();
+      await chooseDateField(page, dateCase.field);
+      await expect(page.getByTestId("updated-at-filter-summary")).toHaveText(
+        dateCase.summary,
+      );
+      const responsePromise = page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return (
+          response.request().method() === "GET" &&
+          url.pathname === "/api/issues" &&
+          url.searchParams.get("date_field") === dateCase.field
+        );
+      });
+      await chooseDate(page, dateCase.fromLabel, dateCase.day);
+      await chooseDate(page, dateCase.throughLabel, dateCase.day);
+      await responsePromise;
+
+      await expect(page.getByTestId("updated-at-filter-summary")).toContainText(
+        `${dateCase.summary} ·`,
+      );
+      await expect(
+        page.getByText("Initial issue Alpha", { exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByText("Initial issue Beta", { exact: true }),
+      ).toBeHidden();
+    }
+  });
+
   test("does not narrow the list until both bounds form a valid range", async ({
     page,
   }) => {
@@ -515,6 +608,59 @@ test.describe("Hermetic updated-at date range filter", () => {
       });
       await assertUpdatedAtInlineError(page, viewport);
     }
+  });
+
+  test("flips the editor into view in a short 320px viewport", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(dateRangeUrl("2026-06-15", "2026-06-15"));
+    await expect(
+      page.getByText("Initial issue Alpha", { exact: true }),
+    ).toBeVisible({ timeout: 15_000 });
+    await page.setViewportSize({ width: 320, height: 600 });
+    await openRangeEditor(page);
+
+    const geometry = await page.evaluate(() => {
+      const box = (selector: string) => {
+        const element = document.querySelector<HTMLElement>(selector);
+        if (!element) return null;
+        const rect = element.getBoundingClientRect();
+        return {
+          left: rect.left,
+          right: rect.right,
+          top: rect.top,
+          bottom: rect.bottom,
+        };
+      };
+      return {
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        sidebar: box("aside"),
+        popover: box('[data-testid="updated-at-range-editor"]'),
+        start: box("#updated-at-range-start"),
+        end: box("#updated-at-range-end"),
+        documentWidth: document.documentElement.scrollWidth,
+      };
+    });
+
+    expect(geometry.popover?.left).toBeGreaterThanOrEqual(
+      geometry.sidebar?.right ?? 0,
+    );
+    expect(geometry.popover?.right).toBeLessThanOrEqual(
+      geometry.viewport.width,
+    );
+    expect(geometry.popover?.top).toBeGreaterThanOrEqual(0);
+    expect(geometry.popover?.bottom).toBeLessThanOrEqual(
+      geometry.viewport.height,
+    );
+    expect(geometry.start?.top).toBeGreaterThanOrEqual(
+      geometry.popover?.top ?? 0,
+    );
+    expect(geometry.end?.bottom).toBeLessThanOrEqual(
+      geometry.popover?.bottom ?? geometry.viewport.height,
+    );
+    expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.viewport.width);
+    await page.keyboard.press("Escape");
   });
 
   test("refreshes current updated_at membership after an ordinary issue save", async ({

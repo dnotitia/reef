@@ -28,17 +28,26 @@ const LAYOUT_ICONS: Record<IssueLayout, typeof Columns3> = {
 interface ViewSwitcherProps {
   activeLayout: IssueLayout;
   scope: IssueScope;
+  basePath?: string;
+  hideTimeline?: boolean;
+  includeScope?: boolean;
 }
 
 /** Layout-only control. Scope is deliberately owned by ScopeSwitcher. */
-export function ViewSwitcher({ activeLayout, scope }: ViewSwitcherProps) {
+export function ViewSwitcher({
+  activeLayout,
+  scope,
+  basePath = "/issues",
+  hideTimeline = false,
+  includeScope = true,
+}: ViewSwitcherProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { vault } = useActiveVault();
   const [isPending, startTransition] = useTransition();
   const t = useTranslations("issues.filters");
   const layouts =
-    scope === "backlog"
+    scope === "backlog" || hideTimeline
       ? ISSUE_LAYOUTS.filter((layout) => layout !== "timeline")
       : ISSUE_LAYOUTS;
 
@@ -46,15 +55,16 @@ export function ViewSwitcher({ activeLayout, scope }: ViewSwitcherProps) {
     (layout: IssueLayout) => {
       if (layout === activeLayout) return;
       const next = new URLSearchParams(searchParams);
-      next.set("scope", scope);
+      if (includeScope) next.set("scope", scope);
+      else next.delete("scope");
       next.set("view", layout);
       startTransition(() => {
-        router.push(withVault(vault, `/issues?${next.toString()}`), {
+        router.push(withVault(vault, `${basePath}?${next.toString()}`), {
           scroll: false,
         });
       });
     },
-    [activeLayout, router, scope, searchParams, vault],
+    [activeLayout, basePath, includeScope, router, scope, searchParams, vault],
   );
 
   return (

@@ -236,6 +236,27 @@ describe("useIssueUrlSync", () => {
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
+  it.each(["created_at", "start_date", "due_date"] as const)(
+    "restores the registered %s date-range value from the issue URL",
+    async (field) => {
+      navigationState.searchParams = new URLSearchParams(
+        `date_field=${field}&date_from=2026-06-01&date_to=2026-06-02`,
+      );
+
+      render(<Harness />);
+
+      await waitFor(() => {
+        expect(useIssueStore.getState().filter.dateRange).toEqual({
+          field,
+          from: "2026-06-01",
+          to: "2026-06-02",
+        });
+      });
+      expect(mockPush).not.toHaveBeenCalled();
+      expect(mockReplace).not.toHaveBeenCalled();
+    },
+  );
+
   it("serializes the generic date-range value without changing other URL axes", async () => {
     navigationState.searchParams = new URLSearchParams("view=list&group=label");
 
@@ -566,8 +587,14 @@ describe("useIssueUrlSync", () => {
     await waitFor(() => {
       expect(navigationState.searchParams.has("q")).toBe(false);
       expect(useIssueStore.getState().searchQuery).toBe("");
-      expect(screen.getByTestId("search-input")).toHaveValue("");
     });
+    // SearchBar owns a local debounced draft and mirrors the store reset from
+    // its subscription. Wait for that separate render after the canonical
+    // URL/store state has settled; keep the exact empty-value contract.
+    await waitFor(
+      () => expect(screen.getByTestId("search-input")).toHaveValue(""),
+      { timeout: 3000 },
+    );
   });
 
   it("restores List optional columns from an explicit URL", async () => {

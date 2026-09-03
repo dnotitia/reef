@@ -750,20 +750,20 @@ retain their full value in a title or accessible label. A My View captures the
 current filter, scope/layout, grouping, ordering mode and direction, display
 options, and List optional columns in the browser-local snapshot.
 
-The shared filter bar also exposes one generic issue-date range for the current
-updated timestamp through one 32px compound trigger. Its closed state is the
-single-line `Updated date` summary (or the localized equivalent), while a valid
-range adds the two date bounds to that summary; one group-level clear action
-uses the same active chrome. Opening the trigger reveals one popover editor with
-a visible updated-date criterion row, persistently labeled start/end fields,
-and field-near correction messages. The two calendar bounds are date-only
-choices interpreted from local midnight through the next local midnight in the
-browser time zone; there is no automatic initial range. An incomplete or
-reversed range stays visible for correction with an inline error and does not
-narrow the results. The selected range travels with the existing URL,
-browser-local filter, and My View state without changing sort, grouping, layout,
-or display columns. Future date criteria are not shown in this control until
-their own product contract is ready.
+The shared filter bar exposes one generic issue-date range through one 32px
+compound trigger. Its closed state is the selected criterion (`Updated date`,
+`Created date`, `Start date`, or `Due date`, localized per locale), while a
+valid range adds the two date bounds to that summary; one group-level clear
+action uses the same active chrome. Opening the trigger reveals one popover
+editor with a single criterion selector, persistently labeled start/end fields,
+and field-near correction messages. Updated and created dates use local browser
+midnight boundaries around timestamp instants; start and due dates compare the
+stored calendar dates without timezone conversion, excluding issues where the
+selected nullable date is unset. There is no automatic initial range. An
+incomplete or reversed range stays visible for correction with an inline error
+and does not narrow the results. The selected range travels with the existing
+URL, browser-local filter, and My View state without changing sort, grouping,
+layout, or display columns.
 
 ### Issue Detail Slide-Over
 
@@ -891,6 +891,16 @@ monitored repos, templates, and authoring language. These pages share the
 standard page header + body chrome and the same field leaves where issue fields
 appear.
 
+Planning sprint names open the vault-scoped `/workspace/{vault}/planning/sprints/{id}`
+detail surface through ordinary anchors, as does the active-sprint context strip
+at the top of the Board. The detail header shows the planning status, date range,
+end-date posture, goal disclosure, health verdict, and resolved/total rollup.
+Its body reuses the Issues Board and List with a locked `sprint_id` facet; the
+unlock action returns to the general Issues surface. Missing sprints show a
+Planning recovery link, while catalog and issue load failures stay explicit and
+retryable. A named, non-rendering burnup slot remains below the header for a
+future reporting card.
+
 Settings groups follow a consistent dense form pattern: a group header with the
 title, optional scope, optional access badge, description, and hairline, followed
 by vertically stacked sections. The access badge is omitted while role
@@ -972,6 +982,9 @@ that exist and define the experience:
 - **Issue surfaces.** `IssuesWorkspace`, `IssueDetailSheet`, `IssueDetail`,
   `NewIssueDialog`, the list table/row, `BacklogView`, the filter toolbar,
   linked documents, the activity timeline, and the relations/refs editors.
+- **Planning detail.** `SprintDetailPage`, `SprintDetailHeader`, and the
+  hydration-shaped sprint detail skeleton compose the dedicated sprint route
+  from the existing planning and issue leaves.
 - **AI surfaces.** `EnrichmentReviewBar` (the purple strip with loading/empty/
   error/progress states), `FieldSuggestion` (the inline per-field review card),
   `ConfidenceBadge`, `TextDiff` (word/line diffs), and the Ask AI
