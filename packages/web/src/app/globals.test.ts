@@ -138,6 +138,7 @@ describe("global focus styles", () => {
     expect(css).toContain(
       ".reef-selection-checkbox:has(> input:focus-visible) {\n  outline: 2px solid var(--brand-focus);",
     );
+    expect(css).toContain("outline-offset: -2px;");
   });
 
   it("compresses the default List sticky columns through narrow viewports", () => {

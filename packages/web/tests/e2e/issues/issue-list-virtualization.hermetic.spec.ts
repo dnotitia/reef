@@ -1,4 +1,10 @@
-import { type Page, type Response, expect, test } from "@playwright/test";
+import {
+  type Page,
+  type Response,
+  type TestInfo,
+  expect,
+  test,
+} from "@playwright/test";
 import {
   clearPersistedQueryCacheOnLoad,
   openExistingWorkspace,
@@ -10,6 +16,7 @@ import {
 
 const LARGE_VAULT = "reef-e2e";
 const TAIL_ISSUE_ID = "REEF-1124";
+const CHECKBOX_FOCUS_ISSUE_ID = "REEF-1197";
 
 function issueListRequests(page: Page): string[] {
   const urls: string[] = [];
@@ -186,6 +193,148 @@ async function scrollToListEnd(page: Page): Promise<void> {
   });
 }
 
+type FocusEdge = "left" | "right" | "top" | "bottom";
+type ScreenshotBox = { x: number; y: number; width: number; height: number };
+type FocusPixelEvidence = {
+  focusColor: string;
+  edges: Record<FocusEdge, { hits: number; samples: number }>;
+};
+
+async function inspectFocusPixels(
+  page: Page,
+  screenshot: Buffer,
+  box: ScreenshotBox,
+): Promise<FocusPixelEvidence> {
+  return page.evaluate(
+    async ({ png, box: targetBox }) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${png}`;
+      await image.decode();
+
+      const canvas = document.createElement("canvas");
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Unable to read screenshot pixels");
+      context.drawImage(image, 0, 0);
+
+      const probe = document.createElement("span");
+      probe.style.color = getComputedStyle(
+        document.documentElement,
+      ).getPropertyValue("--brand-focus");
+      document.body.append(probe);
+      const focusColor = getComputedStyle(probe).color;
+      probe.remove();
+      const focusChannels = focusColor
+        .match(/\d+(?:\.\d+)?/gu)
+        ?.slice(0, 3)
+        .map(Number);
+      if (!focusChannels || focusChannels.length !== 3) {
+        throw new Error(`Unable to parse focus color: ${focusColor}`);
+      }
+
+      const scaleX = canvas.width / window.innerWidth;
+      const scaleY = canvas.height / window.innerHeight;
+      const readPixel = (x: number, y: number) => {
+        const pixelX = Math.max(
+          0,
+          Math.min(canvas.width - 1, Math.round(x * scaleX)),
+        );
+        const pixelY = Math.max(
+          0,
+          Math.min(canvas.height - 1, Math.round(y * scaleY)),
+        );
+        return context.getImageData(pixelX, pixelY, 1, 1).data;
+      };
+      const isFocusPixel = (pixel: Uint8ClampedArray) =>
+        pixel[3] >= 220 &&
+        Math.max(
+          Math.abs(pixel[0] - (focusChannels[0] ?? 0)),
+          Math.abs(pixel[1] - (focusChannels[1] ?? 0)),
+          Math.abs(pixel[2] - (focusChannels[2] ?? 0)),
+        ) <= 45;
+      const collect = (points: Array<{ x: number; y: number }>) => ({
+        hits: points.reduce(
+          (count, point) =>
+            count + (isFocusPixel(readPixel(point.x, point.y)) ? 1 : 0),
+          0,
+        ),
+        samples: points.length,
+      });
+      const along = (start: number, end: number) => {
+        const values: number[] = [];
+        for (let value = start; value <= end; value += 2) values.push(value);
+        return values;
+      };
+      const vertical = along(
+        targetBox.y + 6,
+        targetBox.y + targetBox.height - 6,
+      );
+      const horizontal = along(
+        targetBox.x + 6,
+        targetBox.x + targetBox.width - 6,
+      );
+      const left = vertical.flatMap((y) =>
+        along(targetBox.x - 1, targetBox.x + 4).map((x) => ({ x, y })),
+      );
+      const right = vertical.flatMap((y) =>
+        along(
+          targetBox.x + targetBox.width - 4,
+          targetBox.x + targetBox.width + 1,
+        ).map((x) => ({ x, y })),
+      );
+      const top = horizontal.flatMap((x) =>
+        along(targetBox.y - 1, targetBox.y + 4).map((y) => ({ x, y })),
+      );
+      const bottom = horizontal.flatMap((x) =>
+        along(
+          targetBox.y + targetBox.height - 4,
+          targetBox.y + targetBox.height + 1,
+        ).map((y) => ({ x, y })),
+      );
+
+      return {
+        focusColor,
+        edges: {
+          left: collect(left),
+          right: collect(right),
+          top: collect(top),
+          bottom: collect(bottom),
+        },
+      };
+    },
+    { png: screenshot.toString("base64"), box },
+  );
+}
+
+async function captureFocusEvidence(
+  page: Page,
+  testInfo: TestInfo,
+  name: string,
+  hitTarget: { x: number; y: number; width: number; height: number },
+): Promise<FocusPixelEvidence> {
+  const screenshotPath = testInfo.outputPath(`${name}.png`);
+  const screenshot = await page.screenshot({
+    animations: "disabled",
+    path: screenshotPath,
+  });
+  const evidence = await inspectFocusPixels(page, screenshot, hitTarget);
+  await testInfo.attach(`${name}-pixel-evidence`, {
+    body: JSON.stringify({ box: hitTarget, ...evidence }, null, 2),
+    contentType: "application/json",
+  });
+  for (const edge of ["left", "right", "top", "bottom"] as const) {
+    expect(evidence.edges[edge].hits).toBeGreaterThanOrEqual(2);
+  }
+  await testInfo.attach(name, { path: screenshotPath });
+  return evidence;
+}
+
+const CHECKBOX_FOCUS_VIEWPORTS = [
+  { name: "1280", width: 1280, height: 900 },
+  { name: "1024", width: 1024, height: 900 },
+] as const;
+
 function assertTitlePageOrder(
   ids: string[],
   titles: string[],
@@ -240,6 +389,106 @@ test.describe("large issue list virtualization", () => {
     expect(metrics.mountedRows).toBeLessThanOrEqual(50);
     expect(metrics.bottom - metrics.top).toBe(metrics.clientHeight);
   });
+
+  for (const viewport of CHECKBOX_FOCUS_VIEWPORTS) {
+    test(`keeps all four selection-checkbox focus edges visible at ${viewport.name}px`, async ({
+      page,
+    }, testInfo) => {
+      test.setTimeout(120_000);
+      await page.setViewportSize(viewport);
+      await openLargeList(page, "sort=reef_id&order=asc");
+
+      const scroll = page.getByTestId("issue-list-scroll-container");
+      await scroll.focus();
+      const initialScrollTop = await scroll.evaluate(
+        (element) => element.scrollTop,
+      );
+      await page.keyboard.press("PageDown");
+      await expect
+        .poll(() => scroll.evaluate((element) => element.scrollTop))
+        .toBeGreaterThan(initialScrollTop);
+
+      const row = page.locator(`[data-issue-id="${CHECKBOX_FOCUS_ISSUE_ID}"]`);
+      for (let index = 0; index < 20; index += 1) {
+        if (await row.isVisible().catch(() => false)) break;
+        await scrollToListEnd(page);
+        await page.waitForTimeout(100);
+      }
+      await expect(row).toBeVisible({ timeout: 20_000 });
+
+      const checkbox = row.getByTestId("issue-row-checkbox");
+      const hitTarget = row.locator("label.reef-selection-checkbox");
+      await row.focus();
+      await page.keyboard.press("Tab");
+      await expect(checkbox).toBeFocused();
+      await page.keyboard.press("Space");
+      await expect(row).toHaveAttribute("aria-selected", "true");
+      await page.keyboard.press("Tab");
+      await page.keyboard.press("Shift+Tab");
+      await expect(checkbox).toBeFocused();
+      await expect
+        .poll(() =>
+          checkbox.evaluate((element) => element.matches(":focus-visible")),
+        )
+        .toBe(true);
+
+      const hitBox = await hitTarget.boundingBox();
+      expect(hitBox).not.toBeNull();
+      if (!hitBox) throw new Error("Missing selection checkbox hit target");
+
+      const selectedEvidence = await captureFocusEvidence(
+        page,
+        testInfo,
+        `list-${viewport.name}-selected-checkbox-focus`,
+        hitBox,
+      );
+      expect(selectedEvidence.edges.left.hits).toBeGreaterThanOrEqual(2);
+      expect(selectedEvidence.edges.right.hits).toBeGreaterThanOrEqual(2);
+
+      await page.keyboard.press("Space");
+      await expect(row).not.toHaveAttribute("aria-selected", "true");
+      await page.keyboard.press("Tab");
+      await page.keyboard.press("Shift+Tab");
+      await expect(checkbox).toBeFocused();
+
+      const unselectedHitBox = await hitTarget.boundingBox();
+      expect(unselectedHitBox).not.toBeNull();
+      if (!unselectedHitBox) {
+        throw new Error("Missing unselected selection checkbox hit target");
+      }
+      const unselectedEvidence = await captureFocusEvidence(
+        page,
+        testInfo,
+        `list-${viewport.name}-unselected-checkbox-focus`,
+        unselectedHitBox,
+      );
+      expect(unselectedEvidence.edges.top.hits).toBeGreaterThanOrEqual(2);
+      expect(unselectedEvidence.edges.bottom.hits).toBeGreaterThanOrEqual(2);
+
+      const otherRow = page.locator('[data-issue-id="REEF-1198"]');
+      await otherRow.focus();
+      await expect(otherRow).toBeFocused();
+      await expect(row).not.toHaveAttribute("data-keyboard-focused", "true");
+      await checkbox.click();
+      await expect(row).toHaveAttribute("aria-selected", "true");
+      const pointerState = await row.evaluate((element) => {
+        const input = element.querySelector<HTMLInputElement>(
+          '[data-testid="issue-row-checkbox"]',
+        );
+        const boundary = element.querySelector<HTMLElement>(
+          'td[data-column-key="select"]',
+        );
+        return {
+          inputFocusVisible: input?.matches(":focus-visible") ?? false,
+          rowBoundary: boundary
+            ? getComputedStyle(boundary, "::after").content
+            : "",
+        };
+      });
+      expect(pointerState.inputFocusVisible).toBe(false);
+      expect(pointerState.rowBoundary).toBe("none");
+    });
+  }
 
   test("loads 100 rows first, keeps the DOM bounded, and follows one cursor page", async ({
     page,

@@ -633,10 +633,11 @@ separate visual owners:
   their highlighted/active item treatment and Radix roving focus rather than
   inheriting an independent button border for every option.
 - Dense and clipped surfaces choose a local safe treatment: the List boundary
-  is painted inside its scrollport, Backlog uses an inset boundary, and the
-  shared input/editor context uses inset rings. These choices preserve sticky
-  columns, row heights, overflow owners, and the existing keyboard scroll
-  regions instead of changing global overflow to hide a clipped edge.
+  is painted inside its scrollport, the first-column selection hit target uses
+  an inset outline, Backlog uses an inset boundary, and the shared input/editor
+  context uses inset rings. These choices preserve sticky columns, row heights,
+  overflow owners, and the existing keyboard scroll regions instead of changing
+  global overflow to hide a clipped edge.
 
 The global `*:focus-visible` rule is a fallback for native and custom
 interactive elements without a more specific owner. Component styles that own

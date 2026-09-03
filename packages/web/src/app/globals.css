@@ -789,12 +789,13 @@ body {
 }
 
 /* The hidden native checkbox fills one labeled hit target. Paint focus on the
- * target only when the browser considers the input keyboard-visible; pointer
+ * target only when the browser considers the input keyboard-visible; the inset
+ * offset keeps all four edges inside a clipped first-column scrollport. Pointer
  * selection therefore keeps its check + selected-row fill without a duplicate
  * focus border. */
 .reef-selection-checkbox:has(> input:focus-visible) {
   outline: 2px solid var(--brand-focus);
-  outline-offset: 1px;
+  outline-offset: -2px;
 }
 
 /* Named role utilities are the only shared source for routed product
