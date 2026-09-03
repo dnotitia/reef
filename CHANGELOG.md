@@ -27,9 +27,9 @@ explicitly in the entries below.
   filters, and My Views.
 
 - **Planning sprints now have dedicated detail surfaces.** Sprint names and the
-  active-board context link to a vault-owned detail page with progress,
-  health, goal, and a fixed Board/List issue scope; missing and failed data
-  remain distinct and retryable.
+  shared Issues-header current-sprint shortcut link to a vault-owned detail
+  page with progress, health, goal, and a fixed Board/List issue scope; missing
+  and failed data remain distinct and retryable.
 
 - **Planning now shows lifecycle progress and capacity rollups.** Sprint,
   milestone, and release rows show linked issue counts, completion, estimated
@@ -49,6 +49,12 @@ explicitly in the entries below.
   rank.
 
 ### Changed
+
+- **Issues now consolidate planning and display controls in shared chrome.**
+  Active Board, List, and Timeline share a current-sprint detail shortcut in
+  the common header; the Kanban-only sprint row and List-only Columns row are
+  removed, and Active List optional columns are managed from Display while
+  retaining URL and My View persistence.
 
 - **Focus and selection indicators now share one visible teal contract.**
   Keyboard focus uses a solid 2px brand ring, text-entry context remains

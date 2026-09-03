@@ -209,7 +209,11 @@ export function FilterBar({
   const filter = useIssueStore((state) => state.filter);
   const setFilter = useIssueStore((state) => state.setFilter);
   const clearFiltersOnly = useIssueStore((state) => state.clearFiltersOnly);
+  const toggleListOptionalColumn = useIssueStore(
+    (state) => state.toggleListOptionalColumn,
+  );
   const { vault } = useActiveVault();
+  const selectedListOptionalColumns = listOptionalColumns ?? [];
 
   // Locale-resolved labels for the single-selection chip summary (REEF-292).
   // The dropdown rows already render localized badge content; these make the
@@ -571,6 +575,8 @@ export function FilterBar({
         view={view}
         groupBy={groupBy}
         setGroupBy={setGroupBy}
+        listOptionalColumns={selectedListOptionalColumns}
+        toggleListOptionalColumn={toggleListOptionalColumn}
       />
 
       {shouldRenderSort ? (
@@ -584,7 +590,7 @@ export function FilterBar({
         scope={scope}
         layout={view ?? "board"}
         groupBy={groupBy}
-        listOptionalColumns={listOptionalColumns}
+        listOptionalColumns={selectedListOptionalColumns}
         onApplySnapshot={applyMyViewSnapshot}
       />
 

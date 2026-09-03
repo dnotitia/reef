@@ -123,7 +123,7 @@ const DropdownMenuContent = React.forwardRef<
       side={side}
       sideOffset={sideOffset}
       className={cn(
-        "z-50 max-w-[calc(100vw-1rem)] min-w-[180px] rounded-md border border-border bg-surface-popover p-1 text-foreground shadow-lg shadow-foreground/5 outline-none",
+        "z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] max-w-[calc(100vw-1rem)] min-w-[180px] overflow-y-auto rounded-md border border-border bg-surface-popover p-1 text-foreground shadow-lg shadow-foreground/5 outline-none",
         "data-[state=open]:motion-safe:animate-in data-[state=open]:motion-safe:fade-in-0 data-[state=open]:motion-safe:zoom-in-95 motion-reduce:animate-none",
         className,
       )}

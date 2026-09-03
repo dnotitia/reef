@@ -235,6 +235,10 @@ describe("DropdownMenuContent", () => {
     // motion-safe so prefers-reduced-motion suppresses it. The raw, ungated
     // `animate-in` previously ran regardless of the user's motion setting.
     const content = screen.getByRole("menu");
+    expect(content.className).toContain(
+      "max-h-[var(--radix-dropdown-menu-content-available-height)]",
+    );
+    expect(content.className).toContain("overflow-y-auto");
     expect(content.className).toContain("motion-safe:animate-in");
     expect(content.className).toContain("motion-safe:fade-in-0");
     expect(content.className).not.toContain(" animate-in ");

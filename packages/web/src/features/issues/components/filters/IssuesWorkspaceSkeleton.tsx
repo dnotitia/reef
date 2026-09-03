@@ -87,9 +87,6 @@ export function IssuesWorkspaceSkeleton() {
             ))}
           </div>
         </div>
-        <div className="h-8 shrink-0 border-b border-border-subtle bg-surface-subtle px-6 py-2">
-          <Skeleton className="h-4 w-48" />
-        </div>
         <BoardColumnsSkeleton />
       </div>
     </div>

@@ -17,6 +17,11 @@ import {
   DropdownMenuTrigger,
   useDropdownMenu,
 } from "@/components/ui/dropdown-menu";
+import {
+  ISSUE_LIST_OPTIONAL_COLUMNS,
+  type IssueListOptionalColumnKey,
+} from "@/features/issues/components/shared/issueTableContract";
+import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import type { IssueFilter } from "@/features/issues/stores/useIssueStore";
 import {
   defaultIssueGroupBy,
@@ -37,6 +42,8 @@ interface DisplayOptionsFilterProps {
   view?: IssueWorkspaceView;
   groupBy?: IssueGroupBy;
   setGroupBy?: (groupBy: IssueGroupBy) => void;
+  listOptionalColumns?: readonly IssueListOptionalColumnKey[];
+  toggleListOptionalColumn?: (column: IssueListOptionalColumnKey) => void;
 }
 
 function DisplayOptionsTrigger({
@@ -76,9 +83,14 @@ export function DisplayOptionsFilter({
   view,
   groupBy,
   setGroupBy,
+  listOptionalColumns = [],
+  toggleListOptionalColumn,
 }: DisplayOptionsFilterProps) {
   const t = useTranslations("issues.filters");
+  const listT = useTranslations("issues.list");
+  const fieldNames = useFieldNameLabels();
   const supportsGrouping = view === "board" || view === "list";
+  const showsListColumns = !backlogScope && view === "list";
   const groupingActive =
     supportsGrouping &&
     groupBy !== undefined &&
@@ -95,7 +107,9 @@ export function DisplayOptionsFilter({
       <DisplayOptionsTrigger
         summary={groupSummary}
         active={
-          Boolean(filter.showArchived || filter.showStale) || groupingActive
+          Boolean(filter.showArchived || filter.showStale) ||
+          groupingActive ||
+          (showsListColumns && listOptionalColumns.length > 0)
         }
       />
       <DropdownMenuContent
@@ -128,6 +142,23 @@ export function DisplayOptionsFilter({
           >
             {t("showCompleted")}
           </DropdownMenuCheckboxItem>
+        ) : null}
+        {showsListColumns && toggleListOptionalColumn ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>{listT("columnsOptions")}</DropdownMenuLabel>
+            {ISSUE_LIST_OPTIONAL_COLUMNS.map((column) => (
+              <DropdownMenuCheckboxItem
+                key={column}
+                checked={listOptionalColumns.includes(column)}
+                keepOpen
+                data-testid={`issue-list-column-${column}`}
+                onCheckedChange={() => toggleListOptionalColumn(column)}
+              >
+                {fieldNames[column]}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </>
         ) : null}
         {supportsGrouping && groupBy && setGroupBy ? (
           <>
