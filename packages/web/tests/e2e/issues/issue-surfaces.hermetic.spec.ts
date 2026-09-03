@@ -1,10 +1,12 @@
 import { type Locator, type Page, expect, test } from "@playwright/test";
+import { writeFile } from "node:fs/promises";
 import {
   REEF_E2E_VAULT,
   clearPersistedQueryCacheOnLoad,
   openExistingWorkspace,
   readFixtureState,
   resetFixture,
+  setPlanningCatalogFailure,
   writeIndexedDbConfig,
 } from "../harness/fixture";
 import { expectCursorAtPointer } from "../harness/cursor";
@@ -28,6 +30,15 @@ const VISUAL_VIEWPORTS = [
   { name: "768", width: 768, height: 844 },
   { name: "desktop", width: 1440, height: 900 },
 ] as const;
+
+const LONG_CURRENT_SPRINT_NAME =
+  "A deliberately long current sprint name for shared Issues header geometry";
+const LONG_CURRENT_SPRINT_GOAL = Array.from(
+  { length: 24 },
+  (_, index) => `Current sprint goal line ${index + 1}`,
+).join("\n");
+const NEW_TAB_MODIFIER: "Control" | "Meta" =
+  process.platform === "darwin" ? "Meta" : "Control";
 
 const SURFACE_ROLES = [
   "page",
@@ -67,6 +78,14 @@ async function setVisualTheme(page: Page, theme: "light" | "dark") {
         .evaluate((element) => element.classList.contains("dark")),
     )
     .toBe(theme === "dark");
+}
+
+async function setVisualLocale(page: Page, locale: "en" | "ko") {
+  await page.goto(`/workspace/${REEF_E2E_VAULT}/settings/preferences`);
+  const language = page.getByRole("region", { name: /^(Language|언어)$/u });
+  await expect(language).toBeVisible();
+  await language.getByTestId(`locale-option-${locale}`).click();
+  await expect(page.locator("html")).toHaveAttribute("lang", locale);
 }
 
 async function observeSurfaceRoles(page: Page): Promise<SurfaceObservation> {
@@ -208,6 +227,111 @@ async function observeSurfaceRoles(page: Page): Promise<SurfaceObservation> {
       mainOverflow: main ? main.scrollWidth > main.clientWidth : false,
     };
   }, SURFACE_ROLES);
+}
+
+async function readIssuesChromeGeometry(page: Page) {
+  return page.evaluate(() => {
+    const height = (selector: string) => {
+      const element = document.querySelector<HTMLElement>(selector);
+      if (!element) throw new Error(`Missing geometry target: ${selector}`);
+      return Math.round(element.getBoundingClientRect().height);
+    };
+
+    return {
+      header: height('[data-slot="page-header"]'),
+      titleAdjacent: height('[data-slot="page-header-title-adjacent"]'),
+      actions: height('[data-slot="page-header-actions"]'),
+      filterBar: height('[data-testid="filter-bar"]'),
+    };
+  });
+}
+
+async function readDisplayMenuGeometry(page: Page) {
+  return page.getByTestId("display-options-content").evaluate((element) => {
+    const root = element as HTMLElement;
+    const rect = root.getBoundingClientRect();
+    return {
+      top: rect.top,
+      right: rect.right,
+      bottom: rect.bottom,
+      left: rect.left,
+      maxHeight: getComputedStyle(root).maxHeight,
+      overflowY: getComputedStyle(root).overflowY,
+      clientHeight: root.clientHeight,
+      scrollHeight: root.scrollHeight,
+      scrollTop: root.scrollTop,
+      documentOverflow:
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth,
+      bodyOverflow: document.body.scrollWidth > document.body.clientWidth,
+    };
+  });
+}
+
+async function readCurrentSprintFocus(page: Page) {
+  return page
+    .getByTestId("current-sprint-shortcut")
+    .getByRole("link")
+    .evaluate((element) => {
+      type Rgb = [number, number, number];
+      const parseNormalizedRgb = (value: string): Rgb | null => {
+        const channels = value.match(/^rgb\(([^)]+)\)$/u)?.[1];
+        const parts = channels
+          ?.split(/[\s,]+/u)
+          .filter(Boolean)
+          .map(Number);
+        return parts?.length === 3 && parts.every(Number.isFinite)
+          ? [parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0]
+          : null;
+      };
+      const readTokenRgb = (token: string): Rgb | null => {
+        const probe = document.createElement("span");
+        probe.style.backgroundColor = `var(${token})`;
+        document.body.append(probe);
+        const color = parseNormalizedRgb(
+          getComputedStyle(probe).backgroundColor,
+        );
+        probe.remove();
+        return color;
+      };
+      const luminance = (color: Rgb) =>
+        color.reduce((total, channel, index) => {
+          const normalized = channel / 255;
+          const linear =
+            normalized <= 0.03928
+              ? normalized / 12.92
+              : ((normalized + 0.055) / 1.055) ** 2.4;
+          return total + linear * [0.2126, 0.7152, 0.0722][index];
+        }, 0);
+      const styles = getComputedStyle(element);
+      const background = readTokenRgb("--surface-page");
+      const ring = parseNormalizedRgb(
+        styles.boxShadow.match(/rgb\([^)]*\)/u)?.[0] ?? "",
+      );
+      const contrast =
+        background && ring
+          ? (() => {
+              const ringLuminance = luminance(ring);
+              const backgroundLuminance = luminance(background);
+              return (
+                (Math.max(ringLuminance, backgroundLuminance) + 0.05) /
+                (Math.min(ringLuminance, backgroundLuminance) + 0.05)
+              );
+            })()
+          : null;
+
+      const rect = element.getBoundingClientRect();
+      return {
+        fontSize: styles.fontSize,
+        lineHeight: styles.lineHeight,
+        boxShadow: styles.boxShadow,
+        contrast,
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+      };
+    });
 }
 
 async function expectVisibleFocus(locator: Locator) {
@@ -484,6 +608,569 @@ test.describe("Hermetic issue route surfaces", () => {
     expect(url.searchParams.get("view")).toBe("list");
     expect(url.searchParams.get("status")).toBe("todo");
     expect(url.searchParams.get("q")).toBe("issue");
+  });
+
+  test("keeps current sprint header geometry stable for long sprint metadata", async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width: 768, height: 844 });
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page);
+
+    const initialVault = reefVault(await readFixtureState(request));
+    const currentSprint = initialVault.sprints.find(
+      (sprint) => sprint.status === "active",
+    );
+    if (!currentSprint) throw new Error("Missing configured active sprint");
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
+    const initialLink = page
+      .getByTestId("current-sprint-shortcut")
+      .getByRole("link");
+    await expect(initialLink).toHaveAttribute(
+      "href",
+      `/workspace/${REEF_E2E_VAULT}/planning/sprints/${currentSprint.id}`,
+    );
+    await expect(
+      page.getByTestId("issue-list-row").filter({ hasText: "REEF-002" }),
+    ).toBeVisible();
+    const initialGeometry = await readIssuesChromeGeometry(page);
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
+    await expect(
+      page.getByRole("button", { name: `Edit ${currentSprint.name}` }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: `Edit ${currentSprint.name}` })
+      .click();
+    const editDialog = page.getByTestId("planning-editor-dialog");
+    await expect(editDialog).toBeVisible();
+    await editDialog
+      .getByTestId("planning-name-input")
+      .fill(LONG_CURRENT_SPRINT_NAME);
+
+    const goalEditor = editDialog.getByTestId("markdown-editor");
+    await goalEditor
+      .getByTestId("markdown-toolbar")
+      .getByRole("button", { name: "Source" })
+      .click();
+    await goalEditor
+      .getByTestId("markdown-source-textarea")
+      .fill(LONG_CURRENT_SPRINT_GOAL);
+    await goalEditor
+      .getByTestId("markdown-toolbar")
+      .getByRole("button", { name: "Source" })
+      .click();
+
+    await editDialog.getByTestId("planning-save").click();
+    await expect(editDialog).toBeHidden();
+    await expect(
+      page.getByRole("button", { name: `Edit ${LONG_CURRENT_SPRINT_NAME}` }),
+    ).toBeVisible();
+
+    await page
+      .getByRole("button", { name: `Edit ${LONG_CURRENT_SPRINT_NAME}` })
+      .click();
+    const savedGoalDialog = page.getByTestId("planning-editor-dialog");
+    const savedGoalEditor = savedGoalDialog.getByTestId("markdown-editor");
+    await savedGoalEditor
+      .getByTestId("markdown-toolbar")
+      .getByRole("button", { name: "Source" })
+      .click();
+    await expect(
+      savedGoalEditor.getByTestId("markdown-source-textarea"),
+    ).toHaveValue(
+      /Current sprint goal line 1[\s\S]+Current sprint goal line 24/u,
+    );
+    await savedGoalEditor
+      .getByTestId("markdown-toolbar")
+      .getByRole("button", { name: "Source" })
+      .click();
+    await savedGoalDialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(savedGoalDialog).toBeHidden();
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
+    const longLink = page
+      .getByTestId("current-sprint-shortcut")
+      .getByRole("link");
+    await expect(page.getByText("Current sprint", { exact: true })).toHaveCount(
+      0,
+    );
+    await expect(longLink).not.toHaveAttribute("title");
+    await expect(longLink).toHaveAccessibleName(
+      `Open current sprint details: ${LONG_CURRENT_SPRINT_NAME}`,
+    );
+    const longLinkGeometry = await longLink.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const styles = getComputedStyle(element);
+      return {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+        textOverflow: styles.textOverflow,
+        whiteSpace: styles.whiteSpace,
+      };
+    });
+    expect(longLinkGeometry.left).toBeGreaterThanOrEqual(0);
+    expect(longLinkGeometry.right).toBeLessThanOrEqual(768);
+    expect(longLinkGeometry.top).toBeGreaterThanOrEqual(0);
+    expect(longLinkGeometry.bottom).toBeLessThanOrEqual(844);
+    expect(longLinkGeometry.textOverflow).toBe("ellipsis");
+    expect(longLinkGeometry.whiteSpace).toBe("nowrap");
+    expect(longLinkGeometry.scrollWidth).toBeGreaterThan(
+      longLinkGeometry.clientWidth,
+    );
+    await longLink.hover();
+    await expect(page.getByRole("tooltip")).toHaveText(
+      `Open current sprint details: ${LONG_CURRENT_SPRINT_NAME}`,
+    );
+    await longLink.focus();
+    await expect(page.getByRole("tooltip")).toHaveText(
+      `Open current sprint details: ${LONG_CURRENT_SPRINT_NAME}`,
+    );
+    await expect(longLink).toHaveAttribute(
+      "href",
+      `/workspace/${REEF_E2E_VAULT}/planning/sprints/${currentSprint.id}`,
+    );
+    expect(await readIssuesChromeGeometry(page)).toEqual(initialGeometry);
+    await expect(
+      page.getByTestId("issue-list-row").filter({ hasText: "REEF-002" }),
+    ).toBeVisible();
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
+    await expect(
+      page.getByRole("button", { name: `Edit ${LONG_CURRENT_SPRINT_NAME}` }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: `Edit ${LONG_CURRENT_SPRINT_NAME}` })
+      .click();
+    const deactivateDialog = page.getByTestId("planning-editor-dialog");
+    await deactivateDialog.getByRole("combobox", { name: "Status" }).click();
+    await page.getByRole("option", { name: "Planned", exact: true }).click();
+    await deactivateDialog.getByTestId("planning-save").click();
+    await expect(deactivateDialog).toBeHidden();
+    await expect
+      .poll(
+        async () =>
+          reefVault(await readFixtureState(request)).sprints.find(
+            (sprint) => sprint.id === currentSprint.id,
+          )?.status,
+      )
+      .toBe("planned");
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
+    await expect(page.getByTestId("current-sprint-shortcut")).toHaveCount(0);
+    await expect(
+      page.locator('[data-slot="page-header"] a[href*="/planning/sprints/"]'),
+    ).toHaveCount(0);
+    expect(await readIssuesChromeGeometry(page)).toEqual(initialGeometry);
+  });
+
+  test("keeps the current sprint shortcut independent from sprint filters and native link activation", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width: 768, height: 844 });
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page);
+
+    const initialVault = reefVault(await readFixtureState(request));
+    const currentSprint = initialVault.sprints.find(
+      (sprint) => sprint.status === "active",
+    );
+    if (!currentSprint) throw new Error("Missing configured active sprint");
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
+    await page.getByRole("button", { name: "New sprint" }).click();
+    const createDialog = page.getByTestId("planning-editor-dialog");
+    await createDialog
+      .getByTestId("planning-name-input")
+      .fill("A different planned sprint");
+    await createDialog.getByTestId("planning-save").click();
+    await expect(createDialog).toBeHidden();
+    await expect(page.getByText("A different planned sprint")).toBeVisible();
+
+    const catalogWithOtherSprint = reefVault(await readFixtureState(request));
+    const otherSprint = catalogWithOtherSprint.sprints.find(
+      (sprint) => sprint.name === "A different planned sprint",
+    );
+    if (!otherSprint) throw new Error("Missing secondary sprint");
+    expect(catalogWithOtherSprint.sprints).toHaveLength(2);
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
+    const currentLink = page
+      .getByTestId("current-sprint-shortcut")
+      .getByRole("link");
+    await expect(currentLink).toHaveAttribute(
+      "href",
+      `/workspace/${REEF_E2E_VAULT}/planning/sprints/${currentSprint.id}`,
+    );
+    await expect(
+      page.getByTestId("issue-list-row").filter({ hasText: "REEF-002" }),
+    ).toBeVisible();
+
+    // Exercise the existing repeated-query codec for the two-value state. The
+    // proof here is about result/filter independence, not picker mechanics.
+    await page.goto(
+      `/workspace/${REEF_E2E_VAULT}/issues?view=list&sprint_id=${currentSprint.id}&sprint_id=${otherSprint.id}`,
+    );
+    await expect(page.getByTestId("sprint-dropdown-trigger")).toContainText(
+      "(2)",
+    );
+    await expect
+      .poll(() => new URL(page.url()).searchParams.getAll("sprint_id"))
+      .toEqual([currentSprint.id, otherSprint.id]);
+    await expect(
+      page.getByTestId("issue-list-row").filter({ hasText: "REEF-001" }),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId("issue-list-row").filter({ hasText: "REEF-002" }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByTestId("current-sprint-shortcut").getByRole("link"),
+    ).toHaveAttribute(
+      "href",
+      `/workspace/${REEF_E2E_VAULT}/planning/sprints/${currentSprint.id}`,
+    );
+
+    await page.getByTestId("clear-filters-button").click();
+    await expect
+      .poll(() => new URL(page.url()).searchParams.getAll("sprint_id"))
+      .toEqual([]);
+    await expect(
+      page.getByTestId("issue-list-row").filter({ hasText: "REEF-002" }),
+    ).toBeVisible();
+
+    await currentLink.focus();
+    await expect(currentLink).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(
+      `/workspace/${REEF_E2E_VAULT}/planning/sprints/${currentSprint.id}`,
+    );
+    await expect(page.getByTestId("sprint-detail-header")).toBeVisible();
+
+    for (const activation of ["modifier", "middle"] as const) {
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+      await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
+      const link = page
+        .getByTestId("current-sprint-shortcut")
+        .getByRole("link");
+      const popupPromise = context.waitForEvent("page", { timeout: 10_000 });
+      if (activation === "modifier") {
+        await link.click({ modifiers: [NEW_TAB_MODIFIER] });
+      } else {
+        await link.click({ button: "middle" });
+      }
+      const popup = await popupPromise;
+      await popup.waitForLoadState("domcontentloaded");
+      await expect(popup).toHaveURL(
+        `/workspace/${REEF_E2E_VAULT}/planning/sprints/${currentSprint.id}`,
+      );
+      await expect(popup.getByTestId("sprint-detail-header")).toBeVisible();
+      await popup.close();
+    }
+  });
+
+  test("keeps Issues usable without a current sprint shortcut while the catalog loads, fails, or is empty", async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width: 768, height: 844 });
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page);
+
+    const configuredVault = reefVault(await readFixtureState(request));
+    const currentSprint = configuredVault.sprints.find(
+      (sprint) => sprint.status === "active",
+    );
+    if (!currentSprint) throw new Error("Missing configured active sprint");
+
+    let resolvePlanningRequest: (() => void) | undefined;
+    const planningRequestSeen = new Promise<void>((resolve) => {
+      resolvePlanningRequest = resolve;
+    });
+    let releasePlanningResponse: (() => void) | undefined;
+    const planningResponseHeld = new Promise<void>((resolve) => {
+      releasePlanningResponse = resolve;
+    });
+    await page.route("**/api/planning**", async (route) => {
+      const url = new URL(route.request().url());
+      if (url.searchParams.get("vault") !== REEF_E2E_VAULT) {
+        await route.continue();
+        return;
+      }
+      resolvePlanningRequest?.();
+      await planningResponseHeld;
+      await route.continue();
+    });
+    const navigation = page.goto(
+      `/workspace/${REEF_E2E_VAULT}/issues?view=list`,
+      { waitUntil: "commit" },
+    );
+    await planningRequestSeen;
+    await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
+    await expect(page.getByTestId("view-switcher")).toBeVisible();
+    await expect(page.getByTestId("view-switcher-list")).toBeEnabled();
+    expect(await page.getByTestId("current-sprint-shortcut").count()).toBe(0);
+    await expect(
+      page.locator('[data-slot="page-header"] a[href*="/planning/sprints/"]'),
+    ).toHaveCount(0);
+    const pendingGeometry = await readIssuesChromeGeometry(page);
+
+    releasePlanningResponse?.();
+    await navigation;
+    await expect(
+      page.getByTestId("current-sprint-shortcut").getByRole("link"),
+    ).toHaveAttribute(
+      "href",
+      `/workspace/${REEF_E2E_VAULT}/planning/sprints/${currentSprint.id}`,
+    );
+    expect(await readIssuesChromeGeometry(page)).toEqual(pendingGeometry);
+    await page.unroute("**/api/planning**");
+
+    await setPlanningCatalogFailure(request, true);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
+    await expect(page.getByTestId("filter-bar")).toBeVisible();
+    await expect(page.getByTestId("current-sprint-shortcut")).toHaveCount(0);
+    await expect(
+      page.locator('[data-slot="page-header"] a[href*="/planning/sprints/"]'),
+    ).toHaveCount(0);
+
+    await resetFixture(request, "configured_empty");
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await expect(
+      page.getByText("Your workspace is empty.", { exact: false }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("textbox", { name: "Search issues" }),
+    ).toBeVisible();
+    await expect(page.getByTestId("view-switcher")).toBeVisible();
+    await expect(page.getByTestId("current-sprint-shortcut")).toHaveCount(0);
+    await expect(
+      page.locator('[data-slot="page-header"] a[href*="/planning/sprints/"]'),
+    ).toHaveCount(0);
+  });
+
+  test("keeps the Display menu bounded and keyboard-scrollable across supported locales and themes", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(120_000);
+    await openExistingWorkspace(page);
+
+    let locale: "en" | "ko" = "en";
+    const cases = [
+      { width: 320, height: 812, locale: "en", theme: "light" },
+      { width: 375, height: 812, locale: "en", theme: "dark" },
+      { width: 414, height: 812, locale: "ko", theme: "light" },
+      { width: 768, height: 812, locale: "ko", theme: "dark" },
+      { width: 1280, height: 720, locale: "en", theme: "light" },
+    ] as const;
+
+    const expectMenuBounds = async (width: number, height: number) => {
+      const geometry = await readDisplayMenuGeometry(page);
+      expect(geometry.top, `${width}px menu top`).toBeGreaterThanOrEqual(0);
+      expect(geometry.left, `${width}px menu left`).toBeGreaterThanOrEqual(0);
+      expect(geometry.right, `${width}px menu right`).toBeLessThanOrEqual(
+        width,
+      );
+      expect(geometry.bottom, `${width}px menu bottom`).toBeLessThanOrEqual(
+        height,
+      );
+      expect(geometry.maxHeight, `${width}px menu max-height`).not.toBe("none");
+      expect(geometry.overflowY, `${width}px menu overflow`).toMatch(
+        /^(auto|scroll)$/u,
+      );
+      expect(geometry.documentOverflow, `${width}px document overflow`).toBe(
+        false,
+      );
+      expect(geometry.bodyOverflow, `${width}px body overflow`).toBe(false);
+      return geometry;
+    };
+    const observations: Array<{
+      width: number;
+      height: number;
+      locale: "en" | "ko";
+      theme: "light" | "dark";
+      phase: "initial" | "after-last-item" | "after-resize";
+      geometry: Awaited<ReturnType<typeof readDisplayMenuGeometry>>;
+    }> = [];
+
+    for (const menuCase of cases) {
+      await page.setViewportSize(menuCase);
+      if (menuCase.locale !== locale) {
+        await setVisualLocale(page, menuCase.locale);
+        locale = menuCase.locale;
+      }
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+      await setVisualTheme(page, menuCase.theme);
+      await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
+
+      const trigger = page.getByTestId("display-options-trigger");
+      await trigger.click();
+      const menu = page.getByTestId("display-options-content");
+      await expect(menu).toBeVisible();
+      const geometry = await expectMenuBounds(menuCase.width, menuCase.height);
+      observations.push({ ...menuCase, phase: "initial", geometry });
+      if (menuCase.width <= 414) {
+        if (menuCase.width >= 375) {
+          expect(
+            geometry.scrollHeight,
+            `${menuCase.width}px menu scroll height`,
+          ).toBeGreaterThan(geometry.clientHeight);
+        }
+      }
+
+      const first = menu.getByTestId("show-archived-toggle");
+      const second = menu.getByTestId("show-stale-toggle");
+      const last = menu.getByTestId("issue-list-column-release");
+      await first.focus();
+      await expect(first).toBeFocused();
+      await page.keyboard.press("ArrowDown");
+      await expect(second).toBeFocused();
+      await page.keyboard.press("ArrowUp");
+      await expect(first).toBeFocused();
+      await last.focus();
+      await expect(last).toBeFocused();
+      let scrolled = await readDisplayMenuGeometry(page);
+      if (scrolled.scrollHeight > scrolled.clientHeight) {
+        await menu.evaluate((element) => {
+          element.scrollTop = element.scrollHeight;
+        });
+        scrolled = await readDisplayMenuGeometry(page);
+        expect(
+          scrolled.scrollTop,
+          `${menuCase.width}px menu internal scroll`,
+        ).toBeGreaterThan(0);
+      }
+      observations.push({
+        ...menuCase,
+        phase: "after-last-item",
+        geometry: scrolled,
+      });
+      if (
+        menuCase.width === 375 ||
+        menuCase.width === 414 ||
+        menuCase.width === 1280
+      ) {
+        const screenshot = await page.screenshot({
+          animations: "disabled",
+          path: testInfo.outputPath(
+            `display-menu-${menuCase.width}-${menuCase.locale}-${menuCase.theme}.png`,
+          ),
+        });
+        expect(screenshot.byteLength).toBeGreaterThan(0);
+      }
+      await page.keyboard.press("Space");
+      await expect(menu).toBeVisible();
+      await page.keyboard.press("Home");
+      await expect(first).toBeFocused();
+      await page.keyboard.press("End");
+      await expect(menu.locator('[role^="menuitem"]').last()).toBeFocused();
+      await page.keyboard.press("Escape");
+      await expect(menu).toHaveCount(0);
+
+      if (menuCase.width === 375) {
+        await trigger.click();
+        await expect(menu).toBeVisible();
+        const resizedGeometry = await expectMenuBounds(375, 812);
+        observations.push({
+          width: 375,
+          height: 812,
+          locale: menuCase.locale,
+          theme: menuCase.theme,
+          phase: "after-resize",
+          geometry: resizedGeometry,
+        });
+        await page.setViewportSize({ width: 414, height: 812 });
+        await expect(menu).toBeVisible();
+        const resizedViewportGeometry = await expectMenuBounds(414, 812);
+        observations.push({
+          width: 414,
+          height: 812,
+          locale: menuCase.locale,
+          theme: menuCase.theme,
+          phase: "after-resize",
+          geometry: resizedViewportGeometry,
+        });
+        await page.keyboard.press("Escape");
+        await expect(menu).toHaveCount(0);
+      }
+    }
+    const observationsPath = testInfo.outputPath(
+      "issues-display-menu-observations.json",
+    );
+    await writeFile(observationsPath, JSON.stringify(observations, null, 2));
+    await testInfo.attach("issues-display-menu-observations.json", {
+      path: observationsPath,
+      contentType: "application/json",
+    });
+  });
+
+  test("uses compact typography and a contrast-safe current sprint focus ring", async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width: 768, height: 812 });
+    await openExistingWorkspace(page);
+    const observations: Array<{
+      theme: "light" | "dark";
+      fontSize: string;
+      lineHeight: string;
+      boxShadow: string;
+      contrast: number | null;
+      left: number;
+      top: number;
+      right: number;
+      bottom: number;
+    }> = [];
+
+    for (const theme of ["light", "dark"] as const) {
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+      await setVisualTheme(page, theme);
+      const link = page
+        .getByTestId("current-sprint-shortcut")
+        .getByRole("link");
+      await expect(link).toBeVisible();
+      await link.focus();
+      await expect(link).toBeFocused();
+      const focus = await readCurrentSprintFocus(page);
+      expect(focus.fontSize, `${theme} link font-size`).toBe("13px");
+      expect(focus.lineHeight, `${theme} link line-height`).toBe("19.5px");
+      expect(focus.boxShadow, `${theme} link focus ring`).not.toBe("none");
+      expect(focus.contrast, `${theme} link focus contrast`).not.toBeNull();
+      expect(
+        focus.contrast ?? 0,
+        `${theme} link focus contrast`,
+      ).toBeGreaterThanOrEqual(3);
+      expect(focus.left, `${theme} link left`).toBeGreaterThanOrEqual(0);
+      expect(focus.right, `${theme} link right`).toBeLessThanOrEqual(768);
+      expect(focus.top, `${theme} link top`).toBeGreaterThanOrEqual(0);
+      expect(focus.bottom, `${theme} link bottom`).toBeLessThanOrEqual(812);
+      observations.push({ theme, ...focus });
+      const screenshot = await page.screenshot({
+        animations: "disabled",
+        path: testInfo.outputPath(`current-sprint-focus-${theme}.png`),
+      });
+      expect(screenshot.byteLength).toBeGreaterThan(0);
+    }
+    const observationsPath = testInfo.outputPath(
+      "current-sprint-focus-observations.json",
+    );
+    await writeFile(observationsPath, JSON.stringify(observations, null, 2));
+    await testInfo.attach("current-sprint-focus-observations.json", {
+      path: observationsPath,
+      contentType: "application/json",
+    });
   });
 
   test("uses the real cursor policy across controls, rows, menus, and detail", async ({
@@ -1030,13 +1717,14 @@ test.describe("Hermetic issue route surfaces", () => {
     expect(defaultList.documentOverflow).toBe(false);
 
     async function toggleListColumn(column: string) {
-      await page.getByTestId("issue-list-columns-control").click();
       await page.getByTestId(`issue-list-column-${column}`).click();
     }
 
+    await page.getByTestId("display-options-trigger").click();
     for (const column of ["start", "sprint", "milestone", "release"]) {
       await toggleListColumn(column);
     }
+    await page.keyboard.press("Escape");
 
     const expandedList = await list.evaluate((element) => {
       const root = element as HTMLElement;

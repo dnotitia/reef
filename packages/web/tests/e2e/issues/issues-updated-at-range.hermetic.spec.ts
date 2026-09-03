@@ -395,7 +395,7 @@ test.describe("Hermetic updated-at date range filter", () => {
     await expect(
       page.getByText("Initial issue Beta", { exact: true }),
     ).toBeHidden();
-    await expect(page.getByTestId("issue-list-columns-control")).toBeVisible();
+    await expect(page.getByTestId("display-options-trigger")).toBeVisible();
 
     await page.goto(
       "/workspace/reef-e2e/issues?view=board&group=none&sort=updated_at&order=asc&date_field=updated_at&date_from=2026-06-15&date_to=2026-06-15",

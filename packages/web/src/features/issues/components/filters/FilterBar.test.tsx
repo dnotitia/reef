@@ -47,6 +47,7 @@ beforeEach(() => {
     filter: {},
     searchQuery: "",
     selectedIssueId: null,
+    listOptionalColumns: [],
   });
   // Default: no workspace selected (the user comboboxes render disabled), and a
   // vault-members lookup that resolves to an empty roster. Individual tests
@@ -824,6 +825,40 @@ describe("FilterBar", () => {
       expect(screen.getByTestId("display-options-trigger").className).toContain(
         "border-brand-focus",
       );
+    });
+
+    it("keeps Active List columns in the Display menu", async () => {
+      const user = userEvent.setup();
+      renderFilterBar({ view: "list", listOptionalColumns: [] });
+
+      await user.click(screen.getByTestId("display-options-trigger"));
+      expect(screen.getByText("Optional columns")).toBeInTheDocument();
+
+      await user.click(screen.getByTestId("issue-list-column-start"));
+      expect(useIssueStore.getState().listOptionalColumns).toEqual(["start"]);
+      expect(screen.getByTestId("display-options-content")).toBeVisible();
+
+      await user.click(screen.getByTestId("issue-list-column-release"));
+      expect(useIssueStore.getState().listOptionalColumns).toEqual([
+        "start",
+        "release",
+      ]);
+    });
+
+    it("does not expose List columns for Board, Timeline, or Backlog", async () => {
+      const user = userEvent.setup();
+      for (const props of [
+        { view: "board" as const },
+        { view: "timeline" as const },
+        { view: "list" as const, backlogScope: true },
+      ]) {
+        renderFilterBar(props);
+        const trigger = screen.getAllByTestId("display-options-trigger").at(-1);
+        if (!trigger) throw new Error("Missing Display trigger");
+        await user.click(trigger);
+        expect(screen.queryByText("Optional columns")).toBeNull();
+        await user.keyboard("{Escape}");
+      }
     });
   });
 });

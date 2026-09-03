@@ -13,7 +13,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { IssueListColumnsControl } from "@/features/issues/components/list/IssueListColumnsControl";
 import { IssueListRow } from "@/features/issues/components/list/IssueListRow";
 import { IssueListSkeleton } from "@/features/issues/components/list/IssueListSkeleton";
 import {
@@ -337,9 +336,6 @@ export function IssueListTable({
   const selectedIds = useIssueSelectionStore((state) => state.selectedIds);
   const selectionRunning = useIssueSelectionStore((state) => state.running);
   const optionalColumns = useIssueStore((state) => state.listOptionalColumns);
-  const toggleOptionalColumn = useIssueStore(
-    (state) => state.toggleListOptionalColumn,
-  );
   const scrollElementRef = useRef<HTMLDivElement | null>(null);
   const anchorRef = useRef<{ id: string; offset: number } | null>(null);
   const showReorderColumn = manualOrder && groupBy === "none";
@@ -823,8 +819,8 @@ export function IssueListTable({
           className="top-0 bottom-auto"
         />
       </div>
-      <div className="flex min-h-8 shrink-0 items-center justify-between gap-3 pb-2">
-        {groupBy !== "none" ? (
+      {groupBy !== "none" ? (
+        <div className="flex shrink-0 items-center pb-2">
           <p
             className="text-xs text-muted-foreground"
             role="note"
@@ -832,14 +828,8 @@ export function IssueListTable({
           >
             {t("reorderHintUngrouped")}
           </p>
-        ) : (
-          <span aria-hidden="true" />
-        )}
-        <IssueListColumnsControl
-          selectedColumns={optionalColumns}
-          onToggle={toggleOptionalColumn}
-        />
-      </div>
+        </div>
+      ) : null}
       {isPending ? (
         <div
           className="min-h-0 min-w-0 flex-1 overflow-hidden"

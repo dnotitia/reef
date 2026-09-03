@@ -68,7 +68,7 @@ test.describe("Hermetic My Views", () => {
     await page.getByTestId("sort-option-title").click();
     await page.getByTestId("display-options-trigger").click();
     await page.getByTestId("group-by-label").click();
-    await page.getByTestId("issue-list-columns-control").click();
+    await page.getByTestId("display-options-trigger").click();
     await page.getByTestId("issue-list-column-start").click();
     await page.keyboard.press("Escape");
     await expect(page).toHaveURL(/view=list/);
