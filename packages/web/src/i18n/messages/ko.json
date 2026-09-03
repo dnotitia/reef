@@ -1149,6 +1149,8 @@
       "sprintLocked": "스프린트: {name} (잠김)",
       "sprintLockedLabel": "스프린트",
       "unlockSprint": "스프린트 범위 잠금 해제하고 이슈 열기",
+      "currentSprint": "현재 스프린트",
+      "openCurrentSprintDetails": "{name} 현재 스프린트 상세 열기",
       "display": "표시",
       "displayOptions": "표시 옵션",
       "showArchived": "보관 항목 표시",
@@ -1349,8 +1351,6 @@
     "noMatchDescription": "필터나 검색어를 넓혀 더 많은 이슈를 확인해 보세요.",
     "groupNone": "없음",
     "groupReadOnly": "라벨 그룹은 읽기 전용입니다. 이슈 상세에서 라벨을 변경하세요.",
-    "activeSprint": "활성 스프린트",
-    "openSprintDetails": "{name} 스프린트 상세 열기",
     "openEpic": "에픽 {id}: {title} 열기",
     "epicColumnLabel": "에픽 {id}: {title}; 상태 {status}; 하위 이슈 {count}개 표시; {total}개 중 {done}개 완료·종료"
   },

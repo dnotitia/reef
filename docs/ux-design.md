@@ -741,7 +741,9 @@ Settings" empty state.
 
 **Filter toolbar menus.** Display is a compact checkable menu with independent
 Show archived and Show completed toggles; it stays open while the PM changes
-multiple options and hides the completed toggle in Backlog. My Views keeps
+multiple options and hides the completed toggle in Backlog. Active List also
+keeps its optional-column choices in this same Display menu, so the List has no
+settings-only row above its table. My Views keeps
 view selection separate from management actions: update, rename, duplicate,
 and delete are direct keyboard-navigable menu items grouped under each saved
 view, while loading failures, active/changed state, and empty state remain
@@ -892,8 +894,10 @@ standard page header + body chrome and the same field leaves where issue fields
 appear.
 
 Planning sprint names open the vault-scoped `/workspace/{vault}/planning/sprints/{id}`
-detail surface through ordinary anchors, as does the active-sprint context strip
-at the top of the Board. The detail header shows the planning status, date range,
+detail surface through ordinary anchors, as does the current-sprint shortcut in
+the shared Active Issues header. The shortcut is absent from Backlog and from
+the fixed-sprint detail surface, so planning context is not duplicated. The
+detail header shows the planning status, date range,
 end-date posture, goal disclosure, health verdict, and resolved/total rollup.
 Its body reuses the Issues Board and List with a locked `sprint_id` facet; the
 unlock action returns to the general Issues surface. Missing sprints show a

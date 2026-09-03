@@ -951,13 +951,14 @@ test.describe("Hermetic issue route surfaces", () => {
     expect(defaultList.documentOverflow).toBe(false);
 
     async function toggleListColumn(column: string) {
-      await page.getByTestId("issue-list-columns-control").click();
       await page.getByTestId(`issue-list-column-${column}`).click();
     }
 
+    await page.getByTestId("display-options-trigger").click();
     for (const column of ["start", "sprint", "milestone", "release"]) {
       await toggleListColumn(column);
     }
+    await page.keyboard.press("Escape");
 
     const expandedList = await list.evaluate((element) => {
       const root = element as HTMLElement;

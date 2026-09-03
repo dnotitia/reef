@@ -486,6 +486,7 @@ test.describe("Hermetic planning workflow", () => {
       `/workspace/${REEF_E2E_VAULT}/planning/sprints/${sprint?.id}`,
     );
     await expect(page.getByTestId("sprint-detail-header")).toBeVisible();
+    await expect(page.getByTestId("current-sprint-shortcut")).toHaveCount(0);
     await expect(
       page.getByRole("heading", { name: "Launch Readiness Sprint" }),
     ).toBeVisible();
@@ -519,7 +520,7 @@ test.describe("Hermetic planning workflow", () => {
     );
   });
 
-  test("uses the canonical sprint anchor from the active board context", async ({
+  test("uses the canonical current-sprint anchor in every Active Issues view", async ({
     page,
     request,
   }) => {
@@ -533,15 +534,20 @@ test.describe("Hermetic planning workflow", () => {
       ?.sprints.find((candidate) => candidate.status === "active");
     expect(sprint).toBeDefined();
 
-    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=board`);
-    const contextLink = page
-      .getByTestId("active-sprint-context")
-      .getByRole("link");
-    await expect(contextLink).toHaveAttribute(
-      "href",
-      `/workspace/${REEF_E2E_VAULT}/planning/sprints/${sprint?.id}`,
-    );
-    expect(await contextLink.evaluate((element) => element.tagName)).toBe("A");
+    for (const view of ["board", "list", "timeline"] as const) {
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=${view}`);
+      const contextLink = page
+        .getByTestId("current-sprint-shortcut")
+        .getByRole("link");
+      await expect(contextLink).toHaveAttribute(
+        "href",
+        `/workspace/${REEF_E2E_VAULT}/planning/sprints/${sprint?.id}`,
+      );
+      expect(await contextLink.evaluate((element) => element.tagName)).toBe(
+        "A",
+      );
+      await expect(page.getByTestId("active-sprint-context")).toHaveCount(0);
+    }
   });
 
   test("keeps a missing sprint distinct from a successful catalog", async ({

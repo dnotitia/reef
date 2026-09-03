@@ -28,6 +28,7 @@ const LAYOUT_ICONS: Record<IssueLayout, typeof Columns3> = {
 interface ViewSwitcherProps {
   activeLayout: IssueLayout;
   scope: IssueScope;
+  onLayoutChange?: (layout: IssueLayout) => void;
   basePath?: string;
   hideTimeline?: boolean;
   includeScope?: boolean;
@@ -37,6 +38,7 @@ interface ViewSwitcherProps {
 export function ViewSwitcher({
   activeLayout,
   scope,
+  onLayoutChange,
   basePath = "/issues",
   hideTimeline = false,
   includeScope = true,
@@ -54,6 +56,7 @@ export function ViewSwitcher({
   const selectLayout = useCallback(
     (layout: IssueLayout) => {
       if (layout === activeLayout) return;
+      onLayoutChange?.(layout);
       const next = new URLSearchParams(searchParams);
       if (includeScope) next.set("scope", scope);
       else next.delete("scope");
@@ -64,7 +67,16 @@ export function ViewSwitcher({
         });
       });
     },
-    [activeLayout, basePath, includeScope, router, scope, searchParams, vault],
+    [
+      activeLayout,
+      basePath,
+      includeScope,
+      onLayoutChange,
+      router,
+      scope,
+      searchParams,
+      vault,
+    ],
   );
 
   return (

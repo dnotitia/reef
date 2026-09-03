@@ -13,16 +13,22 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockPush, mockReplace, mockUseActiveVault, navigationState } =
-  vi.hoisted(() => ({
-    mockPush: vi.fn(),
-    mockReplace: vi.fn(),
-    mockUseActiveVault: vi.fn(),
-    navigationState: {
-      pathname: "/workspace/reef-acme/issues",
-      searchParams: new URLSearchParams(),
-    },
-  }));
+const {
+  mockPush,
+  mockReplace,
+  mockUseActiveVault,
+  mockUsePlanningCatalog,
+  navigationState,
+} = vi.hoisted(() => ({
+  mockPush: vi.fn(),
+  mockReplace: vi.fn(),
+  mockUseActiveVault: vi.fn(),
+  mockUsePlanningCatalog: vi.fn(),
+  navigationState: {
+    pathname: "/workspace/reef-acme/issues",
+    searchParams: new URLSearchParams(),
+  },
+}));
 
 vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   useActiveVault: mockUseActiveVault,
@@ -32,6 +38,10 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush, replace: mockReplace, refresh: vi.fn() }),
   usePathname: () => navigationState.pathname,
   useSearchParams: () => navigationState.searchParams,
+}));
+
+vi.mock("@/features/planning/hooks/usePlanningCatalog", () => ({
+  usePlanningCatalog: mockUsePlanningCatalog,
 }));
 
 // Mock the heavy body components and the filter toolbar so the test focuses
@@ -139,6 +149,11 @@ describe("IssuesWorkspace", () => {
       isLoading: false,
       refetch: () => Promise.resolve(),
     });
+    mockUsePlanningCatalog.mockReturnValue({
+      data: { sprints: [], milestones: [], releases: [] },
+      isPending: false,
+      isError: false,
+    });
     useIssueStore.setState({
       filter: {},
       filterVault: null,
@@ -184,6 +199,70 @@ describe("IssuesWorkspace", () => {
     ).not.toBeNull();
     expect(scope.closest('[data-slot="page-header-actions"]')).toBeNull();
     expect(view.closest('[data-slot="page-header-actions"]')).not.toBeNull();
+  });
+
+  it("places the current sprint shortcut beside the scope in the shared header", () => {
+    mockUsePlanningCatalog.mockReturnValue({
+      data: {
+        sprints: [
+          {
+            id: "sprint-13",
+            name: "Sprint 13",
+            status: "active",
+            start_date: "2026-09-01",
+            end_date: "2026-09-14",
+            goal: "Ship the header",
+          },
+        ],
+        milestones: [],
+        releases: [],
+      },
+      isPending: false,
+      isError: false,
+    });
+
+    render(wrap(<IssuesWorkspace />));
+
+    const shortcut = screen.getByTestId("current-sprint-shortcut");
+    const link = screen.getByRole("link", {
+      name: "Open current sprint details: Sprint 13",
+    });
+    expect(
+      shortcut.closest('[data-slot="page-header-title-adjacent"]'),
+    ).not.toBeNull();
+    expect(link).toHaveAttribute(
+      "href",
+      "/workspace/reef-acme/planning/sprints/sprint-13",
+    );
+    expect(link).toHaveAttribute("title", "Sprint 13");
+  });
+
+  it("does not add the current sprint shortcut to Backlog", () => {
+    mockUsePlanningCatalog.mockReturnValue({
+      data: {
+        sprints: [
+          {
+            id: "sprint-13",
+            name: "Sprint 13",
+            status: "active",
+            start_date: "2026-09-01",
+            end_date: "2026-09-14",
+            goal: null,
+          },
+        ],
+        milestones: [],
+        releases: [],
+      },
+      isPending: false,
+      isError: false,
+    });
+    navigationState.searchParams = new URLSearchParams(
+      "scope=backlog&view=list",
+    );
+
+    render(wrap(<IssuesWorkspace />));
+
+    expect(screen.queryByTestId("current-sprint-shortcut")).toBeNull();
   });
 
   it("renders the list body when ?view=list", () => {

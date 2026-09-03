@@ -963,6 +963,8 @@
       "sprintLocked": "Sprint: {name} (locked)",
       "sprintLockedLabel": "Sprint",
       "unlockSprint": "Unlock sprint scope and open Issues",
+      "currentSprint": "Current sprint",
+      "openCurrentSprintDetails": "Open current sprint details: {name}",
       "display": "Display",
       "displayOptions": "Display options",
       "showArchived": "Show archived",
@@ -1163,8 +1165,6 @@
     "noMatchDescription": "Try widening your filters or search to see more issues.",
     "groupNone": "None",
     "groupReadOnly": "Label groups are read-only. Change labels from the issue details.",
-    "activeSprint": "Active sprint",
-    "openSprintDetails": "Open {name} sprint details",
     "openEpic": "Open Epic {id}: {title}",
     "epicColumnLabel": "Epic {id}: {title}; status {status}; {count} visible children; {done} of {total} done or closed"
   },

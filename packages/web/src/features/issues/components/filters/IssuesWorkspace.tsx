@@ -9,19 +9,27 @@ import { ViewSwitcher } from "@/features/issues/components/filters/ViewSwitcher"
 import { IssueListTable } from "@/features/issues/components/list/IssueListTable";
 import { useIssueFilterPersistence } from "@/features/issues/hooks/view/useIssueFilterPersistence";
 import { useIssueUrlSync } from "@/features/issues/hooks/view/useIssueUrlSync";
-import { parseIssueViewState } from "@/features/issues/lib/viewMode";
+import {
+  parseIssueViewState,
+  type IssueLayout,
+} from "@/features/issues/lib/viewMode";
 import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { TimelineBody } from "@/features/timeline/components/TimelineBody";
 import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { PageHeader } from "@/features/ui/components/PageHeader";
-import { sprintDetailPath } from "@/features/planning/lib/planningUrls";
+import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
+import { selectActiveSprint } from "@/features/planning/lib/planningItems";
+import {
+  sprintDetailHref,
+  sprintDetailPath,
+} from "@/features/planning/lib/planningUrls";
 import { withVault } from "@/lib/workspaceHref";
 import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export interface IssuesWorkspaceProps {
   /** Pin all issue queries to a sprint while keeping the shared filter store intact. */
@@ -30,6 +38,36 @@ export interface IssuesWorkspaceProps {
   fixedSprintUnlockHref?: string;
   /** Omit the standard Issues page header when another surface owns the chrome. */
   hideHeader?: boolean;
+}
+
+function CurrentSprintShortcut({ vault }: { vault: string }) {
+  const { data: planningCatalog } = usePlanningCatalog(vault);
+  const currentSprint = selectActiveSprint(planningCatalog?.sprints ?? []);
+  const t = useTranslations("issues.filters");
+
+  if (!currentSprint) return null;
+
+  return (
+    <div
+      className="flex min-w-0 max-w-[min(15rem,28vw)] items-center gap-1.5"
+      data-testid="current-sprint-shortcut"
+      data-sprint-id={currentSprint.id}
+    >
+      <span className="hidden shrink-0 type-card-metadata font-semibold uppercase tracking-wide text-muted-foreground min-[480px]:inline">
+        {t("currentSprint")}
+      </span>
+      <a
+        href={sprintDetailHref(vault, currentSprint.id)}
+        aria-label={t("openCurrentSprintDetails", {
+          name: currentSprint.name,
+        })}
+        title={currentSprint.name}
+        className="min-w-0 truncate font-medium text-brand-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+      >
+        {currentSprint.name}
+      </a>
+    </div>
+  );
 }
 
 function unlockedIssuesHref(
@@ -75,6 +113,12 @@ export function IssuesWorkspace({
   const clearSelectionForContextChange = useIssueSelectionStore(
     (state) => state.clearForContextChange,
   );
+  // Keep the two header controls on the same user intent while the App Router
+  // is still reflecting an earlier view navigation. The URL remains the source
+  // of truth; this only lets a scope change normalize the latest requested view.
+  const [pendingLayout, setPendingLayout] = useState<IssueLayout | null>(null);
+  const previousLayout = useRef(layout);
+  const headerLayout = pendingLayout ?? layout;
   const selectionContext = JSON.stringify({
     filter,
     searchQuery,
@@ -83,6 +127,12 @@ export function IssuesWorkspace({
     layout,
   });
   const previousSelectionContext = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (previousLayout.current === layout) return;
+    previousLayout.current = layout;
+    setPendingLayout(null);
+  }, [layout]);
 
   const {
     skipNextSave,
@@ -123,13 +173,19 @@ export function IssuesWorkspace({
           title={nav("issues")}
           description={vault || undefined}
           titleAdjacent={
-            <ScopeSwitcher activeScope={scope} activeLayout={layout} />
+            <div className="flex min-w-0 max-w-full items-center gap-2">
+              <ScopeSwitcher activeScope={scope} activeLayout={headerLayout} />
+              {!fixedSprintId && scope === "active" ? (
+                <CurrentSprintShortcut vault={vault} />
+              ) : null}
+            </div>
           }
           className="h-auto min-h-12 flex-wrap py-2"
           actions={
             <ViewSwitcher
               scope={scope}
-              activeLayout={layout}
+              activeLayout={headerLayout}
+              onLayoutChange={setPendingLayout}
               basePath={
                 fixedSprintId ? sprintDetailPath(fixedSprintId) : "/issues"
               }
