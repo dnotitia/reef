@@ -568,7 +568,8 @@ function PlanningDeleteAction({
           onRequestDelete();
         }}
         onKeyDown={(event) => {
-          if (isAriaDisabled) {
+          const isActivationKey = event.key === "Enter" || event.key === " ";
+          if (isAriaDisabled && isActivationKey) {
             event.preventDefault();
             event.stopPropagation();
           }

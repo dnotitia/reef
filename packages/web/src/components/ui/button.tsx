@@ -72,7 +72,8 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     };
 
     const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
-      if (isDisabled) {
+      const isActivationKey = event.key === "Enter" || event.key === " ";
+      if (isDisabled && isActivationKey) {
         event.preventDefault();
         event.stopPropagation();
         return;
