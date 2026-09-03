@@ -18,6 +18,7 @@ import {
   type CSSProperties,
   type KeyboardEvent,
   type PointerEvent,
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -56,6 +57,15 @@ export const ISSUE_DETAIL_EXPANDED_SESSION_STORAGE_KEY =
   "reef:issue-detail-expanded:v2";
 export const ISSUE_DETAIL_RESTORE_WIDTH_SESSION_STORAGE_KEY =
   "reef:issue-detail-restore-width:v2";
+
+function isIssueOpener(element: HTMLElement, issueId: string): boolean {
+  const surface = element.closest<HTMLElement>("[data-issue-id]");
+  const surfaceKind = surface?.dataset.shortcutSurface;
+  return (
+    surface?.dataset.issueId === issueId &&
+    (surfaceKind === "issue-kanban-card" || surfaceKind === "issue-list-row")
+  );
+}
 
 function subscribeToViewport(onStoreChange: () => void) {
   if (typeof window === "undefined") return () => {};
@@ -408,6 +418,22 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
     issueId,
     onExit: onClose,
   });
+  const openerRef = useRef<HTMLElement | null>(null);
+
+  const captureOpenerFocus = useCallback(() => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && isIssueOpener(active, issueId)) {
+      openerRef.current = active.closest<HTMLElement>("[data-issue-id]");
+    }
+  }, [issueId]);
+
+  const restoreOpenerFocus = useCallback((event: Event) => {
+    const opener = openerRef.current;
+    openerRef.current = null;
+    if (!opener?.isConnected) return;
+    event.preventDefault();
+    opener.focus({ preventScroll: true });
+  }, []);
 
   // Identity data for the persistent bar. Read here (not in the body) so the
   // status glyph / type pill / parent breadcrumb fill the bar the moment they
@@ -476,6 +502,8 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
           // (REEF-286), so the overlay X is suppressed here to avoid a
           // duplicate, colliding control in the top-right corner.
           showCloseButton={false}
+          onOpenAutoFocus={captureOpenerFocus}
+          onCloseAutoFocus={restoreOpenerFocus}
           // Esc means Back while drilled into a relation trail, Close otherwise
           // (AC3); an outside click consistently exits to the entry view (AC2). We own
           // both so the in-memory nav stack — not the browser history — decides

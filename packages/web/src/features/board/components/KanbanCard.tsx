@@ -42,6 +42,7 @@ import {
 import {
   type HTMLAttributes,
   type KeyboardEvent,
+  type MouseEvent,
   type ReactNode,
   forwardRef,
   memo,
@@ -73,7 +74,7 @@ interface KanbanCardProps {
    * activationConstraint in KanbanBoard separates the two). Used to open
    * the issue detail slide-over.
    */
-  onClick?: (id: string) => void;
+  onClick?: (id: string, opener?: HTMLElement) => void;
   occurrenceKey?: string;
   dragEnabled?: boolean;
   dragRestrictionReason?: string;
@@ -476,17 +477,17 @@ const KanbanCardContent = memo(function KanbanCardContent({
     ...(transition ? { transition } : {}),
   };
 
-  function handleClick() {
+  function handleClick(event: MouseEvent<HTMLDivElement>) {
     // Suppress the click that would fire at the end of a drag — pointerup
     // after a drag still emits click on most browsers.
     if (isDragging) return;
-    onClick?.(issue.id);
+    onClick?.(issue.id, event.currentTarget);
   }
 
-  function handleKeyDown(e: KeyboardEvent<HTMLDivElement>) {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      onClick?.(issue.id);
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onClick?.(issue.id, event.currentTarget);
     }
   }
 

@@ -77,7 +77,7 @@ interface IssueListRowProps {
   sortable?: boolean;
   reorderHint?: string;
   reorderState?: IssueReorderSurfaceState | null;
-  onClick?: (id: string) => void;
+  onClick?: (id: string, opener?: HTMLElement) => void;
 }
 
 type IssueListRowVisualState = "idle" | "focused" | "context-open" | "selected";
@@ -321,7 +321,7 @@ export const IssueListRow = memo(function IssueListRow({
           }
           event.preventDefault();
           event.stopPropagation();
-          onClick?.(issue.id);
+          onClick?.(issue.id, event.currentTarget);
         }}
         onClick={(event: MouseEvent<HTMLTableRowElement>) => {
           if (event.shiftKey) {
@@ -329,7 +329,7 @@ export const IssueListRow = memo(function IssueListRow({
             useIssueSelectionStore.getState().extendRange(issue.id, logicalIds);
             return;
           }
-          onClick?.(issue.id);
+          onClick?.(issue.id, event.currentTarget);
         }}
         data-testid="issue-list-row"
         data-reef-interaction={onClick ? "clickable" : undefined}

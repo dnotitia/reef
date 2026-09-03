@@ -283,7 +283,10 @@ describe("IssueListRow", () => {
     renderRow(mockIssue, [mockIssue], onClick);
     const row = screen.getAllByTestId("issue-list-row")[0];
     await user.click(row);
-    expect(onClick).toHaveBeenCalledWith("REEF-001");
+    expect(onClick).toHaveBeenCalledWith(
+      "REEF-001",
+      screen.getByTestId("issue-list-row"),
+    );
   });
 
   it.each(["Enter", " "])(
@@ -294,7 +297,10 @@ describe("IssueListRow", () => {
 
       fireEvent.keyDown(screen.getByTestId("issue-list-row"), { key });
 
-      expect(onClick).toHaveBeenCalledWith("REEF-001");
+      expect(onClick).toHaveBeenCalledWith(
+        "REEF-001",
+        screen.getByTestId("issue-list-row"),
+      );
     },
   );
 

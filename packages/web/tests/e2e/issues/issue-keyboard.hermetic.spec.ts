@@ -237,6 +237,60 @@ test.describe("Hermetic issue keyboard navigation", () => {
     expect(keyboardButton.ringColor).not.toBe("");
   });
 
+  test("restores focus to Board and List issue openers after dismissing detail", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=board`);
+    const boardCard = page
+      .locator('[data-testid="kanban-card"]')
+      .filter({ hasText: "Initial issue Alpha" });
+    await expect(boardCard).toBeVisible({ timeout: 15_000 });
+    await expect(boardCard).not.toBeFocused();
+    await boardCard.click();
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await page.getByTestId("issue-close").click();
+    await expect(page.getByTestId("issue-detail")).toHaveCount(0);
+    await expect(boardCard).toBeFocused();
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=board`);
+    const keyboardBoardCard = page
+      .locator('[data-testid="kanban-card"]')
+      .filter({ hasText: "Initial issue Alpha" });
+    await expect(keyboardBoardCard).toBeVisible({ timeout: 15_000 });
+    await keyboardBoardCard.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await page.getByTestId("issue-close").click();
+    await expect(page.getByTestId("issue-detail")).toHaveCount(0);
+    await expect(keyboardBoardCard).toBeFocused();
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    const listRow = page
+      .locator('[data-testid="issue-list-row"]')
+      .filter({ hasText: "Initial issue Alpha" });
+    await expect(listRow).toBeVisible({ timeout: 15_000 });
+    await expect(listRow).not.toBeFocused();
+    await listRow.locator('td[data-column-key="title"]').click();
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await page.getByTestId("issue-close").click();
+    await expect(page.getByTestId("issue-detail")).toHaveCount(0);
+    await expect(listRow).toBeFocused();
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    const keyboardListRow = page
+      .locator('[data-testid="issue-list-row"]')
+      .filter({ hasText: "Initial issue Alpha" });
+    await expect(keyboardListRow).toBeVisible({ timeout: 15_000 });
+    await keyboardListRow.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("issue-detail")).toHaveCount(0);
+    await expect(keyboardListRow).toBeFocused();
+  });
+
   test("does not hijack Enter from focused issue-page controls", async ({
     page,
   }) => {

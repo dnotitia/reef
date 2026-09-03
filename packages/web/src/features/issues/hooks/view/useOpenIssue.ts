@@ -18,7 +18,8 @@ export function useOpenIssue() {
   const searchParams = useSearchParams();
   const { vault } = useActiveVault();
   return useCallback(
-    (id: string) => {
+    (id: string, opener?: HTMLElement) => {
+      opener?.focus({ preventScroll: true });
       router.push(buildOpenIssueHref(vault, id, searchParams));
     },
     [router, searchParams, vault],
