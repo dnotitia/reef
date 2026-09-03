@@ -439,6 +439,7 @@ async function verifyIssues(
     page,
     `/workspace/${REEF_E2E_VAULT}/issues?view=list`,
   );
+  await expect(listMain.getByTestId("issue-list-row").first()).toBeVisible();
   const tableHeader = listMain
     .locator('th[data-column-key="title"]:visible')
     .first();
@@ -936,6 +937,27 @@ test.describe("Hermetic typography role contract", () => {
       blockedCard.getByText("Blocked", { exact: true }),
       ROLE.boardBlocked,
       "Stable Kanban blocked chip",
+    );
+  });
+
+  test("stable historical regression keeps the Kanban Task type chip", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "demo_board");
+    await prepareStableRegressionSurface(page, "en", "dark");
+    const main = await openRoute(
+      page,
+      `/workspace/${REEF_E2E_VAULT}/issues?view=board`,
+    );
+    const taskCard = main
+      .getByTestId("kanban-card")
+      .filter({ hasText: "Task" })
+      .first();
+    await expectTypography(
+      taskCard.getByText("Task", { exact: true }),
+      ROLE.boardType,
+      "Stable Kanban Task type chip",
     );
   });
 
