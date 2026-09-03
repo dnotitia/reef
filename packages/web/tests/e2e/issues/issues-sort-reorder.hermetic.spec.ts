@@ -91,47 +91,40 @@ async function dragBoardTarget(
   source: Locator,
   target: Locator,
   point: "card" | "body",
+  onDragging?: (activationPoint: { x: number; y: number }) => Promise<void>,
 ): Promise<void> {
   const targetBox = await target.boundingBox();
   if (!targetBox) throw new Error("missing Board drag target bounds");
-  await source.dragTo(target, {
-    targetPosition: {
-      x: targetBox.width / 2,
-      y:
-        point === "card"
-          ? targetBox.height / 2
-          : Math.min(24, targetBox.height / 2),
-    },
-  });
-}
-
-async function dragBoardTargetWithCursor(
-  page: Page,
-  source: Locator,
-  target: Locator,
-  point: "card" | "body",
-): Promise<void> {
-  const sourceBox = await source.boundingBox();
-  const targetBox = await target.boundingBox();
-  if (!sourceBox || !targetBox) throw new Error("missing Board drag bounds");
-  const sourceX = sourceBox.x + sourceBox.width / 2;
-  const sourceY = sourceBox.y + sourceBox.height / 2;
   const targetX = targetBox.x + targetBox.width / 2;
   const targetY =
     targetBox.y +
     (point === "card"
       ? targetBox.height / 2
       : Math.min(24, targetBox.height / 2));
+  if (!onDragging) {
+    await source.dragTo(target, {
+      targetPosition: {
+        x: targetBox.width / 2,
+        y:
+          point === "card"
+            ? targetBox.height / 2
+            : Math.min(24, targetBox.height / 2),
+      },
+    });
+    return;
+  }
+
+  const sourceBox = await source.boundingBox();
+  if (!sourceBox) throw new Error("missing Board drag source bounds");
+  const page = source.page();
+  const sourceX = sourceBox.x + sourceBox.width / 2;
+  const sourceY = sourceBox.y + sourceBox.height / 2;
 
   await page.mouse.move(sourceX, sourceY);
   await page.mouse.down();
   const activationPoint = { x: sourceX + 8, y: sourceY };
   await page.mouse.move(activationPoint.x, activationPoint.y);
-  await expectCursorAtPointer(
-    page.locator(".reef-drag-overlay"),
-    "grabbing",
-    activationPoint,
-  );
+  await onDragging(activationPoint);
   await page.mouse.move(targetX, targetY, { steps: 8 });
   await page.mouse.up();
 }
@@ -339,11 +332,16 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => 
         response.request().method() === "POST" &&
         new URL(response.url()).pathname === "/api/issues/reorder",
     );
-    await dragBoardTargetWithCursor(
-      page,
+    await dragBoardTarget(
       movedCard,
       todo.getByTestId("kanban-card").filter({ hasText: "Polish onboarding" }),
       "card",
+      (activationPoint) =>
+        expectCursorAtPointer(
+          page.locator(".reef-drag-overlay"),
+          "grabbing",
+          activationPoint,
+        ),
     );
     await expect(movedCard).toHaveAttribute("data-reorder-state", "pending");
     await expect(movedCard).toHaveAttribute("aria-busy", "true");
