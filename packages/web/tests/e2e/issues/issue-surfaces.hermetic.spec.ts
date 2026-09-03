@@ -5,6 +5,7 @@ import {
   openExistingWorkspace,
   readFixtureState,
   resetFixture,
+  setPlanningCatalogFailure,
   writeIndexedDbConfig,
 } from "../harness/fixture";
 
@@ -27,6 +28,15 @@ const VISUAL_VIEWPORTS = [
   { name: "768", width: 768, height: 844 },
   { name: "desktop", width: 1440, height: 900 },
 ] as const;
+
+const LONG_CURRENT_SPRINT_NAME =
+  "A deliberately long current sprint name for shared Issues header geometry";
+const LONG_CURRENT_SPRINT_GOAL = Array.from(
+  { length: 24 },
+  (_, index) => `Current sprint goal line ${index + 1}`,
+).join("\n");
+const NEW_TAB_MODIFIER: "Control" | "Meta" =
+  process.platform === "darwin" ? "Meta" : "Control";
 
 const SURFACE_ROLES = [
   "page",
@@ -207,6 +217,23 @@ async function observeSurfaceRoles(page: Page): Promise<SurfaceObservation> {
       mainOverflow: main ? main.scrollWidth > main.clientWidth : false,
     };
   }, SURFACE_ROLES);
+}
+
+async function readIssuesChromeGeometry(page: Page) {
+  return page.evaluate(() => {
+    const height = (selector: string) => {
+      const element = document.querySelector<HTMLElement>(selector);
+      if (!element) throw new Error(`Missing geometry target: ${selector}`);
+      return Math.round(element.getBoundingClientRect().height);
+    };
+
+    return {
+      header: height('[data-slot="page-header"]'),
+      titleAdjacent: height('[data-slot="page-header-title-adjacent"]'),
+      actions: height('[data-slot="page-header-actions"]'),
+      filterBar: height('[data-testid="filter-bar"]'),
+    };
+  });
 }
 
 async function expectVisibleFocus(locator: Locator) {
@@ -483,6 +510,250 @@ test.describe("Hermetic issue route surfaces", () => {
     expect(url.searchParams.get("view")).toBe("list");
     expect(url.searchParams.get("status")).toBe("todo");
     expect(url.searchParams.get("q")).toBe("issue");
+  });
+
+  test("keeps current sprint header geometry stable for long sprint metadata", async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width: 768, height: 844 });
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page);
+
+    const initialVault = reefVault(await readFixtureState(request));
+    const currentSprint = initialVault.sprints.find(
+      (sprint) => sprint.status === "active",
+    );
+    if (!currentSprint) throw new Error("Missing configured active sprint");
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
+    const initialLink = page
+      .getByTestId("current-sprint-shortcut")
+      .getByRole("link");
+    await expect(initialLink).toHaveAttribute(
+      "href",
+      `/workspace/${REEF_E2E_VAULT}/planning/sprints/${currentSprint.id}`,
+    );
+    await expect(
+      page.getByTestId("issue-list-row").filter({ hasText: "REEF-002" }),
+    ).toBeVisible();
+    const initialGeometry = await readIssuesChromeGeometry(page);
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
+    await expect(
+      page.getByRole("button", { name: `Edit ${currentSprint.name}` }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: `Edit ${currentSprint.name}` })
+      .click();
+    const editDialog = page.getByTestId("planning-editor-dialog");
+    await expect(editDialog).toBeVisible();
+    await editDialog
+      .getByTestId("planning-name-input")
+      .fill(LONG_CURRENT_SPRINT_NAME);
+
+    const goalEditor = editDialog.getByTestId("markdown-editor");
+    await goalEditor
+      .getByTestId("markdown-toolbar")
+      .getByRole("button", { name: "Source" })
+      .click();
+    await goalEditor
+      .getByTestId("markdown-source-textarea")
+      .fill(LONG_CURRENT_SPRINT_GOAL);
+    await goalEditor
+      .getByTestId("markdown-toolbar")
+      .getByRole("button", { name: "Source" })
+      .click();
+
+    await editDialog.getByTestId("planning-save").click();
+    await expect(editDialog).toBeHidden();
+    await expect(
+      page.getByRole("button", { name: `Edit ${LONG_CURRENT_SPRINT_NAME}` }),
+    ).toBeVisible();
+
+    await page
+      .getByRole("button", { name: `Edit ${LONG_CURRENT_SPRINT_NAME}` })
+      .click();
+    const savedGoalDialog = page.getByTestId("planning-editor-dialog");
+    const savedGoalEditor = savedGoalDialog.getByTestId("markdown-editor");
+    await savedGoalEditor
+      .getByTestId("markdown-toolbar")
+      .getByRole("button", { name: "Source" })
+      .click();
+    await expect(
+      savedGoalEditor.getByTestId("markdown-source-textarea"),
+    ).toHaveValue(
+      /Current sprint goal line 1[\s\S]+Current sprint goal line 24/u,
+    );
+    await savedGoalEditor
+      .getByTestId("markdown-toolbar")
+      .getByRole("button", { name: "Source" })
+      .click();
+    await savedGoalDialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(savedGoalDialog).toBeHidden();
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
+    const longLink = page
+      .getByTestId("current-sprint-shortcut")
+      .getByRole("link");
+    await expect(longLink).toHaveAttribute("title", LONG_CURRENT_SPRINT_NAME);
+    await expect(longLink).toHaveAccessibleName(
+      `Open current sprint details: ${LONG_CURRENT_SPRINT_NAME}`,
+    );
+    await expect(longLink).toHaveAttribute(
+      "href",
+      `/workspace/${REEF_E2E_VAULT}/planning/sprints/${currentSprint.id}`,
+    );
+    expect(await readIssuesChromeGeometry(page)).toEqual(initialGeometry);
+    await expect(
+      page.getByTestId("issue-list-row").filter({ hasText: "REEF-002" }),
+    ).toBeVisible();
+  });
+
+  test("keeps the current sprint shortcut independent from sprint filters and native link activation", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width: 768, height: 844 });
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page);
+
+    const initialVault = reefVault(await readFixtureState(request));
+    const currentSprint = initialVault.sprints.find(
+      (sprint) => sprint.status === "active",
+    );
+    if (!currentSprint) throw new Error("Missing configured active sprint");
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
+    await page.getByRole("button", { name: "New sprint" }).click();
+    const createDialog = page.getByTestId("planning-editor-dialog");
+    await createDialog
+      .getByTestId("planning-name-input")
+      .fill("A different planned sprint");
+    await createDialog.getByTestId("planning-save").click();
+    await expect(createDialog).toBeHidden();
+    await expect(page.getByText("A different planned sprint")).toBeVisible();
+
+    const catalogWithOtherSprint = reefVault(await readFixtureState(request));
+    const otherSprint = catalogWithOtherSprint.sprints.find(
+      (sprint) => sprint.name === "A different planned sprint",
+    );
+    if (!otherSprint) throw new Error("Missing secondary sprint");
+    expect(catalogWithOtherSprint.sprints).toHaveLength(2);
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
+    const currentLink = page
+      .getByTestId("current-sprint-shortcut")
+      .getByRole("link");
+    await expect(currentLink).toHaveAttribute(
+      "href",
+      `/workspace/${REEF_E2E_VAULT}/planning/sprints/${currentSprint.id}`,
+    );
+    await expect(
+      page.getByTestId("issue-list-row").filter({ hasText: "REEF-002" }),
+    ).toBeVisible();
+
+    await currentLink.focus();
+    await expect(currentLink).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(
+      `/workspace/${REEF_E2E_VAULT}/planning/sprints/${currentSprint.id}`,
+    );
+    await expect(page.getByTestId("sprint-detail-header")).toBeVisible();
+
+    for (const activation of ["modifier", "middle"] as const) {
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+      await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
+      const link = page
+        .getByTestId("current-sprint-shortcut")
+        .getByRole("link");
+      const popupPromise = context.waitForEvent("page", { timeout: 10_000 });
+      if (activation === "modifier") {
+        await link.click({ modifiers: [NEW_TAB_MODIFIER] });
+      } else {
+        await link.click({ button: "middle" });
+      }
+      const popup = await popupPromise;
+      await popup.waitForLoadState("domcontentloaded");
+      await expect(popup).toHaveURL(
+        `/workspace/${REEF_E2E_VAULT}/planning/sprints/${currentSprint.id}`,
+      );
+      await expect(popup.getByTestId("sprint-detail-header")).toBeVisible();
+      await popup.close();
+    }
+
+    await page.goto(
+      `/workspace/${REEF_E2E_VAULT}/issues?view=list&sprint_id=${otherSprint.id}`,
+    );
+    await expect(
+      page.getByText("No issues match your filters.", { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByTestId("issue-list-row")).toHaveCount(0);
+    await expect(
+      page.getByTestId("current-sprint-shortcut").getByRole("link"),
+    ).toHaveAttribute(
+      "href",
+      `/workspace/${REEF_E2E_VAULT}/planning/sprints/${currentSprint.id}`,
+    );
+  });
+
+  test("keeps Issues usable without a current sprint shortcut while the catalog loads, fails, or is empty", async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width: 768, height: 844 });
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page);
+
+    const loadingPage = await page.context().newPage();
+    await loadingPage.setViewportSize({ width: 768, height: 844 });
+    await clearPersistedQueryCacheOnLoad(loadingPage);
+    const planningRequest = loadingPage.waitForRequest(
+      (request) =>
+        request.method() === "GET" &&
+        new URL(request.url()).pathname === "/api/planning",
+    );
+    const navigation = loadingPage.goto(
+      `/workspace/${REEF_E2E_VAULT}/issues?view=list`,
+      { waitUntil: "commit" },
+    );
+    await planningRequest;
+    expect(
+      await loadingPage.getByTestId("current-sprint-shortcut").count(),
+    ).toBe(0);
+    await navigation;
+    await expect(
+      loadingPage.getByTestId("issue-list-row").first(),
+    ).toBeVisible();
+    await loadingPage.close();
+
+    await setPlanningCatalogFailure(request, true);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
+    await expect(page.getByTestId("filter-bar")).toBeVisible();
+    await expect(page.getByTestId("current-sprint-shortcut")).toHaveCount(0);
+    await expect(
+      page.locator('[data-slot="page-header"] a[href*="/planning/sprints/"]'),
+    ).toHaveCount(0);
+
+    await resetFixture(request, "configured_empty");
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await expect(
+      page.getByText("Your workspace is empty.", { exact: false }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("textbox", { name: "Search issues" }),
+    ).toBeVisible();
+    await expect(page.getByTestId("view-switcher")).toBeVisible();
+    await expect(page.getByTestId("current-sprint-shortcut")).toHaveCount(0);
+    await expect(
+      page.locator('[data-slot="page-header"] a[href*="/planning/sprints/"]'),
+    ).toHaveCount(0);
   });
 
   test("restores scope and layout independently and normalizes Backlog Timeline", async ({
