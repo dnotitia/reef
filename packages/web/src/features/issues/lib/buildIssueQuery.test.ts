@@ -51,6 +51,27 @@ describe("buildIssueQuery", () => {
     });
   });
 
+  it.each(["created_at", "start_date", "due_date"] as const)(
+    "normalizes a complete %s range for the server",
+    (field) => {
+      const normalized = toIssueDateRangeQuery({
+        field,
+        from: "2026-06-01",
+        to: "2026-06-01",
+      });
+      expect(
+        buildIssueQuery({
+          dateRange: { field, from: "2026-06-01", to: "2026-06-01" },
+        }),
+      ).toMatchObject({
+        date_field: field,
+        date_from: normalized?.from,
+        date_to: normalized?.to,
+        ...DEFAULT_SORT,
+      });
+    },
+  );
+
   it("omits an incomplete date range instead of narrowing the query", () => {
     expect(
       buildIssueQuery({

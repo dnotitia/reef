@@ -52,6 +52,28 @@ describe("My View workspace snapshot codec", () => {
     expect(JSON.stringify(snapshot)).not.toContain("search");
   });
 
+  it.each(["created_at", "start_date", "due_date"] as const)(
+    "round-trips the %s date criterion",
+    (field) => {
+      const snapshot = buildMyViewSnapshot({
+        filter: {
+          dateRange: { field, from: "2026-06-01", to: "2026-06-02" },
+        },
+        scope: "active",
+        layout: "list",
+      });
+
+      expect(snapshot.filter.dateRange).toEqual({
+        field,
+        from: "2026-06-01",
+        to: "2026-06-02",
+      });
+      expect(applyMyViewSnapshot(snapshot).filter.dateRange).toEqual(
+        snapshot.filter.dateRange,
+      );
+    },
+  );
+
   it("keeps Manual mode mode-only and applies field ordering as a complete pair", () => {
     const manual = applyMyViewSnapshot({
       filter: { priority: ["high"] },

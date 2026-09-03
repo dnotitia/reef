@@ -40,7 +40,7 @@ export interface IssueFilter {
   /** Shared ordering choice; omitted legacy filters resolve to Manual. */
   orderingMode?: IssueOrderingMode;
   dependencyFilter?: ("blocked" | "blocking")[];
-  /** One generic issue-date range; the current UI exposes updated_at. */
+  /** One generic issue-date range across the registered issue date fields. */
   dateRange?: IssueDateRange;
   /**
    * Controls whether archived issues (`archived_at != null`) appear in the

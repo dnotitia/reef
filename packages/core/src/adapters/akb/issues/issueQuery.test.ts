@@ -217,6 +217,48 @@ describe("buildIssueWhere", () => {
     ]);
   });
 
+  it("uses registered nullable date columns with an explicit null guard", () => {
+    expect(
+      issueWhere({
+        date_range: {
+          field: "start_date",
+          from: "2026-06-01",
+          to: "2026-06-03",
+        },
+        archived: true,
+      }),
+    ).toEqual({
+      sql: '"start_date" IS NOT NULL AND "start_date" >= $1 AND "start_date" < $2',
+      params: ["2026-06-01", "2026-06-03"],
+    });
+    expect(
+      issueWhere({
+        date_range: {
+          field: "due_date",
+          from: "2026-06-01",
+          to: "2026-06-03",
+        },
+        archived: true,
+      }).sql,
+    ).toContain('"due_date" IS NOT NULL');
+  });
+
+  it("keeps timestamp date fields on the same half-open predicate", () => {
+    expect(
+      issueWhere({
+        date_range: {
+          field: "created_at",
+          from: "2026-06-01T00:00:00.000Z",
+          to: "2026-06-03T00:00:00.000Z",
+        },
+        archived: true,
+      }),
+    ).toEqual({
+      sql: '"created_at" >= $1 AND "created_at" < $2',
+      params: ["2026-06-01T00:00:00.000Z", "2026-06-03T00:00:00.000Z"],
+    });
+  });
+
   it("AND-combines the `q` group with other facets (search narrows within filter) (REEF-034)", () => {
     const result = issueWhere({ status: ["todo"], q: "auth" });
     // status facet, then the parenthesized q group, then the archived floor.

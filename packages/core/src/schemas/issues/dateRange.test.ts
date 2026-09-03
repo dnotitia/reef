@@ -15,15 +15,37 @@ const updatedRange = {
 };
 
 describe("issue date range module", () => {
-  it("registers only the currently supported updated timestamp", () => {
+  it("registers the supported timestamp and date-only issue fields", () => {
     expect(getIssueDateField("updated_at")).toMatchObject({
       id: "updated_at",
       storage: "timestamp",
       nullable: false,
       column: "updated_at",
     });
-    expect(getIssueDateField("created_at")).toBeUndefined();
-    expect(Object.keys(ISSUE_DATE_FIELD_REGISTRY)).toEqual(["updated_at"]);
+    expect(getIssueDateField("created_at")).toMatchObject({
+      id: "created_at",
+      storage: "timestamp",
+      nullable: false,
+      column: "created_at",
+    });
+    expect(getIssueDateField("start_date")).toMatchObject({
+      id: "start_date",
+      storage: "date-only",
+      nullable: true,
+      column: "start_date",
+    });
+    expect(getIssueDateField("due_date")).toMatchObject({
+      id: "due_date",
+      storage: "date-only",
+      nullable: true,
+      column: "due_date",
+    });
+    expect(Object.keys(ISSUE_DATE_FIELD_REGISTRY)).toEqual([
+      "updated_at",
+      "created_at",
+      "start_date",
+      "due_date",
+    ]);
   });
 
   it("reports incomplete and reversed calendar ranges without applying them", () => {
@@ -56,6 +78,44 @@ describe("issue date range module", () => {
       from: "2026-06-01T07:00:00.000Z",
       to: "2026-06-03T07:00:00.000Z",
     });
+    expect(
+      toIssueDateRangeQuery(
+        { field: "created_at", from: "2026-06-01", to: "2026-06-02" },
+        "America/Los_Angeles",
+      ),
+    ).toEqual({
+      field: "created_at",
+      from: "2026-06-01T07:00:00.000Z",
+      to: "2026-06-03T07:00:00.000Z",
+    });
+  });
+
+  it("keeps date-only boundaries as stored calendar days in every timezone", () => {
+    const range = { field: "start_date", from: "2026-06-01", to: "2026-06-02" };
+    expect(toIssueDateRangeQuery(range, "America/Los_Angeles")).toEqual({
+      field: "start_date",
+      from: "2026-06-01",
+      to: "2026-06-03",
+    });
+    expect(
+      toIssueDateRangeQuery({ ...range, field: "due_date" }, "Asia/Seoul"),
+    ).toEqual({
+      field: "due_date",
+      from: "2026-06-01",
+      to: "2026-06-03",
+    });
+  });
+
+  it("matches nullable date-only fields while excluding unset rows", () => {
+    const range = { field: "due_date", from: "2026-06-01", to: "2026-06-02" };
+    expect(
+      matchesIssueDateRange({ due_date: "2026-05-31" }, range, "UTC"),
+    ).toBe(false);
+    expect(
+      matchesIssueDateRange({ due_date: "2026-06-01" }, range, "UTC"),
+    ).toBe(true);
+    expect(matchesIssueDateRange({ due_date: null }, range, "UTC")).toBe(false);
+    expect(matchesIssueDateRange({}, range, "UTC")).toBe(false);
   });
 
   it("starts at the first valid instant when local midnight is skipped", () => {
@@ -135,7 +195,48 @@ describe("issue date range module", () => {
   it("rejects an unregistered field at the query boundary", () => {
     expect(
       IssueDateRangeQuerySchema.safeParse({
+        field: "custom_date",
+        from: "2026-06-01T00:00:00.000Z",
+        to: "2026-06-02T00:00:00.000Z",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts normalized ranges for every registered field", () => {
+    expect(
+      IssueDateRangeQuerySchema.parse({
         field: "created_at",
+        from: "2026-06-01T00:00:00.000Z",
+        to: "2026-06-02T00:00:00.000Z",
+      }),
+    ).toMatchObject({ field: "created_at" });
+    expect(
+      IssueDateRangeQuerySchema.parse({
+        field: "start_date",
+        from: "2026-06-01",
+        to: "2026-06-02",
+      }),
+    ).toEqual({ field: "start_date", from: "2026-06-01", to: "2026-06-02" });
+    expect(
+      IssueDateRangeQuerySchema.parse({
+        field: "due_date",
+        from: "2026-06-01",
+        to: "2026-06-02",
+      }),
+    ).toMatchObject({ field: "due_date" });
+  });
+
+  it("rejects a storage boundary that does not match the registered semantics", () => {
+    expect(
+      IssueDateRangeQuerySchema.safeParse({
+        field: "created_at",
+        from: "2026-06-01",
+        to: "2026-06-02",
+      }).success,
+    ).toBe(false);
+    expect(
+      IssueDateRangeQuerySchema.safeParse({
+        field: "start_date",
         from: "2026-06-01T00:00:00.000Z",
         to: "2026-06-02T00:00:00.000Z",
       }).success,

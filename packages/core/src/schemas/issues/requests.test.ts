@@ -126,7 +126,7 @@ describe("IssueListQuerySchema", () => {
     expect(() => IssueListQuerySchema.parse({ status: ["bogus"] })).toThrow();
   });
 
-  it("accepts only a registered, ordered date-range query", () => {
+  it("accepts every registered, ordered date-range query", () => {
     expect(
       IssueListQuerySchema.parse({
         date_range: {
@@ -140,10 +140,37 @@ describe("IssueListQuerySchema", () => {
       from: "2026-06-01T00:00:00.000Z",
       to: "2026-06-02T00:00:00.000Z",
     });
-    expect(() =>
+    expect(
       IssueListQuerySchema.parse({
         date_range: {
           field: "created_at",
+          from: "2026-06-01T00:00:00.000Z",
+          to: "2026-06-02T00:00:00.000Z",
+        },
+      }).date_range?.field,
+    ).toBe("created_at");
+    expect(
+      IssueListQuerySchema.parse({
+        date_range: {
+          field: "start_date",
+          from: "2026-06-01",
+          to: "2026-06-02",
+        },
+      }).date_range,
+    ).toEqual({ field: "start_date", from: "2026-06-01", to: "2026-06-02" });
+    expect(
+      IssueListQuerySchema.parse({
+        date_range: {
+          field: "due_date",
+          from: "2026-06-01",
+          to: "2026-06-02",
+        },
+      }).date_range?.field,
+    ).toBe("due_date");
+    expect(() =>
+      IssueListQuerySchema.parse({
+        date_range: {
+          field: "custom_date",
           from: "2026-06-01T00:00:00.000Z",
           to: "2026-06-02T00:00:00.000Z",
         },
