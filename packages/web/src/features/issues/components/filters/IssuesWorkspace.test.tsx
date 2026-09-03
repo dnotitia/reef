@@ -235,6 +235,8 @@ describe("IssuesWorkspace", () => {
       "/workspace/reef-acme/planning/sprints/sprint-13",
     );
     expect(link).toHaveAttribute("title", "Sprint 13");
+    expect(link).toHaveClass("type-control", "focus-visible:ring-focus-ring");
+    expect(link).not.toHaveClass("focus-visible:ring-brand-focus/40");
   });
 
   it("does not add the current sprint shortcut to Backlog", () => {

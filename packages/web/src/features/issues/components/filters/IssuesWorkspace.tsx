@@ -62,7 +62,7 @@ function CurrentSprintShortcut({ vault }: { vault: string }) {
           name: currentSprint.name,
         })}
         title={currentSprint.name}
-        className="min-w-0 truncate font-medium text-brand-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+        className="min-w-0 truncate type-control font-medium text-brand-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
       >
         {currentSprint.name}
       </a>

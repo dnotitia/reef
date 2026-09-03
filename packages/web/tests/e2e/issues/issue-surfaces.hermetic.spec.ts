@@ -1,4 +1,5 @@
 import { type Locator, type Page, expect, test } from "@playwright/test";
+import { writeFile } from "node:fs/promises";
 import {
   REEF_E2E_VAULT,
   clearPersistedQueryCacheOnLoad,
@@ -77,6 +78,14 @@ async function setVisualTheme(page: Page, theme: "light" | "dark") {
         .evaluate((element) => element.classList.contains("dark")),
     )
     .toBe(theme === "dark");
+}
+
+async function setVisualLocale(page: Page, locale: "en" | "ko") {
+  await page.goto(`/workspace/${REEF_E2E_VAULT}/settings/preferences`);
+  const language = page.getByRole("region", { name: /^(Language|언어)$/u });
+  await expect(language).toBeVisible();
+  await language.getByTestId(`locale-option-${locale}`).click();
+  await expect(page.locator("html")).toHaveAttribute("lang", locale);
 }
 
 async function observeSurfaceRoles(page: Page): Promise<SurfaceObservation> {
@@ -235,6 +244,169 @@ async function readIssuesChromeGeometry(page: Page) {
       filterBar: height('[data-testid="filter-bar"]'),
     };
   });
+}
+
+async function readDisplayMenuGeometry(page: Page) {
+  return page.getByTestId("display-options-content").evaluate((element) => {
+    const root = element as HTMLElement;
+    const rect = root.getBoundingClientRect();
+    return {
+      top: rect.top,
+      right: rect.right,
+      bottom: rect.bottom,
+      left: rect.left,
+      maxHeight: getComputedStyle(root).maxHeight,
+      overflowY: getComputedStyle(root).overflowY,
+      clientHeight: root.clientHeight,
+      scrollHeight: root.scrollHeight,
+      scrollTop: root.scrollTop,
+      documentOverflow:
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth,
+      bodyOverflow: document.body.scrollWidth > document.body.clientWidth,
+    };
+  });
+}
+
+async function readCurrentSprintFocus(page: Page) {
+  return page
+    .getByTestId("current-sprint-shortcut")
+    .getByRole("link")
+    .evaluate((element) => {
+      type Rgb = { r: number; g: number; b: number; a: number };
+
+      const parseColor = (value: string): Rgb | null => {
+        const normalized = value.trim().toLowerCase();
+        const hexMatch = normalized.match(/^#([\da-f]{3,8})$/u);
+        if (hexMatch) {
+          const hex = hexMatch[1] ?? "";
+          const expanded =
+            hex.length <= 4
+              ? [...hex].map((character) => `${character}${character}`).join("")
+              : hex;
+          if (expanded.length === 6 || expanded.length === 8) {
+            return {
+              r: Number.parseInt(expanded.slice(0, 2), 16),
+              g: Number.parseInt(expanded.slice(2, 4), 16),
+              b: Number.parseInt(expanded.slice(4, 6), 16),
+              a:
+                expanded.length === 8
+                  ? Number.parseInt(expanded.slice(6, 8), 16) / 255
+                  : 1,
+            };
+          }
+        }
+        const rgbMatch = normalized.match(/^rgba?\(([^)]+)\)$/u);
+        if (rgbMatch) {
+          const parts = rgbMatch[1]
+            .replaceAll("/", " ")
+            .split(/[\s,]+/u)
+            .filter(Boolean)
+            .map(Number);
+          if (parts.length >= 3 && parts.every(Number.isFinite)) {
+            return {
+              r: parts[0] ?? 0,
+              g: parts[1] ?? 0,
+              b: parts[2] ?? 0,
+              a: parts[3] ?? 1,
+            };
+          }
+        }
+
+        const srgbMatch = normalized.match(
+          /^color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+))?\)$/u,
+        );
+        if (srgbMatch) {
+          return {
+            r: Number(srgbMatch[1]) * 255,
+            g: Number(srgbMatch[2]) * 255,
+            b: Number(srgbMatch[3]) * 255,
+            a: Number(srgbMatch[4] ?? 1),
+          };
+        }
+
+        const hslMatch = normalized.match(
+          /^hsla?\(\s*([\d.]+)(?:deg)?[\s,]+([\d.]+)%[\s,]+([\d.]+)%(?:[\s,/]+([\d.]+))?\s*\)$/u,
+        );
+        if (!hslMatch) return null;
+        const hue = (Number(hslMatch[1]) % 360) / 60;
+        const saturation = Number(hslMatch[2]) / 100;
+        const lightness = Number(hslMatch[3]) / 100;
+        const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
+        const second = chroma * (1 - Math.abs((hue % 2) - 1));
+        const match =
+          hue < 1
+            ? [chroma, second, 0]
+            : hue < 2
+              ? [second, chroma, 0]
+              : hue < 3
+                ? [0, chroma, second]
+                : hue < 4
+                  ? [0, second, chroma]
+                  : hue < 5
+                    ? [second, 0, chroma]
+                    : [chroma, 0, second];
+        const offset = lightness - chroma / 2;
+        return {
+          r: (match[0] + offset) * 255,
+          g: (match[1] + offset) * 255,
+          b: (match[2] + offset) * 255,
+          a: Number(hslMatch[4] ?? 1),
+        };
+      };
+
+      const luminance = (channel: number) => {
+        const normalized = channel / 255;
+        return normalized <= 0.03928
+          ? normalized / 12.92
+          : ((normalized + 0.055) / 1.055) ** 2.4;
+      };
+      const relativeLuminance = (color: Rgb) =>
+        0.2126 * luminance(color.r) +
+        0.7152 * luminance(color.g) +
+        0.0722 * luminance(color.b);
+      const composite = (foreground: Rgb, background: Rgb): Rgb => ({
+        r: foreground.r * foreground.a + background.r * (1 - foreground.a),
+        g: foreground.g * foreground.a + background.g * (1 - foreground.a),
+        b: foreground.b * foreground.a + background.b * (1 - foreground.a),
+        a: 1,
+      });
+
+      const styles = getComputedStyle(element);
+      const backgroundValue = getComputedStyle(
+        document.documentElement,
+      ).getPropertyValue("--surface-page");
+      const background = parseColor(backgroundValue);
+      const shadowMatches =
+        styles.boxShadow.match(/(?:rgba?\([^)]*\)|color\(srgb[^)]*\))/gu) ?? [];
+      const shadowColor = shadowMatches
+        .map(parseColor)
+        .find((color): color is Rgb => color !== null && color.a > 0);
+      const contrast =
+        background && shadowColor
+          ? (() => {
+              const ring = composite(shadowColor, background);
+              const foregroundLuminance = relativeLuminance(ring);
+              const backgroundLuminance = relativeLuminance(background);
+              return (
+                (Math.max(foregroundLuminance, backgroundLuminance) + 0.05) /
+                (Math.min(foregroundLuminance, backgroundLuminance) + 0.05)
+              );
+            })()
+          : null;
+
+      const rect = element.getBoundingClientRect();
+      return {
+        fontSize: styles.fontSize,
+        lineHeight: styles.lineHeight,
+        boxShadow: styles.boxShadow,
+        contrast,
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+      };
+    });
 }
 
 async function expectVisibleFocus(locator: Locator) {
@@ -829,6 +1001,217 @@ test.describe("Hermetic issue route surfaces", () => {
     await expect(
       page.locator('[data-slot="page-header"] a[href*="/planning/sprints/"]'),
     ).toHaveCount(0);
+  });
+
+  test("keeps the Display menu bounded and keyboard-scrollable across supported locales and themes", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(120_000);
+    await openExistingWorkspace(page);
+
+    let locale: "en" | "ko" = "en";
+    const cases = [
+      { width: 320, height: 812, locale: "en", theme: "light" },
+      { width: 375, height: 812, locale: "en", theme: "dark" },
+      { width: 414, height: 812, locale: "ko", theme: "light" },
+      { width: 768, height: 812, locale: "ko", theme: "dark" },
+      { width: 1280, height: 720, locale: "en", theme: "light" },
+    ] as const;
+
+    const expectMenuBounds = async (width: number, height: number) => {
+      const geometry = await readDisplayMenuGeometry(page);
+      expect(geometry.top, `${width}px menu top`).toBeGreaterThanOrEqual(0);
+      expect(geometry.left, `${width}px menu left`).toBeGreaterThanOrEqual(0);
+      expect(geometry.right, `${width}px menu right`).toBeLessThanOrEqual(
+        width,
+      );
+      expect(geometry.bottom, `${width}px menu bottom`).toBeLessThanOrEqual(
+        height,
+      );
+      expect(geometry.maxHeight, `${width}px menu max-height`).not.toBe("none");
+      expect(geometry.overflowY, `${width}px menu overflow`).toMatch(
+        /^(auto|scroll)$/u,
+      );
+      expect(geometry.documentOverflow, `${width}px document overflow`).toBe(
+        false,
+      );
+      expect(geometry.bodyOverflow, `${width}px body overflow`).toBe(false);
+      return geometry;
+    };
+    const observations: Array<{
+      width: number;
+      height: number;
+      locale: "en" | "ko";
+      theme: "light" | "dark";
+      phase: "initial" | "after-last-item" | "after-resize";
+      geometry: Awaited<ReturnType<typeof readDisplayMenuGeometry>>;
+    }> = [];
+
+    for (const menuCase of cases) {
+      await page.setViewportSize(menuCase);
+      if (menuCase.locale !== locale) {
+        await setVisualLocale(page, menuCase.locale);
+        locale = menuCase.locale;
+      }
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+      await setVisualTheme(page, menuCase.theme);
+      await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
+
+      const trigger = page.getByTestId("display-options-trigger");
+      await trigger.click();
+      const menu = page.getByTestId("display-options-content");
+      await expect(menu).toBeVisible();
+      const geometry = await expectMenuBounds(menuCase.width, menuCase.height);
+      observations.push({ ...menuCase, phase: "initial", geometry });
+      if (menuCase.width <= 414) {
+        if (menuCase.width >= 375) {
+          expect(
+            geometry.scrollHeight,
+            `${menuCase.width}px menu scroll height`,
+          ).toBeGreaterThan(geometry.clientHeight);
+        }
+      }
+
+      const first = menu.getByTestId("show-archived-toggle");
+      const second = menu.getByTestId("show-stale-toggle");
+      const last = menu.getByTestId("issue-list-column-release");
+      await first.focus();
+      await expect(first).toBeFocused();
+      await page.keyboard.press("ArrowDown");
+      await expect(second).toBeFocused();
+      await page.keyboard.press("ArrowUp");
+      await expect(first).toBeFocused();
+      await last.focus();
+      await expect(last).toBeFocused();
+      let scrolled = await readDisplayMenuGeometry(page);
+      if (scrolled.scrollHeight > scrolled.clientHeight) {
+        await menu.evaluate((element) => {
+          element.scrollTop = element.scrollHeight;
+        });
+        scrolled = await readDisplayMenuGeometry(page);
+        expect(
+          scrolled.scrollTop,
+          `${menuCase.width}px menu internal scroll`,
+        ).toBeGreaterThan(0);
+      }
+      observations.push({
+        ...menuCase,
+        phase: "after-last-item",
+        geometry: scrolled,
+      });
+      if (
+        menuCase.width === 375 ||
+        menuCase.width === 414 ||
+        menuCase.width === 1280
+      ) {
+        const screenshot = await page.screenshot({
+          animations: "disabled",
+          path: testInfo.outputPath(
+            `display-menu-${menuCase.width}-${menuCase.locale}-${menuCase.theme}.png`,
+          ),
+        });
+        expect(screenshot.byteLength).toBeGreaterThan(0);
+      }
+      await page.keyboard.press("Space");
+      await expect(menu).toBeVisible();
+      await page.keyboard.press("Home");
+      await expect(first).toBeFocused();
+      await page.keyboard.press("End");
+      await expect(menu.locator('[role^="menuitem"]').last()).toBeFocused();
+      await page.keyboard.press("Escape");
+      await expect(menu).toHaveCount(0);
+
+      if (menuCase.width === 375) {
+        await trigger.click();
+        await expect(menu).toBeVisible();
+        const resizedGeometry = await expectMenuBounds(375, 812);
+        observations.push({
+          width: 375,
+          height: 812,
+          locale: menuCase.locale,
+          theme: menuCase.theme,
+          phase: "after-resize",
+          geometry: resizedGeometry,
+        });
+        await page.setViewportSize({ width: 414, height: 812 });
+        await expect(menu).toBeVisible();
+        const resizedViewportGeometry = await expectMenuBounds(414, 812);
+        observations.push({
+          width: 414,
+          height: 812,
+          locale: menuCase.locale,
+          theme: menuCase.theme,
+          phase: "after-resize",
+          geometry: resizedViewportGeometry,
+        });
+        await page.keyboard.press("Escape");
+        await expect(menu).toHaveCount(0);
+      }
+    }
+    const observationsPath = testInfo.outputPath(
+      "issues-display-menu-observations.json",
+    );
+    await writeFile(observationsPath, JSON.stringify(observations, null, 2));
+    await testInfo.attach("issues-display-menu-observations.json", {
+      path: observationsPath,
+      contentType: "application/json",
+    });
+  });
+
+  test("uses compact typography and a contrast-safe current sprint focus ring", async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width: 768, height: 812 });
+    await openExistingWorkspace(page);
+    const observations: Array<{
+      theme: "light" | "dark";
+      fontSize: string;
+      lineHeight: string;
+      boxShadow: string;
+      contrast: number | null;
+      left: number;
+      top: number;
+      right: number;
+      bottom: number;
+    }> = [];
+
+    for (const theme of ["light", "dark"] as const) {
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+      await setVisualTheme(page, theme);
+      const link = page
+        .getByTestId("current-sprint-shortcut")
+        .getByRole("link");
+      await expect(link).toBeVisible();
+      await link.focus();
+      await expect(link).toBeFocused();
+      const focus = await readCurrentSprintFocus(page);
+      expect(focus.fontSize, `${theme} link font-size`).toBe("13px");
+      expect(focus.lineHeight, `${theme} link line-height`).toBe("19.5px");
+      expect(focus.boxShadow, `${theme} link focus ring`).not.toBe("none");
+      expect(focus.contrast, `${theme} link focus contrast`).not.toBeNull();
+      expect(
+        focus.contrast ?? 0,
+        `${theme} link focus contrast`,
+      ).toBeGreaterThanOrEqual(3);
+      expect(focus.left, `${theme} link left`).toBeGreaterThanOrEqual(0);
+      expect(focus.right, `${theme} link right`).toBeLessThanOrEqual(768);
+      expect(focus.top, `${theme} link top`).toBeGreaterThanOrEqual(0);
+      expect(focus.bottom, `${theme} link bottom`).toBeLessThanOrEqual(812);
+      observations.push({ theme, ...focus });
+      const screenshot = await page.screenshot({
+        animations: "disabled",
+        path: testInfo.outputPath(`current-sprint-focus-${theme}.png`),
+      });
+      expect(screenshot.byteLength).toBeGreaterThan(0);
+    }
+    const observationsPath = testInfo.outputPath(
+      "current-sprint-focus-observations.json",
+    );
+    await writeFile(observationsPath, JSON.stringify(observations, null, 2));
+    await testInfo.attach("current-sprint-focus-observations.json", {
+      path: observationsPath,
+      contentType: "application/json",
+    });
   });
 
   test("uses the real cursor policy across controls, rows, menus, and detail", async ({
