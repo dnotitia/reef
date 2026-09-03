@@ -1149,7 +1149,6 @@
       "sprintLocked": "스프린트: {name} (잠김)",
       "sprintLockedLabel": "스프린트",
       "unlockSprint": "스프린트 범위 잠금 해제하고 이슈 열기",
-      "currentSprint": "현재 스프린트",
       "openCurrentSprintDetails": "{name} 현재 스프린트 상세 열기",
       "display": "표시",
       "displayOptions": "표시 옵션",

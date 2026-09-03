@@ -3,6 +3,7 @@
 import "fake-indexeddb/auto";
 
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
+import userEvent from "@testing-library/user-event";
 import {
   getPersistedIssueFilter,
   setPersistedIssueFilter,
@@ -201,7 +202,8 @@ describe("IssuesWorkspace", () => {
     expect(view.closest('[data-slot="page-header-actions"]')).not.toBeNull();
   });
 
-  it("places the current sprint shortcut beside the scope in the shared header", () => {
+  it("places the current sprint link beside the scope with a detail tooltip", async () => {
+    const user = userEvent.setup();
     mockUsePlanningCatalog.mockReturnValue({
       data: {
         sprints: [
@@ -234,7 +236,19 @@ describe("IssuesWorkspace", () => {
       "href",
       "/workspace/reef-acme/planning/sprints/sprint-13",
     );
-    expect(link).toHaveAttribute("title", "Sprint 13");
+    expect(shortcut).toHaveTextContent("Sprint 13");
+    expect(shortcut).not.toHaveTextContent("Current sprint");
+    expect(link).not.toHaveAttribute("title");
+    await user.hover(link);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "Open current sprint details: Sprint 13",
+    );
+    await user.unhover(link);
+    link.focus();
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "Open current sprint details: Sprint 13",
+    );
+    expect(link).toHaveAttribute("aria-describedby");
     expect(link).toHaveClass("type-control", "focus-visible:ring-focus-ring");
     expect(link).not.toHaveClass("focus-visible:ring-brand-focus/40");
   });

@@ -696,8 +696,42 @@ test.describe("Hermetic issue route surfaces", () => {
     const longLink = page
       .getByTestId("current-sprint-shortcut")
       .getByRole("link");
-    await expect(longLink).toHaveAttribute("title", LONG_CURRENT_SPRINT_NAME);
+    await expect(page.getByText("Current sprint", { exact: true })).toHaveCount(
+      0,
+    );
+    await expect(longLink).not.toHaveAttribute("title");
     await expect(longLink).toHaveAccessibleName(
+      `Open current sprint details: ${LONG_CURRENT_SPRINT_NAME}`,
+    );
+    const longLinkGeometry = await longLink.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const styles = getComputedStyle(element);
+      return {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+        textOverflow: styles.textOverflow,
+        whiteSpace: styles.whiteSpace,
+      };
+    });
+    expect(longLinkGeometry.left).toBeGreaterThanOrEqual(0);
+    expect(longLinkGeometry.right).toBeLessThanOrEqual(768);
+    expect(longLinkGeometry.top).toBeGreaterThanOrEqual(0);
+    expect(longLinkGeometry.bottom).toBeLessThanOrEqual(844);
+    expect(longLinkGeometry.textOverflow).toBe("ellipsis");
+    expect(longLinkGeometry.whiteSpace).toBe("nowrap");
+    expect(longLinkGeometry.scrollWidth).toBeGreaterThan(
+      longLinkGeometry.clientWidth,
+    );
+    await longLink.hover();
+    await expect(page.getByRole("tooltip")).toHaveText(
+      `Open current sprint details: ${LONG_CURRENT_SPRINT_NAME}`,
+    );
+    await longLink.focus();
+    await expect(page.getByRole("tooltip")).toHaveText(
       `Open current sprint details: ${LONG_CURRENT_SPRINT_NAME}`,
     );
     await expect(longLink).toHaveAttribute(

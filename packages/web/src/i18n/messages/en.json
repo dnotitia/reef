@@ -963,7 +963,6 @@
       "sprintLocked": "Sprint: {name} (locked)",
       "sprintLockedLabel": "Sprint",
       "unlockSprint": "Unlock sprint scope and open Issues",
-      "currentSprint": "Current sprint",
       "openCurrentSprintDetails": "Open current sprint details: {name}",
       "display": "Display",
       "displayOptions": "Display options",

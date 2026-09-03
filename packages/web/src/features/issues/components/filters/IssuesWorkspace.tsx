@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { KanbanBoard } from "@/features/board/components/KanbanBoard";
 import { BacklogView } from "@/features/issues/components/backlog/BacklogView";
 import { IssueBulkActionBar } from "@/features/issues/components/bulk/IssueBulkActionBar";
@@ -46,26 +52,30 @@ function CurrentSprintShortcut({ vault }: { vault: string }) {
   const t = useTranslations("issues.filters");
 
   if (!currentSprint) return null;
+  const detailLabel = t("openCurrentSprintDetails", {
+    name: currentSprint.name,
+  });
 
   return (
     <div
-      className="flex min-w-0 max-w-[min(15rem,28vw)] items-center gap-1.5"
+      className="min-w-0 max-w-[min(15rem,28vw)]"
       data-testid="current-sprint-shortcut"
       data-sprint-id={currentSprint.id}
     >
-      <span className="hidden shrink-0 type-card-metadata font-semibold uppercase tracking-wide text-muted-foreground min-[480px]:inline">
-        {t("currentSprint")}
-      </span>
-      <a
-        href={sprintDetailHref(vault, currentSprint.id)}
-        aria-label={t("openCurrentSprintDetails", {
-          name: currentSprint.name,
-        })}
-        title={currentSprint.name}
-        className="min-w-0 truncate type-control font-medium text-brand-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-      >
-        {currentSprint.name}
-      </a>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <a
+              href={sprintDetailHref(vault, currentSprint.id)}
+              aria-label={detailLabel}
+              className="block min-w-0 max-w-full truncate type-control font-medium text-brand-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            >
+              {currentSprint.name}
+            </a>
+          </TooltipTrigger>
+          <TooltipContent>{detailLabel}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     </div>
   );
 }
