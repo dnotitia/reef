@@ -44,8 +44,16 @@ export function buildIssueQuery(
   filter: IssueFilter,
   searchQuery?: string,
   scope?: IssueScope,
+  fixedSprintId?: string,
 ): IssueQueryParams {
-  const scopedFilter = scope ? filterForIssueScope(filter, scope) : filter;
+  const scopedFilter = fixedSprintId
+    ? {
+        ...(scope ? filterForIssueScope(filter, scope) : filter),
+        sprint_id: [fixedSprintId],
+      }
+    : scope
+      ? filterForIssueScope(filter, scope)
+      : filter;
   const q: IssueQueryParams = {};
   // Validate enum-constrained facets against the wire schemas. A stale/shared
   // URL can put an unsupported value in the store; the server schema would
@@ -149,6 +157,7 @@ export function buildIssueQuery(
 export function buildManualIssueQuery(
   filter: IssueFilter,
   scope: IssueScope,
+  fixedSprintId?: string,
 ): IssueQueryParams {
   return {
     status:
@@ -156,6 +165,7 @@ export function buildManualIssueQuery(
         ? ["backlog"]
         : ([...WORKFLOW_STATUS_OPTIONS] as string[]),
     ...(filter.showArchived ? { archived: "true" } : {}),
+    ...(fixedSprintId ? { sprint_id: [fixedSprintId] } : {}),
     sort_field: "rank",
     sort_order: "asc",
   };

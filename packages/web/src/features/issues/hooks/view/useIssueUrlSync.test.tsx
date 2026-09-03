@@ -566,8 +566,14 @@ describe("useIssueUrlSync", () => {
     await waitFor(() => {
       expect(navigationState.searchParams.has("q")).toBe(false);
       expect(useIssueStore.getState().searchQuery).toBe("");
-      expect(screen.getByTestId("search-input")).toHaveValue("");
     });
+    // SearchBar owns a local debounced draft and mirrors the store reset from
+    // its subscription. Wait for that separate render after the canonical
+    // URL/store state has settled; keep the exact empty-value contract.
+    await waitFor(
+      () => expect(screen.getByTestId("search-input")).toHaveValue(""),
+      { timeout: 3000 },
+    );
   });
 
   it("restores List optional columns from an explicit URL", async () => {

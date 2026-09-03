@@ -32,6 +32,30 @@ export function findPlanningName(
   );
 }
 
+/**
+ * Pick the current sprint using the same deterministic tie-break as the
+ * server's active-sprint default: latest start date, then highest id.
+ */
+export function selectActiveSprint(sprints: readonly Sprint[]): Sprint | null {
+  let current: Sprint | null = null;
+  for (const sprint of sprints) {
+    if (sprint.status !== "active") continue;
+    if (current === null) {
+      current = sprint;
+      continue;
+    }
+    const sprintStart = sprint.start_date ?? "";
+    const currentStart = current.start_date ?? "";
+    if (
+      sprintStart > currentStart ||
+      (sprintStart === currentStart && sprint.id > current.id)
+    ) {
+      current = sprint;
+    }
+  }
+  return current;
+}
+
 export function isAssignablePlanningItem(
   kind: PlanningKind,
   item: PlanningItem,

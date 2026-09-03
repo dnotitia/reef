@@ -866,23 +866,29 @@ describe("PlanningPage", () => {
     expect(opts).toEqual({ scroll: false });
   });
 
-  it("toggles by clicking the title, with a single disclosure control (REEF-264)", async () => {
+  it("keeps the sprint name as a detail anchor beside its goal disclosure", async () => {
     const user = userEvent.setup();
     render(wrap(<PlanningPage />));
     await screen.findByText("Sprint One");
 
-    const title = screen.getByText("Sprint One");
+    const title = screen.getByRole("link", {
+      name: "Open Sprint One sprint details",
+    });
     const row = title.closest("tr") as HTMLElement;
-    // AC2: chevron + title are one button — exactly one aria-expanded toggle in
-    // the row (Edit/Delete carry no aria-expanded), not two disclosure controls.
+    // The sprint name navigates to the dedicated detail surface, while the
+    // adjacent chevron remains the only goal disclosure control.
     expect(
       within(row).getAllByRole("button", { expanded: false }),
     ).toHaveLength(1);
-    // AC1: the title text itself lives inside that single disclosure button.
-    expect(title.closest("button")).toHaveAttribute("aria-expanded", "false");
+    expect(title).toHaveAttribute(
+      "href",
+      `/workspace/reef-acme/planning/sprints/${SPRINT_ID}`,
+    );
+    expect(title.closest("button")).toBeNull();
 
-    // AC1: clicking the title (not just the 20px chevron) toggles the panel.
-    await user.click(title);
+    await user.click(
+      within(row).getByRole("button", { name: "Expand Sprint One details" }),
+    );
     expect(mockReplace).toHaveBeenCalledTimes(1);
     const [url] = mockReplace.mock.calls[0];
     const params = new URLSearchParams((url as string).split("?")[1]);

@@ -2,6 +2,7 @@
 
 import { BoardColumnsSkeleton } from "@/components/BoardColumnsSkeleton";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   kanbanToastId,
   notifyReorderFailure,
@@ -61,6 +62,8 @@ import {
   useIssueStore,
 } from "@/features/issues/stores/useIssueStore";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
+import { selectActiveSprint } from "@/features/planning/lib/planningItems";
+import { sprintDetailHref } from "@/features/planning/lib/planningUrls";
 import { useUserSearch } from "@/features/issues/hooks/queries/useUserSearch";
 import { DURATION_BASE, EASE_SIGNATURE } from "@/lib/motionTokens";
 import {
@@ -153,6 +156,7 @@ interface KanbanBoardProps {
   vault: string;
   scope?: IssueScope;
   groupBy?: IssueGroupBy;
+  fixedSprintId?: string;
 }
 
 /**
@@ -164,6 +168,7 @@ export function KanbanBoard({
   vault,
   scope = "active",
   groupBy,
+  fixedSprintId,
 }: KanbanBoardProps) {
   const effectiveGroupBy =
     groupBy ?? (scope === "backlog" ? "priority" : "status");
@@ -180,10 +185,10 @@ export function KanbanBoard({
   const noMatchId = useId();
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
-  const scopedFilter = useMemo(
-    () => filterForIssueScope(filter, scope),
-    [filter, scope],
-  );
+  const scopedFilter = useMemo(() => {
+    const scoped = filterForIssueScope(filter, scope);
+    return fixedSprintId ? { ...scoped, sprint_id: [fixedSprintId] } : scoped;
+  }, [filter, fixedSprintId, scope]);
   const manualOrder = isManualOrdering(filter);
   // Server-side narrows the transfer (facets + free-text search); the client
   // pipeline below still applies due/label/dependency residuals and grouping.
@@ -191,10 +196,10 @@ export function KanbanBoard({
   // filter so they stay correct over the server-filtered subset.
   const query = useMemo(() => {
     if (manualOrder) {
-      return buildManualIssueQuery(filter, scope);
+      return buildManualIssueQuery(filter, scope, fixedSprintId);
     }
-    return buildIssueQuery(filter, searchQuery, scope);
-  }, [filter, manualOrder, scope, searchQuery]);
+    return buildIssueQuery(filter, searchQuery, scope, fixedSprintId);
+  }, [filter, fixedSprintId, manualOrder, scope, searchQuery]);
   // isPending (not isLoading) — see useActiveVault for the rationale.
   const {
     data: issues,
@@ -205,7 +210,15 @@ export function KanbanBoard({
   } = useIssueList(vault, query);
   const staleWindowDays = useResolvedAutoHideWindows(vault);
   const { data: relations } = useIssueRelations(vault);
-  const { data: planningCatalog } = usePlanningCatalog(vault);
+  const {
+    data: planningCatalog,
+    isPending: isPlanningPending,
+    isError: isPlanningError,
+  } = usePlanningCatalog(vault);
+  const activeSprint = useMemo(
+    () => selectActiveSprint(planningCatalog?.sprints ?? []),
+    [planningCatalog],
+  );
   const { data: assignees } = useUserSearch("", vault);
   const mutation = useUpdateIssue();
   const reorder = useReorderBacklog();
@@ -790,7 +803,14 @@ export function KanbanBoard({
   }, [backlogT, issueGroups, orderedBacklog, scope]);
 
   if (isPending) {
-    return <BoardColumnsSkeleton ariaLabel={t("columnsScrollRegion")} />;
+    return (
+      <>
+        {scope === "active" && !fixedSprintId && !isPlanningError ? (
+          <ActiveSprintContextSkeleton />
+        ) : null}
+        <BoardColumnsSkeleton ariaLabel={t("columnsScrollRegion")} />
+      </>
+    );
   }
 
   if (
@@ -806,6 +826,13 @@ export function KanbanBoard({
   return (
     <div data-testid="kanban-board" className="flex h-full min-h-0 flex-col">
       <IssueReorderAnnouncement message={reorderAnnouncement} />
+      {scope === "active" && !fixedSprintId ? (
+        isPlanningPending ? (
+          <ActiveSprintContextSkeleton />
+        ) : activeSprint ? (
+          <ActiveSprintContextStrip vault={vault} sprint={activeSprint} />
+        ) : null
+      ) : null}
       {isError && (
         <div className="mx-6 mt-4 rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text">
           {t("loadError")}
@@ -929,6 +956,52 @@ export function KanbanBoard({
         }}
         onConfirm={confirmClose}
       />
+    </div>
+  );
+}
+
+function ActiveSprintContextSkeleton() {
+  return (
+    <div
+      aria-hidden="true"
+      className="h-8 shrink-0 border-b border-border-subtle bg-surface-subtle px-6 py-2"
+    >
+      <Skeleton tone="secondary" className="h-4 w-48" />
+    </div>
+  );
+}
+
+function ActiveSprintContextStrip({
+  vault,
+  sprint,
+}: {
+  vault: string;
+  sprint: NonNullable<ReturnType<typeof selectActiveSprint>>;
+}) {
+  const t = useTranslations("board");
+  return (
+    <div
+      data-testid="active-sprint-context"
+      className="flex min-w-0 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border-subtle bg-surface-subtle px-6 py-2 type-card-metadata"
+    >
+      <span className="font-semibold uppercase tracking-wide text-muted-foreground">
+        {t("activeSprint")}
+      </span>
+      <a
+        href={sprintDetailHref(vault, sprint.id)}
+        aria-label={t("openSprintDetails", { name: sprint.name })}
+        className="min-w-0 truncate font-medium text-brand-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+      >
+        {sprint.name}
+      </a>
+      {sprint.goal ? (
+        <span className="min-w-0 truncate text-muted-foreground">
+          {sprint.goal
+            .split("\n")
+            .find((line) => line.trim())
+            ?.trim()}
+        </span>
+      ) : null}
     </div>
   );
 }

@@ -26,10 +26,11 @@ import {
   useStatusLabels,
 } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
+import { withVault } from "@/lib/workspaceHref";
 import type { MyViewListColumn, MyViewSnapshot, Status } from "@reef/core";
 import { PRIORITY_OPTIONS, SEVERITY_OPTIONS } from "@reef/core/fields";
 import { STATUS_OPTIONS } from "@reef/core/fields";
-import { X } from "lucide-react";
+import { LockKeyhole, Unlock, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useMemo } from "react";
 import { formatLabelFilter, parseLabelFilter } from "../../lib/issueListUtils";
@@ -140,6 +141,7 @@ function toggleFacet<T extends string>(
 function countActiveFilters(
   filter: IssueFilter,
   backlogScope: boolean,
+  fixedSprintId?: string,
 ): number {
   let count = 0;
   if (!backlogScope && filter.status?.length) count++;
@@ -147,7 +149,7 @@ function countActiveFilters(
   if (filter.priority?.length || filter.priorityUnset) count++;
   if (filter.assignee?.length || filter.assigneeUnset) count++;
   if (filter.requester?.length) count++;
-  if (!backlogScope && filter.sprint_id?.length) count++;
+  if (!backlogScope && !fixedSprintId && filter.sprint_id?.length) count++;
   if (filter.milestone_id) count++;
   if (!backlogScope && filter.release_id?.length) count++;
   if (filter.severity?.length || filter.severityUnset) count++;
@@ -178,6 +180,10 @@ interface FilterBarProps {
   supportsRankOrder?: boolean;
   /** Keep the drag hint scoped to the Backlog rank option. */
   showsBacklogReorderHint?: boolean;
+  /** Pin the sprint facet to a detail route without changing shared filters. */
+  fixedSprintId?: string;
+  fixedSprintName?: string;
+  fixedSprintUnlockHref?: string;
   groupBy?: IssueGroupBy;
   setGroupBy?: (groupBy: IssueGroupBy) => void;
   listOptionalColumns?: readonly MyViewListColumn[];
@@ -192,6 +198,9 @@ export function FilterBar({
   showSortControl,
   supportsRankOrder = false,
   showsBacklogReorderHint = false,
+  fixedSprintId,
+  fixedSprintName,
+  fixedSprintUnlockHref,
   groupBy,
   setGroupBy,
   listOptionalColumns,
@@ -243,7 +252,7 @@ export function FilterBar({
     [setFilter],
   );
 
-  const activeCount = countActiveFilters(filter, backlogScope);
+  const activeCount = countActiveFilters(filter, backlogScope, fixedSprintId);
   const hasActiveFilters = activeCount > 0;
   const shouldRenderSort = showSortControl ?? view !== "timeline";
 
@@ -444,7 +453,13 @@ export function FilterBar({
       {/* Sprint filter — multi-select (REEF-267). Dropped in the backlog view:
           a sprinted item is committed, so it can not be in the backlog
           (REEF-177). */}
-      {backlogScope ? null : (
+      {backlogScope ? null : fixedSprintId ? (
+        <LockedSprintFacet
+          id={fixedSprintId}
+          name={fixedSprintName ?? fixedSprintId}
+          unlockHref={fixedSprintUnlockHref ?? withVault(vault, "/issues")}
+        />
+      ) : (
         <div data-testid="sprint-filter">
           <PlanningItemMultiCombobox
             kind="sprints"
@@ -600,6 +615,43 @@ export function FilterBar({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+function LockedSprintFacet({
+  id,
+  name,
+  unlockHref,
+}: {
+  id: string;
+  name: string;
+  unlockHref: string;
+}) {
+  const t = useTranslations("issues.filters");
+  return (
+    <div
+      data-testid="sprint-filter-locked"
+      className="inline-flex min-h-8 max-w-[min(20rem,90vw)] min-w-[9rem] items-center gap-1.5 rounded-md border border-brand-focus/35 bg-brand-fill/10 px-2 type-control text-foreground"
+      title={t("sprintLocked", { name })}
+    >
+      <LockKeyhole
+        aria-hidden="true"
+        className="size-3.5 shrink-0 text-brand-text"
+      />
+      <span className="shrink-0 text-muted-foreground">
+        {t("sprintLockedLabel")}
+      </span>
+      <span className="min-w-0 truncate font-medium">{name}</span>
+      <span className="sr-only">{id}</span>
+      <a
+        href={unlockHref}
+        aria-label={t("unlockSprint")}
+        title={t("unlockSprint")}
+        className="ml-auto inline-flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+      >
+        <Unlock aria-hidden="true" className="size-3.5" />
+      </a>
     </div>
   );
 }

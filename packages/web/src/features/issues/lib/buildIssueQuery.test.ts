@@ -209,6 +209,23 @@ describe("buildIssueQuery", () => {
     });
   });
 
+  it("overrides the shared sprint facet for a fixed sprint surface", () => {
+    expect(
+      buildIssueQuery(
+        { sprint_id: ["other-sprint"], priority: ["high"] },
+        "auth",
+        "active",
+        "fixed-sprint",
+      ),
+    ).toEqual({
+      status: ["todo", "in_progress", "in_review", "done", "closed"],
+      priority: ["high"],
+      sprint_id: ["fixed-sprint"],
+      q: "auth",
+      ...DEFAULT_SORT,
+    });
+  });
+
   it("omits `q` for an empty or whitespace-only search (default sort only)", () => {
     expect(buildIssueQuery({})).toEqual({ ...DEFAULT_SORT });
     expect(buildIssueQuery({}, "")).toEqual({ ...DEFAULT_SORT });
@@ -234,6 +251,15 @@ describe("buildManualIssueQuery", () => {
     expect(buildManualIssueQuery({ showArchived: true }, "backlog")).toEqual({
       status: ["backlog"],
       archived: "true",
+      sort_field: "rank",
+      sort_order: "asc",
+    });
+  });
+
+  it("keeps a fixed sprint on the manual ordering spine", () => {
+    expect(buildManualIssueQuery({}, "active", "fixed-sprint")).toEqual({
+      status: ["todo", "in_progress", "in_review", "done", "closed"],
+      sprint_id: ["fixed-sprint"],
       sort_field: "rank",
       sort_order: "asc",
     });

@@ -139,6 +139,29 @@ describe("FilterBar", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  it("renders a fixed sprint as a locked facet with an Issues escape hatch", () => {
+    useIssueStore.setState({
+      filter: { sprint_id: ["other-sprint"], priority: ["high"] },
+    });
+    renderFilterBar({
+      fixedSprintId: "fixed-sprint",
+      fixedSprintName: "Sprint One",
+      fixedSprintUnlockHref: "/workspace/reef-acme/issues?view=board",
+    });
+
+    const locked = screen.getByTestId("sprint-filter-locked");
+    expect(locked).toHaveTextContent("Sprint One");
+    expect(screen.queryByTestId("sprint-dropdown-trigger")).toBeNull();
+    expect(
+      within(locked).getByRole("link", {
+        name: "Unlock sprint scope and open Issues",
+      }),
+    ).toHaveAttribute("href", "/workspace/reef-acme/issues?view=board");
+    expect(screen.getByTestId("active-filter-count")).toHaveTextContent(
+      "1 filter",
+    );
+  });
+
   it("offers and toggles unset priority, severity, due, and assignee options", async () => {
     const user = userEvent.setup();
     vi.mocked(useActiveVault).mockReturnValue({

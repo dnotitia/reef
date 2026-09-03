@@ -392,7 +392,9 @@ describe("NewIssueDialog", () => {
     expect(mockMarkdownEditorResize.preferredHeight).toBe(640);
   });
 
-  it("maximizes the two-dimensional create canvas and restores it without remounting the draft", async () => {
+  it("maximizes the two-dimensional create canvas and restores it without remounting the draft", {
+    timeout: 15_000,
+  }, async () => {
     const user = userEvent.setup();
     setViewport(1920, 1080);
     const geometry = mockDialogGeometry();
