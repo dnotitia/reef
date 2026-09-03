@@ -244,11 +244,19 @@ async function assertInstalledArtifact(packageDir, packageName) {
 
 async function proveCoreInstallationConsumer(consumerDir) {
   const consumerSource = `import {
+  AppReleaseManifestSchema,
   ControlPlaneError,
   ControlPlaneInstallationSchema,
+  ReleaseBlueprintSchema,
+  buildReleaseBlueprint,
   createAkbAppInstallationReader,
+  finalizeAppReleaseManifest,
+  verifyFinalizedRelease,
+  type AppReleaseManifest,
   type ControlPlaneInstallation,
   type ControlPlaneRequestPolicy,
+  type FinalizedReleasePayload,
+  type ReleaseBlueprint,
 } from "@reef/core";
 
 const requestPolicy: ControlPlaneRequestPolicy = {
@@ -270,6 +278,20 @@ const validateInstallation = (value: unknown): ControlPlaneInstallation =>
 void isControlPlaneError;
 void validateInstallation;
 void installation;
+const blueprint: Promise<ReleaseBlueprint> = buildReleaseBlueprint();
+const validateBlueprint = (value: unknown): ReleaseBlueprint =>
+  ReleaseBlueprintSchema.parse(value);
+const validateManifest = (value: unknown): AppReleaseManifest =>
+  AppReleaseManifestSchema.parse(value);
+const finalize = finalizeAppReleaseManifest;
+const verify = verifyFinalizedRelease;
+const acceptsFinalized = (value: FinalizedReleasePayload): FinalizedReleasePayload => value;
+void blueprint;
+void validateBlueprint;
+void validateManifest;
+void finalize;
+void verify;
+void acceptsFinalized;
 `;
   const sourcePath = path.join(consumerDir, "core-installation-consumer.ts");
   await writeFile(sourcePath, consumerSource);

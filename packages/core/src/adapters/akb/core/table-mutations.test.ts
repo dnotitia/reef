@@ -59,13 +59,11 @@ describe("akb table mutation helpers", () => {
       "int",
       "float",
       "numeric",
-      "number",
       "boolean",
       "uuid",
       "date",
       "timestamp",
       "jsonb",
-      "json",
       "text[]",
       "enum",
     ]);

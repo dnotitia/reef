@@ -16,12 +16,16 @@ import {
 
 export const AkbTableColumnTypeSchema = z.enum([
   "text",
-  "number",
+  "int",
+  "float",
   "numeric",
   "boolean",
+  "uuid",
   "date",
-  "json",
+  "timestamp",
   "jsonb",
+  "text[]",
+  "enum",
 ]);
 
 export interface AkbTableColumn {
@@ -52,6 +56,122 @@ export interface AkbTableIndexColumn {
 export interface AkbTableIndex {
   name?: string;
   columns: Array<string | AkbTableIndexColumn>;
+}
+
+export interface ReefCanonicalTableProjection {
+  name: string;
+  columns: Array<{
+    name: string;
+    type: AkbTableColumn["type"];
+    required?: true;
+  }>;
+  unique_keys: Array<{ columns: string[] }>;
+  indexes: Array<{
+    columns: Array<{ name: string; order: "asc" | "desc" }>;
+  }>;
+}
+
+export interface ReefTableProjectionInput {
+  name: string;
+  columns: readonly AkbTableColumn[];
+  unique_keys?: readonly AkbTableUniqueKey[];
+  indexes?: readonly AkbTableIndex[];
+}
+
+function assertProjectionKeys(
+  value: object,
+  allowed: readonly string[],
+  label: string,
+): void {
+  const allowedKeys = new Set(allowed);
+  if (Object.keys(value).some((key) => !allowedKeys.has(key))) {
+    throw new TypeError(`${label} contains an unsupported field`);
+  }
+}
+
+function compareProjectionStrings(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+/**
+ * Project one table declaration into AKB's logical canonical table shape.
+ * Physical constraint/index names are intentionally excluded. All Reef table
+ * creation, fingerprint, Blueprint, and release paths consume this projection.
+ */
+export function canonicalReefTableProjection(
+  table: ReefTableProjectionInput,
+): ReefCanonicalTableProjection {
+  const columns = table.columns
+    .map((column) => {
+      assertProjectionKeys(
+        column,
+        ["name", "type", "required"],
+        "Table column",
+      );
+      const projected: ReefCanonicalTableProjection["columns"][number] = {
+        name: column.name,
+        type: column.type,
+      };
+      if (column.required === true) projected.required = true;
+      return projected;
+    })
+    .sort((left, right) => compareProjectionStrings(left.name, right.name));
+  const columnNames = new Set(columns.map((column) => column.name));
+  if (columnNames.size !== columns.length) {
+    throw new TypeError("Table columns must have unique names");
+  }
+
+  const uniqueKeys = (table.unique_keys ?? [])
+    .map((uniqueKey) => {
+      assertProjectionKeys(uniqueKey, ["name", "columns"], "Table unique key");
+      const columns = [...uniqueKey.columns];
+      if (
+        columns.length === 0 ||
+        new Set(columns).size !== columns.length ||
+        columns.some((column) => !columnNames.has(column))
+      ) {
+        throw new TypeError(
+          "Table unique keys must reference distinct declared columns",
+        );
+      }
+      return { columns };
+    })
+    .sort((left, right) =>
+      compareProjectionStrings(
+        JSON.stringify(left.columns),
+        JSON.stringify(right.columns),
+      ),
+    );
+
+  const indexes = (table.indexes ?? [])
+    .map((index) => {
+      assertProjectionKeys(index, ["name", "columns"], "Table index");
+      const columns = index.columns.map((column) => {
+        if (typeof column === "string") {
+          return { name: column, order: "asc" as const };
+        }
+        assertProjectionKeys(column, ["name", "order"], "Table index column");
+        return { name: column.name, order: column.order ?? "asc" };
+      });
+      if (
+        columns.length === 0 ||
+        new Set(columns.map((column) => column.name)).size !== columns.length ||
+        columns.some((column) => !columnNames.has(column.name))
+      ) {
+        throw new TypeError(
+          "Table indexes must reference distinct declared columns",
+        );
+      }
+      return { columns };
+    })
+    .sort((left, right) =>
+      compareProjectionStrings(
+        JSON.stringify(left.columns),
+        JSON.stringify(right.columns),
+      ),
+    );
+
+  return { name: table.name, columns, unique_keys: uniqueKeys, indexes };
 }
 
 export interface ReefTableManifest extends AkbCreateTableRequest {
@@ -95,14 +215,14 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
     // reserved name and fail table creation.
     columns: [
       { name: "key", type: "text", required: true },
-      { name: "value", type: "json", required: true },
+      { name: "value", type: "jsonb", required: true },
     ],
   },
   {
     name: MONITORED_REPOS_TABLE,
     description: "GitHub repos monitored by this reef workspace",
     columns: [
-      { name: "github_id", type: "number", required: true },
+      { name: "github_id", type: "numeric", required: true },
       { name: "owner", type: "text", required: true },
       { name: "name", type: "text", required: true },
       { name: "description", type: "text" },
@@ -133,18 +253,18 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
       { name: "milestone_id", type: "text" },
       { name: "sprint_id", type: "text" },
       { name: "release_id", type: "text" },
-      { name: "estimate_points", type: "number" },
+      { name: "estimate_points", type: "numeric" },
       { name: "severity", type: "text" },
-      { name: "rank", type: "number" },
+      { name: "rank", type: "numeric" },
       { name: "closed_at", type: "text" },
       { name: "closed_reason", type: "text" },
       { name: "parent_id", type: "text" },
-      { name: "labels", type: "json" },
-      { name: "depends_on", type: "json" },
-      { name: "related_to", type: "json" },
-      { name: "blocks", type: "json" },
+      { name: "labels", type: "jsonb" },
+      { name: "depends_on", type: "jsonb" },
+      { name: "related_to", type: "jsonb" },
+      { name: "blocks", type: "jsonb" },
       { name: "archived_at", type: "text" },
-      { name: "meta", type: "json" },
+      { name: "meta", type: "jsonb" },
     ],
   },
   {
@@ -159,8 +279,8 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
       { name: "start_date", type: "text" },
       { name: "end_date", type: "text" },
       { name: "goal", type: "text" },
-      { name: "capacity_points", type: "number" },
-      { name: "meta", type: "json" },
+      { name: "capacity_points", type: "numeric" },
+      { name: "meta", type: "jsonb" },
     ],
   },
   {
@@ -171,7 +291,7 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
       { name: "status", type: "text", required: true },
       { name: "target_date", type: "text" },
       { name: "description", type: "text" },
-      { name: "meta", type: "json" },
+      { name: "meta", type: "jsonb" },
     ],
   },
   {
@@ -183,7 +303,7 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
       { name: "target_date", type: "text" },
       { name: "released_at", type: "text" },
       { name: "notes", type: "text" },
-      { name: "meta", type: "json" },
+      { name: "meta", type: "jsonb" },
     ],
   },
   {
@@ -201,9 +321,9 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
       { name: "description", type: "text" },
       { name: "title_prefix", type: "text" },
       { name: "priority", type: "text" },
-      { name: "default_labels", type: "json" },
+      { name: "default_labels", type: "jsonb" },
       { name: "body", type: "text" },
-      { name: "meta", type: "json" },
+      { name: "meta", type: "jsonb" },
     ],
   },
   {
@@ -212,7 +332,7 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
     columns: [
       { name: "reef_id", type: "text", required: true },
       { name: "body", type: "text", required: true },
-      { name: "meta", type: "json" },
+      { name: "meta", type: "jsonb" },
     ],
   },
   {
@@ -223,12 +343,12 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
       { name: "file_uri", type: "text", required: true },
       { name: "filename", type: "text", required: true },
       { name: "mime_type", type: "text", required: true },
-      { name: "size_bytes", type: "number", required: true },
+      { name: "size_bytes", type: "numeric", required: true },
       { name: "author", type: "text", required: true },
       { name: "source", type: "text", required: true },
       { name: "inline", type: "boolean" },
       { name: "original_jira_attachment_id", type: "text" },
-      { name: "meta", type: "json" },
+      { name: "meta", type: "jsonb" },
     ],
   },
   {
@@ -238,8 +358,8 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
       { name: "reef_id", type: "text", required: true },
       { name: "event_type", type: "text", required: true },
       { name: "event_key", type: "text", required: true },
-      { name: "payload", type: "json" },
-      { name: "meta", type: "json" },
+      { name: "payload", type: "jsonb" },
+      { name: "meta", type: "jsonb" },
     ],
   },
   {
@@ -257,8 +377,8 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
       { name: "state", type: "text", required: true },
       { name: "read_at", type: "text" },
       { name: "archived_at", type: "text" },
-      { name: "payload", type: "json" },
-      { name: "meta", type: "json" },
+      { name: "payload", type: "jsonb" },
+      { name: "meta", type: "jsonb" },
     ],
     unique_keys: [
       { columns: ["notification_key"] },
@@ -280,7 +400,7 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
       { name: "source", type: "text", required: true },
       { name: "status", type: "text", required: true },
       { name: "subscribed_at", type: "text", required: true },
-      { name: "meta", type: "json" },
+      { name: "meta", type: "jsonb" },
     ],
     unique_keys: [
       { columns: ["subscription_key"] },

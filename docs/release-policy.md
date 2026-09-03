@@ -117,10 +117,16 @@ Before creating a release tag:
    - `pnpm run check`
    - `pnpm run build`
    - `pnpm --filter @reef/web run test:e2e` when the required environment is available.
-5. Confirm Docker image build and size checks pass.
-6. Confirm streaming routes still pass the SSE smoke test for the target
+5. Run `pnpm run release:blueprint:check` to verify the committed schema-v3
+   Release Blueprint against the Core schema source.
+6. After the image is built and a release payload has been assembled, run
+   `pnpm run release:manifest:check <finalized-payload.json>` to verify the
+   full source revision, immutable image digest, desired schema, transition
+   plan, and manifest checksum before registry submission.
+7. Confirm Docker image build and size checks pass.
+8. Confirm streaming routes still pass the SSE smoke test for the target
    environment when staging is available.
-7. Create an annotated git tag, for example:
+9. Create an annotated git tag, for example:
 
 ```bash
 git tag -a v0.2.0 -m "reef v0.2.0"

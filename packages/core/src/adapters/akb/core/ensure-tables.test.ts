@@ -54,6 +54,24 @@ describe("ensureReefTables", () => {
       .slice(1, 1 + REEF_DESIRED_TABLES.length)
       .map((call) => JSON.parse(call.init?.body as string).name);
     expect(created).toEqual(REEF_DESIRED_TABLES.map((table) => table.name));
+    const issueCreate = calls
+      .slice(1, 1 + REEF_DESIRED_TABLES.length)
+      .map((call) => JSON.parse(call.init?.body as string))
+      .find((body) => body.name === "reef_issues");
+    const issueColumns = issueCreate?.columns as
+      | Array<{ name: string; type: string }>
+      | undefined;
+    expect(issueColumns?.map((column) => column.name)).toEqual(
+      [...(issueColumns?.map((column) => column.name) ?? [])].sort(),
+    );
+    expect(issueColumns).toEqual(
+      expect.arrayContaining([
+        { name: "estimate_points", type: "numeric" },
+        { name: "labels", type: "jsonb" },
+      ]),
+    );
+    expect(issueCreate?.unique_keys).toEqual([]);
+    expect(issueCreate?.indexes).toEqual([]);
     expect(sqlRequestBody(calls[REEF_DESIRED_TABLES.length + 2])).toEqual({
       sql: "DELETE FROM reef_settings WHERE key = $1",
       params: ["schema_version"],

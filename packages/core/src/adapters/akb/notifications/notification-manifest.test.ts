@@ -27,6 +27,11 @@ describe("notification storage manifest", () => {
   it("declares the additive schema version and both complete create-time tables", () => {
     expect(REEF_SCHEMA_VERSION).toBe(3);
     expect(REEF_DESIRED_TABLES).toHaveLength(12);
+    expect(
+      REEF_DESIRED_TABLES.flatMap((table) =>
+        table.columns.map((column) => column.type),
+      ),
+    ).not.toEqual(expect.arrayContaining(["number", "json"]));
 
     const notifications = REEF_DESIRED_TABLES.find(
       (table) => table.name === REEF_NOTIFICATIONS_TABLE,

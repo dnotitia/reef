@@ -40,7 +40,7 @@
     "check": "turbo run '//#check:root'",
     "check:root": "pnpm run check:turbo-contract && pnpm run toolchain:check && pnpm run toolchain:check:test && pnpm run check:package-contract && pnpm run lint && pnpm run typecheck && pnpm run maintenance:test && pnpm run test && pnpm run check:release",
     "check:release": "turbo run '//#check:release:root'",
-    "check:release:root": "node scripts/check-release-policy.mjs",
+    "check:release:root": "pnpm run release:blueprint:check && node scripts/check-release-policy.mjs",
     "maintenance:scan": "turbo run '//#maintenance:scan:root'",
     "maintenance:scan:root": "node scripts/maintenance/scan.mjs",
     "maintenance:assert-clean": "turbo run '//#maintenance:assert-clean:root'",
@@ -64,7 +64,9 @@
     "test:e2e:sharded": "turbo run build test:e2e:sharded --filter=@reef/web",
     "check:affected": "turbo run lint typecheck test --affected",
     "format": "turbo run '//#format:root'",
-    "format:root": "biome format --write ."
+    "format:root": "biome format --write .",
+    "release:blueprint:check": "pnpm --filter @reef/core run build && node scripts/check-release-blueprint.mjs",
+    "release:manifest:check": "node scripts/check-release-manifest.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.7",
