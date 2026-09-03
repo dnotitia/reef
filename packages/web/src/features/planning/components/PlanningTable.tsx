@@ -559,21 +559,7 @@ function PlanningDeleteAction({
         size="sm"
         hitTarget="compact"
         variant="ghost"
-        onClick={(event) => {
-          if (isAriaDisabled) {
-            event.preventDefault();
-            event.stopPropagation();
-            return;
-          }
-          onRequestDelete();
-        }}
-        onKeyDown={(event) => {
-          const isActivationKey = event.key === "Enter" || event.key === " ";
-          if (isAriaDisabled && isActivationKey) {
-            event.preventDefault();
-            event.stopPropagation();
-          }
-        }}
+        onClick={onRequestDelete}
         disabled={hasLinkedIssues || isDeleting}
         busy={isDeleting}
         aria-disabled={isAriaDisabled ? true : undefined}

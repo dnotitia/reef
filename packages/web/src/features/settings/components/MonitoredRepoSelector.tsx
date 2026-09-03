@@ -153,10 +153,14 @@ export function MonitoredRepoSelector({
   return (
     <div className="flex flex-col gap-2">
       <Popover open={open} onOpenChange={setOpen} className="w-full max-w-64">
+        {/* Keep the trigger focusable while a selection save is pending so the
+         * popover can restore focus before the async mutation settles. The
+         * options/removal controls stay disabled and the parent guard blocks
+         * duplicate saves. */}
         <PopoverTrigger
           data-testid={`${testIdPrefix}-trigger`}
           aria-haspopup="dialog"
-          disabled={disabled || busy}
+          disabled={disabled}
           aria-busy={busy || undefined}
           className="inline-flex h-8 w-full max-w-full min-w-0 items-center justify-between rounded-md border border-border bg-surface-elevated px-2.5 type-control text-foreground transition-colors duration-150 hover:bg-surface-hover disabled:opacity-50"
           aria-label={

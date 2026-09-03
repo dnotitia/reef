@@ -61,9 +61,12 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const Comp = asChild ? Slot : "button";
     const resolvedHitTarget = hitTarget ?? "coarse";
     const isDisabled = disabled || busy;
+    const isAriaDisabled =
+      props["aria-disabled"] === true || props["aria-disabled"] === "true";
+    const isActivationDisabled = isDisabled || isAriaDisabled;
 
     const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-      if (isDisabled) {
+      if (isActivationDisabled) {
         event.preventDefault();
         event.stopPropagation();
         return;
@@ -73,7 +76,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
       const isActivationKey = event.key === "Enter" || event.key === " ";
-      if (isDisabled && isActivationKey) {
+      if (isActivationDisabled && isActivationKey) {
         event.preventDefault();
         event.stopPropagation();
         return;

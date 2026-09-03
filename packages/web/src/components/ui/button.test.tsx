@@ -88,4 +88,24 @@ describe("Button focus indicator", () => {
     expect(childClick).not.toHaveBeenCalled();
     expect(parentClick).not.toHaveBeenCalled();
   });
+
+  it("keeps an aria-disabled control from activating or bubbling", () => {
+    const parentClick = vi.fn();
+    const childClick = vi.fn();
+    render(
+      <div onClick={parentClick}>
+        <Button aria-disabled onClick={childClick}>
+          Delete issue
+        </Button>
+      </div>,
+    );
+
+    const button = screen.getByRole("button", { name: "Delete issue" });
+    fireEvent.click(button);
+    fireEvent.keyDown(button, { key: "Enter" });
+    fireEvent.keyDown(button, { key: " " });
+
+    expect(childClick).not.toHaveBeenCalled();
+    expect(parentClick).not.toHaveBeenCalled();
+  });
 });

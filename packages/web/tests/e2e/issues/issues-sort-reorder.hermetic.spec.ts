@@ -776,6 +776,8 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => 
     if (!movedIssueId || !targetIssueId) {
       throw new Error("missing moved Backlog issue identity");
     }
+    const grip = page.getByTestId(`backlog-grip-${movedIssueId}`);
+    await expectCursorAtPointer(grip, "grab");
     await setIssueReorderControl(request, { delayMs: 800 });
 
     const responsePromise = page.waitForResponse(
@@ -783,7 +785,13 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => 
         response.request().method() === "POST" &&
         new URL(response.url()).pathname === "/api/issues/reorder",
     );
-    await dragGrip(page, "backlog-grip", movedIssueId, targetIssueId);
+    await dragGrip(
+      page,
+      "backlog-grip",
+      movedIssueId,
+      targetIssueId,
+      (source) => expectCursorAtPointer(source, "grabbing"),
+    );
     await expect(movedRow).toHaveAttribute("data-reorder-state", "pending");
     await expect(movedRow).toHaveAttribute("aria-busy", "true");
     await expect(
@@ -794,6 +802,7 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => 
     await expect(
       page.getByTestId("reorder-persistence-announcement"),
     ).toHaveText(`${movedIssueId}'s position saved.`);
+    await expectCursorAtPointer(grip, "grab");
     await setIssueReorderControl(request, {});
   });
 });
