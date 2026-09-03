@@ -693,9 +693,15 @@ function BacklogGroupHeader({
         colSpan={BACKLOG_COL_COUNT}
         className="h-8 border-y border-border-subtle p-0"
       >
-        <div className="flex h-8 items-center gap-2 bg-surface-page px-3 type-group-title text-foreground">
+        <div
+          data-typography-role="list-group"
+          className="flex h-8 items-center gap-2 bg-surface-page px-3 type-list-group text-foreground"
+        >
           <span className="min-w-0 flex-1 truncate">{label}</span>
-          <span className="type-compact-mono text-muted-foreground">
+          <span
+            data-typography-role="list-group-count"
+            className="type-list-group-count text-muted-foreground"
+          >
             {t("groupHeader", { label, count })}
           </span>
         </div>

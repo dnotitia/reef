@@ -48,13 +48,17 @@ export function TimelineRow({
           <span className="block truncate type-compact-mono text-muted-foreground">
             {item.issue.id}
           </span>
-          <span className="block truncate type-body font-medium text-foreground">
+          <span
+            data-typography-role="timeline-title"
+            className="block truncate type-timeline-title text-foreground"
+          >
             {item.issue.title}
           </span>
         </span>
         {item.issue.assigned_to && (
           <span
-            className="hidden max-w-20 truncate type-caption text-muted-foreground lg:block"
+            data-typography-role="timeline-assignee"
+            className="hidden max-w-20 truncate type-timeline-assignee text-muted-foreground lg:block"
             title={item.issue.assigned_to}
           >
             @{item.issue.assigned_to}

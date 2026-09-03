@@ -52,7 +52,7 @@ export default function WorkspaceGeneralPage() {
     >
       {/* Monitored Repositories — team-shared grounding repos */}
       <section className="flex flex-col gap-3">
-        <h3 className="type-section-label text-muted-foreground">
+        <h3 className="type-settings-section text-muted-foreground">
           {t("general.monitoredRepositories")}
         </h3>
         <RepoPickerSection canEdit={canEditWorkspace} />
@@ -60,7 +60,7 @@ export default function WorkspaceGeneralPage() {
 
       {/* Project — project_prefix for issue IDs */}
       <section className="flex flex-col gap-3">
-        <h3 className="type-section-label text-muted-foreground">
+        <h3 className="type-settings-section text-muted-foreground">
           {t("general.project")}
         </h3>
         <ProjectSection canEdit={canEditWorkspace} />
@@ -68,7 +68,7 @@ export default function WorkspaceGeneralPage() {
 
       {/* Authoring Language — default language for AI-generated content */}
       <section className="flex flex-col gap-3">
-        <h3 className="type-section-label text-muted-foreground">
+        <h3 className="type-settings-section text-muted-foreground">
           {t("general.authoringLanguage")}
         </h3>
         <AuthoringLanguageSection canEdit={canEditWorkspace} />
@@ -76,7 +76,7 @@ export default function WorkspaceGeneralPage() {
 
       {/* Completed Issues - workspace auto-hide windows for resolved issues */}
       <section className="flex flex-col gap-3">
-        <h3 className="type-section-label text-muted-foreground">
+        <h3 className="type-settings-section text-muted-foreground">
           {t("general.completedIssues")}
         </h3>
         <ResolvedAutoHideSection canEdit={canEditWorkspace} />
@@ -84,7 +84,7 @@ export default function WorkspaceGeneralPage() {
 
       {/* Templates — issue templates shared across the workspace */}
       <section className="flex flex-col gap-3">
-        <h3 className="type-section-label text-muted-foreground">
+        <h3 className="type-settings-section text-muted-foreground">
           {t("general.templates")}
         </h3>
         <TemplatesSection canEdit={canEditWorkspace} />
@@ -92,7 +92,7 @@ export default function WorkspaceGeneralPage() {
 
       {/* Workspace AI Instructions — vault-skill version + explicit update */}
       <section className="flex flex-col gap-3">
-        <h3 className="type-section-label text-muted-foreground">
+        <h3 className="type-settings-section text-muted-foreground">
           {t("general.workspaceAiInstructions")}
         </h3>
         <WorkspaceSkillSection />

@@ -128,10 +128,7 @@ function DialogTitle({
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn(
-        "type-group-title text-foreground",
-        className,
-      )}
+      className={cn("type-dialog-title text-foreground", className)}
       {...props}
     />
   );

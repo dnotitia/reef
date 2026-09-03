@@ -1,0 +1,237 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "commit": "e85139b4b6b8b7cdee047537628846c00109807a",
+    "provenance": "git archive of the pre-REEF-603 product source",
+    "fixtureScenario": "demo_board",
+    "typographyFixtureScenario": "typography",
+    "fixtureInputs": [
+      {
+        "path": "packages/web/tests/e2e/harness/mock-server.mjs",
+        "sha256": "a7849070dc384a7779622a556f79037efba28610ea0a34b7349cdd0170d2fcfd"
+      },
+      {
+        "path": "packages/web/tests/e2e/harness/fixture-login.json",
+        "sha256": "1de20c13cf493b9501c90e00ff5d1cd462fc865b7bcf46740dbe0916e3a590ac"
+      }
+    ],
+    "browser": "Chromium via Playwright",
+    "fontReadiness": "document.fonts.ready plus Noto Sans KR Hangul load"
+  },
+  "conditions": {
+    "measured": {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "locale": "en",
+      "theme": "light",
+      "availableWidth": "surface-specific; no single normalized width was captured"
+    },
+    "tested": {
+      "viewports": {
+        "desktop": {
+          "width": 1440,
+          "height": 900
+        },
+        "narrowDesktop": {
+          "width": 1024,
+          "height": 800
+        },
+        "narrow": {
+          "width": 390,
+          "height": 844
+        }
+      },
+      "locales": ["en", "ko"],
+      "themes": ["light", "dark"]
+    }
+  },
+  "roles": {
+    "listGroupLabel": {
+      "fontSize": 12,
+      "fontWeight": 600,
+      "lineHeight": 16,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "listGroupCount": {
+      "fontSize": 11,
+      "fontWeight": 600,
+      "lineHeight": 14.6667,
+      "letterSpacing": 0,
+      "textTransform": "none",
+      "fontFamily": "mono"
+    },
+    "boardType": {
+      "fontSize": 10,
+      "fontWeight": 500,
+      "lineHeight": 10,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "detailType": {
+      "fontSize": 11,
+      "fontWeight": 500,
+      "lineHeight": 14.6667,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "boardBlocked": {
+      "fontSize": 10,
+      "fontWeight": 600,
+      "lineHeight": 15,
+      "letterSpacing": 0.25,
+      "textTransform": "uppercase"
+    },
+    "listId": {
+      "fontSize": 12,
+      "fontWeight": 400,
+      "lineHeight": 16,
+      "letterSpacing": 0,
+      "textTransform": "none",
+      "fontFamily": "mono"
+    },
+    "tableHeader": {
+      "fontSize": 10,
+      "fontWeight": 500,
+      "lineHeight": 15,
+      "letterSpacing": 0.5,
+      "textTransform": "uppercase"
+    },
+    "timelineGroup": {
+      "fontSize": 12,
+      "fontWeight": 600,
+      "lineHeight": 16,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "timelineTitle": {
+      "fontSize": 12,
+      "fontWeight": 500,
+      "lineHeight": 18,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "timelineMonth": {
+      "fontSize": 11,
+      "fontWeight": 600,
+      "lineHeight": 16.5,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "timelineTick": {
+      "fontSize": 10,
+      "fontWeight": 400,
+      "lineHeight": 15,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "timelineAssignee": {
+      "fontSize": 11,
+      "fontWeight": 400,
+      "lineHeight": 16.5,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "reportRowLabel": {
+      "fontSize": 12,
+      "fontWeight": 400,
+      "lineHeight": 16,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "reportCell": {
+      "fontSize": 12,
+      "fontWeight": 400,
+      "lineHeight": 16,
+      "letterSpacing": 0,
+      "textTransform": "none",
+      "fontFamily": "mono"
+    },
+    "reportHeader": {
+      "fontSize": 10,
+      "fontWeight": 400,
+      "lineHeight": 15,
+      "letterSpacing": 0.25,
+      "textTransform": "uppercase"
+    },
+    "throughputTick": {
+      "fontSize": 11,
+      "fontWeight": 400,
+      "lineHeight": 16.5,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "snapshotLabel": {
+      "fontSize": 11,
+      "fontWeight": 400,
+      "lineHeight": 16.5,
+      "letterSpacing": 0.275,
+      "textTransform": "uppercase"
+    },
+    "settingsDescription": {
+      "fontSize": 12,
+      "fontWeight": 400,
+      "lineHeight": 16,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "settingsSection": {
+      "fontSize": 13,
+      "fontWeight": 600,
+      "lineHeight": 19.5,
+      "letterSpacing": 0.65,
+      "textTransform": "uppercase"
+    },
+    "settingsGroup": {
+      "fontSize": 15,
+      "fontWeight": 600,
+      "lineHeight": 22.5,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "themeDescription": {
+      "fontSize": 11,
+      "fontWeight": 400,
+      "lineHeight": 16.5,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "segmentedControl": {
+      "fontSize": 12,
+      "fontWeight": 500,
+      "lineHeight": 18,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "smallButton": {
+      "fontSize": 12,
+      "fontWeight": 500,
+      "lineHeight": 16,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "subissueProgress": {
+      "fontSize": 12,
+      "fontWeight": 400,
+      "lineHeight": 16,
+      "letterSpacing": 0,
+      "textTransform": "none"
+    },
+    "dialogTitle": {
+      "fontSize": 16,
+      "fontWeight": 600,
+      "lineHeight": 16,
+      "letterSpacing": -0.16,
+      "textTransform": "none"
+    }
+  },
+  "cards": {
+    "count": 79,
+    "geometry": {
+      "height": 152.56,
+      "titleLines": 1
+    }
+  }
+}

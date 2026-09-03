@@ -18,7 +18,7 @@ export default function DeploymentSettingsPage() {
     >
       {/* AI Configuration — deployment-managed LLM status */}
       <section className="flex flex-col gap-3">
-        <h3 className="type-section-label text-muted-foreground">
+        <h3 className="type-settings-section text-muted-foreground">
           {t("deployment.aiConfiguration")}
         </h3>
         <AiConfigurationStatus />

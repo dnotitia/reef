@@ -25,7 +25,7 @@ export function LanguageSection() {
       <header className="flex flex-col gap-1">
         <h3
           id="language-heading"
-          className="type-section-label text-muted-foreground"
+          className="type-settings-section text-muted-foreground"
         >
           {t("heading")}
         </h3>

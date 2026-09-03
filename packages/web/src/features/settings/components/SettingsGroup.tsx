@@ -43,7 +43,7 @@ export function SettingsGroup({
           {/* The scope name lives in a sibling span, not inside the <h2>, so the
               heading's accessible name stays exactly the title. */}
           <div className="flex min-w-0 items-baseline gap-2">
-            <h2 className="type-group-title shrink-0 text-foreground">
+            <h2 className="type-settings-group shrink-0 text-foreground">
               {title}
             </h2>
             {scopeName ? (
@@ -58,7 +58,7 @@ export function SettingsGroup({
           </div>
           {access ? <AccessBadge level={access} /> : null}
         </div>
-        <p className="type-card-metadata text-muted-foreground">
+        <p className="type-settings-description text-muted-foreground">
           {description}
         </p>
       </div>
