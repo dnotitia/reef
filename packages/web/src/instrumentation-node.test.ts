@@ -118,7 +118,7 @@ describe("registerNode", () => {
     });
     expect(mocks.resourceFromAttributes).toHaveBeenCalledWith({
       "service.name": "reef-web",
-      "service.version": "0.14.0",
+      "service.version": "0.14.1",
     });
     expect(mocks.NodeSDK).toHaveBeenCalledWith({
       resource: mocks.resource,

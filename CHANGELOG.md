@@ -12,6 +12,24 @@ explicitly in the entries below.
 
 ## Unreleased
 
+## v0.14.1 - 2026-09-04
+
+### Fixed
+
+- **Remove the reserved current-sprint width introduced in v0.14.0.** The
+  Issues header uses the sprint name's natural width and leaves no empty slot
+  when a current sprint is unavailable. Existing long-name truncation and
+  responsive wrapping remain in place.
+
+### Migration
+
+- No storage migration or configuration change is required.
+
+### Operational
+
+- Deploy `reef-web:v0.14.1` or its release commit tag, pinned to the verified
+  image digest. Rolling back to v0.14.0 restores the known spacing regression.
+
 ## v0.14.0 - 2026-09-04
 
 ### Added
