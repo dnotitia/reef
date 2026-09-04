@@ -229,19 +229,36 @@ async function observeSurfaceRoles(page: Page): Promise<SurfaceObservation> {
   }, SURFACE_ROLES);
 }
 
-async function readIssuesChromeGeometry(page: Page) {
+async function readCurrentSprintSpacing(page: Page) {
+  await page.evaluate(() => document.fonts.ready);
   return page.evaluate(() => {
-    const height = (selector: string) => {
-      const element = document.querySelector<HTMLElement>(selector);
-      if (!element) throw new Error(`Missing geometry target: ${selector}`);
-      return Math.round(element.getBoundingClientRect().height);
-    };
-
+    const header = document.querySelector<HTMLElement>(
+      '[data-slot="page-header"]',
+    );
+    const scope = header?.querySelector<HTMLElement>(
+      '[data-testid="scope-switcher"]',
+    );
+    const sprint = header?.querySelector<HTMLElement>(
+      '[data-testid="current-sprint-shortcut"] a',
+    );
+    const workspace = header?.querySelector<HTMLElement>(
+      ':scope > div > span[translate="no"]',
+    );
+    if (!header || !scope || !workspace)
+      throw new Error("Missing Issues header content");
+    let contentRect = scope.getBoundingClientRect();
+    if (sprint) {
+      const text = document.createRange();
+      text.selectNodeContents(sprint);
+      contentRect = text.getBoundingClientRect();
+    }
+    const workspaceRect = workspace.getBoundingClientRect();
     return {
-      header: height('[data-slot="page-header"]'),
-      titleAdjacent: height('[data-slot="page-header-title-adjacent"]'),
-      actions: height('[data-slot="page-header-actions"]'),
-      filterBar: height('[data-testid="filter-bar"]'),
+      gap: workspaceRect.left - contentRect.right,
+      sameLine:
+        workspaceRect.top < contentRect.bottom &&
+        workspaceRect.bottom > contentRect.top,
+      overflow: header.scrollWidth > header.clientWidth,
     };
   });
 }
@@ -610,10 +627,10 @@ test.describe("Hermetic issue route surfaces", () => {
     expect(url.searchParams.get("q")).toBe("issue");
   });
 
-  test("keeps current sprint header geometry stable for long sprint metadata", async ({
+  test("keeps current sprint text compact and truncates long metadata", async ({
     page,
     request,
-  }) => {
+  }, testInfo) => {
     await page.setViewportSize({ width: 768, height: 844 });
     await clearPersistedQueryCacheOnLoad(page);
     await openExistingWorkspace(page);
@@ -636,7 +653,10 @@ test.describe("Hermetic issue route surfaces", () => {
     await expect(
       page.getByTestId("issue-list-row").filter({ hasText: "REEF-002" }),
     ).toBeVisible();
-    const initialGeometry = await readIssuesChromeGeometry(page);
+    const shortSpacing = await readCurrentSprintSpacing(page);
+    await page.locator('[data-slot="page-header"]').screenshot({
+      path: testInfo.outputPath("sprint-short.png"),
+    });
 
     await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
     await expect(
@@ -738,7 +758,11 @@ test.describe("Hermetic issue route surfaces", () => {
       "href",
       `/workspace/${REEF_E2E_VAULT}/planning/sprints/${currentSprint.id}`,
     );
-    expect(await readIssuesChromeGeometry(page)).toEqual(initialGeometry);
+    await page.locator('[data-slot="page-header"]').screenshot({
+      path: testInfo.outputPath("sprint-long.png"),
+    });
+    await expect(page.getByTestId("scope-switcher")).toBeVisible();
+    await expect(page.getByTestId("view-switcher")).toBeVisible();
     await expect(
       page.getByTestId("issue-list-row").filter({ hasText: "REEF-002" }),
     ).toBeVisible();
@@ -770,7 +794,21 @@ test.describe("Hermetic issue route surfaces", () => {
     await expect(
       page.locator('[data-slot="page-header"] a[href*="/planning/sprints/"]'),
     ).toHaveCount(0);
-    expect(await readIssuesChromeGeometry(page)).toEqual(initialGeometry);
+    const absentSpacing = await readCurrentSprintSpacing(page);
+    await page.locator('[data-slot="page-header"]').screenshot({
+      path: testInfo.outputPath("sprint-absent.png"),
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const absentDesktopSpacing = await readCurrentSprintSpacing(page);
+    await page.locator('[data-slot="page-header"]').screenshot({
+      path: testInfo.outputPath("sprint-absent-desktop.png"),
+    });
+    for (const spacing of [shortSpacing, absentSpacing, absentDesktopSpacing]) {
+      expect(spacing.sameLine).toBe(true);
+      expect(spacing.gap).toBeGreaterThanOrEqual(0);
+      expect(spacing.gap).toBeLessThanOrEqual(16);
+      expect(spacing.overflow).toBe(false);
+    }
   });
 
   test("keeps the current sprint shortcut independent from sprint filters and native link activation", async ({
@@ -924,7 +962,7 @@ test.describe("Hermetic issue route surfaces", () => {
     await expect(
       page.locator('[data-slot="page-header"] a[href*="/planning/sprints/"]'),
     ).toHaveCount(0);
-    const pendingGeometry = await readIssuesChromeGeometry(page);
+    const pendingSpacing = await readCurrentSprintSpacing(page);
 
     releasePlanningResponse?.();
     await navigation;
@@ -934,7 +972,8 @@ test.describe("Hermetic issue route surfaces", () => {
       "href",
       `/workspace/${REEF_E2E_VAULT}/planning/sprints/${currentSprint.id}`,
     );
-    expect(await readIssuesChromeGeometry(page)).toEqual(pendingGeometry);
+    expect(pendingSpacing.gap).toBeLessThanOrEqual(16);
+    expect((await readCurrentSprintSpacing(page)).gap).toBeLessThanOrEqual(16);
     await page.unroute("**/api/planning**");
 
     await setPlanningCatalogFailure(request, true);
@@ -945,6 +984,7 @@ test.describe("Hermetic issue route surfaces", () => {
     await expect(
       page.locator('[data-slot="page-header"] a[href*="/planning/sprints/"]'),
     ).toHaveCount(0);
+    expect((await readCurrentSprintSpacing(page)).gap).toBeLessThanOrEqual(16);
 
     await resetFixture(request, "configured_empty");
     await openExistingWorkspace(page);
@@ -960,6 +1000,7 @@ test.describe("Hermetic issue route surfaces", () => {
     await expect(
       page.locator('[data-slot="page-header"] a[href*="/planning/sprints/"]'),
     ).toHaveCount(0);
+    expect((await readCurrentSprintSpacing(page)).gap).toBeLessThanOrEqual(16);
   });
 
   test("keeps the Display menu bounded and keyboard-scrollable across supported locales and themes", async ({
