@@ -186,7 +186,9 @@ export function IssuesWorkspace({
             <div className="flex min-w-0 max-w-full items-center gap-2">
               <ScopeSwitcher activeScope={scope} activeLayout={headerLayout} />
               {!fixedSprintId && scope === "active" ? (
-                <CurrentSprintShortcut vault={vault} />
+                <div className="w-[min(15rem,28vw)] min-w-0">
+                  <CurrentSprintShortcut vault={vault} />
+                </div>
               ) : null}
             </div>
           }

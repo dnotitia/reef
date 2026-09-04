@@ -20,7 +20,8 @@ WORKDIR /app
 RUN corepack enable
 COPY --from=pruner /app/out/json/ ./
 COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
-RUN pnpm install --frozen-lockfile
+# Workspace prepare needs source, which is copied in the builder stage.
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 
 # Stage 3: builder — build from the pruned source tree.
@@ -33,8 +34,8 @@ RUN corepack enable
 COPY --from=deps /app/ ./
 COPY --from=pruner /app/out/full/ ./
 
-# Build the pruned web workspace through the canonical root task.
-RUN pnpm run build
+# Run deferred dependency/workspace scripts with source available, then build.
+RUN pnpm rebuild --pending && pnpm run build
 
 
 # Stage 4: runner — minimal runtime image.

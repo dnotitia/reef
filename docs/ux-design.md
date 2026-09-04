@@ -702,6 +702,9 @@ Timeline. Backlog has no count, badge, or notification dot; counts appear in
 Board group headers or List content. At narrow widths, the title-adjacent scope
 area remains before the layout actions in the header's wrap order and both
 controls stay contained in the viewport.
+The Active header reserves the current-sprint shortcut's width while its
+catalog loads or has no active sprint, so the header does not rewrap when the
+shortcut appears or disappears.
 
 Board, List, and Backlog render one shared sort control in the filter toolbar
 immediately after Display options, so sorting stays in the same collection-tool

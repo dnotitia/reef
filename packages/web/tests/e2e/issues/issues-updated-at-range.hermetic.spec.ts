@@ -777,6 +777,8 @@ test.describe("Hermetic updated-at date range filter", () => {
     });
     const responsesBeforeFailure = issueListResponses.length;
     await setIssueListFailure(request, true, 0);
+    // The persisted result stays fresh for 60 seconds; expire it before refetch.
+    await page.clock.setFixedTime(new Date(Date.now() + 61_000));
     await page.reload();
     await expect(page).toHaveURL(/date_field=updated_at/);
     await expect(page).toHaveURL(/date_from=2026-06-15/);
