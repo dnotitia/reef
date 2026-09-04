@@ -42,6 +42,14 @@ RUN pnpm rebuild --pending && pnpm run build
 FROM node:24.18.1-alpine AS runner
 WORKDIR /app
 
+# Release builds bind the image contents to the exact source and product
+# version used by the one-shot release CLI. Local builds may leave these
+# labels empty; they are not deployment artifacts.
+ARG REEF_VERSION
+ARG REEF_SOURCE_REVISION
+LABEL org.opencontainers.image.version="${REEF_VERSION}" \
+      org.opencontainers.image.revision="${REEF_SOURCE_REVISION}"
+
 # Create non-root user with an explicit numeric UID/GID — kubelet's
 # runAsNonRoot check cannot verify a username, only a numeric UID.
 RUN addgroup -S -g 1001 reef && adduser -S -u 1001 -G reef reef

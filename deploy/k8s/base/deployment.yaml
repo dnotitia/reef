@@ -27,7 +27,9 @@ spec:
         runAsNonRoot: true
       containers:
         - name: reef-web
-          image: reef-web:latest
+          # The one-shot release CLI replaces this neutral digest placeholder
+          # with the verified registry digest before apply.
+          image: reef-web@sha256:0000000000000000000000000000000000000000000000000000000000000000
           imagePullPolicy: Always
           ports:
             - containerPort: 3000

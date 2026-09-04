@@ -196,7 +196,20 @@ export {
   type ControlPlaneTokenSource,
 } from "./controlPlane/installationReader";
 export {
+  createAkbAppRegistry,
+  type AkbAppRegistry,
+  type AkbAppRegistryConfig,
+} from "./controlPlane/registry";
+export {
+  createAkbAppRollout,
+  type AkbAppRollout,
+  type AkbAppRolloutConfig,
+  type RolloutRequestInput,
+  type RolloutResumeInput,
+} from "./controlPlane/rollout";
+export {
   REEF_APP_DEFINITION,
+  REEF_SUPPORTED_TRANSITION_SOURCES,
   buildDesiredSchemaProjection,
   buildReleaseBlueprint,
   calculateReleaseManifestChecksum,

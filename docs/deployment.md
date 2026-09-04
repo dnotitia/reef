@@ -30,12 +30,13 @@ public assets only; workspace source is not a runtime fallback.
 
 ```bash
 # From the repository root
-docker build -t reef-web:latest .
+docker build -t reef-web:local .
 
-# For a cluster, build for the node architecture and push to your registry
-docker buildx build --platform linux/amd64 \
-  -t ghcr.io/myorg/reef-web:latest \
-  --push .
+# For a cluster, use the release CLI. It pushes one unique build tag, records
+# the digest returned by buildx, and never moves an existing version/source tag.
+REGISTRY=ghcr.io/myorg \
+REEF_BUILD_ARTIFACT=/tmp/reef-build.json \
+  deploy/k8s/deploy.sh build
 ```
 
 The container listens on `3000` and exposes a health endpoint at
@@ -63,7 +64,7 @@ The manifests under [`deploy/k8s`](../deploy/k8s) are organized as a kustomize
 deploy/k8s/
   base/                 # neutral manifests — never deployed directly
     configmap.yaml      #   reef-web-config (env), placeholder values
-    deployment.yaml     #   reef-web Deployment (image: reef-web:latest)
+    deployment.yaml     #   reef-web Deployment (neutral digest placeholder)
     service.yaml        #   reef-web Service on :3000
     ingress.yaml        #   reef-web Ingress (nginx, SSE-safe, cert-manager)
     kustomization.yaml
@@ -72,16 +73,17 @@ deploy/k8s/
       kustomization.yaml
       patch-config.yaml
       patch-ingress.yaml
-  deploy.sh             # build + push + apply helper
+  deploy.sh             # immutable register/rollout/apply CLI
 ```
 
 The base carries placeholder values (`reef.example.com`, an example akb backend
-DNS name) and **no namespace**. Each overlay sets the namespace, the image
-registry, the public host, and the akb backend URL for one environment.
+DNS name) and **no namespace**. Each overlay sets the namespace, public host,
+and akb backend URL for one environment; the one-shot CLI supplies the
+immutable image repository and digest at deploy time.
 
 ### Create your overlay
 
-Copy the example overlay and edit four things:
+Copy the example overlay and edit three things:
 
 ```bash
 cp -r deploy/k8s/overlays/example deploy/k8s/overlays/my-cluster
@@ -89,15 +91,13 @@ cp -r deploy/k8s/overlays/example deploy/k8s/overlays/my-cluster
 
 1. **Namespace** — `kustomization.yaml` → `namespace:`. The namespace must
    already exist (reef-web does not create it).
-2. **Image** — `kustomization.yaml` → `images[].newName` / `newTag`. Point this
-   at the registry/repository you pushed to in step 1.
-3. **akb backend + public origin** — `patch-config.yaml`:
+2. **akb backend + public origin** — `patch-config.yaml`:
    - `AKB_BACKEND_URL` — the in-cluster DNS of your akb backend Service, e.g.
      `http://backend.<akb-namespace>.svc.cluster.local:8000` (substitute your
      akb namespace and Service name).
    - `REEF_PUBLIC_ORIGIN` — reef-web's canonical external origin; it must match
      the ingress host below.
-4. **Public host** — `patch-ingress.yaml` → the `tls.hosts` entry and
+3. **Public host** — `patch-ingress.yaml` → the `tls.hosts` entry and
    `rules[].host`.
 
 ### Provide optional capability secrets
@@ -135,33 +135,87 @@ the issuer name to match your cluster, or drop the annotation and supply the
 (`proxy-buffering: "off"`, long `proxy-read/send-timeout`) **must stay** — they
 keep `/api/agents/runs` chat streaming working through the proxy.
 
-### Apply
+### Register and deploy
 
-Render and apply with kustomize directly:
+Use the one-shot CLI for a normal release. It builds and pushes one unique
+source/version-bound build tag, reads the OCI digest from buildx, validates the
+committed Blueprint and final Manifest, registers or replays the App and
+Release, waits for AKB to report `applied`, then renders and applies the
+Kubernetes revision with the same digest and release identity. It never moves
+an existing mutable version or source tag, and exits non-zero for blocked,
+pending, timeout, readiness, or identity-readback failures.
 
-```bash
-kubectl apply -k deploy/k8s/overlays/my-cluster
-```
-
-Or use the helper script, which also builds and pushes the image. It injects
-`${REGISTRY}/reef-web:latest` into the rendered manifests, so you can leave the
-base image reference untouched:
+When `--receipt` points to a valid receipt for the current clean source,
+version, and image repository, a retry reuses its immutable image and Release
+coordinates before contacting Docker or registering again. A receipt produced
+by `register` can therefore continue into deployment; it receives a new
+rollout key, while a receipt with an existing key replays that logical rollout.
+The key is persisted before the first rollout request, and a blocked retry
+never resumes automatically — use the explicit `resume` command with a new key.
 
 ```bash
 REGISTRY=ghcr.io/myorg \
+AKB_BACKEND_URL=https://akb.example.com \
+REEF_CONTROL_PLANE_TOKEN="$REEF_CONTROL_PLANE_TOKEN" \
 NAMESPACE=my-namespace \
 KUSTOMIZE_DIR=deploy/k8s/overlays/my-cluster \
-  deploy/k8s/deploy.sh
+REEF_BUILD_ARTIFACT=/tmp/reef-build.json \
+REEF_RELEASE_RECEIPT=/tmp/reef-release.json \
+  deploy/k8s/deploy.sh deploy
 ```
 
-`deploy.sh` defaults `KUSTOMIZE_DIR` to `overlays/example` and `NAMESPACE` to
-`reef`; point them at your own overlay/namespace. Before restarting the
-Deployment, it also records a `kubernetes.io/change-cause` annotation so
-`kubectl rollout history deployment/reef-web` identifies the deployed Reef
-version and Git commit. The version defaults to the root package version and
-the commit defaults to the current short `HEAD`; set `DEPLOY_VERSION`,
-`DEPLOY_COMMIT`, or the complete `CHANGE_CAUSE` when deploying a different
-artifact provenance.
+For a registration-only handoff (including a new AKB installation with no
+targets), first run the build-only command. It pushes one unique build tag and
+writes the identity artifact without contacting AKB or Kubernetes:
+
+```bash
+REGISTRY=ghcr.io/myorg \
+REEF_BUILD_ARTIFACT=/tmp/reef-build.json \
+  deploy/k8s/deploy.sh build
+```
+
+Then register that artifact. This command never asks for rollout status and
+never mutates Kubernetes:
+
+```bash
+AKB_BACKEND_URL=https://akb.example.com \
+REEF_CONTROL_PLANE_TOKEN="$REEF_CONTROL_PLANE_TOKEN" \
+REEF_RELEASE_RECEIPT=/tmp/reef-registration.json \
+  deploy/k8s/deploy.sh register \
+    --build-artifact /tmp/reef-build.json
+```
+
+The build artifact is written by the normal build path and contains
+`image_repository`, `image_digest`, `image_reference`, `source_revision`, and
+the root `version`. register-only compares all of them with the current clean
+checkout before finalizing the Manifest; a bare digest is rejected. The
+registration receipt is a safe handoff containing `app_id`, `release_id`,
+`image_repository`, product version, full source revision, image digest,
+manifest checksum, and the replay flags. Keep both files outside the repository
+so the clean-source check does not treat them as product changes.
+
+If AKB reports a blocked rollout, fix the cause and explicitly resume the same
+source job with a new idempotency key. The receipt supplies the original
+release coordinates and image identity:
+
+```bash
+AKB_BACKEND_URL=https://akb.example.com \
+REEF_CONTROL_PLANE_TOKEN="$REEF_CONTROL_PLANE_TOKEN" \
+REEF_RELEASE_RECEIPT=/tmp/reef-release.json \
+  deploy/k8s/deploy.sh resume \
+    --source-rollout-id <blocked-job-uuid> \
+    --request-key <new-resume-uuid>
+```
+
+The CLI derives provenance from the root package version and full `HEAD`; it
+does not accept version/commit identity overrides or deploy a mutable `latest`
+reference. `kubernetes.io/change-cause` and the `REEF_RELEASE_*` PodTemplate
+environment variables include the verified App/Release IDs, source revision,
+digest, and manifest checksum. The fixed `reef-web-config` ConfigMap remains
+for stable workload settings and is not rewritten with release identity, so an
+older ReplicaSet cannot observe a later release's coordinates. The control-
+plane credential is used only by the one-shot process and is removed from child
+command environments and rendered workload configuration.
 
 ---
 
@@ -174,7 +228,7 @@ run reef-web on its own and point it at an `AKB_BACKEND_URL`:
 # docker-compose.yml
 services:
   reef-web:
-    image: ghcr.io/myorg/reef-web:latest   # or build: .
+    image: ghcr.io/myorg/reef-web@sha256:<verified-digest>   # or build: .
     ports:
       - "3000:3000"
     environment:
@@ -248,6 +302,25 @@ session is an httpOnly cookie minted per request. GitHub and LLM credentials are
 deployment-managed server secrets, not browser storage. The three `REEF_LLM_*`
 values must be set together; with none set, AI routes are unavailable but Reef,
 AKB, and Keycloak flows remain ready.
+
+### One-shot release CLI inputs
+
+These inputs belong to the operator process, not the reef-web Deployment:
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `REEF_CONTROL_PLANE_TOKEN` | register/deploy/resume | System-admin AKB credential. It is sent only in Core's Authorization header and is removed from child command environments. |
+| `REGISTRY` | build/deploy | OCI image repository prefix, without a tag. The CLI pushes one unique build tag per image build and applies the returned digest; it never moves version/source aliases. |
+| `REEF_APP_ID` | no | Previously recorded App Definition UUID. When set, the CLI reads it and verifies `app_key=reef` before registering a Release. |
+| `REEF_BUILD_ARTIFACT` | register-only or optional deploy output | Path for the build identity artifact containing the repository, digest, full source revision, and root version. |
+| `REEF_RELEASE_RECEIPT` | no | Path for the non-secret registration/rollout receipt used for handoff and request-key replay. |
+| `REEF_ROLLOUT_REQUEST_KEY` | no | UUID idempotency key. Reuse it for a process retry of the same rollout input; resume requires a different UUID. |
+| `REEF_ROLLOUT_DEADLINE_MS` / `REEF_ROLLOUT_POLL_MS` | no | Positive AKB observation bounds; defaults are 120000 ms and 1000 ms. |
+| `REEF_KUBERNETES_TIMEOUT_MS` | no | Positive Kubernetes readiness timeout; defaults to 120000 ms. |
+
+The CLI does not accept source revision or product-version overrides. The
+committed Blueprint, clean `HEAD`, root version, build metadata, and immutable
+digest must agree before AKB registration.
 
 ### Backend logging and the prod access-line policy
 

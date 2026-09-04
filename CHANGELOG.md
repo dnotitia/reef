@@ -12,6 +12,32 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Changed
+
+- **Release deployment now uses immutable AKB registration and rollout state.**
+  The operator CLI registers the verified App Release Manifest, waits for a
+  canonical AKB rollout to reach `applied`, and only then applies the matching
+  Kubernetes image digest and release configuration. Registration-only and
+  explicit blocked-rollout resume paths produce reusable receipts; mutable
+  `latest`, version/source tag mutation, and version/commit identity overrides
+  are no longer deployment inputs.
+
+### Operational
+
+- **The release CLI records full deployment provenance.** Each image build is
+  pushed under a unique source/version-bound build tag and applied by digest;
+  Kubernetes PodTemplate environment and rollout history carry the App/Release
+  IDs, product version, full source revision, immutable image digest, and
+  manifest checksum. Readiness or runtime identity failures exit non-zero after
+  AKB success and are distinct from rollout failures. Live Kubernetes
+  apply/readiness/pod identity verification remains a required pre-merge gate
+  for this change.
+- **Release retries reuse verified receipts.** A matching receipt reuses its
+  immutable image and Release coordinates, persists the rollout key before the
+  first request, and replays blocked requests without automatically resuming
+  them. Registration-only receipts can continue into deployment with a new
+  rollout key.
+
 ## v0.14.1 - 2026-09-04
 
 ### Fixed
