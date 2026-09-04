@@ -2,7 +2,7 @@
 
 import { Skeleton } from "@/components/ui/skeleton";
 import dynamic from "next/dynamic";
-import type { MarkdownEditorProps } from "./MarkdownEditorImpl";
+import type { MarkdownEditorProps } from "./markdown-editor/types";
 
 /**
  * Code-split boundary for the markdown editor. (REEF-220)

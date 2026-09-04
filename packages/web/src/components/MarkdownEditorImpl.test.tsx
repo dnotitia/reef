@@ -8,6 +8,7 @@ import {
 import { useEditor } from "@tiptap/react";
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { AkbWebUrlProvider } from "@/providers/AkbWebUrlProvider";
+import { MarkdownEditor } from "./MarkdownEditorImpl";
 import {
   clampEditorHeight,
   EDITOR_BODY_FRAME_CLASS,
@@ -22,8 +23,7 @@ import {
   getEditorMaxHeight,
   EDITOR_CONTENT_CLASS,
   MARKDOWN_SURFACE_CLASS,
-  MarkdownEditor,
-} from "./MarkdownEditorImpl";
+} from "./markdown-editor/heightResize";
 
 // Mock Tiptap to avoid JSDOM ProseMirror issues. The chain is a single
 // self-referential object so any command sequence (e.g. focus().setLink().run())

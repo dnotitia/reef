@@ -1,1095 +1,44 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { linkSafetyConfig } from "@/components/markdown/linkSafety";
-import {
-  attachmentFileTypeLabel,
-  isAkbFileUri,
-} from "@/features/issues/lib/attachmentUrls";
-import { isDirectIssueMarkdownHref } from "@/features/issues/lib/markdownLinkPolicy";
-import {
-  type AttachmentMarkdownUploadResult,
-  appendMarkdownSnippets,
-  filesFromFileList,
-} from "@/features/issues/lib/attachmentMarkdown";
-import { resolveAkbDocumentTitles } from "@/lib/akb/documentTitleResolver";
-import {
-  buildAkbDocumentUrl,
-  parseAkbDocumentUri,
-} from "@/lib/akb/documentUri";
-import {
-  extractAkbDocumentUris,
-  normalizeAkbDocumentMarkdownLinks,
-  retargetRenderedAkbDocumentLinks,
-  restoreRenderedAkbDocumentMarkdownLinks,
-} from "@/lib/akb/markdownDocumentLinks";
+import { retargetRenderedAkbDocumentLinks } from "@/lib/akb/markdownDocumentLinks";
 import { cn } from "@/lib/utils";
 import { useAkbWebUrl } from "@/providers/AkbWebUrlProvider";
-import type { DocumentSearchHit, IssueListItem, VaultMember } from "@reef/core";
-import { Extension, mergeAttributes } from "@tiptap/core";
-import Image from "@tiptap/extension-image";
-import LinkExtension from "@tiptap/extension-link";
-import { TaskItem, TaskList } from "@tiptap/extension-list";
-import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
-import {
-  Table,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "@tiptap/extension-table";
-import Placeholder from "@tiptap/extension-placeholder";
-import { Markdown } from "@tiptap/markdown";
-import { Plugin } from "@tiptap/pm/state";
-import { Decoration, DecorationSet } from "@tiptap/pm/view";
-import {
-  type AnyExtension,
-  type Editor,
-  EditorContent,
-  useEditor,
-  useEditorState,
-} from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import { common, createLowlight } from "lowlight";
-import {
-  Bold,
-  Code,
-  Heading1,
-  Heading2,
-  Heading3,
-  Italic,
-  Link as LinkIcon,
-  List,
-  ListOrdered,
-  type LucideIcon,
-  Minus,
-  Paperclip,
-  Quote,
-  SquareCode,
-  Strikethrough,
-} from "lucide-react";
+import { EditorContent, useEditor } from "@tiptap/react";
 import { useTranslations } from "next-intl";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createMarkdownEditorExtensions } from "./markdown-editor/extensions";
 import {
-  type ClipboardEvent,
-  type DragEvent,
-  type KeyboardEvent,
-  type PointerEvent,
-  type Ref,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react";
+  EDITOR_BODY_FRAME_CLASS,
+  EDITOR_BODY_SIZING,
+  EDITOR_CONTENT_CLASS,
+  EDITOR_MANUAL_BODY_CLASS,
+  EDITOR_MANUAL_SCROLL_SURFACE_CLASS,
+  EDITOR_MANUAL_SOURCE_CLASS,
+  EDITOR_RESIZABLE_BODY_ID,
+  MARKDOWN_SURFACE_CLASS,
+  useMarkdownEditorHeightResize,
+} from "./markdown-editor/heightResize";
 import {
-  createIssueBodyMentionExtension,
-  prepareIssueBodyMentionMarkdown,
-  type IssueBodyDocumentSearch,
-  type IssueBodyMentionExtensionOptions,
-} from "./issueBodyMentionExtension";
-import {
-  createIssueBodyReferenceExtension,
-  ISSUE_REFERENCE_MARK,
-} from "./issueBodyReferenceExtension";
+  openClickedEditorLink,
+  openEditorLinkOnMouseUp,
+  openLinkWindow,
+  preventEditorSelectionOnLinkMouseDown,
+} from "./markdown-editor/links";
+import { MarkdownEditorLinkEditor } from "./markdown-editor/LinkEditor";
+import { MarkdownEditorResizeHandle } from "./markdown-editor/ResizeHandle";
+import { MarkdownEditorToolbar } from "./markdown-editor/Toolbar";
+import type { MarkdownEditorProps } from "./markdown-editor/types";
+import { useMarkdownEditorBody } from "./markdown-editor/useBody";
+import { useMarkdownEditorLinkEditor } from "./markdown-editor/useLinkEditor";
+import { useMarkdownEditorSlashMessages } from "./markdown-editor/useSlashMessages";
+import { useMarkdownEditorToolbarState } from "./markdown-editor/useToolbarState";
 import { useOverlayOpenRegistration } from "./ui/overlayDismiss";
-import {
-  createSlashCommandExtension,
-  type SlashCommandMessages,
-} from "./slashCommandExtension";
-
-const boundedLowlight = createLowlight(common);
-const scopedLowlight = {
-  ...boundedLowlight,
-  // Unknown and empty fences intentionally render as readable plain code. The
-  // lowlight extension calls highlightAuto for those languages; an empty
-  // subset keeps that fallback free of guessed token paint.
-  highlightAuto: (value: string) =>
-    boundedLowlight.highlightAuto(value, { subset: [] }),
-};
 
 /**
- * Tiptap's task-item node view creates a native checkbox, but leaves its
- * keyboard affordance implicit. Keep the browser's normal Tab order explicit
- * so the checkbox remains reachable inside the contenteditable surface.
- */
-const AccessibleTaskItem = TaskItem.extend({
-  addNodeView() {
-    const renderNodeView = this.parent?.();
-    if (!renderNodeView) return null;
-
-    return (props: Parameters<typeof renderNodeView>[0]) => {
-      const nodeView = renderNodeView(props);
-      if (nodeView.dom instanceof HTMLElement) {
-        nodeView.dom
-          .querySelector<HTMLInputElement>('input[type="checkbox"]')
-          ?.setAttribute("tabindex", "0");
-      }
-      return nodeView;
-    };
-  },
-});
-
-/**
- * Shared height policy for both editor surfaces — the WYSIWYG body and the
- * Source textarea. An opted-in issue Description starts at a 320px frame so
- * an empty description reads as a real authoring canvas instead of a cramped
- * box. Content scrolls inside that frame instead of stretching the surrounding
- * sheet or dialog, so the relationship fields below stay in normal flow and
- * remain reachable by the scrolling container. The 200px floor remains the
- * lower keyboard/pointer boundary and the clamp adapts to the full-height
- * detail slide-over and the create dialog alike: 48vh keeps the rest of the
- * form in view, and a 960px ceiling caps the height on large monitors. (REEF-133)
- *
- * The dynamic wrapper's loading skeleton reserves the same 320px frame for
- * opted-in issue Descriptions, while other consumers retain their 200px
- * automatic floor. (REEF-220)
- */
-export const EDITOR_BODY_SIZING =
-  "min-h-[200px] max-h-[clamp(200px,48vh,560px)] overflow-y-auto [scrollbar-gutter:stable]";
-export const EDITOR_BODY_FRAME_CLASS = "p-1";
-export const EDITOR_CONTENT_CLASS = "reef-markdown-editor";
-export const MARKDOWN_SURFACE_CLASS = "reef-markdown-surface";
-export const EDITOR_RESIZABLE_BODY_ID = "markdown-editor-body-frame";
-export const EDITOR_BODY_MIN_HEIGHT = 200;
-export const EDITOR_BODY_DEFAULT_HEIGHT = 320;
-export const EDITOR_BODY_MAX_HEIGHT = 960;
-export const EDITOR_BODY_KEYBOARD_STEP = 32;
-/**
- * The height control is useful once the editor has enough room for a stable
- * writing surface. This is intentionally narrower than the Issue Detail
- * sheet's desktop breakpoint so browser zoom and split-window layouts do not
- * make a mouse-accessible control disappear.
- */
-export const EDITOR_BODY_RESIZE_MIN_WIDTH = 1024;
-export const EDITOR_BODY_FINE_POINTER_MEDIA_QUERY = "(pointer: fine)";
-export const EDITOR_BODY_VIEWPORT_RESERVATION = 160;
-export const EDITOR_BODY_SESSION_STORAGE_KEY =
-  "reef:issue-description-height:v1";
-export const EDITOR_BODY_SESSION_STORAGE_EVENT =
-  "reef:issue-description-height-change";
-export const EDITOR_RESIZE_DESCRIPTION_ID =
-  "markdown-editor-resize-description";
-
-/**
- * Manual height uses a scrollable content surface inside a non-scrolling frame.
- * Keeping the scroll owner below the frame lets the resize chrome stay pinned
- * to the frame's bottom-right edge instead of becoming part of the scrollable
- * content and moving out of view.
- */
-const EDITOR_MANUAL_BODY_CLASS =
-  "h-full min-h-0 max-h-none overflow-visible [scrollbar-gutter:stable]";
-const EDITOR_MANUAL_SCROLL_SURFACE_CLASS =
-  "h-full min-h-0 overflow-auto [scrollbar-gutter:stable]";
-const EDITOR_MANUAL_SOURCE_CLASS =
-  "h-full min-h-0 max-h-none overflow-auto [scrollbar-gutter:stable]";
-
-export interface MarkdownEditorProps {
-  value: string;
-  onChange: (markdown: string) => void;
-  /** Placeholder rendered by the editable WYSIWYG surface. */
-  placeholder?: string;
-  /** Placeholder rendered by the raw Markdown Source textarea. */
-  sourcePlaceholder?: string;
-  className?: string;
-  readOnly?: boolean;
-  /**
-   * Accessible name for the contenteditable region. The body lives in a
-   * contenteditable (not a native form control), so it does not be associated via
-   * `<label htmlFor>`; pass a name here to give screen readers a name without a
-   * wrapping native control.
-   */
-  ariaLabel?: string;
-  /**
-   * Fires when focus leaves the editor entirely (not on internal focus shifts
-   * between the toolbar and the content area). Lets callers commit on blur
-   * without reverse-engineering the editor's focus boundary from outside.
-   */
-  onBlur?: (value: string) => void;
-  /** Active AKB vault. Enables akb:// document title resolution when supplied. */
-  vault?: string;
-  /**
-   * Optional file upload hook for issue-owned editor surfaces. The editor
-   * mutates markdown after this resolves, leaving it unchanged when an upload
-   * fails instead of inserting a broken local link.
-   */
-  onUploadFiles?: (files: File[]) => Promise<AttachmentMarkdownUploadResult[]>;
-  /** Resolve stored image URLs (for example akb:// file URIs) for WYSIWYG paint. */
-  resolveImageSrc?: (src: string) => string;
-  /** Resolve explicit AKB file links for the issue-scoped authenticated proxy. */
-  resolveAttachmentHref?: (href: string) => string;
-  /**
-   * Enables issue-body member mentions. Omit this elsewhere so the
-   * shared editor keeps its existing schema and interaction contract.
-   */
-  mentionConfig?: MarkdownEditorMentionConfig;
-  /** Enables the issue-detail description height control when the input surface supports it. */
-  enableHeightResize?: boolean;
-  /**
-   * A non-persistent height supplied by a containing layout (for example, a
-   * maximized New Issue dialog). A larger preferred value may temporarily grow
-   * a saved baseline, while explicit user resizing always wins and persists.
-   */
-  preferredHeight?: number;
-  /** Optional observation seam for a containing layout's transient geometry. */
-  bodyFrameRef?: Ref<HTMLDivElement>;
-}
-
-export interface MarkdownEditorMentionConfig {
-  members: readonly VaultMember[];
-  issues: readonly IssueListItem[];
-  searchDocuments?: IssueBodyDocumentSearch;
-  suggestionsLabel: string;
-  mentionOptionLabel: (username: string) => string;
-  peopleSectionLabel: string;
-  issuesSectionLabel: string;
-  documentsSectionLabel: string;
-  issueOptionLabel: (issue: IssueListItem) => string;
-  documentOptionLabel: (hit: DocumentSearchHit) => string;
-  documentSearchLoadingLabel: string;
-  documentSearchErrorLabel: string;
-  documentSearchEmptyLabel: string;
-}
-
-/** Active-state flags for every toolbar control, derived from the selection. */
-interface ActiveMarks {
-  bold: boolean;
-  italic: boolean;
-  strike: boolean;
-  code: boolean;
-  h1: boolean;
-  h2: boolean;
-  h3: boolean;
-  bulletList: boolean;
-  orderedList: boolean;
-  blockquote: boolean;
-  codeBlock: boolean;
-  link: boolean;
-}
-
-interface EditorSelectionRange {
-  from: number;
-  to: number;
-}
-
-const NO_ACTIVE: ActiveMarks = {
-  bold: false,
-  italic: false,
-  strike: false,
-  code: false,
-  h1: false,
-  h2: false,
-  h3: false,
-  bulletList: false,
-  orderedList: false,
-  blockquote: false,
-  codeBlock: false,
-  link: false,
-};
-
-const LINK_CLICK_SUPPRESSION_MS = 1000;
-
-function createImageExtension(resolveImageSrc?: (src: string) => string) {
-  return Image.extend({
-    renderHTML({ HTMLAttributes }) {
-      const attrs = { ...HTMLAttributes };
-      if (typeof attrs.src === "string") {
-        attrs.src = resolveImageSrc?.(attrs.src) ?? attrs.src;
-      }
-      return ["img", { ...this.options.HTMLAttributes, ...attrs }];
-    },
-  }).configure({
-    allowBase64: false,
-    HTMLAttributes: {
-      class: "max-w-full rounded-md border border-border-subtle",
-    },
-  });
-}
-
-function createIssueAttachmentLinkExtension(
-  resolveAttachmentHref?: (href: string) => string | undefined,
-  akbWebBase?: string | null,
-) {
-  return LinkExtension.extend({
-    parseMarkdown(token, helpers) {
-      const content = helpers.parseInline(token.tokens ?? []).map((node) => {
-        if (!node.marks) return node;
-        return {
-          ...node,
-          marks: node.marks.filter(
-            (mark) => mark.type !== ISSUE_REFERENCE_MARK,
-          ),
-        };
-      });
-      return helpers.applyMark("link", content, {
-        href: token.href,
-        title: token.title || null,
-      });
-    },
-    renderHTML({ HTMLAttributes, mark }) {
-      const attrs = { ...HTMLAttributes };
-      const href = typeof attrs.href === "string" ? attrs.href : "";
-      if (isAkbFileUri(href)) {
-        attrs["data-reference-kind"] = "file";
-        attrs["data-reef-file-link"] = "true";
-        attrs["data-reef-file-uri"] = href;
-        const resolvedHref = resolveAttachmentHref?.(href);
-        if (resolvedHref) {
-          attrs.href = resolvedHref;
-          attrs.target = "_blank";
-          attrs.rel = "noreferrer";
-        }
-      } else if (parseAkbDocumentUri(href)) {
-        attrs["data-reference-kind"] = "document";
-        attrs["data-document-uri"] = href;
-        // Keep the mark's authored URI untouched while exposing the runtime
-        // AKB web destination to the rendered editor and click policy.
-        const renderedHref = buildAkbDocumentUrl(akbWebBase, href);
-        if (renderedHref) {
-          attrs.href = renderedHref;
-          attrs["data-akb-uri"] = href;
-          attrs.target = "_blank";
-          attrs.rel = "noreferrer";
-        }
-      }
-      return (
-        this.parent?.({ mark, HTMLAttributes: attrs }) ?? [
-          "a",
-          mergeAttributes(this.options.HTMLAttributes, attrs),
-          0,
-        ]
-      );
-    },
-  }).configure({
-    openOnClick: false,
-    HTMLAttributes: { tabindex: 0 },
-    protocols: [{ scheme: "akb", optionalSlashes: true }],
-    isAllowedUri: (url, ctx) =>
-      url.startsWith("akb://")
-        ? parseAkbDocumentUri(url) !== null || isAkbFileUri(url)
-        : ctx.defaultValidate(url),
-  });
-}
-
-function createIssueAttachmentLinkDecorationExtension() {
-  return Extension.create({
-    name: "issueAttachmentLinkDecoration",
-    addProseMirrorPlugins() {
-      return [
-        new Plugin({
-          props: {
-            decorations: (state) => {
-              const decorations: Decoration[] = [];
-              state.doc.descendants((node, pos) => {
-                if (!node.isText || !node.text) return;
-                const href = node.marks.find(
-                  (mark) => mark.type.name === "link",
-                )?.attrs.href;
-                if (typeof href !== "string" || !isAkbFileUri(href)) return;
-
-                const attrs: Record<string, string> = {
-                  "data-reef-file-type": attachmentFileTypeLabel(node.text),
-                };
-                decorations.push(
-                  Decoration.inline(pos, pos + node.nodeSize, attrs),
-                );
-              });
-              return DecorationSet.create(state.doc, decorations);
-            },
-          },
-        }),
-      ];
-    },
-  });
-}
-
-export function createMarkdownEditorExtensions(
-  placeholder: string,
-  resolveImageSrc?: (src: string) => string,
-  mentionConfig?: IssueBodyMentionExtensionOptions,
-  resolveAttachmentHref?: (href: string) => string | undefined,
-  slashMessages?: SlashCommandMessages,
-  issueReferenceVault?: string,
-  slashOnOpenChange?: (open: boolean, dismiss?: () => void) => void,
-  akbWebBase?: string | null,
-) {
-  const extensions: AnyExtension[] = [
-    // StarterKit v3 bundles the Link extension; configure it here rather than
-    // registering a second @tiptap/extension-link (which warns about a
-    // duplicate 'link' extension and leaves link behavior ambiguous).
-    // CodeBlockLowlight owns the codeBlock node below; disabling StarterKit's
-    // copy avoids duplicate node names while preserving every other starter
-    // mark/block.
-    StarterKit.configure({ link: false, codeBlock: false }),
-    // Keep the shared Link behavior while adding issue-scoped file-link
-    // display attributes at render time. The authored AKB URI remains the
-    // mark's href and therefore remains the Markdown serialization value.
-    createIssueAttachmentLinkExtension(resolveAttachmentHref, akbWebBase),
-    TaskList,
-    AccessibleTaskItem.configure({ nested: true }),
-    Table.configure({
-      resizable: false,
-      renderWrapper: false,
-      HTMLAttributes: { class: "reef-markdown-table" },
-    }),
-    TableRow,
-    TableHeader,
-    TableCell,
-    CodeBlockLowlight.configure({
-      lowlight: scopedLowlight,
-      HTMLAttributes: { class: "reef-markdown-code-block" },
-    }),
-    createImageExtension(resolveImageSrc),
-    createIssueAttachmentLinkDecorationExtension(),
-    Markdown,
-    Placeholder.configure({
-      placeholder,
-      // Keep the empty textblock decorated after focus leaves the editor. The
-      // CSS limits painting to the sole top-level block of an empty document.
-      showOnlyCurrent: false,
-    }),
-    createSlashCommandExtension({
-      messages: slashMessages,
-      onOpenChange: slashOnOpenChange,
-    }),
-  ];
-  if (mentionConfig) {
-    extensions.push(
-      createIssueBodyReferenceExtension({
-        issuesRef: mentionConfig.issuesRef ?? { current: [] },
-        vault: issueReferenceVault,
-      }),
-    );
-    extensions.push(createIssueBodyMentionExtension(mentionConfig));
-  }
-  return extensions;
-}
-
-function findClickedEditorLink(
-  root: ParentNode,
-  event: MouseEvent,
-): HTMLAnchorElement | null {
-  const target = event.target instanceof Element ? event.target : null;
-  const anchor = target?.closest<HTMLAnchorElement>("a[href]") ?? null;
-  if (!anchor || !root.contains(anchor)) return null;
-  return anchor;
-}
-
-function openLinkWindow(href: string, target = "_blank"): boolean {
-  if (!href) return false;
-
-  // Tiptap's built-in openOnClick omits noopener for programmatic opens.
-  const opened = window.open(href, target, "noopener,noreferrer");
-  try {
-    if (opened) opened.opener = null;
-  } catch {
-    // Cross-origin windows can reject opener mutation; noopener above is primary.
-  }
-  return true;
-}
-
-function isDirectEditorLink(
-  anchor: HTMLAnchorElement,
-  renderedHref: string,
-  akbWebBase: string | null,
-): boolean {
-  if (isDirectIssueMarkdownHref(renderedHref)) return true;
-
-  // Runtime AKB_WEB_URL retargeting replaces the rendered href but preserves
-  // the validated Markdown source in both renderer-owned attributes. Require
-  // that pair to agree so an ordinary external href cannot opt itself out of
-  // confirmation with a single arbitrary data attribute.
-  const documentUri = anchor.getAttribute("data-document-uri");
-  const retargetedDocumentUri = anchor.getAttribute("data-akb-uri");
-  return (
-    documentUri !== null &&
-    retargetedDocumentUri === documentUri &&
-    parseAkbDocumentUri(documentUri) !== null &&
-    buildAkbDocumentUrl(akbWebBase, documentUri) === renderedHref
-  );
-}
-
-function openEditorLink(
-  anchor: HTMLAnchorElement,
-  requestExternalConfirmation: (href: string) => void,
-  akbWebBase: string | null,
-): boolean {
-  const authoredHref = anchor.getAttribute("href") ?? "";
-  const href = anchor.href || authoredHref;
-  if (!href) return false;
-
-  if (
-    linkSafetyConfig.enabled &&
-    !isDirectEditorLink(anchor, authoredHref, akbWebBase)
-  ) {
-    requestExternalConfirmation(href);
-    return true;
-  }
-
-  return openLinkWindow(href, anchor.getAttribute("target") ?? "_blank");
-}
-
-function openClickedEditorLink(
-  root: ParentNode,
-  event: MouseEvent,
-  linksOpenedFromMouseUp: WeakMap<HTMLAnchorElement, number>,
-  requestExternalConfirmation: (href: string) => void,
-  akbWebBase: string | null,
-): boolean {
-  if (event.button !== 0) return false;
-  const anchor = findClickedEditorLink(root, event);
-  if (!anchor) return false;
-
-  const openedAt = linksOpenedFromMouseUp.get(anchor);
-  if (
-    openedAt !== undefined &&
-    Date.now() - openedAt < LINK_CLICK_SUPPRESSION_MS
-  ) {
-    event.preventDefault();
-    return true;
-  }
-
-  if (!openEditorLink(anchor, requestExternalConfirmation, akbWebBase))
-    return false;
-  event.preventDefault();
-  return true;
-}
-
-function preventEditorSelectionOnLinkMouseDown(
-  root: ParentNode,
-  event: MouseEvent,
-): boolean {
-  if (event.button !== 0) return false;
-  if (!findClickedEditorLink(root, event)) return false;
-
-  event.preventDefault();
-  return true;
-}
-
-function openEditorLinkOnMouseUp(
-  root: ParentNode,
-  event: MouseEvent,
-  linksOpenedFromMouseUp: WeakMap<HTMLAnchorElement, number>,
-  requestExternalConfirmation: (href: string) => void,
-  akbWebBase: string | null,
-): boolean {
-  if (event.button !== 0) return false;
-  const anchor = findClickedEditorLink(root, event);
-  if (!anchor) return false;
-  if (!openEditorLink(anchor, requestExternalConfirmation, akbWebBase))
-    return false;
-
-  linksOpenedFromMouseUp.set(anchor, Date.now());
-  event.preventDefault();
-  return true;
-}
-
-function sameActive(a: ActiveMarks | null, b: ActiveMarks | null): boolean {
-  if (a === b) return true;
-  if (!a || !b) return false;
-  return (Object.keys(a) as (keyof ActiveMarks)[]).every((k) => a[k] === b[k]);
-}
-
-/**
- * Normalize a user-typed link target. Returns null for empty input so the
- * caller can leave the current selection untouched (no link applied). Bare
- * domains gain an https:// scheme; anchors, absolute paths, mailto, and
- * explicit http(s) URLs pass through unchanged.
- */
-function normalizeUrl(raw: string): string | null {
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-  if (/^akb:\/\//i.test(trimmed)) {
-    return parseAkbDocumentUri(trimmed) ? trimmed : null;
-  }
-  if (/^(https?:\/\/|mailto:|\/|#)/i.test(trimmed)) return trimmed;
-  return `https://${trimmed}`;
-}
-
-/** A single uniform icon control in the editor toolbar. */
-function ToolbarButton({
-  icon: Icon,
-  label,
-  onClick,
-  onPressStart,
-  isActive = false,
-  disabled = false,
-}: {
-  icon: LucideIcon;
-  label: string;
-  onClick: () => void;
-  onPressStart?: () => void;
-  isActive?: boolean;
-  disabled?: boolean;
-}) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-sm"
-      onClick={onClick}
-      onMouseDown={(event) => {
-        event.preventDefault();
-        onPressStart?.();
-      }}
-      disabled={disabled}
-      aria-pressed={isActive}
-      aria-label={label}
-      title={label}
-      className={cn(
-        "text-muted-foreground hover:text-foreground",
-        isActive && "bg-surface-hover text-brand-text hover:text-brand-text",
-      )}
-    >
-      <Icon className="size-3.5" aria-hidden="true" />
-    </Button>
-  );
-}
-
-/** Hairline separator between toolbar control groups. */
-function ToolbarDivider() {
-  return (
-    <span aria-hidden="true" className="mx-0.5 h-4 w-px shrink-0 bg-border" />
-  );
-}
-
-function syncEditorMarkdown(
-  editor: Editor | null | undefined,
-  markdown: string,
-  mentionMembers?: readonly VaultMember[],
-) {
-  if (!editor || editor.isDestroyed) return;
-  if (editor.getMarkdown() === markdown) return;
-  editor.commands.setContent(
-    mentionMembers
-      ? prepareIssueBodyMentionMarkdown(markdown, mentionMembers)
-      : markdown,
-    {
-      contentType: "markdown",
-      emitUpdate: false,
-    },
-  );
-}
-
-function setEditorMarkdown(
-  editor: Editor | null | undefined,
-  markdown: string,
-  mentionMembers?: readonly VaultMember[],
-) {
-  if (!editor || editor.isDestroyed) return;
-  editor.commands.setContent(
-    mentionMembers
-      ? prepareIssueBodyMentionMarkdown(markdown, mentionMembers)
-      : markdown,
-    {
-      contentType: "markdown",
-      emitUpdate: false,
-    },
-  );
-}
-
-function subscribeToEditorViewport(
-  enabled: boolean,
-  onStoreChange: () => void,
-) {
-  if (!enabled || typeof window === "undefined") return () => {};
-  window.addEventListener("resize", onStoreChange);
-  return () => window.removeEventListener("resize", onStoreChange);
-}
-
-function subscribeToEditorPointer(enabled: boolean, onStoreChange: () => void) {
-  if (
-    !enabled ||
-    typeof window === "undefined" ||
-    typeof window.matchMedia !== "function"
-  ) {
-    return () => {};
-  }
-
-  const mediaQuery = window.matchMedia(EDITOR_BODY_FINE_POINTER_MEDIA_QUERY);
-  mediaQuery.addEventListener("change", onStoreChange);
-  return () => mediaQuery.removeEventListener("change", onStoreChange);
-}
-
-function getEditorViewportSnapshot() {
-  if (typeof window === "undefined") return "0:0";
-  return `${window.innerWidth}:${window.innerHeight}`;
-}
-
-function getServerEditorViewportSnapshot() {
-  return "0:0";
-}
-
-function getEditorPointerSnapshot() {
-  if (
-    typeof window === "undefined" ||
-    typeof window.matchMedia !== "function"
-  ) {
-    return "0";
-  }
-  return window.matchMedia(EDITOR_BODY_FINE_POINTER_MEDIA_QUERY).matches
-    ? "1"
-    : "0";
-}
-
-function getServerEditorPointerSnapshot() {
-  return "0";
-}
-
-function parseEditorViewportSnapshot(snapshot: string) {
-  const [width, height] = snapshot.split(":").map(Number);
-  return {
-    width: Number.isFinite(width) ? width : 0,
-    height: Number.isFinite(height) ? height : 0,
-  };
-}
-
-export function getEditorMaxHeight(viewportHeight: number) {
-  return Math.max(
-    EDITOR_BODY_MIN_HEIGHT,
-    Math.min(
-      EDITOR_BODY_MAX_HEIGHT,
-      viewportHeight - EDITOR_BODY_VIEWPORT_RESERVATION,
-    ),
-  );
-}
-
-export function clampEditorHeight(value: number, maxHeight: number) {
-  const safeMax = Math.max(EDITOR_BODY_MIN_HEIGHT, maxHeight);
-  if (!Number.isFinite(value)) {
-    return Math.min(EDITOR_BODY_DEFAULT_HEIGHT, safeMax);
-  }
-  return Math.min(Math.max(value, EDITOR_BODY_MIN_HEIGHT), safeMax);
-}
-
-function subscribeToStoredEditorHeight(onStoreChange: () => void) {
-  if (typeof window === "undefined") return () => {};
-  window.addEventListener("storage", onStoreChange);
-  window.addEventListener(EDITOR_BODY_SESSION_STORAGE_EVENT, onStoreChange);
-  return () => {
-    window.removeEventListener("storage", onStoreChange);
-    window.removeEventListener(
-      EDITOR_BODY_SESSION_STORAGE_EVENT,
-      onStoreChange,
-    );
-  };
-}
-
-function getStoredEditorHeightSnapshot() {
-  try {
-    return window.sessionStorage.getItem(EDITOR_BODY_SESSION_STORAGE_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
-
-function getServerStoredEditorHeightSnapshot() {
-  return "";
-}
-
-function parseStoredEditorHeight(snapshot: string) {
-  try {
-    const parsed: unknown = JSON.parse(snapshot);
-    return typeof parsed === "number" && Number.isFinite(parsed)
-      ? parsed
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-function storeEditorHeight(height: number) {
-  try {
-    window.sessionStorage.setItem(
-      EDITOR_BODY_SESSION_STORAGE_KEY,
-      JSON.stringify(height),
-    );
-    window.dispatchEvent(new Event(EDITOR_BODY_SESSION_STORAGE_EVENT));
-  } catch {
-    // Private browsing and disabled storage should not block resizing.
-  }
-}
-
-interface MarkdownEditorHeightResizeHandlers {
-  isResizeAvailable: boolean;
-  isManual: boolean;
-  isResizing: boolean;
-  maxHeight: number;
-  currentHeight: number;
-  bodyFrameStyle?: React.CSSProperties;
-  onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
-  onLostPointerCapture: (event: PointerEvent<HTMLDivElement>) => void;
-  onPointerCancel: (event: PointerEvent<HTMLDivElement>) => void;
-  onPointerDown: (event: PointerEvent<HTMLDivElement>) => void;
-  onPointerMove: (event: PointerEvent<HTMLDivElement>) => void;
-  onPointerUp: (event: PointerEvent<HTMLDivElement>) => void;
-  refreshAutoHeight: () => void;
-}
-
-function useMarkdownEditorHeightResize(
-  enabled: boolean,
-  preferredHeight?: number,
-): MarkdownEditorHeightResizeHandlers {
-  const subscribe = useCallback(
-    (onStoreChange: () => void) =>
-      subscribeToEditorViewport(enabled, onStoreChange),
-    [enabled],
-  );
-  const subscribeToPointer = useCallback(
-    (onStoreChange: () => void) =>
-      subscribeToEditorPointer(enabled, onStoreChange),
-    [enabled],
-  );
-  const viewportSnapshot = useSyncExternalStore(
-    subscribe,
-    getEditorViewportSnapshot,
-    getServerEditorViewportSnapshot,
-  );
-  const pointerSnapshot = useSyncExternalStore(
-    subscribeToPointer,
-    getEditorPointerSnapshot,
-    getServerEditorPointerSnapshot,
-  );
-  const { width: viewportWidth, height: viewportHeight } =
-    parseEditorViewportSnapshot(viewportSnapshot);
-  const storedEditorHeightSnapshot = useSyncExternalStore(
-    subscribeToStoredEditorHeight,
-    getStoredEditorHeightSnapshot,
-    getServerStoredEditorHeightSnapshot,
-  );
-  const storedEditorHeight = parseStoredEditorHeight(
-    storedEditorHeightSnapshot,
-  );
-  const liveViewportWidth =
-    viewportWidth || (typeof window === "undefined" ? 0 : window.innerWidth);
-  const liveViewportHeight =
-    viewportHeight || (typeof window === "undefined" ? 0 : window.innerHeight);
-  const isResizeAvailable =
-    enabled &&
-    pointerSnapshot === "1" &&
-    liveViewportWidth >= EDITOR_BODY_RESIZE_MIN_WIDTH;
-  const maxHeight = getEditorMaxHeight(liveViewportHeight);
-  const [manualHeightState, setManualHeight] = useState<number | null>(null);
-  const [currentHeight, setCurrentHeight] = useState(
-    EDITOR_BODY_DEFAULT_HEIGHT,
-  );
-  const [isResizing, setIsResizing] = useState(false);
-  const persistedManualHeight =
-    isResizeAvailable && storedEditorHeight !== null
-      ? clampEditorHeight(storedEditorHeight, maxHeight)
-      : null;
-  const preferredManualHeightCandidate =
-    isResizeAvailable &&
-    typeof preferredHeight === "number" &&
-    Number.isFinite(preferredHeight)
-      ? clampEditorHeight(preferredHeight, maxHeight)
-      : null;
-  const preferredManualHeight =
-    preferredManualHeightCandidate !== null &&
-    (persistedManualHeight === null ||
-      preferredManualHeightCandidate > persistedManualHeight)
-      ? preferredManualHeightCandidate
-      : null;
-  const defaultManualHeight = clampEditorHeight(
-    EDITOR_BODY_DEFAULT_HEIGHT,
-    maxHeight,
-  );
-  const effectiveHeight =
-    manualHeightState ??
-    preferredManualHeight ??
-    persistedManualHeight ??
-    defaultManualHeight;
-  const manualHeightRef = useRef<number | null>(manualHeightState);
-  const currentHeightRef = useRef(EDITOR_BODY_DEFAULT_HEIGHT);
-  const dragRef = useRef<{
-    pointerId: number;
-    startY: number;
-    startHeight: number;
-  } | null>(null);
-
-  // Opted-in issue descriptions always own a fixed frame. This callback is
-  // retained for the editor's value-sync seam, but it deliberately never
-  // measures content: an empty body must not collapse the 320px default.
-  const refreshAutoHeight = useCallback(() => {
-    if (!isResizeAvailable || manualHeightState !== null) return;
-    const nextHeight = clampEditorHeight(
-      preferredManualHeight ??
-        persistedManualHeight ??
-        EDITOR_BODY_DEFAULT_HEIGHT,
-      maxHeight,
-    );
-    currentHeightRef.current = nextHeight;
-    setCurrentHeight(nextHeight);
-  }, [
-    isResizeAvailable,
-    manualHeightState,
-    maxHeight,
-    persistedManualHeight,
-    preferredManualHeight,
-  ]);
-
-  useLayoutEffect(() => {
-    if (!isResizeAvailable || liveViewportHeight <= 0) {
-      manualHeightRef.current = manualHeightState;
-      return;
-    }
-    if (manualHeightState !== null) {
-      const nextHeight = clampEditorHeight(manualHeightState, maxHeight);
-      manualHeightRef.current = nextHeight;
-      currentHeightRef.current = nextHeight;
-      if (nextHeight !== manualHeightState) {
-        setManualHeight(nextHeight);
-        storeEditorHeight(nextHeight);
-      }
-      setCurrentHeight(nextHeight);
-      return;
-    }
-
-    manualHeightRef.current = null;
-    currentHeightRef.current = effectiveHeight;
-    setCurrentHeight(effectiveHeight);
-    if (
-      persistedManualHeight !== null &&
-      persistedManualHeight !== storedEditorHeight
-    ) {
-      storeEditorHeight(persistedManualHeight);
-    }
-  }, [
-    effectiveHeight,
-    isResizeAvailable,
-    liveViewportHeight,
-    manualHeightState,
-    maxHeight,
-    persistedManualHeight,
-    storedEditorHeight,
-  ]);
-
-  function enterManualMode() {
-    if (!isResizeAvailable) return null;
-    const existingHeight = manualHeightRef.current;
-    const nextHeight = clampEditorHeight(
-      existingHeight ?? effectiveHeight,
-      maxHeight,
-    );
-    manualHeightRef.current = nextHeight;
-    setManualHeight(nextHeight);
-    currentHeightRef.current = nextHeight;
-    setCurrentHeight(nextHeight);
-    return nextHeight;
-  }
-
-  function updateHeight(value: number) {
-    if (!isResizeAvailable) return;
-    const nextHeight = clampEditorHeight(value, maxHeight);
-    manualHeightRef.current = nextHeight;
-    currentHeightRef.current = nextHeight;
-    setManualHeight(nextHeight);
-    setCurrentHeight(nextHeight);
-    storeEditorHeight(nextHeight);
-  }
-
-  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (!isResizeAvailable) return;
-    let nextHeight: number | null = null;
-    switch (event.key) {
-      case "ArrowDown":
-        nextHeight =
-          (enterManualMode() ?? currentHeightRef.current) +
-          EDITOR_BODY_KEYBOARD_STEP;
-        break;
-      case "ArrowUp":
-        nextHeight =
-          (enterManualMode() ?? currentHeightRef.current) -
-          EDITOR_BODY_KEYBOARD_STEP;
-        break;
-      case "Home":
-        enterManualMode();
-        nextHeight = EDITOR_BODY_MIN_HEIGHT;
-        break;
-      case "End":
-        enterManualMode();
-        nextHeight = maxHeight;
-        break;
-      default:
-        return;
-    }
-    event.preventDefault();
-    if (nextHeight !== null) updateHeight(nextHeight);
-  }
-
-  function onPointerDown(event: PointerEvent<HTMLDivElement>) {
-    if (!isResizeAvailable || event.button !== 0) return;
-    const startHeight = enterManualMode();
-    if (startHeight === null) return;
-    event.preventDefault();
-    event.currentTarget.focus();
-    dragRef.current = {
-      pointerId: event.pointerId,
-      startY: event.clientY,
-      startHeight,
-    };
-    event.currentTarget.setPointerCapture(event.pointerId);
-    setIsResizing(true);
-  }
-
-  function onPointerMove(event: PointerEvent<HTMLDivElement>) {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    updateHeight(drag.startHeight + (event.clientY - drag.startY));
-  }
-
-  function finishPointerResize(event: PointerEvent<HTMLDivElement>) {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    if (event.currentTarget.hasPointerCapture(drag.pointerId)) {
-      event.currentTarget.releasePointerCapture(drag.pointerId);
-    }
-    dragRef.current = null;
-    setIsResizing(false);
-  }
-
-  const isManual = isResizeAvailable;
-  const accessibleHeight = clampEditorHeight(
-    isManual ? effectiveHeight : currentHeight,
-    maxHeight,
-  );
-
-  return {
-    isResizeAvailable,
-    isManual,
-    isResizing,
-    maxHeight,
-    currentHeight: accessibleHeight,
-    bodyFrameStyle: isManual ? { height: `${accessibleHeight}px` } : undefined,
-    onKeyDown,
-    onLostPointerCapture: finishPointerResize,
-    onPointerCancel: finishPointerResize,
-    onPointerDown,
-    onPointerMove,
-    onPointerUp: finishPointerResize,
-    refreshAutoHeight,
-  };
-}
-
-/**
- * WYSIWYG markdown editor backed by Tiptap.
- *
- * Uses @tiptap/markdown extension so content is stored/emitted as markdown
- * strings. Source-mode toggle lets the PM edit raw markdown directly.
- *
- * External `value` changes are synced back into the editor without moving
- * the cursor (preserveWhitespace + equality guard).
- *
- * This implementation module carries the TipTap/ProseMirror dependency. It is
- * loaded through the `next/dynamic` wrapper in `./MarkdownEditor` so those deps
- * land in a lazy chunk instead of the dashboard's initial bundle. (REEF-220)
- *
- * API notes (Tiptap v3 + @tiptap/markdown v3):
- * - Markdown content via: editor.getMarkdown() (augmented on Editor interface)
- * - setContent: editor.commands.setContent(content, options?) — 2 args
- * - Toolbar active states are read via useEditorState so the toolbar
- *   re-renders when the selection changes — not the whole editor on every key.
+ * WYSIWYG markdown editor backed by Tiptap. The implementation composes the
+ * editor's responsibility modules; the public lazy boundary remains in
+ * `./MarkdownEditor` so Tiptap and ProseMirror stay out of the initial bundle.
  */
 export function MarkdownEditor({
   value,
@@ -1112,15 +61,43 @@ export function MarkdownEditor({
   const t = useTranslations("markdownEditor");
   const c = useTranslations("common");
   const akbWebBase = useAkbWebUrl();
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const body = useMarkdownEditorBody({
+    value,
+    onChange,
+    onBlur,
+    vault,
+    mentionConfig,
+    rootRef,
+    readOnly,
+    onUploadFiles,
+    resolveImageSrc,
+    resolveAttachmentHref,
+  });
+  const {
+    attachments,
+    handleBlur,
+    handleSourceChange,
+    initialContent,
+    mentionDocumentSearchRef,
+    mentionIssuesRef,
+    mentionMembersRef,
+    publishMarkdown,
+    resolveAttachmentHrefRef,
+    resolveImageSrcRef,
+    setEditor,
+    syncExternalValue,
+    syncMentionRoster,
+  } = body;
   const [sourceMode, setSourceMode] = useState(false);
   const [mentionOpen, setMentionOpen] = useState(false);
   const [slashOpen, setSlashOpen] = useState(false);
-  const [linkEditorOpen, setLinkEditorOpen] = useState(false);
-  const [linkUrl, setLinkUrl] = useState("");
   const [externalLinkHref, setExternalLinkHref] = useState<string | null>(null);
-  const [uploadingFiles, setUploadingFiles] = useState(false);
-  const [uploadError, setUploadError] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
+  const mentionDismissRef = useRef<(() => void) | null>(null);
+  const slashDismissRef = useRef<(() => void) | null>(null);
+  const linksOpenedFromMouseUpRef = useRef(
+    new WeakMap<HTMLAnchorElement, number>(),
+  );
   const setBodyFrameRef = useCallback(
     (element: HTMLDivElement | null) => {
       if (typeof externalBodyFrameRef === "function") {
@@ -1146,31 +123,6 @@ export function MarkdownEditor({
     onPointerUp: onHeightResizePointerUp,
     refreshAutoHeight,
   } = useMarkdownEditorHeightResize(enableHeightResize, preferredHeight);
-  const latestValueRef = useRef(value);
-  const lastSyncedValueRef = useRef(value);
-  const onChangeRef = useRef(onChange);
-  const onBlurRef = useRef(onBlur);
-  const uploadFilesRef = useRef(onUploadFiles);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const readOnlyRef = useRef(readOnly);
-  const resolveImageSrcRef = useRef(resolveImageSrc);
-  const resolveAttachmentHrefRef = useRef(resolveAttachmentHref);
-  const editorRef = useRef<Editor | null>(null);
-  const resolvedTitleMapRef = useRef(new Map<string, string | null>());
-  const pendingTitleUrisRef = useRef(new Set<string>());
-  const previousVaultRef = useRef(vault);
-  const linksOpenedFromMouseUpRef = useRef(
-    new WeakMap<HTMLAnchorElement, number>(),
-  );
-  const linkSelectionRef = useRef<EditorSelectionRange | null>(null);
-  const mentionMembersRef = useRef<readonly VaultMember[]>([]);
-  const mentionIssuesRef = useRef<readonly IssueListItem[]>([]);
-  const mentionDocumentSearchRef = useRef<IssueBodyDocumentSearch | undefined>(
-    undefined,
-  );
-  const mentionDismissRef = useRef<(() => void) | null>(null);
-  const slashDismissRef = useRef<(() => void) | null>(null);
-  const previousMentionRosterRef = useRef<string | null>(null);
 
   const dismissMention = useCallback(() => {
     mentionDismissRef.current?.();
@@ -1196,9 +148,6 @@ export function MarkdownEditor({
     [],
   );
 
-  // The picker is rendered by Tiptap rather than React, so bridge its open
-  // state into the shared Radix overlay registry. Escape then dismisses the
-  // picker before the surrounding Sheet/Dialog (REEF-524/DC-5).
   useOverlayOpenRegistration(
     Boolean(mentionConfig && mentionOpen),
     dismissMention,
@@ -1213,160 +162,16 @@ export function MarkdownEditor({
     "px-3 py-2 max-w-none",
   );
 
-  const slashMessages = useMemo<SlashCommandMessages>(
-    () => ({
-      header: t("slash.header"),
-      escapeHint: t("slash.escapeHint"),
-      sections: {
-        text: t("slash.sections.text"),
-        lists: t("slash.sections.lists"),
-        structure: t("slash.sections.structure"),
-      },
-      footer: {
-        navigation: t("slash.footer.navigation"),
-        insert: t("slash.footer.insert"),
-        close: t("slash.footer.close"),
-      },
-      empty: t("slash.empty"),
-      commands: {
-        heading1: {
-          label: t("slash.commands.heading1.label"),
-          description: t("slash.commands.heading1.description"),
-        },
-        heading2: {
-          label: t("slash.commands.heading2.label"),
-          description: t("slash.commands.heading2.description"),
-        },
-        heading3: {
-          label: t("slash.commands.heading3.label"),
-          description: t("slash.commands.heading3.description"),
-        },
-        quote: {
-          label: t("slash.commands.quote.label"),
-          description: t("slash.commands.quote.description"),
-        },
-        bulletList: {
-          label: t("slash.commands.bulletList.label"),
-          description: t("slash.commands.bulletList.description"),
-        },
-        numberedList: {
-          label: t("slash.commands.numberedList.label"),
-          description: t("slash.commands.numberedList.description"),
-        },
-        taskList: {
-          label: t("slash.commands.taskList.label"),
-          description: t("slash.commands.taskList.description"),
-        },
-        table: {
-          label: t("slash.commands.table.label"),
-          description: t("slash.commands.table.description"),
-        },
-        codeBlock: {
-          label: t("slash.commands.codeBlock.label"),
-          description: t("slash.commands.codeBlock.description"),
-        },
-        divider: {
-          label: t("slash.commands.divider.label"),
-          description: t("slash.commands.divider.description"),
-        },
-      },
-    }),
-    [t],
-  );
+  const slashMessages = useMarkdownEditorSlashMessages();
 
-  const mentionRosterFingerprint = mentionConfig
-    ? mentionConfig.members.map((member) => member.username).join("\u0000")
-    : null;
-
-  useEffect(() => {
-    mentionMembersRef.current = mentionConfig?.members ?? [];
-    mentionIssuesRef.current = mentionConfig?.issues ?? [];
-    mentionDocumentSearchRef.current = mentionConfig?.searchDocuments;
-  }, [
-    mentionConfig?.members,
-    mentionConfig?.issues,
-    mentionConfig?.searchDocuments,
-  ]);
-
-  useEffect(() => {
-    onChangeRef.current = onChange;
-    onBlurRef.current = onBlur;
-  }, [onChange, onBlur]);
-
-  useEffect(() => {
-    if (previousVaultRef.current === vault) return;
-    previousVaultRef.current = vault;
-    resolvedTitleMapRef.current.clear();
-    pendingTitleUrisRef.current.clear();
-  });
-
-  const queueAkbTitleResolution = useCallback(
-    (markdown: string, ed?: Editor | null) => {
-      if (!vault) return;
-      const unresolved = extractAkbDocumentUris(markdown).filter(
-        (uri) =>
-          !resolvedTitleMapRef.current.has(uri) &&
-          !pendingTitleUrisRef.current.has(uri),
-      );
-      if (unresolved.length === 0) return;
-
-      for (const uri of unresolved) pendingTitleUrisRef.current.add(uri);
-      void resolveAkbDocumentTitles(vault, unresolved).then((titles) => {
-        for (const uri of unresolved) {
-          pendingTitleUrisRef.current.delete(uri);
-          resolvedTitleMapRef.current.set(uri, titles.get(uri) ?? null);
-        }
-        const next = normalizeAkbDocumentMarkdownLinks(
-          latestValueRef.current,
-          resolvedTitleMapRef.current,
-        );
-        if (next === latestValueRef.current) return;
-        latestValueRef.current = next;
-        onChangeRef.current(next);
-        syncEditorMarkdown(
-          ed ?? editorRef.current,
-          next,
-          mentionConfig ? mentionMembersRef.current : undefined,
-        );
-        const root = rootRef.current;
-        if (!root?.contains(document.activeElement)) onBlurRef.current?.(next);
-      });
-    },
-    [mentionConfig, vault],
-  );
-
-  function publishMarkdown(rawMarkdown: string, ed?: Editor | null) {
-    const restoredMarkdown = restoreRenderedAkbDocumentMarkdownLinks(
-      rawMarkdown,
-      rootRef.current,
-    );
-    const markdown = normalizeAkbDocumentMarkdownLinks(
-      restoredMarkdown,
-      resolvedTitleMapRef.current,
-    );
-    const markdownChanged = markdown !== latestValueRef.current;
-    latestValueRef.current = markdown;
-    if (restoredMarkdown === rawMarkdown && markdown !== rawMarkdown) {
-      syncEditorMarkdown(
-        ed,
-        markdown,
-        mentionConfig ? mentionMembersRef.current : undefined,
-      );
-    }
-    if (markdownChanged) onChangeRef.current(markdown);
-    queueAkbTitleResolution(markdown, ed);
-  }
-
+  /* eslint-disable react-hooks/refs -- Tiptap invokes these renderer callbacks after React render; refs preserve the latest resolvers without recreating the editor. */
   const editor = useEditor({
     // Tiptap v3 requires this explicit opt-out under Next.js to avoid an SSR
     // hydration mismatch — the editor mounts on the client just.
     immediatelyRender: false,
-    /* eslint-disable react-hooks/refs -- Tiptap invokes this renderer after React render; the effect-updated ref preserves the latest attachment resolver without recreating the editor. */
     extensions: createMarkdownEditorExtensions(
       placeholder,
-      (src) => {
-        return resolveImageSrcRef.current?.(src) ?? src;
-      },
+      (src) => resolveImageSrcRef.current?.(src) ?? src,
       mentionConfig
         ? {
             membersRef: mentionMembersRef,
@@ -1392,10 +197,7 @@ export function MarkdownEditor({
       handleSlashOpenChange,
       akbWebBase,
     ),
-    /* eslint-enable react-hooks/refs */
-    content: mentionConfig
-      ? prepareIssueBodyMentionMarkdown(value, mentionConfig.members)
-      : value,
+    content: initialContent,
     contentType: "markdown",
     editable: !readOnly,
     editorProps: {
@@ -1426,132 +228,39 @@ export function MarkdownEditor({
           setExternalLinkHref,
           akbWebBase,
         ),
-      handlePaste: (_view, event) => {
-        const files = filesFromFileList(event.clipboardData?.files ?? null);
-        if (
-          files.length === 0 ||
-          !uploadFilesRef.current ||
-          readOnlyRef.current
-        ) {
-          return false;
-        }
-        event.preventDefault();
-        void uploadAndAppendFiles(files);
-        return true;
-      },
-      handleDrop: (_view, event) => {
-        const files = filesFromFileList(event.dataTransfer?.files ?? null);
-        if (
-          files.length === 0 ||
-          !uploadFilesRef.current ||
-          readOnlyRef.current
-        ) {
-          return false;
-        }
-        event.preventDefault();
-        void uploadAndAppendFiles(files);
-        return true;
-      },
+      handlePaste: (_view, event) => attachments.handleEditorPaste(event),
+      handleDrop: (_view, event) => attachments.handleEditorDrop(event),
     },
-    onUpdate: ({ editor: ed }) => {
-      publishMarkdown(ed.getMarkdown(), ed);
-    },
+    onUpdate: ({ editor: updatedEditor }) =>
+      publishMarkdown(updatedEditor.getMarkdown(), updatedEditor),
   });
+  /* eslint-enable react-hooks/refs */
 
   useEffect(() => {
-    uploadFilesRef.current = onUploadFiles;
-  }, [onUploadFiles]);
+    setEditor(editor);
+  }, [editor, setEditor]);
+
+  const active = useMarkdownEditorToolbarState(editor);
+  const {
+    isOpen: linkEditorOpen,
+    url: linkUrl,
+    setUrl: setLinkUrl,
+    close: closeLinkEditor,
+    rememberSelection: rememberLinkSelection,
+    toggle: toggleLinkEditor,
+    apply: applyLink,
+    remove: removeLink,
+    onKeyDown: onLinkEditorKeyDown,
+  } = useMarkdownEditorLinkEditor(editor, active.link);
 
   useEffect(() => {
-    readOnlyRef.current = readOnly;
-  }, [readOnly]);
-
-  useEffect(() => {
-    editorRef.current = editor;
-  }, [editor]);
-
-  useEffect(() => {
-    resolveImageSrcRef.current = resolveImageSrc;
-  }, [resolveImageSrc]);
-
-  useEffect(() => {
-    resolveAttachmentHrefRef.current = resolveAttachmentHref;
-  }, [resolveAttachmentHref]);
-
-  // Subscribe to derived active-state booleans just, so the toolbar re-renders
-  // when formatting under the cursor changes — not on every transaction. The
-  // explicit equality check keeps the reference stable until a flag flips.
-  const active =
-    useEditorState({
-      editor,
-      selector: ({ editor: ed }): ActiveMarks =>
-        ed
-          ? {
-              bold: ed.isActive("bold"),
-              italic: ed.isActive("italic"),
-              strike: ed.isActive("strike"),
-              code: ed.isActive("code"),
-              h1: ed.isActive("heading", { level: 1 }),
-              h2: ed.isActive("heading", { level: 2 }),
-              h3: ed.isActive("heading", { level: 3 }),
-              bulletList: ed.isActive("bulletList"),
-              orderedList: ed.isActive("orderedList"),
-              blockquote: ed.isActive("blockquote"),
-              codeBlock: ed.isActive("codeBlock"),
-              link: ed.isActive("link"),
-            }
-          : NO_ACTIVE,
-      equalityFn: sameActive,
-    }) ?? NO_ACTIVE;
-
-  // Sync external value changes without moving the cursor.
-  useEffect(() => {
-    const normalized = normalizeAkbDocumentMarkdownLinks(
-      value,
-      resolvedTitleMapRef.current,
-    );
-    const externalValueChanged = normalized !== lastSyncedValueRef.current;
-    latestValueRef.current = normalized;
-    if (normalized !== value) onChangeRef.current(normalized);
-    if (!editor) return;
-    const current = editor.getMarkdown();
-    if (externalValueChanged && normalized !== current) {
-      // contentType: 'markdown' is required so the @tiptap/markdown extension parses the
-      // string through marked; without it, Tiptap treats input as HTML and raw markdown
-      // shows up as plain text. emitUpdate: false avoids retriggering onChange.
-      setEditorMarkdown(
-        editor,
-        normalized,
-        mentionConfig ? mentionMembersRef.current : undefined,
-      );
-    }
-    lastSyncedValueRef.current = normalized;
-    queueAkbTitleResolution(normalized, editor);
+    syncExternalValue(editor, value);
     refreshAutoHeight();
-  }, [
-    editor,
-    mentionConfig,
-    queueAkbTitleResolution,
-    refreshAutoHeight,
-    value,
-  ]);
+  }, [editor, refreshAutoHeight, syncExternalValue, value]);
 
   useEffect(() => {
-    if (!mentionConfig || !editor) return;
-    if (previousMentionRosterRef.current === mentionRosterFingerprint) return;
-    previousMentionRosterRef.current = mentionRosterFingerprint;
-
-    const selection = editor.state.selection;
-    const currentMarkdown = latestValueRef.current;
-    setEditorMarkdown(editor, currentMarkdown, mentionMembersRef.current);
-    const documentSize = editor.state.doc.content.size;
-    if (documentSize > 0 && typeof selection.from === "number") {
-      editor.commands.setTextSelection({
-        from: Math.min(selection.from, documentSize),
-        to: Math.min(selection.to, documentSize),
-      });
-    }
-  }, [editor, mentionConfig, mentionRosterFingerprint]);
+    syncMentionRoster(editor);
+  }, [editor, syncMentionRoster]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -1568,14 +277,6 @@ export function MarkdownEditor({
     return () => observer.disconnect();
   }, [akbWebBase]);
 
-  // Tiptap captures `editable` at creation and ignores later option changes, so
-  // a readOnly toggle after mount (e.g. a save-pending lock) should be applied
-  // imperatively. Without this the editor stays editable while a save is in
-  // flight and edits made during the round-trip are silently dropped when the
-  // dialog closes. `editor.isEditable === readOnly` is true when the two
-  // disagree (isEditable should be `!readOnly`). The `false` second arg is
-  // emitUpdate=false: flipping editability is not a content change, so it should
-  // NOT fire onUpdate (which would push a no-op normalized value via onChange).
   useEffect(() => {
     if (!editor) return;
     if (editor.isEditable === readOnly) {
@@ -1583,429 +284,108 @@ export function MarkdownEditor({
     }
   }, [editor, readOnly]);
 
-  // Source mode textarea handler
-  function handleSourceChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
-    const newValue = normalizeAkbDocumentMarkdownLinks(
-      e.target.value,
-      resolvedTitleMapRef.current,
-    );
-    latestValueRef.current = newValue;
-    onChange(newValue);
-    if (editor) {
-      setEditorMarkdown(
-        editor,
-        newValue,
-        mentionConfig ? mentionMembersRef.current : undefined,
-      );
-    }
-    queueAkbTitleResolution(newValue, editor);
-  }
-
-  function appendUploadedMarkdown(snippets: readonly string[]) {
-    const next = appendMarkdownSnippets(latestValueRef.current, snippets);
-    if (next === latestValueRef.current) return;
-    latestValueRef.current = next;
-    onChange(next);
-    setEditorMarkdown(
-      editor,
-      next,
-      mentionConfig ? mentionMembersRef.current : undefined,
-    );
-    // The native file picker can move focus outside the editor before the
-    // asynchronous upload finishes. In that case the ordinary blur commit has
-    // already saved the pre-upload body, so commit the completed insertion now.
-    if (!rootRef.current?.contains(document.activeElement)) {
-      onBlurRef.current?.(next);
-    }
-  }
-
-  async function uploadAndAppendFiles(files: File[]) {
-    const uploadFiles = uploadFilesRef.current;
-    if (!uploadFiles || readOnlyRef.current) return;
-    setUploadingFiles(true);
-    setUploadError(false);
-    try {
-      const results = await uploadFiles(files);
-      appendUploadedMarkdown(
-        results
-          .map((result) => result.markdown)
-          .filter((markdown): markdown is string => !!markdown),
-      );
-    } catch {
-      setUploadError(true);
-    } finally {
-      setUploadingFiles(false);
-    }
-  }
-
-  function openAttachmentFilePicker() {
-    if (uploadingFiles || !uploadFilesRef.current || readOnlyRef.current) {
-      return;
-    }
-    fileInputRef.current?.click();
-  }
-
-  function handleAttachmentInputChange(
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) {
-    const files = filesFromFileList(event.currentTarget.files);
-    event.currentTarget.value = "";
-    if (files.length === 0) return;
-    void uploadAndAppendFiles(files);
-  }
-
-  function handleSourcePaste(event: ClipboardEvent<HTMLTextAreaElement>) {
-    const files = filesFromFileList(event.clipboardData.files);
-    if (files.length === 0 || !uploadFilesRef.current || readOnlyRef.current) {
-      return;
-    }
-    event.preventDefault();
-    void uploadAndAppendFiles(files);
-  }
-
-  function handleSourceDrop(event: DragEvent<HTMLTextAreaElement>) {
-    const files = filesFromFileList(event.dataTransfer.files);
-    if (files.length === 0 || !uploadFilesRef.current || readOnlyRef.current) {
-      return;
-    }
-    event.preventDefault();
-    void uploadAndAppendFiles(files);
-  }
-
-  function closeLinkEditor() {
-    setLinkEditorOpen(false);
-    setLinkUrl("");
-    linkSelectionRef.current = null;
-  }
-
-  function rememberLinkSelection() {
-    if (!editor) return;
-    const { from, to } = editor.state.selection;
-    linkSelectionRef.current = { from, to };
-  }
-
-  function openLinkEditor() {
-    if (!editor) return;
-    // Pointer activation snapshots on mousedown, before the toolbar can
-    // collapse ProseMirror's selection. Keyboard activation has no mousedown,
-    // so capture the still-current selection here instead.
-    if (!linkSelectionRef.current) rememberLinkSelection();
-    const href =
-      (editor.getAttributes("link").href as string | undefined) ?? "";
-    setLinkUrl(href);
-    setLinkEditorOpen(true);
-  }
-
-  function applyLink() {
-    if (!editor) return;
-    const href = normalizeUrl(linkUrl);
-    // Empty/invalid input: apply nothing and keep the current selection.
-    if (!href) {
-      closeLinkEditor();
-      return;
-    }
-    const selection = linkSelectionRef.current;
-    const chain = editor.chain().focus();
-    if (selection) chain.setTextSelection(selection);
-    chain.extendMarkRange("link");
-    if ((!selection || selection.from === selection.to) && !active.link) {
-      // No selection and not on an existing link: insert the URL as its own
-      // linked text so the result is still a real markdown link.
-      chain.insertContent({
-        type: "text",
-        text: href,
-        marks: [{ type: "link", attrs: { href } }],
-      });
-    } else {
-      chain.setLink({ href });
-    }
-    chain.run();
-    closeLinkEditor();
-  }
-
-  function removeLink() {
-    if (!editor) return;
-    const chain = editor.chain().focus();
-    if (linkSelectionRef.current) {
-      chain.setTextSelection(linkSelectionRef.current);
-    }
-    chain.extendMarkRange("link").unsetLink().run();
-    closeLinkEditor();
-  }
-
-  function toggleSourceMode() {
-    setSourceMode((s) => {
-      // Leaving WYSIWYG closes any open link editor so it does not linger over the
-      // raw-markdown textarea where its commands wouldn't apply.
-      if (!s) closeLinkEditor();
-      return !s;
+  const toggleSourceMode = useCallback(() => {
+    setSourceMode((isSourceMode) => {
+      // Leaving WYSIWYG closes any open link editor so it does not linger over
+      // the raw-markdown textarea where its commands wouldn't apply.
+      if (!isSourceMode) closeLinkEditor();
+      return !isSourceMode;
     });
-  }
+  }, [closeLinkEditor]);
 
+  const toolbarLabels = useMemo(
+    () => ({
+      bold: t("bold"),
+      italic: t("italic"),
+      strikethrough: t("strikethrough"),
+      inlineCode: t("inlineCode"),
+      heading1: t("heading1"),
+      heading2: t("heading2"),
+      heading3: t("heading3"),
+      bulletList: t("bulletList"),
+      numberedList: t("numberedList"),
+      quote: t("quote"),
+      codeBlock: t("codeBlock"),
+      divider: t("divider"),
+      link: t("link"),
+      attachFile: t("attachFile"),
+      toggleSourceMode: t("toggleSourceMode"),
+      source: t("source"),
+    }),
+    [t],
+  );
+  const linkEditorLabels = useMemo(
+    () => ({
+      linkUrl: t("linkUrl"),
+      apply: t("apply"),
+      remove: c("remove"),
+      cancel: c("cancel"),
+    }),
+    [c, t],
+  );
+  const resizeLabels = useMemo(
+    () => ({
+      resizeHandle: t("resizeHandle"),
+      resizeHandleDescription: (values: {
+        current: string;
+        min: string;
+        max: string;
+      }) => t("resizeHandleDescription", values),
+    }),
+    [t],
+  );
   const showLinkEditor = linkEditorOpen && !sourceMode && !readOnly;
 
   return (
     <div
       ref={rootRef}
       data-testid="markdown-editor"
-      onBlur={(e) => {
-        // fire when focus truly exits the editor subtree (toolbar +
-        // content) — relatedTarget still inside means an internal focus shift.
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
-          onBlur?.(latestValueRef.current);
+      onBlur={(event) => {
+        // Fire when focus truly exits the editor subtree (toolbar + content) —
+        // relatedTarget still inside means an internal focus shift.
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          handleBlur();
         }
       }}
       className={`rounded-md border border-border bg-surface-elevated transition-colors duration-150 focus-within:border-brand-focus focus-within:ring-2 focus-within:ring-inset focus-within:ring-brand-focus ${className ?? ""}`}
     >
-      {/* Toolbar */}
       {!readOnly && (
-        <div
-          data-testid="markdown-toolbar"
-          className="flex items-start gap-1 border-b border-border-subtle px-2 py-1"
-        >
-          <div
-            data-testid="markdown-toolbar-controls"
-            className="flex min-w-0 flex-1 flex-wrap items-center gap-0.5"
-          >
-            {/* Inline marks */}
-            <div className="flex items-center gap-0.5">
-              <ToolbarButton
-                icon={Bold}
-                label={t("bold")}
-                isActive={active.bold}
-                disabled={sourceMode}
-                onClick={() => editor?.chain().focus().toggleBold().run()}
-              />
-              <ToolbarButton
-                icon={Italic}
-                label={t("italic")}
-                isActive={active.italic}
-                disabled={sourceMode}
-                onClick={() => editor?.chain().focus().toggleItalic().run()}
-              />
-              <ToolbarButton
-                icon={Strikethrough}
-                label={t("strikethrough")}
-                isActive={active.strike}
-                disabled={sourceMode}
-                onClick={() => editor?.chain().focus().toggleStrike().run()}
-              />
-              <ToolbarButton
-                icon={Code}
-                label={t("inlineCode")}
-                isActive={active.code}
-                disabled={sourceMode}
-                onClick={() => editor?.chain().focus().toggleCode().run()}
-              />
-            </div>
-
-            <ToolbarDivider />
-
-            {/* Headings */}
-            <div className="flex items-center gap-0.5">
-              <ToolbarButton
-                icon={Heading1}
-                label={t("heading1")}
-                isActive={active.h1}
-                disabled={sourceMode}
-                onClick={() =>
-                  editor?.chain().focus().toggleHeading({ level: 1 }).run()
-                }
-              />
-              <ToolbarButton
-                icon={Heading2}
-                label={t("heading2")}
-                isActive={active.h2}
-                disabled={sourceMode}
-                onClick={() =>
-                  editor?.chain().focus().toggleHeading({ level: 2 }).run()
-                }
-              />
-              <ToolbarButton
-                icon={Heading3}
-                label={t("heading3")}
-                isActive={active.h3}
-                disabled={sourceMode}
-                onClick={() =>
-                  editor?.chain().focus().toggleHeading({ level: 3 }).run()
-                }
-              />
-            </div>
-
-            <ToolbarDivider />
-
-            {/* Lists */}
-            <div className="flex items-center gap-0.5">
-              <ToolbarButton
-                icon={List}
-                label={t("bulletList")}
-                isActive={active.bulletList}
-                disabled={sourceMode}
-                onClick={() => editor?.chain().focus().toggleBulletList().run()}
-              />
-              <ToolbarButton
-                icon={ListOrdered}
-                label={t("numberedList")}
-                isActive={active.orderedList}
-                disabled={sourceMode}
-                onClick={() =>
-                  editor?.chain().focus().toggleOrderedList().run()
-                }
-              />
-            </div>
-
-            <ToolbarDivider />
-
-            {/* Blocks */}
-            <div className="flex items-center gap-0.5">
-              <ToolbarButton
-                icon={Quote}
-                label={t("quote")}
-                isActive={active.blockquote}
-                disabled={sourceMode}
-                onClick={() => editor?.chain().focus().toggleBlockquote().run()}
-              />
-              <ToolbarButton
-                icon={SquareCode}
-                label={t("codeBlock")}
-                isActive={active.codeBlock}
-                disabled={sourceMode}
-                onClick={() => editor?.chain().focus().toggleCodeBlock().run()}
-              />
-              <ToolbarButton
-                icon={Minus}
-                label={t("divider")}
-                disabled={sourceMode}
-                onClick={() =>
-                  editor?.chain().focus().setHorizontalRule().run()
-                }
-              />
-            </div>
-
-            <ToolbarDivider />
-
-            {/* Insert */}
-            <div className="flex items-center gap-0.5">
-              <ToolbarButton
-                icon={LinkIcon}
-                label={t("link")}
-                isActive={active.link || linkEditorOpen}
-                disabled={sourceMode}
-                onPressStart={rememberLinkSelection}
-                onClick={() =>
-                  linkEditorOpen ? closeLinkEditor() : openLinkEditor()
-                }
-              />
-              {onUploadFiles && (
-                <>
-                  <ToolbarButton
-                    icon={Paperclip}
-                    label={t("attachFile")}
-                    disabled={uploadingFiles}
-                    onClick={openAttachmentFilePicker}
-                  />
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    className="hidden"
-                    aria-label={t("attachFile")}
-                    data-testid="markdown-attachment-input"
-                    onChange={handleAttachmentInputChange}
-                  />
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Mode toggle */}
-          <div data-testid="markdown-source-toggle" className="shrink-0">
-            <Button
-              type="button"
-              variant={sourceMode ? "secondary" : "ghost"}
-              size="sm"
-              aria-pressed={sourceMode}
-              onClick={toggleSourceMode}
-              className="h-7 px-2 text-xs font-mono"
-              title={t("toggleSourceMode")}
-            >
-              {t("source")}
-            </Button>
-          </div>
-        </div>
+        <MarkdownEditorToolbar
+          editor={editor}
+          active={active}
+          sourceMode={sourceMode}
+          linkEditorOpen={linkEditorOpen}
+          canUpload={Boolean(onUploadFiles)}
+          uploadingFiles={attachments.uploadingFiles}
+          fileInputRef={attachments.fileInputRef}
+          labels={toolbarLabels}
+          onRememberLinkSelection={rememberLinkSelection}
+          onToggleLinkEditor={toggleLinkEditor}
+          onOpenAttachmentFilePicker={attachments.openFilePicker}
+          onAttachmentInputChange={attachments.handleInputChange}
+          onToggleSourceMode={toggleSourceMode}
+        />
       )}
 
-      {/* Link editor row — in-flow (not portaled) so it stays clickable inside
-          modal dialogs that set body pointer-events:none. */}
       {showLinkEditor && (
-        <div
-          className="flex flex-wrap items-center gap-2 border-b border-border-subtle px-2 py-1.5"
-          data-testid="markdown-link-editor"
-        >
-          <Input
-            value={linkUrl}
-            onChange={(e) => setLinkUrl(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                // Prevent submitting the surrounding issue form.
-                e.preventDefault();
-                applyLink();
-              } else if (e.key === "Escape") {
-                e.preventDefault();
-                closeLinkEditor();
-              }
-            }}
-            placeholder="https://example.com" // i18n-exempt: example URL placeholder
-            aria-label={t("linkUrl")}
-            data-testid="markdown-link-input"
-            type="url"
-            inputMode="url"
-            name="link-url"
-            autoComplete="off"
-            spellCheck={false}
-            // User-initiated single primary input that mounts on demand —
-            // focusing it lets the PM type the URL without a second click.
-            autoFocus
-            className="h-7 flex-1 text-xs"
-          />
-          <Button
-            type="button"
-            variant="brand"
-            size="sm"
-            onClick={applyLink}
-            className="h-7 px-2 text-xs"
-          >
-            {t("apply")}
-          </Button>
-          {active.link && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={removeLink}
-              className="h-7 px-2 text-xs"
-            >
-              {c("remove")}
-            </Button>
-          )}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={closeLinkEditor}
-            className="h-7 px-2 text-xs text-muted-foreground"
-          >
-            {c("cancel")}
-          </Button>
-        </div>
+        <MarkdownEditorLinkEditor
+          linkUrl={linkUrl}
+          hasActiveLink={active.link}
+          labels={linkEditorLabels}
+          onChange={setLinkUrl}
+          onKeyDown={onLinkEditorKeyDown}
+          onApply={applyLink}
+          onRemove={removeLink}
+          onClose={closeLinkEditor}
+        />
       )}
 
-      {(uploadingFiles || uploadError) && (
+      {(attachments.uploadingFiles || attachments.uploadError) && (
         <div
           className="border-b border-border-subtle px-3 py-1.5 text-xs text-muted-foreground"
-          role={uploadError ? "alert" : "status"}
+          role={attachments.uploadError ? "alert" : "status"}
         >
-          {uploadError ? t("uploadError") : t("uploading")}
+          {attachments.uploadError ? t("uploadError") : t("uploading")}
         </div>
       )}
 
@@ -2020,24 +400,25 @@ export function MarkdownEditor({
         )}
         style={bodyFrameStyle}
       >
-        {/* Editor area */}
         {sourceMode ? (
           <textarea
             value={value}
             onChange={handleSourceChange}
-            onPaste={handleSourcePaste}
-            onDrop={handleSourceDrop}
+            onPaste={attachments.handleSourcePaste}
+            onDrop={attachments.handleSourceDrop}
             onDragOver={(event) => {
-              if (uploadFilesRef.current && !readOnlyRef.current) {
+              if (
+                attachments.uploadFilesRef.current &&
+                !attachments.readOnlyRef.current
+              ) {
                 event.preventDefault();
               }
             }}
             readOnly={readOnly}
             aria-label={ariaLabel}
             // field-sizing-content auto-grows with the body where supported;
-            // resize-y blocks horizontal drag (no dialog/sheet width overflow) and
-            // stays a manual vertical fallback where field-sizing is unavailable,
-            // so the textarea is does not stuck at min-h on those browsers.
+            // resize-y blocks horizontal drag and remains a manual vertical
+            // fallback where field-sizing is unavailable.
             className={cn(
               "w-full field-sizing-content rounded-sm bg-transparent px-3 py-2 text-sm font-mono focus:outline-none",
               isHeightResizeAvailable ? "resize-none" : "resize-y",
@@ -2056,47 +437,21 @@ export function MarkdownEditor({
         )}
 
         {enableHeightResize && isHeightResizeAvailable ? (
-          <div
-            role="separator"
-            tabIndex={0}
-            aria-label={t("resizeHandle")}
-            aria-controls={EDITOR_RESIZABLE_BODY_ID}
-            aria-describedby={EDITOR_RESIZE_DESCRIPTION_ID}
-            aria-orientation="horizontal"
-            aria-valuemin={EDITOR_BODY_MIN_HEIGHT}
-            aria-valuemax={editorMaxHeight}
-            aria-valuenow={editorCurrentHeight}
-            aria-valuetext={`${editorCurrentHeight}px`}
-            data-testid="markdown-editor-resize-handle"
-            data-resizing={isHeightResizing ? "true" : "false"}
-            className="group absolute bottom-0 right-0 z-10 flex size-8 touch-none select-none items-end justify-end focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus"
-            data-reef-interaction="resize-editor"
+          <MarkdownEditorResizeHandle
+            currentHeight={editorCurrentHeight}
+            maxHeight={editorMaxHeight}
+            isResizing={isHeightResizing}
+            labels={resizeLabels}
             onKeyDown={onHeightResizeKeyDown}
             onPointerCancel={onHeightResizePointerCancel}
             onPointerDown={onHeightResizePointerDown}
             onPointerMove={onHeightResizePointerMove}
             onPointerUp={onHeightResizePointerUp}
             onLostPointerCapture={onHeightResizeLostPointerCapture}
-          >
-            <span
-              aria-hidden="true"
-              className={cn(
-                "pointer-events-none mb-1 mr-1 size-4 border-b-2 border-r-2 border-border-subtle transition-colors group-hover:border-brand-focus group-focus-visible:border-brand-focus",
-                isHeightResizing && "border-brand-focus",
-              )}
-            />
-          </div>
+          />
         ) : null}
       </div>
-      {enableHeightResize && isHeightResizeAvailable ? (
-        <span id={EDITOR_RESIZE_DESCRIPTION_ID} className="sr-only">
-          {t("resizeHandleDescription", {
-            current: String(editorCurrentHeight),
-            min: String(EDITOR_BODY_MIN_HEIGHT),
-            max: String(editorMaxHeight),
-          })}
-        </span>
-      ) : null}
+
       {externalLinkHref
         ? linkSafetyConfig.renderModal?.({
             url: externalLinkHref,

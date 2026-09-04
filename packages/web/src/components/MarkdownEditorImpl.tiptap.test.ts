@@ -3,7 +3,7 @@ import type { DocumentSearchHit, IssueListItem, VaultMember } from "@reef/core";
 import { render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createMarkdownEditorExtensions } from "./MarkdownEditorImpl";
+import { createMarkdownEditorExtensions } from "./markdown-editor/extensions";
 import {
   filterIssueBodyMentionCandidates,
   insertIssueBodyReference,
