@@ -1,10 +1,16 @@
 import { z } from "zod";
 import { type ControlPlaneError, SchemaValidationError } from "../../../errors";
 import {
+  AppReleaseManifestSchema,
   ControlPlaneAppDefinitionSchema,
   ControlPlaneAppReleaseSchema,
   ControlPlaneIdSchema,
-  AppReleaseManifestSchema,
+  ReleaseDesiredSchemaProjectionSchema,
+  ReleaseManifestColumnSchema,
+  ReleaseManifestIndexColumnSchema,
+  ReleaseManifestIndexSchema,
+  ReleaseManifestTableSchema,
+  ReleaseManifestUniqueKeySchema,
   type ControlPlaneAppDefinition,
   type ControlPlaneAppRelease,
   type FinalizedReleasePayload,
@@ -30,6 +36,80 @@ const GET_APP_OPERATION = "apps.get";
 const CREATE_RELEASE_OPERATION = "apps.releases.create";
 const GET_RELEASE_OPERATION = "apps.releases.get";
 
+/**
+ * AKB's release response currently decorates canonical schema entries with
+ * explicit defaults. Accept only those documented wire defaults, then project
+ * back through the strict Reef schemas so meaningful fields cannot disappear.
+ */
+const WireReleaseManifestColumnSchema = z
+  .strictObject({
+    name: ReleaseManifestColumnSchema.shape.name,
+    type: ReleaseManifestColumnSchema.shape.type,
+    required: ReleaseManifestColumnSchema.shape.required,
+    default: z.null().optional(),
+    check: z.null().optional(),
+    enum: z.null().optional(),
+    references: z.null().optional(),
+    on_delete: z.null().optional(),
+    unique: z.literal(false).optional(),
+    index: z.literal(false).optional(),
+  })
+  .transform(({ name, type, required }) =>
+    ReleaseManifestColumnSchema.parse({
+      name,
+      type,
+      ...(required === true ? { required: true } : {}),
+    }),
+  );
+
+const WireReleaseManifestUniqueKeySchema = z
+  .strictObject({
+    columns: ReleaseManifestUniqueKeySchema.shape.columns,
+    name: z.null().optional(),
+  })
+  .transform(({ columns }) =>
+    ReleaseManifestUniqueKeySchema.parse({ columns }),
+  );
+
+const WireReleaseManifestIndexColumnSchema = z
+  .strictObject({
+    name: ReleaseManifestIndexColumnSchema.shape.name,
+    order: ReleaseManifestIndexColumnSchema.shape.order,
+  })
+  .transform(({ name, order }) =>
+    ReleaseManifestIndexColumnSchema.parse({ name, order }),
+  );
+
+const WireReleaseManifestIndexSchema = z
+  .strictObject({
+    columns: z.array(WireReleaseManifestIndexColumnSchema).min(1).max(256),
+    name: z.null().optional(),
+  })
+  .transform(({ columns }) => ReleaseManifestIndexSchema.parse({ columns }));
+
+const WireReleaseManifestTableSchema = z
+  .strictObject({
+    name: ReleaseManifestTableSchema.shape.name,
+    columns: z.array(WireReleaseManifestColumnSchema).max(256),
+    unique_keys: z.array(WireReleaseManifestUniqueKeySchema).max(256),
+    indexes: z.array(WireReleaseManifestIndexSchema).max(256),
+  })
+  .transform((table) => ReleaseManifestTableSchema.parse(table));
+
+const WireReleaseDesiredSchemaProjectionSchema = z
+  .strictObject({
+    tables: z.array(WireReleaseManifestTableSchema).length(12),
+    fingerprint: ReleaseDesiredSchemaProjectionSchema.shape.fingerprint,
+  })
+  .transform((schema) => ReleaseDesiredSchemaProjectionSchema.parse(schema));
+
+const WireAppReleaseManifestSchema = z
+  .strictObject({
+    ...AppReleaseManifestSchema.shape,
+    schema: WireReleaseDesiredSchemaProjectionSchema,
+  })
+  .transform((manifest) => AppReleaseManifestSchema.parse(manifest));
+
 const WireAppDefinitionSchema = z.looseObject({
   id: ControlPlaneIdSchema,
   app_key: z.string().min(1),
@@ -38,20 +118,20 @@ const WireAppDefinitionSchema = z.looseObject({
   metadata: z.record(z.string(), z.unknown()).optional(),
   created_at: z.string().min(1),
   updated_at: z.string().min(1),
-  replayed: z.boolean().optional(),
+  replayed: z.boolean().nullable().optional(),
 });
 
-const WireAppReleaseSchema = z.looseObject({
+const WireAppReleaseSchema = z.strictObject({
   id: ControlPlaneIdSchema,
   app_id: ControlPlaneIdSchema,
   version: z.string().min(1),
-  manifest: AppReleaseManifestSchema,
+  manifest: WireAppReleaseManifestSchema,
   manifest_checksum: z
     .string()
     .length(64)
     .regex(/^[0-9a-f]{64}$/u),
   registered_at: z.string().min(1),
-  replayed: z.boolean().optional(),
+  replayed: z.boolean().nullable().optional(),
 });
 
 export interface AkbAppRegistryConfig {
@@ -105,12 +185,14 @@ function mapApp(value: unknown, operation: string): ControlPlaneAppDefinition {
     });
   }
   try {
+    const replayed =
+      wire.data.replayed === null ? undefined : wire.data.replayed;
     return ControlPlaneAppDefinitionSchema.parse({
       id: wire.data.id,
       appKey: wire.data.app_key,
       displayName: wire.data.display_name,
       description: wire.data.description,
-      replayed: wire.data.replayed,
+      ...(replayed === undefined ? {} : { replayed }),
     });
   } catch {
     throw registryError(operation, {
@@ -135,6 +217,8 @@ function mapRelease(value: unknown, operation: string): ControlPlaneAppRelease {
     });
   }
   try {
+    const replayed =
+      wire.data.replayed === null ? undefined : wire.data.replayed;
     return ControlPlaneAppReleaseSchema.parse({
       id: wire.data.id,
       appId: wire.data.app_id,
@@ -142,7 +226,7 @@ function mapRelease(value: unknown, operation: string): ControlPlaneAppRelease {
       manifest: wire.data.manifest,
       manifestChecksum: wire.data.manifest_checksum,
       registeredAt: wire.data.registered_at,
-      replayed: wire.data.replayed,
+      ...(replayed === undefined ? {} : { replayed }),
     });
   } catch {
     throw registryError(operation, {

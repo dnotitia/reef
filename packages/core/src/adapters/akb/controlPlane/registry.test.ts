@@ -38,6 +38,7 @@ vi.mock("@opentelemetry/api", () => ({
 
 import {
   buildReleaseBlueprint,
+  canonicalJson,
   createAkbAppRegistry,
   finalizeAppReleaseManifest,
 } from "../../../index";
@@ -75,6 +76,48 @@ async function finalizedRelease() {
     sourceRevision: "a".repeat(40),
     imageDigest: `sha256:${"b".repeat(64)}`,
   });
+}
+
+function normalizedReleaseFixture(
+  finalized: Awaited<ReturnType<typeof finalizedRelease>>,
+  overrides: Record<string, unknown> = {},
+) {
+  const manifest = structuredClone(finalized.manifest);
+  const firstColumn = manifest.schema.tables[0]?.columns[0];
+  if (!firstColumn) throw new Error("release fixture is missing a column");
+  manifest.schema.tables[0].columns[0] = {
+    ...firstColumn,
+    required: false,
+    default: null,
+    check: null,
+    enum: null,
+    references: null,
+    on_delete: null,
+    unique: false,
+    index: false,
+  } as typeof firstColumn;
+  const notifications = manifest.schema.tables.find(
+    (table) => table.name === "reef_notifications",
+  );
+  if (!notifications) throw new Error("release fixture is missing indexes");
+  notifications.unique_keys = notifications.unique_keys.map((key) => ({
+    name: null,
+    ...key,
+  })) as typeof notifications.unique_keys;
+  notifications.indexes = notifications.indexes.map((index) => ({
+    name: null,
+    ...index,
+  })) as typeof notifications.indexes;
+  return {
+    id: RELEASE_ID,
+    app_id: APP_ID,
+    version: finalized.version,
+    manifest,
+    manifest_checksum: finalized.manifest_checksum,
+    registered_at: "2026-09-04T06:00:00.000Z",
+    replayed: false,
+    ...overrides,
+  };
 }
 
 afterEach(() => {
@@ -147,15 +190,9 @@ describe("createAkbAppRegistry", () => {
       adminToken: "admin-secret",
       fetch: vi.fn(async (input: RequestInfo | URL, init: RequestInit = {}) => {
         calls.push({ url: String(input), init });
-        return jsonResponse({
-          id: RELEASE_ID,
-          app_id: APP_ID,
-          version: finalized.version,
-          manifest: finalized.manifest,
-          manifest_checksum: finalized.manifest_checksum,
-          registered_at: "2026-09-04T06:00:00.000Z",
-          replayed: true,
-        });
+        return jsonResponse(
+          normalizedReleaseFixture(finalized, { replayed: true }),
+        );
       }),
     });
 
@@ -171,6 +208,10 @@ describe("createAkbAppRegistry", () => {
       manifestChecksum: finalized.manifest_checksum,
       replayed: true,
     });
+    expect(result.manifest).toEqual(finalized.manifest);
+    expect(canonicalJson(result.manifest)).toBe(
+      canonicalJson(finalized.manifest),
+    );
     expect(calls[0]?.url).toBe(
       `https://akb.example.test/api/v1/apps/${APP_ID}/releases`,
     );
@@ -182,6 +223,36 @@ describe("createAkbAppRegistry", () => {
     expect(
       new Headers(calls[0]?.init.headers).get("idempotency-key"),
     ).toBeNull();
+  });
+
+  it("projects normalized schema defaults from a replayed GET response", async () => {
+    const finalized = await finalizedRelease();
+    const fetch = vi.fn(async () =>
+      jsonResponse(normalizedReleaseFixture(finalized, { replayed: true })),
+    );
+    const registry = createAkbAppRegistry({
+      baseUrl: "https://akb.example.test",
+      adminToken: "admin-secret",
+      fetch,
+    });
+
+    const result = await registry.getRelease(APP_ID, RELEASE_ID);
+
+    expect(result).toMatchObject({
+      id: RELEASE_ID,
+      appId: APP_ID,
+      version: finalized.version,
+      manifestChecksum: finalized.manifest_checksum,
+      replayed: true,
+    });
+    expect(result.manifest).toEqual(finalized.manifest);
+    expect(canonicalJson(result.manifest)).toBe(
+      canonicalJson(finalized.manifest),
+    );
+    expect(fetch).toHaveBeenCalledWith(
+      `https://akb.example.test/api/v1/apps/${APP_ID}/releases/${RELEASE_ID}`,
+      expect.objectContaining({ method: "GET" }),
+    );
   });
 
   it("rejects a mutable or stale release before network I/O", async () => {
