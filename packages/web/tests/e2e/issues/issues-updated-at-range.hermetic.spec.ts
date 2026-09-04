@@ -48,7 +48,14 @@ async function chooseDateField(
   field: "created_at" | "start_date" | "due_date",
 ): Promise<void> {
   await openRangeEditor(page);
-  await page.getByTestId("issue-date-range-field").selectOption(field);
+  const labels = {
+    created_at: "Created date",
+    start_date: "Start date",
+    due_date: "Due date",
+  } as const;
+  await page.getByTestId("issue-date-range-field").click();
+  await page.getByRole("option", { name: labels[field], exact: true }).click();
+  await expect(page.getByTestId("updated-at-range-editor")).toBeVisible();
 }
 
 async function browserToday(page: Page): Promise<string> {

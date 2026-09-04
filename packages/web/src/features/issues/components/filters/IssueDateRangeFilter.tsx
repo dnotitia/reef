@@ -12,6 +12,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useComboboxPlacement } from "@/components/ui/useComboboxPlacement";
 import { formatDisplayDate } from "@/features/issues/lib/dateHelpers";
 import { cn } from "@/lib/utils";
@@ -273,29 +280,31 @@ export function IssueDateRangeFilter({
             >
               {t("dateRangeField")}
             </label>
-            <div className="relative min-w-0">
-              <select
+            <Select
+              value={selected.field}
+              onValueChange={(field) => {
+                if (isIssueDateFieldId(field)) updateField(field);
+              }}
+            >
+              <SelectTrigger
                 id="issue-date-range-field"
                 aria-label={t("dateRangeField")}
                 data-testid="issue-date-range-field"
-                value={selected.field}
-                onChange={(event) => {
-                  const field = event.target.value;
-                  if (isIssueDateFieldId(field)) updateField(field);
-                }}
-                className="h-8 w-full min-w-0 appearance-none rounded-md border border-border bg-surface-elevated px-2.5 pr-8 type-control text-foreground outline-none transition-colors duration-150 hover:bg-surface-hover focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30"
+                className="w-full min-w-0"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent
+                className="min-w-[var(--radix-select-trigger-width)]"
+                onPointerDownCapture={(event) => event.stopPropagation()}
               >
                 {DATE_RANGE_FIELD_IDS.map((field) => (
-                  <option key={field} value={field}>
+                  <SelectItem key={field} value={field}>
                     {t(DATE_RANGE_FIELD_COPY[field].label)}
-                  </option>
+                  </SelectItem>
                 ))}
-              </select>
-              <ChevronDown
-                className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-                aria-hidden="true"
-              />
-            </div>
+              </SelectContent>
+            </Select>
           </div>
 
           <div
