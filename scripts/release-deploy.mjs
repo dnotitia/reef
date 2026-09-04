@@ -30,6 +30,9 @@ const CREDENTIAL_ENV_KEYS = [
   "AKB_DEPLOYMENT_TOKEN",
   "AKB_ADMIN_TOKEN",
 ];
+const OCI_REPOSITORY_COMPONENT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
+const OCI_REGISTRY_COMPONENT_PATTERN =
+  /^[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]+)?$/u;
 
 const USAGE = `Usage:
   deploy/k8s/deploy.sh build --build-artifact <path> [options]
@@ -173,13 +176,25 @@ function requireNonEmpty(value, name) {
   return value.trim();
 }
 
-function validateImageRepository(value, name) {
+function validateImageRepository(
+  value,
+  name,
+  { allowRegistryOnly = false } = {},
+) {
   const registry = requireNonEmpty(value, name).replace(/\/+$/u, "");
+  const [firstComponent, ...repositoryComponents] = registry.split("/");
+  const validFirstComponent =
+    OCI_REPOSITORY_COMPONENT_PATTERN.test(firstComponent) ||
+    OCI_REGISTRY_COMPONENT_PATTERN.test(firstComponent);
   if (
     registry.length === 0 ||
     registry.includes("@") ||
     /\s/u.test(registry) ||
-    !/^[A-Za-z0-9._/-]+(?::[0-9]+)?$/u.test(registry)
+    !validFirstComponent ||
+    (!allowRegistryOnly && repositoryComponents.length === 0) ||
+    !repositoryComponents.every((component) =>
+      OCI_REPOSITORY_COMPONENT_PATTERN.test(component),
+    )
   ) {
     throw new DeploymentError(
       `${name} must be an OCI image repository without a tag`,
@@ -192,7 +207,9 @@ function validateImageRepository(value, name) {
 }
 
 function validateRegistry(value) {
-  return validateImageRepository(value, "REGISTRY");
+  return validateImageRepository(value, "REGISTRY", {
+    allowRegistryOnly: true,
+  });
 }
 
 function parseArgs(argv) {
@@ -458,7 +475,6 @@ async function readBuildArtifact(artifactPath, core, identity) {
     !version.success ||
     sourceRevision.data.toLowerCase() !== identity.sourceRevision ||
     version.data !== identity.version ||
-    !/^[A-Za-z0-9._/-]+(?::[0-9]+)?$/u.test(repository) ||
     artifact?.image_reference !== `${repository}@${imageDigest}`
   ) {
     throw new DeploymentError(

@@ -148,6 +148,151 @@ test("build-only creates a verifiable build artifact without AKB or Kubernetes c
   }
 });
 
+test("register consumes a build artifact generated for a host-port registry", async () => {
+  const temporaryDirectory = await mkdtemp(
+    path.join(os.tmpdir(), "reef-host-port-register-test-"),
+  );
+  const artifactPath = path.join(temporaryDirectory, "build.json");
+  const receiptPath = path.join(temporaryDirectory, "receipt.json");
+  const sourceRevision = "a".repeat(40);
+  const registry = "localhost:55000";
+  const commands = [];
+  const requests = [];
+  const runCommand = async (command, args, options) => {
+    commands.push({ command, args, options });
+    if (command === "pnpm") return { exitCode: 0, stdout: "", stderr: "" };
+    if (command === "git" && args[0] === "status") {
+      return { exitCode: 0, stdout: "", stderr: "" };
+    }
+    if (command === "git" && args[0] === "rev-parse") {
+      return { exitCode: 0, stdout: `${sourceRevision}\n`, stderr: "" };
+    }
+    if (command === "docker") {
+      const metadataPath = args[args.indexOf("--metadata-file") + 1];
+      await writeFile(
+        metadataPath,
+        JSON.stringify({ "containerimage.digest": IMAGE_DIGEST }),
+      );
+      return { exitCode: 0, stdout: "", stderr: "" };
+    }
+    throw new Error(`unexpected child command: ${command}`);
+  };
+  const fetchImpl = async (input, init = {}) => {
+    const url = String(input);
+    requests.push({ url, init });
+    if (url.endsWith("/apps")) {
+      return new Response(
+        JSON.stringify({
+          id: APP_ID,
+          app_key: "reef",
+          display_name: "Reef",
+          description: "Reef project management workspace",
+          created_at: "2026-09-04T06:00:00.000Z",
+          updated_at: "2026-09-04T06:00:00.000Z",
+          replayed: false,
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }
+    assert.ok(url.endsWith(`/apps/${APP_ID}/releases`));
+    const body = JSON.parse(String(init.body));
+    assert.equal(body.manifest.image_digest, IMAGE_DIGEST);
+    return new Response(
+      JSON.stringify({
+        id: RELEASE_ID,
+        app_id: APP_ID,
+        version: body.version,
+        manifest: body.manifest,
+        manifest_checksum: body.manifest_checksum,
+        registered_at: "2026-09-04T06:00:00.000Z",
+        replayed: false,
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  };
+
+  try {
+    const built = await runReleaseDeployment({
+      rootDir: path.resolve("."),
+      env: { REGISTRY: registry },
+      options: { mode: "build", build_artifact: artifactPath },
+      runCommand,
+      fetchImpl,
+      core,
+    });
+    assert.equal(built.image_repository, `${registry}/reef-web`);
+    assert.equal(built.image_reference, `${registry}/reef-web@${IMAGE_DIGEST}`);
+
+    const registered = await runReleaseDeployment({
+      rootDir: path.resolve("."),
+      env: {
+        AKB_BACKEND_URL: "https://akb.example.test",
+        REEF_CONTROL_PLANE_TOKEN: TOKEN,
+      },
+      options: {
+        mode: "register",
+        build_artifact: artifactPath,
+        receipt: receiptPath,
+      },
+      runCommand,
+      fetchImpl,
+      core,
+    });
+    assert.equal(registered.outcome, "registered");
+    assert.equal(registered.image_repository, `${registry}/reef-web`);
+    assert.equal(requests.length, 2);
+    assert.equal(
+      commands.filter(({ command }) => command === "docker").length,
+      1,
+    );
+    assert.equal(
+      commands.some(({ command }) => command === "kubectl"),
+      false,
+    );
+    assert.deepEqual(JSON.parse(await readFile(artifactPath, "utf8")), built);
+    assert.deepEqual(
+      JSON.parse(await readFile(receiptPath, "utf8")),
+      registered,
+    );
+    for (const imageRepository of [
+      `${registry}/reef-web:v0.14.1`,
+      `${registry}/reef-web@${IMAGE_DIGEST}`,
+      "reef-web:123",
+    ]) {
+      await writeFile(
+        artifactPath,
+        `${JSON.stringify({
+          ...built,
+          image_repository: imageRepository,
+          image_reference: `${imageRepository}@${IMAGE_DIGEST}`,
+        })}\n`,
+      );
+      await assert.rejects(
+        runReleaseDeployment({
+          rootDir: path.resolve("."),
+          env: {
+            AKB_BACKEND_URL: "https://akb.example.test",
+            REEF_CONTROL_PLANE_TOKEN: TOKEN,
+          },
+          options: {
+            mode: "register",
+            build_artifact: artifactPath,
+            receipt: receiptPath,
+          },
+          runCommand,
+          fetchImpl: async () => {
+            throw new Error("invalid repository must not reach AKB");
+          },
+          core,
+        }),
+        /OCI image repository without a tag/u,
+      );
+    }
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
 test("register-only returns a reusable result without rollout or Kubernetes mutation", async () => {
   const temporaryDirectory = await mkdtemp(
     path.join(os.tmpdir(), "reef-register-test-"),
