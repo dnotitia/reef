@@ -116,9 +116,9 @@ describe("IssueDetailMain focus-ring clipping (REEF-226)", () => {
   it("uses inset input focus rings inside the clipped edit lane", () => {
     renderMain();
     const input = screen.getByTestId("issue-title-input");
-    expect(input.className).toContain("focus-visible:ring-2");
-    expect(input.className).toContain("focus-visible:ring-inset");
-    expect(input.className).toContain("focus-visible:ring-brand-focus/30");
+    expect(input.className).toContain("focus:ring-2");
+    expect(input.className).toContain("focus:ring-inset");
+    expect(input.className).toContain("focus:ring-brand-focus");
   });
 });
 

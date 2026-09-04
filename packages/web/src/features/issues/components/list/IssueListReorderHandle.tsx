@@ -60,7 +60,7 @@ export function IssueListReorderHandle({
       type="button"
       aria-label={label}
       data-testid={`issue-list-grip-${id}`}
-      className="inline-flex size-8 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-50 transition-[background-color,opacity,box-shadow] duration-150 hover:bg-surface-hover hover:opacity-100 focus-visible:z-10 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+      className="inline-flex size-8 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-50 transition-[background-color,opacity,box-shadow] duration-150 hover:bg-surface-hover hover:opacity-100 focus-visible:z-10 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
       data-reef-interaction="drag-handle"
       style={{
         ...(transform ? { transform: CSS.Translate.toString(transform) } : {}),

@@ -702,13 +702,13 @@ describe("GlobalSearchDialog", () => {
     expect(wrapperClass).toContain("focus-within:border-brand-focus");
     expect(wrapperClass).toContain("focus-within:ring-2");
     expect(wrapperClass).toContain("focus-within:ring-inset");
-    expect(wrapperClass).toContain("focus-within:ring-brand-focus/30");
+    expect(wrapperClass).toContain("focus-within:ring-brand-focus");
     expect(wrapper?.querySelector("svg")).toHaveAttribute(
       "aria-hidden",
       "true",
     );
-    expect(input.className).toContain("focus-visible:outline-none");
-    expect(input.className).toContain("focus-visible:ring-0");
+    expect(input.className).toContain("focus:outline-none");
+    expect(input.className).toContain("focus:ring-0");
   });
 
   it("exposes status changes through a polite live region", () => {

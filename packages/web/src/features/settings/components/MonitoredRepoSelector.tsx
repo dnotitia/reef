@@ -186,7 +186,7 @@ export function MonitoredRepoSelector({
         >
           <input
             type="text"
-            className="mb-2 w-full rounded-md border border-border bg-surface-elevated px-2 py-1 type-control text-foreground outline-none transition-colors focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30"
+            className="mb-2 w-full rounded-md border border-border bg-surface-elevated px-2 py-1 type-control text-foreground outline-none transition-colors focus:border-brand-focus focus:ring-2 focus:ring-brand-focus"
             placeholder={t("searchReposPlaceholder")}
             aria-label={t("searchReposLabel")}
             value={searchQuery}

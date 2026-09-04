@@ -91,7 +91,7 @@ export function VaultPickerInput({
       <PopoverTrigger
         data-testid={`${testIdPrefix}-trigger`}
         aria-haspopup="dialog"
-        className="inline-flex h-8 w-full max-w-full items-center justify-between rounded-md border border-border bg-surface-elevated px-2.5 type-control text-foreground transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+        className="inline-flex h-8 w-full max-w-full items-center justify-between rounded-md border border-border bg-surface-elevated px-2.5 type-control text-foreground transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
         aria-label={
           value ? t("activeWorkspace", { value }) : resolvedPlaceholder
         }
@@ -113,7 +113,7 @@ export function VaultPickerInput({
       >
         <input
           type="text"
-          className="mb-2 w-full rounded-md border border-border bg-surface-elevated px-2 py-1 type-control text-foreground outline-none transition-colors focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30"
+          className="mb-2 w-full rounded-md border border-border bg-surface-elevated px-2 py-1 type-control text-foreground outline-none transition-colors focus:border-brand-focus focus:ring-2 focus:ring-brand-focus"
           placeholder={t("searchWorkspacesPlaceholder")}
           aria-label={t("searchWorkspacesLabel")}
           value={search}

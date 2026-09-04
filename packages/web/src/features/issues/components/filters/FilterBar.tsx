@@ -265,7 +265,7 @@ export function FilterBar({
       className={cn(
         "min-w-0 max-w-full flex flex-wrap items-center gap-2",
         backlogScope &&
-          "overscroll-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/30",
+          "overscroll-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus",
       )}
       {...(backlogScope
         ? {
@@ -508,7 +508,7 @@ export function FilterBar({
               title={t("clearMilestone")}
               data-testid="milestone-clear-button"
               onClick={() => setFilter({ milestone_id: undefined })}
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface-elevated text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30"
+              className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface-elevated text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus"
             >
               <X className="size-3.5" aria-hidden="true" />
             </button>
@@ -654,7 +654,7 @@ function LockedSprintFacet({
         href={unlockHref}
         aria-label={t("unlockSprint")}
         title={t("unlockSprint")}
-        className="ml-auto inline-flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+        className="ml-auto inline-flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
       >
         <Unlock aria-hidden="true" className="size-3.5" />
       </a>

@@ -74,7 +74,7 @@ function DetailMessage({
       </div>
       <a
         href={backHref}
-        className="type-control font-medium text-brand-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+        className="type-control font-medium text-brand-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
       >
         {backLabel}
       </a>
@@ -96,7 +96,7 @@ function SprintNotFound({ vault }: { vault: string }) {
       />
       <a
         href={href}
-        className="type-control font-medium text-brand-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+        className="type-control font-medium text-brand-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
       >
         {t("backToPlanning")}
       </a>

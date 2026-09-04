@@ -273,7 +273,7 @@ export function DatePickerField({
             onClick={handleClear}
             aria-label={t("clearField", { field: resolvedLabel })}
             data-testid="date-picker-clear"
-            className="absolute right-0.5 top-1/2 -translate-y-1/2 rounded-sm p-1.5 text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/30"
+            className="absolute right-0.5 top-1/2 -translate-y-1/2 rounded-sm p-1.5 text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
           >
             <X className="h-3 w-3" aria-hidden />
           </button>
@@ -297,7 +297,7 @@ export function DatePickerField({
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={handleDraftKeyDown}
             data-testid="date-picker-input"
-            className="mb-2 w-full rounded-md border border-border bg-surface-elevated px-2 py-1 type-control font-mono text-foreground outline-none transition-colors focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30"
+            className="mb-2 w-full rounded-md border border-border bg-surface-elevated px-2 py-1 type-control font-mono text-foreground outline-none transition-colors focus:outline-none focus:border-brand-focus focus:ring-2 focus:ring-brand-focus"
           />
 
           <Calendar

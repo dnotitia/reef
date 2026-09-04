@@ -98,7 +98,7 @@ function PlanningNameCell({
           : t("expandDetails", { name: item.name })
       }
       className={cn(
-        "group/disclosure flex shrink-0 items-center justify-center rounded text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring",
+        "group/disclosure flex shrink-0 items-center justify-center rounded text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
         compact ? "h-6 w-6" : "h-5 w-5",
       )}
     >
@@ -114,7 +114,7 @@ function PlanningNameCell({
           data-testid={`planning-sprint-link-${item.id}`}
           aria-label={t("openSprintDetail", { name: item.name })}
           className={cn(
-            "min-w-0 flex-1 rounded font-medium text-brand-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring",
+            "min-w-0 flex-1 rounded font-medium text-brand-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
             compact ? "break-words" : "line-clamp-1",
           )}
         >
@@ -138,7 +138,7 @@ function PlanningNameCell({
             : t("expandDetails", { name: item.name })
         }
         className={cn(
-          "group/disclosure flex w-full min-w-0 items-center gap-1.5 rounded text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring",
+          "group/disclosure flex w-full min-w-0 items-center gap-1.5 rounded text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
           compact ? "font-medium" : undefined,
         )}
       >

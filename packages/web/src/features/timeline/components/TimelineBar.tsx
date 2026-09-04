@@ -51,7 +51,7 @@ export function TimelineBar({ item, onClick }: TimelineBarProps) {
       className={cn(
         "relative z-10 my-1 h-7 min-w-0 overflow-hidden rounded-md border px-2 text-left",
         "type-chart-label font-medium leading-7 transition-colors duration-150",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
         barTone(item),
         isMarker && "px-0 text-center",
       )}

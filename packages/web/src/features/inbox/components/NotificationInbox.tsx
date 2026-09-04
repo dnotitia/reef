@@ -168,7 +168,7 @@ function NotificationItem({
           onClick={() => void openNotification()}
           disabled={busy}
           aria-busy={busy}
-          className="min-w-0 flex-1 touch-manipulation rounded-md text-left hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+          className="min-w-0 flex-1 touch-manipulation rounded-md text-left hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
           aria-label={t("openNotification", { issue: notification.reef_id })}
         >
           <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">

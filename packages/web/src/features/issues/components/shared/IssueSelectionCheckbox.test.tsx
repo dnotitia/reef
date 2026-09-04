@@ -24,6 +24,8 @@ describe("IssueSelectionCheckbox", () => {
     });
     const hitTarget = checkbox.closest("label");
     expect(hitTarget).toHaveClass("size-8", "touch-manipulation");
+    expect(hitTarget).toHaveClass("reef-selection-checkbox");
+    expect(hitTarget).not.toHaveClass("focus-within:ring-2");
     expect(checkbox).toHaveClass(
       "absolute",
       "inset-0",

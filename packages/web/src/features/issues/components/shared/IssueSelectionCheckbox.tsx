@@ -31,7 +31,7 @@ export function IssueSelectionCheckbox({
   return (
     <label
       className={cn(
-        "group/checkbox relative -m-2 inline-flex size-8 shrink-0 touch-manipulation items-center justify-center rounded-md focus-within:ring-2 focus-within:ring-brand-focus/40",
+        "reef-selection-checkbox group/checkbox relative -m-2 inline-flex size-8 shrink-0 touch-manipulation items-center justify-center rounded-md",
         disabled && "opacity-50",
         className,
       )}

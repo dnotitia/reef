@@ -379,7 +379,7 @@ export function IssueDateRangeFilter({
                 type="button"
                 onClick={() => onChange(undefined)}
                 data-testid="updated-at-range-editor-clear"
-                className="rounded-md px-2 py-1 type-caption font-medium text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/30"
+                className="rounded-md px-2 py-1 type-caption font-medium text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
               >
                 {t("updatedAtRangeEditorClear")}
               </button>

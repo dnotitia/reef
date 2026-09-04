@@ -96,13 +96,49 @@ test.describe("Branded error surfaces", () => {
     const home = page.getByRole("link", { name: "Go to reef home" });
     await page.keyboard.press("Tab");
     await expect(home).toBeFocused();
-    await expect(home).toHaveCSS("outline-style", "solid");
-    await expect(home).toHaveCSS("outline-width", "2px");
-    await expect(home).toHaveCSS("outline-offset", "1px");
-    await expect
-      .poll(() =>
-        home.evaluate((element) => getComputedStyle(element).outlineColor),
-      )
-      .not.toBe("transparent");
+    const focusProof = await home.evaluate((element) => {
+      const styles = getComputedStyle(element);
+      const rootStyles = getComputedStyle(document.documentElement);
+      const focusProbe = document.createElement("span");
+      focusProbe.style.color = rootStyles.getPropertyValue("--brand-focus");
+      document.body.append(focusProbe);
+      const focusColor = getComputedStyle(focusProbe).color;
+      focusProbe.remove();
+
+      const ringColor = styles.getPropertyValue("--tw-ring-color").trim();
+      const ringProbe = document.createElement("span");
+      ringProbe.style.color = ringColor;
+      document.body.append(ringProbe);
+      const ringColorResolved = ringColor
+        ? getComputedStyle(ringProbe).color
+        : "";
+      ringProbe.remove();
+
+      return {
+        boxShadow: styles.boxShadow,
+        focusColor,
+        keyboardFocus: element.matches(":focus-visible"),
+        outlineColor: styles.outlineColor,
+        outlineOffset: styles.outlineOffset,
+        outlineStyle: styles.outlineStyle,
+        outlineWidth: styles.outlineWidth,
+        ringColor,
+        ringColorResolved,
+      };
+    });
+
+    expect(focusProof.keyboardFocus).toBe(true);
+    expect(
+      focusProof.outlineStyle === "solid" || focusProof.boxShadow !== "none",
+    ).toBe(true);
+    if (focusProof.outlineStyle === "solid") {
+      expect(focusProof.outlineWidth).toBe("2px");
+      expect(focusProof.outlineOffset).toBe("2px");
+      expect(focusProof.outlineColor).toBe(focusProof.focusColor);
+    } else {
+      expect(focusProof.ringColor).not.toBe("");
+      expect(focusProof.ringColorResolved).toBe(focusProof.focusColor);
+      expect(focusProof.boxShadow).toContain("2px");
+    }
   });
 });

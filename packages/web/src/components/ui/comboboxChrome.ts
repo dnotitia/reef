@@ -23,14 +23,14 @@ export const CBX_TRIGGER_FIELD =
   "flex h-8 w-full min-w-0 items-center justify-between gap-2 rounded-md border " +
   "border-border bg-surface-elevated px-2.5 text-left type-control text-foreground " +
   "transition-colors duration-150 hover:bg-surface-hover " +
-  "focus-visible:outline-none focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30 " +
+  "focus-visible:outline-none focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus " +
   "disabled:opacity-50";
 
 /** Action-style trigger (e.g. the Template apply button) — same height + hover. */
 export const CBX_TRIGGER_BUTTON =
   "inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-secondary px-3 " +
   "text-xs font-medium text-secondary-foreground transition-colors duration-150 " +
-  "hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/30 " +
+  "hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus " +
   "disabled:opacity-50";
 
 /** Layered onto a field trigger when the control holds a non-default filter value. */
@@ -46,7 +46,7 @@ export const CBX_TRIGGER_ACTIVE = "border-brand-focus bg-brand-fill/10 ring-1 ri
 export const CBX_TRIGGER_CHIP =
   "inline-flex h-8 items-center gap-1 rounded-md border px-2.5 type-control " +
   "transition-colors duration-150 focus-visible:outline-none " +
-  "focus-visible:ring-2 focus-visible:ring-brand-focus/30 disabled:opacity-50";
+  "focus-visible:ring-2 focus-visible:ring-brand-focus disabled:opacity-50";
 
 /** Chip with no active filter — muted label, like an unset combobox placeholder. */
 export const CBX_TRIGGER_CHIP_INACTIVE =
@@ -109,7 +109,7 @@ export const CBX_CHECK =
 export const CBX_SEARCH =
   "mb-1 h-8 w-full rounded-md border border-border bg-surface-elevated px-2.5 type-control " +
   "text-foreground outline-none transition-colors placeholder:text-muted-foreground " +
-  "focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30";
+  "focus:border-brand-focus focus:ring-2 focus:ring-brand-focus";
 
 /** Empty / loading row text. */
 export const CBX_EMPTY = "px-2 py-1.5 type-control text-muted-foreground";

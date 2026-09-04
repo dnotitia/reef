@@ -466,10 +466,8 @@ describe("PlanningPage", () => {
     expect(opts).toEqual({ scroll: false });
   });
 
-  // REEF-261: the kind toggle was the family outlier — `text-sm`, `px-3 py-1.5`,
-  // and a `ring-focus-ring` + offset focus ring. It now draws the canonical
-  // ViewSwitcher dimensions and the shared `ring-brand-focus` ring from one module.
-  // This guards against the outlier classes reappearing.
+  // REEF-261: the kind toggle shares the ViewSwitcher dimensions and the
+  // canonical solid `ring-brand-focus` focus ring from one module.
   it("uses the shared segmented-control dimensions and focus ring (REEF-261)", async () => {
     render(wrap(<PlanningPage />));
     const group = await screen.findByRole("group", { name: "Planning kind" });

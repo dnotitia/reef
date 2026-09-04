@@ -665,7 +665,7 @@ export function MyViewControl({
             >
               {t("viewNameLabel")}
               <input
-                className="h-9 rounded-md border border-border bg-surface-page px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+                className="h-9 rounded-md border border-border bg-surface-page px-2.5 text-sm outline-none focus:border-brand-focus focus:ring-2 focus:ring-inset focus:ring-brand-focus"
                 id="my-view-name"
                 maxLength={80}
                 onChange={(event) => setDraftName(event.target.value)}

@@ -407,11 +407,11 @@ describe("KanbanCard", () => {
 
     const card = screen.getByTestId("kanban-card");
     expect(card).toHaveAttribute("data-keyboard-focused", "true");
-    expect(card.className).toContain("focus-visible:border-brand-focus/60");
-    expect(card.className).toContain("border-brand-focus/60");
+    expect(card.className).toContain("focus-visible:border-brand-focus");
+    expect(card.className).toContain("focus-visible:ring-2");
+    expect(card.className).toContain("focus-visible:ring-brand-focus");
+    expect(card.className).toContain("border-brand-focus");
     expect(card.className).toContain("bg-brand-fill/5");
-    expect(card.className).not.toContain("ring-2");
-    expect(card.className).not.toContain("ring-inset");
     expect(card.className).not.toContain("ring-offset");
   });
 
@@ -481,7 +481,10 @@ describe("KanbanCard", () => {
     const onClick = vi.fn();
     render(<KanbanCard issue={mockIssue()} onClick={onClick} />);
     fireEvent.click(screen.getByTestId("kanban-card"));
-    expect(onClick).toHaveBeenCalledWith("reef-001");
+    expect(onClick).toHaveBeenCalledWith(
+      "reef-001",
+      screen.getByTestId("kanban-card"),
+    );
   });
 
   it("ignores click while dragging", () => {
@@ -511,7 +514,10 @@ describe("KanbanCard", () => {
     const onClick = vi.fn();
     render(<KanbanCard issue={mockIssue()} onClick={onClick} />);
     fireEvent.keyDown(screen.getByTestId("kanban-card"), { key: "Enter" });
-    expect(onClick).toHaveBeenCalledWith("reef-001");
+    expect(onClick).toHaveBeenCalledWith(
+      "reef-001",
+      screen.getByTestId("kanban-card"),
+    );
   });
 
   it("keeps drag-restricted cards tabbable and keyboard-operable", () => {
@@ -533,7 +539,10 @@ describe("KanbanCard", () => {
     );
     expect(card).toHaveAttribute("tabindex", "0");
     fireEvent.keyDown(card, { key: "Enter" });
-    expect(onClick).toHaveBeenCalledWith("reef-001");
+    expect(onClick).toHaveBeenCalledWith(
+      "reef-001",
+      screen.getByTestId("kanban-card"),
+    );
   });
 
   it("keeps non-draggable child cards interactive without a group read-only state", () => {
