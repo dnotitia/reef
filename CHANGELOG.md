@@ -58,6 +58,8 @@ explicitly in the entries below.
   visible in short windows.
 - **Current-user avatars retain their account color across surfaces.**
 - **Monitored-repository selectors retain focus while saving.**
+- **The Issues header stays the same height while the current sprint loads
+  or is removed.** Its shortcut reserves space before planning data arrives.
 
 ### Migration
 
@@ -75,6 +77,8 @@ explicitly in the entries below.
   Validate the committed Blueprint against Core, then finalize and verify the
   payload with version, full source revision, and immutable OCI image digest
   before registry submission.
+- **Docker builds defer install scripts until source is available.** Core's
+  Git-consumer preparation no longer fails in the manifest-only dependency stage.
 - **The private Event Processor can project notifications from AKB Change
   Events.** Its deployment host must run the processor with authenticated
   access to the vault's `table.rows_changed` stream. It is a separate process
