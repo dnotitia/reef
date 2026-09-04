@@ -50,6 +50,10 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Issue date range criteria now use the shared Select control.** The four
+  date fields share Reef's styled, keyboard-accessible option list and focus
+  behavior with the rest of the application.
+
 - **Issues now consolidate planning and display controls in shared chrome.**
   Active Board, List, and Timeline share a current-sprint detail shortcut in
   the common header; the Kanban-only sprint row and List-only Columns row are

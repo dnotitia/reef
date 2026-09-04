@@ -1,11 +1,18 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { IssueDateRange } from "@reef/core";
 import { IssueDateRangeFilter } from "./IssueDateRangeFilter";
 
 afterEach(cleanup);
+
+beforeAll(() => {
+  Element.prototype.scrollIntoView = vi.fn();
+  Element.prototype.hasPointerCapture = vi.fn(() => false);
+  Element.prototype.setPointerCapture = vi.fn();
+  Element.prototype.releasePointerCapture = vi.fn();
+});
 
 function renderFilter(
   range?: IssueDateRange,
@@ -84,17 +91,77 @@ describe("IssueDateRangeFilter", () => {
 
     await user.click(screen.getByTestId("updated-at-filter-trigger"));
     const field = screen.getByRole("combobox", { name: "Date field" });
-    expect(field).toHaveValue("updated_at");
+    expect(field).toHaveTextContent("Updated date");
+
+    await user.click(field);
     expect(screen.getByRole("option", { name: "Created date" })).toBeVisible();
     expect(screen.getByRole("option", { name: "Start date" })).toBeVisible();
     expect(screen.getByRole("option", { name: "Due date" })).toBeVisible();
+    await user.click(screen.getByRole("option", { name: "Created date" }));
 
-    await user.selectOptions(field, "created_at");
     expect(onChange).toHaveBeenCalledWith({
       field: "created_at",
       from: "2026-06-01",
       to: "2026-06-02",
     });
+    expect(screen.getByTestId("updated-at-range-editor")).toBeVisible();
+    expect(field).toHaveFocus();
+  });
+
+  it("uses the shared Select trigger for the date criterion", async () => {
+    const user = userEvent.setup();
+    renderFilter({
+      field: "updated_at",
+      from: "2026-06-01",
+      to: "2026-06-02",
+    });
+
+    await user.click(screen.getByTestId("updated-at-filter-trigger"));
+
+    const field = screen.getByTestId("issue-date-range-field");
+    expect(field).toHaveAttribute("data-slot", "select-trigger");
+    expect(field.tagName).not.toBe("SELECT");
+  });
+
+  it("supports keyboard dismissal without closing the outer date editor", async () => {
+    const user = userEvent.setup();
+    const onChange = renderFilter({
+      field: "updated_at",
+      from: "2026-06-01",
+      to: "2026-06-02",
+    });
+
+    await user.click(screen.getByTestId("updated-at-filter-trigger"));
+    const field = screen.getByTestId("issue-date-range-field");
+    field.focus();
+    await user.keyboard("{Enter}");
+
+    const listbox = await screen.findByRole("listbox");
+    expect(document.activeElement).toBeInstanceOf(HTMLElement);
+    expect(listbox).toContainElement(document.activeElement as HTMLElement);
+
+    await user.keyboard("{ArrowDown}{Enter}");
+
+    await waitFor(() =>
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument(),
+    );
+    expect(onChange).toHaveBeenCalledWith({
+      field: "created_at",
+      from: "2026-06-01",
+      to: "2026-06-02",
+    });
+    expect(screen.getByTestId("updated-at-range-editor")).toBeVisible();
+    expect(field).toHaveFocus();
+
+    await user.keyboard("{Enter}");
+    await screen.findByRole("listbox");
+    await user.keyboard("{Escape}");
+
+    await waitFor(() =>
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByTestId("updated-at-range-editor")).toBeVisible();
+    expect(field).toHaveFocus();
   });
 
   it("uses the selected criterion in the trigger and accessible names", async () => {
