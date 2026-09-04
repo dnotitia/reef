@@ -47,7 +47,7 @@
     "@tanstack/react-virtual": "^3.14.9",
     "@tanstack/react-query-persist-client": "5.101.4",
     "@tanstack/react-store": "0.11.1",
-    "@tiptap/core": "3.29.2",
+    "@tiptap/core": "3.30.4",
     "@tiptap/extension-code-block-lowlight": "3.29.2",
     "@tiptap/extension-image": "3.29.2",
     "@tiptap/extension-link": "3.29.2",
