@@ -200,8 +200,9 @@ one source of truth.
 
 ### Customization Strategy
 
-Design tokens are CSS custom properties defined in `packages/web/src/app/globals.css`
-in three tiers: raw HSL values per mode, semantic tokens (status, planning,
+Design tokens are CSS custom properties defined in
+`packages/web/src/app/styles/tokens.css`, composed by
+`packages/web/src/app/globals.css`, in three tiers: raw HSL values per mode, semantic tokens (status, planning,
 priority, type, brand, AI), and a Tailwind `@theme inline` mapping that exposes
 them as role utilities (`bg-brand-fill`, `text-brand-text`,
 `text-status-done-glyph`, `text-planning-open`, `bg-ai`, …). This is the
@@ -239,7 +240,7 @@ Brand and AI tokens (light mode; dark-mode variants are defined alongside):
 | `--destructive-focus` / `--destructive-chart` | focus chrome and data-viz red | `hsl(0 75% 32%)` / `hsl(0 75% 40%)` |
 
 Surface tokens keep the product quiet and dense. The canonical values live in
-`packages/web/src/app/globals.css`; the table below captures the intended
+`packages/web/src/app/styles/tokens.css`; the table below captures the intended
 roles so component work uses the tokens for the same jobs:
 
 | Role | Token | Light | Dark | Usage |
@@ -656,7 +657,7 @@ genuinely framed tools. Page sections stay unframed unless an existing shared
 component already frames them.
 
 Motion uses one signature curve and a small duration scale defined in
-`globals.css`:
+`packages/web/src/app/styles/tokens.css`:
 
 | Type | Duration | Easing | Usage |
 |------|----------|--------|-------|

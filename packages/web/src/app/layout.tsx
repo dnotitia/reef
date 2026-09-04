@@ -13,7 +13,7 @@ import "./globals.css";
 // Inter carries the full Latin weight range, so display headers
 // (font-semibold, …) and body text share one downloaded face. Noto Sans KR is
 // the explicitly loaded Hangul companion; the `--font-display` and
-// `--font-body` stacks point at both in globals.css. (REEF-097 AC3)
+// `--font-body` stacks point at both in styles/tokens.css. (REEF-097 AC3)
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],

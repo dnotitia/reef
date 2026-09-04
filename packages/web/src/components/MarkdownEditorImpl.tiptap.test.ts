@@ -868,7 +868,8 @@ describe("MarkdownEditor Tiptap extensions", () => {
     ).not.toBeNull();
   });
 
-  // The REEF-161 checklist alignment CSS (globals.css, `.reef-markdown-editor`)
+  // The REEF-161 checklist alignment CSS (app/styles/markdown-editor.css,
+  // `.reef-markdown-editor`)
   // can just keep the checkbox and its text on one line if it targets the DOM
   // the live node-view actually produces. Pin that DOM contract here: the <li>
   // carries `data-checked` but NOT `data-type="taskItem"` (that attribute just

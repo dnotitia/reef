@@ -1,0 +1,316 @@
+/* Streamdown owns its element tree and data-streamdown markers. This scope
+ * mirrors the editor's semantic hierarchy while retaining the comment's
+ * 13px density. The root's default `space-y-4` is deliberately overridden so
+ * a long comment cannot create a different rhythm from the issue body.
+ * Element selectors shared with the editor use a zero-specificity scope so
+ * these disjoint renderers do not impose a source-order dependency. */
+.reef-markdown-comment {
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.reef-markdown-comment.space-y-4 > :not(:first-child) {
+  margin-block-start: 8px;
+}
+
+.reef-markdown-comment > :first-child {
+  margin-block-start: 0;
+}
+
+.reef-markdown-comment > :last-child {
+  margin-block-end: 0;
+}
+
+.reef-markdown-comment p {
+  margin-block: 8px;
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.reef-markdown-comment [data-streamdown="heading-1"] {
+  margin-block: 20px 8px;
+  color: var(--foreground);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 28px;
+}
+
+.reef-markdown-comment [data-streamdown="heading-2"] {
+  margin-block: 18px 6px;
+  color: var(--foreground);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 24px;
+}
+
+.reef-markdown-comment [data-streamdown="heading-3"] {
+  margin-block: 16px 4px;
+  color: var(--foreground);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 22px;
+}
+
+.reef-markdown-comment [data-streamdown="heading-1"]:first-child,
+.reef-markdown-comment [data-streamdown="heading-2"]:first-child,
+.reef-markdown-comment [data-streamdown="heading-3"]:first-child {
+  margin-block-start: 0;
+}
+
+.reef-markdown-comment strong {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.reef-markdown-comment em {
+  color: var(--foreground);
+  font-style: italic;
+}
+
+.reef-markdown-comment s,
+.reef-markdown-comment del {
+  color: var(--foreground);
+  text-decoration-color: currentColor;
+  text-decoration-line: line-through;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.reef-markdown-comment a,
+.reef-markdown-comment button[data-streamdown="link"] {
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: var(--brand-text);
+  font: inherit;
+  text-align: start;
+  text-decoration-color: var(--brand-text);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.reef-markdown-comment button[data-streamdown="link"] {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.reef-markdown-comment a:hover,
+.reef-markdown-comment a:focus-visible,
+.reef-markdown-comment button[data-streamdown="link"]:hover,
+.reef-markdown-comment button[data-streamdown="link"]:focus-visible {
+  color: var(--brand-text);
+  text-decoration-color: var(--brand-text);
+  text-decoration-thickness: 2px;
+}
+
+.reef-markdown-comment [data-reef-mention] {
+  color: var(--brand-text);
+  font-weight: 500;
+  text-decoration-line: none;
+}
+
+:where(.reef-markdown-comment) [data-streamdown="inline-code"] {
+  color: var(--foreground);
+  font-family: var(--font-mono-stack);
+  font-size: 0.875em;
+  font-weight: 500;
+  line-height: inherit;
+  background-color: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.25rem;
+  padding-inline: 0.25rem;
+  padding-block: 0.125rem;
+  vertical-align: baseline;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+:where(.reef-markdown-comment) [data-streamdown="inline-code"]::before,
+:where(.reef-markdown-comment) [data-streamdown="inline-code"]::after {
+  content: none;
+}
+
+.reef-markdown-comment [data-streamdown="blockquote"] {
+  box-sizing: border-box;
+  margin-block: 16px;
+  border-inline-start: 2px solid var(--brand-focus);
+  background: var(--surface-subtle);
+  color: var(--foreground);
+  font-style: normal;
+  font-weight: inherit;
+  padding: 8px 12px;
+}
+
+:where(.reef-markdown-comment) [data-streamdown="blockquote"] > p,
+:where(.reef-markdown-comment) [data-streamdown="blockquote"] > ul,
+:where(.reef-markdown-comment) [data-streamdown="blockquote"] > ol {
+  margin-block: 8px;
+}
+
+.reef-markdown-comment [data-streamdown="blockquote"] > :first-child {
+  margin-block-start: 0;
+}
+
+.reef-markdown-comment [data-streamdown="blockquote"] > :last-child {
+  margin-block-end: 0;
+}
+
+.reef-markdown-comment [data-streamdown="horizontal-rule"] {
+  height: 0;
+  margin-block: 20px;
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.reef-markdown-comment [data-streamdown="code-block"],
+.reef-markdown-comment [data-streamdown="code-block-body"] {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  color: var(--foreground);
+  font-family: var(--font-mono-stack);
+  font-size: 13px;
+  line-height: 20px;
+  background: var(--surface-subtle);
+  border-color: var(--border-subtle);
+}
+
+.reef-markdown-comment [data-streamdown="code-block"] {
+  margin-block: 16px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.375rem;
+}
+
+.reef-markdown-comment [data-streamdown="code-block-body"] {
+  overflow-x: auto;
+  padding: 12px 14px;
+  white-space: pre;
+}
+
+:where(.reef-markdown-comment) [data-streamdown="code-block-body"] > pre {
+  min-width: max-content;
+  white-space: pre;
+}
+
+:where(.reef-markdown-comment) [data-streamdown="code-block-body"] code {
+  display: block;
+  min-width: max-content;
+  color: inherit;
+  font: inherit;
+  background: transparent;
+  padding: 0;
+  white-space: inherit;
+}
+
+.reef-markdown-comment [data-streamdown="unordered-list"],
+.reef-markdown-comment [data-streamdown="ordered-list"] {
+  min-width: 0;
+  max-width: 100%;
+  margin-block: 8px;
+  padding-inline-start: 20px;
+}
+
+.reef-markdown-comment [data-streamdown="list-item"] {
+  min-width: 0;
+  max-width: 100%;
+  margin-block: 0;
+  overflow-wrap: anywhere;
+}
+
+.reef-markdown-comment
+  [data-streamdown="list-item"]
+  + [data-streamdown="list-item"] {
+  margin-block-start: 4px;
+}
+
+.reef-markdown-comment [data-streamdown="list-item"]::marker {
+  color: var(--muted-foreground);
+}
+
+.reef-markdown-comment li.task-list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  list-style: none;
+}
+
+.reef-markdown-comment li.task-list-item > input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  margin-top: 2px;
+  accent-color: var(--brand-glyph);
+}
+
+.reef-markdown-comment
+  li.task-list-item
+  > input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--brand-focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.reef-markdown-comment [data-streamdown="table-wrapper"] {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin-block: 16px;
+  overflow-x: auto;
+  border: 1px solid var(--border-subtle);
+}
+
+.reef-markdown-comment [data-streamdown="table-wrapper"] > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.reef-markdown-comment [data-streamdown="table"] {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+:where(.reef-markdown-comment) [data-streamdown="table"] th,
+:where(.reef-markdown-comment) [data-streamdown="table"] td {
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid var(--border-subtle);
+  padding: 6px 8px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+  color: var(--foreground);
+}
+
+.reef-markdown-comment [data-streamdown="image-wrapper"] {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin-block: 16px;
+  overflow: hidden;
+}
+
+.reef-markdown-comment [data-streamdown="image"] {
+  display: block;
+  box-sizing: border-box;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 32rem;
+  object-fit: contain;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.375rem;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}

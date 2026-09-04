@@ -1,0 +1,6 @@
+/* Radix owns the fixed-position wrapper around each TooltipContent. Keep that
+ * wrapper out of hit testing only when it contains Reef's tooltip marker; other
+ * Radix Popper consumers (menus, dialogs, and selects) remain interactive. */
+[data-radix-popper-content-wrapper]:has([data-reef-tooltip-content="true"]) {
+  pointer-events: none;
+}

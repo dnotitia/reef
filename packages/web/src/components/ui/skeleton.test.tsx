@@ -9,7 +9,7 @@ describe("Skeleton", () => {
     const { container } = render(<Skeleton />);
     const el = container.firstElementChild as HTMLElement;
     expect(el).toHaveAttribute("data-tone", "primary");
-    // The sweep + fills live on `.reef-shimmer` in globals.css.
+    // The sweep + fills live on `.reef-shimmer` in app/styles/motion.css.
     expect(el).toHaveClass("reef-shimmer");
   });
 

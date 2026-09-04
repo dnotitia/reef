@@ -17,7 +17,7 @@ describe("SearchProgressBar", () => {
     // so this is a visual layer only.
     expect(bar).toHaveAttribute("aria-hidden", "true");
     // The sweep + reduced-motion static fallback live on `.reef-search-progress`
-    // in globals.css.
+    // in app/styles/motion-progress.css.
     expect(bar).toHaveClass("reef-search-progress");
   });
 

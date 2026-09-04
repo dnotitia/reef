@@ -1,0 +1,158 @@
+/* Group headers live in table cells whose intrinsic width follows the table's
+ * horizontal scroll content. Give only their content the visible List
+ * scrollport width so the label yields to the count and open control. */
+[data-testid="issue-list-scroll-container"] {
+  container-type: inline-size;
+}
+
+.reef-issue-list-group-header {
+  width: min(100%, 100cqi);
+}
+
+/* At true narrow mobile widths the default List and an already-expanded List
+ * share the same readable sticky prefix. Optional columns still own the
+ * horizontal overflow, but they must not leave the title behind the viewport
+ * edge. The 481–767px gap intentionally preserves the effective-200% layout
+ * used by the existing sticky-boundary contract. */
+@media (max-width: 480px) {
+  .issue-detail-chrome {
+    flex-wrap: wrap;
+  }
+
+  .issue-detail-identity {
+    flex: 0 0 100%;
+  }
+
+  .issue-detail-actions {
+    margin-left: auto;
+  }
+
+  .issue-detail-sheet {
+    width: 100vw !important;
+  }
+
+  .reef-issue-list-table {
+    min-width: 0 !important;
+  }
+
+  .reef-issue-list-table [data-column-key="select"] {
+    width: 32px !important;
+    left: 0 !important;
+  }
+
+  .reef-issue-list-table [data-column-key="id"] {
+    width: 64px !important;
+    left: 32px !important;
+  }
+
+  .reef-issue-list-table [data-column-key="type"] {
+    width: 56px !important;
+    left: 96px !important;
+  }
+
+  .reef-issue-list-table [data-column-key="title"] {
+    /* The 244px subtraction accounts for the mobile rail, PageBody inset,
+     * sticky prefix, and the title cell's leading padding. */
+    width: clamp(76px, calc(100vw - 244px), 144px) !important;
+    min-width: clamp(76px, calc(100vw - 244px), 144px) !important;
+    left: 152px !important;
+  }
+}
+
+/* The expanded desktop shell leaves 704px for the issue content at 992px.
+ * Keep the fresh default List preset fully visible in that narrow desktop
+ * content column; optional planning columns opt back into the table-local
+ * horizontal scroll owned by the List surface. At the mobile/zoom-width
+ * medium desktop breakpoint the table keeps its intrinsic column widths
+ * instead: shrinking
+ * sticky columns below their readable width lets ordinary cells paint through
+ * the sticky title boundary while horizontally scrolling. */
+@media (min-width: 768px) and (max-width: 1311px) {
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded) {
+    min-width: 0 !important;
+    overflow: hidden;
+  }
+
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+    [data-column-key="rank"] {
+    width: 32px !important;
+  }
+
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+    [data-column-key="select"] {
+    width: 32px !important;
+    left: 0 !important;
+  }
+
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+    [data-column-key="id"] {
+    width: 64px !important;
+    left: 32px !important;
+  }
+
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+    [data-column-key="type"] {
+    width: 56px !important;
+    left: 96px !important;
+  }
+
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+    [data-column-key="title"] {
+    width: 144px !important;
+    min-width: 144px !important;
+    left: 152px !important;
+  }
+
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+    [data-column-key="status"] {
+    width: 80px !important;
+  }
+
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+    [data-column-key="priority"] {
+    width: 64px !important;
+  }
+
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+    [data-column-key="assignee"] {
+    width: 88px !important;
+  }
+
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+    [data-column-key="due"],
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+    [data-column-key="updated"] {
+    width: 72px !important;
+  }
+
+  /* Expanded tables at the 768–1311px content-width breakpoint keep their
+   * optional columns' intrinsic widths, but their sticky prefix still needs to
+   * fit the visible List scrollport. */
+  .reef-issue-list-table.reef-issue-list-table-expanded {
+    min-width: 0 !important;
+  }
+
+  .reef-issue-list-table.reef-issue-list-table-expanded
+    [data-column-key="select"] {
+    width: 32px !important;
+    left: 0 !important;
+  }
+
+  .reef-issue-list-table.reef-issue-list-table-expanded [data-column-key="id"] {
+    width: 64px !important;
+    left: 32px !important;
+  }
+
+  .reef-issue-list-table.reef-issue-list-table-expanded
+    [data-column-key="type"] {
+    width: 56px !important;
+    left: 96px !important;
+  }
+
+  .reef-issue-list-table.reef-issue-list-table-expanded
+    [data-column-key="title"] {
+    width: 144px !important;
+    min-width: 144px !important;
+    left: 152px !important;
+  }
+}

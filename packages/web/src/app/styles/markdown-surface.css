@@ -1,0 +1,59 @@
+/* Subtle hairlines on hr / dividers */
+hr {
+  border-color: var(--border-subtle);
+}
+
+/* Tailwind Typography's prose variables are owned by the issue WYSIWYG.
+ * The editor follows Reef's semantic tokens through the root `.dark` theme
+ * boundary; it does not introduce a second dark-mode palette or invert class. */
+.reef-markdown-editor {
+  --tw-prose-body: var(--foreground);
+  --tw-prose-headings: var(--foreground);
+  --tw-prose-lead: var(--muted-foreground);
+  --tw-prose-links: var(--foreground);
+  --tw-prose-bold: var(--foreground);
+  --tw-prose-counters: var(--muted-foreground);
+  --tw-prose-bullets: var(--muted-foreground);
+  --tw-prose-hr: var(--border-subtle);
+  --tw-prose-quotes: var(--foreground);
+  --tw-prose-quote-borders: var(--brand-focus);
+  --tw-prose-captions: var(--muted-foreground);
+  --tw-prose-kbd: var(--foreground);
+  --tw-prose-kbd-shadows: var(--border-subtle);
+  --tw-prose-code: var(--foreground);
+  --tw-prose-pre-code: var(--foreground);
+  --tw-prose-pre-bg: var(--surface-subtle);
+  --tw-prose-th-borders: var(--border-subtle);
+  --tw-prose-td-borders: var(--border-subtle);
+}
+
+/* The issue body and comment renderers are separate implementations, but they
+ * intentionally enter the same semantic Markdown surface. Keep the token
+ * contract on this shared marker so Streamdown does not inherit a prose or AI
+ * palette by accident. Renderer-specific rhythm and element rules stay below
+ * their own roots. */
+.reef-markdown-surface {
+  --tw-prose-body: var(--foreground);
+  --tw-prose-headings: var(--foreground);
+  --tw-prose-lead: var(--muted-foreground);
+  --tw-prose-links: var(--foreground);
+  --tw-prose-bold: var(--foreground);
+  --tw-prose-counters: var(--muted-foreground);
+  --tw-prose-bullets: var(--muted-foreground);
+  --tw-prose-hr: var(--border-subtle);
+  --tw-prose-quotes: var(--foreground);
+  --tw-prose-quote-borders: var(--brand-focus);
+  --tw-prose-captions: var(--muted-foreground);
+  --tw-prose-kbd: var(--foreground);
+  --tw-prose-kbd-shadows: var(--border-subtle);
+  --tw-prose-code: var(--foreground);
+  --tw-prose-pre-code: var(--foreground);
+  --tw-prose-pre-bg: var(--surface-subtle);
+  --tw-prose-th-borders: var(--border-subtle);
+  --tw-prose-td-borders: var(--border-subtle);
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: var(--foreground);
+}

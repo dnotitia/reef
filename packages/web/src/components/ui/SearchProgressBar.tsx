@@ -20,11 +20,11 @@ interface SearchProgressBarProps {
  * (`aria-hidden`): every wired surface keeps its own text / `aria-live` loading
  * signal, so this is a visual layer only and never a second screen-reader
  * announcement. Under reduced motion the sweep stops and a static brand bar
- * remains (see `.reef-search-progress` in globals.css), so the in-flight state
+ * remains (see `.reef-search-progress` in app/styles/motion-progress.css), so the in-flight state
  * stays legible without movement.
  *
  * Teal only — the AI / chat surfaces own the purple streaming track and must
- * not use this (globals.css keeps teal↔purple separate). Place it inside a
+ * not use this (app/styles/motion-progress.css keeps teal↔purple separate). Place it inside a
  * positioned container; the wired surfaces pin it to the results' top edge
  * (`top-0 bottom-auto`, or `sticky top-0` inside a scrolling list) so the
  * indicator reads the same across every search surface (REEF-369).

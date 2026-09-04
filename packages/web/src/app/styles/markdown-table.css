@@ -1,0 +1,30 @@
+/* Basic GFM tables deliberately remain a small, editor-owned surface: no
+ * resize handles, alignment toolbar, merged-cell affordance, or global table
+ * prose changes. Long cell text wraps instead of widening the detail sheet. */
+.reef-markdown-editor > table {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  table-layout: fixed;
+  margin-block: 16px;
+  border-collapse: collapse;
+  color: var(--foreground);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.reef-markdown-editor > table th,
+.reef-markdown-editor > table td {
+  min-width: 0;
+  border: 1px solid var(--border-subtle);
+  padding: 6px 8px;
+  text-align: start;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.reef-markdown-editor > table th {
+  background: var(--surface-subtle);
+  font-weight: 600;
+}

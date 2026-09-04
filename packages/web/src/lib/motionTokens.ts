@@ -1,5 +1,5 @@
 /**
- * Motion tokens mirrored from the CSS custom properties in `app/globals.css`
+ * Motion tokens mirrored from the CSS custom properties in `app/styles/tokens.css`
  * (`--ease-signature`, `--duration-base`, `--duration-slow`). JavaScript
  * callers — the auto-animate controller and the flash auto-clear timer — does not
  * cheaply read CSS variables at the call site, so they reference these

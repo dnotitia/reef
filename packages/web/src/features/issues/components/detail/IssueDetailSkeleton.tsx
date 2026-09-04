@@ -49,7 +49,7 @@ type WaveStyle = CSSProperties & { "--i": number };
 
 /**
  * Position index that phases this bar into the panel's single light sweep
- * (REEF-250) — the `.reef-shimmer` rule in globals.css turns `--i` into a
+ * (REEF-250) — the `.reef-shimmer` rule in app/styles/motion.css turns `--i` into a
  * per-bar `animation-delay` so one soft band travels the panel in reading
  * order instead of every placeholder pulsing in lockstep.
  */

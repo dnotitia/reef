@@ -1,0 +1,88 @@
+/* Skeleton shimmer — a single calm light source that sweeps across a group of
+ * placeholders rather than each bar pulsing on its own (REEF-250). Each
+ * skeleton carries a position index `--i` (0 by default); the per-index
+ * negative `animation-delay` phases neighbours a few hundredths of a second
+ * apart, so one soft band travels through the group instead of all of them
+ * blinking in lockstep. Two static tones (`data-tone`) pre-encode the loaded
+ * hierarchy — value placeholders sit one step stronger than labels / section
+ * headers — using foreground alpha, no new colour or chrome. Both tones
+ * derive from `--foreground` so the contrast holds in light and dark and stays
+ * legible when the sweep is paused under reduced motion. */
+@keyframes reef-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.reef-shimmer {
+  background-color: color-mix(in oklab, var(--foreground) 8%, transparent);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklab, var(--foreground) 6%, transparent) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: reef-shimmer 1.6s ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * -0.04s);
+}
+
+.reef-shimmer[data-tone="secondary"] {
+  background-color: color-mix(in oklab, var(--foreground) 4%, transparent);
+}
+
+/* Save-confirm flash — a single brand pulse on the card/row that just
+ * persisted, so an optimistic edit reads as "landed" without leaning on a
+ * toast (REEF-121). The card paints an ::after overlay so its own background
+ * stays intact; the table row tints its background directly because a <tr>
+ * does not reliably host an absolutely-positioned overlay. Paint — no
+ * layout. Runs on the signature curve over --duration-slow. */
+@keyframes reef-flash-overlay {
+  0% {
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes reef-flash-row {
+  0% {
+    background-color: color-mix(in oklab, var(--brand-fill) 20%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.reef-flash-card {
+  position: relative;
+}
+
+.reef-flash-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  /* Hidden by default so it shows nothing once the one-shot keyframe ends and,
+   * critically, when reduced-motion disables the animation entirely — the tint
+   * and ring are  revealed by the keyframe, does not left painted. */
+  opacity: 0;
+  background: color-mix(in oklab, var(--brand-fill) 16%, transparent);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in oklab, var(--brand-focus) 45%, transparent);
+  animation: reef-flash-overlay var(--duration-slow) var(--ease-signature)
+    forwards;
+}
+
+.reef-flash-row {
+  animation: reef-flash-row var(--duration-slow) var(--ease-signature);
+}

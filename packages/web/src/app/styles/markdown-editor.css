@@ -1,0 +1,633 @@
+/*
+ * Keep the issue body compact without changing the global `prose-sm` rhythm.
+ * These selectors intentionally address direct children: paragraphs and
+ * headings nested in list items (including task-list node views) retain their
+ * own layout contracts.
+ */
+.reef-markdown-editor > p {
+  font-size: 14px;
+  line-height: 22px;
+  margin-block: 8px;
+}
+
+.reef-markdown-editor > h1 {
+  font-size: 24px;
+  line-height: 30px;
+  font-weight: 600;
+  margin-block: 24px 10px;
+}
+
+.reef-markdown-editor > h2 {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+  margin-block: 22px 8px;
+}
+
+.reef-markdown-editor > h3 {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+  margin-block: 20px 6px;
+}
+
+/* Images are block evidence in an issue body. Keep their intrinsic size until
+ * the editor width or the 32rem height ceiling requires containment; the
+ * semantic surface makes transparent screenshots legible in both themes. */
+.reef-markdown-editor > img {
+  display: block;
+  box-sizing: border-box;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 32rem;
+  object-fit: contain;
+  margin-block: 16px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.375rem;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.reef-markdown-editor > :first-child {
+  margin-block-start: 0;
+}
+
+.reef-markdown-editor > :last-child {
+  margin-block-end: 0;
+}
+
+/* Fenced code stays a compact, editor-scoped surface. Keep the pre box as the
+ * single horizontal scrollport so a long line does not widen the detail panel or
+ * the document; the code child inherits the same preserved whitespace. */
+.reef-markdown-editor > pre {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin-block: 16px;
+  overflow-x: auto;
+  white-space: pre;
+  color: var(--foreground);
+  font-family: var(--font-mono-stack);
+  font-size: 13px;
+  line-height: 20px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.375rem;
+  padding: 12px 14px;
+}
+
+.reef-markdown-editor > pre > code {
+  display: block;
+  min-width: max-content;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  font-weight: 400;
+  background: transparent;
+  padding: 0;
+  white-space: inherit;
+}
+
+/* Bounded syntax paint stays inside the issue editor. The lowlight extension
+ * emits hljs-* decorations for its registered common grammars; unknown
+ * and empty fences intentionally keep the inherited foreground color. */
+.reef-markdown-editor > pre > code .hljs-comment,
+.reef-markdown-editor > pre > code .hljs-quote {
+  color: var(--muted-foreground);
+}
+
+.reef-markdown-editor > pre > code .hljs-keyword,
+.reef-markdown-editor > pre > code .hljs-selector-tag,
+.reef-markdown-editor > pre > code .hljs-literal,
+.reef-markdown-editor > pre > code .hljs-name {
+  color: var(--brand-text);
+}
+
+.reef-markdown-editor > pre > code .hljs-string,
+.reef-markdown-editor > pre > code .hljs-regexp,
+.reef-markdown-editor > pre > code .hljs-symbol {
+  color: color-mix(in srgb, var(--brand-text) 72%, var(--foreground));
+}
+
+.reef-markdown-editor > pre > code .hljs-number,
+.reef-markdown-editor > pre > code .hljs-attr,
+.reef-markdown-editor > pre > code .hljs-variable,
+.reef-markdown-editor > pre > code .hljs-title,
+.reef-markdown-editor > pre > code .hljs-built_in {
+  color: color-mix(in srgb, var(--foreground) 78%, var(--brand-text));
+}
+
+/* The slash navigator is portaled by Tiptap's suggestion utility, so its
+ * class is self-scoped rather than nested under the editor root. Width is
+ * nominally 360px and clamps to the available viewport/editor inset. */
+.reef-slash-command-popup {
+  z-index: 60;
+  width: 360px;
+  max-width: calc(100vw - 16px);
+  min-width: 0;
+  pointer-events: auto;
+}
+
+.reef-slash-command-menu {
+  box-sizing: border-box;
+  width: 100%;
+  max-height: min(420px, calc(100vh - 16px));
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.5rem;
+  background: var(--surface-elevated);
+  color: var(--foreground);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--foreground) 14%, transparent);
+  font-size: var(--type-control-size);
+  line-height: var(--type-control-line-height);
+}
+
+.reef-slash-command-header,
+.reef-slash-command-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 8px 10px;
+}
+
+.reef-slash-command-header {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.reef-slash-command-escape,
+.reef-slash-command-footer {
+  color: var(--muted-foreground);
+  font-size: var(--type-card-metadata-size);
+  line-height: var(--type-card-metadata-line-height);
+}
+
+.reef-slash-command-escape {
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.25rem;
+  padding: 1px 4px;
+  font-family: var(--font-mono-stack);
+}
+
+.reef-slash-command-options {
+  max-height: 320px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  scrollbar-gutter: stable;
+}
+
+.reef-slash-command-section + .reef-slash-command-section {
+  margin-top: 4px;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 4px;
+}
+
+.reef-slash-command-section-label {
+  padding: 4px 8px 3px;
+  color: var(--muted-foreground);
+  font-size: var(--type-card-metadata-size);
+  font-weight: 600;
+  line-height: var(--type-card-metadata-line-height);
+  letter-spacing: var(--type-section-label-tracking);
+  text-transform: uppercase;
+}
+
+.reef-slash-command-option {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  padding: 6px 8px;
+  text-align: start;
+  color: var(--foreground);
+}
+
+.reef-slash-command-option-selected {
+  border-color: color-mix(
+    in srgb,
+    var(--brand-focus) 35%,
+    var(--border-subtle)
+  );
+  background: color-mix(in srgb, var(--brand-fill) 10%, var(--surface-hover));
+}
+
+.reef-slash-command-option-selected {
+  outline: 2px solid color-mix(in srgb, var(--brand-focus) 48%, transparent);
+  outline-offset: -1px;
+}
+
+.reef-slash-command-label,
+.reef-slash-command-description {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reef-slash-command-label {
+  font-weight: 500;
+}
+
+.reef-slash-command-description {
+  margin-top: 1px;
+  color: var(--muted-foreground);
+  font-size: var(--type-card-metadata-size);
+  line-height: var(--type-card-metadata-line-height);
+}
+
+.reef-slash-command-empty {
+  padding: 18px 10px;
+  color: var(--muted-foreground);
+  text-align: center;
+}
+
+.reef-slash-command-footer {
+  justify-content: flex-start;
+  gap: 12px;
+  border-top: 1px solid var(--border-subtle);
+  white-space: nowrap;
+}
+
+/* Tiptap's ProseMirror base stylesheet opts pre into wrapping. The editor
+ * surface owns the stronger no-wrap contract so the scrollport remains local. */
+.reef-markdown-editor.ProseMirror > pre {
+  white-space: pre;
+}
+
+/* Quotes are quiet block boundaries rather than typographic pull-quotes. The
+ * direct-child selectors preserve nested list layout while resetting the
+ * first/last blocks that meet the quote surface. */
+.reef-markdown-editor > blockquote {
+  box-sizing: border-box;
+  margin-block: 16px;
+  border-inline-start: 2px solid var(--brand-focus);
+  background: var(--surface-subtle);
+  color: var(--foreground);
+  font-style: normal;
+  font-weight: inherit;
+  quotes: none;
+  padding: 8px 12px;
+}
+
+.reef-markdown-editor > blockquote::before,
+.reef-markdown-editor > blockquote::after,
+.reef-markdown-editor > blockquote > p:first-of-type::before,
+.reef-markdown-editor > blockquote > p:last-of-type::after {
+  content: none;
+}
+
+.reef-markdown-editor > blockquote > p,
+.reef-markdown-editor > blockquote > ul,
+.reef-markdown-editor > blockquote > ol {
+  margin-block: 8px;
+}
+
+.reef-markdown-editor > blockquote > p {
+  font-style: normal;
+  font-weight: inherit;
+}
+
+.reef-markdown-editor > blockquote > :first-child {
+  margin-block-start: 0;
+}
+
+.reef-markdown-editor > blockquote > :last-child {
+  margin-block-end: 0;
+}
+
+/* A divider is one editor-owned hairline with a predictable section rhythm;
+ * the global hr rule above remains responsible for its semantic color. */
+.reef-markdown-editor > hr {
+  height: 0;
+  margin-block: 24px;
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* Inline Markdown marks belong to the issue document's semantic hierarchy.
+ * Keep these selectors inside the WYSIWYG scope so comments, AI Markdown, and
+ * other prose consumers retain their own renderer contracts. */
+.reef-markdown-editor :not(pre) > code {
+  color: var(--foreground);
+  font-family: var(--font-mono-stack);
+  font-size: 0.875em;
+  font-weight: 500;
+  line-height: inherit;
+  background-color: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.25rem;
+  padding-inline: 0.25rem;
+  padding-block: 0.125rem;
+  vertical-align: baseline;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Tailwind Typography adds visual backticks with these pseudo-elements. Reef
+ * renders the code surface itself; fenced `pre > code` remains untouched. */
+.reef-markdown-editor :not(pre) > code::before,
+.reef-markdown-editor :not(pre) > code::after {
+  content: none;
+}
+
+.reef-markdown-editor strong {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.reef-markdown-editor em {
+  color: var(--foreground);
+  font-style: italic;
+}
+
+.reef-markdown-editor s,
+.reef-markdown-editor del {
+  color: var(--foreground);
+  text-decoration-line: line-through;
+  text-decoration-color: currentColor;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+/* Links stay visibly branded in every state. Focus-visible increases the
+ * underline weight while the shared global focus ring supplies keyboard
+ * location, so the two affordances do not compete. */
+.reef-markdown-editor a,
+.reef-markdown-editor a:visited {
+  color: var(--brand-text);
+  text-decoration-line: underline;
+  text-decoration-color: var(--brand-text);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  transition: text-decoration-color 150ms ease;
+}
+
+.reef-markdown-editor a:hover,
+.reef-markdown-editor a:focus-visible {
+  text-decoration-color: var(--brand-text);
+  text-decoration-thickness: 2px;
+}
+
+/* Issue, document, and file references share one compact surface while their
+ * neutral data markers keep ordinary Markdown links on the branded underline
+ * hierarchy above. The editor owns this surface. */
+.reef-markdown-editor [data-reference-kind] {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.125rem 0.375rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+  vertical-align: baseline;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.25rem;
+  text-decoration: none;
+}
+
+.reef-markdown-editor [data-reference-glyph],
+.reef-markdown-editor [data-reference-id] {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  line-height: 1;
+}
+
+.reef-markdown-editor [data-reference-glyph] {
+  align-self: center;
+  font-size: 0.75em;
+}
+
+.reef-markdown-editor [data-reference-kind="issue"] > [data-reference-id] {
+  font-family: var(--font-mono-stack);
+  font-size: 0.8125em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.reef-markdown-editor [data-reference-title] {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reef-markdown-editor a[data-reference-kind="document"]::before {
+  content: "▤";
+  align-self: center;
+  flex: 0 0 auto;
+  color: var(--muted-foreground);
+  font-size: 0.75em;
+  line-height: 1;
+}
+
+/* Explicit AKB file links are compact inline actions, distinct from ordinary
+ * Markdown URLs. The filename remains the accessible anchor text; the small
+ * type badge and file glyph are visual affordances. */
+.reef-markdown-editor a[data-reef-file-link="true"] {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.125rem 0.375rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+  vertical-align: baseline;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.25rem;
+  text-decoration: none;
+}
+
+.reef-markdown-editor a[data-reef-file-link="true"]::before {
+  content: "▱";
+  align-self: center;
+  flex: 0 0 auto;
+  color: var(--muted-foreground);
+  font-size: 0.75em;
+  line-height: 1;
+}
+
+.reef-markdown-editor
+  a[data-reef-file-link="true"]
+  > [data-reef-file-type]::after {
+  content: attr(data-reef-file-type);
+  flex: 0 0 auto;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono-stack);
+  font-size: var(--type-card-metadata-size);
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* Tiptap's Placeholder extension owns the marker and localized text. During a
+ * non-empty -> empty transaction, 3.29 can omit `is-editor-empty` while keeping
+ * the empty-node decoration. The sole top-level empty block is the stable empty
+ * document shape; scoping to it avoids painting placeholders in non-empty docs.
+ * Float + zero height keeps the hint out of the document flow and caret. */
+.reef-markdown-editor > .is-empty:only-child[data-placeholder]::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+
+/*
+ * Tiptap task items. The LIVE editor nodeView renders each item as:
+ *   ul[data-type="taskList"] > li[data-checked] > label(input,span) + div(p, nested ul)
+ * Crucially the <li> carries data-checked but NOT data-type="taskItem" — that
+ * attribute appears in Tiptap's static renderHTML / clipboard output, does not
+ * on the node-view DOM the user actually sees. So anchor every rule on the
+ * taskList parent (which IS data-typed) and the immediate <li>, not the <li>'s
+ * own data-type. Tailwind Typography's prose list/paragraph rules would
+ * otherwise push the checkbox and its text onto separate lines.
+ * Keep this scoped to the shared MarkdownEditor WYSIWYG surface. (REEF-161)
+ */
+.reef-markdown-editor ul[data-type="taskList"] {
+  list-style: none;
+  padding-inline-start: 0;
+}
+
+.reef-markdown-editor ul[data-type="taskList"] > li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  list-style: none;
+  padding-inline-start: 0;
+}
+
+.reef-markdown-editor ul[data-type="taskList"] > li + li {
+  margin-block-start: 4px;
+}
+
+.reef-markdown-editor ul[data-type="taskList"] > li > label {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  width: 1rem;
+  min-height: 22px;
+  margin-top: 0;
+  user-select: none;
+}
+
+.reef-markdown-editor
+  ul[data-type="taskList"]
+  > li
+  > label
+  input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--brand-glyph);
+}
+
+.reef-markdown-editor
+  ul[data-type="taskList"]
+  > li
+  > label
+  input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--brand-focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.reef-markdown-editor ul[data-type="taskList"] > li > div {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.reef-markdown-editor ul[data-type="taskList"] > li > div > p {
+  margin: 0;
+}
+
+.reef-markdown-editor
+  ul[data-type="taskList"]
+  > li[data-checked="true"]
+  > div
+  > p {
+  color: var(--muted-foreground);
+  text-decoration-line: line-through;
+  text-decoration-color: currentColor;
+  text-decoration-thickness: 1px;
+}
+
+/* Comment mentions are deliberately styled from the sanitized data marker,
+ * not from arbitrary Markdown classes. Streamdown owns the renderer root, so
+ * this keeps the marker non-clickable while making the persisted projection
+ * visibly distinct in both themes. */
+.comment-mention-renderer [data-reef-mention] {
+  color: var(--brand-text);
+  font-weight: 500;
+}
+
+/* Issue-body mentions use the same sanitized marker as comment mentions. The
+ * node is intentionally visual; the roster-backed suggestion menu owns
+ * selection and keyboard focus while the editor retains the caret. */
+.reef-markdown-editor [data-reef-mention] {
+  color: var(--brand-text);
+  font-weight: 500;
+  text-decoration-line: none;
+}
+
+.reef-issue-body-mention-popup {
+  /* Keep the fallback body mount above Radix Sheet / Dialog content (both use
+   * z-50); modal editors additionally mount inside the active content. */
+  z-index: 60;
+  pointer-events: auto;
+}
+
+.reef-issue-body-mention-suggestion {
+  background: color-mix(in srgb, var(--brand-fill) 12%, transparent);
+  border-radius: 0.125rem;
+}
+
+.reef-markdown-editor
+  ul[data-type="taskList"]
+  > li
+  > div
+  > ul[data-type="taskList"] {
+  margin-top: 4px;
+  padding-inline-start: 1.25rem;
+}
+
+/* Normal lists keep their marker column and one level of nesting predictable.
+ * Tiptap task lists carry their own data attribute and are intentionally
+ * excluded so the live label + content flex layout above remains authoritative.
+ * Item paragraphs own no extra block margin; the 4px sibling rhythm is the
+ * spacing added between adjacent items. */
+.reef-markdown-editor ol:not([data-type="taskList"]),
+.reef-markdown-editor ul:not([data-type="taskList"]) {
+  padding-inline-start: 1.25rem;
+}
+
+.reef-markdown-editor ol:not([data-type="taskList"]) > li > p,
+.reef-markdown-editor ul:not([data-type="taskList"]) > li > p {
+  margin-block: 0;
+}
+
+.reef-markdown-editor ol:not([data-type="taskList"]) > li + li,
+.reef-markdown-editor ul:not([data-type="taskList"]) > li + li {
+  margin-block-start: 4px;
+}
+
+.reef-markdown-editor ol:not([data-type="taskList"]) > li::marker,
+.reef-markdown-editor ul:not([data-type="taskList"]) > li::marker {
+  color: var(--muted-foreground);
+}
