@@ -68,6 +68,111 @@ export const ControlPlaneInstallationSchema = z.object({
   driftClassification: ControlPlaneDriftSchema.nullable().optional(),
 });
 
+/** Public app-registry projection; opaque registry metadata is not exposed. */
+export const ControlPlaneAppDefinitionSchema = z.object({
+  id: ControlPlaneIdSchema,
+  appKey: z.string().min(1),
+  displayName: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  replayed: z.boolean().optional(),
+});
+
+/** Public immutable release projection returned by the registry. */
+export const ControlPlaneAppReleaseSchema = z.object({
+  id: ControlPlaneIdSchema,
+  appId: ControlPlaneIdSchema,
+  version: z.string().min(1),
+  manifest: z.lazy(() => AppReleaseManifestSchema),
+  manifestChecksum: z
+    .string()
+    .length(64)
+    .regex(/^[0-9a-f]{64}$/u),
+  registeredAt: ControlPlaneDateTimeSchema,
+  replayed: z.boolean().optional(),
+});
+
+/** The reusable, non-secret registration handoff consumed by later workflows. */
+export const ReleaseRegistrationResultSchema = z.object({
+  appId: ControlPlaneIdSchema,
+  releaseId: ControlPlaneIdSchema,
+  appKey: z.literal("reef"),
+  version: z
+    .string()
+    .min(5)
+    .regex(
+      /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/u,
+    ),
+  sourceRevision: z
+    .string()
+    .min(40)
+    .max(64)
+    .regex(/^[0-9a-fA-F]{40,64}$/u),
+  imageDigest: z
+    .string()
+    .length(71)
+    .regex(/^sha256:[0-9a-f]{64}$/u),
+  manifestChecksum: z
+    .string()
+    .length(64)
+    .regex(/^[0-9a-f]{64}$/u),
+  appReplayed: z.boolean(),
+  releaseReplayed: z.boolean(),
+});
+
+export const ControlPlaneRolloutStepSchema = z.object({
+  stepId: z.string().min(1),
+  operation: z.string().min(1),
+  state: z.string().min(1),
+  checkpoint: z.record(z.string(), z.unknown()).default({}),
+  reason: z.string().nullable().optional(),
+});
+
+export const ControlPlaneRolloutTargetSchema = z.object({
+  targetId: ControlPlaneIdSchema,
+  installationId: ControlPlaneIdSchema,
+  vaultId: ControlPlaneIdSchema,
+  ordinal: z.number().int().nonnegative(),
+  batch: z.number().int().nonnegative(),
+  canary: z.boolean(),
+  state: z.string().min(1),
+  reason: z.string().nullable().optional(),
+  steps: z.array(ControlPlaneRolloutStepSchema).default([]),
+});
+
+export const ControlPlaneRolloutStatusEnum = z.enum([
+  "pending",
+  "running",
+  "applied",
+  "blocked",
+]);
+
+/** Bounded rollout status projection; AKB checkpoint internals are excluded. */
+export const ControlPlaneRolloutSchema = z.object({
+  jobId: ControlPlaneIdSchema,
+  appId: ControlPlaneIdSchema,
+  releaseId: ControlPlaneIdSchema,
+  manifestChecksum: z
+    .string()
+    .length(64)
+    .regex(/^[0-9a-f]{64}$/u),
+  status: ControlPlaneRolloutStatusEnum,
+  blockedReason: z.string().nullable().optional(),
+  createdAt: ControlPlaneDateTimeSchema.optional(),
+  updatedAt: ControlPlaneDateTimeSchema.optional(),
+  completedAt: ControlPlaneDateTimeSchema.nullable().optional(),
+  targets: z.array(ControlPlaneRolloutTargetSchema).default([]),
+  replayed: z.boolean().optional(),
+  sourceRolloutId: ControlPlaneIdSchema.nullable().optional(),
+  resumeOutcome: z.enum(["accepted", "replayed", "denied"]).optional(),
+  resumeReason: z.string().nullable().optional(),
+});
+
+/** Transport status is kept separate from the AKB job state. */
+export const ControlPlaneRolloutResultSchema = z.object({
+  rollout: ControlPlaneRolloutSchema,
+  responseStatus: z.union([z.literal(200), z.literal(202)]),
+});
+
 export type ControlPlaneInstallationLifecycle = z.infer<
   typeof ControlPlaneInstallationLifecycleEnum
 >;
@@ -82,6 +187,28 @@ export type ControlPlaneDriftDimension = z.infer<
 export type ControlPlaneDrift = z.infer<typeof ControlPlaneDriftSchema>;
 export type ControlPlaneInstallation = z.infer<
   typeof ControlPlaneInstallationSchema
+>;
+export type ControlPlaneAppDefinition = z.infer<
+  typeof ControlPlaneAppDefinitionSchema
+>;
+export type ControlPlaneAppRelease = z.infer<
+  typeof ControlPlaneAppReleaseSchema
+>;
+export type ReleaseRegistrationResult = z.infer<
+  typeof ReleaseRegistrationResultSchema
+>;
+export type ControlPlaneRolloutStep = z.infer<
+  typeof ControlPlaneRolloutStepSchema
+>;
+export type ControlPlaneRolloutTarget = z.infer<
+  typeof ControlPlaneRolloutTargetSchema
+>;
+export type ControlPlaneRolloutStatus = z.infer<
+  typeof ControlPlaneRolloutStatusEnum
+>;
+export type ControlPlaneRollout = z.infer<typeof ControlPlaneRolloutSchema>;
+export type ControlPlaneRolloutResult = z.infer<
+  typeof ControlPlaneRolloutResultSchema
 >;
 
 /** Canonical values accepted by the Reef release artifact contract. */
@@ -207,7 +334,10 @@ export const ReleaseBlueprintSchema = z.strictObject({
   app_definition: ReefAppDefinitionSchema,
   schema_version: z.literal(3),
   schema: ReleaseDesiredSchemaProjectionSchema,
-  transition_plans: z.array(ReleaseBlueprintTransitionPlanSchema).length(1),
+  transition_plans: z
+    .array(ReleaseBlueprintTransitionPlanSchema)
+    .min(1)
+    .max(256),
 });
 
 export const AppReleaseManifestSchema = z.strictObject({
@@ -217,7 +347,10 @@ export const AppReleaseManifestSchema = z.strictObject({
   image_digest: ReleaseImageDigestSchema,
   schema_version: z.literal(3),
   schema: ReleaseDesiredSchemaProjectionSchema,
-  transition_plans: z.array(ReleaseManifestTransitionPlanSchema).length(1),
+  transition_plans: z
+    .array(ReleaseManifestTransitionPlanSchema)
+    .min(1)
+    .max(256),
 });
 
 export const FinalizedReleasePayloadSchema = z.strictObject({
