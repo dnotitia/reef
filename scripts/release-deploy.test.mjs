@@ -5,9 +5,11 @@ import path from "node:path";
 import test from "node:test";
 
 import * as core from "../packages/core/dist/index.js";
+import { parseAllDocuments } from "yaml";
 import {
   applyKubernetesRelease,
   observeRollout,
+  renderKubernetesManifest,
   runReleaseDeployment,
 } from "./release-deploy.mjs";
 
@@ -22,7 +24,13 @@ test("build-only creates a verifiable build artifact without AKB or Kubernetes c
   );
   const artifactPath = path.join(temporaryDirectory, "build.json");
   const sourceRevision = "a".repeat(40);
+  const secondImageDigest = `sha256:${"c".repeat(64)}`;
+  const existingRegistryTags = new Set([
+    `registry.example/reef-web:v0.14.1`,
+    `registry.example/reef-web:${sourceRevision}`,
+  ]);
   const commands = [];
+  let buildCount = 0;
   const runCommand = async (command, args, options) => {
     commands.push({ command, args, options });
     if (command === "pnpm") return { exitCode: 0, stdout: "", stderr: "" };
@@ -33,10 +41,28 @@ test("build-only creates a verifiable build artifact without AKB or Kubernetes c
       return { exitCode: 0, stdout: `${sourceRevision}\n`, stderr: "" };
     }
     if (command === "docker") {
+      buildCount += 1;
+      const tags = args
+        .flatMap((argument, index) =>
+          argument === "--tag" ? [args[index + 1]] : [],
+        )
+        .filter(Boolean);
+      assert.equal(tags.length, 1);
+      for (const tag of tags) {
+        assert.equal(
+          existingRegistryTags.has(tag),
+          false,
+          "a release build must not overwrite an existing mutable tag",
+        );
+        existingRegistryTags.add(tag);
+      }
       const metadataPath = args[args.indexOf("--metadata-file") + 1];
       await writeFile(
         metadataPath,
-        JSON.stringify({ "containerimage.digest": IMAGE_DIGEST }),
+        JSON.stringify({
+          "containerimage.digest":
+            buildCount === 1 ? IMAGE_DIGEST : secondImageDigest,
+        }),
       );
       return { exitCode: 0, stdout: "", stderr: "" };
     }
@@ -71,6 +97,52 @@ test("build-only creates a verifiable build artifact without AKB or Kubernetes c
       commands.find(({ command }) => command === "docker")?.args ?? [];
     assert.ok(dockerArgs.includes(`REEF_VERSION=0.14.1`));
     assert.ok(dockerArgs.includes(`REEF_SOURCE_REVISION=${sourceRevision}`));
+    const dockerTags = dockerArgs
+      .flatMap((argument, index) =>
+        argument === "--tag" ? [dockerArgs[index + 1]] : [],
+      )
+      .filter(Boolean);
+    assert.equal(
+      dockerTags.some((tag) => tag.endsWith(":v0.14.1")),
+      false,
+    );
+    assert.equal(
+      dockerTags.some((tag) => tag.endsWith(`:${sourceRevision}`)),
+      false,
+    );
+    assert.match(
+      dockerTags[0],
+      new RegExp(
+        `^registry\\.example/reef-web:build-0\\.14\\.1-${sourceRevision}-[0-9a-f-]{36}$`,
+        "u",
+      ),
+    );
+
+    const rebuilt = await runReleaseDeployment({
+      rootDir: path.resolve("."),
+      env: { REGISTRY: "registry.example" },
+      options: { mode: "build", build_artifact: artifactPath },
+      runCommand,
+      fetchImpl: async () => {
+        throw new Error("build-only must not call AKB");
+      },
+      core,
+    });
+    assert.equal(rebuilt.image_digest, secondImageDigest);
+    assert.notEqual(rebuilt.image_digest, result.image_digest);
+    assert.deepEqual(JSON.parse(await readFile(artifactPath, "utf8")), rebuilt);
+    assert.equal(
+      existingRegistryTags.has(`registry.example/reef-web:v0.14.1`),
+      true,
+    );
+    assert.equal(
+      existingRegistryTags.has(`registry.example/reef-web:${sourceRevision}`),
+      true,
+    );
+    assert.equal(
+      commands.filter(({ command }) => command === "docker").length,
+      2,
+    );
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
   }
@@ -403,6 +475,23 @@ spec:
                   {
                     name: "reef-web",
                     image: `registry.example/reef-web@${IMAGE_DIGEST}`,
+                    env: [
+                      { name: "REEF_APP_ID", value: APP_ID },
+                      { name: "REEF_RELEASE_ID", value: RELEASE_ID },
+                      { name: "REEF_RELEASE_VERSION", value: "0.14.1" },
+                      {
+                        name: "REEF_RELEASE_SOURCE_REVISION",
+                        value: sourceRevision,
+                      },
+                      {
+                        name: "REEF_RELEASE_IMAGE_DIGEST",
+                        value: IMAGE_DIGEST,
+                      },
+                      {
+                        name: "REEF_RELEASE_MANIFEST_CHECKSUM",
+                        value: manifestChecksum,
+                      },
+                    ],
                   },
                 ],
               },
@@ -443,6 +532,23 @@ spec:
                   {
                     name: "reef-web",
                     image: `registry.example/reef-web@${IMAGE_DIGEST}`,
+                    env: [
+                      { name: "REEF_APP_ID", value: APP_ID },
+                      { name: "REEF_RELEASE_ID", value: RELEASE_ID },
+                      { name: "REEF_RELEASE_VERSION", value: "0.14.1" },
+                      {
+                        name: "REEF_RELEASE_SOURCE_REVISION",
+                        value: sourceRevision,
+                      },
+                      {
+                        name: "REEF_RELEASE_IMAGE_DIGEST",
+                        value: IMAGE_DIGEST,
+                      },
+                      {
+                        name: "REEF_RELEASE_MANIFEST_CHECKSUM",
+                        value: manifestChecksum,
+                      },
+                    ],
                   },
                 ],
               },
@@ -568,6 +674,15 @@ spec:
         ({ command, args }) => command === "kubectl" && args[0] === "rollout",
       ).length,
       1,
+    );
+    assert.equal(
+      commands.some(
+        ({ command, args }) =>
+          command === "kubectl" &&
+          args[0] === "get" &&
+          args[1] === "configmap/reef-web-config",
+      ),
+      false,
     );
     for (const { options } of commands) {
       assert.equal(options.env.REEF_CONTROL_PLANE_TOKEN, undefined);
@@ -831,6 +946,23 @@ spec:
                   {
                     name: "reef-web",
                     image: `registry.example/reef-web@${IMAGE_DIGEST}`,
+                    env: [
+                      { name: "REEF_APP_ID", value: APP_ID },
+                      { name: "REEF_RELEASE_ID", value: RELEASE_ID },
+                      { name: "REEF_RELEASE_VERSION", value: "0.14.1" },
+                      {
+                        name: "REEF_RELEASE_SOURCE_REVISION",
+                        value: sourceRevision,
+                      },
+                      {
+                        name: "REEF_RELEASE_IMAGE_DIGEST",
+                        value: IMAGE_DIGEST,
+                      },
+                      {
+                        name: "REEF_RELEASE_MANIFEST_CHECKSUM",
+                        value: payload.manifest_checksum,
+                      },
+                    ],
                   },
                 ],
               },
@@ -1023,6 +1155,108 @@ test("rollout observation rejects a changed release identity before applied", as
       sleep: async () => undefined,
     }),
     (error) => error?.stage === "rollout_observation",
+  );
+});
+
+test("sequential Kubernetes renders keep each release identity on its own PodTemplate", () => {
+  const renderedBase = `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: reef-web-config
+data:
+  AKB_BACKEND_URL: https://akb.example.test
+  ENVIRONMENT: example
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reef-web
+spec:
+  template:
+    metadata:
+      labels:
+        app: reef-web
+    spec:
+      containers:
+        - name: reef-web
+          image: reef-web:latest
+          env:
+            - name: STATIC_SETTING
+              value: keep
+            - name: REEF_RELEASE_ID
+              value: stale
+`;
+  const registrationA = {
+    appId: APP_ID,
+    releaseId: RELEASE_ID,
+    appKey: "reef",
+    version: "0.14.1",
+    sourceRevision: "a".repeat(40),
+    imageDigest: IMAGE_DIGEST,
+    manifestChecksum: "d".repeat(64),
+  };
+  const registrationB = {
+    ...registrationA,
+    releaseId: "33333333-3333-4333-8333-333333333333",
+    version: "0.14.2",
+    sourceRevision: "c".repeat(40),
+    imageDigest: `sha256:${"e".repeat(64)}`,
+    manifestChecksum: "f".repeat(64),
+  };
+  const getResources = (yaml) =>
+    parseAllDocuments(yaml)
+      .filter((document) => document.toString().trim().length > 0)
+      .map((document) => document.toJS());
+  const getDeployment = (resources) =>
+    resources.find(
+      (resource) =>
+        resource.kind === "Deployment" && resource.metadata.name === "reef-web",
+    );
+  const getConfigMap = (resources) =>
+    resources.find(
+      (resource) =>
+        resource.kind === "ConfigMap" &&
+        resource.metadata.name === "reef-web-config",
+    );
+  const getContainerEnv = (deployment) =>
+    Object.fromEntries(
+      deployment.spec.template.spec.containers
+        .find((container) => container.name === "reef-web")
+        .env.map(({ name, value }) => [name, value]),
+    );
+
+  const renderedA = renderKubernetesManifest(renderedBase, {
+    registration: registrationA,
+    imageRepository: "registry.example/reef-web",
+  });
+  const renderedB = renderKubernetesManifest(renderedBase, {
+    registration: registrationB,
+    imageRepository: "registry.example/reef-web",
+  });
+  const resourcesA = getResources(renderedA);
+  const resourcesB = getResources(renderedB);
+  const envA = getContainerEnv(getDeployment(resourcesA));
+  const envB = getContainerEnv(getDeployment(resourcesB));
+
+  assert.equal(envA.REEF_RELEASE_ID, registrationA.releaseId);
+  assert.equal(envB.REEF_RELEASE_ID, registrationB.releaseId);
+  assert.equal(envA.REEF_RELEASE_VERSION, registrationA.version);
+  assert.equal(envB.REEF_RELEASE_VERSION, registrationB.version);
+  assert.equal(envA.STATIC_SETTING, "keep");
+  assert.equal(envB.STATIC_SETTING, "keep");
+  assert.equal(getConfigMap(resourcesA).data.REEF_RELEASE_ID, undefined);
+  assert.equal(getConfigMap(resourcesB).data.REEF_RELEASE_ID, undefined);
+  assert.deepEqual(getConfigMap(resourcesA).data, {
+    AKB_BACKEND_URL: "https://akb.example.test",
+    ENVIRONMENT: "example",
+  });
+  assert.deepEqual(getConfigMap(resourcesB).data, {
+    AKB_BACKEND_URL: "https://akb.example.test",
+    ENVIRONMENT: "example",
+  });
+  assert.equal(
+    getContainerEnv(getDeployment(getResources(renderedA))).REEF_RELEASE_ID,
+    registrationA.releaseId,
   );
 });
 

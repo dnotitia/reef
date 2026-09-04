@@ -32,12 +32,11 @@ public assets only; workspace source is not a runtime fallback.
 # From the repository root
 docker build -t reef-web:local .
 
-# For a cluster, use immutable version and source-revision tags. The one-shot
-# deploy command below also records the digest returned by buildx.
-docker buildx build --platform linux/amd64 \
-  -t ghcr.io/myorg/reef-web:v0.14.1 \
-  -t ghcr.io/myorg/reef-web:<full-source-revision> \
-  --push .
+# For a cluster, use the release CLI. It pushes one unique build tag, records
+# the digest returned by buildx, and never moves an existing version/source tag.
+REGISTRY=ghcr.io/myorg \
+REEF_BUILD_ARTIFACT=/tmp/reef-build.json \
+  deploy/k8s/deploy.sh build
 ```
 
 The container listens on `3000` and exposes a health endpoint at
@@ -138,11 +137,12 @@ keep `/api/agents/runs` chat streaming working through the proxy.
 
 ### Register and deploy
 
-Use the one-shot CLI for a normal release. It builds and pushes immutable
-version/source tags, reads the OCI digest from buildx, validates the committed
-Blueprint and final Manifest, registers or replays the App and Release, waits
-for AKB to report `applied`, then renders and applies the Kubernetes revision
-with the same digest and release identity. It exits non-zero for blocked,
+Use the one-shot CLI for a normal release. It builds and pushes one unique
+source/version-bound build tag, reads the OCI digest from buildx, validates the
+committed Blueprint and final Manifest, registers or replays the App and
+Release, waits for AKB to report `applied`, then renders and applies the
+Kubernetes revision with the same digest and release identity. It never moves
+an existing mutable version or source tag, and exits non-zero for blocked,
 pending, timeout, readiness, or identity-readback failures.
 
 ```bash
@@ -157,8 +157,8 @@ REEF_RELEASE_RECEIPT=/tmp/reef-release.json \
 ```
 
 For a registration-only handoff (including a new AKB installation with no
-targets), first run the build-only command. It pushes the immutable image tags
-and writes the identity artifact without contacting AKB or Kubernetes:
+targets), first run the build-only command. It pushes one unique build tag and
+writes the identity artifact without contacting AKB or Kubernetes:
 
 ```bash
 REGISTRY=ghcr.io/myorg \
@@ -201,11 +201,13 @@ REEF_RELEASE_RECEIPT=/tmp/reef-release.json \
 
 The CLI derives provenance from the root package version and full `HEAD`; it
 does not accept version/commit identity overrides or deploy a mutable `latest`
-reference. `kubernetes.io/change-cause` and the `REEF_RELEASE_*` ConfigMap
-values include the verified App/Release IDs, source revision, digest, and
-manifest checksum. The control-plane credential is used only by the one-shot
-process and is removed from child command environments and rendered workload
-configuration.
+reference. `kubernetes.io/change-cause` and the `REEF_RELEASE_*` PodTemplate
+environment variables include the verified App/Release IDs, source revision,
+digest, and manifest checksum. The fixed `reef-web-config` ConfigMap remains
+for stable workload settings and is not rewritten with release identity, so an
+older ReplicaSet cannot observe a later release's coordinates. The control-
+plane credential is used only by the one-shot process and is removed from child
+command environments and rendered workload configuration.
 
 ---
 
@@ -300,7 +302,7 @@ These inputs belong to the operator process, not the reef-web Deployment:
 | Variable | Required | Description |
 | --- | --- | --- |
 | `REEF_CONTROL_PLANE_TOKEN` | register/deploy/resume | System-admin AKB credential. It is sent only in Core's Authorization header and is removed from child command environments. |
-| `REGISTRY` | deploy | OCI image repository prefix, without a tag. The CLI pushes version/source tags and applies the returned digest. |
+| `REGISTRY` | build/deploy | OCI image repository prefix, without a tag. The CLI pushes one unique build tag per image build and applies the returned digest; it never moves version/source aliases. |
 | `REEF_APP_ID` | no | Previously recorded App Definition UUID. When set, the CLI reads it and verifies `app_key=reef` before registering a Release. |
 | `REEF_BUILD_ARTIFACT` | register-only or optional deploy output | Path for the build identity artifact containing the repository, digest, full source revision, and root version. |
 | `REEF_RELEASE_RECEIPT` | no | Path for the non-secret registration/rollout receipt used for handoff and request-key replay. |
