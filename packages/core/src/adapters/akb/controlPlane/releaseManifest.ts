@@ -16,6 +16,7 @@ import {
   type ReleaseDesiredSchemaProjection,
   type ReleaseManifestStep,
   type ReleaseManifestTable,
+  type ReleaseTransitionSource,
   type ReleaseTransitionPlanSource,
 } from "../../../schemas/controlPlane";
 import {
@@ -26,6 +27,18 @@ import {
 } from "../core/tableManifest";
 
 const REEF_TABLE_COUNT = 12;
+const REEF_BASELINE_RELEASE_VERSION = "0.14.0";
+const REEF_BASELINE_SCHEMA_FINGERPRINT =
+  "dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727";
+
+/** Explicit source releases that may use the schema no-op transition. */
+export const REEF_SUPPORTED_TRANSITION_SOURCES: readonly ReleaseTransitionSource[] =
+  Object.freeze([
+    Object.freeze({
+      release_version: REEF_BASELINE_RELEASE_VERSION,
+      schema_fingerprint: REEF_BASELINE_SCHEMA_FINGERPRINT,
+    }),
+  ]);
 
 /** Mutable display metadata is intentionally not part of a release checksum. */
 export const REEF_APP_DEFINITION = Object.freeze(
@@ -209,11 +222,40 @@ function releaseBoundBlueprint(blueprint: ReleaseBlueprint): JsonObject {
   };
 }
 
-function assertFreshPlanSource(source: ReleaseTransitionPlanSource): void {
-  if (source !== "fresh") {
+function transitionPlanKey(source: ReleaseTransitionPlanSource): string {
+  return source === "fresh" ? "fresh" : canonicalJson(source);
+}
+
+function assertTransitionPlanContract(
+  blueprint: ReleaseBlueprint,
+  desiredSchema: ReleaseDesiredSchemaProjection,
+): void {
+  const plans = blueprint.transition_plans;
+  if (plans.filter((plan) => plan.source === "fresh").length !== 1) {
     throw releaseValidationError(
-      "The current Reef release baseline supports only a fresh transition plan",
+      "Release Blueprint must contain exactly one fresh transition plan",
     );
+  }
+  const seen = new Set<string>();
+  for (const plan of plans) {
+    const key = transitionPlanKey(plan.source);
+    if (seen.has(key)) {
+      throw releaseValidationError(
+        "Release Blueprint transition plan sources must be unique",
+      );
+    }
+    seen.add(key);
+    if (plan.source === "fresh") continue;
+    if (plan.steps.length !== 0) {
+      throw releaseValidationError(
+        "Schema no-op transition plans must contain no steps",
+      );
+    }
+    if (plan.source.schema_fingerprint !== desiredSchema.fingerprint) {
+      throw releaseValidationError(
+        "Schema no-op transition plan fingerprint must match the desired schema",
+      );
+    }
   }
 }
 
@@ -228,14 +270,8 @@ async function parseCurrentBlueprint(
   if (blueprint.schema_version !== REEF_SCHEMA_VERSION) {
     throw releaseValidationError("Release Blueprint schema version is stale");
   }
-  const [plan] = blueprint.transition_plans;
-  if (!plan) {
-    throw releaseValidationError(
-      "Release Blueprint must include a transition plan",
-    );
-  }
-  assertFreshPlanSource(plan.source);
   const desired = await buildReleaseBlueprint();
+  assertTransitionPlanContract(blueprint, desired.schema);
   if (
     canonicalJson(releaseBoundBlueprint(blueprint)) !==
     canonicalJson(releaseBoundBlueprint(desired))
@@ -251,15 +287,28 @@ async function parseCurrentBlueprint(
 export async function buildReleaseBlueprint(): Promise<ReleaseBlueprint> {
   const schema = await buildDesiredSchemaProjection();
   const steps = await Promise.all(schema.tables.map(createTableStep));
+  for (const source of REEF_SUPPORTED_TRANSITION_SOURCES) {
+    if (source.schema_fingerprint !== schema.fingerprint) {
+      throw releaseValidationError(
+        `Supported transition source ${source.release_version} does not match the desired schema fingerprint`,
+      );
+    }
+  }
   return ReleaseBlueprintSchema.parse({
     app_definition: { ...REEF_APP_DEFINITION },
     schema_version: REEF_SCHEMA_VERSION,
     schema,
     transition_plans: [
-      {
-        source: "fresh",
-        steps,
-      },
+      { source: "fresh", steps },
+      ...[...REEF_SUPPORTED_TRANSITION_SOURCES]
+        .sort((left, right) =>
+          canonicalJson(left) < canonicalJson(right)
+            ? -1
+            : canonicalJson(left) > canonicalJson(right)
+              ? 1
+              : 0,
+        )
+        .map((source) => ({ source, steps: [] })),
     ],
   });
 }

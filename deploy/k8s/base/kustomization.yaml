@@ -3,7 +3,8 @@ kind: Kustomization
 
 # Base manifests for reef-web. These carry neutral placeholder values
 # (example.com host, example akb backend DNS) and no namespace — an overlay
-# under ../overlays sets the namespace, image registry, host, and backend URL.
+# under ../overlays sets the namespace, host, and backend URL. The one-shot
+# release CLI supplies the immutable image repository and digest.
 # Do not deploy this base directly; copy overlays/example to your own overlay.
 
 resources:
