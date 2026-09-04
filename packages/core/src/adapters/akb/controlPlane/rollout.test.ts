@@ -60,6 +60,7 @@ function rolloutFixture(overrides: Record<string, unknown> = {}) {
     app_id: APP_ID,
     release_id: RELEASE_ID,
     manifest_checksum: CHECKSUM,
+    snapshot_id: "66666666-6666-4666-8666-666666666666",
     status: "pending",
     blocked_reason: null,
     created_at: "2026-09-04T06:00:00.000Z",
@@ -87,6 +88,9 @@ function rolloutFixture(overrides: Record<string, unknown> = {}) {
       },
     ],
     replayed: false,
+    source_rollout_id: null,
+    resume_outcome: null,
+    resume_reason: null,
     ...overrides,
   };
 }
@@ -127,6 +131,7 @@ describe("createAkbAppRollout", () => {
 
     expect(result.responseStatus).toBe(202);
     expect(result.rollout.replayed).toBe(false);
+    expect(result.rollout.resumeOutcome).toBeUndefined();
     expect(result.rollout.status).toBe("pending");
     expect(calls[0]?.url).toBe(
       `https://akb.example.test/api/v1/apps/${APP_ID}/rollouts`,
@@ -164,11 +169,17 @@ describe("createAkbAppRollout", () => {
 
   it("reads a job and strips checkpoint contents from the public projection", async () => {
     const calls: Array<{ url: string; init: RequestInit }> = [];
-    const rollout = makeRollout(jsonResponse(rolloutFixture()), calls);
+    const rollout = makeRollout(
+      jsonResponse(rolloutFixture({ status: "applied", replayed: null })),
+      calls,
+    );
 
     const result = await rollout.getRollout(APP_ID, JOB_ID);
 
     expect(result.jobId).toBe(JOB_ID);
+    expect(result.status).toBe("applied");
+    expect(result.replayed).toBeUndefined();
+    expect(result.resumeOutcome).toBeUndefined();
     expect(result.targets[0]?.steps[0]?.checkpoint).toEqual({});
     expect(JSON.stringify(result)).not.toContain(SECRET);
     expect(calls[0]?.init.method).toBe("GET");

@@ -640,6 +640,58 @@ function sameRegistration(left, right) {
   );
 }
 
+async function reusableReceiptRelease({
+  rootDir,
+  core,
+  identity,
+  imageRepository,
+  appId,
+  receipt,
+}) {
+  if (
+    !receipt ||
+    receipt.imageRepository !== imageRepository ||
+    (appId !== undefined && receipt.registration.appId !== appId) ||
+    receipt.registration.version !== identity.version ||
+    receipt.registration.sourceRevision.toLowerCase() !==
+      identity.sourceRevision
+  ) {
+    return null;
+  }
+  const payload = await finalizeRelease({
+    rootDir,
+    sourceRevision: identity.sourceRevision,
+    version: identity.version,
+    imageDigest: receipt.registration.imageDigest,
+    core,
+  });
+  if (
+    payload.manifest_checksum !== receipt.registration.manifestChecksum ||
+    payload.manifest.source_revision !==
+      receipt.registration.sourceRevision.toLowerCase() ||
+    payload.manifest.image_digest !== receipt.registration.imageDigest
+  ) {
+    throw new DeploymentError(
+      "The release receipt does not match the current canonical release",
+      {
+        stage: "receipt_validation",
+        details: {
+          app_id: receipt.registration.appId,
+          release_id: receipt.registration.releaseId,
+        },
+      },
+    );
+  }
+  return {
+    image: {
+      imageRepository: receipt.imageRepository,
+      imageDigest: receipt.registration.imageDigest,
+    },
+    payload,
+    registration: receipt.registration,
+  };
+}
+
 function buildProvenanceAnnotation(registration) {
   return [
     `Deploy reef-web v${registration.version}`,
@@ -1207,6 +1259,8 @@ async function runDeploy({
   const releaseCore = core ?? (await loadCore(rootDir));
   const identity = await readSourceIdentity(rootDir, runCommand, env);
   const registry = validateRegistry(options.registry ?? env.REGISTRY);
+  const receiptPath = options.receipt ?? env.REEF_RELEASE_RECEIPT;
+  const previousReceipt = await readReceiptIfPresent(receiptPath, releaseCore);
   const rolloutDeadlineMs = parsePositiveInteger(
     options.rollout_deadline_ms ?? env.REEF_ROLLOUT_DEADLINE_MS,
     "rollout deadline",
@@ -1230,34 +1284,50 @@ async function runDeploy({
     "Kubernetes timeout",
     DEFAULT_KUBERNETES_TIMEOUT_MS,
   );
-  const image = await buildAndPushImage({
+  const imageRepository = `${registry}/reef-web`;
+  const reused = await reusableReceiptRelease({
     rootDir,
-    registry,
-    sourceRevision: identity.sourceRevision,
-    version: identity.version,
-    runCommand,
-    env,
     core: releaseCore,
-    artifactPath: options.build_artifact ?? env.REEF_BUILD_ARTIFACT,
+    identity,
+    imageRepository,
+    appId: options.app_id ?? env.REEF_APP_ID,
+    receipt: previousReceipt,
   });
-  const payload = await finalizeRelease({
-    rootDir,
-    sourceRevision: identity.sourceRevision,
-    version: identity.version,
-    imageDigest: image.imageDigest,
-    core: releaseCore,
-  });
-  const receiptPath = options.receipt ?? env.REEF_RELEASE_RECEIPT;
-  const previousReceipt = await readReceiptIfPresent(receiptPath, releaseCore);
-  const registration = await registerRelease({
-    env,
-    core: releaseCore,
-    payload,
-    appId:
-      options.app_id ?? env.REEF_APP_ID ?? previousReceipt?.registration.appId,
-    createRegistry: releaseCore.createAkbAppRegistry,
-    fetchImpl,
-  });
+  let image;
+  let payload;
+  let registration;
+  if (reused) {
+    ({ image, payload, registration } = reused);
+  } else {
+    image = await buildAndPushImage({
+      rootDir,
+      registry,
+      sourceRevision: identity.sourceRevision,
+      version: identity.version,
+      runCommand,
+      env,
+      core: releaseCore,
+      artifactPath: options.build_artifact ?? env.REEF_BUILD_ARTIFACT,
+    });
+    payload = await finalizeRelease({
+      rootDir,
+      sourceRevision: identity.sourceRevision,
+      version: identity.version,
+      imageDigest: image.imageDigest,
+      core: releaseCore,
+    });
+    registration = await registerRelease({
+      env,
+      core: releaseCore,
+      payload,
+      appId:
+        options.app_id ??
+        env.REEF_APP_ID ??
+        previousReceipt?.registration.appId,
+      createRegistry: releaseCore.createAkbAppRegistry,
+      fetchImpl,
+    });
+  }
   const previousRequestKey =
     previousReceipt &&
     previousReceipt.imageRepository === image.imageRepository &&
@@ -1271,6 +1341,14 @@ async function runDeploy({
       previousRequestKey ??
       randomUUID(),
     "request key",
+  );
+  await writeReceipt(
+    receiptPath,
+    makeReceipt(
+      registration,
+      { request_key: requestKey },
+      image.imageRepository,
+    ),
   );
   let requestAndObservation;
   try {

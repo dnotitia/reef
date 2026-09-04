@@ -63,9 +63,12 @@ const WireRolloutSchema = z.looseObject({
   updated_at: z.string().min(1).optional(),
   completed_at: z.string().nullable().optional(),
   targets: z.array(WireRolloutTargetSchema).optional(),
-  replayed: z.boolean().optional(),
+  replayed: z.boolean().nullable().optional(),
   source_rollout_id: ControlPlaneIdSchema.nullable().optional(),
-  resume_outcome: z.enum(["accepted", "replayed", "denied"]).optional(),
+  resume_outcome: z
+    .enum(["accepted", "replayed", "denied"])
+    .nullable()
+    .optional(),
   resume_reason: z.string().nullable().optional(),
 });
 
@@ -152,6 +155,10 @@ function mapRollout(
     });
   }
   try {
+    const replayed =
+      wire.data.replayed === null ? undefined : wire.data.replayed;
+    const resumeOutcome =
+      wire.data.resume_outcome === null ? undefined : wire.data.resume_outcome;
     return ControlPlaneRolloutSchema.parse({
       jobId: wire.data.job_id,
       appId: wire.data.app_id,
@@ -180,9 +187,9 @@ function mapRollout(
           reason: safeReason(step.reason ?? step.reason_code),
         })),
       })),
-      replayed: wire.data.replayed,
+      ...(replayed === undefined ? {} : { replayed }),
       sourceRolloutId: wire.data.source_rollout_id,
-      resumeOutcome: wire.data.resume_outcome,
+      ...(resumeOutcome === undefined ? {} : { resumeOutcome }),
       resumeReason: safeReason(wire.data.resume_reason),
     });
   } catch {
