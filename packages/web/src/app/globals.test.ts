@@ -1,7 +1,35 @@
 // @vitest-environment node
 
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+
+function readGlobalCss(): string {
+  const entryPath = fileURLToPath(new URL("./globals.css", import.meta.url));
+  const visiting = new Set<string>();
+
+  function expand(filePath: string): string {
+    if (visiting.has(filePath)) {
+      throw new Error(`Circular CSS import: ${filePath}`);
+    }
+    visiting.add(filePath);
+    const css = readFileSync(filePath, "utf8");
+    const expanded = css.replace(
+      /@import\s+["']([^"']+)["']\s*;?/g,
+      (statement, source: string) => {
+        if (!source.startsWith(".")) {
+          return statement;
+        }
+        return `${statement}\n${expand(resolve(dirname(filePath), source))}`;
+      },
+    );
+    visiting.delete(filePath);
+    return expanded;
+  }
+
+  return expand(entryPath);
+}
 
 function findCssBlockEnd(css: string, blockStart: number): number {
   const openBrace = css.indexOf("{", blockStart);
@@ -85,7 +113,7 @@ function tokenRgb(css: string, selector: string, token: string): Rgb {
 
 describe("global focus styles", () => {
   it("keeps the canonical teal focus-visible outline in the base layer", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const css = readGlobalCss();
     const focusRuleStart = css.indexOf("*:focus-visible");
     expect(focusRuleStart).toBeGreaterThan(-1);
 
@@ -99,7 +127,7 @@ describe("global focus styles", () => {
   });
 
   it("keeps issue list row focus as one scrollport-scoped rounded border above dividers", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const css = readGlobalCss();
 
     expect(css).toContain("border-radius: 0.375rem");
     expect(css).toContain("--reef-list-focus-width: 100%");
@@ -142,7 +170,7 @@ describe("global focus styles", () => {
   });
 
   it("compresses the default List sticky columns through narrow viewports", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const css = readGlobalCss();
 
     expect(css).toContain("@media (max-width: 480px)");
     expect(css).toContain("@media (min-width: 768px) and (max-width: 1311px)");
@@ -163,14 +191,14 @@ describe("global focus styles", () => {
   });
 
   it("styles comment mentions from the sanitized renderer marker", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const css = readGlobalCss();
     expect(css).toContain(".comment-mention-renderer [data-reef-mention]");
     expect(css).toContain("color: var(--brand-text);");
     expect(css).toContain("font-weight: 500;");
   });
 
   it("makes only tooltip-owned Radix Popper wrappers hit-test transparent", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const css = readGlobalCss();
     expect(css).toContain(
       '[data-radix-popper-content-wrapper]:has([data-reef-tooltip-content="true"])',
     );
@@ -178,7 +206,7 @@ describe("global focus styles", () => {
   });
 
   it("keeps the Settings link's foreground text and focus outline accessible", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const css = readGlobalCss();
     const lightBackground = readHslToken(css, ":root {", "--surface-page");
     const lightForeground = readHslToken(css, ":root {", "--foreground");
     const darkBackground = readHslToken(css, ":root.dark", "--surface-page");
@@ -193,7 +221,7 @@ describe("global focus styles", () => {
   });
 
   it("keeps role-specific focus tokens visible across light/dark surfaces", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const css = readGlobalCss();
     expect(css).toContain("--brand-focus: hsl(173 80% 25%);");
     expect(css).toContain("--brand-focus: hsl(173 70% 78%);");
     expect(css).toContain("--brand-on-fill: hsl(0 0% 100%);");
@@ -211,7 +239,7 @@ describe("global focus styles", () => {
   });
 
   it("keeps page/subtle/card/elevated/popover surfaces distinct and role contrast AA-safe", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const css = readGlobalCss();
     const surfaces = [
       "--surface-page",
       "--surface-subtle",
@@ -278,7 +306,7 @@ describe("global focus styles", () => {
   });
 
   it("maps every surface role directly into its semantic Tailwind utility", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const css = readGlobalCss();
     const surfaceRoles = [
       "page",
       "subtle",
@@ -293,7 +321,7 @@ describe("global focus styles", () => {
   });
 
   it("keeps the planning family distinct while meeting non-text contrast", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const css = readGlobalCss();
     const planningTokens = [
       "--planning-pending",
       "--planning-open",
@@ -323,7 +351,7 @@ describe("global focus styles", () => {
   });
 
   it("does not reintroduce removed neutral aliases or collapse semantic roles", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const css = readGlobalCss();
     for (const obsolete of [
       "--background:",
       "--card:",
@@ -354,7 +382,7 @@ describe("global focus styles", () => {
   });
 
   it("keeps the Inter + Noto Sans KR display/body fallback contract", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const css = readGlobalCss();
     expect(css).toContain(
       "--font-display:\n    var(--font-inter), var(--font-noto-sans-kr), ui-sans-serif, system-ui,\n    sans-serif;",
     );
@@ -383,7 +411,7 @@ describe("global focus styles", () => {
   });
 
   it("defines one complete named contract for routed product typography", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const css = readGlobalCss();
     const roles = {
       "type-page-title": [
         "font-size: var(--type-page-title-size);",
@@ -746,7 +774,7 @@ describe("global focus styles", () => {
   });
 
   it("renders the Tiptap empty-editor placeholder marker", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const css = readGlobalCss();
 
     expect(css).toContain(
       ".reef-markdown-editor > .is-empty:only-child[data-placeholder]::before",
@@ -756,7 +784,7 @@ describe("global focus styles", () => {
   });
 
   it("keeps every editor Typography color variable on Reef semantic tokens", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const css = readGlobalCss();
     const editorStart = css.indexOf(".reef-markdown-editor {");
     expect(editorStart).toBeGreaterThan(-1);
     const editorEnd = findCssBlockEnd(css, editorStart);
@@ -813,7 +841,7 @@ describe("global focus styles", () => {
   });
 
   it("defines one semantic token contract for the comment Streamdown scope", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const css = readGlobalCss();
     const surfaceStart = css.indexOf(".reef-markdown-surface {");
     expect(surfaceStart).toBeGreaterThan(-1);
     const surfaceEnd = findCssBlockEnd(css, surfaceStart);
@@ -844,7 +872,7 @@ describe("global focus styles", () => {
   });
 
   it("gives inline marks an explicit Reef hierarchy without touching code blocks", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const css = readGlobalCss();
 
     const inlineCodeStart = css.indexOf(
       ".reef-markdown-editor :not(pre) > code {",
@@ -874,7 +902,7 @@ describe("global focus styles", () => {
   });
 
   it("keeps bold, italic, strike, and mentions on the foreground hierarchy", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const css = readGlobalCss();
     for (const [selector, declarations] of [
       [
         ".reef-markdown-editor strong {",
@@ -912,7 +940,7 @@ describe("global focus styles", () => {
   });
 
   it("keeps issue Markdown rhythm compact and scoped to direct blocks", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const css = readGlobalCss();
     const directBlockRules = [
       [
         ".reef-markdown-editor > p",
@@ -971,7 +999,7 @@ describe("global focus styles", () => {
   });
 
   it("contains editor images without enlarging small evidence or leaking globally", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const css = readGlobalCss();
     const imageStart = css.indexOf(".reef-markdown-editor > img {");
     expect(imageStart).toBeGreaterThan(-1);
     const imageEnd = findCssBlockEnd(css, imageStart);
@@ -998,7 +1026,7 @@ describe("global focus styles", () => {
   });
 
   it("keeps file-link surface and long-label wrapping scoped to the editor", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const css = readGlobalCss();
     const fileLinkStart = css.indexOf(
       '.reef-markdown-editor a[data-reef-file-link="true"] {',
     );
@@ -1033,7 +1061,7 @@ describe("global focus styles", () => {
   });
 
   it("gives issue, document, and file references one compact semantic surface", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const css = readGlobalCss();
     const surfaceStart = css.indexOf(
       ".reef-markdown-editor [data-reference-kind] {",
     );
@@ -1089,7 +1117,7 @@ describe("global focus styles", () => {
   });
 
   it("keeps normal lists dense while preserving the live task-list contract", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const css = readGlobalCss();
 
     const normalListStart = css.indexOf(
       '.reef-markdown-editor ol:not([data-type="taskList"]),',
@@ -1160,7 +1188,7 @@ describe("global focus styles", () => {
   });
 
   it("keeps block Markdown surfaces dense, scoped, and scroll-contained", () => {
-    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    const css = readGlobalCss();
 
     const preStart = css.indexOf(".reef-markdown-editor > pre {");
     expect(preStart).toBeGreaterThan(-1);

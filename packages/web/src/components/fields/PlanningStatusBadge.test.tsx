@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import {
@@ -6,6 +7,34 @@ import {
   type PlanningStatusKind,
   planningStatusMeta,
 } from "./PlanningStatusBadge";
+
+// Expand the app entrypoint so this contract also catches a new token owner
+// that is not wired through layout's single global stylesheet.
+function readGlobalCss(): string {
+  const entryPath = resolve(process.cwd(), "src/app/globals.css");
+  const visiting = new Set<string>();
+
+  function expand(filePath: string): string {
+    if (visiting.has(filePath)) {
+      throw new Error(`Circular CSS import: ${filePath}`);
+    }
+    visiting.add(filePath);
+    const css = readFileSync(filePath, "utf8");
+    const expanded = css.replace(
+      /@import\s+["']([^"']+)["']\s*;?/g,
+      (statement, source: string) => {
+        if (!source.startsWith(".")) {
+          return statement;
+        }
+        return `${statement}\n${expand(resolve(dirname(filePath), source))}`;
+      },
+    );
+    visiting.delete(filePath);
+    return expanded;
+  }
+
+  return expand(entryPath);
+}
 
 const PLANNING_STATUS_EXPECTATIONS: ReadonlyArray<
   readonly [PlanningStatusKind, string, string]
@@ -47,7 +76,7 @@ describe("PlanningStatusBadge", () => {
   });
 
   it("exposes the planning tokens through Tailwind theme colors", () => {
-    const globalsCss = readFileSync("src/app/globals.css", "utf8");
+    const globalsCss = readGlobalCss();
     for (const token of PLANNING_TOKENS) {
       expect(globalsCss).toContain(`--planning-${token}:`);
       expect(globalsCss).toContain(

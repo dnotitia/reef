@@ -298,10 +298,6 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
     "Templates settings workflow; extract rows/forms after another settings page shares them.",
   ],
   [
-    "packages/web/src/app/globals.css",
-    "Global Tailwind/theme token entrypoint; split when theme tokens or editor/task styles gain separate owners.",
-  ],
-  [
     "packages/web/tests/e2e/issues/markdown-editor.hermetic.spec.ts",
     "Hermetic Markdown editor scenario suite sharing one seeded browser fixture; split scenario groups when another editor suite reuses the setup.",
   ],

@@ -12,7 +12,7 @@ import { Toaster as Sonner, type ToasterProps } from "sonner";
  *   toast.error(err.message);
  *
  * Theme: follows the user's OS preference via `theme="system"`. The CSS tokens
- * below pull from globals.css so light + dark stay consistent with the rest
+ * below pull from app/styles/tokens.css so light + dark stay consistent with the rest
  * of the shell. Sonner injects its own stylesheet on the client; the strict
  * CSP in `proxy.ts` allows `style-src 'self' 'unsafe-inline'` so this works
  * without a nonce.

@@ -1,0 +1,629 @@
+/* =====================================================================
+ * reef — dense, keyboard-first design tokens
+ *
+ * Three-tier system:
+ *   1. Raw HSL values per mode  (`--surface-page`, `--surface-sidebar`, ...)
+ *   2. Semantic tokens for status / planning / priority / brand
+ *   3. `@theme inline` mapping into Tailwind v4 utility tokens
+ *      (consumed via `bg-foo`, `text-foo`, `border-foo`)
+ *
+ * Brand color is teal — distinct from the purple reserved for AI features.
+ * ===================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* base surfaces — page, subtle, elevated, card, and popover are
+   * intentionally distinct so adjacent containers remain legible in both
+   * themes. */
+  --surface-page: hsl(220 18% 98%);
+  --foreground: hsl(220 13% 13%);
+  --surface-sidebar: hsl(220 13% 97%);
+  --surface-elevated: hsl(0 0% 100%);
+  --surface-card: hsl(220 18% 99%);
+  --surface-popover: hsl(220 18% 97%);
+  --surface-hover: hsl(220 13% 95%);
+  --surface-subtle: hsl(220 13% 97%);
+
+  /* shadcn interaction roles */
+  --primary: hsl(220 13% 13%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(220 13% 96%);
+  --secondary-foreground: hsl(220 13% 13%);
+  --muted: hsl(220 13% 96%);
+  --muted-foreground: hsl(220 9% 46%);
+  --accent: hsl(220 13% 95%);
+  --accent-foreground: hsl(220 13% 13%);
+
+  /* hairlines */
+  --border: hsl(220 13% 91%);
+  --border-subtle: hsl(220 13% 93%);
+  --input: hsl(220 13% 91%);
+
+  /* brand — teal, reef-coded, distinct from AI purple. Identity and render
+   * roles are deliberately separate: text/glyph/chart need contrast on a
+   * surface, while fill/on-fill is a component pair. */
+  --brand-text: hsl(173 80% 27%);
+  --brand-fill: hsl(173 80% 35%);
+  --brand-glyph: hsl(173 80% 30%);
+  --brand-focus: hsl(173 80% 25%);
+  --brand-chart: hsl(173 80% 32%);
+  --brand-on-fill: hsl(0 0% 100%);
+
+  /* destructive — red identity with independent text, fill, glyph, focus,
+   * and chart roles. */
+  --destructive-text: hsl(0 75% 36%);
+  --destructive-fill: hsl(0 75% 43%);
+  --destructive-glyph: hsl(0 75% 38%);
+  --destructive-focus: hsl(0 75% 32%);
+  --destructive-chart: hsl(0 75% 40%);
+  --destructive-on-fill: hsl(0 0% 100%);
+
+  /* AI track — purple, reserved for AI drafts / enrichment */
+  --ai: hsl(260 70% 60%);
+  --ai-foreground: hsl(0 0% 100%);
+  --ai-subtle: hsl(260 80% 97%);
+  --ai-subtle-foreground: hsl(260 70% 35%);
+  --ai-border: hsl(260 60% 88%);
+
+  /* status — issue lifecycle. Each identity has independent text, fill,
+   * glyph, focus, and chart roles; planning keeps its own family below. */
+  /* backlog reads one tone fainter and cooler than `open` (Todo): an
+   * uncommitted queue recedes behind committed work (REEF-109). On light it
+   * goes lighter to recede on white; the dark pair below goes darker to recede
+   * on black. */
+  --status-backlog-text: hsl(222 11% 45%);
+  --status-backlog-fill: hsl(222 11% 55%);
+  --status-backlog-glyph: hsl(222 11% 42%);
+  --status-backlog-focus: hsl(222 11% 38%);
+  --status-backlog-chart: hsl(222 11% 48%);
+  --status-open-text: hsl(220 9% 44%);
+  --status-open-fill: hsl(220 9% 54%);
+  --status-open-glyph: hsl(220 9% 42%);
+  --status-open-focus: hsl(220 9% 37%);
+  --status-open-chart: hsl(220 9% 47%);
+  --status-in-progress-text: hsl(40 90% 30%);
+  --status-in-progress-fill: hsl(40 90% 39%);
+  --status-in-progress-glyph: hsl(40 90% 28%);
+  --status-in-progress-focus: hsl(40 90% 24%);
+  --status-in-progress-chart: hsl(40 90% 34%);
+  --status-in-review-text: hsl(260 70% 42%);
+  --status-in-review-fill: hsl(260 70% 50%);
+  --status-in-review-glyph: hsl(260 70% 39%);
+  --status-in-review-focus: hsl(260 70% 35%);
+  --status-in-review-chart: hsl(260 70% 46%);
+  --status-done-text: hsl(150 65% 30%);
+  --status-done-fill: hsl(150 65% 38%);
+  --status-done-glyph: hsl(150 65% 28%);
+  --status-done-focus: hsl(150 65% 24%);
+  --status-done-chart: hsl(150 65% 34%);
+  --status-closed-text: hsl(220 9% 40%);
+  --status-closed-fill: hsl(220 9% 48%);
+  --status-closed-glyph: hsl(220 9% 37%);
+  --status-closed-focus: hsl(220 9% 33%);
+  --status-closed-chart: hsl(220 9% 44%);
+
+  /* planning status — sprint/milestone/release lifecycle colors */
+  --planning-pending: hsl(220 9% 56%);
+  --planning-open: hsl(184 64% 34%);
+  --planning-active: hsl(40 90% 38%);
+  --planning-closed: hsl(220 9% 45%);
+  --planning-released: hsl(150 65% 35%);
+
+  /* priority — dots just, is not used as fill backgrounds */
+  --priority-critical: hsl(0 75% 55%);
+  --priority-high: hsl(20 85% 55%);
+  --priority-medium: hsl(40 85% 50%);
+  --priority-low: hsl(220 9% 60%);
+
+  /* issue type — icon glyph colors, is not used as fill backgrounds */
+  --type-epic: hsl(265 70% 58%);
+  --type-story: hsl(145 55% 40%);
+  --type-task: hsl(215 75% 52%);
+  --type-bug: hsl(0 72% 55%);
+  --type-spike: hsl(192 70% 40%);
+  --type-chore: hsl(220 9% 50%);
+
+  /* severity — impact-magnitude glyph colors, is not used as fill backgrounds */
+  --severity-blocker: hsl(0 80% 42%);
+  --severity-critical: hsl(0 72% 52%);
+  --severity-major: hsl(28 85% 46%);
+  --severity-minor: hsl(42 78% 42%);
+  --severity-trivial: hsl(220 9% 55%);
+
+  /* due — deadline-state glyph colors, is not used as fill backgrounds */
+  --due-overdue: hsl(0 74% 52%);
+  --due-soon: hsl(38 88% 46%);
+
+  /* dependency — blocker-graph-direction glyph colors, does not fill backgrounds */
+  --dependency-blocked: hsl(0 74% 52%);
+  --dependency-blocking: hsl(38 88% 46%);
+
+  /* person/avatar — identity-tint fill ramp (REEF-093). Unlike every token
+   * above, these ARE fills: a person is an identity, not a semantic state, so
+   * the unfilled rule does not apply. Indexed by hash(login). teal(brand) and
+   * purple(AI) hues are left out to avoid colliding with their meaning. */
+  --av-0: hsl(350 58% 48%);
+  --av-1: hsl(18 62% 45%);
+  --av-2: hsl(38 58% 37%);
+  --av-3: hsl(110 42% 36%);
+  --av-4: hsl(150 46% 35%);
+  --av-5: hsl(200 58% 40%);
+  --av-6: hsl(225 60% 56%);
+  --av-7: hsl(245 55% 58%);
+  --av-8: hsl(290 48% 50%);
+  --av-9: hsl(320 52% 48%);
+  --av-fg: hsl(0 0% 100%);
+
+  /* font stacks — Inter owns Latin display/body glyphs, Noto Sans KR owns
+     Hangul, and Geist Mono remains first for code-like values. Keeping the
+     companion in the explicit stack removes host-OS font selection drift. */
+  --font-display:
+    var(--font-inter), var(--font-noto-sans-kr), ui-sans-serif, system-ui,
+    sans-serif;
+  --font-body:
+    var(--font-inter), var(--font-noto-sans-kr), ui-sans-serif, system-ui,
+    sans-serif;
+  --font-mono-stack:
+    var(--font-geist-mono), var(--font-noto-sans-kr), ui-monospace,
+    SFMono-Regular, Menlo, monospace;
+
+  /* Canonical product typography roles. Keep the complete role contract here
+     so shared components consume one definition instead of recreating a size,
+     weight, leading, or tracking tuple in feature-local classes. */
+  --type-page-title-size: 14px;
+  --type-page-title-weight: 600;
+  --type-page-title-line-height: 21px;
+  --type-page-title-tracking: -0.01em;
+  --type-group-title-size: 15px;
+  --type-group-title-weight: 600;
+  --type-group-title-line-height: 20px;
+  --type-group-title-tracking: 0;
+  --type-section-label-size: 13px;
+  --type-section-label-weight: 600;
+  --type-section-label-line-height: 16px;
+  --type-section-label-tracking: 0.08em;
+  --type-navigation-size: 13px;
+  --type-navigation-weight: 400;
+  --type-navigation-line-height: 19.5px;
+  --type-navigation-tracking: 0;
+  --type-control-size: 13px;
+  --type-control-weight: 400;
+  --type-control-line-height: 19.5px;
+  --type-control-tracking: 0;
+  --type-board-status-size: 12px;
+  --type-board-status-weight: 600;
+  --type-board-status-line-height: 16px;
+  --type-board-status-tracking: 0.025em;
+  --type-board-epic-size: 12px;
+  --type-board-epic-weight: 600;
+  --type-board-epic-line-height: 16px;
+  --type-board-epic-tracking: 0;
+  --type-card-title-size: 13px;
+  --type-card-title-weight: 500;
+  --type-card-title-line-height: 18.5625px;
+  --type-card-title-tracking: 0;
+  --type-card-metadata-size: 11px;
+  --type-card-metadata-weight: 400;
+  --type-card-metadata-line-height: 16.5px;
+  --type-card-metadata-tracking: 0;
+  --type-card-context-size: 10.5px;
+  --type-card-context-weight: 500;
+  --type-card-context-line-height: 16px;
+  --type-card-context-tracking: 0;
+  --type-compact-mono-size: 11px;
+  --type-compact-mono-weight: 400;
+  --type-compact-mono-line-height: 16.5px;
+  --type-compact-mono-tracking: 0;
+  --type-detail-section-size: 11px;
+  --type-detail-section-weight: 600;
+  --type-detail-section-line-height: 16.5px;
+  --type-detail-section-tracking: 0.025em;
+  --type-comment-size: 13px;
+  --type-comment-weight: 400;
+  --type-comment-line-height: 20px;
+  --type-comment-tracking: 0;
+  --type-report-section-size: 11px;
+  --type-report-section-weight: 500;
+  --type-report-section-line-height: 16.5px;
+  --type-report-section-tracking: 0.08em;
+  --type-table-header-size: 10px;
+  --type-table-header-weight: 500;
+  --type-table-header-line-height: 15px;
+  --type-table-header-tracking: 0.05em;
+  --type-chart-metadata-size: 11px;
+  --type-chart-metadata-weight: 400;
+  --type-chart-metadata-line-height: 16.5px;
+  --type-chart-metadata-tracking: 0;
+  --type-chart-tick-size: 10px;
+  --type-chart-tick-weight: 400;
+  --type-chart-tick-line-height: 16px;
+  --type-chart-tick-tracking: 0;
+  --type-body-size: 14px;
+  --type-body-weight: 400;
+  --type-body-line-height: 20px;
+  --type-body-tracking: 0;
+  --type-caption-size: 12px;
+  --type-caption-weight: 400;
+  --type-caption-line-height: 16px;
+  --type-caption-tracking: 0;
+  --type-mono-value-size: 13px;
+  --type-mono-value-weight: 400;
+  --type-mono-value-line-height: 20px;
+  --type-mono-value-tracking: 0;
+  --type-chart-label-size: 12px;
+  --type-chart-label-weight: 400;
+  --type-chart-label-line-height: 16px;
+  --type-chart-label-tracking: 0;
+
+  /* Contextual legacy consumers. These roles intentionally keep nearby
+     consumers separate when the historical rendering contracts differ. */
+  --type-list-group-size: 12px;
+  --type-list-group-weight: 600;
+  --type-list-group-line-height: 16px;
+  --type-list-group-tracking: 0;
+  --type-list-group-count-size: 11px;
+  --type-list-group-count-weight: 600;
+  --type-list-group-count-line-height: 14.6667px;
+  --type-list-group-count-tracking: 0;
+  --type-board-type-size: 10px;
+  --type-board-type-weight: 500;
+  --type-board-type-line-height: 10px;
+  --type-board-type-tracking: 0;
+  --type-detail-type-size: 11px;
+  --type-detail-type-weight: 500;
+  --type-detail-type-line-height: 14.6667px;
+  --type-detail-type-tracking: 0;
+  --type-board-blocked-size: 10px;
+  --type-board-blocked-weight: 600;
+  --type-board-blocked-line-height: 15px;
+  --type-board-blocked-tracking: 0.25px;
+  --type-list-id-size: 12px;
+  --type-list-id-weight: 400;
+  --type-list-id-line-height: 16px;
+  --type-list-id-tracking: 0;
+  --type-timeline-group-size: 12px;
+  --type-timeline-group-weight: 600;
+  --type-timeline-group-line-height: 16px;
+  --type-timeline-group-tracking: 0;
+  --type-timeline-title-size: 12px;
+  --type-timeline-title-weight: 500;
+  --type-timeline-title-line-height: 18px;
+  --type-timeline-title-tracking: 0;
+  --type-timeline-month-size: 11px;
+  --type-timeline-month-weight: 600;
+  --type-timeline-month-line-height: 16.5px;
+  --type-timeline-month-tracking: 0;
+  --type-timeline-tick-size: 10px;
+  --type-timeline-tick-weight: 400;
+  --type-timeline-tick-line-height: 15px;
+  --type-timeline-tick-tracking: 0;
+  --type-timeline-assignee-size: 11px;
+  --type-timeline-assignee-weight: 400;
+  --type-timeline-assignee-line-height: 16.5px;
+  --type-timeline-assignee-tracking: 0;
+  --type-report-row-label-size: 12px;
+  --type-report-row-label-weight: 400;
+  --type-report-row-label-line-height: 16px;
+  --type-report-row-label-tracking: 0;
+  --type-report-cell-size: 12px;
+  --type-report-cell-weight: 400;
+  --type-report-cell-line-height: 16px;
+  --type-report-cell-tracking: 0;
+  --type-report-header-size: 10px;
+  --type-report-header-weight: 400;
+  --type-report-header-line-height: 15px;
+  --type-report-header-tracking: 0.25px;
+  --type-throughput-tick-size: 11px;
+  --type-throughput-tick-weight: 400;
+  --type-throughput-tick-line-height: 16.5px;
+  --type-throughput-tick-tracking: 0;
+  --type-snapshot-label-size: 11px;
+  --type-snapshot-label-weight: 400;
+  --type-snapshot-label-line-height: 16.5px;
+  --type-snapshot-label-tracking: 0.275px;
+  --type-settings-description-size: 12px;
+  --type-settings-description-weight: 400;
+  --type-settings-description-line-height: 16px;
+  --type-settings-description-tracking: 0;
+  --type-settings-section-size: 13px;
+  --type-settings-section-weight: 600;
+  --type-settings-section-line-height: 19.5px;
+  --type-settings-section-tracking: 0.65px;
+  --type-settings-group-size: 15px;
+  --type-settings-group-weight: 600;
+  --type-settings-group-line-height: 22.5px;
+  --type-settings-group-tracking: 0;
+  --type-theme-description-size: 11px;
+  --type-theme-description-weight: 400;
+  --type-theme-description-line-height: 16.5px;
+  --type-theme-description-tracking: 0;
+  --type-segmented-control-size: 12px;
+  --type-segmented-control-weight: 500;
+  --type-segmented-control-line-height: 18px;
+  --type-segmented-control-tracking: 0;
+  --type-small-button-size: 12px;
+  --type-small-button-weight: 500;
+  --type-small-button-line-height: 16px;
+  --type-small-button-tracking: 0;
+  --type-subissue-progress-size: 12px;
+  --type-subissue-progress-weight: 400;
+  --type-subissue-progress-line-height: 16px;
+  --type-subissue-progress-tracking: 0;
+  --type-dialog-title-size: 16px;
+  --type-dialog-title-weight: 600;
+  --type-dialog-title-line-height: 16px;
+  --type-dialog-title-tracking: -0.16px;
+
+  /* motion — one signature easing curve + a small duration scale.
+   * Quick entry, soft settle. Consumed via Tailwind arbitrary
+   * values, e.g. `ease-[var(--ease-signature)]` / `duration-[var(--duration-base)]`,
+   * so motion reads as designed rather than defaulted. */
+  --ease-signature: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 120ms;
+  --duration-base: 150ms;
+  --duration-slow: 500ms;
+
+  /* issue detail — desktop splitter bounds (the sheet owns the live width) */
+  --issue-detail-width-default: 1440px;
+  --issue-detail-width-min: 1200px;
+  --issue-detail-width-max: min(94vw, 1680px);
+}
+
+/* Dark token overrides. Applied when `<html>` carries the `.dark` class;
+ * the root ThemeSync client owner restores the stored preference after
+ * hydration, with the "system" choice consulting
+ * matchMedia('(prefers-color-scheme: dark)') initially and on OS-level
+ * changes. CSS therefore needs one selector here. */
+:root.dark {
+  color-scheme: dark;
+
+  --surface-page: hsl(220 14% 8%);
+  --foreground: hsl(220 13% 95%);
+  --surface-sidebar: hsl(220 14% 6%);
+  --surface-elevated: hsl(220 14% 12%);
+  --surface-card: hsl(220 14% 10%);
+  --surface-popover: hsl(220 14% 14%);
+  --surface-hover: hsl(220 13% 14%);
+  --surface-subtle: hsl(220 14% 9%);
+
+  --primary: hsl(220 13% 95%);
+  --primary-foreground: hsl(220 14% 8%);
+  --secondary: hsl(220 13% 14%);
+  --secondary-foreground: hsl(220 13% 95%);
+  --muted: hsl(220 13% 14%);
+  --muted-foreground: hsl(220 9% 65%);
+  --accent: hsl(220 13% 16%);
+  --accent-foreground: hsl(220 13% 95%);
+
+  --border: hsl(220 13% 18%);
+  --border-subtle: hsl(220 13% 15%);
+  --input: hsl(220 13% 20%);
+
+  --brand-text: hsl(173 70% 70%);
+  --brand-fill: hsl(173 70% 45%);
+  --brand-glyph: hsl(173 70% 72%);
+  --brand-focus: hsl(173 70% 78%);
+  --brand-chart: hsl(173 70% 65%);
+  --brand-on-fill: hsl(220 14% 8%);
+
+  --destructive-text: hsl(0 70% 72%);
+  --destructive-fill: hsl(0 60% 52%);
+  --destructive-glyph: hsl(0 70% 74%);
+  --destructive-focus: hsl(0 70% 80%);
+  --destructive-chart: hsl(0 70% 68%);
+  --destructive-on-fill: hsl(220 14% 8%);
+
+  --ai: hsl(260 70% 70%);
+  --ai-foreground: hsl(0 0% 100%);
+  --ai-subtle: hsl(260 30% 18%);
+  --ai-subtle-foreground: hsl(260 70% 85%);
+  --ai-border: hsl(260 30% 30%);
+
+  --status-backlog-text: hsl(222 10% 72%);
+  --status-backlog-fill: hsl(222 10% 55%);
+  --status-backlog-glyph: hsl(222 10% 75%);
+  --status-backlog-focus: hsl(222 10% 80%);
+  --status-backlog-chart: hsl(222 10% 68%);
+  --status-open-text: hsl(220 9% 75%);
+  --status-open-fill: hsl(220 9% 58%);
+  --status-open-glyph: hsl(220 9% 78%);
+  --status-open-focus: hsl(220 9% 82%);
+  --status-open-chart: hsl(220 9% 70%);
+  --status-in-progress-text: hsl(40 90% 72%);
+  --status-in-progress-fill: hsl(40 90% 58%);
+  --status-in-progress-glyph: hsl(40 90% 75%);
+  --status-in-progress-focus: hsl(40 90% 82%);
+  --status-in-progress-chart: hsl(40 90% 68%);
+  --status-in-review-text: hsl(260 70% 78%);
+  --status-in-review-fill: hsl(260 70% 68%);
+  --status-in-review-glyph: hsl(260 70% 80%);
+  --status-in-review-focus: hsl(260 70% 84%);
+  --status-in-review-chart: hsl(260 70% 75%);
+  --status-done-text: hsl(150 60% 68%);
+  --status-done-fill: hsl(150 60% 55%);
+  --status-done-glyph: hsl(150 60% 72%);
+  --status-done-focus: hsl(150 60% 78%);
+  --status-done-chart: hsl(150 60% 64%);
+  --status-closed-text: hsl(220 9% 70%);
+  --status-closed-fill: hsl(220 9% 55%);
+  --status-closed-glyph: hsl(220 9% 73%);
+  --status-closed-focus: hsl(220 9% 78%);
+  --status-closed-chart: hsl(220 9% 66%);
+
+  --planning-pending: hsl(220 9% 65%);
+  --planning-open: hsl(184 60% 56%);
+  --planning-active: hsl(40 90% 60%);
+  --planning-closed: hsl(220 9% 55%);
+  --planning-released: hsl(150 60% 50%);
+
+  --priority-critical: hsl(0 70% 60%);
+  --priority-high: hsl(20 85% 60%);
+  --priority-medium: hsl(40 85% 55%);
+  --priority-low: hsl(220 9% 65%);
+
+  --type-epic: hsl(265 70% 72%);
+  --type-story: hsl(145 50% 52%);
+  --type-task: hsl(215 75% 66%);
+  --type-bug: hsl(0 70% 66%);
+  --type-spike: hsl(192 65% 55%);
+  --type-chore: hsl(220 9% 62%);
+
+  --severity-blocker: hsl(0 75% 64%);
+  --severity-critical: hsl(0 70% 64%);
+  --severity-major: hsl(30 85% 58%);
+  --severity-minor: hsl(45 80% 56%);
+  --severity-trivial: hsl(220 9% 60%);
+
+  --due-overdue: hsl(0 72% 64%);
+  --due-soon: hsl(40 88% 58%);
+
+  --dependency-blocked: hsl(0 72% 64%);
+  --dependency-blocking: hsl(40 88% 58%);
+
+  /* person/avatar — lighter tones for dark surfaces, dark foreground glyph */
+  --av-0: hsl(350 55% 61%);
+  --av-1: hsl(18 58% 54%);
+  --av-2: hsl(38 52% 50%);
+  --av-3: hsl(110 38% 46%);
+  --av-4: hsl(150 42% 45%);
+  --av-5: hsl(200 55% 52%);
+  --av-6: hsl(225 58% 64%);
+  --av-7: hsl(245 52% 66%);
+  --av-8: hsl(290 46% 59%);
+  --av-9: hsl(320 50% 59%);
+  --av-fg: hsl(220 20% 12%);
+}
+
+@theme inline {
+  /* surfaces */
+  --color-surface-page: var(--surface-page);
+  --color-foreground: var(--foreground);
+  --color-surface-sidebar: var(--surface-sidebar);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-card: var(--surface-card);
+  --color-surface-popover: var(--surface-popover);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-subtle: var(--surface-subtle);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-input: var(--input);
+
+  /* brand */
+  --color-brand-text: var(--brand-text);
+  --color-brand-fill: var(--brand-fill);
+  --color-brand-glyph: var(--brand-glyph);
+  --color-brand-focus: var(--brand-focus);
+  --color-brand-chart: var(--brand-chart);
+  --color-brand-on-fill: var(--brand-on-fill);
+
+  /* destructive */
+  --color-destructive-text: var(--destructive-text);
+  --color-destructive-fill: var(--destructive-fill);
+  --color-destructive-glyph: var(--destructive-glyph);
+  --color-destructive-focus: var(--destructive-focus);
+  --color-destructive-chart: var(--destructive-chart);
+  --color-destructive-on-fill: var(--destructive-on-fill);
+
+  /* AI */
+  --color-ai: var(--ai);
+  --color-ai-foreground: var(--ai-foreground);
+  --color-ai-subtle: var(--ai-subtle);
+  --color-ai-subtle-foreground: var(--ai-subtle-foreground);
+  --color-ai-border: var(--ai-border);
+
+  /* status */
+  --color-status-backlog-text: var(--status-backlog-text);
+  --color-status-backlog-fill: var(--status-backlog-fill);
+  --color-status-backlog-glyph: var(--status-backlog-glyph);
+  --color-status-backlog-focus: var(--status-backlog-focus);
+  --color-status-backlog-chart: var(--status-backlog-chart);
+  --color-status-open-text: var(--status-open-text);
+  --color-status-open-fill: var(--status-open-fill);
+  --color-status-open-glyph: var(--status-open-glyph);
+  --color-status-open-focus: var(--status-open-focus);
+  --color-status-open-chart: var(--status-open-chart);
+  --color-status-in-progress-text: var(--status-in-progress-text);
+  --color-status-in-progress-fill: var(--status-in-progress-fill);
+  --color-status-in-progress-glyph: var(--status-in-progress-glyph);
+  --color-status-in-progress-focus: var(--status-in-progress-focus);
+  --color-status-in-progress-chart: var(--status-in-progress-chart);
+  --color-status-in-review-text: var(--status-in-review-text);
+  --color-status-in-review-fill: var(--status-in-review-fill);
+  --color-status-in-review-glyph: var(--status-in-review-glyph);
+  --color-status-in-review-focus: var(--status-in-review-focus);
+  --color-status-in-review-chart: var(--status-in-review-chart);
+  --color-status-done-text: var(--status-done-text);
+  --color-status-done-fill: var(--status-done-fill);
+  --color-status-done-glyph: var(--status-done-glyph);
+  --color-status-done-focus: var(--status-done-focus);
+  --color-status-done-chart: var(--status-done-chart);
+  --color-status-closed-text: var(--status-closed-text);
+  --color-status-closed-fill: var(--status-closed-fill);
+  --color-status-closed-glyph: var(--status-closed-glyph);
+  --color-status-closed-focus: var(--status-closed-focus);
+  --color-status-closed-chart: var(--status-closed-chart);
+
+  /* planning status */
+  --color-planning-pending: var(--planning-pending);
+  --color-planning-open: var(--planning-open);
+  --color-planning-active: var(--planning-active);
+  --color-planning-closed: var(--planning-closed);
+  --color-planning-released: var(--planning-released);
+
+  /* priority */
+  --color-priority-critical: var(--priority-critical);
+  --color-priority-high: var(--priority-high);
+  --color-priority-medium: var(--priority-medium);
+  --color-priority-low: var(--priority-low);
+
+  /* issue type */
+  --color-type-epic: var(--type-epic);
+  --color-type-story: var(--type-story);
+  --color-type-task: var(--type-task);
+  --color-type-bug: var(--type-bug);
+  --color-type-spike: var(--type-spike);
+  --color-type-chore: var(--type-chore);
+
+  /* severity */
+  --color-severity-blocker: var(--severity-blocker);
+  --color-severity-critical: var(--severity-critical);
+  --color-severity-major: var(--severity-major);
+  --color-severity-minor: var(--severity-minor);
+  --color-severity-trivial: var(--severity-trivial);
+
+  /* due */
+  --color-due-overdue: var(--due-overdue);
+  --color-due-soon: var(--due-soon);
+
+  /* dependency */
+  --color-dependency-blocked: var(--dependency-blocked);
+  --color-dependency-blocking: var(--dependency-blocking);
+
+  /* person/avatar identity ramp */
+  --color-av-0: var(--av-0);
+  --color-av-1: var(--av-1);
+  --color-av-2: var(--av-2);
+  --color-av-3: var(--av-3);
+  --color-av-4: var(--av-4);
+  --color-av-5: var(--av-5);
+  --color-av-6: var(--av-6);
+  --color-av-7: var(--av-7);
+  --color-av-8: var(--av-8);
+  --color-av-9: var(--av-9);
+  --color-av-fg: var(--av-fg);
+
+  /* fonts */
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono-stack);
+}

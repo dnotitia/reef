@@ -1,0 +1,31 @@
+body {
+  background: var(--surface-page);
+  color: var(--foreground);
+  font-family: var(--font-body);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/*
+ * Tailwind v4 default border-color is `currentColor` (i.e. the text color),
+ * which renders as near-black/white on any bare `border`/`border-t` utility.
+ * Force the global default to our token so callers that forget the explicit
+ * color modifier still get a hairline instead of a heavy text-colored line.
+ */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--border);
+  }
+
+  /* Every focusable surface has a teal keyboard fallback. Components that own
+   * a denser or contextual focus treatment opt out with `outline-none` and
+   * provide the same 2px brand focus token through their own ring. */
+  *:focus-visible {
+    outline: 2px solid var(--brand-focus);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+}
