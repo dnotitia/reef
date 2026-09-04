@@ -762,6 +762,11 @@ spec:
       );
     }
     if (url.endsWith("/rollouts")) {
+      const persisted = JSON.parse(await readFile(receiptPath, "utf8"));
+      assert.equal(
+        persisted.request_key,
+        new Headers(init.headers).get("idempotency-key"),
+      );
       return new Response(JSON.stringify(rolloutBody("pending")), {
         status: 202,
         headers: { "content-type": "application/json" },
@@ -829,6 +834,12 @@ spec:
       ),
       false,
     );
+    const registrationRequestCount = requests.filter(
+      ({ url }) => url.endsWith("/apps") || url.endsWith("/releases"),
+    ).length;
+    const dockerBuildCount = commands.filter(
+      ({ command }) => command === "docker",
+    ).length;
     for (const { options } of commands) {
       assert.equal(options.env.REEF_CONTROL_PLANE_TOKEN, undefined);
     }
@@ -851,12 +862,69 @@ spec:
       core,
     });
     assert.equal(replayed.request_key, requestKey);
+    assert.equal(
+      commands.filter(({ command }) => command === "docker").length,
+      dockerBuildCount,
+    );
+    assert.equal(
+      requests.filter(
+        ({ url }) => url.endsWith("/apps") || url.endsWith("/releases"),
+      ).length,
+      registrationRequestCount,
+    );
     const rolloutRequests = requests.filter(({ url }) =>
       url.endsWith("/rollouts"),
     );
     assert.equal(
       new Headers(rolloutRequests.at(-1)?.init.headers).get("idempotency-key"),
       requestKey,
+    );
+    await writeFile(
+      receiptPath,
+      `${JSON.stringify({
+        kind: "reef-release-receipt",
+        app_id: result.app_id,
+        release_id: result.release_id,
+        app_key: result.app_key,
+        version: result.version,
+        source_revision: result.source_revision,
+        image_digest: result.image_digest,
+        image_repository: result.image_repository,
+        manifest_checksum: result.manifest_checksum,
+        app_replayed: result.app_replayed,
+        release_replayed: result.release_replayed,
+        outcome: "registered",
+      })}\n`,
+    );
+    const registeredReceiptDeployment = await runReleaseDeployment({
+      rootDir: path.resolve("."),
+      env: {
+        AKB_BACKEND_URL: "https://akb.example.test",
+        REEF_CONTROL_PLANE_TOKEN: TOKEN,
+        REGISTRY: "registry.example",
+      },
+      options: {
+        mode: "deploy",
+        receipt: receiptPath,
+        rollout_deadline_ms: "1000",
+        rollout_poll_ms: "1",
+      },
+      runCommand,
+      fetchImpl,
+      core,
+    });
+    assert.equal(registeredReceiptDeployment.release_id, result.release_id);
+    assert.equal(registeredReceiptDeployment.image_digest, result.image_digest);
+    assert.notEqual(registeredReceiptDeployment.request_key, requestKey);
+    assert.equal(
+      commands.filter(({ command }) => command === "docker").length,
+      dockerBuildCount,
+    );
+    assert.equal(
+      requests.filter(
+        ({ url }) => url.endsWith("/apps") || url.endsWith("/releases"),
+      ).length,
+      registrationRequestCount,
     );
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
@@ -869,6 +937,7 @@ test("blocked AKB rollout writes a receipt and never invokes kubectl", async () 
   );
   const receiptPath = path.join(temporaryDirectory, "receipt.json");
   const commands = [];
+  const requests = [];
   let manifestChecksum;
   const runCommand = async (command, args) => {
     commands.push({ command, args });
@@ -889,6 +958,7 @@ test("blocked AKB rollout writes a receipt and never invokes kubectl", async () 
   };
   const fetchImpl = async (input, init = {}) => {
     const url = String(input);
+    requests.push({ url, init });
     if (url.endsWith("/apps")) {
       return new Response(
         JSON.stringify({
@@ -920,6 +990,11 @@ test("blocked AKB rollout writes a receipt and never invokes kubectl", async () 
       );
     }
     if (url.endsWith("/rollouts")) {
+      const persisted = JSON.parse(await readFile(receiptPath, "utf8"));
+      assert.equal(
+        persisted.request_key,
+        new Headers(init.headers).get("idempotency-key"),
+      );
       return new Response(
         JSON.stringify({
           job_id: "77777777-7777-4777-8777-777777777777",
@@ -976,6 +1051,53 @@ test("blocked AKB rollout writes a receipt and never invokes kubectl", async () 
     assert.equal(
       commands.some(({ command }) => command === "kubectl"),
       false,
+    );
+    const firstReceipt = JSON.parse(await readFile(receiptPath, "utf8"));
+    const firstDockerBuildCount = commands.filter(
+      ({ command }) => command === "docker",
+    ).length;
+    const firstRegistrationRequestCount = requests.filter(
+      ({ url }) => url.endsWith("/apps") || url.endsWith("/releases"),
+    ).length;
+
+    await assert.rejects(
+      runReleaseDeployment({
+        rootDir: path.resolve("."),
+        env: {
+          AKB_BACKEND_URL: "https://akb.example.test",
+          REEF_CONTROL_PLANE_TOKEN: TOKEN,
+        },
+        options: {
+          mode: "deploy",
+          registry: "registry.example",
+          receipt: receiptPath,
+        },
+        runCommand,
+        fetchImpl,
+        core,
+      }),
+      (error) => error?.stage === "rollout_blocked",
+    );
+    assert.equal(
+      commands.filter(({ command }) => command === "docker").length,
+      firstDockerBuildCount,
+    );
+    assert.equal(
+      requests.filter(
+        ({ url }) => url.endsWith("/apps") || url.endsWith("/releases"),
+      ).length,
+      firstRegistrationRequestCount,
+    );
+    assert.equal(
+      requests.some(({ url }) => url.includes("/resume")),
+      false,
+    );
+    const rolloutPosts = requests.filter(({ url }) =>
+      url.endsWith("/rollouts"),
+    );
+    assert.equal(
+      new Headers(rolloutPosts.at(-1)?.init.headers).get("idempotency-key"),
+      firstReceipt.request_key,
     );
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });

@@ -145,6 +145,14 @@ Kubernetes revision with the same digest and release identity. It never moves
 an existing mutable version or source tag, and exits non-zero for blocked,
 pending, timeout, readiness, or identity-readback failures.
 
+When `--receipt` points to a valid receipt for the current clean source,
+version, and image repository, a retry reuses its immutable image and Release
+coordinates before contacting Docker or registering again. A receipt produced
+by `register` can therefore continue into deployment; it receives a new
+rollout key, while a receipt with an existing key replays that logical rollout.
+The key is persisted before the first rollout request, and a blocked retry
+never resumes automatically — use the explicit `resume` command with a new key.
+
 ```bash
 REGISTRY=ghcr.io/myorg \
 AKB_BACKEND_URL=https://akb.example.com \

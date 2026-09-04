@@ -32,6 +32,11 @@ explicitly in the entries below.
   AKB success and are distinct from rollout failures. Live Kubernetes
   apply/readiness/pod identity verification remains a required pre-merge gate
   for this change.
+- **Release retries reuse verified receipts.** A matching receipt reuses its
+  immutable image and Release coordinates, persists the rollout key before the
+  first request, and replays blocked requests without automatically resuming
+  them. Registration-only receipts can continue into deployment with a new
+  rollout key.
 
 ## v0.14.1 - 2026-09-04
 
