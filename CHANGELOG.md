@@ -12,116 +12,81 @@ explicitly in the entries below.
 
 ## Unreleased
 
+## v0.14.0 - 2026-09-04
+
 ### Added
 
-- **Release builds now carry a source-committed Reef Release Blueprint.** The
-  Blueprint derives the complete schema-v3 table projection and fresh install
-  plan from the Core schema source, while the release finalizer binds the root
-  SemVer, full source revision, and immutable OCI image digest into an AKB App
-  Release Manifest v2 checksum.
-
-- **Issue views now filter by four issue-date ranges.** List, Board, and Backlog
-  accept browser-timezone timestamp ranges for `updated_at` / `created_at` and
-  date-only calendar ranges for nullable `start_date` / `due_date`; the range
-  is combined with existing facets and restored through the URL, browser-local
-  filters, and My Views.
-
-- **Planning sprints now have dedicated detail surfaces.** Sprint names and the
-  shared Issues-header current-sprint shortcut link to a vault-owned detail
-  page with progress, health, goal, and a fixed Board/List issue scope; missing
-  and failed data remain distinct and retryable.
-
-- **Planning now shows lifecycle progress and capacity rollups.** Sprint,
-  milestone, and release rows show linked issue counts, completion, estimated
-  and completed points, unestimated work, and Sprint capacity state. Each
-  rollup opens the current workspace's filtered Issues view from the desktop
-  table or compact list.
-
-- **Issue filters can now find unset metadata.** Priority, severity, due date,
-  and assignee facets support unset/unassigned selections, including mixed
-  OR-within-facet filters that remain consistent across Board, List, sorting,
-  URLs, and browser-local My Views.
-
-- **Issues now provide browser-local My Views.** A named My View captures the
-  current filters, scope/layout, grouping, ordering mode, display options, and
-  List columns; applying it updates the canonical URL without exposing the
-  local view identity, while Manual mode continues to read the shared server
-  rank.
+- **My Views save complete issue-view preferences in the browser.** Named
+  views capture filters, scope, layout, grouping, ordering, display options,
+  and List columns for each account and workspace.
+- **Issue filters support date ranges and unset values.** Filter by updated,
+  created, start, or due date, and find issues without priority, severity,
+  due date, or an assignee. Filters work across Board, List, and Backlog and
+  persist in URLs and My Views; date criteria use the shared accessible Select.
+- **Sprint detail pages show progress, health, goals, and scoped Board/List
+  views.** Open them from Planning or the current-sprint shortcut in the
+  shared Issues header.
+- **Planning shows progress and capacity across sprints, milestones, and
+  releases.** Review issue counts, completion, estimated/completed points,
+  unestimated work, and sprint capacity, then open the corresponding Issues view.
 
 ### Changed
 
-- **Issue date range criteria now use the shared Select control.** The four
-  date fields share Reef's styled, keyboard-accessible option list and focus
-  behavior with the rest of the application.
+- **Issues share planning and display controls across layouts.** The current
+  sprint appears in the Active header, and Active List columns move into
+  Display while retaining URL and My View persistence.
+- **Typography, focus, selection, and cursors are consistent across the UI.**
+  Shared text roles preserve the established heading and compact-control
+  hierarchy, with Inter, Noto Sans KR, and Geist Mono for mixed-script text.
+  Visible teal focus indicators and state-aware cursors clarify keyboard,
+  editing, disabled, and drag interactions.
+- **SSO login copy no longer assumes a particular identity provider.**
+- **Breaking: Reef table artifacts require AKB's canonical `numeric` and
+  `jsonb` types.** Schema manifests and table mutations no longer accept the
+  obsolete `number` and `json` aliases.
+- **`@reef/core` supports commit-pinned pnpm Git dependencies.** Consumers can
+  install the `packages/core` subdirectory as a built ESM package. Obsolete
+  private execution packages have been removed from the workspace.
 
-- **Issues now consolidate planning and display controls in shared chrome.**
-  Active Board, List, and Timeline share a current-sprint detail shortcut in
-  the common header; the Kanban-only sprint row and List-only Columns row are
-  removed, and Active List optional columns are managed from Display while
-  retaining URL and My View persistence.
+### Fixed
 
-- **Focus and selection indicators now share one visible teal contract.**
-  Keyboard focus uses a solid 2px brand ring, text-entry context remains
-  visible when entered by pointer, and selected rows keep their state fill
-  without a duplicate row-sized focus border. Dense List/Backlog boundaries
-  and composite child controls retain safe, non-clipping focus ownership.
-
-- **Cursor semantics are now centralized by interaction and real state.**
-  Enabled controls, editable text, disabled and busy controls, clickable rows
-  and cards, drag handles, and resize handles share one policy; label-group
-  cards remain pointer-openable while label dragging stays unavailable.
-
-- **Monitored repository saves now preserve trigger focus.** The selector keeps
-  its trigger focusable while a save is busy, while option/removal controls and
-  the existing duplicate-save guard retain their protections.
-
-- **Breaking: Reef table artifacts now use AKB canonical `numeric` and `jsonb`
-  types.** The obsolete `number` and `json` aliases are no longer emitted or
-  accepted by the Reef schema manifest and table mutation contract.
-
-- **Merge queue CI now reuses exact-tree PR validation.** When the queued Git
-  tree, PR head, and CI workflow are unchanged, required queue checks complete
-  from the successful PR evidence; changed bases and grouped queue trees fall
-  back to the full build, unit, and Playwright suites.
-
-- **The Reef workspace now contains only product-owned packages.** Obsolete
-  private execution packages and their build, test, CI, release, and maintenance
-  integration have been removed. The existing `@reef/core` pnpm Git dependency
-  contract remains supported.
-
-- **`@reef/core` now supports development-stage pnpm Git consumers.** The
-  `packages/core` subdirectory prepares its dist-only ESM artifact outside the
-  Reef workspace, while a local Git consumer gate verifies commit-pinned
-  installation and public import without introducing a registry release.
-
-- **AKB Change Events now wake private notification projection.** The new
-  Event Processor tails the authenticated `table.rows_changed` stream for
-  activity and comment Source State, then invokes the existing idempotent Inbox
-  projector with per-Vault retry and cursor handling. No browser-facing API or
-  UI surface changes.
-
-- **Manual-order moves now expose per-card and per-row persistence feedback.**
-  Board, List, and Backlog surfaces distinguish saving, saved, and failed
-  reorder states; the existing save-confirm pulse follows the canonical server
-  result, while conflicts retain rollback, retry, focus, and screen-reader
-  feedback.
-
-- **Product typography now follows one role-based contract.** Authenticated
-  page and group headings, section labels, body/caption copy, chart labels, and
-  mono values use the documented scale. Inter remains the Latin face, Noto Sans
-  KR is the fixed Hangul companion, and Geist Mono remains the code/ID/value
-  face with no host-OS-dependent Hangul fallback.
+- **Quick edits and manual reordering show saving, saved, and failed states
+  on the affected field, row, or card.** Failed writes retain rollback and
+  retry feedback, and closing a quick editor restores keyboard focus.
+- **Planning read failures no longer appear as empty lists or zero progress.**
+  Errors provide retry actions, and editor dialogs keep Save and Cancel
+  visible in short windows.
+- **Current-user avatars retain their account color across surfaces.**
+- **Monitored-repository selectors retain focus while saving.**
 
 ### Migration
 
-- **No browser storage migration is required for issue-date ranges.** The
-  optional range uses the existing versioned issue-filter and My View envelopes;
-  saved filters without a range remain valid.
+- **My Views replace legacy saved filters.** Existing saved filters are not
+  read or migrated; recreate them as My Views. My Views and date ranges use
+  the existing IndexedDB `config` store, so no browser schema upgrade is needed.
+- **Release artifacts describe the existing schema-v3 installation.** Update
+  external table-artifact producers to emit `numeric`/`jsonb`. This release
+  adds no storage schema version or data backfill; its Blueprint contains a
+  fresh-install plan, not an upgrade plan for older installations.
 
-- **No Dexie schema migration is required for My Views.** The new versioned
-  actor/vault-scoped envelopes use the existing `config` key-value store; old
-  legacy personal-filter keys are not read or migrated, and account reconciliation clears
-  My Views along with the other account-scoped browser state.
+### Operational
+
+- **Release Blueprint and Manifest v2 make release provenance verifiable.**
+  Validate the committed Blueprint against Core, then finalize and verify the
+  payload with version, full source revision, and immutable OCI image digest
+  before registry submission.
+- **The private Event Processor can project notifications from AKB Change
+  Events.** Its deployment host must run the processor with authenticated
+  access to the vault's `table.rows_changed` stream. It is a separate process
+  from reef-web and retries interrupted streams and projection failures.
+- **Merge queue CI reuses successful PR checks for unchanged trees.** Changed
+  bases or grouped trees run full validation. Live AKB contract coverage now
+  includes data-plane, authentication, and installation boundaries.
+- **Publish `reef-web:v0.14.0` and the release commit SHA with an immutable
+  digest.** Roll back reef-web by selecting the v0.13.0 image with the same
+  deployment environment; stop the new Event Processor separately if enabled.
+  Browser My Views are local preferences and are not converted to legacy
+  saved filters on rollback.
 
 ## v0.13.0 - 2026-08-31
 
@@ -174,18 +139,6 @@ explicitly in the entries below.
 
 ### Fixed
 
-- **Contextual typography roles restore the established UI hierarchy.** Sidebar
-  navigation and editing controls return to their readable 13px scale, Board
-  status headings regain compact uppercase treatment, Epic headings remain
-  title case, and card/detail/report metadata uses explicit compact roles while
-  the Noto Sans KR font stack and Markdown rhythm stay unchanged.
-
-- **Remaining typography consumers now retain their historical metrics.** List
-  grouping, type badges, timeline labels, report matrices, settings headings,
-  segmented controls, dialog titles, and sub-issue progress use explicit
-  consumer roles, with the representative mixed-script Board fixture guarding
-  the established card geometry.
-
 - **Authentication revalidation and soft navigation now preserve the
   established workspace experience.** Route changes stay non-blocking, the
   shell remains mounted while revalidation completes, and a resource-level
@@ -205,11 +158,6 @@ explicitly in the entries below.
   identifiers.
 
 ### Migration
-
-- **No Dexie schema migration is required for workspace Favorites.** The new
-  versioned preference envelope is additive within the existing `config` store;
-  corrupt, unsupported, stale, or unavailable browser values degrade to an
-  empty Favorites preference and do not affect the active workspace.
 
 - **AI-enabled deployments must migrate to the provider-neutral environment
   variables before rollout.** Set `REEF_LLM_API_KEY`, `REEF_LLM_BASE_URL`, and
@@ -682,13 +630,6 @@ explicitly in the entries below.
   Inbox rows expose read, unread, and archive transitions and deep-link to the
   related issue Activity section without mixing with Suggestions. (REEF-431)
 
-### Migration
-
-- No AKB, API, or browser-storage migration is required for Suggestions. Reef
-  continues to use `reef_activity_suggestions`, `_reef/activity-inbox`,
-  `/api/activity/suggestions`, and the existing core wire schemas; no copy,
-  backfill, Dexie version, or persistence-buster change is needed. (REEF-432)
-
 ### Fixed
 
 - **Jira ADF mentions inside comments now use the reviewed account mapping.**
@@ -799,6 +740,11 @@ explicitly in the entries below.
   onboarding, while vault-list failures show a retryable error.
 
 ### Migration
+
+- No AKB, API, or browser-storage migration is required for Suggestions. Reef
+  continues to use `reef_activity_suggestions`, `_reef/activity-inbox`,
+  `/api/activity/suggestions`, and the existing core wire schemas; no copy,
+  backfill, Dexie version, or persistence-buster change is needed. (REEF-432)
 
 - **Reef storage schema version 2 adds `reef_notifications` and
   `reef_subscriptions` declaratively.** New and schema-version-1 vaults create
