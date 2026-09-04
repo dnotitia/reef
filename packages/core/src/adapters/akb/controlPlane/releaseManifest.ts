@@ -17,7 +17,6 @@ import {
   type ReleaseManifestStep,
   type ReleaseManifestTable,
   type ReleaseTransitionSource,
-  type ReleaseTransitionPlanSource,
 } from "../../../schemas/controlPlane";
 import {
   canonicalReefTableProjection,
@@ -222,43 +221,6 @@ function releaseBoundBlueprint(blueprint: ReleaseBlueprint): JsonObject {
   };
 }
 
-function transitionPlanKey(source: ReleaseTransitionPlanSource): string {
-  return source === "fresh" ? "fresh" : canonicalJson(source);
-}
-
-function assertTransitionPlanContract(
-  blueprint: ReleaseBlueprint,
-  desiredSchema: ReleaseDesiredSchemaProjection,
-): void {
-  const plans = blueprint.transition_plans;
-  if (plans.filter((plan) => plan.source === "fresh").length !== 1) {
-    throw releaseValidationError(
-      "Release Blueprint must contain exactly one fresh transition plan",
-    );
-  }
-  const seen = new Set<string>();
-  for (const plan of plans) {
-    const key = transitionPlanKey(plan.source);
-    if (seen.has(key)) {
-      throw releaseValidationError(
-        "Release Blueprint transition plan sources must be unique",
-      );
-    }
-    seen.add(key);
-    if (plan.source === "fresh") continue;
-    if (plan.steps.length !== 0) {
-      throw releaseValidationError(
-        "Schema no-op transition plans must contain no steps",
-      );
-    }
-    if (plan.source.schema_fingerprint !== desiredSchema.fingerprint) {
-      throw releaseValidationError(
-        "Schema no-op transition plan fingerprint must match the desired schema",
-      );
-    }
-  }
-}
-
 async function parseCurrentBlueprint(
   value: unknown,
 ): Promise<ReleaseBlueprint> {
@@ -271,7 +233,6 @@ async function parseCurrentBlueprint(
     throw releaseValidationError("Release Blueprint schema version is stale");
   }
   const desired = await buildReleaseBlueprint();
-  assertTransitionPlanContract(blueprint, desired.schema);
   if (
     canonicalJson(releaseBoundBlueprint(blueprint)) !==
     canonicalJson(releaseBoundBlueprint(desired))

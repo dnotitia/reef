@@ -806,11 +806,20 @@ function assertKubernetesReadback({
   for (const pod of pods.items) {
     const podContainer = findContainer(pod.spec?.containers, "reef-web");
     const status = findContainer(pod.status?.containerStatuses, "reef-web");
+    // Runtimes may report a config/platform identifier instead of the
+    // pullable manifest digest. Reject an explicit conflicting @digest, while
+    // relying on the immutable pod spec for identifiers without that shape.
+    const runtimeDigest =
+      typeof status?.imageID === "string"
+        ? status.imageID.match(/@(sha256:[0-9a-f]{64})(?:$|[^0-9a-f])/u)?.[1]
+        : undefined;
     if (
       podContainer?.image !== expectedImage ||
       status?.ready !== true ||
       typeof status?.imageID !== "string" ||
-      !status.imageID.includes(`@${registration.imageDigest}`)
+      status.imageID.length === 0 ||
+      (runtimeDigest !== undefined &&
+        runtimeDigest !== registration.imageDigest)
     ) {
       throw new DeploymentError(
         "A reef-web pod does not match the applied release identity",
@@ -929,6 +938,8 @@ function delay(milliseconds) {
 export async function observeRollout({
   rollout,
   appId,
+  expectedReleaseId,
+  expectedManifestChecksum,
   rolloutAdapter,
   deadlineMs,
   pollMs,
@@ -945,6 +956,23 @@ export async function observeRollout({
         stage: "rollout_observation",
         details: { app_id: appId, job_id: current.jobId },
       });
+    }
+    if (
+      current.releaseId !== expectedReleaseId ||
+      current.manifestChecksum !== expectedManifestChecksum
+    ) {
+      throw new DeploymentError(
+        "AKB rollout observation returned a different release identity",
+        {
+          stage: "rollout_observation",
+          details: {
+            app_id: appId,
+            job_id: current.jobId,
+            release_id: current.releaseId,
+            manifest_checksum: current.manifestChecksum,
+          },
+        },
+      );
     }
     if (current.status === "applied") return current;
     if (current.status === "blocked") {
@@ -1041,6 +1069,8 @@ async function requestAndObserve({
   const applied = await observeRollout({
     rollout: response.rollout,
     appId: registration.appId,
+    expectedReleaseId: registration.releaseId,
+    expectedManifestChecksum: registration.manifestChecksum,
     rolloutAdapter,
     deadlineMs,
     pollMs,

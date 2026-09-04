@@ -451,9 +451,7 @@ spec:
                   {
                     name: "reef-web",
                     ready: true,
-                    imageID:
-                      "docker-pullable://registry.example/reef-web@" +
-                      IMAGE_DIGEST,
+                    imageID: `containerd://sha256:${"d".repeat(64)}`,
                   },
                 ],
               },
@@ -982,9 +980,13 @@ test("rollout observation times out without converting pending into success", as
     observeRollout({
       rollout: { jobId: "77777777-7777-4777-8777-777777777777" },
       appId: APP_ID,
+      expectedReleaseId: RELEASE_ID,
+      expectedManifestChecksum: "c".repeat(64),
       rolloutAdapter: {
         getRollout: async () => ({
           jobId: "77777777-7777-4777-8777-777777777777",
+          releaseId: RELEASE_ID,
+          manifestChecksum: "c".repeat(64),
           status: "running",
         }),
       },
@@ -997,6 +999,30 @@ test("rollout observation times out without converting pending into success", as
       sleep: async () => undefined,
     }),
     (error) => error?.stage === "rollout_timeout",
+  );
+});
+
+test("rollout observation rejects a changed release identity before applied", async () => {
+  await assert.rejects(
+    observeRollout({
+      rollout: { jobId: "77777777-7777-4777-8777-777777777777" },
+      appId: APP_ID,
+      expectedReleaseId: RELEASE_ID,
+      expectedManifestChecksum: "c".repeat(64),
+      rolloutAdapter: {
+        getRollout: async () => ({
+          jobId: "77777777-7777-4777-8777-777777777777",
+          releaseId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          manifestChecksum: "c".repeat(64),
+          status: "applied",
+        }),
+      },
+      deadlineMs: 1_000,
+      pollMs: 1,
+      now: () => 0,
+      sleep: async () => undefined,
+    }),
+    (error) => error?.stage === "rollout_observation",
   );
 });
 
