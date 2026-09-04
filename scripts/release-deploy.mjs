@@ -311,7 +311,10 @@ async function buildAndPushImage({
   artifactPath,
 }) {
   const imageRepository = `${registry}/reef-web`;
-  const versionTag = `v${version.replaceAll("+", "_")}`;
+  // Keep every pushed tag unique. The release identity travels in the image
+  // labels/build args and the digest returned by buildx; a public version or
+  // source tag must never be moved by a later artifact.
+  const buildTag = `build-${version.replaceAll("+", "_")}-${sourceRevision}-${randomUUID()}`;
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "reef-release-"));
   const metadataPath = path.join(tempDir, "buildx-metadata.json");
   try {
@@ -328,9 +331,7 @@ async function buildAndPushImage({
         "--build-arg",
         `REEF_SOURCE_REVISION=${sourceRevision}`,
         "--tag",
-        `${imageRepository}:${versionTag}`,
-        "--tag",
-        `${imageRepository}:${sourceRevision}`,
+        `${imageRepository}:${buildTag}`,
         "--push",
         "--metadata-file",
         metadataPath,
@@ -697,10 +698,17 @@ export function renderKubernetesManifest(
   const deploymentAnnotations = deployment.metadata.annotations ?? {};
   deployment.metadata.annotations = deploymentAnnotations;
   deploymentAnnotations["kubernetes.io/change-cause"] = provenance;
-  const data = configMap.data ?? {};
-  configMap.data = data;
+  const existingEnv = Array.isArray(container.env)
+    ? container.env.filter(
+        (entry) => !Object.hasOwn(IDENTITY_CONFIG_KEYS, entry?.name),
+      )
+    : [];
+  container.env = existingEnv;
   for (const [key, registrationKey] of Object.entries(IDENTITY_CONFIG_KEYS)) {
-    data[key] = String(registration[registrationKey]);
+    container.env.push({
+      name: key,
+      value: String(registration[registrationKey]),
+    });
   }
   return resources.map((resource) => stringify(resource)).join("---\n");
 }
@@ -747,7 +755,6 @@ function findContainer(containers, name) {
 
 function assertKubernetesReadback({
   deployment,
-  configMap,
   pods,
   registration,
   imageRepository,
@@ -788,10 +795,17 @@ function assertKubernetesReadback({
       String(registration[registrationKey]),
     ]),
   );
+  const deploymentConfig = Object.fromEntries(
+    (Array.isArray(deploymentContainer?.env) ? deploymentContainer.env : [])
+      .filter(
+        (entry) => entry && Object.hasOwn(IDENTITY_CONFIG_KEYS, entry.name),
+      )
+      .map((entry) => [entry.name, entry.value]),
+  );
   for (const [key, value] of Object.entries(expectedConfig)) {
-    if (configMap.data?.[key] !== value) {
+    if (deploymentConfig[key] !== value) {
       throw new DeploymentError(
-        "Kubernetes release configuration does not match the applied release",
+        "Kubernetes Deployment release configuration does not match the applied release",
         {
           stage: "runtime_identity_mismatch",
         },
@@ -891,20 +905,6 @@ export async function applyKubernetesRelease({
     ],
     stage: "runtime_identity_readback",
   });
-  const configMap = await kubernetesJson({
-    runCommand,
-    rootDir,
-    env,
-    args: [
-      "get",
-      "configmap/reef-web-config",
-      "--namespace",
-      namespace,
-      "--output",
-      "json",
-    ],
-    stage: "runtime_identity_readback",
-  });
   const pods = await kubernetesJson({
     runCommand,
     rootDir,
@@ -923,12 +923,11 @@ export async function applyKubernetesRelease({
   });
   assertKubernetesReadback({
     deployment,
-    configMap,
     pods,
     registration,
     imageRepository,
   });
-  return { manifest, deployment, configMap, pods };
+  return { manifest, deployment, pods };
 }
 
 function delay(milliseconds) {
