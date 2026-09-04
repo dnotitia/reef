@@ -125,6 +125,172 @@ test.describe("Hermetic issue keyboard navigation", () => {
     }
   });
 
+  test("separates pointer selection, keyboard focus, and text-entry focus chrome", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+
+    const rows = await expectIssueListKeyboardReady(page);
+    const selectedRow = rows.filter({ hasText: "Initial issue Alpha" });
+    await selectedRow.getByTestId("issue-row-checkbox").click();
+    await expect(selectedRow).toHaveAttribute("aria-selected", "true");
+    await expect(page.locator('[data-testid="issue-detail"]')).toHaveCount(0);
+
+    const pointerSelection = await selectedRow.evaluate((element) => {
+      const checkbox = element.querySelector<HTMLInputElement>(
+        '[data-testid="issue-row-checkbox"]',
+      );
+      const label = checkbox?.closest("label");
+      const boundary = element.querySelector<HTMLElement>(
+        'td[data-column-key="select"]',
+      );
+      return {
+        inputFocusVisible: checkbox?.matches(":focus-visible") ?? false,
+        labelOutlineStyle: label ? getComputedStyle(label).outlineStyle : "",
+        labelOutlineWidth: label ? getComputedStyle(label).outlineWidth : "",
+        rowBoundary: boundary
+          ? getComputedStyle(boundary, "::after").content
+          : "",
+      };
+    });
+    expect(pointerSelection.inputFocusVisible).toBe(false);
+    expect(pointerSelection.labelOutlineStyle).toBe("none");
+    expect(pointerSelection.rowBoundary).toBe("none");
+
+    // Start from the header checkbox so the next real Tab enters an
+    // unselected row checkbox and establishes keyboard-visible focus.
+    const selectAll = page.getByTestId("issue-select-all");
+    await selectAll.focus();
+    await page.keyboard.press("Tab");
+    const keyboardCheckbox = page.getByTestId("issue-row-checkbox").first();
+    await expect(keyboardCheckbox).toBeFocused();
+    const keyboardSelection = await keyboardCheckbox.evaluate((element) => {
+      const label = element.closest("label");
+      const row = element.closest("tr");
+      const labelStyles = label ? getComputedStyle(label) : null;
+      const rowBoundary = row?.querySelector<HTMLElement>(
+        'td[data-column-key="select"]',
+      );
+      return {
+        inputFocusVisible: element.matches(":focus-visible"),
+        labelOutlineStyle: labelStyles?.outlineStyle ?? "",
+        labelOutlineWidth: labelStyles?.outlineWidth ?? "",
+        labelOutlineColor: labelStyles?.outlineColor ?? "",
+        selected: row?.getAttribute("aria-selected"),
+        rowBoundary: rowBoundary
+          ? getComputedStyle(rowBoundary, "::after").content
+          : "",
+      };
+    });
+    expect(keyboardSelection.inputFocusVisible).toBe(true);
+    expect(keyboardSelection.labelOutlineStyle).toBe("solid");
+    expect(keyboardSelection.labelOutlineWidth).toBe("2px");
+    expect(keyboardSelection.labelOutlineColor).not.toBe("transparent");
+    expect(keyboardSelection.selected).toBeNull();
+    expect(keyboardSelection.rowBoundary).toBe("none");
+
+    const search = page.getByTestId("search-input");
+    await search.click();
+    const textEntry = await search.evaluate((element) => {
+      const styles = getComputedStyle(element);
+      return {
+        borderColor: styles.borderColor,
+        boxShadow: styles.boxShadow,
+        ringColor: styles.getPropertyValue("--tw-ring-color").trim(),
+      };
+    });
+    expect(textEntry.borderColor).not.toBe("transparent");
+    expect(textEntry.boxShadow).toContain("2px");
+    expect(textEntry.boxShadow).toContain("inset");
+    expect(textEntry.ringColor).not.toBe("");
+    expect(textEntry.ringColor).not.toBe("transparent");
+
+    // A pointer activation of a regular control must not flash its keyboard
+    // ring; the next real Tab must restore the same solid brand treatment.
+    await page.getByTestId("view-switcher-board").click();
+    const pointerButton = await page
+      .getByTestId("view-switcher-board")
+      .evaluate((element) => {
+        const styles = getComputedStyle(element);
+        return {
+          focusVisible: element.matches(":focus-visible"),
+          boxShadow: styles.boxShadow,
+        };
+      });
+    expect(pointerButton.focusVisible).toBe(false);
+    expect(pointerButton.boxShadow).toBe("none");
+
+    await page.keyboard.press("Tab");
+    const keyboardButton = await page
+      .getByTestId("view-switcher-list")
+      .evaluate((element) => {
+        const styles = getComputedStyle(element);
+        return {
+          focusVisible: element.matches(":focus-visible"),
+          boxShadow: styles.boxShadow,
+          ringColor: styles.getPropertyValue("--tw-ring-color").trim(),
+        };
+      });
+    expect(keyboardButton.focusVisible).toBe(true);
+    expect(keyboardButton.boxShadow).toContain("2px");
+    expect(keyboardButton.ringColor).not.toBe("");
+  });
+
+  test("restores focus to Board and List issue openers after dismissing detail", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=board`);
+    const boardCard = page
+      .locator('[data-testid="kanban-card"]')
+      .filter({ hasText: "Initial issue Alpha" });
+    await expect(boardCard).toBeVisible({ timeout: 15_000 });
+    await expect(boardCard).not.toBeFocused();
+    await boardCard.click();
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await page.getByTestId("issue-close").click();
+    await expect(page.getByTestId("issue-detail")).toHaveCount(0);
+    await expect(boardCard).toBeFocused();
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=board`);
+    const keyboardBoardCard = page
+      .locator('[data-testid="kanban-card"]')
+      .filter({ hasText: "Initial issue Alpha" });
+    await expect(keyboardBoardCard).toBeVisible({ timeout: 15_000 });
+    await keyboardBoardCard.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await page.getByTestId("issue-close").click();
+    await expect(page.getByTestId("issue-detail")).toHaveCount(0);
+    await expect(keyboardBoardCard).toBeFocused();
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    const listRow = page
+      .locator('[data-testid="issue-list-row"]')
+      .filter({ hasText: "Initial issue Alpha" });
+    await expect(listRow).toBeVisible({ timeout: 15_000 });
+    await expect(listRow).not.toBeFocused();
+    await listRow.locator('td[data-column-key="title"]').click();
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await page.getByTestId("issue-close").click();
+    await expect(page.getByTestId("issue-detail")).toHaveCount(0);
+    await expect(listRow).toBeFocused();
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    const keyboardListRow = page
+      .locator('[data-testid="issue-list-row"]')
+      .filter({ hasText: "Initial issue Alpha" });
+    await expect(keyboardListRow).toBeVisible({ timeout: 15_000 });
+    await keyboardListRow.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("issue-detail")).toHaveCount(0);
+    await expect(keyboardListRow).toBeFocused();
+  });
+
   test("does not hijack Enter from focused issue-page controls", async ({
     page,
   }) => {
@@ -423,6 +589,17 @@ test.describe("Hermetic issue keyboard navigation", () => {
     await selectedRow.getByTestId("issue-row-checkbox").click();
     await expect(selectedRow).toHaveAttribute("aria-selected", "true");
 
+    await selectedRow.focus();
+    await expect(selectedRow).toBeFocused();
+    await expect(selectedRow).toHaveAttribute("data-keyboard-focused", "true");
+    const selectedFocusBoundary = await selectedRow.evaluate((row) => {
+      const boundary = row.querySelector<HTMLElement>(
+        'td[data-column-key="select"]',
+      );
+      return boundary ? getComputedStyle(boundary, "::after").content : "";
+    });
+    expect(selectedFocusBoundary).not.toBe("none");
+
     const geometry = await selectedRow.evaluate((row) => {
       const rowRect = row.getBoundingClientRect();
       const scroll = row.closest<HTMLElement>(
@@ -674,12 +851,12 @@ test.describe("Hermetic issue keyboard navigation", () => {
         };
       });
 
-    const assertActiveBoundary = (
+    const assertContextBoundary = (
       snapshot: Awaited<ReturnType<typeof boundary>>,
     ) => {
       expect(snapshot.activeBoundary.content).not.toBe("none");
       expect(snapshot.activeBoundary.borderTopStyle).toBe("solid");
-      expect(snapshot.activeBoundary.borderTopWidth).toBe("1px");
+      expect(snapshot.activeBoundary.borderTopWidth).toBe("2px");
       expect(snapshot.activeBoundary.selectZIndex).toBeGreaterThan(
         snapshot.activeBoundary.titleZIndex,
       );
@@ -691,6 +868,14 @@ test.describe("Hermetic issue keyboard navigation", () => {
       );
     };
 
+    const assertSelectedStateHasNoRowBoundary = (
+      snapshot: Awaited<ReturnType<typeof boundary>>,
+    ) => {
+      // Pointer selection owns a fill and the checkbox owns keyboard focus;
+      // there must be no row-sized pseudo-boundary in this state.
+      expect(snapshot.activeBoundary.content).toBe("none");
+    };
+
     await scroll.evaluate((element) => {
       const root = element as HTMLElement;
       root.scrollLeft = 0;
@@ -698,7 +883,7 @@ test.describe("Hermetic issue keyboard navigation", () => {
     });
     await page.waitForTimeout(50);
     const selectedLeftBoundary = await boundary(selectedRow);
-    assertActiveBoundary(selectedLeftBoundary);
+    assertSelectedStateHasNoRowBoundary(selectedLeftBoundary);
 
     await scroll.evaluate((element) => {
       const root = element as HTMLElement;
@@ -709,7 +894,7 @@ test.describe("Hermetic issue keyboard navigation", () => {
 
     const selectedBoundary = await boundary(selectedRow);
     const unselectedBoundary = await boundary(unselectedRow);
-    assertActiveBoundary(selectedBoundary);
+    assertSelectedStateHasNoRowBoundary(selectedBoundary);
     expect(selectedBoundary.overlaps).toEqual([
       { column: "status", overlap: true },
       { column: "assignee", overlap: true },
@@ -729,7 +914,7 @@ test.describe("Hermetic issue keyboard navigation", () => {
     await unselectedRow.click({ button: "right" });
     await expect(page.getByRole("menu")).toBeVisible();
     const unselectedContextBoundary = await boundary(unselectedRow);
-    assertActiveBoundary(unselectedContextBoundary);
+    assertContextBoundary(unselectedContextBoundary);
     await page.keyboard.press("Escape");
   });
 

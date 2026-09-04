@@ -76,7 +76,7 @@ export function ToolStepTrace({
         type="button"
         aria-expanded={showSteps}
         onClick={() => setExpanded((v) => !v)}
-        className="group/trace flex w-full items-center gap-2.5 px-2.5 py-2 text-left transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+        className="group/trace flex w-full items-center gap-2.5 px-2.5 py-2 text-left transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
       >
         <Sparkles
           aria-hidden="true"
@@ -161,7 +161,7 @@ function ToolStepRow({
         type="button"
         aria-expanded={isOpen}
         onClick={onToggle}
-        className="flex w-full items-center gap-2.5 px-2.5 py-1.5 text-left transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+        className="flex w-full items-center gap-2.5 px-2.5 py-1.5 text-left transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
       >
         <span className="flex size-4 shrink-0 items-center justify-center">
           {isError ? (

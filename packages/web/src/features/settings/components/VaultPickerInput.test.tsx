@@ -39,11 +39,11 @@ describe("VaultPickerInput accessibility (REEF-151)", () => {
     expect(search).toHaveFocus();
   });
 
-  it("draws the search input's ring on keyboard focus only (REEF-226)", () => {
+  it("draws the search input's ring on pointer and keyboard focus", () => {
     renderPicker();
     fireEvent.click(screen.getByTestId("active-vault-trigger"));
     const search = screen.getByRole("textbox", { name: "Search workspaces" });
-    expect(search.className).toContain("focus-visible:ring-brand-focus/30");
-    expect(search.className).not.toContain("focus:ring");
+    expect(search.className).toContain("focus:ring-brand-focus");
+    expect(search.className).toContain("focus:ring-2");
   });
 });

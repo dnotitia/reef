@@ -437,7 +437,7 @@ describe("SidebarWorkspace", () => {
     ).toHaveAccessibleName("reef-beta을(를) 즐겨찾기에서 제거");
   });
 
-  it("draws the switcher search input's ring on keyboard focus only (REEF-226)", async () => {
+  it("draws the switcher search input's ring on pointer and keyboard focus", async () => {
     await setActiveVault("reef-acme");
     setupVaults([{ name: "reef-acme", has_reef_config: true }]);
     const user = userEvent.setup();
@@ -446,8 +446,8 @@ describe("SidebarWorkspace", () => {
 
     await user.click(await screen.findByTestId("sidebar-workspace-trigger"));
     const search = await screen.findByTestId("workspace-switcher-search");
-    expect(search.className).toContain("focus-visible:ring-brand-focus/30");
-    expect(search.className).not.toContain("focus:ring");
+    expect(search.className).toContain("focus:ring-brand-focus");
+    expect(search.className).toContain("focus:ring-2");
   });
 
   it("gives the trigger a focus-visible ring for keyboard users (REEF-172)", async () => {
@@ -460,7 +460,7 @@ describe("SidebarWorkspace", () => {
     // guards the focus-visible token (the canonical button ring) the fix adds so
     // the trigger no longer focuses invisibly for Tab users.
     const trigger = await screen.findByTestId("sidebar-workspace-trigger");
-    expect(trigger.className).toContain("focus-visible:ring-brand-focus/40");
+    expect(trigger.className).toContain("focus-visible:ring-brand-focus");
     expect(trigger.className).toContain("focus-visible:outline-none");
   });
 

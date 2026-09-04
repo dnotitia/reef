@@ -69,7 +69,7 @@ export function AskAiFab({ messageCount = 0, onPreload }: AskAiFabProps) {
         "inline-flex h-11 w-11 items-center justify-center rounded-full",
         "bg-brand-fill text-brand-on-fill shadow-lg shadow-brand-fill/30",
         "transition-[transform,box-shadow,opacity] duration-[var(--duration-base)] ease-[var(--ease-signature)] motion-reduce:transition-none hover:shadow-brand-fill/40 hover:shadow-lg",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
         isOpen && "scale-95 opacity-90",
       )}
     >

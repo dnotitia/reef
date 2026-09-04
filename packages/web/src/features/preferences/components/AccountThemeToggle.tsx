@@ -45,7 +45,7 @@ export function AccountThemeToggle() {
             leading={<Icon aria-hidden="true" className="size-3.5" />}
             className={cn(
               "min-h-11 flex-col gap-1 rounded-sm border px-1.5 py-1.5 pr-1.5 type-caption transition-colors duration-150 [touch-action:manipulation]",
-              "focus-visible:ring-2 focus-visible:ring-brand-focus/40",
+              "focus-visible:ring-2 focus-visible:ring-brand-focus",
               isSelected
                 ? "border-brand-focus bg-surface-subtle text-foreground"
                 : "border-border text-muted-foreground hover:border-border-subtle hover:bg-surface-hover hover:text-foreground",

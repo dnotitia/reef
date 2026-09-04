@@ -4,18 +4,19 @@ import { describe, expect, it } from "vitest";
 import { Textarea } from "./textarea";
 
 /**
- * REEF-226: the Textarea primitive shares the input-family focus ring (brand
- * border + brand/30 ring on focus-visible) instead of the stock shadcn
- * ring-focus-ring + ring-offset-2. The offset pushed the ring further outside the box,
- * making it more prone to clipping inside overflow-x-clip containers.
+ * Textarea uses the input-family context ring on every focus entry, including
+ * pointer entry, instead of the stock shadcn ring-offset treatment. Keeping
+ * the ring inset avoids clipping inside overflow-x-clip containers.
  */
 describe("Textarea focus ring (REEF-226)", () => {
-  it("uses the brand focus-visible ring and drops the clipping-prone offset", () => {
+  it("uses the solid brand focus ring and drops the clipping-prone offset", () => {
     const { getByRole } = render(<Textarea aria-label="notes" />);
     const el = getByRole("textbox");
-    expect(el.className).toContain("focus-visible:border-brand-focus");
-    expect(el.className).toContain("focus-visible:ring-brand-focus/30");
+    expect(el.className).toContain("focus:border-brand-focus");
+    expect(el.className).toContain("focus:ring-2");
+    expect(el.className).toContain("focus:ring-inset");
+    expect(el.className).toContain("focus:ring-brand-focus");
     expect(el.className).not.toContain("ring-offset-2");
-    expect(el.className).not.toContain("focus-visible:ring-focus-ring");
+    expect(el.className).not.toContain("focus-visible:ring-brand-focus");
   });
 });

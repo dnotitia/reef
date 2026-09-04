@@ -510,7 +510,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
               onClick={toggleSidebar}
               aria-label={t("expandSidebar")}
               title={t("expandSidebar")}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
             >
               <ReefMark
                 className="size-6"
@@ -537,7 +537,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                 type="button"
                 onClick={toggleSidebar}
                 aria-label={t("collapseSidebar")}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -591,7 +591,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                     title={sidebarCollapsed ? label : undefined}
                     aria-label={badge ? `${label} ${badge.label}` : label}
                     className={cn(
-                      "flex items-center gap-2 rounded-md px-3 py-1.5 type-navigation transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
+                      "flex items-center gap-2 rounded-md px-3 py-1.5 type-navigation transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
                       isActive
                         ? "bg-surface-hover text-foreground font-medium"
                         : "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
@@ -673,7 +673,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
           ref={commandDestinationRef}
           tabIndex={-1}
           data-command-focus-destination=""
-          className="min-w-0 flex-1 overflow-auto bg-surface-page focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/40"
+          className="min-w-0 flex-1 overflow-auto bg-surface-page focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus"
         >
           {children}
         </main>

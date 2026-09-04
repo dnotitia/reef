@@ -207,7 +207,7 @@ export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
           <a
             href={ssoStartUrl}
             className={cn(
-              "inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-brand-fill px-4 font-medium text-brand-on-fill text-sm whitespace-nowrap transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
+              "inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-brand-fill px-4 font-medium text-brand-on-fill text-sm whitespace-nowrap transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
             )}
           >
             <KeyRound className="size-4" aria-hidden="true" />

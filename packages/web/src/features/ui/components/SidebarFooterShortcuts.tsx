@@ -35,7 +35,7 @@ export function SidebarFooterShortcuts({
         title={t("keyboardShortcutsTitle", { keychord: "⌘?" })}
         data-testid="sidebar-shortcuts-trigger"
         className={cn(
-          "inline-flex shrink-0 items-center rounded-md text-muted-foreground/80 transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
+          "inline-flex shrink-0 items-center rounded-md text-muted-foreground/80 transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
           collapsed
             ? "h-8 w-8 justify-center"
             : "h-7 w-full justify-between gap-2 px-2 text-left type-caption",

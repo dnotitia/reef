@@ -1755,7 +1755,7 @@ export function MarkdownEditor({
           onBlur?.(latestValueRef.current);
         }
       }}
-      className={`rounded-md border border-border bg-surface-elevated transition-colors duration-150 focus-within:border-brand-focus focus-within:ring-2 focus-within:ring-inset focus-within:ring-brand-focus/30 ${className ?? ""}`}
+      className={`rounded-md border border-border bg-surface-elevated transition-colors duration-150 focus-within:border-brand-focus focus-within:ring-2 focus-within:ring-inset focus-within:ring-brand-focus ${className ?? ""}`}
     >
       {/* Toolbar */}
       {!readOnly && (
@@ -2069,7 +2069,7 @@ export function MarkdownEditor({
             aria-valuetext={`${editorCurrentHeight}px`}
             data-testid="markdown-editor-resize-handle"
             data-resizing={isHeightResizing ? "true" : "false"}
-            className="group absolute bottom-0 right-0 z-10 flex size-8 touch-none select-none items-end justify-end focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/60"
+            className="group absolute bottom-0 right-0 z-10 flex size-8 touch-none select-none items-end justify-end focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus"
             data-reef-interaction="resize-editor"
             onKeyDown={onHeightResizeKeyDown}
             onPointerCancel={onHeightResizePointerCancel}

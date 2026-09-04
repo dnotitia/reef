@@ -74,7 +74,7 @@ export function MyWorkQueue({ items, mode, onModeChange }: MyWorkQueueProps) {
                 onClick={() => onModeChange(option.value)}
                 data-testid={`my-work-group-${option.value}`}
                 className={cn(
-                  "rounded-md px-2.5 py-1 type-caption font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
+                  "rounded-md px-2.5 py-1 type-caption font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
                   active
                     ? "bg-surface-page text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground",

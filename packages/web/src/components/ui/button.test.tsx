@@ -4,13 +4,13 @@ import { describe, expect, it, vi } from "vitest";
 import { Button } from "./button";
 
 describe("Button focus indicator", () => {
-  it("uses a solid foreground outline with at least two pixels of visible chrome", () => {
+  it("uses the shared solid teal focus ring with at least two pixels of visible chrome", () => {
     render(<Button>Clear filters</Button>);
 
     expect(screen.getByRole("button", { name: "Clear filters" })).toHaveClass(
-      "focus-visible:outline-2",
-      "focus-visible:outline-foreground",
-      "focus-visible:outline-offset-1",
+      "focus-visible:outline-none",
+      "focus-visible:ring-2",
+      "focus-visible:ring-brand-focus",
     );
   });
 

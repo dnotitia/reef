@@ -417,7 +417,7 @@ export function CommentCard({
         ) : null}
 
         {editing ? (
-          <div className="mt-1 flex flex-col rounded-md border border-brand-focus bg-surface-elevated ring-2 ring-inset ring-brand-focus/30">
+          <div className="mt-1 flex flex-col rounded-md border border-brand-focus bg-surface-elevated ring-2 ring-inset ring-brand-focus">
             <CommentMentionTextarea
               draft={draft}
               members={members}

@@ -283,7 +283,10 @@ describe("IssueListRow", () => {
     renderRow(mockIssue, [mockIssue], onClick);
     const row = screen.getAllByTestId("issue-list-row")[0];
     await user.click(row);
-    expect(onClick).toHaveBeenCalledWith("REEF-001");
+    expect(onClick).toHaveBeenCalledWith(
+      "REEF-001",
+      screen.getByTestId("issue-list-row"),
+    );
   });
 
   it.each(["Enter", " "])(
@@ -294,7 +297,10 @@ describe("IssueListRow", () => {
 
       fireEvent.keyDown(screen.getByTestId("issue-list-row"), { key });
 
-      expect(onClick).toHaveBeenCalledWith("REEF-001");
+      expect(onClick).toHaveBeenCalledWith(
+        "REEF-001",
+        screen.getByTestId("issue-list-row"),
+      );
     },
   );
 
@@ -352,7 +358,7 @@ describe("IssueListRow", () => {
     ]);
     expect(row).toHaveAttribute("data-context-open", "true");
     expect(row.className).toContain("bg-brand-fill/5");
-    expect(row.className).toContain("ring-1");
+    expect(row.className).not.toContain("ring-1");
     expect(Number(boundaryCell?.style.zIndex)).toBeGreaterThan(
       Number(titleCell?.style.zIndex),
     );

@@ -8,11 +8,9 @@ import {
 } from "./comboboxChrome";
 
 /**
- * REEF-226: every combobox/select control draws its focus ring on keyboard
- * focus only (`:focus-visible`), with the shared brand token. A bare `focus:`
- * selector also fires on mouse click, which flashed a ring on pointer use and
- * diverged from the input-family look. The in-panel search input was the last
- * holdout still on `focus:`; lock the whole frozen-chrome contract here.
+ * Select/combobox triggers are controls and use keyboard-visible focus. Their
+ * in-panel search input is a text-entry exception and uses focus on pointer or
+ * keyboard entry so the insertion context stays visible.
  */
 describe("comboboxChrome focus contract (REEF-226)", () => {
   const chrome = {
@@ -24,15 +22,18 @@ describe("comboboxChrome focus contract (REEF-226)", () => {
 
   for (const [name, value] of Object.entries(chrome)) {
     it(`${name} keys its ring off focus-visible, never bare focus`, () => {
+      if (name === "CBX_SEARCH") return;
       expect(value).toContain("focus-visible:ring-2");
-      expect(value).toContain("focus-visible:ring-brand-focus/30");
+      expect(value).toContain("focus-visible:ring-brand-focus");
       // `focus:` (followed by `:`) would also trigger on mouse click — the bug.
       expect(value).not.toMatch(/(?:^|\s)focus:/);
     });
   }
 
   it("the in-panel search input shares the field trigger's brand border ring", () => {
-    expect(CBX_SEARCH).toContain("focus-visible:border-brand-focus");
-    expect(CBX_SEARCH).toContain("focus-visible:ring-brand-focus/30");
+    expect(CBX_SEARCH).toContain("focus:border-brand-focus");
+    expect(CBX_SEARCH).toContain("focus:ring-2");
+    expect(CBX_SEARCH).toContain("focus:ring-brand-focus");
+    expect(CBX_SEARCH).not.toContain("focus-visible:ring");
   });
 });

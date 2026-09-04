@@ -104,7 +104,7 @@ export function IssueChromeIdentity({
               // parent — while the hover background keeps its inset padding.
               "-ml-1.5 inline-flex min-w-0 touch-manipulation items-center gap-1.5 rounded-md px-1.5 py-1 text-muted-foreground transition-colors duration-150",
               "hover:bg-surface-hover hover:text-foreground",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
             )}
           >
             {parent ? (

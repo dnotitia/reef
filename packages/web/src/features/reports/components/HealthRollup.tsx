@@ -174,7 +174,7 @@ export function HealthRollup({
               onClick={() => setShowShipped((s) => !s)}
               data-testid="health-rollup-show-shipped"
               className={cn(
-                "rounded-md border border-border-subtle px-2 py-1 type-control font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
+                "rounded-md border border-border-subtle px-2 py-1 type-control font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
                 showShipped
                   ? "bg-surface-hover text-foreground"
                   : "text-muted-foreground hover:text-foreground",
@@ -241,7 +241,7 @@ function DimensionToggle({
             onClick={() => onSelect(dim)}
             data-testid={`health-rollup-dimension-${dim}`}
             className={cn(
-              "rounded-[5px] px-2 py-1 type-control font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
+              "rounded-[5px] px-2 py-1 type-control font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
               isActive
                 ? "bg-surface-hover text-foreground"
                 : "text-muted-foreground hover:text-foreground",
@@ -286,7 +286,7 @@ const HealthRow = memo(function HealthRow({
         onClick={() => onDrill(row.kind, row.id)}
         data-testid={`health-rollup-row-${row.id}`}
         className={cn(
-          "relative grid w-full grid-cols-1 items-center gap-2 rounded-md border border-border-subtle bg-surface-page py-2.5 pr-3 pl-4 text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-4",
+          "relative grid w-full grid-cols-1 items-center gap-2 rounded-md border border-border-subtle bg-surface-page py-2.5 pr-3 pl-4 text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-4",
           active && "ring-1 ring-brand-focus/40",
         )}
       >

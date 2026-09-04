@@ -203,7 +203,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
             aria-pressed={isFavorite}
             title={favoriteLabel}
             onClick={() => void workspaceFavorites.toggleFavorite(v.name)}
-            className="inline-flex size-8 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40"
+            className="inline-flex size-8 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
           >
             <Star
               aria-hidden="true"
@@ -232,7 +232,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
           }
           title={collapsed ? label : undefined}
           className={cn(
-            "w-full gap-2 rounded-md text-left [touch-action:manipulation] transition-colors hover:bg-surface-hover aria-expanded:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
+            "w-full gap-2 rounded-md text-left [touch-action:manipulation] transition-colors hover:bg-surface-hover aria-expanded:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
             collapsed ? "justify-center px-0 py-1" : "px-2 py-1.5",
           )}
         >
@@ -279,7 +279,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
         >
           <input
             type="text"
-            className="mb-2 w-full rounded-md border border-border bg-surface-elevated px-2 py-1 type-control text-foreground outline-none transition-colors focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus/30"
+            className="mb-2 w-full rounded-md border border-border bg-surface-elevated px-2 py-1 type-control text-foreground outline-none transition-colors focus:border-brand-focus focus:ring-2 focus:ring-brand-focus"
             placeholder={tw("searchPlaceholder")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}

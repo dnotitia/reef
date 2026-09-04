@@ -464,7 +464,7 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
         >
           <span className="sr-only">{t("loading")}</span>
           <div
-            className="min-h-0 h-full min-w-0 overflow-auto overscroll-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/30"
+            className="min-h-0 h-full min-w-0 overflow-auto overscroll-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus"
             role="region"
             // biome-ignore lint/a11y/noNoninteractiveTabindex: The labeled overflow region is the keyboard scrollport.
             tabIndex={0}
@@ -512,7 +512,7 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
         )
       ) : (
         <div
-          className="min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus/30"
+          className="min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-focus"
           role="region"
           // biome-ignore lint/a11y/noNoninteractiveTabindex: The labeled overflow region is the keyboard scrollport.
           tabIndex={0}

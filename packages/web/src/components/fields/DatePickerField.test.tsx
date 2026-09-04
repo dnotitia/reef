@@ -231,14 +231,15 @@ describe("DatePickerField", () => {
     expect(screen.queryByTestId("date-picker-input")).not.toBeInTheDocument();
   });
 
-  it("draws the typed-date input's ring on keyboard focus only (REEF-226)", async () => {
+  it("draws the typed-date input's ring on pointer and keyboard focus", async () => {
     const user = userEvent.setup();
     render(<DatePickerField value="" onChange={vi.fn()} label="Start date" />);
     await user.click(screen.getByTestId("date-picker-trigger"));
     const input = screen.getByTestId("date-picker-input");
-    // Shared brand ring, keyed off focus-visible so a mouse click does not flashes it.
-    expect(input.className).toContain("focus-visible:ring-brand-focus/30");
-    expect(input.className).not.toContain("focus:ring");
+    // Text entry is a context exception: clicking the field must identify the
+    // insertion target just like keyboard entry.
+    expect(input.className).toContain("focus:ring-brand-focus");
+    expect(input.className).toContain("focus:ring-2");
   });
 
   it("sets the browser-local today via the Today action", async () => {

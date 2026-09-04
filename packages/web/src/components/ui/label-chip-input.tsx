@@ -103,7 +103,7 @@ export function LabelChipInput({
     <div
       className={cn(
         "flex min-h-8 w-full flex-wrap items-center gap-1 rounded-md border border-border bg-surface-elevated px-1.5 py-1 type-control text-foreground transition-colors duration-150",
-        "focus-within:border-brand-focus focus-within:ring-2 focus-within:ring-brand-focus/30",
+        "focus-within:border-brand-focus focus-within:ring-2 focus-within:ring-brand-focus",
         disabled && "opacity-50",
         className,
       )}

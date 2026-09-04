@@ -8,7 +8,7 @@ function Badge({ className, ...props }: BadgeProps) {
     <span
       data-slot="badge"
       className={cn(
-        "inline-flex items-center rounded-full border border-border px-2.5 py-0.5 text-xs font-medium transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus/40",
+        "inline-flex items-center rounded-full border border-border px-2.5 py-0.5 text-xs font-medium transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
         className,
       )}
       {...props}
