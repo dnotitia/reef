@@ -8,7 +8,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createMarkdownEditorExtensions } from "./MarkdownEditorImpl";
+import { createMarkdownEditorExtensions } from "./markdown-editor/extensions";
 import {
   DEFAULT_SLASH_COMMAND_MESSAGES,
   createLocalizedSlashCommandRegistry,
