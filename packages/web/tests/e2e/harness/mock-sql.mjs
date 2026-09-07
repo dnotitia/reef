@@ -145,6 +145,24 @@ export function handleSql(state, vault, sql) {
     );
   }
 
+  if (lower.startsWith("with removed as (delete from reef_subscriptions")) {
+    const reefId = matchSqlString(normalized, /reef_id\s*=\s*'([^']+)'/i);
+    const subscriber = matchSqlString(
+      normalized,
+      /subscriber\s*=\s*'([^']+)'/i,
+    );
+    const source = matchSqlString(normalized, /source\s*=\s*'([^']+)'/i);
+    const index = vault.subscriptions.findIndex(
+      (subscription) =>
+        subscription.reef_id === reefId &&
+        subscription.subscriber === subscriber &&
+        subscription.source === source,
+    );
+    if (index < 0) return tableQuery(["id"], []);
+    const [removed] = vault.subscriptions.splice(index, 1);
+    return tableQuery(["id"], [{ id: removed.id }]);
+  }
+
   if (lower.includes("insert into reef_subscriptions")) {
     const insert = parseInsert(normalized);
     if (!insert) return { error: "invalid subscription upsert" };
