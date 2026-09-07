@@ -19,12 +19,14 @@ import {
 } from "@/features/issues/lib/scopeFilter";
 import type { IssueScope } from "@/features/issues/lib/viewMode";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
+import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import type { IssueListItem } from "@reef/core";
 import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import { useTranslations } from "next-intl";
 import { useMemo, useRef, useState } from "react";
 import {
   calendarDayFromDate,
+  getPlanningOverlay,
   getQuarterRange,
   getTimelineItem,
   shiftQuarter,
@@ -87,6 +89,7 @@ export function TimelineBody({ vault, scope = "active" }: TimelineBodyProps) {
     isError,
     refetch,
   } = useIssueList(vault, query);
+  const planningQuery = usePlanningCatalog(vault);
   const staleWindowDays = useResolvedAutoHideWindows(vault);
   const openIssue = useOpenIssue();
   const [today, setToday] = useState(() => calendarDayFromDate(new Date()));
@@ -157,6 +160,15 @@ export function TimelineBody({ vault, scope = "active" }: TimelineBodyProps) {
     [scheduledIds, visibleIssues],
   );
   const activeFilters = hasScopeFilters(filter, searchQuery, scope);
+  const planningOverlay = useMemo(
+    () => getPlanningOverlay(planningQuery.data, range),
+    [planningQuery.data, range],
+  );
+  const hasPlanningItems =
+    planningOverlay.sprintBands.length > 0 ||
+    planningOverlay.markerStacks.length > 0;
+  const shouldRenderGrid =
+    visibleIssues.length > 0 || hasPlanningItems || planningQuery.isError;
 
   function clearFilters() {
     useIssueStore.getState().clearFilter();
@@ -182,7 +194,8 @@ export function TimelineBody({ vault, scope = "active" }: TimelineBodyProps) {
       </div>
 
       <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
-        {isPending ? (
+        {isPending ||
+        (planningQuery.isPending && visibleIssues.length === 0) ? (
           <div role="status" aria-live="polite" className="h-full">
             <span className="sr-only">{t("loading")}</span>
             <TimelineSkeleton />
@@ -206,7 +219,25 @@ export function TimelineBody({ vault, scope = "active" }: TimelineBodyProps) {
                 </Button>
               </div>
             )}
-            {visibleIssues.length === 0 ? (
+            {planningQuery.isError && (
+              <div
+                data-testid="timeline-planning-error"
+                className="mx-6 mt-4 rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text"
+                role="alert"
+                aria-live="assertive"
+              >
+                {t("planningLoadError")}{" "}
+                <Button
+                  type="button"
+                  variant="link"
+                  className="h-auto px-0 text-destructive-text"
+                  onClick={() => planningQuery.refetch()}
+                >
+                  {c("retry")}
+                </Button>
+              </div>
+            )}
+            {!shouldRenderGrid ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 px-6 py-12">
                 <p className="text-sm text-muted-foreground">
                   {activeFilters ? t("noMatch") : t("empty")}
@@ -227,6 +258,7 @@ export function TimelineBody({ vault, scope = "active" }: TimelineBodyProps) {
                 range={range}
                 today={today}
                 items={timelineItems}
+                planningOverlay={planningOverlay}
                 unscheduledIssues={unscheduledIssues}
                 onIssueClick={openIssue}
               />

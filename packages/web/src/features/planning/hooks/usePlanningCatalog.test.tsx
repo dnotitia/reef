@@ -129,4 +129,17 @@ describe("usePlanningCatalog", () => {
     expect(result.current.data).toEqual(CATALOG);
     expect(result.current.isSuccess).toBe(true);
   });
+
+  it("reuses a fresh shared catalog cache without creating a duplicate request", async () => {
+    const queryClient = createQueryClient();
+    queryClient.setQueryData(["planning", "catalog", "reef-acme"], CATALOG);
+
+    const { result } = renderHook(() => usePlanningCatalog("reef-acme"), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual(CATALOG);
+    expect(mockApiFetch).not.toHaveBeenCalled();
+  });
 });

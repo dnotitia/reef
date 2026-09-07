@@ -1,11 +1,12 @@
 // @vitest-environment node
 
-import type { IssueMetadata } from "@reef/core";
+import type { IssueMetadata, PlanningCatalog } from "@reef/core";
 import { describe, expect, it } from "vitest";
 import {
   computeTargetScrollLeft,
   createCalendarDay,
   getQuarterRange,
+  getPlanningOverlay,
   getTimelineItem,
   parseCalendarDay,
 } from "./timelineLayout";
@@ -107,6 +108,96 @@ describe("timelineLayout", () => {
     expect(item?.kind).toBe("invalid");
     expect(item?.renderStart.key).toBe("2026-05-20");
     expect(item?.renderEnd.key).toBe("2026-05-25");
+  });
+
+  it("clips overlapping sprint bands and skips incomplete or out-of-range dates", () => {
+    const range = getQuarterRange(new Date(2026, 4, 22));
+    const overlay = getPlanningOverlay(
+      {
+        sprints: [
+          {
+            id: "00000000-0000-4000-8000-000000000001",
+            name: "Q2 Sprint",
+            status: "active",
+            start_date: "2026-03-15",
+            end_date: "2026-04-05",
+            goal: "",
+            capacity_points: null,
+          },
+          {
+            id: "00000000-0000-4000-8000-000000000002",
+            name: "Missing dates",
+            status: "planned",
+            start_date: null,
+            end_date: "2026-05-05",
+            goal: "",
+            capacity_points: null,
+          },
+        ],
+        milestones: [],
+        releases: [],
+      } satisfies PlanningCatalog,
+      range,
+    );
+
+    expect(overlay.sprintBands).toHaveLength(1);
+    expect(overlay.sprintBands[0]).toMatchObject({
+      name: "Q2 Sprint",
+      status: "active",
+      start: { key: "2026-04-01" },
+      end: { key: "2026-04-05" },
+      startIndex: 0,
+      endIndex: 4,
+      startsBeforeRange: true,
+      endsAfterRange: false,
+    });
+  });
+
+  it("prefers released_at, falls back to target_date, and stacks same-day markers", () => {
+    const range = getQuarterRange(new Date(2026, 4, 22));
+    const overlay = getPlanningOverlay(
+      {
+        sprints: [],
+        milestones: [
+          {
+            id: "00000000-0000-4000-8000-000000000011",
+            name: "Beta milestone",
+            status: "open",
+            target_date: "2026-05-15",
+            description: "",
+          },
+        ],
+        releases: [
+          {
+            id: "00000000-0000-4000-8000-000000000012",
+            name: "Beta release",
+            status: "released",
+            target_date: "2026-05-20",
+            released_at: "2026-05-15T08:30:00.000Z",
+            notes: "",
+          },
+          {
+            id: "00000000-0000-4000-8000-000000000013",
+            name: "Future release",
+            status: "planned",
+            target_date: "2026-07-01",
+            released_at: null,
+            notes: "",
+          },
+        ],
+      } satisfies PlanningCatalog,
+      range,
+    );
+
+    expect(overlay.markerStacks).toHaveLength(1);
+    expect(overlay.markerStacks[0]).toMatchObject({
+      date: { key: "2026-05-15" },
+      dateIndex: 44,
+    });
+    expect(overlay.markerStacks[0]?.markers).toEqual([
+      expect.objectContaining({ kind: "milestone", name: "Beta milestone" }),
+      expect.objectContaining({ kind: "release", name: "Beta release" }),
+    ]);
   });
 });
 

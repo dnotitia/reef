@@ -12,6 +12,13 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Added
+
+- **Timeline planning overlays show sprint bands and milestone/release markers.**
+  Read-only planning data shares the existing quarter day grid and catalog cache,
+  including clipped sprint ranges, release-date precedence, and same-day marker
+  stacks with keyboard-accessible details.
+
 ## v0.14.1 - 2026-09-04
 
 ### Fixed

@@ -21,6 +21,7 @@ import {
   DAY_WIDTH,
   LABEL_WIDTH,
   type TimelineItem,
+  type TimelinePlanningOverlay,
   type TimelineRange,
   compareCalendarDays,
   computeTargetScrollLeft,
@@ -31,6 +32,7 @@ import {
   sortTimelineItems,
 } from "../lib/timelineLayout";
 import { TimelineRow } from "./TimelineRow";
+import { TimelinePlanningHeader } from "./TimelinePlanningHeader";
 
 type TimelineGridStyle = CSSProperties & {
   "--timeline-day-width": string;
@@ -52,6 +54,7 @@ interface TimelineGridProps {
   range: TimelineRange;
   today: CalendarDay;
   items: TimelineItem[];
+  planningOverlay: TimelinePlanningOverlay;
   unscheduledIssues: IssueListItem[];
   onIssueClick: (id: string) => void;
 }
@@ -97,7 +100,7 @@ function buildIssueTitle(issue: IssueListItem): string {
 
 export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
   function TimelineGrid(
-    { range, today, items, unscheduledIssues, onIssueClick },
+    { range, today, items, planningOverlay, unscheduledIssues, onIssueClick },
     ref,
   ) {
     const statusLabels = useStatusLabels();
@@ -275,6 +278,11 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                   </div>
                 ))}
               </div>
+              <TimelinePlanningHeader
+                days={days}
+                gridStyle={gridStyle}
+                overlay={planningOverlay}
+              />
             </div>
 
             <div>
@@ -327,6 +335,7 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                         item={item}
                         days={days}
                         gridStyle={gridStyle}
+                        sprintBands={planningOverlay.sprintBands}
                         onIssueClick={onIssueClick}
                       />
                     ))}

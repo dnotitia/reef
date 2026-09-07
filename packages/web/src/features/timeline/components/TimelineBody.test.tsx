@@ -1,6 +1,6 @@
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { apiFetch } from "@/lib/apiClient";
-import type { IssueMetadata } from "@reef/core";
+import type { IssueMetadata, PlanningCatalog } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -77,6 +77,39 @@ const issues: IssueMetadata[] = [
   },
 ];
 
+const planningCatalog: PlanningCatalog = {
+  sprints: [
+    {
+      id: "00000000-0000-4000-8000-000000000001",
+      name: "Q2 Sprint",
+      status: "active",
+      start_date: "2026-06-01",
+      end_date: "2026-06-14",
+      goal: "Ship the timeline",
+      capacity_points: null,
+    },
+  ],
+  milestones: [
+    {
+      id: "00000000-0000-4000-8000-000000000002",
+      name: "Beta milestone",
+      status: "open",
+      target_date: "2026-06-15",
+      description: "",
+    },
+  ],
+  releases: [
+    {
+      id: "00000000-0000-4000-8000-000000000003",
+      name: "Beta release",
+      status: "released",
+      target_date: "2026-06-20",
+      released_at: "2026-06-15T08:30:00.000Z",
+      notes: "",
+    },
+  ],
+};
+
 function wrap(ui: ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -97,6 +130,9 @@ describe("TimelineBody", () => {
       }
       if (path.startsWith("/api/issues/relations")) {
         return new Response(JSON.stringify({ relations: [] }), { status: 200 });
+      }
+      if (path.startsWith("/api/planning")) {
+        return new Response(JSON.stringify(planningCatalog), { status: 200 });
       }
       return new Response(JSON.stringify({ issues }), { status: 200 });
     });
@@ -132,6 +168,20 @@ describe("TimelineBody", () => {
     expect(screen.getAllByText("Done").length).toBeGreaterThan(0);
   });
 
+  it("renders sprint bands behind each issue row's date cells", async () => {
+    render(wrap(<TimelineBody vault="reef-acme" />));
+
+    const bands = await screen.findAllByTestId("timeline-sprint-band");
+    expect(bands.length).toBeGreaterThan(0);
+    expect(bands[0]).toHaveAttribute("aria-hidden", "true");
+    expect(bands[0]).toHaveClass("pointer-events-none");
+    expect(bands[0]).toHaveClass("bg-planning-active/15");
+    expect(bands[0]).toHaveStyle({
+      gridColumn: "63 / 77",
+      gridRow: "1",
+    });
+  });
+
   it("treats a backlog-only result set as an empty timeline (REEF-109)", async () => {
     mockApiFetch.mockImplementation(async (url) => {
       const path = String(url);
@@ -140,6 +190,12 @@ describe("TimelineBody", () => {
       }
       if (path.startsWith("/api/issues/relations")) {
         return new Response(JSON.stringify({ relations: [] }), { status: 200 });
+      }
+      if (path.startsWith("/api/planning")) {
+        return new Response(
+          JSON.stringify({ sprints: [], milestones: [], releases: [] }),
+          { status: 200 },
+        );
       }
       return new Response(
         JSON.stringify({
@@ -175,6 +231,109 @@ describe("TimelineBody", () => {
       await screen.findByTestId("timeline-unscheduled"),
     ).toBeInTheDocument();
     expect(screen.getByText("No dates")).toBeInTheDocument();
+  });
+
+  it("renders planning overlays when the current quarter has no issues", async () => {
+    mockApiFetch.mockImplementation(async (url) => {
+      const path = String(url);
+      if (path.startsWith("/api/vault-members")) {
+        return new Response(JSON.stringify({ users: [] }), { status: 200 });
+      }
+      if (path.startsWith("/api/issues/relations")) {
+        return new Response(JSON.stringify({ relations: [] }), { status: 200 });
+      }
+      if (path.startsWith("/api/planning")) {
+        return new Response(JSON.stringify(planningCatalog), { status: 200 });
+      }
+      return new Response(JSON.stringify({ issues: [] }), { status: 200 });
+    });
+
+    render(wrap(<TimelineBody vault="reef-acme" />));
+
+    expect(
+      await screen.findByTestId("timeline-planning-header"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId(
+        "timeline-planning-sprint-00000000-0000-4000-8000-000000000001",
+      ),
+    ).toBeInTheDocument();
+    const markerStack = screen.getByTestId(
+      "timeline-planning-marker-stack-2026-06-15",
+    );
+    expect(
+      screen.getByTestId("timeline-planning-marker-count-2026-06-15"),
+    ).toHaveTextContent("2");
+    expect(markerStack).toHaveAttribute(
+      "aria-label",
+      expect.stringContaining("Beta milestone"),
+    );
+    expect(markerStack).toHaveAttribute(
+      "aria-label",
+      expect.stringContaining("Milestone"),
+    );
+    expect(markerStack).toHaveAttribute(
+      "aria-label",
+      expect.stringContaining("Beta release"),
+    );
+    expect(markerStack).toHaveAttribute(
+      "aria-label",
+      expect.stringContaining("2026-06-15"),
+    );
+    markerStack.focus();
+    expect(markerStack).toHaveFocus();
+    expect(screen.queryByText(/Your timeline is empty/i)).toBeNull();
+  });
+
+  it("keeps the issue grid available when planning loading fails and retries", async () => {
+    let planningAttempts = 0;
+    mockApiFetch.mockImplementation(async (url) => {
+      const path = String(url);
+      if (path.startsWith("/api/vault-members")) {
+        return new Response(JSON.stringify({ users: [] }), { status: 200 });
+      }
+      if (path.startsWith("/api/issues/relations")) {
+        return new Response(JSON.stringify({ relations: [] }), { status: 200 });
+      }
+      if (path.startsWith("/api/planning")) {
+        planningAttempts += 1;
+        return planningAttempts === 1
+          ? new Response(JSON.stringify({ error: "temporary failure" }), {
+              status: 503,
+            })
+          : new Response(JSON.stringify(planningCatalog), { status: 200 });
+      }
+      return new Response(JSON.stringify({ issues }), { status: 200 });
+    });
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(wrap(<TimelineBody vault="reef-acme" />));
+
+    const error = await screen.findByTestId("timeline-planning-error");
+    expect(screen.getByText("Scheduled A")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /retry/i }));
+
+    expect(
+      await screen.findByTestId("timeline-planning-marker-count-2026-06-15"),
+    ).toBeInTheDocument();
+    expect(error).not.toBeInTheDocument();
+    expect(planningAttempts).toBe(2);
+  });
+
+  it("recomputes the quarter overlay without requesting the catalog again", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(wrap(<TimelineBody vault="reef-acme" />));
+
+    await screen.findByTestId("timeline-planning-marker-count-2026-06-15");
+    const planningRequests = () =>
+      mockApiFetch.mock.calls.filter((call) =>
+        String(call[0]).startsWith("/api/planning"),
+      ).length;
+    expect(planningRequests()).toBe(1);
+
+    await user.click(screen.getByRole("button", { name: /next quarter/i }));
+
+    expect(planningRequests()).toBe(1);
   });
 
   it("applies client filters and forwards search to the server as `q` (REEF-034)", async () => {
