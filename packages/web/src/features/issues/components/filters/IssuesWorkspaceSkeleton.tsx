@@ -1,6 +1,16 @@
+"use client";
+
 import { BoardColumnsSkeleton } from "@/components/BoardColumnsSkeleton";
+import {
+  SEGMENTED_CONTROL_ITEM,
+  SEGMENTED_CONTROL_ITEM_ACTIVE,
+  SEGMENTED_CONTROL_ITEM_INACTIVE,
+  SEGMENTED_CONTROL_TRACK,
+} from "@/components/segmentedControl";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { PageHeader } from "@/features/ui/components/PageHeader";
+import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
 /**
@@ -31,6 +41,61 @@ const FILTER_CHIPS = [
   { key: "display", width: "w-24" },
 ] as const;
 
+function StaticSegmentedControl({
+  testId,
+  ariaLabel,
+  labels,
+}: {
+  testId: string;
+  ariaLabel: string;
+  labels: readonly string[];
+}) {
+  return (
+    <div
+      role="group"
+      aria-label={ariaLabel}
+      aria-busy="true"
+      data-testid={testId}
+      className={SEGMENTED_CONTROL_TRACK}
+    >
+      {labels.map((label, index) => (
+        <span
+          key={label}
+          className={cn(
+            SEGMENTED_CONTROL_ITEM,
+            index === 0
+              ? SEGMENTED_CONTROL_ITEM_ACTIVE
+              : SEGMENTED_CONTROL_ITEM_INACTIVE,
+          )}
+        >
+          {label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function LabeledSkeleton({
+  label,
+  className,
+}: {
+  label: string;
+  className: string;
+}) {
+  return (
+    <div className={cn("relative inline-flex min-w-0", className)}>
+      <Skeleton
+        aria-hidden="true"
+        tone="secondary"
+        className={cn("absolute inset-0", className)}
+      />
+      <span className="relative z-[1] min-w-0 truncate px-2 type-control text-muted-foreground">
+        {label}
+      </span>
+    </div>
+  );
+}
+
 /**
  * First-paint skeleton for the issues workspace, shared by the route's
  * `loading.tsx` (soft-nav segment fetch) and the page's `<Suspense fallback>`
@@ -54,6 +119,24 @@ const FILTER_CHIPS = [
 export function IssuesWorkspaceSkeleton() {
   const nav = useTranslations("nav");
   const c = useTranslations("common");
+  const filters = useTranslations("issues.filters");
+  const fieldNames = useFieldNameLabels();
+  const chipLabels: Record<(typeof FILTER_CHIPS)[number]["key"], string> = {
+    status: fieldNames.status,
+    type: fieldNames.type,
+    priority: fieldNames.priority,
+    severity: fieldNames.severity,
+    due: fieldNames.due,
+    dependency: fieldNames.dependency,
+    assignee: fieldNames.assignee,
+    requester: fieldNames.requester,
+    sprint: fieldNames.sprint,
+    milestone: fieldNames.milestone,
+    release: fieldNames.release,
+    labels: fieldNames.labels,
+    updatedAtRange: filters("updatedAtRange"),
+    display: filters("display"),
+  };
   return (
     <div
       className="flex h-full min-h-0 min-w-0 flex-col"
@@ -62,7 +145,27 @@ export function IssuesWorkspaceSkeleton() {
       {/* screen-reader loading announcement (REEF-281). Sibling to the decorative body
           so it is NOT under aria-hidden; PageHeader's h1 stays a real heading. */}
       <output className="sr-only">{c("loading")}</output>
-      <PageHeader title={nav("issues")} />
+      <PageHeader
+        title={nav("issues")}
+        staticTitleAdjacent={
+          <StaticSegmentedControl
+            testId="issues-skeleton-scope"
+            ariaLabel={filters("scope.label")}
+            labels={[filters("scope.active"), filters("scope.backlog")]}
+          />
+        }
+        staticActions={
+          <StaticSegmentedControl
+            testId="issues-skeleton-view"
+            ariaLabel={filters("issueView")}
+            labels={[
+              filters("view.board"),
+              filters("view.list"),
+              filters("view.timeline"),
+            ]}
+          />
+        }
+      />
       {/* The placeholder body is decorative: aria-hidden keeps assistive tech
           from traversing the empty toolbar/board DOM. The wrapper inherits the
           column's flex sizing so the board still fills the remaining height. */}
@@ -75,13 +178,16 @@ export function IssuesWorkspaceSkeleton() {
           data-testid="issues-skeleton-toolbar"
         >
           {/* SearchBar row (Input h-9, full width). */}
-          <Skeleton tone="secondary" className="h-9 w-full" />
+          <LabeledSkeleton
+            label={filters("searchLabel")}
+            className="h-9 w-full"
+          />
           {/* FilterBar row — the wrapping facet/value chips (each h-8). */}
           <div className="flex flex-wrap items-center gap-2">
             {FILTER_CHIPS.map((chip) => (
-              <Skeleton
+              <LabeledSkeleton
                 key={chip.key}
-                tone="secondary"
+                label={chipLabels[chip.key]}
                 className={`h-8 ${chip.width}`}
               />
             ))}

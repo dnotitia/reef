@@ -10,6 +10,18 @@ describe("PlanningPageSkeleton", () => {
       screen.getByRole("heading", { name: "Planning" }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("planning-skeleton")).toBeInTheDocument();
+    for (const label of [
+      "Sprints",
+      "Milestones",
+      "Releases",
+      "Name",
+      "Status",
+      "Dates",
+      "Issues",
+      "Details",
+    ]) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
   });
 
   it("hides the decorative body and announces loading to assistive tech (REEF-281)", () => {

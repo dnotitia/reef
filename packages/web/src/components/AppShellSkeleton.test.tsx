@@ -23,5 +23,17 @@ describe("AppShellSkeleton", () => {
     expect(main).toHaveClass("min-w-0", "overflow-hidden");
     expect(board).toHaveClass("min-w-0", "overflow-x-auto");
     expect(board.closest('[aria-hidden="true"]')).not.toBeNull();
+    expect(screen.getByText("reef")).toBeInTheDocument();
+    for (const label of [
+      "New issue",
+      "Issues",
+      "My Work",
+      "Inbox",
+      "Planning",
+      "Reports",
+      "Settings",
+    ]) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
   });
 });

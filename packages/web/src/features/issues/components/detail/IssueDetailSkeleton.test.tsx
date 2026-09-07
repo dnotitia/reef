@@ -12,6 +12,18 @@ describe("IssueDetailSkeleton", () => {
   it("renders the mirrored detail skeleton", () => {
     render(<IssueDetailSkeleton />);
     expect(screen.getByTestId("issue-detail-skeleton")).toBeInTheDocument();
+    for (const label of [
+      "Title",
+      "Description",
+      "Details",
+      "People",
+      "Planning",
+      "Parent",
+      "Relationships",
+      "Activity",
+    ]) {
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+    }
   });
 
   it("phases every placeholder into one sweep with gap-free reading-order indices", () => {

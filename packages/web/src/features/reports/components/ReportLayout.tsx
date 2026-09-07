@@ -3,6 +3,11 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { PageHeader } from "@/features/ui/components/PageHeader";
+import {
+  useEnrichmentEmptyLabels,
+  useFieldNameLabels,
+} from "@/i18n/fieldLabels";
+import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 
@@ -91,20 +96,61 @@ export function ReportSection({
 // Stable React keys for the fixed-count placeholder groups (avoids index-as-key).
 const SCOPE_CONTROL_KEYS = Array.from({ length: 8 }, (_, i) => `scope-${i}`);
 const KPI_TILE_KEYS = Array.from({ length: 8 }, (_, i) => `kpi-${i}`);
-const BREAKDOWN_CARD_KEYS = Array.from(
-  { length: 6 },
-  (_, i) => `breakdown-${i}`,
-);
+const BREAKDOWN_CARD_KEYS = [
+  "workflow",
+  "deadlines",
+  "byType",
+  "topAssignees",
+  "topLabels",
+] as const;
+
+function LabeledSkeleton({
+  label,
+  className,
+}: {
+  label: string;
+  className: string;
+}) {
+  return (
+    <div className={cn("relative inline-flex min-w-0", className)}>
+      <Skeleton
+        aria-hidden="true"
+        tone="secondary"
+        className={cn("absolute inset-0", className)}
+      />
+      <span className="relative z-[1] min-w-0 truncate px-1 type-card-metadata text-muted-foreground">
+        {label}
+      </span>
+    </div>
+  );
+}
 
 /** Card placeholder matching {@link Card}'s frame (rounded border + p-4) with a
  *  header bar and a body block, so a report card hydrating in does not resize
  *  its slot. `bodyHeight` approximates the loaded chart/list height. */
-function ReportCardSkeleton({ bodyHeight }: { bodyHeight: string }) {
+function ReportCardSkeleton({
+  title,
+  bodyHeight,
+  bodyLabels = [],
+}: {
+  title: string;
+  bodyHeight: string;
+  bodyLabels?: readonly string[];
+}) {
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-border-subtle bg-surface-card p-4">
-      <Skeleton tone="secondary" className="h-4 w-24" />
-      <Skeleton className={`${bodyHeight} w-full`} />
-    </div>
+    <section className="flex flex-col gap-3 rounded-lg border border-border-subtle bg-surface-card p-4">
+      <h3 className="type-body font-semibold text-foreground">{title}</h3>
+      {bodyLabels.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2 type-card-metadata text-muted-foreground">
+          {bodyLabels.map((label) => (
+            <span key={label}>{label}</span>
+          ))}
+        </div>
+      ) : null}
+      <div aria-hidden="true">
+        <Skeleton className={`${bodyHeight} w-full`} />
+      </div>
+    </section>
   );
 }
 
@@ -121,9 +167,32 @@ function ReportCardSkeleton({ bodyHeight }: { bodyHeight: string }) {
  */
 export function ReportsSkeleton() {
   const t = useTranslations("reports.page");
+  const cards = useTranslations("reports.cards");
   const c = useTranslations("common");
+  const fieldNames = useFieldNameLabels();
+  const empty = useEnrichmentEmptyLabels();
+  const scopeLabels = [
+    t("period"),
+    t("scope"),
+    t("measure"),
+    fieldNames.sprint,
+    fieldNames.milestone,
+    fieldNames.release,
+    fieldNames.assignee,
+    fieldNames.labels,
+  ] as const;
+  const kpiLabels = [
+    t("atRisk"),
+    t("overdue"),
+    t("stale"),
+    t("blocked"),
+    t("active"),
+    t("inProgress"),
+    t("done"),
+    empty.unassigned,
+  ] as const;
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6" data-testid="reports-skeleton">
       {/* screen-reader loading announcement (REEF-281). The wrapping PageShell owns
           the page header; the section band headings below stay real headings,
           so the placeholder clusters take aria-hidden. */}
@@ -131,53 +200,68 @@ export function ReportsSkeleton() {
       {/* Scope bar — same auto-fit control grid as ReportScopeBar (8 controls). */}
       <div
         className="grid w-full grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-2 rounded-lg border border-border-subtle bg-surface-subtle p-2"
-        aria-hidden="true"
+        role="group"
+        aria-label={t("scope")}
+        aria-busy="true"
       >
-        {SCOPE_CONTROL_KEYS.map((key) => (
-          <Skeleton key={key} tone="secondary" className="h-8 w-full" />
+        {SCOPE_CONTROL_KEYS.map((key, index) => (
+          <LabeledSkeleton
+            key={key}
+            label={scopeLabels[index] ?? t("scope")}
+            className="h-8 w-full"
+          />
         ))}
       </div>
 
       <div className="flex flex-col gap-10">
         <ReportSection label={t("snapshot")}>
-          <div className="flex flex-col gap-4" aria-hidden="true">
+          <div className="flex flex-col gap-4">
             {/* KPI grid — lg:grid-cols-5 × 8 tiles (matches HealthSummary). */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-              {KPI_TILE_KEYS.map((key) => (
+              {KPI_TILE_KEYS.map((key, index) => (
                 <div
                   key={key}
                   className="flex min-h-[76px] flex-col justify-between gap-1 rounded-lg border border-border-subtle bg-surface-card p-3"
                 >
-                  <Skeleton tone="secondary" className="h-3 w-14" />
-                  <Skeleton className="h-6 w-10" />
+                  <LabeledSkeleton
+                    label={kpiLabels[index] ?? t("active")}
+                    className="h-3 w-20"
+                  />
+                  <Skeleton aria-hidden="true" className="h-6 w-10" />
                 </div>
               ))}
             </div>
-            {/* Per-item RAG rollup card. */}
-            <ReportCardSkeleton bodyHeight="h-28" />
           </div>
         </ReportSection>
 
         <ReportSection label={t("flowForecast")}>
-          <div className="flex flex-col gap-6" aria-hidden="true">
+          <div className="flex flex-col gap-6">
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <ReportCardSkeleton bodyHeight="h-40" />
-              <ReportCardSkeleton bodyHeight="h-40" />
+              <ReportCardSkeleton title={t("riskMap")} bodyHeight="h-40" />
+              <ReportCardSkeleton title={t("throughput")} bodyHeight="h-40" />
             </div>
-            <ReportCardSkeleton bodyHeight="h-64" />
+            <ReportCardSkeleton
+              title={cards("flowMetrics")}
+              bodyHeight="h-64"
+              bodyLabels={[cards("cycleTime"), cards("leadTime")]}
+            />
             {/* Forecast + custom pivot, both full width. */}
-            <ReportCardSkeleton bodyHeight="h-32" />
-            <ReportCardSkeleton bodyHeight="h-32" />
+            <ReportCardSkeleton
+              title={cards("deliveryForecast")}
+              bodyHeight="h-32"
+            />
+            <ReportCardSkeleton
+              title={cards("pivot")}
+              bodyHeight="h-32"
+              bodyLabels={[cards("rows"), cards("columns")]}
+            />
           </div>
         </ReportSection>
 
         <ReportSection label={t("breakdown")}>
-          <div
-            className="grid grid-cols-1 gap-6 lg:grid-cols-2"
-            aria-hidden="true"
-          >
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             {BREAKDOWN_CARD_KEYS.map((key) => (
-              <ReportCardSkeleton key={key} bodyHeight="h-28" />
+              <ReportCardSkeleton key={key} title={t(key)} bodyHeight="h-28" />
             ))}
           </div>
         </ReportSection>

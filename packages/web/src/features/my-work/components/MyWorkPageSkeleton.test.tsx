@@ -12,6 +12,16 @@ describe("MyWorkPageSkeleton", () => {
       screen.getByRole("heading", { name: "My Work" }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("my-work-skeleton")).toBeInTheDocument();
+    for (const label of [
+      "In progress",
+      "Due soon",
+      "Overdue",
+      "Open work by stage",
+      "What to do next",
+      "By priority · By status",
+    ]) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
   });
 
   it("exposes the body skeleton on its own for the page's in-flight branches", () => {

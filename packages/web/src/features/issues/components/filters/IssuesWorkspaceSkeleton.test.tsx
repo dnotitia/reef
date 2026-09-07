@@ -11,6 +11,15 @@ describe("IssuesWorkspaceSkeleton", () => {
     // the board".
     expect(screen.getByTestId("issues-skeleton")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Issues" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: "Issue scope" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: "Issue view" }),
+    ).toBeInTheDocument();
+    for (const label of ["Status", "Type", "Priority", "Assignee", "Labels"]) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
     expect(screen.getByTestId("issues-skeleton")).toHaveClass("min-w-0");
     expect(screen.getByTestId("board-columns-skeleton")).toHaveClass(
       "min-w-0",
