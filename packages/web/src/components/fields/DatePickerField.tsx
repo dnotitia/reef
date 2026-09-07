@@ -46,9 +46,12 @@ interface DatePickerFieldProps {
   /** Horizontal anchoring of the panel; "end" opens leftward. */
   align?: "start" | "end" | "center";
   className?: string;
+  /** Optional classes for the trigger without changing the wrapper layout. */
+  triggerClassName?: string;
   /** Optional accessibility association for an adjacent validation message. */
   ariaDescribedBy?: string;
   ariaInvalid?: boolean;
+  ariaRequired?: boolean;
 }
 
 /**
@@ -70,8 +73,10 @@ export function DatePickerField({
   clearable = true,
   align = "start",
   className,
+  triggerClassName,
   ariaDescribedBy,
   ariaInvalid,
+  ariaRequired,
 }: DatePickerFieldProps) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
@@ -248,11 +253,12 @@ export function DatePickerField({
           aria-haspopup="dialog"
           aria-describedby={ariaDescribedBy}
           aria-invalid={ariaInvalid || undefined}
+          aria-required={ariaRequired || undefined}
           aria-label={
             normalized ? `${resolvedLabel}: ${displayValue}` : resolvedLabel
           }
           data-testid="date-picker-trigger"
-          className={cn(CBX_TRIGGER_FIELD, "pl-2.5 pr-8")}
+          className={cn(CBX_TRIGGER_FIELD, triggerClassName, "pl-2.5 pr-8")}
         >
           <CalendarIcon
             className="h-3.5 w-3.5 shrink-0 text-muted-foreground"

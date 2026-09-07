@@ -169,4 +169,19 @@ describe("overlay dismiss inside a Dialog (REEF-288)", () => {
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
   });
+
+  it("expands the shared close affordance for coarse pointers", () => {
+    render(
+      <Dialog open>
+        <DialogContent>
+          <DialogTitle>Close target</DialogTitle>
+        </DialogContent>
+      </Dialog>,
+    );
+
+    expect(screen.getByRole("button", { name: "Close" })).toHaveClass(
+      "[@media(pointer:coarse)]:min-h-11",
+      "[@media(pointer:coarse)]:min-w-11",
+    );
+  });
 });

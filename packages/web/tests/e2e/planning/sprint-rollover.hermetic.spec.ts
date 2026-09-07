@@ -55,7 +55,19 @@ test.describe("Hermetic sprint rollover workflow", () => {
       .getByTestId("sprint-rollover-existing-target")
       .selectOption(target?.id ?? "");
     await dialog.getByTestId("sprint-rollover-submit").click();
-    await expect(dialog.getByTestId("sprint-rollover-result")).toBeVisible();
+    await expect(dialog.getByTestId("sprint-rollover-complete")).toBeVisible();
+    await expect(
+      dialog.getByTestId("sprint-rollover-completed-count"),
+    ).toHaveText("2 issues rolled over");
+    await expect(
+      dialog.getByTestId("sprint-rollover-completed-route"),
+    ).toContainText("Sprint 14 - Rollover fixture");
+    await expect(
+      dialog.getByTestId("sprint-rollover-completed-route"),
+    ).toContainText("Sprint 15 - Rollover fixture");
+    await expect(dialog.getByText("Confirmed close date")).toBeVisible();
+    await expect(dialog.getByText("2026-06-14")).toBeVisible();
+    await expect(dialog.getByTestId("sprint-rollover-result")).toHaveCount(0);
     await expect(dialog.getByTestId("sprint-rollover-target-link")).toHaveText(
       "Sprint 15 - Rollover fixture",
     );
@@ -120,7 +132,11 @@ test.describe("Hermetic sprint rollover workflow", () => {
       .getByTestId("sprint-rollover-target-name")
       .fill("Fresh Sprint");
     await dialog.getByTestId("sprint-rollover-submit").click();
-    await expect(dialog.getByTestId("sprint-rollover-result")).toBeVisible();
+    await expect(dialog.getByTestId("sprint-rollover-complete")).toBeVisible();
+    await expect(
+      dialog.getByTestId("sprint-rollover-completed-count"),
+    ).toHaveText("0 issues rolled over");
+    await expect(dialog.getByTestId("sprint-rollover-result")).toHaveCount(0);
     await dialog.getByTestId("sprint-rollover-close").click();
     await expect(dialog).toBeHidden();
 
@@ -161,7 +177,8 @@ test.describe("Hermetic sprint rollover workflow", () => {
       .getByTestId("sprint-rollover-existing-target")
       .selectOption(target?.id ?? "");
     await dialog.getByTestId("sprint-rollover-submit").click();
-    await expect(dialog.getByTestId("sprint-rollover-result")).toBeVisible();
+    await expect(dialog.getByTestId("sprint-rollover-complete")).toBeVisible();
+    await expect(dialog.getByTestId("sprint-rollover-result")).toHaveCount(0);
     await dialog.getByTestId("sprint-rollover-close").click();
     await expect(dialog).toBeHidden();
     await expect
@@ -229,6 +246,50 @@ test.describe("Hermetic sprint rollover workflow", () => {
         (event) => event.event_type === "planning_link",
       ),
     ).toHaveLength(2);
+  });
+
+  test("retries a newly created target after a partial issue failure", async ({
+    page,
+    request,
+  }) => {
+    await setIssueUpdateControl(request, [
+      { issueId: "REEF-002", failures: 1 },
+    ]);
+    await openPlanning(page);
+    await page
+      .getByRole("button", {
+        name: "Close Sprint 14 - Rollover fixture and roll over",
+      })
+      .click();
+    const dialog = page.getByTestId("sprint-rollover-dialog");
+    await dialog
+      .getByTestId("sprint-rollover-target-name")
+      .fill("Fresh Sprint");
+    await dialog.getByTestId("sprint-rollover-submit").click();
+    await expect(dialog.getByTestId("sprint-rollover-result")).toBeVisible();
+    await expect(
+      dialog.getByTestId("sprint-rollover-target-name"),
+    ).toBeDisabled();
+
+    const partial = await readFixtureState(request);
+    const partialVault = partial.vaults.find(
+      (item) => item.name === REEF_E2E_VAULT,
+    );
+    const target = partialVault?.sprints.find(
+      (item) => item.name === "Fresh Sprint",
+    );
+    expect(target?.status).toBe("active");
+
+    await dialog.getByRole("button", { name: "Retry rollover" }).click();
+    await expect(dialog.getByTestId("sprint-rollover-complete")).toBeVisible();
+    await expect(dialog.getByTestId("sprint-rollover-result")).toHaveCount(0);
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        const vault = state.vaults.find((item) => item.name === REEF_E2E_VAULT);
+        return vault?.issues.find((item) => item.id === "REEF-002")?.sprint_id;
+      })
+      .toBe(target?.id);
   });
 
   test("dismisses an overdue nudge and shows it again on re-entry", async ({

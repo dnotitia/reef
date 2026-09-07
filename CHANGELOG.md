@@ -28,6 +28,10 @@ explicitly in the entries below.
 - **Sprint rollover validation and conflicts now use localized guidance.**
   Invalid dates name the required correction, and an already-active sprint is
   identified by name instead of only showing a generic save conflict.
+- **Sprint rollover completion and validation states are clearer on every screen
+  size.** Completed runs replace the edit form with a read-only handoff summary,
+  field errors stay beside their inputs, and touch-sized controls preserve the
+  compact desktop layout.
 
 ### Migration
 

@@ -23,13 +23,25 @@ vi.mock("@/components/fields/DatePickerField", () => ({
     label,
     value,
     onChange,
+    id,
+    ariaDescribedBy,
+    ariaInvalid,
+    ariaRequired,
   }: {
     label: string;
     value: string;
     onChange: (value: string) => void;
+    id?: string;
+    ariaDescribedBy?: string;
+    ariaInvalid?: boolean;
+    ariaRequired?: boolean;
   }) => (
     <input
+      id={id}
       aria-label={label}
+      aria-describedby={ariaDescribedBy}
+      aria-invalid={ariaInvalid || undefined}
+      aria-required={ariaRequired || undefined}
       value={value}
       onChange={(event) => onChange(event.target.value)}
     />
@@ -115,23 +127,31 @@ function wrap(ui: ReactNode, locale: "en" | "ko" = "en") {
   );
 }
 
-function renderDialog(onOpenChange = vi.fn(), locale: "en" | "ko" = "en") {
-  return render(
-    wrap(
-      <SprintRolloverDialog
-        open
-        onOpenChange={onOpenChange}
-        vault="reef-acme"
-        source={SOURCE}
-        catalog={CATALOG}
-        issues={ISSUES}
-        issueState="available"
-        now={Date.parse("2026-09-07T00:00:00Z")}
-        canEdit
-      />,
-      locale,
-    ),
+function dialogElement(
+  onOpenChange = vi.fn(),
+  source: PlanningCatalog["sprints"][number] | null = SOURCE,
+) {
+  return (
+    <SprintRolloverDialog
+      open
+      onOpenChange={onOpenChange}
+      vault="reef-acme"
+      source={source}
+      catalog={CATALOG}
+      issues={ISSUES}
+      issueState="available"
+      now={Date.parse("2026-09-07T00:00:00Z")}
+      canEdit
+    />
   );
+}
+
+function renderDialog(
+  onOpenChange = vi.fn(),
+  locale: "en" | "ko" = "en",
+  source: PlanningCatalog["sprints"][number] | null = SOURCE,
+) {
+  return render(wrap(dialogElement(onOpenChange, source), locale));
 }
 
 beforeEach(() => {
@@ -156,6 +176,12 @@ describe("SprintRolloverDialog", () => {
     expect(screen.getByTestId("sprint-rollover-target-name")).toHaveValue(
       "Sprint 15",
     );
+    expect(screen.getByTestId("sprint-rollover-target-name")).toHaveClass(
+      "[@media(pointer:coarse)]:min-h-11",
+    );
+    expect(screen.getByText("Current sprint end")).toBeVisible();
+    expect(screen.getByText("Next sprint start")).toBeVisible();
+    expect(screen.getByText("Next sprint end")).toBeVisible();
     expect(screen.getByLabelText("New sprint start")).toHaveValue("2026-09-12");
     expect(screen.getByLabelText("New sprint end")).toHaveValue("2026-09-19");
   });
@@ -189,9 +215,14 @@ describe("SprintRolloverDialog", () => {
     await user.click(screen.getByTestId("sprint-rollover-submit"));
 
     expect(mutateAsync).not.toHaveBeenCalled();
-    expect(screen.getByTestId("sprint-rollover-error")).toHaveTextContent(
-      "Target end date must be on or after target start date.",
-    );
+    const targetEnd = screen.getByLabelText("New sprint end");
+    expect(targetEnd).toHaveAttribute("aria-invalid", "true");
+    expect(targetEnd).toHaveAttribute("aria-describedby");
+    expect(
+      screen.getByText(
+        "Target end date must be on or after target start date.",
+      ),
+    ).toBeVisible();
   });
 
   it.each([
@@ -211,12 +242,11 @@ describe("SprintRolloverDialog", () => {
       await user.type(screen.getByLabelText(label), "2026-09-01");
       await user.click(screen.getByTestId("sprint-rollover-submit"));
 
-      expect(screen.getByTestId("sprint-rollover-error")).toHaveTextContent(
-        expected,
-      );
-      expect(screen.getByTestId("sprint-rollover-error")).not.toHaveTextContent(
-        "planning.rollover.sourceEndRequired",
-      );
+      const field = screen.getByLabelText(label);
+      expect(field).toHaveAttribute("aria-invalid", "true");
+      expect(field).toHaveAttribute("aria-describedby");
+      expect(screen.getByText(expected)).toBeVisible();
+      expect(screen.queryByTestId("sprint-rollover-error")).toBeNull();
     },
   );
 
@@ -241,11 +271,27 @@ describe("SprintRolloverDialog", () => {
       await user.clear(screen.getByLabelText(label));
       await user.click(screen.getByTestId("sprint-rollover-submit"));
 
-      expect(screen.getByTestId("sprint-rollover-error")).toHaveTextContent(
-        expected,
-      );
+      const field = screen.getByLabelText(label);
+      expect(field).toHaveAttribute("aria-invalid", "true");
+      expect(field).toHaveAttribute("aria-describedby");
+      expect(screen.getByText(expected)).toBeVisible();
+      expect(screen.queryByTestId("sprint-rollover-error")).toBeNull();
     },
   );
+
+  it("shows a field-local name error without a common error box", async () => {
+    const user = userEvent.setup();
+    renderDialog();
+
+    const name = screen.getByTestId("sprint-rollover-target-name");
+    await user.clear(name);
+    await user.click(screen.getByTestId("sprint-rollover-submit"));
+
+    expect(name).toHaveAttribute("aria-invalid", "true");
+    expect(name).toHaveAttribute("aria-describedby");
+    expect(screen.getByText("New sprint name is required.")).toBeVisible();
+    expect(screen.queryByTestId("sprint-rollover-error")).toBeNull();
+  });
 
   it("surfaces the named active-sprint conflict from the route", async () => {
     const mutateAsync = vi
@@ -266,9 +312,9 @@ describe("SprintRolloverDialog", () => {
     );
     await user.click(screen.getByTestId("sprint-rollover-submit"));
 
-    expect(
-      await screen.findByTestId("sprint-rollover-error"),
-    ).toHaveTextContent("Rollover Target A");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Rollover Target A",
+    );
   });
 
   it("submits an explicitly selected existing target and closes after completion", async () => {
@@ -290,7 +336,21 @@ describe("SprintRolloverDialog", () => {
       endDate: "2026-09-11",
       target: { kind: "existing", id: TARGET_ID },
     });
-    expect(screen.getByTestId("sprint-rollover-result")).toBeVisible();
+    expect(screen.getByTestId("sprint-rollover-complete")).toBeVisible();
+    expect(screen.queryByText("Before you confirm")).toBeNull();
+    expect(screen.queryByTestId("sprint-rollover-target-name")).toBeNull();
+    expect(screen.queryByTestId("sprint-rollover-result")).toBeNull();
+    expect(
+      screen.getByTestId("sprint-rollover-completed-count"),
+    ).toHaveTextContent("1 issue rolled over");
+    expect(
+      screen.getByTestId("sprint-rollover-completed-route"),
+    ).toHaveTextContent("Sprint 14");
+    expect(
+      screen.getByTestId("sprint-rollover-completed-route"),
+    ).toHaveTextContent("Sprint 15");
+    expect(screen.getByText("Confirmed close date")).toBeVisible();
+    expect(screen.getByText("2026-09-11")).toBeVisible();
     expect(screen.getByTestId("sprint-rollover-target-link")).toHaveTextContent(
       "Sprint 15",
     );
@@ -330,6 +390,53 @@ describe("SprintRolloverDialog", () => {
     const user = userEvent.setup();
     renderDialog();
 
+    await user.click(
+      screen.getByRole("button", { name: "Use an existing planned sprint" }),
+    );
+    await user.selectOptions(
+      screen.getByTestId("sprint-rollover-existing-target"),
+      TARGET_ID,
+    );
+    await user.click(screen.getByTestId("sprint-rollover-submit"));
+    expect(screen.getByTestId("sprint-rollover-result")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
+    expect(screen.queryByTestId("sprint-rollover-target-link")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Retry rollover" }));
+    expect(await screen.findByTestId("sprint-rollover-complete")).toBeVisible();
+    expect(screen.queryByTestId("sprint-rollover-result")).toBeNull();
+    expect(mutateAsync).toHaveBeenNthCalledWith(2, {
+      sourceSprintId: SOURCE_ID,
+      endDate: "2026-09-11",
+      target: { kind: "existing", id: TARGET_ID },
+    });
+  });
+
+  it("retries a newly created target with its original new-target payload", async () => {
+    const partial = result({
+      status: "partial",
+      target_sprint: { ...TARGET, name: "Unique Sprint" },
+      counts: {
+        eligible: 1,
+        done: 0,
+        closed: 0,
+        backlog: 0,
+        archived: 0,
+        moved: 0,
+        skipped: 0,
+        failed: 1,
+        conflicts: 0,
+      },
+      retryable: true,
+    });
+    const mutateAsync = vi
+      .fn()
+      .mockResolvedValueOnce(partial)
+      .mockResolvedValueOnce(result());
+    mutationRef.current = { mutateAsync, isPending: false };
+    const user = userEvent.setup();
+    renderDialog();
+
     await user.clear(screen.getByTestId("sprint-rollover-target-name"));
     await user.type(
       screen.getByTestId("sprint-rollover-target-name"),
@@ -337,11 +444,34 @@ describe("SprintRolloverDialog", () => {
     );
     await user.click(screen.getByTestId("sprint-rollover-submit"));
     expect(screen.getByTestId("sprint-rollover-result")).toBeVisible();
+    expect(screen.getByTestId("sprint-rollover-target-name")).toBeDisabled();
+
     await user.click(screen.getByRole("button", { name: "Retry rollover" }));
     expect(mutateAsync).toHaveBeenNthCalledWith(2, {
       sourceSprintId: SOURCE_ID,
       endDate: "2026-09-11",
-      target: { kind: "existing", id: TARGET_ID },
+      target: {
+        kind: "new",
+        item: {
+          name: "Unique Sprint",
+          status: "planned",
+          start_date: "2026-09-12",
+          end_date: "2026-09-19",
+          goal: "",
+          capacity_points: null,
+        },
+      },
     });
+  });
+
+  it("keeps the captured source when the parent loses its active-sprint selection", () => {
+    const rendered = renderDialog();
+
+    rendered.rerender(wrap(dialogElement(vi.fn(), null)));
+
+    expect(screen.getByTestId("sprint-rollover-dialog")).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "Close Sprint 14 & roll over" }),
+    ).toBeVisible();
   });
 });
