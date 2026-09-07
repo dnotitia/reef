@@ -126,6 +126,19 @@ async function expectEditorChromeInViewport(page: Page, title: string) {
 async function expectEditorBodyToOwnScroll(page: Page) {
   const dialog = page.locator('[data-testid="planning-editor-dialog"]');
   const body = dialog.getByTestId("planning-editor-dialog-body");
+  await expect(body).toBeVisible();
+  await expect
+    .poll(() =>
+      body.evaluate((element) => {
+        const maxScroll = element.scrollHeight - element.clientHeight;
+        if (maxScroll < 1) return false;
+        element.scrollTop = 1;
+        const moved = element.scrollTop >= 1;
+        element.scrollTop = 0;
+        return moved;
+      }),
+    )
+    .toBe(true);
   const initial = await readEditorGeometry(page);
   expect(initial.body.scrollHeight).toBeGreaterThan(initial.body.clientHeight);
 

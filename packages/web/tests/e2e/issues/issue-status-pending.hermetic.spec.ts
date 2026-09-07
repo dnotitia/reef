@@ -3,8 +3,11 @@ import {
   REEF_E2E_VAULT,
   openExistingWorkspace,
   readFixtureState,
+  releaseIssueUpdate,
   resetFixture,
   setIssueUpdateControl,
+  waitForIssueListIdle,
+  waitForIssueUpdatePending,
 } from "../harness/fixture";
 import { expectCursorAtPointer } from "../harness/cursor";
 
@@ -338,8 +341,8 @@ test.describe("Hermetic issue quick-edit save state", () => {
     request,
   }) => {
     await setIssueUpdateControl(request, [
-      { issueId: "REEF-001", delayMs: 600, failures: 1 },
-      { issueId: "REEF-002", delayMs: 150 },
+      { issueId: "REEF-001", failures: 1, hold: true },
+      { issueId: "REEF-002" },
     ]);
     await openExistingWorkspace(page);
     await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
@@ -348,6 +351,7 @@ test.describe("Hermetic issue quick-edit save state", () => {
     const second = issueRow(page, "REEF-002");
     await expect(first).toBeVisible();
     await expect(second).toBeVisible();
+    await waitForIssueListIdle(request);
     let firstPatchCount = 0;
     page.on("request", (requestEvent) => {
       if (
@@ -358,20 +362,37 @@ test.describe("Hermetic issue quick-edit save state", () => {
       }
     });
 
-    await chooseStatus(page, "REEF-001", "In Progress");
-    await chooseStatus(page, "REEF-002", "Done");
-
     const firstTrigger = first.getByTestId("issue-inline-edit-status");
     const secondTrigger = second.getByTestId("issue-inline-edit-status");
+
+    await chooseStatus(page, "REEF-001", "In Progress");
     await expect(firstTrigger).toHaveAttribute("aria-busy", "true");
-    await expect(secondTrigger).toHaveAttribute("aria-busy", "true");
     await expect(firstTrigger).toContainText("In Progress");
-    await expect(secondTrigger).toContainText("Done");
+
+    await waitForIssueUpdatePending(request, "REEF-001");
+    await chooseStatus(page, "REEF-002", "Done");
+    await expect
+      .poll(
+        async () =>
+          (await readFixtureState(request)).issue_update_calls[
+            `${REEF_E2E_VAULT}:REEF-002`
+          ] ?? 0,
+      )
+      .toBe(1);
 
     await expect(secondTrigger).not.toHaveAttribute("aria-busy");
-    await expect(firstTrigger).toHaveAttribute("aria-busy", "true");
+    await expect(secondTrigger).toContainText("Done");
     expect((await fixtureIssue(request, "REEF-002")).status).toBe("done");
 
+    await releaseIssueUpdate(request, "REEF-001");
+    await expect
+      .poll(
+        async () =>
+          (await readFixtureState(request)).issue_update_pending[
+            `${REEF_E2E_VAULT}:REEF-001`
+          ] ?? 0,
+      )
+      .toBe(0);
     await expect(firstTrigger).not.toHaveAttribute("aria-busy");
     await expect(firstTrigger).toContainText("Todo");
     await expect(firstTrigger).toHaveAccessibleName("Status");
@@ -384,10 +405,21 @@ test.describe("Hermetic issue quick-edit save state", () => {
 
     const retry = page.getByRole("button", { name: "Retry", exact: true });
     await expect(retry).toBeVisible();
+    await setIssueUpdateControl(request, [{ issueId: "REEF-001", hold: true }]);
     await retry.click();
+    await waitForIssueUpdatePending(request, "REEF-001");
     await expect(firstTrigger).toHaveAttribute("aria-busy", "true");
     await expect(firstTrigger).toContainText("In Progress");
     await expect.poll(() => firstPatchCount).toBe(2);
+    await releaseIssueUpdate(request, "REEF-001");
+    await expect
+      .poll(
+        async () =>
+          (await readFixtureState(request)).issue_update_pending[
+            `${REEF_E2E_VAULT}:REEF-001`
+          ] ?? 0,
+      )
+      .toBe(0);
     await expect(firstTrigger).not.toHaveAttribute("aria-busy");
     await expect(firstTrigger).toContainText("In Progress");
     expect((await fixtureIssue(request, "REEF-001")).status).toBe(
