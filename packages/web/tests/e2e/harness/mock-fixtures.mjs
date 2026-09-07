@@ -290,6 +290,28 @@ function seedReferenceDocument(
   });
 }
 
+function seedOutdatedVaultSkill(vault) {
+  vault.settings.set("vault_skill", {
+    version: 9,
+    synced_at: "2026-06-01T00:00:00.000Z",
+  });
+  const path = "overview/vault-skill.md";
+  vault.documents.set(path, {
+    uri: docUri(vault.name, path),
+    vault: vault.name,
+    path,
+    title: `${vault.name} Reef PM Workspace Skill`,
+    type: "skill",
+    status: "active",
+    summary: "Outdated manually edited skill.",
+    content: "OUTDATED MANUAL SKILL CONTENT",
+    tags: ["akb:skill", "reef:pm-workspace"],
+    created_at: NOW,
+    updated_at: NOW,
+    current_commit: "e2e-seed-outdated-vault-skill",
+  });
+}
+
 function markdownFixtureVault(name) {
   const vault = configuredVault(name);
   const issue = vault.issues[0];
