@@ -383,6 +383,77 @@ test.describe("Hermetic runtime discovery", () => {
     ).toHaveCount(1);
   });
 
+  test("distinguishes unsupported SQL from supported empty and mutation results", async ({
+    request,
+  }) => {
+    await resetFixture(request, "configured_empty");
+    const loginResponse = await request.post(
+      `${E2E_MOCK_URL}/akb/api/v1/auth/login`,
+      { data: fixtureLogin },
+    );
+    expect(loginResponse.ok()).toBeTruthy();
+    const { token } = await loginResponse.json();
+    const headers = { Authorization: `Bearer ${token}` };
+
+    const unsupportedResponse = await request.post(
+      `${E2E_MOCK_URL}/akb/api/v1/tables/reef-e2e/sql`,
+      {
+        data: { sql: "SELECT 1" },
+        headers,
+      },
+    );
+    expect(unsupportedResponse.status()).toBe(400);
+    expect(await unsupportedResponse.json()).toMatchObject({
+      error: "unsupported_sql",
+    });
+
+    const emptyResponse = await request.post(
+      `${E2E_MOCK_URL}/akb/api/v1/tables/reef-e2e/sql`,
+      {
+        data: {
+          sql: "SELECT * FROM reef_issues WHERE \"reef_id\" = 'REEF-999'",
+        },
+        headers,
+      },
+    );
+    expect(emptyResponse.status()).toBe(200);
+    expect(await emptyResponse.json()).toMatchObject({
+      kind: "table_query",
+      total: 0,
+      items: [],
+    });
+
+    await resetFixture(request, "configured");
+    const updateResponse = await request.post(
+      `${E2E_MOCK_URL}/akb/api/v1/tables/reef-e2e/sql`,
+      {
+        data: {
+          sql: "UPDATE reef_issues SET \"status\" = 'done' WHERE \"reef_id\" = 'REEF-001'",
+        },
+        headers,
+      },
+    );
+    expect(updateResponse.status()).toBe(200);
+    expect(await updateResponse.json()).toMatchObject({
+      kind: "table_sql",
+    });
+
+    const updatedIssueResponse = await request.post(
+      `${E2E_MOCK_URL}/akb/api/v1/tables/reef-e2e/sql`,
+      {
+        data: {
+          sql: "SELECT * FROM reef_issues WHERE \"reef_id\" = 'REEF-001'",
+        },
+        headers,
+      },
+    );
+    expect(updatedIssueResponse.status()).toBe(200);
+    expect(await updatedIssueResponse.json()).toMatchObject({
+      kind: "table_query",
+      items: [{ reef_id: "REEF-001", status: "done" }],
+    });
+  });
+
   test("publishes runtime controls and resets My View fixtures idempotently", async ({
     request,
   }) => {

@@ -1,0 +1,1654 @@
+import { ISSUE_TITLE_COLLATOR, NOW } from "./mock-fixtures.mjs";
+import { issueUpdateKey, nextEditTimestamp } from "./mock-state.mjs";
+import { uuidFor } from "./mock-utils.mjs";
+
+let activitySeq = 5000;
+
+export function handleSql(state, vault, sql) {
+  const normalized = sql;
+  const lower = normalized.toLowerCase();
+
+  for (const table of tableNamesInSql(lower)) {
+    if (!vault.tables.has(table)) {
+      return { error: `relation "${table}" does not exist` };
+    }
+  }
+
+  if (!vault.comments) vault.comments = [];
+  if (!vault.attachments) vault.attachments = [];
+  if (!vault.activity) vault.activity = [];
+  if (!vault.notifications) vault.notifications = [];
+  if (!vault.subscriptions) vault.subscriptions = [];
+
+  if (lower.startsWith("select key, value from reef_settings")) {
+    return tableQuery(["key", "value"], settingsRows(vault, normalized));
+  }
+  if (lower.startsWith("select value from reef_settings")) {
+    return tableQuery(
+      ["value"],
+      settingsRows(vault, normalized).map(({ value }) => ({ value })),
+    );
+  }
+  if (lower.startsWith("delete from reef_settings")) {
+    const key = firstSqlString(normalized);
+    if (key) vault.settings.delete(key);
+    return tableSql();
+  }
+  if (lower.startsWith("insert into reef_settings")) {
+    const insert = parseInsert(normalized);
+    if (insert) {
+      const row = objectFromColumns(insert.columns, insert.values);
+      if (typeof row.key === "string") vault.settings.set(row.key, row.value);
+    }
+    return tableSql();
+  }
+
+  if (
+    lower.startsWith(
+      "select github_id, owner, name, description from monitored_repos",
+    )
+  ) {
+    return tableQuery(
+      ["github_id", "owner", "name", "description"],
+      vault.monitoredRepos,
+    );
+  }
+  if (lower.startsWith("delete from monitored_repos")) {
+    vault.monitoredRepos = [];
+    return tableSql();
+  }
+  if (lower.startsWith("insert into monitored_repos")) {
+    const insert = parseInsert(normalized);
+    if (insert) {
+      for (const values of insert.valueRows) {
+        const row = objectFromColumns(insert.columns, values);
+        vault.monitoredRepos.push({
+          github_id: Number(row.github_id),
+          owner: String(row.owner),
+          name: String(row.name),
+          description:
+            row.description == null ? undefined : String(row.description),
+        });
+      }
+    }
+    return tableSql();
+  }
+
+  if (
+    lower.startsWith(
+      'select "reef_id", "status", "depends_on", "issue_type", "parent_id", "title", "rank" from reef_issues',
+    )
+  ) {
+    return tableQuery(
+      [
+        "reef_id",
+        "status",
+        "depends_on",
+        "issue_type",
+        "parent_id",
+        "title",
+        "rank",
+      ],
+      vault.issues.map((row) => ({
+        reef_id: row.reef_id,
+        status: row.status,
+        depends_on: row.depends_on,
+        issue_type: row.issue_type,
+        parent_id: row.parent_id,
+        title: row.title,
+        rank: row.rank,
+      })),
+    );
+  }
+
+  if (lower.startsWith("select * from reef_subscriptions")) {
+    let subscriptions = [...vault.subscriptions];
+    const reefId = matchSqlString(normalized, /reef_id\s*=\s*'([^']+)'/i);
+    const subscriber = matchSqlString(
+      normalized,
+      /subscriber\s*=\s*'([^']+)'/i,
+    );
+    const status = matchSqlString(normalized, /status\s*=\s*'([^']+)'/i);
+    if (reefId) {
+      subscriptions = subscriptions.filter(
+        (subscription) => subscription.reef_id === reefId,
+      );
+    }
+    if (subscriber) {
+      subscriptions = subscriptions.filter(
+        (subscription) => subscription.subscriber === subscriber,
+      );
+    }
+    if (status) {
+      subscriptions = subscriptions.filter(
+        (subscription) => subscription.status === status,
+      );
+    }
+    subscriptions.sort(
+      (a, b) =>
+        a.subscriber.localeCompare(b.subscriber) ||
+        a.source.localeCompare(b.source) ||
+        a.id.localeCompare(b.id),
+    );
+    return tableQuery(
+      [
+        "id",
+        "subscription_key",
+        "reef_id",
+        "subscriber",
+        "source",
+        "status",
+        "subscribed_at",
+        "meta",
+      ],
+      subscriptions,
+    );
+  }
+
+  if (lower.includes("insert into reef_subscriptions")) {
+    const insert = parseInsert(normalized);
+    if (!insert) return { error: "invalid subscription upsert" };
+    const inserted = objectFromColumns(insert.columns, insert.values);
+    const existing = vault.subscriptions.find(
+      (subscription) =>
+        subscription.subscription_key === inserted.subscription_key,
+    );
+    if (existing) {
+      existing.status = inserted.status;
+      return tableQuery(Object.keys(existing), [existing]);
+    }
+    const subscription = {
+      id: uuidFor(6000 + vault.subscriptions.length),
+      subscription_key: inserted.subscription_key,
+      reef_id: inserted.reef_id,
+      subscriber: inserted.subscriber,
+      source: inserted.source,
+      status: inserted.status,
+      subscribed_at: inserted.subscribed_at,
+      meta: inserted.meta,
+    };
+    vault.subscriptions.push(subscription);
+    return tableQuery(Object.keys(subscription), [subscription]);
+  }
+
+  if (lower.startsWith("select * from reef_notifications")) {
+    const recipient = matchSqlString(normalized, /recipient\s*=\s*'([^']+)'/i);
+    const status = matchSqlString(normalized, /state\s*=\s*'([^']+)'/i);
+    const rows = vault.notifications
+      .filter(
+        (notification) =>
+          (!recipient || notification.recipient === recipient) &&
+          (!status || notification.state === status),
+      )
+      .sort(
+        (left, right) =>
+          String(right.occurred_at).localeCompare(String(left.occurred_at)) ||
+          String(right.id).localeCompare(String(left.id)),
+      );
+    return tableQuery(notificationColumns(), applyLimit(rows, normalized));
+  }
+
+  if (lower.startsWith("with updated as (update reef_notifications")) {
+    const notificationKeyValue = matchSqlString(
+      normalized,
+      /notification_key\s*=\s*'([^']+)'/i,
+    );
+    const recipient = matchSqlString(normalized, /recipient\s*=\s*'([^']+)'/i);
+    const status = matchSqlString(normalized, /set state\s*=\s*'([^']+)'/i);
+    const changedAt = matchSqlString(normalized, /COALESCE\('([^']+)'/i);
+    const row = vault.notifications.find(
+      (notification) =>
+        notification.notification_key === notificationKeyValue &&
+        notification.recipient === recipient,
+    );
+    if (!row || !status) return tableQuery(notificationColumns(), []);
+    if (status === "unread") {
+      row.state = "unread";
+      row.read_at = null;
+      row.archived_at = null;
+    } else if (status === "read") {
+      row.state = "read";
+      row.read_at = row.read_at ?? changedAt ?? NOW;
+      row.archived_at = null;
+    } else if (status === "archived") {
+      row.state = "archived";
+      row.read_at = row.read_at ?? changedAt ?? NOW;
+      row.archived_at = row.archived_at ?? changedAt ?? NOW;
+    } else {
+      return tableQuery(notificationColumns(), []);
+    }
+    return tableQuery(notificationColumns(), [row]);
+  }
+
+  if (lower.includes("insert into reef_notifications")) {
+    const insert = parseInsert(normalized);
+    if (!insert) return tableQuery(notificationColumns(), []);
+    const candidate = objectFromColumns(insert.columns, insert.values);
+    const existing = vault.notifications.find(
+      (notification) =>
+        notification.notification_key === candidate.notification_key,
+    );
+    if (existing) return tableQuery(notificationColumns(), [existing]);
+    const row = {
+      ...candidate,
+      id: uuidFor(7200 + vault.notifications.length),
+      read_at: candidate.read_at ?? null,
+      archived_at: candidate.archived_at ?? null,
+      payload: candidate.payload ?? null,
+      meta: candidate.meta ?? null,
+    };
+    vault.notifications.push(row);
+    return tableQuery(notificationColumns(), [row]);
+  }
+
+  if (
+    lower.startsWith("with recursive") &&
+    lower.includes("delete from reef_comments") &&
+    lower.includes("delete from reef_notifications")
+  ) {
+    const targetMatch = normalized.match(
+      /where id\s*=\s*'((?:''|[^'])+)'\s+and reef_id\s*=\s*'((?:''|[^'])+)'\s+and meta->>'author'\s*=\s*'((?:''|[^'])+)'/i,
+    );
+    if (!targetMatch) return tableQuery(["id"], []);
+    const commentId = targetMatch[1].replace(/''/g, "'");
+    const reefId = targetMatch[2].replace(/''/g, "'");
+    const actor = targetMatch[3].replace(/''/g, "'");
+    const target = vault.comments.find(
+      (comment) =>
+        comment.id === commentId &&
+        comment.reef_id === reefId &&
+        comment.meta?.author === actor,
+    );
+    if (!target) return tableQuery(["id"], []);
+
+    const deletedIds = new Set([target.id]);
+    let expanded = true;
+    while (expanded) {
+      expanded = false;
+      for (const comment of vault.comments) {
+        if (
+          comment.reef_id === reefId &&
+          typeof comment.meta?.parent_comment_id === "string" &&
+          deletedIds.has(comment.meta.parent_comment_id) &&
+          !deletedIds.has(comment.id)
+        ) {
+          deletedIds.add(comment.id);
+          expanded = true;
+        }
+      }
+    }
+    vault.notifications = vault.notifications.filter(
+      (notification) =>
+        !(
+          notification.reef_id === reefId &&
+          notification.source_type === "comment" &&
+          deletedIds.has(notification.source_ref)
+        ),
+    );
+    vault.comments = vault.comments.filter(
+      (comment) => !deletedIds.has(comment.id),
+    );
+    return tableQuery(
+      ["id"],
+      [...deletedIds].sort().map((id) => ({ id })),
+    );
+  }
+
+  if (lower.startsWith("with updated as (update reef_issues")) {
+    return handleIssueReorderSql(state, vault, normalized);
+  }
+  if (lower.startsWith("select * from reef_issues")) {
+    if (state.issueListFailure) {
+      return { error: "e2e forced issue list failure" };
+    }
+    if (
+      state.issueListNextPageFailures > 0 &&
+      /cast\(substring\("reef_id"\s+from\s+'\[0-9\]\+\$'\)\s+as\s+numeric\)\s*</i.test(
+        normalized,
+      )
+    ) {
+      state.issueListNextPageFailures -= 1;
+      return { error: "e2e forced next issue list page failure" };
+    }
+    const rows = applyLimit(
+      sortIssueRows(filterIssueRows(vault.issues, normalized, vault), lower),
+      normalized,
+    );
+    return tableQuery(Object.keys(vault.issues[0] ?? {}), rows);
+  }
+  if (lower.startsWith("select reef_id from reef_issues")) {
+    return tableQuery(
+      ["reef_id"],
+      vault.issues.map((row) => ({ reef_id: row.reef_id })),
+    );
+  }
+  if (lower.startsWith("insert into reef_issues")) {
+    const insert = parseInsert(normalized);
+    if (insert) {
+      const row = objectFromColumns(insert.columns, insert.values);
+      if (
+        row.status === "backlog" &&
+        row.meta?.source !== "user:create_issue" &&
+        (row.rank == null ||
+          String(row.rank).toLowerCase().includes("select coalesce"))
+      ) {
+        row.rank = nextBacklogRank(vault);
+      }
+      row.created_at = row.created_at ?? NOW;
+      row.updated_at = row.updated_at ?? NOW;
+      vault.issues.push(row);
+    }
+    return tableSql();
+  }
+  if (lower.startsWith("update reef_issues")) {
+    const update = parseUpdate(normalized);
+    if (update) {
+      const id = matchSqlString(
+        normalized,
+        /where "?reef_id"?\s*=\s*'([^']+)'/i,
+      );
+      const key = issueUpdateKey(vault.name, id);
+      state.issueUpdateCalls.set(
+        key,
+        (state.issueUpdateCalls.get(key) ?? 0) + 1,
+      );
+      const failureMode = state.issueUpdateFailures.get(key);
+      if (failureMode) {
+        if (failureMode === "once") state.issueUpdateFailures.delete(key);
+        return { error: `e2e forced issue update failure for ${id}` };
+      }
+      const row = vault.issues.find((issue) => issue.reef_id === id);
+      if (row) {
+        Object.assign(row, update.values, { updated_at: nextEditTimestamp() });
+        if (
+          row.status === "backlog" &&
+          (row.rank == null ||
+            String(row.rank).toLowerCase().includes("select coalesce"))
+        ) {
+          row.rank = nextBacklogRank(vault);
+        }
+      }
+    }
+    return tableSql();
+  }
+  if (lower.startsWith("delete from reef_issues")) {
+    const id = matchSqlString(normalized, /where "?reef_id"?\s*=\s*'([^']+)'/i);
+    vault.issues = vault.issues.filter((issue) => issue.reef_id !== id);
+    return tableSql();
+  }
+
+  if (lower.startsWith("select * from reef_templates")) {
+    return tableQuery(
+      templateColumns(),
+      filterTemplates(vault.templates, normalized),
+    );
+  }
+  if (lower.startsWith("insert into reef_templates")) {
+    const insert = parseInsert(normalized);
+    if (insert) {
+      vault.templates.push(objectFromColumns(insert.columns, insert.values));
+    }
+    return tableSql();
+  }
+  if (lower.startsWith("update reef_templates")) {
+    const update = parseUpdate(normalized);
+    const name = matchSqlString(normalized, /where "?name"?\s*=\s*'([^']+)'/i);
+    const row = vault.templates.find((template) => template.name === name);
+    if (row && update) Object.assign(row, update.values);
+    return tableSql();
+  }
+  if (lower.startsWith("delete from reef_templates")) {
+    const name = matchSqlString(normalized, /where "?name"?\s*=\s*'([^']+)'/i);
+    vault.templates = vault.templates.filter(
+      (template) => template.name !== name,
+    );
+    return tableSql();
+  }
+
+  for (const table of ["reef_sprints", "reef_milestones", "reef_releases"]) {
+    if (lower.startsWith(`select * from ${table}`)) {
+      if (state.planningCatalogFailure) {
+        return { error: "e2e forced planning catalog failure" };
+      }
+      return tableQuery(
+        planningColumns(table),
+        selectPlanningRows(vault, table, normalized),
+      );
+    }
+    if (lower.includes(`insert into ${table}`)) {
+      const insert = parseInsert(normalized);
+      if (!insert) return tableQuery([], []);
+      const row = objectFromColumns(insert.columns, insert.values);
+      row.id = uuidFor(++state.planningSeq);
+      row.meta = row.meta ?? {};
+      planningRows(vault, table).push(row);
+      return tableQuery(planningColumns(table), [row]);
+    }
+    if (lower.startsWith(`update ${table}`)) {
+      const update = parseUpdate(normalized);
+      const id = matchSqlString(normalized, /where "?id"?\s*=\s*'([^']+)'/i);
+      const row = planningRows(vault, table).find((item) => item.id === id);
+      if (row && update) Object.assign(row, update.values);
+      return tableSql();
+    }
+    if (lower.startsWith(`delete from ${table}`)) {
+      const id = matchSqlString(normalized, /where "?id"?\s*=\s*'([^']+)'/i);
+      const rows = planningRows(vault, table);
+      const index = rows.findIndex((item) => item.id === id);
+      if (index >= 0) rows.splice(index, 1);
+      return tableSql();
+    }
+  }
+
+  if (
+    lower.startsWith("select id, reef_id, body") &&
+    lower.includes("from reef_comments")
+  ) {
+    const pattern = matchSqlString(
+      normalized,
+      /body\s+ilike\s+'((?:''|[^'])+)'/i,
+    );
+    const literal = decodeEscapedLikePattern(pattern ?? "");
+    const limit = Number(normalized.match(/\blimit\s+(\d+)/i)?.[1] ?? 10);
+    const matching = vault.comments
+      .filter((comment) =>
+        comment.body.toLowerCase().includes(literal.toLowerCase()),
+      )
+      .sort(
+        (left, right) =>
+          String(right.meta?.created_at ?? "").localeCompare(
+            String(left.meta?.created_at ?? ""),
+          ) || String(left.id).localeCompare(String(right.id)),
+      );
+    const latestPerIssue = [];
+    const seenIssues = new Set();
+    for (const comment of matching) {
+      if (seenIssues.has(comment.reef_id)) continue;
+      seenIssues.add(comment.reef_id);
+      latestPerIssue.push(comment);
+    }
+    const rows = latestPerIssue.slice(0, limit).map((comment) => ({
+      id: comment.id,
+      reef_id: comment.reef_id,
+      body: comment.body,
+      created_at: comment.meta?.created_at ?? null,
+    }));
+    return tableQuery(["id", "reef_id", "body", "created_at"], rows);
+  }
+  if (lower.startsWith("select * from reef_comments")) {
+    const reefId = matchSqlString(normalized, /reef_id\s*=\s*'([^']+)'/i);
+    const rows = vault.comments.filter(
+      (comment) => !reefId || comment.reef_id === reefId,
+    );
+    return tableQuery(commentColumns(), rows);
+  }
+  if (lower.includes("insert into reef_comments")) {
+    if (lower.includes("target_issue as")) {
+      const values = sqlValues(normalized);
+      const reefId = values[0] ?? null;
+      if (!reefId || !vault.issues.some((issue) => issue.reef_id === reefId)) {
+        return tableQuery(commentColumns(), []);
+      }
+      const parentId = matchSqlString(
+        normalized,
+        /direct_parent\s+as\s*\(select \* from reef_comments where id\s*=\s*'((?:''|[^'])+)'/i,
+      );
+      let body;
+      let meta;
+      if (parentId) {
+        const parent = vault.comments.find(
+          (comment) => comment.id === parentId && comment.reef_id === reefId,
+        );
+        const rootId = parent?.meta?.thread_root_id ?? parent?.id ?? null;
+        const root = vault.comments.find(
+          (comment) =>
+            comment.id === rootId &&
+            comment.reef_id === reefId &&
+            comment.meta?.parent_comment_id == null &&
+            comment.meta?.thread_root_id == null,
+        );
+        let cursor = parent;
+        let validParent = !!parent && !!root;
+        const seen = new Set();
+        while (validParent && cursor) {
+          if (seen.has(cursor.id) || seen.size >= 100) {
+            validParent = false;
+            break;
+          }
+          seen.add(cursor.id);
+          if (cursor.id === root.id) {
+            validParent =
+              cursor.meta?.parent_comment_id == null &&
+              cursor.meta?.thread_root_id == null;
+            break;
+          }
+          if (
+            cursor.meta?.parent_comment_id == null ||
+            cursor.meta?.thread_root_id !== root.id
+          ) {
+            validParent = false;
+            break;
+          }
+          cursor = vault.comments.find(
+            (comment) =>
+              comment.id === cursor.meta.parent_comment_id &&
+              comment.reef_id === reefId,
+          );
+          if (!cursor) validParent = false;
+        }
+        if (!validParent) return tableQuery(commentColumns(), []);
+        body = matchSqlString(
+          normalized,
+          /select target_issue\.reef_id,\s*'((?:''|[^'])*)',\s*jsonb_build_object/i,
+        );
+        const author = matchSqlString(
+          normalized,
+          /'author',\s*'((?:''|[^'])*)'/i,
+        );
+        const createdAt = matchSqlString(
+          normalized,
+          /'created_at',\s*'((?:''|[^'])*)'/i,
+        );
+        meta = {
+          author,
+          created_at: createdAt,
+          edited_at: null,
+          parent_comment_id: parent.id,
+          thread_root_id: root.id,
+        };
+      } else {
+        body = values[2] ?? null;
+        try {
+          meta = JSON.parse(values[3] ?? "null");
+        } catch {
+          meta = null;
+        }
+      }
+      if (typeof body !== "string" || !meta) {
+        return tableQuery(commentColumns(), []);
+      }
+      const row = {
+        id: uuidFor(2000 + (vault.comments?.length ?? 0)),
+        reef_id: reefId,
+        body,
+        meta,
+        created_at: NOW,
+        updated_at: NOW,
+        created_by: meta.author ?? "alice",
+      };
+      vault.comments.push(row);
+      return tableQuery(commentColumns(), [row]);
+    }
+    const insert = parseInsert(normalized);
+    if (!insert) return tableQuery([], []);
+    const row = objectFromColumns(insert.columns, insert.values);
+    row.id = uuidFor(2000 + (vault.comments?.length ?? 0));
+    row.created_at = NOW;
+    row.updated_at = NOW;
+    row.created_by = row.meta?.author ?? "alice";
+    vault.comments.push(row);
+    return tableQuery(commentColumns(), [row]);
+  }
+  if (lower.includes("update reef_comments")) {
+    const id = matchSqlString(normalized, /where\s+id\s*=\s*'([^']+)'/i);
+    const reefId = matchSqlString(normalized, /reef_id\s*=\s*'([^']+)'/i);
+    const author = matchSqlString(
+      normalized,
+      /meta->>'author'\s*=\s*'([^']+)'/i,
+    );
+    const update = parseUpdate(normalized);
+    const row = vault.comments.find(
+      (comment) =>
+        comment.id === id &&
+        (!reefId || comment.reef_id === reefId) &&
+        (!author || comment.meta?.author === author),
+    );
+    if (!row) return tableQuery([], []);
+    if (update && typeof update.values.body === "string") {
+      row.body = update.values.body;
+    }
+    row.meta = { ...(row.meta ?? {}), edited_at: NOW };
+    row.updated_at = NOW;
+    return tableQuery(commentColumns(), [row]);
+  }
+
+  if (lower.startsWith("select distinct file_uri from reef_attachments")) {
+    const rows = [
+      ...new Set(
+        filterAttachmentRows(vault.attachments, normalized)
+          .map((row) => row.file_uri)
+          .filter((uri) => typeof uri === "string" && uri.length > 0),
+      ),
+    ].map((file_uri) => ({ file_uri }));
+    return tableQuery(["file_uri"], rows);
+  }
+  if (lower.startsWith("select * from reef_attachments")) {
+    const rows = filterAttachmentRows(vault.attachments, normalized).sort(
+      (a, b) =>
+        String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")) ||
+        String(a.id ?? "").localeCompare(String(b.id ?? "")),
+    );
+    return tableQuery(attachmentColumns(), applyLimit(rows, normalized));
+  }
+  if (lower.includes("insert into reef_attachments")) {
+    const insert = parseInsert(normalized);
+    if (!insert) return tableQuery([], []);
+    const row = objectFromColumns(insert.columns, insert.values);
+    row.id = row.id ?? uuidFor(9000 + (vault.attachments?.length ?? 0));
+    row.created_at = row.created_at ?? NOW;
+    row.inline =
+      row.inline === true || String(row.inline).toLowerCase() === "true";
+    row.meta = row.meta ?? null;
+    row.original_jira_attachment_id = row.original_jira_attachment_id ?? null;
+    vault.attachments.push(row);
+    return tableQuery(attachmentColumns(), [row]);
+  }
+
+  // REEF-277: the issue activity timeline (reef_activity).
+  if (lower.startsWith("select * from reef_activity where")) {
+    const reefId = matchSqlString(normalized, /reef_id\s*=\s*'([^']+)'/i);
+    const eventType = matchSqlString(normalized, /event_type\s*=\s*'([^']+)'/i);
+    const rows = vault.activity
+      .filter(
+        (event) =>
+          (!reefId || event.reef_id === reefId) &&
+          (!eventType || event.event_type === eventType),
+      )
+      .sort(
+        (a, b) =>
+          String(a.meta?.at ?? "").localeCompare(String(b.meta?.at ?? "")) ||
+          String(a.id ?? "").localeCompare(String(b.id ?? "")),
+      );
+    return tableQuery(activityTimelineColumns(), rows);
+  }
+  // The producer's conditional append: INSERT INTO reef_activity (cols)
+  // SELECT <values> WHERE NOT EXISTS (...) RETURNING id. Idempotent on
+  // (reef_id, event_key), mirroring the real NOT EXISTS guard.
+  if (lower.startsWith("insert into reef_activity ")) {
+    const parsed = parseConditionalInsert(normalized);
+    if (!parsed) return tableQuery(["id"], []);
+    const row = objectFromColumns(parsed.columns, parsed.values);
+    const duplicate = vault.activity.some(
+      (event) =>
+        event.reef_id === row.reef_id && event.event_key === row.event_key,
+    );
+    if (duplicate) return tableQuery(["id"], []);
+    row.id = uuidFor(activitySeq++);
+    row.created_at = NOW;
+    row.updated_at = NOW;
+    row.created_by = row.meta?.actor ?? "alice";
+    vault.activity.push(row);
+    return tableQuery(["id"], [{ id: row.id }]);
+  }
+
+  return unsupportedSql();
+}
+
+/**
+ * Emulate the atomic Manual reorder CTE. The real adapter reads canonical rows
+ * first, then sends one `WITH updated AS (UPDATE reef_issues ...) SELECT ...`
+ * statement. Keep this parser deliberately shaped to that SQL so hermetic
+ * browser tests exercise the same route contract instead of retaining the old
+ * `{ vault, assignments }` shortcut.
+ */
+function handleIssueReorderSql(state, vault, sql) {
+  const idsMatch = sql.match(/where\s+"reef_id"\s+in\s*\(([^)]+)\)/i);
+  const ids = idsMatch ? sqlValues(idsMatch[1]) : [];
+  if (ids.length === 0)
+    return tableQuery(["reef_id", "rank", "updated_at"], []);
+
+  const isBacklog = /"status"\s*=\s*'backlog'/i.test(sql);
+  const eligible = (row) =>
+    ids.includes(row.reef_id) &&
+    row.archived_at == null &&
+    (isBacklog ? row.status === "backlog" : row.status !== "backlog");
+  const rows = vault.issues.filter(eligible);
+  if (rows.length !== ids.length) {
+    return tableQuery(["reef_id", "rank", "updated_at"], []);
+  }
+
+  const guardPattern =
+    /\("reef_id"\s*=\s*'((?:''|[^'])+)'\s+AND\s+\("rank"\s+IS\s+DISTINCT\s+FROM\s+(NULL|-?(?:\d+(?:\.\d+)?(?:e[+-]?\d+)?))\s+OR\s+"updated_at"\s+IS\s+DISTINCT\s+FROM\s+'((?:''|[^'])+)'\)\)/gi;
+  for (const match of sql.matchAll(guardPattern)) {
+    const row = vault.issues.find(
+      (candidate) => candidate.reef_id === match[1].replace(/''/g, "'"),
+    );
+    const expectedRank = /^null$/i.test(match[2]) ? null : Number(match[2]);
+    const expectedUpdatedAt = match[3].replace(/''/g, "'");
+    if (
+      !row ||
+      (row.rank ?? null) !== expectedRank ||
+      String(row.updated_at ?? "") !== expectedUpdatedAt
+    ) {
+      return tableQuery(["reef_id", "rank", "updated_at"], []);
+    }
+  }
+
+  const rankAssignments = new Map();
+  const rankCase = sql.match(
+    /"rank"\s*=\s*case\s+"reef_id"\s+(.+?)\s+end(?:,|\s+where)/i,
+  );
+  for (const match of rankCase?.[1].matchAll(
+    /when\s+'((?:''|[^'])+)'\s+then\s+(-?(?:\d+(?:\.\d+)?(?:e[+-]?\d+)?))/gi,
+  ) ?? []) {
+    rankAssignments.set(match[1].replace(/''/g, "'"), Number(match[2]));
+  }
+
+  const groupAssignments = new Map();
+  for (const column of [
+    "status",
+    "priority",
+    "assigned_to",
+    "sprint_id",
+    "closed_at",
+    "closed_reason",
+  ]) {
+    const assignment = parseIssueReorderCase(sql, column);
+    if (assignment) groupAssignments.set(column, assignment);
+  }
+
+  const editor = matchSqlString(sql, /to_jsonb\('((?:''|[^'])*)'::text\)/i);
+  const statusChangedAt = matchSqlString(
+    sql,
+    /\{last_status_change\}.*?to_jsonb\('((?:''|[^'])*)'::text\)/i,
+  );
+  const updatedAt = nextEditTimestamp();
+  const updatedRows = [];
+  for (const row of rows) {
+    const rank = rankAssignments.get(row.reef_id);
+    if (rank !== undefined) row.rank = rank;
+    for (const [column, assignment] of groupAssignments) {
+      if (assignment.id !== row.reef_id) continue;
+      row[column] = assignment.value;
+    }
+    row.updated_at = updatedAt;
+    if (editor !== null) {
+      row.meta = { ...(row.meta ?? {}), last_editor: editor };
+    }
+    if (statusChangedAt !== null) {
+      row.meta = {
+        ...(row.meta ?? {}),
+        last_status_change: statusChangedAt,
+      };
+    }
+    updatedRows.push({
+      reef_id: row.reef_id,
+      rank: row.rank,
+      updated_at: row.updated_at,
+    });
+  }
+  return tableQuery(["reef_id", "rank", "updated_at"], updatedRows);
+}
+
+function parseIssueReorderCase(sql, column) {
+  const escapedColumn = column.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(
+    `"${escapedColumn}"\\s*=\\s*case\\s+"reef_id"\\s+when\\s+'((?:''|[^'])+)'\\s+then\\s+(null|'(?:''|[^'])*')\\s+else\\s+"${escapedColumn}"\\s+end`,
+    "i",
+  );
+  const match = sql.match(pattern);
+  if (!match) return null;
+  return {
+    id: match[1].replace(/''/g, "'"),
+    value: parseSqlValue(match[2]),
+  };
+}
+
+/** Columns a reef_activity timeline row exposes (mirrors the akb row shape). */
+function activityTimelineColumns() {
+  return [
+    "id",
+    "reef_id",
+    "event_type",
+    "event_key",
+    "payload",
+    "meta",
+    "created_at",
+    "updated_at",
+    "created_by",
+  ];
+}
+
+/**
+ * Parse the producer's conditional append (REEF-277):
+ *   INSERT INTO reef_activity (cols) SELECT <values> WHERE NOT EXISTS (...)
+ * Returns the column list and the SELECT-projected values, or null on a shape
+ * this mock does not model.
+ */
+function parseConditionalInsert(sql) {
+  const columnsStart = sql.indexOf("(");
+  if (columnsStart < 0) return null;
+  const columnsEnd = findMatchingParen(sql, columnsStart);
+  const columns = splitSqlCsv(sql.slice(columnsStart + 1, columnsEnd)).map(
+    normalizeColumn,
+  );
+  const selectMatch = sql.slice(columnsEnd).match(/\bselect\b/i);
+  if (!selectMatch || selectMatch.index == null) return null;
+  const selectStart = columnsEnd + selectMatch.index + selectMatch[0].length;
+  const whereIdx = sql.toLowerCase().indexOf(" where not exists", selectStart);
+  const valuesText = sql.slice(
+    selectStart,
+    whereIdx >= 0 ? whereIdx : undefined,
+  );
+  const values = splitSqlCsv(valuesText).map(parseSqlValue);
+  if (values.length !== columns.length) return null;
+  return { columns, values };
+}
+
+function commentColumns() {
+  return [
+    "id",
+    "reef_id",
+    "body",
+    "meta",
+    "created_at",
+    "updated_at",
+    "created_by",
+  ];
+}
+
+function attachmentColumns() {
+  return [
+    "id",
+    "reef_id",
+    "file_uri",
+    "filename",
+    "mime_type",
+    "size_bytes",
+    "author",
+    "created_at",
+    "source",
+    "inline",
+    "original_jira_attachment_id",
+    "meta",
+  ];
+}
+
+function settingsRows(vault, sql) {
+  const rows = [...vault.settings.entries()].map(([key, value]) => ({
+    key,
+    value: JSON.stringify(value),
+  }));
+  if (sql.includes(" key IN ")) {
+    const wanted = sqlValues(sql);
+    return rows.filter((row) => wanted.includes(row.key));
+  }
+  if (sql.includes(" WHERE key = ")) {
+    const key = firstSqlString(sql);
+    return rows.filter((row) => row.key === key);
+  }
+  return rows;
+}
+
+function sortIssueRows(rows, lowerSql) {
+  const out = [...rows];
+  if (!lowerSql.includes("order by")) return out;
+
+  if (/order by\s+cast\(substring\("reef_id"/i.test(lowerSql)) {
+    const direction = sqlDirection(
+      lowerSql,
+      /cast\(substring\("reef_id"[^)]*\)\s+as\s+numeric\)\s+(asc|desc)/i,
+    );
+    out.sort((a, b) => direction * compareTicketNumbers(a, b));
+  } else if (lowerSql.includes("rank")) {
+    const direction = sqlDirection(
+      lowerSql,
+      /coalesce\("rank",[^)]+\)\s+(asc|desc)/i,
+    );
+    out.sort(
+      (a, b) =>
+        direction * numericSort(a.rank, b.rank) || ticketNumberDesc(a, b),
+    );
+  } else if (lowerSql.includes("priority")) {
+    const weight = new Map([
+      ["critical", 5],
+      ["high", 4],
+      ["medium", 3],
+      ["low", 2],
+    ]);
+    const direction = sqlDirection(lowerSql, /end\s+(asc|desc)/i);
+    out.sort(
+      (a, b) =>
+        direction *
+          ((weight.get(a.priority) ?? 0) - (weight.get(b.priority) ?? 0)) ||
+        ticketNumberDesc(a, b),
+    );
+  } else if (lowerSql.includes("estimate_points")) {
+    const direction = sqlDirection(
+      lowerSql,
+      /coalesce\("estimate_points",\s*0\)\s+(asc|desc)/i,
+    );
+    out.sort(
+      (a, b) =>
+        direction *
+          (Number(a.estimate_points ?? 0) - Number(b.estimate_points ?? 0)) ||
+        ticketNumberDesc(a, b),
+    );
+  } else if (lowerSql.includes("order by") && lowerSql.includes("updated_at")) {
+    const direction = sqlDirection(lowerSql, /"updated_at"\s+(asc|desc)/i);
+    out.sort(
+      (a, b) =>
+        direction *
+          compareStrings(
+            String(a.updated_at ?? ""),
+            String(b.updated_at ?? ""),
+          ) || ticketNumberDesc(a, b),
+    );
+  } else if (lowerSql.includes("order by") && lowerSql.includes("created_at")) {
+    const direction = sqlDirection(lowerSql, /"created_at"\s+(asc|desc)/i);
+    out.sort(
+      (a, b) =>
+        direction *
+          compareStrings(
+            String(a.created_at ?? ""),
+            String(b.created_at ?? ""),
+          ) || ticketNumberDesc(a, b),
+    );
+  } else if (lowerSql.includes("order by") && lowerSql.includes("title")) {
+    const titleDirection = /order by "title" collate "und-x-icu" desc/i.test(
+      lowerSql,
+    )
+      ? -1
+      : 1;
+    out.sort(
+      (a, b) =>
+        titleDirection *
+          ISSUE_TITLE_COLLATOR.compare(
+            String(a.title ?? ""),
+            String(b.title ?? ""),
+          ) || ticketNumberDesc(a, b),
+    );
+  } else if (lowerSql.includes("order by")) {
+    const dateField = ["start_date", "due_date"].find((field) =>
+      lowerSql.includes(`case when "${field}" is null`),
+    );
+    if (dateField) {
+      out.sort((a, b) => compareDateRows(a, b, dateField, lowerSql));
+    }
+  }
+  return out;
+}
+
+function compareDateRows(left, right, field, lowerSql) {
+  const leftMissing = left[field] == null;
+  const rightMissing = right[field] == null;
+  if (leftMissing !== rightMissing) return leftMissing ? 1 : -1;
+  const direction = lowerSql.includes(`coalesce("${field}", '') desc`) ? -1 : 1;
+  return (
+    direction *
+      compareStrings(String(left[field] ?? ""), String(right[field] ?? "")) ||
+    ticketNumberDesc(left, right)
+  );
+}
+
+/**
+ * Emulate akb's evaluation of the folded default-view landing query (REEF-324),
+ * which packs the active-sprint pick and the My-Issues existence test into one
+ * `SELECT * FROM reef_issues`. The naive per-column matchers in
+ * `filterIssueRows` would otherwise be fooled by the `status = 'active'` inside
+ * the active-sprint subquery (a sprint status, never an issue status) and treat
+ * the actor in the EXISTS probe as a plain filter, so this branch resolves the
+ * scope the way Postgres would: floor → My Issues iff the actor has any active
+ * issue, else the active sprint, else the floor alone.
+ */
+function defaultViewRows(rows, sql, vault) {
+  const inMatch = sql.match(/"?status"?\s+IN\s+\(([^)]*)\)/i);
+  const floorStatuses = inMatch ? sqlValues(inMatch[1]) : [];
+  const floorRows = rows.filter(
+    (row) => row.archived_at == null && floorStatuses.includes(row.status),
+  );
+  // The actor appears (identically) in the EXISTS probe and the My-Issues arm;
+  // the no-actor fold carries no `assigned_to` clause at all.
+  const actor = matchSqlString(sql, /"assigned_to"\s*=\s*'([^']+)'/i);
+  if (actor && floorRows.some((row) => row.assigned_to === actor)) {
+    return floorRows.filter((row) => row.assigned_to === actor);
+  }
+  const sprintId = activeSprintId(vault);
+  return sprintId
+    ? floorRows.filter((row) => row.sprint_id === sprintId)
+    : floorRows;
+}
+
+/** The active sprint's id, mirroring core's `activeSprintIdSubquery` tie-break. */
+function activeSprintId(vault) {
+  const active = (vault.sprints ?? []).filter((s) => s.status === "active");
+  if (active.length === 0) return null;
+  active.sort((a, b) => {
+    const sa = a.start_date ?? "";
+    const sb = b.start_date ?? "";
+    if (sa !== sb) return sa < sb ? 1 : -1;
+    return a.id < b.id ? 1 : -1;
+  });
+  return active[0].id;
+}
+
+function filterIssueRows(rows, sql, vault) {
+  // REEF-324: the default-view landing folds the active-sprint pick and the
+  // My-Issues existence test into a single statement — recognized by the
+  // embedded active-sprint subquery — so evaluate it directly rather than
+  // letting the per-column matchers below mis-read its subqueries.
+  if (/SELECT "id" FROM reef_sprints WHERE "status" = 'active'/i.test(sql)) {
+    return defaultViewRows(rows, sql, vault);
+  }
+  let out = [...rows];
+  const reefId = matchSqlString(sql, /"?reef_id"?\s*=\s*'([^']+)'/i);
+  if (reefId) out = out.filter((row) => row.reef_id === reefId);
+
+  const statusMatch = sql.match(/"?status"?\s+IN\s+\(([^)]*)\)/i);
+  if (statusMatch) {
+    const statuses = sqlValues(statusMatch[1]);
+    out = out.filter((row) => statuses.includes(row.status));
+  }
+  const statusEq = matchSqlString(sql, /"?status"?\s*=\s*'([^']+)'/i);
+  if (statusEq) out = out.filter((row) => row.status === statusEq);
+
+  for (const column of [
+    "assigned_to",
+    "requester",
+    "sprint_id",
+    "milestone_id",
+    "release_id",
+  ]) {
+    const value = matchSqlString(
+      sql,
+      new RegExp(`"?${column}"?\\s*=\\s*'([^']+)'`, "i"),
+    );
+    if (value) out = out.filter((row) => row[column] === value);
+  }
+
+  const qMatch = sql.match(/ILIKE\s+'%([^']+)%'/i);
+  if (qMatch) {
+    const needle = qMatch[1].toLowerCase();
+    out = out.filter((row) =>
+      [
+        row.reef_id,
+        row.title,
+        row.assigned_to,
+        row.requester,
+        row.reporter,
+        row.milestone_id,
+        row.sprint_id,
+        row.release_id,
+        JSON.stringify(row.labels ?? []),
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(needle)),
+    );
+  }
+
+  const dateRange = sql.match(
+    /"(created_at|updated_at|start_date|due_date)"\s+>=\s+'([^']+)'\s+AND\s+"\1"\s+<\s+'([^']+)'/i,
+  );
+  if (dateRange) {
+    const [, dateField, rawFrom, rawTo] = dateRange;
+    const from = Date.parse(rawFrom);
+    const to = Date.parse(rawTo);
+    out = out.filter((row) => {
+      const rowDate = Date.parse(String(row[dateField] ?? ""));
+      return (
+        !Number.isNaN(rowDate) &&
+        !Number.isNaN(from) &&
+        !Number.isNaN(to) &&
+        rowDate >= from &&
+        rowDate < to
+      );
+    });
+  }
+
+  if (/"archived_at"\s+IS\s+NULL/i.test(sql)) {
+    out = out.filter((row) => row.archived_at == null);
+  }
+  return applyIssueKeysetCursor(out, sql);
+}
+
+function applyIssueKeysetCursor(rows, sql) {
+  const dateRows = applyDateKeysetCursor(rows, sql);
+  if (dateRows) return dateRows;
+
+  const ticketTie = matchTicketNumberTie(sql);
+
+  const leadMatchers = [
+    {
+      match: sql.match(
+        /\(\s*cast\(substring\("reef_id"\s+from\s+'\[0-9\]\+\$'\)\s+as\s+numeric\)\s*([<>])\s*(\d+)\s*\)/i,
+      ),
+      value: (row) => issueNumber(row.reef_id),
+      kind: "ticket",
+      compare: (left, right) =>
+        left === null || right === null
+          ? left === right
+            ? 0
+            : left === null
+              ? 1
+              : -1
+          : left < right
+            ? -1
+            : left > right
+              ? 1
+              : 0,
+    },
+    {
+      match: sql.match(/END\s*([<>])\s*(-?\d+(?:\.\d+)?)/i),
+      value: (row) =>
+        ({ critical: 4, high: 3, medium: 2, low: 1 })[row.priority] ?? 0,
+      numeric: true,
+      compare: (left, right) => left - right,
+    },
+    {
+      match: sql.match(
+        /coalesce\("rank",\s*[^)]+\)\s*([<>])\s*(-?\d+(?:\.\d+)?)/i,
+      ),
+      value: (row) => Number(row.rank ?? 1e15),
+      numeric: true,
+      compare: (left, right) => left - right,
+    },
+    {
+      match: sql.match(
+        /coalesce\("estimate_points",\s*0\)\s*([<>])\s*(-?\d+(?:\.\d+)?)/i,
+      ),
+      value: (row) => Number(row.estimate_points ?? 0),
+      numeric: true,
+      compare: (left, right) => left - right,
+    },
+    {
+      match: sql.match(/"created_at"\s*([<>])\s*'([^']+)'/i),
+      value: (row) => String(row.created_at ?? ""),
+      compare: compareStrings,
+    },
+    {
+      match: sql.match(/"updated_at"\s*([<>])\s*'([^']+)'/i),
+      value: (row) => String(row.updated_at ?? ""),
+      compare: compareStrings,
+    },
+    {
+      match: sql.match(
+        /"title"\s+COLLATE\s+"und-x-icu"\s*([<>])\s*'((?:''|[^'])*)'/i,
+      ),
+      value: (row) => String(row.title ?? ""),
+      compare: (left, right) => ISSUE_TITLE_COLLATOR.compare(left, right),
+    },
+  ].find(({ match }) => match);
+  if (!leadMatchers?.match) return rows;
+
+  const [, operator, rawKey] = leadMatchers.match;
+  const cursorKey =
+    leadMatchers.kind === "ticket"
+      ? BigInt(rawKey)
+      : leadMatchers.numeric
+        ? Number(rawKey)
+        : rawKey.replace(/''/g, "'");
+  const filtered = rows.filter((row) => {
+    const rowKey = leadMatchers.value(row);
+    const comparison = leadMatchers.compare(rowKey, cursorKey);
+    const afterLead = operator === ">" ? comparison > 0 : comparison < 0;
+    const sameLead = comparison === 0;
+    const rowNumber = issueNumber(row.reef_id);
+    const afterTie =
+      ticketTie !== null && rowNumber !== null && rowNumber < ticketTie;
+    return afterLead || (sameLead && afterTie);
+  });
+  return filtered;
+}
+
+function applyDateKeysetCursor(rows, sql) {
+  const field = ["start_date", "due_date"].find((candidate) =>
+    sql.includes(`CASE WHEN "${candidate}" IS NULL THEN 1 ELSE 0 END`),
+  );
+  if (!field) return null;
+  const dateMatch = sql.match(
+    new RegExp(`COALESCE\\("${field}", ''\\)\\s*([<>])\\s*'([^']*)'`, "i"),
+  );
+  const ticketTie = matchTicketNumberTie(sql);
+  if (ticketTie === null || !dateMatch) return null;
+
+  const [, operator, cursorDate] = dateMatch;
+  const cursorBucket = cursorDate === "" ? 1 : 0;
+  return rows.filter((row) => {
+    const rowBucket = row[field] == null ? 1 : 0;
+    if (rowBucket > cursorBucket) return true;
+    if (rowBucket !== cursorBucket) return false;
+    const comparison = compareStrings(String(row[field] ?? ""), cursorDate);
+    const afterDate = operator === ">" ? comparison > 0 : comparison < 0;
+    const sameDate = comparison === 0;
+    const rowNumber = issueNumber(row.reef_id);
+    const afterTie = rowNumber !== null && rowNumber < ticketTie;
+    return afterDate || (sameDate && afterTie);
+  });
+}
+
+function matchTicketNumberTie(sql) {
+  const match = sql.match(
+    /cast\(substring\("reef_id"\s+from\s+'\[0-9\]\+\$'\)\s+as\s+numeric\)\s*<\s*(\d+)/i,
+  );
+  if (!match) return null;
+  try {
+    return BigInt(match[1]);
+  } catch {
+    return null;
+  }
+}
+
+function selectPlanningRows(vault, table, sql) {
+  let out = [...planningRows(vault, table)];
+  const id = matchSqlString(sql, /"?id"?\s*=\s*'([^']+)'/i);
+  if (id) out = out.filter((row) => row.id === id);
+  const status = matchSqlString(sql, /"?status"?\s*=\s*'([^']+)'/i);
+  if (status) out = out.filter((row) => row.status === status);
+  const name = matchSqlString(sql, /lower\(name\)\s*=\s*lower\('([^']+)'\)/i);
+  if (name) {
+    out = out.filter((row) => row.name.toLowerCase() === name.toLowerCase());
+  }
+  const excludedId = matchSqlString(sql, /id\s+<>\s+'([^']+)'/i);
+  if (excludedId) out = out.filter((row) => row.id !== excludedId);
+  return out;
+}
+
+function filterTemplates(rows, sql) {
+  let out = [...rows];
+  const name = matchSqlString(sql, /"?name"?\s*=\s*'([^']+)'/i);
+  if (name) out = out.filter((row) => row.name === name);
+  return out;
+}
+
+function filterActivityRows(rows, sql) {
+  let out = [...rows];
+  const status = matchSqlString(sql, /"?status"?\s*=\s*'([^']+)'/i);
+  if (status) out = out.filter((row) => row.status === status);
+  const id = matchSqlString(sql, /"?suggestion_id"?\s*=\s*'([^']+)'/i);
+  if (id) out = out.filter((row) => row.suggestion_id === id);
+  return out;
+}
+
+function filterAttachmentRows(rows, sql) {
+  let out = [...rows];
+  const reefId = matchSqlString(sql, /reef_id\s*=\s*'([^']+)'/i);
+  if (reefId) out = out.filter((row) => row.reef_id === reefId);
+  const id = matchSqlString(sql, /\bid\s*=\s*'([^']+)'/i);
+  if (id) out = out.filter((row) => row.id === id);
+  const fileUri = matchSqlString(sql, /file_uri\s*=\s*'([^']+)'/i);
+  if (fileUri) out = out.filter((row) => row.file_uri === fileUri);
+  return out;
+}
+
+function tableNamesInSql(lowerSql) {
+  return [
+    "reef_settings",
+    "monitored_repos",
+    "reef_issues",
+    "reef_comments",
+    "reef_templates",
+    "reef_attachments",
+    "reef_notifications",
+    "reef_subscriptions",
+    "reef_sprints",
+    "reef_milestones",
+    "reef_releases",
+  ].filter((table) => lowerSql.includes(table));
+}
+
+function tableQuery(columns, items) {
+  return {
+    kind: "table_query",
+    columns,
+    items,
+    total: items.length,
+  };
+}
+
+function tableSql() {
+  return { kind: "table_sql", result: "OK" };
+}
+
+function unsupportedSql() {
+  return {
+    kind: "sql_error",
+    status: 400,
+    body: {
+      error: "unsupported_sql",
+      detail: "Unsupported SQL statement in the E2E fixture.",
+    },
+  };
+}
+
+export function resolveSqlParams(sql, params) {
+  const normalized = sql.replace(/\s+/g, " ").trim();
+  if (!Array.isArray(params) || params.length === 0) return normalized;
+
+  let resolved = "";
+  let inQuote = false;
+  for (let index = 0; index < normalized.length; index += 1) {
+    const character = normalized[index];
+    if (character === "'") {
+      resolved += character;
+      if (inQuote && normalized[index + 1] === "'") {
+        resolved += normalized[index + 1];
+        index += 1;
+      } else {
+        inQuote = !inQuote;
+      }
+      continue;
+    }
+
+    if (!inQuote && character === "$") {
+      const match = normalized.slice(index).match(/^\$(\d+)/u);
+      if (match) {
+        const parameterIndex = Number(match[1]) - 1;
+        if (parameterIndex >= 0 && parameterIndex < params.length) {
+          resolved += sqlParameterLiteral(params[parameterIndex]);
+          index += match[0].length - 1;
+          continue;
+        }
+      }
+    }
+    resolved += character;
+  }
+  return resolved;
+}
+
+function sqlParameterLiteral(value) {
+  if (value == null) return "NULL";
+  if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
+  if (typeof value === "number")
+    return Number.isFinite(value) ? String(value) : "NULL";
+  if (typeof value === "string") {
+    return `'${value.replaceAll("'", "''")}'`;
+  }
+  return "NULL";
+}
+
+function sqlValues(sql) {
+  const values = [];
+  const re = /'((?:''|[^'])*)'/g;
+  let match = re.exec(sql);
+  while (match != null) {
+    values.push(match[1].replace(/''/g, "'"));
+    match = re.exec(sql);
+  }
+  return values;
+}
+
+function firstSqlString(sql) {
+  return sqlValues(sql)[0] ?? null;
+}
+
+export function matchSqlString(sql, pattern) {
+  const match = sql.match(pattern);
+  return match ? match[1].replace(/''/g, "'") : null;
+}
+
+function parseInsert(sql) {
+  const tableMatch = sql.match(/insert into\s+([a-z_]+)/i);
+  if (!tableMatch || tableMatch.index == null) return null;
+  const columnsStart = sql.indexOf("(", tableMatch.index);
+  const columnsEnd = findMatchingParen(sql, columnsStart);
+  const columns = splitSqlCsv(sql.slice(columnsStart + 1, columnsEnd)).map(
+    normalizeColumn,
+  );
+  const valueRows = [];
+  let searchFrom = sql.toLowerCase().indexOf(" values ", columnsEnd);
+  if (searchFrom < 0) {
+    const selectStart = sql.toLowerCase().indexOf(" select ", columnsEnd);
+    const fromStart =
+      selectStart < 0
+        ? -1
+        : sql.toLowerCase().indexOf(" from ", selectStart + 8);
+    if (selectStart < 0 || fromStart < 0) return null;
+    const values = splitSqlCsv(sql.slice(selectStart + 8, fromStart)).map(
+      parseSqlValue,
+    );
+    return { columns, values, valueRows: [values] };
+  }
+  searchFrom += " values ".length;
+  while (searchFrom < sql.length) {
+    const valuesStart = sql.indexOf("(", searchFrom);
+    if (valuesStart < 0) break;
+    const valuesEnd = findMatchingParen(sql, valuesStart);
+    valueRows.push(
+      splitSqlCsv(sql.slice(valuesStart + 1, valuesEnd)).map(parseSqlValue),
+    );
+    searchFrom = valuesEnd + 1;
+    while (/\s/.test(sql[searchFrom] ?? "")) searchFrom += 1;
+    if (sql[searchFrom] !== ",") break;
+    searchFrom += 1;
+  }
+  return { columns, values: valueRows[0] ?? [], valueRows };
+}
+
+function parseUpdate(sql) {
+  const match = sql.match(/update\s+([a-z_]+)\s+set\s+/i);
+  if (!match || match.index == null) return null;
+  const start = match.index + match[0].length;
+  const where = sql.toLowerCase().indexOf(" where ", start);
+  const assignmentText = sql.slice(start, where >= 0 ? where : undefined);
+  const values = {};
+  for (const assignment of splitSqlCsv(assignmentText)) {
+    const eq = assignment.indexOf("=");
+    if (eq < 0) continue;
+    const column = normalizeColumn(assignment.slice(0, eq));
+    values[column] = parseSqlValue(assignment.slice(eq + 1));
+  }
+  return { values };
+}
+
+function objectFromColumns(columns, values) {
+  return Object.fromEntries(columns.map((column, i) => [column, values[i]]));
+}
+
+function parseSqlValue(value) {
+  const trimmed = value.trim();
+  if (/^null(?:::jsonb?|::text)?$/i.test(trimmed)) return null;
+  if (/^(?:true|false)$/i.test(trimmed))
+    return trimmed.toLowerCase() === "true";
+  if (/^-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(trimmed)) {
+    return Number(trimmed);
+  }
+  if (/^'.*'(?:\:\:json(?:b)?|\:\:text)?$/i.test(trimmed)) {
+    const raw = trimmed.replace(/::jsonb?$/i, "").replace(/::text$/i, "");
+    const unquoted = raw.slice(1, -1).replace(/''/g, "'");
+    if (/::jsonb?$/i.test(trimmed)) {
+      try {
+        return JSON.parse(unquoted);
+      } catch {
+        return unquoted;
+      }
+    }
+    return unquoted;
+  }
+  return trimmed;
+}
+
+function splitSqlCsv(input) {
+  const parts = [];
+  let current = "";
+  let inQuote = false;
+  let depth = 0;
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    if (ch === "'") {
+      current += ch;
+      if (inQuote && input[i + 1] === "'") {
+        current += input[++i];
+        continue;
+      }
+      inQuote = !inQuote;
+      continue;
+    }
+    if (!inQuote) {
+      if (ch === "(") depth++;
+      if (ch === ")") depth--;
+      if (ch === "," && depth === 0) {
+        parts.push(current.trim());
+        current = "";
+        continue;
+      }
+    }
+    current += ch;
+  }
+  if (current.trim()) parts.push(current.trim());
+  return parts;
+}
+
+function findMatchingParen(input, start) {
+  let inQuote = false;
+  let depth = 0;
+  for (let i = start; i < input.length; i++) {
+    const ch = input[i];
+    if (ch === "'") {
+      if (inQuote && input[i + 1] === "'") {
+        i++;
+        continue;
+      }
+      inQuote = !inQuote;
+    }
+    if (inQuote) continue;
+    if (ch === "(") depth++;
+    if (ch === ")") {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return input.length - 1;
+}
+
+function normalizeColumn(value) {
+  return value.trim().replace(/^"|"$/g, "");
+}
+
+function planningRows(vault, table) {
+  if (table === "reef_sprints") return vault.sprints;
+  if (table === "reef_milestones") return vault.milestones;
+  return vault.releases;
+}
+
+function planningColumns(table) {
+  if (table === "reef_sprints") {
+    return [
+      "id",
+      "name",
+      "status",
+      "start_date",
+      "end_date",
+      "goal",
+      "capacity_points",
+      "meta",
+    ];
+  }
+  if (table === "reef_milestones") {
+    return ["id", "name", "status", "target_date", "description", "meta"];
+  }
+  return [
+    "id",
+    "name",
+    "status",
+    "target_date",
+    "released_at",
+    "notes",
+    "meta",
+  ];
+}
+
+function templateColumns() {
+  return [
+    "name",
+    "label",
+    "description",
+    "title_prefix",
+    "priority",
+    "default_labels",
+    "body",
+  ];
+}
+
+function activityColumns() {
+  return [
+    "document_uri",
+    "suggestion_id",
+    "kind",
+    "status",
+    "fingerprint",
+    "repo",
+    "issue_id",
+    "title",
+    "summary",
+    "source_type",
+    "source_ref",
+    "actor",
+    "detected_at",
+    "reviewed_at",
+    "reviewed_by",
+    "meta",
+  ];
+}
+
+function notificationColumns() {
+  return [
+    "id",
+    "notification_key",
+    "recipient",
+    "reef_id",
+    "source_type",
+    "source_ref",
+    "event_type",
+    "actor",
+    "occurred_at",
+    "state",
+    "read_at",
+    "archived_at",
+    "payload",
+    "meta",
+  ];
+}
+
+function applyLimit(rows, sql) {
+  const match = sql.match(/\sLIMIT\s+(\d+)/i);
+  return match ? rows.slice(0, Number(match[1])) : rows;
+}
+
+function numericSort(a, b) {
+  const left = a == null ? Number.MAX_SAFE_INTEGER : Number(a);
+  const right = b == null ? Number.MAX_SAFE_INTEGER : Number(b);
+  return left - right;
+}
+
+function sqlDirection(sql, matcher) {
+  return sql.match(matcher)?.[1]?.toLowerCase() === "desc" ? -1 : 1;
+}
+
+function compareStrings(a, b) {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function issueNumber(value) {
+  const match = /^[A-Z][A-Z0-9_]*-(\d+)$/u.exec(String(value ?? ""));
+  if (!match) return null;
+  try {
+    const number = BigInt(match[1]);
+    return number > 0n ? number : null;
+  } catch {
+    return null;
+  }
+}
+
+function compareTicketNumbers(left, right) {
+  const leftNumber = issueNumber(left.reef_id);
+  const rightNumber = issueNumber(right.reef_id);
+  if (leftNumber === null || rightNumber === null) {
+    if (leftNumber === null && rightNumber === null) return 0;
+    return leftNumber === null ? 1 : -1;
+  }
+  return leftNumber < rightNumber ? -1 : leftNumber > rightNumber ? 1 : 0;
+}
+
+function ticketNumberDesc(left, right) {
+  return -compareTicketNumbers(left, right);
+}
+
+function nextBacklogRank(vault) {
+  const max = vault.issues
+    .filter((issue) => issue.status === "backlog" && issue.archived_at == null)
+    .reduce((acc, issue) => {
+      const rank = Number(issue.rank);
+      return Number.isFinite(rank) ? Math.max(acc, rank) : acc;
+    }, 0);
+  return max + 1000;
+}
