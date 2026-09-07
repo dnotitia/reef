@@ -25,3 +25,23 @@ describe("planning workflows — backlog and sprint commitment (REEF-148)", () =
     expect(content).toMatch(/milestone_id or release_id/i);
   });
 });
+
+describe("planning workflows — sprint rollover", () => {
+  const content = planningWorkflowsContent();
+
+  it("documents the explicit target and durable retry claim", () => {
+    expect(content).toContain("## Close an active sprint and roll over");
+    expect(content).toMatch(
+      /existing planned sprint or provide a new planned sprint/i,
+    );
+    expect(content).toContain("meta.sprint_rollover");
+    expect(content).toMatch(/same persisted operation/i);
+  });
+
+  it("pins the candidate matrix and optimistic row guard", () => {
+    expect(content).toMatch(/todo, in_progress, or in_review/i);
+    expect(content).toMatch(/done, closed, backlog, and archived/i);
+    expect(content).toContain("expected row revision");
+    expect(content).toContain("planning_link");
+  });
+});

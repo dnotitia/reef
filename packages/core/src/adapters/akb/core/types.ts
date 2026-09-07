@@ -8,6 +8,8 @@ import type {
   Milestone,
   Release,
   Sprint,
+  SprintRolloverResult,
+  SprintRolloverTarget,
 } from "../../../schemas/planning/catalog";
 import type { Config } from "../../../schemas/workspace/config";
 import type { AkbAdapter } from "./http";
@@ -273,6 +275,20 @@ export interface DeleteSprintParams {
   vault: string;
   id: string;
 }
+
+export interface CloseSprintAndRolloverParams {
+  adapter: AkbAdapter;
+  vault: string;
+  sourceSprintId: string;
+  target: SprintRolloverTarget;
+  endDate: string;
+  actor: string;
+  source: "user:sprint_rollover" | "ai-agent:sprint_rollover";
+  /** Injected clock for deterministic tests; production uses the current UTC instant. */
+  now?: string;
+}
+
+export interface CloseSprintAndRolloverResult extends SprintRolloverResult {}
 
 export interface CreateMilestoneParams {
   adapter: AkbAdapter;

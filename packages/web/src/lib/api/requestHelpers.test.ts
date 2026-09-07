@@ -12,6 +12,7 @@ import {
   getAkbAdapter,
   getAkbCurrentActor,
   parseIssueListQueryParams,
+  requireVaultWriter,
   resolveOptionalActor,
   respondWithError,
 } from "./requestHelpers";
@@ -113,6 +114,30 @@ describe("resolveOptionalActor", () => {
       await resolveOptionalActor(requestWithSession(EXPIRED_JWT)),
     ).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("requireVaultWriter", () => {
+  it("blocks a reader and allows the writer floor", async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({
+        vaults: [{ name: "reef-acme", role: "reader" }],
+      })
+      .mockResolvedValueOnce({
+        vaults: [{ name: "reef-acme", role: "writer" }],
+      });
+    const adapter = { request };
+
+    const reader = await requireVaultWriter(adapter, "reef-acme");
+    expect("response" in reader && reader.response.status).toBe(403);
+    expect(await (reader as { response: Response }).response.json()).toEqual({
+      error: "Only workspace members with edit access can close a sprint.",
+    });
+
+    await expect(requireVaultWriter(adapter, "reef-acme")).resolves.toEqual({
+      writer: true,
+    });
   });
 });
 

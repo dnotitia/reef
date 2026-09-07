@@ -24,7 +24,9 @@ export type FixtureScenario =
   | "typography"
   | "status_quick_edit"
   | "planning_overflow"
-  | "epic_grouping";
+  | "epic_grouping"
+  | "sprint_rollover"
+  | "sprint_rollover_empty";
 export const REEF_E2E_VAULT = "reef-e2e";
 
 function escapeRegExp(value: string): string {

@@ -6,19 +6,24 @@ import { IssuesWorkspace } from "@/features/issues/components/filters/IssuesWork
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { parseIssueViewState } from "@/features/issues/lib/viewMode";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
+import { useWorkspaceAccess } from "@/features/settings/hooks/useWorkspaceAccess";
 import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { useHydrated } from "@/lib/useHydrated";
 import { withVault } from "@/lib/workspaceHref";
 import { usePlanningCatalog } from "../hooks/usePlanningCatalog";
 import { useTranslations } from "next-intl";
 import { useParams, useSearchParams } from "next/navigation";
+import { useState } from "react";
 import {
   computePlanningRollup,
+  type IssueListItem,
+  type PlanningCatalog,
   type PlanningRollup,
   type Sprint,
 } from "@reef/core";
 import { SprintDetailHeader } from "./SprintDetailHeader";
 import { SprintDetailPageSkeleton } from "./SprintDetailPageSkeleton";
+import { SprintRolloverDialog } from "./SprintRolloverDialog";
 import {
   DEFAULT_REPORT_FILTERS,
   type ReportFilters,
@@ -110,6 +115,14 @@ function SprintDetailFrame({
   rollup,
   health,
   now,
+  catalog,
+  issues,
+  issueState,
+  canEditRollover,
+  rolloverOpen,
+  onRolloverOpenChange,
+  onRequestRollover,
+  onRetryIssues,
   children,
 }: {
   vault: string;
@@ -117,6 +130,14 @@ function SprintDetailFrame({
   rollup: PlanningRollup | undefined;
   health: HealthRollupRow["verdict"];
   now: number | null;
+  catalog: PlanningCatalog;
+  issues: readonly IssueListItem[] | undefined;
+  issueState: "loading" | "error" | "available";
+  canEditRollover: boolean;
+  rolloverOpen: boolean;
+  onRolloverOpenChange: (open: boolean) => void;
+  onRequestRollover: (sprint: Sprint) => void;
+  onRetryIssues: () => void;
   children: React.ReactNode;
 }) {
   const t = useTranslations("planning.detail");
@@ -134,6 +155,8 @@ function SprintDetailFrame({
         health={health}
         now={now}
         view={view}
+        canEditRollover={canEditRollover}
+        onRequestRollover={onRequestRollover}
       />
       <div
         data-testid="sprint-burnup-slot"
@@ -142,6 +165,18 @@ function SprintDetailFrame({
         className="sr-only"
       />
       <div className="min-h-0 min-w-0 flex-1">{children}</div>
+      <SprintRolloverDialog
+        open={rolloverOpen}
+        onOpenChange={onRolloverOpenChange}
+        vault={vault}
+        source={sprint}
+        catalog={catalog}
+        issues={issues}
+        issueState={issueState}
+        now={now}
+        canEdit={canEditRollover}
+        onRetryIssues={onRetryIssues}
+      />
     </div>
   );
 }
@@ -155,9 +190,11 @@ export function SprintDetailPage() {
   // sprint still affect health; the nested IssuesWorkspace applies the fixed
   // sprint query for the visible Board/List rows.
   const issueQuery = useIssueList(routeSprintId ? vault : "");
+  const access = useWorkspaceAccess(vault);
   const hydrated = useHydrated();
   const now = hydrated ? Date.now() : null;
   const t = useTranslations("planning.detail");
+  const [rolloverOpen, setRolloverOpen] = useState(false);
 
   if (!vault && !vaultLoading) return <EmptyWorkspaceNotice />;
   if (vaultLoading || catalogQuery.isPending) {
@@ -192,6 +229,14 @@ export function SprintDetailPage() {
         rollup={undefined}
         health={null}
         now={now}
+        catalog={catalog}
+        issues={undefined}
+        issueState="error"
+        canEditRollover={access.canEditWorkspace}
+        rolloverOpen={rolloverOpen}
+        onRolloverOpenChange={setRolloverOpen}
+        onRequestRollover={() => setRolloverOpen(true)}
+        onRetryIssues={() => void issueQuery.refetch()}
       >
         <DetailMessage
           testId="sprint-detail-issue-error"
@@ -226,6 +271,14 @@ export function SprintDetailPage() {
       rollup={rollup}
       health={health}
       now={now}
+      catalog={catalog}
+      issues={issues}
+      issueState="available"
+      canEditRollover={access.canEditWorkspace}
+      rolloverOpen={rolloverOpen}
+      onRolloverOpenChange={setRolloverOpen}
+      onRequestRollover={() => setRolloverOpen(true)}
+      onRetryIssues={() => void issueQuery.refetch()}
     >
       <IssuesWorkspace
         hideHeader

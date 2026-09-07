@@ -139,9 +139,9 @@ export async function assertUniquePlanningName(
 export function sprintRowFields(
   item: Omit<Sprint, "id">,
   params: SqlParameterBuilder,
-  meta: Record<string, unknown> = {},
+  meta?: Record<string, unknown>,
 ): Array<[string, string]> {
-  return [
+  const fields: Array<[string, string]> = [
     ["name", params.add(item.name, "sprint name")],
     ["status", params.add(item.status, "sprint status")],
     ["start_date", params.add(item.start_date, "sprint start_date")],
@@ -151,8 +151,18 @@ export function sprintRowFields(
       "capacity_points",
       params.add(item.capacity_points, "sprint capacity_points"),
     ],
-    ["meta", params.addJson(meta, "sprint meta")],
   ];
+  // Planning updates must preserve extension metadata such as the durable
+  // sprint-rollover claim. Inserts pass an explicit `{}` or idempotency
+  // envelope; ordinary edits use a no-op self-assignment so the existing
+  // planning update parameter ordering remains stable.
+  if (meta !== undefined) {
+    fields.push(["meta", params.addJson(meta, "sprint meta")]);
+  } else {
+    const emptyMeta = params.addJson({}, "sprint meta fallback", "jsonb");
+    fields.push(["meta", `COALESCE("meta"::jsonb, ${emptyMeta})::json`]);
+  }
+  return fields;
 }
 
 export function milestoneRowFields(
@@ -174,16 +184,22 @@ export function milestoneRowFields(
 export function releaseRowFields(
   item: Omit<Release, "id">,
   params: SqlParameterBuilder,
-  meta: Record<string, unknown> = {},
+  meta?: Record<string, unknown>,
 ): Array<[string, string]> {
-  return [
+  const fields: Array<[string, string]> = [
     ["name", params.add(item.name, "release name")],
     ["status", params.add(item.status, "release status")],
     ["target_date", params.add(item.target_date, "release target_date")],
     ["released_at", params.add(item.released_at, "release released_at")],
     ["notes", params.add(item.notes ?? "", "release notes")],
-    ["meta", params.addJson(meta, "release meta")],
   ];
+  if (meta !== undefined) {
+    fields.push(["meta", params.addJson(meta, "release meta")]);
+  } else {
+    const emptyMeta = params.addJson({}, "release meta fallback", "jsonb");
+    fields.push(["meta", `COALESCE("meta"::jsonb, ${emptyMeta})::json`]);
+  }
+  return fields;
 }
 
 /**

@@ -75,7 +75,11 @@ state in line with what shipped:
    (duplicate / wont_fix / invalid / stale) are unaffected.
 3. Open the next release and sprint.
 4. Carry forward every still-open issue from the shipped release and sprint into
-   the next one.
+   the next one. When the product close-and-roll-over action has already closed
+   the sprint and recorded its durable target claim, use that same operation's
+   result for the sprint-only carry-forward; do not create a second target or
+   move the same issue again. Release-close and release-link handling remains
+   owned by this release-cut procedure.
 
 ## Changelog Rules
 

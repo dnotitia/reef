@@ -24,6 +24,7 @@ import {
   setupFetch,
   updateRelease,
 } from "../core/akb.testSupport";
+import { updateSprint } from "./planning";
 
 describe("planning metadata", () => {
   it("lists sprints, milestones, and releases from reef planning tables", async () => {
@@ -280,6 +281,43 @@ describe("planning metadata", () => {
     expect(updateSql).toContain(`UPDATE ${REEF_RELEASES_TABLE} SET`);
     expect(updateSql).toContain("WHERE id = $7");
     expect(updateBody.params).toContain(release.id);
+  });
+
+  it("preserves sprint extension metadata during an ordinary edit", async () => {
+    const sprint = {
+      id: "11111111-1111-4111-8111-111111111111",
+      name: "Sprint 12",
+      status: "planned" as const,
+      start_date: "2026-05-01",
+      end_date: "2026-05-14",
+      goal: "Updated goal",
+      capacity_points: 40,
+    };
+    const row = {
+      ...sprint,
+      meta: {
+        sprint_rollover: { operation_key: "sprint-rollover:source" },
+      },
+    };
+    const { calls } = setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { body: makeSqlQueryResponse([], SPRINT_ROW_COLUMNS) },
+      { body: makeSqlQueryResponse([row], SPRINT_ROW_COLUMNS) },
+      { body: makeSqlMutationResponse("UPDATE 1") },
+    ]);
+
+    await updateSprint({
+      adapter: makeAdapter(),
+      vault: "reef-sample",
+      id: sprint.id,
+      item: sprint,
+    });
+
+    const updateBody = JSON.parse(calls[3]?.init?.body as string) as {
+      sql: string;
+    };
+    expect(updateBody.sql).toContain('"meta" = COALESCE');
+    expect(updateBody.sql).not.toContain('"meta" = $');
   });
 
   it("blocks deleting planning rows referenced by issues", async () => {

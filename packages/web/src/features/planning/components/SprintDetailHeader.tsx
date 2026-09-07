@@ -2,12 +2,13 @@
 
 import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { PlanningStatusBadge } from "@/components/fields/PlanningStatusBadge";
+import { Button } from "@/components/ui/button";
 import { ViewSwitcher } from "@/features/issues/components/filters/ViewSwitcher";
 import { formatDisplayDate } from "@/features/issues/lib/dateHelpers";
 import { withVault } from "@/lib/workspaceHref";
 import { useLocale, useTranslations } from "next-intl";
 import type { PlanningRollup, Sprint } from "@reef/core";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { sprintDetailPath } from "../lib/planningUrls";
 import {
   type SprintTimeState,
@@ -84,6 +85,9 @@ export function SprintDetailHeader({
   health,
   now,
   view,
+  canEditRollover,
+  rolloverDisabledReason,
+  onRequestRollover,
 }: {
   vault: string;
   sprint: Sprint;
@@ -91,9 +95,13 @@ export function SprintDetailHeader({
   health: HealthRollupRow["verdict"];
   now: number | null;
   view: "board" | "list";
+  canEditRollover: boolean;
+  rolloverDisabledReason?: string;
+  onRequestRollover: (sprint: Sprint) => void;
 }) {
   const locale = useLocale();
   const t = useTranslations("planning.detail");
+  const rolloverT = useTranslations("planning.rollover");
   const emptyDate = t("noDate");
   const time = now === null ? null : sprintTimeState(sprint, now);
   const preview = goalPreview(sprint.goal);
@@ -144,13 +152,34 @@ export function SprintDetailHeader({
             </span>
           </div>
         </div>
-        <ViewSwitcher
-          activeLayout={view}
-          scope="active"
-          basePath={sprintDetailPath(sprint.id)}
-          hideTimeline
-          includeScope={false}
-        />
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => onRequestRollover(sprint)}
+            disabled={!canEditRollover || sprint.status !== "active"}
+            aria-label={rolloverT("actionFor", { name: sprint.name })}
+            title={
+              !canEditRollover
+                ? (rolloverDisabledReason ?? rolloverT("readerDisabled"))
+                : sprint.status !== "active"
+                  ? rolloverT("notActive")
+                  : undefined
+            }
+            data-testid="sprint-rollover-trigger"
+            className="gap-1.5"
+          >
+            <ArrowRight aria-hidden="true" className="size-3.5" />
+            {rolloverT("action")}
+          </Button>
+          <ViewSwitcher
+            activeLayout={view}
+            scope="active"
+            basePath={sprintDetailPath(sprint.id)}
+            hideTimeline
+            includeScope={false}
+          />
+        </div>
       </div>
 
       <details data-testid="sprint-detail-goal" className="mt-3 min-w-0">

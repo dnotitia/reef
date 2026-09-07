@@ -212,6 +212,10 @@ export function invalidIssueIdResponse(): Promise<Response> {
   return localizedErrorResponse("invalidIssueId", 400);
 }
 
+export function invalidSprintIdResponse(): Promise<Response> {
+  return localizedErrorResponse("invalidSprintId", 400);
+}
+
 // ─── akb error translation ───────────────────────────────────────────────────
 
 /** 502 for an unreachable/misconfigured workspace backend (non-ReefError path). */
@@ -419,5 +423,31 @@ export async function requireVaultOwner(
   if (role === "owner") return { owner: true };
   return {
     response: await localizedErrorResponse("workspaceOwnerRequired", 403),
+  };
+}
+
+/**
+ * Enforce the writer floor for user-triggered planning mutations. The UI gate
+ * is only a convenience; this role check runs before the close-and-rollover
+ * use case so a reader cannot mutate planning rows through a direct request.
+ */
+export async function requireVaultWriter(
+  adapter: AkbAdapter,
+  vault: string,
+): Promise<{ writer: true } | { response: Response }> {
+  let role: string | null;
+  try {
+    const { vaults } = await akbListVaults({ adapter });
+    role = vaults.find((item) => item.name === vault)?.role ?? null;
+  } catch (err) {
+    return {
+      response: await respondWithError(err, { resourceKind: "workspace" }),
+    };
+  }
+  if (role === "writer" || role === "admin" || role === "owner") {
+    return { writer: true };
+  }
+  return {
+    response: await localizedErrorResponse("planningWriterRequired", 403),
   };
 }

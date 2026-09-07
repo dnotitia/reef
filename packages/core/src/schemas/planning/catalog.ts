@@ -63,7 +63,109 @@ export const PlanningCatalogSchema = z.object({
   releases: z.array(ReleaseSchema),
 });
 
+/** Target selection for an explicit sprint rollover confirmation. */
+export const SprintRolloverTargetSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("existing"),
+    id: z.uuid(),
+  }),
+  z.object({
+    kind: z.literal("new"),
+    item: SprintCreateSchema,
+  }),
+]);
+
+export const SprintRolloverIssueDispositionEnum = z.enum([
+  "pending",
+  "moved",
+  "skipped",
+  "failed",
+  "conflict",
+]);
+
+export const SprintRolloverIssueActivityEnum = z.enum([
+  "recorded",
+  "pending",
+  "not_required",
+]);
+
+export const SprintRolloverIssueResultSchema = z.object({
+  id: z.string().min(1),
+  disposition: SprintRolloverIssueDispositionEnum,
+  activity: SprintRolloverIssueActivityEnum,
+  reason: z.string().optional(),
+  status: z.string().optional(),
+  sprint_id: z.string().nullable().optional(),
+});
+
+export const SprintRolloverPhaseStatusEnum = z.enum([
+  "not_started",
+  "completed",
+  "partial",
+  "failed",
+]);
+
+export const SprintRolloverPhasesSchema = z.object({
+  target_preparation: SprintRolloverPhaseStatusEnum,
+  source_close: SprintRolloverPhaseStatusEnum,
+  target_activation: SprintRolloverPhaseStatusEnum,
+  issue_rollover: SprintRolloverPhaseStatusEnum,
+});
+
+export const SprintRolloverCountsSchema = z.object({
+  eligible: z.number().int().nonnegative(),
+  done: z.number().int().nonnegative(),
+  closed: z.number().int().nonnegative(),
+  backlog: z.number().int().nonnegative(),
+  archived: z.number().int().nonnegative(),
+  moved: z.number().int().nonnegative(),
+  skipped: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  conflicts: z.number().int().nonnegative(),
+});
+
+/** Result returned by the staged close-and-rollover operation. */
+export const SprintRolloverResultSchema = z.object({
+  status: z.enum(["completed", "partial", "blocked", "noop"]),
+  source_sprint: SprintSchema,
+  target_sprint: SprintSchema.nullable(),
+  source_sprint_id: z.string().min(1),
+  target_sprint_id: z.string().nullable(),
+  phases: SprintRolloverPhasesSchema,
+  counts: SprintRolloverCountsSchema,
+  issue_results: z.array(SprintRolloverIssueResultSchema),
+  phase_errors: z.array(
+    z.object({
+      phase: z.enum([
+        "target_preparation",
+        "source_close",
+        "target_activation",
+        "issue_rollover",
+      ]),
+      reason: z.string().min(1),
+    }),
+  ),
+  retryable: z.boolean(),
+  no_op: z.boolean(),
+});
+
 export type Sprint = z.infer<typeof SprintSchema>;
 export type Milestone = z.infer<typeof MilestoneSchema>;
 export type Release = z.infer<typeof ReleaseSchema>;
 export type PlanningCatalog = z.infer<typeof PlanningCatalogSchema>;
+export type SprintRolloverTarget = z.infer<typeof SprintRolloverTargetSchema>;
+export type SprintRolloverIssueDisposition = z.infer<
+  typeof SprintRolloverIssueDispositionEnum
+>;
+export type SprintRolloverIssueActivity = z.infer<
+  typeof SprintRolloverIssueActivityEnum
+>;
+export type SprintRolloverIssueResult = z.infer<
+  typeof SprintRolloverIssueResultSchema
+>;
+export type SprintRolloverPhaseStatus = z.infer<
+  typeof SprintRolloverPhaseStatusEnum
+>;
+export type SprintRolloverPhases = z.infer<typeof SprintRolloverPhasesSchema>;
+export type SprintRolloverCounts = z.infer<typeof SprintRolloverCountsSchema>;
+export type SprintRolloverResult = z.infer<typeof SprintRolloverResultSchema>;

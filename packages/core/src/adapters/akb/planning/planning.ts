@@ -23,6 +23,8 @@ import {
   withSpan,
 } from "../core/shared";
 import type {
+  CloseSprintAndRolloverParams,
+  CloseSprintAndRolloverResult,
   CreateMilestoneParams,
   CreateReleaseParams,
   CreateSprintParams,
@@ -50,6 +52,7 @@ import {
   sprintRowFields,
   updatePlanningRow,
 } from "./planningRows";
+import { closeSprintAndRollover as closeSprintAndRolloverImpl } from "./sprintRollover";
 
 const CREATE_IDEMPOTENCY_META_KEY = "create_idempotency_key";
 
@@ -317,4 +320,10 @@ export async function deleteRelease(
     await assertPlanningItemNotReferenced(adapter, vault, "release_id", id);
     await deletePlanningRow(adapter, vault, REEF_RELEASES_TABLE, id);
   });
+}
+
+export function closeSprintAndRollover(
+  params: CloseSprintAndRolloverParams,
+): Promise<CloseSprintAndRolloverResult> {
+  return closeSprintAndRolloverImpl(params, createSprint);
 }

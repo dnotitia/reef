@@ -109,6 +109,8 @@ const SUPPORTED_SCENARIOS = [
   "status_quick_edit",
   "planning_overflow",
   "epic_grouping",
+  "sprint_rollover",
+  "sprint_rollover_empty",
 ];
 const SUPPORTED_SCENARIO_SET = new Set(SUPPORTED_SCENARIOS);
 const ACCOUNT_DENIAL_CODES = new Set([
@@ -611,6 +613,34 @@ function runtimeDiscovery() {
             "observe catalog and linked-issue read failures separately from true empty planning data, retry each failed read, and verify the planning rows converge to accurate counts and safe deletion availability",
         },
       },
+      sprint_rollover: {
+        scenario: "sprint_rollover",
+        workspace: "reef-e2e",
+        start_path: "/workspace/reef-e2e/planning",
+        controls: {
+          issue_update_control: [
+            "fail one issue update once for partial retry",
+          ],
+          auth_control: [
+            "set protected_response=forbidden to expose reader access",
+          ],
+        },
+        interaction: {
+          type: "sprint_rollover",
+          operation:
+            "review the unfinished/done/closed/backlog/archived preview, close and roll over to an existing or new target, retry a partial issue move, verify the active target and planning-link activity, and dismiss the overdue UTC nudge",
+        },
+      },
+      sprint_rollover_empty: {
+        scenario: "sprint_rollover_empty",
+        workspace: "reef-e2e",
+        start_path: "/workspace/reef-e2e/planning",
+        interaction: {
+          type: "sprint_rollover_empty",
+          operation:
+            "close an active sprint with zero unfinished issues and activate the explicitly selected target",
+        },
+      },
       named_issue_filters: {
         scenario: "configured_multi",
         workspace: "reef-e2e",
@@ -798,7 +828,9 @@ function makeState(scenario) {
     scenario === "large_vault" ||
     scenario === "status_quick_edit" ||
     scenario === "planning_overflow" ||
-    scenario === "epic_grouping"
+    scenario === "epic_grouping" ||
+    scenario === "sprint_rollover" ||
+    scenario === "sprint_rollover_empty"
   ) {
     const vault =
       scenario === "large_vault"
@@ -815,9 +847,15 @@ function makeState(scenario) {
                   ? planningOverflowVault(REEF_VAULT)
                   : scenario === "epic_grouping"
                     ? epicGroupingVault(REEF_VAULT)
-                    : scenario === "typography"
-                      ? typographyVault(REEF_VAULT)
-                      : configuredVault(REEF_VAULT);
+                    : scenario === "sprint_rollover" ||
+                        scenario === "sprint_rollover_empty"
+                      ? sprintRolloverVault(
+                          REEF_VAULT,
+                          scenario === "sprint_rollover_empty",
+                        )
+                      : scenario === "typography"
+                        ? typographyVault(REEF_VAULT)
+                        : configuredVault(REEF_VAULT);
     if (scenario === "notifications") seedNotifications(vault);
     if (scenario === "skill_outdated") seedOutdatedVaultSkill(vault);
     if (scenario === "comment_mentions") {
@@ -1200,6 +1238,78 @@ function configuredVault(name) {
       "Spec overview for the hermetic Ask AI tool transparency workflow.",
     tags: ["docs", "ask-ai", "e2e"],
   });
+  return vault;
+}
+
+function sprintRolloverVault(name, empty = false) {
+  const vault = configuredVault(name);
+  const source = vault.sprints[0];
+  if (!source)
+    throw new Error("Sprint rollover fixture requires a source sprint");
+
+  source.name = "Sprint 14 - Rollover fixture";
+  source.start_date = "2026-06-01";
+  source.end_date = "2026-06-14";
+  source.goal = "Verify safe sprint rollover.";
+  const sourceId = source.id;
+  const targetId = uuidFor(44);
+  vault.sprints = [
+    source,
+    {
+      id: targetId,
+      name: "Sprint 15 - Rollover fixture",
+      status: "planned",
+      start_date: "2026-06-15",
+      end_date: "2026-06-28",
+      goal: "Receive unfinished work.",
+      capacity_points: null,
+      meta: {},
+    },
+  ];
+
+  if (!empty) {
+    const beta = vault.issues.find((issue) => issue.reef_id === "REEF-002");
+    const backlog = vault.issues.find((issue) => issue.reef_id === "REEF-003");
+    if (beta) beta.sprint_id = sourceId;
+    if (backlog) backlog.sprint_id = sourceId;
+    vault.issues.push(
+      issueRow({
+        id: "REEF-004",
+        title: "Completed rollover issue",
+        status: "done",
+        sprint_id: sourceId,
+        closed_at: "2026-06-12T00:00:00.000Z",
+      }),
+      issueRow({
+        id: "REEF-005",
+        title: "Closed rollover issue",
+        status: "closed",
+        sprint_id: sourceId,
+        closed_at: "2026-06-12T00:00:00.000Z",
+        closed_reason: "completed",
+      }),
+      issueRow({
+        id: "REEF-006",
+        title: "Archived rollover issue",
+        status: "todo",
+        sprint_id: sourceId,
+        archived_at: "2026-06-12T00:00:00.000Z",
+      }),
+    );
+  } else {
+    vault.issues = [];
+  }
+  vault.documents = new Map();
+  vault.documentHistory = new Map();
+  vault.comments = [];
+  vault.activity = [];
+  for (const issue of vault.issues) {
+    seedIssueDocument(
+      vault,
+      issue.reef_id,
+      `${issue.title} rollover fixture body.`,
+    );
+  }
   return vault;
 }
 
@@ -2321,7 +2431,7 @@ async function handleAkb(req, res, url) {
       Array.isArray(body?.params) ? body.params : undefined,
     );
     const issueId =
-      /^\s*update\s+reef_issues\b/i.test(sql) &&
+      /\bupdate\s+reef_issues\b/i.test(sql) &&
       matchSqlString(sql, /where "?reef_id"?\s*=\s*'([^']+)'/i);
     const isReorder = /^\s*with updated as \(update reef_issues\b/i.test(sql);
     const delayMs = issueId
@@ -2767,6 +2877,9 @@ function handleSql(vault, sql) {
   if (lower.startsWith("with updated as (update reef_issues")) {
     return handleIssueReorderSql(vault, normalized);
   }
+  if (lower.startsWith("with upd as (update reef_issues")) {
+    return handleIssueConditionalUpdate(vault, normalized);
+  }
   if (lower.startsWith("select * from reef_issues")) {
     if (state.issueListFailure) {
       return { error: "e2e forced issue list failure" };
@@ -2873,6 +2986,10 @@ function handleSql(vault, sql) {
       (template) => template.name !== name,
     );
     return tableSql();
+  }
+
+  if (lower.includes("update reef_sprints") && lower.startsWith("with ")) {
+    return handlePlanningRolloverSql(vault, normalized);
   }
 
   for (const table of ["reef_sprints", "reef_milestones", "reef_releases"]) {
@@ -3152,6 +3269,100 @@ function handleSql(vault, sql) {
   }
 
   return tableQuery([], []);
+}
+
+function handleIssueConditionalUpdate(vault, sql) {
+  const id = matchSqlString(sql, /where "?reef_id"?\s*=\s*'([^']+)'/i);
+  const row = vault.issues.find((issue) => issue.reef_id === id);
+  if (!row || !id) return tableQuery(["reef_id"], []);
+
+  const key = issueUpdateKey(vault.name, id);
+  state.issueUpdateCalls.set(key, (state.issueUpdateCalls.get(key) ?? 0) + 1);
+  const failureMode = state.issueUpdateFailures.get(key);
+  if (failureMode) {
+    if (failureMode === "once") state.issueUpdateFailures.delete(key);
+    return { error: `e2e forced issue update failure for ${id}` };
+  }
+
+  const expectedUpdatedAt = matchSqlString(
+    sql,
+    /updated_at\s*=\s*\(\('([^']+)'/i,
+  );
+  if (expectedUpdatedAt && String(row.updated_at) !== expectedUpdatedAt) {
+    return tableQuery(["reef_id"], []);
+  }
+
+  const update = parseUpdate(sql);
+  if (update)
+    Object.assign(row, update.values, { updated_at: nextEditTimestamp() });
+  return tableQuery(["reef_id"], [{ reef_id: id }]);
+}
+
+function handlePlanningRolloverSql(vault, sql) {
+  const rows = planningRows(vault, "reef_sprints");
+  const sourceId = matchSqlString(sql, /where\s+id\s*=\s*'([^']+)'/i);
+  const targetId = sourceId;
+  const source = sourceId ? rows.find((row) => row.id === sourceId) : null;
+  const hasActiveUpdate = /set\s+status\s*=\s*'active'/i.test(sql);
+  const hasClosedUpdate = /set\s+status\s*=\s*'closed'/i.test(sql);
+  if (hasActiveUpdate) {
+    const target = targetId ? rows.find((row) => row.id === targetId) : null;
+    if (!target || target.status !== "planned") {
+      return tableQuery(planningColumns("reef_sprints"), []);
+    }
+    target.status = "active";
+    const targetMeta = lastJsonSqlValue(sql, "jsonb");
+    if (targetMeta && typeof targetMeta === "object") {
+      target.meta = { ...(target.meta ?? {}), ...targetMeta };
+    }
+    return tableQuery(planningColumns("reef_sprints"), [target]);
+  }
+
+  const rolloverState = lastJsonSqlValue(sql, "jsonb");
+  if (!source || !rolloverState || typeof rolloverState !== "object") {
+    return tableQuery(planningColumns("reef_sprints"), []);
+  }
+  if (hasClosedUpdate) {
+    if (
+      source.status !== "active" ||
+      source.meta?.sprint_rollover?.operation_key !==
+        rolloverState.operation_key
+    ) {
+      return tableQuery(planningColumns("reef_sprints"), []);
+    }
+    source.status = "closed";
+    const endDate = matchSqlString(
+      sql,
+      /set\s+status\s*=\s*'closed',\s*end_date\s*=\s*'([^']+)'/i,
+    );
+    if (endDate) source.end_date = endDate;
+  } else if (
+    source.meta?.sprint_rollover &&
+    source.meta.sprint_rollover.operation_key !== rolloverState.operation_key
+  ) {
+    return tableQuery(planningColumns("reef_sprints"), []);
+  }
+  source.meta = { ...(source.meta ?? {}), sprint_rollover: rolloverState };
+  return tableQuery(planningColumns("reef_sprints"), [source]);
+}
+
+function lastJsonSqlValue(sql, cast) {
+  const values = [
+    ...sql.matchAll(new RegExp(`'((?:''|[^'])*)'::${cast}`, "gi")),
+  ];
+  for (let index = values.length - 1; index >= 0; index -= 1) {
+    const raw = values[index]?.[1]?.replace(/''/g, "'");
+    if (!raw) continue;
+    try {
+      const value = JSON.parse(raw);
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        return value;
+      }
+    } catch {
+      // Another quoted literal may share the cast; keep scanning for the JSON envelope.
+    }
+  }
+  return null;
 }
 
 /**

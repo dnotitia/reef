@@ -27,7 +27,7 @@ import {
   type PlanningRollup as PlanningRollupData,
 } from "@reef/core";
 import type { Milestone, PlanningCatalog, Release, Sprint } from "@reef/core";
-import { ChevronRight, Pencil, Trash2 } from "lucide-react";
+import { ArrowRight, ChevronRight, Pencil, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Fragment, useEffect, useId, useMemo, useState } from "react";
 import type { PlanningItem, PlanningKind } from "../hooks/usePlanningCatalog";
@@ -172,6 +172,9 @@ export function PlanningTable({
   onEdit,
   onExpandedIdChange,
   onRequestDelete,
+  onRequestRollover,
+  canEditRollover,
+  rolloverDisabledReason,
   deletingId,
 }: {
   catalog: PlanningCatalog | undefined;
@@ -189,6 +192,9 @@ export function PlanningTable({
   onEdit: (kind: PlanningKind, item: PlanningItem) => void;
   onExpandedIdChange: (id: string | null) => void;
   onRequestDelete: (kind: PlanningKind, item: PlanningItem) => void;
+  onRequestRollover: (sprint: Sprint) => void;
+  canEditRollover: boolean;
+  rolloverDisabledReason?: string;
   deletingId?: string;
 }) {
   const planningKindLabels = usePlanningKindLabels();
@@ -275,6 +281,9 @@ export function PlanningTable({
           onEdit={onEdit}
           onExpandedIdChange={onExpandedIdChange}
           onRequestDelete={onRequestDelete}
+          onRequestRollover={onRequestRollover}
+          canEditRollover={canEditRollover}
+          rolloverDisabledReason={rolloverDisabledReason}
           deletingId={deletingId}
         />
       </>
@@ -352,6 +361,14 @@ export function PlanningTable({
                       >
                         <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
                       </Button>
+                      {kind === "sprints" ? (
+                        <PlanningRolloverAction
+                          sprint={item as Sprint}
+                          canEdit={canEditRollover}
+                          disabledReason={rolloverDisabledReason}
+                          onRequest={onRequestRollover}
+                        />
+                      ) : null}
                       <PlanningDeleteAction
                         itemName={item.name}
                         issueCount={rollup?.total}
@@ -405,6 +422,9 @@ function PlanningCompactList({
   onEdit,
   onExpandedIdChange,
   onRequestDelete,
+  onRequestRollover,
+  canEditRollover,
+  rolloverDisabledReason,
   deletingId,
 }: {
   vault: string;
@@ -416,6 +436,9 @@ function PlanningCompactList({
   onEdit: (kind: PlanningKind, item: PlanningItem) => void;
   onExpandedIdChange: (id: string | null) => void;
   onRequestDelete: (kind: PlanningKind, item: PlanningItem) => void;
+  onRequestRollover: (sprint: Sprint) => void;
+  canEditRollover: boolean;
+  rolloverDisabledReason?: string;
   deletingId?: string;
 }) {
   const t = useTranslations("planning");
@@ -471,6 +494,14 @@ function PlanningCompactList({
                 >
                   <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
                 </Button>
+                {kind === "sprints" ? (
+                  <PlanningRolloverAction
+                    sprint={item as Sprint}
+                    canEdit={canEditRollover}
+                    disabledReason={rolloverDisabledReason}
+                    onRequest={onRequestRollover}
+                  />
+                ) : null}
                 <PlanningDeleteAction
                   itemName={item.name}
                   issueCount={rollup?.total}
@@ -523,6 +554,52 @@ function PlanningCompactList({
         );
       })}
     </div>
+  );
+}
+
+function PlanningRolloverAction({
+  sprint,
+  canEdit,
+  disabledReason,
+  onRequest,
+}: {
+  sprint: Sprint;
+  canEdit: boolean;
+  disabledReason?: string;
+  onRequest: (sprint: Sprint) => void;
+}) {
+  const t = useTranslations("planning.rollover");
+  const descriptionId = useId();
+  const reason = !canEdit
+    ? (disabledReason ?? t("readerDisabled"))
+    : sprint.status !== "active"
+      ? t("notActive")
+      : undefined;
+  const disabled = Boolean(reason);
+
+  return (
+    <>
+      <Button
+        type="button"
+        size="sm"
+        hitTarget="compact"
+        variant="ghost"
+        onClick={() => onRequest(sprint)}
+        disabled={disabled}
+        aria-disabled={disabled || undefined}
+        aria-describedby={reason ? descriptionId : undefined}
+        title={reason}
+        aria-label={t("actionFor", { name: sprint.name })}
+        className={disabled ? "opacity-50" : undefined}
+      >
+        <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
+      </Button>
+      {reason ? (
+        <span id={descriptionId} className="sr-only">
+          {reason}
+        </span>
+      ) : null}
+    </>
   );
 }
 

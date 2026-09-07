@@ -10,9 +10,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
+import { useWorkspaceAccess } from "@/features/settings/hooks/useWorkspaceAccess";
 import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { PageHeader } from "@/features/ui/components/PageHeader";
+import { useHydrated } from "@/lib/useHydrated";
 import {
   usePlanningKindLabels,
   usePlanningKindSingularLabels,
@@ -20,6 +22,7 @@ import {
 import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
 import { Plus } from "lucide-react";
+import type { Sprint } from "@reef/core";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
@@ -35,6 +38,8 @@ import {
 import { PlanningDeleteDialog } from "./PlanningDeleteDialog";
 import { PlanningEditorDialog } from "./PlanningEditorDialog";
 import { PlanningTable } from "./PlanningTable";
+import { SprintRolloverDialog } from "./SprintRolloverDialog";
+import { SprintRolloverNudge } from "./SprintRolloverNudge";
 import type { IssueAggregationState } from "./PlanningRollup";
 import {
   type EditorState,
@@ -43,6 +48,7 @@ import {
   emptyItem,
   mergeEditorItem,
 } from "./planningPageUtils";
+import { selectActiveSprint } from "../lib/planningItems";
 
 const DEFAULT_PLANNING_KIND: PlanningKind = "sprints";
 
@@ -78,6 +84,9 @@ export function PlanningPage() {
   const createMutation = useCreatePlanningItem(vault);
   const updateMutation = useUpdatePlanningItem(vault);
   const deleteMutation = useDeletePlanningItem(vault);
+  const access = useWorkspaceAccess(vault);
+  const hydrated = useHydrated();
+  const [rolloverSource, setRolloverSource] = useState<Sprint | null>(null);
 
   const catalog = catalogQuery.data;
   const issues = issueQuery.data;
@@ -86,6 +95,12 @@ export function PlanningPage() {
     : issueQuery.isPending || !issues
       ? "loading"
       : "available";
+  const rolloverIssueState = issueQuery.isError
+    ? "error"
+    : issueQuery.isPending || !issues
+      ? "loading"
+      : "available";
+  const activeSprint = selectActiveSprint(catalog?.sprints ?? []);
 
   // Kind copy resolves in the active locale (REEF-292); captured here so the
   // toast handlers and the kind tabs below all read the same maps.
@@ -223,6 +238,14 @@ export function PlanningPage() {
         }
       />
       <PageBody pad="compact">
+        <SprintRolloverNudge
+          sprint={activeSprint}
+          issues={issues}
+          issueState={rolloverIssueState}
+          now={hydrated ? Date.now() : null}
+          canEdit={access.canEditWorkspace}
+          onOpen={setRolloverSource}
+        />
         <div
           role="group"
           aria-label={tp("planningKind")}
@@ -266,6 +289,9 @@ export function PlanningPage() {
           onEdit={startEdit}
           onExpandedIdChange={setExpandedId}
           onRequestDelete={startDelete}
+          onRequestRollover={setRolloverSource}
+          canEditRollover={access.canEditWorkspace}
+          rolloverDisabledReason={undefined}
           deletingId={
             deleteMutation.isPending &&
             deleteMutation.variables?.kind === activeKind
@@ -303,6 +329,21 @@ export function PlanningPage() {
         focusOriginRef={deleteFocusOriginRef}
         onCancel={() => setDeleteTarget(null)}
         onConfirm={() => void confirmDelete()}
+      />
+
+      <SprintRolloverDialog
+        open={rolloverSource !== null}
+        onOpenChange={(open) => {
+          if (!open) setRolloverSource(null);
+        }}
+        vault={vault}
+        source={rolloverSource}
+        catalog={catalog}
+        issues={issues}
+        issueState={rolloverIssueState}
+        now={hydrated ? Date.now() : null}
+        canEdit={access.canEditWorkspace}
+        onRetryIssues={() => void issueQuery.refetch()}
       />
     </div>
   );

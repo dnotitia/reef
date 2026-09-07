@@ -18,6 +18,16 @@ explicitly in the entries below.
   Read-only planning data shares the existing quarter day grid and catalog cache,
   including clipped sprint ranges, release-date precedence, and same-day marker
   stacks with keyboard-accessible details.
+- **Planning can close an active sprint and roll unfinished work into an
+  explicitly selected next sprint.** The action persists its target and
+  per-issue progress so partial failures can be retried without duplicate
+  sprint or activity records.
+
+### Migration
+
+- Existing Reef vaults reuse the current `reef_sprints.meta` JSON envelope; no
+  table migration is required. Refresh the installed vault-skill documents
+  before using generic AKB agents with the sprint rollover workflow.
 
 ## v0.14.1 - 2026-09-04
 
