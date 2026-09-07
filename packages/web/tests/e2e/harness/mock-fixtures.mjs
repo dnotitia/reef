@@ -1257,7 +1257,7 @@ function demoBoardVault(name) {
   return vault;
 }
 
-function rawVault(name) {
+export function rawVault(name) {
   return {
     id: `vault-${name}`,
     name,

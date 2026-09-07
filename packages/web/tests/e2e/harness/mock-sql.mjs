@@ -1376,6 +1376,19 @@ export function matchSqlString(sql, pattern) {
   return match ? match[1].replace(/''/g, "'") : null;
 }
 
+function decodeEscapedLikePattern(pattern) {
+  const inner =
+    pattern.startsWith("%") && pattern.endsWith("%")
+      ? pattern.slice(1, -1)
+      : pattern;
+  let decoded = "";
+  for (let index = 0; index < inner.length; index += 1) {
+    if (inner[index] === "\\" && index + 1 < inner.length) index += 1;
+    decoded += inner[index];
+  }
+  return decoded;
+}
+
 function parseInsert(sql) {
   const tableMatch = sql.match(/insert into\s+([a-z_]+)/i);
   if (!tableMatch || tableMatch.index == null) return null;

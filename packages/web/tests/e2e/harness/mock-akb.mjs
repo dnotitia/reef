@@ -2,6 +2,7 @@ import {
   AUTH_PROBE_HANG_MAX_MS,
   fixtureLogin,
   NOW,
+  rawVault,
   REEF_VAULT,
 } from "./mock-fixtures.mjs";
 import {
@@ -509,19 +510,6 @@ function searchVaultDocuments(vault, url) {
       tags: doc.tags ?? [],
     })),
   };
-}
-
-function decodeEscapedLikePattern(pattern) {
-  const inner =
-    pattern.startsWith("%") && pattern.endsWith("%")
-      ? pattern.slice(1, -1)
-      : pattern;
-  let decoded = "";
-  for (let index = 0; index < inner.length; index += 1) {
-    if (inner[index] === "\\" && index + 1 < inner.length) index += 1;
-    decoded += inner[index];
-  }
-  return decoded;
 }
 
 function isToolLoopSearch(url) {
