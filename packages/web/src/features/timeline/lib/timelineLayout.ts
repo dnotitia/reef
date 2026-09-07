@@ -1,4 +1,11 @@
-import { type IssueListItem, isResolvedStatus } from "@reef/core";
+import {
+  type IssueListItem,
+  type Milestone,
+  type PlanningCatalog,
+  type Release,
+  type Sprint,
+  isResolvedStatus,
+} from "@reef/core";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -58,6 +65,39 @@ export interface TimelineMonthSpan {
   year: number;
   startIndex: number;
   endIndex: number;
+}
+
+export interface TimelineSprintBand {
+  sprintId: string;
+  name: string;
+  status: Sprint["status"];
+  start: CalendarDay;
+  end: CalendarDay;
+  startIndex: number;
+  endIndex: number;
+  startsBeforeRange: boolean;
+  endsAfterRange: boolean;
+}
+
+export type TimelinePlanningMarkerKind = "milestone" | "release";
+
+export interface TimelinePlanningMarker {
+  id: string;
+  kind: TimelinePlanningMarkerKind;
+  name: string;
+  date: CalendarDay;
+  dateIndex: number;
+}
+
+export interface TimelinePlanningMarkerStack {
+  date: CalendarDay;
+  dateIndex: number;
+  markers: TimelinePlanningMarker[];
+}
+
+export interface TimelinePlanningOverlay {
+  sprintBands: TimelineSprintBand[];
+  markerStacks: TimelinePlanningMarkerStack[];
 }
 
 function pad(value: number): string {
@@ -215,6 +255,141 @@ export function getMonthSpans(range: TimelineRange): TimelineMonthSpan[] {
   }
 
   return spans;
+}
+
+function compareText(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/**
+ * Project a complete sprint range onto the visible quarter. Sprints with a
+ * missing or inverted range, or with no overlap, are intentionally omitted.
+ */
+export function getSprintBand(
+  sprint: Sprint,
+  range: TimelineRange,
+): TimelineSprintBand | null {
+  const start = parseCalendarDay(sprint.start_date);
+  const end = parseCalendarDay(sprint.end_date);
+  if (!start || !end || compareCalendarDays(start, end) > 0) return null;
+  if (
+    compareCalendarDays(end, range.start) < 0 ||
+    compareCalendarDays(start, range.end) > 0
+  ) {
+    return null;
+  }
+
+  const renderStart = clampCalendarDay(start, range);
+  const renderEnd = clampCalendarDay(end, range);
+  return {
+    sprintId: sprint.id,
+    name: sprint.name,
+    status: sprint.status,
+    start: renderStart,
+    end: renderEnd,
+    startIndex: diffCalendarDays(range.start, renderStart),
+    endIndex: diffCalendarDays(range.start, renderEnd),
+    startsBeforeRange: compareCalendarDays(start, range.start) < 0,
+    endsAfterRange: compareCalendarDays(end, range.end) > 0,
+  };
+}
+
+/**
+ * Resolve a planning item to the calendar date shown on the timeline. A
+ * released release uses its actual deployment date; otherwise its target date
+ * remains the planned projection.
+ */
+export function getPlanningMarker(
+  item: Milestone | Release,
+  kind: TimelinePlanningMarkerKind,
+  range: TimelineRange,
+): TimelinePlanningMarker | null {
+  const date =
+    kind === "release"
+      ? (parseCalendarDay((item as Release).released_at) ??
+        parseCalendarDay(item.target_date))
+      : parseCalendarDay(item.target_date);
+  if (!date) return null;
+  if (
+    compareCalendarDays(date, range.start) < 0 ||
+    compareCalendarDays(date, range.end) > 0
+  ) {
+    return null;
+  }
+
+  return {
+    id: item.id,
+    kind,
+    name: item.name,
+    date,
+    dateIndex: diffCalendarDays(range.start, date),
+  };
+}
+
+function comparePlanningMarkers(
+  a: TimelinePlanningMarker,
+  b: TimelinePlanningMarker,
+): number {
+  return (
+    compareText(a.kind, b.kind) ||
+    compareText(a.name, b.name) ||
+    compareText(a.id, b.id)
+  );
+}
+
+/**
+ * Build the read-only planning projection for the visible quarter. The
+ * catalog is deliberately passed in rather than fetched here so quarter
+ * navigation stays a client-side recalculation over the shared Query cache.
+ */
+export function getPlanningOverlay(
+  catalog: PlanningCatalog | undefined,
+  range: TimelineRange,
+): TimelinePlanningOverlay {
+  if (!catalog) return { sprintBands: [], markerStacks: [] };
+
+  const sprintBands = catalog.sprints
+    .flatMap((sprint) => {
+      const band = getSprintBand(sprint, range);
+      return band ? [band] : [];
+    })
+    .sort(
+      (a, b) =>
+        a.startIndex - b.startIndex ||
+        a.endIndex - b.endIndex ||
+        compareText(a.name, b.name) ||
+        compareText(a.sprintId, b.sprintId),
+    );
+
+  const markerByDate = new Map<string, TimelinePlanningMarker[]>();
+  for (const [kind, items] of [
+    ["milestone", catalog.milestones] as const,
+    ["release", catalog.releases] as const,
+  ]) {
+    for (const item of items) {
+      const marker = getPlanningMarker(item, kind, range);
+      if (!marker) continue;
+      const markers = markerByDate.get(marker.date.key) ?? [];
+      markers.push(marker);
+      markerByDate.set(marker.date.key, markers);
+    }
+  }
+
+  const markerStacks = [...markerByDate.values()]
+    .map((markers) => {
+      const sortedMarkers = [...markers].sort(comparePlanningMarkers);
+      const date = sortedMarkers[0]?.date;
+      if (!date) return null;
+      return {
+        date,
+        dateIndex: diffCalendarDays(range.start, date),
+        markers: sortedMarkers,
+      };
+    })
+    .filter((stack): stack is TimelinePlanningMarkerStack => stack !== null)
+    .sort((a, b) => a.dateIndex - b.dateIndex);
+
+  return { sprintBands, markerStacks };
 }
 
 function itemSortDay(item: TimelineItem): CalendarDay {
