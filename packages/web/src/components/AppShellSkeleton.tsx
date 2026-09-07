@@ -1,5 +1,6 @@
 import { BoardColumnsSkeleton } from "@/components/BoardColumnsSkeleton";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 
 const NAV_ITEMS = [
@@ -17,12 +18,21 @@ const NAV_ITEMS = [
  * reads as "loading the board" instead of a bare centered "Loading…" — the
  * board is the most common post-redirect destination for a returning user.
  *
- * The visual skeleton is decorative (aria-hidden); a sibling sr
+ * The default board placeholder is decorative (aria-hidden); a sibling sr
  * `role="status"` carries the loading announcement so assistive technology
  * still hears a loading state during a slow redirect instead of a blank page.
- * (REEF-097 AC2)
+ * Auth-pending destination content may supply its own static labels and single
+ * loading announcement in the main slot. (REEF-097 AC2)
  */
-export function AppShellSkeleton() {
+export function AppShellSkeleton({
+  content,
+  announce = true,
+}: {
+  /** Static, non-interactive destination chrome for an auth-pending route. */
+  content?: ReactNode;
+  /** Route content owns the single loading announcement when supplied. */
+  announce?: boolean;
+} = {}) {
   const c = useTranslations("common");
   const nav = useTranslations("nav");
   return (
@@ -31,7 +41,7 @@ export function AppShellSkeleton() {
       aria-busy="true"
       data-testid="app-shell-skeleton"
     >
-      <output className="sr-only">{c("loading")}</output>
+      {announce && <output className="sr-only">{c("loading")}</output>}
 
       {/* Static shell chrome stays readable while the auth/workspace gate is
           pending. There are no links or handlers here, so it cannot be used
@@ -76,9 +86,11 @@ export function AppShellSkeleton() {
             data-testid="app-shell-skeleton-main"
             className="flex min-h-0 min-w-0 flex-1 overflow-hidden"
           >
-            <div aria-hidden="true" className="flex min-h-0 min-w-0 flex-1">
-              <BoardColumnsSkeleton />
-            </div>
+            {content ?? (
+              <div aria-hidden="true" className="flex min-h-0 min-w-0 flex-1">
+                <BoardColumnsSkeleton />
+              </div>
+            )}
           </main>
         </div>
       </div>
