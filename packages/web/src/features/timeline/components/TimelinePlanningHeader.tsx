@@ -18,6 +18,7 @@ import {
   type TimelineSprintBand,
   formatCalendarDay,
 } from "../lib/timelineLayout";
+import { timelineSprintBandClasses } from "./timelinePlanningStyles";
 
 interface TimelinePlanningHeaderProps {
   days: CalendarDay[];
@@ -29,12 +30,6 @@ const MARKER_KIND_KEYS = {
   milestone: "milestones",
   release: "releases",
 } as const;
-
-function sprintBandClasses(status: TimelineSprintBand["status"]): string {
-  return status === "active"
-    ? "border-planning-active/50 bg-planning-active/15 text-planning-active"
-    : "border-planning-closed/40 bg-planning-closed/10 text-planning-closed";
-}
 
 function markerClasses(kind: TimelinePlanningMarker["kind"]): string {
   return kind === "milestone"
@@ -88,7 +83,7 @@ function SprintBand({
       className={cn(
         "z-[1] mx-0.5 my-1 flex min-w-0 items-center overflow-hidden rounded-sm border px-1.5",
         "type-chart-label font-medium",
-        sprintBandClasses(band.status),
+        timelineSprintBandClasses(band.status),
       )}
       style={{
         gridColumn: `${band.startIndex + 2} / ${band.endIndex + 3}`,

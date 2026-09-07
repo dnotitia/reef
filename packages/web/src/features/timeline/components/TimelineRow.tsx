@@ -4,13 +4,19 @@ import { StatusIcon } from "@/components/ui/status-icon";
 import { useStatusLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { CSSProperties } from "react";
-import type { CalendarDay, TimelineItem } from "../lib/timelineLayout";
+import type {
+  CalendarDay,
+  TimelineItem,
+  TimelineSprintBand,
+} from "../lib/timelineLayout";
 import { TimelineBar } from "./TimelineBar";
+import { timelineSprintBandClasses } from "./timelinePlanningStyles";
 
 interface TimelineRowProps {
   item: TimelineItem;
   days: CalendarDay[];
   gridStyle: CSSProperties;
+  sprintBands: TimelineSprintBand[];
   onIssueClick: (id: string) => void;
 }
 
@@ -25,6 +31,7 @@ export function TimelineRow({
   item,
   days,
   gridStyle,
+  sprintBands,
   onIssueClick,
 }: TimelineRowProps) {
   const statusLabels = useStatusLabels();
@@ -75,6 +82,21 @@ export function TimelineRow({
             isWeekend(day) && "bg-surface-subtle/70",
           )}
           style={{ gridColumn: index + 2, gridRow: 1 }}
+        />
+      ))}
+      {sprintBands.map((band) => (
+        <div
+          key={band.sprintId}
+          data-testid="timeline-sprint-band"
+          aria-hidden="true"
+          className={cn(
+            "pointer-events-none z-0 h-full border-y",
+            timelineSprintBandClasses(band.status),
+          )}
+          style={{
+            gridColumn: `${band.startIndex + 2} / ${band.endIndex + 3}`,
+            gridRow: 1,
+          }}
         />
       ))}
       <TimelineBar item={item} onClick={onIssueClick} />

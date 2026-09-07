@@ -168,6 +168,20 @@ describe("TimelineBody", () => {
     expect(screen.getAllByText("Done").length).toBeGreaterThan(0);
   });
 
+  it("renders sprint bands behind each issue row's date cells", async () => {
+    render(wrap(<TimelineBody vault="reef-acme" />));
+
+    const bands = await screen.findAllByTestId("timeline-sprint-band");
+    expect(bands.length).toBeGreaterThan(0);
+    expect(bands[0]).toHaveAttribute("aria-hidden", "true");
+    expect(bands[0]).toHaveClass("pointer-events-none");
+    expect(bands[0]).toHaveClass("bg-planning-active/15");
+    expect(bands[0]).toHaveStyle({
+      gridColumn: "63 / 77",
+      gridRow: "1",
+    });
+  });
+
   it("treats a backlog-only result set as an empty timeline (REEF-109)", async () => {
     mockApiFetch.mockImplementation(async (url) => {
       const path = String(url);

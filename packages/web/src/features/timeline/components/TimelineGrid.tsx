@@ -335,6 +335,7 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                         item={item}
                         days={days}
                         gridStyle={gridStyle}
+                        sprintBands={planningOverlay.sprintBands}
                         onIssueClick={onIssueClick}
                       />
                     ))}
