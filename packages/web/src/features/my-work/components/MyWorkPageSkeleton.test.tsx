@@ -70,9 +70,14 @@ describe("MyWorkPageSkeleton", () => {
   it("carries one role=status announcement and hides the decorative body (REEF-281)", () => {
     const { container } = render(<MyWorkSkeleton />);
 
-    // The stat/queue placeholders are decorative — aria-hidden so a screen
-    // reader skips the empty DOM.
-    expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
+    // Placeholder bars are decorative — aria-hidden individually — while fixed
+    // stat and queue labels stay available.
+    expect(
+      container.querySelector('.reef-shimmer[aria-hidden="true"]'),
+    ).not.toBeNull();
+    expect(
+      screen.getByText("Open work by stage").closest('[aria-hidden="true"]'),
+    ).toBeNull();
 
     // The role=status loading announcement is a sibling, not under aria-hidden.
     const status = screen.getByRole("status");

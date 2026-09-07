@@ -40,9 +40,13 @@ function LoadingColumn({ label, index }: { label?: string; index: number }) {
             {label}
           </h3>
         ) : (
-          <Skeleton tone="secondary" className="h-3 w-20" />
+          <Skeleton aria-hidden="true" tone="secondary" className="h-3 w-20" />
         )}
-        <Skeleton tone="secondary" className="h-3 w-5 shrink-0" />
+        <Skeleton
+          aria-hidden="true"
+          tone="secondary"
+          className="h-3 w-5 shrink-0"
+        />
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-1.5" aria-hidden="true">
         {CARD_KEYS.map((key, cardIndex) => (

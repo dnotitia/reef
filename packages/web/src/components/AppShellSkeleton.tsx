@@ -18,7 +18,8 @@ const NAV_ITEMS = [
  * reads as "loading the board" instead of a bare centered "Loading…" — the
  * board is the most common post-redirect destination for a returning user.
  *
- * The default board placeholder is decorative (aria-hidden); a sibling sr
+ * The default board's placeholder bars are decorative (aria-hidden), while its
+ * fixed column labels remain available to assistive technology. A sibling sr
  * `role="status"` carries the loading announcement so assistive technology
  * still hears a loading state during a slow redirect instead of a blank page.
  * Auth-pending destination content may supply its own static labels and single
@@ -87,7 +88,7 @@ export function AppShellSkeleton({
             className="flex min-h-0 min-w-0 flex-1 overflow-hidden"
           >
             {content ?? (
-              <div aria-hidden="true" className="flex min-h-0 min-w-0 flex-1">
+              <div className="flex min-h-0 min-w-0 flex-1">
                 <BoardColumnsSkeleton />
               </div>
             )}

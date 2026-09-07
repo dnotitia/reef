@@ -66,9 +66,9 @@ function ActiveWorkspaceLoading() {
         </h2>
         <p className="text-xs text-muted-foreground">{t("description")}</p>
       </div>
-      <div aria-hidden="true" className="flex flex-wrap items-center gap-2">
-        <Skeleton className="h-8 min-w-[12rem] flex-1" />
-        <Skeleton className="h-8 w-32" />
+      <div className="flex flex-wrap items-center gap-2">
+        <Skeleton aria-hidden="true" className="h-8 min-w-[12rem] flex-1" />
+        <Skeleton aria-hidden="true" className="h-8 w-32" />
       </div>
     </section>
   );

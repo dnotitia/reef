@@ -62,6 +62,8 @@ async function expectAuthPendingSurface(
   await page.goto(surface.path);
 
   await expect(page.getByTestId("app-shell-skeleton")).toBeVisible();
+  const pendingMain = page.getByTestId("app-shell-skeleton-main");
+  const pendingAccessibilitySnapshot = await pendingMain.ariaSnapshot();
   const pending = await page.evaluate((expected) => {
     const shell = document.querySelector('[data-testid="app-shell-skeleton"]');
     const main = shell?.querySelector<HTMLElement>(
@@ -87,6 +89,12 @@ async function expectAuthPendingSurface(
   expect(pending.hasLabels).toBe(true);
   expect(pending.buttonCount).toBe(0);
   expect(pending.linkCount).toBe(0);
+  for (const label of surface.labels) {
+    expect(
+      pendingAccessibilitySnapshot,
+      `${surface.path} pending accessibility tree should include ${label}`,
+    ).toContain(label);
+  }
   await expect(page).not.toHaveURL(/\/login(?:\?|$)/);
 
   if (surface.loadedTestId) {

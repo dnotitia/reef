@@ -106,7 +106,11 @@ function RailRowSkeleton({ index, label }: { index: number; label: string }) {
         className="h-3 w-20 shrink-0"
         labelClassName="text-xs font-medium text-muted-foreground"
       />
-      <Skeleton style={wave(index + 1)} className="h-8 min-w-0 flex-1" />
+      <Skeleton
+        aria-hidden="true"
+        style={wave(index + 1)}
+        className="h-8 min-w-0 flex-1"
+      />
     </div>
   );
 }
@@ -223,7 +227,7 @@ export function IssueDetailSkeleton() {
       <output className="sr-only">{c("loading")}</output>
       {/* The mirrored panel is all placeholder bars — decorative, so aria-hidden
           keeps assistive tech from walking the empty canvas/rail DOM. */}
-      <div className="flex flex-col gap-5" aria-hidden="true">
+      <div className="flex flex-col gap-5">
         {/* Two-column grid: main canvas + 400px rail (mirrors IssueDetail). The
             identity row is not mirrored — the sheet's persistent chrome bar owns
             it across loading (REEF-286), so the body skeleton opens on the
@@ -241,6 +245,7 @@ export function IssueDetailSkeleton() {
               />
               {/* Title value matches the `Input` height (h-8), not h-9. */}
               <Skeleton
+                aria-hidden="true"
                 style={wave(HEADER_SKELETONS + 1)}
                 className="h-8 w-full"
               />
@@ -256,6 +261,7 @@ export function IssueDetailSkeleton() {
                 toolbar strip over its 320px initial body frame (≈356px), so the
                 editor chunk loading in does not push the sections below down. */}
               <Skeleton
+                aria-hidden="true"
                 style={wave(HEADER_SKELETONS + 3)}
                 className="h-[356px] w-full"
               />
@@ -270,6 +276,7 @@ export function IssueDetailSkeleton() {
                 className="h-3 w-20"
               />
               <Skeleton
+                aria-hidden="true"
                 style={wave(subIssuesStart + 1)}
                 className="h-10 w-full"
               />
@@ -283,6 +290,7 @@ export function IssueDetailSkeleton() {
                 className="h-3 w-28"
               />
               <Skeleton
+                aria-hidden="true"
                 style={wave(linkedDocumentsStart + 1)}
                 className="h-10 w-full"
               />
@@ -295,7 +303,11 @@ export function IssueDetailSkeleton() {
                 style={wave(refsStart)}
                 className="h-3 w-24"
               />
-              <Skeleton style={wave(refsStart + 1)} className="h-16 w-full" />
+              <Skeleton
+                aria-hidden="true"
+                style={wave(refsStart + 1)}
+                className="h-16 w-full"
+              />
             </div>
 
             {/* Activity timeline + comment composer (REEF-064) — consistently rendered
@@ -309,11 +321,13 @@ export function IssueDetailSkeleton() {
                 className="h-3 w-20"
               />
               <Skeleton
+                aria-hidden="true"
                 style={wave(activityStart + 1)}
                 className="h-20 w-full"
               />
               {ACTIVITY_ROWS.map((row, k) => (
                 <Skeleton
+                  aria-hidden="true"
                   key={row}
                   style={wave(activityStart + 2 + k)}
                   className="h-12 w-full"
@@ -338,7 +352,11 @@ export function IssueDetailSkeleton() {
                 className="h-3 w-12"
                 labelClassName="text-xs font-medium text-muted-foreground"
               />
-              <Skeleton style={wave(labelsStart + 1)} className="h-9 w-full" />
+              <Skeleton
+                aria-hidden="true"
+                style={wave(labelsStart + 1)}
+                className="h-9 w-full"
+              />
             </div>
             <RailSectionSkeleton
               title={sections("people")}

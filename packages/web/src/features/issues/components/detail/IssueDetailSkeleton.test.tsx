@@ -88,9 +88,14 @@ describe("IssueDetailSkeleton", () => {
   it("hides the decorative panel and announces loading to assistive tech (REEF-281)", () => {
     const { container } = render(<IssueDetailSkeleton />);
 
-    // Every placeholder bar is decorative — aria-hidden so a screen reader does
-    // not walk the empty header/canvas/rail DOM.
-    expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
+    // Every placeholder bar is decorative — aria-hidden individually, while
+    // fixed field and section labels stay in the accessibility tree.
+    expect(
+      container.querySelector('.reef-shimmer[aria-hidden="true"]'),
+    ).not.toBeNull();
+    expect(
+      screen.getByText("Details").closest('[aria-hidden="true"]'),
+    ).toBeNull();
 
     // The role=status loading announcement is a sibling, not under aria-hidden.
     const status = screen.getByRole("status");

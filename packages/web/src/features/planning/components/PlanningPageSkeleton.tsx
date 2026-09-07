@@ -50,7 +50,7 @@ export function PlanningPageSkeleton() {
         {/* screen-reader loading announcement (REEF-281), sibling to the decorative
             body; PageHeader's h1 stays a real heading. */}
         <output className="sr-only">{common("loading")}</output>
-        <div aria-hidden="true">
+        <div>
           {/* Kind toggle group placeholder (Sprints / Milestones / Releases). */}
           <div className="mb-4 inline-flex gap-1 rounded-md border border-border-subtle bg-surface-elevated p-0.5">
             {(["sprints", "milestones", "releases"] as const).map((kind) => (
@@ -73,9 +73,9 @@ export function PlanningPageSkeleton() {
               <span>{sections("details")}</span>
             </div>
             <div className="flex flex-col gap-2 pt-2">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-11/12" />
+              <Skeleton aria-hidden="true" className="h-10 w-full" />
+              <Skeleton aria-hidden="true" className="h-10 w-full" />
+              <Skeleton aria-hidden="true" className="h-10 w-11/12" />
             </div>
           </div>
         </div>

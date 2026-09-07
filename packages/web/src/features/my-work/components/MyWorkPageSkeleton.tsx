@@ -65,11 +65,11 @@ export function MyWorkSkeleton({ hasSprint = false }: { hasSprint?: boolean }) {
       {/* Single per-surface loading announcement (REEF-281). It lives on the
           body-level leaf so the full-page MyWorkPageSkeleton (and MyWorkPage's
           in-flight branches) inherit exactly one — not a doubled notification.
-          Sibling to the decorative body, so it is not under aria-hidden. */}
+          Sibling to the placeholder bars, so it is not hidden. */}
       <output className="sr-only">{c("loading")}</output>
-      {/* The placeholder body is decorative — aria-hidden so assistive tech does
-          not walk the empty stat/queue DOM. */}
-      <div className="flex flex-col gap-6" aria-hidden="true">
+      {/* Placeholder bars are decorative and hidden individually; fixed stat,
+          stage, and queue labels remain in the accessibility tree. */}
+      <div className="flex flex-col gap-6">
         {/* Summary: stat tiles + status StageBar (mirrors MyWorkSummary). */}
         <section className="flex flex-col gap-3">
           <ul
@@ -99,9 +99,13 @@ export function MyWorkSkeleton({ hasSprint = false }: { hasSprint?: boolean }) {
                     className="h-3 w-20"
                   />
                 ) : (
-                  <Skeleton tone="secondary" className="h-3 w-16" />
+                  <Skeleton
+                    aria-hidden="true"
+                    tone="secondary"
+                    className="h-3 w-16"
+                  />
                 )}
-                <Skeleton className="h-6 w-10" />
+                <Skeleton aria-hidden="true" className="h-6 w-10" />
               </li>
             ))}
           </ul>
@@ -111,7 +115,7 @@ export function MyWorkSkeleton({ hasSprint = false }: { hasSprint?: boolean }) {
               label={t("openWorkByStage")}
               className="h-3 w-32"
             />
-            <Skeleton className="h-2 w-full rounded-full" />
+            <Skeleton aria-hidden="true" className="h-2 w-full rounded-full" />
             <div className="flex flex-wrap gap-x-4 gap-y-1">
               {STAGE_LEGEND_KEYS.map((key) => (
                 <LabeledSkeleton
@@ -130,7 +134,11 @@ export function MyWorkSkeleton({ hasSprint = false }: { hasSprint?: boolean }) {
           <header className="flex items-baseline justify-between gap-3">
             <div className="flex items-baseline gap-2">
               <LabeledSkeleton label={t("queueTitle")} className="h-4 w-32" />
-              <Skeleton tone="secondary" className="h-3 w-6" />
+              <Skeleton
+                aria-hidden="true"
+                tone="secondary"
+                className="h-3 w-6"
+              />
             </div>
             <LabeledSkeleton
               label={`${t("byPriority")} · ${t("byStatus")}`}
@@ -143,7 +151,7 @@ export function MyWorkSkeleton({ hasSprint = false }: { hasSprint?: boolean }) {
                 key={key}
                 className="border-t border-border-subtle px-3 py-2 first:border-t-0"
               >
-                <Skeleton className="h-5 w-full" />
+                <Skeleton aria-hidden="true" className="h-5 w-full" />
               </div>
             ))}
           </div>

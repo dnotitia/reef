@@ -15,12 +15,16 @@ export default function Loading() {
           page header + tab nav, so this body skeleton carries the surface's one
           announcement. Sibling to the decorative groups, not under aria-hidden. */}
       <output className="sr-only">{t("loading")}</output>
-      <div className="flex flex-col gap-6" aria-hidden="true">
+      <div className="flex flex-col gap-6">
         {[0, 1].map((group) => (
           <div key={`group-${group}`} className="flex flex-col gap-3">
-            <Skeleton tone="secondary" className="h-4 w-40" />
-            <Skeleton className="h-9 w-full" />
-            <Skeleton className="h-9 w-3/4" />
+            <Skeleton
+              aria-hidden="true"
+              tone="secondary"
+              className="h-4 w-40"
+            />
+            <Skeleton aria-hidden="true" className="h-9 w-full" />
+            <Skeleton aria-hidden="true" className="h-9 w-3/4" />
           </div>
         ))}
       </div>

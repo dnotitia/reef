@@ -153,16 +153,20 @@ async function expectTypography(
   label: string,
 ): Promise<ComputedTypography> {
   await expect(locator, label).toBeVisible();
+  let observed: ComputedTypography | undefined;
   await expect
     .poll(
       async () => {
-        const typography = await readTypography(locator);
-        return typography.fontSize > 0 && typography.lineHeight !== null;
+        observed = await readTypography(locator);
+        return observed.fontSize > 0 && observed.lineHeight !== null;
       },
       { message: `${label} computed style is resolved` },
     )
     .toBe(true);
-  const typography = await readTypography(locator);
+  if (!observed) {
+    throw new Error(`${label} computed style was not observed`);
+  }
+  const typography = observed;
   expect(typography.fontSize, `${label} font-size`).toBe(expected.size);
   if (expected.weight !== undefined) {
     expect(typography.fontWeight, `${label} font-weight`).toBe(expected.weight);
