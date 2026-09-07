@@ -227,7 +227,7 @@ export function IssuesWorkspace({
         <EmptyWorkspaceNotice />
       ) : (
         <>
-          {!fixedSprintId && scope === "active" ? (
+          {!fixedSprintId && scope === "active" && layout === "board" ? (
             <SprintRolloverNudge
               sprint={activeSprint}
               issues={rolloverIssueQuery.data}

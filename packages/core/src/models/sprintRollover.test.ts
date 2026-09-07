@@ -24,6 +24,12 @@ describe("sprint rollover model", () => {
     expect(suggestSprintRolloverName("Discovery")).toBe("Discovery Next");
   });
 
+  it("handles a long numeric sprint name without regex backtracking", () => {
+    expect(suggestSprintRolloverName(`Sprint ${"0".repeat(100_000)}`)).toBe(
+      "Sprint 1",
+    );
+  });
+
   it("uses UTC calendar days for rollover date defaults", () => {
     expect(addUtcCalendarDays("2026-09-11", 1)).toBe("2026-09-12");
     expect(utcCalendarDayDistance("2026-09-04", "2026-09-11")).toBe(7);

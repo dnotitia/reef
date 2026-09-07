@@ -105,9 +105,27 @@ function utcToday(now: Date | number | string = Date.now()): string {
 /** Suggest the next sprint name while preserving a source suffix. */
 export function suggestSprintRolloverName(sourceName: string): string {
   const trimmed = sourceName.trim();
-  const match = /^(\s*Sprint\s+)(\d+)(.*)$/iu.exec(trimmed);
-  if (!match) return `${trimmed} Next`;
-  return `${match[1]}${Number(match[2]) + 1}${match[3]}`.trim();
+  if (trimmed.slice(0, 6).toLowerCase() !== "sprint") {
+    return `${trimmed} Next`;
+  }
+
+  let cursor = 6;
+  while (cursor < trimmed.length && trimmed[cursor]?.trim() === "") {
+    cursor += 1;
+  }
+  const numberStart = cursor;
+  while (
+    cursor < trimmed.length &&
+    trimmed.charCodeAt(cursor) >= 48 &&
+    trimmed.charCodeAt(cursor) <= 57
+  ) {
+    cursor += 1;
+  }
+  if (numberStart === cursor) return `${trimmed} Next`;
+
+  const prefix = trimmed.slice(0, numberStart);
+  const number = trimmed.slice(numberStart, cursor);
+  return `${prefix}${Number(number) + 1}${trimmed.slice(cursor)}`.trim();
 }
 
 export interface SprintRolloverDateProposal {

@@ -48,7 +48,7 @@ export function SprintRolloverNudge({
   const disabledReason = canEdit ? undefined : t("readerDisabled");
 
   return (
-    <aside
+    <div
       data-testid="sprint-rollover-nudge"
       role="status"
       className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-status-in-progress-focus/40 bg-status-in-progress-fill/5 px-3 py-2.5"
@@ -80,6 +80,6 @@ export function SprintRolloverNudge({
           ×
         </Button>
       </div>
-    </aside>
+    </div>
   );
 }
