@@ -38,6 +38,15 @@ export type { IssueAggregationState } from "./PlanningRollup";
 
 const MARKDOWN_TOKENS = /[#>*_`~]+|\[([^\]]*)\]\([^)]*\)/g;
 const NOOP = () => {};
+const PLANNING_LOADING_ROWS = ["one", "two", "three"] as const;
+const PLANNING_TABLE_COLUMNS = [
+  "name",
+  "status",
+  "dates",
+  "issues",
+  "details",
+  "actions",
+] as const;
 
 function stripMarkdown(md: string): string {
   const firstLine = md.split("\n").find((line) => line.trim()) ?? "";
@@ -195,6 +204,7 @@ export function PlanningTable({
   const planningKindSingular = usePlanningKindSingularLabels();
   const fieldNames = useFieldNameLabels();
   const t = useTranslations("planning");
+  const common = useTranslations("common");
   const sections = useTranslations("sections");
   const items = itemsForKind(catalog, kind);
   const rollups = useMemo(
@@ -214,12 +224,40 @@ export function PlanningTable({
     return () => mediaQuery.removeEventListener("change", sync);
   }, []);
 
+  const tableHeader = (
+    <TableHeader>
+      <TableRow>
+        <TableHead>{t("name")}</TableHead>
+        <TableHead>{fieldNames.status}</TableHead>
+        <TableHead>{t("dates")}</TableHead>
+        <TableHead>{t("issues")}</TableHead>
+        <TableHead>{sections("details")}</TableHead>
+        <TableHead />
+      </TableRow>
+    </TableHeader>
+  );
+
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-2">
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-11/12" />
+      <div
+        data-testid="planning-catalog-loading"
+        className="flex min-w-0 flex-col gap-2"
+      >
+        <output className="sr-only">{common("loading")}</output>
+        <Table data-testid="planning-table" aria-busy="true">
+          {tableHeader}
+          <TableBody>
+            {PLANNING_LOADING_ROWS.map((row) => (
+              <TableRow key={row} className="h-10">
+                {PLANNING_TABLE_COLUMNS.map((column) => (
+                  <TableCell key={column} className="h-10 px-3 py-0">
+                    <Skeleton aria-hidden="true" className="h-4 w-full" />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
     );
   }
@@ -284,17 +322,8 @@ export function PlanningTable({
   return (
     <>
       {issueError}
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>{t("name")}</TableHead>
-            <TableHead>{fieldNames.status}</TableHead>
-            <TableHead>{t("dates")}</TableHead>
-            <TableHead>{t("issues")}</TableHead>
-            <TableHead>{sections("details")}</TableHead>
-            <TableHead />
-          </TableRow>
-        </TableHeader>
+      <Table data-testid="planning-table">
+        {tableHeader}
         <TableBody>
           {items.map((item) => {
             const rollup = rollups?.get(item.id);
