@@ -448,6 +448,11 @@
       "unknown": "워크스페이스 백엔드와 통신하는 중 오류가 발생했습니다. 다시 시도해 주세요."
     },
     "sessionExpired": "세션이 만료되었습니다. 다시 로그인해 주세요.",
+    "planning": {
+      "sprintRollover": {
+        "activeConflict": "선택한 스프린트를 활성화할 수 없습니다. “{sprintName}” 스프린트가 이미 활성 상태입니다. 해당 스프린트를 종료하거나 다른 대상을 선택하세요."
+      }
+    },
     "invalidJsonBody": "잘못된 JSON 본문입니다.",
     "invalidBody": "잘못된 요청 본문입니다.",
     "attachmentTooLarge": "이 배포에서 허용하는 크기보다 큰 파일입니다.",
@@ -1489,6 +1494,7 @@
       "dialogTitle": "{name} 종료 및 이월",
       "dialogDescription": "이 스프린트를 종료하고 미완료 작업을 명시적으로 선택한 다음 스프린트로 옮깁니다.",
       "sourceEnd": "종료일",
+      "sourceEndRequired": "스프린트 시작일 이후의 올바른 종료일을 입력하세요.",
       "targetChoice": "다음 스프린트",
       "existingTarget": "기존 예정 스프린트 사용",
       "newTarget": "새 스프린트 만들기",

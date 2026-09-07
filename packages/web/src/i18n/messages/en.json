@@ -1303,6 +1303,7 @@
       "dialogTitle": "Close {name} & roll over",
       "dialogDescription": "Close this sprint and move unfinished work to one explicitly selected next sprint.",
       "sourceEnd": "Close date",
+      "sourceEndRequired": "Enter a valid close date on or after the sprint start date.",
       "targetChoice": "Next sprint",
       "existingTarget": "Use an existing planned sprint",
       "newTarget": "Create a new sprint",

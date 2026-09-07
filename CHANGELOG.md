@@ -23,6 +23,12 @@ explicitly in the entries below.
   per-issue progress so partial failures can be retried without duplicate
   sprint or activity records.
 
+### Fixed
+
+- **Sprint rollover validation and conflicts now use localized guidance.**
+  Invalid dates name the required correction, and an already-active sprint is
+  identified by name instead of only showing a generic save conflict.
+
 ### Migration
 
 - Existing Reef vaults reuse the current `reef_sprints.meta` JSON envelope; no

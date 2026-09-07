@@ -424,13 +424,20 @@ test.describe("Hermetic runtime discovery", () => {
     });
 
     await resetFixture(request, "configured");
+    const refreshedLoginResponse = await request.post(
+      `${E2E_MOCK_URL}/akb/api/v1/auth/login`,
+      { data: fixtureLogin },
+    );
+    expect(refreshedLoginResponse.ok()).toBeTruthy();
+    const { token: refreshedToken } = await refreshedLoginResponse.json();
+    const refreshedHeaders = { Authorization: `Bearer ${refreshedToken}` };
     const updateResponse = await request.post(
       `${E2E_MOCK_URL}/akb/api/v1/tables/reef-e2e/sql`,
       {
         data: {
           sql: "UPDATE reef_issues SET \"status\" = 'done' WHERE \"reef_id\" = 'REEF-001'",
         },
-        headers,
+        headers: refreshedHeaders,
       },
     );
     expect(updateResponse.status()).toBe(200);
@@ -444,7 +451,7 @@ test.describe("Hermetic runtime discovery", () => {
         data: {
           sql: "SELECT * FROM reef_issues WHERE \"reef_id\" = 'REEF-001'",
         },
-        headers,
+        headers: refreshedHeaders,
       },
     );
     expect(updatedIssueResponse.status()).toBe(200);

@@ -616,7 +616,7 @@ describe("closeSprintAndRollover", () => {
     );
   });
 
-  it("rejects an unrelated active sprint before changing the source", async () => {
+  it("names an unrelated active sprint before changing the source", async () => {
     seed({ otherActive: true });
 
     await expect(
@@ -630,7 +630,14 @@ describe("closeSprintAndRollover", () => {
         source: "user:sprint_rollover",
         now: AT,
       }),
-    ).rejects.toBeInstanceOf(ConflictError);
+    ).rejects.toMatchObject({
+      name: "ConflictError",
+      context: {
+        code: "planning.sprintRollover.activeConflict",
+        params: { sprintName: "Sprint 16" },
+        path: `planning/sprints/${OTHER_TARGET_ID}`,
+      },
+    });
     expect(updateIssueMock).not.toHaveBeenCalled();
     expect(activityEvents).toHaveLength(0);
   });

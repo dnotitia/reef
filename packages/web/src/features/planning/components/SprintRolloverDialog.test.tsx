@@ -107,15 +107,15 @@ function result(
   };
 }
 
-function wrap(ui: ReactNode) {
+function wrap(ui: ReactNode, locale: "en" | "ko" = "en") {
   return (
     <QueryClientProvider client={new QueryClient()}>
-      <IntlTestProvider>{ui}</IntlTestProvider>
+      <IntlTestProvider locale={locale}>{ui}</IntlTestProvider>
     </QueryClientProvider>
   );
 }
 
-function renderDialog(onOpenChange = vi.fn()) {
+function renderDialog(onOpenChange = vi.fn(), locale: "en" | "ko" = "en") {
   return render(
     wrap(
       <SprintRolloverDialog
@@ -129,6 +129,7 @@ function renderDialog(onOpenChange = vi.fn()) {
         now={Date.parse("2026-09-07T00:00:00Z")}
         canEdit
       />,
+      locale,
     ),
   );
 }
@@ -191,6 +192,83 @@ describe("SprintRolloverDialog", () => {
     expect(screen.getByTestId("sprint-rollover-error")).toHaveTextContent(
       "Target end date must be on or after target start date.",
     );
+  });
+
+  it.each([
+    [
+      "en",
+      "Close date",
+      "Enter a valid close date on or after the sprint start date.",
+    ],
+    ["ko", "종료일", "스프린트 시작일 이후의 올바른 종료일을 입력하세요."],
+  ] as const)(
+    "shows the localized source-date error in %s",
+    async (locale, label, expected) => {
+      const user = userEvent.setup();
+      renderDialog(vi.fn(), locale);
+
+      await user.clear(screen.getByLabelText(label));
+      await user.type(screen.getByLabelText(label), "2026-09-01");
+      await user.click(screen.getByTestId("sprint-rollover-submit"));
+
+      expect(screen.getByTestId("sprint-rollover-error")).toHaveTextContent(
+        expected,
+      );
+      expect(screen.getByTestId("sprint-rollover-error")).not.toHaveTextContent(
+        "planning.rollover.sourceEndRequired",
+      );
+    },
+  );
+
+  it.each([
+    ["en", "New sprint end", "A new sprint needs a valid start and end date."],
+    [
+      "ko",
+      "새 스프린트 종료일",
+      "새 스프린트에는 올바른 시작일과 종료일이 필요합니다.",
+    ],
+  ] as const)(
+    "shows the localized target-date error when the new target end is empty in %s",
+    async (locale, label, expected) => {
+      const user = userEvent.setup();
+      renderDialog(vi.fn(), locale);
+
+      await user.clear(screen.getByTestId("sprint-rollover-target-name"));
+      await user.type(
+        screen.getByTestId("sprint-rollover-target-name"),
+        "Fresh Sprint",
+      );
+      await user.clear(screen.getByLabelText(label));
+      await user.click(screen.getByTestId("sprint-rollover-submit"));
+
+      expect(screen.getByTestId("sprint-rollover-error")).toHaveTextContent(
+        expected,
+      );
+    },
+  );
+
+  it("surfaces the named active-sprint conflict from the route", async () => {
+    const mutateAsync = vi
+      .fn()
+      .mockRejectedValue(
+        new Error(
+          "Cannot activate the selected sprint while “Rollover Target A” is active. Close it or choose a different target.",
+        ),
+      );
+    mutationRef.current = { mutateAsync, isPending: false };
+    const user = userEvent.setup();
+    renderDialog();
+
+    await user.clear(screen.getByTestId("sprint-rollover-target-name"));
+    await user.type(
+      screen.getByTestId("sprint-rollover-target-name"),
+      "Fresh Sprint",
+    );
+    await user.click(screen.getByTestId("sprint-rollover-submit"));
+
+    expect(
+      await screen.findByTestId("sprint-rollover-error"),
+    ).toHaveTextContent("Rollover Target A");
   });
 
   it("submits an explicitly selected existing target and closes after completion", async () => {

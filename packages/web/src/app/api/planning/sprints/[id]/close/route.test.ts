@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ConflictError } from "@reef/core";
 
 const { closeMock, currentActorMock, getAdapterMock, requireWriterMock } =
   vi.hoisted(() => ({
@@ -115,6 +116,29 @@ describe("POST /api/planning/sprints/[id]/close", () => {
     expect(response.status).toBe(403);
     expect(closeMock).not.toHaveBeenCalled();
     expect(currentActorMock).not.toHaveBeenCalled();
+  });
+
+  it("returns the conflicting active sprint name in a localized conflict", async () => {
+    closeMock.mockRejectedValueOnce(
+      new ConflictError({
+        code: "planning.sprintRollover.activeConflict",
+        params: { sprintName: "Rollover Target A" },
+      }),
+    );
+
+    const response = await POST(
+      request({
+        vault: "reef-acme",
+        end_date: "2026-09-11",
+        target: { kind: "existing", id: TARGET_ID },
+      }),
+      routeParams(),
+    );
+
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toBe(
+      "Cannot activate the selected sprint while “Rollover Target A” is active. Close it or choose a different target.",
+    );
   });
 
   it("rejects malformed source ids and invalid bodies before any write", async () => {

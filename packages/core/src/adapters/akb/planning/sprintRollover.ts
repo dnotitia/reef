@@ -998,8 +998,15 @@ export async function closeSprintAndRollover(
           throw new ConflictError();
         }
         const active = await readActiveSprints(adapter, vault);
-        if (active.some((sprint) => sprint.id !== sourceSprintId)) {
-          throw new ConflictError();
+        const conflictingActive = active.find(
+          (sprint) => sprint.id !== sourceSprintId,
+        );
+        if (conflictingActive) {
+          throw new ConflictError({
+            code: "planning.sprintRollover.activeConflict",
+            params: { sprintName: conflictingActive.name },
+            path: `planning/sprints/${conflictingActive.id}`,
+          });
         }
         const issues = await readSourceIssues(adapter, vault, sourceSprintId);
         const resolved = await resolveRolloverTargetRequest(
