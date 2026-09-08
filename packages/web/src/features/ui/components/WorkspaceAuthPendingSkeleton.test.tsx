@@ -64,6 +64,10 @@ describe("WorkspaceAuthPendingSkeleton", () => {
       "aria-label",
       "REEF-001",
     );
+    expect(main.getByTestId("issue-detail-modal")).toHaveAttribute(
+      "tabindex",
+      "-1",
+    );
     expect(main.getByTestId("issues-skeleton").parentElement).toHaveAttribute(
       "aria-hidden",
       "true",

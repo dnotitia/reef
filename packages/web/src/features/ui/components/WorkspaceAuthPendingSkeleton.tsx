@@ -36,6 +36,7 @@ import {
   X,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useEffect, useRef } from "react";
 
 function IssueDetailAuthPendingSkeleton({
   issueId,
@@ -44,6 +45,10 @@ function IssueDetailAuthPendingSkeleton({
   issueId: string;
   searchParams: string;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    dialogRef.current?.focus();
+  }, []);
   return (
     <div className="relative h-full min-h-0 min-w-0">
       <div aria-hidden="true" className="h-full">
@@ -58,6 +63,8 @@ function IssueDetailAuthPendingSkeleton({
         role="dialog"
         aria-modal="true"
         aria-label={issueId}
+        ref={dialogRef}
+        tabIndex={-1}
         className="issue-detail-sheet fixed inset-y-0 right-0 z-50 flex min-w-0 flex-col overflow-hidden border-l border-border-subtle bg-surface-elevated shadow-xl shadow-foreground/10"
         style={{
           width: "min(94vw, var(--issue-detail-width-default))",

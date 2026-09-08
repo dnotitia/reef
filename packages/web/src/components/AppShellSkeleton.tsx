@@ -113,7 +113,12 @@ export function AppShellSkeleton({
             >
               <Plus className="h-3.5 w-3.5 shrink-0" />
               {!sidebarCollapsed && (
-                <span className="sr-only md:not-sr-only">
+                <span
+                  className={cn(
+                    "sr-only",
+                    !sidebarCollapsed && "md:not-sr-only",
+                  )}
+                >
                   {nav("newIssue")}
                 </span>
               )}
@@ -151,7 +156,12 @@ export function AppShellSkeleton({
                       className="h-[18px] w-[18px] shrink-0 stroke-[1.9]"
                     />
                     {!sidebarCollapsed && (
-                      <span className="sr-only md:not-sr-only flex-1">
+                      <span
+                        className={cn(
+                          "sr-only",
+                          !sidebarCollapsed && "md:not-sr-only flex-1",
+                        )}
+                      >
                         {nav(labelKey)}
                       </span>
                     )}
