@@ -20,10 +20,12 @@ import {
   type PlanningCatalog,
   type PlanningRollup,
   type Sprint,
+  type SprintRolloverResume,
 } from "@reef/core";
 import { SprintDetailHeader } from "./SprintDetailHeader";
 import { SprintDetailPageSkeleton } from "./SprintDetailPageSkeleton";
 import { SprintRolloverDialog } from "./SprintRolloverDialog";
+import { SprintRolloverResumeNotice } from "./SprintRolloverResumeNotice";
 import {
   DEFAULT_REPORT_FILTERS,
   type ReportFilters,
@@ -122,6 +124,8 @@ function SprintDetailFrame({
   rolloverOpen,
   onRolloverOpenChange,
   onRequestRollover,
+  rolloverResume,
+  onResumeRollover,
   onRetryIssues,
   children,
 }: {
@@ -137,6 +141,8 @@ function SprintDetailFrame({
   rolloverOpen: boolean;
   onRolloverOpenChange: (open: boolean) => void;
   onRequestRollover: (sprint: Sprint) => void;
+  rolloverResume: SprintRolloverResume | null;
+  onResumeRollover: (resume: SprintRolloverResume) => void;
   onRetryIssues: () => void;
   children: React.ReactNode;
 }) {
@@ -158,6 +164,16 @@ function SprintDetailFrame({
         canEditRollover={canEditRollover}
         onRequestRollover={onRequestRollover}
       />
+      {!rolloverOpen ? (
+        <SprintRolloverResumeNotice
+          resumes={
+            catalog.rollover_resumes?.filter(
+              (resume) => resume.result.source_sprint_id === sprint.id,
+            ) ?? []
+          }
+          onOpen={onResumeRollover}
+        />
+      ) : null}
       <div
         data-testid="sprint-burnup-slot"
         data-slot="sprint-burnup"
@@ -169,7 +185,8 @@ function SprintDetailFrame({
         open={rolloverOpen}
         onOpenChange={onRolloverOpenChange}
         vault={vault}
-        source={sprint}
+        source={rolloverResume?.result.source_sprint ?? sprint}
+        resume={rolloverResume}
         catalog={catalog}
         issues={issues}
         issueState={issueState}
@@ -195,6 +212,8 @@ export function SprintDetailPage() {
   const now = hydrated ? Date.now() : null;
   const t = useTranslations("planning.detail");
   const [rolloverOpen, setRolloverOpen] = useState(false);
+  const [rolloverResume, setRolloverResume] =
+    useState<SprintRolloverResume | null>(null);
 
   if (!vault && !vaultLoading) return <EmptyWorkspaceNotice />;
   if (vaultLoading || catalogQuery.isPending) {
@@ -221,6 +240,19 @@ export function SprintDetailPage() {
   const sprint = catalog.sprints.find((item) => item.id === routeSprintId);
   if (!sprint) return <SprintNotFound vault={vault} />;
 
+  const openRollover = () => {
+    setRolloverResume(null);
+    setRolloverOpen(true);
+  };
+  const openRolloverResume = (resume: SprintRolloverResume) => {
+    setRolloverResume(resume);
+    setRolloverOpen(true);
+  };
+  const onRolloverOpenChange = (open: boolean) => {
+    setRolloverOpen(open);
+    if (!open) setRolloverResume(null);
+  };
+
   if (issueQuery.isError) {
     return (
       <SprintDetailFrame
@@ -234,8 +266,10 @@ export function SprintDetailPage() {
         issueState="error"
         canEditRollover={access.canEditWorkspace}
         rolloverOpen={rolloverOpen}
-        onRolloverOpenChange={setRolloverOpen}
-        onRequestRollover={() => setRolloverOpen(true)}
+        onRolloverOpenChange={onRolloverOpenChange}
+        onRequestRollover={openRollover}
+        rolloverResume={rolloverResume}
+        onResumeRollover={openRolloverResume}
         onRetryIssues={() => void issueQuery.refetch()}
       >
         <DetailMessage
@@ -276,8 +310,10 @@ export function SprintDetailPage() {
       issueState="available"
       canEditRollover={access.canEditWorkspace}
       rolloverOpen={rolloverOpen}
-      onRolloverOpenChange={setRolloverOpen}
-      onRequestRollover={() => setRolloverOpen(true)}
+      onRolloverOpenChange={onRolloverOpenChange}
+      onRequestRollover={openRollover}
+      rolloverResume={rolloverResume}
+      onResumeRollover={openRolloverResume}
       onRetryIssues={() => void issueQuery.refetch()}
     >
       <IssuesWorkspace

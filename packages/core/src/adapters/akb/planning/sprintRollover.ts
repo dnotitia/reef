@@ -9,11 +9,13 @@ import {
   SprintRolloverCountsSchema,
   SprintRolloverIssueResultSchema,
   SprintRolloverPhasesSchema,
+  SprintRolloverResumeSchema,
   SprintRolloverResultSchema,
   SprintRolloverTargetSchema,
   SprintCreateSchema,
   type SprintRolloverCounts,
   type SprintRolloverIssueResult,
+  type SprintRolloverResume,
   type SprintRolloverResult,
   type SprintRolloverTarget,
   type Sprint,
@@ -31,6 +33,7 @@ import {
   SqlParameterBuilder,
   decodeSettingsValue,
   ensureReefTables,
+  isMissingTableError,
   runSql,
   rowToIssue,
   selectIssueRows,
@@ -41,6 +44,7 @@ import type {
   CloseSprintAndRolloverParams,
   CloseSprintAndRolloverResult,
   CreateSprintParams,
+  ListSprintRolloverResumesParams,
 } from "../core/types";
 import {
   appendActivityEvents,
@@ -731,6 +735,75 @@ function rolloverResult(input: {
     retryable: status !== "completed",
     no_op: input.noOp ?? false,
   });
+}
+
+function targetRequestFromState(
+  state: StoredRolloverState,
+): SprintRolloverTarget {
+  if (state.target_mode === "existing") {
+    if (!state.target_sprint_id) {
+      throw new SchemaValidationError({
+        issues: ["existing rollover target id is missing"],
+      });
+    }
+    return { kind: "existing", id: state.target_sprint_id };
+  }
+  return {
+    kind: "new",
+    item: {
+      name: state.target_name,
+      status: "planned",
+      start_date: state.target_start_date,
+      end_date: state.target_end_date,
+      goal: state.target_goal,
+      capacity_points: state.target_capacity_points,
+    },
+  };
+}
+
+/** Read incomplete rollover claims without exposing actor or source metadata. */
+export async function listSprintRolloverResumes(
+  params: ListSprintRolloverResumesParams,
+): Promise<SprintRolloverResume[]> {
+  const { adapter, vault } = params;
+  return withSpan(
+    "akb.list_sprint_rollover_resumes",
+    { vault },
+    async (span) => {
+      try {
+        const rows = await selectPlanningRows(
+          adapter,
+          vault,
+          REEF_SPRINTS_TABLE,
+        );
+        const resumes: SprintRolloverResume[] = [];
+        for (const row of rows) {
+          const state = readStoredRolloverState(row);
+          if (!state || stateIsComplete(state)) continue;
+          const source = rowToSprint(row);
+          const target = state.target_sprint_id
+            ? (await readSprintRecord(adapter, vault, state.target_sprint_id))
+                .sprint
+            : null;
+          resumes.push(
+            SprintRolloverResumeSchema.parse({
+              result: rolloverResult({ source, target, state }),
+              target: targetRequestFromState(state),
+              end_date: state.end_date,
+            }),
+          );
+        }
+        span.setAttribute("resume_count", resumes.length);
+        return resumes;
+      } catch (error) {
+        if (isMissingTableError(error)) {
+          span.setAttribute("table_exists", false);
+          return [];
+        }
+        throw error;
+      }
+    },
+  );
 }
 
 async function ensureSprintPlanningLink(

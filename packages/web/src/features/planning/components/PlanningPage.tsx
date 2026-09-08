@@ -22,7 +22,7 @@ import {
 import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
 import { Plus } from "lucide-react";
-import type { Sprint } from "@reef/core";
+import type { Sprint, SprintRolloverResume } from "@reef/core";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
@@ -40,6 +40,7 @@ import { PlanningEditorDialog } from "./PlanningEditorDialog";
 import { PlanningTable } from "./PlanningTable";
 import { SprintRolloverDialog } from "./SprintRolloverDialog";
 import { SprintRolloverNudge } from "./SprintRolloverNudge";
+import { SprintRolloverResumeNotice } from "./SprintRolloverResumeNotice";
 import type { IssueAggregationState } from "./PlanningRollup";
 import {
   type EditorState,
@@ -87,6 +88,8 @@ export function PlanningPage() {
   const access = useWorkspaceAccess(vault);
   const hydrated = useHydrated();
   const [rolloverSource, setRolloverSource] = useState<Sprint | null>(null);
+  const [rolloverResume, setRolloverResume] =
+    useState<SprintRolloverResume | null>(null);
 
   const catalog = catalogQuery.data;
   const issues = issueQuery.data;
@@ -101,6 +104,16 @@ export function PlanningPage() {
       ? "loading"
       : "available";
   const activeSprint = selectActiveSprint(catalog?.sprints ?? []);
+  const rolloverResumes = catalog?.rollover_resumes ?? [];
+
+  const openRollover = useCallback((sprint: Sprint) => {
+    setRolloverResume(null);
+    setRolloverSource(sprint);
+  }, []);
+  const openRolloverResume = useCallback((resume: SprintRolloverResume) => {
+    setRolloverResume(resume);
+    setRolloverSource(resume.result.source_sprint);
+  }, []);
 
   // Kind copy resolves in the active locale (REEF-292); captured here so the
   // toast handlers and the kind tabs below all read the same maps.
@@ -238,13 +251,19 @@ export function PlanningPage() {
         }
       />
       <PageBody pad="compact">
+        {rolloverSource === null ? (
+          <SprintRolloverResumeNotice
+            resumes={rolloverResumes}
+            onOpen={openRolloverResume}
+          />
+        ) : null}
         <SprintRolloverNudge
           sprint={activeSprint}
           issues={issues}
           issueState={rolloverIssueState}
           now={hydrated ? Date.now() : null}
           canEdit={access.canEditWorkspace}
-          onOpen={setRolloverSource}
+          onOpen={openRollover}
         />
         <div
           role="group"
@@ -289,7 +308,7 @@ export function PlanningPage() {
           onEdit={startEdit}
           onExpandedIdChange={setExpandedId}
           onRequestDelete={startDelete}
-          onRequestRollover={setRolloverSource}
+          onRequestRollover={openRollover}
           canEditRollover={access.canEditWorkspace}
           rolloverDisabledReason={undefined}
           deletingId={
@@ -334,10 +353,14 @@ export function PlanningPage() {
       <SprintRolloverDialog
         open={rolloverSource !== null}
         onOpenChange={(open) => {
-          if (!open) setRolloverSource(null);
+          if (!open) {
+            setRolloverSource(null);
+            setRolloverResume(null);
+          }
         }}
         vault={vault}
         source={rolloverSource}
+        resume={rolloverResume}
         catalog={catalog}
         issues={issues}
         issueState={rolloverIssueState}

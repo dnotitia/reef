@@ -32,6 +32,7 @@ import type {
   DeleteReleaseParams,
   DeleteSprintParams,
   ListPlanningCatalogParams,
+  ListSprintRolloverResumesParams,
   ReadPlanningCreateClaimParams,
   UpdateMilestoneParams,
   UpdateReleaseParams,
@@ -52,7 +53,10 @@ import {
   sprintRowFields,
   updatePlanningRow,
 } from "./planningRows";
-import { closeSprintAndRollover as closeSprintAndRolloverImpl } from "./sprintRollover";
+import {
+  closeSprintAndRollover as closeSprintAndRolloverImpl,
+  listSprintRolloverResumes as listSprintRolloverResumesImpl,
+} from "./sprintRollover";
 
 const CREATE_IDEMPOTENCY_META_KEY = "create_idempotency_key";
 
@@ -88,15 +92,18 @@ export async function listPlanningCatalog(
   const { adapter, vault } = params;
   return withSpan("akb.list_planning_catalog", { vault }, async (span) => {
     try {
-      const [sprintRows, milestoneRows, releaseRows] = await Promise.all([
-        selectPlanningRows(adapter, vault, REEF_SPRINTS_TABLE),
-        selectPlanningRows(adapter, vault, REEF_MILESTONES_TABLE),
-        selectPlanningRows(adapter, vault, REEF_RELEASES_TABLE),
-      ]);
+      const [sprintRows, milestoneRows, releaseRows, rolloverResumes] =
+        await Promise.all([
+          selectPlanningRows(adapter, vault, REEF_SPRINTS_TABLE),
+          selectPlanningRows(adapter, vault, REEF_MILESTONES_TABLE),
+          selectPlanningRows(adapter, vault, REEF_RELEASES_TABLE),
+          listSprintRolloverResumesImpl({ adapter, vault }),
+        ]);
       const catalog = PlanningCatalogSchema.parse({
         sprints: sprintRows.map(rowToSprint),
         milestones: milestoneRows.map(rowToMilestone),
         releases: releaseRows.map(rowToRelease),
+        rollover_resumes: rolloverResumes,
       });
       span.setAttribute("sprint_count", catalog.sprints.length);
       span.setAttribute("milestone_count", catalog.milestones.length);
@@ -326,4 +333,10 @@ export function closeSprintAndRollover(
   params: CloseSprintAndRolloverParams,
 ): Promise<CloseSprintAndRolloverResult> {
   return closeSprintAndRolloverImpl(params, createSprint);
+}
+
+export function listSprintRolloverResumes(
+  params: ListSprintRolloverResumesParams,
+) {
+  return listSprintRolloverResumesImpl(params);
 }

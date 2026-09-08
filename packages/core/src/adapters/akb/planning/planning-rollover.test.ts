@@ -72,7 +72,11 @@ vi.mock("../issues/issues", async () => {
   };
 });
 
-import { closeSprintAndRollover, REEF_SPRINTS_TABLE } from "../index";
+import {
+  closeSprintAndRollover,
+  listSprintRolloverResumes,
+  REEF_SPRINTS_TABLE,
+} from "../index";
 import { ConflictError } from "../../../errors";
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
 import { makeIssueRow } from "../issues/issueFixtures";
@@ -155,6 +159,7 @@ function seed({ otherActive = false } = {}) {
             row.status === "active" && (otherActive || row.id === SOURCE_ID),
         );
       }
+      if (where === undefined) return rows;
       const id = Array.isArray(params) ? params[0] : undefined;
       return rows.filter((row) => row.id === id);
     },
@@ -279,6 +284,81 @@ afterEach(() => {
 });
 
 describe("closeSprintAndRollover", () => {
+  it("lists an incomplete existing-target claim for browser resume", async () => {
+    phaseFailure.current = "target_activation";
+    const first = await closeSprintAndRollover({
+      adapter,
+      vault: "reef-sample",
+      sourceSprintId: SOURCE_ID,
+      target: { kind: "existing", id: TARGET_ID },
+      endDate: "2026-09-11",
+      actor: "alice",
+      source: "user:sprint_rollover",
+      now: AT,
+    });
+    expect(first.status).toBe("partial");
+
+    const resumes = await listSprintRolloverResumes({
+      adapter,
+      vault: "reef-sample",
+    });
+
+    expect(resumes).toHaveLength(1);
+    expect(resumes[0]).toMatchObject({
+      end_date: "2026-09-11",
+      target: { kind: "existing", id: TARGET_ID },
+      result: {
+        status: "partial",
+        source_sprint_id: SOURCE_ID,
+        target_sprint_id: TARGET_ID,
+      },
+    });
+    expect(resumes[0]).not.toHaveProperty("actor");
+    expect(resumes[0]).not.toHaveProperty("source");
+  });
+
+  it("reconstructs a newly created target request for browser resume", async () => {
+    phaseFailure.current = "target_activation";
+    const first = await closeSprintAndRollover({
+      adapter,
+      vault: "reef-sample",
+      sourceSprintId: SOURCE_ID,
+      target: {
+        kind: "new",
+        item: {
+          name: "New Sprint",
+          status: "planned",
+          start_date: "2026-09-12",
+          end_date: "2026-09-19",
+          goal: "",
+          capacity_points: null,
+        },
+      },
+      endDate: "2026-09-11",
+      actor: "alice",
+      source: "user:sprint_rollover",
+      now: AT,
+    });
+    expect(first.status).toBe("partial");
+
+    const resumes = await listSprintRolloverResumes({
+      adapter,
+      vault: "reef-sample",
+    });
+
+    expect(resumes[0]?.target).toEqual({
+      kind: "new",
+      item: {
+        name: "New Sprint",
+        status: "planned",
+        start_date: "2026-09-12",
+        end_date: "2026-09-19",
+        goal: "",
+        capacity_points: null,
+      },
+    });
+  });
+
   it("persists a target-preparation claim and resumes after creation fails", async () => {
     phaseFailure.current = "target_preparation";
     const input = {

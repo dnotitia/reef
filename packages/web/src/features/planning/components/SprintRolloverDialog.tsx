@@ -21,6 +21,7 @@ import {
   type PlanningCatalog,
   type Sprint,
   type SprintRolloverResult,
+  type SprintRolloverResume,
   type SprintRolloverTarget,
 } from "@reef/core";
 import { useTranslations } from "next-intl";
@@ -121,9 +122,6 @@ function CompletedRolloverSummary({
 }) {
   const target = result.target_sprint;
   const closeDate = result.source_sprint.end_date?.slice(0, 10) ?? "—";
-  const completedTitle = result.no_op
-    ? translate("noOp")
-    : translate("completedTitle");
 
   return (
     <section
@@ -131,22 +129,17 @@ function CompletedRolloverSummary({
       role="status"
       className="grid gap-5 rounded-lg border border-status-done-focus/40 bg-status-done-fill/5 p-4 sm:p-5"
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-center gap-3">
         <CheckCircle2
           aria-hidden="true"
           className="mt-0.5 size-5 shrink-0 text-status-done-text"
         />
-        <div className="grid gap-1">
-          <p className="text-sm font-semibold text-foreground">
-            {completedTitle}
-          </p>
-          <p
-            data-testid="sprint-rollover-completed-count"
-            className="text-base font-semibold text-status-done-text"
-          >
-            {translate("completedMoved", { count: result.counts.moved })}
-          </p>
-        </div>
+        <p
+          data-testid="sprint-rollover-completed-count"
+          className="text-lg font-semibold text-status-done-text"
+        >
+          {translate("completedMoved", { count: result.counts.moved })}
+        </p>
       </div>
 
       <div className="grid gap-3 border-y border-status-done-focus/20 py-3">
@@ -239,6 +232,7 @@ export function SprintRolloverDialog({
   onOpenChange,
   vault,
   source,
+  resume,
   catalog,
   issues,
   issueState,
@@ -250,6 +244,7 @@ export function SprintRolloverDialog({
   onOpenChange: (open: boolean) => void;
   vault: string;
   source: Sprint | null;
+  resume?: SprintRolloverResume | null;
   catalog: PlanningCatalog | undefined;
   issues: readonly IssueListItem[] | undefined;
   issueState: IssueAggregationState;
@@ -284,17 +279,18 @@ export function SprintRolloverDialog({
   const targetStartErrorId = `${targetStartInputId}-error`;
   const targetEndErrorId = `${targetEndInputId}-error`;
 
-  const dialogSource = sourceAtOpen.current ?? source;
+  const resumeSource = resume?.result.source_sprint;
+  const dialogSource = sourceAtOpen.current ?? source ?? resumeSource;
 
   useEffect(() => {
     if (!open) {
       sourceAtOpen.current = null;
       return;
     }
-    if (!sourceAtOpen.current && source) {
-      sourceAtOpen.current = source;
+    if (!sourceAtOpen.current && (source ?? resumeSource)) {
+      sourceAtOpen.current = source ?? resumeSource ?? null;
     }
-  }, [open, source]);
+  }, [open, resumeSource, source]);
 
   function clearFieldError(field: RolloverField) {
     setFieldErrors((current) => {
@@ -332,8 +328,32 @@ export function SprintRolloverDialog({
       return;
     }
     if (!dialogSource || initializedFor.current === dialogSource.id) return;
+    const matchingResume =
+      resume?.result.source_sprint_id === dialogSource.id ? resume : null;
     const initial = initialTargetItem(dialogSource, now);
     initializedFor.current = dialogSource.id;
+    if (matchingResume) {
+      const target = matchingResume.target;
+      setTargetMode(target.kind);
+      setTargetId(target.kind === "existing" ? target.id : "");
+      setTargetName(
+        target.kind === "new"
+          ? target.item.name
+          : (matchingResume.result.target_sprint?.name ?? ""),
+      );
+      setSourceEndDate(matchingResume.end_date);
+      setTargetStartDate(
+        target.kind === "new" ? (target.item.start_date ?? "") : "",
+      );
+      setTargetEndDate(
+        target.kind === "new" ? (target.item.end_date ?? "") : "",
+      );
+      targetDatesAreSuggested.current = false;
+      setFormError(null);
+      setFieldErrors({});
+      setResult(matchingResume.result);
+      return;
+    }
     targetDatesAreSuggested.current = true;
     setTargetMode("new");
     setTargetId("");
@@ -343,7 +363,7 @@ export function SprintRolloverDialog({
     setTargetEndDate(initial.endDate);
     setFormError(null);
     setResult(null);
-  }, [dialogSource, now, open]);
+  }, [dialogSource, now, open, resume]);
 
   async function submit() {
     if (!dialogSource) return;
@@ -462,13 +482,12 @@ export function SprintRolloverDialog({
     >
       <DialogContent
         data-testid="sprint-rollover-dialog"
-        showCloseButton={!retryLocked}
         className="grid max-h-[calc(100dvh-2rem)] min-h-0 max-w-2xl grid-rows-[auto_minmax(0,1fr)_auto] gap-5 overflow-hidden pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
         onInteractOutside={(event) => {
-          if (isBusy || retryLocked) event.preventDefault();
+          if (isBusy) event.preventDefault();
         }}
         onEscapeKeyDown={(event) => {
-          if (isBusy || retryLocked) event.preventDefault();
+          if (isBusy) event.preventDefault();
         }}
       >
         <DialogHeader className="pr-8 sm:pr-0">
@@ -525,23 +544,25 @@ export function SprintRolloverDialog({
                   </div>
                 ) : (
                   <div className="mt-3 grid gap-3">
-                    <dl className="grid grid-cols-3 gap-2">
+                    <dl className="grid gap-2">
                       <PreviewCount
                         label={translate("eligible")}
                         value={preview.eligible}
                         strong
-                        stacked
+                        featured
                       />
-                      <PreviewCount
-                        label={translate("doneRemain")}
-                        value={preview.done}
-                        stacked
-                      />
-                      <PreviewCount
-                        label={translate("closedRemain")}
-                        value={preview.closed}
-                        stacked
-                      />
+                      <div className="grid grid-cols-2 divide-x divide-border-subtle border-t border-border-subtle pt-2">
+                        <PreviewCount
+                          label={translate("doneShort")}
+                          value={preview.done}
+                          stacked
+                        />
+                        <PreviewCount
+                          label={translate("closedShort")}
+                          value={preview.closed}
+                          stacked
+                        />
+                      </div>
                     </dl>
                     <dl className="grid grid-cols-2 gap-x-4 gap-y-1 border-t border-border-subtle pt-2 text-xs text-muted-foreground">
                       <PreviewCount
@@ -828,19 +849,13 @@ export function SprintRolloverDialog({
                     </span>
                   </div>
                   {result.target_sprint ? (
-                    retryLocked ? (
-                      <span className="type-control font-medium text-muted-foreground">
-                        {result.target_sprint.name}
-                      </span>
-                    ) : (
-                      <a
-                        data-testid="sprint-rollover-target-link"
-                        href={sprintDetailHref(vault, result.target_sprint.id)}
-                        className="type-control font-medium text-brand-text underline-offset-2 hover:underline"
-                      >
-                        {result.target_sprint.name}
-                      </a>
-                    )
+                    <a
+                      data-testid="sprint-rollover-target-link"
+                      href={sprintDetailHref(vault, result.target_sprint.id)}
+                      className="type-control font-medium text-brand-text underline-offset-2 hover:underline"
+                    >
+                      {result.target_sprint.name}
+                    </a>
                   ) : null}
                   {result.issue_results.some((item) => item.reason) ? (
                     <ul className="grid gap-1 text-xs text-muted-foreground">
@@ -877,7 +892,7 @@ export function SprintRolloverDialog({
             type="button"
             variant="outline"
             onClick={() => onOpenChange(false)}
-            disabled={isBusy || retryLocked}
+            disabled={isBusy}
             data-testid={completed ? "sprint-rollover-close" : undefined}
           >
             {completed ? common("close") : common("cancel")}
@@ -908,18 +923,22 @@ function PreviewCount({
   value,
   strong = false,
   stacked = false,
+  featured = false,
 }: {
   label: string;
   value: number;
   strong?: boolean;
   stacked?: boolean;
+  featured?: boolean;
 }) {
   return (
     <div
       className={
-        stacked
-          ? "grid min-w-0 gap-0.5 rounded-md border border-border-subtle bg-surface-elevated/60 p-2"
-          : "flex min-w-0 items-center justify-between gap-2"
+        featured
+          ? "grid min-w-0 gap-0.5 border-b border-border-subtle pb-2"
+          : stacked
+            ? "grid min-w-0 gap-0.5 px-2 first:pl-0 last:pr-0"
+            : "flex min-w-0 items-center justify-between gap-2"
       }
     >
       <dt
@@ -931,9 +950,11 @@ function PreviewCount({
       </dt>
       <dd
         className={
-          strong
-            ? "font-semibold text-foreground"
-            : "tabular-nums text-foreground"
+          featured
+            ? "text-lg font-semibold text-foreground"
+            : strong
+              ? "font-semibold text-foreground"
+              : "tabular-nums text-foreground"
         }
       >
         {value}

@@ -52,6 +52,7 @@ import type {
   IssueListItem,
   PlanningCatalog,
   SprintRolloverResult,
+  SprintRolloverResume,
 } from "@reef/core";
 import { SprintRolloverDialog } from "./SprintRolloverDialog";
 
@@ -119,6 +120,17 @@ function result(
   };
 }
 
+function resume(
+  overrides: Partial<SprintRolloverResume> = {},
+): SprintRolloverResume {
+  return {
+    result: result({ status: "partial", retryable: true }),
+    target: { kind: "existing", id: TARGET_ID },
+    end_date: "2026-09-11",
+    ...overrides,
+  };
+}
+
 function wrap(ui: ReactNode, locale: "en" | "ko" = "en") {
   return (
     <QueryClientProvider client={new QueryClient()}>
@@ -130,6 +142,7 @@ function wrap(ui: ReactNode, locale: "en" | "ko" = "en") {
 function dialogElement(
   onOpenChange = vi.fn(),
   source: PlanningCatalog["sprints"][number] | null = SOURCE,
+  savedResume: SprintRolloverResume | null = null,
 ) {
   return (
     <SprintRolloverDialog
@@ -137,6 +150,7 @@ function dialogElement(
       onOpenChange={onOpenChange}
       vault="reef-acme"
       source={source}
+      resume={savedResume}
       catalog={CATALOG}
       issues={ISSUES}
       issueState="available"
@@ -150,8 +164,9 @@ function renderDialog(
   onOpenChange = vi.fn(),
   locale: "en" | "ko" = "en",
   source: PlanningCatalog["sprints"][number] | null = SOURCE,
+  savedResume: SprintRolloverResume | null = null,
 ) {
-  return render(wrap(dialogElement(onOpenChange, source), locale));
+  return render(wrap(dialogElement(onOpenChange, source, savedResume), locale));
 }
 
 beforeEach(() => {
@@ -358,6 +373,74 @@ describe("SprintRolloverDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it("rehydrates a durable partial resume and still allows closing it", async () => {
+    const onOpenChange = vi.fn();
+    const savedResume = resume();
+    const user = userEvent.setup();
+    renderDialog(
+      onOpenChange,
+      "en",
+      savedResume.result.source_sprint,
+      savedResume,
+    );
+
+    expect(screen.getByTestId("sprint-rollover-result")).toBeVisible();
+    expect(screen.getByLabelText("Close date")).toHaveValue("2026-09-11");
+    expect(screen.getByTestId("sprint-rollover-existing-target")).toHaveValue(
+      TARGET_ID,
+    );
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("rehydrates a newly created target without changing its retry payload", async () => {
+    const savedResume = resume({
+      result: result({
+        status: "partial",
+        target_sprint: { ...TARGET, name: "Recovered Sprint" },
+        retryable: true,
+      }),
+      target: {
+        kind: "new",
+        item: {
+          name: "Recovered Sprint",
+          status: "planned",
+          start_date: "2026-09-12",
+          end_date: "2026-09-19",
+          goal: "",
+          capacity_points: null,
+        },
+      },
+    });
+    const mutateAsync = vi.fn().mockResolvedValue(result());
+    mutationRef.current = { mutateAsync, isPending: false };
+    const user = userEvent.setup();
+    renderDialog(vi.fn(), "en", savedResume.result.source_sprint, savedResume);
+
+    expect(screen.getByTestId("sprint-rollover-target-name")).toHaveValue(
+      "Recovered Sprint",
+    );
+    expect(screen.getByLabelText("New sprint start")).toHaveValue("2026-09-12");
+    expect(screen.getByLabelText("New sprint end")).toHaveValue("2026-09-19");
+    await user.click(screen.getByRole("button", { name: "Retry rollover" }));
+    expect(mutateAsync).toHaveBeenCalledWith({
+      sourceSprintId: SOURCE_ID,
+      endDate: "2026-09-11",
+      target: {
+        kind: "new",
+        item: {
+          name: "Recovered Sprint",
+          status: "planned",
+          start_date: "2026-09-12",
+          end_date: "2026-09-19",
+          goal: "",
+          capacity_points: null,
+        },
+      },
+    });
+  });
+
   it("keeps partial results visible and retries with the durable target id", async () => {
     const partial = result({
       status: "partial",
@@ -399,9 +482,9 @@ describe("SprintRolloverDialog", () => {
     );
     await user.click(screen.getByTestId("sprint-rollover-submit"));
     expect(screen.getByTestId("sprint-rollover-result")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
-    expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
-    expect(screen.queryByTestId("sprint-rollover-target-link")).toBeNull();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Close" })).toBeVisible();
+    expect(screen.getByTestId("sprint-rollover-target-link")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Retry rollover" }));
     expect(await screen.findByTestId("sprint-rollover-complete")).toBeVisible();
     expect(screen.queryByTestId("sprint-rollover-result")).toBeNull();

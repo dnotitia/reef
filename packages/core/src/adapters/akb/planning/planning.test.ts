@@ -77,6 +77,9 @@ describe("planning metadata", () => {
           RELEASE_ROW_COLUMNS,
         ),
       },
+      {
+        body: makeSqlQueryResponse([], SPRINT_ROW_COLUMNS),
+      },
     ]);
     const adapter = makeAdapter();
     const catalog = await listPlanningCatalog({
@@ -86,7 +89,8 @@ describe("planning metadata", () => {
     expect(catalog.sprints[0]?.name).toBe("Sprint 12");
     expect(catalog.milestones[0]?.name).toBe("MVP beta");
     expect(catalog.releases[0]?.name).toBe("v1.3.0");
-    expect(calls).toHaveLength(3);
+    expect(catalog.rollover_resumes).toEqual([]);
+    expect(calls).toHaveLength(4);
     expect(JSON.parse(calls[0]?.init?.body as string).sql).toContain(
       `FROM ${REEF_SPRINTS_TABLE}`,
     );

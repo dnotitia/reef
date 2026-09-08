@@ -57,12 +57,6 @@ export const ReleaseSchema = z.object({
 });
 export const ReleaseCreateSchema = ReleaseSchema.omit({ id: true });
 
-export const PlanningCatalogSchema = z.object({
-  sprints: z.array(SprintSchema),
-  milestones: z.array(MilestoneSchema),
-  releases: z.array(ReleaseSchema),
-});
-
 /** Target selection for an explicit sprint rollover confirmation. */
 export const SprintRolloverTargetSchema = z.discriminatedUnion("kind", [
   z.object({
@@ -149,6 +143,20 @@ export const SprintRolloverResultSchema = z.object({
   no_op: z.boolean(),
 });
 
+/** Read-only durable state needed to resume an interrupted rollover. */
+export const SprintRolloverResumeSchema = z.object({
+  result: SprintRolloverResultSchema,
+  target: SprintRolloverTargetSchema,
+  end_date: z.string().min(1),
+});
+
+export const PlanningCatalogSchema = z.object({
+  sprints: z.array(SprintSchema),
+  milestones: z.array(MilestoneSchema),
+  releases: z.array(ReleaseSchema),
+  rollover_resumes: z.array(SprintRolloverResumeSchema).optional(),
+});
+
 export type Sprint = z.infer<typeof SprintSchema>;
 export type Milestone = z.infer<typeof MilestoneSchema>;
 export type Release = z.infer<typeof ReleaseSchema>;
@@ -169,3 +177,4 @@ export type SprintRolloverPhaseStatus = z.infer<
 export type SprintRolloverPhases = z.infer<typeof SprintRolloverPhasesSchema>;
 export type SprintRolloverCounts = z.infer<typeof SprintRolloverCountsSchema>;
 export type SprintRolloverResult = z.infer<typeof SprintRolloverResultSchema>;
+export type SprintRolloverResume = z.infer<typeof SprintRolloverResumeSchema>;

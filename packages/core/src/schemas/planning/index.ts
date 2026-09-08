@@ -14,6 +14,7 @@ export {
   SprintRolloverPhasesSchema,
   SprintRolloverCountsSchema,
   SprintRolloverResultSchema,
+  SprintRolloverResumeSchema,
   type Sprint,
   type Milestone,
   type Release,
@@ -26,4 +27,5 @@ export {
   type SprintRolloverPhases,
   type SprintRolloverCounts,
   type SprintRolloverResult,
+  type SprintRolloverResume,
 } from "./catalog";

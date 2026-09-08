@@ -217,6 +217,11 @@ test.describe("Hermetic sprint rollover workflow", () => {
     await dialog.getByTestId("sprint-rollover-submit").click();
     await expect(dialog.getByTestId("sprint-rollover-result")).toBeVisible();
     await expect(
+      dialog.getByText(
+        "The completed steps and same target are saved. Retry now or close this dialog and resume later.",
+      ),
+    ).toBeVisible();
+    await expect(
       dialog.getByRole("button", { name: "Retry rollover" }),
     ).toBeVisible();
     const partial = await readFixtureState(request);
@@ -228,6 +233,17 @@ test.describe("Hermetic sprint rollover workflow", () => {
     );
     expect(activeTarget?.name).toBe("Sprint 15 - Rollover fixture");
 
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(
+      page.getByTestId("sprint-rollover-resume-notice"),
+    ).toBeVisible();
+    await page
+      .getByRole("button", {
+        name: "Resume Sprint 14 - Rollover fixture rollover",
+      })
+      .click();
+    await expect(dialog.getByTestId("sprint-rollover-result")).toBeVisible();
     await dialog.getByRole("button", { name: "Retry rollover" }).click();
     await expect
       .poll(async () => {
@@ -280,6 +296,18 @@ test.describe("Hermetic sprint rollover workflow", () => {
     );
     expect(target?.status).toBe("active");
 
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog).toBeHidden();
+    await page.reload();
+    await expect(
+      page.getByTestId("sprint-rollover-resume-notice"),
+    ).toBeVisible();
+    await page
+      .getByRole("button", {
+        name: "Resume Sprint 14 - Rollover fixture rollover",
+      })
+      .click();
+    await expect(dialog.getByTestId("sprint-rollover-result")).toBeVisible();
     await dialog.getByRole("button", { name: "Retry rollover" }).click();
     await expect(dialog.getByTestId("sprint-rollover-complete")).toBeVisible();
     await expect(dialog.getByTestId("sprint-rollover-result")).toHaveCount(0);
