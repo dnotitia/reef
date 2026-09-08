@@ -373,10 +373,12 @@ test.describe("auth soft navigation", () => {
     request,
   }) => {
     await openExistingWorkspace(page);
-    // Let any focus emitted by the login→workspace transition settle while the
-    // fixture still reports the established session. The explicit revoke below
-    // must only affect the probe started by this test's focus event.
-    await page.waitForTimeout(250);
+    const initialProbe = page.waitForResponse(
+      (response) =>
+        isAuthProbeRequest(response.request()) && response.status() === 200,
+    );
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await initialProbe;
     await setAuthControl(request, { session: "revoked" });
 
     const probe = page.waitForRequest(isAuthProbeRequest);
