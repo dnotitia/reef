@@ -197,8 +197,12 @@ async function expectContinuitySnapshot(
       `${name} ${edge} changed between auth pending and loaded (pending=${pending.rect[edge]}, loaded=${loaded.rect[edge]})`,
     ).toBeLessThanOrEqual(1);
   }
-  const pendingStyles = { ...pending.styles };
-  const loadedStyles = { ...loaded.styles };
+  const pendingStyles: Partial<ContinuitySnapshot["styles"]> = {
+    ...pending.styles,
+  };
+  const loadedStyles: Partial<ContinuitySnapshot["styles"]> = {
+    ...loaded.styles,
+  };
   if (!options.comparePaint) {
     for (const property of [
       "color",
