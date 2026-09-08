@@ -254,10 +254,20 @@ function workspaceRouteSegments(pathname: string): string[] {
 
 function hasAuthPendingContent(routeSegments: string[]): boolean {
   const route = routeSegments[0];
+  const settingsSection = routeSegments[1];
+  const isSettingsRoute =
+    route === "settings" &&
+    (routeSegments.length === 1 ||
+      (settingsSection === "workspace" &&
+        (routeSegments.length === 2 ||
+          (routeSegments.length === 3 && routeSegments[2] === "members"))) ||
+      ((settingsSection === "preferences" ||
+        settingsSection === "deployment") &&
+        routeSegments.length === 2));
   return (
     (route === "issues" &&
       (routeSegments.length === 1 || routeSegments.length === 2)) ||
-    route === "settings" ||
+    isSettingsRoute ||
     (route === "planning" &&
       (routeSegments.length === 1 ||
         (routeSegments[1] === "sprints" && routeSegments.length === 3))) ||

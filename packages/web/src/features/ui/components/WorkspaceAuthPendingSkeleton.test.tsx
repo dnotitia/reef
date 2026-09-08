@@ -124,6 +124,14 @@ describe("WorkspaceAuthPendingSkeleton", () => {
     );
   });
 
+  it("does not claim an unsupported nested Settings route", () => {
+    renderPending("/workspace/reef-e2e/settings/unknown");
+    const main = within(screen.getByTestId("app-shell-skeleton-main"));
+
+    expect(main.queryByRole("heading", { name: "Settings" })).toBeNull();
+    expect(main.getByTestId("board-columns-skeleton")).toBeInTheDocument();
+  });
+
   it("resolves routes after a route-like workspace slug", () => {
     renderPending("/workspace/issues/reports");
     const main = within(screen.getByTestId("app-shell-skeleton-main"));
