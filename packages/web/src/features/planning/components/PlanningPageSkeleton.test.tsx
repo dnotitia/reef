@@ -10,6 +10,9 @@ describe("PlanningPageSkeleton", () => {
       screen.getByRole("heading", { name: "Planning" }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("planning-skeleton")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("planning-skeleton-table-header").children,
+    ).toHaveLength(6);
     for (const label of [
       "Sprints",
       "Milestones",

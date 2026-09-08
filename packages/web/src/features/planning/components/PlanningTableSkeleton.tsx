@@ -33,12 +33,16 @@ export function PlanningTableSkeleton({
         className="hidden min-w-0 flex-col lg:flex"
         aria-busy="true"
       >
-        <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] items-center gap-3 border-b border-border-subtle px-3 py-2 type-table-header text-muted-foreground">
+        <div
+          data-testid={`${desktopTestId}-header`}
+          className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-3 border-b border-border-subtle px-3 py-2 type-table-header text-muted-foreground"
+        >
           <span>{planning("name")}</span>
           <span>{fieldNames.status}</span>
           <span>{planning("dates")}</span>
           <span>{planning("issues")}</span>
           <span>{sections("details")}</span>
+          <span aria-hidden="true" />
         </div>
         <div className="flex flex-col gap-2 pt-2" aria-hidden="true">
           {PLANNING_LOADING_ROWS.map((row) => (

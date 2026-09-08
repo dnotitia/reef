@@ -155,6 +155,19 @@ async function waitForPendingLayout(
   });
 }
 
+async function waitForThemeTransitions(
+  page: import("@playwright/test").Page,
+): Promise<void> {
+  await page.evaluate(async () => {
+    const transitions = document
+      .getAnimations()
+      .filter((animation) => animation.constructor.name === "CSSTransition");
+    await Promise.allSettled(
+      transitions.map((animation) => animation.finished),
+    );
+  });
+}
+
 async function readContinuitySnapshot(
   page: import("@playwright/test").Page,
   selector: string,
@@ -594,6 +607,23 @@ test.describe("auth soft navigation", () => {
         await expect(page.getByTestId("app-shell-skeleton")).toBeVisible();
         await waitForPendingLayout(page);
         await expect(page.getByTestId("app-shell-skeleton")).toBeVisible();
+        await expect
+          .poll(
+            () =>
+              page
+                .locator("html")
+                .evaluate(
+                  (element, dark) =>
+                    element.classList.contains("dark") === dark,
+                  mode.dark,
+                ),
+            {
+              message: `${mode.name}/${surface.name} should apply its theme before the pending paint comparison`,
+            },
+          )
+          .toBe(true);
+        await waitForThemeTransitions(page);
+        await waitForPendingLayout(page);
 
         const pendingRoot =
           surface.name === "shell"
@@ -716,7 +746,7 @@ test.describe("auth soft navigation", () => {
           pending,
           loaded,
           `${mode.name}/${surface.name}`,
-          { comparePaint: !mode.dark },
+          { comparePaint: true },
         );
 
         if (mode.name === "narrow-ko-dark" && surface.name === "issues") {
@@ -729,7 +759,7 @@ test.describe("auth soft navigation", () => {
             pendingBoardFrame as ContinuitySnapshot,
             loadedBoard,
             `${mode.name}/${surface.name}/board-frame`,
-            { edges: ["x", "y", "width", "height"] },
+            { comparePaint: true, edges: ["x", "y", "width", "height"] },
           );
 
           const loadedBoardHeader = await readContinuitySnapshot(
@@ -741,6 +771,7 @@ test.describe("auth soft navigation", () => {
             pendingBoardHeader as ContinuitySnapshot,
             loadedBoardHeader,
             `${mode.name}/${surface.name}/first-group-header`,
+            { comparePaint: true },
           );
         }
 
@@ -757,7 +788,7 @@ test.describe("auth soft navigation", () => {
             pendingPlanningCard as ContinuitySnapshot,
             loadedPlanningCard,
             `${mode.name}/${surface.name}/compact-card-frame`,
-            { edges: ["x", "y", "width"] },
+            { comparePaint: true, edges: ["x", "y", "width"] },
           );
         }
       }
