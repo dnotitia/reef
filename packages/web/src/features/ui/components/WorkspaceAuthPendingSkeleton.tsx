@@ -10,6 +10,7 @@ import {
 import { IssueDetailSkeleton } from "@/features/issues/components/detail/IssueDetailSkeleton";
 import { IssueChromeIdentity } from "@/features/issues/components/detail/IssueChromeIdentity";
 import { IssuesWorkspaceSkeleton } from "@/features/issues/components/filters/IssuesWorkspaceSkeleton";
+import { NotificationInboxSkeleton } from "@/features/inbox/components/NotificationInbox";
 import { MyWorkPageSkeleton } from "@/features/my-work/components/MyWorkPageSkeleton";
 import { PlanningPageSkeleton } from "@/features/planning/components/PlanningPageSkeleton";
 import { SprintDetailPageSkeleton } from "@/features/planning/components/SprintDetailPageSkeleton";
@@ -172,6 +173,18 @@ function SettingsAuthPendingSkeleton({
   );
 }
 
+function InboxAuthPendingSkeleton() {
+  const nav = useTranslations("nav");
+  return (
+    <div className="flex h-full min-w-0 flex-col">
+      <PageHeader title={nav("inbox")} />
+      <PageBody width="full">
+        <NotificationInboxSkeleton />
+      </PageBody>
+    </div>
+  );
+}
+
 function AuthPendingContent({
   routeSegments,
   searchParams,
@@ -204,6 +217,9 @@ function AuthPendingContent({
   if (route === "my-work" && routeSegments.length === 1) {
     return <MyWorkPageSkeleton />;
   }
+  if (route === "inbox" && routeSegments.length === 1) {
+    return <InboxAuthPendingSkeleton />;
+  }
   if (route === "reports" && routeSegments.length === 1) {
     return (
       <PageShell>
@@ -233,6 +249,7 @@ function hasAuthPendingContent(routeSegments: string[]): boolean {
       (routeSegments.length === 1 ||
         (routeSegments[1] === "sprints" && routeSegments.length === 3))) ||
     (route === "my-work" && routeSegments.length === 1) ||
+    (route === "inbox" && routeSegments.length === 1) ||
     (route === "reports" && routeSegments.length === 1)
   );
 }

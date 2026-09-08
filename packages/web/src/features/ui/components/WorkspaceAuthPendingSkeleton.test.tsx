@@ -91,14 +91,17 @@ describe("WorkspaceAuthPendingSkeleton", () => {
     },
   );
 
-  it("keeps the generic board fallback for an unknown workspace path", () => {
+  it("keeps the Inbox surface while auth is pending", () => {
     renderPending("/workspace/reef-e2e/inbox");
     const main = within(screen.getByTestId("app-shell-skeleton-main"));
 
-    expect(
-      main.queryByRole("heading", { name: "Issues" }),
-    ).not.toBeInTheDocument();
-    expect(main.getByTestId("board-columns-skeleton")).toBeInTheDocument();
+    expect(main.getByRole("heading", { name: "Inbox" })).toBeInTheDocument();
+    expect(main.getByTestId("notification-inbox-loading")).toBeInTheDocument();
+    expect(main.queryByTestId("board-columns-skeleton")).toBeNull();
+    expect(screen.getByTestId("sidebar-nav-inbox")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 
   it("resolves routes after a route-like workspace slug", () => {
