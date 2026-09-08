@@ -100,4 +100,18 @@ describe("WorkspaceAuthPendingSkeleton", () => {
     ).not.toBeInTheDocument();
     expect(main.getByTestId("board-columns-skeleton")).toBeInTheDocument();
   });
+
+  it("resolves routes after a route-like workspace slug", () => {
+    renderPending("/workspace/issues/reports");
+    const main = within(screen.getByTestId("app-shell-skeleton-main"));
+
+    expect(main.getByRole("heading", { name: "Reports" })).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-nav-reports")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByTestId("sidebar-nav-issues")).not.toHaveAttribute(
+      "aria-current",
+    );
+  });
 });

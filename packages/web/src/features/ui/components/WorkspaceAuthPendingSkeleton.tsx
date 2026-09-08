@@ -132,10 +132,15 @@ function StaticSettingsTabs({
   );
 }
 
-function SettingsAuthPendingSkeleton({ pathname }: { pathname: string }) {
+function SettingsAuthPendingSkeleton({
+  routeSegments,
+}: {
+  routeSegments: string[];
+}) {
   const nav = useTranslations("nav");
-  const isPreferences = pathname.endsWith("/settings/preferences");
-  const isDeployment = pathname.endsWith("/settings/deployment");
+  const settingsSection = routeSegments[1];
+  const isPreferences = settingsSection === "preferences";
+  const isDeployment = settingsSection === "deployment";
   const active = isPreferences
     ? "preferences"
     : isDeployment
@@ -145,7 +150,7 @@ function SettingsAuthPendingSkeleton({ pathname }: { pathname: string }) {
     <PreferencesSettingsLoading />
   ) : isDeployment ? (
     <DeploymentSettingsLoading />
-  ) : pathname.endsWith("/settings/workspace/members") ? (
+  ) : settingsSection === "workspace" && routeSegments[2] === "members" ? (
     <MembersSettingsLoading />
   ) : (
     <WorkspaceSettingsLoading />
@@ -161,59 +166,77 @@ function SettingsAuthPendingSkeleton({ pathname }: { pathname: string }) {
   );
 }
 
-function AuthPendingContent({ pathname }: { pathname: string }) {
-  if (/\/issues\/[^/]+$/.test(pathname)) {
-    return (
-      <IssueDetailAuthPendingSkeleton
-        issueId={pathname.split("/").at(-1) ?? ""}
-      />
-    );
+function AuthPendingContent({ routeSegments }: { routeSegments: string[] }) {
+  const route = routeSegments[0];
+  if (route === "issues" && routeSegments.length === 2) {
+    return <IssueDetailAuthPendingSkeleton issueId={routeSegments[1] ?? ""} />;
   }
-  if (pathname.includes("/settings")) {
-    return <SettingsAuthPendingSkeleton pathname={pathname} />;
+  if (route === "settings") {
+    return <SettingsAuthPendingSkeleton routeSegments={routeSegments} />;
   }
-  if (/\/planning\/sprints\/[^/]+$/.test(pathname)) {
+  if (
+    route === "planning" &&
+    routeSegments[1] === "sprints" &&
+    routeSegments.length === 3
+  ) {
     return <SprintDetailPageSkeleton />;
   }
-  if (pathname.endsWith("/planning")) {
+  if (route === "planning" && routeSegments.length === 1) {
     return <PlanningPageSkeleton />;
   }
-  if (pathname.endsWith("/my-work")) {
+  if (route === "my-work" && routeSegments.length === 1) {
     return <MyWorkPageSkeleton />;
   }
-  if (pathname.endsWith("/reports")) {
+  if (route === "reports" && routeSegments.length === 1) {
     return (
       <PageShell>
         <ReportsSkeleton />
       </PageShell>
     );
   }
-  if (pathname.endsWith("/issues")) {
+  if (route === "issues" && routeSegments.length === 1) {
     return <IssuesWorkspaceSkeleton />;
   }
   return null;
 }
 
-function hasAuthPendingContent(pathname: string): boolean {
+function workspaceRouteSegments(pathname: string): string[] {
+  const segments = pathname.split("/").filter(Boolean);
+  const workspaceIndex = segments.indexOf("workspace");
+  return workspaceIndex === -1 ? [] : segments.slice(workspaceIndex + 2);
+}
+
+function hasAuthPendingContent(routeSegments: string[]): boolean {
+  const route = routeSegments[0];
   return (
-    /\/issues\/[^/]+$/.test(pathname) ||
-    pathname.includes("/settings") ||
-    /\/planning\/sprints\/[^/]+$/.test(pathname) ||
-    pathname.endsWith("/planning") ||
-    pathname.endsWith("/my-work") ||
-    pathname.endsWith("/reports") ||
-    pathname.endsWith("/issues")
+    (route === "issues" &&
+      (routeSegments.length === 1 || routeSegments.length === 2)) ||
+    route === "settings" ||
+    (route === "planning" &&
+      (routeSegments.length === 1 ||
+        (routeSegments[1] === "sprints" && routeSegments.length === 3))) ||
+    (route === "my-work" && routeSegments.length === 1) ||
+    (route === "reports" && routeSegments.length === 1)
   );
 }
 
-function activeNavForPath(pathname: string) {
-  if (pathname.includes("/issues")) return "issues" as const;
-  if (pathname.endsWith("/my-work")) return "myWork" as const;
-  if (pathname.includes("/inbox")) return "inbox" as const;
-  if (pathname.includes("/planning")) return "planning" as const;
-  if (pathname.includes("/reports")) return "reports" as const;
-  if (pathname.includes("/settings")) return "settings" as const;
-  return undefined;
+function activeNavForPath(routeSegments: string[]) {
+  switch (routeSegments[0]) {
+    case "issues":
+      return "issues" as const;
+    case "my-work":
+      return "myWork" as const;
+    case "inbox":
+      return "inbox" as const;
+    case "planning":
+      return "planning" as const;
+    case "reports":
+      return "reports" as const;
+    case "settings":
+      return "settings" as const;
+    default:
+      return undefined;
+  }
 }
 
 /**
@@ -227,13 +250,14 @@ export function WorkspaceAuthPendingSkeleton({
   pathname: string | null;
 }) {
   const normalizedPathname = pathname ?? "";
-  const hasContent = hasAuthPendingContent(normalizedPathname);
+  const routeSegments = workspaceRouteSegments(normalizedPathname);
+  const hasContent = hasAuthPendingContent(routeSegments);
   return (
     <AppShellSkeleton
-      activeNav={activeNavForPath(normalizedPathname)}
+      activeNav={activeNavForPath(routeSegments)}
       content={
         hasContent ? (
-          <AuthPendingContent pathname={normalizedPathname} />
+          <AuthPendingContent routeSegments={routeSegments} />
         ) : undefined
       }
       announce={!hasContent}
