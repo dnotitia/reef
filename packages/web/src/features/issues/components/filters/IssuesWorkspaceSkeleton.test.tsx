@@ -108,6 +108,32 @@ describe("IssuesWorkspaceSkeleton", () => {
     ).toHaveClass("w-[9rem]", "min-w-[9rem]");
   });
 
+  it("uses the canonical Backlog/List filter set and table headers", () => {
+    const { container } = render(
+      <IssuesWorkspaceSkeleton searchParams="view=list&scope=backlog&sort=updated_at&order=desc" />,
+    );
+    const filterBar = screen.getByTestId("filter-bar");
+
+    expect(screen.queryByTestId("view-switcher-timeline")).toBeNull();
+    for (const key of ["status", "due", "sprint", "release"]) {
+      expect(
+        filterBar.querySelector(`[data-fixed-filter-key="${key}"]`),
+      ).toBeNull();
+    }
+    expect(
+      filterBar.querySelector('[data-fixed-filter-key="display"]'),
+    ).toHaveTextContent("Group: Priority");
+    expect(
+      filterBar.querySelector('[data-fixed-filter-key="sort-direction"]'),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("backlog-table-skeleton")).toBeInTheDocument();
+    expect(
+      container.querySelector(
+        '[data-testid="backlog-table-skeleton"] thead [data-column-key="updated"]',
+      ),
+    ).toHaveTextContent("Updated");
+  });
+
   it.each(["list", "timeline"] as const)(
     "uses a %s body frame for the selected URL view",
     (layout) => {

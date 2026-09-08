@@ -11,6 +11,7 @@ import {
 const WORKSPACE = "/workspace/reef-e2e";
 const ISSUES_PATH = `${WORKSPACE}/issues`;
 const PLANNING_PATH = `${WORKSPACE}/planning`;
+const BACKLOG_LIST_UPDATED_URL = `${ISSUES_PATH}?view=list&scope=backlog&sort=updated_at&order=desc`;
 
 const CONTINUITY_MODES = [
   { name: "desktop-en-light", width: 1280, locale: "en", dark: false },
@@ -640,6 +641,78 @@ test.describe("auth soft navigation", () => {
     );
   });
 
+  test("keeps URL-known Backlog list chrome aligned during auth pending", async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(120_000);
+    await openExistingWorkspace(page);
+    await page.setViewportSize({ width: 1280, height: 844 });
+    await setAuthControl(request, { probeHold: true });
+
+    let released = false;
+    try {
+      await page.goto(BACKLOG_LIST_UPDATED_URL);
+      await expect(page.getByTestId("app-shell-skeleton")).toBeVisible();
+      await waitForPendingLayout(page);
+
+      const pendingFilterBar = page.getByTestId("filter-bar");
+      await expect(page.getByTestId("scope-switcher-backlog")).toHaveClass(
+        /bg-surface-hover/u,
+      );
+      await expect(page.getByTestId("view-switcher-list")).toHaveClass(
+        /bg-surface-hover/u,
+      );
+      await expect(page.getByTestId("view-switcher-timeline")).toHaveCount(0);
+      await expect(
+        pendingFilterBar.locator('[data-fixed-filter-key="status"]'),
+      ).toHaveCount(0);
+      await expect(
+        pendingFilterBar.locator('[data-fixed-filter-key="due"]'),
+      ).toHaveCount(0);
+      await expect(
+        pendingFilterBar.locator('[data-fixed-filter-key="sprint"]'),
+      ).toHaveCount(0);
+      await expect(
+        pendingFilterBar.locator('[data-fixed-filter-key="release"]'),
+      ).toHaveCount(0);
+      await expect(
+        pendingFilterBar.locator('[data-fixed-filter-key="display"]'),
+      ).toContainText("Group");
+      await expect(
+        pendingFilterBar.locator('[data-fixed-filter-key="display"]'),
+      ).toContainText("Priority");
+      await expect(
+        pendingFilterBar.locator('[data-fixed-filter-key="sort"]'),
+      ).toContainText("Updated");
+      await expect(
+        pendingFilterBar.locator('[data-fixed-filter-key="sort-direction"]'),
+      ).toHaveCount(1);
+      await expect(page.getByTestId("backlog-table-skeleton")).toBeVisible();
+      await expect(
+        page.locator(
+          '[data-testid="backlog-table-skeleton"] thead [data-column-key="id"]',
+        ),
+      ).toContainText("ID");
+      await expect(
+        page.locator(
+          '[data-testid="backlog-table-skeleton"] thead [data-column-key="updated"]',
+        ),
+      ).toContainText("Updated");
+
+      const releaseResponse = await releaseAuthProbe(request);
+      released = true;
+      expect(releaseResponse).toBeGreaterThan(0);
+      await expect(page.getByTestId("backlog-table")).toBeVisible({
+        timeout: 15_000,
+      });
+      await expect(page.getByTestId("backlog-row").first()).toBeVisible();
+      await expect(page.getByTestId("view-switcher-timeline")).toHaveCount(0);
+    } finally {
+      if (!released) await releaseAuthProbe(request);
+    }
+  });
+
   test("compares fixed chrome across supported surfaces, viewport, locale, and theme", async ({
     page,
     request,
@@ -1145,6 +1218,32 @@ test.describe("auth soft navigation", () => {
     await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible({
       timeout: 15_000,
     });
+  });
+
+  test("keeps an ordinary collapsed sidebar during visible-tab revalidation", async ({
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.setViewportSize({ width: 1280, height: 844 });
+
+    const sidebar = page.getByRole("complementary", { name: "Sidebar" });
+    await page.getByRole("button", { name: "Collapse sidebar" }).click();
+    await expect(sidebar).toHaveClass(/w-14/u);
+    await expect(page.getByTestId("sidebar-nav-icon-issues")).toBeVisible();
+
+    await setAuthControl(request, { probeDelayMs: 1_200 });
+    const probe = page.waitForResponse(
+      (response) =>
+        isAuthProbeRequest(response.request()) && response.status() === 200,
+    );
+    await page.evaluate(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await probe;
+    await expect(sidebar).toHaveClass(/w-14/u);
+    await expect(page.getByTestId("sidebar-nav-icon-issues")).toBeVisible();
+    await expect(page.getByTestId("sidebar-brand-name")).toHaveCount(0);
   });
 
   test("ignores a late probe result after an immediate invalidation", async ({

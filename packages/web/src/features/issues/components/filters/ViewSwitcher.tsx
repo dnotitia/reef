@@ -14,7 +14,7 @@ import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import {
-  ISSUE_LAYOUTS,
+  issueLayoutsForScope,
   type IssueLayout,
   type IssueScope,
 } from "../../lib/viewMode";
@@ -49,10 +49,7 @@ export function ViewSwitcher({
   const [isPending, startTransition] = useTransition();
   const [pendingLayout, setPendingLayout] = useState<IssueLayout | null>(null);
   const t = useTranslations("issues.filters");
-  const layouts =
-    scope === "backlog" || hideTimeline
-      ? ISSUE_LAYOUTS.filter((layout) => layout !== "timeline")
-      : ISSUE_LAYOUTS;
+  const layouts = issueLayoutsForScope(scope, hideTimeline);
 
   const selectLayout = useCallback(
     (layout: IssueLayout) => {
