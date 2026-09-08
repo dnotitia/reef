@@ -4,7 +4,12 @@ import { useAuthRedirect } from "@/features/auth/hooks/useAuthRedirect";
 import { useSyncActiveVaultFromUrl } from "@/features/settings/hooks/useActiveVault";
 import { useVaults } from "@/features/settings/hooks/useVaults";
 import { VAULT_NAME_RE } from "@/lib/akb/vaultName";
-import { notFound, useParams, usePathname } from "next/navigation";
+import {
+  notFound,
+  useParams,
+  usePathname,
+  useSearchParams,
+} from "next/navigation";
 import type { ReactNode } from "react";
 import { DashboardShell } from "./DashboardShell";
 import { WorkspaceAccessDenied } from "./WorkspaceAccessDenied";
@@ -30,6 +35,7 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
   const params = useParams<{ vault: string }>();
   const vault = typeof params.vault === "string" ? params.vault : "";
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   // Keep the protected tree unmounted until `/auth/me` confirms the session.
   // Otherwise its parallel queries can consume and clear an account-denial
@@ -56,7 +62,12 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
   useSyncActiveVaultFromUrl(isMember ? vault : "");
 
   if (authStatus !== "active") {
-    return <WorkspaceAuthPendingSkeleton pathname={pathname} />;
+    return (
+      <WorkspaceAuthPendingSkeleton
+        pathname={pathname}
+        searchParams={searchParams.toString()}
+      />
+    );
   }
 
   // Keep the access-denied surface outside the dashboard shell so its

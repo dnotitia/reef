@@ -58,6 +58,23 @@ describe("IssuesWorkspaceSkeleton", () => {
     expect(container.querySelector(".flex.flex-wrap")).not.toBeNull();
   });
 
+  it("reflects the issue scope and view from the URL", () => {
+    render(<IssuesWorkspaceSkeleton searchParams="scope=backlog&view=list" />);
+
+    expect(screen.getByTestId("scope-switcher-backlog")).toHaveClass(
+      "bg-surface-hover",
+    );
+    expect(screen.getByTestId("scope-switcher-active")).toHaveClass(
+      "text-muted-foreground",
+    );
+    expect(screen.getByTestId("view-switcher-list")).toHaveClass(
+      "bg-surface-hover",
+    );
+    expect(screen.getByTestId("view-switcher-board")).toHaveClass(
+      "text-muted-foreground",
+    );
+  });
+
   it("hides the decorative body and announces loading to assistive tech (REEF-281)", () => {
     const { container } = render(<IssuesWorkspaceSkeleton />);
 

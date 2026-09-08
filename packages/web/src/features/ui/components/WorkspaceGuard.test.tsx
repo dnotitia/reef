@@ -34,6 +34,7 @@ const {
 vi.mock("next/navigation", () => ({
   useParams: () => paramsRef.current,
   usePathname: () => "/workspace/reef-acme/issues",
+  useSearchParams: () => new URLSearchParams(),
   notFound: notFoundMock,
 }));
 vi.mock("@/features/auth/hooks/useAuthRedirect", () => ({

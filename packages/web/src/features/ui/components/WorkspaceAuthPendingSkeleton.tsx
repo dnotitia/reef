@@ -35,10 +35,16 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-function IssueDetailAuthPendingSkeleton({ issueId }: { issueId: string }) {
+function IssueDetailAuthPendingSkeleton({
+  issueId,
+  searchParams,
+}: {
+  issueId: string;
+  searchParams: string;
+}) {
   return (
     <div className="relative h-full min-h-0 min-w-0">
-      <IssuesWorkspaceSkeleton />
+      <IssuesWorkspaceSkeleton searchParams={searchParams} />
       <div
         className="fixed inset-0 z-50 bg-foreground/20 backdrop-blur-[2px]"
         aria-hidden="true"
@@ -166,10 +172,21 @@ function SettingsAuthPendingSkeleton({
   );
 }
 
-function AuthPendingContent({ routeSegments }: { routeSegments: string[] }) {
+function AuthPendingContent({
+  routeSegments,
+  searchParams,
+}: {
+  routeSegments: string[];
+  searchParams: string;
+}) {
   const route = routeSegments[0];
   if (route === "issues" && routeSegments.length === 2) {
-    return <IssueDetailAuthPendingSkeleton issueId={routeSegments[1] ?? ""} />;
+    return (
+      <IssueDetailAuthPendingSkeleton
+        issueId={routeSegments[1] ?? ""}
+        searchParams={searchParams}
+      />
+    );
   }
   if (route === "settings") {
     return <SettingsAuthPendingSkeleton routeSegments={routeSegments} />;
@@ -195,7 +212,7 @@ function AuthPendingContent({ routeSegments }: { routeSegments: string[] }) {
     );
   }
   if (route === "issues" && routeSegments.length === 1) {
-    return <IssuesWorkspaceSkeleton />;
+    return <IssuesWorkspaceSkeleton searchParams={searchParams} />;
   }
   return null;
 }
@@ -246,8 +263,10 @@ function activeNavForPath(routeSegments: string[]) {
  */
 export function WorkspaceAuthPendingSkeleton({
   pathname,
+  searchParams = "",
 }: {
   pathname: string | null;
+  searchParams?: string;
 }) {
   const normalizedPathname = pathname ?? "";
   const routeSegments = workspaceRouteSegments(normalizedPathname);
@@ -257,7 +276,10 @@ export function WorkspaceAuthPendingSkeleton({
       activeNav={activeNavForPath(routeSegments)}
       content={
         hasContent ? (
-          <AuthPendingContent routeSegments={routeSegments} />
+          <AuthPendingContent
+            routeSegments={routeSegments}
+            searchParams={searchParams}
+          />
         ) : undefined
       }
       announce={!hasContent}

@@ -15,6 +15,7 @@ import {
   SEGMENTED_CONTROL_TRACK,
 } from "@/components/segmentedControl";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
+import { parseIssueViewState } from "@/features/issues/lib/viewMode";
 import { PageHeader } from "@/features/ui/components/PageHeader";
 import { cn } from "@/lib/utils";
 import {
@@ -70,6 +71,7 @@ function StaticSegmentedControl({
   testId,
   ariaLabel,
   items,
+  activeId,
 }: {
   testId: string;
   ariaLabel: string;
@@ -78,6 +80,7 @@ function StaticSegmentedControl({
     label: string;
     icon?: typeof Columns3;
   }>;
+  activeId: string;
 }) {
   return (
     <div
@@ -87,14 +90,14 @@ function StaticSegmentedControl({
       data-testid={testId}
       className={SEGMENTED_CONTROL_TRACK}
     >
-      {items.map(({ id, label, icon: Icon }, index) => (
+      {items.map(({ id, label, icon: Icon }) => (
         <span
           key={id}
           data-testid={`${testId}-${id}`}
           className={cn(
             SEGMENTED_CONTROL_ITEM,
             "whitespace-nowrap",
-            index === 0
+            id === activeId
               ? SEGMENTED_CONTROL_ITEM_ACTIVE
               : SEGMENTED_CONTROL_ITEM_INACTIVE,
           )}
@@ -189,12 +192,19 @@ function StaticLabelInput({
  * the CSR-bail Suspense fallback both render before the URL's view is known, so
  * the list/timeline/backlog frames stay a separate, deferred concern.
  */
-export function IssuesWorkspaceSkeleton() {
+export function IssuesWorkspaceSkeleton({
+  searchParams = "",
+}: {
+  searchParams?: string;
+}) {
   const nav = useTranslations("nav");
   const c = useTranslations("common");
   const filters = useTranslations("issues.filters");
   const sort = useTranslations("issues.sort");
   const fieldNames = useFieldNameLabels();
+  const { scope, layout } = parseIssueViewState(
+    new URLSearchParams(searchParams),
+  );
   const chipLabels: Record<(typeof FILTER_CHIPS)[number]["key"], string> = {
     status: fieldNames.status,
     type: fieldNames.type,
@@ -228,6 +238,7 @@ export function IssuesWorkspaceSkeleton() {
           <StaticSegmentedControl
             testId="scope-switcher"
             ariaLabel={filters("scope.label")}
+            activeId={scope}
             items={[
               { id: "active", label: filters("scope.active") },
               { id: "backlog", label: filters("scope.backlog") },
@@ -238,6 +249,7 @@ export function IssuesWorkspaceSkeleton() {
           <StaticSegmentedControl
             testId="view-switcher"
             ariaLabel={filters("issueView")}
+            activeId={layout}
             items={[
               { id: "board", label: filters("view.board"), icon: Columns3 },
               { id: "list", label: filters("view.list"), icon: List },
