@@ -25,7 +25,7 @@ import {
   type SprintRolloverResume,
   type SprintRolloverTarget,
 } from "@reef/core";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useId, useRef, useState } from "react";
 import { ArrowRight, CheckCircle2, X } from "lucide-react";
 import { sprintDetailHref } from "../lib/planningUrls";
@@ -480,6 +480,7 @@ export function SprintRolloverDialog({
 }) {
   const translate = rolloverTranslator(useTranslations("planning.rollover"));
   const common = useTranslations("common");
+  const locale = useLocale();
   const [targetMode, setTargetMode] = useState<TargetMode>("new");
   const [targetId, setTargetId] = useState("");
   const [targetName, setTargetName] = useState("");
@@ -747,7 +748,13 @@ export function SprintRolloverDialog({
               </Button>
             </DialogClose>
           </div>
-          <DialogDescription className="type-body text-left">
+          <DialogDescription
+            className={
+              locale === "ko"
+                ? "type-body text-left [overflow-wrap:anywhere] [word-break:keep-all]"
+                : "type-body text-left"
+            }
+          >
             {completed
               ? translate("completedDescription")
               : result?.status === "partial"

@@ -8,7 +8,7 @@ import {
   type Sprint,
 } from "@reef/core";
 import { X } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 export function SprintRolloverNudge({
@@ -28,6 +28,7 @@ export function SprintRolloverNudge({
   priority?: "primary" | "secondary";
   onOpen: (sprint: Sprint) => void;
 }) {
+  const locale = useLocale();
   const t = useTranslations("planning.rollover");
   const [dismissed, setDismissed] = useState(false);
   const sprintId = sprint?.id;
@@ -71,7 +72,13 @@ export function SprintRolloverNudge({
         >
           {t("nudgeTitle", { name: sprint.name })}
         </p>
-        <p className="mt-0.5 type-caption text-muted-foreground">
+        <p
+          className={
+            locale === "ko"
+              ? "mt-0.5 type-caption text-muted-foreground [overflow-wrap:anywhere] [word-break:keep-all]"
+              : "mt-0.5 type-caption text-muted-foreground"
+          }
+        >
           {t("nudgeDescription", { count })}
         </p>
       </div>

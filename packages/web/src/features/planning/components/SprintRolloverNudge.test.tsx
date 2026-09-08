@@ -100,6 +100,27 @@ describe("SprintRolloverNudge", () => {
     );
   });
 
+  it("keeps Korean nudge descriptions together at word boundaries", () => {
+    render(
+      <IntlTestProvider locale="ko">
+        <SprintRolloverNudge
+          sprint={SPRINT}
+          issues={ISSUES}
+          issueState="available"
+          now={Date.parse("2026-09-06T00:00:00Z")}
+          canEdit
+          onOpen={vi.fn()}
+        />
+      </IntlTestProvider>,
+    );
+
+    expect(
+      screen.getByText(
+        "아직 1개의 미완료 이슈가 이 스프린트에 연결되어 있습니다.",
+      ),
+    ).toHaveClass("[word-break:keep-all]");
+  });
+
   it("lowers the nudge when a resumable rollover is already visible", () => {
     render(
       wrap(

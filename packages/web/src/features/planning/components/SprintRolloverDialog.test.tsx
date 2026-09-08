@@ -211,6 +211,16 @@ describe("SprintRolloverDialog", () => {
     expect(screen.getByLabelText("New sprint end")).toHaveValue("2026-09-19");
   });
 
+  it("keeps Korean dialog descriptions together at word boundaries", () => {
+    renderDialog(vi.fn(), "ko");
+
+    expect(
+      screen.getByText(
+        "스프린트를 종료하고 미완료 이슈를 다음 스프린트로 옮깁니다.",
+      ),
+    ).toHaveClass("[word-break:keep-all]");
+  });
+
   it("recalculates suggested target dates when the source end changes", async () => {
     const user = userEvent.setup();
     renderDialog();
