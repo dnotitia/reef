@@ -124,6 +124,7 @@ describe("AKB Jira migration target", () => {
           releases: [],
           sprints: [],
           milestones: [],
+          rollover_resumes: [],
         })),
         createRelease: vi.fn(),
         createSprint: vi.fn(),

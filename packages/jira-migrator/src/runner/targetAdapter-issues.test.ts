@@ -102,6 +102,7 @@ describe("AKB Jira migration target", () => {
           releases: [],
           sprints: [],
           milestones: [],
+          rollover_resumes: [],
         })),
         listVaultMembers: vi.fn(async () => ({
           members: [
@@ -182,6 +183,7 @@ describe("AKB Jira migration target", () => {
           releases: [],
           sprints: [],
           milestones: [],
+          rollover_resumes: [],
         })),
         createRelease: vi.fn(),
         createSprint: vi.fn(),
@@ -253,6 +255,7 @@ describe("AKB Jira migration target", () => {
           releases: [],
           sprints: [],
           milestones: [],
+          rollover_resumes: [],
         })),
         createRelease: vi.fn(),
         createSprint: vi.fn(),
