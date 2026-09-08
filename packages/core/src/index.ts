@@ -55,7 +55,6 @@ export {
   SprintRolloverPhasesSchema,
   SprintRolloverCountsSchema,
   SprintRolloverResultSchema,
-  SprintRolloverResumeSchema,
   ChangeEventEnvelopeV1Schema,
   TailCheckpointV1Schema,
   TableRowsChangedOperationSchema,

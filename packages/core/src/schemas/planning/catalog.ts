@@ -154,7 +154,7 @@ export const PlanningCatalogSchema = z.object({
   sprints: z.array(SprintSchema),
   milestones: z.array(MilestoneSchema),
   releases: z.array(ReleaseSchema),
-  rollover_resumes: z.array(SprintRolloverResumeSchema).default([]),
+  rollover_resumes: z.array(SprintRolloverResumeSchema),
 });
 
 export type Sprint = z.infer<typeof SprintSchema>;

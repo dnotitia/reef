@@ -194,7 +194,12 @@ describe("TimelineBody", () => {
       }
       if (path.startsWith("/api/planning")) {
         return new Response(
-          JSON.stringify({ sprints: [], milestones: [], releases: [] }),
+          JSON.stringify({
+            sprints: [],
+            milestones: [],
+            releases: [],
+            rollover_resumes: [],
+          }),
           { status: 200 },
         );
       }

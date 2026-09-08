@@ -52,7 +52,12 @@ describe("ReportScopeBar", () => {
     mockApiFetch.mockImplementation((input) => {
       const path = String(input);
       if (path.startsWith("/api/planning")) {
-        return respond({ sprints: [], milestones: [], releases: [] });
+        return respond({
+          sprints: [],
+          milestones: [],
+          releases: [],
+          rollover_resumes: [],
+        });
       }
       return respond({ users: [] });
     });

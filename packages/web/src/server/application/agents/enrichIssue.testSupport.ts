@@ -128,6 +128,7 @@ export function resetEnrichIssueMocks() {
     sprints: [],
     milestones: [],
     releases: [],
+    rollover_resumes: [],
   });
   mockListVaultMembers.mockResolvedValue({ members: [] });
   mockReadConfig.mockResolvedValue({

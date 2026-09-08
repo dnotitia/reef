@@ -169,7 +169,12 @@ describe("IssuesWorkspace", () => {
       refetch: () => Promise.resolve(),
     });
     mockUsePlanningCatalog.mockReturnValue({
-      data: { sprints: [], milestones: [], releases: [] },
+      data: {
+        sprints: [],
+        milestones: [],
+        releases: [],
+        rollover_resumes: [],
+      },
       isPending: false,
       isError: false,
     });

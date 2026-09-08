@@ -39,6 +39,7 @@ describe("planning schemas", () => {
             notes: "Planning metadata rollout",
           },
         ],
+        rollover_resumes: [],
       }),
     ).toMatchObject({
       sprints: [{ name: "Sprint 12" }],

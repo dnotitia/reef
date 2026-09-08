@@ -87,7 +87,12 @@ function mockApi(issuesPayload: IssueMetadata[], activityPayload = []) {
     }
     if (path.startsWith("/api/planning")) {
       return Promise.resolve(
-        respond({ sprints: [], milestones: [], releases: [] }),
+        respond({
+          sprints: [],
+          milestones: [],
+          releases: [],
+          rollover_resumes: [],
+        }),
       );
     }
     if (path.startsWith("/api/vault-members")) {

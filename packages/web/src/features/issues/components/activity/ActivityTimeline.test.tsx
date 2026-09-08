@@ -95,7 +95,12 @@ beforeEach(() => {
       const url = String(input);
       const method = init?.method ?? "GET";
       if (url.includes("/planning"))
-        return json({ sprints: [], milestones: [], releases: [] });
+        return json({
+          sprints: [],
+          milestones: [],
+          releases: [],
+          rollover_resumes: [],
+        });
       if (url.includes("/members")) return json({ members: [] });
       if (url.includes("/activity")) return json({ activity });
       if (url.includes("/attachments")) {
@@ -468,7 +473,12 @@ describe("ActivityTimeline — comment mutations", () => {
     mockApiFetch.mockImplementation(async (input, init) => {
       const url = String(input);
       if (url.includes("/planning"))
-        return json({ sprints: [], milestones: [], releases: [] });
+        return json({
+          sprints: [],
+          milestones: [],
+          releases: [],
+          rollover_resumes: [],
+        });
       if (url.includes("/activity")) return json({ activity });
       if (url.includes("/comments") && (init?.method ?? "GET") === "POST") {
         return json({ error: "nope" }, 500);
@@ -596,7 +606,12 @@ describe("ActivityTimeline — load failure (a11y)", () => {
     mockApiFetch.mockImplementation(async (input: URL | RequestInfo) => {
       const url = String(input);
       if (url.includes("/planning"))
-        return json({ sprints: [], milestones: [], releases: [] });
+        return json({
+          sprints: [],
+          milestones: [],
+          releases: [],
+          rollover_resumes: [],
+        });
       if (url.includes("/activity")) return json({ error: "boom" }, 500);
       if (url.includes("/comments")) return json({ comments: [] });
       return json({});
