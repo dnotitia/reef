@@ -19,6 +19,7 @@ import { PageHeader } from "@/features/ui/components/PageHeader";
 import { cn } from "@/lib/utils";
 import {
   ChevronDown,
+  Calendar as CalendarIcon,
   Columns3,
   GanttChart,
   List,
@@ -113,15 +114,18 @@ function StaticFilterControl({
   className,
   field = false,
   icon: Icon,
+  dataKey,
 }: {
   label: string;
   className: string;
   field?: boolean;
   icon?: typeof Columns3;
+  dataKey: string;
 }) {
   return (
     <span
       data-fixed-filter="true"
+      data-fixed-filter-key={dataKey}
       className={cn(
         field
           ? `${CBX_TRIGGER_FIELD} text-left`
@@ -300,7 +304,14 @@ export function IssuesWorkspaceSkeleton() {
                   <StaticFilterControl
                     label={chipLabels[chip.key]}
                     field={chip.field}
-                    icon={chip.key === "sort" ? ListOrdered : undefined}
+                    dataKey={chip.key}
+                    icon={
+                      chip.key === "sort"
+                        ? ListOrdered
+                        : chip.key === "updatedAtRange"
+                          ? CalendarIcon
+                          : undefined
+                    }
                     className={chip.width}
                   />
                 </div>

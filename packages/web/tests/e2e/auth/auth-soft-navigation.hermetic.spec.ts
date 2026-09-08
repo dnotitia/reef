@@ -625,6 +625,21 @@ test.describe("auth soft navigation", () => {
                 pendingRoot,
               )
             : null;
+        const pendingFixedIconComposition =
+          mode.name === "narrow-ko-dark" && surface.name === "issues"
+            ? {
+                updatedAtIcons: await page
+                  .locator(
+                    `${pendingRoot} [data-fixed-filter-key="updatedAtRange"] svg`,
+                  )
+                  .count(),
+                statusIcons: await page
+                  .locator(
+                    `${pendingRoot} [data-testid="kanban-group-header"] svg`,
+                  )
+                  .count(),
+              }
+            : null;
         await page.screenshot({
           animations: "disabled",
           path: testInfo.outputPath(
@@ -663,6 +678,30 @@ test.describe("auth soft navigation", () => {
           loadedSelector,
           loadedRoot,
         );
+        const loadedFixedIconComposition =
+          mode.name === "narrow-ko-dark" && surface.name === "issues"
+            ? {
+                updatedAtIcons: await page
+                  .locator(
+                    `${loadedRoot} [data-testid="updated-at-filter-trigger"] svg`,
+                  )
+                  .count(),
+                statusIcons: await page
+                  .locator(
+                    `${loadedRoot} [data-testid="kanban-group-header"] svg`,
+                  )
+                  .count(),
+              }
+            : null;
+        if (pendingFixedIconComposition && loadedFixedIconComposition) {
+          expect(pendingFixedIconComposition).toEqual(
+            loadedFixedIconComposition,
+          );
+          expect(pendingFixedIconComposition).toEqual({
+            updatedAtIcons: 2,
+            statusIcons: 5,
+          });
+        }
         await page.screenshot({
           animations: "disabled",
           path: testInfo.outputPath(

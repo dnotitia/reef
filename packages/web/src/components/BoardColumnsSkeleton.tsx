@@ -1,8 +1,10 @@
 "use client";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatusIcon } from "@/components/ui/status-icon";
 import { usePriorityLabels, useStatusLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
+import type { Status } from "@reef/core";
 import { PRIORITY_OPTIONS, WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import { useTranslations } from "next-intl";
 
@@ -31,13 +33,22 @@ interface BoardColumnsSkeletonProps {
 const EMPTY_COLUMN_KEYS = ["one", "two", "three", "four", "five"] as const;
 const CARD_KEYS = ["a", "b", "c"] as const;
 
-function LoadingColumn({ label, index }: { label?: string; index: number }) {
+function LoadingColumn({
+  label,
+  index,
+  status,
+}: {
+  label?: string;
+  index: number;
+  status?: Status;
+}) {
   return (
     <div className="flex h-full min-w-0 w-full flex-col rounded-lg border border-border bg-surface-subtle p-2 lg:w-80 lg:shrink-0">
       <div
         className="mb-2 flex min-w-0 shrink-0 items-center gap-2 px-1.5 py-1"
         data-testid="kanban-group-header"
       >
+        {status ? <StatusIcon status={status} size={12} decorative /> : null}
         {label ? (
           <h3 className="min-w-0 flex-1 truncate type-board-status text-foreground/80">
             {label}
@@ -104,6 +115,12 @@ export function BoardColumnsSkeleton({
           key={`${label}-${index}`}
           label={labels.length > 0 ? label : undefined}
           index={index}
+          status={
+            groupBy === "status" ||
+            (groupBy === undefined && scope === "active")
+              ? WORKFLOW_STATUS_OPTIONS[index]
+              : undefined
+          }
         />
       ))}
     </div>
