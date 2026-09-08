@@ -104,7 +104,10 @@ export function AppShellSkeleton({
           <Button
             asChild
             size="sm"
-            className="w-full px-0 text-center md:px-2.5"
+            className={cn(
+              "w-full text-center",
+              sidebarCollapsed ? "px-0" : "px-0 md:px-2.5",
+            )}
           >
             <span
               data-testid="new-issue-trigger"
