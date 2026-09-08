@@ -163,7 +163,6 @@ export {
 } from "./workspace/workspaceSummary";
 export {
   listPlanningCatalog,
-  listSprintRolloverResumes,
   readPlanningCreateClaim,
   closeSprintAndRollover,
   createSprint,
@@ -179,7 +178,6 @@ export {
 export type {
   CloseSprintAndRolloverParams,
   CloseSprintAndRolloverResult,
-  ListSprintRolloverResumesParams,
 } from "./core/types";
 export {
   buildReefVaultSkillDocuments,

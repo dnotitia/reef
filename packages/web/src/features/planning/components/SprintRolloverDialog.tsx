@@ -260,13 +260,12 @@ export function SprintRolloverDialog({
   const [sourceEndDate, setSourceEndDate] = useState("");
   const [targetStartDate, setTargetStartDate] = useState("");
   const [targetEndDate, setTargetEndDate] = useState("");
-  const [targetGoal, setTargetGoal] = useState("");
-  const [targetCapacityPoints, setTargetCapacityPoints] = useState<
-    number | null
-  >(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [result, setResult] = useState<SprintRolloverResult | null>(null);
+  const [retryTarget, setRetryTarget] = useState<SprintRolloverTarget | null>(
+    null,
+  );
   const initializedFor = useRef<string | null>(null);
   const sourceAtOpen = useRef<Sprint | null>(null);
   const targetDatesAreSuggested = useRef(true);
@@ -352,14 +351,11 @@ export function SprintRolloverDialog({
       setTargetEndDate(
         target.kind === "new" ? (target.item.end_date ?? "") : "",
       );
-      setTargetGoal(target.kind === "new" ? target.item.goal : "");
-      setTargetCapacityPoints(
-        target.kind === "new" ? (target.item.capacity_points ?? null) : null,
-      );
       targetDatesAreSuggested.current = false;
       setFormError(null);
       setFieldErrors({});
       setResult(matchingResume.result);
+      setRetryTarget(target);
       return;
     }
     targetDatesAreSuggested.current = true;
@@ -369,10 +365,9 @@ export function SprintRolloverDialog({
     setSourceEndDate(initial.sourceEndDate);
     setTargetStartDate(initial.startDate);
     setTargetEndDate(initial.endDate);
-    setTargetGoal("");
-    setTargetCapacityPoints(null);
     setFormError(null);
     setResult(null);
+    setRetryTarget(null);
   }, [dialogSource, now, open, resume]);
 
   async function submit() {
@@ -456,18 +451,22 @@ export function SprintRolloverDialog({
           status: "planned",
           start_date: normalizedTargetStart,
           end_date: normalizedTargetEnd,
-          goal: targetGoal,
-          capacity_points: targetCapacityPoints,
+          goal: "",
+          capacity_points: null,
         },
       };
     }
+
+    const requestTarget =
+      result?.retryable && retryTarget ? retryTarget : target;
 
     try {
       const next = await mutation.mutateAsync({
         sourceSprintId: dialogSource.id,
         endDate: normalizedEnd,
-        target,
+        target: requestTarget,
       });
+      setRetryTarget(requestTarget);
       setResult(next);
       setFieldErrors({});
     } catch (error) {

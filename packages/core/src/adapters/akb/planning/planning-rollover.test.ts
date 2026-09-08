@@ -74,7 +74,7 @@ vi.mock("../issues/issues", async () => {
 
 import {
   closeSprintAndRollover,
-  listSprintRolloverResumes,
+  listPlanningCatalog,
   REEF_SPRINTS_TABLE,
 } from "../index";
 import { ConflictError } from "../../../errors";
@@ -298,10 +298,11 @@ describe("closeSprintAndRollover", () => {
     });
     expect(first.status).toBe("partial");
 
-    const resumes = await listSprintRolloverResumes({
+    const catalog = await listPlanningCatalog({
       adapter,
       vault: "reef-sample",
     });
+    const resumes = catalog.rollover_resumes ?? [];
 
     expect(resumes).toHaveLength(1);
     expect(resumes[0]).toMatchObject({
@@ -341,10 +342,11 @@ describe("closeSprintAndRollover", () => {
     });
     expect(first.status).toBe("partial");
 
-    const resumes = await listSprintRolloverResumes({
+    const catalog = await listPlanningCatalog({
       adapter,
       vault: "reef-sample",
     });
+    const resumes = catalog.rollover_resumes ?? [];
 
     expect(resumes[0]?.target).toEqual({
       kind: "new",

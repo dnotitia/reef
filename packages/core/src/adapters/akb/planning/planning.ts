@@ -32,7 +32,6 @@ import type {
   DeleteReleaseParams,
   DeleteSprintParams,
   ListPlanningCatalogParams,
-  ListSprintRolloverResumesParams,
   ReadPlanningCreateClaimParams,
   UpdateMilestoneParams,
   UpdateReleaseParams,
@@ -54,8 +53,8 @@ import {
   updatePlanningRow,
 } from "./planningRows";
 import {
+  buildSprintRolloverResumes,
   closeSprintAndRollover as closeSprintAndRolloverImpl,
-  listSprintRolloverResumes as listSprintRolloverResumesImpl,
 } from "./sprintRollover";
 
 const CREATE_IDEMPOTENCY_META_KEY = "create_idempotency_key";
@@ -92,15 +91,15 @@ export async function listPlanningCatalog(
   const { adapter, vault } = params;
   return withSpan("akb.list_planning_catalog", { vault }, async (span) => {
     try {
-      const [sprintRows, milestoneRows, releaseRows, rolloverResumes] =
-        await Promise.all([
-          selectPlanningRows(adapter, vault, REEF_SPRINTS_TABLE),
-          selectPlanningRows(adapter, vault, REEF_MILESTONES_TABLE),
-          selectPlanningRows(adapter, vault, REEF_RELEASES_TABLE),
-          listSprintRolloverResumesImpl({ adapter, vault }),
-        ]);
+      const [sprintRows, milestoneRows, releaseRows] = await Promise.all([
+        selectPlanningRows(adapter, vault, REEF_SPRINTS_TABLE),
+        selectPlanningRows(adapter, vault, REEF_MILESTONES_TABLE),
+        selectPlanningRows(adapter, vault, REEF_RELEASES_TABLE),
+      ]);
+      const sprints = sprintRows.map(rowToSprint);
+      const rolloverResumes = buildSprintRolloverResumes(sprintRows, sprints);
       const catalog = PlanningCatalogSchema.parse({
-        sprints: sprintRows.map(rowToSprint),
+        sprints,
         milestones: milestoneRows.map(rowToMilestone),
         releases: releaseRows.map(rowToRelease),
         rollover_resumes: rolloverResumes,
@@ -112,7 +111,12 @@ export async function listPlanningCatalog(
     } catch (err) {
       if (isMissingTableError(err)) {
         span.setAttribute("table_exists", false);
-        return { sprints: [], milestones: [], releases: [] };
+        return {
+          sprints: [],
+          milestones: [],
+          releases: [],
+          rollover_resumes: [],
+        };
       }
       throw err;
     }
@@ -333,10 +337,4 @@ export function closeSprintAndRollover(
   params: CloseSprintAndRolloverParams,
 ): Promise<CloseSprintAndRolloverResult> {
   return closeSprintAndRolloverImpl(params, createSprint);
-}
-
-export function listSprintRolloverResumes(
-  params: ListSprintRolloverResumesParams,
-) {
-  return listSprintRolloverResumesImpl(params);
 }

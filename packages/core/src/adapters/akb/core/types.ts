@@ -256,11 +256,6 @@ export interface ListPlanningCatalogParams {
   vault: string;
 }
 
-export interface ListSprintRolloverResumesParams {
-  adapter: AkbAdapter;
-  vault: string;
-}
-
 export interface CreateSprintParams {
   adapter: AkbAdapter;
   vault: string;

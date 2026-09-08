@@ -33,7 +33,6 @@ import {
   SqlParameterBuilder,
   decodeSettingsValue,
   ensureReefTables,
-  isMissingTableError,
   runSql,
   rowToIssue,
   selectIssueRows,
@@ -44,7 +43,6 @@ import type {
   CloseSprintAndRolloverParams,
   CloseSprintAndRolloverResult,
   CreateSprintParams,
-  ListSprintRolloverResumesParams,
 } from "../core/types";
 import {
   appendActivityEvents,
@@ -761,49 +759,41 @@ function targetRequestFromState(
   };
 }
 
-/** Read incomplete rollover claims without exposing actor or source metadata. */
-export async function listSprintRolloverResumes(
-  params: ListSprintRolloverResumesParams,
-): Promise<SprintRolloverResume[]> {
-  const { adapter, vault } = params;
-  return withSpan(
-    "akb.list_sprint_rollover_resumes",
-    { vault },
-    async (span) => {
-      try {
-        const rows = await selectPlanningRows(
-          adapter,
-          vault,
-          REEF_SPRINTS_TABLE,
-        );
-        const resumes: SprintRolloverResume[] = [];
-        for (const row of rows) {
-          const state = readStoredRolloverState(row);
-          if (!state || stateIsComplete(state)) continue;
-          const source = rowToSprint(row);
-          const target = state.target_sprint_id
-            ? (await readSprintRecord(adapter, vault, state.target_sprint_id))
-                .sprint
-            : null;
-          resumes.push(
-            SprintRolloverResumeSchema.parse({
-              result: rolloverResult({ source, target, state }),
-              target: targetRequestFromState(state),
-              end_date: state.end_date,
-            }),
-          );
-        }
-        span.setAttribute("resume_count", resumes.length);
-        return resumes;
-      } catch (error) {
-        if (isMissingTableError(error)) {
-          span.setAttribute("table_exists", false);
-          return [];
-        }
-        throw error;
+/** Build incomplete rollover claims from the sprint rows already in the catalog. */
+export function buildSprintRolloverResumes(
+  rows: readonly Record<string, unknown>[],
+  sprints: readonly Sprint[],
+): SprintRolloverResume[] {
+  const sprintById = new Map(sprints.map((sprint) => [sprint.id, sprint]));
+  const resumes: SprintRolloverResume[] = [];
+  for (const row of rows) {
+    const state = readStoredRolloverState(row);
+    if (!state || stateIsComplete(state)) continue;
+    const sourceId = typeof row.id === "string" ? row.id : null;
+    const source = sourceId ? sprintById.get(sourceId) : undefined;
+    if (!source) {
+      throw new SchemaValidationError({
+        issues: ["sprint rollover source row is malformed"],
+      });
+    }
+    let target: Sprint | null = null;
+    if (state.target_sprint_id) {
+      target = sprintById.get(state.target_sprint_id) ?? null;
+      if (!target) {
+        throw new NotFoundError({
+          resource: `planning item ${state.target_sprint_id}`,
+        });
       }
-    },
-  );
+    }
+    resumes.push(
+      SprintRolloverResumeSchema.parse({
+        result: rolloverResult({ source, target, state }),
+        target: targetRequestFromState(state),
+        end_date: state.end_date,
+      }),
+    );
+  }
+  return resumes;
 }
 
 async function ensureSprintPlanningLink(
