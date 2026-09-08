@@ -448,6 +448,7 @@ test.describe("auth soft navigation", () => {
 
     await page.goto(`${ISSUES_PATH}?view=board`);
     await expect(page.getByTestId("app-shell-skeleton")).toBeVisible();
+    await waitForPendingLayout(page);
 
     const pendingTargets = {
       shell: '[data-testid="app-shell-skeleton-sidebar"]',

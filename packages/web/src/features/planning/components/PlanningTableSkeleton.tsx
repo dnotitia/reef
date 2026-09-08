@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
 const PLANNING_LOADING_ROWS = ["one", "two", "three"] as const;
+const PLANNING_DESKTOP_GRID =
+  "grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(6rem,auto)] items-center gap-3 px-3";
 
 /**
  * Responsive placeholder for the planning catalog. The live table switches
@@ -35,7 +37,10 @@ export function PlanningTableSkeleton({
       >
         <div
           data-testid={`${desktopTestId}-header`}
-          className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-3 border-b border-border-subtle px-3 py-2 type-table-header text-muted-foreground"
+          className={cn(
+            PLANNING_DESKTOP_GRID,
+            "border-b border-border-subtle py-2 type-table-header text-muted-foreground",
+          )}
         >
           <span>{planning("name")}</span>
           <span>{fieldNames.status}</span>
@@ -46,7 +51,17 @@ export function PlanningTableSkeleton({
         </div>
         <div className="flex flex-col gap-2 pt-2" aria-hidden="true">
           {PLANNING_LOADING_ROWS.map((row) => (
-            <Skeleton key={row} className="h-10 w-full" />
+            <div key={row} className={PLANNING_DESKTOP_GRID}>
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-4 w-full" />
+              <div className="flex justify-end gap-1">
+                <Skeleton className="h-7 w-7" />
+                <Skeleton className="h-7 w-7" />
+              </div>
+            </div>
           ))}
         </div>
       </div>
