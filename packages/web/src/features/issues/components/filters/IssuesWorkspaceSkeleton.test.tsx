@@ -91,12 +91,21 @@ describe("IssuesWorkspaceSkeleton", () => {
       <IssuesWorkspaceSkeleton searchParams="view=list&sort=priority&order=desc" />,
     );
 
+    const sort = container.querySelector('[data-fixed-filter-key="sort"]');
+    expect(sort).toHaveTextContent("Priority");
+    expect(sort).toHaveTextContent("High → Low");
+    expect(sort).toHaveClass("border-brand-focus", "bg-brand-fill/10");
+  });
+
+  it("keeps the default rank chrome active and the labels field at the live floor", () => {
+    const { container } = render(<IssuesWorkspaceSkeleton />);
+
     expect(
       container.querySelector('[data-fixed-filter-key="sort"]'),
-    ).toHaveTextContent("Priority");
+    ).toHaveClass("border-brand-focus", "bg-brand-fill/10");
     expect(
-      container.querySelector('[data-fixed-filter-key="sort"]'),
-    ).toHaveTextContent("High → Low");
+      container.querySelector('[data-fixed-filter-key="labels"]'),
+    ).toHaveClass("w-[9rem]", "min-w-[9rem]");
   });
 
   it.each(["list", "timeline"] as const)(

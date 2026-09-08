@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   CBX_CHEVRON,
   CBX_TRIGGER_CHIP,
+  CBX_TRIGGER_CHIP_ACTIVE,
   CBX_TRIGGER_CHIP_INACTIVE,
   CBX_TRIGGER_FIELD,
 } from "@/components/ui/comboboxChrome";
@@ -65,7 +66,7 @@ const FILTER_CHIPS = [
   { key: "release", width: "w-fit", field: false },
   {
     key: "labels",
-    width: "w-fit min-w-[9rem] max-w-[16rem]",
+    width: "w-[9rem] min-w-[9rem] max-w-[16rem]",
     field: false,
   },
   { key: "updatedAtRange", width: "w-fit", field: false },
@@ -143,15 +144,21 @@ function StaticFilterControl({
   label,
   className,
   field = false,
+  active = false,
   icon: Icon,
   dataKey,
 }: {
   label: string;
   className: string;
   field?: boolean;
+  active?: boolean;
   icon?: typeof Columns3;
   dataKey: string;
 }) {
+  const triggerClass =
+    dataKey === "updatedAtRange"
+      ? `${CBX_TRIGGER_CHIP.replace("inline-flex", "flex")} min-w-0 max-w-full flex-1 justify-between whitespace-nowrap`
+      : CBX_TRIGGER_CHIP;
   return (
     <span
       data-fixed-filter="true"
@@ -159,14 +166,21 @@ function StaticFilterControl({
       className={cn(
         field
           ? `${CBX_TRIGGER_FIELD} text-left`
-          : `${CBX_TRIGGER_CHIP} ${CBX_TRIGGER_CHIP_INACTIVE} text-center`,
+          : `${triggerClass} ${active ? CBX_TRIGGER_CHIP_ACTIVE : CBX_TRIGGER_CHIP_INACTIVE} text-center`,
         className,
       )}
     >
       {Icon ? (
-        <Icon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+        dataKey === "updatedAtRange" ? (
+          <span className="inline-flex items-center gap-1.5">
+            <Icon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+            {label}
+          </span>
+        ) : (
+          <Icon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+        )
       ) : null}
-      {label}
+      {!Icon || dataKey !== "updatedAtRange" ? label : null}
       <ChevronDown aria-hidden="true" className={CBX_CHEVRON} />
     </span>
   );
@@ -175,15 +189,18 @@ function StaticFilterControl({
 function StaticLabelInput({
   label,
   className,
+  dataKey,
 }: {
   label: string;
   className: string;
+  dataKey: string;
 }) {
   return (
     <span
       data-fixed-filter="true"
+      data-fixed-filter-key={dataKey}
       className={cn(
-        "flex min-h-8 w-full flex-wrap items-center gap-1 rounded-md border border-border bg-surface-elevated px-1.5 py-1 type-control text-foreground transition-colors duration-150",
+        "flex min-h-8 max-w-full flex-wrap items-center gap-1 rounded-md border border-border bg-surface-elevated px-1.5 py-1 type-control text-foreground transition-colors duration-150",
         className,
       )}
     >
@@ -347,6 +364,7 @@ export function IssuesWorkspaceSkeleton({
                   <StaticLabelInput
                     label={chipLabels[chip.key]}
                     className={chip.width}
+                    dataKey={chip.key}
                   />
                 </div>
               ) : (
@@ -361,6 +379,7 @@ export function IssuesWorkspaceSkeleton({
                   <StaticFilterControl
                     label={chipLabels[chip.key]}
                     field={chip.field}
+                    active={chip.key === "sort" && layout !== "timeline"}
                     dataKey={chip.key}
                     icon={
                       chip.key === "sort"

@@ -1,6 +1,7 @@
 "use client";
 
 import { AppShellSkeleton } from "@/components/AppShellSkeleton";
+import { SIDEBAR_NAV_ITEMS } from "@/components/sidebarChrome";
 import {
   SEGMENTED_CONTROL_ITEM,
   SEGMENTED_CONTROL_ITEM_ACTIVE,
@@ -278,22 +279,9 @@ function hasAuthPendingContent(routeSegments: string[]): boolean {
 }
 
 function activeNavForPath(routeSegments: string[]) {
-  switch (routeSegments[0]) {
-    case "issues":
-      return "issues" as const;
-    case "my-work":
-      return "myWork" as const;
-    case "inbox":
-      return "inbox" as const;
-    case "planning":
-      return "planning" as const;
-    case "reports":
-      return "reports" as const;
-    case "settings":
-      return "settings" as const;
-    default:
-      return undefined;
-  }
+  return SIDEBAR_NAV_ITEMS.find(
+    ({ href }) => href.slice(1) === routeSegments[0],
+  )?.labelKey;
 }
 
 /**

@@ -65,18 +65,15 @@ function wave(index: number): WaveStyle {
 /** Keep the real field/section label visible over its reserved label slot. */
 function LabeledSkeleton({
   label,
-  style,
   testId,
   labelClassName = "type-detail-section text-muted-foreground",
 }: {
   label: string;
-  style?: WaveStyle;
   testId?: string;
   labelClassName?: string;
 }) {
   return (
     <span
-      style={style}
       data-testid={testId}
       className={cn("min-w-0 truncate", labelClassName)}
     >
@@ -99,7 +96,6 @@ function RailRowSkeleton({ index, label }: { index: number; label: string }) {
     <div className="flex min-w-0 items-center gap-2">
       <LabeledSkeleton
         label={label}
-        style={wave(index)}
         labelClassName="w-20 shrink-0 text-xs font-medium text-muted-foreground"
       />
       <Skeleton
@@ -127,11 +123,7 @@ function RailSectionSkeleton({
 }) {
   return (
     <div className="grid gap-3">
-      <LabeledSkeleton
-        label={title}
-        style={wave(startIndex)}
-        labelClassName={SECTION_HEADER_CLASS}
-      />
+      <LabeledSkeleton label={title} labelClassName={SECTION_HEADER_CLASS} />
       {rows.map((row, k) => (
         <RailRowSkeleton
           key={row.key}
@@ -235,7 +227,6 @@ export function IssueDetailSkeleton() {
             <div className="flex flex-col gap-1">
               <LabeledSkeleton
                 label={fieldNames.title}
-                style={wave(HEADER_SKELETONS)}
                 testId="issue-detail-title-label"
                 labelClassName="text-xs font-medium text-muted-foreground"
               />
@@ -249,7 +240,6 @@ export function IssueDetailSkeleton() {
             <div className="flex flex-col gap-1">
               <LabeledSkeleton
                 label={fieldNames.description}
-                style={wave(HEADER_SKELETONS + 2)}
                 testId="issue-detail-description-label"
                 labelClassName="text-xs font-medium text-muted-foreground"
               />
@@ -266,10 +256,7 @@ export function IssueDetailSkeleton() {
             {/* Sub-issues — section header + empty/list row. Consistently
               rendered in the loaded panel, so reserve it here. */}
             <div className="grid gap-3">
-              <LabeledSkeleton
-                label={relations("subIssues")}
-                style={wave(subIssuesStart)}
-              />
+              <LabeledSkeleton label={relations("subIssues")} />
               <Skeleton
                 aria-hidden="true"
                 style={wave(subIssuesStart + 1)}
@@ -279,10 +266,7 @@ export function IssueDetailSkeleton() {
 
             {/* Linked documents — compact summary block below Sub-issues. */}
             <div className="grid gap-3">
-              <LabeledSkeleton
-                label={refs("linkedDocuments")}
-                style={wave(linkedDocumentsStart)}
-              />
+              <LabeledSkeleton label={refs("linkedDocuments")} />
               <Skeleton
                 aria-hidden="true"
                 style={wave(linkedDocumentsStart + 1)}
@@ -292,10 +276,7 @@ export function IssueDetailSkeleton() {
 
             {/* External / implementation refs editor summary. */}
             <div className="grid gap-3">
-              <LabeledSkeleton
-                label={refs("deliveryLinks")}
-                style={wave(refsStart)}
-              />
+              <LabeledSkeleton label={refs("deliveryLinks")} />
               <Skeleton
                 aria-hidden="true"
                 style={wave(refsStart + 1)}
@@ -308,10 +289,7 @@ export function IssueDetailSkeleton() {
               of event rows under the composer keep the panel from doubling in
               height when it hydrates. */}
             <div className="grid gap-3">
-              <LabeledSkeleton
-                label={nav("activity")}
-                style={wave(activityStart)}
-              />
+              <LabeledSkeleton label={nav("activity")} />
               <Skeleton
                 aria-hidden="true"
                 style={wave(activityStart + 1)}
@@ -340,7 +318,6 @@ export function IssueDetailSkeleton() {
             <div className="flex flex-col gap-1">
               <LabeledSkeleton
                 label={fieldNames.labels}
-                style={wave(labelsStart)}
                 labelClassName="text-xs font-medium text-muted-foreground"
               />
               <Skeleton

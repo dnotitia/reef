@@ -293,6 +293,7 @@ async function expectContinuitySnapshot(
   name: string,
   options: {
     comparePaint?: boolean;
+    compareStyles?: boolean;
     edges?: readonly ContinuityEdge[];
   } = {},
 ): Promise<void> {
@@ -318,7 +319,11 @@ async function expectContinuitySnapshot(
       delete loadedStyles[property];
     }
   }
-  expect(pendingStyles, `${name} computed style changed`).toEqual(loadedStyles);
+  if (options.compareStyles !== false) {
+    expect(pendingStyles, `${name} computed style changed`).toEqual(
+      loadedStyles,
+    );
+  }
 }
 
 test.describe("auth soft navigation", () => {
@@ -551,21 +556,37 @@ test.describe("auth soft navigation", () => {
         '[data-testid="app-shell-skeleton-sidebar"] > div:first-child',
       shellNewIssue: '[data-testid="new-issue-trigger"]',
       shellNavIssue: '[data-testid="sidebar-nav-issues"]',
+      shellNavIssueLabel: '[data-testid="sidebar-nav-issues"] > span',
       issueScope: '[data-testid="scope-switcher"]',
       issueView: '[data-testid="view-switcher"]',
       issueSearch: '[data-testid="search-bar"] input',
       issueFilter:
         '[data-testid="filter-bar"] > :first-child [data-fixed-filter]',
+      issueLabels:
+        '[data-testid="filter-bar"] [data-fixed-filter-key="labels"]',
+      issueUpdatedAt:
+        '[data-testid="filter-bar"] [data-fixed-filter-key="updatedAtRange"]',
+      issueDisplay:
+        '[data-testid="filter-bar"] [data-fixed-filter-key="display"]',
+      issueSort: '[data-testid="filter-bar"] [data-fixed-filter-key="sort"]',
+      issueMyViews:
+        '[data-testid="filter-bar"] [data-fixed-filter-key="myViews"]',
     } as const;
     const loadedTargets = {
       shell: 'aside[aria-label="Sidebar"]',
       shellBrand: 'aside[aria-label="Sidebar"] > div:first-child',
       shellNewIssue: '[data-testid="new-issue-trigger"]',
       shellNavIssue: '[data-testid="sidebar-nav-issues"]',
+      shellNavIssueLabel: '[data-testid="sidebar-nav-issues"] > span',
       issueScope: '[data-testid="scope-switcher"]',
       issueView: '[data-testid="view-switcher"]',
       issueSearch: '[data-testid="search-bar"] input',
       issueFilter: '[data-testid="filter-bar"] > :first-child button',
+      issueLabels: '[data-testid="labels-filter"]',
+      issueUpdatedAt: '[data-testid="updated-at-filter-trigger"]',
+      issueDisplay: '[data-testid="display-options-trigger"]',
+      issueSort: '[data-testid="sort-control-trigger"]',
+      issueMyViews: '[data-testid="my-view-trigger"]',
     } as const;
 
     const pending = Object.fromEntries(
@@ -602,8 +623,21 @@ test.describe("auth soft navigation", () => {
     for (const name of Object.keys(pendingTargets) as Array<
       keyof typeof pendingTargets
     >) {
+      if (name === "issueLabels") continue;
       await expectContinuitySnapshot(pending[name], loaded[name], name);
     }
+    await expectContinuitySnapshot(
+      pending.issueLabels,
+      loaded.issueLabels,
+      "issueLabels",
+      { compareStyles: false },
+    );
+    await expectContinuitySnapshot(
+      pending.issueSort,
+      loaded.issueSort,
+      "issueSort",
+      { comparePaint: true },
+    );
   });
 
   test("compares fixed chrome across supported surfaces, viewport, locale, and theme", async ({

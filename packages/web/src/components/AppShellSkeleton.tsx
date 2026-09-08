@@ -156,7 +156,10 @@ export function AppShellSkeleton({
                   >
                     <Icon
                       aria-hidden="true"
-                      className="h-[18px] w-[18px] shrink-0 stroke-[1.9]"
+                      className={cn(
+                        "h-[18px] w-[18px] shrink-0 stroke-[1.9]",
+                        !sidebarCollapsed && "md:hidden",
+                      )}
                     />
                     {!sidebarCollapsed && (
                       <span
