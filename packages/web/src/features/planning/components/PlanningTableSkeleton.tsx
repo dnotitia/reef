@@ -51,7 +51,7 @@ export function PlanningTableSkeleton({
         </div>
         <div className="flex flex-col gap-2 pt-2" aria-hidden="true">
           {PLANNING_LOADING_ROWS.map((row) => (
-            <div key={row} className={PLANNING_DESKTOP_GRID}>
+            <div key={row} className={`${PLANNING_DESKTOP_GRID} min-h-11`}>
               <Skeleton className="h-4 w-full" />
               <Skeleton className="h-4 w-20" />
               <Skeleton className="h-4 w-28" />

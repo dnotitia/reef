@@ -11,6 +11,58 @@ const WORKSPACE = "/workspace/reef-e2e";
 const ISSUES_PATH = `${WORKSPACE}/issues`;
 const PLANNING_PATH = `${WORKSPACE}/planning`;
 
+const CONTINUITY_MODES = [
+  { name: "desktop-en-light", width: 1280, locale: "en", dark: false },
+  { name: "narrow-ko-dark", width: 390, locale: "ko", dark: true },
+] as const;
+
+const CONTINUITY_SURFACES = [
+  {
+    name: "issues",
+    path: `${ISSUES_PATH}?view=board`,
+    target: '[data-testid="scope-switcher"]',
+    loadedTestId: "kanban-board",
+  },
+  {
+    name: "issue-detail",
+    path: `${ISSUES_PATH}/REEF-001`,
+    target: '[data-testid="issue-detail-title-label"]',
+    loadedTestId: "issue-detail",
+  },
+  {
+    name: "settings",
+    path: `${WORKSPACE}/settings/workspace`,
+    target: '[data-testid="settings-tab-workspace"]',
+    loadedTestId: "settings-group-workspace",
+  },
+  {
+    name: "planning",
+    path: PLANNING_PATH,
+    target: '[data-testid="planning-kind-sprints"]',
+    loadedText: "Sprint Alpha",
+  },
+  {
+    name: "my-work",
+    path: `${WORKSPACE}/my-work`,
+    target: '[data-testid="my-work-tile-wip-label"]',
+    loadedTestId: "my-work-page",
+  },
+  {
+    name: "reports",
+    path: `${WORKSPACE}/reports`,
+    target:
+      '[data-testid="reports-skeleton-scope-bar"] > [data-fixed-report-control]:first-child',
+    loadedTestId: "reports-page",
+  },
+] as const;
+
+const CONTINUITY_SHELL_SURFACE = {
+  name: "shell",
+  path: `${ISSUES_PATH}?view=board`,
+  target: '[data-testid="new-issue-trigger"]',
+  loadedTestId: "kanban-board",
+} as const;
+
 function isAuthProbeRequest(request: import("@playwright/test").Request) {
   return (
     new URL(request.url()).pathname === "/api/auth/akb/me" &&
@@ -516,54 +568,10 @@ test.describe("auth soft navigation", () => {
     test.setTimeout(180_000);
     await openExistingWorkspace(page);
 
-    const modes = [
-      { name: "desktop-en-light", width: 1280, locale: "en", dark: false },
-      { name: "narrow-ko-dark", width: 390, locale: "ko", dark: true },
-    ] as const;
+    const modes = CONTINUITY_MODES;
     const surfaces = [
-      {
-        name: "issues",
-        path: `${ISSUES_PATH}?view=board`,
-        target: '[data-testid="scope-switcher"]',
-        loadedTestId: "kanban-board",
-      },
-      {
-        name: "issue-detail",
-        path: `${ISSUES_PATH}/REEF-001`,
-        target: '[data-testid="issue-detail-title-label"]',
-        loadedTestId: "issue-detail",
-      },
-      {
-        name: "settings",
-        path: `${WORKSPACE}/settings/workspace`,
-        target: '[data-testid="settings-tab-workspace"]',
-        loadedTestId: "settings-group-workspace",
-      },
-      {
-        name: "planning",
-        path: PLANNING_PATH,
-        target: '[data-testid="planning-kind-sprints"]',
-        loadedText: "Sprint Alpha",
-      },
-      {
-        name: "my-work",
-        path: `${WORKSPACE}/my-work`,
-        target: '[data-testid="my-work-tile-wip-label"]',
-        loadedTestId: "my-work-page",
-      },
-      {
-        name: "reports",
-        path: `${WORKSPACE}/reports`,
-        target:
-          '[data-testid="reports-skeleton-scope-bar"] > [data-fixed-report-control]:first-child',
-        loadedTestId: "reports-page",
-      },
-      {
-        name: "shell",
-        path: `${ISSUES_PATH}?view=board`,
-        target: '[data-testid="new-issue-trigger"]',
-        loadedTestId: "kanban-board",
-      },
+      ...CONTINUITY_SURFACES,
+      CONTINUITY_SHELL_SURFACE,
     ] as const;
 
     for (const mode of modes) {
@@ -804,49 +812,8 @@ test.describe("auth soft navigation", () => {
     test.setTimeout(240_000);
     await openExistingWorkspace(page);
 
-    const modes = [
-      { name: "desktop-en-light", width: 1280, locale: "en", dark: false },
-      { name: "narrow-ko-dark", width: 390, locale: "ko", dark: true },
-    ] as const;
-    const surfaces = [
-      {
-        name: "issues",
-        path: `${ISSUES_PATH}?view=board`,
-        target: '[data-testid="scope-switcher"]',
-        loadedTestId: "kanban-board",
-      },
-      {
-        name: "issue-detail",
-        path: `${ISSUES_PATH}/REEF-001`,
-        target: '[data-testid="issue-detail-title-label"]',
-        loadedTestId: "issue-detail",
-      },
-      {
-        name: "settings",
-        path: `${WORKSPACE}/settings/workspace`,
-        target: '[data-testid="settings-tab-workspace"]',
-        loadedTestId: "settings-group-workspace",
-      },
-      {
-        name: "planning",
-        path: PLANNING_PATH,
-        target: '[data-testid="planning-kind-sprints"]',
-        loadedText: "Sprint Alpha",
-      },
-      {
-        name: "my-work",
-        path: `${WORKSPACE}/my-work`,
-        target: '[data-testid="my-work-tile-wip-label"]',
-        loadedTestId: "my-work-page",
-      },
-      {
-        name: "reports",
-        path: `${WORKSPACE}/reports`,
-        target:
-          '[data-testid="reports-skeleton-scope-bar"] > [data-fixed-report-control]:first-child',
-        loadedTestId: "reports-page",
-      },
-    ] as const;
+    const modes = CONTINUITY_MODES;
+    const surfaces = CONTINUITY_SURFACES;
     const observations: Array<Record<string, unknown>> = [];
 
     for (const mode of modes) {

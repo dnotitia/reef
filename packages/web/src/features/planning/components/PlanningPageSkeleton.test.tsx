@@ -13,6 +13,16 @@ describe("PlanningPageSkeleton", () => {
     expect(
       screen.getByTestId("planning-skeleton-table-header").children,
     ).toHaveLength(6);
+    expect(
+      screen
+        .getByTestId("planning-skeleton-table")
+        .querySelectorAll('[aria-hidden="true"] > div'),
+    ).toHaveLength(3);
+    for (const row of screen
+      .getByTestId("planning-skeleton-table")
+      .querySelectorAll('[aria-hidden="true"] > div')) {
+      expect(row).toHaveClass("min-h-11");
+    }
     for (const label of [
       "Sprints",
       "Milestones",
