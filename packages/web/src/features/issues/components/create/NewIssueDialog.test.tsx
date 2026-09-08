@@ -255,6 +255,7 @@ function installDefaultApiMocks() {
               },
             ],
             releases: [],
+            rollover_resumes: [],
           }),
           { status: 200 },
         ),
