@@ -116,27 +116,41 @@ async function expectAuthPendingSurface(
 
   await expect(page.getByTestId("app-shell-skeleton")).toBeVisible();
   const pendingMain = page.getByTestId("app-shell-skeleton-main");
+  const readPendingSurface = () =>
+    page.evaluate((expected) => {
+      const shell = document.querySelector(
+        '[data-testid="app-shell-skeleton"]',
+      );
+      const main = shell?.querySelector<HTMLElement>(
+        '[data-testid="app-shell-skeleton-main"]',
+      );
+      const hasDestinationSkeleton = Boolean(
+        main &&
+          [...main.querySelectorAll<HTMLElement>("[data-testid]")].some(
+            (element) => element.dataset.testid === expected.skeletonTestId,
+          ),
+      );
+      const text = main?.textContent ?? "";
+      return {
+        hasDestinationSkeleton,
+        hasTitle: text.includes(expected.title),
+        hasLabels: expected.labels.every((label) => text.includes(label)),
+        buttonCount: main?.querySelectorAll("button").length ?? 0,
+        linkCount: main?.querySelectorAll("a").length ?? 0,
+      };
+    }, surface);
+  await expect
+    .poll(readPendingSurface, {
+      message: `${surface.path} destination skeleton should settle inside the auth-pending shell`,
+      timeout: 10_000,
+    })
+    .toMatchObject({
+      hasDestinationSkeleton: true,
+      hasTitle: true,
+      hasLabels: true,
+    });
   const pendingAccessibilitySnapshot = await pendingMain.ariaSnapshot();
-  const pending = await page.evaluate((expected) => {
-    const shell = document.querySelector('[data-testid="app-shell-skeleton"]');
-    const main = shell?.querySelector<HTMLElement>(
-      '[data-testid="app-shell-skeleton-main"]',
-    );
-    const hasDestinationSkeleton = Boolean(
-      main &&
-        [...main.querySelectorAll<HTMLElement>("[data-testid]")].some(
-          (element) => element.dataset.testid === expected.skeletonTestId,
-        ),
-    );
-    const text = main?.textContent ?? "";
-    return {
-      hasDestinationSkeleton,
-      hasTitle: text.includes(expected.title),
-      hasLabels: expected.labels.every((label) => text.includes(label)),
-      buttonCount: main?.querySelectorAll("button").length ?? 0,
-      linkCount: main?.querySelectorAll("a").length ?? 0,
-    };
-  }, surface);
+  const pending = await readPendingSurface();
   expect(pending.hasDestinationSkeleton).toBe(true);
   expect(pending.hasTitle).toBe(true);
   expect(pending.hasLabels).toBe(true);
