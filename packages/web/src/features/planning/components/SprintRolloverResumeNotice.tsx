@@ -26,7 +26,9 @@ export function SprintRolloverResumeNotice({
         <p className="type-body font-medium text-foreground">
           {translate("resumeTitle")}
         </p>
-        <p className="mt-0.5 type-caption text-muted-foreground">
+        <p
+          className={`mt-0.5 type-caption ${canEdit ? "text-muted-foreground" : "text-foreground"}`}
+        >
           {translate(canEdit ? "resumeDescription" : "resumeReaderDescription")}
         </p>
         <div className="mt-2 grid gap-2">

@@ -35,9 +35,11 @@ describe("SprintRolloverResumeNotice", () => {
     });
 
     expect(action).toBeDisabled();
-    expect(
-      screen.getByText("Edit access is required to resume this rollover."),
-    ).toBeVisible();
+    const reason = screen.getByText(
+      "Edit access is required to resume this rollover.",
+    );
+    expect(reason).toBeVisible();
+    expect(reason).toHaveClass("text-foreground");
     expect(screen.getByText("Sprint 14")).toBeVisible();
     await user.click(action);
     expect(onOpen).not.toHaveBeenCalled();
