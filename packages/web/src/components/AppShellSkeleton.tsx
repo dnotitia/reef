@@ -69,7 +69,9 @@ export function AppShellSkeleton({
         <div
           className={cn(
             SIDEBAR_BRAND_HEADER_CLASS,
-            "justify-center px-0 md:justify-between md:px-3",
+            sidebarCollapsed
+              ? "justify-center px-0"
+              : "justify-center px-0 md:justify-between md:px-3",
           )}
         >
           <div className="flex min-w-0 items-center gap-2">
@@ -78,21 +80,27 @@ export function AppShellSkeleton({
               decorative
               data-testid="sidebar-brand-mark"
             />
-            <span
-              className="sr-only md:not-sr-only md:truncate type-group-title text-foreground"
-              data-testid="sidebar-brand-name"
-            >
-              reef{/* i18n-exempt: brand name */}
-            </span>
+            {!sidebarCollapsed && (
+              <span
+                className="sr-only md:not-sr-only md:truncate type-group-title text-foreground"
+                data-testid="sidebar-brand-name"
+              >
+                reef{/* i18n-exempt: brand name */}
+              </span>
+            )}
           </div>
-          <span
-            className={cn("sr-only md:not-sr-only", SIDEBAR_TOGGLE_CLASS)}
-            aria-hidden="true"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </span>
+          {!sidebarCollapsed && (
+            <span
+              className={cn("sr-only md:not-sr-only", SIDEBAR_TOGGLE_CLASS)}
+              aria-hidden="true"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </span>
+          )}
         </div>
-        <div className="px-1.5 pt-3 md:px-2">
+        <div
+          className={cn("pt-3", sidebarCollapsed ? "px-1.5" : "px-1.5 md:px-2")}
+        >
           <Button
             asChild
             size="sm"
@@ -104,7 +112,11 @@ export function AppShellSkeleton({
               title={nav("newIssue")}
             >
               <Plus className="h-3.5 w-3.5 shrink-0" />
-              <span className="sr-only md:not-sr-only">{nav("newIssue")}</span>
+              {!sidebarCollapsed && (
+                <span className="sr-only md:not-sr-only">
+                  {nav("newIssue")}
+                </span>
+              )}
             </span>
           </Button>
         </div>
@@ -129,16 +141,20 @@ export function AppShellSkeleton({
                         ? SIDEBAR_NAV_ACTIVE_CLASS
                         : SIDEBAR_NAV_INACTIVE_CLASS,
                       "cursor-default",
-                      "h-9 justify-center px-0 md:h-auto md:justify-start md:px-3",
+                      sidebarCollapsed
+                        ? "h-9 justify-center px-0"
+                        : "h-9 justify-center px-0 md:h-auto md:justify-start md:px-3",
                     )}
                   >
                     <Icon
                       aria-hidden="true"
                       className="h-[18px] w-[18px] shrink-0 stroke-[1.9]"
                     />
-                    <span className="sr-only md:not-sr-only flex-1">
-                      {nav(labelKey)}
-                    </span>
+                    {!sidebarCollapsed && (
+                      <span className="sr-only md:not-sr-only flex-1">
+                        {nav(labelKey)}
+                      </span>
+                    )}
                   </span>
                 </li>
               );

@@ -53,5 +53,7 @@ describe("AppShellSkeleton", () => {
     expect(screen.getByTestId("app-shell-skeleton-sidebar")).not.toHaveClass(
       "md:w-60",
     );
+    expect(screen.queryByTestId("sidebar-brand-name")).toBeNull();
+    expect(screen.queryByText("New issue")).toBeNull();
   });
 });
