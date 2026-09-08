@@ -260,6 +260,10 @@ export function SprintRolloverDialog({
   const [sourceEndDate, setSourceEndDate] = useState("");
   const [targetStartDate, setTargetStartDate] = useState("");
   const [targetEndDate, setTargetEndDate] = useState("");
+  const [targetGoal, setTargetGoal] = useState("");
+  const [targetCapacityPoints, setTargetCapacityPoints] = useState<
+    number | null
+  >(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [result, setResult] = useState<SprintRolloverResult | null>(null);
@@ -348,6 +352,10 @@ export function SprintRolloverDialog({
       setTargetEndDate(
         target.kind === "new" ? (target.item.end_date ?? "") : "",
       );
+      setTargetGoal(target.kind === "new" ? target.item.goal : "");
+      setTargetCapacityPoints(
+        target.kind === "new" ? (target.item.capacity_points ?? null) : null,
+      );
       targetDatesAreSuggested.current = false;
       setFormError(null);
       setFieldErrors({});
@@ -361,6 +369,8 @@ export function SprintRolloverDialog({
     setSourceEndDate(initial.sourceEndDate);
     setTargetStartDate(initial.startDate);
     setTargetEndDate(initial.endDate);
+    setTargetGoal("");
+    setTargetCapacityPoints(null);
     setFormError(null);
     setResult(null);
   }, [dialogSource, now, open, resume]);
@@ -446,8 +456,8 @@ export function SprintRolloverDialog({
           status: "planned",
           start_date: normalizedTargetStart,
           end_date: normalizedTargetEnd,
-          goal: "",
-          capacity_points: null,
+          goal: targetGoal,
+          capacity_points: targetCapacityPoints,
         },
       };
     }

@@ -408,8 +408,8 @@ describe("SprintRolloverDialog", () => {
           status: "planned",
           start_date: "2026-09-12",
           end_date: "2026-09-19",
-          goal: "",
-          capacity_points: null,
+          goal: "Ship the API slice",
+          capacity_points: 13,
         },
       },
     });
@@ -434,8 +434,8 @@ describe("SprintRolloverDialog", () => {
           status: "planned",
           start_date: "2026-09-12",
           end_date: "2026-09-19",
-          goal: "",
-          capacity_points: null,
+          goal: "Ship the API slice",
+          capacity_points: 13,
         },
       },
     });
