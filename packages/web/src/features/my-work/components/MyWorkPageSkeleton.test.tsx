@@ -18,7 +18,8 @@ describe("MyWorkPageSkeleton", () => {
       "Overdue",
       "Open work by stage",
       "What to do next",
-      "By priority · By status",
+      "By priority",
+      "By status",
     ]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
@@ -36,8 +37,10 @@ describe("MyWorkPageSkeleton", () => {
 
     // StageBar: the status distribution bar (h-2) the old skeleton omitted.
     expect(root.querySelector(".reef-shimmer.h-2")).not.toBeNull();
-    // Queue header: the By priority / By status group toggle (h-8 w-40).
-    expect(root.querySelector(".reef-shimmer.h-8.w-40")).not.toBeNull();
+    // Queue header uses the same static group-toggle chrome as the loaded queue.
+    expect(
+      screen.getByRole("group", { name: "Group the queue" }),
+    ).toBeInTheDocument();
     // Queue rows live in the same borderless-divider container as the real rows
     // (rounded-xl border), not a padded gap-2 box.
     expect(root.querySelector(".rounded-xl.border")).not.toBeNull();

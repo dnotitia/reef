@@ -2,6 +2,13 @@
 
 import { BoardColumnsSkeleton } from "@/components/BoardColumnsSkeleton";
 import {
+  CBX_CHEVRON,
+  CBX_TRIGGER_CHIP,
+  CBX_TRIGGER_CHIP_INACTIVE,
+  CBX_TRIGGER_FIELD,
+} from "@/components/ui/comboboxChrome";
+import { Input } from "@/components/ui/input";
+import {
   SEGMENTED_CONTROL_ITEM,
   SEGMENTED_CONTROL_ITEM_ACTIVE,
   SEGMENTED_CONTROL_ITEM_INACTIVE,
@@ -10,6 +17,14 @@ import {
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { PageHeader } from "@/features/ui/components/PageHeader";
 import { cn } from "@/lib/utils";
+import {
+  ChevronDown,
+  Columns3,
+  GanttChart,
+  List,
+  ListOrdered,
+  Search,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 
 /**
@@ -24,30 +39,44 @@ import { useTranslations } from "next-intl";
  * width, so the toolbar holds its height when the real bar hydrates (REEF-258).
  */
 const FILTER_CHIPS = [
-  { key: "status", width: "w-20" },
-  { key: "type", width: "w-16" },
-  { key: "priority", width: "w-20" },
-  { key: "severity", width: "w-20" },
-  { key: "due", width: "w-14" },
-  { key: "dependency", width: "w-24" },
-  { key: "assignee", width: "w-36" },
-  { key: "requester", width: "w-36" },
-  { key: "sprint", width: "w-36" },
-  { key: "milestone", width: "w-36" },
-  { key: "release", width: "w-36" },
-  { key: "labels", width: "w-36" },
-  { key: "updatedAtRange", width: "w-36" },
-  { key: "display", width: "w-24" },
+  { key: "status", width: "w-fit", field: false },
+  { key: "type", width: "w-fit", field: false },
+  { key: "priority", width: "w-fit", field: false },
+  { key: "severity", width: "w-fit", field: false },
+  { key: "due", width: "w-fit", field: false },
+  { key: "dependency", width: "w-fit", field: false },
+  { key: "assignee", width: "w-fit", field: false },
+  { key: "requester", width: "w-fit", field: false },
+  { key: "sprint", width: "w-fit", field: false },
+  {
+    key: "milestone",
+    width: "w-fit min-w-[9rem] max-w-[16rem]",
+    field: true,
+  },
+  { key: "release", width: "w-fit", field: false },
+  {
+    key: "labels",
+    width: "w-fit min-w-[9rem] max-w-[16rem]",
+    field: false,
+  },
+  { key: "updatedAtRange", width: "w-fit", field: false },
+  { key: "display", width: "w-fit", field: false },
+  { key: "sort", width: "w-fit", field: false },
+  { key: "myViews", width: "w-fit", field: false },
 ] as const;
 
 function StaticSegmentedControl({
   testId,
   ariaLabel,
-  labels,
+  items,
 }: {
   testId: string;
   ariaLabel: string;
-  labels: readonly string[];
+  items: ReadonlyArray<{
+    id: string;
+    label: string;
+    icon?: typeof Columns3;
+  }>;
 }) {
   return (
     <div
@@ -57,16 +86,21 @@ function StaticSegmentedControl({
       data-testid={testId}
       className={SEGMENTED_CONTROL_TRACK}
     >
-      {labels.map((label, index) => (
+      {items.map(({ id, label, icon: Icon }, index) => (
         <span
-          key={label}
+          key={id}
+          data-testid={`${testId}-${id}`}
           className={cn(
             SEGMENTED_CONTROL_ITEM,
+            "whitespace-nowrap",
             index === 0
               ? SEGMENTED_CONTROL_ITEM_ACTIVE
               : SEGMENTED_CONTROL_ITEM_INACTIVE,
           )}
         >
+          {Icon ? (
+            <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          ) : null}
           {label}
         </span>
       ))}
@@ -74,7 +108,37 @@ function StaticSegmentedControl({
   );
 }
 
-function LabeledSkeleton({
+function StaticFilterControl({
+  label,
+  className,
+  field = false,
+  icon: Icon,
+}: {
+  label: string;
+  className: string;
+  field?: boolean;
+  icon?: typeof Columns3;
+}) {
+  return (
+    <span
+      data-fixed-filter="true"
+      className={cn(
+        field
+          ? `${CBX_TRIGGER_FIELD} text-left`
+          : `${CBX_TRIGGER_CHIP} ${CBX_TRIGGER_CHIP_INACTIVE} text-center`,
+        className,
+      )}
+    >
+      {Icon ? (
+        <Icon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+      ) : null}
+      {label}
+      <ChevronDown aria-hidden="true" className={CBX_CHEVRON} />
+    </span>
+  );
+}
+
+function StaticLabelInput({
   label,
   className,
 }: {
@@ -83,8 +147,9 @@ function LabeledSkeleton({
 }) {
   return (
     <span
+      data-fixed-filter="true"
       className={cn(
-        "inline-flex min-w-0 items-center truncate rounded-md border border-border bg-surface-elevated px-2.5 type-control text-muted-foreground",
+        "flex min-h-8 w-full flex-wrap items-center gap-1 rounded-md border border-border bg-surface-elevated px-1.5 py-1 type-control text-muted-foreground",
         className,
       )}
     >
@@ -117,6 +182,7 @@ export function IssuesWorkspaceSkeleton() {
   const nav = useTranslations("nav");
   const c = useTranslations("common");
   const filters = useTranslations("issues.filters");
+  const sort = useTranslations("issues.sort");
   const fieldNames = useFieldNameLabels();
   const chipLabels: Record<(typeof FILTER_CHIPS)[number]["key"], string> = {
     status: fieldNames.status,
@@ -133,6 +199,8 @@ export function IssuesWorkspaceSkeleton() {
     labels: fieldNames.labels,
     updatedAtRange: filters("updatedAtRange"),
     display: filters("display"),
+    sort: sort("rankOrder"),
+    myViews: filters("myViews"),
   };
   return (
     <div
@@ -144,21 +212,29 @@ export function IssuesWorkspaceSkeleton() {
       <output className="sr-only">{c("loading")}</output>
       <PageHeader
         title={nav("issues")}
+        className="h-auto min-h-12 flex-wrap py-2"
         staticTitleAdjacent={
           <StaticSegmentedControl
-            testId="issues-skeleton-scope"
+            testId="scope-switcher"
             ariaLabel={filters("scope.label")}
-            labels={[filters("scope.active"), filters("scope.backlog")]}
+            items={[
+              { id: "active", label: filters("scope.active") },
+              { id: "backlog", label: filters("scope.backlog") },
+            ]}
           />
         }
         staticActions={
           <StaticSegmentedControl
-            testId="issues-skeleton-view"
+            testId="view-switcher"
             ariaLabel={filters("issueView")}
-            labels={[
-              filters("view.board"),
-              filters("view.list"),
-              filters("view.timeline"),
+            items={[
+              { id: "board", label: filters("view.board"), icon: Columns3 },
+              { id: "list", label: filters("view.list"), icon: List },
+              {
+                id: "timeline",
+                label: filters("view.timeline"),
+                icon: GanttChart,
+              },
             ]}
           />
         }
@@ -174,19 +250,55 @@ export function IssuesWorkspaceSkeleton() {
           data-testid="issues-skeleton-toolbar"
         >
           {/* SearchBar row (Input h-9, full width). */}
-          <LabeledSkeleton
-            label={filters("searchLabel")}
-            className="h-9 w-full"
-          />
+          <div
+            className="relative flex w-full min-w-0 items-center"
+            data-testid="search-bar"
+          >
+            <Search className="pointer-events-none absolute left-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              readOnly
+              tabIndex={-1}
+              aria-disabled="true"
+              aria-label={filters("searchLabel")}
+              placeholder={filters("searchPlaceholder")}
+              data-testid="search-input"
+              className="h-9 pl-9 pr-8"
+            />
+          </div>
           {/* FilterBar row — the wrapping facet/value chips (each h-8). */}
-          <div className="flex flex-wrap items-center gap-2">
-            {FILTER_CHIPS.map((chip) => (
-              <LabeledSkeleton
-                key={chip.key}
-                label={chipLabels[chip.key]}
-                className={`h-8 ${chip.width}`}
-              />
-            ))}
+          <div
+            className="flex flex-wrap items-center gap-2"
+            data-testid="filter-bar"
+          >
+            {FILTER_CHIPS.map((chip) =>
+              chip.key === "labels" ? (
+                <div
+                  key={chip.key}
+                  className="relative inline-block max-w-full"
+                >
+                  <StaticLabelInput
+                    label={chipLabels[chip.key]}
+                    className={chip.width}
+                  />
+                </div>
+              ) : (
+                <div
+                  key={chip.key}
+                  className={
+                    chip.field
+                      ? "relative inline-block max-w-full"
+                      : "inline-block"
+                  }
+                >
+                  <StaticFilterControl
+                    label={chipLabels[chip.key]}
+                    field={chip.field}
+                    icon={chip.key === "sort" ? ListOrdered : undefined}
+                    className={chip.width}
+                  />
+                </div>
+              ),
+            )}
           </div>
         </div>
         <BoardColumnsSkeleton />

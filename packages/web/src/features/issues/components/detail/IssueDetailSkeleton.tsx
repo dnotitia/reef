@@ -1,6 +1,7 @@
 "use client";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { SECTION_HEADER_CLASS } from "@/components/FormSection";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
@@ -64,27 +65,24 @@ function wave(index: number): WaveStyle {
 /** Keep the real field/section label visible over its reserved label slot. */
 function LabeledSkeleton({
   label,
-  className,
   style,
+  testId,
   labelClassName = "type-detail-section text-muted-foreground",
 }: {
   label: string;
   className: string;
   style?: WaveStyle;
+  testId?: string;
   labelClassName?: string;
 }) {
   return (
-    <div className={cn("relative inline-flex min-w-0", className)}>
-      <Skeleton
-        aria-hidden="true"
-        tone="secondary"
-        style={style}
-        className={cn("absolute inset-0", className)}
-      />
-      <span className={cn("relative z-[1] min-w-0 truncate", labelClassName)}>
-        {label}
-      </span>
-    </div>
+    <span
+      style={style}
+      data-testid={testId}
+      className={cn("min-w-0 truncate", labelClassName)}
+    >
+      {label}
+    </span>
   );
 }
 
@@ -103,8 +101,8 @@ function RailRowSkeleton({ index, label }: { index: number; label: string }) {
       <LabeledSkeleton
         label={label}
         style={wave(index)}
-        className="h-3 w-20 shrink-0"
-        labelClassName="text-xs font-medium text-muted-foreground"
+        className="w-20 shrink-0"
+        labelClassName="w-20 shrink-0 text-xs font-medium text-muted-foreground"
       />
       <Skeleton
         aria-hidden="true"
@@ -134,7 +132,8 @@ function RailSectionSkeleton({
       <LabeledSkeleton
         label={title}
         style={wave(startIndex)}
-        className="h-3 w-20"
+        className=""
+        labelClassName={SECTION_HEADER_CLASS}
       />
       {rows.map((row, k) => (
         <RailRowSkeleton
@@ -240,6 +239,7 @@ export function IssueDetailSkeleton() {
               <LabeledSkeleton
                 label={fieldNames.title}
                 style={wave(HEADER_SKELETONS)}
+                testId="issue-detail-title-label"
                 className="h-3 w-10"
                 labelClassName="text-xs font-medium text-muted-foreground"
               />
@@ -254,6 +254,7 @@ export function IssueDetailSkeleton() {
               <LabeledSkeleton
                 label={fieldNames.description}
                 style={wave(HEADER_SKELETONS + 2)}
+                testId="issue-detail-description-label"
                 className="h-3 w-20"
                 labelClassName="text-xs font-medium text-muted-foreground"
               />

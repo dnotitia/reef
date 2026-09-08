@@ -37,14 +37,14 @@ describe("IssuesWorkspaceSkeleton", () => {
     expect(toolbar).toBeInTheDocument();
 
     // SearchBar chrome: a full-width h-9 static label.
-    const searchRow = toolbar.querySelector(".h-9.w-full");
+    const searchRow = toolbar.querySelector("[data-testid=search-bar] input");
     expect(searchRow).not.toBeNull();
-    expect(searchRow).toHaveTextContent("Search issues");
+    expect(searchRow).toHaveAttribute("placeholder", "Search issues...");
 
     // FilterBar chrome: one static control per facet/value group including the
-    // single compound updated-at trigger (14 h-8 controls).
-    const chips = toolbar.querySelectorAll(".h-8");
-    expect(chips).toHaveLength(14);
+    // single compound updated-at trigger, sort, and My Views (16 controls).
+    const chips = toolbar.querySelectorAll("[data-fixed-filter]");
+    expect(chips).toHaveLength(16);
     expect(
       toolbar.querySelectorAll('.reef-shimmer[aria-hidden="true"]'),
     ).toHaveLength(0);

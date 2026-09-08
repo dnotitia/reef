@@ -30,11 +30,13 @@ function StaticSubNav({
   return (
     <nav
       aria-label={ariaLabel}
+      data-testid="workspace-subnav"
       className="flex w-full max-w-full flex-wrap items-center gap-4 border-b border-border-subtle"
     >
       {labels.map((label, index) => (
         <span
           key={label}
+          data-testid={`workspace-subnav-${index === 0 ? "general" : "members"}`}
           className={cn(
             "-mb-px min-w-0 border-b-2 px-0.5 py-2 type-navigation font-medium",
             index === 0

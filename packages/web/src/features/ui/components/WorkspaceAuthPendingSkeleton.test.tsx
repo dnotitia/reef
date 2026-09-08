@@ -1,7 +1,11 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { cleanup, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceAuthPendingSkeleton } from "./WorkspaceAuthPendingSkeleton";
+
+vi.mock("@/features/issues/hooks/view/useIssueDrill", () => ({
+  useIssueDrill: () => () => ({}),
+}));
 
 afterEach(cleanup);
 

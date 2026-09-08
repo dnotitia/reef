@@ -22,6 +22,9 @@ const STATUS_SEGMENT: Record<Status, string> = {
 
 type TileTone = "default" | "warn" | "danger";
 
+export const MY_WORK_TILE_LABEL_CLASS =
+  "type-card-metadata truncate uppercase tracking-wide text-muted-foreground";
+
 /** A stat tile mirroring the Reports HealthSummary idiom: a left rail + tinted
  * value for the warn/danger tones, paired with a redundant label. */
 function Tile({
@@ -56,8 +59,8 @@ function Tile({
           )}
         />
       )}
-      <span className="type-card-metadata truncate uppercase tracking-wide text-muted-foreground">
-        {label}
+      <span className={MY_WORK_TILE_LABEL_CLASS}>
+        {testId ? <span data-testid={`${testId}-label`}>{label}</span> : label}
       </span>
       <span className="flex min-w-0 items-end justify-between gap-2">
         <span
@@ -88,10 +91,7 @@ function SprintTile({ sprint }: { sprint: MyWorkSprint }) {
       data-testid="my-work-tile-sprint"
       className="relative flex min-h-[78px] flex-col justify-between gap-1.5 overflow-hidden rounded-lg border border-border-subtle bg-surface-subtle p-3"
     >
-      <span
-        className="type-card-metadata truncate uppercase tracking-wide text-muted-foreground"
-        title={sprint.name}
-      >
+      <span className={MY_WORK_TILE_LABEL_CLASS} title={sprint.name}>
         {t("sprintLabel", { name: sprint.name })}
       </span>
       <span className="flex items-end gap-1">

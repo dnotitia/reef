@@ -4,6 +4,7 @@ import {
   resetFixture,
   setAkbAccountDenial,
   setAuthControl,
+  writeIndexedDbConfig,
 } from "../harness/fixture";
 
 const WORKSPACE = "/workspace/reef-e2e";
@@ -107,6 +108,84 @@ async function expectAuthPendingSurface(
     ).toBeVisible({ timeout: 15_000 });
   }
   await expect(page.getByTestId("app-shell-skeleton")).toHaveCount(0);
+}
+
+const CONTINUITY_STYLE_PROPERTIES = [
+  "fontFamily",
+  "fontSize",
+  "fontWeight",
+  "lineHeight",
+  "letterSpacing",
+  "textAlign",
+  "color",
+  "backgroundColor",
+  "borderTopWidth",
+  "borderTopColor",
+  "borderRadius",
+  "display",
+  "alignItems",
+  "justifyContent",
+  "gap",
+  "paddingTop",
+  "paddingRight",
+  "paddingBottom",
+  "paddingLeft",
+] as const;
+
+type ContinuitySnapshot = {
+  rect: { x: number; y: number; width: number; height: number };
+  styles: Record<(typeof CONTINUITY_STYLE_PROPERTIES)[number], string>;
+};
+
+async function readContinuitySnapshot(
+  page: import("@playwright/test").Page,
+  selector: string,
+): Promise<ContinuitySnapshot> {
+  const target = page.locator(selector);
+  await expect(target, `continuity target ${selector}`).toHaveCount(1);
+  return target.evaluate((element, properties) => {
+    const node = element as HTMLElement;
+    const computed = getComputedStyle(node);
+    const rect = node.getBoundingClientRect();
+    return {
+      rect: {
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+      },
+      styles: Object.fromEntries(
+        properties.map((property) => [property, computed[property]]),
+      ) as ContinuitySnapshot["styles"],
+    };
+  }, CONTINUITY_STYLE_PROPERTIES);
+}
+
+async function expectContinuitySnapshot(
+  pending: ContinuitySnapshot,
+  loaded: ContinuitySnapshot,
+  name: string,
+  options: { comparePaint?: boolean } = {},
+): Promise<void> {
+  for (const edge of ["x", "y", "width", "height"] as const) {
+    expect(
+      Math.abs(pending.rect[edge] - loaded.rect[edge]),
+      `${name} ${edge} changed between auth pending and loaded`,
+    ).toBeLessThanOrEqual(1);
+  }
+  const pendingStyles = { ...pending.styles };
+  const loadedStyles = { ...loaded.styles };
+  if (!options.comparePaint) {
+    for (const property of [
+      "color",
+      "backgroundColor",
+      "borderTopColor",
+    ] as const) {
+      delete pendingStyles[property];
+      delete loadedStyles[property];
+    }
+  }
+  expect(pendingStyles, `${name} computed style changed`).toEqual(loadedStyles);
 }
 
 test.describe("auth soft navigation", () => {
@@ -311,6 +390,224 @@ test.describe("auth soft navigation", () => {
       },
     ] as const) {
       await expectAuthPendingSurface(page, request, surface);
+    }
+  });
+
+  test("keeps fixed shell and issue chrome visually continuous across auth pending", async ({
+    page,
+    request,
+  }, testInfo) => {
+    test.setTimeout(120_000);
+    await openExistingWorkspace(page);
+    await page.setViewportSize({ width: 1280, height: 844 });
+    await setAuthControl(request, {
+      probeDelayMs: 4_000,
+      probeDelayOnce: true,
+    });
+
+    await page.goto(`${ISSUES_PATH}?view=board`);
+    await expect(page.getByTestId("app-shell-skeleton")).toBeVisible();
+
+    const pendingTargets = {
+      shell: '[data-testid="app-shell-skeleton-sidebar"]',
+      shellBrand:
+        '[data-testid="app-shell-skeleton-sidebar"] > div:first-child',
+      shellNewIssue: '[data-testid="new-issue-trigger"]',
+      shellNavIssue: '[data-testid="sidebar-nav-issues"]',
+      issueScope: '[data-testid="scope-switcher"]',
+      issueView: '[data-testid="view-switcher"]',
+      issueSearch: '[data-testid="search-bar"] input',
+      issueFilter:
+        '[data-testid="filter-bar"] > :first-child [data-fixed-filter]',
+    } as const;
+    const loadedTargets = {
+      shell: 'aside[aria-label="Sidebar"]',
+      shellBrand: 'aside[aria-label="Sidebar"] > div:first-child',
+      shellNewIssue: '[data-testid="new-issue-trigger"]',
+      shellNavIssue: '[data-testid="sidebar-nav-issues"]',
+      issueScope: '[data-testid="scope-switcher"]',
+      issueView: '[data-testid="view-switcher"]',
+      issueSearch: '[data-testid="search-bar"] input',
+      issueFilter: '[data-testid="filter-bar"] > :first-child button',
+    } as const;
+
+    const pending = Object.fromEntries(
+      await Promise.all(
+        Object.entries(pendingTargets).map(async ([name, selector]) => [
+          name,
+          await readContinuitySnapshot(page, selector),
+        ]),
+      ),
+    ) as Record<keyof typeof pendingTargets, ContinuitySnapshot>;
+    await page.screenshot({
+      animations: "disabled",
+      path: testInfo.outputPath("issue-continuity-pending.png"),
+    });
+
+    await expect(page.getByTestId("kanban-board")).toBeVisible({
+      timeout: 15_000,
+    });
+    const loaded = Object.fromEntries(
+      await Promise.all(
+        Object.entries(loadedTargets).map(async ([name, selector]) => [
+          name,
+          await readContinuitySnapshot(page, selector),
+        ]),
+      ),
+    ) as Record<keyof typeof loadedTargets, ContinuitySnapshot>;
+    await page.screenshot({
+      animations: "disabled",
+      path: testInfo.outputPath("issue-continuity-loaded.png"),
+    });
+
+    for (const name of Object.keys(pendingTargets) as Array<
+      keyof typeof pendingTargets
+    >) {
+      await expectContinuitySnapshot(pending[name], loaded[name], name);
+    }
+  });
+
+  test("compares fixed chrome across supported surfaces, viewport, locale, and theme", async ({
+    page,
+    request,
+  }, testInfo) => {
+    test.setTimeout(180_000);
+    await openExistingWorkspace(page);
+
+    const modes = [
+      { name: "desktop-en-light", width: 1280, locale: "en", dark: false },
+      { name: "narrow-ko-dark", width: 390, locale: "ko", dark: true },
+    ] as const;
+    const surfaces = [
+      {
+        name: "issues",
+        path: `${ISSUES_PATH}?view=board`,
+        target: '[data-testid="scope-switcher"]',
+        loadedTestId: "kanban-board",
+      },
+      {
+        name: "issue-detail",
+        path: `${ISSUES_PATH}/REEF-001`,
+        target: '[data-testid="issue-detail-title-label"]',
+        loadedTestId: "issue-detail",
+      },
+      {
+        name: "settings",
+        path: `${WORKSPACE}/settings/workspace`,
+        target: '[data-testid="settings-tab-workspace"]',
+        loadedTestId: "settings-group-workspace",
+      },
+      {
+        name: "planning",
+        path: PLANNING_PATH,
+        target: '[data-testid="planning-kind-sprints"]',
+        loadedText: "Sprint Alpha",
+      },
+      {
+        name: "my-work",
+        path: `${WORKSPACE}/my-work`,
+        target: '[data-testid="my-work-tile-wip-label"]',
+        loadedTestId: "my-work-page",
+      },
+      {
+        name: "reports",
+        path: `${WORKSPACE}/reports`,
+        target:
+          '[data-testid="reports-skeleton-scope-bar"] > [data-fixed-report-control]:first-child',
+        loadedTestId: "reports-page",
+      },
+      {
+        name: "shell",
+        path: `${ISSUES_PATH}?view=board`,
+        target: '[data-testid="new-issue-trigger"]',
+        loadedTestId: "kanban-board",
+      },
+    ] as const;
+
+    for (const mode of modes) {
+      await page.setViewportSize({ width: mode.width, height: 844 });
+      await page.context().addCookies([
+        {
+          name: "NEXT_LOCALE",
+          value: mode.locale,
+          url: "http://localhost:7353",
+        },
+      ]);
+      await writeIndexedDbConfig(page, "theme", mode.dark ? "dark" : "light");
+      await page.evaluate(
+        (theme) => {
+          window.localStorage.setItem("reef.theme", theme);
+        },
+        mode.dark ? "dark" : "light",
+      );
+      await page.emulateMedia({ colorScheme: mode.dark ? "dark" : "light" });
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await expect
+        .poll(() =>
+          page
+            .locator("html")
+            .evaluate(
+              (element, dark) => element.classList.contains("dark") === dark,
+              mode.dark,
+            ),
+        )
+        .toBe(true);
+
+      for (const surface of surfaces) {
+        await setAuthControl(request, {
+          probeDelayMs: 4_000,
+          probeDelayOnce: true,
+        });
+        await page.goto(surface.path);
+        await expect(page.getByTestId("app-shell-skeleton")).toBeVisible();
+
+        const pending = await readContinuitySnapshot(page, surface.target);
+        await page.screenshot({
+          animations: "disabled",
+          path: testInfo.outputPath(
+            `continuity-${mode.name}-${surface.name}-pending.png`,
+          ),
+        });
+
+        if ("loadedTestId" in surface) {
+          await expect(page.getByTestId(surface.loadedTestId)).toBeVisible({
+            timeout: 15_000,
+          });
+        } else if ("loadedText" in surface) {
+          await expect(
+            page.getByText(surface.loadedText, { exact: true }),
+          ).toBeVisible({ timeout: 15_000 });
+        }
+        await expect(page.getByTestId("app-shell-skeleton")).toHaveCount(0);
+        await expect
+          .poll(() =>
+            page
+              .locator("html")
+              .evaluate(
+                (element, dark) => element.classList.contains("dark") === dark,
+                mode.dark,
+              ),
+          )
+          .toBe(true);
+
+        const loadedSelector =
+          surface.name === "reports"
+            ? '[data-testid="report-scope-bar"] > [data-fixed-report-control]:first-child button'
+            : surface.target;
+        const loaded = await readContinuitySnapshot(page, loadedSelector);
+        await page.screenshot({
+          animations: "disabled",
+          path: testInfo.outputPath(
+            `continuity-${mode.name}-${surface.name}-loaded.png`,
+          ),
+        });
+        await expectContinuitySnapshot(
+          pending,
+          loaded,
+          `${mode.name}/${surface.name}`,
+          { comparePaint: !mode.dark },
+        );
+      }
     }
   });
 

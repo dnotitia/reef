@@ -1,6 +1,7 @@
 "use client";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { CBX_CHEVRON, CBX_TRIGGER_FIELD } from "@/components/ui/comboboxChrome";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { PageHeader } from "@/features/ui/components/PageHeader";
 import {
@@ -8,6 +9,7 @@ import {
   useFieldNameLabels,
 } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
+import { ChevronDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 
@@ -104,7 +106,7 @@ const BREAKDOWN_CARD_KEYS = [
   "topLabels",
 ] as const;
 
-function LabeledSkeleton({
+function StaticReportControl({
   label,
   className,
 }: {
@@ -112,16 +114,24 @@ function LabeledSkeleton({
   className: string;
 }) {
   return (
-    <div className={cn("relative inline-flex min-w-0", className)}>
-      <Skeleton
-        aria-hidden="true"
-        tone="secondary"
-        className={cn("absolute inset-0", className)}
-      />
-      <span className="relative z-[1] min-w-0 truncate px-1 type-card-metadata text-muted-foreground">
-        {label}
-      </span>
-    </div>
+    <span
+      className={cn(CBX_TRIGGER_FIELD, className)}
+      data-fixed-report-control="true"
+    >
+      <span className="min-w-0 truncate">{label}</span>
+      <ChevronDown aria-hidden="true" className={CBX_CHEVRON} />
+    </span>
+  );
+}
+
+function StaticReportLabel({ label }: { label: string }) {
+  return (
+    <span
+      data-typography-role="snapshot-label"
+      className="type-snapshot-label truncate text-muted-foreground"
+    >
+      {label}
+    </span>
   );
 }
 
@@ -199,13 +209,14 @@ export function ReportsSkeleton() {
       <output className="sr-only">{c("loading")}</output>
       {/* Scope bar — same auto-fit control grid as ReportScopeBar (8 controls). */}
       <div
+        data-testid="reports-skeleton-scope-bar"
         className="grid w-full grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-2 rounded-lg border border-border-subtle bg-surface-subtle p-2"
         role="group"
         aria-label={t("scope")}
         aria-busy="true"
       >
         {SCOPE_CONTROL_KEYS.map((key, index) => (
-          <LabeledSkeleton
+          <StaticReportControl
             key={key}
             label={scopeLabels[index] ?? t("scope")}
             className="h-8 w-full"
@@ -223,10 +234,7 @@ export function ReportsSkeleton() {
                   key={key}
                   className="flex min-h-[76px] flex-col justify-between gap-1 rounded-lg border border-border-subtle bg-surface-card p-3"
                 >
-                  <LabeledSkeleton
-                    label={kpiLabels[index] ?? t("active")}
-                    className="h-3 w-20"
-                  />
+                  <StaticReportLabel label={kpiLabels[index] ?? t("active")} />
                   <Skeleton aria-hidden="true" className="h-6 w-10" />
                 </div>
               ))}

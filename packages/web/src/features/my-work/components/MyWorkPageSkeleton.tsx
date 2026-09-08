@@ -3,6 +3,7 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { PageHeader } from "@/features/ui/components/PageHeader";
+import { MY_WORK_TILE_LABEL_CLASS } from "@/features/my-work/components/MyWorkSummary";
 import { useDueLabels, useStatusLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { Status } from "@reef/core";
@@ -15,27 +16,6 @@ const STAGE_LEGEND_KEYS = [
   "in_review",
 ] as const satisfies readonly Status[];
 const QUEUE_ROW_KEYS = ["r0", "r1", "r2", "r3", "r4", "r5"] as const;
-
-function LabeledSkeleton({
-  label,
-  className,
-}: {
-  label: string;
-  className: string;
-}) {
-  return (
-    <div className={cn("relative inline-flex min-w-0", className)}>
-      <Skeleton
-        aria-hidden="true"
-        tone="secondary"
-        className={cn("absolute inset-0", className)}
-      />
-      <span className="relative z-[1] min-w-0 truncate px-1 type-card-metadata text-muted-foreground">
-        {label}
-      </span>
-    </div>
-  );
-}
 
 /**
  * Body skeleton for My Work: the summary section (stat tiles over a status
@@ -71,7 +51,7 @@ export function MyWorkSkeleton({ hasSprint = false }: { hasSprint?: boolean }) {
           stage, and queue labels remain in the accessibility tree. */}
       <div className="flex flex-col gap-6">
         {/* Summary: stat tiles + status StageBar (mirrors MyWorkSummary). */}
-        <section className="flex flex-col gap-3">
+        <section className="flex flex-col gap-3" data-testid="my-work-summary">
           <ul
             className={cn(
               "grid grid-cols-2 gap-3",
@@ -84,20 +64,23 @@ export function MyWorkSkeleton({ hasSprint = false }: { hasSprint?: boolean }) {
                 className="flex min-h-[78px] flex-col justify-between gap-1 rounded-lg border border-border-subtle bg-surface-subtle p-3"
               >
                 {key === "wip" ? (
-                  <LabeledSkeleton
-                    label={t("inProgress")}
-                    className="h-3 w-20"
-                  />
+                  <span className={MY_WORK_TILE_LABEL_CLASS}>
+                    <span data-testid="my-work-tile-wip-label">
+                      {t("inProgress")}
+                    </span>
+                  </span>
                 ) : key === "due" ? (
-                  <LabeledSkeleton
-                    label={dueLabels.due_soon}
-                    className="h-3 w-20"
-                  />
+                  <span className={MY_WORK_TILE_LABEL_CLASS}>
+                    <span data-testid="my-work-tile-due-soon-label">
+                      {dueLabels.due_soon}
+                    </span>
+                  </span>
                 ) : key === "overdue" ? (
-                  <LabeledSkeleton
-                    label={dueLabels.overdue}
-                    className="h-3 w-20"
-                  />
+                  <span className={MY_WORK_TILE_LABEL_CLASS}>
+                    <span data-testid="my-work-tile-overdue-label">
+                      {dueLabels.overdue}
+                    </span>
+                  </span>
                 ) : (
                   <Skeleton
                     aria-hidden="true"
@@ -111,18 +94,25 @@ export function MyWorkSkeleton({ hasSprint = false }: { hasSprint?: boolean }) {
           </ul>
           {/* StageBar: caption + distribution bar + per-stage legend. */}
           <div className="flex flex-col gap-2 rounded-lg border border-border-subtle bg-surface-subtle p-3">
-            <LabeledSkeleton
-              label={t("openWorkByStage")}
-              className="h-3 w-32"
-            />
+            <span className={MY_WORK_TILE_LABEL_CLASS}>
+              {t("openWorkByStage")}
+            </span>
             <Skeleton aria-hidden="true" className="h-2 w-full rounded-full" />
             <div className="flex flex-wrap gap-x-4 gap-y-1">
               {STAGE_LEGEND_KEYS.map((key) => (
-                <LabeledSkeleton
+                <li
                   key={key}
-                  label={statusLabels[key]}
-                  className="h-3 w-20"
-                />
+                  className="inline-flex items-center gap-1.5 type-caption text-muted-foreground"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="inline-block size-2 rounded-[3px] bg-surface-hover"
+                  />
+                  <span className="text-foreground/80">
+                    {statusLabels[key]}
+                  </span>
+                  <Skeleton aria-hidden="true" className="h-3 w-4" />
+                </li>
               ))}
             </div>
           </div>
@@ -133,17 +123,27 @@ export function MyWorkSkeleton({ hasSprint = false }: { hasSprint?: boolean }) {
         <section className="flex flex-col gap-3">
           <header className="flex items-baseline justify-between gap-3">
             <div className="flex items-baseline gap-2">
-              <LabeledSkeleton label={t("queueTitle")} className="h-4 w-32" />
+              <h2 className="type-group-title text-foreground">
+                {t("queueTitle")}
+              </h2>
               <Skeleton
                 aria-hidden="true"
                 tone="secondary"
                 className="h-3 w-6"
               />
             </div>
-            <LabeledSkeleton
-              label={`${t("byPriority")} · ${t("byStatus")}`}
-              className="h-8 w-40"
-            />
+            <div
+              role="group"
+              aria-label={t("groupAriaLabel")}
+              className="inline-flex gap-0.5 rounded-lg border border-border-subtle bg-surface-subtle p-0.5"
+            >
+              <span className="rounded-md bg-surface-page px-2.5 py-1 type-caption font-medium text-foreground shadow-sm">
+                {t("byPriority")}
+              </span>
+              <span className="rounded-md px-2.5 py-1 type-caption font-medium text-muted-foreground">
+                {t("byStatus")}
+              </span>
+            </div>
           </header>
           <div className="overflow-hidden rounded-xl border border-border-subtle bg-surface-page">
             {QUEUE_ROW_KEYS.map((key) => (
