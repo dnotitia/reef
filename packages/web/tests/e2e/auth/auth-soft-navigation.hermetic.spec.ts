@@ -918,6 +918,247 @@ test.describe("auth soft navigation", () => {
     });
   });
 
+  test("captures remaining fixed surfaces before hydration and after settlement", async ({
+    context,
+    page,
+    request,
+  }, testInfo) => {
+    test.setTimeout(240_000);
+    await openExistingWorkspace(page);
+
+    const modes = [
+      { name: "desktop-en-light", width: 1280, locale: "en", dark: false },
+      { name: "narrow-ko-dark", width: 390, locale: "ko", dark: true },
+    ] as const;
+    const surfaces = [
+      {
+        name: "issue-detail",
+        path: `${ISSUES_PATH}/REEF-001`,
+        target: '[data-testid="issue-detail-title-label"]',
+        loadedTestId: "issue-detail",
+      },
+      {
+        name: "settings",
+        path: `${WORKSPACE}/settings/workspace`,
+        target: '[data-testid="settings-tab-workspace"]',
+        loadedTestId: "settings-group-workspace",
+      },
+      {
+        name: "planning",
+        path: PLANNING_PATH,
+        target: '[data-testid="planning-kind-sprints"]',
+        loadedText: "Sprint Alpha",
+      },
+      {
+        name: "my-work",
+        path: `${WORKSPACE}/my-work`,
+        target: '[data-testid="my-work-tile-wip-label"]',
+        loadedTestId: "my-work-page",
+      },
+      {
+        name: "reports",
+        path: `${WORKSPACE}/reports`,
+        target:
+          '[data-testid="reports-skeleton-scope-bar"] > [data-fixed-report-control]:first-child',
+        loadedTestId: "reports-page",
+      },
+    ] as const;
+    const observations: Array<Record<string, unknown>> = [];
+
+    for (const mode of modes) {
+      await page.setViewportSize({ width: mode.width, height: 844 });
+      await page.context().addCookies([
+        {
+          name: "NEXT_LOCALE",
+          value: mode.locale,
+          url: "http://localhost:7353",
+        },
+      ]);
+      await writeIndexedDbConfig(page, "theme", mode.dark ? "dark" : "light");
+      await page.evaluate(
+        (theme) => window.localStorage.setItem("reef.theme", theme),
+        mode.dark ? "dark" : "light",
+      );
+      await page.emulateMedia({ colorScheme: mode.dark ? "dark" : "light" });
+
+      for (const surface of surfaces) {
+        await setAuthControl(request, {
+          probeDelayMs: 4_000,
+          probeDelayOnce: false,
+        });
+        const earlyPage = await context.newPage();
+        await earlyPage.setViewportSize({ width: mode.width, height: 844 });
+        await earlyPage.emulateMedia({
+          colorScheme: mode.dark ? "dark" : "light",
+        });
+
+        let holdScripts = true;
+        let heldScriptCount = 0;
+        const scriptReleaseWaiters: Array<() => void> = [];
+        const scriptPattern = /\/_next\/static\/.*\.js(?:\?.*)?$/u;
+        await earlyPage.route(scriptPattern, async (route) => {
+          if (!holdScripts) {
+            await route.continue();
+            return;
+          }
+          heldScriptCount += 1;
+          await new Promise<void>((resolve) => {
+            scriptReleaseWaiters.push(resolve);
+          });
+          await route.continue();
+        });
+
+        await earlyPage.goto(surface.path, { waitUntil: "commit" });
+        await expect
+          .poll(() => heldScriptCount, {
+            message: `${mode.name}/${surface.name} should hold a client script before hydration`,
+          })
+          .toBeGreaterThan(0);
+        await expect(
+          earlyPage.getByTestId("app-shell-skeleton-main"),
+        ).toBeVisible();
+
+        const beforeHydration = await earlyPage.evaluate((selector) => {
+          const html = document.documentElement;
+          const main = document.querySelector<HTMLElement>(
+            '[data-testid="app-shell-skeleton-main"]',
+          );
+          const target = main?.querySelector<HTMLElement>(selector) ?? null;
+          const rectOf = (node: HTMLElement | null) => {
+            if (!node) return null;
+            const rect = node.getBoundingClientRect();
+            return {
+              x: rect.x,
+              y: rect.y,
+              width: rect.width,
+              height: rect.height,
+            };
+          };
+          return {
+            readyState: document.readyState,
+            darkClass: html.classList.contains("dark"),
+            targetRect: rectOf(target),
+            skeletonPresent: Boolean(
+              document.querySelector('[data-testid="app-shell-skeleton"]'),
+            ),
+          };
+        }, surface.target);
+        const beforeSnapshot = await readContinuitySnapshot(
+          earlyPage,
+          surface.target,
+          '[data-testid="app-shell-skeleton-main"]',
+        );
+        await earlyPage.screenshot({
+          animations: "disabled",
+          path: testInfo.outputPath(
+            `hydration-${mode.name}-${surface.name}-before-hydration.png`,
+          ),
+        });
+        expect(beforeHydration.skeletonPresent).toBe(true);
+        expect(beforeHydration.targetRect).not.toBeNull();
+        expect(beforeHydration.darkClass).toBe(false);
+
+        holdScripts = false;
+        for (const release of scriptReleaseWaiters.splice(0)) release();
+
+        let themeAppliedPending: {
+          darkClass: boolean;
+          skeletonPresent: boolean;
+        } | null = null;
+        if (mode.dark) {
+          await expect
+            .poll(() =>
+              earlyPage
+                .locator("html")
+                .evaluate((element) => element.classList.contains("dark")),
+            )
+            .toBe(true);
+          await expect(
+            earlyPage.getByTestId("app-shell-skeleton"),
+          ).toBeVisible();
+          themeAppliedPending = await earlyPage.evaluate(() => ({
+            darkClass: document.documentElement.classList.contains("dark"),
+            skeletonPresent: Boolean(
+              document.querySelector('[data-testid="app-shell-skeleton"]'),
+            ),
+          }));
+          await earlyPage.screenshot({
+            animations: "disabled",
+            path: testInfo.outputPath(
+              `hydration-${mode.name}-${surface.name}-theme-applied-pending.png`,
+            ),
+          });
+          expect(themeAppliedPending).toEqual({
+            darkClass: true,
+            skeletonPresent: true,
+          });
+        } else {
+          expect(themeAppliedPending).toBeNull();
+        }
+
+        if ("loadedTestId" in surface) {
+          await expect(earlyPage.getByTestId(surface.loadedTestId)).toBeVisible(
+            {
+              timeout: 15_000,
+            },
+          );
+        } else {
+          await expect(
+            earlyPage.getByText(surface.loadedText, { exact: true }),
+          ).toBeVisible({ timeout: 15_000 });
+        }
+        await expect(earlyPage.getByTestId("app-shell-skeleton")).toHaveCount(
+          0,
+        );
+        const settled = await earlyPage.evaluate(() => ({
+          darkClass: document.documentElement.classList.contains("dark"),
+          skeletonPresent: Boolean(
+            document.querySelector('[data-testid="app-shell-skeleton"]'),
+          ),
+        }));
+        expect(settled.darkClass).toBe(mode.dark);
+        const loadedSelector =
+          surface.name === "reports"
+            ? '[data-testid="report-scope-bar"] > [data-fixed-report-control]:first-child button'
+            : surface.target;
+        const settledSnapshot = await readContinuitySnapshot(
+          earlyPage,
+          loadedSelector,
+          "main",
+        );
+        await earlyPage.screenshot({
+          animations: "disabled",
+          path: testInfo.outputPath(
+            `hydration-${mode.name}-${surface.name}-settled.png`,
+          ),
+        });
+        await expectContinuitySnapshot(
+          beforeSnapshot,
+          settledSnapshot,
+          `${mode.name}/${surface.name}/before-hydration-to-settled`,
+          { comparePaint: !mode.dark },
+        );
+        observations.push({
+          mode: mode.name,
+          surface: surface.name,
+          viewport: `${mode.width}x844`,
+          locale: mode.locale,
+          scriptsHeld: heldScriptCount,
+          beforeHydration,
+          themeAppliedPending,
+          settled,
+        });
+        await earlyPage.unroute(scriptPattern);
+        await earlyPage.close();
+      }
+    }
+
+    await testInfo.attach("remaining-hydration-observations.json", {
+      body: JSON.stringify(observations, null, 2),
+      contentType: "application/json",
+    });
+  });
+
   test("keeps the established shell during a visible-tab revalidation", async ({
     page,
     request,
