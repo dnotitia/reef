@@ -443,7 +443,7 @@ test.describe("auth soft navigation", () => {
     await page.setViewportSize({ width: 1280, height: 844 });
     await setAuthControl(request, {
       probeDelayMs: 4_000,
-      probeDelayOnce: true,
+      probeDelayOnce: false,
     });
 
     await page.goto(`${ISSUES_PATH}?view=board`);
