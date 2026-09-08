@@ -15,7 +15,8 @@ import {
   SEGMENTED_CONTROL_ITEM_INACTIVE,
   SEGMENTED_CONTROL_TRACK,
 } from "@/components/segmentedControl";
-import { useFieldNameLabels } from "@/i18n/fieldLabels";
+import { USER_SORT_FIELDS } from "@reef/core";
+import { useFieldNameLabels, useSortFieldLabels } from "@/i18n/fieldLabels";
 import { parseIssueViewState } from "@/features/issues/lib/viewMode";
 import { PageHeader } from "@/features/ui/components/PageHeader";
 import { cn } from "@/lib/utils";
@@ -223,8 +224,13 @@ export function IssuesWorkspaceSkeleton({
   const filters = useTranslations("issues.filters");
   const sort = useTranslations("issues.sort");
   const fieldNames = useFieldNameLabels();
+  const sortFieldLabels = useSortFieldLabels();
   const { scope, layout } = parseIssueViewState(
     new URLSearchParams(searchParams),
+  );
+  const sortParam = new URLSearchParams(searchParams).get("sort");
+  const selectedSortField = USER_SORT_FIELDS.find(
+    (field) => field === sortParam,
   );
   const chipLabels: Record<(typeof FILTER_CHIPS)[number]["key"], string> = {
     status: fieldNames.status,
@@ -241,7 +247,9 @@ export function IssuesWorkspaceSkeleton({
     labels: fieldNames.labels,
     updatedAtRange: filters("updatedAtRange"),
     display: filters("display"),
-    sort: sort("rankOrder"),
+    sort: selectedSortField
+      ? sortFieldLabels[selectedSortField]
+      : sort("rankOrder"),
     myViews: filters("myViews"),
   };
   return (

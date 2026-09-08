@@ -86,6 +86,16 @@ describe("IssuesWorkspaceSkeleton", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("reflects a URL-selected sort in the pending filter chrome", () => {
+    const { container } = render(
+      <IssuesWorkspaceSkeleton searchParams="view=list&sort=priority&order=desc" />,
+    );
+
+    expect(
+      container.querySelector('[data-fixed-filter-key="sort"]'),
+    ).toHaveTextContent("Priority");
+  });
+
   it.each(["list", "timeline"] as const)(
     "uses a %s body frame for the selected URL view",
     (layout) => {
