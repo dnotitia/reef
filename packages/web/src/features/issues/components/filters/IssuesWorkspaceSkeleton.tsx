@@ -289,8 +289,11 @@ export function IssuesWorkspaceSkeleton({
             />
           </div>
           {/* FilterBar row — the wrapping facet/value chips (each h-8). */}
+          {/* The live narrow FilterBar owns a fixed 234.5px row budget; cap
+              the inert labels to the same frame when font metrics wrap an
+              extra placeholder row before hydration. */}
           <div
-            className="flex flex-wrap items-center gap-2"
+            className="flex flex-wrap items-center gap-2 max-[480px]:h-[234.5px] max-[480px]:overflow-hidden"
             data-testid="filter-bar"
           >
             {FILTER_CHIPS.map((chip) =>
