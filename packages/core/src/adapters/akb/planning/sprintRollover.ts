@@ -619,10 +619,6 @@ async function activateTargetSprint(
   }
 
   const params = new SqlParameterBuilder();
-  const activeLockParam = params.add(
-    "reef:planning:active-sprint",
-    "active sprint transition lock",
-  );
   const stateParam = params.addJson(
     {
       sprint_rollover_source_sprint_id: sourceSprintId,
@@ -635,11 +631,9 @@ async function activateTargetSprint(
   const response = await runSql(
     adapter,
     vault,
-    `WITH active_lock AS MATERIALIZED (SELECT pg_advisory_xact_lock(hashtext(${activeLockParam}))), upd AS (UPDATE ${tableRef(
+    `WITH upd AS (UPDATE ${tableRef(
       REEF_SPRINTS_TABLE,
-    )} SET status = 'active', meta = (COALESCE(meta::jsonb, '{}'::jsonb) || ${stateParam})::json FROM active_lock WHERE id = ${targetIdParam} AND status = 'planned' AND NOT EXISTS (SELECT 1 FROM ${tableRef(
-      REEF_SPRINTS_TABLE,
-    )} AS active WHERE active.status = 'active' AND active.id <> ${targetIdParam}) RETURNING *) SELECT * FROM upd`,
+    )} SET status = 'active', meta = (COALESCE(meta::jsonb, '{}'::jsonb) || ${stateParam})::json WHERE id = ${targetIdParam} AND status = 'planned' RETURNING *) SELECT * FROM upd`,
     params.params,
   );
   const row = rowsFromSql(response)[0];

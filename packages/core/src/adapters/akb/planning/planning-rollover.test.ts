@@ -516,11 +516,6 @@ describe("closeSprintAndRollover", () => {
     });
     expect(result.source_sprint.status).toBe("closed");
     expect(result.target_sprint?.status).toBe("active");
-    const activationSql = runSqlMock.mock.calls
-      .map((call) => String(call[2]))
-      .find((sql) => sql.includes("SET status = 'active'"));
-    expect(activationSql).toContain("pg_advisory_xact_lock");
-    expect(activationSql).toContain("NOT EXISTS");
     expect(updateIssueMock).toHaveBeenCalledTimes(3);
     expect(updateIssueMock).toHaveBeenCalledWith(
       expect.objectContaining({
