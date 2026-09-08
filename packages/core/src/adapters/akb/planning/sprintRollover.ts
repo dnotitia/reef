@@ -779,11 +779,7 @@ export function buildSprintRolloverResumes(
     let target: Sprint | null = null;
     if (state.target_sprint_id) {
       target = sprintById.get(state.target_sprint_id) ?? null;
-      if (!target) {
-        throw new NotFoundError({
-          resource: `planning item ${state.target_sprint_id}`,
-        });
-      }
+      if (!target) continue;
     }
     resumes.push(
       SprintRolloverResumeSchema.parse({

@@ -86,6 +86,7 @@ const TARGET_ID = "22222222-2222-4222-8222-222222222222";
 const OTHER_TARGET_ID = "33333333-3333-4333-8333-333333333333";
 const NEW_TARGET_ID = "44444444-4444-4444-8444-444444444444";
 const AT = "2026-09-07T10:00:00.000Z";
+let planningRows: Record<string, unknown>[] = [];
 
 function sprintRow(
   id: string,
@@ -266,6 +267,7 @@ function seed({ otherActive = false } = {}) {
       };
     },
   );
+  return rows as Record<string, unknown>[];
 }
 
 const adapter = { request: vi.fn() };
@@ -276,7 +278,7 @@ beforeEach(() => {
   issueState.clear();
   activityEvents.length = 0;
   phaseFailure.current = null;
-  seed();
+  planningRows = seed();
 });
 
 afterEach(() => {
@@ -284,6 +286,32 @@ afterEach(() => {
 });
 
 describe("closeSprintAndRollover", () => {
+  it("keeps catalog loading when an incomplete claim lost its target", async () => {
+    phaseFailure.current = "target_activation";
+    await closeSprintAndRollover({
+      adapter,
+      vault: "reef-sample",
+      sourceSprintId: SOURCE_ID,
+      target: { kind: "existing", id: TARGET_ID },
+      endDate: "2026-09-11",
+      actor: "alice",
+      source: "user:sprint_rollover",
+      now: AT,
+    });
+
+    const targetIndex = planningRows.findIndex((row) => row.id === TARGET_ID);
+    expect(targetIndex).toBeGreaterThanOrEqual(0);
+    planningRows.splice(targetIndex, 1);
+
+    const catalog = await listPlanningCatalog({
+      adapter,
+      vault: "reef-sample",
+    });
+
+    expect(catalog.sprints).toHaveLength(2);
+    expect(catalog.rollover_resumes).toEqual([]);
+  });
+
   it("lists an incomplete existing-target claim for browser resume", async () => {
     phaseFailure.current = "target_activation";
     const first = await closeSprintAndRollover({
