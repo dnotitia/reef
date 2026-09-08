@@ -688,6 +688,27 @@ test.describe("auth soft navigation", () => {
       await expect(
         pendingFilterBar.locator('[data-fixed-filter-key="sort-direction"]'),
       ).toHaveCount(1);
+      const pendingSort = pendingFilterBar.locator(
+        '[data-fixed-filter-key="sort"]',
+      );
+      const pendingSortGroup = pendingSort.locator("..");
+      await expect(
+        pendingSortGroup.locator('[data-fixed-filter-key="sort-direction"]'),
+      ).toHaveCount(1);
+      const pendingSortGap = await pendingSortGroup.evaluate((element) => {
+        const sort = element.querySelector<HTMLElement>(
+          '[data-fixed-filter-key="sort"]',
+        );
+        const direction = element.querySelector<HTMLElement>(
+          '[data-fixed-filter-key="sort-direction"]',
+        );
+        if (!sort || !direction) return Number.POSITIVE_INFINITY;
+        return (
+          direction.getBoundingClientRect().left -
+          sort.getBoundingClientRect().right
+        );
+      });
+      expect(pendingSortGap).toBeLessThanOrEqual(1);
       await expect(page.getByTestId("backlog-table-skeleton")).toBeVisible();
       await expect(
         page.locator(

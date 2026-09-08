@@ -77,7 +77,6 @@ const FILTER_CHIPS = [
   { key: "updatedAtRange", width: "w-fit", field: false },
   { key: "display", width: "w-fit", field: false },
   { key: "sort", width: "w-fit", field: false },
-  { key: "sortDirection", width: "w-8", field: false },
   { key: "myViews", width: "w-fit", field: false },
 ] as const;
 const ISSUE_BODY_SKELETON_ROWS = ["one", "two", "three", "four"] as const;
@@ -171,6 +170,11 @@ function StaticFilterControl({
     <span
       data-fixed-filter="true"
       data-fixed-filter-key={dataKey}
+      style={
+        !field && dataKey !== "updatedAtRange"
+          ? { display: "inline-flex" }
+          : undefined
+      }
       className={cn(
         field
           ? `${CBX_TRIGGER_FIELD} text-left`
@@ -298,9 +302,6 @@ export function IssuesWorkspaceSkeleton({
       (key) => key !== "sort" || layout !== "timeline",
     ),
   );
-  if (selectedSortField && layout !== "timeline") {
-    visibleChromeKeys.add("sortDirection");
-  }
   const visibleFilterChips = FILTER_CHIPS.filter((chip) =>
     visibleChromeKeys.has(chip.key),
   );
@@ -333,7 +334,6 @@ export function IssuesWorkspaceSkeleton({
     updatedAtRange: filters("updatedAtRange"),
     display: displayLabel,
     sort: selectedSortLabel,
-    sortDirection: "",
     myViews: filters("myViews"),
   };
   return (
@@ -413,20 +413,16 @@ export function IssuesWorkspaceSkeleton({
                     dataKey={chip.key}
                   />
                 </div>
-              ) : chip.key === "sortDirection" ? (
-                <div key={chip.key} className="inline-block">
-                  {selectedSortOrder ? (
-                    <StaticSortDirectionControl order={selectedSortOrder} />
-                  ) : null}
-                </div>
               ) : (
                 <div
                   key={chip.key}
-                  className={
+                  className={cn(
                     chip.field
                       ? "relative inline-block max-w-full"
-                      : "inline-block"
-                  }
+                      : chip.key === "sort"
+                        ? "inline-block"
+                        : "inline-block",
+                  )}
                 >
                   <StaticFilterControl
                     label={chipLabels[chip.key]}
@@ -447,6 +443,9 @@ export function IssuesWorkspaceSkeleton({
                     }
                     className={chip.width}
                   />
+                  {chip.key === "sort" && selectedSortOrder ? (
+                    <StaticSortDirectionControl order={selectedSortOrder} />
+                  ) : null}
                 </div>
               ),
             )}
