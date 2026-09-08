@@ -116,6 +116,7 @@ const catalog = {
       notes: "",
     },
   ],
+  rollover_resumes: [],
 };
 
 function createTestQueryClient() {

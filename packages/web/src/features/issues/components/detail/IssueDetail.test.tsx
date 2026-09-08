@@ -84,6 +84,7 @@ const PLANNING_CATALOG = {
   ],
   milestones: [],
   releases: [],
+  rollover_resumes: [],
 };
 
 function isIssueDetailRequest(url: string, issueId: string) {
