@@ -108,6 +108,7 @@ const planningCatalog: PlanningCatalog = {
       notes: "",
     },
   ],
+  rollover_resumes: [],
 };
 
 function wrap(ui: ReactNode) {

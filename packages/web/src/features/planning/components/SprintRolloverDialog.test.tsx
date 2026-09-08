@@ -80,6 +80,7 @@ const CATALOG: PlanningCatalog = {
   sprints: [SOURCE, TARGET],
   milestones: [],
   releases: [],
+  rollover_resumes: [],
 };
 const ISSUES = [
   { id: "REEF-001", sprint_id: SOURCE_ID, status: "todo", archived_at: null },

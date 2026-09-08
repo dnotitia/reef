@@ -330,7 +330,7 @@ describe("closeSprintAndRollover", () => {
       adapter,
       vault: "reef-sample",
     });
-    const resumes = catalog.rollover_resumes ?? [];
+    const resumes = catalog.rollover_resumes;
 
     expect(resumes).toHaveLength(1);
     expect(resumes[0]).toMatchObject({
@@ -374,7 +374,7 @@ describe("closeSprintAndRollover", () => {
       adapter,
       vault: "reef-sample",
     });
-    const resumes = catalog.rollover_resumes ?? [];
+    const resumes = catalog.rollover_resumes;
 
     expect(resumes[0]?.target).toEqual({
       kind: "new",

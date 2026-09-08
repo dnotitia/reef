@@ -40,6 +40,7 @@ const CATALOG: PlanningCatalog = {
   ],
   milestones: [],
   releases: [],
+  rollover_resumes: [],
 };
 
 function createQueryClient() {

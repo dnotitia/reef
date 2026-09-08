@@ -40,6 +40,7 @@ const catalog: PlanningCatalog = {
   ],
   milestones: [],
   releases: [],
+  rollover_resumes: [],
 };
 
 vi.mock("../hooks/usePlanningCatalog", () => ({

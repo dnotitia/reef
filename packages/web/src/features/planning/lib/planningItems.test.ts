@@ -40,6 +40,7 @@ const catalog: PlanningCatalog = {
       notes: "",
     },
   ],
+  rollover_resumes: [],
 };
 
 describe("itemsForKind", () => {

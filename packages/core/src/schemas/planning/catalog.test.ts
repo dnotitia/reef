@@ -44,6 +44,7 @@ describe("planning schemas", () => {
       sprints: [{ name: "Sprint 12" }],
       milestones: [{ name: "MVP Beta" }],
       releases: [{ name: "v0.4.0" }],
+      rollover_resumes: [],
     });
   });
 

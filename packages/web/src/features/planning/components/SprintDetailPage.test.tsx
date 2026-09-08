@@ -92,6 +92,7 @@ const CATALOG: PlanningCatalog = {
   sprints: [SPRINT],
   milestones: [],
   releases: [],
+  rollover_resumes: [],
 };
 
 function issue(
