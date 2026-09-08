@@ -649,6 +649,7 @@ describe("closeSprintAndRollover", () => {
   });
 
   it("surfaces a persistent row revision conflict instead of a false success", async () => {
+    let conflictEnabled = true;
     updateIssueMock.mockImplementation(
       async ({
         id,
@@ -657,7 +658,7 @@ describe("closeSprintAndRollover", () => {
         id: string;
         partial: Partial<IssueMetadata>;
       }) => {
-        if (id === "REEF-001") throw new ConflictError();
+        if (conflictEnabled && id === "REEF-001") throw new ConflictError();
         const current = issueState.get(id)?.issue as IssueMetadata;
         issueState.set(id, {
           issue: {
@@ -694,6 +695,21 @@ describe("closeSprintAndRollover", () => {
         reason: "row_conflict",
       }),
     );
+
+    conflictEnabled = false;
+    const retry = await closeSprintAndRollover({
+      adapter,
+      vault: "reef-sample",
+      sourceSprintId: SOURCE_ID,
+      target: { kind: "existing", id: TARGET_ID },
+      endDate: "2026-09-11",
+      actor: "alice",
+      source: "user:sprint_rollover",
+      now: AT,
+    });
+
+    expect(retry.status).toBe("completed");
+    expect(retry.counts).toMatchObject({ moved: 3, conflicts: 0, failed: 0 });
   });
 
   it("names an unrelated active sprint before changing the source", async () => {

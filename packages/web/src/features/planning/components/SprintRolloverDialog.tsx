@@ -852,6 +852,7 @@ export function SprintRolloverDialog({
                     <a
                       data-testid="sprint-rollover-target-link"
                       href={sprintDetailHref(vault, result.target_sprint.id)}
+                      onClick={() => onOpenChange(false)}
                       className="type-control font-medium text-brand-text underline-offset-2 hover:underline"
                     >
                       {result.target_sprint.name}

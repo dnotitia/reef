@@ -1300,7 +1300,8 @@ export async function closeSprintAndRollover(
         if (
           !stored ||
           stored.disposition === "skipped" ||
-          stored.disposition === "conflict"
+          (stored.disposition === "conflict" &&
+            stored.reason === "moved_to_other_sprint")
         ) {
           continue;
         }

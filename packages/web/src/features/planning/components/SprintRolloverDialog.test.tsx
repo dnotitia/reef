@@ -471,7 +471,8 @@ describe("SprintRolloverDialog", () => {
       .mockResolvedValueOnce(result());
     mutationRef.current = { mutateAsync, isPending: false };
     const user = userEvent.setup();
-    renderDialog();
+    const onOpenChange = vi.fn();
+    renderDialog(onOpenChange);
 
     await user.click(
       screen.getByRole("button", { name: "Use an existing planned sprint" }),
@@ -484,7 +485,13 @@ describe("SprintRolloverDialog", () => {
     expect(screen.getByTestId("sprint-rollover-result")).toBeVisible();
     expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Close" })).toBeVisible();
-    expect(screen.getByTestId("sprint-rollover-target-link")).toBeVisible();
+    const targetLink = screen.getByTestId("sprint-rollover-target-link");
+    expect(targetLink).toBeVisible();
+    targetLink.addEventListener("click", (event) => event.preventDefault(), {
+      once: true,
+    });
+    await user.click(targetLink);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
     await user.click(screen.getByRole("button", { name: "Retry rollover" }));
     expect(await screen.findByTestId("sprint-rollover-complete")).toBeVisible();
     expect(screen.queryByTestId("sprint-rollover-result")).toBeNull();
