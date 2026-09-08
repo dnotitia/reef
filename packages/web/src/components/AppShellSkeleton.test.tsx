@@ -39,4 +39,19 @@ describe("AppShellSkeleton", () => {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
   });
+
+  it("preserves a collapsed desktop sidebar while auth is pending", () => {
+    render(
+      <IntlTestProvider>
+        <AppShellSkeleton sidebarCollapsed />
+      </IntlTestProvider>,
+    );
+
+    expect(screen.getByTestId("app-shell-skeleton-sidebar")).toHaveClass(
+      "w-14",
+    );
+    expect(screen.getByTestId("app-shell-skeleton-sidebar")).not.toHaveClass(
+      "md:w-60",
+    );
+  });
 });

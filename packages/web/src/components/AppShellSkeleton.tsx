@@ -34,6 +34,7 @@ export function AppShellSkeleton({
   content,
   announce = true,
   activeNav,
+  sidebarCollapsed = false,
 }: {
   /** Static, non-interactive destination chrome for an auth-pending route. */
   content?: ReactNode;
@@ -41,6 +42,8 @@ export function AppShellSkeleton({
   announce?: boolean;
   /** URL-resolved active destination, when the auth-pending route is known. */
   activeNav?: SidebarNavKey;
+  /** Preserve the mounted dashboard's desktop sidebar width during pending auth. */
+  sidebarCollapsed?: boolean;
 } = {}) {
   const c = useTranslations("common");
   const nav = useTranslations("nav");
@@ -58,7 +61,10 @@ export function AppShellSkeleton({
       <aside
         data-testid="app-shell-skeleton-sidebar"
         aria-label={nav("sidebarLandmark")}
-        className={cn(SIDEBAR_ASIDE_CLASS, "w-14 md:w-60")}
+        className={cn(
+          SIDEBAR_ASIDE_CLASS,
+          sidebarCollapsed ? "w-14" : "w-14 md:w-60",
+        )}
       >
         <div
           className={cn(

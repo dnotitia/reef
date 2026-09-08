@@ -26,6 +26,7 @@ import {
 } from "@/features/settings/components/SettingsLoadingSkeleton";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { PageHeader } from "@/features/ui/components/PageHeader";
+import { useViewStore } from "@/features/ui/stores/useViewStore";
 import { cn } from "@/lib/utils";
 import {
   Building2,
@@ -288,9 +289,11 @@ export function WorkspaceAuthPendingSkeleton({
   const normalizedPathname = pathname ?? "";
   const routeSegments = workspaceRouteSegments(normalizedPathname);
   const hasContent = hasAuthPendingContent(routeSegments);
+  const sidebarCollapsed = useViewStore((state) => state.sidebarCollapsed);
   return (
     <AppShellSkeleton
       activeNav={activeNavForPath(routeSegments)}
+      sidebarCollapsed={sidebarCollapsed}
       content={
         hasContent ? (
           <AuthPendingContent

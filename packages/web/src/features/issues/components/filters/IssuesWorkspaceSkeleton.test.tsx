@@ -94,6 +94,9 @@ describe("IssuesWorkspaceSkeleton", () => {
     expect(
       container.querySelector('[data-fixed-filter-key="sort"]'),
     ).toHaveTextContent("Priority");
+    expect(
+      container.querySelector('[data-fixed-filter-key="sort"]'),
+    ).toHaveTextContent("High → Low");
   });
 
   it.each(["list", "timeline"] as const)(

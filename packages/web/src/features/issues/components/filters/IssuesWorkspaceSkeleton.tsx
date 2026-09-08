@@ -15,8 +15,12 @@ import {
   SEGMENTED_CONTROL_ITEM_INACTIVE,
   SEGMENTED_CONTROL_TRACK,
 } from "@/components/segmentedControl";
-import { USER_SORT_FIELDS } from "@reef/core";
-import { useFieldNameLabels, useSortFieldLabels } from "@/i18n/fieldLabels";
+import { naturalSortOrder, USER_SORT_FIELDS } from "@reef/core";
+import {
+  useDirectionLabel,
+  useFieldNameLabels,
+  useSortFieldLabels,
+} from "@/i18n/fieldLabels";
 import { parseIssueViewState } from "@/features/issues/lib/viewMode";
 import { PageHeader } from "@/features/ui/components/PageHeader";
 import { cn } from "@/lib/utils";
@@ -225,6 +229,7 @@ export function IssuesWorkspaceSkeleton({
   const sort = useTranslations("issues.sort");
   const fieldNames = useFieldNameLabels();
   const sortFieldLabels = useSortFieldLabels();
+  const directionLabel = useDirectionLabel();
   const { scope, layout } = parseIssueViewState(
     new URLSearchParams(searchParams),
   );
@@ -232,6 +237,15 @@ export function IssuesWorkspaceSkeleton({
   const selectedSortField = USER_SORT_FIELDS.find(
     (field) => field === sortParam,
   );
+  const orderParam = new URLSearchParams(searchParams).get("order");
+  const selectedSortLabel = selectedSortField
+    ? `${sortFieldLabels[selectedSortField]} ${directionLabel(
+        selectedSortField,
+        orderParam === "asc" || orderParam === "desc"
+          ? orderParam
+          : naturalSortOrder(selectedSortField),
+      )}`
+    : sort("rankOrder");
   const chipLabels: Record<(typeof FILTER_CHIPS)[number]["key"], string> = {
     status: fieldNames.status,
     type: fieldNames.type,
@@ -247,9 +261,7 @@ export function IssuesWorkspaceSkeleton({
     labels: fieldNames.labels,
     updatedAtRange: filters("updatedAtRange"),
     display: filters("display"),
-    sort: selectedSortField
-      ? sortFieldLabels[selectedSortField]
-      : sort("rankOrder"),
+    sort: selectedSortLabel,
     myViews: filters("myViews"),
   };
   return (
