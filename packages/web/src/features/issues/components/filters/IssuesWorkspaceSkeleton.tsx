@@ -149,11 +149,18 @@ function StaticLabelInput({
     <span
       data-fixed-filter="true"
       className={cn(
-        "flex min-h-8 w-full flex-wrap items-center gap-1 rounded-md border border-border bg-surface-elevated px-1.5 py-1 type-control text-muted-foreground",
+        "flex min-h-8 w-full flex-wrap items-center gap-1 rounded-md border border-border bg-surface-elevated px-1.5 py-1 type-control text-foreground transition-colors duration-150",
         className,
       )}
     >
-      {label}
+      <input
+        readOnly
+        tabIndex={-1}
+        aria-disabled="true"
+        aria-label={label}
+        placeholder={label}
+        className="min-w-[6rem] flex-1 border-0 bg-transparent px-1 py-0.5 type-control outline-none placeholder:text-muted-foreground"
+      />
     </span>
   );
 }

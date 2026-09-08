@@ -18,7 +18,11 @@ describe("AppShellSkeleton", () => {
     expect(sidebar).toHaveClass("w-14", "md:w-60", "shrink-0");
     expect(sidebar.querySelector(".reef-shimmer")).toBeNull();
     expect(main).toHaveClass("min-w-0", "overflow-auto");
-    expect(board).toHaveClass("min-w-0", "overflow-x-auto");
+    expect(board).toHaveClass(
+      "min-w-0",
+      "overflow-x-hidden",
+      "overflow-y-auto",
+    );
     expect(
       board.querySelector('.reef-shimmer[aria-hidden="true"]'),
     ).not.toBeNull();

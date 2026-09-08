@@ -18,12 +18,17 @@ describe("IssuesWorkspaceSkeleton", () => {
       screen.getByRole("group", { name: "Issue view" }),
     ).toBeInTheDocument();
     for (const label of ["Status", "Type", "Priority", "Assignee", "Labels"]) {
-      expect(screen.getByText(label)).toBeInTheDocument();
+      if (label === "Labels") {
+        expect(screen.getByPlaceholderText(label)).toBeInTheDocument();
+      } else {
+        expect(screen.getByText(label)).toBeInTheDocument();
+      }
     }
     expect(screen.getByTestId("issues-skeleton")).toHaveClass("min-w-0");
     expect(screen.getByTestId("board-columns-skeleton")).toHaveClass(
       "min-w-0",
-      "overflow-x-auto",
+      "overflow-x-hidden",
+      "overflow-y-auto",
     );
   });
 

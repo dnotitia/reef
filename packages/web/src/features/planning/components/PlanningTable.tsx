@@ -5,7 +5,6 @@ import { DateDisplay } from "@/components/fields/DateDisplay";
 import { PlanningStatusBadge } from "@/components/fields/PlanningStatusBadge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -33,20 +32,12 @@ import { Fragment, useEffect, useId, useMemo, useState } from "react";
 import type { PlanningItem, PlanningKind } from "../hooks/usePlanningCatalog";
 import { itemsForKind } from "../lib/planningItems";
 import { PlanningRollup, type IssueAggregationState } from "./PlanningRollup";
+import { PlanningTableSkeleton } from "./PlanningTableSkeleton";
 
 export type { IssueAggregationState } from "./PlanningRollup";
 
 const MARKDOWN_TOKENS = /[#>*_`~]+|\[([^\]]*)\]\([^)]*\)/g;
 const NOOP = () => {};
-const PLANNING_LOADING_ROWS = ["one", "two", "three"] as const;
-const PLANNING_TABLE_COLUMNS = [
-  "name",
-  "status",
-  "dates",
-  "issues",
-  "details",
-  "actions",
-] as const;
 
 function stripMarkdown(md: string): string {
   const firstLine = md.split("\n").find((line) => line.trim()) ?? "";
@@ -244,20 +235,9 @@ export function PlanningTable({
         className="flex min-w-0 flex-col gap-2"
       >
         <output className="sr-only">{common("loading")}</output>
-        <Table data-testid="planning-table" aria-busy="true">
-          {tableHeader}
-          <TableBody>
-            {PLANNING_LOADING_ROWS.map((row) => (
-              <TableRow key={row} className="h-10">
-                {PLANNING_TABLE_COLUMNS.map((column) => (
-                  <TableCell key={column} className="h-10 px-3 py-0">
-                    <Skeleton aria-hidden="true" className="h-4 w-full" />
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <div data-testid="planning-table" aria-busy="true">
+          <PlanningTableSkeleton desktopTestId="planning-table-desktop" />
+        </div>
       </div>
     );
   }

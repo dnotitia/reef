@@ -137,11 +137,32 @@ type ContinuitySnapshot = {
   styles: Record<(typeof CONTINUITY_STYLE_PROPERTIES)[number], string>;
 };
 
+type ContinuityEdge = keyof ContinuitySnapshot["rect"];
+
+async function waitForPendingLayout(
+  page: import("@playwright/test").Page,
+): Promise<void> {
+  // The auth-pending tree is intentionally captured before the probe resolves,
+  // but after the browser has applied the route stylesheet and settled the
+  // first layout. Without this boundary a cold production CSS/layout race can
+  // measure an unstyled inline target at x=0 and compare it with the settled
+  // header at its real position.
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    );
+  });
+}
+
 async function readContinuitySnapshot(
   page: import("@playwright/test").Page,
   selector: string,
+  rootSelector?: string,
 ): Promise<ContinuitySnapshot> {
-  const target = page.locator(selector);
+  const target = rootSelector
+    ? page.locator(rootSelector).locator(selector)
+    : page.locator(selector);
   await expect(target, `continuity target ${selector}`).toHaveCount(1);
   return target.evaluate((element, properties) => {
     const node = element as HTMLElement;
@@ -165,12 +186,15 @@ async function expectContinuitySnapshot(
   pending: ContinuitySnapshot,
   loaded: ContinuitySnapshot,
   name: string,
-  options: { comparePaint?: boolean } = {},
+  options: {
+    comparePaint?: boolean;
+    edges?: readonly ContinuityEdge[];
+  } = {},
 ): Promise<void> {
-  for (const edge of ["x", "y", "width", "height"] as const) {
+  for (const edge of options.edges ?? ["x", "y", "width", "height"]) {
     expect(
       Math.abs(pending.rect[edge] - loaded.rect[edge]),
-      `${name} ${edge} changed between auth pending and loaded`,
+      `${name} ${edge} changed between auth pending and loaded (pending=${pending.rect[edge]}, loaded=${loaded.rect[edge]})`,
     ).toBeLessThanOrEqual(1);
   }
   const pendingStyles = { ...pending.styles };
@@ -556,12 +580,51 @@ test.describe("auth soft navigation", () => {
       for (const surface of surfaces) {
         await setAuthControl(request, {
           probeDelayMs: 4_000,
-          probeDelayOnce: true,
+          // Keep the probe delayed for the whole pending capture. A one-shot
+          // delay can be consumed by a bootstrap probe before the route
+          // skeleton commits, leaving the global target selector to read the
+          // settled tree instead of a real pending tree.
+          probeDelayOnce: false,
         });
         await page.goto(surface.path);
         await expect(page.getByTestId("app-shell-skeleton")).toBeVisible();
+        await waitForPendingLayout(page);
+        await expect(page.getByTestId("app-shell-skeleton")).toBeVisible();
 
-        const pending = await readContinuitySnapshot(page, surface.target);
+        const pendingRoot =
+          surface.name === "shell"
+            ? '[data-testid="app-shell-skeleton-sidebar"]'
+            : '[data-testid="app-shell-skeleton-main"]';
+        const loadedRoot = surface.name === "shell" ? "aside" : "main";
+        const pending = await readContinuitySnapshot(
+          page,
+          surface.target,
+          pendingRoot,
+        );
+        const pendingBoardFrame =
+          mode.name === "narrow-ko-dark" && surface.name === "issues"
+            ? await readContinuitySnapshot(
+                page,
+                '[data-testid="board-columns-skeleton"]',
+                pendingRoot,
+              )
+            : null;
+        const pendingBoardHeader =
+          mode.name === "narrow-ko-dark" && surface.name === "issues"
+            ? await readContinuitySnapshot(
+                page,
+                '[data-testid="board-columns-skeleton"] > :first-child [data-testid="kanban-group-header"]',
+                pendingRoot,
+              )
+            : null;
+        const pendingPlanningCard =
+          mode.name === "narrow-ko-dark" && surface.name === "planning"
+            ? await readContinuitySnapshot(
+                page,
+                '[data-testid="planning-skeleton-compact-item"]',
+                pendingRoot,
+              )
+            : null;
         await page.screenshot({
           animations: "disabled",
           path: testInfo.outputPath(
@@ -579,6 +642,7 @@ test.describe("auth soft navigation", () => {
           ).toBeVisible({ timeout: 15_000 });
         }
         await expect(page.getByTestId("app-shell-skeleton")).toHaveCount(0);
+        await waitForPendingLayout(page);
         await expect
           .poll(() =>
             page
@@ -594,7 +658,11 @@ test.describe("auth soft navigation", () => {
           surface.name === "reports"
             ? '[data-testid="report-scope-bar"] > [data-fixed-report-control]:first-child button'
             : surface.target;
-        const loaded = await readContinuitySnapshot(page, loadedSelector);
+        const loaded = await readContinuitySnapshot(
+          page,
+          loadedSelector,
+          loadedRoot,
+        );
         await page.screenshot({
           animations: "disabled",
           path: testInfo.outputPath(
@@ -607,6 +675,48 @@ test.describe("auth soft navigation", () => {
           `${mode.name}/${surface.name}`,
           { comparePaint: !mode.dark },
         );
+
+        if (mode.name === "narrow-ko-dark" && surface.name === "issues") {
+          const loadedBoard = await readContinuitySnapshot(
+            page,
+            '[data-testid="kanban-board-body"]',
+            loadedRoot,
+          );
+          await expectContinuitySnapshot(
+            pendingBoardFrame as ContinuitySnapshot,
+            loadedBoard,
+            `${mode.name}/${surface.name}/board-frame`,
+            { edges: ["x", "y", "width", "height"] },
+          );
+
+          const loadedBoardHeader = await readContinuitySnapshot(
+            page,
+            '[data-testid="kanban-board-body"] > :first-child [data-testid="kanban-group-header"]',
+            loadedRoot,
+          );
+          await expectContinuitySnapshot(
+            pendingBoardHeader as ContinuitySnapshot,
+            loadedBoardHeader,
+            `${mode.name}/${surface.name}/first-group-header`,
+          );
+        }
+
+        if (mode.name === "narrow-ko-dark" && surface.name === "planning") {
+          const loadedPlanningCard = await readContinuitySnapshot(
+            page,
+            '[data-testid="planning-compact-list"] > article:first-child',
+            loadedRoot,
+          );
+          // Card height is data-dependent: the settled card contains the real
+          // item's issue rollup and detail summary. Its fixed frame still owns
+          // the top/inline geometry and computed chrome, which this compares.
+          await expectContinuitySnapshot(
+            pendingPlanningCard as ContinuitySnapshot,
+            loadedPlanningCard,
+            `${mode.name}/${surface.name}/compact-card-frame`,
+            { edges: ["x", "y", "width"] },
+          );
+        }
       }
     }
   });

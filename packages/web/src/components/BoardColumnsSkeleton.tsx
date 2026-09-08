@@ -34,7 +34,10 @@ const CARD_KEYS = ["a", "b", "c"] as const;
 function LoadingColumn({ label, index }: { label?: string; index: number }) {
   return (
     <div className="flex h-full min-w-0 w-full flex-col rounded-lg border border-border bg-surface-subtle p-2 lg:w-80 lg:shrink-0">
-      <div className="mb-2 flex min-w-0 shrink-0 items-center gap-2 px-1.5 py-1">
+      <div
+        className="mb-2 flex min-w-0 shrink-0 items-center gap-2 px-1.5 py-1"
+        data-testid="kanban-group-header"
+      >
         {label ? (
           <h3 className="min-w-0 flex-1 truncate type-board-status text-foreground/80">
             {label}
@@ -88,7 +91,7 @@ export function BoardColumnsSkeleton({
     <div
       data-testid="board-columns-skeleton"
       className={cn(
-        "relative flex min-h-0 min-w-0 flex-1 gap-3 overflow-x-auto px-6 py-4",
+        "relative grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-3 overflow-x-hidden overflow-y-auto px-6 py-4 md:grid-cols-2 lg:flex lg:flex-nowrap lg:overflow-x-auto lg:overflow-y-hidden",
         className,
       )}
       role={ariaLabel ? "region" : undefined}
