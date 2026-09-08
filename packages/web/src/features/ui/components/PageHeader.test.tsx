@@ -47,6 +47,19 @@ describe("PageHeader", () => {
     expect(view.closest('[data-slot="page-header-actions"]')).not.toBeNull();
   });
 
+  it("keeps non-interactive loading chrome visible before hydration", () => {
+    render(
+      <PageHeader
+        title="Issues"
+        staticTitleAdjacent={<span>Active</span>}
+        staticActions={<span>Board</span>}
+      />,
+    );
+
+    expect(screen.getByText("Active")).toBeInTheDocument();
+    expect(screen.getByText("Board")).toBeInTheDocument();
+  });
+
   it("lets a node subtitle own its translation boundaries so mixed prose still translates (REEF-260)", () => {
     // My Work's `@login · N open` mixes an identifier with a prose count, so it
     // passes a node that protects the identifier while the prose is not

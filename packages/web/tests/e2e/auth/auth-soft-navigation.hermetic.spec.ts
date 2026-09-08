@@ -43,6 +43,72 @@ async function expectPersistentShell(
   );
 }
 
+async function expectAuthPendingSurface(
+  page: import("@playwright/test").Page,
+  request: import("@playwright/test").APIRequestContext,
+  surface: {
+    path: string;
+    title: string;
+    skeletonTestId: string;
+    labels: readonly string[];
+    loadedTestId?: string;
+    loadedText?: string;
+  },
+): Promise<void> {
+  await setAuthControl(request, {
+    probeDelayMs: 3_000,
+    probeDelayOnce: true,
+  });
+  await page.goto(surface.path);
+
+  await expect(page.getByTestId("app-shell-skeleton")).toBeVisible();
+  const pendingMain = page.getByTestId("app-shell-skeleton-main");
+  const pendingAccessibilitySnapshot = await pendingMain.ariaSnapshot();
+  const pending = await page.evaluate((expected) => {
+    const shell = document.querySelector('[data-testid="app-shell-skeleton"]');
+    const main = shell?.querySelector<HTMLElement>(
+      '[data-testid="app-shell-skeleton-main"]',
+    );
+    const hasDestinationSkeleton = Boolean(
+      main &&
+        [...main.querySelectorAll<HTMLElement>("[data-testid]")].some(
+          (element) => element.dataset.testid === expected.skeletonTestId,
+        ),
+    );
+    const text = main?.textContent ?? "";
+    return {
+      hasDestinationSkeleton,
+      hasTitle: text.includes(expected.title),
+      hasLabels: expected.labels.every((label) => text.includes(label)),
+      buttonCount: main?.querySelectorAll("button").length ?? 0,
+      linkCount: main?.querySelectorAll("a").length ?? 0,
+    };
+  }, surface);
+  expect(pending.hasDestinationSkeleton).toBe(true);
+  expect(pending.hasTitle).toBe(true);
+  expect(pending.hasLabels).toBe(true);
+  expect(pending.buttonCount).toBe(0);
+  expect(pending.linkCount).toBe(0);
+  for (const label of surface.labels) {
+    expect(
+      pendingAccessibilitySnapshot,
+      `${surface.path} pending accessibility tree should include ${label}`,
+    ).toContain(label);
+  }
+  await expect(page).not.toHaveURL(/\/login(?:\?|$)/);
+
+  if (surface.loadedTestId) {
+    await expect(page.getByTestId(surface.loadedTestId)).toBeVisible({
+      timeout: 15_000,
+    });
+  } else if (surface.loadedText) {
+    await expect(
+      page.getByText(surface.loadedText, { exact: true }),
+    ).toBeVisible({ timeout: 15_000 });
+  }
+  await expect(page.getByTestId("app-shell-skeleton")).toHaveCount(0);
+}
+
 test.describe("auth soft navigation", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
@@ -176,6 +242,75 @@ test.describe("auth soft navigation", () => {
       );
     } finally {
       page.off("request", countAuthProbe);
+    }
+  });
+
+  test("keeps destination chrome during a hard-navigation auth probe", async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(120_000);
+    await openExistingWorkspace(page);
+
+    for (const surface of [
+      {
+        path: ISSUES_PATH,
+        title: "Issues",
+        skeletonTestId: "issues-skeleton",
+        labels: ["Active", "Board", "Status"],
+        loadedTestId: "kanban-board",
+      },
+      {
+        path: `${ISSUES_PATH}/REEF-001`,
+        title: "Issues",
+        skeletonTestId: "issue-detail-skeleton",
+        labels: [
+          "Title",
+          "Description",
+          "Details",
+          "People",
+          "Planning",
+          "Activity",
+        ],
+        loadedTestId: "issue-detail",
+      },
+      {
+        path: `${WORKSPACE}/settings/workspace`,
+        title: "Settings",
+        skeletonTestId: "settings-workspace-skeleton",
+        labels: [
+          "Workspace",
+          "Preferences",
+          "Deployment",
+          "Active Workspace",
+          "General",
+          "Monitored Repositories",
+        ],
+        loadedTestId: "settings-group-workspace",
+      },
+      {
+        path: PLANNING_PATH,
+        title: "Planning",
+        skeletonTestId: "planning-skeleton",
+        labels: ["Sprints", "Name", "Status", "Dates"],
+        loadedText: "Sprint Alpha",
+      },
+      {
+        path: `${WORKSPACE}/my-work`,
+        title: "My Work",
+        skeletonTestId: "my-work-skeleton",
+        labels: ["In progress", "Open work by stage"],
+        loadedTestId: "my-work-page",
+      },
+      {
+        path: `${WORKSPACE}/reports`,
+        title: "Reports",
+        skeletonTestId: "reports-skeleton",
+        labels: ["Period", "Snapshot", "Risk map", "Throughput"],
+        loadedTestId: "reports-page",
+      },
+    ] as const) {
+      await expectAuthPendingSurface(page, request, surface);
     }
   });
 

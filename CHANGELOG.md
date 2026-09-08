@@ -19,6 +19,14 @@ explicitly in the entries below.
   including clipped sprint ranges, release-date precedence, and same-day marker
   stacks with keyboard-accessible details.
 
+### Changed
+
+- **Loading surfaces keep their product chrome visible.** App navigation, issue
+  scopes and views, detail and settings labels, planning tabs and headers, My
+  Work metrics, and report filters and card titles remain in place while values
+  load; unknown data, permissions, and counts stay deferred until their queries
+  resolve.
+
 ## v0.14.1 - 2026-09-04
 
 ### Fixed

@@ -12,6 +12,16 @@ describe("MyWorkPageSkeleton", () => {
       screen.getByRole("heading", { name: "My Work" }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("my-work-skeleton")).toBeInTheDocument();
+    for (const label of [
+      "In progress",
+      "Due soon",
+      "Overdue",
+      "Open work by stage",
+      "What to do next",
+      "By priority · By status",
+    ]) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
   });
 
   it("exposes the body skeleton on its own for the page's in-flight branches", () => {
@@ -60,9 +70,14 @@ describe("MyWorkPageSkeleton", () => {
   it("carries one role=status announcement and hides the decorative body (REEF-281)", () => {
     const { container } = render(<MyWorkSkeleton />);
 
-    // The stat/queue placeholders are decorative — aria-hidden so a screen
-    // reader skips the empty DOM.
-    expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
+    // Placeholder bars are decorative — aria-hidden individually — while fixed
+    // stat and queue labels stay available.
+    expect(
+      container.querySelector('.reef-shimmer[aria-hidden="true"]'),
+    ).not.toBeNull();
+    expect(
+      screen.getByText("Open work by stage").closest('[aria-hidden="true"]'),
+    ).toBeNull();
 
     // The role=status loading announcement is a sibling, not under aria-hidden.
     const status = screen.getByRole("status");

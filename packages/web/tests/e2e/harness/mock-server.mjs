@@ -22,7 +22,10 @@ import {
   issueUpdateKey,
   normalizeScenario,
   publicState,
+  releaseAllIssueUpdateHolds,
+  releaseIssueUpdate,
   rememberCall,
+  setIssueUpdateHold,
 } from "./mock-state.mjs";
 import { sha256 } from "./mock-utils.mjs";
 
@@ -62,6 +65,7 @@ const server = createServer(async (req, res) => {
     }
     if (url.pathname === "/__e2e/reset" && req.method === "POST") {
       const body = await readJson(req);
+      releaseAllIssueUpdateHolds(state);
       state = createState(normalizeScenario(body?.scenario));
       return json(res, 200, { ok: true, scenario: state.scenario });
     }
@@ -114,11 +118,29 @@ const server = createServer(async (req, res) => {
         const delayMs = Math.max(0, Number(update?.delay_ms ?? 0));
         const failures = Math.max(0, Number(update?.failures ?? 0));
         state.issueUpdateDelays.set(key, delayMs);
+        setIssueUpdateHold(state, key, update?.hold === true);
         if (failures > 0) state.issueUpdateFailures.set(key, "once");
         else state.issueUpdateFailures.delete(key);
-        controls.push({ issue_id: issueId, delay_ms: delayMs, failures });
+        controls.push({
+          issue_id: issueId,
+          delay_ms: delayMs,
+          failures,
+          hold: update?.hold === true,
+        });
       }
       return json(res, 200, { ok: true, vault, updates: controls });
+    }
+    if (
+      url.pathname === "/__e2e/issue-update-release" &&
+      req.method === "POST"
+    ) {
+      const body = await readJson(req);
+      const vault = String(body?.vault ?? REEF_VAULT);
+      const issueId = String(body?.issue_id ?? "");
+      const released = issueId
+        ? releaseIssueUpdate(state, issueUpdateKey(vault, issueId))
+        : false;
+      return json(res, 200, { ok: true, released });
     }
     if (
       url.pathname === "/__e2e/issue-reorder-control" &&

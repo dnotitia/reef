@@ -410,6 +410,9 @@ describe("KanbanBoard filtering and rendering", () => {
 
     render(wrap(<KanbanBoard vault="reef-acme" />));
 
+    // The pending board now keeps fixed column headings visible; wait for the
+    // actual DnD surface before asserting loaded zero-count columns.
+    await screen.findByTestId("dnd-context");
     await screen.findByRole("heading", { name: "Todo" });
     expect(screen.queryByTestId("kanban-no-matches")).toBeNull();
     expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull();

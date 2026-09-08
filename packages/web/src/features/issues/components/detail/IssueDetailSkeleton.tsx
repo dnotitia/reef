@@ -1,4 +1,8 @@
+"use client";
+
 import { Skeleton } from "@/components/ui/skeleton";
+import { useFieldNameLabels } from "@/i18n/fieldLabels";
+import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import type { CSSProperties } from "react";
 
@@ -57,6 +61,33 @@ function wave(index: number): WaveStyle {
   return { "--i": index };
 }
 
+/** Keep the real field/section label visible over its reserved label slot. */
+function LabeledSkeleton({
+  label,
+  className,
+  style,
+  labelClassName = "type-detail-section text-muted-foreground",
+}: {
+  label: string;
+  className: string;
+  style?: WaveStyle;
+  labelClassName?: string;
+}) {
+  return (
+    <div className={cn("relative inline-flex min-w-0", className)}>
+      <Skeleton
+        aria-hidden="true"
+        tone="secondary"
+        style={style}
+        className={cn("absolute inset-0", className)}
+      />
+      <span className={cn("relative z-[1] min-w-0 truncate", labelClassName)}>
+        {label}
+      </span>
+    </div>
+  );
+}
+
 /**
  * One rail property row: a fixed-width label gutter and a full-width value,
  * mirroring `IssueFieldRow` (REEF-149) so the placeholder lines up with the
@@ -66,15 +97,20 @@ function wave(index: number): WaveStyle {
  * value the default `primary` tone, pre-encoding the loaded row's emphasis.
  * `index` is the label's sweep position; the value follows one step behind it.
  */
-function RailRowSkeleton({ index }: { index: number }) {
+function RailRowSkeleton({ index, label }: { index: number; label: string }) {
   return (
     <div className="flex min-w-0 items-center gap-2">
-      <Skeleton
-        tone="secondary"
+      <LabeledSkeleton
+        label={label}
         style={wave(index)}
         className="h-3 w-20 shrink-0"
+        labelClassName="text-xs font-medium text-muted-foreground"
       />
-      <Skeleton style={wave(index + 1)} className="h-8 min-w-0 flex-1" />
+      <Skeleton
+        aria-hidden="true"
+        style={wave(index + 1)}
+        className="h-8 min-w-0 flex-1"
+      />
     </div>
   );
 }
@@ -85,21 +121,27 @@ function RailRowSkeleton({ index }: { index: number }) {
  * header's sweep position; each row then spends two indices (label + value).
  */
 function RailSectionSkeleton({
+  title,
   rows,
   startIndex,
 }: {
-  rows: readonly string[];
+  title: string;
+  rows: readonly { key: string; label: string }[];
   startIndex: number;
 }) {
   return (
     <div className="grid gap-3">
-      <Skeleton
-        tone="secondary"
+      <LabeledSkeleton
+        label={title}
         style={wave(startIndex)}
-        className="h-3 w-16"
+        className="h-3 w-20"
       />
       {rows.map((row, k) => (
-        <RailRowSkeleton key={row} index={startIndex + 1 + k * 2} />
+        <RailRowSkeleton
+          key={row.key}
+          label={row.label}
+          index={startIndex + 1 + k * 2}
+        />
       ))}
     </div>
   );
@@ -129,6 +171,36 @@ function RailSectionSkeleton({
  */
 export function IssueDetailSkeleton() {
   const c = useTranslations("common");
+  const sections = useTranslations("sections");
+  const nav = useTranslations("nav");
+  const relations = useTranslations("issues.relations");
+  const refs = useTranslations("issues.refs");
+  const fieldNames = useFieldNameLabels();
+  const detailRows = DETAILS_ROWS.map((key) => ({
+    key,
+    label: fieldNames[key],
+  }));
+  const peopleRows = PEOPLE_ROWS.map((key) => ({
+    key,
+    label: fieldNames[key],
+  }));
+  const planningRows = PLANNING_ROWS.map((key) => ({
+    key,
+    label: fieldNames[key],
+  }));
+  const parentRows = PARENT_ROWS.map((key) => ({
+    key,
+    label: fieldNames[key],
+  }));
+  const relationshipRows = RELATIONSHIP_ROWS.map((key) => ({
+    key,
+    label:
+      key === "depends"
+        ? fieldNames.dependsOn
+        : key === "blocks"
+          ? fieldNames.blocks
+          : fieldNames.related,
+  }));
   // Sweep positions are assigned in DOM (reading) order. The main canvas spends
   // HEADER_SKELETONS..(HEADER_SKELETONS + MAIN_SKELETONS - 1); the rail begins
   // after it. Each rail row spends two indices, so the offsets below are derived
@@ -155,7 +227,7 @@ export function IssueDetailSkeleton() {
       <output className="sr-only">{c("loading")}</output>
       {/* The mirrored panel is all placeholder bars — decorative, so aria-hidden
           keeps assistive tech from walking the empty canvas/rail DOM. */}
-      <div className="flex flex-col gap-5" aria-hidden="true">
+      <div className="flex flex-col gap-5">
         {/* Two-column grid: main canvas + 400px rail (mirrors IssueDetail). The
             identity row is not mirrored — the sheet's persistent chrome bar owns
             it across loading (REEF-286), so the body skeleton opens on the
@@ -165,27 +237,31 @@ export function IssueDetailSkeleton() {
             refs + activity (mirrors IssueDetailMain). */}
           <div className="flex min-w-0 flex-col gap-4">
             <div className="flex flex-col gap-1">
-              <Skeleton
-                tone="secondary"
+              <LabeledSkeleton
+                label={fieldNames.title}
                 style={wave(HEADER_SKELETONS)}
                 className="h-3 w-10"
+                labelClassName="text-xs font-medium text-muted-foreground"
               />
               {/* Title value matches the `Input` height (h-8), not h-9. */}
               <Skeleton
+                aria-hidden="true"
                 style={wave(HEADER_SKELETONS + 1)}
                 className="h-8 w-full"
               />
             </div>
             <div className="flex flex-col gap-1">
-              <Skeleton
-                tone="secondary"
+              <LabeledSkeleton
+                label={fieldNames.description}
                 style={wave(HEADER_SKELETONS + 2)}
                 className="h-3 w-20"
+                labelClassName="text-xs font-medium text-muted-foreground"
               />
               {/* Description value reserves the MarkdownEditor's height: a ~36px
                 toolbar strip over its 320px initial body frame (≈356px), so the
                 editor chunk loading in does not push the sections below down. */}
               <Skeleton
+                aria-hidden="true"
                 style={wave(HEADER_SKELETONS + 3)}
                 className="h-[356px] w-full"
               />
@@ -194,12 +270,13 @@ export function IssueDetailSkeleton() {
             {/* Sub-issues — section header + empty/list row. Consistently
               rendered in the loaded panel, so reserve it here. */}
             <div className="grid gap-3">
-              <Skeleton
-                tone="secondary"
+              <LabeledSkeleton
+                label={relations("subIssues")}
                 style={wave(subIssuesStart)}
                 className="h-3 w-20"
               />
               <Skeleton
+                aria-hidden="true"
                 style={wave(subIssuesStart + 1)}
                 className="h-10 w-full"
               />
@@ -207,12 +284,13 @@ export function IssueDetailSkeleton() {
 
             {/* Linked documents — compact summary block below Sub-issues. */}
             <div className="grid gap-3">
-              <Skeleton
-                tone="secondary"
+              <LabeledSkeleton
+                label={refs("linkedDocuments")}
                 style={wave(linkedDocumentsStart)}
                 className="h-3 w-28"
               />
               <Skeleton
+                aria-hidden="true"
                 style={wave(linkedDocumentsStart + 1)}
                 className="h-10 w-full"
               />
@@ -220,12 +298,16 @@ export function IssueDetailSkeleton() {
 
             {/* External / implementation refs editor summary. */}
             <div className="grid gap-3">
-              <Skeleton
-                tone="secondary"
+              <LabeledSkeleton
+                label={refs("deliveryLinks")}
                 style={wave(refsStart)}
                 className="h-3 w-24"
               />
-              <Skeleton style={wave(refsStart + 1)} className="h-16 w-full" />
+              <Skeleton
+                aria-hidden="true"
+                style={wave(refsStart + 1)}
+                className="h-16 w-full"
+              />
             </div>
 
             {/* Activity timeline + comment composer (REEF-064) — consistently rendered
@@ -233,17 +315,19 @@ export function IssueDetailSkeleton() {
               of event rows under the composer keep the panel from doubling in
               height when it hydrates. */}
             <div className="grid gap-3">
-              <Skeleton
-                tone="secondary"
+              <LabeledSkeleton
+                label={nav("activity")}
                 style={wave(activityStart)}
                 className="h-3 w-20"
               />
               <Skeleton
+                aria-hidden="true"
                 style={wave(activityStart + 1)}
                 className="h-20 w-full"
               />
               {ACTIVITY_ROWS.map((row, k) => (
                 <Skeleton
+                  aria-hidden="true"
                   key={row}
                   style={wave(activityStart + 2 + k)}
                   className="h-12 w-full"
@@ -256,26 +340,42 @@ export function IssueDetailSkeleton() {
             (mirrors IssueDetailSidebar). */}
           <div className="flex min-w-0 flex-col gap-4 border-t border-border-subtle pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
             <RailSectionSkeleton
-              rows={DETAILS_ROWS}
+              title={sections("details")}
+              rows={detailRows}
               startIndex={detailsStart}
             />
             {/* Labels keeps a stacked label-above layout in the loaded rail. */}
             <div className="flex flex-col gap-1">
-              <Skeleton
-                tone="secondary"
+              <LabeledSkeleton
+                label={fieldNames.labels}
                 style={wave(labelsStart)}
                 className="h-3 w-12"
+                labelClassName="text-xs font-medium text-muted-foreground"
               />
-              <Skeleton style={wave(labelsStart + 1)} className="h-9 w-full" />
+              <Skeleton
+                aria-hidden="true"
+                style={wave(labelsStart + 1)}
+                className="h-9 w-full"
+              />
             </div>
-            <RailSectionSkeleton rows={PEOPLE_ROWS} startIndex={peopleStart} />
             <RailSectionSkeleton
-              rows={PLANNING_ROWS}
+              title={sections("people")}
+              rows={peopleRows}
+              startIndex={peopleStart}
+            />
+            <RailSectionSkeleton
+              title={sections("planning")}
+              rows={planningRows}
               startIndex={planningStart}
             />
-            <RailSectionSkeleton rows={PARENT_ROWS} startIndex={parentStart} />
             <RailSectionSkeleton
-              rows={RELATIONSHIP_ROWS}
+              title={fieldNames.parent}
+              rows={parentRows}
+              startIndex={parentStart}
+            />
+            <RailSectionSkeleton
+              title={sections("relationships")}
+              rows={relationshipRows}
               startIndex={relationshipsStart}
             />
           </div>

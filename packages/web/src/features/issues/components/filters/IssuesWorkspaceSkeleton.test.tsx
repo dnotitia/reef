@@ -11,6 +11,15 @@ describe("IssuesWorkspaceSkeleton", () => {
     // the board".
     expect(screen.getByTestId("issues-skeleton")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Issues" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: "Issue scope" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: "Issue view" }),
+    ).toBeInTheDocument();
+    for (const label of ["Status", "Type", "Priority", "Assignee", "Labels"]) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
     expect(screen.getByTestId("issues-skeleton")).toHaveClass("min-w-0");
     expect(screen.getByTestId("board-columns-skeleton")).toHaveClass(
       "min-w-0",
@@ -43,18 +52,19 @@ describe("IssuesWorkspaceSkeleton", () => {
   it("hides the decorative body and announces loading to assistive tech (REEF-281)", () => {
     const { container } = render(<IssuesWorkspaceSkeleton />);
 
-    // The toolbar/board placeholders are decorative — aria-hidden so a screen
-    // reader does not traverse the empty frame.
-    expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
-    // The toolbar lives inside the aria-hidden body…
+    // Placeholder bars are decorative — aria-hidden individually — while the
+    // fixed toolbar labels and board headings stay available.
+    expect(
+      container.querySelector('.reef-shimmer[aria-hidden="true"]'),
+    ).not.toBeNull();
     expect(
       screen
         .getByTestId("issues-skeleton-toolbar")
         .closest('[aria-hidden="true"]'),
-    ).not.toBeNull();
+    ).toBeNull();
 
-    // …but the role=status loading announcement does NOT, so it is still heard,
-    // and the real "Issues" h1 stays a heading (not inside aria-hidden).
+    // The role=status loading announcement is still heard, and the real
+    // "Issues" h1 stays a heading (not inside aria-hidden).
     const status = screen.getByRole("status");
     expect(status).toHaveTextContent("Loading…");
     expect(status.closest('[aria-hidden="true"]')).toBeNull();

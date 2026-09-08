@@ -1,14 +1,14 @@
 "use client";
 
-import { AppShellSkeleton } from "@/components/AppShellSkeleton";
 import { useAuthRedirect } from "@/features/auth/hooks/useAuthRedirect";
 import { useSyncActiveVaultFromUrl } from "@/features/settings/hooks/useActiveVault";
 import { useVaults } from "@/features/settings/hooks/useVaults";
 import { VAULT_NAME_RE } from "@/lib/akb/vaultName";
-import { notFound, useParams } from "next/navigation";
+import { notFound, useParams, usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { DashboardShell } from "./DashboardShell";
 import { WorkspaceAccessDenied } from "./WorkspaceAccessDenied";
+import { WorkspaceAuthPendingSkeleton } from "./WorkspaceAuthPendingSkeleton";
 
 interface WorkspaceGuardProps {
   appVersion: string;
@@ -29,6 +29,7 @@ interface WorkspaceGuardProps {
 export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
   const params = useParams<{ vault: string }>();
   const vault = typeof params.vault === "string" ? params.vault : "";
+  const pathname = usePathname();
 
   // Keep the protected tree unmounted until `/auth/me` confirms the session.
   // Otherwise its parallel queries can consume and clear an account-denial
@@ -55,7 +56,7 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
   useSyncActiveVaultFromUrl(isMember ? vault : "");
 
   if (authStatus !== "active") {
-    return <AppShellSkeleton />;
+    return <WorkspaceAuthPendingSkeleton pathname={pathname} />;
   }
 
   // Keep the access-denied surface outside the dashboard shell so its

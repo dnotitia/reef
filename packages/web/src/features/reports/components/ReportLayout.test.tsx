@@ -32,6 +32,23 @@ describe("ReportsSkeleton", () => {
     expect(
       screen.getByRole("heading", { name: "Breakdown" }),
     ).toBeInTheDocument();
+    for (const label of [
+      "Period",
+      "Scope",
+      "Measure",
+      "Risk map",
+      "Throughput",
+      "Flow metrics",
+      "Delivery forecast",
+      "Pivot",
+      "Workflow",
+      "Deadlines",
+      "By type",
+      "Top assignees",
+      "Top labels",
+    ]) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
   });
 
   it("hides the placeholder clusters but keeps the band headings, and announces loading (REEF-281)", () => {
