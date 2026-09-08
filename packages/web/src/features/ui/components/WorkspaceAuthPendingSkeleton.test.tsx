@@ -37,8 +37,8 @@ describe("WorkspaceAuthPendingSkeleton", () => {
   it("keeps issue detail field and section labels without data controls", () => {
     renderPending("/workspace/reef-e2e/issues/REEF-001");
     const main = within(screen.getByTestId("app-shell-skeleton-main"));
+    const dialog = within(main.getByRole("dialog", { name: "REEF-001" }));
 
-    expect(main.getByRole("heading", { name: "Issues" })).toBeInTheDocument();
     for (const label of [
       "Title",
       "Description",
@@ -48,10 +48,26 @@ describe("WorkspaceAuthPendingSkeleton", () => {
       "Relationships",
       "Activity",
     ]) {
-      expect(main.getAllByText(label).length).toBeGreaterThan(0);
+      expect(dialog.getAllByText(label).length).toBeGreaterThan(0);
     }
     expect(main.queryAllByRole("button")).toHaveLength(0);
     expect(main.queryAllByRole("link")).toHaveLength(0);
+    expect(main.getByTestId("issue-detail-modal")).toHaveAttribute(
+      "role",
+      "dialog",
+    );
+    expect(main.getByTestId("issue-detail-modal")).toHaveAttribute(
+      "aria-modal",
+      "true",
+    );
+    expect(main.getByTestId("issue-detail-modal")).toHaveAttribute(
+      "aria-label",
+      "REEF-001",
+    );
+    expect(main.getByTestId("issues-skeleton").parentElement).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
   });
 
   it("keeps Settings tabs and section labels without loading values", () => {

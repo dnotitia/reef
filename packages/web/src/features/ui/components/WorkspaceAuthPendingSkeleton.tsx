@@ -46,13 +46,18 @@ function IssueDetailAuthPendingSkeleton({
 }) {
   return (
     <div className="relative h-full min-h-0 min-w-0">
-      <IssuesWorkspaceSkeleton searchParams={searchParams} />
+      <div aria-hidden="true" className="h-full">
+        <IssuesWorkspaceSkeleton searchParams={searchParams} />
+      </div>
       <div
         className="fixed inset-0 z-50 bg-foreground/20 backdrop-blur-[2px]"
         aria-hidden="true"
       />
       <div
         data-testid="issue-detail-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={issueId}
         className="issue-detail-sheet fixed inset-y-0 right-0 z-50 flex min-w-0 flex-col overflow-hidden border-l border-border-subtle bg-surface-elevated shadow-xl shadow-foreground/10"
         style={{
           width: "min(94vw, var(--issue-detail-width-default))",
