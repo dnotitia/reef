@@ -356,7 +356,7 @@ export function IssuesWorkspaceSkeleton({
           </div>
         </div>
         {layout === "board" ? (
-          <BoardColumnsSkeleton />
+          <BoardColumnsSkeleton scope={scope} />
         ) : (
           <IssueBodySkeleton layout={layout} />
         )}

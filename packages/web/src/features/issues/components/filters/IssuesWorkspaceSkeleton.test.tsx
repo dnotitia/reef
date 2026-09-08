@@ -75,6 +75,17 @@ describe("IssuesWorkspaceSkeleton", () => {
     );
   });
 
+  it("uses the selected backlog scope for the pending board body", () => {
+    render(<IssuesWorkspaceSkeleton searchParams="scope=backlog&view=board" />);
+
+    expect(
+      screen.getByRole("heading", { name: "Critical" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "In Progress" }),
+    ).not.toBeInTheDocument();
+  });
+
   it.each(["list", "timeline"] as const)(
     "uses a %s body frame for the selected URL view",
     (layout) => {
