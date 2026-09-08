@@ -85,6 +85,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -100,6 +102,10 @@ jobs:
 
       - name: Run workspace package contract and architecture gate
         run: pnpm run check:package-contract
+
+      - name: Run release policy check
+        if: ${{ !cancelled() }}
+        run: pnpm run check:release
 
   typecheck:
     name: TypeScript Typecheck
