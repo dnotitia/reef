@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
   openExistingWorkspace,
   resetFixture,
+  releaseAuthProbe,
   setAkbAccountDenial,
   setAuthControl,
   writeIndexedDbConfig,
@@ -109,8 +110,7 @@ async function expectAuthPendingSurface(
   },
 ): Promise<void> {
   await setAuthControl(request, {
-    probeDelayMs: 3_000,
-    probeDelayOnce: true,
+    probeHold: true,
   });
   await page.goto(surface.path);
 
@@ -163,6 +163,8 @@ async function expectAuthPendingSurface(
     ).toContain(label);
   }
   await expect(page).not.toHaveURL(/\/login(?:\?|$)/);
+  const released = await releaseAuthProbe(request);
+  expect(released).toBeGreaterThan(0);
 
   if (surface.loadedTestId) {
     await expect(page.getByTestId(surface.loadedTestId)).toBeVisible({
@@ -214,6 +216,30 @@ async function waitForPendingLayout(
   // measure an unstyled inline target at x=0 and compare it with the settled
   // header at its real position.
   await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    );
+  });
+}
+
+async function waitForPreHydrationStyles(
+  page: import("@playwright/test").Page,
+): Promise<void> {
+  await page.evaluate(async () => {
+    const stylesheets = [
+      ...document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'),
+    ];
+    await Promise.all(
+      stylesheets.map((link) =>
+        link.sheet
+          ? Promise.resolve()
+          : new Promise<void>((resolve) => {
+              link.addEventListener("load", () => resolve(), { once: true });
+              link.addEventListener("error", () => resolve(), { once: true });
+            }),
+      ),
+    );
     await document.fonts.ready;
     await new Promise<void>((resolve) =>
       requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
@@ -513,10 +539,7 @@ test.describe("auth soft navigation", () => {
     test.setTimeout(120_000);
     await openExistingWorkspace(page);
     await page.setViewportSize({ width: 1280, height: 844 });
-    await setAuthControl(request, {
-      probeDelayMs: 4_000,
-      probeDelayOnce: false,
-    });
+    await setAuthControl(request, { probeHold: true });
 
     await page.goto(`${ISSUES_PATH}?view=board`);
     await expect(page.getByTestId("app-shell-skeleton")).toBeVisible();
@@ -557,6 +580,8 @@ test.describe("auth soft navigation", () => {
       animations: "disabled",
       path: testInfo.outputPath("issue-continuity-pending.png"),
     });
+    const released = await releaseAuthProbe(request);
+    expect(released).toBeGreaterThan(0);
 
     await expect(page.getByTestId("kanban-board")).toBeVisible({
       timeout: 15_000,
@@ -624,14 +649,7 @@ test.describe("auth soft navigation", () => {
         .toBe(true);
 
       for (const surface of surfaces) {
-        await setAuthControl(request, {
-          probeDelayMs: 4_000,
-          // Keep the probe delayed for the whole pending capture. A one-shot
-          // delay can be consumed by a bootstrap probe before the route
-          // skeleton commits, leaving the global target selector to read the
-          // settled tree instead of a real pending tree.
-          probeDelayOnce: false,
-        });
+        await setAuthControl(request, { probeHold: true });
         await page.goto(surface.path);
         await expect(page.getByTestId("app-shell-skeleton")).toBeVisible();
         await waitForPendingLayout(page);
@@ -709,6 +727,8 @@ test.describe("auth soft navigation", () => {
             `continuity-${mode.name}-${surface.name}-pending.png`,
           ),
         });
+        const released = await releaseAuthProbe(request);
+        expect(released).toBeGreaterThan(0);
 
         if ("loadedTestId" in surface) {
           await expect(page.getByTestId(surface.loadedTestId)).toBeVisible({
@@ -853,10 +873,7 @@ test.describe("auth soft navigation", () => {
       await page.emulateMedia({ colorScheme: mode.dark ? "dark" : "light" });
 
       for (const surface of surfaces) {
-        await setAuthControl(request, {
-          probeDelayMs: 4_000,
-          probeDelayOnce: false,
-        });
+        await setAuthControl(request, { probeHold: true });
         const earlyPage = await context.newPage();
         await earlyPage.setViewportSize({ width: mode.width, height: 844 });
         await earlyPage.emulateMedia({
@@ -888,11 +905,13 @@ test.describe("auth soft navigation", () => {
         await expect(
           earlyPage.getByTestId("app-shell-skeleton-main"),
         ).toBeVisible();
+        await waitForPreHydrationStyles(earlyPage);
+        const pendingProbe = earlyPage.waitForRequest(isAuthProbeRequest);
 
         // JavaScript is deliberately held, so this capture is the server HTML
-        // and CSS paint before React hydration can run. Do not wait for fonts
-        // or animation frames here: that would turn this into the later
-        // pending capture used by the ordinary continuity test.
+        // and CSS paint before React hydration can run. The explicit stylesheet,
+        // font, and two-frame boundary above only settles paint; client scripts
+        // remain held so React cannot hydrate this capture.
         const beforeHydration = await earlyPage.evaluate(
           ({ includeScopeRect, selector }) => {
             const html = document.documentElement;
@@ -950,6 +969,7 @@ test.describe("auth soft navigation", () => {
 
         holdScripts = false;
         for (const release of scriptReleaseWaiters.splice(0)) release();
+        await pendingProbe;
 
         let themeAppliedPending: {
           darkClass: boolean;
@@ -987,6 +1007,9 @@ test.describe("auth soft navigation", () => {
         } else {
           expect(themeAppliedPending).toBeNull();
         }
+
+        const released = await releaseAuthProbe(request);
+        expect(released).toBeGreaterThan(0);
 
         if ("loadedTestId" in surface) {
           await expect(earlyPage.getByTestId(surface.loadedTestId)).toBeVisible(
