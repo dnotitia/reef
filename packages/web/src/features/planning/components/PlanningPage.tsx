@@ -264,6 +264,7 @@ export function PlanningPage() {
           issueState={rolloverIssueState}
           now={hydrated ? Date.now() : null}
           canEdit={access.canEditWorkspace}
+          priority={rolloverResumes.length > 0 ? "secondary" : "primary"}
           onOpen={openRollover}
         />
         <div

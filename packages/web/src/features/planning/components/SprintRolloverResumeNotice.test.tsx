@@ -35,6 +35,10 @@ describe("SprintRolloverResumeNotice", () => {
     });
 
     expect(action).toBeDisabled();
+    expect(
+      screen.getByText("Edit access is required to resume this rollover."),
+    ).toBeVisible();
+    expect(screen.getByText("Sprint 14")).toBeVisible();
     await user.click(action);
     expect(onOpen).not.toHaveBeenCalled();
   });
@@ -46,6 +50,8 @@ describe("SprintRolloverResumeNotice", () => {
       name: "Resume Sprint 14 rollover",
     });
 
+    expect(screen.getByText("Resume rollover")).toBeVisible();
+    expect(screen.getByText("Sprint 14")).toBeVisible();
     await user.click(action);
     expect(onOpen).toHaveBeenCalledWith(RESUME);
   });

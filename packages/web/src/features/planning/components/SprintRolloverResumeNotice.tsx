@@ -20,32 +20,44 @@ export function SprintRolloverResumeNotice({
     <section
       data-testid="sprint-rollover-resume-notice"
       role="status"
-      className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-status-in-progress-focus/40 bg-status-in-progress-fill/5 px-3 py-2.5"
+      className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-brand-focus/35 bg-brand-fill/[0.04] px-3 py-2.5"
     >
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-foreground">
+      <div className="min-w-0 flex-1">
+        <p className="type-body font-medium text-foreground">
           {translate("resumeTitle")}
         </p>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          {translate("resumeDescription")}
+        <p className="mt-0.5 type-caption text-muted-foreground">
+          {translate(canEdit ? "resumeDescription" : "resumeReaderDescription")}
         </p>
-      </div>
-      <div className="flex w-full shrink-0 flex-wrap gap-2 sm:w-auto">
-        {resumes.map((resume) => (
-          <Button
-            key={resume.result.source_sprint_id}
-            type="button"
-            size="sm"
-            className="w-full sm:w-auto"
-            disabled={!canEdit}
-            aria-disabled={!canEdit || undefined}
-            onClick={() => onOpen(resume)}
-          >
-            {translate("resumeAction", {
-              name: resume.result.source_sprint.name,
-            })}
-          </Button>
-        ))}
+        <div className="mt-2 grid gap-2">
+          {resumes.map((resume) => (
+            <div
+              key={resume.result.source_sprint_id}
+              className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <span
+                data-testid="sprint-rollover-resume-source"
+                className="min-w-0 truncate type-control font-medium text-foreground"
+              >
+                {resume.result.source_sprint.name}
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="brand"
+                className="w-full sm:w-auto"
+                disabled={!canEdit}
+                aria-disabled={!canEdit || undefined}
+                aria-label={translate("resumeActionLabel", {
+                  name: resume.result.source_sprint.name,
+                })}
+                onClick={() => onOpen(resume)}
+              >
+                {translate("resumeAction")}
+              </Button>
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );

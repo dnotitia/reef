@@ -182,10 +182,12 @@ describe("SprintRolloverDialog", () => {
   it("shows the candidate preview and UTC-derived new-target defaults", () => {
     renderDialog();
 
-    const preview = screen.getByRole("region", { name: "Before you confirm" });
+    const preview = screen.getByRole("region", { name: "Rollover summary" });
     expect(
       within(preview).getByText("Unfinished issues to move"),
     ).toBeVisible();
+    expect(within(preview).getByText("Done issues stay")).toBeVisible();
+    expect(within(preview).getByText("Closed issues stay")).toBeVisible();
     expect(within(preview).getAllByRole("definition")[0]).toHaveTextContent(
       "1",
     );
@@ -198,6 +200,13 @@ describe("SprintRolloverDialog", () => {
     expect(screen.getByText("Current sprint end")).toBeVisible();
     expect(screen.getByText("Next sprint start")).toBeVisible();
     expect(screen.getByText("Next sprint end")).toBeVisible();
+    expect(screen.getByTestId("sprint-rollover-header-close")).toHaveAttribute(
+      "aria-label",
+      "Close",
+    );
+    expect(screen.getByTestId("sprint-rollover-header-close")).toHaveClass(
+      "text-muted-foreground",
+    );
     expect(screen.getByLabelText("New sprint start")).toHaveValue("2026-09-12");
     expect(screen.getByLabelText("New sprint end")).toHaveValue("2026-09-19");
   });
@@ -353,7 +362,11 @@ describe("SprintRolloverDialog", () => {
       target: { kind: "existing", id: TARGET_ID },
     });
     expect(screen.getByTestId("sprint-rollover-complete")).toBeVisible();
-    expect(screen.queryByText("Before you confirm")).toBeNull();
+    expect(
+      screen.getByRole("heading", { name: "Rollover complete" }),
+    ).toBeVisible();
+    expect(screen.getByText("The sprint is closed.")).toBeVisible();
+    expect(screen.queryByText("Rollover summary")).toBeNull();
     expect(screen.queryByTestId("sprint-rollover-target-name")).toBeNull();
     expect(screen.queryByTestId("sprint-rollover-result")).toBeNull();
     expect(
@@ -386,12 +399,14 @@ describe("SprintRolloverDialog", () => {
     );
 
     expect(screen.getByTestId("sprint-rollover-result")).toBeVisible();
-    expect(screen.getByLabelText("Close date")).toHaveValue("2026-09-11");
-    expect(screen.getByTestId("sprint-rollover-existing-target")).toHaveValue(
-      TARGET_ID,
-    );
-    expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    const targetSummary = screen.getByTestId("sprint-rollover-target-summary");
+    expect(targetSummary).toHaveTextContent("Destination sprint");
+    expect(targetSummary).toHaveTextContent("Sprint 15");
+    expect(targetSummary).toHaveTextContent("Sprint dates");
+    expect(targetSummary).toHaveTextContent("2026-09-12 – 2026-09-19");
+    expect(screen.queryByTestId("sprint-rollover-target-name")).toBeNull();
+    expect(screen.getByTestId("sprint-rollover-close")).toBeEnabled();
+    await user.click(screen.getByTestId("sprint-rollover-close"));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
@@ -419,11 +434,10 @@ describe("SprintRolloverDialog", () => {
     const user = userEvent.setup();
     renderDialog(vi.fn(), "en", savedResume.result.source_sprint, savedResume);
 
-    expect(screen.getByTestId("sprint-rollover-target-name")).toHaveValue(
-      "Recovered Sprint",
-    );
-    expect(screen.getByLabelText("New sprint start")).toHaveValue("2026-09-12");
-    expect(screen.getByLabelText("New sprint end")).toHaveValue("2026-09-19");
+    expect(
+      screen.getByTestId("sprint-rollover-target-summary"),
+    ).toHaveTextContent("Recovered Sprint");
+    expect(screen.queryByTestId("sprint-rollover-target-name")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Retry rollover" }));
     expect(mutateAsync).toHaveBeenCalledWith({
       sourceSprintId: SOURCE_ID,
@@ -484,8 +498,13 @@ describe("SprintRolloverDialog", () => {
     );
     await user.click(screen.getByTestId("sprint-rollover-submit"));
     expect(screen.getByTestId("sprint-rollover-result")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Close" })).toBeVisible();
+    expect(
+      screen.getByTestId("sprint-rollover-result-counts"),
+    ).toHaveTextContent("Failed1");
+    expect(
+      screen.getByTestId("sprint-rollover-issue-reasons"),
+    ).toHaveTextContent("REEF-001");
+    expect(screen.getByTestId("sprint-rollover-close")).toBeEnabled();
     const targetLink = screen.getByTestId("sprint-rollover-target-link");
     expect(targetLink).toBeVisible();
     targetLink.addEventListener("click", (event) => event.preventDefault(), {
@@ -535,7 +554,10 @@ describe("SprintRolloverDialog", () => {
     );
     await user.click(screen.getByTestId("sprint-rollover-submit"));
     expect(screen.getByTestId("sprint-rollover-result")).toBeVisible();
-    expect(screen.getByTestId("sprint-rollover-target-name")).toBeDisabled();
+    expect(screen.queryByTestId("sprint-rollover-target-name")).toBeNull();
+    expect(
+      screen.getByTestId("sprint-rollover-target-summary"),
+    ).toHaveTextContent("Unique Sprint");
 
     await user.click(screen.getByRole("button", { name: "Retry rollover" }));
     expect(mutateAsync).toHaveBeenNthCalledWith(2, {
@@ -562,7 +584,7 @@ describe("SprintRolloverDialog", () => {
 
     expect(screen.getByTestId("sprint-rollover-dialog")).toBeVisible();
     expect(
-      screen.getByRole("heading", { name: "Close Sprint 14 & roll over" }),
+      screen.getByRole("heading", { name: "Close Sprint 14 and roll over" }),
     ).toBeVisible();
   });
 });

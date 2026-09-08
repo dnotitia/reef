@@ -4,6 +4,7 @@ import { DatePickerField } from "@/components/fields/DatePickerField";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -26,7 +27,7 @@ import {
 } from "@reef/core";
 import { useTranslations } from "next-intl";
 import { useEffect, useId, useRef, useState } from "react";
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, X } from "lucide-react";
 import { sprintDetailHref } from "../lib/planningUrls";
 import {
   useCloseSprintAndRollover,
@@ -103,11 +104,19 @@ function FieldError({ id, children }: { id: string; children: string }) {
     <p
       id={id}
       role="alert"
-      className="text-xs text-destructive-text"
+      className="min-h-4 type-caption text-destructive-text"
       data-testid={id}
     >
       {children}
     </p>
+  );
+}
+
+function FieldErrorSlot({ id, message }: { id: string; message?: string }) {
+  return message ? (
+    <FieldError id={id}>{message}</FieldError>
+  ) : (
+    <span aria-hidden="true" className="block min-h-4" />
   );
 }
 
@@ -127,7 +136,7 @@ function CompletedRolloverSummary({
     <section
       data-testid="sprint-rollover-complete"
       role="status"
-      className="grid gap-5 rounded-lg border border-status-done-focus/40 bg-status-done-fill/5 p-4 sm:p-5"
+      className="grid gap-4 rounded-lg border border-status-done-focus/40 bg-status-done-fill/5 p-4 sm:p-5"
     >
       <div className="flex items-center gap-3">
         <CheckCircle2
@@ -136,7 +145,7 @@ function CompletedRolloverSummary({
         />
         <p
           data-testid="sprint-rollover-completed-count"
-          className="text-lg font-semibold text-status-done-text"
+          className="type-body font-semibold text-status-done-text"
         >
           {translate("completedMoved", { count: result.counts.moved })}
         </p>
@@ -145,39 +154,39 @@ function CompletedRolloverSummary({
       <div className="grid gap-3 border-y border-status-done-focus/20 py-3">
         <div
           data-testid="sprint-rollover-completed-route"
-          className="grid min-w-0 gap-1.5 text-sm font-medium text-foreground sm:flex sm:items-center sm:gap-2"
+          className="flex min-w-0 flex-wrap items-center gap-2 type-control font-medium text-foreground"
         >
           <span className="min-w-0 break-words">
             {result.source_sprint.name}
           </span>
           <ArrowRight
             aria-hidden="true"
-            className="size-4 shrink-0 rotate-90 text-muted-foreground sm:rotate-0"
+            className="size-4 shrink-0 text-muted-foreground"
           />
-          <span className="min-w-0 break-words">{target?.name ?? "—"}</span>
+          {target ? (
+            <a
+              data-testid="sprint-rollover-target-link"
+              href={sprintDetailHref(vault, target.id)}
+              aria-label={translate("openCompletedTarget", {
+                name: target.name,
+              })}
+              className="min-w-0 max-w-full truncate type-control font-medium text-brand-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus [@media(pointer:coarse)]:min-h-11"
+            >
+              {target.name}
+            </a>
+          ) : (
+            <span className="min-w-0 break-words">—</span>
+          )}
         </div>
-        <dl className="grid gap-1 text-xs text-muted-foreground">
-          <div className="flex items-center justify-between gap-3">
-            <dt>{translate("confirmedCloseDate")}</dt>
-            <dd className="font-mono tabular-nums text-foreground">
-              <time dateTime={closeDate === "—" ? undefined : closeDate}>
-                {closeDate}
-              </time>
-            </dd>
-          </div>
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1 type-caption text-muted-foreground">
+          <dt>{translate("confirmedCloseDate")}</dt>
+          <dd className="type-mono-value tabular-nums text-foreground">
+            <time dateTime={closeDate === "—" ? undefined : closeDate}>
+              {closeDate}
+            </time>
+          </dd>
         </dl>
       </div>
-
-      {target ? (
-        <a
-          data-testid="sprint-rollover-target-link"
-          href={sprintDetailHref(vault, target.id)}
-          aria-label={translate("openCompletedTarget", { name: target.name })}
-          className="type-control inline-flex min-h-8 w-fit max-w-full items-center rounded-md font-medium text-brand-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus [@media(pointer:coarse)]:min-h-11"
-        >
-          <span className="truncate">{target.name}</span>
-        </a>
-      ) : null}
     </section>
   );
 }
@@ -198,7 +207,7 @@ function PhaseSummary({
   return (
     <ul
       data-testid="sprint-rollover-phases"
-      className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2"
+      className="grid gap-1.5 type-caption text-muted-foreground sm:grid-cols-2"
     >
       {phases.map(([phase, labelKey]) => {
         const status = result.phases[phase];
@@ -224,6 +233,223 @@ function PhaseSummary({
         );
       })}
     </ul>
+  );
+}
+
+function savedTargetDetails(
+  result: SprintRolloverResult,
+  retryTarget: SprintRolloverTarget | null,
+  catalog: PlanningCatalog | undefined,
+): {
+  id?: string;
+  name: string;
+  startDate?: string | null;
+  endDate?: string | null;
+} | null {
+  if (result.target_sprint) {
+    return {
+      id: result.target_sprint.id,
+      name: result.target_sprint.name,
+      startDate: result.target_sprint.start_date,
+      endDate: result.target_sprint.end_date,
+    };
+  }
+  if (retryTarget?.kind === "new") {
+    return {
+      name: retryTarget.item.name,
+      startDate: retryTarget.item.start_date,
+      endDate: retryTarget.item.end_date,
+    };
+  }
+  if (retryTarget?.kind === "existing") {
+    const target = catalog?.sprints.find((item) => item.id === retryTarget.id);
+    if (target) {
+      return {
+        id: target.id,
+        name: target.name,
+        startDate: target.start_date,
+        endDate: target.end_date,
+      };
+    }
+  }
+  return null;
+}
+
+function formatDateRange(
+  startDate: string | null | undefined,
+  endDate: string | null | undefined,
+): string {
+  const start = toUtcCalendarDate(startDate);
+  const end = toUtcCalendarDate(endDate);
+  return start && end ? `${start} – ${end}` : "—";
+}
+
+function RolloverTargetSummary({
+  result,
+  retryTarget,
+  catalog,
+  vault,
+  translate,
+  onOpenChange,
+}: {
+  result: SprintRolloverResult;
+  retryTarget: SprintRolloverTarget | null;
+  catalog: PlanningCatalog | undefined;
+  vault: string;
+  translate: (key: string, values?: Record<string, string | number>) => string;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const target = savedTargetDetails(result, retryTarget, catalog);
+  const closeDate = toUtcCalendarDate(result.source_sprint.end_date) ?? "—";
+  return (
+    <dl
+      data-testid="sprint-rollover-target-summary"
+      className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1.5 border-t border-border-subtle pt-3 type-caption text-muted-foreground"
+    >
+      <dt>{translate("destinationSprint")}</dt>
+      <dd className="min-w-0">
+        {target?.id ? (
+          <a
+            data-testid="sprint-rollover-target-link"
+            href={sprintDetailHref(vault, target.id)}
+            aria-label={translate("openCompletedTarget", {
+              name: target.name,
+            })}
+            onClick={() => onOpenChange(false)}
+            className="block min-w-0 max-w-full truncate type-control font-medium text-brand-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
+          >
+            {target.name}
+          </a>
+        ) : (
+          <span className="type-control text-foreground">
+            {target?.name ?? "—"}
+          </span>
+        )}
+      </dd>
+      <dt>{translate("targetDates")}</dt>
+      <dd className="type-mono-value tabular-nums text-foreground">
+        {formatDateRange(target?.startDate, target?.endDate)}
+      </dd>
+      <dt>{translate("confirmedCloseDate")}</dt>
+      <dd className="type-mono-value tabular-nums text-foreground">
+        {closeDate}
+      </dd>
+    </dl>
+  );
+}
+
+function ResultCount({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "default" | "muted" | "success" | "error";
+}) {
+  const valueClass =
+    tone === "error"
+      ? "text-destructive-text"
+      : tone === "success"
+        ? "text-status-done-text"
+        : tone === "muted"
+          ? "text-muted-foreground"
+          : "text-foreground";
+  return (
+    <div className="grid min-w-0 gap-0.5">
+      <dt className="type-caption text-muted-foreground">{label}</dt>
+      <dd className={`type-body font-medium tabular-nums ${valueClass}`}>
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+function PartialRolloverSummary({
+  result,
+  retryTarget,
+  catalog,
+  vault,
+  translate,
+  onOpenChange,
+}: {
+  result: SprintRolloverResult;
+  retryTarget: SprintRolloverTarget | null;
+  catalog: PlanningCatalog | undefined;
+  vault: string;
+  translate: (key: string, values?: Record<string, string | number>) => string;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const phase = result.phase_errors[0]?.phase;
+  const titleKey = phase ? `phaseErrors.${phase}` : "partialTitle";
+  return (
+    <section
+      data-testid="sprint-rollover-result"
+      role="alert"
+      className="grid gap-4 rounded-lg border border-status-in-progress-focus/40 bg-status-in-progress-fill/5 p-3 sm:p-4"
+    >
+      <div className="grid gap-1">
+        <h2 className="type-body font-semibold text-foreground">
+          {translate(titleKey)}
+        </h2>
+        <p className="type-body text-muted-foreground">
+          {translate(phase ? "phaseFailureDescription" : "partialDescription")}
+        </p>
+      </div>
+
+      <PhaseSummary result={result} translate={translate} />
+
+      <dl
+        data-testid="sprint-rollover-result-counts"
+        className="grid grid-cols-2 gap-x-4 gap-y-2 border-y border-border-subtle py-3 sm:grid-cols-4"
+      >
+        <ResultCount
+          label={translate("movedLabel")}
+          value={result.counts.moved}
+          tone="success"
+        />
+        <ResultCount
+          label={translate("skippedLabel")}
+          value={result.counts.skipped}
+          tone="muted"
+        />
+        <ResultCount
+          label={translate("failedLabel")}
+          value={result.counts.failed}
+          tone="error"
+        />
+        <ResultCount
+          label={translate("conflictsLabel")}
+          value={result.counts.conflicts}
+          tone="error"
+        />
+      </dl>
+
+      {result.issue_results.some((item) => item.reason) ? (
+        <ul
+          data-testid="sprint-rollover-issue-reasons"
+          className="grid gap-1.5 border-t border-border-subtle pt-3 type-control text-muted-foreground"
+        >
+          {result.issue_results
+            .filter((item) => item.reason)
+            .map((item) => (
+              <li key={item.id}>
+                <span className="font-mono text-foreground">{item.id}</span>:{" "}
+                {reasonText(translate, item.reason)}
+              </li>
+            ))}
+        </ul>
+      ) : null}
+
+      <RolloverTargetSummary
+        result={result}
+        retryTarget={retryTarget}
+        catalog={catalog}
+        vault={vault}
+        translate={translate}
+        onOpenChange={onOpenChange}
+      />
+    </section>
   );
 }
 
@@ -491,6 +717,7 @@ export function SprintRolloverDialog({
     >
       <DialogContent
         data-testid="sprint-rollover-dialog"
+        showCloseButton={false}
         className="grid max-h-[calc(100dvh-2rem)] min-h-0 max-w-2xl grid-rows-[auto_minmax(0,1fr)_auto] gap-5 overflow-hidden pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
         onInteractOutside={(event) => {
           if (isBusy) event.preventDefault();
@@ -499,13 +726,28 @@ export function SprintRolloverDialog({
           if (isBusy) event.preventDefault();
         }}
       >
-        <DialogHeader className="pr-8 sm:pr-0">
-          <DialogTitle className="min-w-0 break-words">
-            {completed
-              ? translate(result?.no_op ? "noOp" : "completedTitle")
-              : translate("dialogTitle", { name: dialogSource.name })}
-          </DialogTitle>
-          <DialogDescription>
+        <DialogHeader className="gap-2 text-left">
+          <div className="flex min-w-0 items-start gap-2">
+            <DialogTitle className="min-w-0 flex-1 break-words text-left leading-6 [overflow-wrap:anywhere]">
+              {completed
+                ? translate(result?.no_op ? "noOp" : "completedTitle")
+                : translate("dialogTitle", { name: dialogSource.name })}
+            </DialogTitle>
+            <DialogClose asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                hitTarget="coarse"
+                data-testid="sprint-rollover-header-close"
+                aria-label={common("close")}
+                className="-mt-0.5 shrink-0 text-muted-foreground hover:text-foreground [@media(pointer:coarse)]:-mt-2.5"
+              >
+                <X aria-hidden="true" className="size-4" />
+              </Button>
+            </DialogClose>
+          </div>
+          <DialogDescription className="type-body text-left">
             {completed
               ? translate("completedDescription")
               : translate("dialogDescription")}
@@ -519,6 +761,15 @@ export function SprintRolloverDialog({
               vault={vault}
               translate={translate}
             />
+          ) : showResult && result ? (
+            <PartialRolloverSummary
+              result={result}
+              retryTarget={retryTarget}
+              catalog={catalog}
+              vault={vault}
+              translate={translate}
+              onOpenChange={onOpenChange}
+            />
           ) : (
             <div className="grid gap-4">
               <section
@@ -527,17 +778,17 @@ export function SprintRolloverDialog({
               >
                 <h2
                   id="sprint-rollover-preview"
-                  className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                  className="type-caption font-medium text-muted-foreground"
                 >
                   {translate("preview")}
                 </h2>
                 {issueState === "loading" ? (
-                  <p className="mt-2 text-sm text-muted-foreground">
+                  <p className="mt-2 type-body text-muted-foreground">
                     {translate("issuesLoading")}
                   </p>
                 ) : issueState === "error" || !preview ? (
                   <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                    <p role="alert" className="text-sm text-destructive-text">
+                    <p role="alert" className="type-body text-destructive-text">
                       {translate("issuesUnavailable")}
                     </p>
                     {onRetryIssues ? (
@@ -552,7 +803,7 @@ export function SprintRolloverDialog({
                     ) : null}
                   </div>
                 ) : (
-                  <div className="mt-3 grid gap-3">
+                  <div className="mt-2 grid gap-2">
                     <dl className="grid gap-2">
                       <PreviewCount
                         label={translate("eligible")}
@@ -560,7 +811,7 @@ export function SprintRolloverDialog({
                         strong
                         featured
                       />
-                      <div className="grid grid-cols-2 divide-x divide-border-subtle border-t border-border-subtle pt-2">
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 border-t border-border-subtle pt-2">
                         <PreviewCount
                           label={translate("doneShort")}
                           value={preview.done}
@@ -572,16 +823,16 @@ export function SprintRolloverDialog({
                           stacked
                         />
                       </div>
-                    </dl>
-                    <dl className="grid grid-cols-2 gap-x-4 gap-y-1 border-t border-border-subtle pt-2 text-xs text-muted-foreground">
-                      <PreviewCount
-                        label={translate("backlogExcluded")}
-                        value={preview.backlog}
-                      />
-                      <PreviewCount
-                        label={translate("archivedExcluded")}
-                        value={preview.archived}
-                      />
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-0.5">
+                        <PreviewCount
+                          label={translate("backlogExcluded")}
+                          value={preview.backlog}
+                        />
+                        <PreviewCount
+                          label={translate("archivedExcluded")}
+                          value={preview.archived}
+                        />
+                      </div>
                     </dl>
                   </div>
                 )}
@@ -591,7 +842,7 @@ export function SprintRolloverDialog({
                 <div className="grid gap-1.5">
                   <label
                     htmlFor={sourceEndInputId}
-                    className="text-xs font-medium text-muted-foreground"
+                    className="type-caption font-medium text-muted-foreground"
                   >
                     {translate("sourceEndLabel")}
                   </label>
@@ -619,18 +870,17 @@ export function SprintRolloverDialog({
                     }
                     ariaInvalid={Boolean(fieldErrors.sourceEnd)}
                     ariaRequired
-                    triggerClassName="[@media(pointer:coarse)]:min-h-11 disabled:cursor-not-allowed"
+                    triggerClassName="aria-invalid:border-destructive-focus aria-invalid:ring-2 aria-invalid:ring-destructive-focus/30 [@media(pointer:coarse)]:min-h-11 disabled:cursor-not-allowed"
                     disabled={isBusy || retryLocked}
                     clearable={false}
                   />
-                  {fieldErrors.sourceEnd ? (
-                    <FieldError id={sourceEndErrorId}>
-                      {fieldErrors.sourceEnd}
-                    </FieldError>
-                  ) : null}
+                  <FieldErrorSlot
+                    id={sourceEndErrorId}
+                    message={fieldErrors.sourceEnd}
+                  />
                 </div>
                 <fieldset className="grid gap-2">
-                  <legend className="text-xs font-medium text-muted-foreground">
+                  <legend className="type-caption font-medium text-muted-foreground">
                     {translate("targetChoice")}
                   </legend>
                   <div className="grid gap-2 sm:grid-cols-2">
@@ -644,7 +894,7 @@ export function SprintRolloverDialog({
                           clearValidationErrors();
                         }}
                         disabled={isBusy || retryLocked}
-                        className="whitespace-nowrap rounded-md border border-border-subtle px-3 py-2 text-left text-sm transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus active:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50 aria-pressed:border-brand-focus aria-pressed:bg-brand-fill/[0.06] [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11"
+                        className="whitespace-nowrap rounded-md border border-border-subtle px-3 py-2 text-left type-control transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus active:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50 aria-pressed:border-brand-focus aria-pressed:bg-brand-fill/[0.06] [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11"
                       >
                         {translate(TARGET_MODE_KEYS[mode])}
                       </button>
@@ -656,7 +906,7 @@ export function SprintRolloverDialog({
                   <div className="grid gap-1.5">
                     <label
                       htmlFor={existingTargetInputId}
-                      className="text-xs font-medium text-muted-foreground"
+                      className="type-caption font-medium text-muted-foreground"
                     >
                       {translate("targetChoice")}
                     </label>
@@ -676,7 +926,7 @@ export function SprintRolloverDialog({
                       aria-invalid={Boolean(fieldErrors.existingTarget)}
                       aria-required
                       disabled={isBusy || retryLocked}
-                      className="h-8 rounded-md border border-border bg-surface-elevated px-2 text-sm text-foreground focus:border-brand-focus focus:outline-none focus:ring-2 focus:ring-brand-focus disabled:cursor-not-allowed disabled:opacity-50 [@media(pointer:coarse)]:min-h-11"
+                      className="h-8 rounded-md border border-border bg-surface-elevated px-2 type-control text-foreground focus:border-brand-focus focus:outline-none focus:ring-2 focus:ring-brand-focus aria-invalid:border-destructive-focus aria-invalid:ring-2 aria-invalid:ring-destructive-focus/30 disabled:cursor-not-allowed disabled:opacity-50 [@media(pointer:coarse)]:min-h-11"
                     >
                       <option value="">{translate("chooseTarget")}</option>
                       {plannedTargets.map((item) => (
@@ -686,23 +936,24 @@ export function SprintRolloverDialog({
                       ))}
                     </select>
                     {targetId ? (
-                      <span className="text-muted-foreground">
+                      <span className="type-caption text-muted-foreground">
                         {translate("targetDates")}:{" "}
-                        {formatTargetDates(plannedTargets, targetId)}
+                        <span className="font-mono tabular-nums">
+                          {formatTargetDates(plannedTargets, targetId)}
+                        </span>
                       </span>
                     ) : null}
-                    {fieldErrors.existingTarget ? (
-                      <FieldError id={existingTargetErrorId}>
-                        {fieldErrors.existingTarget}
-                      </FieldError>
-                    ) : null}
+                    <FieldErrorSlot
+                      id={existingTargetErrorId}
+                      message={fieldErrors.existingTarget}
+                    />
                   </div>
                 ) : (
-                  <div className="grid gap-3 rounded-md border border-border-subtle p-3">
+                  <div className="grid gap-3">
                     <div className="grid gap-1.5">
                       <label
                         htmlFor={targetNameInputId}
-                        className="text-xs font-medium text-muted-foreground"
+                        className="type-caption font-medium text-muted-foreground"
                       >
                         {translate("targetName")}
                       </label>
@@ -720,19 +971,18 @@ export function SprintRolloverDialog({
                         aria-invalid={Boolean(fieldErrors.targetName)}
                         aria-required
                         disabled={isBusy || retryLocked}
-                        className="[@media(pointer:coarse)]:min-h-11 disabled:cursor-not-allowed"
+                        className="aria-invalid:border-destructive-focus aria-invalid:ring-2 aria-invalid:ring-destructive-focus/30 [@media(pointer:coarse)]:min-h-11 disabled:cursor-not-allowed"
                       />
-                      {fieldErrors.targetName ? (
-                        <FieldError id={targetNameErrorId}>
-                          {fieldErrors.targetName}
-                        </FieldError>
-                      ) : null}
+                      <FieldErrorSlot
+                        id={targetNameErrorId}
+                        message={fieldErrors.targetName}
+                      />
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="grid gap-1.5">
                         <label
                           htmlFor={targetStartInputId}
-                          className="text-xs font-medium text-muted-foreground"
+                          className="type-caption font-medium text-muted-foreground"
                         >
                           {translate("targetStartLabel")}
                         </label>
@@ -752,20 +1002,19 @@ export function SprintRolloverDialog({
                           }
                           ariaInvalid={Boolean(fieldErrors.targetStart)}
                           ariaRequired
-                          triggerClassName="[@media(pointer:coarse)]:min-h-11 disabled:cursor-not-allowed"
+                          triggerClassName="aria-invalid:border-destructive-focus aria-invalid:ring-2 aria-invalid:ring-destructive-focus/30 [@media(pointer:coarse)]:min-h-11 disabled:cursor-not-allowed"
                           disabled={isBusy || retryLocked}
                           clearable={false}
                         />
-                        {fieldErrors.targetStart ? (
-                          <FieldError id={targetStartErrorId}>
-                            {fieldErrors.targetStart}
-                          </FieldError>
-                        ) : null}
+                        <FieldErrorSlot
+                          id={targetStartErrorId}
+                          message={fieldErrors.targetStart}
+                        />
                       </div>
                       <div className="grid gap-1.5">
                         <label
                           htmlFor={targetEndInputId}
-                          className="text-xs font-medium text-muted-foreground"
+                          className="type-caption font-medium text-muted-foreground"
                         >
                           {translate("targetEndLabel")}
                         </label>
@@ -783,112 +1032,26 @@ export function SprintRolloverDialog({
                           }
                           ariaInvalid={Boolean(fieldErrors.targetEnd)}
                           ariaRequired
-                          triggerClassName="[@media(pointer:coarse)]:min-h-11 disabled:cursor-not-allowed"
+                          triggerClassName="aria-invalid:border-destructive-focus aria-invalid:ring-2 aria-invalid:ring-destructive-focus/30 [@media(pointer:coarse)]:min-h-11 disabled:cursor-not-allowed"
                           disabled={isBusy || retryLocked}
                           clearable={false}
                           align="end"
                         />
-                        {fieldErrors.targetEnd ? (
-                          <FieldError id={targetEndErrorId}>
-                            {fieldErrors.targetEnd}
-                          </FieldError>
-                        ) : null}
+                        <FieldErrorSlot
+                          id={targetEndErrorId}
+                          message={fieldErrors.targetEnd}
+                        />
                       </div>
                     </div>
                   </div>
                 )}
               </div>
 
-              {showResult ? (
-                <section
-                  data-testid="sprint-rollover-result"
-                  role="alert"
-                  className="grid gap-3 rounded-md border border-status-in-progress-focus/40 bg-status-in-progress-fill/5 p-3"
-                >
-                  <div>
-                    <h2 className="text-sm font-semibold text-foreground">
-                      {translate("partialTitle")}
-                    </h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {translate("partialDescription")}
-                    </p>
-                  </div>
-                  <PhaseSummary result={result} translate={translate} />
-                  {result.phase_errors.length > 0 ? (
-                    <ul
-                      data-testid="sprint-rollover-phase-errors"
-                      className="grid gap-1 text-xs text-destructive-text"
-                    >
-                      {result.phase_errors.map((error) => (
-                        <li key={`${error.phase}:${error.reason}`}>
-                          {phaseLabel(translate, error.phase)}:{" "}
-                          {translate("phaseFailed")}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                    <span>
-                      {translate("moved", { count: result.counts.moved })}
-                    </span>
-                    <span>
-                      {translate("skipped", { count: result.counts.skipped })}
-                    </span>
-                    <span>
-                      {translate("failed", { count: result.counts.failed })}
-                    </span>
-                    <span>
-                      {translate("conflicts", {
-                        count: result.counts.conflicts,
-                      })}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                    <span>
-                      {translate("doneRemain")}: {result.counts.done}
-                    </span>
-                    <span>
-                      {translate("closedRemain")}: {result.counts.closed}
-                    </span>
-                    <span>
-                      {translate("backlogExcluded")}: {result.counts.backlog}
-                    </span>
-                    <span>
-                      {translate("archivedExcluded")}: {result.counts.archived}
-                    </span>
-                  </div>
-                  {result.target_sprint ? (
-                    <a
-                      data-testid="sprint-rollover-target-link"
-                      href={sprintDetailHref(vault, result.target_sprint.id)}
-                      onClick={() => onOpenChange(false)}
-                      className="type-control font-medium text-brand-text underline-offset-2 hover:underline"
-                    >
-                      {result.target_sprint.name}
-                    </a>
-                  ) : null}
-                  {result.issue_results.some((item) => item.reason) ? (
-                    <ul className="grid gap-1 text-xs text-muted-foreground">
-                      {result.issue_results
-                        .filter((item) => item.reason)
-                        .map((item) => (
-                          <li
-                            key={item.id}
-                            data-testid={`sprint-rollover-issue-${item.id}`}
-                          >
-                            {item.id}: {reasonText(translate, item.reason)}
-                          </li>
-                        ))}
-                    </ul>
-                  ) : null}
-                </section>
-              ) : null}
-
               {formError ? (
                 <p
                   data-testid="sprint-rollover-error"
                   role="alert"
-                  className="rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text"
+                  className="rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-3 py-2 type-body text-destructive-text"
                 >
                   {formError}
                 </p>
@@ -903,9 +1066,9 @@ export function SprintRolloverDialog({
             variant="outline"
             onClick={() => onOpenChange(false)}
             disabled={isBusy}
-            data-testid={completed ? "sprint-rollover-close" : undefined}
+            data-testid={showResult ? "sprint-rollover-close" : undefined}
           >
-            {completed ? common("close") : common("cancel")}
+            {showResult ? common("close") : common("cancel")}
           </Button>
           {completed ? null : (
             <Button
@@ -945,15 +1108,17 @@ function PreviewCount({
     <div
       className={
         featured
-          ? "grid min-w-0 gap-0.5 border-b border-border-subtle pb-2"
+          ? "flex min-w-0 items-baseline justify-between gap-3"
           : stacked
-            ? "grid min-w-0 gap-0.5 px-2 first:pl-0 last:pr-0"
+            ? "grid min-w-0 gap-0.5"
             : "flex min-w-0 items-center justify-between gap-2"
       }
     >
       <dt
         className={
-          stacked ? "min-w-0 text-xs text-muted-foreground" : undefined
+          featured
+            ? "type-body min-w-0 text-foreground"
+            : "type-caption min-w-0 text-muted-foreground"
         }
       >
         {label}
@@ -962,28 +1127,17 @@ function PreviewCount({
         className={
           featured
             ? "text-lg font-semibold text-foreground"
-            : strong
-              ? "font-semibold text-foreground"
-              : "tabular-nums text-foreground"
+            : stacked
+              ? "type-body font-medium tabular-nums text-foreground"
+              : strong
+                ? "type-caption font-medium tabular-nums text-foreground"
+                : "type-caption font-medium tabular-nums text-foreground"
         }
       >
         {value}
       </dd>
     </div>
   );
-}
-
-function phaseLabel(
-  translate: (key: string, values?: Record<string, string | number>) => string,
-  phase: string,
-): string {
-  const keys: Record<string, string> = {
-    target_preparation: "phaseTargetPreparation",
-    source_close: "phaseSourceClose",
-    target_activation: "phaseTargetActivation",
-    issue_rollover: "phaseIssueRollover",
-  };
-  return translate(keys[phase] ?? phase);
 }
 
 function formatTargetDates(

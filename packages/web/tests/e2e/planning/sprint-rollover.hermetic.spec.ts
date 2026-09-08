@@ -218,7 +218,7 @@ test.describe("Hermetic sprint rollover workflow", () => {
     await expect(dialog.getByTestId("sprint-rollover-result")).toBeVisible();
     await expect(
       dialog.getByText(
-        "The completed steps and same target are saved. Retry now or close this dialog and resume later.",
+        "Completed steps are saved. Retry with the same destination sprint.",
       ),
     ).toBeVisible();
     await expect(
@@ -233,7 +233,7 @@ test.describe("Hermetic sprint rollover workflow", () => {
     );
     expect(activeTarget?.name).toBe("Sprint 15 - Rollover fixture");
 
-    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await dialog.getByTestId("sprint-rollover-close").click();
     await expect(dialog).toBeHidden();
     await expect(
       page.getByTestId("sprint-rollover-resume-notice"),
@@ -283,9 +283,12 @@ test.describe("Hermetic sprint rollover workflow", () => {
       .fill("Fresh Sprint");
     await dialog.getByTestId("sprint-rollover-submit").click();
     await expect(dialog.getByTestId("sprint-rollover-result")).toBeVisible();
+    await expect(dialog.getByTestId("sprint-rollover-target-name")).toHaveCount(
+      0,
+    );
     await expect(
-      dialog.getByTestId("sprint-rollover-target-name"),
-    ).toBeDisabled();
+      dialog.getByTestId("sprint-rollover-target-summary"),
+    ).toContainText("Fresh Sprint");
 
     const partial = await readFixtureState(request);
     const partialVault = partial.vaults.find(
@@ -296,7 +299,7 @@ test.describe("Hermetic sprint rollover workflow", () => {
     );
     expect(target?.status).toBe("active");
 
-    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await dialog.getByTestId("sprint-rollover-close").click();
     await expect(dialog).toBeHidden();
     await page.reload();
     await expect(

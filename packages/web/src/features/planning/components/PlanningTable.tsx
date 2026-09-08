@@ -466,7 +466,7 @@ function PlanningCompactList({
             className="min-w-0 rounded-md border border-border-subtle bg-surface-card p-3"
             role="listitem"
           >
-            <div className="flex min-w-0 items-start justify-between gap-3">
+            <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
               <div className="min-w-0 flex-1">
                 <PlanningNameCell
                   vault={vault}
@@ -482,7 +482,7 @@ function PlanningCompactList({
                 />
               </div>
 
-              <div className="flex shrink-0 items-center gap-1">
+              <div className="flex shrink-0 items-center gap-1 self-end sm:self-auto">
                 <Button
                   type="button"
                   size="sm"
@@ -512,27 +512,28 @@ function PlanningCompactList({
               </div>
             </div>
 
-            <dl className="mt-3 grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-1.5 text-xs">
+            <dl className="mt-3 grid min-w-0 grid-cols-1 items-start gap-y-1.5 text-xs sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-x-3">
               <dt className="text-muted-foreground">{fieldNames.status}</dt>
               <dd className="min-w-0">
                 <PlanningStatusBadge kind={kind} status={item.status} />
               </dd>
               <dt className="text-muted-foreground">{t("dates")}</dt>
-              <dd className="min-w-0 break-words text-right tabular-nums text-muted-foreground">
+              <dd className="min-w-0 break-words tabular-nums text-muted-foreground sm:text-right">
                 <PlanningDates kind={kind} item={item} />
               </dd>
               <dt className="text-muted-foreground">{t("issues")}</dt>
-              <dd className="text-right tabular-nums">
+              <dd className="min-w-0 tabular-nums sm:text-right">
                 <PlanningRollup
                   vault={vault}
                   kind={kind}
                   item={item}
                   rollup={rollup}
                   state={issueAggregationState}
+                  compact
                 />
               </dd>
               <dt className="text-muted-foreground">{sections("details")}</dt>
-              <dd className="min-w-0 break-words text-right text-muted-foreground">
+              <dd className="min-w-0 break-words text-muted-foreground sm:text-right">
                 {summary || "—"}
               </dd>
             </dl>

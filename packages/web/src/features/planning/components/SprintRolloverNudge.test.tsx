@@ -41,11 +41,15 @@ describe("SprintRolloverNudge", () => {
     );
 
     expect(screen.getByTestId("sprint-rollover-nudge")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Close & roll over" }));
-    expect(onOpen).toHaveBeenCalledWith(SPRINT);
     await user.click(
-      screen.getByRole("button", { name: "Dismiss sprint rollover notice" }),
+      screen.getByRole("button", { name: "Close and roll over" }),
     );
+    expect(onOpen).toHaveBeenCalledWith(SPRINT);
+    const dismiss = screen.getByRole("button", {
+      name: "Dismiss sprint rollover notice",
+    });
+    expect(dismiss.querySelector("svg")).toHaveClass("lucide-x");
+    await user.click(dismiss);
     expect(screen.queryByTestId("sprint-rollover-nudge")).toBeNull();
 
     rerender(
@@ -86,11 +90,36 @@ describe("SprintRolloverNudge", () => {
       ),
     );
 
-    const button = screen.getByRole("button", { name: "Close & roll over" });
+    const button = screen.getByRole("button", {
+      name: "Close and roll over",
+    });
     expect(button).toBeDisabled();
     expect(button).toHaveAttribute(
       "title",
       expect.stringContaining("edit access"),
     );
+  });
+
+  it("lowers the nudge when a resumable rollover is already visible", () => {
+    render(
+      wrap(
+        <SprintRolloverNudge
+          sprint={SPRINT}
+          issues={ISSUES}
+          issueState="available"
+          now={Date.parse("2026-09-06T00:00:00Z")}
+          canEdit
+          priority="secondary"
+          onOpen={vi.fn()}
+        />,
+      ),
+    );
+
+    const nudge = screen.getByTestId("sprint-rollover-nudge");
+    expect(nudge).toHaveClass("border-border-subtle");
+    expect(nudge).toHaveTextContent("Sprint 14 has passed its end date");
+    expect(
+      screen.getByRole("button", { name: "Close and roll over" }),
+    ).toHaveClass("border");
   });
 });

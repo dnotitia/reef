@@ -249,6 +249,7 @@ export function IssuesWorkspace({
               issueState={rolloverIssueState}
               now={hydrated ? Date.now() : null}
               canEdit={workspaceAccess.canEditWorkspace}
+              priority={rolloverResumes.length > 0 ? "secondary" : "primary"}
               onOpen={() => {
                 setRolloverResume(null);
                 setRolloverOpen(true);

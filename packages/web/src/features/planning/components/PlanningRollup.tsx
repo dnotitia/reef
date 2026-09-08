@@ -46,12 +46,14 @@ export function PlanningRollup({
   item,
   rollup,
   state,
+  compact = false,
 }: {
   vault: string;
   kind: PlanningKind;
   item: PlanningItem;
   rollup: PlanningRollupData | undefined;
   state: IssueAggregationState;
+  compact?: boolean;
 }) {
   const t = useTranslations("planning");
   const locale = useLocale();
@@ -142,7 +144,10 @@ export function PlanningRollup({
         name: item.name,
       })}
       aria-describedby={descriptionId}
-      className="group/rollup flex min-w-[12rem] flex-col gap-1 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
+      className={cn(
+        "group/rollup flex flex-col gap-1 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
+        compact ? "min-w-0 max-w-full" : "min-w-[12rem]",
+      )}
     >
       <span id={descriptionId} className="sr-only">
         {description}
