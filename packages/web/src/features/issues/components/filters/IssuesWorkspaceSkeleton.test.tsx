@@ -75,6 +75,18 @@ describe("IssuesWorkspaceSkeleton", () => {
     );
   });
 
+  it.each(["list", "timeline"] as const)(
+    "uses a %s body frame for the selected URL view",
+    (layout) => {
+      render(<IssuesWorkspaceSkeleton searchParams={`view=${layout}`} />);
+
+      expect(
+        screen.getByTestId(`issues-${layout}-skeleton`),
+      ).toBeInTheDocument();
+      expect(screen.queryByTestId("board-columns-skeleton")).toBeNull();
+    },
+  );
+
   it("hides the decorative body and announces loading to assistive tech (REEF-281)", () => {
     const { container } = render(<IssuesWorkspaceSkeleton />);
 

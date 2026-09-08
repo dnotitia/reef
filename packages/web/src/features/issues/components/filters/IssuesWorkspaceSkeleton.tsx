@@ -1,6 +1,7 @@
 "use client";
 
 import { BoardColumnsSkeleton } from "@/components/BoardColumnsSkeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   CBX_CHEVRON,
   CBX_TRIGGER_CHIP,
@@ -66,6 +67,26 @@ const FILTER_CHIPS = [
   { key: "sort", width: "w-fit", field: false },
   { key: "myViews", width: "w-fit", field: false },
 ] as const;
+const ISSUE_BODY_SKELETON_ROWS = ["one", "two", "three", "four"] as const;
+
+function IssueBodySkeleton({ layout }: { layout: "list" | "timeline" }) {
+  return (
+    <div
+      data-testid={`issues-${layout}-skeleton`}
+      className="min-h-0 min-w-0 flex-1 overflow-hidden px-6 py-4"
+      aria-hidden="true"
+    >
+      <div className="flex flex-col gap-3">
+        {ISSUE_BODY_SKELETON_ROWS.map((row, index) => (
+          <Skeleton
+            key={row}
+            className={index === 0 ? "h-10 w-full" : "h-9 w-full"}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function StaticSegmentedControl({
   testId,
@@ -334,7 +355,11 @@ export function IssuesWorkspaceSkeleton({
             )}
           </div>
         </div>
-        <BoardColumnsSkeleton />
+        {layout === "board" ? (
+          <BoardColumnsSkeleton />
+        ) : (
+          <IssueBodySkeleton layout={layout} />
+        )}
       </div>
     </div>
   );
