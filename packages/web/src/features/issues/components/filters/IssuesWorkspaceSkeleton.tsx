@@ -15,7 +15,8 @@ import {
   SEGMENTED_CONTROL_ITEM_INACTIVE,
   SEGMENTED_CONTROL_TRACK,
 } from "@/components/segmentedControl";
-import { naturalSortOrder, USER_SORT_FIELDS } from "@reef/core";
+import { USER_SORT_FIELDS } from "@reef/core";
+import { naturalSortOrder } from "@reef/core/fields";
 import {
   useDirectionLabel,
   useFieldNameLabels,
