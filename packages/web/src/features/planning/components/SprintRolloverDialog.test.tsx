@@ -144,6 +144,7 @@ function dialogElement(
   onOpenChange = vi.fn(),
   source: PlanningCatalog["sprints"][number] | null = SOURCE,
   savedResume: SprintRolloverResume | null = null,
+  canEdit = true,
 ) {
   return (
     <SprintRolloverDialog
@@ -156,7 +157,7 @@ function dialogElement(
       issues={ISSUES}
       issueState="available"
       now={Date.parse("2026-09-07T00:00:00Z")}
-      canEdit
+      canEdit={canEdit}
     />
   );
 }
@@ -166,8 +167,11 @@ function renderDialog(
   locale: "en" | "ko" = "en",
   source: PlanningCatalog["sprints"][number] | null = SOURCE,
   savedResume: SprintRolloverResume | null = null,
+  canEdit = true,
 ) {
-  return render(wrap(dialogElement(onOpenChange, source, savedResume), locale));
+  return render(
+    wrap(dialogElement(onOpenChange, source, savedResume, canEdit), locale),
+  );
 }
 
 beforeEach(() => {
@@ -426,6 +430,24 @@ describe("SprintRolloverDialog", () => {
     expect(screen.getByTestId("sprint-rollover-close")).toBeEnabled();
     await user.click(screen.getByTestId("sprint-rollover-close"));
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("disables resume retry and explains missing edit access", () => {
+    const savedResume = resume();
+    renderDialog(
+      vi.fn(),
+      "en",
+      savedResume.result.source_sprint,
+      savedResume,
+      false,
+    );
+
+    const retry = screen.getByRole("button", { name: "Retry rollover" });
+    expect(retry).toBeDisabled();
+    expect(retry).toHaveAttribute("aria-describedby", expect.any(String));
+    expect(
+      screen.getByText("Edit access is required to resume this rollover."),
+    ).toBeVisible();
   });
 
   it("rehydrates a newly created target without changing its retry payload", async () => {

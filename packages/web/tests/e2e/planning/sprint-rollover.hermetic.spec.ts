@@ -363,4 +363,85 @@ test.describe("Hermetic sprint rollover workflow", () => {
       vault?.sprints.find((item) => item.name.startsWith("Sprint 14"))?.status,
     ).toBe("active");
   });
+
+  test("revalidates reader access before showing a saved resume action", async ({
+    page,
+    request,
+  }) => {
+    await setIssueUpdateControl(request, [
+      { issueId: "REEF-002", failures: 1 },
+    ]);
+    await openPlanning(page);
+    await page
+      .getByRole("button", {
+        name: "Close Sprint 14 - Rollover fixture and roll over",
+      })
+      .click();
+    const dialog = page.getByTestId("sprint-rollover-dialog");
+    await dialog
+      .getByTestId("sprint-rollover-target-name")
+      .fill("Reader resume target");
+    await dialog.getByTestId("sprint-rollover-submit").click();
+    await expect(dialog.getByTestId("sprint-rollover-result")).toBeVisible();
+    await dialog.getByTestId("sprint-rollover-close").click();
+    await expect(
+      page.getByTestId("sprint-rollover-resume-notice"),
+    ).toBeVisible();
+
+    await setAuthControl(request, {
+      protectedResponse: "forbidden",
+      session: "active",
+    });
+    await page.reload();
+
+    const planningNotice = page.getByTestId("sprint-rollover-resume-notice");
+    const planningResume = planningNotice.getByRole("button", {
+      name: "Resume Sprint 14 - Rollover fixture rollover",
+    });
+    await expect(planningResume).toBeDisabled();
+    await expect(
+      planningNotice.getByText(
+        "Edit access is required to resume this rollover.",
+      ),
+    ).toBeVisible();
+
+    await page.goto(
+      `/workspace/${REEF_E2E_VAULT}/planning/sprints/00000000-0000-4000-8000-000000000001`,
+    );
+    const detailNotice = page.getByTestId("sprint-rollover-resume-notice");
+    await expect(
+      detailNotice.getByRole("button", {
+        name: "Resume Sprint 14 - Rollover fixture rollover",
+      }),
+    ).toBeDisabled();
+    await expect(
+      detailNotice.getByText(
+        "Edit access is required to resume this rollover.",
+      ),
+    ).toBeVisible();
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues`);
+    const issuesNotice = page.getByTestId("sprint-rollover-resume-notice");
+    await expect(
+      issuesNotice.getByRole("button", {
+        name: "Resume Sprint 14 - Rollover fixture rollover",
+      }),
+    ).toBeDisabled();
+    await expect(
+      issuesNotice.getByText(
+        "Edit access is required to resume this rollover.",
+      ),
+    ).toBeVisible();
+
+    await setAuthControl(request, {
+      protectedResponse: "healthy",
+      session: "active",
+    });
+    await page.reload();
+    await expect(
+      page.getByTestId("sprint-rollover-resume-notice").getByRole("button", {
+        name: "Resume Sprint 14 - Rollover fixture rollover",
+      }),
+    ).toBeEnabled();
+  });
 });

@@ -501,6 +501,7 @@ export function SprintRolloverDialog({
   const existingTargetInputId = useId();
   const targetStartInputId = useId();
   const targetEndInputId = useId();
+  const readerReasonId = useId();
   const mutation = useCloseSprintAndRollover(vault);
 
   const sourceEndErrorId = `${sourceEndInputId}-error`;
@@ -708,6 +709,7 @@ export function SprintRolloverDialog({
   const showResult = result !== null;
   const completed = result?.status === "completed";
   const retryLocked = result?.retryable === true;
+  const readerResume = Boolean(resume && !canEdit);
 
   return (
     <Dialog
@@ -1069,31 +1071,49 @@ export function SprintRolloverDialog({
           )}
         </div>
 
-        <DialogFooter className="min-w-0 flex-col gap-2 sm:flex-row sm:justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={isBusy}
-            data-testid={showResult ? "sprint-rollover-close" : undefined}
-          >
-            {showResult ? common("close") : common("cancel")}
-          </Button>
-          {completed ? null : (
+        <DialogFooter
+          className={
+            readerResume
+              ? "min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+              : "min-w-0 flex-col gap-2 sm:flex-row sm:justify-end"
+          }
+        >
+          {readerResume ? (
+            <p
+              id={readerReasonId}
+              role="status"
+              className="type-caption text-destructive-text"
+            >
+              {translate("resumeReaderDescription")}
+            </p>
+          ) : null}
+          <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:justify-end">
             <Button
               type="button"
-              data-testid="sprint-rollover-submit"
-              onClick={() => void submit()}
-              disabled={isBusy || issueState !== "available" || !canEdit}
-              busy={isBusy}
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={isBusy}
+              data-testid={showResult ? "sprint-rollover-close" : undefined}
             >
-              {isBusy
-                ? common("loading")
-                : result?.retryable
-                  ? translate("retry")
-                  : translate("confirm")}
+              {showResult ? common("close") : common("cancel")}
             </Button>
-          )}
+            {completed ? null : (
+              <Button
+                type="button"
+                data-testid="sprint-rollover-submit"
+                onClick={() => void submit()}
+                disabled={isBusy || issueState !== "available" || !canEdit}
+                aria-describedby={readerResume ? readerReasonId : undefined}
+                busy={isBusy}
+              >
+                {isBusy
+                  ? common("loading")
+                  : result?.retryable
+                    ? translate("retry")
+                    : translate("confirm")}
+              </Button>
+            )}
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
