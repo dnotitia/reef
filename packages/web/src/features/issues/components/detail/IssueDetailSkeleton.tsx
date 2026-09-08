@@ -70,7 +70,6 @@ function LabeledSkeleton({
   labelClassName = "type-detail-section text-muted-foreground",
 }: {
   label: string;
-  className: string;
   style?: WaveStyle;
   testId?: string;
   labelClassName?: string;
@@ -101,7 +100,6 @@ function RailRowSkeleton({ index, label }: { index: number; label: string }) {
       <LabeledSkeleton
         label={label}
         style={wave(index)}
-        className="w-20 shrink-0"
         labelClassName="w-20 shrink-0 text-xs font-medium text-muted-foreground"
       />
       <Skeleton
@@ -132,7 +130,6 @@ function RailSectionSkeleton({
       <LabeledSkeleton
         label={title}
         style={wave(startIndex)}
-        className=""
         labelClassName={SECTION_HEADER_CLASS}
       />
       {rows.map((row, k) => (
@@ -240,7 +237,6 @@ export function IssueDetailSkeleton() {
                 label={fieldNames.title}
                 style={wave(HEADER_SKELETONS)}
                 testId="issue-detail-title-label"
-                className="h-3 w-10"
                 labelClassName="text-xs font-medium text-muted-foreground"
               />
               {/* Title value matches the `Input` height (h-8), not h-9. */}
@@ -255,7 +251,6 @@ export function IssueDetailSkeleton() {
                 label={fieldNames.description}
                 style={wave(HEADER_SKELETONS + 2)}
                 testId="issue-detail-description-label"
-                className="h-3 w-20"
                 labelClassName="text-xs font-medium text-muted-foreground"
               />
               {/* Description value reserves the MarkdownEditor's height: a ~36px
@@ -274,7 +269,6 @@ export function IssueDetailSkeleton() {
               <LabeledSkeleton
                 label={relations("subIssues")}
                 style={wave(subIssuesStart)}
-                className="h-3 w-20"
               />
               <Skeleton
                 aria-hidden="true"
@@ -288,7 +282,6 @@ export function IssueDetailSkeleton() {
               <LabeledSkeleton
                 label={refs("linkedDocuments")}
                 style={wave(linkedDocumentsStart)}
-                className="h-3 w-28"
               />
               <Skeleton
                 aria-hidden="true"
@@ -302,7 +295,6 @@ export function IssueDetailSkeleton() {
               <LabeledSkeleton
                 label={refs("deliveryLinks")}
                 style={wave(refsStart)}
-                className="h-3 w-24"
               />
               <Skeleton
                 aria-hidden="true"
@@ -319,7 +311,6 @@ export function IssueDetailSkeleton() {
               <LabeledSkeleton
                 label={nav("activity")}
                 style={wave(activityStart)}
-                className="h-3 w-20"
               />
               <Skeleton
                 aria-hidden="true"
@@ -350,7 +341,6 @@ export function IssueDetailSkeleton() {
               <LabeledSkeleton
                 label={fieldNames.labels}
                 style={wave(labelsStart)}
-                className="h-3 w-12"
                 labelClassName="text-xs font-medium text-muted-foreground"
               />
               <Skeleton
