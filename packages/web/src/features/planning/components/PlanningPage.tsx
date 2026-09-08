@@ -254,6 +254,7 @@ export function PlanningPage() {
         {rolloverSource === null ? (
           <SprintRolloverResumeNotice
             resumes={rolloverResumes}
+            canEdit={access.canEditWorkspace}
             onOpen={openRolloverResume}
           />
         ) : null}

@@ -166,11 +166,10 @@ function SprintDetailFrame({
       />
       {!rolloverOpen ? (
         <SprintRolloverResumeNotice
-          resumes={
-            catalog.rollover_resumes.filter(
-              (resume) => resume.result.source_sprint_id === sprint.id,
-            ) ?? []
-          }
+          resumes={catalog.rollover_resumes.filter(
+            (resume) => resume.result.source_sprint_id === sprint.id,
+          )}
+          canEdit={canEditRollover}
           onOpen={onResumeRollover}
         />
       ) : null}

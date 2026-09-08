@@ -6,9 +6,11 @@ import { useTranslations } from "next-intl";
 
 export function SprintRolloverResumeNotice({
   resumes,
+  canEdit,
   onOpen,
 }: {
   resumes: readonly SprintRolloverResume[];
+  canEdit: boolean;
   onOpen: (resume: SprintRolloverResume) => void;
 }) {
   const translate = useTranslations("planning.rollover");
@@ -35,6 +37,8 @@ export function SprintRolloverResumeNotice({
             type="button"
             size="sm"
             className="w-full sm:w-auto"
+            disabled={!canEdit}
+            aria-disabled={!canEdit || undefined}
             onClick={() => onOpen(resume)}
           >
             {translate("resumeAction", {

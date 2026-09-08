@@ -235,6 +235,7 @@ export function IssuesWorkspace({
           {!fixedSprintId && !rolloverOpen ? (
             <SprintRolloverResumeNotice
               resumes={rolloverResumes}
+              canEdit={workspaceAccess.canEditWorkspace}
               onOpen={(resume) => {
                 setRolloverResume(resume);
                 setRolloverOpen(true);
