@@ -36,14 +36,18 @@ describe("IssuesWorkspaceSkeleton", () => {
     const toolbar = screen.getByTestId("issues-skeleton-toolbar");
     expect(toolbar).toBeInTheDocument();
 
-    // SearchBar placeholder: a full-width h-9 bar.
-    const searchRow = toolbar.querySelector(".reef-shimmer.h-9.w-full");
+    // SearchBar chrome: a full-width h-9 static label.
+    const searchRow = toolbar.querySelector(".h-9.w-full");
     expect(searchRow).not.toBeNull();
+    expect(searchRow).toHaveTextContent("Search issues");
 
-    // FilterBar placeholder: the wrapping chip row, one chip per facet/value
-    // group including the single compound updated-at trigger (14 h-8 controls).
-    const chips = toolbar.querySelectorAll(".reef-shimmer.h-8");
+    // FilterBar chrome: one static control per facet/value group including the
+    // single compound updated-at trigger (14 h-8 controls).
+    const chips = toolbar.querySelectorAll(".h-8");
     expect(chips).toHaveLength(14);
+    expect(
+      toolbar.querySelectorAll('.reef-shimmer[aria-hidden="true"]'),
+    ).toHaveLength(0);
     // The whole chip group sits in a single flex-wrap container so it wraps to
     // the same row count as the live FilterBar.
     expect(container.querySelector(".flex.flex-wrap")).not.toBeNull();

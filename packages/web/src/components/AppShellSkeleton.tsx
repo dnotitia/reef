@@ -1,5 +1,4 @@
 import { BoardColumnsSkeleton } from "@/components/BoardColumnsSkeleton";
-import { Skeleton } from "@/components/ui/skeleton";
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 
@@ -53,15 +52,13 @@ export function AppShellSkeleton({
           aria-label={nav("sidebarLandmark")}
           className="flex w-14 shrink-0 flex-col gap-4 border-r border-border-subtle bg-surface-sidebar p-3 md:w-60"
         >
-          <div className="relative">
-            <Skeleton aria-hidden="true" className="size-8 md:h-8 md:w-28" />
-            <span className="sr-only md:not-sr-only md:absolute md:inset-0 md:flex md:items-center md:px-2 type-group-title text-foreground">
+          <div className="flex h-8 min-w-0 items-center">
+            <span className="sr-only md:not-sr-only md:truncate md:px-2 type-group-title text-foreground">
               reef{/* i18n-exempt: brand name */}
             </span>
           </div>
-          <div className="relative">
-            <Skeleton aria-hidden="true" className="h-9 w-full" />
-            <span className="sr-only md:not-sr-only md:absolute md:inset-0 md:flex md:items-center md:justify-center md:truncate md:px-2 type-small-button font-medium text-foreground">
+          <div className="flex h-9 items-center">
+            <span className="sr-only md:not-sr-only md:truncate md:px-2 type-small-button font-medium text-foreground">
               {nav("newIssue")}
             </span>
           </div>
@@ -71,9 +68,8 @@ export function AppShellSkeleton({
           >
             <ul className="flex flex-col gap-1.5 pt-1">
               {NAV_ITEMS.map((key) => (
-                <li key={key} className="relative">
-                  <Skeleton aria-hidden="true" className="h-8 w-full" />
-                  <span className="sr-only md:not-sr-only md:absolute md:inset-0 md:flex md:items-center md:truncate md:px-3 type-navigation text-muted-foreground">
+                <li key={key} className="flex h-8 items-center">
+                  <span className="sr-only md:not-sr-only md:truncate md:px-3 type-navigation text-muted-foreground">
                     {nav(key)}
                   </span>
                 </li>

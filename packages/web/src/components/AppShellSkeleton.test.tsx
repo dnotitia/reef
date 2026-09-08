@@ -16,10 +16,7 @@ describe("AppShellSkeleton", () => {
     const board = screen.getByTestId("board-columns-skeleton");
 
     expect(sidebar).toHaveClass("w-14", "md:w-60", "shrink-0");
-    expect(sidebar.querySelector(".reef-shimmer")).toHaveClass(
-      "size-8",
-      "md:w-28",
-    );
+    expect(sidebar.querySelector(".reef-shimmer")).toBeNull();
     expect(main).toHaveClass("min-w-0", "overflow-hidden");
     expect(board).toHaveClass("min-w-0", "overflow-x-auto");
     expect(

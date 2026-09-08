@@ -7,7 +7,6 @@ import {
   SEGMENTED_CONTROL_ITEM_INACTIVE,
   SEGMENTED_CONTROL_TRACK,
 } from "@/components/segmentedControl";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { PageHeader } from "@/features/ui/components/PageHeader";
 import { cn } from "@/lib/utils";
@@ -83,16 +82,14 @@ function LabeledSkeleton({
   className: string;
 }) {
   return (
-    <div className={cn("relative inline-flex min-w-0", className)}>
-      <Skeleton
-        aria-hidden="true"
-        tone="secondary"
-        className={cn("absolute inset-0", className)}
-      />
-      <span className="relative z-[1] min-w-0 truncate px-2 type-control text-muted-foreground">
-        {label}
-      </span>
-    </div>
+    <span
+      className={cn(
+        "inline-flex min-w-0 items-center truncate rounded-md border border-border bg-surface-elevated px-2.5 type-control text-muted-foreground",
+        className,
+      )}
+    >
+      {label}
+    </span>
   );
 }
 
@@ -166,8 +163,8 @@ export function IssuesWorkspaceSkeleton() {
           />
         }
       />
-      {/* Placeholder bars are decorative and hidden individually; the fixed
-          toolbar labels and board headings remain in the accessibility tree. */}
+      {/* Fixed toolbar labels use the normal control chrome; only the board's
+          unresolved card/value placeholders remain Skeleton bars. */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {/* Mirrors IssueFilterToolbar's outer bar (border-b · px-6 · py-2.5) and
             its SearchBar-over-FilterBar two-row stack so the toolbar appearing on
