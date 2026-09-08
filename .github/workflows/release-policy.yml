@@ -1,13 +1,9 @@
 name: Release Policy
 
-# Release-policy / changelog discipline. This is a lint, not a release: it never
-# tags or publishes. It runs where a release is actually decided — on PRs into
-# main (so a change updates CHANGELOG before it merges) and on release tags — not
-# on every push to main.
+# Release-policy / changelog discipline for release tags. This is a lint, not a
+# release: it never tags or publishes. Pull requests run the same check in the
+# main CI workflow so package-contract and release-policy validation share setup.
 on:
-  pull_request:
-    branches:
-      - main
   push:
     tags:
       - "v*"
