@@ -225,7 +225,9 @@ test.describe("Hermetic planning workflow", () => {
     await page.goto("/workspace/reef-e2e/planning");
 
     await expect(page.getByRole("heading", { name: "Planning" })).toBeVisible();
-    await expect(page.getByText("Sprint Alpha")).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Open Sprint Alpha sprint details" }),
+    ).toBeVisible();
 
     await page.getByRole("button", { name: "New sprint" }).click();
     await expect(
@@ -364,7 +366,9 @@ test.describe("Hermetic planning workflow", () => {
   }) => {
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/planning");
-    await expect(page.getByText("Sprint Alpha")).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Open Sprint Alpha sprint details" }),
+    ).toBeVisible();
 
     // The expanded detail panel is absent while collapsed.
     const panel = page.locator('[id^="planning-detail-"]');
@@ -449,7 +453,9 @@ test.describe("Hermetic planning workflow", () => {
     await setPlanningCatalogFailure(request, false);
     await error.getByRole("button", { name: "Retry" }).click();
 
-    await expect(page.getByText("Sprint Alpha")).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Open Sprint Alpha sprint details" }),
+    ).toBeVisible();
     await expect(error).toHaveCount(0);
   });
 
@@ -462,7 +468,9 @@ test.describe("Hermetic planning workflow", () => {
     await openExistingWorkspace(page);
     await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
 
-    const row = page.getByText("Sprint Alpha").locator("xpath=ancestor::tr");
+    const row = page
+      .getByTestId("planning-sprint-link-00000000-0000-4000-8000-000000000001")
+      .locator("xpath=ancestor::tr");
     await expect(row).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId("planning-issue-error")).toBeVisible();
     await expect(row.getByText("Unable to verify")).toBeVisible();

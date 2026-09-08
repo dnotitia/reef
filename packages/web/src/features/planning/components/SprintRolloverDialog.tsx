@@ -428,7 +428,7 @@ function PartialRolloverSummary({
       {result.issue_results.some((item) => item.reason) ? (
         <ul
           data-testid="sprint-rollover-issue-reasons"
-          className="grid gap-1.5 border-t border-border-subtle pt-3 type-control text-muted-foreground"
+          className="grid gap-1.5 pt-3 type-control text-muted-foreground"
         >
           {result.issue_results
             .filter((item) => item.reason)
@@ -750,7 +750,9 @@ export function SprintRolloverDialog({
           <DialogDescription className="type-body text-left">
             {completed
               ? translate("completedDescription")
-              : translate("dialogDescription")}
+              : result?.status === "partial"
+                ? translate("partialDialogDescription")
+                : translate("dialogDescription")}
           </DialogDescription>
         </DialogHeader>
 

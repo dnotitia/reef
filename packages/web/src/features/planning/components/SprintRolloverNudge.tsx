@@ -57,8 +57,8 @@ export function SprintRolloverNudge({
       role="status"
       className={
         secondary
-          ? "relative mb-3 flex flex-col items-stretch gap-2 rounded-md border border-border-subtle bg-surface-subtle/60 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
-          : "relative mb-3 flex flex-col items-stretch gap-2 rounded-md border border-status-in-progress-focus/40 bg-status-in-progress-fill/5 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+          ? "relative mb-3 flex flex-col items-stretch gap-2 rounded-md border border-border-subtle bg-surface-subtle/60 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:pr-12"
+          : "relative mb-3 flex flex-col items-stretch gap-2 rounded-md border border-status-in-progress-focus/40 bg-status-in-progress-fill/5 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:pr-12"
       }
     >
       <div className="min-w-0 flex-1 pr-10">

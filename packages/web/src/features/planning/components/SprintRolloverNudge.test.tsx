@@ -117,6 +117,7 @@ describe("SprintRolloverNudge", () => {
 
     const nudge = screen.getByTestId("sprint-rollover-nudge");
     expect(nudge).toHaveClass("border-border-subtle");
+    expect(nudge).toHaveClass("sm:pr-12");
     expect(nudge).toHaveTextContent("Sprint 14 has passed its end date");
     expect(
       screen.getByRole("button", { name: "Close and roll over" }),

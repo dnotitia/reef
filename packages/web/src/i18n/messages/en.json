@@ -1339,6 +1339,7 @@
       "retry": "Retry rollover",
       "partialTitle": "Some issues could not be rolled over",
       "partialDescription": "Completed steps are saved. Retry with the same destination sprint.",
+      "partialDialogDescription": "Review the saved rollover result and retry.",
       "resumeTitle": "Resume an unfinished rollover",
       "resumeDescription": "Completed steps and the destination sprint are saved.",
       "resumeReaderDescription": "Edit access is required to resume this rollover.",

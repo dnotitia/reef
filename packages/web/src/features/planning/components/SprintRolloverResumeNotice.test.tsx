@@ -51,6 +51,7 @@ describe("SprintRolloverResumeNotice", () => {
     });
 
     expect(screen.getByText("Resume rollover")).toBeVisible();
+    expect(action).toHaveClass("bg-foreground");
     expect(screen.getByText("Sprint 14")).toBeVisible();
     await user.click(action);
     expect(onOpen).toHaveBeenCalledWith(RESUME);

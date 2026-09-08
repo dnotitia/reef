@@ -399,6 +399,14 @@ describe("SprintRolloverDialog", () => {
     );
 
     expect(screen.getByTestId("sprint-rollover-result")).toBeVisible();
+    expect(
+      screen.getByText("Review the saved rollover result and retry."),
+    ).toBeVisible();
+    expect(
+      screen.queryByText(
+        "Close this sprint and move unfinished issues to the sprint you choose.",
+      ),
+    ).toBeNull();
     const targetSummary = screen.getByTestId("sprint-rollover-target-summary");
     expect(targetSummary).toHaveTextContent("Destination sprint");
     expect(targetSummary).toHaveTextContent("Sprint 15");

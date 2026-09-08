@@ -44,7 +44,7 @@ export function SprintRolloverResumeNotice({
               <Button
                 type="button"
                 size="sm"
-                variant="brand"
+                variant="default"
                 className="w-full sm:w-auto"
                 disabled={!canEdit}
                 aria-disabled={!canEdit || undefined}
