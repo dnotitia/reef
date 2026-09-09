@@ -878,17 +878,25 @@ test.describe("Hermetic runtime discovery", () => {
     await recordFrame(reportsEmpty);
 
     await page.goto("/workspace/reef-e2e/planning");
-    const planningEmpty = page.getByTestId("planning-empty-sprints");
-    await expect(planningEmpty).toBeVisible();
-    await expectNamedEmptyRegion(planningEmpty);
-    await expect(planningEmpty.getByRole("button")).toHaveCount(0);
+    const planningOverviewEmptySections = [
+      "currentSprint",
+      "upcomingMilestones",
+      "upcomingReleases",
+    ] as const;
+    for (const section of planningOverviewEmptySections) {
+      const planningEmpty = page.getByTestId(
+        `planning-overview-empty-${section}`,
+      );
+      await expect(planningEmpty).toBeVisible();
+      await expectNamedEmptyRegion(planningEmpty);
+      await expect(planningEmpty.getByRole("button")).toHaveCount(0);
+      await recordFrame(planningEmpty);
+    }
     await expect(
       page
         .locator('[data-slot="page-header"]')
         .getByRole("button", { name: "New sprint" }),
     ).toBeVisible();
-    await recordFrame(planningEmpty);
-
     const newSprint = page
       .locator('[data-slot="page-header"]')
       .getByRole("button", { name: "New sprint" });
@@ -908,15 +916,23 @@ test.describe("Hermetic runtime discovery", () => {
       expect(Math.abs(box.height - reference.height)).toBeLessThanOrEqual(1);
     }
 
+    await page.getByRole("button", { name: "List", exact: true }).click();
+    await page.waitForURL(/planning\?view=list$/u);
+    const sprintListEmpty = page.getByTestId("planning-empty-sprints");
+    await expect(sprintListEmpty).toBeVisible();
+    await expectNamedEmptyRegion(sprintListEmpty);
+
     const milestones = page.getByRole("button", { name: "Milestones" });
     await milestones.focus();
     await page.keyboard.press("Space");
-    await page.waitForURL(/planning\?kind=milestones$/);
-    await expectNamedEmptyRegion(page.getByTestId("planning-empty-milestones"));
+    await page.waitForURL(/planning\?view=list&kind=milestones$/u);
+    const milestoneListEmpty = page.getByTestId("planning-empty-milestones");
+    await expectNamedEmptyRegion(milestoneListEmpty);
 
     await page.getByRole("button", { name: "Releases" }).click();
-    await page.waitForURL(/planning\?kind=releases$/);
-    await expectNamedEmptyRegion(page.getByTestId("planning-empty-releases"));
+    await page.waitForURL(/planning\?view=list&kind=releases$/u);
+    const releaseListEmpty = page.getByTestId("planning-empty-releases");
+    await expectNamedEmptyRegion(releaseListEmpty);
 
     const newRelease = page
       .locator('[data-slot="page-header"]')
@@ -1005,12 +1021,23 @@ test.describe("Hermetic runtime discovery", () => {
     await expectViewportFits();
 
     await page.goto("/workspace/reef-e2e/planning");
-    const planningEmpty = page.getByTestId("planning-empty-sprints");
-    await expect(planningEmpty).toBeVisible();
-    await recordFrame(planningEmpty);
+    const planningOverviewEmptySections = [
+      "currentSprint",
+      "upcomingMilestones",
+      "upcomingReleases",
+    ] as const;
+    for (const section of planningOverviewEmptySections) {
+      const planningEmpty = page.getByTestId(
+        `planning-overview-empty-${section}`,
+      );
+      await expect(planningEmpty).toBeVisible();
+      await expectNamedEmptyRegion(planningEmpty);
+      await expect(planningEmpty.getByRole("button")).toHaveCount(0);
+      await recordFrame(planningEmpty);
+    }
     const sprintAction = page
       .locator('[data-slot="page-header"]')
-      .getByRole("button");
+      .getByRole("button", { name: "새 스프린트", exact: true });
     await expect(sprintAction).toHaveCount(1);
     await expect(sprintAction).toBeVisible();
     const sprintBox = await sprintAction.boundingBox();
@@ -1024,6 +1051,10 @@ test.describe("Hermetic runtime discovery", () => {
       expect(Math.abs(box.width - reference.width)).toBeLessThanOrEqual(1);
       expect(Math.abs(box.height - reference.height)).toBeLessThanOrEqual(1);
     }
+
+    await page.getByRole("button", { name: "목록", exact: true }).click();
+    await page.waitForURL(/planning\?view=list$/u);
+    await expectNamedEmptyRegion(page.getByTestId("planning-empty-sprints"));
   });
 
   test("keeps caught-up My Work passive in a narrow dark Korean viewport", async ({
@@ -1134,16 +1165,28 @@ test.describe("Hermetic runtime discovery", () => {
     );
 
     await page.goto("/workspace/reef-e2e/planning");
-    await expectFrameFits(page.getByTestId("planning-empty-sprints"));
+    for (const section of [
+      "currentSprint",
+      "upcomingMilestones",
+      "upcomingReleases",
+    ] as const) {
+      await expectFrameFits(
+        page.getByTestId(`planning-overview-empty-${section}`),
+      );
+    }
     const planningAction = page
       .locator('[data-slot="page-header"]')
-      .getByRole("button");
+      .getByRole("button", { name: "새 스프린트", exact: true });
     await expect(planningAction).toBeVisible();
     const planningBox = await planningAction.boundingBox();
     expect(planningBox).not.toBeNull();
     expect(
       (planningBox?.x ?? 0) + (planningBox?.width ?? 0),
     ).toBeLessThanOrEqual(viewportWidth);
+
+    await page.getByRole("button", { name: "목록", exact: true }).click();
+    await page.waitForURL(/planning\?view=list$/u);
+    await expectNamedEmptyRegion(page.getByTestId("planning-empty-sprints"));
 
     await resetFixture(request, "configured_caught_up");
     await openExistingWorkspace(page);

@@ -685,7 +685,6 @@
     "planningCreated": "{kind} created.",
     "planningSaved": "{kind} saved.",
     "planningSaveError": "Save failed.",
-    "planningDeleted": "{kind} deleted.",
     "planningDeleteError": "Delete failed.",
     "retrying": "Retrying…",
     "retry": "Retry",
@@ -1226,6 +1225,11 @@
     "newKind": "New {kind}",
     "editKind": "Edit {kind}",
     "planningKind": "Planning kind",
+    "planningView": "Planning view",
+    "view": {
+      "overview": "Overview",
+      "list": "List"
+    },
     "nameRequired": "Name is required.",
     "name": "Name",
     "capacity": "Capacity",
@@ -1276,6 +1280,19 @@
       "burnupSlot": "Burnup chart slot"
     },
     "openSprintDetail": "Open {name} sprint details",
+    "openPlanningListDetail": "Open {name} in the Planning list",
+    "overview": {
+      "currentSprint": "Current sprint",
+      "currentSprintEmptyTitle": "No current sprint.",
+      "currentSprintEmptyDescription": "An active sprint will appear here.",
+      "upcomingMilestones": "Upcoming milestones",
+      "upcomingMilestonesEmptyTitle": "No upcoming milestones.",
+      "upcomingMilestonesEmptyDescription": "Open milestones will appear here.",
+      "upcomingReleases": "Upcoming releases",
+      "upcomingReleasesEmptyTitle": "No upcoming releases.",
+      "upcomingReleasesEmptyDescription": "Planned or in-progress releases will appear here.",
+      "overdue": "Overdue"
+    },
     "emptyKindTitle": "No {kind} yet.",
     "emptyKindDescription": "Create a new {kind} to start planning.",
     "catalogLoadErrorTitle": "Couldn't load planning.",

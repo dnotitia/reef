@@ -66,6 +66,11 @@ const planningKinds = [
   { tab: "Releases", singular: "release", row: "June E2E" },
 ] as const;
 
+const LONG_OVERVIEW_MILESTONE_NAME =
+  "A milestone name long enough to overflow the planning filter option panel";
+const NEW_TAB_MODIFIER: "Control" | "Meta" =
+  process.platform === "darwin" ? "Meta" : "Control";
+
 async function readEditorGeometry(page: Page) {
   const dialog = page.locator('[data-testid="planning-editor-dialog"]');
   return dialog.evaluate((element) => {
@@ -236,6 +241,8 @@ test.describe("Hermetic planning workflow", () => {
   }) => {
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/planning");
+    await page.getByRole("button", { name: "List" }).click();
+    await expect(page.getByTestId("planning-kind-switcher")).toBeVisible();
 
     await expect(page.getByRole("heading", { name: "Planning" })).toBeVisible();
     await expect(
@@ -284,6 +291,188 @@ test.describe("Hermetic planning workflow", () => {
     await expect
       .poll(async () => sprintNames(await readFixtureState(request)))
       .not.toContain("E2E Sprint Edited");
+    await expect(page.locator("[data-sonner-toast]")).toHaveCount(0);
+  });
+
+  test("opens the combined Overview and restores the existing List URL contract", async ({
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/planning");
+
+    const vault = (await readFixtureState(request)).vaults.find(
+      (item) => item.name === REEF_E2E_VAULT,
+    );
+    const milestone = vault?.milestones.find(
+      (item) => item.name === "Coverage Complete",
+    );
+    const release = vault?.releases.find((item) => item.name === "June E2E");
+    if (!milestone || !release) {
+      throw new Error("Expected the planning fixture catalog to be populated");
+    }
+
+    await expect(page.getByTestId("planning-overview")).toBeVisible();
+    for (const section of [
+      "currentSprint",
+      "upcomingMilestones",
+      "upcomingReleases",
+    ]) {
+      await expect(
+        page.getByTestId(`planning-overview-section-${section}`),
+      ).toBeVisible();
+    }
+    await expect(
+      page.getByRole("link", { name: "Open Sprint Alpha sprint details" }),
+    ).toHaveAttribute(
+      "href",
+      "/workspace/reef-e2e/planning/sprints/00000000-0000-4000-8000-000000000001",
+    );
+    await expect(
+      page.getByRole("link", {
+        name: "Open Coverage Complete in the Planning list",
+      }),
+    ).toHaveAttribute(
+      "href",
+      `/workspace/reef-e2e/planning?view=list&kind=milestones&detail=${milestone.id}`,
+    );
+    await expect(
+      page.getByRole("link", { name: "Open June E2E in the Planning list" }),
+    ).toHaveAttribute(
+      "href",
+      `/workspace/reef-e2e/planning?view=list&kind=releases&detail=${release.id}`,
+    );
+
+    await page.getByRole("button", { name: "List" }).click();
+    await expect(page).toHaveURL(`/workspace/reef-e2e/planning?view=list`);
+    await expect(page.getByTestId("planning-kind-switcher")).toBeVisible();
+
+    await page.getByRole("button", { name: "Overview" }).click();
+    await expect(page).toHaveURL(`/workspace/reef-e2e/planning?view=overview`);
+    await expect(page.getByTestId("planning-overview")).toBeVisible();
+    await expect(page.getByTestId("planning-kind-switcher")).toHaveCount(0);
+  });
+
+  test("keeps long Overview names single-line and readable by pointer and keyboard", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "planning_overflow");
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page);
+
+    const state = await readFixtureState(request);
+    const milestone = state.vaults
+      .find((vault) => vault.name === REEF_E2E_VAULT)
+      ?.milestones.find((item) => item.name === LONG_OVERVIEW_MILESTONE_NAME);
+    if (!milestone) throw new Error("Missing long milestone fixture");
+
+    const expectedPath = `/workspace/${REEF_E2E_VAULT}/planning?view=list&kind=milestones&detail=${milestone.id}`;
+
+    for (const width of [390, 1280]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
+
+      const link = page.getByRole("link", {
+        name: `Open ${LONG_OVERVIEW_MILESTONE_NAME} in the Planning list`,
+      });
+      await expect(link).toBeVisible();
+      await expect(link).toHaveAttribute("href", expectedPath);
+
+      const geometry = await link.evaluate((element) => {
+        const name = element.querySelector<HTMLElement>("span");
+        const styles = getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        return {
+          whiteSpace: styles.whiteSpace,
+          overflow: styles.overflow,
+          textOverflow: styles.textOverflow,
+          height: rect.height,
+          lineHeight: Number.parseFloat(styles.lineHeight),
+          nameClientWidth: name?.clientWidth ?? 0,
+          nameScrollWidth: name?.scrollWidth ?? 0,
+          documentWidth: document.documentElement.scrollWidth,
+          bodyWidth: document.body.scrollWidth,
+        };
+      });
+      expect(geometry.whiteSpace).toBe("nowrap");
+      expect(geometry.overflow).toBe("hidden");
+      expect(geometry.textOverflow).toBe("ellipsis");
+      expect(geometry.height).toBeLessThanOrEqual(geometry.lineHeight + 1);
+      expect(geometry.documentWidth).toBeLessThanOrEqual(width);
+      expect(geometry.bodyWidth).toBeLessThanOrEqual(width);
+      await expect(link).toHaveAttribute(
+        "aria-label",
+        `Open ${LONG_OVERVIEW_MILESTONE_NAME} in the Planning list`,
+      );
+      await expect(link).toHaveAttribute("title", LONG_OVERVIEW_MILESTONE_NAME);
+
+      if (width !== 390) continue;
+
+      expect(geometry.nameScrollWidth).toBeGreaterThan(
+        geometry.nameClientWidth,
+      );
+      await link.hover();
+      await expect(page.getByRole("tooltip")).toHaveText(
+        LONG_OVERVIEW_MILESTONE_NAME,
+      );
+
+      await page.mouse.move(2, 2);
+      await link.focus();
+      await expect(page.getByRole("tooltip")).toHaveText(
+        LONG_OVERVIEW_MILESTONE_NAME,
+      );
+
+      const popupPromise = page.context().waitForEvent("page", {
+        timeout: 10_000,
+      });
+      await link.click({ modifiers: [NEW_TAB_MODIFIER] });
+      const popup = await popupPromise;
+      await expect(popup).toHaveURL(
+        new RegExp(
+          `/workspace/${REEF_E2E_VAULT}/planning\\?view=list&kind=milestones&detail=${milestone.id}$`,
+        ),
+      );
+      await popup.close();
+      await expect(page).toHaveURL(/\/planning$/u);
+    }
+  });
+
+  test("keeps rollup segment widths immediate under reduced motion", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
+    const segments = page.getByTestId(/planning-rollup-segment-/);
+    await expect(segments).not.toHaveCount(0);
+
+    for (const reducedMotion of ["no-preference", "reduce"] as const) {
+      await page.emulateMedia({ reducedMotion });
+      await expect
+        .poll(() =>
+          page.evaluate(
+            (expected) =>
+              window.matchMedia("(prefers-reduced-motion: reduce)").matches ===
+              (expected === "reduce"),
+            reducedMotion,
+          ),
+        )
+        .toBe(true);
+      const styles = await segments.evaluateAll((elements) =>
+        elements.map((element) => {
+          const computed = getComputedStyle(element);
+          return {
+            transitionDuration: computed.transitionDuration,
+            transitionProperty: computed.transitionProperty,
+          };
+        }),
+      );
+      expect(styles).not.toHaveLength(0);
+      for (const style of styles) {
+        expect(style.transitionDuration).toBe("0s");
+        expect(style.transitionProperty).not.toContain("width");
+      }
+    }
   });
 
   test("keeps planning editor chrome visible while the form body scrolls", async ({
@@ -292,6 +481,8 @@ test.describe("Hermetic planning workflow", () => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/planning");
+    await page.getByRole("button", { name: "List" }).click();
+    await expect(page.getByTestId("planning-kind-switcher")).toBeVisible();
 
     for (const [index, planningKind] of planningKinds.entries()) {
       if (index > 0) {
@@ -379,6 +570,8 @@ test.describe("Hermetic planning workflow", () => {
   }) => {
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/planning");
+    await page.getByRole("button", { name: "List" }).click();
+    await expect(page.getByTestId("planning-kind-switcher")).toBeVisible();
     await expect(
       page.getByRole("link", { name: "Open Sprint Alpha sprint details" }),
     ).toBeVisible();
@@ -429,6 +622,8 @@ test.describe("Hermetic planning workflow", () => {
       origin: new URL(page.url()).origin,
     });
     await page.goto("/workspace/reef-e2e/planning");
+    await page.getByRole("button", { name: "List" }).click();
+    await expect(page.getByTestId("planning-kind-switcher")).toBeVisible();
 
     const summary = page.getByText("Finish the hermetic E2E spine.", {
       exact: true,
@@ -457,18 +652,21 @@ test.describe("Hermetic planning workflow", () => {
     await openExistingWorkspace(page);
     await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
 
-    const loading = page.getByTestId("planning-catalog-loading");
+    const loading = page.getByTestId("planning-overview-loading");
     await expect(loading).toBeVisible({ timeout: 10_000 });
-    const pendingTable = loading.getByTestId("planning-table");
-    await expect(pendingTable).toHaveAttribute("aria-busy", "true");
-    const pendingAccessibilitySnapshot = await pendingTable.ariaSnapshot();
-    for (const header of ["Name", "Status", "Dates", "Issues", "Details"]) {
+    await expect(loading).toHaveAttribute("aria-busy", "true");
+    const pendingAccessibilitySnapshot = await loading.ariaSnapshot();
+    for (const header of [
+      "Current sprint",
+      "Upcoming milestones",
+      "Upcoming releases",
+    ]) {
       expect(
         pendingAccessibilitySnapshot,
-        `pending Planning table accessibility tree should include ${header}`,
+        `pending Planning Overview accessibility tree should include ${header}`,
       ).toContain(header);
     }
-    await expect(loading.getByRole("status")).toHaveText("Loading…");
+    await expect(page.getByRole("status")).toHaveText("Loading…");
 
     const error = page.getByTestId("planning-catalog-error");
     await expect(error).toBeVisible({ timeout: 20_000 });
@@ -494,6 +692,8 @@ test.describe("Hermetic planning workflow", () => {
     await setIssueListFailure(request, true);
     await openExistingWorkspace(page);
     await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
+    await page.getByRole("button", { name: "List" }).click();
+    await expect(page.getByTestId("planning-kind-switcher")).toBeVisible();
 
     const row = page
       .getByTestId("planning-sprint-link-00000000-0000-4000-8000-000000000001")
@@ -761,11 +961,13 @@ test.describe("Hermetic planning workflow", () => {
     await openExistingWorkspace(page);
     await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
 
-    await expect(page.getByTestId("planning-empty-sprints")).toBeVisible({
+    await expect(
+      page.getByTestId("planning-overview-empty-currentSprint"),
+    ).toBeVisible({
       timeout: 20_000,
     });
     await expect(
-      page.getByRole("heading", { name: "No sprints yet." }),
+      page.getByRole("heading", { name: "No current sprint." }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "New sprint" }),

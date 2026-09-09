@@ -12,6 +12,18 @@ const { mockPush, mockReplace, navigationState } = vi.hoisted(() => ({
   },
 }));
 
+const { mockToastError, mockToastSuccess } = vi.hoisted(() => ({
+  mockToastError: vi.fn(),
+  mockToastSuccess: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({
+  toast: {
+    error: mockToastError,
+    success: mockToastSuccess,
+  },
+}));
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush, replace: mockReplace }),
   useSearchParams: () => navigationState.searchParams,
@@ -139,7 +151,9 @@ describe("PlanningPage", () => {
       isFetching: false,
       refetch: vi.fn(() => Promise.resolve()),
     };
-    navigationState.searchParams = new URLSearchParams();
+    // Existing cases below exercise the explicit List surface. Overview gets
+    // dedicated coverage so list regressions remain easy to localize.
+    navigationState.searchParams = new URLSearchParams("view=list");
     mockApiFetch.mockImplementation(
       (input: RequestInfo | URL, init?: RequestInit) => {
         const url = typeof input === "string" ? input : String(input);
@@ -160,6 +174,61 @@ describe("PlanningPage", () => {
         // mutations (create/update/delete) → success
         return Promise.resolve(new Response(null, { status: 204 }));
       },
+    );
+  });
+
+  it("opens the default route as one Overview with all three planning sections", async () => {
+    navigationState.searchParams = new URLSearchParams();
+    render(wrap(<PlanningPage />));
+
+    expect(await screen.findByTestId("planning-overview")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("planning-kind-switcher"),
+    ).not.toBeInTheDocument();
+    for (const section of [
+      "currentSprint",
+      "upcomingMilestones",
+      "upcomingReleases",
+    ]) {
+      expect(
+        screen.getByTestId(`planning-overview-section-${section}`),
+      ).toBeInTheDocument();
+    }
+    expect(screen.getByRole("button", { name: "Overview" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("switches from Overview to List through a restorable URL state", async () => {
+    navigationState.searchParams = new URLSearchParams();
+    const user = userEvent.setup();
+    render(wrap(<PlanningPage />));
+    await screen.findByTestId("planning-overview");
+
+    await user.click(screen.getByRole("button", { name: "List" }));
+
+    expect(mockPush).toHaveBeenCalledWith(
+      "/workspace/reef-acme/planning?view=list",
+      { scroll: false },
+    );
+  });
+
+  it("treats existing kind/detail URLs as List deep links", async () => {
+    navigationState.searchParams = new URLSearchParams(
+      `kind=milestones&detail=${MILESTONE_ID}`,
+    );
+    render(wrap(<PlanningPage />));
+
+    await screen.findByText("Beta");
+    expect(
+      await screen.findByRole("link", {
+        name: "Open Beta in the Planning list",
+      }),
+    ).toHaveAttribute("href", expect.stringContaining("detail="));
+    expect(screen.getByRole("button", { name: "List" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
     );
   });
 
@@ -627,6 +696,42 @@ describe("PlanningPage", () => {
         expect.objectContaining({ method: "DELETE" }),
       );
     });
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("keeps delete errors visible without a success toast", async () => {
+    mockApiFetch.mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : String(input);
+        if (url.startsWith("/api/planning?")) {
+          return Promise.resolve(
+            new Response(JSON.stringify(catalog), { status: 200 }),
+          );
+        }
+        if (init?.method === "DELETE") {
+          return Promise.resolve(
+            new Response(JSON.stringify({ error: "Delete failed." }), {
+              status: 500,
+            }),
+          );
+        }
+        return Promise.resolve(new Response(null, { status: 204 }));
+      },
+    );
+
+    const user = userEvent.setup();
+    render(wrap(<PlanningPage />));
+    await screen.findByText("Sprint One");
+
+    await user.click(screen.getByRole("button", { name: "Delete Sprint One" }));
+    const dialog = await screen.findByTestId("planning-delete-confirm");
+    await user.click(within(dialog).getByTestId("planning-delete-confirm-btn"));
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith("Delete failed.");
+    });
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+    expect(screen.getByTestId("planning-delete-confirm")).toBeInTheDocument();
   });
 
   it("returns focus to the invoking delete action when cancellation closes the dialog", async () => {
@@ -708,7 +813,7 @@ describe("PlanningPage", () => {
     await user.click(screen.getByRole("button", { name: "Edit Beta" }));
     const dialog = await screen.findByTestId("planning-editor-dialog");
 
-    navigationState.searchParams = new URLSearchParams();
+    navigationState.searchParams = new URLSearchParams("view=list");
     rerender(wrap(<PlanningPage />, queryClient));
     await user.click(within(dialog).getByTestId("planning-save"));
 
@@ -730,7 +835,7 @@ describe("PlanningPage", () => {
     await user.click(screen.getByRole("button", { name: "Delete Beta" }));
     const dialog = await screen.findByTestId("planning-delete-confirm");
 
-    navigationState.searchParams = new URLSearchParams();
+    navigationState.searchParams = new URLSearchParams("view=list");
     rerender(wrap(<PlanningPage />, queryClient));
     await user.click(within(dialog).getByTestId("planning-delete-confirm-btn"));
 
@@ -912,15 +1017,20 @@ describe("PlanningPage", () => {
     }
   });
 
-  it("renders a row without a detail body as plain text, not a toggle (REEF-264)", async () => {
+  it("keeps a detail-less milestone name as a List detail link", async () => {
     navigationState.searchParams = new URLSearchParams("kind=milestones");
     render(wrap(<PlanningPage />));
     await screen.findByText("Beta");
 
-    // AC3: Beta has no description, so its name stays plain text on the spacer
-    // branch — not a dead button — and the row exposes no aria-expanded control.
-    const title = screen.getByText("Beta");
-    expect(title.closest("button")).toBeNull();
+    // A description-less item still has a real navigation target. The
+    // destination is the existing List disclosure, not a new detail panel.
+    const title = screen.getByRole("link", {
+      name: "Open Beta in the Planning list",
+    });
+    expect(title).toHaveAttribute(
+      "href",
+      `/workspace/reef-acme/planning?view=list&kind=milestones&detail=${MILESTONE_ID}`,
+    );
     const row = title.closest("tr") as HTMLElement;
     expect(within(row).queryByRole("button", { expanded: true })).toBeNull();
     expect(within(row).queryByRole("button", { expanded: false })).toBeNull();

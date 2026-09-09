@@ -97,7 +97,7 @@ describe("WorkspaceAuthPendingSkeleton", () => {
   });
 
   it.each([
-    ["planning", "/workspace/reef-e2e/planning", "Planning", "Sprints"],
+    ["planning", "/workspace/reef-e2e/planning", "Planning", "Current sprint"],
     ["my work", "/workspace/reef-e2e/my-work", "My Work", "Open work by stage"],
     ["reports", "/workspace/reef-e2e/reports", "Reports", "Snapshot"],
   ])(

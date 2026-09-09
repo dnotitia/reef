@@ -44,8 +44,8 @@ export function selectActiveSprint(sprints: readonly Sprint[]): Sprint | null {
       current = sprint;
       continue;
     }
-    const sprintStart = sprint.start_date ?? "";
-    const currentStart = current.start_date ?? "";
+    const sprintStart = sprint.start_date?.trim() ?? "";
+    const currentStart = current.start_date?.trim() ?? "";
     if (
       sprintStart > currentStart ||
       (sprintStart === currentStart && sprint.id > current.id)
@@ -54,6 +54,62 @@ export function selectActiveSprint(sprints: readonly Sprint[]): Sprint | null {
     }
   }
   return current;
+}
+
+function compareIds(left: string, right: string): number {
+  if (left === right) return 0;
+  return left < right ? -1 : 1;
+}
+
+function compareTargetDates(
+  left: { target_date?: string | null },
+  right: { target_date?: string | null },
+): number {
+  const leftDate = left.target_date?.trim() || null;
+  const rightDate = right.target_date?.trim() || null;
+  if (leftDate === null && rightDate !== null) return 1;
+  if (leftDate !== null && rightDate === null) return -1;
+  if (leftDate !== null && rightDate !== null && leftDate !== rightDate) {
+    return leftDate < rightDate ? -1 : 1;
+  }
+  return 0;
+}
+
+/**
+ * Select open milestones for the Planning Overview in a stable order.
+ *
+ * The catalog is a server/cache boundary, so callers must be able to pass its
+ * arrays directly without having their order changed. `filter` creates the
+ * working array before sorting it, and ids use code-point comparisons instead
+ * of locale-sensitive collation.
+ */
+export function upcomingMilestones(
+  milestones: readonly Milestone[],
+): Milestone[] {
+  return milestones
+    .filter((milestone) => milestone.status === "open")
+    .sort((left, right) => {
+      const byDate = compareTargetDates(left, right);
+      return byDate === 0 ? compareIds(left.id, right.id) : byDate;
+    });
+}
+
+/** Select planned or in-progress releases for the Planning Overview. */
+export function upcomingReleases(releases: readonly Release[]): Release[] {
+  return releases
+    .filter(
+      (release) =>
+        release.status === "planned" || release.status === "in_progress",
+    )
+    .sort((left, right) => {
+      const byDate = compareTargetDates(left, right);
+      if (byDate !== 0) return byDate;
+
+      if (left.status !== right.status) {
+        return left.status === "in_progress" ? -1 : 1;
+      }
+      return compareIds(left.id, right.id);
+    });
 }
 
 export function isAssignablePlanningItem(

@@ -40,7 +40,7 @@ const CONTINUITY_SURFACES = [
   {
     name: "planning",
     path: PLANNING_PATH,
-    target: '[data-testid="planning-kind-sprints"]',
+    target: '[data-slot="page-header"]',
     loadedText: "Sprint Alpha",
   },
   {
@@ -516,7 +516,12 @@ test.describe("auth soft navigation", () => {
         path: PLANNING_PATH,
         title: "Planning",
         skeletonTestId: "planning-skeleton",
-        labels: ["Sprints", "Name", "Status", "Dates"],
+        labels: [
+          "Overview",
+          "Current sprint",
+          "Upcoming milestones",
+          "Upcoming releases",
+        ],
         loadedText: "Sprint Alpha",
       },
       {
@@ -830,7 +835,7 @@ test.describe("auth soft navigation", () => {
           mode.name === "narrow-ko-dark" && surface.name === "planning"
             ? await readContinuitySnapshot(
                 page,
-                '[data-testid="planning-skeleton-compact-item"]',
+                '[data-testid="planning-overview-skeleton-currentSprint"] > div:first-child',
                 pendingRoot,
               )
             : null;
@@ -955,7 +960,7 @@ test.describe("auth soft navigation", () => {
         if (mode.name === "narrow-ko-dark" && surface.name === "planning") {
           const loadedPlanningCard = await readContinuitySnapshot(
             page,
-            '[data-testid="planning-compact-list"] > article:first-child',
+            '[data-testid="planning-overview-list-currentSprint"] > li:first-child > article',
             loadedRoot,
           );
           // Card height is data-dependent: the settled card contains the real

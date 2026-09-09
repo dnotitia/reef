@@ -7,6 +7,8 @@ import {
   isAssignablePlanningItem,
   itemsForKind,
   selectActiveSprint,
+  upcomingMilestones,
+  upcomingReleases,
 } from "./planningItems";
 
 const catalog: PlanningCatalog = {
@@ -87,6 +89,101 @@ describe("selectActiveSprint", () => {
     expect(
       selectActiveSprint([{ ...catalog.sprints[0], status: "planned" }]),
     ).toBeNull();
+  });
+
+  it("puts dated active sprints ahead of undated ones and uses id for an undated tie", () => {
+    expect(
+      selectActiveSprint([
+        { ...catalog.sprints[0], id: "z-undated", start_date: null },
+        { ...catalog.sprints[0], id: "a-dated", start_date: "2026-06-11" },
+        { ...catalog.sprints[0], id: "b-undated", start_date: null },
+      ]),
+    ).toMatchObject({ id: "a-dated" });
+
+    expect(
+      selectActiveSprint([
+        { ...catalog.sprints[0], id: "a-undated", start_date: null },
+        { ...catalog.sprints[0], id: "b-undated", start_date: null },
+      ]),
+    ).toMatchObject({ id: "b-undated" });
+  });
+});
+
+describe("Planning Overview selectors", () => {
+  it("filters closed milestones and sorts dated items before undated items", () => {
+    const milestones: PlanningCatalog["milestones"] = [
+      {
+        ...catalog.milestones[0],
+        id: "mil-undated",
+        target_date: null,
+      },
+      {
+        ...catalog.milestones[0],
+        id: "mil-late",
+        target_date: "2026-07-01",
+      },
+      {
+        ...catalog.milestones[0],
+        id: "mil-closed",
+        status: "closed",
+        target_date: "2026-06-01",
+      },
+      {
+        ...catalog.milestones[0],
+        id: "mil-early",
+        target_date: "2026-06-01",
+      },
+    ];
+    const originalOrder = milestones.map((item) => item.id);
+
+    expect(upcomingMilestones(milestones).map((item) => item.id)).toEqual([
+      "mil-early",
+      "mil-late",
+      "mil-undated",
+    ]);
+    expect(milestones.map((item) => item.id)).toEqual(originalOrder);
+  });
+
+  it("keeps unfinished releases, orders status ties, and excludes released items", () => {
+    const releases: PlanningCatalog["releases"] = [
+      {
+        ...catalog.releases[0],
+        id: "rel-undated-planned",
+        status: "planned",
+        target_date: null,
+      },
+      {
+        ...catalog.releases[0],
+        id: "rel-same-planned",
+        status: "planned",
+        target_date: "2026-06-10",
+      },
+      {
+        ...catalog.releases[0],
+        id: "rel-same-progress",
+        status: "in_progress",
+        target_date: "2026-06-10",
+      },
+      {
+        ...catalog.releases[0],
+        id: "rel-released",
+        status: "released",
+        target_date: "2026-06-01",
+      },
+      {
+        ...catalog.releases[0],
+        id: "rel-undated-progress",
+        status: "in_progress",
+        target_date: null,
+      },
+    ];
+
+    expect(upcomingReleases(releases).map((item) => item.id)).toEqual([
+      "rel-same-progress",
+      "rel-same-planned",
+      "rel-undated-progress",
+      "rel-undated-planned",
+    ]);
   });
 });
 
