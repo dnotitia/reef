@@ -28,6 +28,8 @@ interface PageHeaderProps {
   staticTitleAdjacent?: React.ReactNode;
   /** Non-interactive counterpart to `actions` for loading surfaces. */
   staticActions?: React.ReactNode;
+  /** Non-interactive counterpart to `description` for loading surfaces. */
+  staticDescription?: React.ReactNode;
   className?: string;
 }
 
@@ -38,15 +40,18 @@ export function PageHeader({
   actions,
   staticTitleAdjacent,
   staticActions,
+  staticDescription,
   className,
 }: PageHeaderProps) {
   const mounted = useHydrated();
 
-  const renderedDescription = mounted ? (description ?? "") : "";
+  const renderedDescription =
+    staticDescription ?? (mounted ? (description ?? "") : "");
   const renderedTitleAdjacent =
     staticTitleAdjacent ?? (mounted ? titleAdjacent : null);
   const renderedActions = staticActions ?? (mounted ? actions : null);
   const hasTitleAdjacent = renderedTitleAdjacent != null;
+  const hasStaticDescription = staticDescription !== undefined;
   // A string subtitle is a bare identifier, so opt the whole span out of
   // translation. A node subtitle owns its own translate boundaries (see the
   // `description` prop doc), so leave the span translatable.
@@ -80,7 +85,7 @@ export function PageHeader({
         <span
           className="type-caption truncate text-muted-foreground"
           translate={identifierOnly ? "no" : undefined}
-          aria-hidden={!renderedDescription}
+          aria-hidden={hasStaticDescription || !renderedDescription}
         >
           {renderedDescription}
         </span>

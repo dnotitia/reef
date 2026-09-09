@@ -65,7 +65,7 @@ function CurrentSprintShortcut({ vault }: { vault: string }) {
 
   return (
     <div
-      className="min-w-0 max-w-[min(15rem,28vw)]"
+      className="min-w-0 max-w-[min(15rem,28vw)] max-[767px]:w-[min(15rem,28vw)]"
       data-testid="current-sprint-shortcut"
       data-sprint-id={currentSprint.id}
     >

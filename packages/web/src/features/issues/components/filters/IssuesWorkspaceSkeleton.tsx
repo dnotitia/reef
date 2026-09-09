@@ -349,15 +349,21 @@ export function IssuesWorkspaceSkeleton({
         title={nav("issues")}
         className="h-auto min-h-12 flex-wrap py-2"
         staticTitleAdjacent={
-          <StaticSegmentedControl
-            testId="scope-switcher"
-            ariaLabel={filters("scope.label")}
-            activeId={scope}
-            items={[
-              { id: "active", label: filters("scope.active") },
-              { id: "backlog", label: filters("scope.backlog") },
-            ]}
-          />
+          <div className="flex min-w-0 max-w-full items-center gap-2">
+            <StaticSegmentedControl
+              testId="scope-switcher"
+              ariaLabel={filters("scope.label")}
+              activeId={scope}
+              items={[
+                { id: "active", label: filters("scope.active") },
+                { id: "backlog", label: filters("scope.backlog") },
+              ]}
+            />
+            <span
+              aria-hidden="true"
+              className="reef-shimmer inline-block h-5 w-[min(15rem,28vw)] max-w-full shrink-0 rounded-md"
+            />
+          </div>
         }
         staticActions={
           <StaticSegmentedControl
@@ -365,6 +371,12 @@ export function IssuesWorkspaceSkeleton({
             ariaLabel={filters("issueView")}
             activeId={layout}
             items={layoutItems}
+          />
+        }
+        staticDescription={
+          <span
+            aria-hidden="true"
+            className="reef-shimmer inline-block h-3 w-16 rounded-md"
           />
         }
       />
