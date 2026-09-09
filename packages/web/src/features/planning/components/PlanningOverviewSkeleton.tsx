@@ -1,6 +1,7 @@
 "use client";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
 const SECTIONS = [
@@ -19,8 +20,20 @@ export function PlanningOverviewSkeleton() {
       aria-busy="true"
     >
       {SECTIONS.map((section) => (
-        <section key={section} className="grid min-w-0 gap-3">
-          <h2 className="type-section-label text-muted-foreground">
+        <section
+          key={section}
+          className={cn(
+            "grid min-w-0",
+            section === "currentSprint" ? "gap-3" : "gap-2",
+          )}
+        >
+          <h2
+            className={cn(
+              section === "currentSprint"
+                ? "type-group-title text-foreground"
+                : "type-section-label text-muted-foreground",
+            )}
+          >
             {t(section)}
           </h2>
           <div
@@ -28,7 +41,14 @@ export function PlanningOverviewSkeleton() {
             aria-hidden="true"
             data-testid={`planning-overview-skeleton-${section}`}
           >
-            <div className="grid min-w-0 gap-3 rounded-lg border border-border-subtle bg-surface-card p-4 md:grid-cols-[minmax(0,1fr)_minmax(14rem,32rem)] md:items-center">
+            <div
+              className={cn(
+                "grid min-w-0 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(14rem,32rem)] md:items-center",
+                section === "currentSprint"
+                  ? "rounded-lg border border-border bg-surface-card p-4"
+                  : "rounded-md border border-border-subtle bg-surface-subtle p-3",
+              )}
+            >
               <div className="grid min-w-0 gap-3">
                 <Skeleton className="h-4 w-48 max-w-full" />
                 <Skeleton className="h-4 w-40 max-w-full" />

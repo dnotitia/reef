@@ -66,6 +66,11 @@ const planningKinds = [
   { tab: "Releases", singular: "release", row: "June E2E" },
 ] as const;
 
+const LONG_OVERVIEW_MILESTONE_NAME =
+  "A milestone name long enough to overflow the planning filter option panel";
+const NEW_TAB_MODIFIER: "Control" | "Meta" =
+  process.platform === "darwin" ? "Meta" : "Control";
+
 async function readEditorGeometry(page: Page) {
   const dialog = page.locator('[data-testid="planning-editor-dialog"]');
   return dialog.evaluate((element) => {
@@ -286,6 +291,7 @@ test.describe("Hermetic planning workflow", () => {
     await expect
       .poll(async () => sprintNames(await readFixtureState(request)))
       .not.toContain("E2E Sprint Edited");
+    await expect(page.locator("[data-sonner-toast]")).toHaveCount(0);
   });
 
   test("opens the combined Overview and restores the existing List URL contract", async ({
@@ -345,6 +351,128 @@ test.describe("Hermetic planning workflow", () => {
     await expect(page).toHaveURL(`/workspace/reef-e2e/planning?view=overview`);
     await expect(page.getByTestId("planning-overview")).toBeVisible();
     await expect(page.getByTestId("planning-kind-switcher")).toHaveCount(0);
+  });
+
+  test("keeps long Overview names single-line and readable by pointer and keyboard", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "planning_overflow");
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page);
+
+    const state = await readFixtureState(request);
+    const milestone = state.vaults
+      .find((vault) => vault.name === REEF_E2E_VAULT)
+      ?.milestones.find((item) => item.name === LONG_OVERVIEW_MILESTONE_NAME);
+    if (!milestone) throw new Error("Missing long milestone fixture");
+
+    const expectedPath = `/workspace/${REEF_E2E_VAULT}/planning?view=list&kind=milestones&detail=${milestone.id}`;
+
+    for (const width of [390, 1280]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
+
+      const link = page.getByRole("link", {
+        name: `Open ${LONG_OVERVIEW_MILESTONE_NAME} in the Planning list`,
+      });
+      await expect(link).toBeVisible();
+      await expect(link).toHaveAttribute("href", expectedPath);
+
+      const geometry = await link.evaluate((element) => {
+        const name = element.querySelector<HTMLElement>("span");
+        const styles = getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        return {
+          whiteSpace: styles.whiteSpace,
+          overflow: styles.overflow,
+          textOverflow: styles.textOverflow,
+          height: rect.height,
+          lineHeight: Number.parseFloat(styles.lineHeight),
+          nameClientWidth: name?.clientWidth ?? 0,
+          nameScrollWidth: name?.scrollWidth ?? 0,
+          documentWidth: document.documentElement.scrollWidth,
+          bodyWidth: document.body.scrollWidth,
+        };
+      });
+      expect(geometry.whiteSpace).toBe("nowrap");
+      expect(geometry.overflow).toBe("hidden");
+      expect(geometry.textOverflow).toBe("ellipsis");
+      expect(geometry.height).toBeLessThanOrEqual(geometry.lineHeight + 1);
+      expect(geometry.documentWidth).toBeLessThanOrEqual(width);
+      expect(geometry.bodyWidth).toBeLessThanOrEqual(width);
+      await expect(link).toHaveAttribute(
+        "aria-label",
+        `Open ${LONG_OVERVIEW_MILESTONE_NAME} in the Planning list`,
+      );
+      await expect(link).toHaveAttribute("title", LONG_OVERVIEW_MILESTONE_NAME);
+
+      if (width !== 390) continue;
+
+      expect(geometry.nameScrollWidth).toBeGreaterThan(
+        geometry.nameClientWidth,
+      );
+      await link.hover();
+      await expect(page.getByRole("tooltip")).toHaveText(
+        LONG_OVERVIEW_MILESTONE_NAME,
+      );
+
+      await page.mouse.move(2, 2);
+      await link.focus();
+      await expect(page.getByRole("tooltip")).toHaveText(
+        LONG_OVERVIEW_MILESTONE_NAME,
+      );
+
+      const popupPromise = page.context().waitForEvent("page", {
+        timeout: 10_000,
+      });
+      await link.click({ modifiers: [NEW_TAB_MODIFIER] });
+      const popup = await popupPromise;
+      await expect(popup).toHaveURL(
+        new RegExp(
+          `/workspace/${REEF_E2E_VAULT}/planning\\?view=list&kind=milestones&detail=${milestone.id}$`,
+        ),
+      );
+      await popup.close();
+      await expect(page).toHaveURL(/\/planning$/u);
+    }
+  });
+
+  test("keeps rollup segment widths immediate under reduced motion", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
+    const segments = page.getByTestId(/planning-rollup-segment-/);
+    await expect(segments).not.toHaveCount(0);
+
+    for (const reducedMotion of ["no-preference", "reduce"] as const) {
+      await page.emulateMedia({ reducedMotion });
+      await expect
+        .poll(() =>
+          page.evaluate(
+            (expected) =>
+              window.matchMedia("(prefers-reduced-motion: reduce)").matches ===
+              (expected === "reduce"),
+            reducedMotion,
+          ),
+        )
+        .toBe(true);
+      const styles = await segments.evaluateAll((elements) =>
+        elements.map((element) => {
+          const computed = getComputedStyle(element);
+          return {
+            transitionDuration: computed.transitionDuration,
+            transitionProperty: computed.transitionProperty,
+          };
+        }),
+      );
+      expect(styles).not.toHaveLength(0);
+      for (const style of styles) {
+        expect(style.transitionDuration).toBe("0s");
+        expect(style.transitionProperty).not.toContain("width");
+      }
+    }
   });
 
   test("keeps planning editor chrome visible while the form body scrolls", async ({

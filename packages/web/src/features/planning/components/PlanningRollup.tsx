@@ -170,10 +170,7 @@ export function PlanningRollup({
           <span
             key={key}
             data-testid={`planning-rollup-segment-${item.id}-${key}`}
-            className={cn(
-              "h-full min-w-0 transition-[width] motion-reduce:transition-none",
-              className,
-            )}
+            className={cn("h-full min-w-0", className)}
             style={{ width: segmentWidth(rollup[key], rollup.total) }}
           />
         ))}

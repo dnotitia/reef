@@ -685,7 +685,6 @@
     "planningCreated": "{kind} created.",
     "planningSaved": "{kind} saved.",
     "planningSaveError": "Save failed.",
-    "planningDeleted": "{kind} deleted.",
     "planningDeleteError": "Delete failed.",
     "retrying": "Retrying…",
     "retry": "Retry",

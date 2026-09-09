@@ -146,10 +146,25 @@ describe("PlanningOverview", () => {
     renderOverview();
 
     expect(screen.getByTestId("planning-overview")).toBeInTheDocument();
+    const currentSection = screen.getByTestId(
+      "planning-overview-section-currentSprint",
+    );
+    expect(within(currentSection).getByRole("heading")).toHaveClass(
+      "type-group-title",
+      "text-foreground",
+    );
+    const currentItem = screen.getByTestId(
+      `planning-overview-item-${SPRINT_CURRENT}`,
+    );
+    expect(within(currentItem).getByRole("article")).toHaveClass(
+      "border-border",
+      "bg-surface-card",
+      "p-4",
+    );
     expect(
-      within(
-        screen.getByTestId("planning-overview-section-currentSprint"),
-      ).getByRole("link", { name: "Open Current sprint sprint details" }),
+      within(currentSection).getByRole("link", {
+        name: "Open Current sprint sprint details",
+      }),
     ).toHaveAttribute(
       "href",
       "/workspace/reef-acme/planning/sprints/00000000-0000-4000-8000-000000000002",
@@ -157,6 +172,19 @@ describe("PlanningOverview", () => {
 
     const milestones = screen.getByTestId(
       "planning-overview-list-upcomingMilestones",
+    );
+    expect(
+      within(
+        screen.getByTestId("planning-overview-section-upcomingMilestones"),
+      ).getByRole("heading"),
+    ).toHaveClass("type-section-label", "text-muted-foreground");
+    const milestoneItem = screen.getByTestId(
+      `planning-overview-item-${MILESTONE_EARLY}`,
+    );
+    expect(within(milestoneItem).getByRole("article")).toHaveClass(
+      "border-border-subtle",
+      "bg-surface-subtle",
+      "p-3",
     );
     expect(
       within(milestones)
@@ -176,16 +204,40 @@ describe("PlanningOverview", () => {
     ).toEqual(["Progress release", "Planned release"]);
     expect(screen.queryByText("Released bundle")).not.toBeInTheDocument();
 
-    expect(
-      within(
-        screen.getByTestId(`planning-overview-item-${SPRINT_CURRENT}`),
-      ).getByText("50% complete"),
-    ).toBeInTheDocument();
-    expect(
-      within(
-        screen.getByTestId(`planning-overview-item-${SPRINT_CURRENT}`),
-      ).getByText("1 unestimated"),
-    ).toBeInTheDocument();
+    expect(within(currentItem).getByText("50% complete")).toBeInTheDocument();
+    expect(within(currentItem).getByText("1 unestimated")).toBeInTheDocument();
+    for (const segment of within(currentItem).getAllByTestId(
+      /planning-rollup-segment-/,
+    )) {
+      expect(segment).not.toHaveClass("transition-[width]");
+    }
+  });
+
+  it("keeps long planning names on one line with a full accessible value", () => {
+    const longName =
+      "A planning target with a deliberately long name that must stay on one line";
+    const milestone = catalog.milestones[0];
+    if (!milestone) throw new Error("Expected a milestone fixture");
+
+    renderOverview({
+      catalog: {
+        ...catalog,
+        milestones: [{ ...milestone, name: longName }],
+      },
+    });
+
+    const link = screen.getByRole("link", {
+      name: `Open ${longName} in the Planning list`,
+    });
+    expect(link).toHaveClass("flex-1", "truncate", "whitespace-nowrap");
+    expect(link).toHaveAttribute("title", longName);
+    expect(link).toHaveAttribute(
+      "aria-label",
+      `Open ${longName} in the Planning list`,
+    );
+    const name = link.querySelector("span");
+    expect(name).not.toBeNull();
+    expect(name).toHaveClass("block", "truncate");
   });
 
   it("keeps section-level empty states visible when one planning kind has no items", () => {

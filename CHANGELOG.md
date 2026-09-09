@@ -31,6 +31,11 @@ explicitly in the entries below.
 
 - **Markdown editor focus chrome remains continuous across internal dividers.**
   Toolbar and editor-body separators no longer paint over the inset focus ring.
+- **Planning Overview keeps long names readable and the hierarchy intentional.**
+  Item links stay single-line with full-value pointer and keyboard access,
+  progress segments no longer animate layout width, successful deletion stays
+  silent when the row disappears, and the current sprint carries stronger
+  execution-plan emphasis than upcoming targets.
 - **Sprint rollover validation and conflicts now use localized guidance.**
   Invalid dates name the required correction, and an already-active sprint is
   identified by name instead of only showing a generic save conflict.

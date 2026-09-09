@@ -12,6 +12,18 @@ const { mockPush, mockReplace, navigationState } = vi.hoisted(() => ({
   },
 }));
 
+const { mockToastError, mockToastSuccess } = vi.hoisted(() => ({
+  mockToastError: vi.fn(),
+  mockToastSuccess: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({
+  toast: {
+    error: mockToastError,
+    success: mockToastSuccess,
+  },
+}));
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush, replace: mockReplace }),
   useSearchParams: () => navigationState.searchParams,
@@ -684,6 +696,42 @@ describe("PlanningPage", () => {
         expect.objectContaining({ method: "DELETE" }),
       );
     });
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("keeps delete errors visible without a success toast", async () => {
+    mockApiFetch.mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : String(input);
+        if (url.startsWith("/api/planning?")) {
+          return Promise.resolve(
+            new Response(JSON.stringify(catalog), { status: 200 }),
+          );
+        }
+        if (init?.method === "DELETE") {
+          return Promise.resolve(
+            new Response(JSON.stringify({ error: "Delete failed." }), {
+              status: 500,
+            }),
+          );
+        }
+        return Promise.resolve(new Response(null, { status: 204 }));
+      },
+    );
+
+    const user = userEvent.setup();
+    render(wrap(<PlanningPage />));
+    await screen.findByText("Sprint One");
+
+    await user.click(screen.getByRole("button", { name: "Delete Sprint One" }));
+    const dialog = await screen.findByTestId("planning-delete-confirm");
+    await user.click(within(dialog).getByTestId("planning-delete-confirm-btn"));
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith("Delete failed.");
+    });
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+    expect(screen.getByTestId("planning-delete-confirm")).toBeInTheDocument();
   });
 
   it("returns focus to the invoking delete action when cancellation closes the dialog", async () => {

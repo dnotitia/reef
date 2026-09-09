@@ -3,7 +3,12 @@
 import { DateDisplay } from "@/components/fields/DateDisplay";
 import { PlanningStatusBadge } from "@/components/fields/PlanningStatusBadge";
 import { EmptyState } from "@/components/ui/empty-state";
+import {
+  OverflowTooltip,
+  useTextOverflow,
+} from "@/components/ui/overflow-tooltip";
 import { PlanningLoadError } from "@/features/planning/components/PlanningLoadError";
+import { cn } from "@/lib/utils";
 import {
   computePlanningRollup,
   type IssueListItem,
@@ -14,7 +19,7 @@ import {
   type Sprint,
 } from "@reef/core";
 import { useTranslations } from "next-intl";
-import { useId, useMemo } from "react";
+import { useId, useMemo, useRef } from "react";
 import type { PlanningItem, PlanningKind } from "../hooks/usePlanningCatalog";
 import {
   selectActiveSprint,
@@ -123,6 +128,7 @@ function PlanningOverviewItem({
   rollup,
   issueAggregationState,
   now,
+  featured,
 }: {
   vault: string;
   kind: PlanningKind;
@@ -130,28 +136,53 @@ function PlanningOverviewItem({
   rollup: PlanningRollupData | undefined;
   issueAggregationState: IssueAggregationState;
   now: number | null;
+  featured: boolean;
 }) {
   const t = useTranslations("planning");
+  const nameRef = useRef<HTMLSpanElement>(null);
+  const isNameOverflowing = useTextOverflow(nameRef, item.name);
   const overdue = isOverdue(kind, item, now);
   const nameLabel =
     kind === "sprints"
       ? t("openSprintDetail", { name: item.name })
       : t("openPlanningListDetail", { name: item.name });
+  const nameLink = (
+    <a
+      href={itemHref(vault, kind, item)}
+      data-testid={`planning-overview-link-${item.id}`}
+      aria-label={nameLabel}
+      title={item.name}
+      className="min-w-0 flex-1 truncate whitespace-nowrap rounded font-medium text-brand-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
+    >
+      <span ref={nameRef} className="block min-w-0 truncate">
+        {item.name}
+      </span>
+    </a>
+  );
 
   return (
     <li data-testid={`planning-overview-item-${item.id}`} className="min-w-0">
-      <article className="grid min-w-0 gap-3 rounded-lg border border-border-subtle bg-surface-card p-4 md:grid-cols-[minmax(0,1fr)_minmax(14rem,32rem)] md:items-center">
+      <article
+        className={cn(
+          "grid min-w-0 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(14rem,32rem)] md:items-center",
+          featured
+            ? "rounded-lg border border-border bg-surface-card p-4"
+            : "rounded-md border border-border-subtle bg-surface-subtle p-3",
+        )}
+      >
         <div className="grid min-w-0 gap-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <a
-              href={itemHref(vault, kind, item)}
-              data-testid={`planning-overview-link-${item.id}`}
-              aria-label={nameLabel}
-              className="min-w-0 break-words rounded font-medium text-brand-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
+          <div className="flex min-w-0 flex-nowrap items-center gap-x-2">
+            <OverflowTooltip
+              value={item.name}
+              isOverflowing={isNameOverflowing}
             >
-              {item.name}
-            </a>
-            <PlanningStatusBadge kind={kind} status={item.status} />
+              {nameLink}
+            </OverflowTooltip>
+            <PlanningStatusBadge
+              kind={kind}
+              status={item.status}
+              className="shrink-0"
+            />
           </div>
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1 text-xs text-muted-foreground">
             <span className="shrink-0">{t("dates")}</span>
@@ -197,6 +228,7 @@ function PlanningOverviewSection({
 }) {
   const t = useTranslations("planning.overview");
   const sectionId = useId();
+  const featured = section === "currentSprint";
   const title = t(section);
   const emptyTitle = t(`${section}EmptyTitle`);
   const emptyDescription = t(`${section}EmptyDescription`);
@@ -205,11 +237,15 @@ function PlanningOverviewSection({
     <section
       data-testid={`planning-overview-section-${section}`}
       aria-labelledby={`${sectionId}-title`}
-      className="grid min-w-0 gap-3"
+      className={cn("grid min-w-0", featured ? "gap-3" : "gap-2")}
     >
       <h2
         id={`${sectionId}-title`}
-        className="type-section-label text-muted-foreground"
+        className={cn(
+          featured
+            ? "type-group-title text-foreground"
+            : "type-section-label text-muted-foreground",
+        )}
       >
         {title}
       </h2>
@@ -233,6 +269,7 @@ function PlanningOverviewSection({
               rollup={rollups?.get(item.id)}
               issueAggregationState={issueAggregationState}
               now={now}
+              featured={featured}
             />
           ))}
         </ul>

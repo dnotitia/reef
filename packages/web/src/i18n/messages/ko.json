@@ -726,7 +726,6 @@
     "planningCreated": "{kind} 생성됨",
     "planningSaved": "{kind} 저장됨",
     "planningSaveError": "저장하지 못했습니다.",
-    "planningDeleted": "{kind} 삭제됨",
     "planningDeleteError": "삭제하지 못했습니다.",
     "retrying": "다시 시도하는 중…",
     "retry": "다시 시도",

@@ -171,7 +171,7 @@ export function PlanningPage() {
   }, []);
 
   // Kind copy resolves in the active locale (REEF-292); captured here so the
-  // toast handlers and the kind tabs below all read the same maps.
+  // delete dialog and kind tabs below read the same maps.
   const planningKindLabels = usePlanningKindLabels();
   const planningKindSingular = usePlanningKindSingularLabels();
   const t = useTranslations("toasts");
@@ -280,9 +280,6 @@ export function PlanningPage() {
         kind: target.kind,
         id: target.item.id,
       });
-      toast.success(
-        t("planningDeleted", { kind: planningKindSingular[target.kind] }),
-      );
       // A successful delete removes the invoking row, so do not ask Radix to
       // restore focus to a detached action. Cancellation/close keeps this ref
       // intact for PlanningDeleteDialog's close-autofocus handler.

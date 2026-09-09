@@ -1019,6 +1019,14 @@ Overview/List control is URL-owned (`view=overview|list`); legacy `kind`/`detail
 links continue to resolve to the List surface. Catalog failures show one
 retryable planning error, while linked-issue loading or failure preserves
 planning metadata and detail links and marks only the rollup unavailable.
+Overview names remain single-line affordances at narrow widths and expose the
+complete value through the existing overflow tooltip and accessible label.
+Current sprint is the stronger execution-plan section through existing group
+typography, spacing, rule, and card-surface tokens; upcoming milestone/release
+sections use the quieter section-label and subtle-surface treatment. Rollup
+segments update immediately without layout-property animation, and successful
+planning deletion is silent because the removed row is visible; delete errors
+still use the existing retryable feedback path.
 
 Planning sprint names open the vault-scoped `/workspace/{vault}/planning/sprints/{id}`
 detail surface through ordinary anchors, as does the current-sprint shortcut in
