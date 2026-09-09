@@ -21,6 +21,12 @@ async function openPlanning(page: Page) {
   await openExistingWorkspace(page);
   await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
   await expect(page.getByRole("heading", { name: "Planning" })).toBeVisible();
+  await page.getByRole("button", { name: "List" }).click();
+  await expect(page.getByTestId("planning-kind-switcher")).toBeVisible();
+  await expect(page.getByTestId("planning-kind-sprints")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
 }
 
 test.describe("Hermetic sprint rollover workflow", () => {

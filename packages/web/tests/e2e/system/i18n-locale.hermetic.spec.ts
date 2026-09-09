@@ -389,6 +389,18 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
   }) => {
     await openExistingWorkspace(page);
 
+    await page.goto("/workspace/reef-e2e/planning");
+    await expect(
+      page.getByRole("group", { name: "Planning view" }),
+    ).toBeVisible();
+    for (const label of [
+      "Current sprint",
+      "Upcoming milestones",
+      "Upcoming releases",
+    ]) {
+      await expect(page.getByRole("heading", { name: label })).toBeVisible();
+    }
+
     await page.goto("/workspace/reef-e2e/settings/preferences");
     await page
       .getByRole("region", { name: "Language" })
@@ -396,11 +408,20 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
       .click();
     await expect(page.locator("html")).toHaveAttribute("lang", "ko");
 
-    // The planning page's kind toggle follows the locale too (REEF-305).
+    // The planning page's Overview/List switch and section headings follow the
+    // locale too (REEF-305).
     await page.goto("/workspace/reef-e2e/planning");
     await expect(
-      page.getByRole("group", { name: "플래닝 종류" }),
+      page.getByRole("group", { name: "플래닝 보기" }),
     ).toBeVisible();
+    await expect(page.getByRole("button", { name: "개요" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "목록" })).toBeVisible();
+    for (const label of ["현재 스프린트", "예정 마일스톤", "예정 릴리스"]) {
+      await expect(page.getByRole("heading", { name: label })).toBeVisible();
+    }
+    await expect(page.getByRole("group", { name: "플래닝 종류" })).toHaveCount(
+      0,
+    );
   });
 
   test("renders migrated reports-area body strings in the active locale (REEF-304)", async ({

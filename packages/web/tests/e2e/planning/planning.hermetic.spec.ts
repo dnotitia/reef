@@ -290,9 +290,21 @@ test.describe("Hermetic planning workflow", () => {
 
   test("opens the combined Overview and restores the existing List URL contract", async ({
     page,
+    request,
   }) => {
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/planning");
+
+    const vault = (await readFixtureState(request)).vaults.find(
+      (item) => item.name === REEF_E2E_VAULT,
+    );
+    const milestone = vault?.milestones.find(
+      (item) => item.name === "Coverage Complete",
+    );
+    const release = vault?.releases.find((item) => item.name === "June E2E");
+    if (!milestone || !release) {
+      throw new Error("Expected the planning fixture catalog to be populated");
+    }
 
     await expect(page.getByTestId("planning-overview")).toBeVisible();
     for (const section of [
@@ -316,13 +328,13 @@ test.describe("Hermetic planning workflow", () => {
       }),
     ).toHaveAttribute(
       "href",
-      "/workspace/reef-e2e/planning?view=list&kind=milestones&detail=00000000-0000-4000-8000-000000000001",
+      `/workspace/reef-e2e/planning?view=list&kind=milestones&detail=${milestone.id}`,
     );
     await expect(
       page.getByRole("link", { name: "Open June E2E in the Planning list" }),
     ).toHaveAttribute(
       "href",
-      "/workspace/reef-e2e/planning?view=list&kind=releases&detail=00000000-0000-4000-8000-000000000001",
+      `/workspace/reef-e2e/planning?view=list&kind=releases&detail=${release.id}`,
     );
 
     await page.getByRole("button", { name: "List" }).click();
@@ -526,7 +538,7 @@ test.describe("Hermetic planning workflow", () => {
         `pending Planning Overview accessibility tree should include ${header}`,
       ).toContain(header);
     }
-    await expect(loading.getByRole("status")).toHaveText("Loading…");
+    await expect(page.getByRole("status")).toHaveText("Loading…");
 
     const error = page.getByTestId("planning-catalog-error");
     await expect(error).toBeVisible({ timeout: 20_000 });

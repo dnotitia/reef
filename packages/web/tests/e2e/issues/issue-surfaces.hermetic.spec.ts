@@ -659,6 +659,8 @@ test.describe("Hermetic issue route surfaces", () => {
     });
 
     await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
+    await page.getByRole("button", { name: "List" }).click();
+    await expect(page.getByTestId("planning-kind-switcher")).toBeVisible();
     await expect(
       page.getByRole("button", { name: `Edit ${currentSprint.name}` }),
     ).toBeVisible();
@@ -768,6 +770,8 @@ test.describe("Hermetic issue route surfaces", () => {
     ).toBeVisible();
 
     await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
+    await page.getByRole("button", { name: "List" }).click();
+    await expect(page.getByTestId("planning-kind-switcher")).toBeVisible();
     await expect(
       page.getByRole("button", { name: `Edit ${LONG_CURRENT_SPRINT_NAME}` }),
     ).toBeVisible();
@@ -827,6 +831,8 @@ test.describe("Hermetic issue route surfaces", () => {
     if (!currentSprint) throw new Error("Missing configured active sprint");
 
     await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
+    await page.getByRole("button", { name: "List" }).click();
+    await expect(page.getByTestId("planning-kind-switcher")).toBeVisible();
     await page.getByRole("button", { name: "New sprint" }).click();
     const createDialog = page.getByTestId("planning-editor-dialog");
     await createDialog
