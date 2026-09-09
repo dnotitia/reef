@@ -126,6 +126,26 @@ describe("ViewSwitcher", () => {
     expect(mockPush).not.toHaveBeenCalled();
   });
 
+  it("preloads an unselected view on focus and before navigation", async () => {
+    const user = userEvent.setup();
+    const onLayoutIntent = vi.fn();
+    render(
+      <ViewSwitcher
+        activeLayout="board"
+        scope="active"
+        onLayoutIntent={onLayoutIntent}
+      />,
+    );
+
+    const list = screen.getByTestId("view-switcher-list");
+    list.focus();
+    expect(onLayoutIntent).toHaveBeenCalledWith("list");
+
+    onLayoutIntent.mockClear();
+    await user.click(screen.getByTestId("view-switcher-timeline"));
+    expect(onLayoutIntent).toHaveBeenCalledWith("timeline");
+  });
+
   // REEF-261: the canonical segmented control previously had no keyboard focus
   // indicator at all (the a11y gap) and the family had drifted on dimensions.
   // Each segment now draws the canonical `ring-brand-focus` focus-visible ring and the

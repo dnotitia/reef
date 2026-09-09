@@ -109,7 +109,12 @@ const CORPUS = [
   makeIssue("REEF-002", "Add settings page"),
 ];
 
-type ListResult = { data?: unknown; isLoading?: boolean; isError?: boolean };
+type ListResult = {
+  data?: unknown;
+  isLoading?: boolean;
+  isError?: boolean;
+  refetch?: () => Promise<unknown>;
+};
 
 /** Default mock: recent set for an empty query, substring `q` match otherwise. */
 function serverLike(_vault: string, query?: { q?: string }): ListResult {
@@ -120,7 +125,12 @@ function serverLike(_vault: string, query?: { q?: string }): ListResult {
           i.id.toLowerCase().includes(q) || i.title.toLowerCase().includes(q),
       )
     : CORPUS;
-  return { data, isLoading: false, isError: false };
+  return {
+    data,
+    isLoading: false,
+    isError: false,
+    refetch: () => Promise.resolve(),
+  };
 }
 
 function renderDialog(locale: "en" | "ko" = "en") {
@@ -638,11 +648,13 @@ describe("GlobalSearchDialog", () => {
     expect(screen.queryByTestId("global-search-item")).toBeNull();
   });
 
-  it("shows an error state when the server query fails", () => {
+  it("shows an error state with an explicit retry when the server query fails", async () => {
+    const refetch = vi.fn(() => Promise.resolve());
     useIssueListMock.mockReturnValue({
       data: undefined,
       isLoading: false,
       isError: true,
+      refetch,
     });
     useGlobalSearchStore.setState({ isOpen: true });
     renderDialog();
@@ -652,6 +664,8 @@ describe("GlobalSearchDialog", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByTestId("global-search-item")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(refetch).toHaveBeenCalledOnce();
   });
 
   it("renders each result row as a real anchor to the issue", () => {

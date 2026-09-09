@@ -204,6 +204,7 @@ export function KanbanBoard({
     isFetching,
     isError,
     isPlaceholderData,
+    refetch,
   } = useIssueList(vault, query);
   const staleWindowDays = useResolvedAutoHideWindows(vault);
   const { data: relations } = useIssueRelations(vault);
@@ -818,8 +819,20 @@ export function KanbanBoard({
     >
       <IssueReorderAnnouncement message={reorderAnnouncement} />
       {isError && (
-        <div className="mx-6 mt-4 rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text">
-          {t("loadError")}
+        <div
+          className="mx-6 mt-4 rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text"
+          role="alert"
+          aria-live="assertive"
+        >
+          {t("loadError")}{" "}
+          <Button
+            type="button"
+            variant="link"
+            className="h-auto px-0 text-destructive-text"
+            onClick={() => void refetch()}
+          >
+            {common("retry")}
+          </Button>
         </div>
       )}
       <DndContext

@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 
 interface SidebarFooterShortcutsProps {
   readonly collapsed: boolean;
+  readonly onPreload?: () => void;
 }
 
 /**
@@ -16,6 +17,7 @@ interface SidebarFooterShortcutsProps {
  */
 export function SidebarFooterShortcuts({
   collapsed,
+  onPreload,
 }: SidebarFooterShortcutsProps) {
   const toggleShortcuts = useShortcutsStore((state) => state.toggle);
   const t = useTranslations("misc");
@@ -30,7 +32,12 @@ export function SidebarFooterShortcuts({
     >
       <button
         type="button"
-        onClick={toggleShortcuts}
+        onClick={() => {
+          onPreload?.();
+          toggleShortcuts();
+        }}
+        onMouseEnter={onPreload}
+        onFocus={onPreload}
         aria-label={t("keyboardShortcuts")}
         title={t("keyboardShortcutsTitle", { keychord: "⌘?" })}
         data-testid="sidebar-shortcuts-trigger"

@@ -17,12 +17,14 @@ import type { IssueLayout, IssueScope } from "../../lib/viewMode";
 interface ScopeSwitcherProps {
   activeLayout: IssueLayout;
   activeScope: IssueScope;
+  onScopeIntent?: (scope: IssueScope, layout: IssueLayout) => void;
 }
 
 /** The work-scope control. Labels stay visible at every supported viewport. */
 export function ScopeSwitcher({
   activeLayout,
   activeScope,
+  onScopeIntent,
 }: ScopeSwitcherProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -31,17 +33,29 @@ export function ScopeSwitcher({
   const [pendingScope, setPendingScope] = useState<IssueScope | null>(null);
   const t = useTranslations("issues.filters");
 
+  const layoutForScope = useCallback(
+    (scope: IssueScope): IssueLayout =>
+      scope === "backlog" && activeLayout === "timeline"
+        ? "list"
+        : activeLayout,
+    [activeLayout],
+  );
+
+  const preloadScope = useCallback(
+    (scope: IssueScope) => {
+      if (scope === activeScope) return;
+      onScopeIntent?.(scope, layoutForScope(scope));
+    },
+    [activeScope, layoutForScope, onScopeIntent],
+  );
+
   const selectScope = useCallback(
     (scope: IssueScope) => {
       if (scope === activeScope || pendingScope === scope) return;
+      preloadScope(scope);
       const next = new URLSearchParams(searchParams);
       next.set("scope", scope);
-      next.set(
-        "view",
-        scope === "backlog" && activeLayout === "timeline"
-          ? "list"
-          : activeLayout,
-      );
+      next.set("view", layoutForScope(scope));
       setPendingScope(scope);
       startTransition(() => {
         router.push(withVault(vault, `/issues?${next.toString()}`), {
@@ -49,7 +63,15 @@ export function ScopeSwitcher({
         });
       });
     },
-    [activeLayout, activeScope, pendingScope, router, searchParams, vault],
+    [
+      activeScope,
+      layoutForScope,
+      pendingScope,
+      preloadScope,
+      router,
+      searchParams,
+      vault,
+    ],
   );
 
   useEffect(() => {
@@ -80,6 +102,8 @@ export function ScopeSwitcher({
             aria-label={label}
             title={label}
             data-testid={`scope-switcher-${scope}`}
+            onMouseEnter={() => preloadScope(scope)}
+            onFocus={() => preloadScope(scope)}
             onClick={() => selectScope(scope)}
             className={cn(
               SEGMENTED_CONTROL_ITEM,

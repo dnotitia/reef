@@ -7,6 +7,7 @@ import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { PageHeader } from "@/features/ui/components/PageHeader";
+import { preloadNewIssueDialog } from "@/features/ui/lib/lazyDialogPreload";
 import { useViewStore } from "@/features/ui/stores/useViewStore";
 import { useIssueTypeLabels, useSeverityLabels } from "@/i18n/fieldLabels";
 import { ACTIVE_STATUSES, type Status } from "@reef/core";
@@ -196,7 +197,12 @@ export function ReportsPage() {
           <Button
             type="button"
             size="sm"
-            onClick={() => openNewIssueDialog()}
+            onClick={() => {
+              preloadNewIssueDialog();
+              openNewIssueDialog();
+            }}
+            onMouseEnter={preloadNewIssueDialog}
+            onFocus={preloadNewIssueDialog}
             className="gap-1.5"
           >
             <Plus aria-hidden="true" className="h-3.5 w-3.5" />

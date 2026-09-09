@@ -1085,10 +1085,9 @@ test.describe("Hermetic typography role contract", () => {
     await resetFixture(request, "demo_board");
     await openExistingWorkspace(page);
     await page.setViewportSize(VIEWPORTS[0]);
-    const issueDetail = await openRoute(
-      page,
-      `/workspace/${REEF_E2E_VAULT}/issues/REEF-101`,
-    );
+    await openRoute(page, `/workspace/${REEF_E2E_VAULT}/issues/REEF-101`);
+    const issueDetail = page.getByTestId("issue-detail");
+    await expect(issueDetail).toBeVisible();
     await expectTypography(
       issueDetail
         .getByTestId("issue-children")

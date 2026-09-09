@@ -60,6 +60,7 @@ export function useIssueSearchMode({
     isLoading,
     isFetching,
     isPlaceholderData,
+    refetch: refetchResults,
   } = useIssueList(vault, listQuery);
 
   const exactId = CANONICAL_ID.test(debouncedTrimmed)
@@ -150,6 +151,7 @@ export function useIssueSearchMode({
       }),
     results,
     resultsAreCurrent,
+    refetchResults,
     searchBusy,
   };
 }

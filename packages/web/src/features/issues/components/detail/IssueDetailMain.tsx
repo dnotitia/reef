@@ -4,6 +4,7 @@ import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useViewStore } from "@/features/ui/stores/useViewStore";
+import { preloadNewIssueDialog } from "@/features/ui/lib/lazyDialogPreload";
 import { useVaultRoster } from "@/features/settings/hooks/useVaultRoster";
 import { fetchVaultDocumentSearch } from "@/features/issues/hooks/queries/useVaultDocumentSearch";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
@@ -112,6 +113,7 @@ export function IssueDetailMain({
 
   function handleAddSubIssue() {
     if (!issue) return;
+    preloadNewIssueDialog();
     openNewIssueDialog({
       kind: "subIssue",
       parent: {
@@ -134,6 +136,8 @@ export function IssueDetailMain({
       size="sm"
       className="group h-6 gap-1 px-1.5 type-card-metadata text-muted-foreground hover:text-foreground"
       onClick={handleAddSubIssue}
+      onMouseEnter={preloadNewIssueDialog}
+      onFocus={preloadNewIssueDialog}
       disabled={!issue}
       data-testid="add-sub-issue-trigger"
     >

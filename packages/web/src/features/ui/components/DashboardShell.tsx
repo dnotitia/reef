@@ -18,8 +18,6 @@ import { SidebarAccount } from "@/features/auth/components/SidebarAccount";
 import { SidebarWorkspace } from "@/features/auth/components/SidebarWorkspace";
 import { useCommandRegistry } from "@/features/commands/hooks/useCommandRegistry";
 import { useUnreadNotificationCount } from "@/features/inbox/hooks/useInboxNotifications";
-import { NewIssueDialog } from "@/features/issues/components/create/NewIssueDialog";
-import { CloseIssueDialog } from "@/features/issues/components/detail/CloseIssueDialog";
 import { buildOpenIssueHref } from "@/features/issues/lib/issueHref";
 import { parseIssueViewState } from "@/features/issues/lib/viewMode";
 import {
@@ -30,14 +28,11 @@ import {
 import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
 import { useMyWorkAttention } from "@/features/my-work/hooks/useMyWorkAttention";
 import { OfflineBanner } from "@/features/network/components/OfflineBanner";
-import { CreateWorkspaceDialog } from "@/features/onboarding/components/CreateWorkspaceDialog";
 import { useLocaleSync } from "@/features/preferences/hooks/useLocaleSync";
-import { GlobalSearchDialog } from "@/features/search/components/GlobalSearchDialog";
 import { useGlobalSearchStore } from "@/features/search/stores/useGlobalSearchStore";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useProjectConfig } from "@/features/settings/hooks/useProjectConfig";
 import { useWorkspaceSkillStatus } from "@/features/settings/hooks/useWorkspaceSkillStatus";
-import { KeyboardShortcutsDialog } from "@/features/shortcuts/components/KeyboardShortcutsDialog";
 import {
   type ShortcutScope,
   dispatchShortcut,
@@ -47,6 +42,14 @@ import {
 } from "@/features/shortcuts/lib/shortcuts";
 import { useShortcutsStore } from "@/features/shortcuts/stores/useShortcutsStore";
 import { useViewStore } from "@/features/ui/stores/useViewStore";
+import { LazyLoadFallback } from "@/features/ui/components/LazyLoadFallback";
+import {
+  preloadAskAiDialog,
+  preloadCreateWorkspaceDialog,
+  preloadGlobalSearchDialog,
+  preloadKeyboardShortcutsDialog,
+  preloadNewIssueDialog,
+} from "@/features/ui/lib/lazyDialogPreload";
 import { useHydrated } from "@/lib/useHydrated";
 import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
@@ -72,14 +75,182 @@ import { SidebarFooterShortcuts } from "./SidebarFooterShortcuts";
 const AskAiDialog = dynamic(
   () =>
     import("@/features/ai/components/AskAiDialog").then((m) => m.AskAiDialog),
-  { ssr: false },
+  {
+    ssr: false,
+    loading: (props) => (
+      <AskAiDialogLoading error={props.error} retry={props.retry} />
+    ),
+  },
 );
 
-// Warm the chunk on FAB hover/focus so the panel is ready by the time it opens.
-function preloadAskAiDialog() {
-  if (typeof window !== "undefined") {
-    void import("@/features/ai/components/AskAiDialog");
-  }
+interface DynamicLoadingProps {
+  error?: Error | null;
+  retry?: () => void;
+}
+
+function AskAiDialogLoading({ error, retry }: DynamicLoadingProps) {
+  const open = useAskAiStore((state) => state.isOpen);
+  const dismiss = useAskAiStore((state) => state.close);
+  if (!open) return null;
+  return (
+    <LazyLoadFallback
+      error={error}
+      retry={retry}
+      surface="dialog"
+      testId="ask-ai-dialog-loading"
+      onDismiss={dismiss}
+    />
+  );
+}
+
+function NewIssueDialogLoading({ error, retry }: DynamicLoadingProps) {
+  const open = useViewStore((state) => state.newIssueDialogOpen);
+  const dismiss = useViewStore((state) => state.closeNewIssueDialog);
+  if (!open) return null;
+  return (
+    <LazyLoadFallback
+      error={error}
+      retry={retry}
+      surface="dialog"
+      testId="new-issue-dialog-loading"
+      onDismiss={dismiss}
+    />
+  );
+}
+
+function CreateWorkspaceDialogLoading({ error, retry }: DynamicLoadingProps) {
+  const open = useViewStore((state) => state.createWorkspaceDialogOpen);
+  const dismiss = useViewStore((state) => state.closeCreateWorkspaceDialog);
+  if (!open) return null;
+  return (
+    <LazyLoadFallback
+      error={error}
+      retry={retry}
+      surface="dialog"
+      testId="create-workspace-dialog-loading"
+      onDismiss={dismiss}
+    />
+  );
+}
+
+function GlobalSearchDialogLoading({ error, retry }: DynamicLoadingProps) {
+  const open = useGlobalSearchStore((state) => state.isOpen);
+  const dismiss = useGlobalSearchStore((state) => state.close);
+  if (!open) return null;
+  return (
+    <LazyLoadFallback
+      error={error}
+      retry={retry}
+      surface="dialog"
+      testId="global-search-dialog-loading"
+      onDismiss={dismiss}
+    />
+  );
+}
+
+function KeyboardShortcutsDialogLoading({ error, retry }: DynamicLoadingProps) {
+  const open = useShortcutsStore((state) => state.isOpen);
+  const dismiss = useShortcutsStore((state) => state.close);
+  if (!open) return null;
+  return (
+    <LazyLoadFallback
+      error={error}
+      retry={retry}
+      surface="dialog"
+      testId="keyboard-shortcuts-dialog-loading"
+      onDismiss={dismiss}
+    />
+  );
+}
+
+function CloseIssueDialogLoading({ error, retry }: DynamicLoadingProps) {
+  return (
+    <LazyLoadFallback
+      error={error}
+      retry={retry}
+      surface="dialog"
+      testId="close-issue-dialog-loading"
+    />
+  );
+}
+
+const NewIssueDialog = dynamic(
+  () =>
+    import("@/features/issues/components/create/NewIssueDialog").then(
+      (module) => module.NewIssueDialog,
+    ),
+  {
+    ssr: false,
+    loading: (props) => (
+      <NewIssueDialogLoading error={props.error} retry={props.retry} />
+    ),
+  },
+);
+
+const CreateWorkspaceDialog = dynamic(
+  () =>
+    import("@/features/onboarding/components/CreateWorkspaceDialog").then(
+      (module) => module.CreateWorkspaceDialog,
+    ),
+  {
+    ssr: false,
+    loading: (props) => (
+      <CreateWorkspaceDialogLoading error={props.error} retry={props.retry} />
+    ),
+  },
+);
+
+const GlobalSearchDialog = dynamic(
+  () =>
+    import("@/features/search/components/GlobalSearchDialog").then(
+      (module) => module.GlobalSearchDialog,
+    ),
+  {
+    ssr: false,
+    loading: (props) => (
+      <GlobalSearchDialogLoading error={props.error} retry={props.retry} />
+    ),
+  },
+);
+
+const KeyboardShortcutsDialog = dynamic(
+  () =>
+    import("@/features/shortcuts/components/KeyboardShortcutsDialog").then(
+      (module) => module.KeyboardShortcutsDialog,
+    ),
+  {
+    ssr: false,
+    loading: (props) => (
+      <KeyboardShortcutsDialogLoading error={props.error} retry={props.retry} />
+    ),
+  },
+);
+
+const CloseIssueDialog = dynamic(
+  () =>
+    import("@/features/issues/components/detail/CloseIssueDialog").then(
+      (module) => module.CloseIssueDialog,
+    ),
+  {
+    ssr: false,
+    loading: (props) => (
+      <CloseIssueDialogLoading error={props.error} retry={props.retry} />
+    ),
+  },
+);
+
+function useMountAfterOpen(open: boolean): boolean {
+  const [hasOpened, setHasOpened] = useState(() => open);
+
+  useEffect(() => {
+    if (!open || hasOpened) return;
+    // The first open is already reflected by `open`; retain the mounted
+    // component after that point so Radix can finish close-focus handoffs.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- this records a one-way interaction boundary.
+    setHasOpened(true);
+  }, [hasOpened, open]);
+
+  return hasOpened || open;
 }
 
 function subscribeToPlatformStore() {
@@ -167,16 +338,41 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   const sidebarCollapsed = storedSidebarCollapsed || mobileSidebarCollapsed;
   const toggleSidebar = useViewStore((state) => state.toggleSidebar);
   const openNewIssueDialog = useViewStore((state) => state.openNewIssueDialog);
+  const newIssueDialogOpen = useViewStore((state) => state.newIssueDialogOpen);
+  const createWorkspaceDialogOpen = useViewStore(
+    (state) => state.createWorkspaceDialogOpen,
+  );
   const newIssueFocusOriginRef = useRef<HTMLElement | null>(null);
   const openBlankNewIssueDialog = useCallback(() => {
     const active = document.activeElement;
     newIssueFocusOriginRef.current =
       active instanceof HTMLElement && active !== document.body ? active : null;
+    preloadNewIssueDialog();
     openNewIssueDialog();
   }, [openNewIssueDialog]);
   const toggleAskAi = useAskAiStore((state) => state.toggle);
   const toggleGlobalSearch = useGlobalSearchStore((state) => state.toggle);
+  const globalSearchOpen = useGlobalSearchStore((state) => state.isOpen);
   const toggleShortcuts = useShortcutsStore((state) => state.toggle);
+  const shortcutsOpen = useShortcutsStore((state) => state.isOpen);
+  const newIssueDialogMounted = useMountAfterOpen(newIssueDialogOpen);
+  const createWorkspaceDialogMounted = useMountAfterOpen(
+    createWorkspaceDialogOpen,
+  );
+  const globalSearchDialogMounted = useMountAfterOpen(globalSearchOpen);
+  const keyboardShortcutsDialogMounted = useMountAfterOpen(shortcutsOpen);
+  const toggleGlobalSearchWithPreload = useCallback(() => {
+    if (!useGlobalSearchStore.getState().isOpen) {
+      preloadGlobalSearchDialog();
+    }
+    toggleGlobalSearch();
+  }, [toggleGlobalSearch]);
+  const toggleShortcutsWithPreload = useCallback(() => {
+    if (!useShortcutsStore.getState().isOpen) {
+      preloadKeyboardShortcutsDialog();
+    }
+    toggleShortcuts();
+  }, [toggleShortcuts]);
   const moveIssueFocus = useIssueKeyboardStore((state) => state.moveFocus);
   const requestQuickEdit = useIssueKeyboardStore(
     (state) => state.requestQuickEdit,
@@ -408,8 +604,8 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
 
   const commandRegistry = useCommandRegistry({
     vault: vault ?? "",
-    togglePalette: toggleGlobalSearch,
-    toggleShortcuts,
+    togglePalette: toggleGlobalSearchWithPreload,
+    toggleShortcuts: toggleShortcutsWithPreload,
     openNewIssue: openBlankNewIssueDialog,
     toggleAskAi,
     startChord,
@@ -422,10 +618,65 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   });
   const shortcutRegistry = commandRegistry.shortcutBindings;
 
+  const closeUnreadyLazySurfaces = useCallback(
+    (event: KeyboardEvent): boolean => {
+      if (event.key !== "Escape" || event.defaultPrevented) return false;
+
+      const surfaces: ReadonlyArray<{
+        open: boolean;
+        selector: string;
+        close: () => void;
+      }> = [
+        {
+          open: useViewStore.getState().newIssueDialogOpen,
+          selector: '[data-testid="new-issue-dialog"]',
+          close: useViewStore.getState().closeNewIssueDialog,
+        },
+        {
+          open: useViewStore.getState().createWorkspaceDialogOpen,
+          selector: '[data-testid="create-workspace-dialog"]',
+          close: useViewStore.getState().closeCreateWorkspaceDialog,
+        },
+        {
+          open: useGlobalSearchStore.getState().isOpen,
+          selector: '[data-testid="global-search-input"]',
+          close: useGlobalSearchStore.getState().close,
+        },
+        {
+          open: useShortcutsStore.getState().isOpen,
+          selector: '[data-testid="keyboard-shortcuts-dialog"]',
+          close: useShortcutsStore.getState().close,
+        },
+        {
+          open: useAskAiStore.getState().isOpen,
+          selector: '[data-testid="ask-ai-dialog"]',
+          close: useAskAiStore.getState().close,
+        },
+        {
+          open: commandRegistry.pendingClose !== null,
+          selector: '[data-testid="close-issue-dialog"]',
+          close: () => commandRegistry.setPendingClose(null),
+        },
+      ];
+
+      let closed = false;
+      for (const surface of surfaces) {
+        if (surface.open && !document.querySelector(surface.selector)) {
+          surface.close();
+          closed = true;
+        }
+      }
+      if (closed) event.preventDefault();
+      return closed;
+    },
+    [commandRegistry.pendingClose, commandRegistry.setPendingClose],
+  );
+
   // Global shortcut dispatcher. Bindings are declared above with scope +
   // key contracts; this stays the shell's single keydown listener.
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      if (closeUnreadyLazySurfaces(e)) return;
       const result = dispatchShortcut(
         e,
         shortcutRegistry,
@@ -441,7 +692,12 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
       clearChord();
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [clearChord, resolveShortcutScope, shortcutRegistry]);
+  }, [
+    clearChord,
+    closeUnreadyLazySurfaces,
+    resolveShortcutScope,
+    shortcutRegistry,
+  ]);
 
   return (
     <div
@@ -522,6 +778,8 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
             type="button"
             size="sm"
             onClick={openBlankNewIssueDialog}
+            onMouseEnter={preloadNewIssueDialog}
+            onFocus={preloadNewIssueDialog}
             data-testid="new-issue-trigger"
             aria-label={newIssueLabel}
             title={newIssueLabel}
@@ -634,8 +892,14 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
             Keyboard shortcuts are app chrome; workspace (place, REEF-146) and
             account (person, REEF-068) stay grouped below so their identity
             meanings remain distinct. */}
-        <SidebarFooterShortcuts collapsed={sidebarCollapsed} />
-        <SidebarWorkspace collapsed={sidebarCollapsed} />
+        <SidebarFooterShortcuts
+          collapsed={sidebarCollapsed}
+          onPreload={preloadKeyboardShortcutsDialog}
+        />
+        <SidebarWorkspace
+          collapsed={sidebarCollapsed}
+          onPreload={preloadCreateWorkspaceDialog}
+        />
         <SidebarAccount appVersion={appVersion} collapsed={sidebarCollapsed} />
       </aside>
 
@@ -654,31 +918,37 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
       {/* Global new-issue dialog — single instance for the whole shell so any
           trigger (sidebar button, keyboard shortcut, future quick-add) shares
           state. */}
-      <NewIssueDialog focusOriginRef={newIssueFocusOriginRef} />
+      {newIssueDialogMounted ? (
+        <NewIssueDialog focusOriginRef={newIssueFocusOriginRef} />
+      ) : null}
 
       {/* Global create-workspace dialog (REEF-146) — single instance opened
           from the sidebar workspace switcher (and later Settings, REEF-147). */}
-      <CreateWorkspaceDialog />
+      {createWorkspaceDialogMounted ? <CreateWorkspaceDialog /> : null}
 
-      {/* Global ⌘K search palette. consistently mounted; controlled via
-          useGlobalSearchStore so the keyboard shortcut and any future
-          toolbar trigger share one canonical source. */}
-      <GlobalSearchDialog registry={commandRegistry} />
+      {/* Global ⌘K search palette. Mounted on first intent and retained after
+          that point so its close-focus handoff remains owned by Radix; its
+          search queries are disabled while closed. */}
+      {globalSearchDialogMounted ? (
+        <GlobalSearchDialog registry={commandRegistry} />
+      ) : null}
 
-      <CloseIssueDialog
-        open={commandRegistry.pendingClose !== null}
-        issueId={commandRegistry.pendingClose?.issueId ?? ""}
-        disabled={commandRegistry.mutationPending}
-        onOpenChange={(open) => {
-          if (!open) commandRegistry.setPendingClose(null);
-        }}
-        onConfirm={commandRegistry.confirmPendingClose}
-      />
+      {commandRegistry.pendingClose ? (
+        <CloseIssueDialog
+          open
+          issueId={commandRegistry.pendingClose.issueId}
+          disabled={commandRegistry.mutationPending}
+          onOpenChange={(open) => {
+            if (!open) commandRegistry.setPendingClose(null);
+          }}
+          onConfirm={commandRegistry.confirmPendingClose}
+        />
+      ) : null}
 
-      {/* Keyboard shortcuts cheat sheet (⌘?). Same single-mount pattern —
-          opened by the keybinding for now, but a future "Help" entry
-          in the sidebar can flip the same store. */}
-      <KeyboardShortcutsDialog />
+      {/* Keyboard shortcuts cheat sheet (⌘?). Mounted on first intent and
+          retained after that point; the keybinding and the sidebar utility
+          button share one store. */}
+      {keyboardShortcutsDialogMounted ? <KeyboardShortcutsDialog /> : null}
 
       {/* Global Ask AI panel + FAB. The panel is lazily mounted on first open
           (chatMounted) so the chat bundle stays out of first load; once

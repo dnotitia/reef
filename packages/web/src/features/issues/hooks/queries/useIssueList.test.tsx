@@ -69,6 +69,16 @@ describe("useIssueList", () => {
     expect(mockApiFetch).not.toHaveBeenCalled();
   });
 
+  it("does not start a request when the owning surface is disabled", () => {
+    const { result } = renderHook(
+      () => useIssueList("reef-acme", undefined, { enabled: false }),
+      { wrapper: createWrapper() },
+    );
+
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(mockApiFetch).not.toHaveBeenCalled();
+  });
+
   it("surfaces isError on non-200 response", async () => {
     mockApiFetch.mockResolvedValue(
       new Response(JSON.stringify({ error: "Workspace not found." }), {

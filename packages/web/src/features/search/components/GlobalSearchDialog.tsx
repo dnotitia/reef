@@ -2,6 +2,7 @@
 
 import { IssueOptionRow } from "@/components/fields/IssueOptionRow";
 import { SearchProgressBar } from "@/components/ui/SearchProgressBar";
+import { Button } from "@/components/ui/button";
 import {
   CommandDialog,
   CommandGroup,
@@ -156,6 +157,7 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
   const { vault } = useActiveVault();
   const router = useRouter();
   const t = useTranslations("search");
+  const common = useTranslations("common");
   const commands = useTranslations("commands") as unknown as (
     key: string,
   ) => string;
@@ -183,7 +185,11 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
     onChange: setQuery,
     reset: resetQuery,
   } = useDebouncedQuery(SEARCH_DEBOUNCE_WARM);
-  const searchVault = mode === "search" ? (vault ?? "") : "";
+  // Keep the loaded palette mounted after first use so Radix can complete its
+  // close-focus handoff, but disable every search consumer while it is closed.
+  // The query hooks retain their cache without issuing a request for a hidden
+  // palette.
+  const searchVault = isOpen && mode === "search" ? (vault ?? "") : "";
 
   useEffect(() => {
     if (!isOpen) return;
@@ -209,6 +215,7 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
     loadMore,
     results,
     resultsAreCurrent,
+    refetchResults,
     searchBusy,
   } = useIssueSearchMode({
     query,
@@ -743,20 +750,38 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
             {/* `<output>` carries a polite `role="status"` live region for the
             "Searching…" ↔ "No matching issues." transition. The region remains
             mounted before its text changes. */}
-            <output
-              aria-live="polite"
-              className={cn(
-                "block text-center text-sm",
-                statusMessage &&
-                  !showResults &&
-                  contentResults.length === 0 &&
-                  !canLoadMore
-                  ? "py-6"
-                  : "sr-only",
-              )}
-            >
-              {statusMessage}
-            </output>
+            {isError ? (
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="flex flex-wrap items-center justify-center gap-2 py-6 text-center text-sm text-destructive-text"
+              >
+                <span>{statusMessage}</span>
+                <Button
+                  type="button"
+                  variant="link"
+                  className="h-auto px-0 text-destructive-text"
+                  onClick={() => void refetchResults?.()}
+                >
+                  {common("retry")}
+                </Button>
+              </div>
+            ) : (
+              <output
+                aria-live="polite"
+                className={cn(
+                  "block text-center text-sm",
+                  statusMessage &&
+                    !showResults &&
+                    contentResults.length === 0 &&
+                    !canLoadMore
+                    ? "py-6"
+                    : "sr-only",
+                )}
+              >
+                {statusMessage}
+              </output>
+            )}
           </CommandList>
         </>
       )}

@@ -63,4 +63,26 @@ describe("ScopeSwitcher", () => {
     expect(params.get("view")).toBe("list");
     expect(params.get("q")).toBe("auth");
   });
+
+  it("preloads the normalized target layout on scope intent", async () => {
+    const user = userEvent.setup();
+    const onScopeIntent = vi.fn();
+    render(
+      <IntlTestProvider>
+        <ScopeSwitcher
+          activeScope="active"
+          activeLayout="timeline"
+          onScopeIntent={onScopeIntent}
+        />
+      </IntlTestProvider>,
+    );
+
+    const backlog = screen.getByTestId("scope-switcher-backlog");
+    backlog.focus();
+    expect(onScopeIntent).toHaveBeenCalledWith("backlog", "list");
+
+    onScopeIntent.mockClear();
+    await user.click(backlog);
+    expect(onScopeIntent).toHaveBeenCalledWith("backlog", "list");
+  });
 });

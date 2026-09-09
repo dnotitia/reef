@@ -694,6 +694,23 @@ workspaces to switch to). Vault-less dashboard paths are not part of the route
 tree; use the explicit workspace URL or the root workspace picker. The old
 mixed `view=backlog` URL is not a supported route.
 
+The shell owns one lazy instance of each global dialog. A dialog's code and
+feature-specific subscriptions are prepared on its first user intent; pointer
+hover/focus warms the visible New Issue, workspace, shortcuts, and Ask AI
+actions, while keyboard invocation starts the same preparation before opening.
+After the first use, dialogs that need focus continuity remain mounted but keep
+their closed-state data consumers disabled. A failed code load stays visible as
+a PM-facing retryable state and does not change the current route, filters, or
+draft state.
+
+The selected Issues view body is loaded independently from the shared header and
+filter toolbar. Board, active List, Backlog List, and Timeline are requested only
+when selected or when that exact destination receives pointer/keyboard intent;
+the current body remains in place during a route transition, and a cold view
+shows a local loading state with Retry if its chunk fails. Scope changes preload
+the normalized destination (for example, Active Timeline to Backlog List), so
+the URL, filters, and scope/layout constraint remain the source of truth.
+
 The Issues page header keeps two separate semantic controls in distinct areas:
 the always-text `Active | Backlog` scope control sits in a stable,
 title-adjacent scope area, while the `Board | List | Timeline` layout control
@@ -1015,7 +1032,8 @@ access see read-only text instead of disabled mystery controls.
 ### Journey 1 — Create an Issue with AI Enrichment
 
 1. The PM opens the New Issue dialog from the sidebar button or **⌘N** (the
-   dialog is a single shell-mounted instance shared by every trigger).
+   dialog is a single shell-owned lazy instance shared by every trigger; its
+   first intent may show a local loading state with Retry.
 2. They type a title (the only hard requirement) and, optionally, a description
    in the markdown editor. A template can pre-fill the skeleton.
 3. They click **Enrich with AI**. A purple review strip appears ("Analyzing
@@ -1195,10 +1213,11 @@ than inferring behavior from class names alone.
 
 ### Error Handling
 
-Errors follow "what happened + what you can do." Network and load failures
-offer Retry; enrichment failures show a PM-vocabulary message with **Try
-again** and never block creating the issue without AI; the rare save conflict
-is surfaced as a save conflict, not a merge conflict. AI degradation is
+Errors follow "what happened + what you can do." Network, data, and lazy code
+load failures offer Retry while preserving the current route, filters, and
+draft; enrichment failures show a PM-vocabulary message with **Try again** and
+never block creating the issue without AI; the rare save conflict is surfaced
+as a save conflict, not a merge conflict. AI degradation is
 silent and total — when the deployment lacks AI, the affordances vanish and the
 core product is unaffected.
 
