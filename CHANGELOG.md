@@ -18,6 +18,10 @@ explicitly in the entries below.
   Read-only planning data shares the existing quarter day grid and catalog cache,
   including clipped sprint ranges, release-date precedence, and same-day marker
   stacks with keyboard-accessible details.
+- **Planning opens with a combined Overview.** The current sprint, unfinished
+  milestones, and planned/in-progress releases share stable dates, planning
+  statuses, issue rollups, and the existing detail links; the complete catalog
+  remains available through the List view.
 - **Planning can close an active sprint and roll unfinished work into an
   explicitly selected next sprint.** The action persists its target and
   per-issue progress so partial failures can be retried without duplicate
@@ -51,6 +55,9 @@ explicitly in the entries below.
   Work metrics, and report filters and card titles remain in place while values
   load; unknown data, permissions, and counts stay deferred until their queries
   resolve.
+- **Planning view state is URL-owned.** The new Overview/List switch restores
+  across reload and history navigation, while existing `kind`/`detail` links
+  continue to open the corresponding List item.
 
 ## v0.14.1 - 2026-09-04
 

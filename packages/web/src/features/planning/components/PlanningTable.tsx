@@ -19,7 +19,7 @@ import {
   usePlanningKindSingularLabels,
 } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
-import { sprintDetailHref } from "../lib/planningUrls";
+import { planningListDetailHref, sprintDetailHref } from "../lib/planningUrls";
 import {
   computePlanningRollup,
   type IssueListItem,
@@ -32,6 +32,7 @@ import { Fragment, useEffect, useId, useMemo, useState } from "react";
 import type { PlanningItem, PlanningKind } from "../hooks/usePlanningCatalog";
 import { itemsForKind } from "../lib/planningItems";
 import { PlanningRollup, type IssueAggregationState } from "./PlanningRollup";
+import { PlanningLoadError } from "./PlanningLoadError";
 import { PlanningTableSkeleton } from "./PlanningTableSkeleton";
 
 export type { IssueAggregationState } from "./PlanningRollup";
@@ -125,33 +126,20 @@ function PlanningNameCell({
     );
   }
 
-  if (hasDetails) {
-    return (
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={isExpanded}
-        aria-controls={panelId}
-        aria-label={
-          isExpanded
-            ? t("collapseDetails", { name: item.name })
-            : t("expandDetails", { name: item.name })
-        }
-        className={cn(
-          "group/disclosure flex w-full min-w-0 items-center gap-1.5 rounded text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
-          compact ? "font-medium" : undefined,
-        )}
-      >
-        {chevron}
-        <span className="min-w-0 line-clamp-1">{item.name}</span>
-      </button>
-    );
-  }
-
   return (
     <div className="flex min-w-0 items-center gap-1.5">
-      <span className="w-5 shrink-0" aria-hidden="true" />
-      <span className="min-w-0 break-words font-medium">{item.name}</span>
+      <a
+        href={planningListDetailHref(vault, kind, item.id)}
+        data-testid={`planning-list-detail-link-${item.id}`}
+        aria-label={t("openPlanningListDetail", { name: item.name })}
+        className={cn(
+          "min-w-0 flex-1 rounded font-medium text-brand-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
+          compact ? "break-words" : "line-clamp-1",
+        )}
+      >
+        {item.name}
+      </a>
+      {disclosure}
     </div>
   );
 }
@@ -663,58 +651,6 @@ function PlanningDeleteAction({
         </span>
       ) : null}
     </>
-  );
-}
-
-function PlanningLoadError({
-  testId,
-  title,
-  description,
-  isFetching,
-  onRetry,
-}: {
-  testId: string;
-  title: string;
-  description: string;
-  isFetching: boolean;
-  onRetry: () => void;
-}) {
-  const common = useTranslations("common");
-  const retryLabel = common("retry");
-  const id = useId();
-  return (
-    <div
-      data-testid={testId}
-      role="alert"
-      aria-labelledby={`${id}-title`}
-      aria-describedby={`${id}-description`}
-      className="mb-3 flex flex-wrap items-start justify-between gap-3 rounded-md border border-destructive-focus/30 bg-destructive-fill/[0.04] px-3 py-3"
-    >
-      <div className="min-w-0">
-        <h2
-          id={`${id}-title`}
-          className="text-sm font-medium text-destructive-text"
-        >
-          {title}
-        </h2>
-        <p
-          id={`${id}-description`}
-          className="mt-1 text-sm text-muted-foreground"
-        >
-          {description}
-        </p>
-      </div>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        busy={isFetching}
-        onClick={onRetry}
-        aria-label={retryLabel}
-      >
-        {retryLabel}
-      </Button>
-    </div>
   );
 }
 

@@ -21,7 +21,7 @@ import {
 } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
-import { Plus } from "lucide-react";
+import { LayoutDashboard, List as ListIcon, Plus } from "lucide-react";
 import type { Sprint, SprintRolloverResume } from "@reef/core";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -48,8 +48,11 @@ import {
   buildPlanningInput,
   emptyItem,
   mergeEditorItem,
+  readPlanningView,
+  type PlanningView,
 } from "./planningPageUtils";
 import { selectActiveSprint } from "../lib/planningItems";
+import { PlanningOverview } from "./PlanningOverview";
 
 const DEFAULT_PLANNING_KIND: PlanningKind = "sprints";
 
@@ -69,11 +72,63 @@ function planningHref(vault: string, params: URLSearchParams): string {
   return withVault(vault, query ? `/planning?${query}` : "/planning");
 }
 
+function PlanningViewSwitcher({
+  view,
+  onSelect,
+}: {
+  view: PlanningView;
+  onSelect: (view: PlanningView) => void;
+}) {
+  const t = useTranslations("planning");
+  const options = [
+    {
+      view: "overview" as const,
+      Icon: LayoutDashboard,
+      label: t("view.overview"),
+    },
+    { view: "list" as const, Icon: ListIcon, label: t("view.list") },
+  ];
+
+  return (
+    <div
+      role="group"
+      aria-label={t("planningView")}
+      data-testid="planning-view-switcher"
+      className={SEGMENTED_CONTROL_TRACK}
+    >
+      {options.map(({ view: option, Icon, label }) => (
+        <button
+          key={option}
+          type="button"
+          aria-pressed={view === option}
+          aria-label={label}
+          title={label}
+          data-testid={`planning-view-${option}`}
+          onClick={() => onSelect(option)}
+          className={cn(
+            SEGMENTED_CONTROL_ITEM,
+            "whitespace-nowrap",
+            view === option
+              ? SEGMENTED_CONTROL_ITEM_ACTIVE
+              : SEGMENTED_CONTROL_ITEM_INACTIVE,
+          )}
+        >
+          <Icon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+          <span>{label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function PlanningPage() {
   const { vault, isLoading: vaultLoading } = useActiveVault();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const planningView = readPlanningView(searchParams);
   const activeKind = readPlanningKind(searchParams.get("kind"));
+  const createKind =
+    planningView === "list" ? activeKind : DEFAULT_PLANNING_KIND;
   const expandedId = searchParams.get("detail");
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -127,11 +182,28 @@ export function PlanningPage() {
     (kind: PlanningKind) => {
       if (kind === activeKind) return;
       const next = new URLSearchParams(searchParams);
+      next.set("view", "list");
       next.set("kind", kind);
       next.delete("detail");
       router.push(planningHref(vault, next), { scroll: false });
     },
     [activeKind, router, searchParams, vault],
+  );
+
+  const selectView = useCallback(
+    (view: PlanningView) => {
+      if (view === planningView) return;
+      const next = new URLSearchParams(searchParams);
+      next.set("view", view);
+      if (view === "overview") {
+        next.delete("kind");
+        next.delete("detail");
+      } else {
+        next.delete("detail");
+      }
+      router.push(planningHref(vault, next), { scroll: false });
+    },
+    [planningView, router, searchParams, vault],
   );
 
   const setExpandedId = useCallback(
@@ -235,50 +307,55 @@ export function PlanningPage() {
       <PageHeader
         title={nav("planning")}
         description={vault || undefined}
+        titleAdjacent={
+          <PlanningViewSwitcher view={planningView} onSelect={selectView} />
+        }
         actions={
           <Button
             type="button"
             size="sm"
-            onClick={() => startCreate(activeKind)}
+            onClick={() => startCreate(createKind)}
             disabled={!vault}
             className="gap-1.5"
           >
             <Plus aria-hidden="true" className="h-3.5 w-3.5" />
             {tp("newKind", {
-              kind: planningKindSingular[activeKind].toLowerCase(),
+              kind: planningKindSingular[createKind].toLowerCase(),
             })}
           </Button>
         }
       />
       <PageBody pad="compact">
-        <div
-          role="group"
-          aria-label={tp("planningKind")}
-          className={cn("mb-4", SEGMENTED_CONTROL_TRACK)}
-          data-testid="planning-kind-switcher"
-        >
-          {PLANNING_KINDS.map((kind) => {
-            const isActive = activeKind === kind;
-            return (
-              <button
-                key={kind}
-                type="button"
-                aria-pressed={isActive}
-                className={cn(
-                  SEGMENTED_CONTROL_ITEM,
-                  isActive
-                    ? SEGMENTED_CONTROL_ITEM_ACTIVE
-                    : SEGMENTED_CONTROL_ITEM_INACTIVE,
-                )}
-                data-testid={`planning-kind-${kind}`}
-                onClick={() => selectKind(kind)}
-              >
-                <PlanningKindIcon kind={kind} decorative size={14} />
-                {planningKindLabels[kind]}
-              </button>
-            );
-          })}
-        </div>
+        {planningView === "list" ? (
+          <div
+            role="group"
+            aria-label={tp("planningKind")}
+            className={cn("mb-4", SEGMENTED_CONTROL_TRACK)}
+            data-testid="planning-kind-switcher"
+          >
+            {PLANNING_KINDS.map((kind) => {
+              const isActive = activeKind === kind;
+              return (
+                <button
+                  key={kind}
+                  type="button"
+                  aria-pressed={isActive}
+                  className={cn(
+                    SEGMENTED_CONTROL_ITEM,
+                    isActive
+                      ? SEGMENTED_CONTROL_ITEM_ACTIVE
+                      : SEGMENTED_CONTROL_ITEM_INACTIVE,
+                  )}
+                  data-testid={`planning-kind-${kind}`}
+                  onClick={() => selectKind(kind)}
+                >
+                  <PlanningKindIcon kind={kind} decorative size={14} />
+                  {planningKindLabels[kind]}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
         {rolloverSource === null ? (
           <SprintRolloverResumeNotice
             resumes={rolloverResumes}
@@ -296,32 +373,48 @@ export function PlanningPage() {
           onOpen={openRollover}
         />
 
-        <PlanningTable
-          catalog={catalog}
-          vault={vault}
-          kind={activeKind}
-          issues={issues}
-          isLoading={catalogQuery.isPending}
-          isCatalogError={catalogQuery.isError}
-          isCatalogFetching={catalogQuery.isFetching}
-          onRetryCatalog={() => void catalogQuery.refetch()}
-          issueAggregationState={issueAggregationState}
-          isIssueFetching={issueQuery.isFetching}
-          onRetryIssues={() => void issueQuery.refetch()}
-          expandedId={expandedId}
-          onEdit={startEdit}
-          onExpandedIdChange={setExpandedId}
-          onRequestDelete={startDelete}
-          onRequestRollover={openRollover}
-          canEditRollover={access.canEditWorkspace}
-          rolloverDisabledReason={undefined}
-          deletingId={
-            deleteMutation.isPending &&
-            deleteMutation.variables?.kind === activeKind
-              ? deleteMutation.variables.id
-              : undefined
-          }
-        />
+        {planningView === "overview" ? (
+          <PlanningOverview
+            catalog={catalog}
+            vault={vault}
+            issues={issues}
+            isLoading={catalogQuery.isPending}
+            isCatalogError={catalogQuery.isError}
+            isCatalogFetching={catalogQuery.isFetching}
+            onRetryCatalog={() => void catalogQuery.refetch()}
+            issueAggregationState={issueAggregationState}
+            isIssueFetching={issueQuery.isFetching}
+            onRetryIssues={() => void issueQuery.refetch()}
+            now={hydrated ? Date.now() : null}
+          />
+        ) : (
+          <PlanningTable
+            catalog={catalog}
+            vault={vault}
+            kind={activeKind}
+            issues={issues}
+            isLoading={catalogQuery.isPending}
+            isCatalogError={catalogQuery.isError}
+            isCatalogFetching={catalogQuery.isFetching}
+            onRetryCatalog={() => void catalogQuery.refetch()}
+            issueAggregationState={issueAggregationState}
+            isIssueFetching={issueQuery.isFetching}
+            onRetryIssues={() => void issueQuery.refetch()}
+            expandedId={expandedId}
+            onEdit={startEdit}
+            onExpandedIdChange={setExpandedId}
+            onRequestDelete={startDelete}
+            onRequestRollover={openRollover}
+            canEditRollover={access.canEditWorkspace}
+            rolloverDisabledReason={undefined}
+            deletingId={
+              deleteMutation.isPending &&
+              deleteMutation.variables?.kind === activeKind
+                ? deleteMutation.variables.id
+                : undefined
+            }
+          />
+        )}
       </PageBody>
 
       <PlanningEditorDialog

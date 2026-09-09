@@ -1417,6 +1417,11 @@
     "newKind": "새 {kind}",
     "editKind": "{kind} 편집",
     "planningKind": "플래닝 종류",
+    "planningView": "플래닝 보기",
+    "view": {
+      "overview": "개요",
+      "list": "목록"
+    },
     "nameRequired": "이름을 입력하세요.",
     "name": "이름",
     "capacity": "수용량",
@@ -1467,6 +1472,19 @@
       "burnupSlot": "번업 차트 슬롯"
     },
     "openSprintDetail": "{name} 스프린트 상세 열기",
+    "openPlanningListDetail": "플래닝 목록에서 {name} 열기",
+    "overview": {
+      "currentSprint": "현재 스프린트",
+      "currentSprintEmptyTitle": "현재 스프린트가 없습니다.",
+      "currentSprintEmptyDescription": "활성 스프린트가 있으면 여기에 표시됩니다.",
+      "upcomingMilestones": "예정 마일스톤",
+      "upcomingMilestonesEmptyTitle": "예정 마일스톤이 없습니다.",
+      "upcomingMilestonesEmptyDescription": "열린 마일스톤이 여기에 표시됩니다.",
+      "upcomingReleases": "예정 릴리스",
+      "upcomingReleasesEmptyTitle": "예정 릴리스가 없습니다.",
+      "upcomingReleasesEmptyDescription": "계획되었거나 진행 중인 릴리스가 여기에 표시됩니다.",
+      "overdue": "기한 초과"
+    },
     "emptyKindTitle": "아직 {kind}이(가) 없습니다.",
     "emptyKindDescription": "새 {kind}을(를) 만들어 플래닝을 시작하세요.",
     "catalogLoadErrorTitle": "플래닝을 불러오지 못했습니다.",

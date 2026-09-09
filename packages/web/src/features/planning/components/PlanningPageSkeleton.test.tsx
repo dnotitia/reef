@@ -3,35 +3,20 @@ import { describe, expect, it } from "vitest";
 import { PlanningPageSkeleton } from "./PlanningPageSkeleton";
 
 describe("PlanningPageSkeleton", () => {
-  it("paints the Planning chrome and row placeholders (REEF-255)", () => {
+  it("paints the Planning chrome and Overview placeholders (REEF-255)", () => {
     render(<PlanningPageSkeleton />);
 
     expect(
       screen.getByRole("heading", { name: "Planning" }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("planning-skeleton")).toBeInTheDocument();
-    expect(
-      screen.getByTestId("planning-skeleton-table-header").children,
-    ).toHaveLength(6);
-    expect(
-      screen
-        .getByTestId("planning-skeleton-table")
-        .querySelectorAll('[aria-hidden="true"] > div'),
-    ).toHaveLength(3);
-    for (const row of screen
-      .getByTestId("planning-skeleton-table")
-      .querySelectorAll('[aria-hidden="true"] > div')) {
-      expect(row).toHaveClass("min-h-11");
-    }
+    expect(screen.getByTestId("planning-overview-loading")).toBeInTheDocument();
     for (const label of [
-      "Sprints",
-      "Milestones",
-      "Releases",
-      "Name",
-      "Status",
-      "Dates",
-      "Issues",
-      "Details",
+      "Overview",
+      "List",
+      "Current sprint",
+      "Upcoming milestones",
+      "Upcoming releases",
     ]) {
       expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     }
@@ -40,14 +25,14 @@ describe("PlanningPageSkeleton", () => {
   it("hides the decorative body and announces loading to assistive tech (REEF-281)", () => {
     const { container } = render(<PlanningPageSkeleton />);
 
-    // Placeholder bars are decorative — aria-hidden individually — while the
-    // fixed kind labels and table headers stay available.
+    // Placeholder bars are decorative while the fixed view labels stay
+    // available.
     expect(
-      container.querySelector('.reef-shimmer[aria-hidden="true"]'),
+      container.querySelector('[aria-hidden="true"] .reef-shimmer'),
     ).not.toBeNull();
     expect(
       screen
-        .getAllByText("Status")
+        .getAllByText("Current sprint")
         .some((element) => element.closest('[aria-hidden="true"]') === null),
     ).toBe(true);
 
