@@ -318,6 +318,7 @@ export async function setAuthControl(
   control: {
     probeDelayMs?: number;
     probeDelayOnce?: boolean;
+    probeHold?: boolean;
     probeHang?: boolean;
     session?: "active" | "revoked";
     protectedResponse?: "healthy" | "unauthorized" | "forbidden";
@@ -327,12 +328,24 @@ export async function setAuthControl(
     data: {
       probe_delay_ms: control.probeDelayMs ?? 0,
       probe_delay_once: control.probeDelayOnce ?? false,
+      probe_hold: control.probeHold ?? false,
       probe_hang: control.probeHang ?? false,
       session: control.session ?? "active",
       protected_response: control.protectedResponse ?? "healthy",
     },
   });
   expect(response.ok()).toBeTruthy();
+}
+
+export async function releaseAuthProbe(
+  request: APIRequestContext,
+): Promise<number> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/auth-probe-release`,
+  );
+  expect(response.ok()).toBeTruthy();
+  const body = (await response.json()) as { released?: number };
+  return body.released ?? 0;
 }
 
 export async function signInAsAlice(page: Page): Promise<void> {

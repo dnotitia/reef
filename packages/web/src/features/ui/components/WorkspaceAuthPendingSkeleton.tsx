@@ -1,6 +1,7 @@
 "use client";
 
 import { AppShellSkeleton } from "@/components/AppShellSkeleton";
+import { SIDEBAR_NAV_ITEMS } from "@/components/sidebarChrome";
 import {
   SEGMENTED_CONTROL_ITEM,
   SEGMENTED_CONTROL_ITEM_ACTIVE,
@@ -8,7 +9,9 @@ import {
   SEGMENTED_CONTROL_TRACK,
 } from "@/components/segmentedControl";
 import { IssueDetailSkeleton } from "@/features/issues/components/detail/IssueDetailSkeleton";
+import { IssueChromeIdentity } from "@/features/issues/components/detail/IssueChromeIdentity";
 import { IssuesWorkspaceSkeleton } from "@/features/issues/components/filters/IssuesWorkspaceSkeleton";
+import { NotificationInboxSkeleton } from "@/features/inbox/components/NotificationInbox";
 import { MyWorkPageSkeleton } from "@/features/my-work/components/MyWorkPageSkeleton";
 import { PlanningPageSkeleton } from "@/features/planning/components/PlanningPageSkeleton";
 import { SprintDetailPageSkeleton } from "@/features/planning/components/SprintDetailPageSkeleton";
@@ -24,16 +27,84 @@ import {
 } from "@/features/settings/components/SettingsLoadingSkeleton";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { PageHeader } from "@/features/ui/components/PageHeader";
+import { useViewStore } from "@/features/ui/stores/useViewStore";
 import { cn } from "@/lib/utils";
+import {
+  Building2,
+  Maximize2,
+  Server,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useEffect, useRef } from "react";
 
-function IssueDetailAuthPendingSkeleton() {
-  const nav = useTranslations("nav");
+function IssueDetailAuthPendingSkeleton({
+  issueId,
+  searchParams,
+}: {
+  issueId: string;
+  searchParams: string;
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    dialogRef.current?.focus();
+  }, []);
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col">
-      <PageHeader title={nav("issues")} />
-      <div className="min-h-0 min-w-0 flex-1 overflow-auto">
-        <IssueDetailSkeleton />
+    <div className="relative h-full min-h-0 min-w-0">
+      <div aria-hidden="true" className="h-full">
+        <IssuesWorkspaceSkeleton searchParams={searchParams} />
+      </div>
+      <div
+        className="fixed inset-0 z-50 bg-foreground/20 backdrop-blur-[2px]"
+        aria-hidden="true"
+      />
+      <div
+        data-testid="issue-detail-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={issueId}
+        ref={dialogRef}
+        tabIndex={-1}
+        className="issue-detail-sheet fixed inset-y-0 right-0 z-50 flex min-w-0 flex-col overflow-hidden border-l border-border-subtle bg-surface-elevated shadow-xl shadow-foreground/10"
+        style={{
+          width: "min(94vw, var(--issue-detail-width-default))",
+          maxWidth: "var(--issue-detail-width-default)",
+        }}
+      >
+        <div
+          data-testid="issue-detail-chrome"
+          className="issue-detail-chrome flex items-center gap-2 px-6 pt-4 max-[480px]:pb-1"
+        >
+          <IssueChromeIdentity
+            issueId={issueId}
+            status={undefined}
+            issueType={undefined}
+            parentId={null}
+            allIssues={[]}
+            allIssuesPending
+          />
+          <div className="issue-detail-actions flex shrink-0 items-center gap-2">
+            <span
+              aria-hidden="true"
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </span>
+            <span
+              aria-hidden="true"
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground"
+            >
+              <X className="h-4 w-4" />
+            </span>
+          </div>
+        </div>
+        <div
+          data-testid="issue-detail-scroll"
+          className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain"
+        >
+          <IssueDetailSkeleton />
+        </div>
       </div>
     </div>
   );
@@ -46,9 +117,9 @@ function StaticSettingsTabs({
 }) {
   const t = useTranslations("settings.misc");
   const tabs = [
-    ["workspace", t("tabWorkspace")],
-    ["preferences", t("tabPreferences")],
-    ["deployment", t("tabDeployment")],
+    ["workspace", t("tabWorkspace"), Building2],
+    ["preferences", t("tabPreferences"), SlidersHorizontal],
+    ["deployment", t("tabDeployment"), Server],
   ] as const;
   return (
     <nav
@@ -59,9 +130,10 @@ function StaticSettingsTabs({
         "!grid w-full max-w-full grid-cols-3 self-start",
       )}
     >
-      {tabs.map(([id, label]) => (
+      {tabs.map(([id, label, Icon]) => (
         <span
           key={id}
+          data-testid={`settings-tab-${id}`}
           className={cn(
             SEGMENTED_CONTROL_ITEM,
             "min-w-0 justify-center text-center",
@@ -70,6 +142,10 @@ function StaticSettingsTabs({
               : SEGMENTED_CONTROL_ITEM_INACTIVE,
           )}
         >
+          <Icon
+            className="h-3.5 w-3.5 shrink-0 max-[480px]:hidden"
+            aria-hidden="true"
+          />
           {label}
         </span>
       ))}
@@ -77,10 +153,15 @@ function StaticSettingsTabs({
   );
 }
 
-function SettingsAuthPendingSkeleton({ pathname }: { pathname: string }) {
+function SettingsAuthPendingSkeleton({
+  routeSegments,
+}: {
+  routeSegments: string[];
+}) {
   const nav = useTranslations("nav");
-  const isPreferences = pathname.endsWith("/settings/preferences");
-  const isDeployment = pathname.endsWith("/settings/deployment");
+  const settingsSection = routeSegments[1];
+  const isPreferences = settingsSection === "preferences";
+  const isDeployment = settingsSection === "deployment";
   const active = isPreferences
     ? "preferences"
     : isDeployment
@@ -90,7 +171,7 @@ function SettingsAuthPendingSkeleton({ pathname }: { pathname: string }) {
     <PreferencesSettingsLoading />
   ) : isDeployment ? (
     <DeploymentSettingsLoading />
-  ) : pathname.endsWith("/settings/workspace/members") ? (
+  ) : settingsSection === "workspace" && routeSegments[2] === "members" ? (
     <MembersSettingsLoading />
   ) : (
     <WorkspaceSettingsLoading />
@@ -106,45 +187,101 @@ function SettingsAuthPendingSkeleton({ pathname }: { pathname: string }) {
   );
 }
 
-function AuthPendingContent({ pathname }: { pathname: string }) {
-  if (/\/issues\/[^/]+$/.test(pathname)) {
-    return <IssueDetailAuthPendingSkeleton />;
+function InboxAuthPendingSkeleton() {
+  const nav = useTranslations("nav");
+  return (
+    <div className="flex h-full min-w-0 flex-col">
+      <PageHeader title={nav("inbox")} />
+      <PageBody width="full">
+        <NotificationInboxSkeleton />
+      </PageBody>
+    </div>
+  );
+}
+
+function AuthPendingContent({
+  routeSegments,
+  searchParams,
+}: {
+  routeSegments: string[];
+  searchParams: string;
+}) {
+  const route = routeSegments[0];
+  if (route === "issues" && routeSegments.length === 2) {
+    return (
+      <IssueDetailAuthPendingSkeleton
+        issueId={routeSegments[1] ?? ""}
+        searchParams={searchParams}
+      />
+    );
   }
-  if (pathname.includes("/settings")) {
-    return <SettingsAuthPendingSkeleton pathname={pathname} />;
+  if (route === "settings") {
+    return <SettingsAuthPendingSkeleton routeSegments={routeSegments} />;
   }
-  if (/\/planning\/sprints\/[^/]+$/.test(pathname)) {
+  if (
+    route === "planning" &&
+    routeSegments[1] === "sprints" &&
+    routeSegments.length === 3
+  ) {
     return <SprintDetailPageSkeleton />;
   }
-  if (pathname.endsWith("/planning")) {
+  if (route === "planning" && routeSegments.length === 1) {
     return <PlanningPageSkeleton />;
   }
-  if (pathname.endsWith("/my-work")) {
+  if (route === "my-work" && routeSegments.length === 1) {
     return <MyWorkPageSkeleton />;
   }
-  if (pathname.endsWith("/reports")) {
+  if (route === "inbox" && routeSegments.length === 1) {
+    return <InboxAuthPendingSkeleton />;
+  }
+  if (route === "reports" && routeSegments.length === 1) {
     return (
       <PageShell>
         <ReportsSkeleton />
       </PageShell>
     );
   }
-  if (pathname.endsWith("/issues")) {
-    return <IssuesWorkspaceSkeleton />;
+  if (route === "issues" && routeSegments.length === 1) {
+    return <IssuesWorkspaceSkeleton searchParams={searchParams} />;
   }
   return null;
 }
 
-function hasAuthPendingContent(pathname: string): boolean {
+function workspaceRouteSegments(pathname: string): string[] {
+  const segments = pathname.split("/").filter(Boolean);
+  const workspaceIndex = segments.indexOf("workspace");
+  return workspaceIndex === -1 ? [] : segments.slice(workspaceIndex + 2);
+}
+
+function hasAuthPendingContent(routeSegments: string[]): boolean {
+  const route = routeSegments[0];
+  const settingsSection = routeSegments[1];
+  const isSettingsRoute =
+    route === "settings" &&
+    (routeSegments.length === 1 ||
+      (settingsSection === "workspace" &&
+        (routeSegments.length === 2 ||
+          (routeSegments.length === 3 && routeSegments[2] === "members"))) ||
+      ((settingsSection === "preferences" ||
+        settingsSection === "deployment") &&
+        routeSegments.length === 2));
   return (
-    /\/issues\/[^/]+$/.test(pathname) ||
-    pathname.includes("/settings") ||
-    /\/planning\/sprints\/[^/]+$/.test(pathname) ||
-    pathname.endsWith("/planning") ||
-    pathname.endsWith("/my-work") ||
-    pathname.endsWith("/reports") ||
-    pathname.endsWith("/issues")
+    (route === "issues" &&
+      (routeSegments.length === 1 || routeSegments.length === 2)) ||
+    isSettingsRoute ||
+    (route === "planning" &&
+      (routeSegments.length === 1 ||
+        (routeSegments[1] === "sprints" && routeSegments.length === 3))) ||
+    (route === "my-work" && routeSegments.length === 1) ||
+    (route === "inbox" && routeSegments.length === 1) ||
+    (route === "reports" && routeSegments.length === 1)
   );
+}
+
+function activeNavForPath(routeSegments: string[]) {
+  return SIDEBAR_NAV_ITEMS.find(
+    ({ href }) => href.slice(1) === routeSegments[0],
+  )?.labelKey;
 }
 
 /**
@@ -154,16 +291,25 @@ function hasAuthPendingContent(pathname: string): boolean {
  */
 export function WorkspaceAuthPendingSkeleton({
   pathname,
+  searchParams = "",
 }: {
   pathname: string | null;
+  searchParams?: string;
 }) {
   const normalizedPathname = pathname ?? "";
-  const hasContent = hasAuthPendingContent(normalizedPathname);
+  const routeSegments = workspaceRouteSegments(normalizedPathname);
+  const hasContent = hasAuthPendingContent(routeSegments);
+  const sidebarCollapsed = useViewStore((state) => state.sidebarCollapsed);
   return (
     <AppShellSkeleton
+      activeNav={activeNavForPath(routeSegments)}
+      sidebarCollapsed={sidebarCollapsed}
       content={
         hasContent ? (
-          <AuthPendingContent pathname={normalizedPathname} />
+          <AuthPendingContent
+            routeSegments={routeSegments}
+            searchParams={searchParams}
+          />
         ) : undefined
       }
       announce={!hasContent}

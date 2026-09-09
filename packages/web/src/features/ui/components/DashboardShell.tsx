@@ -2,6 +2,16 @@
 
 import { Button } from "@/components/ui/button";
 import { ReefMark } from "@/components/ui/reef-mark";
+import {
+  SIDEBAR_ASIDE_CLASS,
+  SIDEBAR_BRAND_HEADER_CLASS,
+  SIDEBAR_NAV_ACTIVE_CLASS,
+  SIDEBAR_NAV_COLLAPSED_CLASS,
+  SIDEBAR_NAV_INACTIVE_CLASS,
+  SIDEBAR_NAV_ITEMS,
+  SIDEBAR_NAV_LINK_CLASS,
+  SIDEBAR_TOGGLE_CLASS,
+} from "@/components/sidebarChrome";
 import { AskAiFab } from "@/features/ai/components/AskAiFab";
 import { useAskAiStore } from "@/features/ai/stores/useAskAiStore";
 import { SidebarAccount } from "@/features/auth/components/SidebarAccount";
@@ -40,17 +50,7 @@ import { useViewStore } from "@/features/ui/stores/useViewStore";
 import { useHydrated } from "@/lib/useHydrated";
 import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
-import {
-  BarChart3,
-  Bell,
-  ChevronLeft,
-  CircleUser,
-  ListTodo,
-  type LucideIcon,
-  Milestone,
-  Plus,
-  Settings,
-} from "lucide-react";
+import { ChevronLeft, Plus } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -115,35 +115,6 @@ interface DashboardShellProps {
   children: React.ReactNode;
   appVersion: string;
 }
-
-// `labelKey` resolves through the `nav` catalog at render (REEF-293); `testId`
-// is the stable English slug for `data-testid` / e2e locators so the markup
-// anchor stays stable across active locales.
-const navLinks: ReadonlyArray<{
-  href: string;
-  labelKey: "issues" | "myWork" | "inbox" | "planning" | "reports" | "settings";
-  testId: string;
-  icon: LucideIcon;
-}> = [
-  { href: "/issues", labelKey: "issues", testId: "issues", icon: ListTodo },
-  // My Work sits right after Issues (REEF-204 / REEF-181 AC1) — a personal lens
-  // on the same work, distinct from the board's `ListTodo` via `CircleUser`.
-  { href: "/my-work", labelKey: "myWork", testId: "my work", icon: CircleUser },
-  { href: "/inbox", labelKey: "inbox", testId: "inbox", icon: Bell },
-  {
-    href: "/planning",
-    labelKey: "planning",
-    testId: "planning",
-    icon: Milestone,
-  },
-  { href: "/reports", labelKey: "reports", testId: "reports", icon: BarChart3 },
-  {
-    href: "/settings",
-    labelKey: "settings",
-    testId: "settings",
-    icon: Settings,
-  },
-] as const;
 
 /** A sidebar nav badge: My Work attention and Settings drift share one render
  * path, differing in tone.
@@ -489,7 +460,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "flex flex-col bg-surface-sidebar border-r border-border-subtle",
+          SIDEBAR_ASIDE_CLASS,
           // Collapse snaps rather than animating width: a width transition
           // reflows the main content every frame, and this is a low-frequency
           // explicit toggle, not a hot path. (REEF-097 AC3)
@@ -500,7 +471,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
         {/* Brand header */}
         <div
           className={cn(
-            "flex h-12 items-center border-b border-border-subtle",
+            SIDEBAR_BRAND_HEADER_CLASS,
             sidebarCollapsed ? "justify-center px-0" : "justify-between px-3",
           )}
         >
@@ -537,7 +508,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                 type="button"
                 onClick={toggleSidebar}
                 aria-label={t("collapseSidebar")}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
+                className={SIDEBAR_TOGGLE_CLASS}
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -554,7 +525,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
             data-testid="new-issue-trigger"
             aria-label={newIssueLabel}
             title={newIssueLabel}
-            className={cn("w-full", sidebarCollapsed && "px-0")}
+            className={cn("w-full text-center", sidebarCollapsed && "px-0")}
           >
             <Plus className="h-3.5 w-3.5 shrink-0" />
             {!sidebarCollapsed && <span>{t("newIssue")}</span>}
@@ -564,7 +535,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
         {/* Nav links */}
         <nav className="flex-1 px-2 py-3" aria-label={t("mainNavLandmark")}>
           <ul className="flex flex-col gap-0.5">
-            {navLinks.map(({ href, labelKey, testId, icon: Icon }) => {
+            {SIDEBAR_NAV_ITEMS.map(({ href, labelKey, testId, icon: Icon }) => {
               const label = t(labelKey);
               // The nav targets are vault-scoped (`/workspace/{vault}/issues`)
               // so the active workspace stays in the URL (REEF-315). Badge
@@ -590,12 +561,13 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                     href={fullHref}
                     title={sidebarCollapsed ? label : undefined}
                     aria-label={badge ? `${label} ${badge.label}` : label}
+                    data-testid={`sidebar-nav-${testId}`}
                     className={cn(
-                      "flex items-center gap-2 rounded-md px-3 py-1.5 type-navigation transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
+                      SIDEBAR_NAV_LINK_CLASS,
                       isActive
-                        ? "bg-surface-hover text-foreground font-medium"
-                        : "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
-                      sidebarCollapsed && "h-9 justify-center px-0",
+                        ? SIDEBAR_NAV_ACTIVE_CLASS
+                        : SIDEBAR_NAV_INACTIVE_CLASS,
+                      sidebarCollapsed && SIDEBAR_NAV_COLLAPSED_CLASS,
                     )}
                     aria-current={isActive ? "page" : undefined}
                   >

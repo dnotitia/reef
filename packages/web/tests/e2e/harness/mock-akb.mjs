@@ -14,6 +14,8 @@ import {
 } from "./mock-http.mjs";
 import { handleSql, matchSqlString, resolveSqlParams } from "./mock-sql.mjs";
 import {
+  beginAuthProbeHold,
+  endAuthProbeHold,
   beginIssueUpdateRequest,
   beginIssueListRequest,
   consumeIssueUpdateHold,
@@ -22,6 +24,7 @@ import {
   issueUpdateKey,
   nextCommit,
   vaultSummary,
+  waitForAuthProbeRelease,
   waitForIssueUpdateRelease,
 } from "./mock-state.mjs";
 import { docUri, slugify } from "./mock-utils.mjs";
@@ -466,6 +469,15 @@ async function waitForAuthProbe(req, state) {
   if (delayMs > 0) {
     await sleep(delayMs);
     if (req.aborted || req.destroyed) return false;
+  }
+  if (state.authProbeHold) {
+    beginAuthProbeHold(state);
+    try {
+      await waitForAuthProbeRelease(state);
+      if (req.aborted || req.destroyed) return false;
+    } finally {
+      endAuthProbeHold(state);
+    }
   }
   if (!state.authProbeHang) return true;
 

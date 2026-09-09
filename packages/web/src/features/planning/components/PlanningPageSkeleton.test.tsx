@@ -10,6 +10,19 @@ describe("PlanningPageSkeleton", () => {
       screen.getByRole("heading", { name: "Planning" }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("planning-skeleton")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("planning-skeleton-table-header").children,
+    ).toHaveLength(6);
+    expect(
+      screen
+        .getByTestId("planning-skeleton-table")
+        .querySelectorAll('[aria-hidden="true"] > div'),
+    ).toHaveLength(3);
+    for (const row of screen
+      .getByTestId("planning-skeleton-table")
+      .querySelectorAll('[aria-hidden="true"] > div')) {
+      expect(row).toHaveClass("min-h-11");
+    }
     for (const label of [
       "Sprints",
       "Milestones",
@@ -20,7 +33,7 @@ describe("PlanningPageSkeleton", () => {
       "Issues",
       "Details",
     ]) {
-      expect(screen.getByText(label)).toBeInTheDocument();
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     }
   });
 
@@ -33,8 +46,10 @@ describe("PlanningPageSkeleton", () => {
       container.querySelector('.reef-shimmer[aria-hidden="true"]'),
     ).not.toBeNull();
     expect(
-      screen.getByText("Status").closest('[aria-hidden="true"]'),
-    ).toBeNull();
+      screen
+        .getAllByText("Status")
+        .some((element) => element.closest('[aria-hidden="true"]') === null),
+    ).toBe(true);
 
     // The role=status loading announcement is a sibling, not under aria-hidden,
     // and the real "Planning" h1 stays a heading.

@@ -22,10 +22,12 @@ import {
   issueUpdateKey,
   normalizeScenario,
   publicState,
+  releaseAllAuthProbeHolds,
   releaseAllIssueUpdateHolds,
   releaseIssueUpdate,
   rememberCall,
   setIssueUpdateHold,
+  waitForAuthProbeHold,
 } from "./mock-state.mjs";
 import { sha256 } from "./mock-utils.mjs";
 
@@ -65,6 +67,7 @@ const server = createServer(async (req, res) => {
     }
     if (url.pathname === "/__e2e/reset" && req.method === "POST") {
       const body = await readJson(req);
+      releaseAllAuthProbeHolds(state);
       releaseAllIssueUpdateHolds(state);
       state = createState(normalizeScenario(body?.scenario));
       return json(res, 200, { ok: true, scenario: state.scenario });
@@ -225,6 +228,7 @@ const server = createServer(async (req, res) => {
         Math.min(Number(body?.probe_delay_ms ?? 0), 8_000),
       );
       state.authProbeDelayOnce = body?.probe_delay_once === true;
+      state.authProbeHold = body?.probe_hold === true;
       state.authProbeHang = body?.probe_hang === true;
       state.protectedResponse = AUTH_PROTECTED_RESPONSES.has(
         body?.protected_response,
@@ -238,9 +242,17 @@ const server = createServer(async (req, res) => {
       return json(res, 200, {
         ok: true,
         probe_delay_ms: state.authProbeDelayMs,
+        probe_hold: state.authProbeHold,
         probe_hang: state.authProbeHang,
         session: body?.session === "revoked" ? "revoked" : "active",
         protected_response: state.protectedResponse,
+      });
+    }
+    if (url.pathname === "/__e2e/auth-probe-release" && req.method === "POST") {
+      const pending = await waitForAuthProbeHold(state);
+      return json(res, 200, {
+        ok: true,
+        released: pending ? releaseAllAuthProbeHolds(state) : 0,
       });
     }
     if (

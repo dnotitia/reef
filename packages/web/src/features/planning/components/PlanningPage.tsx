@@ -227,6 +227,7 @@ export function PlanningPage() {
           role="group"
           aria-label={tp("planningKind")}
           className={cn("mb-4", SEGMENTED_CONTROL_TRACK)}
+          data-testid="planning-kind-switcher"
         >
           {PLANNING_KINDS.map((kind) => {
             const isActive = activeKind === kind;
@@ -241,6 +242,7 @@ export function PlanningPage() {
                     ? SEGMENTED_CONTROL_ITEM_ACTIVE
                     : SEGMENTED_CONTROL_ITEM_INACTIVE,
                 )}
+                data-testid={`planning-kind-${kind}`}
                 onClick={() => selectKind(kind)}
               >
                 <PlanningKindIcon kind={kind} decorative size={14} />

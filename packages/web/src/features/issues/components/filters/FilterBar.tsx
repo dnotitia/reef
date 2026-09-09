@@ -40,6 +40,7 @@ import { DisplayOptionsFilter } from "./DisplayOptionsFilter";
 import { IssueDateRangeFilter } from "./IssueDateRangeFilter";
 import { MyViewControl } from "./MyViewControl";
 import { SortControl } from "./SortControl";
+import { issueFilterChromeKeys } from "./issueFilterChrome";
 import type { IssueGroupBy, IssueWorkspaceView } from "../../lib/groupBy";
 import type { IssueScope } from "../../lib/viewMode";
 
@@ -258,7 +259,11 @@ export function FilterBar({
 
   const activeCount = countActiveFilters(filter, backlogScope, fixedSprintId);
   const hasActiveFilters = activeCount > 0;
-  const shouldRenderSort = showSortControl ?? view !== "timeline";
+  const visibleChrome = issueFilterChromeKeys(scope);
+  const hasChrome = (key: (typeof visibleChrome)[number]) =>
+    visibleChrome.includes(key);
+  const shouldRenderSort =
+    hasChrome("sort") && (showSortControl ?? view !== "timeline");
 
   return (
     <div
@@ -277,7 +282,7 @@ export function FilterBar({
       data-testid="filter-bar"
     >
       {/* Status filter — omitted in the backlog view, which pins status itself */}
-      {backlogScope ? null : (
+      {hasChrome("status") ? (
         <MultiSelectCombobox
           label={fieldNames.status}
           values={filter.status}
@@ -291,7 +296,7 @@ export function FilterBar({
           triggerTestId="status-dropdown-trigger"
           contentTestId="status-dropdown-content"
         />
-      )}
+      ) : null}
 
       {/* Type filter */}
       <MultiSelectCombobox
@@ -374,7 +379,7 @@ export function FilterBar({
       {/* Due filter — dropped in the backlog view: that view discards its Due
           column and a due date on an uncommitted item is contradictory
           (REEF-177). */}
-      {backlogScope ? null : (
+      {hasChrome("due") ? (
         <MultiSelectCombobox
           label={fieldNames.due}
           values={filter.due}
@@ -388,7 +393,7 @@ export function FilterBar({
           triggerTestId="due-dropdown-trigger"
           contentTestId="due-dropdown-content"
         />
-      )}
+      ) : null}
 
       {/* Dependency filter */}
       <MultiSelectCombobox
@@ -457,13 +462,13 @@ export function FilterBar({
       {/* Sprint filter — multi-select (REEF-267). Dropped in the backlog view:
           a sprinted item is committed, so it can not be in the backlog
           (REEF-177). */}
-      {backlogScope ? null : fixedSprintId ? (
+      {hasChrome("sprint") && fixedSprintId ? (
         <LockedSprintFacet
           id={fixedSprintId}
           name={fixedSprintName ?? fixedSprintId}
           unlockHref={fixedSprintUnlockHref ?? withVault(vault, "/issues")}
         />
-      ) : (
+      ) : hasChrome("sprint") ? (
         <div data-testid="sprint-filter">
           <PlanningItemMultiCombobox
             kind="sprints"
@@ -480,7 +485,7 @@ export function FilterBar({
             contentTestId="sprint-dropdown-content"
           />
         </div>
-      )}
+      ) : null}
 
       {/* Milestone filter — kept in the backlog view: a milestone is a
           long-horizon theme that legitimately groups unscheduled backlog work
@@ -519,7 +524,7 @@ export function FilterBar({
       {/* Release filter — multi-select (REEF-267). Dropped in the backlog view:
           a released item is committed, so it can not be in the backlog
           (REEF-177). */}
-      {backlogScope ? null : (
+      {hasChrome("release") ? (
         <div data-testid="release-filter">
           <PlanningItemMultiCombobox
             kind="releases"
@@ -536,7 +541,7 @@ export function FilterBar({
             contentTestId="release-dropdown-content"
           />
         </div>
-      )}
+      ) : null}
 
       {/* Labels filter */}
       <div

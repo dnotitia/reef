@@ -112,7 +112,7 @@ export function ReportScopeBar({
           patch({ measure: measure as ReportFilters["measure"] })
         }
       />
-      <div className="min-w-0">
+      <div className="min-w-0" data-fixed-report-control="true">
         <PlanningItemCombobox
           kind="sprints"
           vault={vault}
@@ -125,7 +125,7 @@ export function ReportScopeBar({
           active={Boolean(filters.sprint_id)}
         />
       </div>
-      <div className="min-w-0">
+      <div className="min-w-0" data-fixed-report-control="true">
         <PlanningItemCombobox
           kind="milestones"
           vault={vault}
@@ -138,7 +138,7 @@ export function ReportScopeBar({
           active={Boolean(filters.milestone_id)}
         />
       </div>
-      <div className="min-w-0">
+      <div className="min-w-0" data-fixed-report-control="true">
         <PlanningItemCombobox
           kind="releases"
           vault={vault}
@@ -151,7 +151,11 @@ export function ReportScopeBar({
           active={Boolean(filters.release_id)}
         />
       </div>
-      <div className="min-w-0" data-testid="report-assignee-filter">
+      <div
+        className="min-w-0"
+        data-testid="report-assignee-filter"
+        data-fixed-report-control="true"
+      >
         <AssigneeCombobox
           value={filters.assignee ?? ""}
           onChange={(login) => patch({ assignee: login || undefined })}
@@ -162,7 +166,7 @@ export function ReportScopeBar({
           active={Boolean(filters.assignee)}
         />
       </div>
-      <div className="min-w-0">
+      <div className="min-w-0" data-fixed-report-control="true">
         <LabelChipInput
           value={labelValues}
           onChange={(labels) => patch({ label: formatLabelFilter(labels) })}
@@ -197,7 +201,7 @@ function ScopeSelect({
     content: option.label,
   }));
   return (
-    <div className="min-w-0">
+    <div className="min-w-0" data-fixed-report-control="true">
       <Combobox<string>
         ariaLabel={label}
         value={value || null}

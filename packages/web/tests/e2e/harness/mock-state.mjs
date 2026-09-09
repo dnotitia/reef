@@ -84,6 +84,38 @@ export function releaseAllIssueUpdateHolds(state) {
   state.issueUpdateReleaseWaiters.clear();
 }
 
+export function waitForAuthProbeRelease(state) {
+  return new Promise((resolve) => {
+    state.authProbeReleaseWaiters.add(resolve);
+  });
+}
+
+export function beginAuthProbeHold(state) {
+  state.authProbeHoldCount += 1;
+}
+
+export function endAuthProbeHold(state) {
+  state.authProbeHoldCount = Math.max(0, state.authProbeHoldCount - 1);
+}
+
+export async function waitForAuthProbeHold(state) {
+  const deadline = Date.now() + 5_000;
+  while (state.authProbeHold && state.authProbeHoldCount === 0) {
+    if (Date.now() >= deadline) return false;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  return state.authProbeHoldCount > 0;
+}
+
+export function releaseAllAuthProbeHolds(state) {
+  const waiters = [...state.authProbeReleaseWaiters];
+  state.authProbeReleaseWaiters.clear();
+  for (const resolve of waiters) resolve();
+  state.authProbeHold = false;
+  state.authProbeHoldCount = 0;
+  return waiters.length;
+}
+
 export function createState(scenario) {
   const alice = {
     id: "user-alice",
@@ -132,6 +164,9 @@ export function createState(scenario) {
     accountDenialCode: null,
     authProbeDelayMs: 0,
     authProbeDelayOnce: false,
+    authProbeHold: false,
+    authProbeHoldCount: 0,
+    authProbeReleaseWaiters: new Set(),
     authProbeHang: false,
     protectedResponse: "healthy",
     commitSeq: 0,

@@ -18,12 +18,17 @@ describe("IssuesWorkspaceSkeleton", () => {
       screen.getByRole("group", { name: "Issue view" }),
     ).toBeInTheDocument();
     for (const label of ["Status", "Type", "Priority", "Assignee", "Labels"]) {
-      expect(screen.getByText(label)).toBeInTheDocument();
+      if (label === "Labels") {
+        expect(screen.getByPlaceholderText(label)).toBeInTheDocument();
+      } else {
+        expect(screen.getByText(label)).toBeInTheDocument();
+      }
     }
     expect(screen.getByTestId("issues-skeleton")).toHaveClass("min-w-0");
     expect(screen.getByTestId("board-columns-skeleton")).toHaveClass(
       "min-w-0",
-      "overflow-x-auto",
+      "overflow-x-hidden",
+      "overflow-y-auto",
     );
   });
 
@@ -36,18 +41,110 @@ describe("IssuesWorkspaceSkeleton", () => {
     const toolbar = screen.getByTestId("issues-skeleton-toolbar");
     expect(toolbar).toBeInTheDocument();
 
-    // SearchBar placeholder: a full-width h-9 bar.
-    const searchRow = toolbar.querySelector(".reef-shimmer.h-9.w-full");
+    // SearchBar chrome: a full-width h-9 static label.
+    const searchRow = toolbar.querySelector("[data-testid=search-bar] input");
     expect(searchRow).not.toBeNull();
+    expect(searchRow).toHaveAttribute("placeholder", "Search issues...");
 
-    // FilterBar placeholder: the wrapping chip row, one chip per facet/value
-    // group including the single compound updated-at trigger (14 h-8 controls).
-    const chips = toolbar.querySelectorAll(".reef-shimmer.h-8");
-    expect(chips).toHaveLength(14);
+    // FilterBar chrome: one static control per facet/value group including the
+    // single compound updated-at trigger, sort, and My Views (16 controls).
+    const chips = toolbar.querySelectorAll("[data-fixed-filter]");
+    expect(chips).toHaveLength(16);
+    expect(
+      toolbar.querySelectorAll('.reef-shimmer[aria-hidden="true"]'),
+    ).toHaveLength(0);
     // The whole chip group sits in a single flex-wrap container so it wraps to
     // the same row count as the live FilterBar.
     expect(container.querySelector(".flex.flex-wrap")).not.toBeNull();
   });
+
+  it("reflects the issue scope and view from the URL", () => {
+    render(<IssuesWorkspaceSkeleton searchParams="scope=backlog&view=list" />);
+
+    expect(screen.getByTestId("scope-switcher-backlog")).toHaveClass(
+      "bg-surface-hover",
+    );
+    expect(screen.getByTestId("scope-switcher-active")).toHaveClass(
+      "text-muted-foreground",
+    );
+    expect(screen.getByTestId("view-switcher-list")).toHaveClass(
+      "bg-surface-hover",
+    );
+    expect(screen.getByTestId("view-switcher-board")).toHaveClass(
+      "text-muted-foreground",
+    );
+  });
+
+  it("uses the selected backlog scope for the pending board body", () => {
+    render(<IssuesWorkspaceSkeleton searchParams="scope=backlog&view=board" />);
+
+    expect(
+      screen.getByRole("heading", { name: "Critical" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "In Progress" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("reflects a URL-selected sort in the pending filter chrome", () => {
+    const { container } = render(
+      <IssuesWorkspaceSkeleton searchParams="view=list&sort=priority&order=desc" />,
+    );
+
+    const sort = container.querySelector('[data-fixed-filter-key="sort"]');
+    expect(sort).toHaveTextContent("Priority");
+    expect(sort).toHaveTextContent("High → Low");
+    expect(sort).toHaveClass("border-brand-focus", "bg-brand-fill/10");
+  });
+
+  it("keeps the default rank chrome active and the labels field at the live floor", () => {
+    const { container } = render(<IssuesWorkspaceSkeleton />);
+
+    expect(
+      container.querySelector('[data-fixed-filter-key="sort"]'),
+    ).toHaveClass("border-brand-focus", "bg-brand-fill/10");
+    expect(
+      container.querySelector('[data-fixed-filter-key="labels"]'),
+    ).toHaveClass("w-[9rem]", "min-w-[9rem]");
+  });
+
+  it("uses the canonical Backlog/List filter set and table headers", () => {
+    const { container } = render(
+      <IssuesWorkspaceSkeleton searchParams="view=list&scope=backlog&sort=updated_at&order=desc" />,
+    );
+    const filterBar = screen.getByTestId("filter-bar");
+
+    expect(screen.queryByTestId("view-switcher-timeline")).toBeNull();
+    for (const key of ["status", "due", "sprint", "release"]) {
+      expect(
+        filterBar.querySelector(`[data-fixed-filter-key="${key}"]`),
+      ).toBeNull();
+    }
+    expect(
+      filterBar.querySelector('[data-fixed-filter-key="display"]'),
+    ).toHaveTextContent("Group: Priority");
+    expect(
+      filterBar.querySelector('[data-fixed-filter-key="sort-direction"]'),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("backlog-table-skeleton")).toBeInTheDocument();
+    expect(
+      container.querySelector(
+        '[data-testid="backlog-table-skeleton"] thead [data-column-key="updated"]',
+      ),
+    ).toHaveTextContent("Updated");
+  });
+
+  it.each(["list", "timeline"] as const)(
+    "uses a %s body frame for the selected URL view",
+    (layout) => {
+      render(<IssuesWorkspaceSkeleton searchParams={`view=${layout}`} />);
+
+      expect(
+        screen.getByTestId(`issues-${layout}-skeleton`),
+      ).toBeInTheDocument();
+      expect(screen.queryByTestId("board-columns-skeleton")).toBeNull();
+    },
+  );
 
   it("hides the decorative body and announces loading to assistive tech (REEF-281)", () => {
     const { container } = render(<IssuesWorkspaceSkeleton />);

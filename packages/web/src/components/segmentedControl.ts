@@ -25,7 +25,7 @@ export const SEGMENTED_CONTROL_TRACK =
 
 /** A single segment (button or link). Includes the canonical focus-visible ring. */
 export const SEGMENTED_CONTROL_ITEM =
-  "inline-flex items-center gap-1.5 rounded-[5px] px-2 py-1 type-segmented-control font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus";
+  "inline-flex items-center justify-center gap-1.5 rounded-[5px] px-2 py-1 type-segmented-control font-medium text-center transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus";
 
 /** Active-segment fill. */
 export const SEGMENTED_CONTROL_ITEM_ACTIVE = "bg-surface-hover text-foreground";

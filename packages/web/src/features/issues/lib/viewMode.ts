@@ -14,6 +14,15 @@ export const ISSUE_LAYOUTS: readonly IssueLayout[] = [
   "timeline",
 ] as const;
 
+export function issueLayoutsForScope(
+  scope: IssueScope,
+  hideTimeline = false,
+): readonly IssueLayout[] {
+  return scope === "backlog" || hideTimeline
+    ? ISSUE_LAYOUTS.filter((layout) => layout !== "timeline")
+    : ISSUE_LAYOUTS;
+}
+
 const DEFAULT_ISSUE_SCOPE: IssueScope = "active";
 const DEFAULT_ISSUE_LAYOUT: IssueLayout = "board";
 
