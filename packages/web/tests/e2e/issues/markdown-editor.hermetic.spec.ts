@@ -563,6 +563,45 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await resetFixture(request, "markdown_fixture");
   });
 
+  test("keeps the focused editor chrome continuous across the toolbar divider", async ({
+    page,
+    request,
+  }, testInfo) => {
+    test.setTimeout(90_000);
+    testInfo.snapshotSuffix = "";
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+
+    const wrapper = page.getByTestId("markdown-editor");
+    const toolbar = page.getByTestId("markdown-toolbar");
+    const editor = wrapper.locator(".reef-markdown-editor");
+    await expect(editor).toBeVisible();
+    await editor.focus();
+    await expect(editor).toBeFocused();
+
+    const wrapperBox = await wrapper.boundingBox();
+    const toolbarBox = await toolbar.boundingBox();
+    expect(wrapperBox).not.toBeNull();
+    expect(toolbarBox).not.toBeNull();
+    if (!wrapperBox || !toolbarBox) return;
+
+    const focusIntersection = await page.screenshot({
+      animations: "disabled",
+      clip: {
+        x: wrapperBox.x,
+        y: toolbarBox.y + toolbarBox.height - 3,
+        width: 8,
+        height: 7,
+      },
+    });
+    expect(focusIntersection).toMatchSnapshot(
+      "markdown-focused-toolbar-intersection.png",
+    );
+  });
+
   test("renders the discovered fixture through theme and Source round trips", async ({
     page,
     request,

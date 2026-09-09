@@ -347,7 +347,7 @@ export function MarkdownEditor({
           handleBlur();
         }
       }}
-      className={`rounded-md border border-border bg-surface-elevated transition-colors duration-150 focus-within:border-brand-focus focus-within:ring-2 focus-within:ring-inset focus-within:ring-brand-focus ${className ?? ""}`}
+      className={`relative isolate rounded-md border border-border bg-surface-elevated transition-colors duration-150 after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[inherit] after:content-[''] focus-within:border-brand-focus focus-within:after:ring-2 focus-within:after:ring-inset focus-within:after:ring-brand-focus ${className ?? ""}`}
     >
       {!readOnly && (
         <MarkdownEditorToolbar
