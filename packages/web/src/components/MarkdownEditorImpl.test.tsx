@@ -192,12 +192,16 @@ describe("MarkdownEditor", () => {
     expect(screen.getByTestId("markdown-editor")).toBeInTheDocument();
   });
 
-  it("keeps the focus-within ring inset for clipped edit lanes", () => {
+  it("paints the inset focus-within ring above clipped edit lanes and dividers", () => {
     render(<MarkdownEditor value="" onChange={vi.fn()} />);
     const editor = screen.getByTestId("markdown-editor");
-    expect(editor.className).toContain("focus-within:ring-2");
-    expect(editor.className).toContain("focus-within:ring-inset");
-    expect(editor.className).toContain("focus-within:ring-brand-focus");
+    expect(editor.className).toContain("relative");
+    expect(editor.className).toContain("isolate");
+    expect(editor.className).toContain("after:pointer-events-none");
+    expect(editor.className).toContain("after:z-20");
+    expect(editor.className).toContain("focus-within:after:ring-2");
+    expect(editor.className).toContain("focus-within:after:ring-inset");
+    expect(editor.className).toContain("focus-within:after:ring-brand-focus");
   });
 
   it("insets the scrollable body from the focus chrome (REEF-378)", () => {

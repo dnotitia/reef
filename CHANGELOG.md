@@ -25,6 +25,8 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Markdown editor focus chrome remains continuous across internal dividers.**
+  Toolbar and editor-body separators no longer paint over the inset focus ring.
 - **Sprint rollover validation and conflicts now use localized guidance.**
   Invalid dates name the required correction, and an already-active sprint is
   identified by name instead of only showing a generic save conflict.
