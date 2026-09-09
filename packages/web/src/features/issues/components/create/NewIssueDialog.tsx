@@ -121,10 +121,12 @@ export function NewIssueDialog({
   const queryClient = useQueryClient();
   // Display prefix; the submit handler re-fetches the canonical value
   // via ensureProjectConfig so a cold load does not use a stale prefix.
-  const configQuery = useProjectConfig(vault ?? "");
+  const queryVault = open ? (vault ?? "") : "";
+  const configQuery = useProjectConfig(queryVault);
   const prefix =
     configQuery.data?.config.project_prefix ?? DEFAULT_CONFIG.project_prefix;
-  const { data: vaultMembers = [] } = useVaultRoster(vault ?? "");
+  const vaultMembersQuery = useVaultRoster(queryVault);
+  const { data: vaultMembers = [] } = vaultMembersQuery;
 
   const {
     title,
@@ -197,9 +199,11 @@ export function NewIssueDialog({
 
   // Local issue list still drives relation pickers; enrichment now fetches its
   // own AKB context server-side so the prompt sees a consistent workspace view.
-  const { data: existingIssues } = useIssueList(vault ?? "");
+  const existingIssuesQuery = useIssueList(queryVault);
+  const { data: existingIssues } = existingIssuesQuery;
   // Whole-vault relation graph for accurate blocked badges in the relation dropdowns.
-  const { data: relations } = useIssueRelations(vault ?? "");
+  const relationsQuery = useIssueRelations(queryVault);
+  const { data: relations } = relationsQuery;
   // Optional GitHub grounding for enrichment code tools. Labels come from AKB
   // vault context; the first deployment-managed monitored repository enables
   // read-only code search.
@@ -210,6 +214,21 @@ export function NewIssueDialog({
         repo: configQuery.data.config.monitored_repos[0].name,
       }
     : undefined;
+
+  const supportingDataError =
+    configQuery.isError ||
+    vaultMembersQuery.isError ||
+    existingIssuesQuery.isError ||
+    relationsQuery.isError;
+
+  function retrySupportingData() {
+    void Promise.all([
+      configQuery.refetch(),
+      vaultMembersQuery.refetch(),
+      existingIssuesQuery.refetch(),
+      relationsQuery.refetch(),
+    ]);
+  }
 
   const {
     enrichment,
@@ -249,7 +268,7 @@ export function NewIssueDialog({
     dialogContext?.kind === "subIssue" ? dialogContext : null;
   const issueBodyMentionConfig = useMemo(
     () =>
-      vault
+      queryVault
         ? {
             members: vaultMembers,
             issues: existingIssues ?? [],
@@ -275,7 +294,7 @@ export function NewIssueDialog({
             documentSearchEmptyLabel: markdownEditor("documentSearchEmpty"),
           }
         : undefined,
-    [existingIssues, markdownEditor, vault, vaultMembers],
+    [existingIssues, markdownEditor, queryVault, vault, vaultMembers],
   );
 
   function resetForm() {
@@ -720,6 +739,24 @@ export function NewIssueDialog({
           ref={formBodyRef}
         >
           <div className="flex flex-col gap-4">
+            {supportingDataError ? (
+              <div
+                data-testid="new-issue-supporting-data-error"
+                role="alert"
+                aria-live="assertive"
+                className="flex flex-wrap items-center gap-2 rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text"
+              >
+                <span>{tc("supportingDataLoadError")}</span>
+                <Button
+                  type="button"
+                  variant="link"
+                  className="h-auto px-0 text-destructive-text"
+                  onClick={retrySupportingData}
+                >
+                  {common("retry")}
+                </Button>
+              </div>
+            ) : null}
             {showEnrichmentBar && (
               <EnrichmentReviewBar
                 pending={enrichment.counts.pending}

@@ -197,9 +197,9 @@ describe("IssuesWorkspace", () => {
     await db.config.clear();
   });
 
-  it("defaults to the board view when no ?view= is present", () => {
+  it("defaults to the board view when no ?view= is present", async () => {
     render(wrap(<IssuesWorkspace />));
-    expect(screen.getByTestId("board-body")).toBeInTheDocument();
+    expect(await screen.findByTestId("board-body")).toBeInTheDocument();
     expect(screen.getByTestId("filter-toolbar")).toHaveAttribute(
       "data-show-sort",
       "true",
@@ -311,16 +311,26 @@ describe("IssuesWorkspace", () => {
     expect(screen.queryByTestId("current-sprint-shortcut")).toBeNull();
   });
 
-  it("renders the list body when ?view=list", () => {
+  it("renders the list body when ?view=list", async () => {
     navigationState.searchParams = new URLSearchParams("view=list");
     render(wrap(<IssuesWorkspace />));
-    expect(screen.getByTestId("list-body")).toBeInTheDocument();
+    expect(await screen.findByTestId("list-body")).toBeInTheDocument();
     expect(screen.getByTestId("filter-toolbar")).toHaveAttribute(
       "data-supports-rank",
       "true",
     );
     expect(screen.getByTestId("issue-bulk-action-bar")).toBeInTheDocument();
     expect(screen.queryByTestId("board-body")).toBeNull();
+  });
+
+  it("does not enable the rollover-only issue read outside the active board", async () => {
+    navigationState.searchParams = new URLSearchParams("view=list");
+    render(wrap(<IssuesWorkspace />));
+
+    await screen.findByTestId("list-body");
+    expect(mockUseIssueList).toHaveBeenCalledWith("reef-acme", undefined, {
+      enabled: false,
+    });
   });
 
   it("pins a detail workspace to its sprint without exposing scope switching", () => {
@@ -395,10 +405,10 @@ describe("IssuesWorkspace", () => {
     expect(useIssueSelectionStore.getState().running).toBe(true);
   });
 
-  it("renders the timeline body when ?view=timeline", () => {
+  it("renders the timeline body when ?view=timeline", async () => {
     navigationState.searchParams = new URLSearchParams("view=timeline");
     render(wrap(<IssuesWorkspace />));
-    expect(screen.getByTestId("timeline-body")).toBeInTheDocument();
+    expect(await screen.findByTestId("timeline-body")).toBeInTheDocument();
     expect(screen.getByTestId("filter-toolbar")).toHaveAttribute(
       "data-show-sort",
       "false",

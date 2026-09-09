@@ -7,6 +7,7 @@ import {
 } from "@/features/settings/hooks/useActiveVault";
 import { useVaults } from "@/features/settings/hooks/useVaults";
 import { useViewStore } from "@/features/ui/stores/useViewStore";
+import { preloadCreateWorkspaceDialog } from "@/features/ui/lib/lazyDialogPreload";
 import { withVault } from "@/lib/workspaceHref";
 import { Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -116,7 +117,12 @@ export function ActiveWorkspaceSection() {
         <Button
           type="button"
           variant="secondary"
-          onClick={() => openCreateWorkspaceDialog()}
+          onClick={() => {
+            preloadCreateWorkspaceDialog();
+            openCreateWorkspaceDialog();
+          }}
+          onMouseEnter={preloadCreateWorkspaceDialog}
+          onFocus={preloadCreateWorkspaceDialog}
           data-testid="active-workspace-create"
         >
           <Plus aria-hidden="true" className="size-3.5 shrink-0" />

@@ -21,6 +21,11 @@ export function useIssueList(
   query?: IssueQueryParams,
   options?: {
     /**
+     * Enable the query only while the owning surface is needed. Disabled
+     * queries keep their cache entry but do not start a request.
+     */
+    enabled?: boolean;
+    /**
      * Reuse the previous query's rows as placeholder while a new query key
      * fetches WITHIN the same vault (no skeleton flicker on filter/sort changes).
      * Default true. Set false for an identity-scoped query (My Work) where the
@@ -33,6 +38,7 @@ export function useIssueList(
   },
 ) {
   const keepPreviousData = options?.keepPreviousData ?? true;
+  const enabled = options?.enabled ?? true;
   const hydrated = useHydrated();
   const result = useQuery({
     queryKey: query ? issueListKey(vault, query) : issueListKey(vault),
@@ -57,7 +63,7 @@ export function useIssueList(
       const body = (await res.json()) as { issues: IssueListItem[] };
       return body.issues;
     },
-    enabled: !!vault,
+    enabled: enabled && !!vault,
   });
 
   // Hydration gate. The server renders the pending skeleton because it has no

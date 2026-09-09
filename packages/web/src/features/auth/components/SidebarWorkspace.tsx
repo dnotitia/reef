@@ -28,6 +28,7 @@ import { toast } from "sonner";
 
 interface SidebarWorkspaceProps {
   collapsed: boolean;
+  onPreload?: () => void;
 }
 
 /**
@@ -66,7 +67,10 @@ function WorkspaceMonogram({ name, large }: { name: string; large?: boolean }) {
  *    switches the active vault. A pinned "New workspace" entry is consistently
  *    present — even with zero reef vaults — and opens the create dialog.
  */
-export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
+export function SidebarWorkspace({
+  collapsed,
+  onPreload,
+}: SidebarWorkspaceProps) {
   const { vault: activeVault, isLoading } = useActiveVault();
   const vaultsQuery = useVaults();
   const setActiveVault = useSetActiveVault();
@@ -154,6 +158,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
   function handleNewWorkspace() {
     setOpen(false);
     setSearch("");
+    onPreload?.();
     openCreateWorkspaceDialog();
   }
 
@@ -358,6 +363,8 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
             type="button"
             data-testid="workspace-switcher-new"
             onClick={handleNewWorkspace}
+            onMouseEnter={onPreload}
+            onFocus={onPreload}
             className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 type-control text-foreground transition-colors hover:bg-surface-hover"
           >
             <Plus aria-hidden="true" className="size-3.5 shrink-0" />

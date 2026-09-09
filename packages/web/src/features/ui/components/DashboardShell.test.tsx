@@ -23,6 +23,33 @@ vi.mock("@/lib/useHydrated", () => ({
   useHydrated: () => hydrationState.ready,
 }));
 
+const { issueListCalls, relationCalls } = vi.hoisted(() => ({
+  issueListCalls: [] as unknown[][],
+  relationCalls: [] as unknown[][],
+}));
+
+vi.mock("@/features/issues/hooks/queries/useIssueList", () => ({
+  useIssueList: (...args: unknown[]) => {
+    issueListCalls.push(args);
+    return {
+      data: [],
+      isError: false,
+      isFetching: false,
+      isLoading: false,
+      isPending: false,
+      isPlaceholderData: false,
+      refetch: vi.fn(),
+    };
+  },
+}));
+
+vi.mock("@/features/issues/hooks/queries/useIssueRelations", () => ({
+  useIssueRelations: (...args: unknown[]) => {
+    relationCalls.push(args);
+    return { data: [] };
+  },
+}));
+
 vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   useActiveVault: () => ({
     vault: "reef-acme",
@@ -134,6 +161,8 @@ describe("DashboardShell", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    issueListCalls.length = 0;
+    relationCalls.length = 0;
     navigationState.pathname = "/workspace/reef-acme/issues";
     hydrationState.ready = true;
     unreadNotificationState.count = 0;
@@ -174,6 +203,21 @@ describe("DashboardShell", () => {
     expect(
       screen.getByRole("button", { name: "Collapse sidebar" }),
     ).toBeInTheDocument();
+  });
+
+  it("does not mount issue-search or create-dialog data consumers before intent", () => {
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+
+    expect(issueListCalls).toHaveLength(0);
+    expect(relationCalls).toHaveLength(0);
+    expect(screen.queryByTestId("new-issue-dialog")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("global-search-input")).not.toBeInTheDocument();
   });
 
   it("shows only the brand mark in the collapsed sidebar header", () => {
@@ -463,7 +507,7 @@ describe("DashboardShell", () => {
     expect(screen.getByTestId("keyboard-shortcuts-dialog")).toBeVisible();
   });
 
-  it("routes Ctrl+K through the shell's single shortcut dispatcher", () => {
+  it("routes Ctrl+K through the shell's single shortcut dispatcher", async () => {
     render(
       wrap(
         <DashboardShell appVersion="0.0.0">
@@ -473,7 +517,7 @@ describe("DashboardShell", () => {
     );
 
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
-    expect(screen.getByTestId("global-search-input")).toBeVisible();
+    expect(await screen.findByTestId("global-search-input")).toBeVisible();
 
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
     expect(screen.queryByTestId("global-search-input")).not.toBeInTheDocument();

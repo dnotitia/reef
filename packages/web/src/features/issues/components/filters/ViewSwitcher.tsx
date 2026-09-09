@@ -28,6 +28,7 @@ const LAYOUT_ICONS: Record<IssueLayout, typeof Columns3> = {
 interface ViewSwitcherProps {
   activeLayout: IssueLayout;
   scope: IssueScope;
+  onLayoutIntent?: (layout: IssueLayout) => void;
   onLayoutChange?: (layout: IssueLayout) => void;
   basePath?: string;
   hideTimeline?: boolean;
@@ -38,6 +39,7 @@ interface ViewSwitcherProps {
 export function ViewSwitcher({
   activeLayout,
   scope,
+  onLayoutIntent,
   onLayoutChange,
   basePath = "/issues",
   hideTimeline = false,
@@ -54,6 +56,7 @@ export function ViewSwitcher({
   const selectLayout = useCallback(
     (layout: IssueLayout) => {
       if (layout === activeLayout || pendingLayout === layout) return;
+      onLayoutIntent?.(layout);
       onLayoutChange?.(layout);
       const next = new URLSearchParams(searchParams);
       if (includeScope) next.set("scope", scope);
@@ -70,6 +73,7 @@ export function ViewSwitcher({
       activeLayout,
       basePath,
       includeScope,
+      onLayoutIntent,
       onLayoutChange,
       pendingLayout,
       router,
@@ -108,6 +112,12 @@ export function ViewSwitcher({
             aria-label={label}
             title={label}
             data-testid={`view-switcher-${layout}`}
+            onMouseEnter={() => {
+              if (layout !== activeLayout) onLayoutIntent?.(layout);
+            }}
+            onFocus={() => {
+              if (layout !== activeLayout) onLayoutIntent?.(layout);
+            }}
             onClick={() => selectLayout(layout)}
             className={cn(
               SEGMENTED_CONTROL_ITEM,

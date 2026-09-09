@@ -6,14 +6,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { KanbanBoard } from "@/features/board/components/KanbanBoard";
-import { BacklogView } from "@/features/issues/components/backlog/BacklogView";
-import { IssueBulkActionBar } from "@/features/issues/components/bulk/IssueBulkActionBar";
 import { IssueFilterToolbar } from "@/features/issues/components/filters/IssueFilterToolbar";
 import { ScopeSwitcher } from "@/features/issues/components/filters/ScopeSwitcher";
 import { ViewSwitcher } from "@/features/issues/components/filters/ViewSwitcher";
-import { IssueListTable } from "@/features/issues/components/list/IssueListTable";
-import { SprintRolloverDialog } from "@/features/planning/components/SprintRolloverDialog";
+import { LazyLoadFallback } from "@/features/ui/components/LazyLoadFallback";
 import { SprintRolloverNudge } from "@/features/planning/components/SprintRolloverNudge";
 import { SprintRolloverResumeNotice } from "@/features/planning/components/SprintRolloverResumeNotice";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
@@ -33,16 +29,181 @@ import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelecti
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useWorkspaceAccess } from "@/features/settings/hooks/useWorkspaceAccess";
-import { TimelineBody } from "@/features/timeline/components/TimelineBody";
 import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { PageHeader } from "@/features/ui/components/PageHeader";
 import { withVault } from "@/lib/workspaceHref";
 import { useHydrated } from "@/lib/useHydrated";
 import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
+import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { SprintRolloverResume } from "@reef/core";
+
+interface DynamicLoadingProps {
+  error?: Error | null;
+  retry?: () => void;
+}
+
+type IssueViewLoadingName = "board" | "list" | "backlog" | "timeline";
+
+function IssueViewLoading({
+  error,
+  retry,
+  name,
+}: DynamicLoadingProps & { name: IssueViewLoadingName }) {
+  return (
+    <LazyLoadFallback
+      error={error}
+      retry={retry}
+      surface="view"
+      testId={`issues-${name}-loading`}
+    />
+  );
+}
+
+function OptionalViewLoading({ error, retry }: DynamicLoadingProps) {
+  return error ? (
+    <LazyLoadFallback
+      error={error}
+      retry={retry}
+      surface="view"
+      testId="issues-optional-view-loading"
+    />
+  ) : null;
+}
+
+function RolloverDialogLoading({ error, retry }: DynamicLoadingProps) {
+  return (
+    <LazyLoadFallback
+      error={error}
+      retry={retry}
+      surface="dialog"
+      testId="sprint-rollover-dialog-loading"
+    />
+  );
+}
+
+const loadKanbanBoard = () =>
+  import("@/features/board/components/KanbanBoard").then(
+    (module) => module.KanbanBoard,
+  );
+const KanbanBoard = dynamic(
+  () =>
+    import("@/features/board/components/KanbanBoard").then(
+      (module) => module.KanbanBoard,
+    ),
+  {
+    loading: (props) => (
+      <IssueViewLoading error={props.error} retry={props.retry} name="board" />
+    ),
+  },
+);
+
+const loadIssueListTable = () =>
+  import("@/features/issues/components/list/IssueListTable").then(
+    (module) => module.IssueListTable,
+  );
+const IssueListTable = dynamic(
+  () =>
+    import("@/features/issues/components/list/IssueListTable").then(
+      (module) => module.IssueListTable,
+    ),
+  {
+    loading: (props) => (
+      <IssueViewLoading error={props.error} retry={props.retry} name="list" />
+    ),
+  },
+);
+
+const loadBacklogView = () =>
+  import("@/features/issues/components/backlog/BacklogView").then(
+    (module) => module.BacklogView,
+  );
+const BacklogView = dynamic(
+  () =>
+    import("@/features/issues/components/backlog/BacklogView").then(
+      (module) => module.BacklogView,
+    ),
+  {
+    loading: (props) => (
+      <IssueViewLoading
+        error={props.error}
+        retry={props.retry}
+        name="backlog"
+      />
+    ),
+  },
+);
+
+const loadTimelineBody = () =>
+  import("@/features/timeline/components/TimelineBody").then(
+    (module) => module.TimelineBody,
+  );
+const TimelineBody = dynamic(
+  () =>
+    import("@/features/timeline/components/TimelineBody").then(
+      (module) => module.TimelineBody,
+    ),
+  {
+    loading: (props) => (
+      <IssueViewLoading
+        error={props.error}
+        retry={props.retry}
+        name="timeline"
+      />
+    ),
+  },
+);
+
+const loadIssueBulkActionBar = () =>
+  import("@/features/issues/components/bulk/IssueBulkActionBar").then(
+    (module) => module.IssueBulkActionBar,
+  );
+const IssueBulkActionBar = dynamic(
+  () =>
+    import("@/features/issues/components/bulk/IssueBulkActionBar").then(
+      (module) => module.IssueBulkActionBar,
+    ),
+  {
+    loading: (props) => (
+      <OptionalViewLoading error={props.error} retry={props.retry} />
+    ),
+  },
+);
+
+const loadSprintRolloverDialog = () =>
+  import("@/features/planning/components/SprintRolloverDialog").then(
+    (module) => module.SprintRolloverDialog,
+  );
+const SprintRolloverDialog = dynamic(
+  () =>
+    import("@/features/planning/components/SprintRolloverDialog").then(
+      (module) => module.SprintRolloverDialog,
+    ),
+  {
+    ssr: false,
+    loading: (props) => (
+      <RolloverDialogLoading error={props.error} retry={props.retry} />
+    ),
+  },
+);
+
+function preloadIssueView(
+  scope: "active" | "backlog",
+  layout: "board" | "list" | "timeline",
+) {
+  if (typeof window === "undefined") return;
+  const loader =
+    scope === "backlog" && layout === "list"
+      ? loadBacklogView
+      : layout === "board"
+        ? loadKanbanBoard
+        : layout === "timeline"
+          ? loadTimelineBody
+          : loadIssueListTable;
+  void loader().catch(() => undefined);
+}
 
 export interface IssuesWorkspaceProps {
   /** Pin all issue queries to a sprint while keeping the shared filter store intact. */
@@ -117,10 +278,10 @@ export function IssuesWorkspace({
 }: IssuesWorkspaceProps = {}) {
   const { vault, isLoading } = useActiveVault();
   const planningCatalogQuery = usePlanningCatalog(vault);
-  const rolloverIssueQuery = useIssueList(vault);
   const workspaceAccess = useWorkspaceAccess(vault);
   const hydrated = useHydrated();
   const [rolloverOpen, setRolloverOpen] = useState(false);
+  const [rolloverMounted, setRolloverMounted] = useState(false);
   const [rolloverResume, setRolloverResume] =
     useState<SprintRolloverResume | null>(null);
   const router = useRouter();
@@ -131,6 +292,12 @@ export function IssuesWorkspace({
     fixedSprintId && parsedView.layout === "timeline"
       ? "board"
       : parsedView.layout;
+  const shouldFetchRolloverIssues =
+    !fixedSprintId &&
+    (rolloverOpen || (scope === "active" && layout === "board"));
+  const rolloverIssueQuery = useIssueList(vault, undefined, {
+    enabled: shouldFetchRolloverIssues,
+  });
   const activeSprint = selectActiveSprint(
     planningCatalogQuery.data?.sprints ?? [],
   );
@@ -207,7 +374,13 @@ export function IssuesWorkspace({
           description={vault || undefined}
           titleAdjacent={
             <div className="flex min-w-0 max-w-full items-center gap-2">
-              <ScopeSwitcher activeScope={scope} activeLayout={headerLayout} />
+              <ScopeSwitcher
+                activeScope={scope}
+                activeLayout={headerLayout}
+                onScopeIntent={(nextScope, nextLayout) =>
+                  preloadIssueView(nextScope, nextLayout)
+                }
+              />
               {!fixedSprintId && scope === "active" ? (
                 <CurrentSprintShortcut vault={vault} />
               ) : null}
@@ -218,6 +391,9 @@ export function IssuesWorkspace({
             <ViewSwitcher
               scope={scope}
               activeLayout={headerLayout}
+              onLayoutIntent={(nextLayout) =>
+                preloadIssueView(scope, nextLayout)
+              }
               onLayoutChange={setPendingLayout}
               basePath={
                 fixedSprintId ? sprintDetailPath(fixedSprintId) : "/issues"
@@ -278,6 +454,7 @@ export function IssuesWorkspace({
               canEdit={workspaceAccess.canEditWorkspace}
               onOpen={(resume) => {
                 setRolloverResume(resume);
+                setRolloverMounted(true);
                 setRolloverOpen(true);
               }}
             />
@@ -292,6 +469,7 @@ export function IssuesWorkspace({
               priority={rolloverResumes.length > 0 ? "secondary" : "primary"}
               onOpen={() => {
                 setRolloverResume(null);
+                setRolloverMounted(true);
                 setRolloverOpen(true);
               }}
             />
@@ -331,7 +509,7 @@ export function IssuesWorkspace({
           </div>
         </>
       )}
-      {!fixedSprintId ? (
+      {!fixedSprintId && (rolloverOpen || rolloverMounted) ? (
         <SprintRolloverDialog
           open={rolloverOpen}
           onOpenChange={(open) => {
