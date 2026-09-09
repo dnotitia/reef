@@ -60,6 +60,24 @@ describe("PageHeader", () => {
     expect(screen.getByText("Board")).toBeInTheDocument();
   });
 
+  it("keeps a static description in place through hydration", () => {
+    render(
+      <PageHeader
+        title="Issues"
+        description="loaded description"
+        staticDescription={
+          <span data-testid="pending-description">Pending description</span>
+        }
+      />,
+    );
+
+    expect(screen.getByTestId("pending-description")).toBeInTheDocument();
+    expect(screen.queryByText("loaded description")).toBeNull();
+    expect(
+      screen.getByTestId("pending-description").parentElement,
+    ).toHaveAttribute("aria-hidden", "true");
+  });
+
   it("lets a node subtitle own its translation boundaries so mixed prose still translates (REEF-260)", () => {
     // My Work's `@login · N open` mixes an identifier with a prose count, so it
     // passes a node that protects the identifier while the prose is not

@@ -59,7 +59,13 @@ function release(overrides: Partial<Release> & { id: string }): Release {
 }
 
 function catalog(parts: Partial<PlanningCatalog>): PlanningCatalog {
-  return { sprints: [], milestones: [], releases: [], ...parts };
+  return {
+    sprints: [],
+    milestones: [],
+    releases: [],
+    rollover_resumes: [],
+    ...parts,
+  };
 }
 
 describe("classifyHealth — thresholds (REEF-191 AC3)", () => {

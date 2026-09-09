@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { AuthError, LlmError, NotFoundError } from "@reef/core";
+import { AuthError, ConflictError, LlmError, NotFoundError } from "@reef/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
@@ -79,6 +79,24 @@ describe("localizeError — core error path (AC1, AC2, AC4)", () => {
     const res = await localizeError(new NotFoundError());
     expect((await bodyOf(res)).error).toBe(
       "요청하신 item 항목을 찾을 수 없습니다.",
+    );
+  });
+
+  it("localizes a named planning conflict in English and Korean", async () => {
+    const conflict = new ConflictError({
+      code: "planning.sprintRollover.activeConflict",
+      params: { sprintName: "Rollover Target A" },
+    });
+
+    const english = await localizeError(conflict);
+    expect((await bodyOf(english)).error).toBe(
+      "Cannot activate the selected sprint while “Rollover Target A” is active. Close it or choose a different target.",
+    );
+
+    cookieLocale.current = "ko";
+    const korean = await localizeError(conflict);
+    expect((await bodyOf(korean)).error).toBe(
+      "선택한 스프린트를 활성화할 수 없습니다. “Rollover Target A” 스프린트가 이미 활성 상태입니다. 해당 스프린트를 종료하거나 다른 대상을 선택하세요.",
     );
   });
 

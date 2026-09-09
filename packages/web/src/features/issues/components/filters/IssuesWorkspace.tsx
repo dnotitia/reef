@@ -13,6 +13,16 @@ import { IssueFilterToolbar } from "@/features/issues/components/filters/IssueFi
 import { ScopeSwitcher } from "@/features/issues/components/filters/ScopeSwitcher";
 import { ViewSwitcher } from "@/features/issues/components/filters/ViewSwitcher";
 import { IssueListTable } from "@/features/issues/components/list/IssueListTable";
+import { SprintRolloverDialog } from "@/features/planning/components/SprintRolloverDialog";
+import { SprintRolloverNudge } from "@/features/planning/components/SprintRolloverNudge";
+import { SprintRolloverResumeNotice } from "@/features/planning/components/SprintRolloverResumeNotice";
+import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
+import { selectActiveSprint } from "@/features/planning/lib/planningItems";
+import {
+  sprintDetailHref,
+  sprintDetailPath,
+} from "@/features/planning/lib/planningUrls";
+import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueFilterPersistence } from "@/features/issues/hooks/view/useIssueFilterPersistence";
 import { useIssueUrlSync } from "@/features/issues/hooks/view/useIssueUrlSync";
 import {
@@ -22,20 +32,17 @@ import {
 import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
+import { useWorkspaceAccess } from "@/features/settings/hooks/useWorkspaceAccess";
 import { TimelineBody } from "@/features/timeline/components/TimelineBody";
 import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { PageHeader } from "@/features/ui/components/PageHeader";
-import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
-import { selectActiveSprint } from "@/features/planning/lib/planningItems";
-import {
-  sprintDetailHref,
-  sprintDetailPath,
-} from "@/features/planning/lib/planningUrls";
 import { withVault } from "@/lib/workspaceHref";
+import { useHydrated } from "@/lib/useHydrated";
 import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import type { SprintRolloverResume } from "@reef/core";
 
 export interface IssuesWorkspaceProps {
   /** Pin all issue queries to a sprint while keeping the shared filter store intact. */
@@ -58,7 +65,7 @@ function CurrentSprintShortcut({ vault }: { vault: string }) {
 
   return (
     <div
-      className="min-w-0 max-w-[min(15rem,28vw)]"
+      className="min-w-0 max-w-[min(15rem,28vw)] max-[767px]:w-[min(15rem,28vw)]"
       data-testid="current-sprint-shortcut"
       data-sprint-id={currentSprint.id}
     >
@@ -109,6 +116,13 @@ export function IssuesWorkspace({
   hideHeader = false,
 }: IssuesWorkspaceProps = {}) {
   const { vault, isLoading } = useActiveVault();
+  const planningCatalogQuery = usePlanningCatalog(vault);
+  const rolloverIssueQuery = useIssueList(vault);
+  const workspaceAccess = useWorkspaceAccess(vault);
+  const hydrated = useHydrated();
+  const [rolloverOpen, setRolloverOpen] = useState(false);
+  const [rolloverResume, setRolloverResume] =
+    useState<SprintRolloverResume | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const parsedView = parseIssueViewState(searchParams);
@@ -117,6 +131,15 @@ export function IssuesWorkspace({
     fixedSprintId && parsedView.layout === "timeline"
       ? "board"
       : parsedView.layout;
+  const activeSprint = selectActiveSprint(
+    planningCatalogQuery.data?.sprints ?? [],
+  );
+  const rolloverResumes = planningCatalogQuery.data?.rollover_resumes ?? [];
+  const rolloverIssueState = rolloverIssueQuery.isError
+    ? "error"
+    : rolloverIssueQuery.isPending || !rolloverIssueQuery.data
+      ? "loading"
+      : "available";
   const nav = useTranslations("nav");
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
@@ -249,6 +272,30 @@ export function IssuesWorkspace({
               applyMyViewSnapshot={applyMyViewSnapshot}
             />
           )}
+          {!fixedSprintId && !rolloverOpen ? (
+            <SprintRolloverResumeNotice
+              resumes={rolloverResumes}
+              canEdit={workspaceAccess.canEditWorkspace}
+              onOpen={(resume) => {
+                setRolloverResume(resume);
+                setRolloverOpen(true);
+              }}
+            />
+          ) : null}
+          {!fixedSprintId && scope === "active" && layout === "board" ? (
+            <SprintRolloverNudge
+              sprint={activeSprint}
+              issues={rolloverIssueQuery.data}
+              issueState={rolloverIssueState}
+              now={hydrated ? Date.now() : null}
+              canEdit={workspaceAccess.canEditWorkspace}
+              priority={rolloverResumes.length > 0 ? "secondary" : "primary"}
+              onOpen={() => {
+                setRolloverResume(null);
+                setRolloverOpen(true);
+              }}
+            />
+          ) : null}
           {layout === "list" ? (
             <IssueBulkActionBar
               vault={vault}
@@ -284,6 +331,24 @@ export function IssuesWorkspace({
           </div>
         </>
       )}
+      {!fixedSprintId ? (
+        <SprintRolloverDialog
+          open={rolloverOpen}
+          onOpenChange={(open) => {
+            setRolloverOpen(open);
+            if (!open) setRolloverResume(null);
+          }}
+          vault={vault}
+          source={rolloverResume?.result.source_sprint ?? activeSprint}
+          resume={rolloverResume}
+          catalog={planningCatalogQuery.data}
+          issues={rolloverIssueQuery.data}
+          issueState={rolloverIssueState}
+          now={hydrated ? Date.now() : null}
+          canEdit={workspaceAccess.canEditWorkspace}
+          onRetryIssues={() => void rolloverIssueQuery.refetch()}
+        />
+      ) : null}
     </div>
   );
 }

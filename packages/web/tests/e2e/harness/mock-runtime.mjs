@@ -176,6 +176,34 @@ export function runtimeDiscovery(state) {
             "observe catalog and linked-issue read failures separately from true empty planning data, retry each failed read, and verify the planning rows converge to accurate counts and safe deletion availability",
         },
       },
+      sprint_rollover: {
+        scenario: "sprint_rollover",
+        workspace: "reef-e2e",
+        start_path: "/workspace/reef-e2e/planning",
+        controls: {
+          issue_update_control: [
+            "fail one issue update once for partial retry",
+          ],
+          auth_control: [
+            "set protected_response=forbidden to expose reader access",
+          ],
+        },
+        interaction: {
+          type: "sprint_rollover",
+          operation:
+            "review the unfinished/done/closed/backlog/archived preview, close and roll over to an existing or new target, retry a partial issue move, verify the active target and planning-link activity, and dismiss the overdue UTC nudge",
+        },
+      },
+      sprint_rollover_empty: {
+        scenario: "sprint_rollover_empty",
+        workspace: "reef-e2e",
+        start_path: "/workspace/reef-e2e/planning",
+        interaction: {
+          type: "sprint_rollover_empty",
+          operation:
+            "close an active sprint with zero unfinished issues and activate the explicitly selected target",
+        },
+      },
       named_issue_filters: {
         scenario: "configured_multi",
         workspace: "reef-e2e",

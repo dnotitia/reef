@@ -37,6 +37,10 @@ vi.mock("@/features/settings/hooks/useActiveVault", () => ({
 
 vi.mock("@/features/planning/hooks/usePlanningCatalog", () => ({
   usePlanningCatalog: () => catalogState.current,
+  useCloseSprintAndRollover: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
 }));
 
 vi.mock("@/features/issues/hooks/queries/useIssueList", () => ({
@@ -88,6 +92,7 @@ const CATALOG: PlanningCatalog = {
   sprints: [SPRINT],
   milestones: [],
   releases: [],
+  rollover_resumes: [],
 };
 
 function issue(

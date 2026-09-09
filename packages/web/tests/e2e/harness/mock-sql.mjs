@@ -315,6 +315,9 @@ export function handleSql(state, vault, sql) {
   if (lower.startsWith("with updated as (update reef_issues")) {
     return handleIssueReorderSql(state, vault, normalized);
   }
+  if (lower.startsWith("with upd as (update reef_issues")) {
+    return handleIssueConditionalUpdate(state, vault, normalized);
+  }
   if (lower.startsWith("select * from reef_issues")) {
     if (state.issueListFailure) {
       return { error: "e2e forced issue list failure" };
@@ -421,6 +424,10 @@ export function handleSql(state, vault, sql) {
       (template) => template.name !== name,
     );
     return tableSql();
+  }
+
+  if (lower.includes("update reef_sprints") && lower.startsWith("with ")) {
+    return handlePlanningRolloverSql(vault, normalized);
   }
 
   for (const table of ["reef_sprints", "reef_milestones", "reef_releases"]) {
@@ -700,6 +707,100 @@ export function handleSql(state, vault, sql) {
   }
 
   return unsupportedSql();
+}
+
+function handleIssueConditionalUpdate(state, vault, sql) {
+  const id = matchSqlString(sql, /where "?reef_id"?\s*=\s*'([^']+)'/i);
+  const row = vault.issues.find((issue) => issue.reef_id === id);
+  if (!row || !id) return tableQuery(["reef_id"], []);
+
+  const key = issueUpdateKey(vault.name, id);
+  state.issueUpdateCalls.set(key, (state.issueUpdateCalls.get(key) ?? 0) + 1);
+  const failureMode = state.issueUpdateFailures.get(key);
+  if (failureMode) {
+    if (failureMode === "once") state.issueUpdateFailures.delete(key);
+    return { error: `e2e forced issue update failure for ${id}` };
+  }
+
+  const expectedUpdatedAt = matchSqlString(
+    sql,
+    /updated_at\s*=\s*\(\('([^']+)'/i,
+  );
+  if (expectedUpdatedAt && String(row.updated_at) !== expectedUpdatedAt) {
+    return tableQuery(["reef_id"], []);
+  }
+
+  const update = parseUpdate(sql);
+  if (update)
+    Object.assign(row, update.values, { updated_at: nextEditTimestamp() });
+  return tableQuery(["reef_id"], [{ reef_id: id }]);
+}
+
+function handlePlanningRolloverSql(vault, sql) {
+  const rows = planningRows(vault, "reef_sprints");
+  const sourceId = matchSqlString(sql, /where\s+id\s*=\s*'([^']+)'/i);
+  const source = sourceId ? rows.find((row) => row.id === sourceId) : null;
+  const hasActiveUpdate = /set\s+status\s*=\s*'active'/i.test(sql);
+  const hasClosedUpdate = /set\s+status\s*=\s*'closed'/i.test(sql);
+
+  if (hasActiveUpdate) {
+    const target = sourceId ? rows.find((row) => row.id === sourceId) : null;
+    if (!target || target.status !== "planned") {
+      return tableQuery(planningColumns("reef_sprints"), []);
+    }
+    target.status = "active";
+    const targetMeta = lastJsonSqlValue(sql, "jsonb");
+    if (targetMeta && typeof targetMeta === "object") {
+      target.meta = { ...(target.meta ?? {}), ...targetMeta };
+    }
+    return tableQuery(planningColumns("reef_sprints"), [target]);
+  }
+
+  const rolloverState = lastJsonSqlValue(sql, "jsonb");
+  if (!source || !rolloverState || typeof rolloverState !== "object") {
+    return tableQuery(planningColumns("reef_sprints"), []);
+  }
+  if (hasClosedUpdate) {
+    if (
+      source.status !== "active" ||
+      source.meta?.sprint_rollover?.operation_key !==
+        rolloverState.operation_key
+    ) {
+      return tableQuery(planningColumns("reef_sprints"), []);
+    }
+    source.status = "closed";
+    const endDate = matchSqlString(
+      sql,
+      /set\s+status\s*=\s*'closed',\s*end_date\s*=\s*'([^']+)'/i,
+    );
+    if (endDate) source.end_date = endDate;
+  } else if (
+    source.meta?.sprint_rollover &&
+    source.meta.sprint_rollover.operation_key !== rolloverState.operation_key
+  ) {
+    return tableQuery(planningColumns("reef_sprints"), []);
+  }
+  source.meta = { ...(source.meta ?? {}), sprint_rollover: rolloverState };
+  return tableQuery(planningColumns("reef_sprints"), [source]);
+}
+
+function lastJsonSqlValue(sql, cast) {
+  const values = [
+    ...sql.matchAll(new RegExp(`'((?:''|[^'])*)'::${cast}`, "gi")),
+  ];
+  for (let index = values.length - 1; index >= 0; index -= 1) {
+    const raw = values[index]?.[1]?.replace(/''/g, "'");
+    if (!raw) continue;
+    try {
+      const value = JSON.parse(raw);
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        return value;
+      }
+    } catch {
+      // Another quoted literal may share the cast; keep scanning for the JSON envelope.
+    }
+  }
+  return null;
 }
 
 /**

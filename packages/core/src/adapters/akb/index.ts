@@ -164,6 +164,7 @@ export {
 export {
   listPlanningCatalog,
   readPlanningCreateClaim,
+  closeSprintAndRollover,
   createSprint,
   updateSprint,
   deleteSprint,
@@ -174,6 +175,10 @@ export {
   updateRelease,
   deleteRelease,
 } from "./planning/planning";
+export type {
+  CloseSprintAndRolloverParams,
+  CloseSprintAndRolloverResult,
+} from "./core/types";
 export {
   buildReefVaultSkillDocuments,
   installReefVaultSkill,

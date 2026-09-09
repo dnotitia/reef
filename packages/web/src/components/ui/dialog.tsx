@@ -88,7 +88,7 @@ function DialogContent({
           {children}
         </OverlayDismissProvider>
         {showCloseButton ? (
-          <DialogPrimitive.Close className="absolute top-3 right-3 rounded-sm p-1 text-muted-foreground opacity-70 transition-opacity hover:bg-surface-hover hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus">
+          <DialogPrimitive.Close className="absolute top-3 right-3 rounded-sm p-1 text-muted-foreground opacity-70 transition-opacity hover:bg-surface-hover hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus [@media(pointer:coarse)]:top-0.5 [@media(pointer:coarse)]:right-0.5 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [@media(pointer:coarse)]:p-3">
             <XIcon aria-hidden="true" className="size-4" />
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>

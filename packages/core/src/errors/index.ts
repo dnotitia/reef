@@ -108,6 +108,12 @@ export const ERROR_MESSAGES_EN = {
     protocol: "The event tail returned an invalid response.",
     upstream: "The event tail service is unavailable. Please try again later.",
   },
+  planning: {
+    sprintRollover: {
+      activeConflict:
+        "Cannot activate the selected sprint while “{sprintName}” is active. Close it or choose a different target.",
+    },
+  },
 };
 
 /**
@@ -430,13 +436,16 @@ export interface ConflictErrorContext {
    * user-facing message intentionally does not surface it.
    */
   path?: string;
+  /** Stable catalog code and ICU values for a domain-specific conflict. */
+  code?: ErrorCode;
+  params?: Record<string, string>;
 }
 
 export class ConflictError extends ReefError {
   readonly context: ConflictErrorContext;
 
   constructor(context: ConflictErrorContext = {}) {
-    super(resolveEnMessage("conflict"));
+    super(resolveEnMessage(context.code ?? "conflict", context.params));
     this.name = "ConflictError";
     this.context = context;
   }
@@ -564,7 +573,13 @@ function resolveApiHttpStatus(
  *  - carries no message text, just a stable code the locale resolves
  */
 export function describeError(err: unknown): ErrorDescriptor {
-  if (err instanceof ConflictError) return { code: "conflict", status: 409 };
+  if (err instanceof ConflictError) {
+    return {
+      code: err.context.code ?? "conflict",
+      status: 409,
+      ...(err.context.params ? { params: err.context.params } : {}),
+    };
+  }
   if (err instanceof EventTailError) {
     const code = `eventTail.${eventTailMessageKey(err.code)}`;
     return { code, status: err.status === 0 ? 502 : err.status };

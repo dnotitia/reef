@@ -18,12 +18,14 @@ const {
   mockPush,
   mockReplace,
   mockUseActiveVault,
+  mockUseIssueList,
   mockUsePlanningCatalog,
   navigationState,
 } = vi.hoisted(() => ({
   mockPush: vi.fn(),
   mockReplace: vi.fn(),
   mockUseActiveVault: vi.fn(),
+  mockUseIssueList: vi.fn(),
   mockUsePlanningCatalog: vi.fn(),
   navigationState: {
     pathname: "/workspace/reef-acme/issues",
@@ -43,6 +45,22 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/features/planning/hooks/usePlanningCatalog", () => ({
   usePlanningCatalog: mockUsePlanningCatalog,
+  useCloseSprintAndRollover: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+}));
+
+vi.mock("@/features/issues/hooks/queries/useIssueList", () => ({
+  useIssueList: mockUseIssueList,
+}));
+
+vi.mock("@/features/settings/hooks/useWorkspaceAccess", () => ({
+  useWorkspaceAccess: () => ({
+    role: "owner",
+    canEditWorkspace: true,
+    isResolving: false,
+  }),
 }));
 
 // Mock the heavy body components and the filter toolbar so the test focuses
@@ -151,9 +169,21 @@ describe("IssuesWorkspace", () => {
       refetch: () => Promise.resolve(),
     });
     mockUsePlanningCatalog.mockReturnValue({
-      data: { sprints: [], milestones: [], releases: [] },
+      data: {
+        sprints: [],
+        milestones: [],
+        releases: [],
+        rollover_resumes: [],
+      },
       isPending: false,
       isError: false,
+    });
+    mockUseIssueList.mockReturnValue({
+      data: [],
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(() => Promise.resolve()),
     });
     useIssueStore.setState({
       filter: {},

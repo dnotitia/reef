@@ -49,6 +49,7 @@ const catalog: PlanningCatalog = {
   sprints: [],
   milestones: [milestone("M1"), milestone("M2"), milestone("M_DONE", "closed")],
   releases: [release("R1")],
+  rollover_resumes: [],
 };
 
 const issues = [
@@ -165,7 +166,12 @@ describe("HealthRollup", () => {
     render(
       <ControlledHealthRollup
         issues={parentIssues}
-        catalog={{ sprints: [], milestones: [milestone("M1")], releases: [] }}
+        catalog={{
+          sprints: [],
+          milestones: [milestone("M1")],
+          releases: [],
+          rollover_resumes: [],
+        }}
         filters={DEFAULT_REPORT_FILTERS}
         onDrill={onDrill}
       />,
@@ -211,6 +217,7 @@ describe("HealthRollup", () => {
             },
           ],
           releases: [],
+          rollover_resumes: [],
         }}
         filters={DEFAULT_REPORT_FILTERS}
         onDrill={vi.fn()}

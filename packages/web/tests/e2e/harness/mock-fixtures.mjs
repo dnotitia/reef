@@ -114,6 +114,8 @@ export const SUPPORTED_SCENARIOS = [
   "status_quick_edit",
   "planning_overflow",
   "epic_grouping",
+  "sprint_rollover",
+  "sprint_rollover_empty",
 ];
 export const SUPPORTED_SCENARIO_SET = new Set(SUPPORTED_SCENARIOS);
 export const ACCOUNT_DENIAL_CODES = new Set([
@@ -145,6 +147,8 @@ const CONFIGURED_SCENARIOS = new Set([
   "status_quick_edit",
   "planning_overflow",
   "epic_grouping",
+  "sprint_rollover",
+  "sprint_rollover_empty",
 ]);
 
 export function createScenarioVaults(scenario) {
@@ -165,9 +169,15 @@ export function createScenarioVaults(scenario) {
                   ? planningOverflowVault(REEF_VAULT)
                   : scenario === "epic_grouping"
                     ? epicGroupingVault(REEF_VAULT)
-                    : scenario === "typography"
-                      ? typographyVault(REEF_VAULT)
-                      : configuredVault(REEF_VAULT);
+                    : scenario === "sprint_rollover" ||
+                        scenario === "sprint_rollover_empty"
+                      ? sprintRolloverVault(
+                          REEF_VAULT,
+                          scenario === "sprint_rollover_empty",
+                        )
+                      : scenario === "typography"
+                        ? typographyVault(REEF_VAULT)
+                        : configuredVault(REEF_VAULT);
     if (scenario === "notifications") seedNotifications(vault);
     if (scenario === "skill_outdated") seedOutdatedVaultSkill(vault);
     if (scenario === "comment_mentions") {
@@ -625,6 +635,83 @@ function configuredVault(name) {
       "Spec overview for the hermetic Ask AI tool transparency workflow.",
     tags: ["docs", "ask-ai", "e2e"],
   });
+  return vault;
+}
+
+function sprintRolloverVault(name, empty = false) {
+  const vault = configuredVault(name);
+  const source = vault.sprints[0];
+  if (!source) {
+    throw new Error("Sprint rollover fixture requires a source sprint");
+  }
+
+  source.name = "Sprint 14 - Rollover fixture";
+  source.start_date = "2026-06-01";
+  source.end_date = "2026-06-14";
+  source.goal = "Verify safe sprint rollover.";
+  const sourceId = source.id;
+  const targetId = uuidFor(44);
+  vault.sprints = [
+    source,
+    {
+      id: targetId,
+      name: "Sprint 15 - Rollover fixture",
+      status: "planned",
+      start_date: "2026-06-15",
+      end_date: "2026-06-28",
+      goal: "Receive unfinished work.",
+      capacity_points: null,
+      meta: {},
+    },
+  ];
+
+  if (!empty) {
+    const beta = vault.issues.find((issue) => issue.reef_id === "REEF-002");
+    const backlog = vault.issues.find((issue) => issue.reef_id === "REEF-003");
+    if (beta) beta.sprint_id = sourceId;
+    if (backlog) backlog.sprint_id = sourceId;
+    vault.issues.push(
+      issueRow({
+        id: "REEF-004",
+        title: "Completed rollover issue",
+        status: "done",
+        sprint_id: sourceId,
+        closed_at: "2026-06-12T00:00:00.000Z",
+      }),
+      issueRow({
+        id: "REEF-005",
+        title: "Closed rollover issue",
+        status: "closed",
+        sprint_id: sourceId,
+        closed_at: "2026-06-12T00:00:00.000Z",
+        closed_reason: "completed",
+      }),
+      issueRow({
+        id: "REEF-006",
+        title: "Archived rollover issue",
+        status: "todo",
+        sprint_id: sourceId,
+        archived_at: "2026-06-12T00:00:00.000Z",
+      }),
+    );
+  } else {
+    vault.issues = [];
+  }
+  vault.documents = new Map();
+  vault.documentHistory = new Map();
+  vault.comments = [];
+  vault.activity = [];
+  vault.notifications = [];
+  vault.subscriptions = [];
+  vault.attachments = [];
+  vault.files = new Map();
+  for (const issue of vault.issues) {
+    seedIssueDocument(
+      vault,
+      issue.reef_id,
+      `${issue.title} rollover fixture body.`,
+    );
+  }
   return vault;
 }
 

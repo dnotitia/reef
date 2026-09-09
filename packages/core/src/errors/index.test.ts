@@ -181,6 +181,19 @@ describe("ConflictError", () => {
     assertNoPmViolations(msg);
   });
 
+  it("preserves a localized planning conflict code and its sprint name", () => {
+    const err = new ConflictError({
+      code: "planning.sprintRollover.activeConflict",
+      params: { sprintName: "Rollover Target A" },
+    });
+    expect(err.toUserMessage()).toContain("Rollover Target A");
+    expect(describeError(err)).toEqual({
+      code: "planning.sprintRollover.activeConflict",
+      status: 409,
+      params: { sprintName: "Rollover Target A" },
+    });
+  });
+
   it("error.message equals toUserMessage()", () => {
     const err = new ConflictError();
     expect(err.message).toBe(err.toUserMessage());
@@ -445,6 +458,10 @@ describe("describeError", () => {
   it("every described code resolves to a non-empty en base string", () => {
     const errors: unknown[] = [
       new ConflictError(),
+      new ConflictError({
+        code: "planning.sprintRollover.activeConflict",
+        params: { sprintName: "Rollover Target A" },
+      }),
       new AuthError(),
       new NotFoundError(),
       new NotFoundError({ resourceKind: "template" }),

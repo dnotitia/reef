@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import { PLANNING_KINDS } from "./planningPageUtils";
 import { PlanningTableSkeleton } from "./PlanningTableSkeleton";
+import { SprintRolloverPendingSkeleton } from "./SprintRolloverPendingSkeleton";
 
 /**
  * Full-page Planning skeleton — page chrome (header + compact body) around the
@@ -59,6 +60,7 @@ export function PlanningPageSkeleton() {
               </span>
             ))}
           </div>
+          <SprintRolloverPendingSkeleton />
           {/* The catalog body follows the same desktop-table / narrow-card
               breakpoint as the loaded PlanningTable. */}
           <PlanningTableSkeleton />

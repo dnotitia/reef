@@ -169,6 +169,7 @@ describe("buildEnrichmentUserPrompt", () => {
           ],
           milestones: [],
           releases: [],
+          rollover_resumes: [],
         },
       },
     });

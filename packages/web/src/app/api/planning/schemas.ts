@@ -6,6 +6,7 @@ import {
   ReleaseStatusEnum,
   SprintSchema,
   SprintStatusEnum,
+  SprintRolloverTargetSchema,
 } from "@reef/core";
 import { z } from "zod";
 
@@ -54,6 +55,12 @@ export const CreateSprintRequestSchema = z.object({
 export const UpdateSprintRequestSchema = z.object({
   vault: VaultNameSchema,
   item: SprintSchema,
+});
+
+export const CloseSprintRequestSchema = z.strictObject({
+  vault: VaultNameSchema,
+  end_date: z.string().min(1),
+  target: SprintRolloverTargetSchema,
 });
 
 export const CreateMilestoneRequestSchema = z.object({

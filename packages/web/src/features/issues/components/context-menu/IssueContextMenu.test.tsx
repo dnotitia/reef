@@ -61,6 +61,7 @@ const planningCatalog: PlanningCatalog = {
   ],
   milestones: [],
   releases: [],
+  rollover_resumes: [],
 };
 
 function renderMenu({ locale = "en" as Locale, archived = false } = {}) {

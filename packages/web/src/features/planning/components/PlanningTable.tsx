@@ -26,7 +26,7 @@ import {
   type PlanningRollup as PlanningRollupData,
 } from "@reef/core";
 import type { Milestone, PlanningCatalog, Release, Sprint } from "@reef/core";
-import { ChevronRight, Pencil, Trash2 } from "lucide-react";
+import { ArrowRight, ChevronRight, Pencil, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Fragment, useEffect, useId, useMemo, useState } from "react";
 import type { PlanningItem, PlanningKind } from "../hooks/usePlanningCatalog";
@@ -172,6 +172,9 @@ export function PlanningTable({
   onEdit,
   onExpandedIdChange,
   onRequestDelete,
+  onRequestRollover,
+  canEditRollover,
+  rolloverDisabledReason,
   deletingId,
 }: {
   catalog: PlanningCatalog | undefined;
@@ -189,6 +192,9 @@ export function PlanningTable({
   onEdit: (kind: PlanningKind, item: PlanningItem) => void;
   onExpandedIdChange: (id: string | null) => void;
   onRequestDelete: (kind: PlanningKind, item: PlanningItem) => void;
+  onRequestRollover: (sprint: Sprint) => void;
+  canEditRollover: boolean;
+  rolloverDisabledReason?: string;
   deletingId?: string;
 }) {
   const planningKindLabels = usePlanningKindLabels();
@@ -293,6 +299,9 @@ export function PlanningTable({
           onEdit={onEdit}
           onExpandedIdChange={onExpandedIdChange}
           onRequestDelete={onRequestDelete}
+          onRequestRollover={onRequestRollover}
+          canEditRollover={canEditRollover}
+          rolloverDisabledReason={rolloverDisabledReason}
           deletingId={deletingId}
         />
       </>
@@ -361,6 +370,14 @@ export function PlanningTable({
                       >
                         <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
                       </Button>
+                      {kind === "sprints" ? (
+                        <PlanningRolloverAction
+                          sprint={item as Sprint}
+                          canEdit={canEditRollover}
+                          disabledReason={rolloverDisabledReason}
+                          onRequest={onRequestRollover}
+                        />
+                      ) : null}
                       <PlanningDeleteAction
                         itemName={item.name}
                         issueCount={rollup?.total}
@@ -414,6 +431,9 @@ function PlanningCompactList({
   onEdit,
   onExpandedIdChange,
   onRequestDelete,
+  onRequestRollover,
+  canEditRollover,
+  rolloverDisabledReason,
   deletingId,
 }: {
   vault: string;
@@ -425,6 +445,9 @@ function PlanningCompactList({
   onEdit: (kind: PlanningKind, item: PlanningItem) => void;
   onExpandedIdChange: (id: string | null) => void;
   onRequestDelete: (kind: PlanningKind, item: PlanningItem) => void;
+  onRequestRollover: (sprint: Sprint) => void;
+  canEditRollover: boolean;
+  rolloverDisabledReason?: string;
   deletingId?: string;
 }) {
   const t = useTranslations("planning");
@@ -452,7 +475,7 @@ function PlanningCompactList({
             className="min-w-0 rounded-md border border-border-subtle bg-surface-card p-3"
             role="listitem"
           >
-            <div className="flex min-w-0 items-start justify-between gap-3">
+            <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
               <div className="min-w-0 flex-1">
                 <PlanningNameCell
                   vault={vault}
@@ -468,7 +491,7 @@ function PlanningCompactList({
                 />
               </div>
 
-              <div className="flex shrink-0 items-center gap-1">
+              <div className="flex shrink-0 items-center gap-1 self-end sm:self-auto">
                 <Button
                   type="button"
                   size="sm"
@@ -480,6 +503,14 @@ function PlanningCompactList({
                 >
                   <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
                 </Button>
+                {kind === "sprints" ? (
+                  <PlanningRolloverAction
+                    sprint={item as Sprint}
+                    canEdit={canEditRollover}
+                    disabledReason={rolloverDisabledReason}
+                    onRequest={onRequestRollover}
+                  />
+                ) : null}
                 <PlanningDeleteAction
                   itemName={item.name}
                   issueCount={rollup?.total}
@@ -490,27 +521,28 @@ function PlanningCompactList({
               </div>
             </div>
 
-            <dl className="mt-3 grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-1.5 text-xs">
+            <dl className="mt-3 grid min-w-0 grid-cols-1 items-start gap-y-1.5 text-xs sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-x-3">
               <dt className="text-muted-foreground">{fieldNames.status}</dt>
               <dd className="min-w-0">
                 <PlanningStatusBadge kind={kind} status={item.status} />
               </dd>
               <dt className="text-muted-foreground">{t("dates")}</dt>
-              <dd className="min-w-0 break-words text-right tabular-nums text-muted-foreground">
+              <dd className="min-w-0 break-words tabular-nums text-muted-foreground sm:text-right">
                 <PlanningDates kind={kind} item={item} />
               </dd>
               <dt className="text-muted-foreground">{t("issues")}</dt>
-              <dd className="text-right tabular-nums">
+              <dd className="min-w-0 tabular-nums sm:text-right">
                 <PlanningRollup
                   vault={vault}
                   kind={kind}
                   item={item}
                   rollup={rollup}
                   state={issueAggregationState}
+                  compact
                 />
               </dd>
               <dt className="text-muted-foreground">{sections("details")}</dt>
-              <dd className="min-w-0 break-words text-right text-muted-foreground">
+              <dd className="min-w-0 break-words text-muted-foreground sm:text-right">
                 {summary || "—"}
               </dd>
             </dl>
@@ -532,6 +564,52 @@ function PlanningCompactList({
         );
       })}
     </div>
+  );
+}
+
+function PlanningRolloverAction({
+  sprint,
+  canEdit,
+  disabledReason,
+  onRequest,
+}: {
+  sprint: Sprint;
+  canEdit: boolean;
+  disabledReason?: string;
+  onRequest: (sprint: Sprint) => void;
+}) {
+  const t = useTranslations("planning.rollover");
+  const descriptionId = useId();
+  const reason = !canEdit
+    ? (disabledReason ?? t("readerDisabled"))
+    : sprint.status !== "active"
+      ? t("notActive")
+      : undefined;
+  const disabled = Boolean(reason);
+
+  return (
+    <>
+      <Button
+        type="button"
+        size="sm"
+        hitTarget="compact"
+        variant="ghost"
+        onClick={() => onRequest(sprint)}
+        disabled={disabled}
+        aria-disabled={disabled || undefined}
+        aria-describedby={reason ? descriptionId : undefined}
+        title={reason}
+        aria-label={t("actionFor", { name: sprint.name })}
+        className={disabled ? "opacity-50" : undefined}
+      >
+        <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
+      </Button>
+      {reason ? (
+        <span id={descriptionId} className="sr-only">
+          {reason}
+        </span>
+      ) : null}
+    </>
   );
 }
 

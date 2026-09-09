@@ -23,6 +23,8 @@ import {
   withSpan,
 } from "../core/shared";
 import type {
+  CloseSprintAndRolloverParams,
+  CloseSprintAndRolloverResult,
   CreateMilestoneParams,
   CreateReleaseParams,
   CreateSprintParams,
@@ -50,6 +52,10 @@ import {
   sprintRowFields,
   updatePlanningRow,
 } from "./planningRows";
+import {
+  buildSprintRolloverResumes,
+  closeSprintAndRollover as closeSprintAndRolloverImpl,
+} from "./sprintRollover";
 
 const CREATE_IDEMPOTENCY_META_KEY = "create_idempotency_key";
 
@@ -90,10 +96,13 @@ export async function listPlanningCatalog(
         selectPlanningRows(adapter, vault, REEF_MILESTONES_TABLE),
         selectPlanningRows(adapter, vault, REEF_RELEASES_TABLE),
       ]);
+      const sprints = sprintRows.map(rowToSprint);
+      const rolloverResumes = buildSprintRolloverResumes(sprintRows, sprints);
       const catalog = PlanningCatalogSchema.parse({
-        sprints: sprintRows.map(rowToSprint),
+        sprints,
         milestones: milestoneRows.map(rowToMilestone),
         releases: releaseRows.map(rowToRelease),
+        rollover_resumes: rolloverResumes,
       });
       span.setAttribute("sprint_count", catalog.sprints.length);
       span.setAttribute("milestone_count", catalog.milestones.length);
@@ -102,7 +111,12 @@ export async function listPlanningCatalog(
     } catch (err) {
       if (isMissingTableError(err)) {
         span.setAttribute("table_exists", false);
-        return { sprints: [], milestones: [], releases: [] };
+        return {
+          sprints: [],
+          milestones: [],
+          releases: [],
+          rollover_resumes: [],
+        };
       }
       throw err;
     }
@@ -317,4 +331,10 @@ export async function deleteRelease(
     await assertPlanningItemNotReferenced(adapter, vault, "release_id", id);
     await deletePlanningRow(adapter, vault, REEF_RELEASES_TABLE, id);
   });
+}
+
+export function closeSprintAndRollover(
+  params: CloseSprintAndRolloverParams,
+): Promise<CloseSprintAndRolloverResult> {
+  return closeSprintAndRolloverImpl(params, createSprint);
 }

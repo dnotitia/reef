@@ -116,6 +116,7 @@ const catalog = {
       notes: "",
     },
   ],
+  rollover_resumes: [],
 };
 
 function createTestQueryClient() {
@@ -262,7 +263,12 @@ describe("PlanningPage", () => {
         if (url.startsWith("/api/planning?")) {
           return Promise.resolve(
             new Response(
-              JSON.stringify({ sprints: [], milestones: [], releases: [] }),
+              JSON.stringify({
+                sprints: [],
+                milestones: [],
+                releases: [],
+                rollover_resumes: [],
+              }),
               { status: 200 },
             ),
           );

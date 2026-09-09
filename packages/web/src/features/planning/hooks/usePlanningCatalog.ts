@@ -11,6 +11,9 @@ import {
   ReleaseSchema,
   type Sprint,
   SprintSchema,
+  type SprintRolloverResult,
+  SprintRolloverResultSchema,
+  type SprintRolloverTarget,
 } from "@reef/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -20,6 +23,12 @@ export type PlanningInput =
   | Omit<Sprint, "id">
   | Omit<Milestone, "id">
   | Omit<Release, "id">;
+
+export interface CloseSprintAndRolloverInput {
+  sourceSprintId: string;
+  endDate: string;
+  target: SprintRolloverTarget;
+}
 
 const planningCatalogKey = (vault: string) =>
   ["planning", "catalog", vault] as const;
@@ -164,6 +173,44 @@ export function useDeletePlanningItem(vault: string) {
       });
       await queryClient.invalidateQueries({
         queryKey: ["issues", "list", vault],
+      });
+    },
+  });
+}
+
+export function useCloseSprintAndRollover(vault: string) {
+  const queryClient = useQueryClient();
+  return useMutation<SprintRolloverResult, Error, CloseSprintAndRolloverInput>({
+    mutationFn: async ({ sourceSprintId, endDate, target }) => {
+      const res = await apiFetch(
+        `/api/planning/sprints/${encodeURIComponent(sourceSprintId)}/close`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            vault,
+            end_date: endDate,
+            target,
+          }),
+        },
+      );
+      if (!res.ok) {
+        await throwHttpError(
+          res,
+          `Close sprint and roll over returned ${res.status}`,
+        );
+      }
+      return SprintRolloverResultSchema.parse(await res.json());
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: planningCatalogKey(vault),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["issues", "list", vault],
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["issues", "relations", vault],
       });
     },
   });

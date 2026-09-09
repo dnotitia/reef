@@ -255,6 +255,7 @@ describe("validateSuggestions", () => {
                 notes: "",
               },
             ],
+            rollover_resumes: [],
           },
         },
       },

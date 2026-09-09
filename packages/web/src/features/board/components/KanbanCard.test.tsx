@@ -131,6 +131,7 @@ const planningCatalog: PlanningCatalog = {
       notes: "",
     },
   ],
+  rollover_resumes: [],
 };
 
 const epicCardBucket = {

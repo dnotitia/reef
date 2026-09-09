@@ -136,6 +136,7 @@ describe("timelineLayout", () => {
         ],
         milestones: [],
         releases: [],
+        rollover_resumes: [],
       } satisfies PlanningCatalog,
       range,
     );
@@ -185,6 +186,7 @@ describe("timelineLayout", () => {
             notes: "",
           },
         ],
+        rollover_resumes: [],
       } satisfies PlanningCatalog,
       range,
     );

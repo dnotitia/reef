@@ -33,6 +33,11 @@ export function useVaults({ enabled = true }: { enabled?: boolean } = {}) {
       return VaultsResponseSchema.parse(data).vaults;
     },
     staleTime: 5 * 60 * 1000,
+    // Vault roles can change while a partial rollover is waiting for a retry.
+    // Revalidate the permission source whenever a protected workspace surface
+    // mounts instead of trusting a persisted writer role for the whole stale
+    // window.
+    refetchOnMount: "always",
     retry: false,
     enabled,
   });

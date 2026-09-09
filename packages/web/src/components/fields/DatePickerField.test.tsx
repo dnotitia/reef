@@ -55,6 +55,52 @@ describe("DatePickerField", () => {
     expect(screen.queryByTestId("date-picker-clear")).not.toBeInTheDocument();
   });
 
+  it("allows a caller to expand only the trigger hit target", () => {
+    render(
+      <DatePickerField
+        value="2026-06-01"
+        onChange={vi.fn()}
+        label="Start date"
+        triggerClassName="[@media(pointer:coarse)]:min-h-11"
+      />,
+    );
+
+    expect(screen.getByTestId("date-picker-trigger")).toHaveClass(
+      "[@media(pointer:coarse)]:min-h-11",
+    );
+  });
+
+  it("forwards validation semantics to the trigger", () => {
+    render(
+      <DatePickerField
+        id="start-date"
+        value=""
+        onChange={vi.fn()}
+        label="Start date"
+        ariaDescribedBy="start-date-error"
+        ariaInvalid
+        ariaRequired
+      />,
+    );
+
+    expect(screen.getByTestId("date-picker-trigger")).toHaveAttribute(
+      "id",
+      "start-date",
+    );
+    expect(screen.getByTestId("date-picker-trigger")).toHaveAttribute(
+      "aria-describedby",
+      "start-date-error",
+    );
+    expect(screen.getByTestId("date-picker-trigger")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    expect(screen.getByTestId("date-picker-trigger")).toHaveAttribute(
+      "aria-required",
+      "true",
+    );
+  });
+
   it("localizes the empty placeholder in ko (REEF-309)", () => {
     render(
       <IntlTestProvider locale="ko">
