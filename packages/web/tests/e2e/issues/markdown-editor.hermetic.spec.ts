@@ -1880,15 +1880,38 @@ test.describe("Hermetic Markdown editor fixture", () => {
       await page.keyboard.type("/");
     }
     await expect(menu).toBeVisible();
-    const narrowGeometry = await menu.evaluate((element) => {
-      const rect = element.getBoundingClientRect();
-      return {
-        left: rect.left,
-        right: rect.right,
-        documentWidth: document.documentElement.scrollWidth,
-        viewportWidth: window.innerWidth,
-      };
-    });
+    let narrowGeometry:
+      | {
+          left: number;
+          right: number;
+          documentWidth: number;
+          viewportWidth: number;
+        }
+      | undefined;
+    await expect
+      .poll(
+        async () => {
+          narrowGeometry = await menu.evaluate((element) => {
+            const rect = element.getBoundingClientRect();
+            return {
+              left: rect.left,
+              right: rect.right,
+              documentWidth: document.documentElement.scrollWidth,
+              viewportWidth: window.innerWidth,
+            };
+          });
+          return (
+            narrowGeometry.left >= 8 &&
+            narrowGeometry.right <= narrowGeometry.viewportWidth - 8 &&
+            narrowGeometry.documentWidth <= narrowGeometry.viewportWidth
+          );
+        },
+        { message: "Slash menu settles inside the narrow viewport" },
+      )
+      .toBe(true);
+    if (!narrowGeometry) {
+      throw new Error("Slash menu narrow geometry was not observed");
+    }
     expect(narrowGeometry.left).toBeGreaterThanOrEqual(8);
     expect(narrowGeometry.right).toBeLessThanOrEqual(
       narrowGeometry.viewportWidth - 8,

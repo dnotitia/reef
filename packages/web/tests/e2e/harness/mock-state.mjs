@@ -23,6 +23,99 @@ export function issueUpdateKey(vault, issueId) {
   return `${vault}:${issueId}`;
 }
 
+export function setIssueUpdateHold(state, key, held) {
+  if (held) state.issueUpdateHolds.set(key, 1);
+  else state.issueUpdateHolds.delete(key);
+}
+
+export function consumeIssueUpdateHold(state, key) {
+  const holds = state.issueUpdateHolds.get(key) ?? 0;
+  if (holds <= 0) return false;
+  if (holds === 1) state.issueUpdateHolds.delete(key);
+  else state.issueUpdateHolds.set(key, holds - 1);
+  return true;
+}
+
+export function beginIssueUpdateRequest(state, key) {
+  state.issueUpdatePending.set(
+    key,
+    (state.issueUpdatePending.get(key) ?? 0) + 1,
+  );
+}
+
+export function endIssueUpdateRequest(state, key) {
+  const pending = state.issueUpdatePending.get(key) ?? 0;
+  if (pending <= 1) state.issueUpdatePending.delete(key);
+  else state.issueUpdatePending.set(key, pending - 1);
+}
+
+export function beginIssueListRequest(state, key) {
+  state.issueListPending.set(key, (state.issueListPending.get(key) ?? 0) + 1);
+}
+
+export function endIssueListRequest(state, key) {
+  const pending = state.issueListPending.get(key) ?? 0;
+  if (pending <= 1) state.issueListPending.delete(key);
+  else state.issueListPending.set(key, pending - 1);
+}
+
+export function waitForIssueUpdateRelease(state, key) {
+  return new Promise((resolve) => {
+    const waiters = state.issueUpdateReleaseWaiters.get(key) ?? [];
+    waiters.push(resolve);
+    state.issueUpdateReleaseWaiters.set(key, waiters);
+  });
+}
+
+export function releaseIssueUpdate(state, key) {
+  const waiters = state.issueUpdateReleaseWaiters.get(key);
+  const resolve = waiters?.shift();
+  if (!resolve) return false;
+  if (waiters.length === 0) state.issueUpdateReleaseWaiters.delete(key);
+  resolve();
+  return true;
+}
+
+export function releaseAllIssueUpdateHolds(state) {
+  for (const waiters of state.issueUpdateReleaseWaiters.values()) {
+    for (const resolve of waiters) resolve();
+  }
+  state.issueUpdateHolds.clear();
+  state.issueUpdateReleaseWaiters.clear();
+}
+
+export function waitForAuthProbeRelease(state) {
+  return new Promise((resolve) => {
+    state.authProbeReleaseWaiters.add(resolve);
+  });
+}
+
+export function beginAuthProbeHold(state) {
+  state.authProbeHoldCount += 1;
+}
+
+export function endAuthProbeHold(state) {
+  state.authProbeHoldCount = Math.max(0, state.authProbeHoldCount - 1);
+}
+
+export async function waitForAuthProbeHold(state) {
+  const deadline = Date.now() + 5_000;
+  while (state.authProbeHold && state.authProbeHoldCount === 0) {
+    if (Date.now() >= deadline) return false;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  return state.authProbeHoldCount > 0;
+}
+
+export function releaseAllAuthProbeHolds(state) {
+  const waiters = [...state.authProbeReleaseWaiters];
+  state.authProbeReleaseWaiters.clear();
+  for (const resolve of waiters) resolve();
+  state.authProbeHold = false;
+  state.authProbeHoldCount = 0;
+  return waiters.length;
+}
+
 export function createState(scenario) {
   const alice = {
     id: "user-alice",
@@ -58,6 +151,10 @@ export function createState(scenario) {
     vaultListFailures: 0,
     issueUpdateFailures: new Map(),
     issueUpdateDelays: new Map(),
+    issueUpdateHolds: new Map(),
+    issueUpdateReleaseWaiters: new Map(),
+    issueUpdatePending: new Map(),
+    issueListPending: new Map(),
     issueReorderFailures: 0,
     issueReorderDelayMs: 0,
     issueUpdateCalls: new Map(),
@@ -67,6 +164,9 @@ export function createState(scenario) {
     accountDenialCode: null,
     authProbeDelayMs: 0,
     authProbeDelayOnce: false,
+    authProbeHold: false,
+    authProbeHoldCount: 0,
+    authProbeReleaseWaiters: new Set(),
     authProbeHang: false,
     protectedResponse: "healthy",
     commitSeq: 0,
@@ -157,6 +257,8 @@ export function publicState(state) {
     scenario: state.scenario,
     calls: state.calls,
     issue_update_calls: Object.fromEntries(state.issueUpdateCalls),
+    issue_update_pending: Object.fromEntries(state.issueUpdatePending),
+    issue_list_pending: Object.fromEntries(state.issueListPending),
     github_repos: state.githubRepos.map((repo) => ({
       id: repo.id,
       full_name: repo.full_name,

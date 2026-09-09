@@ -47,6 +47,8 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
   scenario: string;
   calls: Array<{ method: string; path: string }>;
   issue_update_calls: Record<string, number>;
+  issue_update_pending: Record<string, number>;
+  issue_list_pending: Record<string, number>;
   vaults: Array<{
     name: string;
     tables: string[];
@@ -183,6 +185,7 @@ export async function setIssueUpdateControl(
     issueId: string;
     delayMs?: number;
     failures?: number;
+    hold?: boolean;
   }>,
   vault = REEF_E2E_VAULT,
 ): Promise<void> {
@@ -195,11 +198,52 @@ export async function setIssueUpdateControl(
           issue_id: control.issueId,
           delay_ms: control.delayMs ?? 0,
           failures: control.failures ?? 0,
+          hold: control.hold ?? false,
         })),
       },
     },
   );
   expect(response.ok()).toBeTruthy();
+}
+
+export async function waitForIssueUpdatePending(
+  request: APIRequestContext,
+  issueId: string,
+  vault = REEF_E2E_VAULT,
+): Promise<void> {
+  const key = `${vault}:${issueId}`;
+  await expect
+    .poll(
+      async () =>
+        (await readFixtureState(request)).issue_update_pending[key] ?? 0,
+    )
+    .toBeGreaterThan(0);
+}
+
+export async function waitForIssueListIdle(
+  request: APIRequestContext,
+  vault = REEF_E2E_VAULT,
+): Promise<void> {
+  await expect
+    .poll(
+      async () =>
+        (await readFixtureState(request)).issue_list_pending[vault] ?? 0,
+    )
+    .toBe(0);
+}
+
+export async function releaseIssueUpdate(
+  request: APIRequestContext,
+  issueId: string,
+  vault = REEF_E2E_VAULT,
+): Promise<void> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/issue-update-release`,
+    { data: { vault, issue_id: issueId } },
+  );
+  expect(response.ok()).toBeTruthy();
+  const body = (await response.json()) as { released: boolean };
+  expect(body.released).toBe(true);
 }
 
 export async function setIssueReorderControl(
@@ -276,6 +320,7 @@ export async function setAuthControl(
   control: {
     probeDelayMs?: number;
     probeDelayOnce?: boolean;
+    probeHold?: boolean;
     probeHang?: boolean;
     session?: "active" | "revoked";
     protectedResponse?: "healthy" | "unauthorized" | "forbidden";
@@ -285,12 +330,24 @@ export async function setAuthControl(
     data: {
       probe_delay_ms: control.probeDelayMs ?? 0,
       probe_delay_once: control.probeDelayOnce ?? false,
+      probe_hold: control.probeHold ?? false,
       probe_hang: control.probeHang ?? false,
       session: control.session ?? "active",
       protected_response: control.protectedResponse ?? "healthy",
     },
   });
   expect(response.ok()).toBeTruthy();
+}
+
+export async function releaseAuthProbe(
+  request: APIRequestContext,
+): Promise<number> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/auth-probe-release`,
+  );
+  expect(response.ok()).toBeTruthy();
+  const body = (await response.json()) as { released?: number };
+  return body.released ?? 0;
 }
 
 export async function signInAsAlice(page: Page): Promise<void> {

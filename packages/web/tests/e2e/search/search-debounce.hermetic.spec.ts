@@ -96,8 +96,14 @@ test.describe("search debounce cadence (REEF-370)", () => {
     await page.goto("/workspace/reef-e2e/issues?view=board&sort=priority");
     const searches = collectIssueSearch(page);
 
+    // The route skeleton and the hydrated SearchBar intentionally share the
+    // `search-input` test id. Wait for the live board and editable input so a
+    // full-shard run cannot focus the readOnly skeleton just before it is
+    // replaced by the real control.
+    await expect(page.getByTestId("kanban-board")).toBeVisible();
     const input = page.locator('[data-testid="search-input"]');
     await expect(input).toBeVisible();
+    await expect(input).toBeEditable();
     await input.focus();
     await expect(input).toBeFocused();
 

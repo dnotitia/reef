@@ -126,6 +126,19 @@ async function expectEditorChromeInViewport(page: Page, title: string) {
 async function expectEditorBodyToOwnScroll(page: Page) {
   const dialog = page.locator('[data-testid="planning-editor-dialog"]');
   const body = dialog.getByTestId("planning-editor-dialog-body");
+  await expect(body).toBeVisible();
+  await expect
+    .poll(() =>
+      body.evaluate((element) => {
+        const maxScroll = element.scrollHeight - element.clientHeight;
+        if (maxScroll < 1) return false;
+        element.scrollTop = 1;
+        const moved = element.scrollTop >= 1;
+        element.scrollTop = 0;
+        return moved;
+      }),
+    )
+    .toBe(true);
   const initial = await readEditorGeometry(page);
   expect(initial.body.scrollHeight).toBeGreaterThan(initial.body.clientHeight);
 
@@ -444,8 +457,22 @@ test.describe("Hermetic planning workflow", () => {
     await openExistingWorkspace(page);
     await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
 
+    const loading = page.getByTestId("planning-catalog-loading");
+    await expect(loading).toBeVisible({ timeout: 10_000 });
+    const pendingTable = loading.getByTestId("planning-table");
+    await expect(pendingTable).toHaveAttribute("aria-busy", "true");
+    const pendingAccessibilitySnapshot = await pendingTable.ariaSnapshot();
+    for (const header of ["Name", "Status", "Dates", "Issues", "Details"]) {
+      expect(
+        pendingAccessibilitySnapshot,
+        `pending Planning table accessibility tree should include ${header}`,
+      ).toContain(header);
+    }
+    await expect(loading.getByRole("status")).toHaveText("Loading…");
+
     const error = page.getByTestId("planning-catalog-error");
     await expect(error).toBeVisible({ timeout: 20_000 });
+    await expect(loading).toHaveCount(0);
     await expect(error).toHaveAttribute("role", "alert");
     await expect(error.getByText("Couldn't load planning.")).toBeVisible();
     await expect(page.getByTestId("planning-empty-sprints")).toHaveCount(0);

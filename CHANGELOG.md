@@ -42,6 +42,14 @@ explicitly in the entries below.
   table migration is required. Refresh the installed vault-skill documents
   before using generic AKB agents with the sprint rollover workflow.
 
+### Changed
+
+- **Loading surfaces keep their product chrome visible.** App navigation, issue
+  scopes and views, detail and settings labels, planning tabs and headers, My
+  Work metrics, and report filters and card titles remain in place while values
+  load; unknown data, permissions, and counts stay deferred until their queries
+  resolve.
+
 ## v0.14.1 - 2026-09-04
 
 ### Fixed

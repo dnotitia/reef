@@ -251,6 +251,34 @@ export function PlanningPage() {
         }
       />
       <PageBody pad="compact">
+        <div
+          role="group"
+          aria-label={tp("planningKind")}
+          className={cn("mb-4", SEGMENTED_CONTROL_TRACK)}
+          data-testid="planning-kind-switcher"
+        >
+          {PLANNING_KINDS.map((kind) => {
+            const isActive = activeKind === kind;
+            return (
+              <button
+                key={kind}
+                type="button"
+                aria-pressed={isActive}
+                className={cn(
+                  SEGMENTED_CONTROL_ITEM,
+                  isActive
+                    ? SEGMENTED_CONTROL_ITEM_ACTIVE
+                    : SEGMENTED_CONTROL_ITEM_INACTIVE,
+                )}
+                data-testid={`planning-kind-${kind}`}
+                onClick={() => selectKind(kind)}
+              >
+                <PlanningKindIcon kind={kind} decorative size={14} />
+                {planningKindLabels[kind]}
+              </button>
+            );
+          })}
+        </div>
         {rolloverSource === null ? (
           <SprintRolloverResumeNotice
             resumes={rolloverResumes}
@@ -267,32 +295,6 @@ export function PlanningPage() {
           priority={rolloverResumes.length > 0 ? "secondary" : "primary"}
           onOpen={openRollover}
         />
-        <div
-          role="group"
-          aria-label={tp("planningKind")}
-          className={cn("mb-4", SEGMENTED_CONTROL_TRACK)}
-        >
-          {PLANNING_KINDS.map((kind) => {
-            const isActive = activeKind === kind;
-            return (
-              <button
-                key={kind}
-                type="button"
-                aria-pressed={isActive}
-                className={cn(
-                  SEGMENTED_CONTROL_ITEM,
-                  isActive
-                    ? SEGMENTED_CONTROL_ITEM_ACTIVE
-                    : SEGMENTED_CONTROL_ITEM_INACTIVE,
-                )}
-                onClick={() => selectKind(kind)}
-              >
-                <PlanningKindIcon kind={kind} decorative size={14} />
-                {planningKindLabels[kind]}
-              </button>
-            );
-          })}
-        </div>
 
         <PlanningTable
           catalog={catalog}

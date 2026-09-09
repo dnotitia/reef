@@ -13,7 +13,20 @@ import {
   sleep,
 } from "./mock-http.mjs";
 import { handleSql, matchSqlString, resolveSqlParams } from "./mock-sql.mjs";
-import { issueUpdateKey, nextCommit, vaultSummary } from "./mock-state.mjs";
+import {
+  beginAuthProbeHold,
+  endAuthProbeHold,
+  beginIssueUpdateRequest,
+  beginIssueListRequest,
+  consumeIssueUpdateHold,
+  endIssueListRequest,
+  endIssueUpdateRequest,
+  issueUpdateKey,
+  nextCommit,
+  vaultSummary,
+  waitForAuthProbeRelease,
+  waitForIssueUpdateRelease,
+} from "./mock-state.mjs";
 import { docUri, slugify } from "./mock-utils.mjs";
 
 export async function handleAkb(req, res, url, state) {
@@ -278,22 +291,36 @@ export async function handleAkb(req, res, url, state) {
     const issueId =
       /^\s*update\s+reef_issues\b/i.test(sql) &&
       matchSqlString(sql, /where "?reef_id"?\s*=\s*'([^']+)'/i);
+    const updateKey = issueId ? issueUpdateKey(vault.name, issueId) : null;
+    const issueListKey = /^\s*select \* from reef_issues\b/i.test(sql)
+      ? vault.name
+      : null;
     const isReorder = /^\s*with updated as \(update reef_issues\b/i.test(sql);
-    const delayMs = issueId
-      ? (state.issueUpdateDelays.get(issueUpdateKey(vault.name, issueId)) ?? 0)
-      : isReorder
-        ? state.issueReorderDelayMs
-        : 0;
-    if (delayMs > 0) await sleep(delayMs);
-    if (isReorder && state.issueReorderFailures > 0) {
-      state.issueReorderFailures -= 1;
-      return json(res, 200, { error: "e2e forced issue reorder failure" });
+    if (updateKey) beginIssueUpdateRequest(state, updateKey);
+    if (issueListKey) beginIssueListRequest(state, issueListKey);
+    try {
+      if (updateKey && consumeIssueUpdateHold(state, updateKey)) {
+        await waitForIssueUpdateRelease(state, updateKey);
+      }
+      const delayMs = updateKey
+        ? (state.issueUpdateDelays.get(updateKey) ?? 0)
+        : isReorder
+          ? state.issueReorderDelayMs
+          : 0;
+      if (delayMs > 0) await sleep(delayMs);
+      if (isReorder && state.issueReorderFailures > 0) {
+        state.issueReorderFailures -= 1;
+        return json(res, 200, { error: "e2e forced issue reorder failure" });
+      }
+      const result = handleSql(state, vault, sql);
+      if (result.kind === "sql_error") {
+        return json(res, result.status, result.body);
+      }
+      return json(res, 200, result);
+    } finally {
+      if (updateKey) endIssueUpdateRequest(state, updateKey);
+      if (issueListKey) endIssueListRequest(state, issueListKey);
     }
-    const result = handleSql(state, vault, sql);
-    if (result.kind === "sql_error") {
-      return json(res, result.status, result.body);
-    }
-    return json(res, 200, result);
   }
 
   if (path === "/api/v1/documents" && req.method === "POST") {
@@ -442,6 +469,15 @@ async function waitForAuthProbe(req, state) {
   if (delayMs > 0) {
     await sleep(delayMs);
     if (req.aborted || req.destroyed) return false;
+  }
+  if (state.authProbeHold) {
+    beginAuthProbeHold(state);
+    try {
+      await waitForAuthProbeRelease(state);
+      if (req.aborted || req.destroyed) return false;
+    } finally {
+      endAuthProbeHold(state);
+    }
   }
   if (!state.authProbeHang) return true;
 

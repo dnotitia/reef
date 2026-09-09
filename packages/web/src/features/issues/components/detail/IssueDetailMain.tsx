@@ -151,6 +151,7 @@ export function IssueDetailMain({
           clip edge so left/right borders aren't shaved off (REEF-226). */}
       <div className="flex flex-col gap-1">
         <label
+          data-testid="issue-detail-title-label"
           className="text-xs font-medium text-muted-foreground"
           htmlFor="issue-title"
         >
@@ -171,7 +172,10 @@ export function IssueDetailMain({
 
       <div id="issue-description" className="scroll-mt-4 flex flex-col gap-1">
         {/* biome-ignore lint/a11y/noLabelWithoutControl: MarkdownEditor uses contenteditable, not a native input */}
-        <label className="text-xs font-medium text-muted-foreground">
+        <label
+          data-testid="issue-detail-description-label"
+          className="text-xs font-medium text-muted-foreground"
+        >
           {fieldNames.description}
         </label>
         <MarkdownEditor

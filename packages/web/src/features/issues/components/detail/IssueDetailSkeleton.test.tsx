@@ -12,37 +12,43 @@ describe("IssueDetailSkeleton", () => {
   it("renders the mirrored detail skeleton", () => {
     render(<IssueDetailSkeleton />);
     expect(screen.getByTestId("issue-detail-skeleton")).toBeInTheDocument();
+    for (const label of [
+      "Title",
+      "Description",
+      "Details",
+      "People",
+      "Planning",
+      "Parent",
+      "Relationships",
+      "Activity",
+    ]) {
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+    }
   });
 
-  it("phases every placeholder into one sweep with gap-free reading-order indices", () => {
+  it("keeps value placeholders in one monotonic reading-order sweep", () => {
     const { container } = render(<IssueDetailSkeleton />);
     const indices = placeholders(container).map((el) =>
       Number(el.style.getPropertyValue("--i")),
     );
-    // A single light source needs one monotonic position scale across the whole
-    // panel — every bar gets a distinct `--i` and they fill 0..n-1 with no gaps,
-    // so the sweep travels in reading order instead of bars blinking in lockstep.
+    // Fixed labels are no longer painted over bars. Value placeholders retain
+    // their DOM reading order, so the sweep remains monotonic without requiring
+    // label slots to carry decorative shimmer.
     const sorted = [...indices].sort((a, b) => a - b);
-    expect(sorted).toEqual(indices.map((_, i) => i));
+    expect(sorted).toEqual(indices);
+    expect(new Set(indices).size).toBe(indices.length);
   });
 
-  it("gives labels and section headers the fainter secondary tone, values the primary tone", () => {
+  it("keeps fixed labels as normal text and reserves shimmer for values", () => {
     const { container } = render(<IssueDetailSkeleton />);
     const all = placeholders(container);
-    const secondary = all.filter(
-      (el) => el.getAttribute("data-tone") === "secondary",
-    );
     const primary = all.filter(
       (el) => el.getAttribute("data-tone") === "primary",
     );
-    // Both tones are in play (the two-tone hierarchy, AC2)...
-    expect(secondary.length).toBeGreaterThan(0);
+    expect(
+      container.querySelectorAll('.reef-shimmer[data-tone="secondary"]'),
+    ).toHaveLength(0);
     expect(primary.length).toBeGreaterThan(0);
-    // ...and the short label gutters (h-3) are the secondary ones while the
-    // taller value placeholders stay primary.
-    for (const el of secondary) {
-      expect(el.className).toContain("h-3");
-    }
     expect(primary.some((el) => el.className.includes("h-8"))).toBe(true);
   });
 
@@ -50,13 +56,11 @@ describe("IssueDetailSkeleton", () => {
     const { container } = render(<IssueDetailSkeleton />);
     // The rail's property rows mirror IssueFieldRow, whose label gutter is w-20.
     // A w-12 gutter shifted the value column ~32px right on hydration.
-    const gutters = container.querySelectorAll(".reef-shimmer.w-20.shrink-0");
+    const gutters = container.querySelectorAll("span.w-20.shrink-0.text-xs");
     // Details (4) + People (3) + Planning (6) + Parent (1) + Relations (3)
     // rows each carry one gutter.
     expect(gutters).toHaveLength(17);
-    expect(
-      container.querySelectorAll(".reef-shimmer.w-12.shrink-0"),
-    ).toHaveLength(0);
+    expect(container.querySelectorAll("span.w-12.shrink-0")).toHaveLength(0);
   });
 
   it("reserves the description, lower main sections and activity regions so the panel does not double on hydration (REEF-258)", () => {
@@ -76,9 +80,14 @@ describe("IssueDetailSkeleton", () => {
   it("hides the decorative panel and announces loading to assistive tech (REEF-281)", () => {
     const { container } = render(<IssueDetailSkeleton />);
 
-    // Every placeholder bar is decorative — aria-hidden so a screen reader does
-    // not walk the empty header/canvas/rail DOM.
-    expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
+    // Every placeholder bar is decorative — aria-hidden individually, while
+    // fixed field and section labels stay in the accessibility tree.
+    expect(
+      container.querySelector('.reef-shimmer[aria-hidden="true"]'),
+    ).not.toBeNull();
+    expect(
+      screen.getByText("Details").closest('[aria-hidden="true"]'),
+    ).toBeNull();
 
     // The role=status loading announcement is a sibling, not under aria-hidden.
     const status = screen.getByRole("status");

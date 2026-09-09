@@ -10,14 +10,46 @@ describe("PlanningPageSkeleton", () => {
       screen.getByRole("heading", { name: "Planning" }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("planning-skeleton")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("planning-skeleton-table-header").children,
+    ).toHaveLength(6);
+    expect(
+      screen
+        .getByTestId("planning-skeleton-table")
+        .querySelectorAll('[aria-hidden="true"] > div'),
+    ).toHaveLength(3);
+    for (const row of screen
+      .getByTestId("planning-skeleton-table")
+      .querySelectorAll('[aria-hidden="true"] > div')) {
+      expect(row).toHaveClass("min-h-11");
+    }
+    for (const label of [
+      "Sprints",
+      "Milestones",
+      "Releases",
+      "Name",
+      "Status",
+      "Dates",
+      "Issues",
+      "Details",
+    ]) {
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+    }
   });
 
   it("hides the decorative body and announces loading to assistive tech (REEF-281)", () => {
     const { container } = render(<PlanningPageSkeleton />);
 
-    // The kind-toggle + table placeholders are decorative — aria-hidden so a
-    // screen reader skips them.
-    expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
+    // Placeholder bars are decorative — aria-hidden individually — while the
+    // fixed kind labels and table headers stay available.
+    expect(
+      container.querySelector('.reef-shimmer[aria-hidden="true"]'),
+    ).not.toBeNull();
+    expect(
+      screen
+        .getAllByText("Status")
+        .some((element) => element.closest('[aria-hidden="true"]') === null),
+    ).toBe(true);
 
     // The role=status loading announcement is a sibling, not under aria-hidden,
     // and the real "Planning" h1 stays a heading.

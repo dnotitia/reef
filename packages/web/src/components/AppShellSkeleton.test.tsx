@@ -16,12 +16,44 @@ describe("AppShellSkeleton", () => {
     const board = screen.getByTestId("board-columns-skeleton");
 
     expect(sidebar).toHaveClass("w-14", "md:w-60", "shrink-0");
-    expect(sidebar.querySelector(".reef-shimmer")).toHaveClass(
-      "size-8",
-      "md:w-28",
+    expect(sidebar.querySelector(".reef-shimmer")).toBeNull();
+    expect(main).toHaveClass("min-w-0", "overflow-auto");
+    expect(board).toHaveClass(
+      "min-w-0",
+      "overflow-x-hidden",
+      "overflow-y-auto",
     );
-    expect(main).toHaveClass("min-w-0", "overflow-hidden");
-    expect(board).toHaveClass("min-w-0", "overflow-x-auto");
-    expect(board.closest('[aria-hidden="true"]')).not.toBeNull();
+    expect(
+      board.querySelector('.reef-shimmer[aria-hidden="true"]'),
+    ).not.toBeNull();
+    expect(screen.getByText("reef")).toBeInTheDocument();
+    for (const label of [
+      "New issue",
+      "Issues",
+      "My Work",
+      "Inbox",
+      "Planning",
+      "Reports",
+      "Settings",
+    ]) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
+  });
+
+  it("preserves a collapsed desktop sidebar while auth is pending", () => {
+    render(
+      <IntlTestProvider>
+        <AppShellSkeleton sidebarCollapsed />
+      </IntlTestProvider>,
+    );
+
+    expect(screen.getByTestId("app-shell-skeleton-sidebar")).toHaveClass(
+      "w-14",
+    );
+    expect(screen.getByTestId("app-shell-skeleton-sidebar")).not.toHaveClass(
+      "md:w-60",
+    );
+    expect(screen.queryByTestId("sidebar-brand-name")).toBeNull();
+    expect(screen.queryByText("New issue")).toBeNull();
   });
 });

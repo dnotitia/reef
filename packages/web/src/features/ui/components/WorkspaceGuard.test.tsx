@@ -33,6 +33,8 @@ const {
 
 vi.mock("next/navigation", () => ({
   useParams: () => paramsRef.current,
+  usePathname: () => "/workspace/reef-acme/issues",
+  useSearchParams: () => new URLSearchParams(),
   notFound: notFoundMock,
 }));
 vi.mock("@/features/auth/hooks/useAuthRedirect", () => ({
@@ -49,8 +51,8 @@ vi.mock("@/features/settings/hooks/useVaults", () => ({
       : { isPending: false, isSuccess: false, isError: false };
   },
 }));
-vi.mock("@/components/AppShellSkeleton", () => ({
-  AppShellSkeleton: () => <div data-testid="auth-loading-shell" />,
+vi.mock("./WorkspaceAuthPendingSkeleton", () => ({
+  WorkspaceAuthPendingSkeleton: () => <div data-testid="auth-loading-shell" />,
 }));
 vi.mock("./DashboardShell", () => ({
   DashboardShell: ({ children }: { children: ReactNode }) => (

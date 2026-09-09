@@ -792,7 +792,13 @@ export function KanbanBoard({
   }, [backlogT, issueGroups, orderedBacklog, scope]);
 
   if (isPending) {
-    return <BoardColumnsSkeleton ariaLabel={t("columnsScrollRegion")} />;
+    return (
+      <BoardColumnsSkeleton
+        ariaLabel={t("columnsScrollRegion")}
+        scope={scope}
+        groupBy={effectiveGroupBy}
+      />
+    );
   }
 
   if (

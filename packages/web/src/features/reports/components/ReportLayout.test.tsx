@@ -8,12 +8,11 @@ describe("ReportsSkeleton", () => {
   it("reserves the scope bar, the 8-tile KPI grid, and the three section bands (REEF-258)", () => {
     const { container } = render(<ReportsSkeleton />);
 
-    // Scope bar — eight control placeholders (one per ReportScopeBar control),
-    // each a full-width h-8 bar. The old skeleton omitted the bar entirely, so
-    // the whole page dropped a row when it appeared.
-    expect(container.querySelectorAll(".reef-shimmer.h-8.w-full")).toHaveLength(
-      8,
-    );
+    // Scope bar — eight static controls using the same field chrome as
+    // ReportScopeBar. Their unresolved values are not painted as data bars.
+    expect(
+      container.querySelectorAll("[data-fixed-report-control]"),
+    ).toHaveLength(8);
 
     // KPI grid — the loaded HealthSummary is lg:grid-cols-5 with 8 tiles (was
     // lg:grid-cols-6 × 6: one row vs the real two).
@@ -32,6 +31,23 @@ describe("ReportsSkeleton", () => {
     expect(
       screen.getByRole("heading", { name: "Breakdown" }),
     ).toBeInTheDocument();
+    for (const label of [
+      "Period",
+      "Scope",
+      "Measure",
+      "Risk map",
+      "Throughput",
+      "Flow metrics",
+      "Delivery forecast",
+      "Pivot",
+      "Workflow",
+      "Deadlines",
+      "By type",
+      "Top assignees",
+      "Top labels",
+    ]) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
   });
 
   it("hides the placeholder clusters but keeps the band headings, and announces loading (REEF-281)", () => {

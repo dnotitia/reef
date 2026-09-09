@@ -5,7 +5,6 @@ import { DateDisplay } from "@/components/fields/DateDisplay";
 import { PlanningStatusBadge } from "@/components/fields/PlanningStatusBadge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -33,6 +32,7 @@ import { Fragment, useEffect, useId, useMemo, useState } from "react";
 import type { PlanningItem, PlanningKind } from "../hooks/usePlanningCatalog";
 import { itemsForKind } from "../lib/planningItems";
 import { PlanningRollup, type IssueAggregationState } from "./PlanningRollup";
+import { PlanningTableSkeleton } from "./PlanningTableSkeleton";
 
 export type { IssueAggregationState } from "./PlanningRollup";
 
@@ -201,6 +201,7 @@ export function PlanningTable({
   const planningKindSingular = usePlanningKindSingularLabels();
   const fieldNames = useFieldNameLabels();
   const t = useTranslations("planning");
+  const common = useTranslations("common");
   const sections = useTranslations("sections");
   const items = itemsForKind(catalog, kind);
   const rollups = useMemo(
@@ -220,12 +221,29 @@ export function PlanningTable({
     return () => mediaQuery.removeEventListener("change", sync);
   }, []);
 
+  const tableHeader = (
+    <TableHeader>
+      <TableRow>
+        <TableHead>{t("name")}</TableHead>
+        <TableHead>{fieldNames.status}</TableHead>
+        <TableHead>{t("dates")}</TableHead>
+        <TableHead>{t("issues")}</TableHead>
+        <TableHead>{sections("details")}</TableHead>
+        <TableHead />
+      </TableRow>
+    </TableHeader>
+  );
+
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-2">
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-11/12" />
+      <div
+        data-testid="planning-catalog-loading"
+        className="flex min-w-0 flex-col gap-2"
+      >
+        <output className="sr-only">{common("loading")}</output>
+        <div data-testid="planning-table" aria-busy="true">
+          <PlanningTableSkeleton desktopTestId="planning-table-desktop" />
+        </div>
       </div>
     );
   }
@@ -293,17 +311,8 @@ export function PlanningTable({
   return (
     <>
       {issueError}
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>{t("name")}</TableHead>
-            <TableHead>{fieldNames.status}</TableHead>
-            <TableHead>{t("dates")}</TableHead>
-            <TableHead>{t("issues")}</TableHead>
-            <TableHead>{sections("details")}</TableHead>
-            <TableHead />
-          </TableRow>
-        </TableHeader>
+      <Table data-testid="planning-table">
+        {tableHeader}
         <TableBody>
           {items.map((item) => {
             const rollup = rollups?.get(item.id);

@@ -19,6 +19,15 @@ interface PageHeaderProps {
   titleAdjacent?: React.ReactNode;
   /** Right-aligned action slot — buttons, toggles, etc. */
   actions?: React.ReactNode;
+  /**
+   * Non-interactive header chrome for a loading surface. Unlike `actions`, this
+   * stays visible during route/data pending so fixed labels do not blink. The
+   * loading caller must provide inert presentation (not controls with client
+   * handlers).
+   */
+  staticTitleAdjacent?: React.ReactNode;
+  /** Non-interactive counterpart to `actions` for loading surfaces. */
+  staticActions?: React.ReactNode;
   className?: string;
 }
 
@@ -27,12 +36,17 @@ export function PageHeader({
   description,
   titleAdjacent,
   actions,
+  staticTitleAdjacent,
+  staticActions,
   className,
 }: PageHeaderProps) {
   const mounted = useHydrated();
 
   const renderedDescription = mounted ? (description ?? "") : "";
-  const hasTitleAdjacent = mounted && titleAdjacent != null;
+  const renderedTitleAdjacent =
+    staticTitleAdjacent ?? (mounted ? titleAdjacent : null);
+  const renderedActions = staticActions ?? (mounted ? actions : null);
+  const hasTitleAdjacent = renderedTitleAdjacent != null;
   // A string subtitle is a bare identifier, so opt the whole span out of
   // translation. A node subtitle owns its own translate boundaries (see the
   // `description` prop doc), so leave the span translatable.
@@ -60,7 +74,7 @@ export function PageHeader({
             data-slot="page-header-title-adjacent"
             className="flex shrink-0 items-center"
           >
-            {titleAdjacent}
+            {renderedTitleAdjacent}
           </div>
         )}
         <span
@@ -71,7 +85,7 @@ export function PageHeader({
           {renderedDescription}
         </span>
       </div>
-      {mounted && actions && (
+      {renderedActions && (
         <div
           data-slot="page-header-actions"
           className={cn(
@@ -79,7 +93,7 @@ export function PageHeader({
             hasTitleAdjacent && "max-[767px]:w-full max-[767px]:justify-end",
           )}
         >
-          {actions}
+          {renderedActions}
         </div>
       )}
     </header>

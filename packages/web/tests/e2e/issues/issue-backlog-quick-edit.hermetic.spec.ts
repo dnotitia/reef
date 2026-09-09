@@ -145,8 +145,7 @@ test.describe("Hermetic Backlog quick edit", () => {
     await expect(anchor).toBeVisible();
     await expect(page.getByTestId("issue-quick-edit-priority")).toBeVisible();
     await expect(page.getByRole("listbox")).toBeVisible();
-    await page.keyboard.press("Escape");
-    await expect(anchor).toHaveCount(0);
+    await closeQuickEditor(page, "priority");
   });
 
   test("collision-places the narrow Backlog Priority editor inside a 640px viewport", async ({

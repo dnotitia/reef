@@ -232,30 +232,6 @@ export function IssuesWorkspace({
         <EmptyWorkspaceNotice />
       ) : (
         <>
-          {!fixedSprintId && !rolloverOpen ? (
-            <SprintRolloverResumeNotice
-              resumes={rolloverResumes}
-              canEdit={workspaceAccess.canEditWorkspace}
-              onOpen={(resume) => {
-                setRolloverResume(resume);
-                setRolloverOpen(true);
-              }}
-            />
-          ) : null}
-          {!fixedSprintId && scope === "active" && layout === "board" ? (
-            <SprintRolloverNudge
-              sprint={activeSprint}
-              issues={rolloverIssueQuery.data}
-              issueState={rolloverIssueState}
-              now={hydrated ? Date.now() : null}
-              canEdit={workspaceAccess.canEditWorkspace}
-              priority={rolloverResumes.length > 0 ? "secondary" : "primary"}
-              onOpen={() => {
-                setRolloverResume(null);
-                setRolloverOpen(true);
-              }}
-            />
-          ) : null}
           {fixedSprintId ? (
             <IssueFilterToolbar
               backlogScope={false}
@@ -296,6 +272,30 @@ export function IssuesWorkspace({
               applyMyViewSnapshot={applyMyViewSnapshot}
             />
           )}
+          {!fixedSprintId && !rolloverOpen ? (
+            <SprintRolloverResumeNotice
+              resumes={rolloverResumes}
+              canEdit={workspaceAccess.canEditWorkspace}
+              onOpen={(resume) => {
+                setRolloverResume(resume);
+                setRolloverOpen(true);
+              }}
+            />
+          ) : null}
+          {!fixedSprintId && scope === "active" && layout === "board" ? (
+            <SprintRolloverNudge
+              sprint={activeSprint}
+              issues={rolloverIssueQuery.data}
+              issueState={rolloverIssueState}
+              now={hydrated ? Date.now() : null}
+              canEdit={workspaceAccess.canEditWorkspace}
+              priority={rolloverResumes.length > 0 ? "secondary" : "primary"}
+              onOpen={() => {
+                setRolloverResume(null);
+                setRolloverOpen(true);
+              }}
+            />
+          ) : null}
           {layout === "list" ? (
             <IssueBulkActionBar
               vault={vault}
