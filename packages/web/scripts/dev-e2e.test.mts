@@ -3,7 +3,7 @@
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CLIENT_READINESS_INTERACTIONS,
   buildReadyPayload,
@@ -378,6 +378,125 @@ describe("dev:e2e runtime contract", () => {
         { startPath: "/workspace/reef-e2e/issues/REEF-001" },
       ),
     ).rejects.toThrow(/declared issue detail start close/);
+  });
+
+  it("closes an issue-detail start before probing Escape-based global search", async () => {
+    const events: string[] = [];
+    const state = {
+      issueDetailOpen: true,
+      newIssueOpen: false,
+      searchOpen: false,
+    };
+    const selectorState = (selector: string): boolean => {
+      if (selector === CLIENT_READINESS_INTERACTIONS.issueDetail.observable) {
+        return state.issueDetailOpen;
+      }
+      if (selector === CLIENT_READINESS_INTERACTIONS.issueDetail.close) {
+        return state.issueDetailOpen;
+      }
+      if (selector === '[data-testid="global-search-input"]') {
+        return state.searchOpen;
+      }
+      if (selector === CLIENT_READINESS_INTERACTIONS.newIssue.observable) {
+        return state.newIssueOpen;
+      }
+      return true;
+    };
+    const locator = (selector: string) => ({
+      waitFor: async ({ state: expected }: { state: string }) => {
+        events.push(`wait:${selector}:${expected}`);
+        if (selectorState(selector) !== (expected === "visible")) {
+          throw new Error(`${selector} is not ${expected}`);
+        }
+      },
+      fill: async () => {},
+      click: async () => {
+        events.push(`click:${selector}`);
+        if (selector === CLIENT_READINESS_INTERACTIONS.issueDetail.close) {
+          state.issueDetailOpen = false;
+        } else if (
+          selector === CLIENT_READINESS_INTERACTIONS.newIssue.trigger
+        ) {
+          state.newIssueOpen = true;
+        } else if (selector === CLIENT_READINESS_INTERACTIONS.newIssue.close) {
+          state.newIssueOpen = false;
+        }
+      },
+    });
+    const page = {
+      keyboard: {
+        press: async (key: string) => {
+          events.push(`key:${key}`);
+          if (key === "Control+K") state.searchOpen = true;
+          if (key === "Escape") {
+            state.searchOpen = false;
+            // This models the product's layered Escape behavior that caused
+            // the runtime failure: the underlying Sheet can also close.
+            state.issueDetailOpen = false;
+          }
+        },
+      },
+      locator,
+      goto: async (url: string) => {
+        events.push(`goto:${url}`);
+      },
+      waitForURL: async () => {},
+      waitForResponse: async () => ({ ok: () => true }),
+    };
+    const context = {
+      newPage: async () => page,
+      close: async () => {},
+    };
+    const browser = {
+      newContext: async () => context,
+      close: async () => {},
+    };
+    const browserType = {
+      launch: vi.fn().mockResolvedValue(browser),
+    } as unknown as typeof import("@playwright/test").chromium;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          status: "ready",
+          fixture_login: {
+            username: "alice",
+            password: "fixture-password",
+            login_path: "/login",
+          },
+          tasks: {
+            markdown_fixture: {
+              scenario: "markdown_fixture",
+              start_path: "/workspace/reef-e2e/issues/REEF-001",
+            },
+          },
+        }),
+      }),
+    );
+
+    try {
+      const { waitForClientInteractionReady } = await import("./dev-e2e.mjs");
+      await waitForClientInteractionReady(
+        {
+          webOrigin: "http://localhost:9135",
+          fixtureOrigin: "http://127.0.0.1:9136",
+          scenario: "markdown_fixture",
+        },
+        { browserType, timeoutMs: 1_000 },
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    expect(
+      events.indexOf(
+        `click:${CLIENT_READINESS_INTERACTIONS.issueDetail.close}`,
+      ),
+    ).toBeLessThan(events.indexOf("key:Control+K"));
+    expect(events).toContain(
+      `click:${CLIENT_READINESS_INTERACTIONS.newIssue.close}`,
+    );
   });
 
   it("does not treat the issue-detail shell as visible before content loads", async () => {

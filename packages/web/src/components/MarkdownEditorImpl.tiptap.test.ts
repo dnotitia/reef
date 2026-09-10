@@ -1,9 +1,11 @@
 import { Editor } from "@tiptap/react";
+import { canonicalizeMarkdown } from "@akb/markdown-editor";
 import type { DocumentSearchHit, IssueListItem, VaultMember } from "@reef/core";
 import { render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMarkdownEditorExtensions } from "./markdown-editor/extensions";
+import { asMarkdownEditorChain } from "./markdown-editor/types";
 import {
   filterIssueBodyMentionCandidates,
   insertIssueBodyReference,
@@ -88,6 +90,40 @@ afterEach(() => {
 });
 
 describe("MarkdownEditor Tiptap extensions", () => {
+  it("uses the shared preserve profile for math, Mermaid, HTML, and MDX", () => {
+    const markdown = [
+      "Inline $E=mc^2$.",
+      "",
+      "```mermaid",
+      "flowchart TD",
+      "  A --> B",
+      "```",
+      "",
+      '<div data-kind="raw">',
+      "원문 HTML",
+      "</div>",
+      "",
+      "<Callout tone={warning}>MDX 원문</Callout>",
+    ].join("\n");
+    const editor = createEditor(markdown);
+
+    const content = editor.state.doc.toJSON().content as
+      | Array<{ type: string }>
+      | undefined;
+    expect(content?.map((node) => node.type)).toEqual([
+      "paragraph",
+      "codeBlock",
+      "rawMarkdownBlock",
+      "rawMarkdownBlock",
+    ]);
+    expect(editor.getMarkdown()).toBe(canonicalizeMarkdown(markdown));
+    expect(editor.getMarkdown()).toContain("```mermaid");
+    expect(editor.getMarkdown()).toContain(
+      "<Callout tone={warning}>MDX 원문</Callout>",
+    );
+    expect(editor.getMarkdown()).toContain('<div data-kind="raw">');
+  });
+
   it("parses and serializes a basic GFM table with a header row", () => {
     const editor = createEditor(
       "| Name | Status |\n| --- | --- |\n| Reef | Ready |\n| AKB | Draft |",
@@ -381,7 +417,9 @@ describe("MarkdownEditor Tiptap extensions", () => {
     const editor = createEditor("First item");
 
     expect(() => {
-      editor.chain().focus("end").toggleBulletList().run();
+      asMarkdownEditorChain(editor.chain().focus("end"))
+        .toggleBulletList()
+        .run();
       editor
         .chain()
         .focus("end")
@@ -398,8 +436,7 @@ describe("MarkdownEditor Tiptap extensions", () => {
     const href = "https://example.com/reef483-final-F8Q2";
     const editor = createEditor(marker);
 
-    editor
-      .chain()
+    asMarkdownEditorChain(editor.chain())
       .setTextSelection({ from: 1, to: marker.length + 1 })
       .setLink({ href })
       .run();
@@ -820,7 +857,9 @@ describe("MarkdownEditor Tiptap extensions", () => {
     expect(image).toHaveAttribute("alt", filename);
 
     const serialized = editor.getMarkdown();
-    expect(serialized).toBe(markdown);
+    // The shared image serializer escapes a literal backslash in alt text so
+    // the canonical Markdown round-trip preserves the same visible filename.
+    expect(serialized).toBe(canonicalizeMarkdown(markdown));
     const reloaded = createEditor(
       serialized,
       undefined,

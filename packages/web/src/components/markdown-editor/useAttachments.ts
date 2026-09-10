@@ -1,8 +1,12 @@
 import {
   appendMarkdownSnippets,
   filesFromFileList,
-  type AttachmentMarkdownUploadResult,
 } from "@/features/issues/lib/attachmentMarkdown";
+import {
+  serializeMarkdown,
+  type MarkdownAsset,
+  type MarkdownUploadBatchResult,
+} from "@akb/markdown-editor";
 import type { ChangeEvent, ClipboardEvent, DragEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -10,10 +14,32 @@ interface MutableRef<T> {
   current: T;
 }
 
+function markdownForAsset(asset: MarkdownAsset): string | null {
+  if (asset.kind !== "attachment") return null;
+  return serializeMarkdown({
+    type: "doc",
+    content: [
+      {
+        type: "paragraph",
+        content: [
+          {
+            type: "image",
+            attrs: {
+              target: asset.target,
+              alt: asset.alt ?? "",
+              title: asset.title ?? null,
+            },
+          },
+        ],
+      },
+    ],
+  });
+}
+
 export interface UseMarkdownEditorAttachmentsParams {
   rootRef: MutableRef<HTMLDivElement | null>;
   readOnly: boolean;
-  onUploadFiles?: (files: File[]) => Promise<AttachmentMarkdownUploadResult[]>;
+  onUploadFiles?: (files: File[]) => Promise<MarkdownUploadBatchResult>;
   getCurrentMarkdown: () => string;
   applyMarkdown: (markdown: string) => void;
   syncMarkdown: (markdown: string) => void;
@@ -23,7 +49,7 @@ export interface UseMarkdownEditorAttachmentsParams {
 export interface MarkdownEditorAttachments {
   fileInputRef: MutableRef<HTMLInputElement | null>;
   uploadFilesRef: MutableRef<
-    ((files: File[]) => Promise<AttachmentMarkdownUploadResult[]>) | undefined
+    ((files: File[]) => Promise<MarkdownUploadBatchResult>) | undefined
   >;
   readOnlyRef: MutableRef<boolean>;
   uploadingFiles: boolean;
@@ -90,10 +116,17 @@ export function useMarkdownEditorAttachments({
       setUploadingFiles(true);
       setUploadError(false);
       try {
-        const results = await uploadFiles(files);
+        const result = await uploadFiles(files);
+        if (result.failed > 0 || result.cancelled > 0) {
+          setUploadError(true);
+        }
         appendUploadedMarkdown(
-          results
-            .map((result) => result.markdown)
+          result.items
+            .filter(
+              (item): item is Extract<typeof item, { status: "success" }> =>
+                item.status === "success",
+            )
+            .map((item) => markdownForAsset(item.asset))
             .filter((markdown): markdown is string => !!markdown),
         );
       } catch {

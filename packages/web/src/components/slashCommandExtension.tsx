@@ -25,6 +25,10 @@ import type {
 } from "@tiptap/suggestion";
 import { findSuggestionMatch } from "@tiptap/suggestion";
 import { useEffect, useRef } from "react";
+import {
+  asMarkdownEditorChain,
+  type MarkdownEditorChain,
+} from "./markdown-editor/types";
 
 export type SlashCommandCategory = "text" | "lists" | "structure";
 
@@ -111,9 +115,11 @@ const slashCommandPluginKey = new PluginKey("reefSlashCommand");
 const replaceTrigger = (
   editor: Editor,
   range: Range,
-  command: (chain: ReturnType<Editor["chain"]>) => void,
+  command: (chain: MarkdownEditorChain) => void,
 ) => {
-  const chain = editor.chain().focus().deleteRange(range);
+  const chain = asMarkdownEditorChain(
+    editor.chain().focus().deleteRange(range),
+  );
   command(chain);
   chain.run();
 };

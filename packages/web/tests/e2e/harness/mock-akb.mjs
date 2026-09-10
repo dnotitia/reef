@@ -27,7 +27,7 @@ import {
   waitForAuthProbeRelease,
   waitForIssueUpdateRelease,
 } from "./mock-state.mjs";
-import { docUri, slugify } from "./mock-utils.mjs";
+import { docUri, slugify, uuidFor } from "./mock-utils.mjs";
 
 export async function handleAkb(req, res, url, state) {
   const path = url.pathname.slice("/akb".length);
@@ -251,6 +251,130 @@ export async function handleAkb(req, res, url, state) {
     return res.end(file.body);
   }
 
+  const assetUploadMatch = path.match(/^\/api\/v1\/assets\/([^/]+)$/);
+  if (assetUploadMatch && req.method === "POST") {
+    const vault = vaultFor(decodeURIComponent(assetUploadMatch[1]));
+    if (!vault) return;
+    if (!vault.assets) vault.assets = new Map();
+    const body = await readRawBody(req);
+    if (body.length === 0) return json(res, 400, { error: "empty asset" });
+    const id = uuidFor(1000 + vault.assets.size);
+    const name = url.searchParams.get("filename") || "attachment";
+    const mimeType = String(req.headers["content-type"] ?? "");
+    const asset = {
+      id,
+      name,
+      mimeType,
+      sizeBytes: body.length,
+      body,
+      claimed: false,
+      createdAt: NOW,
+    };
+    vault.assets.set(id, asset);
+    return json(res, 201, {
+      kind: "attachment",
+      id,
+      target: `/api/assets/${id}`,
+      url: `/api/assets/${id}`,
+      name,
+      mime_type: mimeType,
+      size_bytes: body.length,
+      unclaimed_expires_at: "2026-06-16T00:00:00.000Z",
+    });
+  }
+
+  const assetPolicyMatch = path.match(/^\/api\/v1\/assets\/([^/]+)\/policy$/);
+  if (assetPolicyMatch && req.method === "GET") {
+    const vault = vaultFor(decodeURIComponent(assetPolicyMatch[1]));
+    if (!vault) return;
+    return json(res, 200, {
+      kind: "attachment_policy",
+      vault: vault.name,
+      server_time: NOW,
+      unclaimed_ttl_hours: 24,
+      revision_retention_days: 30,
+    });
+  }
+
+  const assetCopyMatch = path.match(
+    /^\/api\/v1\/assets\/([^/]+)\/from-file\/([^/]+)$/,
+  );
+  if (assetCopyMatch && req.method === "POST") {
+    const vault = vaultFor(decodeURIComponent(assetCopyMatch[1]));
+    if (!vault) return;
+    const file = vault.files?.get(decodeURIComponent(assetCopyMatch[2]));
+    if (!file?.confirmed || !file.body) {
+      return json(res, 404, { error: "file not found" });
+    }
+    if (!vault.assets) vault.assets = new Map();
+    const id = uuidFor(1000 + vault.assets.size);
+    const asset = {
+      id,
+      name: file.filename,
+      mimeType: file.mimeType,
+      sizeBytes: file.sizeBytes,
+      body: file.body,
+      claimed: false,
+      createdAt: NOW,
+      sourceFileUri: file.uri,
+    };
+    vault.assets.set(id, asset);
+    return json(res, 201, {
+      kind: "attachment",
+      id,
+      target: `/api/assets/${id}`,
+      url: `/api/assets/${id}`,
+      name: asset.name,
+      mime_type: asset.mimeType,
+      size_bytes: asset.sizeBytes,
+      source_file_uri: asset.sourceFileUri,
+      unclaimed_expires_at: "2026-06-16T00:00:00.000Z",
+    });
+  }
+
+  const assetMetadataMatch = path.match(
+    /^\/api\/v1\/assets\/([^/]+)\/([^/]+)\/metadata$/,
+  );
+  if (assetMetadataMatch && req.method === "GET") {
+    const vault = vaultFor(decodeURIComponent(assetMetadataMatch[1]));
+    if (!vault) return;
+    const asset = vault.assets?.get(decodeURIComponent(assetMetadataMatch[2]));
+    if (!asset) return json(res, 404, { error: "asset not found" });
+    return json(res, 200, {
+      kind: "attachment",
+      target: `/api/assets/${asset.id}`,
+      status: asset.claimed ? "claimed" : "unclaimed",
+      unclaimed_expires_at: asset.claimed ? null : "2026-06-16T00:00:00.000Z",
+    });
+  }
+
+  const assetDiscardMatch = path.match(/^\/api\/v1\/assets\/([^/]+)\/([^/]+)$/);
+  if (assetDiscardMatch && req.method === "DELETE") {
+    const vault = vaultFor(decodeURIComponent(assetDiscardMatch[1]));
+    if (!vault) return;
+    const id = decodeURIComponent(assetDiscardMatch[2]);
+    const asset = vault.assets?.get(id);
+    if (!asset) return json(res, 200, { discarded: false });
+    if (asset.claimed) return json(res, 409, { error: "asset claimed" });
+    vault.assets.delete(id);
+    return json(res, 200, { discarded: true });
+  }
+
+  const stableAssetMatch = path.match(/^\/api\/assets\/([^/]+)$/);
+  if (stableAssetMatch && req.method === "GET") {
+    const vault = vaultFor(url.searchParams.get("vault") ?? "");
+    if (!vault) return;
+    const asset = vault.assets?.get(decodeURIComponent(stableAssetMatch[1]));
+    if (!asset?.body) return json(res, 404, { error: "asset not found" });
+    res.writeHead(200, {
+      "Content-Type": asset.mimeType,
+      "Content-Length": String(asset.body.length),
+      "Content-Disposition": "inline",
+      "Cache-Control": "private, no-store",
+    });
+    return res.end(asset.body);
+  }
+
   const tablesMatch = path.match(/^\/api\/v1\/tables\/([^/]+)$/);
   if (tablesMatch && req.method === "GET") {
     const vault = vaultFor(decodeURIComponent(tablesMatch[1]));
@@ -372,6 +496,7 @@ export async function handleAkb(req, res, url, state) {
         updated_at: NOW,
         current_commit: nextCommit(state),
       });
+      claimDocumentAssets(vault, existing.content);
       return json(res, 200, documentPutResponse(vault, existing));
     }
     if (req.method === "DELETE") {
@@ -638,4 +763,14 @@ function publicUser(user) {
 
 function stringOr(current, next) {
   return typeof next === "string" ? next : current;
+}
+
+function claimDocumentAssets(vault, content) {
+  if (!vault.assets || typeof content !== "string") return;
+  const pattern =
+    /\/api\/assets\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})/giu;
+  for (const match of content.matchAll(pattern)) {
+    const asset = vault.assets.get(match[1]);
+    if (asset) asset.claimed = true;
+  }
 }

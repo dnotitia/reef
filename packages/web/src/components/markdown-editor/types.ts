@@ -1,6 +1,11 @@
+import type {
+  MarkdownAdapters,
+  MarkdownTargetResolverContext,
+  MarkdownUploadBatchResult,
+} from "@akb/markdown-editor";
 import type { DocumentSearchHit, IssueListItem, VaultMember } from "@reef/core";
+import type { ChainedCommands, Editor, FocusPosition } from "@tiptap/core";
 import type { Ref } from "react";
-import type { AttachmentMarkdownUploadResult } from "@/features/issues/lib/attachmentMarkdown";
 import type { IssueBodyDocumentSearch } from "../issueBodyMentionExtension";
 
 export interface MarkdownEditorProps {
@@ -29,10 +34,14 @@ export interface MarkdownEditorProps {
   vault?: string;
   /**
    * Optional file upload hook for issue-owned editor surfaces. The editor
-   * mutates markdown after this resolves, leaving it unchanged when an upload
-   * fails instead of inserting a broken local link.
+   * mutates markdown after this resolves, inserting only successful attachment
+   * items and leaving failed/cancelled items out of the document.
    */
-  onUploadFiles?: (files: File[]) => Promise<AttachmentMarkdownUploadResult[]>;
+  onUploadFiles?: (files: File[]) => Promise<MarkdownUploadBatchResult>;
+  /** Common target resolver used for ephemeral WYSIWYG reference resolution. */
+  adapters?: Pick<MarkdownAdapters, "targetResolver">;
+  /** Source identity used by the common target resolver; never serialized. */
+  resolverContext?: MarkdownTargetResolverContext;
   /** Resolve stored image URLs (for example akb:// file URIs) for WYSIWYG paint. */
   resolveImageSrc?: (src: string) => string;
   /** Resolve explicit AKB file links for the issue-scoped authenticated proxy. */
@@ -89,4 +98,50 @@ export interface ActiveMarks {
 export interface EditorSelectionRange {
   from: number;
   to: number;
+}
+
+/**
+ * Commands are supplied by the shared extension set at runtime. The product
+ * adapter keeps their chain type local so consumers do not need to import
+ * every Tiptap command package just to augment `ChainedCommands`.
+ */
+export type MarkdownEditorChain = Omit<
+  ChainedCommands,
+  "deleteRange" | "extendMarkRange" | "focus" | "setTextSelection"
+> & {
+  deleteRange: (range: EditorSelectionRange) => MarkdownEditorChain;
+  extendMarkRange: (
+    typeOrName: string,
+    attributes?: Record<string, unknown>,
+  ) => MarkdownEditorChain;
+  focus: (position?: FocusPosition) => MarkdownEditorChain;
+  insertTable: (options: {
+    cols: number;
+    rows: number;
+    withHeaderRow: boolean;
+  }) => MarkdownEditorChain;
+  setCodeBlock: () => MarkdownEditorChain;
+  setHeading: (options: { level: 1 | 2 | 3 }) => MarkdownEditorChain;
+  setHorizontalRule: () => MarkdownEditorChain;
+  setLink: (attributes: { href: string }) => MarkdownEditorChain;
+  setTextSelection: (
+    position: number | EditorSelectionRange,
+  ) => MarkdownEditorChain;
+  toggleBlockquote: () => MarkdownEditorChain;
+  toggleBold: () => MarkdownEditorChain;
+  toggleBulletList: () => MarkdownEditorChain;
+  toggleCode: () => MarkdownEditorChain;
+  toggleCodeBlock: () => MarkdownEditorChain;
+  toggleHeading: (options: { level: 1 | 2 | 3 }) => MarkdownEditorChain;
+  toggleItalic: () => MarkdownEditorChain;
+  toggleOrderedList: () => MarkdownEditorChain;
+  toggleStrike: () => MarkdownEditorChain;
+  toggleTaskList: () => MarkdownEditorChain;
+  unsetLink: () => MarkdownEditorChain;
+};
+
+export function asMarkdownEditorChain(
+  chain: ReturnType<Editor["chain"]>,
+): MarkdownEditorChain {
+  return chain as MarkdownEditorChain;
 }

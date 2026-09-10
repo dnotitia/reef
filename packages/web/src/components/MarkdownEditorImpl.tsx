@@ -1,6 +1,14 @@
 "use client";
 
+import {
+  useMarkdownTargetResolutions,
+  type MarkdownTargetResolution,
+} from "@akb/markdown-editor";
 import { linkSafetyConfig } from "@/components/markdown/linkSafety";
+import {
+  isAkbFileUri,
+  isDocumentAssetTarget,
+} from "@/features/issues/lib/attachmentUrls";
 import { retargetRenderedAkbDocumentLinks } from "@/lib/akb/markdownDocumentLinks";
 import { cn } from "@/lib/utils";
 import { useAkbWebUrl } from "@/providers/AkbWebUrlProvider";
@@ -35,6 +43,76 @@ import { useMarkdownEditorSlashMessages } from "./markdown-editor/useSlashMessag
 import { useMarkdownEditorToolbarState } from "./markdown-editor/useToolbarState";
 import { useOverlayOpenRegistration } from "./ui/overlayDismiss";
 
+function applyMarkdownTargetResolutions(
+  root: HTMLElement,
+  resolutions: ReadonlyMap<string, MarkdownTargetResolution>,
+  resolving: boolean,
+): void {
+  root
+    .querySelectorAll<HTMLElement>(
+      "img[data-markdown-target], a[data-markdown-target]",
+    )
+    .forEach((element) => {
+      const target = element.dataset.markdownTarget;
+      if (!target) return;
+      if (
+        !isDocumentAssetTarget(target) &&
+        !isAkbFileUri(target) &&
+        !target.startsWith("akb://")
+      ) {
+        return;
+      }
+      const resolution = resolutions.get(target);
+      const previousResolution = element.dataset.markdownResolution;
+
+      if (!resolution) {
+        if (resolving) {
+          element.dataset.markdownResolution = "pending";
+          element.setAttribute("aria-disabled", "true");
+          if (element.tagName === "IMG") element.removeAttribute("src");
+          else element.setAttribute("href", "#");
+          return;
+        }
+        if (element.tagName === "IMG") {
+          element.setAttribute("src", target);
+        } else {
+          element.setAttribute("href", target);
+        }
+        if (previousResolution === "unavailable") {
+          element.removeAttribute("aria-label");
+        }
+        element.removeAttribute("aria-disabled");
+        delete element.dataset.markdownResolution;
+        return;
+      }
+
+      if (resolution.status === "available") {
+        if (element.tagName === "IMG") {
+          element.setAttribute("src", resolution.runtimeUrl);
+        } else {
+          element.setAttribute("href", resolution.runtimeUrl);
+        }
+        element.dataset.markdownResolution = "available";
+        if (previousResolution === "unavailable") {
+          element.removeAttribute("aria-label");
+        }
+        element.removeAttribute("aria-disabled");
+        return;
+      }
+
+      element.dataset.markdownResolution = "unavailable";
+      element.setAttribute(
+        "aria-label",
+        resolution.label ?? "Reference unavailable",
+      );
+      if (element.tagName === "IMG") element.removeAttribute("src");
+      else {
+        element.setAttribute("href", "#");
+        element.setAttribute("aria-disabled", "true");
+      }
+    });
+}
+
 /**
  * WYSIWYG markdown editor backed by Tiptap. The implementation composes the
  * editor's responsibility modules; the public lazy boundary remains in
@@ -51,6 +129,8 @@ export function MarkdownEditor({
   onBlur,
   vault,
   onUploadFiles,
+  adapters,
+  resolverContext,
   resolveImageSrc,
   resolveAttachmentHref,
   mentionConfig,
@@ -163,6 +243,12 @@ export function MarkdownEditor({
   );
 
   const slashMessages = useMarkdownEditorSlashMessages();
+  const targetResolver = adapters?.targetResolver;
+  const targetResolutions = useMarkdownTargetResolutions(
+    value,
+    targetResolver,
+    resolverContext,
+  );
 
   /* eslint-disable react-hooks/refs -- Tiptap invokes these renderer callbacks after React render; refs preserve the latest resolvers without recreating the editor. */
   const editor = useEditor({
@@ -239,6 +325,16 @@ export function MarkdownEditor({
   useEffect(() => {
     setEditor(editor);
   }, [editor, setEditor]);
+
+  useEffect(() => {
+    const root = editor?.view?.dom;
+    if (!root || !targetResolver || value.length === 0) return;
+    applyMarkdownTargetResolutions(
+      root,
+      targetResolutions,
+      targetResolver !== undefined,
+    );
+  }, [editor, targetResolver, targetResolutions, value]);
 
   const active = useMarkdownEditorToolbarState(editor);
   const {

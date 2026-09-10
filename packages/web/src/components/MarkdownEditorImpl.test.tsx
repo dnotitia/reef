@@ -126,22 +126,9 @@ vi.mock("@tiptap/react", () => {
   };
 });
 
-vi.mock("@tiptap/starter-kit", () => ({
-  default: { configure: () => ({}) },
-}));
 vi.mock("@tiptap/extension-placeholder", () => ({
   default: { configure: () => ({}) },
 }));
-vi.mock("@tiptap/extension-image", () => ({
-  default: { extend: () => ({ configure: () => ({}) }) },
-}));
-vi.mock("@tiptap/extension-list", () => ({
-  TaskList: {},
-  TaskItem: {
-    extend: () => ({ configure: () => ({}) }),
-  },
-}));
-vi.mock("@tiptap/markdown", () => ({ Markdown: {} }));
 
 describe("MarkdownEditor", () => {
   function setPointerCapability(fine: boolean) {
@@ -707,11 +694,23 @@ describe("MarkdownEditor", () => {
   it("uploads files selected from the toolbar before appending returned markdown", async () => {
     const onChange = vi.fn();
     const onBlur = vi.fn();
-    const onUploadFiles = vi
-      .fn()
-      .mockResolvedValue([
-        { markdown: "[brief](akb://reef-test/issues/file/file-1)" },
-      ]);
+    const onUploadFiles = vi.fn().mockResolvedValue({
+      items: [
+        {
+          status: "success",
+          file: new Blob(["brief"]),
+          asset: {
+            kind: "attachment",
+            target: "/api/assets/00000000-0000-4000-8000-000000000001",
+            alt: "brief.png",
+          },
+        },
+      ],
+      succeeded: 1,
+      failed: 0,
+      cancelled: 0,
+      partial: false,
+    });
     render(
       <MarkdownEditor
         value="Existing body"
@@ -731,11 +730,11 @@ describe("MarkdownEditor", () => {
     await waitFor(() => expect(onUploadFiles).toHaveBeenCalledWith([file]));
     await waitFor(() =>
       expect(onChange).toHaveBeenCalledWith(
-        "Existing body\n\n[brief](akb://reef-test/issues/file/file-1)",
+        "Existing body\n\n![brief.png](/api/assets/00000000-0000-4000-8000-000000000001)",
       ),
     );
     expect(onBlur).toHaveBeenCalledWith(
-      "Existing body\n\n[brief](akb://reef-test/issues/file/file-1)",
+      "Existing body\n\n![brief.png](/api/assets/00000000-0000-4000-8000-000000000001)",
     );
   });
 
@@ -762,6 +761,58 @@ describe("MarkdownEditor", () => {
       ),
     );
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("appends successful batch items while reporting partial failures", async () => {
+    const onChange = vi.fn();
+    const onUploadFiles = vi.fn().mockResolvedValue({
+      items: [
+        {
+          status: "success",
+          file: new Blob(["ok"]),
+          asset: {
+            kind: "attachment",
+            target: "/api/assets/00000000-0000-4000-8000-000000000001",
+            alt: "ok.png",
+          },
+        },
+        {
+          status: "failed",
+          file: new Blob(["failed"]),
+          error: {
+            code: "unknown",
+            message: "busy",
+            retryable: true,
+          },
+        },
+      ],
+      succeeded: 1,
+      failed: 1,
+      cancelled: 0,
+      partial: true,
+    });
+    render(
+      <MarkdownEditor
+        value="Existing body"
+        onChange={onChange}
+        onUploadFiles={onUploadFiles}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId("markdown-attachment-input"), {
+      target: {
+        files: [new File(["x"], "ok.png", { type: "image/png" })],
+      },
+    });
+
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith(
+        "Existing body\n\n![ok.png](/api/assets/00000000-0000-4000-8000-000000000001)",
+      ),
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Couldn't upload that file.",
+    );
   });
 
   it("keeps the Source toggle out of the wrapping control group", () => {
@@ -878,12 +929,32 @@ describe("MarkdownEditor", () => {
 
   it("uploads pasted source-mode files before appending returned markdown", async () => {
     const onChange = vi.fn();
-    const onUploadFiles = vi
-      .fn()
-      .mockResolvedValue([
-        { markdown: "![screen](akb://reef-test/issues/file/file-1)" },
-        { markdown: null },
-      ]);
+    const onUploadFiles = vi.fn().mockResolvedValue({
+      items: [
+        {
+          status: "success",
+          file: new Blob(["screen"]),
+          asset: {
+            kind: "attachment",
+            target: "/api/assets/00000000-0000-4000-8000-000000000001",
+            alt: "screen.png",
+          },
+        },
+        {
+          status: "success",
+          file: new Blob(["notes"]),
+          asset: {
+            kind: "file",
+            target: "akb://reef-test/issues/file/file-2",
+            alt: "notes.txt",
+          },
+        },
+      ],
+      succeeded: 2,
+      failed: 0,
+      cancelled: 0,
+      partial: false,
+    });
     render(
       <MarkdownEditor
         value="Existing body"
@@ -905,7 +976,7 @@ describe("MarkdownEditor", () => {
     await waitFor(() => expect(onUploadFiles).toHaveBeenCalledWith([file]));
     await waitFor(() =>
       expect(onChange).toHaveBeenCalledWith(
-        "Existing body\n\n![screen](akb://reef-test/issues/file/file-1)",
+        "Existing body\n\n![screen.png](/api/assets/00000000-0000-4000-8000-000000000001)",
       ),
     );
   });
@@ -1066,9 +1137,23 @@ describe("MarkdownEditor", () => {
 
   it("keeps attachment insertion available in source mode through the upload path", async () => {
     const onChange = vi.fn();
-    const onUploadFiles = vi
-      .fn()
-      .mockResolvedValue([{ markdown: "![screen](akb://reef-test/file/1)" }]);
+    const onUploadFiles = vi.fn().mockResolvedValue({
+      items: [
+        {
+          status: "success",
+          file: new Blob(["screen"]),
+          asset: {
+            kind: "attachment",
+            target: "/api/assets/00000000-0000-4000-8000-000000000001",
+            alt: "screen.png",
+          },
+        },
+      ],
+      succeeded: 1,
+      failed: 0,
+      cancelled: 0,
+      partial: false,
+    });
     render(
       <MarkdownEditor
         value="Existing body"
@@ -1090,7 +1175,7 @@ describe("MarkdownEditor", () => {
     await waitFor(() => expect(onUploadFiles).toHaveBeenCalled());
     await waitFor(() =>
       expect(onChange).toHaveBeenCalledWith(
-        "Existing body\n\n![screen](akb://reef-test/file/1)",
+        "Existing body\n\n![screen.png](/api/assets/00000000-0000-4000-8000-000000000001)",
       ),
     );
   });

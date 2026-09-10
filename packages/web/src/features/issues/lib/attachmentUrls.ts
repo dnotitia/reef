@@ -2,6 +2,25 @@ export function isAkbFileUri(url: string): boolean {
   return /^akb:\/\/.+\/file\/[^/]+$/u.test(url);
 }
 
+const DOCUMENT_ASSET_TARGET_RE =
+  /^\/api\/assets\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/?$/iu;
+
+export function isDocumentAssetTarget(url: string): boolean {
+  return DOCUMENT_ASSET_TARGET_RE.test(url);
+}
+
+export function issueDocumentAssetHref({
+  vault,
+  assetTarget,
+}: {
+  vault: string;
+  assetTarget: string;
+}): string {
+  const match = DOCUMENT_ASSET_TARGET_RE.exec(assetTarget);
+  if (!match?.[1]) return assetTarget;
+  return `/api/assets/${match[1]}?vault=${encodeURIComponent(vault)}`;
+}
+
 /**
  * Derive the small, display type marker used by an issue body file link.
  * The label is user-authored Markdown text; it is not used for MIME or
@@ -58,6 +77,9 @@ export function resolveIssueAttachmentUrl({
   url: string;
   key?: string;
 }): string {
+  if (isDocumentAssetTarget(url)) {
+    return issueDocumentAssetHref({ vault, assetTarget: url });
+  }
   if (!isAkbFileUri(url)) return url;
   return issueAttachmentFileHref({
     issueId,
