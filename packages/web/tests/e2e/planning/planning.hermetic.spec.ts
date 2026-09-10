@@ -313,6 +313,27 @@ test.describe("Hermetic planning workflow", () => {
     }
 
     await expect(page.getByTestId("planning-overview")).toBeVisible();
+    const headerAlignment = await page
+      .locator('[data-slot="page-header"]')
+      .evaluate((header) => {
+        const title = header.querySelector("h1");
+        const titleAdjacent = header.querySelector(
+          '[data-slot="page-header-title-adjacent"]',
+        );
+        const description =
+          title?.parentElement?.querySelector(":scope > span");
+        if (!title || !titleAdjacent || !description) {
+          throw new Error("Planning header alignment targets are unavailable");
+        }
+        const centerY = (element: Element) => {
+          const rect = element.getBoundingClientRect();
+          return rect.top + rect.height / 2;
+        };
+        return [title, titleAdjacent, description].map(centerY);
+      });
+    expect(
+      Math.max(...headerAlignment) - Math.min(...headerAlignment),
+    ).toBeLessThanOrEqual(1);
     for (const section of [
       "currentSprint",
       "upcomingMilestones",

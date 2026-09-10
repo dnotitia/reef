@@ -68,9 +68,10 @@ export function PageHeader({
     >
       <div
         className={cn(
-          "flex min-w-0 items-baseline gap-3",
-          hasTitleAdjacent &&
-            "flex-wrap max-[767px]:w-full max-[767px]:items-center",
+          "flex min-w-0 gap-3",
+          hasTitleAdjacent
+            ? "flex-wrap items-center max-[767px]:w-full"
+            : "items-baseline",
         )}
       >
         <h1 className="type-page-title text-foreground">{title}</h1>
