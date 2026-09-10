@@ -8,8 +8,9 @@ import {
 } from "@/components/segmentedControl";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { PageHeader } from "@/features/ui/components/PageHeader";
+import { usePlanningKindSingularLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, List as ListIcon } from "lucide-react";
+import { LayoutDashboard, List as ListIcon, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { PlanningOverviewSkeleton } from "./PlanningOverviewSkeleton";
 import { SprintRolloverPendingSkeleton } from "./SprintRolloverPendingSkeleton";
@@ -26,6 +27,7 @@ export function PlanningPageSkeleton() {
   const nav = useTranslations("nav");
   const common = useTranslations("common");
   const planning = useTranslations("planning");
+  const planningKindSingular = usePlanningKindSingularLabels();
   return (
     <div className="flex h-full flex-col" data-testid="planning-skeleton">
       <PageHeader
@@ -61,6 +63,24 @@ export function PlanningPageSkeleton() {
               {planning("view.list")}
             </span>
           </div>
+        }
+        staticActions={
+          <span
+            aria-hidden="true"
+            data-testid="planning-static-new-action"
+            className="inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-md bg-foreground px-3 type-control font-medium text-surface-page"
+          >
+            <Plus aria-hidden="true" className="h-3.5 w-3.5" />
+            {planning("newKind", {
+              kind: planningKindSingular.sprints.toLowerCase(),
+            })}
+          </span>
+        }
+        staticDescription={
+          <span
+            aria-hidden="true"
+            className="reef-shimmer inline-block h-3 w-16 rounded-md"
+          />
         }
       />
       <PageBody pad="compact">
