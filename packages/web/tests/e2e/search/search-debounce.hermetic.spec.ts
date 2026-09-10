@@ -213,4 +213,48 @@ test.describe("search debounce cadence (REEF-370)", () => {
     await input.press("Escape");
     await expect(input).toHaveValue("");
   });
+
+  test("keeps the latest result after delayed q responses are released in reverse order", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=board&sort=priority");
+    const input = page.getByTestId("search-input");
+    const releaseWaiters: Array<() => Promise<void>> = [];
+
+    // This is the documented UI-only timing exception: the real Route Handler
+    // and fixture payloads run, while q responses are held and released in reverse
+    // order to prove stale responses cannot replace the latest result.
+    await page.route(
+      (url) => url.pathname === "/api/issues" && url.searchParams.has("q"),
+      async (route) => {
+        const response = await route.fetch();
+        await new Promise<void>((resolve) => {
+          releaseWaiters.push(async () => {
+            await route.fulfill({ response });
+            resolve();
+          });
+        });
+      },
+    );
+
+    await input.fill("A");
+    await page.waitForTimeout(220);
+    await input.fill("Al");
+    await page.waitForTimeout(220);
+    await input.fill("Alpha");
+    await page.waitForTimeout(220);
+    await expect
+      .poll(() => releaseWaiters.length, { timeout: 10_000 })
+      .toBeGreaterThan(1);
+
+    for (const release of releaseWaiters.splice(0).reverse()) {
+      await release();
+    }
+    await expect(input).toHaveValue("Alpha");
+    await expect(page).toHaveURL(/q=Alpha/);
+    await expect(
+      page.getByRole("button", { name: /Initial issue Alpha/ }).first(),
+    ).toBeVisible();
+  });
 });
