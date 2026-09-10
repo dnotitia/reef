@@ -63,6 +63,8 @@ test.describe("search debounce cadence (REEF-370)", () => {
     await page.keyboard.press("Control+K");
     const input = page.locator('[data-testid="global-search-input"]');
     await expect(input).toBeVisible();
+    await expect(input).toBeEditable();
+    await expect(input).toBeFocused();
 
     const settled = page.waitForRequest((req) => {
       const url = new URL(req.url());

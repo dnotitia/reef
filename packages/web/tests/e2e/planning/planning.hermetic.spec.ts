@@ -833,11 +833,31 @@ test.describe("Hermetic planning workflow", () => {
     await clearPersistedQueryCacheOnLoad(page);
     await setPlanningCatalogFailure(request, true);
     await openExistingWorkspace(page);
+
+    let releaseCatalogResponse: (() => void) | undefined;
+    const catalogResponseHeld = new Promise<void>((resolve) => {
+      releaseCatalogResponse = resolve;
+    });
+    // Hold the real catalog response so the pending skeleton can be observed
+    // before the forced failure replaces it; no response body is mocked.
+    await page.route(
+      (url) =>
+        url.pathname === "/api/planning" &&
+        url.searchParams.get("vault") === REEF_E2E_VAULT,
+      async (route) => {
+        const response = await route.fetch();
+        await catalogResponseHeld;
+        await route.fulfill({ response });
+      },
+    );
     await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
 
     const loading = page.getByTestId("planning-overview-loading");
     await expect(loading).toBeVisible({ timeout: 10_000 });
     await expect(loading).toHaveAttribute("aria-busy", "true");
+    await expect
+      .poll(() => loading.ariaSnapshot(), { timeout: 10_000 })
+      .toContain("Current sprint");
     const pendingAccessibilitySnapshot = await loading.ariaSnapshot();
     for (const header of [
       "Current sprint",
@@ -850,6 +870,8 @@ test.describe("Hermetic planning workflow", () => {
       ).toContain(header);
     }
     await expect(page.getByRole("status")).toHaveText("Loading…");
+    expect(releaseCatalogResponse).toBeDefined();
+    releaseCatalogResponse?.();
 
     const error = page.getByTestId("planning-catalog-error");
     await expect(error).toBeVisible({ timeout: 20_000 });
