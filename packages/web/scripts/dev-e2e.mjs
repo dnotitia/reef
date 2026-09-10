@@ -397,8 +397,17 @@ export async function waitForClientInteractionReady(
         timeout: timeoutMs,
       },
     );
+    const issueDetailStart = isIssueDetailStartPath(startPath);
+    if (issueDetailStart) {
+      // Escape closes the global search layer and can then reach the declared
+      // issue-detail Sheet. Close a detail start before probing global
+      // shortcuts so the readiness probe does not destroy its own start state.
+      await dismissIssueDetailStart(page, timeoutMs);
+    }
     await probeSearchInteraction(page, timeoutMs);
-    await probeWorkspaceClickInteractions(page, timeoutMs, { startPath });
+    await probeWorkspaceClickInteractions(page, timeoutMs, {
+      startPath: issueDetailStart ? undefined : startPath,
+    });
   } finally {
     await context.close().catch(() => undefined);
     await browser.close().catch(() => undefined);
