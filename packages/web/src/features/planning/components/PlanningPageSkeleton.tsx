@@ -68,7 +68,7 @@ export function PlanningPageSkeleton() {
           <span
             aria-hidden="true"
             data-testid="planning-static-new-action"
-            className="inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-md bg-foreground px-3 type-control font-medium text-surface-page"
+            className="inline-flex h-7 items-center justify-center gap-1.5 whitespace-nowrap rounded-md bg-foreground px-2.5 type-small-button font-medium text-surface-page"
           >
             <Plus aria-hidden="true" className="h-3.5 w-3.5" />
             {planning("newKind", {
