@@ -71,6 +71,7 @@ export function SearchBar() {
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.nativeEvent.isComposing) return;
       if (e.key === "Escape") {
         handleClear();
       }

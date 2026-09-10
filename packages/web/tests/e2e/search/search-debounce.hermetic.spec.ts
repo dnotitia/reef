@@ -182,4 +182,35 @@ test.describe("search debounce cadence (REEF-370)", () => {
     // searches — the immediate-filter surface is not on the debounce path.
     expect(searches).toEqual([]);
   });
+
+  test("SearchBar preserves an IME draft on composing Escape, then clears normally", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=board");
+    const input = page.getByTestId("search-input");
+    await expect(input).toBeEditable();
+    await input.fill("한");
+
+    await input.dispatchEvent("compositionstart", { data: "ㅎ" });
+    await input.dispatchEvent("compositionupdate", { data: "한" });
+    await page.evaluate(() => {
+      const element = document.querySelector<HTMLInputElement>(
+        '[data-testid="search-input"]',
+      );
+      if (!element) throw new Error("missing search input");
+      const event = new KeyboardEvent("keydown", {
+        key: "Escape",
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(event, "isComposing", { value: true });
+      element.dispatchEvent(event);
+    });
+    await expect(input).toHaveValue("한");
+
+    await input.dispatchEvent("compositionend", { data: "한" });
+    await input.press("Escape");
+    await expect(input).toHaveValue("");
+  });
 });

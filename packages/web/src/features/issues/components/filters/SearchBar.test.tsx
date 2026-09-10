@@ -1,4 +1,11 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useIssueStore } from "../../stores/useIssueStore";
@@ -119,5 +126,20 @@ describe("SearchBar", () => {
     await waitFor(() => {
       expect(useIssueStore.getState().searchQuery).toBe("");
     });
+  });
+
+  it("does not clear an active IME composition on Escape", async () => {
+    const user = userEvent.setup();
+    render(<SearchBar />);
+    const input = screen.getByTestId("search-input") as HTMLInputElement;
+    await user.type(input, "한");
+
+    fireEvent.keyDown(input, {
+      key: "Escape",
+      isComposing: true,
+    });
+
+    expect(input.value).toBe("한");
+    expect(useIssueStore.getState().searchQuery).toBe("");
   });
 });
