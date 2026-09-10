@@ -29,6 +29,7 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Planning header controls align with the title and workspace description.**
 - **Markdown editor focus chrome remains continuous across internal dividers.**
   Toolbar and editor-body separators no longer paint over the inset focus ring.
 - **Planning Overview keeps long names readable and the hierarchy intentional.**
