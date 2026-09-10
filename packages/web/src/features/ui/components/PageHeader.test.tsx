@@ -75,6 +75,19 @@ describe("PageHeader", () => {
     expect(titleRow).not.toHaveClass("items-center");
   });
 
+  it("lets wrapped actions expand the header beyond its minimum height", () => {
+    render(
+      <PageHeader
+        title="Planning"
+        description="reef-acme"
+        titleAdjacent={<button type="button">Overview</button>}
+        actions={<button type="button">New sprint</button>}
+      />,
+    );
+
+    expect(screen.getByRole("banner")).toHaveClass("h-auto", "min-h-12");
+  });
+
   it("keeps non-interactive loading chrome visible before hydration", () => {
     render(
       <PageHeader
