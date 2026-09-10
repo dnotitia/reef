@@ -47,6 +47,59 @@ describe("PageHeader", () => {
     expect(view.closest('[data-slot="page-header-actions"]')).not.toBeNull();
   });
 
+  it("centers the title row when it contains a title-adjacent control", () => {
+    render(
+      <PageHeader
+        title="Planning"
+        description="reef-acme"
+        titleAdjacent={<button type="button">Overview</button>}
+      />,
+    );
+
+    const titleRow = screen.getByRole("heading", {
+      name: "Planning",
+      level: 1,
+    }).parentElement;
+    expect(titleRow).toHaveClass("items-center");
+    expect(titleRow).not.toHaveClass("items-baseline");
+  });
+
+  it("keeps title and description baseline-aligned without an adjacent control", () => {
+    render(<PageHeader title="Reports" description="reef-acme" />);
+
+    const titleRow = screen.getByRole("heading", {
+      name: "Reports",
+      level: 1,
+    }).parentElement;
+    expect(titleRow).toHaveClass("items-baseline");
+    expect(titleRow).not.toHaveClass("items-center");
+  });
+
+  it("lets wrapped actions expand the header beyond its minimum height", () => {
+    render(
+      <PageHeader
+        title="Planning"
+        description="reef-acme"
+        titleAdjacent={<button type="button">Overview</button>}
+        actions={<button type="button">New sprint</button>}
+      />,
+    );
+
+    expect(screen.getByRole("banner")).toHaveClass("h-auto", "min-h-12");
+  });
+
+  it("uses the established py-2 rhythm below wrapped action rows", () => {
+    render(
+      <PageHeader
+        title="Planning"
+        titleAdjacent={<button type="button">Overview</button>}
+        actions={<button type="button">New sprint</button>}
+      />,
+    );
+
+    expect(screen.getByRole("banner")).toHaveClass("py-2");
+  });
+
   it("keeps non-interactive loading chrome visible before hydration", () => {
     render(
       <PageHeader
@@ -58,6 +111,12 @@ describe("PageHeader", () => {
 
     expect(screen.getByText("Active")).toBeInTheDocument();
     expect(screen.getByText("Board")).toBeInTheDocument();
+    const titleRow = screen.getByRole("heading", {
+      name: "Issues",
+      level: 1,
+    }).parentElement;
+    expect(titleRow).toHaveClass("items-center");
+    expect(titleRow).not.toHaveClass("items-baseline");
   });
 
   it("keeps a static description in place through hydration", () => {

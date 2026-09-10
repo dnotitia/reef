@@ -61,16 +61,17 @@ export function PageHeader({
     <header
       data-slot="page-header"
       className={cn(
-        "sticky top-0 z-20 flex h-12 shrink-0 items-center justify-between gap-4 border-b border-border-subtle bg-surface-page/80 px-6 backdrop-blur-md",
+        "sticky top-0 z-20 flex h-auto min-h-12 shrink-0 items-center justify-between gap-4 border-b border-border-subtle bg-surface-page/80 px-6 py-2 backdrop-blur-md",
         hasTitleAdjacent && "flex-wrap",
         className,
       )}
     >
       <div
         className={cn(
-          "flex min-w-0 items-baseline gap-3",
-          hasTitleAdjacent &&
-            "flex-wrap max-[767px]:w-full max-[767px]:items-center",
+          "flex min-w-0 gap-3",
+          hasTitleAdjacent
+            ? "flex-wrap items-center max-[767px]:w-full"
+            : "items-baseline",
         )}
       >
         <h1 className="type-page-title text-foreground">{title}</h1>

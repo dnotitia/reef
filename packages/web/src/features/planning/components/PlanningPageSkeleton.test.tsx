@@ -20,6 +20,11 @@ describe("PlanningPageSkeleton", () => {
     ]) {
       expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     }
+    const staticAction = screen.getByTestId("planning-static-new-action");
+    expect(staticAction).toHaveAttribute("aria-hidden", "true");
+    expect(staticAction.querySelector("button")).toBeNull();
+    expect(staticAction).toHaveClass("h-7", "px-2.5", "type-small-button");
+    expect(staticAction).not.toHaveClass("h-8");
   });
 
   it("hides the decorative body and announces loading to assistive tech (REEF-281)", () => {

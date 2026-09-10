@@ -112,6 +112,63 @@ async function readEditorGeometry(page: Page) {
   });
 }
 
+async function readPlanningHeaderGeometry(page: Page) {
+  return page.evaluate(() => {
+    const header = document.querySelector<HTMLElement>(
+      '[data-slot="page-header"]',
+    );
+    const title = header?.querySelector<HTMLElement>("h1");
+    const viewSwitcher = header?.querySelector<HTMLElement>(
+      '[data-testid="planning-view-switcher"]',
+    );
+    const description = header?.querySelector<HTMLElement>(
+      'span[translate="no"]',
+    );
+    const actions = header?.querySelector<HTMLElement>(
+      '[data-slot="page-header-actions"]',
+    );
+    const newSprint = actions?.querySelector<HTMLElement>("button");
+    const rolloverNotice = document.querySelector<HTMLElement>(
+      '[data-testid="sprint-rollover-nudge"]',
+    );
+    if (
+      !header ||
+      !title ||
+      !viewSwitcher ||
+      !description ||
+      !actions ||
+      !newSprint ||
+      !rolloverNotice
+    ) {
+      throw new Error("Planning header geometry targets are unavailable");
+    }
+
+    const rect = (element: HTMLElement) => {
+      const box = element.getBoundingClientRect();
+      return {
+        top: box.top,
+        bottom: box.bottom,
+        left: box.left,
+        right: box.right,
+        width: box.width,
+        height: box.height,
+      };
+    };
+
+    return {
+      header: rect(header),
+      title: rect(title),
+      viewSwitcher: rect(viewSwitcher),
+      description: rect(description),
+      actions: rect(actions),
+      newSprint: rect(newSprint),
+      rolloverNotice: rect(rolloverNotice),
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth,
+    };
+  });
+}
+
 async function expectEditorChromeInViewport(page: Page, title: string) {
   const dialog = page.locator('[data-testid="planning-editor-dialog"]');
   await expect(dialog).toBeVisible();
@@ -298,6 +355,7 @@ test.describe("Hermetic planning workflow", () => {
     page,
     request,
   }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/planning");
 
@@ -313,6 +371,45 @@ test.describe("Hermetic planning workflow", () => {
     }
 
     await expect(page.getByTestId("planning-overview")).toBeVisible();
+    await expect(page.getByTestId("sprint-rollover-nudge")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "New sprint" }),
+    ).toBeVisible();
+    const headerAlignment = await page
+      .locator('[data-slot="page-header"]')
+      .evaluate((header) => {
+        const title = header.querySelector("h1");
+        const titleAdjacent = header.querySelector(
+          '[data-slot="page-header-title-adjacent"]',
+        );
+        const description =
+          title?.parentElement?.querySelector(":scope > span");
+        if (!title || !titleAdjacent || !description) {
+          throw new Error("Planning header alignment targets are unavailable");
+        }
+        const centerY = (element: Element) => {
+          const rect = element.getBoundingClientRect();
+          return rect.top + rect.height / 2;
+        };
+        return [title, titleAdjacent, description].map(centerY);
+      });
+    expect(
+      Math.max(...headerAlignment) - Math.min(...headerAlignment),
+    ).toBeLessThanOrEqual(1);
+    const desktopHeaderGeometry = await readPlanningHeaderGeometry(page);
+    expect(
+      desktopHeaderGeometry.header.bottom -
+        desktopHeaderGeometry.newSprint.bottom,
+    ).toBeGreaterThanOrEqual(8);
+    expect(desktopHeaderGeometry.newSprint.bottom).toBeLessThanOrEqual(
+      desktopHeaderGeometry.header.bottom + 1,
+    );
+    expect(desktopHeaderGeometry.header.bottom).toBeLessThanOrEqual(
+      desktopHeaderGeometry.rolloverNotice.top - 8,
+    );
+    expect(desktopHeaderGeometry.documentWidth).toBeLessThanOrEqual(
+      desktopHeaderGeometry.viewportWidth,
+    );
     for (const section of [
       "currentSprint",
       "upcomingMilestones",
@@ -346,6 +443,18 @@ test.describe("Hermetic planning workflow", () => {
     await page.getByRole("button", { name: "List" }).click();
     await expect(page).toHaveURL(`/workspace/reef-e2e/planning?view=list`);
     await expect(page.getByTestId("planning-kind-switcher")).toBeVisible();
+    await expect(page.getByTestId("sprint-rollover-nudge")).toBeVisible();
+    const desktopListHeaderGeometry = await readPlanningHeaderGeometry(page);
+    expect(
+      desktopListHeaderGeometry.header.bottom -
+        desktopListHeaderGeometry.newSprint.bottom,
+    ).toBeGreaterThanOrEqual(8);
+    expect(desktopListHeaderGeometry.header.bottom).toBeLessThanOrEqual(
+      desktopListHeaderGeometry.rolloverNotice.top - 8,
+    );
+    expect(desktopListHeaderGeometry.documentWidth).toBeLessThanOrEqual(
+      desktopListHeaderGeometry.viewportWidth,
+    );
 
     await page.getByRole("button", { name: "Overview" }).click();
     await expect(page).toHaveURL(`/workspace/reef-e2e/planning?view=overview`);
@@ -529,6 +638,80 @@ test.describe("Hermetic planning workflow", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/planning");
+    await expect(page.getByTestId("planning-overview")).toBeVisible();
+    await expect(page.getByTestId("sprint-rollover-nudge")).toBeVisible();
+
+    const narrowHeaderGeometry = await readPlanningHeaderGeometry(page);
+    expect(narrowHeaderGeometry.header.height).toBeGreaterThan(48);
+    for (const target of [
+      narrowHeaderGeometry.title,
+      narrowHeaderGeometry.viewSwitcher,
+      narrowHeaderGeometry.description,
+      narrowHeaderGeometry.newSprint,
+    ]) {
+      expect(target.top).toBeGreaterThanOrEqual(
+        narrowHeaderGeometry.header.top,
+      );
+      expect(target.bottom).toBeLessThanOrEqual(
+        narrowHeaderGeometry.header.bottom + 1,
+      );
+      expect(target.left).toBeGreaterThanOrEqual(0);
+      expect(target.right).toBeLessThanOrEqual(
+        narrowHeaderGeometry.viewportWidth,
+      );
+    }
+    expect(
+      narrowHeaderGeometry.header.bottom -
+        narrowHeaderGeometry.newSprint.bottom,
+    ).toBeGreaterThanOrEqual(8);
+    expect(
+      narrowHeaderGeometry.newSprint.top - narrowHeaderGeometry.title.bottom,
+    ).toBeGreaterThanOrEqual(8);
+    expect(narrowHeaderGeometry.header.bottom).toBeLessThanOrEqual(
+      narrowHeaderGeometry.rolloverNotice.top - 8,
+    );
+    expect(narrowHeaderGeometry.documentWidth).toBeLessThanOrEqual(
+      narrowHeaderGeometry.viewportWidth,
+    );
+
+    await page.getByRole("button", { name: "List" }).click();
+    await expect(page).toHaveURL(`/workspace/reef-e2e/planning?view=list`);
+    await expect(page.getByTestId("planning-kind-switcher")).toBeVisible();
+    await expect(page.getByTestId("sprint-rollover-nudge")).toBeVisible();
+    const listHeaderGeometry = await readPlanningHeaderGeometry(page);
+    expect(listHeaderGeometry.header.height).toBeGreaterThan(48);
+    for (const target of [
+      listHeaderGeometry.title,
+      listHeaderGeometry.viewSwitcher,
+      listHeaderGeometry.description,
+      listHeaderGeometry.newSprint,
+    ]) {
+      expect(target.top).toBeGreaterThanOrEqual(listHeaderGeometry.header.top);
+      expect(target.bottom).toBeLessThanOrEqual(
+        listHeaderGeometry.header.bottom + 1,
+      );
+      expect(target.left).toBeGreaterThanOrEqual(0);
+      expect(target.right).toBeLessThanOrEqual(
+        listHeaderGeometry.viewportWidth,
+      );
+    }
+    expect(
+      listHeaderGeometry.header.bottom - listHeaderGeometry.newSprint.bottom,
+    ).toBeGreaterThanOrEqual(8);
+    expect(
+      listHeaderGeometry.newSprint.top - listHeaderGeometry.title.bottom,
+    ).toBeGreaterThanOrEqual(8);
+    expect(listHeaderGeometry.header.bottom).toBeLessThanOrEqual(
+      listHeaderGeometry.rolloverNotice.top - 8,
+    );
+    expect(listHeaderGeometry.documentWidth).toBeLessThanOrEqual(
+      listHeaderGeometry.viewportWidth,
+    );
+
+    await page.getByRole("button", { name: "Overview" }).click();
+    await expect(page).toHaveURL(`/workspace/reef-e2e/planning?view=overview`);
+    await expect(page.getByTestId("planning-overview")).toBeVisible();
+
     await page.getByRole("button", { name: "New sprint" }).click();
 
     await expectEditorChromeInViewport(page, "New sprint");
