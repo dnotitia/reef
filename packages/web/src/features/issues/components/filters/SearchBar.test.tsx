@@ -73,6 +73,22 @@ describe("SearchBar", () => {
     expect(screen.getByTestId("search-clear-button")).toBeTruthy();
   });
 
+  it("shows updating feedback while the warm debounce is pending", async () => {
+    render(<SearchBar />);
+    const input = screen.getByTestId("search-input");
+
+    fireEvent.change(input, { target: { value: "auth" } });
+
+    expect(screen.getByTestId("search-progress-bar")).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent("Updating results…");
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().searchQuery).toBe("auth");
+    });
+    expect(screen.queryByTestId("search-progress-bar")).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
   it("clear button clears the query", async () => {
     const user = userEvent.setup();
     render(<SearchBar />);

@@ -124,6 +124,76 @@ test.describe("search debounce cadence (REEF-370)", () => {
     ).toBeVisible();
   });
 
+  test("List exposes updating state before a debounced search replaces populated results", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "large_vault");
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=list&sort=priority");
+
+    const input = page.getByTestId("search-input");
+    const existingRow = page.getByTestId("issue-list-row").first();
+    await expect(existingRow).toBeVisible();
+
+    const query = "zzzz-no-such-issue-xyz123";
+    let requestSeen = false;
+    let releaseResponse: (() => void) | undefined;
+    const responseHeld = new Promise<void>((resolve) => {
+      releaseResponse = resolve;
+    });
+    // This is the documented UI-only timing exception: the real Route Handler
+    // and fixture payload run; the route is held only to keep the in-flight
+    // transition observable while the existing rows remain on screen.
+    await page.route(
+      (url) =>
+        url.pathname === "/api/issues" && url.searchParams.get("q") === query,
+      async (route) => {
+        requestSeen = true;
+        const response = await route.fetch();
+        await responseHeld;
+        await route.fulfill({ response });
+      },
+    );
+
+    await input.fill(query);
+
+    // The existing rows remain visible during the warm debounce window. The
+    // user must still get a visual and assistive-technology signal immediately,
+    // before the debounced query key reaches TanStack Query.
+    await expect(existingRow).toBeVisible();
+    await expect
+      .poll(() => page.getByTestId("search-progress-bar").count(), {
+        timeout: 100,
+        intervals: [10, 20],
+      })
+      .toBeGreaterThan(0);
+    await expect
+      .poll(
+        () =>
+          page
+            .getByRole("status")
+            .filter({ hasText: "Updating results…" })
+            .count(),
+        { timeout: 100, intervals: [10, 20] },
+      )
+      .toBeGreaterThan(0);
+    await expect(existingRow).toBeVisible();
+
+    await expect.poll(() => requestSeen, { timeout: 5_000 }).toBe(true);
+    await expect(page.getByTestId("search-progress-bar")).toBeVisible();
+    expect(releaseResponse).toBeDefined();
+    releaseResponse?.();
+
+    await expect(
+      page.getByText("No issues match your filters.", { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByTestId("search-progress-bar")).toHaveCount(0);
+    await expect(
+      page.getByRole("status").filter({ hasText: "Updating results…" }),
+    ).toHaveCount(0);
+  });
+
   test("cold assignee typeahead coalesces keystrokes into one /api/vault-members?q request", async ({
     page,
   }) => {

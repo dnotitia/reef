@@ -1,6 +1,7 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
+import { SearchProgressBar } from "@/components/ui/SearchProgressBar";
 import {
   SEARCH_DEBOUNCE_WARM,
   useDebouncedQuery,
@@ -12,6 +13,7 @@ import { useIssueStore } from "../../stores/useIssueStore";
 
 export function SearchBar() {
   const t = useTranslations("issues.filters");
+  const common = useTranslations("common");
   const setSearchQuery = useIssueStore((state) => state.setSearchQuery);
 
   // The issue store is the search's data owner; the shared warm-tier debounce
@@ -22,6 +24,7 @@ export function SearchBar() {
     onChange: handleChange,
     debounced,
     reset,
+    isDebouncing,
   } = useDebouncedQuery(
     SEARCH_DEBOUNCE_WARM,
     useIssueStore.getState().searchQuery,
@@ -95,6 +98,14 @@ export function SearchBar() {
         onKeyDown={handleKeyDown}
         data-testid="search-input"
       />
+      {/* Keep feedback visible through the local debounce gap; the result
+          surface takes over once the settled query reaches its fetch state. */}
+      <SearchProgressBar active={isDebouncing} />
+      {isDebouncing ? (
+        <span role="status" aria-live="polite" className="sr-only">
+          {common("updatingResults")}
+        </span>
+      ) : null}
       {localValue && (
         <button
           type="button"
