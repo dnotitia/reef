@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useIssueStore } from "../../stores/useIssueStore";
@@ -29,6 +29,21 @@ describe("SearchBar", () => {
     const input = screen.getByTestId("search-input") as HTMLInputElement;
     await user.type(input, "auth");
     expect(input.value).toBe("auth");
+  });
+
+  it("does not let a stale store search overwrite a newer debouncing draft", async () => {
+    const user = userEvent.setup();
+    render(<SearchBar />);
+    const input = screen.getByTestId("search-input") as HTMLInputElement;
+
+    await user.type(input, "Al");
+    act(() => {
+      // This models the previous debounce commit arriving after the user has
+      // already typed the next character while the result consumer is busy.
+      useIssueStore.setState({ searchQuery: "A" });
+    });
+
+    expect(input.value).toBe("Al");
   });
 
   it("updates store after 150ms debounce", async () => {

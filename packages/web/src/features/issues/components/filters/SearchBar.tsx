@@ -7,7 +7,7 @@ import {
 } from "@/lib/useDebouncedQuery";
 import { Search, X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useCallback, useEffect, useRef } from "react";
+import { startTransition, useCallback, useEffect, useRef } from "react";
 import { useIssueStore } from "../../stores/useIssueStore";
 
 export function SearchBar() {
@@ -27,22 +27,39 @@ export function SearchBar() {
     useIssueStore.getState().searchQuery,
   );
   const inputRef = useRef<HTMLInputElement>(null);
+  const localValueRef = useRef(localValue);
+  const debouncedValueRef = useRef(debounced);
+  localValueRef.current = localValue;
+  debouncedValueRef.current = debounced;
 
   // Push the settled value into the store so the list query re-runs on it.
   useEffect(() => {
-    setSearchQuery(debounced);
+    startTransition(() => {
+      setSearchQuery(debounced);
+    });
   }, [debounced, setSearchQuery]);
 
   // Reflect an external store change (a restored/persisted filter, or a clear
   // from elsewhere) back into the input.
   useEffect(() => {
     return useIssueStore.subscribe((state, previousState) => {
+      const searchChanged = state.searchQuery !== previousState.searchQuery;
+      const resetRequested =
+        state.searchQueryResetToken !== previousState.searchQueryResetToken;
+      if (!searchChanged && !resetRequested) return;
+
+      // A result consumer can keep the main thread busy after the debounce
+      // value has been committed. While the user is typing, an older store
+      // write must not restore that value over the live draft. Explicit reset
+      // intents (My View, clear filters, URL adoption, or a vault switch) carry
+      // the monotonic token and always win.
       if (
-        state.searchQuery !== previousState.searchQuery ||
-        state.searchQueryResetToken !== previousState.searchQueryResetToken
+        !resetRequested &&
+        localValueRef.current !== debouncedValueRef.current
       ) {
-        reset(state.searchQuery);
+        return;
       }
+      reset(state.searchQuery);
     });
   }, [reset]);
 

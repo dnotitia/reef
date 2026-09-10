@@ -411,10 +411,11 @@ export function useIssueUrlSync(options?: {
       skipNextWrite.current = true;
       lastUrlQuery.current = normalizeParams(searchParams.toString());
       const urlState = readIssueUrlState(searchParams);
-      useIssueStore.setState({
+      useIssueStore.setState((state) => ({
         ...urlState,
         filterVault: vault || null,
-      });
+        searchQueryResetToken: state.searchQueryResetToken + 1,
+      }));
       initialized.current = true;
       return;
     }
@@ -446,12 +447,13 @@ export function useIssueUrlSync(options?: {
       } else {
         skipNextWrite.current = true;
       }
-      useIssueStore.setState({
+      useIssueStore.setState((state) => ({
         filter: {},
         searchQuery: "",
+        searchQueryResetToken: state.searchQueryResetToken + 1,
         listOptionalColumns: [],
         filterVault: vault,
-      });
+      }));
     } else {
       useIssueStore.setState({ filterVault: vault });
     }
@@ -539,10 +541,11 @@ export function useIssueUrlSync(options?: {
     lastUrlQuery.current = currentQuery;
     skipMirrorAfterUrlAdoption.current = true;
     const urlState = readIssueUrlState(searchParams);
-    useIssueStore.setState({
+    useIssueStore.setState((state) => ({
       ...urlState,
       filterVault: vault || null,
-    });
+      searchQueryResetToken: state.searchQueryResetToken + 1,
+    }));
   }, [pathname, preserveFilterOnNonListRoute, searchParams, vault]);
 
   useEffect(() => {

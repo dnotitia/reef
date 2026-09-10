@@ -2,6 +2,7 @@
 
 import { BoardColumnsSkeleton } from "@/components/BoardColumnsSkeleton";
 import { Button } from "@/components/ui/button";
+import { SearchProgressBar } from "@/components/ui/SearchProgressBar";
 import {
   kanbanToastId,
   notifyReorderFailure,
@@ -91,6 +92,7 @@ import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import {
   type KeyboardEvent,
+  useDeferredValue,
   useEffect,
   useId,
   useMemo,
@@ -182,6 +184,8 @@ export function KanbanBoard({
   const noMatchId = useId();
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const searchTransitionPending = deferredSearchQuery !== searchQuery;
   const scopedFilter = useMemo(() => {
     const scoped = filterForIssueScope(filter, scope);
     return fixedSprintId ? { ...scoped, sprint_id: [fixedSprintId] } : scoped;
@@ -260,10 +264,10 @@ export function KanbanBoard({
   );
   const visibleIssues = useMemo(() => {
     const filtered = filterIssues(allIssues, scopedFilter, {
-      searchActive: searchQuery.trim().length > 0,
+      searchActive: deferredSearchQuery.trim().length > 0,
       staleWindowDays,
     });
-    const searched = searchIssues(filtered, searchQuery);
+    const searched = searchIssues(filtered, deferredSearchQuery);
     const depFiltered = applyDependencyFilter(
       searched,
       scopedFilter.dependencyFilter ?? null,
@@ -281,7 +285,7 @@ export function KanbanBoard({
     graph,
     manualOrder,
     scopedFilter,
-    searchQuery,
+    deferredSearchQuery,
     staleWindowDays,
   ]);
   // The filtered list controls card visibility; the full `allIssues` list
@@ -344,7 +348,12 @@ export function KanbanBoard({
     hasScopeFilters(filter, searchQuery, scope) ||
     Boolean(filter.showArchived || (scope === "active" && filter.showStale));
   const showNoMatch =
-    !isFetching && !isError && visibleIssues.length === 0 && hasActiveFilters;
+    !searchTransitionPending &&
+    !isFetching &&
+    !isError &&
+    visibleIssues.length === 0 &&
+    hasActiveFilters;
+  const resultsUpdating = searchTransitionPending || (isFetching && !isPending);
   const renderedOccurrences = useMemo(
     () =>
       issueGroups.flatMap(({ bucket, issues }) =>
@@ -804,7 +813,7 @@ export function KanbanBoard({
 
   if (
     scope === "backlog" &&
-    !isFetching &&
+    !resultsUpdating &&
     !isError &&
     visibleIssues.length === 0 &&
     !hasActiveFilters
@@ -818,6 +827,17 @@ export function KanbanBoard({
       className="flex min-h-48 min-w-0 flex-1 flex-col"
     >
       <IssueReorderAnnouncement message={reorderAnnouncement} />
+      <div className="pointer-events-none sticky top-0 z-10 h-0 overflow-visible">
+        <SearchProgressBar
+          active={resultsUpdating}
+          className="top-0 bottom-auto"
+        />
+      </div>
+      {resultsUpdating && (
+        <span role="status" aria-live="polite" className="sr-only">
+          {common("updatingResults")}
+        </span>
+      )}
       {isError && (
         <div
           className="mx-6 mt-4 rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text"

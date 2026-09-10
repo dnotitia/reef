@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { SearchProgressBar } from "@/components/ui/SearchProgressBar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
@@ -23,7 +24,7 @@ import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog
 import type { IssueListItem } from "@reef/core";
 import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import { useTranslations } from "next-intl";
-import { useMemo, useRef, useState } from "react";
+import { useDeferredValue, useMemo, useRef, useState } from "react";
 import {
   calendarDayFromDate,
   getPlanningOverlay,
@@ -72,6 +73,8 @@ export function TimelineBody({ vault, scope = "active" }: TimelineBodyProps) {
   useWorkflowStatusGuard(scope === "active");
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const searchTransitionPending = deferredSearchQuery !== searchQuery;
   const scopedFilter = useMemo(
     () => filterForIssueScope(filter, scope),
     [filter, scope],
@@ -86,6 +89,7 @@ export function TimelineBody({ vault, scope = "active" }: TimelineBodyProps) {
   const {
     data: issues,
     isPending,
+    isFetching,
     isError,
     refetch,
   } = useIssueList(vault, query);
@@ -128,10 +132,10 @@ export function TimelineBody({ vault, scope = "active" }: TimelineBodyProps) {
   const graph = relations ?? allIssues;
   const visibleIssues = useMemo(() => {
     const filtered = filterIssues(allIssues, scopedFilter, {
-      searchActive: searchQuery.trim().length > 0,
+      searchActive: deferredSearchQuery.trim().length > 0,
       staleWindowDays,
     });
-    const searched = searchIssues(filtered, searchQuery);
+    const searched = searchIssues(filtered, deferredSearchQuery);
     const depFiltered = applyDependencyFilter(
       searched,
       scopedFilter.dependencyFilter ?? null,
@@ -141,7 +145,7 @@ export function TimelineBody({ vault, scope = "active" }: TimelineBodyProps) {
     // the empty-state check and the rendered rows agree — a result set of just
     // backlog issues reads as an empty timeline, not a blank grid (REEF-109).
     return depFiltered.filter((issue) => WORKFLOW_STATUS_SET.has(issue.status));
-  }, [allIssues, graph, scopedFilter, searchQuery, staleWindowDays]);
+  }, [allIssues, deferredSearchQuery, graph, scopedFilter, staleWindowDays]);
 
   const timelineItems = useMemo(
     () =>
@@ -160,6 +164,7 @@ export function TimelineBody({ vault, scope = "active" }: TimelineBodyProps) {
     [scheduledIds, visibleIssues],
   );
   const activeFilters = hasScopeFilters(filter, searchQuery, scope);
+  const resultsUpdating = searchTransitionPending || (isFetching && !isPending);
   const planningOverlay = useMemo(
     () => getPlanningOverlay(planningQuery.data, range),
     [planningQuery.data, range],
@@ -194,6 +199,17 @@ export function TimelineBody({ vault, scope = "active" }: TimelineBodyProps) {
       </div>
 
       <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+        <div className="pointer-events-none sticky top-0 z-10 h-0 overflow-visible">
+          <SearchProgressBar
+            active={resultsUpdating}
+            className="top-0 bottom-auto"
+          />
+        </div>
+        {resultsUpdating && (
+          <span role="status" aria-live="polite" className="sr-only">
+            {c("updatingResults")}
+          </span>
+        )}
         {isPending ||
         (planningQuery.isPending && visibleIssues.length === 0) ? (
           <div role="status" aria-live="polite" className="h-full">
@@ -237,7 +253,17 @@ export function TimelineBody({ vault, scope = "active" }: TimelineBodyProps) {
                 </Button>
               </div>
             )}
-            {!shouldRenderGrid ? (
+            {resultsUpdating && !shouldRenderGrid ? (
+              <div
+                className="flex h-full items-center justify-center px-6 py-12"
+                role="status"
+                aria-live="polite"
+              >
+                <span className="text-sm text-muted-foreground">
+                  {c("updatingResults")}
+                </span>
+              </div>
+            ) : !shouldRenderGrid ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 px-6 py-12">
                 <p className="text-sm text-muted-foreground">
                   {activeFilters ? t("noMatch") : t("empty")}

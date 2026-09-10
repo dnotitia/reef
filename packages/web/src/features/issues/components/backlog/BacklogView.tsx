@@ -79,7 +79,14 @@ import { CircleDashed } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { toast } from "sonner";
 
 const EMPTY_ISSUES: IssueListItem[] = [];
@@ -149,6 +156,8 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
   const toasts = useTranslations("toasts");
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const searchTransitionPending = deferredSearchQuery !== searchQuery;
   const openIssue = useOpenIssue();
   const searchParams = useSearchParams();
   const reorder = useReorderBacklog();
@@ -242,6 +251,7 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
     isPlaceholderData,
     refetch,
   } = useIssueList(vault, query);
+  const resultsUpdating = searchTransitionPending || (isFetching && !isPending);
   const staleWindowDays = useResolvedAutoHideWindows(vault);
   const { data: relations } = useIssueRelations(vault);
 
@@ -290,10 +300,10 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
 
   const visibleIssues = useMemo(() => {
     const filtered = filterIssues(allIssues, backlogFilter, {
-      searchActive: searchQuery.trim().length > 0,
+      searchActive: deferredSearchQuery.trim().length > 0,
       staleWindowDays,
     });
-    const searched = searchIssues(filtered, searchQuery);
+    const searched = searchIssues(filtered, deferredSearchQuery);
     const depFiltered = applyDependencyFilter(
       searched,
       filter.dependencyFilter ?? null,
@@ -306,7 +316,7 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
     allIssues,
     backlogFilter,
     graph,
-    searchQuery,
+    deferredSearchQuery,
     filter,
     isRankOrder,
     staleWindowDays,
@@ -452,10 +462,15 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
           first-load signal; this appears during refetches (REEF-369). */}
       <div className="pointer-events-none sticky top-0 z-10 h-0 overflow-visible">
         <SearchProgressBar
-          active={isFetching && !isPending}
+          active={resultsUpdating}
           className="top-0 bottom-auto"
         />
       </div>
+      {resultsUpdating && (
+        <span role="status" aria-live="polite" className="sr-only">
+          {c("updatingResults")}
+        </span>
+      )}
       {isPending ? (
         <div
           className="min-h-0 flex-1 overflow-hidden"
@@ -505,7 +520,13 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
           </button>
         </div>
       ) : count === 0 ? (
-        filtersActive ? (
+        resultsUpdating ? (
+          <div role="status" aria-live="polite" className="py-12 text-center">
+            <span className="text-sm text-muted-foreground">
+              {c("updatingResults")}
+            </span>
+          </div>
+        ) : filtersActive ? (
           <BacklogNoMatches />
         ) : (
           <BacklogEmptyState vault={vault} />

@@ -103,6 +103,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 import {
   useCallback,
+  useDeferredValue,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -317,6 +318,8 @@ export function IssueListTable({
 }: IssueListTableProps) {
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const searchTransitionPending = deferredSearchQuery !== searchQuery;
   const scopedFilter = useMemo(() => {
     const scoped = filterForIssueScope(filter, scope);
     return fixedSprintId ? { ...scoped, sprint_id: [fixedSprintId] } : scoped;
@@ -382,10 +385,10 @@ export function IssueListTable({
   );
   const sorted = useMemo(() => {
     const filtered = filterIssues(allIssues, scopedFilter, {
-      searchActive: searchQuery.trim().length > 0,
+      searchActive: deferredSearchQuery.trim().length > 0,
       staleWindowDays,
     });
-    const searched = searchIssues(filtered, searchQuery);
+    const searched = searchIssues(filtered, deferredSearchQuery);
     const depFiltered = applyDependencyFilter(
       searched,
       scopedFilter.dependencyFilter ?? null,
@@ -399,7 +402,7 @@ export function IssueListTable({
     graph,
     manualOrder,
     scopedFilter,
-    searchQuery,
+    deferredSearchQuery,
     staleWindowDays,
   ]);
   const sprintNames = useMemo(
@@ -490,6 +493,9 @@ export function IssueListTable({
   const focusRequest = useIssueKeyboardStore((state) => state.focusRequest);
   const selectAllState = loadedSelectionState(selectedIds, visibleIssueIds);
   const hasActiveFilters = hasScopeFilters(filter, searchQuery, scope);
+  const resultsUpdating =
+    searchTransitionPending ||
+    (isFetching && !isPending && !isFetchingNextPage);
   const canReorder =
     showReorderColumn &&
     !filter.showArchived &&
@@ -815,10 +821,15 @@ export function IssueListTable({
       <IssueReorderAnnouncement message={reorderAnnouncement} />
       <div className="pointer-events-none sticky top-0 z-10 h-0 overflow-visible">
         <SearchProgressBar
-          active={isFetching && !isPending && !isFetchingNextPage}
+          active={resultsUpdating}
           className="top-0 bottom-auto"
         />
       </div>
+      {resultsUpdating && (
+        <span role="status" aria-live="polite" className="sr-only">
+          {common("updatingResults")}
+        </span>
+      )}
       {groupBy !== "none" ? (
         <div className="flex shrink-0 items-center pb-2">
           <p
@@ -977,7 +988,7 @@ export function IssueListTable({
                         planningCatalog={planningCatalog}
                         assignees={assignees}
                         assigneeNames={assigneeNames}
-                        highlightQuery={searchQuery}
+                        highlightQuery={deferredSearchQuery}
                         logicalIds={visibleIssueIds}
                         occurrenceKey={item.occurrenceKey}
                         columns={columns}
