@@ -51,6 +51,28 @@ describe("issueEntityStore", () => {
     expect(issueEntityStore.state).toBe(before);
   });
 
+  it("preserves entity refs for equal projections from another query key", () => {
+    const first = item("REEF-1", { labels: ["search"] });
+    upsertIssues("v1", [first]);
+    const before = issueEntityStore.state;
+
+    upsertIssues("v1", [item("REEF-1", { labels: ["search"] })]);
+
+    expect(issueEntityStore.state).toBe(before);
+    expect(getIssueEntity("v1", "REEF-1")).toBe(first);
+  });
+
+  it("treats omitted and undefined optional fields as the same projection", () => {
+    const first = item("REEF-1");
+    upsertIssues("v1", [first]);
+    const before = issueEntityStore.state;
+
+    upsertIssues("v1", [item("REEF-1", { labels: undefined })]);
+
+    expect(issueEntityStore.state).toBe(before);
+    expect(getIssueEntity("v1", "REEF-1")).toBe(first);
+  });
+
   it("replaces only the changed entity, keeping siblings' refs stable", () => {
     const a = item("REEF-1");
     const b = item("REEF-2");

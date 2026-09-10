@@ -262,6 +262,7 @@ export function KanbanBoard({
     () => computeBlockedIds(allIssues, graph),
     [allIssues, graph],
   );
+  const previousVisibleIssuesRef = useRef<IssueListItem[] | null>(null);
   const visibleIssues = useMemo(() => {
     const filtered = filterIssues(allIssues, scopedFilter, {
       searchActive: deferredSearchQuery.trim().length > 0,
@@ -277,9 +278,21 @@ export function KanbanBoard({
     // selected sort, the board shows reef's issue-wide rank order seeded by
     // backlog reorder or trusted imports (REEF-393); grouping preserves that
     // order inside each workflow column.
-    return manualOrder
+    const nextVisibleIssues = manualOrder
       ? sortIssuesByRankOrder(depFiltered)
       : sortIssues(depFiltered, scopedFilter.sortField, scopedFilter.sortOrder);
+    const previousVisibleIssues = previousVisibleIssuesRef.current;
+    if (
+      previousVisibleIssues &&
+      previousVisibleIssues.length === nextVisibleIssues.length &&
+      previousVisibleIssues.every(
+        (issue, index) => issue === nextVisibleIssues[index],
+      )
+    ) {
+      return previousVisibleIssues;
+    }
+    previousVisibleIssuesRef.current = nextVisibleIssues;
+    return nextVisibleIssues;
   }, [
     allIssues,
     graph,
@@ -902,6 +915,7 @@ export function KanbanBoard({
               assignees={assignees}
               reorderIssueId={reorderIssueId}
               reorderState={reorderState}
+              autoAnimateEnabled={false}
               onIssueClick={openIssue}
               onGroupClick={bucket.epic ? openIssue : undefined}
               dragEnabled={

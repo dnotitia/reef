@@ -214,6 +214,39 @@ test.describe("search debounce cadence (REEF-370)", () => {
     await expect(input).toHaveValue("");
   });
 
+  test("covers completed IME input, Backspace, paste, and clear", async ({
+    page,
+    context,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=board");
+    const input = page.getByTestId("search-input");
+    await expect(input).toBeEditable();
+    await input.fill("한");
+
+    await input.dispatchEvent("compositionstart", { data: "ㅎ" });
+    await input.dispatchEvent("compositionupdate", { data: "한" });
+    await input.dispatchEvent("compositionend", { data: "한" });
+    await input.press("x");
+    await expect(input).toHaveValue("한x");
+
+    await input.press("Backspace");
+    await expect(input).toHaveValue("한");
+
+    await context.grantPermissions(["clipboard-read", "clipboard-write"], {
+      origin: new URL(page.url()).origin,
+    });
+    await page.evaluate(() => navigator.clipboard.writeText("붙여넣기"));
+    await input.focus();
+    await page.keyboard.press(
+      process.platform === "darwin" ? "Meta+V" : "Control+V",
+    );
+    await expect(input).toHaveValue("한붙여넣기");
+
+    await page.getByTestId("search-clear-button").click();
+    await expect(input).toHaveValue("");
+  });
+
   test("keeps the latest result after delayed q responses are released in reverse order", async ({
     page,
   }) => {
