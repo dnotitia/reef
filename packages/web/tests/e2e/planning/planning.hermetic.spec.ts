@@ -397,11 +397,15 @@ test.describe("Hermetic planning workflow", () => {
       Math.max(...headerAlignment) - Math.min(...headerAlignment),
     ).toBeLessThanOrEqual(1);
     const desktopHeaderGeometry = await readPlanningHeaderGeometry(page);
+    expect(
+      desktopHeaderGeometry.header.bottom -
+        desktopHeaderGeometry.newSprint.bottom,
+    ).toBeGreaterThanOrEqual(8);
     expect(desktopHeaderGeometry.newSprint.bottom).toBeLessThanOrEqual(
       desktopHeaderGeometry.header.bottom + 1,
     );
     expect(desktopHeaderGeometry.header.bottom).toBeLessThanOrEqual(
-      desktopHeaderGeometry.rolloverNotice.top + 1,
+      desktopHeaderGeometry.rolloverNotice.top - 8,
     );
     expect(desktopHeaderGeometry.documentWidth).toBeLessThanOrEqual(
       desktopHeaderGeometry.viewportWidth,
@@ -439,6 +443,18 @@ test.describe("Hermetic planning workflow", () => {
     await page.getByRole("button", { name: "List" }).click();
     await expect(page).toHaveURL(`/workspace/reef-e2e/planning?view=list`);
     await expect(page.getByTestId("planning-kind-switcher")).toBeVisible();
+    await expect(page.getByTestId("sprint-rollover-nudge")).toBeVisible();
+    const desktopListHeaderGeometry = await readPlanningHeaderGeometry(page);
+    expect(
+      desktopListHeaderGeometry.header.bottom -
+        desktopListHeaderGeometry.newSprint.bottom,
+    ).toBeGreaterThanOrEqual(8);
+    expect(desktopListHeaderGeometry.header.bottom).toBeLessThanOrEqual(
+      desktopListHeaderGeometry.rolloverNotice.top - 8,
+    );
+    expect(desktopListHeaderGeometry.documentWidth).toBeLessThanOrEqual(
+      desktopListHeaderGeometry.viewportWidth,
+    );
 
     await page.getByRole("button", { name: "Overview" }).click();
     await expect(page).toHaveURL(`/workspace/reef-e2e/planning?view=overview`);
@@ -644,12 +660,57 @@ test.describe("Hermetic planning workflow", () => {
         narrowHeaderGeometry.viewportWidth,
       );
     }
+    expect(
+      narrowHeaderGeometry.header.bottom -
+        narrowHeaderGeometry.newSprint.bottom,
+    ).toBeGreaterThanOrEqual(8);
+    expect(
+      narrowHeaderGeometry.newSprint.top - narrowHeaderGeometry.title.bottom,
+    ).toBeGreaterThanOrEqual(8);
     expect(narrowHeaderGeometry.header.bottom).toBeLessThanOrEqual(
-      narrowHeaderGeometry.rolloverNotice.top + 1,
+      narrowHeaderGeometry.rolloverNotice.top - 8,
     );
     expect(narrowHeaderGeometry.documentWidth).toBeLessThanOrEqual(
       narrowHeaderGeometry.viewportWidth,
     );
+
+    await page.getByRole("button", { name: "List" }).click();
+    await expect(page).toHaveURL(`/workspace/reef-e2e/planning?view=list`);
+    await expect(page.getByTestId("planning-kind-switcher")).toBeVisible();
+    await expect(page.getByTestId("sprint-rollover-nudge")).toBeVisible();
+    const listHeaderGeometry = await readPlanningHeaderGeometry(page);
+    expect(listHeaderGeometry.header.height).toBeGreaterThan(48);
+    for (const target of [
+      listHeaderGeometry.title,
+      listHeaderGeometry.viewSwitcher,
+      listHeaderGeometry.description,
+      listHeaderGeometry.newSprint,
+    ]) {
+      expect(target.top).toBeGreaterThanOrEqual(listHeaderGeometry.header.top);
+      expect(target.bottom).toBeLessThanOrEqual(
+        listHeaderGeometry.header.bottom + 1,
+      );
+      expect(target.left).toBeGreaterThanOrEqual(0);
+      expect(target.right).toBeLessThanOrEqual(
+        listHeaderGeometry.viewportWidth,
+      );
+    }
+    expect(
+      listHeaderGeometry.header.bottom - listHeaderGeometry.newSprint.bottom,
+    ).toBeGreaterThanOrEqual(8);
+    expect(
+      listHeaderGeometry.newSprint.top - listHeaderGeometry.title.bottom,
+    ).toBeGreaterThanOrEqual(8);
+    expect(listHeaderGeometry.header.bottom).toBeLessThanOrEqual(
+      listHeaderGeometry.rolloverNotice.top - 8,
+    );
+    expect(listHeaderGeometry.documentWidth).toBeLessThanOrEqual(
+      listHeaderGeometry.viewportWidth,
+    );
+
+    await page.getByRole("button", { name: "Overview" }).click();
+    await expect(page).toHaveURL(`/workspace/reef-e2e/planning?view=overview`);
+    await expect(page.getByTestId("planning-overview")).toBeVisible();
 
     await page.getByRole("button", { name: "New sprint" }).click();
 
