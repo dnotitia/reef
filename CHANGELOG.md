@@ -55,6 +55,11 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Issue-body Markdown editing now uses the shared AKB editor core and stable
+  document attachments.** Uploaded images are stored as canonical
+  `/api/assets/<uuid>` targets, resolve through authenticated runtime URLs, and
+  retain successful items when a mixed upload batch partially fails; existing
+  non-image issue attachments and comment uploads keep their current behavior.
 - **Loading surfaces keep their product chrome visible.** App navigation, issue
   scopes and views, detail and settings labels, planning tabs and headers, My
   Work metrics, and report filters and card titles remain in place while values
@@ -63,6 +68,12 @@ explicitly in the entries below.
 - **Planning view state is URL-owned.** The new Overview/List switch restores
   across reload and history navigation, while existing `kind`/`detail` links
   continue to open the corresponding List item.
+
+### Operational
+
+- **The AKB Document Attachment API is now a runtime prerequisite for issue
+  body image uploads.** Deploy the AKB asset upload, metadata, discard, copy,
+  policy, and stable-byte routes before enabling this Reef revision.
 
 ## v0.14.1 - 2026-09-04
 

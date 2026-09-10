@@ -11,7 +11,12 @@ const INLINE_TEXT_BEFORE =
   "Inline image proof: text before the uploaded image.";
 const INLINE_TEXT_AFTER = "Inline image proof: text after the uploaded image.";
 const SPECIAL_IMAGE_FILE_NAME = "reef'\\한글😀.png";
-const SPECIAL_IMAGE_MARKDOWN = `![${SPECIAL_IMAGE_FILE_NAME}](akb://reef-e2e/issues/reef-001/attachments/file/file-1)`;
+const UPLOADED_ASSET_TARGET =
+  "/api/assets/00000000-0000-4000-8000-000000001000";
+const SPECIAL_IMAGE_MARKDOWN = `![${SPECIAL_IMAGE_FILE_NAME.replace(
+  /\\/g,
+  "\\\\",
+)}](${UPLOADED_ASSET_TARGET})`;
 
 async function pasteFile(
   page: Page,
@@ -57,11 +62,11 @@ test.describe("Hermetic issue attachments (REEF-349)", () => {
     });
 
     await expect(source).toHaveValue(
-      /!\[reef-inline\.png\]\(akb:\/\/reef-e2e\/issues\/reef-001\/attachments\/file\/file-1\)/,
+      new RegExp(`!\\[reef-inline\\.png\\]\\(${UPLOADED_ASSET_TARGET}\\)`),
     );
     const inlineMarkdown = await source.inputValue();
     const imageMarkdown = inlineMarkdown.match(
-      /!\[reef-inline\.png\]\(akb:\/\/reef-e2e\/issues\/reef-001\/attachments\/file\/file-1\)/,
+      new RegExp(`!\\[reef-inline\\.png\\]\\(${UPLOADED_ASSET_TARGET}\\)`),
     )?.[0];
     if (!imageMarkdown) throw new Error("Missing inline image markdown");
     await source.fill(
@@ -81,7 +86,7 @@ test.describe("Hermetic issue attachments (REEF-349)", () => {
     await expect(bodyProof.getByText(INLINE_TEXT_AFTER)).toBeVisible();
     await expect(inlineImage).toHaveAttribute(
       "src",
-      /\/api\/issues\/REEF-001\/attachments\/file/,
+      new RegExp(`${UPLOADED_ASSET_TARGET}\\?vault=reef-e2e`),
     );
     const imageSrc = await inlineImage.getAttribute("src");
     if (!imageSrc) throw new Error("Inline image is missing a src");
@@ -144,7 +149,7 @@ test.describe("Hermetic issue attachments (REEF-349)", () => {
     await page.locator('[data-testid="markdown-source-toggle"] button').click();
     const source = page.locator('[data-testid="markdown-source-textarea"]');
     await expect(source).toHaveValue(
-      /!\[reef-toolbar\.png\]\(akb:\/\/reef-e2e\/issues\/reef-001\/attachments\/file\/file-1\)/,
+      new RegExp(`!\\[reef-toolbar\\.png\\]\\(${UPLOADED_ASSET_TARGET}\\)`),
     );
     await expect(attachButton).toBeEnabled();
     await page.locator('[data-testid="markdown-editor"]').screenshot({
@@ -212,7 +217,7 @@ test.describe("Hermetic issue attachments (REEF-349)", () => {
       .toBe(true);
     await expect(image).toHaveAttribute(
       "src",
-      /\/api\/issues\/REEF-001\/attachments\/file/,
+      new RegExp(`${UPLOADED_ASSET_TARGET}\\?vault=reef-e2e`),
     );
 
     const imageSrc = await image.getAttribute("src");

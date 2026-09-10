@@ -2,7 +2,7 @@ import type { Editor } from "@tiptap/react";
 import type { KeyboardEvent } from "react";
 import { useCallback, useRef, useState } from "react";
 import { normalizeUrl } from "./links";
-import type { EditorSelectionRange } from "./types";
+import { asMarkdownEditorChain, type EditorSelectionRange } from "./types";
 
 export interface MarkdownEditorLinkState {
   isOpen: boolean;
@@ -62,7 +62,7 @@ export function useMarkdownEditorLinkEditor(
       return;
     }
     const selection = selectionRef.current;
-    const chain = editor.chain().focus();
+    const chain = asMarkdownEditorChain(editor.chain().focus());
     if (selection) chain.setTextSelection(selection);
     chain.extendMarkRange("link");
     if ((!selection || selection.from === selection.to) && !activeLink) {
@@ -82,7 +82,7 @@ export function useMarkdownEditorLinkEditor(
 
   const remove = useCallback(() => {
     if (!editor) return;
-    const chain = editor.chain().focus();
+    const chain = asMarkdownEditorChain(editor.chain().focus());
     if (selectionRef.current) {
       chain.setTextSelection(selectionRef.current);
     }

@@ -1,4 +1,4 @@
-import type { AttachmentMarkdownUploadResult } from "@/features/issues/lib/attachmentMarkdown";
+import type { MarkdownUploadBatchResult } from "@akb/markdown-editor";
 import { restoreRenderedAkbDocumentMarkdownLinks } from "@/lib/akb/markdownDocumentLinks";
 import type { IssueListItem, VaultMember } from "@reef/core";
 import type { Editor } from "@tiptap/react";
@@ -28,7 +28,7 @@ export interface UseMarkdownEditorBodyParams {
   mentionConfig?: MarkdownEditorMentionConfig;
   rootRef: MutableRef<HTMLDivElement | null>;
   readOnly: boolean;
-  onUploadFiles?: (files: File[]) => Promise<AttachmentMarkdownUploadResult[]>;
+  onUploadFiles?: (files: File[]) => Promise<MarkdownUploadBatchResult>;
   resolveImageSrc?: (src: string) => string;
   resolveAttachmentHref?: (href: string) => string;
 }

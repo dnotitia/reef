@@ -14,6 +14,10 @@ import {
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
 import { resolveIssueAttachmentUrl } from "@/features/issues/lib/attachmentUrls";
+import {
+  createIssueMarkdownTargetResolver,
+  uploadIssueMarkdownFiles,
+} from "@/features/issues/lib/markdownEditor.actions";
 import type { ClosedReason, IssueUpdatePatch } from "@reef/core";
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
@@ -157,6 +161,12 @@ function IssueDetailLoaded({
   const handledConflictRef = useRef(conflictCount);
   const issue = data.issue;
   const isArchived = issue.archived_at != null;
+  const markdownAdapters = useMemo(
+    () => ({
+      targetResolver: createIssueMarkdownTargetResolver({ issueId, vault }),
+    }),
+    [issueId, vault],
+  );
   const resolveBodyImageSrc = useMemo(
     () => (url: string) => resolveIssueAttachmentUrl({ issueId, vault, url }),
     [issueId, vault],
@@ -217,17 +227,19 @@ function IssueDetailLoaded({
   }
 
   async function handleBodyUploadFiles(files: File[]) {
-    return Promise.all(
-      files.map((file) =>
+    return uploadIssueMarkdownFiles({
+      issueId,
+      vault,
+      files,
+      uploadLegacyAttachment: (file) =>
         uploadAttachment.mutateAsync({
           issueId,
           vault,
           file,
           source: "issue_body",
-          inline: file.type.startsWith("image/"),
+          inline: false,
         }),
-      ),
-    );
+    });
   }
 
   function commitTextField<K extends keyof IssueUpdatePatch>(
@@ -394,6 +406,7 @@ function IssueDetailLoaded({
             setDraftField("implementationRefs", value)
           }
           onUploadBodyFiles={handleBodyUploadFiles}
+          markdownAdapters={markdownAdapters}
           resolveBodyImageSrc={resolveBodyImageSrc}
           resolveBodyAttachmentHref={resolveBodyAttachmentHref}
           commitTitle={commitTitle}

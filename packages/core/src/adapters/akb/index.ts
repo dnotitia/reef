@@ -52,6 +52,7 @@ export {
   searchDocuments,
   issueDocumentUri,
   type AkbAdapter,
+  type AkbBinaryResponse,
   type AkbStreamAdapter,
   type AkbRequestPolicy,
   type AkbStreamRequest,
@@ -132,6 +133,19 @@ export {
   type DownloadIssueAttachmentResult,
   type UploadIssueAttachmentParams,
 } from "./issues/attachments";
+export {
+  copyFileToDocumentAsset,
+  discardDocumentAsset,
+  getDocumentAssetMetadata,
+  getDocumentAssetPolicy,
+  readDocumentAsset,
+  uploadDocumentAsset,
+  type DocumentAssetMetadata,
+  type DocumentAssetPolicy,
+  type DocumentAssetUploadResponse,
+  type ReadDocumentAssetParams,
+  type UploadDocumentAssetParams,
+} from "./issues/documentAssets";
 export {
   activityEventKey,
   appendActivityEvents,

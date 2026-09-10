@@ -328,6 +328,13 @@ export function publicState(state) {
         tags: doc.tags,
         current_commit: doc.current_commit,
       })),
+      assets: [...(vault.assets ?? new Map()).values()].map((asset) => ({
+        id: asset.id,
+        name: asset.name,
+        mime_type: asset.mimeType,
+        size_bytes: asset.sizeBytes,
+        claimed: asset.claimed,
+      })),
     })),
   };
 }

@@ -514,6 +514,7 @@ function configuredVault(name) {
     subscriptions: [],
     attachments: [],
     files: new Map(),
+    assets: new Map(),
     comments: [
       {
         id: uuidFor(40),
@@ -1389,6 +1390,7 @@ export function rawVault(name) {
     subscriptions: [],
     attachments: [],
     files: new Map(),
+    assets: new Map(),
   };
 }
 

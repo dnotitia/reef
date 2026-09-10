@@ -15,6 +15,7 @@ catalog:
 pmOnFail: download
 
 allowBuilds:
+  '@akb/markdown-editor@https://codeload.github.com/dnotitia/akb/tar.gz/e86537fc0681d75d9b9251c5774adbf9b8b974cf#path:/packages/markdown-editor': true
   "@biomejs/biome": true
   "@parcel/watcher": true
   "@swc/core": true
@@ -26,7 +27,7 @@ allowBuilds:
 
 overrides:
   "@babel/core": "7.29.7"
-  "@tiptap/core": "3.29.2"
+  "@tiptap/core": "3.31.3"
   "prosemirror-model": "1.25.11"
   "prosemirror-view": "1.42.2"
   "@grpc/grpc-js": "1.14.4"

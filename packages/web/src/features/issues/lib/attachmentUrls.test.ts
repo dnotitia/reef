@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   attachmentFileTypeLabel,
+  isDocumentAssetTarget,
   isAkbFileUri,
+  issueDocumentAssetHref,
   issueAttachmentFileHref,
   resolveIssueAttachmentUrl,
 } from "./attachmentUrls";
@@ -11,6 +13,17 @@ describe("attachmentUrls (REEF-349)", () => {
     expect(isAkbFileUri("akb://reef-test/issues/file/file-1")).toBe(true);
     expect(isAkbFileUri("akb://reef-test/issues/doc/file-1")).toBe(false);
     expect(isAkbFileUri("https://example.com/file/file-1")).toBe(false);
+  });
+
+  it("recognizes stable document attachment targets", () => {
+    const target = "/api/assets/00000000-0000-4000-8000-000000000001";
+    expect(isDocumentAssetTarget(target)).toBe(true);
+    expect(isDocumentAssetTarget(`${target}/extra`)).toBe(false);
+    expect(
+      issueDocumentAssetHref({ vault: "reef test", assetTarget: target }),
+    ).toBe(
+      "/api/assets/00000000-0000-4000-8000-000000000001?vault=reef%20test",
+    );
   });
 
   it("derives a bounded display type from the Markdown filename label", () => {
@@ -61,5 +74,14 @@ describe("attachmentUrls (REEF-349)", () => {
         url: "https://example.com/image.png",
       }),
     ).toBe("https://example.com/image.png");
+    expect(
+      resolveIssueAttachmentUrl({
+        issueId: "REEF-001",
+        vault: "reef test",
+        url: "/api/assets/00000000-0000-4000-8000-000000000001",
+      }),
+    ).toBe(
+      "/api/assets/00000000-0000-4000-8000-000000000001?vault=reef%20test",
+    );
   });
 });

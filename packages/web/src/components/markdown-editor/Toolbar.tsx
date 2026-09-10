@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import type { ChangeEventHandler, RefObject } from "react";
 import { Button } from "@/components/ui/button";
-import type { ActiveMarks } from "./types";
+import { asMarkdownEditorChain, type ActiveMarks } from "./types";
 
 interface ToolbarButtonProps {
   icon: LucideIcon;
@@ -133,28 +133,40 @@ export function MarkdownEditorToolbar({
             label={labels.bold}
             isActive={active.bold}
             disabled={sourceMode}
-            onClick={() => editor?.chain().focus().toggleBold().run()}
+            onClick={() =>
+              editor &&
+              asMarkdownEditorChain(editor.chain().focus()).toggleBold().run()
+            }
           />
           <ToolbarButton
             icon={Italic}
             label={labels.italic}
             isActive={active.italic}
             disabled={sourceMode}
-            onClick={() => editor?.chain().focus().toggleItalic().run()}
+            onClick={() =>
+              editor &&
+              asMarkdownEditorChain(editor.chain().focus()).toggleItalic().run()
+            }
           />
           <ToolbarButton
             icon={Strikethrough}
             label={labels.strikethrough}
             isActive={active.strike}
             disabled={sourceMode}
-            onClick={() => editor?.chain().focus().toggleStrike().run()}
+            onClick={() =>
+              editor &&
+              asMarkdownEditorChain(editor.chain().focus()).toggleStrike().run()
+            }
           />
           <ToolbarButton
             icon={Code}
             label={labels.inlineCode}
             isActive={active.code}
             disabled={sourceMode}
-            onClick={() => editor?.chain().focus().toggleCode().run()}
+            onClick={() =>
+              editor &&
+              asMarkdownEditorChain(editor.chain().focus()).toggleCode().run()
+            }
           />
         </div>
 
@@ -167,7 +179,10 @@ export function MarkdownEditorToolbar({
             isActive={active.h1}
             disabled={sourceMode}
             onClick={() =>
-              editor?.chain().focus().toggleHeading({ level: 1 }).run()
+              editor &&
+              asMarkdownEditorChain(editor.chain().focus())
+                .toggleHeading({ level: 1 })
+                .run()
             }
           />
           <ToolbarButton
@@ -176,7 +191,10 @@ export function MarkdownEditorToolbar({
             isActive={active.h2}
             disabled={sourceMode}
             onClick={() =>
-              editor?.chain().focus().toggleHeading({ level: 2 }).run()
+              editor &&
+              asMarkdownEditorChain(editor.chain().focus())
+                .toggleHeading({ level: 2 })
+                .run()
             }
           />
           <ToolbarButton
@@ -185,7 +203,10 @@ export function MarkdownEditorToolbar({
             isActive={active.h3}
             disabled={sourceMode}
             onClick={() =>
-              editor?.chain().focus().toggleHeading({ level: 3 }).run()
+              editor &&
+              asMarkdownEditorChain(editor.chain().focus())
+                .toggleHeading({ level: 3 })
+                .run()
             }
           />
         </div>
@@ -198,14 +219,24 @@ export function MarkdownEditorToolbar({
             label={labels.bulletList}
             isActive={active.bulletList}
             disabled={sourceMode}
-            onClick={() => editor?.chain().focus().toggleBulletList().run()}
+            onClick={() =>
+              editor &&
+              asMarkdownEditorChain(editor.chain().focus())
+                .toggleBulletList()
+                .run()
+            }
           />
           <ToolbarButton
             icon={ListOrdered}
             label={labels.numberedList}
             isActive={active.orderedList}
             disabled={sourceMode}
-            onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+            onClick={() =>
+              editor &&
+              asMarkdownEditorChain(editor.chain().focus())
+                .toggleOrderedList()
+                .run()
+            }
           />
         </div>
 
@@ -217,20 +248,35 @@ export function MarkdownEditorToolbar({
             label={labels.quote}
             isActive={active.blockquote}
             disabled={sourceMode}
-            onClick={() => editor?.chain().focus().toggleBlockquote().run()}
+            onClick={() =>
+              editor &&
+              asMarkdownEditorChain(editor.chain().focus())
+                .toggleBlockquote()
+                .run()
+            }
           />
           <ToolbarButton
             icon={SquareCode}
             label={labels.codeBlock}
             isActive={active.codeBlock}
             disabled={sourceMode}
-            onClick={() => editor?.chain().focus().toggleCodeBlock().run()}
+            onClick={() =>
+              editor &&
+              asMarkdownEditorChain(editor.chain().focus())
+                .toggleCodeBlock()
+                .run()
+            }
           />
           <ToolbarButton
             icon={Minus}
             label={labels.divider}
             disabled={sourceMode}
-            onClick={() => editor?.chain().focus().setHorizontalRule().run()}
+            onClick={() =>
+              editor &&
+              asMarkdownEditorChain(editor.chain().focus())
+                .setHorizontalRule()
+                .run()
+            }
           />
         </div>
 
