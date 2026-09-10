@@ -220,7 +220,11 @@ test.describe("search debounce cadence (REEF-370)", () => {
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/issues?view=board&sort=priority");
     const input = page.getByTestId("search-input");
-    const releaseWaiters: Array<() => Promise<void>> = [];
+    const heldResponses: Array<{
+      query: string;
+      release: () => Promise<void>;
+    }> = [];
+    let latestResponseReleased = false;
 
     // This is the documented UI-only timing exception: the real Route Handler
     // and fixture payloads run, while q responses are held and released in reverse
@@ -229,10 +233,26 @@ test.describe("search debounce cadence (REEF-370)", () => {
       (url) => url.pathname === "/api/issues" && url.searchParams.has("q"),
       async (route) => {
         const response = await route.fetch();
+        const query = new URL(route.request().url()).searchParams.get("q");
+
+        if (query === "Alpha") {
+          await route.fulfill({ response });
+          latestResponseReleased = true;
+          return;
+        }
+
+        if (query !== "A" && query !== "Al") {
+          await route.fulfill({ response });
+          return;
+        }
+
         await new Promise<void>((resolve) => {
-          releaseWaiters.push(async () => {
-            await route.fulfill({ response });
-            resolve();
+          heldResponses.push({
+            query: query ?? "",
+            release: async () => {
+              await route.fulfill({ response });
+              resolve();
+            },
           });
         });
       },
@@ -245,11 +265,19 @@ test.describe("search debounce cadence (REEF-370)", () => {
     await input.fill("Alpha");
     await page.waitForTimeout(220);
     await expect
-      .poll(() => releaseWaiters.length, { timeout: 10_000 })
-      .toBeGreaterThan(1);
+      .poll(() => latestResponseReleased, { timeout: 10_000 })
+      .toBe(true);
+    await expect.poll(() => heldResponses.length, { timeout: 10_000 }).toBe(2);
 
-    for (const release of releaseWaiters.splice(0).reverse()) {
-      await release();
+    await expect(page).toHaveURL(/q=Alpha/);
+    await expect(
+      page.getByRole("button", { name: /Initial issue Alpha/ }).first(),
+    ).toBeVisible();
+
+    for (const query of ["Al", "A"]) {
+      const response = heldResponses.find((item) => item.query === query);
+      if (!response) throw new Error(`missing held response for ${query}`);
+      await response.release();
     }
     await expect(input).toHaveValue("Alpha");
     await expect(page).toHaveURL(/q=Alpha/);
