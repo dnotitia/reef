@@ -15,6 +15,10 @@ import {
   useIssueFlash,
   useIssueReorderFlash,
 } from "@/features/issues/stores/useFlashStore";
+import {
+  areIssueListItemsEqual,
+  useIssueEntity,
+} from "@/features/issues/stores/issueEntityStore";
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
 import {
   IssueReorderStatus,
@@ -600,13 +604,61 @@ function KanbanCardWithUpdateState(props: KanbanCardProps) {
   );
 }
 
-export const KanbanCard = memo(function KanbanCard(props: KanbanCardProps) {
-  return props.vault ? (
-    <KanbanCardWithUpdateState {...props} />
-  ) : (
-    <KanbanCardContent {...props} />
+function sameArray<T>(
+  left: readonly T[] | undefined,
+  right: readonly T[] | undefined,
+) {
+  if (left === right) return true;
+  if (!left || !right || left.length !== right.length) return false;
+  return left.every((value, index) => Object.is(value, right[index]));
+}
+
+function sameBucket(
+  left: IssueGroupBucket | undefined,
+  right: IssueGroupBucket | undefined,
+): boolean {
+  if (left === right) return true;
+  return (
+    left?.id === right?.id &&
+    left?.groupBy === right?.groupBy &&
+    left?.value === right?.value &&
+    left?.patchField === right?.patchField &&
+    left?.patchValue === right?.patchValue
   );
-});
+}
+
+function areKanbanCardPropsEqual(
+  left: KanbanCardProps,
+  right: KanbanCardProps,
+): boolean {
+  return (
+    areIssueListItemsEqual(left.issue, right.issue) &&
+    left.vault === right.vault &&
+    left.blocked === right.blocked &&
+    left.planningCatalog === right.planningCatalog &&
+    left.assignees === right.assignees &&
+    left.onClick === right.onClick &&
+    left.occurrenceKey === right.occurrenceKey &&
+    left.dragEnabled === right.dragEnabled &&
+    left.dragRestrictionReason === right.dragRestrictionReason &&
+    sameBucket(left.bucket, right.bucket) &&
+    sameArray(left.pendingFields, right.pendingFields) &&
+    left.updateMessage === right.updateMessage &&
+    left.reorderState === right.reorderState
+  );
+}
+
+export const KanbanCard = memo(function KanbanCard(props: KanbanCardProps) {
+  const normalizedIssue = useIssueEntity(props.vault ?? "", props.issue.id);
+  const resolvedProps = normalizedIssue
+    ? { ...props, issue: normalizedIssue }
+    : props;
+  return resolvedProps.vault ? (
+    <KanbanCardWithUpdateState {...resolvedProps} />
+  ) : (
+    <KanbanCardContent {...resolvedProps} />
+  );
+}, areKanbanCardPropsEqual);
 
 export function KanbanCardPreview({
   issue,

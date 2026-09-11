@@ -82,7 +82,13 @@ function waitForIssueListPage(
 
 function waitForSortedIssueListPage(
   page: Page,
-  sortField: "title" | "start_date" | "due_date" | "reef_id",
+  sortField:
+    | "created_at"
+    | "updated_at"
+    | "title"
+    | "start_date"
+    | "due_date"
+    | "reef_id",
   order: "asc" | "desc",
   hasCursor: boolean,
 ): Promise<Response> {
@@ -133,7 +139,7 @@ async function readIssueListPage(response: Response) {
 
 async function readDateIssueListPage(
   response: Response,
-  field: "start_date" | "due_date",
+  field: "created_at" | "updated_at" | "start_date" | "due_date",
 ): Promise<Array<{ id: string; date: string | null }>> {
   const body = (await response.json()) as {
     issues?: Array<Record<string, unknown>>;
@@ -146,6 +152,29 @@ async function readDateIssueListPage(
     }
     return [{ id, date: date ?? null }];
   });
+}
+
+async function readDateIssueListEnvelope(
+  response: Response,
+  field: "created_at" | "updated_at",
+): Promise<{
+  rows: Array<{ id: string; date: string | null }>;
+  nextCursor: string | null;
+}> {
+  const body = (await response.json()) as {
+    issues?: Array<Record<string, unknown>>;
+    next_cursor?: unknown;
+  };
+  const rows = (body.issues ?? []).flatMap((issue) => {
+    const id = issue.id;
+    const date = issue[field];
+    if (typeof id !== "string" || typeof date !== "string") return [];
+    return [{ id, date }];
+  });
+  return {
+    rows,
+    nextCursor: typeof body.next_cursor === "string" ? body.next_cursor : null,
+  };
 }
 
 function assertDatePageOrder(
@@ -166,7 +195,9 @@ function assertDatePageOrder(
     const dateOrder = previous.date.localeCompare(current.date);
     const directedDateOrder = order === "asc" ? dateOrder : -dateOrder;
     if (directedDateOrder === 0) {
-      expect(previous.id.localeCompare(current.id)).toBeGreaterThanOrEqual(0);
+      expect(readTicketNumber(previous.id)).toBeGreaterThanOrEqual(
+        readTicketNumber(current.id),
+      );
     } else {
       expect(directedDateOrder).toBeLessThanOrEqual(0);
     }
@@ -619,6 +650,58 @@ test.describe("large issue list virtualization", () => {
         ),
       ).toBe(true);
       await titlePage.close();
+    }
+  });
+
+  test("loads every created/updated timestamp page in both directions", async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(120_000);
+    for (const field of ["created_at", "updated_at"] as const) {
+      for (const order of ["asc", "desc"] as const) {
+        await resetFixture(request, "large_vault");
+        const initialResponse = waitForSortedIssueListPage(
+          page,
+          field,
+          order,
+          false,
+        );
+        await openLargeList(page, `sort=${field}&order=${order}`);
+
+        const initial = await readDateIssueListEnvelope(
+          await initialResponse,
+          field,
+        );
+        const allRows = [...initial.rows];
+        let nextCursor = initial.nextCursor;
+        let pageCount = 1;
+
+        while (nextCursor !== null) {
+          expect(pageCount).toBeLessThan(20);
+          const cursorResponse = waitForSortedIssueListPage(
+            page,
+            field,
+            order,
+            true,
+          );
+          await scrollToListEnd(page);
+          const nextPage = await readDateIssueListEnvelope(
+            await cursorResponse,
+            field,
+          );
+          expect(nextPage.rows.length).toBeGreaterThan(0);
+          allRows.push(...nextPage.rows);
+          nextCursor = nextPage.nextCursor;
+          pageCount += 1;
+        }
+
+        expect(initial.rows).toHaveLength(100);
+        expect(allRows).toHaveLength(1_205);
+        expect(new Set(allRows.map((row) => row.id)).size).toBe(allRows.length);
+        expect(nextCursor).toBeNull();
+        assertDatePageOrder(allRows, order);
+      }
     }
   });
 

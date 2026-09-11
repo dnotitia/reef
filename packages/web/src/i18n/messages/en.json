@@ -45,6 +45,7 @@
     "clearFilters": "Clear filters",
     "clearFacetFilters": "Clear facet filters",
     "loading": "Loading…",
+    "updatingResults": "Updating results…",
     "addLabelPlaceholder": "Add a label and press Enter…"
   },
   "commands": {

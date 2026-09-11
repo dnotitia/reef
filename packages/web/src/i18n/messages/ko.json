@@ -45,6 +45,7 @@
     "clearFilters": "필터 지우기",
     "clearFacetFilters": "세부 필터 지우기",
     "loading": "불러오는 중…",
+    "updatingResults": "결과를 업데이트하는 중…",
     "addLabelPlaceholder": "라벨을 입력하고 Enter를 누르세요…"
   },
   "commands": {

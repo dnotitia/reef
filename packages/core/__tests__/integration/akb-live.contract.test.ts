@@ -517,7 +517,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
     expect(result.issue.id).toBe(SEED_ISSUE_ID);
   });
 
-  it("issue date ranges — live timestamp parameters require an SQL cast", async () => {
+  it("issue date ranges and timestamp cursors — live timestamp parameters require an SQL cast", async () => {
     await new Promise<void>((resolve) => setTimeout(resolve, 10));
     const secondIssue = buildIssueMetadataFromCreateInput({
       id: "REEF-002",
@@ -610,6 +610,77 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
         }),
       });
       expect(empty.issues).toEqual([]);
+    }
+
+    for (const { field, order } of [
+      { field: "created_at" as const, order: "asc" as const },
+      { field: "created_at" as const, order: "desc" as const },
+      { field: "updated_at" as const, order: "asc" as const },
+      { field: "updated_at" as const, order: "desc" as const },
+    ]) {
+      const ordered = [...timestampRows.items].toSorted((left, right) => {
+        const leftValue = requiredString(left, field, `cursor ${field}`);
+        const rightValue = requiredString(right, field, `cursor ${field}`);
+        const direction = order === "asc" ? 1 : -1;
+        return (
+          (Date.parse(leftValue) - Date.parse(rightValue)) * direction ||
+          leftValue.localeCompare(rightValue) * direction
+        );
+      });
+      const first = ordered[0];
+      const second = ordered[1];
+      expect(first).toBeDefined();
+      expect(second).toBeDefined();
+      if (!first || !second) return;
+
+      const firstValue = requiredString(first, field, `cursor ${field}`);
+      const secondValue = requiredString(second, field, `cursor ${field}`);
+      const from = new Date(
+        Math.min(Date.parse(firstValue), Date.parse(secondValue)) - 1,
+      ).toISOString();
+      const to = new Date(
+        Math.max(Date.parse(firstValue), Date.parse(secondValue)) + 1,
+      ).toISOString();
+      const query = (cursor?: string) =>
+        IssueListQuerySchema.parse({
+          archived: true,
+          status: ["backlog"],
+          date_range: { field, from, to },
+          sort_field: field,
+          sort_order: order,
+          limit: 1,
+          ...(cursor === undefined ? {} : { cursor }),
+        });
+
+      const firstPage = await listIssues({
+        adapter,
+        vault,
+        query: query(),
+      });
+      expect(firstPage.issues.map(({ id }) => id)).toEqual([first.reef_id]);
+      expect(firstPage.next_cursor).toEqual(expect.any(String));
+
+      const rawError = await adapter
+        .request(sqlPath, {
+          method: "POST",
+          body: {
+            sql: `SELECT reef_id FROM reef_issues WHERE "${field}" ${order === "asc" ? ">" : "<"} $1`,
+            params: [firstValue],
+          },
+          resource: `raw ${field} cursor`,
+        })
+        .catch((error: unknown) => error);
+      expect(rawError).toBeInstanceOf(AkbApiError);
+      expect(rawError).toMatchObject({ status: 400 });
+
+      const secondPage = await listIssues({
+        adapter,
+        vault,
+        query: query(firstPage.next_cursor ?? undefined),
+      });
+      expect(secondPage.issues.map(({ id }) => id)).toEqual([second.reef_id]);
+      expect(secondPage.next_cursor).toBeNull();
+      expect(secondValue).not.toBe(firstValue);
     }
   });
 

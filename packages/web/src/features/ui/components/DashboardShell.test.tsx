@@ -504,7 +504,9 @@ describe("DashboardShell", () => {
       screen.getByRole("button", { name: "Keyboard shortcuts" }),
     );
 
-    expect(screen.getByTestId("keyboard-shortcuts-dialog")).toBeVisible();
+    expect(
+      await screen.findByTestId("keyboard-shortcuts-dialog"),
+    ).toBeVisible();
   });
 
   it("routes Ctrl+K through the shell's single shortcut dispatcher", async () => {

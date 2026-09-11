@@ -36,10 +36,17 @@ explicitly in the entries below.
 - **Workspace resource permission denials keep their 403 boundary.**
   A real AKB 403 now explains that access is insufficient without converting
   it to a sign-in failure or clearing the active session.
+- **Issue search and filter input now converges without dropping characters.**
+  Live drafts survive stale debounce echoes, URL restoration, and explicit view
+  resets; heavy Board, List, Backlog, and Timeline result updates remain visibly
+  and accessibly marked while the prior result is retained.
 - **Issue date-range filters no longer fail at the AKB timestamp boundary.**
   Created and updated date ranges now cast their positional bounds in SQL while
   preserving date-only comparisons and half-open boundaries across List, Board,
   Backlog, and Timeline. (REEF-619)
+- **Issue lists continue past the first page when sorted by created or updated
+  date.** Timestamp cursor values are interpreted at the AKB boundary without
+  losing their original precision or changing the existing tie-break order.
 - **Planning header controls align with the title and workspace description.**
 - **Markdown editor focus chrome remains continuous across internal dividers.**
   Toolbar and editor-body separators no longer paint over the inset focus ring.

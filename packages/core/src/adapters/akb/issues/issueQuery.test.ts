@@ -450,10 +450,32 @@ describe("keyset cursor", () => {
       id: "REEF-002",
     });
     expect(result.sql).toBe(
-      `(("created_at" < $1) OR ("created_at" = $1 AND ${ISSUE_NUMBER_SORT_EXPR} < $2))`,
+      `(("created_at" < (($1::text)::timestamptz)) OR ("created_at" = (($1::text)::timestamptz) AND ${ISSUE_NUMBER_SORT_EXPR} < $2))`,
     );
     expect(result.params).toEqual(["2026-05-02T00:00:00.000Z", 2]);
   });
+
+  it.each([
+    { field: "created_at" as const, order: "asc" as const },
+    { field: "created_at" as const, order: "desc" as const },
+    { field: "updated_at" as const, order: "asc" as const },
+    { field: "updated_at" as const, order: "desc" as const },
+  ])(
+    "casts the raw timestamp cursor for both lead comparisons ($field $order)",
+    ({ field, order }) => {
+      const timestamp = "2026-06-08T08:18:22.079455+00:00";
+      const result = keyset(field, order, {
+        k: timestamp,
+        id: "TEAM_2-1000",
+      });
+
+      const comparison = order === "asc" ? ">" : "<";
+      expect(result.sql).toBe(
+        `(("${field}" ${comparison} (($1::text)::timestamptz)) OR ("${field}" = (($1::text)::timestamptz) AND ${ISSUE_NUMBER_SORT_EXPR} < $2))`,
+      );
+      expect(result.params).toEqual([timestamp, 1000]);
+    },
+  );
 
   it("uses the priority CASE rank as the keyset lead for a priority sort", () => {
     const result = keyset("priority", "desc", {
@@ -493,6 +515,8 @@ describe("keyset cursor", () => {
       k: "2026-05-02T00:00:00.000Z",
       id: "TEAM_2-1000",
     });
+    expect(result.sql).toContain(`"created_at" < (($1::text)::timestamptz)`);
+    expect(result.sql).toContain(`"created_at" = (($1::text)::timestamptz)`);
     expect(result.sql).toContain(`${ISSUE_NUMBER_SORT_EXPR} < $2`);
     expect(result.sql).not.toContain('"reef_id" <');
     expect(result.params).toEqual(["2026-05-02T00:00:00.000Z", 1000]);

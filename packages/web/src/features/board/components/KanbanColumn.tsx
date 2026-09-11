@@ -16,7 +16,7 @@ import type {
   Status,
 } from "@reef/core";
 import { ExternalLink } from "lucide-react";
-import { memo } from "react";
+import { memo, useLayoutEffect } from "react";
 import { useStatusLabels } from "@/i18n/fieldLabels";
 import { useTranslations } from "next-intl";
 import type { IssueGroupBucket } from "../../issues/lib/grouping";
@@ -43,6 +43,7 @@ export interface KanbanColumnProps {
   dragRestrictionReason?: string;
   reorderIssueId?: string | null;
   reorderState?: IssueReorderSurfaceState | null;
+  autoAnimateEnabled?: boolean;
 }
 
 // Drop hover uses neutral surface + brand ring, not purple, to avoid
@@ -60,6 +61,7 @@ export const KanbanColumn = memo(function KanbanColumn({
   dragRestrictionReason,
   reorderIssueId,
   reorderState,
+  autoAnimateEnabled = true,
 }: KanbanColumnProps) {
   const t = useTranslations("board");
   const statusLabels = useStatusLabels();
@@ -74,15 +76,13 @@ export const KanbanColumn = memo(function KanbanColumn({
     data: { bucket },
     disabled: !canDrag,
   });
-  // Layout transition: when a card joins/leaves this column (status change) or
-  // the filtered/sorted set shifts, auto-animate FLIPs it into place instead
-  // of a hard unmount/remount. The drag gesture itself stays owned by
-  // @dnd-kit; this just animates data-driven membership changes, and honors
-  // prefers-reduced-motion by default.
-  const [cardListRef] = useAutoAnimate<HTMLDivElement>({
+  const [cardListRef, setAutoAnimateEnabled] = useAutoAnimate<HTMLDivElement>({
     duration: DURATION_BASE,
     easing: EASE_SIGNATURE,
   });
+  useLayoutEffect(() => {
+    setAutoAnimateEnabled?.(autoAnimateEnabled);
+  }, [autoAnimateEnabled, setAutoAnimateEnabled]);
   return (
     <div
       ref={setNodeRef}

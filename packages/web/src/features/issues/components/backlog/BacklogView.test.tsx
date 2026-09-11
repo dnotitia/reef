@@ -3,7 +3,7 @@ import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { apiFetch } from "@/lib/apiClient";
 import type { IssueMetadata } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -144,6 +144,55 @@ describe("BacklogView", () => {
       "inline-flex",
     );
     expect(screen.queryByTestId("backlog-order-mode")).toBeNull();
+  });
+
+  it("keeps settled rows while a sorted search query is still a placeholder", async () => {
+    let issueRequests = 0;
+    let releaseNext: ((response: Response) => void) | undefined;
+    const nextResponse = new Promise<Response>((resolve) => {
+      releaseNext = resolve;
+    });
+    mockApiFetch.mockImplementation(async (url) => {
+      const path = String(url);
+      if (path.startsWith("/api/vault-members")) {
+        return new Response(JSON.stringify({ users: [] }), { status: 200 });
+      }
+      if (path.startsWith("/api/issues/relations")) {
+        return new Response(JSON.stringify({ relations: [] }), { status: 200 });
+      }
+      if (path.startsWith("/api/issues?")) {
+        issueRequests += 1;
+        return issueRequests === 1
+          ? new Response(JSON.stringify({ issues }), { status: 200 })
+          : nextResponse;
+      }
+      return new Response(JSON.stringify({ issues }), { status: 200 });
+    });
+    useIssueStore.setState({
+      filter: { sortField: "title", sortOrder: "asc" },
+      searchQuery: "",
+      selectedIssueId: null,
+    });
+    render(wrap(<BacklogView vault="reef-acme" />));
+
+    expect(await screen.findByText("Deferred idea")).toBeInTheDocument();
+    act(() => {
+      useIssueStore.setState({
+        filter: { sortField: "title", sortOrder: "asc" },
+        searchQuery: "zzzz-no-such-issue",
+        selectedIssueId: null,
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Deferred idea")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("backlog-no-matches")).toBeNull();
+
+    releaseNext?.(
+      new Response(JSON.stringify({ issues: [] }), { status: 200 }),
+    );
+    expect(await screen.findByTestId("backlog-no-matches")).toBeInTheDocument();
   });
 
   it("renders Backlog selection and issue links with contextual names", async () => {

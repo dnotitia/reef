@@ -270,6 +270,12 @@ function isDateSortField(
   return sortField === "due_date" || sortField === "start_date";
 }
 
+function isTimestampSortField(
+  sortField: IssueSortField,
+): sortField is "created_at" | "updated_at" {
+  return sortField === "created_at" || sortField === "updated_at";
+}
+
 /** Keep missing dates in one direction-independent tail bucket. */
 function dateNullBucketExpr(sortField: "due_date" | "start_date"): string {
   return `CASE WHEN ${quoteIdent(sortField)} IS NULL THEN 1 ELSE 0 END`;
@@ -447,6 +453,15 @@ export function buildKeysetWhere(
       "cursor issue number",
     );
     return `((${nullBucket} > ${cursorNullBucket}) OR (${nullBucket} = ${cursorNullBucket} AND ((${lead} ${cmp} ${kParam}) OR (${lead} = ${kParam} AND ${ISSUE_NUMBER_SORT_EXPR} < ${issueNumberParam}))))`;
+  }
+  if (isTimestampSortField(sortField)) {
+    const kParam = params.add(cursor.k, "cursor key");
+    const timestampParam = `((${kParam}::text)::timestamptz)`;
+    const issueNumberParam = params.add(
+      parseIssueId(cursor.id).number,
+      "cursor issue number",
+    );
+    return `((${lead} ${cmp} ${timestampParam}) OR (${lead} = ${timestampParam} AND ${ISSUE_NUMBER_SORT_EXPR} < ${issueNumberParam}))`;
   }
   const kParam = NUMERIC_SORT_FIELDS.has(sortField)
     ? params.add(Number(cursor.k), "cursor key")
