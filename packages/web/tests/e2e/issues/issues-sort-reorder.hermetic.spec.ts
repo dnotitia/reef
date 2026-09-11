@@ -8,6 +8,7 @@ import {
 import {
   clearPersistedQueryCacheOnLoad,
   REEF_E2E_VAULT,
+  continueToWorkspace,
   openExistingWorkspace,
   readFixtureState,
   resetFixture,
@@ -566,6 +567,7 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => 
     await resetFixture(request, "demo_board");
     await openExistingWorkspace(page);
     await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await continueToWorkspace(page);
 
     await page.getByTestId("new-issue-trigger").click();
     const dialog = page.getByTestId("new-issue-dialog");

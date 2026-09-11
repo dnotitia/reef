@@ -66,6 +66,21 @@ const planningKinds = [
   { tab: "Releases", singular: "release", row: "June E2E" },
 ] as const;
 
+function planningItemRow(
+  page: Page,
+  planningKind: (typeof planningKinds)[number],
+): Locator {
+  const itemLink =
+    planningKind.singular === "sprint"
+      ? page.getByRole("link", {
+          name: `Open ${planningKind.row} sprint details`,
+        })
+      : page.getByRole("link", {
+          name: `Open ${planningKind.row} in the Planning list`,
+        });
+  return itemLink.locator("xpath=ancestor::tr");
+}
+
 const LONG_OVERVIEW_MILESTONE_NAME =
   "A milestone name long enough to overflow the planning filter option panel";
 const NEW_TAB_MODIFIER: "Control" | "Meta" =
@@ -596,8 +611,8 @@ test.describe("Hermetic planning workflow", () => {
     for (const [index, planningKind] of planningKinds.entries()) {
       if (index > 0) {
         await page.getByRole("button", { name: planningKind.tab }).click();
-        await expect(page.getByText(planningKind.row)).toBeVisible();
       }
+      await expect(planningItemRow(page, planningKind)).toBeVisible();
 
       await page
         .getByRole("button", { name: `New ${planningKind.singular}` })
@@ -616,9 +631,10 @@ test.describe("Hermetic planning workflow", () => {
 
     for (const planningKind of planningKinds) {
       await page.getByRole("button", { name: planningKind.tab }).click();
-      await expect(page.getByText(planningKind.row)).toBeVisible();
+      const row = planningItemRow(page, planningKind);
+      await expect(row).toBeVisible();
 
-      await page
+      await row
         .getByRole("button", { name: `Edit ${planningKind.row}` })
         .click();
       await expectEditorChromeInViewport(page, `Edit ${planningKind.singular}`);
@@ -855,15 +871,25 @@ test.describe("Hermetic planning workflow", () => {
     const loading = page.getByTestId("planning-overview-loading");
     await expect(loading).toBeVisible({ timeout: 10_000 });
     await expect(loading).toHaveAttribute("aria-busy", "true");
-    await expect
-      .poll(() => loading.ariaSnapshot(), { timeout: 10_000 })
-      .toContain("Current sprint");
-    const pendingAccessibilitySnapshot = await loading.ariaSnapshot();
-    for (const header of [
+    const pendingHeaders = [
       "Current sprint",
       "Upcoming milestones",
       "Upcoming releases",
-    ]) {
+    ];
+    let pendingAccessibilitySnapshot = "";
+    await expect
+      .poll(
+        async () => {
+          const snapshot = await loading.ariaSnapshot();
+          if (pendingHeaders.every((header) => snapshot.includes(header))) {
+            pendingAccessibilitySnapshot = snapshot;
+          }
+          return pendingAccessibilitySnapshot;
+        },
+        { timeout: 10_000 },
+      )
+      .not.toBe("");
+    for (const header of pendingHeaders) {
       expect(
         pendingAccessibilitySnapshot,
         `pending Planning Overview accessibility tree should include ${header}`,
