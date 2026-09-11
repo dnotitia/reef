@@ -13,9 +13,8 @@ on:
   # Intentionally NOT `push: branches: [main]`. The merge queue is the only path
   # to main, so the commit it fast-forwards onto main is byte-identical to the
   # `merge_group` ref CI just validated — a push run here would re-test that exact
-  # commit a third time for no new signal. (Live-drift detection on main is a
-  # separate concern owned by live-akb-contract.yml, which keeps its own push
-  # trigger.) If direct pushes to main are ever allowed again, restore this.
+  # commit a third time for no new signal. If direct pushes to main are ever
+  # allowed again, restore this.
 
 # Least-privilege default: jobs read the repo, and the reuse decision reads the
 # immutable evidence artifacts published by earlier CI runs.

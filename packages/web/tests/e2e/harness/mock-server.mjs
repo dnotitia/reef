@@ -10,6 +10,8 @@ import {
   IMAGE_UPLOAD_FIXTURE_FILE_NAME,
   IMAGE_UPLOAD_FIXTURE_PATH,
   MARKDOWN_MEDIA_ASSETS,
+  NOTIFICATION_DATA_MODES,
+  NOTIFICATION_SCHEMA_MODES,
   REEF_VAULT,
 } from "./mock-fixtures.mjs";
 import { handleAkb, getVault } from "./mock-akb.mjs";
@@ -188,6 +190,33 @@ const server = createServer(async (req, res) => {
         ok: true,
         mode,
         delay_ms: state.contentSearchDelayMs,
+      });
+    }
+    if (
+      url.pathname === "/__e2e/notification-control" &&
+      req.method === "POST"
+    ) {
+      const body = await readJson(req);
+      const schemaMode = NOTIFICATION_SCHEMA_MODES.includes(body?.schema_mode)
+        ? body.schema_mode
+        : "healthy";
+      const dataMode = NOTIFICATION_DATA_MODES.includes(body?.data_mode)
+        ? body.data_mode
+        : "healthy";
+      state.notificationSchemaMode = schemaMode;
+      state.notificationDataMode = dataMode;
+      const vault = state.vaults.get(REEF_VAULT);
+      if (vault) {
+        if (schemaMode === "missing") {
+          vault.tables.delete("reef_notifications");
+        } else {
+          vault.tables.add("reef_notifications");
+        }
+      }
+      return json(res, 200, {
+        ok: true,
+        schema_mode: schemaMode,
+        data_mode: dataMode,
       });
     }
     if (url.pathname === "/__e2e/remove-issue" && req.method === "POST") {

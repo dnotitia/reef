@@ -164,6 +164,9 @@ metadata.
   local debugging. A change to shared fixtures or the vault-skill version can
   break a sibling hermetic spec you never opened, and that only surfaces in the
   sharded CI run otherwise.
+- Reef's automated validation uses the mock AKB harness; Reef scripts and CI do
+  not checkout, provision, or start AKB. Verify a real AKB integration only
+  through an externally prepared endpoint.
 - Release and changelog rules live in `docs/release-policy.md`; storage and AKB
   evolution rules live in `docs/migration-policy.md`; Docker and deployment
   rules live in `docs/deployment.md`. Release-impacting changes update

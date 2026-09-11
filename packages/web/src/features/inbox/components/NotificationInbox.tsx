@@ -9,6 +9,7 @@ import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { PageHeader } from "@/features/ui/components/PageHeader";
+import type { HttpError } from "@/lib/apiClient";
 import { formatAbsoluteTime } from "@/lib/relativeTime";
 import {
   ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE,
@@ -50,6 +51,10 @@ const KNOWN_EVENT_TYPES = [
   "contract_amended",
   "issue_contract_updated",
 ] as const;
+
+function isPermissionDeniedError(error: unknown): error is HttpError {
+  return error instanceof Error && (error as Partial<HttpError>).status === 403;
+}
 
 function notificationEventLabel(
   eventType: string,
@@ -114,8 +119,12 @@ function NotificationItem({
       if (state === "archived") {
         toast.success(t("archiveSuccess", { issue: notification.reef_id }));
       }
-    } catch {
-      onActionError(t("actionError"));
+    } catch (error) {
+      onActionError(
+        isPermissionDeniedError(error)
+          ? t("permissionActionError")
+          : t("actionError"),
+      );
     } finally {
       setBusy(false);
     }
@@ -130,9 +139,13 @@ function NotificationItem({
           notificationKey: notification.notification_key,
           state: "read",
         });
-      } catch {
+      } catch (error) {
         setBusy(false);
-        onActionError(t("actionError"));
+        onActionError(
+          isPermissionDeniedError(error)
+            ? t("permissionActionError")
+            : t("actionError"),
+        );
         return;
       }
       setBusy(false);
@@ -266,7 +279,7 @@ export function NotificationInboxSkeleton() {
 
 function NotificationInboxContent({ vault }: { vault: string }) {
   const t = useTranslations("inbox");
-  const { notifications, isLoading, isError, refetch } =
+  const { notifications, isLoading, isError, isPermissionDenied, refetch } =
     useInboxNotifications(vault);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -297,7 +310,9 @@ function NotificationInboxContent({ vault }: { vault: string }) {
           {t("errorTitle")}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          {t("errorDescription")}
+          {isPermissionDenied
+            ? t("permissionErrorDescription")
+            : t("errorDescription")}
         </p>
         <Button
           type="button"

@@ -29,6 +29,13 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Notification reads no longer reconcile schema state on the request path.**
+  Reader inbox queries and the unread badge now work with an available schema
+  even when its version stamp is old, while genuine data and schema failures
+  remain visible.
+- **Workspace resource permission denials keep their 403 boundary.**
+  A real AKB 403 now explains that access is insufficient without converting
+  it to a sign-in failure or clearing the active session.
 - **Issue search and filter input now converges without dropping characters.**
   Live drafts survive stale debounce echoes, URL restoration, and explicit view
   resets; heavy Board, List, Backlog, and Timeline result updates remain visibly

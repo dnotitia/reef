@@ -90,7 +90,7 @@ export const ERROR_MESSAGES_EN = {
       "An error occurred while communicating with GitHub. Please try again.",
   },
   akb: {
-    auth: "Authentication failed. Please sign in again.",
+    auth: "You do not have permission to perform this workspace action. Ask a workspace administrator for access.",
     membershipRequired:
       "This account does not have access to this workspace. Ask a workspace administrator for membership.",
     accountSuspended:

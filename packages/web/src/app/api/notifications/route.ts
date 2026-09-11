@@ -12,7 +12,6 @@ import { logger } from "@/lib/logging/logger";
 import {
   NotificationListInputSchema,
   NotificationStateSchema,
-  akbEnsureReefTables,
   akbListNotifications,
 } from "@reef/core";
 
@@ -71,10 +70,7 @@ export async function GET(request: Request): Promise<Response> {
         state: stateResult?.success ? stateResult.data : undefined,
         limit,
       },
-      run: async () => {
-        await akbEnsureReefTables({ adapter, vault });
-        return akbListNotifications(adapter, vault, inputResult.data);
-      },
+      run: () => akbListNotifications(adapter, vault, inputResult.data),
     });
     return Response.json({ notifications }, { status: 200 });
   } catch (err) {

@@ -131,13 +131,21 @@ export function createState(scenario) {
     display_name: "Bob Example",
     is_admin: false,
   };
+  const writer = {
+    id: "user-writer",
+    username: "writer",
+    email: "writer@example.com",
+    display_name: "Writer Example",
+    is_admin: false,
+  };
   const token = makeJwt({ sub: alice.id, username: alice.username });
   const state = {
     scenario,
     calls: [],
     users: new Map([
       [alice.username, { ...alice, password: fixtureLogin.password }],
-      [bob.username, bob],
+      [bob.username, { ...bob, password: fixtureLogin.password }],
+      [writer.username, { ...writer, password: fixtureLogin.password }],
     ]),
     sessions: new Map([[token, alice.username]]),
     loginToken: token,
@@ -158,6 +166,18 @@ export function createState(scenario) {
     issueReorderFailures: 0,
     issueReorderDelayMs: 0,
     issueUpdateCalls: new Map(),
+    sqlCalls: [],
+    notificationRoles: new Map(
+      scenario === "notifications"
+        ? [
+            [alice.username, "owner"],
+            [bob.username, "reader"],
+            [writer.username, "writer"],
+          ]
+        : [],
+    ),
+    notificationSchemaMode: "healthy",
+    notificationDataMode: "healthy",
     keycloakEnabled: false,
     localAuthEnabled: true,
     ssoOnly: false,
@@ -238,16 +258,28 @@ export function rememberCall(state, method, path) {
   if (state.calls.length > 400) state.calls.shift();
 }
 
-export function vaultSummary(vault, state) {
+export function rememberSqlCall(state, vault, username, sql) {
+  state.sqlCalls.push({ vault, username, sql });
+  if (state.sqlCalls.length > 400) state.sqlCalls.shift();
+}
+
+export function roleForVault(vault, state, username) {
+  if (state.protectedResponse === "forbidden" && vault.name === REEF_VAULT) {
+    return "reader";
+  }
+  if (state.scenario === "notifications" && vault.name === REEF_VAULT) {
+    return state.notificationRoles.get(username) ?? vault.role;
+  }
+  return vault.role;
+}
+
+export function vaultSummary(vault, state, username) {
   return {
     id: vault.id,
     name: vault.name,
     description: vault.description,
     status: vault.status,
-    role:
-      state.protectedResponse === "forbidden" && vault.name === REEF_VAULT
-        ? "reader"
-        : vault.role,
+    role: roleForVault(vault, state, username),
     created_at: vault.created_at,
   };
 }
@@ -256,6 +288,12 @@ export function publicState(state) {
   return {
     scenario: state.scenario,
     calls: state.calls,
+    sql_calls: state.sqlCalls,
+    notification: {
+      roles: Object.fromEntries(state.notificationRoles),
+      schema_mode: state.notificationSchemaMode,
+      data_mode: state.notificationDataMode,
+    },
     issue_update_calls: Object.fromEntries(state.issueUpdateCalls),
     issue_update_pending: Object.fromEntries(state.issueUpdatePending),
     issue_list_pending: Object.fromEntries(state.issueListPending),

@@ -497,6 +497,15 @@ test.describe("Hermetic runtime discovery", () => {
             failures: "<count>",
           },
         },
+        notification_control: {
+          method: "POST",
+          path: "/__e2e/notification-control",
+          content_type: "application/json",
+          body: {
+            schema_mode: "healthy|missing|incompatible",
+            data_mode: "healthy|forbidden|error",
+          },
+        },
       },
       fixture_login: {
         ...fixtureLogin,
@@ -616,10 +625,18 @@ test.describe("Hermetic runtime discovery", () => {
           scenario: "notifications",
           workspace: "reef-e2e",
           start_path: "/workspace/reef-e2e/inbox",
+          controls: {
+            notification_control: [
+              "old schema_version=2 with healthy notification tables",
+              "schema_mode=healthy|missing|incompatible",
+              "data_mode=healthy|forbidden|error",
+              "Alice owner, writer writer, and Bob reader fixture sessions",
+            ],
+          },
           interaction: {
             type: "notification_inbox",
             operation:
-              "open a comment mention notification, confirm it becomes read, and observe the source comment location in the issue activity timeline",
+              "verify reader listing and unread badge, writer state transitions, recipient/key isolation, reader PATCH 403 with session preservation, and explicit schema/data failures",
           },
         },
         comments: {

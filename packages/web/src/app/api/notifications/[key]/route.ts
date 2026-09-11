@@ -11,7 +11,6 @@ import { runRouteSpan } from "@/lib/api/routeTracing";
 import { logger } from "@/lib/logging/logger";
 import {
   NotificationStateSchema,
-  akbEnsureReefTables,
   akbUpdateNotificationState,
 } from "@reef/core";
 import { z } from "zod";
@@ -66,14 +65,12 @@ export async function PATCH(
     const notification = await runRouteSpan({
       name: "route.update_notification_state",
       attributes: { vault, state },
-      run: async () => {
-        await akbEnsureReefTables({ adapter, vault });
-        return akbUpdateNotificationState(adapter, vault, {
+      run: () =>
+        akbUpdateNotificationState(adapter, vault, {
           notificationKey,
           recipient: actor,
           state,
-        });
-      },
+        }),
     });
     return Response.json({ notification }, { status: 200 });
   } catch (err) {

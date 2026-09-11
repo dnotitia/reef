@@ -61,20 +61,20 @@ import {
 } from "../../src/index";
 
 /**
- * Live AKB contract smoke through the repository-owned isolated runtime.
+ * Live AKB contract smoke through an externally prepared endpoint.
  *
  * The static REEF-050 suite pins reef's hand-mirrored Zod envelopes against
  * CAPTURED akb responses; a capture freezes the wire shape at capture time, so
  * a redeployed akb that renames/adds a key drifts undetected. This suite
- * re-applies the SAME mirrors to LIVE responses from a running akb
- * (docker-compose), through reef's real adapter fetch path, so backend drift
+ * re-applies the SAME mirrors to LIVE responses from an externally started
+ * akb endpoint, through reef's real adapter fetch path, so backend drift
  * fails here at the integration level instead of in production (REEF-049 class).
  *
  * Hermetic by design — OFF unless REEF_LIVE_AKB_URL points at a reachable AKB.
  * The default `pnpm --filter @reef/core test` does NOT include
  * `__tests__/integration/**` (vitest `include` is `src/**`); this file runs only
- * via the dedicated `test:live-akb` script, on a protected-branch-only CI job.
- * So it is never part of the always-green unit signal.
+ * via the dedicated `test:live-akb` script when an external endpoint is
+ * supplied. So it is never part of the always-green unit signal.
  *
  * Surfaces covered (the envelopes Reef's fetch paths actually receive):
  *   document put + get, search, sql (table_query + table_sql), files, resource
@@ -143,7 +143,7 @@ function expectSafeControlPlaneError(
 
 /**
  * Ensure a login-able seed user exists. akb grants admin to the FIRST registered
- * user, so a fresh compose needs this once; on a re-run the duplicate register
+ * user, so a fresh external endpoint needs this once; on a re-run the duplicate register
  * is a 4xx we swallow before logging in. login()'s own errors surface real
  * connectivity/credential problems.
  */
@@ -753,7 +753,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
     const notRunSso = {
       status: "not_run",
       reason:
-        "The repository-owned runtime uses local auth and does not provide a real Keycloak browser session.",
+        "The externally prepared endpoint uses local auth and does not provide a real Keycloak browser session.",
       required_environment:
         "keycloak-overlay specialist runtime with real Keycloak",
       follow_up:
@@ -989,7 +989,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
             reason:
               "The app-control-plane discovery exposes active installations only; it has no blocked app-principal installation coordinate.",
             follow_up:
-              "Use a repository-owned scenario that discovers a blocked app-principal installation, then run this same reader assertion.",
+              "Use an externally prepared scenario that discovers a blocked app-principal installation, then run this same reader assertion.",
             owner: "tracked internally",
             terminal_success_claimed: false,
           },
@@ -1575,7 +1575,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
     if (process.env.REEF_LIVE_AKB_EVIDENCE === "1") {
       const evidence = {
         surface: "@reef/core public notification contract",
-        runtime: "unique throwaway AKB vault",
+        runtime: "externally prepared throwaway AKB endpoint",
         auth: authEvidence ?? { status: "not_run" },
         app_installation: installationEvidence,
         transcript: [
