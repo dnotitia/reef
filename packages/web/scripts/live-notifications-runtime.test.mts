@@ -24,7 +24,7 @@ describe("live notification runtime contract", () => {
           "--akb-checkout",
           "/tmp/akb-source",
         ],
-        {},
+        { NODE_ENV: "test" },
       ),
     ).toEqual({
       mode: "serve",
@@ -33,10 +33,14 @@ describe("live notification runtime contract", () => {
       akbCheckout: "/tmp/akb-source",
     });
     expect(() =>
-      parseOptions(["gate", "--scenario", LIVE_SCENARIO], {}),
+      parseOptions(["gate", "--scenario", LIVE_SCENARIO], {
+        NODE_ENV: "test",
+      }),
     ).toThrow(/usage/u);
     expect(() =>
-      parseOptions(["serve", "--scenario", "notifications"], {}),
+      parseOptions(["serve", "--scenario", "notifications"], {
+        NODE_ENV: "test",
+      }),
     ).toThrow(/notifications-rbac/u);
   });
 

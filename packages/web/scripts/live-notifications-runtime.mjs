@@ -8,4 +8,4 @@ export {
   buildDiscovery,
   buildReadyDescriptor,
   parseOptions,
-} from "../../scripts/ci/live-notifications-runtime.mjs";
+} from "../../../scripts/ci/live-notifications-runtime.mjs";
