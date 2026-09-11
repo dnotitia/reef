@@ -4,6 +4,15 @@ import fixtureLogin from "./fixture-login.json";
 export const E2E_MOCK_URL =
   process.env.REEF_E2E_MOCK_URL ?? "http://127.0.0.1:7354";
 
+export const fixtureReaderLogin = {
+  username: "bob",
+  password: fixtureLogin.password,
+};
+export const fixtureWriterLogin = {
+  username: "writer",
+  password: fixtureLogin.password,
+};
+
 export type FixtureScenario =
   | "empty"
   | "configured"
@@ -46,6 +55,12 @@ export async function resetFixture(
 export async function readFixtureState(request: APIRequestContext): Promise<{
   scenario: string;
   calls: Array<{ method: string; path: string }>;
+  sql_calls: Array<{ vault: string; username: string; sql: string }>;
+  notification: {
+    roles: Record<string, string>;
+    schema_mode: string;
+    data_mode: string;
+  };
   issue_update_calls: Record<string, number>;
   issue_update_pending: Record<string, number>;
   issue_list_pending: Record<string, number>;
@@ -159,6 +174,25 @@ export async function setContentSearchMode(
   const response = await request.post(
     `${E2E_MOCK_URL}/__e2e/content-search-control`,
     { data: { mode, delay_ms: delayMs } },
+  );
+  expect(response.ok()).toBeTruthy();
+}
+
+export async function setNotificationControl(
+  request: APIRequestContext,
+  control: {
+    schemaMode?: "healthy" | "missing" | "incompatible";
+    dataMode?: "healthy" | "forbidden" | "error";
+  },
+): Promise<void> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/notification-control`,
+    {
+      data: {
+        schema_mode: control.schemaMode ?? "healthy",
+        data_mode: control.dataMode ?? "healthy",
+      },
+    },
   );
   expect(response.ok()).toBeTruthy();
 }
@@ -350,15 +384,18 @@ export async function releaseAuthProbe(
   return body.released ?? 0;
 }
 
-export async function signInAsAlice(page: Page): Promise<void> {
+export async function signInAsUser(
+  page: Page,
+  credentials: { username: string; password: string },
+): Promise<void> {
   await page.goto("/login?redirect=%2Fonboarding");
   await waitForPasswordLogin(page);
   await page
     .locator('[data-testid="login-username"]')
-    .fill(fixtureLogin.username);
+    .fill(credentials.username);
   await page
     .locator('[data-testid="login-password"]')
-    .fill(fixtureLogin.password);
+    .fill(credentials.password);
   const loginResponsePromise = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === "/api/auth/akb/login" &&
@@ -380,6 +417,10 @@ export async function signInAsAlice(page: Page): Promise<void> {
     timeout: 10_000,
   });
   await page.goto("/onboarding");
+}
+
+export async function signInAsAlice(page: Page): Promise<void> {
+  await signInAsUser(page, fixtureLogin);
 }
 
 export async function signInAndSelectExistingWorkspace(

@@ -14,12 +14,6 @@ explicitly in the entries below.
 
 ### Added
 
-- **A live notification permission runtime now provisions isolated AKB
-  reader, writer, and owner fixtures.** Its credential-free discovery and
-  reset controls cover real notification schema faults and PostgreSQL role
-  boundaries without sharing runtime state with the Reef checkout; its entry
-  point bootstraps the pinned Node and pnpm versions privately on clean Ubuntu
-  runners.
 - **Timeline planning overlays show sprint bands and milestone/release markers.**
   Read-only planning data shares the existing quarter day grid and catalog cache,
   including clipped sprint ranges, release-date precedence, and same-day marker

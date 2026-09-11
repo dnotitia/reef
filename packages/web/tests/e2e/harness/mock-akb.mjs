@@ -23,11 +23,12 @@ import {
   endIssueUpdateRequest,
   issueUpdateKey,
   nextCommit,
+  rememberSqlCall,
   vaultSummary,
   waitForAuthProbeRelease,
   waitForIssueUpdateRelease,
 } from "./mock-state.mjs";
-import { docUri, slugify, uuidFor } from "./mock-utils.mjs";
+import { docUri, makeJwt, slugify, uuidFor } from "./mock-utils.mjs";
 
 export async function handleAkb(req, res, url, state) {
   const path = url.pathname.slice("/akb".length);
@@ -55,8 +56,13 @@ export async function handleAkb(req, res, url, state) {
     if (!user || user.password !== body?.password) {
       return json(res, 401, { error: "invalid_credentials" });
     }
+    const token =
+      user.username === fixtureLogin.username
+        ? state.loginToken
+        : makeJwt({ sub: user.id, username: user.username });
+    state.sessions.set(token, user.username);
     return json(res, 200, {
-      token: state.loginToken,
+      token,
       user: publicUser(user),
     });
   }
@@ -118,7 +124,7 @@ export async function handleAkb(req, res, url, state) {
     }
     return json(res, 200, {
       vaults: [...state.vaults.values()].map((vault) =>
-        vaultSummary(vault, state),
+        vaultSummary(vault, state, username),
       ),
     });
   }
@@ -436,7 +442,8 @@ export async function handleAkb(req, res, url, state) {
         state.issueReorderFailures -= 1;
         return json(res, 200, { error: "e2e forced issue reorder failure" });
       }
-      const result = handleSql(state, vault, sql);
+      rememberSqlCall(state, vault.name, username, sql);
+      const result = handleSql(state, vault, sql, username);
       if (result.kind === "sql_error") {
         return json(res, result.status, result.body);
       }

@@ -15,6 +15,8 @@ export const NOW = "2026-06-15T00:00:00.000Z";
 const NOW_MS = Date.parse(NOW);
 export const REEF_VAULT = "reef-e2e";
 export const ISSUE_TITLE_COLLATOR = new Intl.Collator("en-US");
+export const NOTIFICATION_SCHEMA_MODES = ["healthy", "missing", "incompatible"];
+export const NOTIFICATION_DATA_MODES = ["healthy", "forbidden", "error"];
 export const TOOL_LOOP_E2E_PROMPT = "tool transparency e2e";
 export const TOOL_LOOP_SEARCH_ISSUES_CALL_ID = "call_e2e_search_issues";
 export const TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID = "call_e2e_search_documents";
@@ -1445,10 +1447,28 @@ function notificationRow({
 
 /**
  * Notification Inbox fixture: exactly 100 unread Alice rows exercises the
- * bounded badge contract, plus one read row for state controls and one Bob row
- * that must never appear in Alice's session-scoped response.
+ * bounded badge contract, plus reader and writer rows for role-scoped API
+ * checks. Each role is a real fixture user; the old schema stamp stays below
+ * the current Reef version so notification reads cannot rely on reconciliation.
  */
 function seedNotifications(vault) {
+  vault.settings.set("schema_version", "2");
+  vault.members.push(
+    {
+      username: "bob",
+      display_name: "Bob Example",
+      email: "bob@example.com",
+      role: "reader",
+      since: NOW,
+    },
+    {
+      username: "writer",
+      display_name: "Writer Example",
+      email: "writer@example.com",
+      role: "writer",
+      since: NOW,
+    },
+  );
   vault.comments.push({
     id: "comment-primary",
     reef_id: "REEF-001",
@@ -1519,6 +1539,17 @@ function seedNotifications(vault) {
       sourceType: "activity",
       sourceRef: "bob-only",
       eventType: "comment_created",
+      actor: "alice",
+      occurredAt: "2026-06-15T00:00:00.000Z",
+      state: "unread",
+    }),
+    notificationRow({
+      id: 7103,
+      recipient: "writer",
+      reefId: "REEF-002",
+      sourceType: "activity",
+      sourceRef: "writer-only",
+      eventType: "status_change",
       actor: "alice",
       occurredAt: "2026-06-15T00:00:00.000Z",
       state: "unread",

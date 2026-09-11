@@ -1,16 +1,59 @@
-import { ISSUE_TITLE_COLLATOR, NOW } from "./mock-fixtures.mjs";
-import { issueUpdateKey, nextEditTimestamp } from "./mock-state.mjs";
+import { ISSUE_TITLE_COLLATOR, NOW, REEF_VAULT } from "./mock-fixtures.mjs";
+import {
+  issueUpdateKey,
+  nextEditTimestamp,
+  roleForVault,
+} from "./mock-state.mjs";
 import { uuidFor } from "./mock-utils.mjs";
 
 let activitySeq = 5000;
 
-export function handleSql(state, vault, sql) {
+export function handleSql(state, vault, sql, username) {
   const normalized = sql;
   const lower = normalized.toLowerCase();
 
   for (const table of tableNamesInSql(lower)) {
     if (!vault.tables.has(table)) {
       return { error: `relation "${table}" does not exist` };
+    }
+  }
+
+  if (
+    state.scenario === "notifications" &&
+    vault.name === REEF_VAULT &&
+    lower.includes("reef_notifications")
+  ) {
+    if (state.notificationSchemaMode === "missing") {
+      return { error: 'relation "reef_notifications" does not exist' };
+    }
+    if (state.notificationSchemaMode === "incompatible") {
+      return { error: 'column "archived_at" does not exist' };
+    }
+    if (state.notificationDataMode === "forbidden") {
+      return {
+        kind: "sql_error",
+        status: 403,
+        body: {
+          error: "permission_denied",
+          detail: 'permission denied for table "reef_notifications"',
+        },
+      };
+    }
+    if (state.notificationDataMode === "error") {
+      return { error: "notification data source unavailable" };
+    }
+    if (
+      lower.startsWith("with updated as (update reef_notifications") &&
+      roleForVault(vault, state, username) === "reader"
+    ) {
+      return {
+        kind: "sql_error",
+        status: 403,
+        body: {
+          error: "permission_denied",
+          detail: 'permission denied for table "reef_notifications"',
+        },
+      };
     }
   }
 

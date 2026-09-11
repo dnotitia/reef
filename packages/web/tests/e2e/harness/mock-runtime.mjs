@@ -3,6 +3,8 @@ import {
   IMAGE_UPLOAD_FIXTURE_CONTENT_TYPE,
   IMAGE_UPLOAD_FIXTURE_FILE_NAME,
   IMAGE_UPLOAD_FIXTURE_PATH,
+  NOTIFICATION_DATA_MODES,
+  NOTIFICATION_SCHEMA_MODES,
   REEF_VAULT,
   SUPPORTED_SCENARIOS,
 } from "./mock-fixtures.mjs";
@@ -64,6 +66,15 @@ export function runtimeDiscovery(state) {
           vault: "<vault>",
           delay_ms: "<milliseconds>",
           failures: "<count>",
+        },
+      },
+      notification_control: {
+        method: "POST",
+        path: "/__e2e/notification-control",
+        content_type: "application/json",
+        body: {
+          schema_mode: NOTIFICATION_SCHEMA_MODES.join("|"),
+          data_mode: NOTIFICATION_DATA_MODES.join("|"),
         },
       },
       auth_control: {
@@ -253,10 +264,18 @@ export function runtimeDiscovery(state) {
         scenario: "notifications",
         workspace: "reef-e2e",
         start_path: "/workspace/reef-e2e/inbox",
+        controls: {
+          notification_control: [
+            "old schema_version=2 with healthy notification tables",
+            "schema_mode=healthy|missing|incompatible",
+            "data_mode=healthy|forbidden|error",
+            "Alice owner, writer writer, and Bob reader fixture sessions",
+          ],
+        },
         interaction: {
           type: "notification_inbox",
           operation:
-            "open a comment mention notification, confirm it becomes read, and observe the source comment location in the issue activity timeline",
+            "verify reader listing and unread badge, writer state transitions, recipient/key isolation, reader PATCH 403 with session preservation, and explicit schema/data failures",
         },
       },
       comments: {
