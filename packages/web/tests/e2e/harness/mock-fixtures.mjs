@@ -1084,6 +1084,10 @@ function largeVault(name) {
     const isSparseMatch = index === 1_123;
     const fixtureDate =
       index < 99 ? `2026-06-${String((index % 3) + 1).padStart(2, "0")}` : null;
+    const createdAt = new Date(Date.UTC(2026, 0, 1 + index)).toISOString();
+    const updatedAt = new Date(
+      Date.UTC(2026, 0, 1 + ((index * 37) % total)),
+    ).toISOString();
     issues.push(
       issueRow({
         id,
@@ -1098,6 +1102,8 @@ function largeVault(name) {
         priority,
         start_date: fixtureDate,
         due_date: fixtureDate,
+        created_at: createdAt,
+        updated_at: updatedAt,
         labels: isSparseMatch ? ["tail-marker"] : ["large-fixture"],
       }),
     );
@@ -1559,7 +1565,7 @@ function issueRow(input) {
     blocks: input.blocks ?? [],
     archived_at: input.archived_at ?? null,
     created_at: input.created_at ?? NOW,
-    updated_at: NOW,
+    updated_at: input.updated_at ?? NOW,
     meta: {
       author: input.author ?? "alice",
       last_editor: input.last_editor ?? "alice",
