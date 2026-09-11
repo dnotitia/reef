@@ -228,6 +228,16 @@ describe("AuthError", () => {
     expect(err.message).toBe(err.toUserMessage());
   });
 
+  it("uses permission copy for an AKB resource 403", () => {
+    const err = new AuthError({
+      origin: "akb",
+      code: "permission_denied",
+      status: 403,
+    });
+    expect(err.toUserMessage().toLowerCase()).toContain("permission");
+    expect(err.toUserMessage().toLowerCase()).not.toContain("sign in");
+  });
+
   it.each([
     ["membership_required", "workspace"],
     ["account_suspended", "suspended"],

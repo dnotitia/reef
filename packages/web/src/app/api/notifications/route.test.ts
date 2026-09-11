@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AuthError } from "@reef/core";
 import { PATCH } from "./[key]/route";
 import { GET } from "./route";
 
@@ -6,7 +7,6 @@ const mocks = vi.hoisted(() => ({
   adapter: { kind: "test-adapter" },
   getAkbAdapter: vi.fn(),
   getAkbCurrentActor: vi.fn(),
-  akbEnsureReefTables: vi.fn(),
   akbListNotifications: vi.fn(),
   akbUpdateNotificationState: vi.fn(),
 }));
@@ -35,7 +35,6 @@ vi.mock("@reef/core", async () => {
     await vi.importActual<typeof import("@reef/core")>("@reef/core");
   return {
     ...actual,
-    akbEnsureReefTables: mocks.akbEnsureReefTables,
     akbListNotifications: mocks.akbListNotifications,
     akbUpdateNotificationState: mocks.akbUpdateNotificationState,
   };
@@ -58,7 +57,6 @@ describe("notification Route Handlers", () => {
     vi.clearAllMocks();
     mocks.getAkbAdapter.mockReturnValue({ adapter: mocks.adapter });
     mocks.getAkbCurrentActor.mockResolvedValue({ actor: "alice" });
-    mocks.akbEnsureReefTables.mockResolvedValue(undefined);
     mocks.akbListNotifications.mockResolvedValue([notification]);
     mocks.akbUpdateNotificationState.mockResolvedValue({
       ...notification,
@@ -123,5 +121,62 @@ describe("notification Route Handlers", () => {
       recipient: "alice",
       state: "read",
     });
+  });
+
+  it("returns a resource permission denial without clearing the session", async () => {
+    mocks.akbListNotifications.mockRejectedValueOnce(
+      new AuthError({
+        origin: "akb",
+        code: "permission_denied",
+        status: 403,
+      }),
+    );
+
+    const response = await GET(
+      new Request(
+        "http://reef.test/api/notifications?vault=reef-acme&state=unread",
+        { headers: { Cookie: "__reef_session=established" } },
+      ),
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({
+      error: expect.stringMatching(/permission|access/i),
+    });
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(response.headers.get("x-reef-auth-invalidated")).toBeNull();
+  });
+
+  it("keeps a denied notification state update at 403 without treating it as success", async () => {
+    mocks.akbUpdateNotificationState.mockRejectedValueOnce(
+      new AuthError({
+        origin: "akb",
+        code: "permission_denied",
+        status: 403,
+      }),
+    );
+
+    const response = await PATCH(
+      new Request("http://reef.test/api/notifications/update", {
+        method: "PATCH",
+        body: JSON.stringify({ vault: "reef-acme", state: "read" }),
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: "__reef_session=established",
+        },
+      }),
+      {
+        params: Promise.resolve({
+          key: encodeURIComponent(notification.notification_key),
+        }),
+      },
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({
+      error: expect.stringMatching(/permission|access/i),
+    });
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(response.headers.get("x-reef-auth-invalidated")).toBeNull();
   });
 });

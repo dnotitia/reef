@@ -14,6 +14,10 @@ explicitly in the entries below.
 
 ### Added
 
+- **A live notification permission runtime now provisions isolated AKB
+  reader, writer, and owner fixtures.** Its credential-free discovery and
+  reset controls cover real notification schema faults and PostgreSQL role
+  boundaries without sharing runtime state with the Reef checkout.
 - **Timeline planning overlays show sprint bands and milestone/release markers.**
   Read-only planning data shares the existing quarter day grid and catalog cache,
   including clipped sprint ranges, release-date precedence, and same-day marker
@@ -29,6 +33,13 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Notification reads no longer reconcile schema state on the request path.**
+  Reader inbox queries and the unread badge now work with an available schema
+  even when its version stamp is old, while genuine data and schema failures
+  remain visible.
+- **Workspace resource permission denials keep their 403 boundary.**
+  A real AKB 403 now explains that access is insufficient without converting
+  it to a sign-in failure or clearing the active session.
 - **Planning header controls align with the title and workspace description.**
 - **Markdown editor focus chrome remains continuous across internal dividers.**
   Toolbar and editor-body separators no longer paint over the inset focus ring.
