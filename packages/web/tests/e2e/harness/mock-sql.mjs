@@ -1272,12 +1272,16 @@ function applyIssueKeysetCursor(rows, sql) {
       compare: (left, right) => left - right,
     },
     {
-      match: sql.match(/"created_at"\s*([<>])\s*'([^']+)'/i),
+      match: sql.match(
+        /\(\s*\(\s*"created_at"\s*([<>])\s*(?:\(\s*)*'((?:''|[^'])+)'/i,
+      ),
       value: (row) => String(row.created_at ?? ""),
       compare: compareStrings,
     },
     {
-      match: sql.match(/"updated_at"\s*([<>])\s*'([^']+)'/i),
+      match: sql.match(
+        /\(\s*\(\s*"updated_at"\s*([<>])\s*(?:\(\s*)*'((?:''|[^'])+)'/i,
+      ),
       value: (row) => String(row.updated_at ?? ""),
       compare: compareStrings,
     },

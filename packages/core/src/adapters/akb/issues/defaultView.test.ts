@@ -207,7 +207,7 @@ describe("listIssues default_view", () => {
     const sql = sqlOf(calls[0]);
     expect(sql).toContain("EXISTS (SELECT 1 FROM reef_issues");
     expect(sql).toContain(SPRINT_SUBQ);
-    expect(sql).toContain(`"created_at" < $6`);
+    expect(sql).toContain(`"created_at" < (($6::text)::timestamptz)`);
     expect(paramsOf(calls[0] ?? { init: undefined })).toEqual([
       "todo",
       "in_progress",

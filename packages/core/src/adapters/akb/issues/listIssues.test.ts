@@ -284,11 +284,183 @@ describe("listIssues pagination", () => {
       query,
     });
     const sql = capturedSql(calls);
-    expect(sql).toContain(`"created_at" < $1`);
+    expect(sql).toContain(`"created_at" < (($1::text)::timestamptz)`);
+    expect(sql).toContain(`"created_at" = (($1::text)::timestamptz)`);
     expect(sql).toContain(
       `CAST(SUBSTRING("reef_id" FROM '[0-9]+$') AS NUMERIC) < $2`,
     );
     expect(capturedParams(calls)).toEqual(["2026-05-02T00:00:00.000Z", 2, 3]);
+  });
+
+  it.each([
+    { field: "created_at" as const, order: "asc" as const },
+    { field: "created_at" as const, order: "desc" as const },
+    { field: "updated_at" as const, order: "asc" as const },
+    { field: "updated_at" as const, order: "desc" as const },
+  ])(
+    "connects timestamp cursor pages without changing the raw cursor value ($field $order)",
+    async ({ field, order }) => {
+      const timestampRows = [
+        makeIssue({
+          id: "TEAM_2-999",
+          created_at: "2026-06-08T08:18:22.079455+00:00",
+          updated_at: "2026-06-08T08:18:22.079455+00:00",
+        }),
+        makeIssue({
+          id: "TEAM_2-1000",
+          created_at: "2026-06-08T08:18:22.079455+00:00",
+          updated_at: "2026-06-08T08:18:22.079455+00:00",
+        }),
+        makeIssue({
+          id: "TEAM_2-1002",
+          created_at: "2026-06-08T08:18:23.000000+00:00",
+          updated_at: "2026-06-08T08:18:23.000000+00:00",
+        }),
+      ];
+      const rows =
+        order === "asc"
+          ? [timestampRows[1], timestampRows[0], timestampRows[2]]
+          : [timestampRows[2], timestampRows[1], timestampRows[0]];
+
+      const firstFetch = setupFetch([{ body: makeIssueQueryResponse(rows) }]);
+      const firstPage = await listIssues({
+        adapter: makeTestAkbAdapter(),
+        vault: "reef-acme",
+        query: IssueListQuerySchema.parse({
+          sort_field: field,
+          sort_order: order,
+          limit: 2,
+        }),
+      });
+
+      expect(firstPage.issues.map(({ id }) => id)).toEqual(
+        rows.slice(0, 2).map(({ id }) => id),
+      );
+      expect(decodeCursor(firstPage.next_cursor ?? "")).toEqual({
+        k: rows[1]?.[field],
+        id: rows[1]?.id,
+      });
+      expect(capturedParams(firstFetch.calls)).toEqual([3]);
+
+      const secondFetch = setupFetch([
+        { body: makeIssueQueryResponse(rows.slice(2)) },
+      ]);
+      const secondPage = await listIssues({
+        adapter: makeTestAkbAdapter(),
+        vault: "reef-acme",
+        query: IssueListQuerySchema.parse({
+          sort_field: field,
+          sort_order: order,
+          limit: 2,
+          cursor: firstPage.next_cursor,
+        }),
+      });
+
+      expect(secondPage.issues.map(({ id }) => id)).toEqual(
+        rows.slice(2).map(({ id }) => id),
+      );
+      expect(secondPage.next_cursor).toBeNull();
+      expect(capturedSql(secondFetch.calls)).toContain(
+        `"${field}" ${order === "asc" ? ">" : "<"} (($1::text)::timestamptz)`,
+      );
+      expect(capturedSql(secondFetch.calls)).toContain(
+        `"${field}" = (($1::text)::timestamptz)`,
+      );
+      expect(capturedParams(secondFetch.calls)).toEqual([
+        rows[1]?.[field],
+        Number(rows[1]?.id.replace(/^.*-/u, "")),
+        3,
+      ]);
+    },
+  );
+
+  it("uses created_at descending when a paginated cursor omits the sort fields", async () => {
+    const rows = [
+      makeIssue({
+        id: "REEF-002",
+        created_at: "2026-06-08T08:18:23.000000+00:00",
+      }),
+      makeIssue({
+        id: "REEF-001",
+        created_at: "2026-06-08T08:18:22.000000+00:00",
+      }),
+    ];
+    const firstFetch = setupFetch([{ body: makeIssueQueryResponse(rows) }]);
+    const firstPage = await listIssues({
+      adapter: makeTestAkbAdapter(),
+      vault: "reef-acme",
+      query: IssueListQuerySchema.parse({ limit: 1 }),
+    });
+    expect(capturedSql(firstFetch.calls)).toContain(
+      'ORDER BY "created_at" DESC',
+    );
+
+    const secondFetch = setupFetch([
+      { body: makeIssueQueryResponse(rows.slice(1)) },
+    ]);
+    const secondPage = await listIssues({
+      adapter: makeTestAkbAdapter(),
+      vault: "reef-acme",
+      query: IssueListQuerySchema.parse({
+        limit: 1,
+        cursor: firstPage.next_cursor,
+      }),
+    });
+
+    expect(secondPage.issues.map(({ id }) => id)).toEqual(["REEF-001"]);
+    expect(capturedSql(secondFetch.calls)).toContain(
+      '"created_at" < (($1::text)::timestamptz)',
+    );
+    expect(capturedParams(secondFetch.calls)).toEqual([
+      rows[0]?.created_at,
+      2,
+      2,
+    ]);
+  });
+
+  it("keeps filter and cursor placeholders ordered across timestamp conditions", async () => {
+    const cursor = encodeCursor(
+      {
+        updated_at: "2026-06-08T08:18:22.079455+00:00",
+        reef_id: "TEAM_2-1000",
+      },
+      "updated_at",
+    );
+    const { calls } = setupFetch([{ body: makeIssueQueryResponse([]) }]);
+    await listIssues({
+      adapter: makeTestAkbAdapter(),
+      vault: "reef-acme",
+      query: IssueListQuerySchema.parse({
+        status: ["todo"],
+        date_range: {
+          field: "created_at",
+          from: "2026-06-01T00:00:00.000Z",
+          to: "2026-06-10T00:00:00.000Z",
+        },
+        sort_field: "updated_at",
+        sort_order: "desc",
+        limit: 2,
+        cursor,
+      }),
+    });
+
+    expect(capturedSql(calls)).toContain(
+      '"status" IN ($1) AND "created_at" >= (($2::text)::timestamptz) AND "created_at" < (($3::text)::timestamptz)',
+    );
+    expect(capturedSql(calls)).toContain(
+      '"updated_at" < (($4::text)::timestamptz)',
+    );
+    expect(capturedSql(calls)).toContain(
+      '"updated_at" = (($4::text)::timestamptz)',
+    );
+    expect(capturedParams(calls)).toEqual([
+      "todo",
+      "2026-06-01T00:00:00.000Z",
+      "2026-06-10T00:00:00.000Z",
+      "2026-06-08T08:18:22.079455+00:00",
+      1000,
+      3,
+    ]);
   });
 
   it("keeps a numeric ticket-number keyset page boundary past 100 rows", async () => {
