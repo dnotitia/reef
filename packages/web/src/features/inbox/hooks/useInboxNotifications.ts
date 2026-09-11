@@ -1,6 +1,6 @@
 "use client";
 
-import { apiFetch, throwHttpError } from "@/lib/apiClient";
+import { apiFetch, throwHttpError, type HttpError } from "@/lib/apiClient";
 import {
   NotificationRowSchema,
   type NotificationState,
@@ -12,6 +12,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 const NOTIFICATIONS_QUERY_KEY = ["notifications"] as const;
 
 const NOTIFICATION_LIST_LIMIT = 100;
+
+function hasHttpStatus(error: unknown, status: number): error is HttpError {
+  return (
+    error instanceof Error &&
+    typeof (error as Partial<HttpError>).status === "number" &&
+    (error as Partial<HttpError>).status === status
+  );
+}
 
 async function fetchNotifications(
   vault: string,
@@ -61,6 +69,7 @@ export interface InboxNotificationsResult {
   unreadCount: number;
   isLoading: boolean;
   isError: boolean;
+  isPermissionDenied: boolean;
   refetch: () => Promise<void>;
 }
 
@@ -89,6 +98,9 @@ export function useInboxNotifications(vault: string): InboxNotificationsResult {
     unreadCount: unreadQuery.data?.length ?? 0,
     isLoading: unreadQuery.isPending || readQuery.isPending,
     isError: unreadQuery.isError || readQuery.isError,
+    isPermissionDenied:
+      hasHttpStatus(unreadQuery.error, 403) ||
+      hasHttpStatus(readQuery.error, 403),
     refetch: async () => {
       await Promise.all([unreadQuery.refetch(), readQuery.refetch()]);
     },

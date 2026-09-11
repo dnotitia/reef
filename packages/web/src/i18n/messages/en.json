@@ -1183,6 +1183,7 @@
     "emptyDescription": "New collaboration activity for your issues will appear here.",
     "errorTitle": "Couldn't load your notifications",
     "errorDescription": "Try again, or come back after the workspace is reachable.",
+    "permissionErrorDescription": "You don't have permission to view these notifications. Ask a workspace administrator for access.",
     "retry": "Retry",
     "actionError": "Couldn't update this notification. Try again.",
     "openNotification": "Open activity for {issue}",

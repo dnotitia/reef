@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
     unreadCount: 0,
     isLoading: false,
     isError: false,
+    isPermissionDenied: false,
     refetch: vi.fn(),
   },
 }));
@@ -293,6 +294,7 @@ describe("NotificationInboxPage", () => {
 
     mocks.inboxState.isLoading = false;
     mocks.inboxState.isError = true;
+    mocks.inboxState.isPermissionDenied = false;
     rerender(
       <IntlTestProvider>
         <NotificationInboxPage />
@@ -302,7 +304,18 @@ describe("NotificationInboxPage", () => {
       "Couldn't load your notifications",
     );
 
+    mocks.inboxState.isPermissionDenied = true;
+    rerender(
+      <IntlTestProvider>
+        <NotificationInboxPage />
+      </IntlTestProvider>,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "You don't have permission to view these notifications",
+    );
+
     mocks.inboxState.isError = false;
+    mocks.inboxState.isPermissionDenied = false;
     mocks.inboxState.notifications = [];
     rerender(
       <IntlTestProvider>

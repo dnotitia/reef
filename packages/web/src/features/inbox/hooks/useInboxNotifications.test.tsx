@@ -109,4 +109,24 @@ describe("useInboxNotifications", () => {
       { cache: "no-store" },
     );
   });
+
+  it("preserves a resource 403 as a permission-denied inbox error", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "permission denied" }), {
+          status: 403,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ notifications: [] }), { status: 200 }),
+      );
+
+    const { result } = renderHook(() => useInboxNotifications("reef-acme"), {
+      wrapper: makeWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.isError).toBe(true);
+    expect(result.current.isPermissionDenied).toBe(true);
+  });
 });

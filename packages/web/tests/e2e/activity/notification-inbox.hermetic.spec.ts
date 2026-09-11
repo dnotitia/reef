@@ -243,6 +243,40 @@ test.describe("Hermetic notification Inbox", () => {
     expect(schemaMutationSql(final)).toEqual([]);
   });
 
+  test("shows permission guidance for a notification 403 and recovers without sign-out", async ({
+    page,
+    request,
+  }) => {
+    await signInAsUser(page, fixtureReaderLogin);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/inbox`);
+    await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
+
+    const beforeSession = (await page.context().cookies()).find(
+      (cookie) => cookie.name === "__reef_session",
+    );
+    if (!beforeSession) throw new Error("reader session cookie was not set");
+
+    await setNotificationControl(request, {
+      schemaMode: "healthy",
+      dataMode: "forbidden",
+    });
+    await page.reload();
+    const error = page.getByTestId("notification-inbox-error");
+    await expect(error).toBeVisible();
+    await expect(error).toContainText(/permission|access/i);
+
+    await setNotificationControl(request, {
+      schemaMode: "healthy",
+      dataMode: "healthy",
+    });
+    await error.getByRole("button", { name: "Retry" }).click();
+    await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
+    const afterSession = (await page.context().cookies()).find(
+      (cookie) => cookie.name === "__reef_session",
+    );
+    expect(afterSession?.value).toBe(beforeSession.value);
+  });
+
   test("allows writer state changes without hiding recipient or key isolation", async ({
     page,
     request,

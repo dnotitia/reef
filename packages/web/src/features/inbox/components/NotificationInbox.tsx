@@ -266,7 +266,7 @@ export function NotificationInboxSkeleton() {
 
 function NotificationInboxContent({ vault }: { vault: string }) {
   const t = useTranslations("inbox");
-  const { notifications, isLoading, isError, refetch } =
+  const { notifications, isLoading, isError, isPermissionDenied, refetch } =
     useInboxNotifications(vault);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -297,7 +297,9 @@ function NotificationInboxContent({ vault }: { vault: string }) {
           {t("errorTitle")}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          {t("errorDescription")}
+          {isPermissionDenied
+            ? t("permissionErrorDescription")
+            : t("errorDescription")}
         </p>
         <Button
           type="button"
