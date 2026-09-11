@@ -85,8 +85,10 @@ describe("SearchBar", () => {
     await waitFor(() => {
       expect(useIssueStore.getState().searchQuery).toBe("auth");
     });
-    expect(screen.queryByTestId("search-progress-bar")).toBeNull();
-    expect(screen.queryByRole("status")).toBeNull();
+    await waitFor(() => {
+      expect(screen.queryByTestId("search-progress-bar")).toBeNull();
+      expect(screen.queryByRole("status")).toBeNull();
+    });
   });
 
   it("clear button clears the query", async () => {
