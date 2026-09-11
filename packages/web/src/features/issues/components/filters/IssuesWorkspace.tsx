@@ -37,7 +37,7 @@ import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useRef, useState } from "react";
 import type { SprintRolloverResume } from "@reef/core";
 
 interface DynamicLoadingProps {
@@ -310,6 +310,8 @@ export function IssuesWorkspace({
   const nav = useTranslations("nav");
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const searchTransitionPending = deferredSearchQuery !== searchQuery;
   const clearSelectionForContextChange = useIssueSelectionStore(
     (state) => state.clearForContextChange,
   );
@@ -430,6 +432,7 @@ export function IssuesWorkspace({
               setGroupBy={setGroupBy}
               listOptionalColumns={listOptionalColumns}
               applyMyViewSnapshot={applyMyViewSnapshot}
+              searchTransitionPending={searchTransitionPending}
             />
           ) : (
             // Backlog scope drops the facets it pins or does not partition on
@@ -446,6 +449,7 @@ export function IssuesWorkspace({
               setGroupBy={setGroupBy}
               listOptionalColumns={listOptionalColumns}
               applyMyViewSnapshot={applyMyViewSnapshot}
+              searchTransitionPending={searchTransitionPending}
             />
           )}
           {!fixedSprintId && !rolloverOpen ? (

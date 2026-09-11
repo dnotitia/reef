@@ -1,4 +1,4 @@
-import { type Page, expect, test } from "@playwright/test";
+import { type Page, type Route, expect, test } from "@playwright/test";
 import {
   continueToWorkspace,
   resetFixture,
@@ -348,5 +348,70 @@ test.describe("Hermetic My Views", () => {
     await expect(
       reconciledMenu.getByText("No saved views yet.", { exact: true }),
     ).toBeVisible();
+  });
+
+  test("drops a pending prior-vault result when switching workspaces", async ({
+    page,
+  }) => {
+    await openMultiVaultWorkspace(page, "reef-e2e");
+    await page.goto("/workspace/reef-e2e/issues?view=list&sort=priority");
+    await expect(
+      page.locator('[data-testid="issue-list-row"]').first(),
+    ).toBeVisible({ timeout: 15_000 });
+
+    let releaseResponse: (() => void) | undefined;
+    let responseHeld = false;
+    const isSearchRequest = (url: URL) =>
+      url.pathname === "/api/issues" && url.searchParams.has("q");
+    const holdSearchResponse = async (route: Route) => {
+      try {
+        const response = await route.fetch();
+        responseHeld = true;
+        await new Promise<void>((resolve) => {
+          releaseResponse = resolve;
+        });
+        await route.fulfill({ response });
+      } catch {
+        // A vault switch may abort the old request; the assertion below is the
+        // observable contract, and the route no longer needs a response.
+      }
+    };
+    await page.route(isSearchRequest, holdSearchResponse);
+
+    let releaseVaultResponse: (() => void) | undefined;
+    let vaultResponseHeld = false;
+    const isZetaIssueRequest = (url: URL) =>
+      url.pathname === "/api/issues" &&
+      url.searchParams.get("vault") === "reef-zeta";
+    const holdZetaResponse = async (route: Route) => {
+      try {
+        const response = await route.fetch();
+        vaultResponseHeld = true;
+        await new Promise<void>((resolve) => {
+          releaseVaultResponse = resolve;
+        });
+        await route.fulfill({ response });
+      } catch {
+        // The route is released with the old search request below.
+      }
+    };
+    await page.route(isZetaIssueRequest, holdZetaResponse);
+
+    const input = page.getByTestId("search-input");
+    await input.fill("Alpha");
+    await expect(page).toHaveURL(/q=Alpha/);
+    await expect.poll(() => responseHeld, { timeout: 15_000 }).toBe(true);
+
+    await page.getByTestId("sidebar-workspace-trigger").click();
+    await page.getByTestId("workspace-switcher-option-reef-zeta").click();
+    await expect(page).toHaveURL(/\/workspace\/reef-zeta\/issues/);
+    await expect.poll(() => vaultResponseHeld, { timeout: 15_000 }).toBe(true);
+    await expect(page.getByTestId("search-input")).toHaveValue("");
+    await expect(page.locator('[data-testid="issue-list-row"]')).toHaveCount(0);
+
+    releaseResponse?.();
+    releaseVaultResponse?.();
+    await page.unroute(isSearchRequest, holdSearchResponse);
+    await page.unroute(isZetaIssueRequest, holdZetaResponse);
   });
 });

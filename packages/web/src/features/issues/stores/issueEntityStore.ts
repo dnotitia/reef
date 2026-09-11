@@ -34,6 +34,30 @@ export interface IssueEntityState {
 
 export const issueEntityStore = new Store<IssueEntityState>({ byVault: {} });
 
+function sameIssueValue(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (!Array.isArray(left) || !Array.isArray(right)) return false;
+  return (
+    left.length === right.length &&
+    left.every((value, index) => Object.is(value, right[index]))
+  );
+}
+
+/** Keep the first list projection reference when a refetch only changes identity. */
+export function areIssueListItemsEqual(
+  left: IssueListItem,
+  right: IssueListItem,
+): boolean {
+  if (left === right) return true;
+  const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+  return [...keys].every((key) =>
+    sameIssueValue(
+      left[key as keyof IssueListItem],
+      right[key as keyof IssueListItem],
+    ),
+  );
+}
+
 /**
  * Merge a batch of list items (a fetched/filtered page, or a refetch) into a
  * vault's namespace. Reference-stable on purpose: an item whose object identity
@@ -51,7 +75,12 @@ export function upsertIssues(
     const current = state.byVault[vault];
     let nextById: Record<string, IssueListItem> | null = null;
     for (const item of items) {
-      if (current?.[item.id] === item) continue; // unchanged ref → skip
+      if (
+        current?.[item.id] &&
+        areIssueListItemsEqual(current[item.id], item)
+      ) {
+        continue;
+      }
       if (nextById === null) nextById = { ...current };
       nextById[item.id] = item;
     }

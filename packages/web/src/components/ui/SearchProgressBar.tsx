@@ -2,8 +2,8 @@ import { cn } from "@/lib/utils";
 
 interface SearchProgressBarProps {
   /**
-   * True while an async search request is in flight. Renders nothing when
-   * false, so an idle surface costs no DOM.
+   * True while an async search is pending or its request is in flight. Renders
+   * nothing when false, so an idle surface costs no DOM.
    */
   active: boolean;
   /**
@@ -15,12 +15,13 @@ interface SearchProgressBarProps {
 }
 
 /**
- * Indeterminate brand (teal) hairline shown along an async search surface's
- * input/panel edge while a request is in flight (REEF-369). Purely decorative
+ * Indeterminate brand (teal) track shown along an async search surface's
+ * input/panel edge while a query is pending or its request is in flight
+ * (REEF-369). Purely decorative
  * (`aria-hidden`): every wired surface keeps its own text / `aria-live` loading
  * signal, so this is a visual layer only and never a second screen-reader
  * announcement. Under reduced motion the sweep stops and a static brand bar
- * remains (see `.reef-search-progress` in app/styles/motion-progress.css), so the in-flight state
+ * remains (see `.reef-search-progress` in app/styles/motion-progress.css), so the pending state
  * stays legible without movement.
  *
  * Teal only — the AI / chat surfaces own the purple streaming track and must
@@ -36,7 +37,7 @@ function SearchProgressBar({ active, className }: SearchProgressBarProps) {
       aria-hidden="true"
       data-testid="search-progress-bar"
       className={cn(
-        "reef-search-progress pointer-events-none absolute inset-x-0 bottom-0 h-0.5 overflow-hidden",
+        "reef-search-progress pointer-events-none absolute inset-x-0 bottom-0 h-1 overflow-hidden",
         className,
       )}
     />

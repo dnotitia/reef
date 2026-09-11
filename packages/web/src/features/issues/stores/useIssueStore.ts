@@ -127,7 +127,12 @@ export const useIssueStore = create<IssueState>((set) => ({
   setFilter: (partialFilter) =>
     set((state) => ({ filter: { ...state.filter, ...partialFilter } })),
 
-  clearFilter: () => set({ filter: {}, searchQuery: "" }),
+  clearFilter: () =>
+    set((state) => ({
+      filter: {},
+      searchQuery: "",
+      searchQueryResetToken: state.searchQueryResetToken + 1,
+    })),
 
   /** Clears filter/dependency fields just — does NOT clear sort or search */
   clearFiltersOnly: () =>
@@ -184,10 +189,11 @@ export const useIssueStore = create<IssueState>((set) => ({
     }),
 
   resetFilterScope: () =>
-    set({
+    set((state) => ({
       filter: {},
       searchQuery: "",
+      searchQueryResetToken: state.searchQueryResetToken + 1,
       filterVault: null,
       listOptionalColumns: [],
-    }),
+    })),
 }));

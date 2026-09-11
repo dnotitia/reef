@@ -2,6 +2,7 @@
 
 import { BoardColumnsSkeleton } from "@/components/BoardColumnsSkeleton";
 import { Button } from "@/components/ui/button";
+import { SearchProgressBar } from "@/components/ui/SearchProgressBar";
 import {
   kanbanToastId,
   notifyReorderFailure,
@@ -91,6 +92,7 @@ import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import {
   type KeyboardEvent,
+  useDeferredValue,
   useEffect,
   useId,
   useMemo,
@@ -182,6 +184,9 @@ export function KanbanBoard({
   const noMatchId = useId();
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const searchTransitionPending = deferredSearchQuery !== searchQuery;
+  const settledSearchQueryRef = useRef(searchQuery);
   const scopedFilter = useMemo(() => {
     const scoped = filterForIssueScope(filter, scope);
     return fixedSprintId ? { ...scoped, sprint_id: [fixedSprintId] } : scoped;
@@ -206,6 +211,18 @@ export function KanbanBoard({
     isPlaceholderData,
     refetch,
   } = useIssueList(vault, query);
+  // Placeholder data belongs to the previous query. Keep its filter and card
+  // set visible until the replacement arrives, while the updating signal tells
+  // the user that the latest intent is still converging.
+  const displaySearchQuery =
+    isPlaceholderData || searchTransitionPending
+      ? settledSearchQueryRef.current
+      : deferredSearchQuery;
+  useEffect(() => {
+    if (!isPending && !isFetching && !isPlaceholderData) {
+      settledSearchQueryRef.current = searchQuery;
+    }
+  }, [isFetching, isPending, isPlaceholderData, searchQuery]);
   const staleWindowDays = useResolvedAutoHideWindows(vault);
   const { data: relations } = useIssueRelations(vault);
   const { data: planningCatalog } = usePlanningCatalog(vault);
@@ -258,12 +275,13 @@ export function KanbanBoard({
     () => computeBlockedIds(allIssues, graph),
     [allIssues, graph],
   );
+  const previousVisibleIssuesRef = useRef<IssueListItem[] | null>(null);
   const visibleIssues = useMemo(() => {
     const filtered = filterIssues(allIssues, scopedFilter, {
-      searchActive: searchQuery.trim().length > 0,
+      searchActive: displaySearchQuery.trim().length > 0,
       staleWindowDays,
     });
-    const searched = searchIssues(filtered, searchQuery);
+    const searched = searchIssues(filtered, displaySearchQuery);
     const depFiltered = applyDependencyFilter(
       searched,
       scopedFilter.dependencyFilter ?? null,
@@ -273,15 +291,27 @@ export function KanbanBoard({
     // selected sort, the board shows reef's issue-wide rank order seeded by
     // backlog reorder or trusted imports (REEF-393); grouping preserves that
     // order inside each workflow column.
-    return manualOrder
+    const nextVisibleIssues = manualOrder
       ? sortIssuesByRankOrder(depFiltered)
       : sortIssues(depFiltered, scopedFilter.sortField, scopedFilter.sortOrder);
+    const previousVisibleIssues = previousVisibleIssuesRef.current;
+    if (
+      previousVisibleIssues &&
+      previousVisibleIssues.length === nextVisibleIssues.length &&
+      previousVisibleIssues.every(
+        (issue, index) => issue === nextVisibleIssues[index],
+      )
+    ) {
+      return previousVisibleIssues;
+    }
+    previousVisibleIssuesRef.current = nextVisibleIssues;
+    return nextVisibleIssues;
   }, [
     allIssues,
     graph,
     manualOrder,
     scopedFilter,
-    searchQuery,
+    displaySearchQuery,
     staleWindowDays,
   ]);
   // The filtered list controls card visibility; the full `allIssues` list
@@ -344,7 +374,13 @@ export function KanbanBoard({
     hasScopeFilters(filter, searchQuery, scope) ||
     Boolean(filter.showArchived || (scope === "active" && filter.showStale));
   const showNoMatch =
-    !isFetching && !isError && visibleIssues.length === 0 && hasActiveFilters;
+    !searchTransitionPending &&
+    !isFetching &&
+    !isError &&
+    visibleIssues.length === 0 &&
+    hasActiveFilters;
+  const resultsUpdating =
+    searchTransitionPending || isPlaceholderData || (isFetching && !isPending);
   const renderedOccurrences = useMemo(
     () =>
       issueGroups.flatMap(({ bucket, issues }) =>
@@ -804,7 +840,7 @@ export function KanbanBoard({
 
   if (
     scope === "backlog" &&
-    !isFetching &&
+    !resultsUpdating &&
     !isError &&
     visibleIssues.length === 0 &&
     !hasActiveFilters
@@ -818,6 +854,17 @@ export function KanbanBoard({
       className="flex min-h-48 min-w-0 flex-1 flex-col"
     >
       <IssueReorderAnnouncement message={reorderAnnouncement} />
+      <div className="pointer-events-none sticky top-0 z-10 h-0 overflow-visible">
+        <SearchProgressBar
+          active={resultsUpdating}
+          className="top-0 bottom-auto"
+        />
+      </div>
+      {resultsUpdating && (
+        <span role="status" aria-live="polite" className="sr-only">
+          {common("updatingResults")}
+        </span>
+      )}
       {isError && (
         <div
           className="mx-6 mt-4 rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text"
@@ -882,6 +929,7 @@ export function KanbanBoard({
               assignees={assignees}
               reorderIssueId={reorderIssueId}
               reorderState={reorderState}
+              autoAnimateEnabled={false}
               onIssueClick={openIssue}
               onGroupClick={bucket.epic ? openIssue : undefined}
               dragEnabled={

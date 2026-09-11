@@ -29,6 +29,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Issue search and filter input now converges without dropping characters.**
+  Live drafts survive stale debounce echoes, URL restoration, and explicit view
+  resets; heavy Board, List, Backlog, and Timeline result updates remain visibly
+  and accessibly marked while the prior result is retained.
 - **Issue date-range filters no longer fail at the AKB timestamp boundary.**
   Created and updated date ranges now cast their positional bounds in SQL while
   preserving date-only comparisons and half-open boundaries across List, Board,

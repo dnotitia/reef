@@ -1,6 +1,7 @@
 import { type APIRequestContext, expect, test } from "@playwright/test";
 import {
   E2E_MOCK_URL,
+  continueToWorkspace,
   openExistingWorkspace,
   resetFixture,
 } from "../harness/fixture";
@@ -86,6 +87,7 @@ test.describe("Hermetic issue description height resize", () => {
     // saved value it starts at 320px, and a user adjustment is visible when
     // the same tab returns to the existing issue.
     await page.goto("/workspace/reef-e2e/issues?view=list");
+    await continueToWorkspace(page);
     await page.getByTestId("new-issue-trigger").click();
     const createDialog = page.getByTestId("new-issue-dialog");
     const createFrame = createDialog.getByTestId("markdown-editor-body-frame");

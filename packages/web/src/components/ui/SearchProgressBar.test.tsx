@@ -19,6 +19,7 @@ describe("SearchProgressBar", () => {
     // The sweep + reduced-motion static fallback live on `.reef-search-progress`
     // in app/styles/motion-progress.css.
     expect(bar).toHaveClass("reef-search-progress");
+    expect(bar).toHaveClass("h-1");
   });
 
   it("forwards className for placement overrides", () => {
