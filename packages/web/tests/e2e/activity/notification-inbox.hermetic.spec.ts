@@ -277,6 +277,54 @@ test.describe("Hermetic notification Inbox", () => {
     expect(afterSession?.value).toBe(beforeSession.value);
   });
 
+  test("shows permission guidance for denied read and archive actions without changing state", async ({
+    page,
+    request,
+  }) => {
+    await signInAsUser(page, fixtureReaderLogin);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/inbox`);
+    await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
+
+    const row = page
+      .getByTestId("notification-item")
+      .filter({ hasText: "Comment created" });
+    await expect(row).toHaveCount(1);
+    await expect(row).toHaveAttribute("data-state", "unread");
+    await expect(page.getByTestId("inbox-unread-badge")).toHaveText("1");
+    const beforeSession = (await page.context().cookies()).find(
+      (cookie) => cookie.name === "__reef_session",
+    );
+    if (!beforeSession) throw new Error("reader session cookie was not set");
+
+    await setNotificationControl(request, {
+      schemaMode: "healthy",
+      dataMode: "forbidden",
+    });
+    const actionError = page
+      .getByTestId("notification-inbox")
+      .getByRole("alert");
+    await row.getByTestId("notification-open").click();
+    await expect(actionError).toContainText(
+      "You don't have permission to change this notification",
+    );
+    await expect(row).toHaveAttribute("data-state", "unread");
+    await expect(page.getByTestId("inbox-unread-badge")).toHaveText("1");
+    await expect(page).toHaveURL(`/workspace/${REEF_E2E_VAULT}/inbox`);
+
+    await row
+      .getByRole("button", { name: "Archive notification for REEF-001" })
+      .click();
+    await expect(actionError).toContainText(
+      "You don't have permission to change this notification",
+    );
+    await expect(row).toHaveAttribute("data-state", "unread");
+    await expect(page.getByTestId("inbox-unread-badge")).toHaveText("1");
+    const afterSession = (await page.context().cookies()).find(
+      (cookie) => cookie.name === "__reef_session",
+    );
+    expect(afterSession?.value).toBe(beforeSession.value);
+  });
+
   test("allows writer state changes without hiding recipient or key isolation", async ({
     page,
     request,

@@ -178,6 +178,51 @@ describe("NotificationInboxPage", () => {
     );
   });
 
+  it("shows permission guidance when marking an unread notification read is denied", async () => {
+    mocks.inboxState.notifications = [
+      makeNotification("denied-read", "unread", "REEF-005"),
+    ];
+    mocks.mutateAsync.mockRejectedValueOnce(
+      Object.assign(new Error("permission denied"), { status: 403 }),
+    );
+    renderPage();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open activity for REEF-005" }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "You don't have permission to change this notification",
+      ),
+    );
+    expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it("shows permission guidance when archiving a notification is denied", async () => {
+    mocks.inboxState.notifications = [
+      makeNotification("denied-archive", "unread", "REEF-006"),
+    ];
+    mocks.mutateAsync.mockRejectedValueOnce(
+      Object.assign(new Error("permission denied"), { status: 403 }),
+    );
+    renderPage();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Archive notification for REEF-006" }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "You don't have permission to change this notification",
+      ),
+    );
+    expect(screen.getByTestId("notification-item")).toHaveAttribute(
+      "data-state",
+      "unread",
+    );
+  });
+
   it("opens a comment notification at its persisted source comment after marking it read", async () => {
     mocks.inboxState.notifications = [
       {

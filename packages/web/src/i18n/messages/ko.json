@@ -1377,6 +1377,7 @@
     "permissionErrorDescription": "이 알림을 볼 권한이 없습니다. 워크스페이스 관리자에게 권한을 요청해 주세요.",
     "retry": "다시 시도",
     "actionError": "알림을 업데이트하지 못했습니다. 다시 시도하세요.",
+    "permissionActionError": "이 알림을 변경할 권한이 없습니다. 워크스페이스 관리자에게 권한을 요청해 주세요.",
     "openNotification": "{issue} 활동 열기",
     "markUnread": "읽지 않음으로 표시",
     "markUnreadFor": "{issue} 읽지 않음으로 표시",

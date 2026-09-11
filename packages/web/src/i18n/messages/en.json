@@ -1186,6 +1186,7 @@
     "permissionErrorDescription": "You don't have permission to view these notifications. Ask a workspace administrator for access.",
     "retry": "Retry",
     "actionError": "Couldn't update this notification. Try again.",
+    "permissionActionError": "You don't have permission to change this notification. Ask a workspace administrator for access.",
     "openNotification": "Open activity for {issue}",
     "markUnread": "Mark unread",
     "markUnreadFor": "Mark {issue} unread",
