@@ -15,7 +15,7 @@ interface SearchProgressBarProps {
 }
 
 /**
- * Indeterminate brand (teal) hairline shown along an async search surface's
+ * Indeterminate brand (teal) track shown along an async search surface's
  * input/panel edge while a query is pending or its request is in flight
  * (REEF-369). Purely decorative
  * (`aria-hidden`): every wired surface keeps its own text / `aria-live` loading
@@ -37,7 +37,7 @@ function SearchProgressBar({ active, className }: SearchProgressBarProps) {
       aria-hidden="true"
       data-testid="search-progress-bar"
       className={cn(
-        "reef-search-progress pointer-events-none absolute inset-x-0 bottom-0 h-0.5 overflow-hidden",
+        "reef-search-progress pointer-events-none absolute inset-x-0 bottom-0 h-1 overflow-hidden",
         className,
       )}
     />

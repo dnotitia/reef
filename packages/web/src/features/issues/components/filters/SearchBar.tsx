@@ -107,6 +107,7 @@ export function SearchBar({
           the result surface also marks placeholder data while it converges. */}
       <SearchProgressBar
         active={isDebouncing || isStoreUpdatePending || searchTransitionPending}
+        className="top-0 bottom-auto h-1"
       />
       {isDebouncing || isStoreUpdatePending || searchTransitionPending ? (
         <span role="status" aria-live="polite" className="sr-only">
