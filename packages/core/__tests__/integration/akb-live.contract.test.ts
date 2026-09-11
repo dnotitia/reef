@@ -14,6 +14,7 @@ import {
   getCurrentActor,
   getMe,
   login,
+  listIssues,
   listIssueBodyHistory,
   readIssue,
   searchDocuments,
@@ -55,6 +56,7 @@ import {
   akbUpsertSubscription,
   akbWatchIssue,
   akbProjectNotifications,
+  IssueListQuerySchema,
   notificationWakeupForChange,
 } from "../../src/index";
 
@@ -513,6 +515,102 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
   it("readIssue — reef's joined read path parses a live document + row", async () => {
     const result = await readIssue({ adapter, vault, id: SEED_ISSUE_ID });
     expect(result.issue.id).toBe(SEED_ISSUE_ID);
+  });
+
+  it("issue date ranges — live timestamp parameters require an SQL cast", async () => {
+    await new Promise<void>((resolve) => setTimeout(resolve, 10));
+    const secondIssue = buildIssueMetadataFromCreateInput({
+      id: "REEF-002",
+      create: {
+        fields: { title: "Live contract range boundary" },
+        content: "Second issue for the live date-range contract.",
+      },
+      author: USERNAME,
+    });
+    await writeIssue({
+      adapter,
+      vault,
+      issue: secondIssue,
+      content: "Second issue for the live date-range contract.",
+    });
+
+    const timestampRows = await runSql(
+      adapter,
+      vault,
+      "SELECT reef_id, created_at, updated_at FROM reef_issues WHERE reef_id IN ('REEF-001', 'REEF-002') LIMIT 2",
+    );
+    expect(timestampRows.kind).toBe("table_query");
+    if (timestampRows.kind !== "table_query") return;
+    expect(timestampRows.items).toHaveLength(2);
+
+    const sqlPath = `/api/v1/tables/${encodeURIComponent(vault)}/sql`;
+    for (const field of ["created_at", "updated_at"] as const) {
+      const ordered = [...timestampRows.items].toSorted((left, right) => {
+        const leftValue = requiredString(left, field, `date range ${field}`);
+        const rightValue = requiredString(right, field, `date range ${field}`);
+        return (
+          Date.parse(leftValue) - Date.parse(rightValue) ||
+          leftValue.localeCompare(rightValue)
+        );
+      });
+      const first = ordered[0];
+      const last = ordered[1];
+      expect(first).toBeDefined();
+      expect(last).toBeDefined();
+      if (!first || !last) return;
+      const from = requiredString(first, field, `date range ${field}`);
+      const to = requiredString(last, field, `date range ${field}`);
+      expect(from).not.toBe(to);
+
+      const rawError = await adapter
+        .request(sqlPath, {
+          method: "POST",
+          body: {
+            sql: `SELECT reef_id FROM reef_issues WHERE "${field}" >= $1 AND "${field}" < $2`,
+            params: [from, to],
+          },
+          resource: `raw ${field} date range`,
+        })
+        .catch((error: unknown) => error);
+      expect(rawError).toBeInstanceOf(AkbApiError);
+      expect(rawError).toMatchObject({ status: 400 });
+
+      const query = (limit?: number) =>
+        IssueListQuerySchema.parse({
+          archived: true,
+          date_range: { field, from, to },
+          sort_field: "reef_id",
+          sort_order: "asc",
+          ...(limit === undefined ? {} : { limit }),
+        });
+      const bounded = await listIssues({
+        adapter,
+        vault,
+        query: query(10),
+      });
+      const unbounded = await listIssues({
+        adapter,
+        vault,
+        query: query(),
+      });
+      expect(bounded.issues.map(({ id }) => id)).toEqual([first.reef_id]);
+      expect(unbounded.issues.map(({ id }) => id)).toEqual([first.reef_id]);
+
+      const emptyFrom = new Date(Date.parse(to) + 1).toISOString();
+      const emptyTo = new Date(Date.parse(to) + 2).toISOString();
+      const empty = await listIssues({
+        adapter,
+        vault,
+        query: IssueListQuerySchema.parse({
+          archived: true,
+          date_range: { field, from: emptyFrom, to: emptyTo },
+          sort_field: "reef_id",
+          sort_order: "asc",
+          limit: 10,
+        }),
+      });
+      expect(empty.issues).toEqual([]);
+    }
   });
 
   it("auth — live config, local login, me, actor, and safe denial contracts hold", async () => {

@@ -33,6 +33,10 @@ explicitly in the entries below.
   Live drafts survive stale debounce echoes, URL restoration, and explicit view
   resets; heavy Board, List, Backlog, and Timeline result updates remain visibly
   and accessibly marked while the prior result is retained.
+- **Issue date-range filters no longer fail at the AKB timestamp boundary.**
+  Created and updated date ranges now cast their positional bounds in SQL while
+  preserving date-only comparisons and half-open boundaries across List, Board,
+  Backlog, and Timeline. (REEF-619)
 - **Planning header controls align with the title and workspace description.**
 - **Markdown editor focus chrome remains continuous across internal dividers.**
   Toolbar and editor-body separators no longer paint over the inset focus ring.
