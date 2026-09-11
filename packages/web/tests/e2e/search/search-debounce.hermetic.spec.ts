@@ -1,4 +1,10 @@
-import { type Page, type Request, expect, test } from "@playwright/test";
+import {
+  type APIRequestContext,
+  type Page,
+  type Request,
+  expect,
+  test,
+} from "@playwright/test";
 import { openExistingWorkspace, resetFixture } from "../harness/fixture";
 
 /**
@@ -194,6 +200,94 @@ test.describe("search debounce cadence (REEF-370)", () => {
     await expect(
       page.getByRole("status").filter({ hasText: "Updating results…" }),
     ).toHaveCount(0);
+  });
+
+  async function expectRetainedSearchHandoff(
+    page: Page,
+    request: APIRequestContext,
+    surface: "list" | "board",
+  ): Promise<void> {
+    await resetFixture(request, "large_vault");
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/reef-e2e/issues?view=${surface}&sort=priority`);
+
+    const input = page.getByTestId("search-input");
+    await input.fill("Alpha");
+    await expect(page).toHaveURL(/q=Alpha/);
+    const previous = page
+      .getByTestId(surface === "list" ? "issue-list-row" : "kanban-card")
+      .filter({ hasText: "Alpha" })
+      .first();
+    await expect(previous).toBeVisible();
+    await expect(page.getByTestId("search-progress-bar")).toHaveCount(0);
+    const previousIssueId = await previous.getAttribute("data-issue-id");
+    expect(previousIssueId).toBeTruthy();
+
+    const nextQuery = "zzzz-no-such-issue-xyz123";
+    let requestSeen = false;
+    let releaseNextResponse: (() => void) | undefined;
+    const nextResponseHeld = new Promise<void>((resolve) => {
+      releaseNextResponse = resolve;
+    });
+    // This is the documented UI-only timing exception: route.fetch runs the
+    // real Route Handler and fixture response; only delivery is held so the
+    // retained previous result is observable during the handoff.
+    await page.route(
+      (url) =>
+        url.pathname === "/api/issues" &&
+        url.searchParams.get("q") === nextQuery,
+      async (route) => {
+        requestSeen = true;
+        const response = await route.fetch();
+        await nextResponseHeld;
+        await route.fulfill({ response });
+      },
+    );
+
+    await input.fill(nextQuery);
+    await expect(input).toHaveValue(nextQuery);
+    await expect(page).toHaveURL(/q=zzzz-no-such-issue-xyz123/);
+    await expect.poll(() => requestSeen, { timeout: 5_000 }).toBe(true);
+    await expect(previous).toBeVisible();
+    await expect(page.getByTestId("search-progress-bar").first()).toBeVisible();
+    await expect
+      .poll(
+        () =>
+          page
+            .getByRole("status")
+            .filter({ hasText: "Updating results…" })
+            .count(),
+        { timeout: 5_000 },
+      )
+      .toBeGreaterThan(0);
+
+    expect(releaseNextResponse).toBeDefined();
+    releaseNextResponse?.();
+    if (surface === "list") {
+      await expect(
+        page.getByText("No issues match your filters.", { exact: true }),
+      ).toBeVisible();
+    } else {
+      await expect(page.getByTestId("kanban-no-matches")).toBeVisible();
+    }
+    await expect(page.getByTestId("search-progress-bar")).toHaveCount(0);
+    await expect(
+      page.getByRole("status").filter({ hasText: "Updating results…" }),
+    ).toHaveCount(0);
+  }
+
+  test("List keeps updating state through the URL and retained-row handoff", async ({
+    page,
+    request,
+  }) => {
+    await expectRetainedSearchHandoff(page, request, "list");
+  });
+
+  test("Board keeps updating state through the URL and retained-card handoff", async ({
+    page,
+    request,
+  }) => {
+    await expectRetainedSearchHandoff(page, request, "board");
   });
 
   test("cold assignee typeahead coalesces keystrokes into one /api/vault-members?q request", async ({

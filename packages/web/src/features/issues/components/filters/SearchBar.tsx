@@ -8,13 +8,18 @@ import {
 } from "@/lib/useDebouncedQuery";
 import { Search, X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { startTransition, useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useTransition } from "react";
 import { useIssueStore } from "../../stores/useIssueStore";
 
-export function SearchBar() {
+export function SearchBar({
+  searchTransitionPending = false,
+}: {
+  searchTransitionPending?: boolean;
+}) {
   const t = useTranslations("issues.filters");
   const common = useTranslations("common");
   const setSearchQuery = useIssueStore((state) => state.setSearchQuery);
+  const [isStoreUpdatePending, startStoreTransition] = useTransition();
 
   // The issue store is the search's data owner; the shared warm-tier debounce
   // (REEF-370) replaces the previous inline 150ms timer. `initial` seeds the
@@ -37,7 +42,7 @@ export function SearchBar() {
 
   // Push the settled value into the store so the list query re-runs on it.
   useEffect(() => {
-    startTransition(() => {
+    startStoreTransition(() => {
       setSearchQuery(debounced);
     });
   }, [debounced, setSearchQuery]);
@@ -98,10 +103,12 @@ export function SearchBar() {
         onKeyDown={handleKeyDown}
         data-testid="search-input"
       />
-      {/* Keep feedback visible through the local debounce gap; the result
-          surface takes over once the settled query reaches its fetch state. */}
-      <SearchProgressBar active={isDebouncing} />
-      {isDebouncing ? (
+      {/* Keep feedback visible from raw debounce through the store/URL handoff;
+          the result surface also marks placeholder data while it converges. */}
+      <SearchProgressBar
+        active={isDebouncing || isStoreUpdatePending || searchTransitionPending}
+      />
+      {isDebouncing || isStoreUpdatePending || searchTransitionPending ? (
         <span role="status" aria-live="polite" className="sr-only">
           {common("updatingResults")}
         </span>

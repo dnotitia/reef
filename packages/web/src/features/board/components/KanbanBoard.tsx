@@ -186,6 +186,7 @@ export function KanbanBoard({
   const searchQuery = useIssueStore((state) => state.searchQuery);
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const searchTransitionPending = deferredSearchQuery !== searchQuery;
+  const settledSearchQueryRef = useRef(searchQuery);
   const scopedFilter = useMemo(() => {
     const scoped = filterForIssueScope(filter, scope);
     return fixedSprintId ? { ...scoped, sprint_id: [fixedSprintId] } : scoped;
@@ -210,6 +211,18 @@ export function KanbanBoard({
     isPlaceholderData,
     refetch,
   } = useIssueList(vault, query);
+  // Placeholder data belongs to the previous query. Keep its filter and card
+  // set visible until the replacement arrives, while the updating signal tells
+  // the user that the latest intent is still converging.
+  const displaySearchQuery =
+    isPlaceholderData || searchTransitionPending
+      ? settledSearchQueryRef.current
+      : deferredSearchQuery;
+  useEffect(() => {
+    if (!isPending && !isFetching && !isPlaceholderData) {
+      settledSearchQueryRef.current = searchQuery;
+    }
+  }, [isFetching, isPending, isPlaceholderData, searchQuery]);
   const staleWindowDays = useResolvedAutoHideWindows(vault);
   const { data: relations } = useIssueRelations(vault);
   const { data: planningCatalog } = usePlanningCatalog(vault);
@@ -265,10 +278,10 @@ export function KanbanBoard({
   const previousVisibleIssuesRef = useRef<IssueListItem[] | null>(null);
   const visibleIssues = useMemo(() => {
     const filtered = filterIssues(allIssues, scopedFilter, {
-      searchActive: deferredSearchQuery.trim().length > 0,
+      searchActive: displaySearchQuery.trim().length > 0,
       staleWindowDays,
     });
-    const searched = searchIssues(filtered, deferredSearchQuery);
+    const searched = searchIssues(filtered, displaySearchQuery);
     const depFiltered = applyDependencyFilter(
       searched,
       scopedFilter.dependencyFilter ?? null,
@@ -298,7 +311,7 @@ export function KanbanBoard({
     graph,
     manualOrder,
     scopedFilter,
-    deferredSearchQuery,
+    displaySearchQuery,
     staleWindowDays,
   ]);
   // The filtered list controls card visibility; the full `allIssues` list
@@ -366,7 +379,8 @@ export function KanbanBoard({
     !isError &&
     visibleIssues.length === 0 &&
     hasActiveFilters;
-  const resultsUpdating = searchTransitionPending || (isFetching && !isPending);
+  const resultsUpdating =
+    searchTransitionPending || isPlaceholderData || (isFetching && !isPending);
   const renderedOccurrences = useMemo(
     () =>
       issueGroups.flatMap(({ bucket, issues }) =>

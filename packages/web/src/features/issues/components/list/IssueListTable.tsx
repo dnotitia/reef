@@ -320,6 +320,7 @@ export function IssueListTable({
   const searchQuery = useIssueStore((state) => state.searchQuery);
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const searchTransitionPending = deferredSearchQuery !== searchQuery;
+  const settledSearchQueryRef = useRef(searchQuery);
   const scopedFilter = useMemo(() => {
     const scoped = filterForIssueScope(filter, scope);
     return fixedSprintId ? { ...scoped, sprint_id: [fixedSprintId] } : scoped;
@@ -370,6 +371,18 @@ export function IssueListTable({
     isFetchNextPageError,
     isPlaceholderData,
   } = useInfiniteIssueList(vault, query);
+  // Placeholder data belongs to the previous query. Keep its filter and row
+  // set visible until the replacement arrives, while the updating signal tells
+  // the user that the latest intent is still converging.
+  const displaySearchQuery =
+    isPlaceholderData || searchTransitionPending
+      ? settledSearchQueryRef.current
+      : deferredSearchQuery;
+  useEffect(() => {
+    if (!isPending && !isFetching && !isPlaceholderData) {
+      settledSearchQueryRef.current = searchQuery;
+    }
+  }, [isFetching, isPending, isPlaceholderData, searchQuery]);
   const reorder = useReorderBacklog();
   const staleWindowDays = useResolvedAutoHideWindows(vault);
   const { data: relations } = useIssueRelations(vault);
@@ -385,10 +398,10 @@ export function IssueListTable({
   );
   const sorted = useMemo(() => {
     const filtered = filterIssues(allIssues, scopedFilter, {
-      searchActive: deferredSearchQuery.trim().length > 0,
+      searchActive: displaySearchQuery.trim().length > 0,
       staleWindowDays,
     });
-    const searched = searchIssues(filtered, deferredSearchQuery);
+    const searched = searchIssues(filtered, displaySearchQuery);
     const depFiltered = applyDependencyFilter(
       searched,
       scopedFilter.dependencyFilter ?? null,
@@ -402,7 +415,7 @@ export function IssueListTable({
     graph,
     manualOrder,
     scopedFilter,
-    deferredSearchQuery,
+    displaySearchQuery,
     staleWindowDays,
   ]);
   const sprintNames = useMemo(
@@ -495,6 +508,7 @@ export function IssueListTable({
   const hasActiveFilters = hasScopeFilters(filter, searchQuery, scope);
   const resultsUpdating =
     searchTransitionPending ||
+    isPlaceholderData ||
     (isFetching && !isPending && !isFetchingNextPage);
   const canReorder =
     showReorderColumn &&
@@ -988,7 +1002,7 @@ export function IssueListTable({
                         planningCatalog={planningCatalog}
                         assignees={assignees}
                         assigneeNames={assigneeNames}
-                        highlightQuery={deferredSearchQuery}
+                        highlightQuery={displaySearchQuery}
                         logicalIds={visibleIssueIds}
                         occurrenceKey={item.occurrenceKey}
                         columns={columns}
