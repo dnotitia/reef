@@ -141,6 +141,9 @@ test.describe("search debounce cadence (REEF-370)", () => {
     await page.goto("/workspace/reef-e2e/issues?view=list&sort=priority");
 
     const input = page.getByTestId("search-input");
+    const searchBarProgress = page
+      .getByTestId("search-bar")
+      .getByTestId("search-progress-bar");
     const existingRow = page.getByTestId("issue-list-row").first();
     await expect(existingRow).toBeVisible();
 
@@ -189,7 +192,7 @@ test.describe("search debounce cadence (REEF-370)", () => {
     await expect(existingRow).toBeVisible();
 
     await expect.poll(() => requestSeen, { timeout: 5_000 }).toBe(true);
-    await expect(page.getByTestId("search-progress-bar")).toBeVisible();
+    await expect(searchBarProgress).toBeVisible();
     expect(releaseResponse).toBeDefined();
     releaseResponse?.();
 
