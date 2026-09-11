@@ -19,7 +19,7 @@ interface IssueFilterToolbarProps {
   showSortControl?: boolean;
   /** Treat the pristine shared sort state as Jira rank order. */
   supportsRankOrder?: boolean;
-  /** Add the backlog-only drag affordance to the rank option. */
+  /** Add the backlog-specific drag affordance to the rank option. */
   showsBacklogReorderHint?: boolean;
   /** Pin the sprint facet to a detail route without changing shared filters. */
   fixedSprintId?: string;

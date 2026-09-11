@@ -32,7 +32,7 @@ export function filterForIssueScope(
     ACTIVE_STATUS_SET.has(status),
   );
 
-  // An explicit backlog-only selection cannot be silently widened into the
+  // An explicit backlog-specific selection stays within the
   // Active scope. Reuse the valid backlog enum as a server-side empty result;
   // the client projection below keeps it out of the rendered active set.
   return {

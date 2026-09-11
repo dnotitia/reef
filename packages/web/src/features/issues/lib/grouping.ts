@@ -96,7 +96,7 @@ function issueToRelation(issue: IssueListItem): IssueRelation {
 /**
  * Merge the whole-vault compact projection with the currently loaded issue
  * rows. The latter wins for overlapping ids so optimistic status/title/parent
- * edits are reflected immediately, while catalog-only parents remain
+ * edits are reflected immediately, while catalog parents remain
  * available when a filter removed them from the visible list.
  */
 export function buildIssueHierarchyCatalog(
@@ -317,7 +317,7 @@ function buildEpicGroups(
   for (const issue of issues) {
     const issueNode = catalog.get(issue.id);
     if (isRootEpic(issueNode)) {
-      // A root Epic is a header occurrence only; it must never become its own
+      // A root Epic is a header occurrence; it does not become its own
       // child row/card.
       rootIds.add(issueNode.id);
       continue;

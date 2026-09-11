@@ -220,13 +220,13 @@ export function useNewIssueEnrichment({
     return undefined;
   }
 
-  const enrichError = enrichRun.error ?? undefined;
+  const enrichError = error ?? undefined;
   const enrichIsEmpty =
-    enrichRun.isSuccess &&
-    (enrichRun.data?.suggestions.length ?? 0) === 0 &&
-    (enrichRun.data?.references.length ?? 0) === 0;
+    result !== null &&
+    result.suggestions.length === 0 &&
+    result.references.length === 0;
   const showEnrichmentBar =
-    enrichRun.isPending ||
+    isPending ||
     Boolean(enrichError) ||
     enrichIsEmpty ||
     enrichment.counts.pending > 0 ||

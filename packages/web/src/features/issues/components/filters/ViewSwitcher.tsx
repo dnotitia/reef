@@ -12,7 +12,7 @@ import { withVault } from "@/lib/workspaceHref";
 import { Columns3, GanttChart, List } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 import {
   issueLayoutsForScope,
   type IssueLayout,
@@ -35,7 +35,7 @@ interface ViewSwitcherProps {
   includeScope?: boolean;
 }
 
-/** Layout-only control. Scope is deliberately owned by ScopeSwitcher. */
+/** Layout-specific control. Scope is deliberately owned by ScopeSwitcher. */
 export function ViewSwitcher({
   activeLayout,
   scope,
@@ -50,12 +50,13 @@ export function ViewSwitcher({
   const { vault } = useActiveVault();
   const [isPending, startTransition] = useTransition();
   const [pendingLayout, setPendingLayout] = useState<IssueLayout | null>(null);
+  const displayedPendingLayout = isPending ? pendingLayout : null;
   const t = useTranslations("issues.filters");
   const layouts = issueLayoutsForScope(scope, hideTimeline);
 
   const selectLayout = useCallback(
     (layout: IssueLayout) => {
-      if (layout === activeLayout || pendingLayout === layout) return;
+      if (layout === activeLayout || displayedPendingLayout === layout) return;
       onLayoutIntent?.(layout);
       onLayoutChange?.(layout);
       const next = new URLSearchParams(searchParams);
@@ -75,17 +76,13 @@ export function ViewSwitcher({
       includeScope,
       onLayoutIntent,
       onLayoutChange,
-      pendingLayout,
+      displayedPendingLayout,
       router,
       scope,
       searchParams,
       vault,
     ],
   );
-
-  useEffect(() => {
-    if (!isPending) setPendingLayout(null);
-  }, [isPending]);
 
   return (
     <div
@@ -108,7 +105,7 @@ export function ViewSwitcher({
             key={layout}
             type="button"
             aria-pressed={isActive}
-            aria-busy={pendingLayout === layout ? true : undefined}
+            aria-busy={displayedPendingLayout === layout ? true : undefined}
             aria-label={label}
             title={label}
             data-testid={`view-switcher-${layout}`}

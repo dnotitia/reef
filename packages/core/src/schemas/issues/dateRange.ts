@@ -2,13 +2,13 @@ import { z } from "zod";
 
 /**
  * The storage semantics a date field exposes to the shared range module.
- * Timestamp fields compare instants; date-only fields compare calendar days.
+ * Timestamp fields compare instants; calendar-date fields compare calendar days.
  */
 export type IssueDateFieldStorage = "timestamp" | "date-only";
 
 /**
- * One registered issue date field. `column` is trusted registry data, never a
- * value selected by a caller, so SQL builders can not turn an arbitrary field
+ * One registered issue date field. `column` is trusted registry data rather than
+ * caller input, so SQL builders do not turn an arbitrary field
  * string into an identifier.
  */
 export interface IssueDateField {
@@ -344,7 +344,7 @@ function zonedMidnight(date: DateOnly, timeZone: string): number {
   // Local dates advance monotonically with instants, even when a timezone
   // skips a local midnight. Find the first instant whose local date is the
   // requested date (or the first date after it when the whole date is skipped)
-  // so a midnight DST gap cannot return an instant from the previous day.
+  // so a midnight DST gap does not return an instant from the previous day.
   while (low < high) {
     const middle = low + Math.floor((high - low) / 2);
     const localDate = dateOnlyToIso(datePartsInTimeZone(middle, timeZone));

@@ -143,7 +143,7 @@ export const SprintRolloverResultSchema = z.object({
   no_op: z.boolean(),
 });
 
-/** Read-only durable state needed to resume an interrupted rollover. */
+/** Non-mutating durable state needed to resume an interrupted rollover. */
 export const SprintRolloverResumeSchema = z.object({
   result: SprintRolloverResultSchema,
   target: SprintRolloverTargetSchema,

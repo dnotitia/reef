@@ -54,7 +54,7 @@ function MarkdownEditorSkeleton({
 
 /**
  * Keep separate lazy boundaries for the two public height policies. Next's
- * dynamic loading component receives only its own load state, not the caller's
+ * dynamic loading component receives its own load state, not the caller's
  * props, so selecting the boundary at this small wrapper is what lets the
  * opted-in issue surfaces reserve 320px while every other consumer keeps the
  * existing 200px skeleton.

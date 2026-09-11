@@ -16,15 +16,15 @@ export interface IssueFilter {
   status?: string[];
   issueType?: string[];
   priority?: string[];
-  /** Filter-only selection for issues with no priority value. */
+  /** filter-specific selection for issues with no priority value. */
   priorityUnset?: boolean;
   assignee?: string[];
-  /** Filter-only selection for issues with no assigned_to value. */
+  /** filter-specific selection for issues with no assigned_to value. */
   assigneeUnset?: boolean;
   requester?: string[];
   reporter?: string;
   severity?: string[];
-  /** Filter-only selection for issues with no severity value. */
+  /** filter-specific selection for issues with no severity value. */
   severityUnset?: boolean;
   sprint_id?: string[];
   milestone_id?: string;
@@ -37,7 +37,7 @@ export interface IssueFilter {
   // in core does not silently leave this union behind.
   sortField?: UserSortField;
   sortOrder?: "asc" | "desc";
-  /** Shared ordering choice; omitted legacy filters resolve to Manual. */
+  /** Shared ordering choice; omitted older filters resolve to Manual. */
   orderingMode?: IssueOrderingMode;
   dependencyFilter?: ("blocked" | "blocking")[];
   /** One generic issue-date range across the registered issue date fields. */

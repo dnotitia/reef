@@ -1,5 +1,5 @@
 /**
- * Optional SSO-first login opt-in. The value is server-only and defaults off,
+ * Optional SSO-first login opt-in. The value is server-side and defaults off,
  * so a mixed password+SSO deployment keeps its explicit login panel.
  */
 export function ssoAutoRedirectEnabled(

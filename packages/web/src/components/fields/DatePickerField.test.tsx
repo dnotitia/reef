@@ -282,7 +282,7 @@ describe("DatePickerField", () => {
     render(<DatePickerField value="" onChange={vi.fn()} label="Start date" />);
     await user.click(screen.getByTestId("date-picker-trigger"));
     const input = screen.getByTestId("date-picker-input");
-    // Text entry is a context exception: clicking the field must identify the
+    // Text entry is a context exception: clicking the field identifies the
     // insertion target just like keyboard entry.
     expect(input.className).toContain("focus:ring-brand-focus");
     expect(input.className).toContain("focus:ring-2");

@@ -158,7 +158,7 @@ export function proxy(request: NextRequest) {
     // unverified edge claim would overstate it in traces/cost dashboards.
     //
     // The public identity claim is read; the AKB JWT itself is not logged or
-    // forwarded from this edge-only access-line enrichment.
+    // forwarded from this edge-specific access-line enrichment.
     const sessionJwt = request.cookies.get(SESSION_COOKIE)?.value;
     const actor = sessionJwt ? decodeSessionActor(sessionJwt) : null;
     logger.info(

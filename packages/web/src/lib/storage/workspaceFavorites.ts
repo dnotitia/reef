@@ -45,7 +45,7 @@ export function normalizeWorkspaceFavoriteNames(
   return names.toSorted(compareWorkspaceNames);
 }
 
-/** Keep only favorites that still belong to the accessible configured set. */
+/** Filter favorites to the accessible configured set. */
 export function filterWorkspaceFavorites(
   favorites: readonly unknown[],
   availableNames: readonly string[],
@@ -123,7 +123,7 @@ export async function getWorkspaceFavorites(): Promise<string[]> {
   return favorites;
 }
 
-/** Persist only the valid, unique, deterministic workspace-name payload. */
+/** Persist the valid, unique, deterministic workspace-name payload. */
 export async function setWorkspaceFavorites(
   favorites: readonly unknown[],
 ): Promise<void> {

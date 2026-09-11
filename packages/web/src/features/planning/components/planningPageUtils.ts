@@ -14,7 +14,7 @@ export const PLANNING_KINDS: PlanningKind[] = [
 export type PlanningView = "overview" | "list";
 
 /**
- * Overview is the default planning surface. A legacy kind/detail URL is a
+ * Overview is the default planning surface. An older kind/detail URL is a
  * List deep link even before it has been rewritten to include `view=list`.
  */
 export function readPlanningView(params: URLSearchParams): PlanningView {

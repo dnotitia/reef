@@ -15,7 +15,7 @@ type SprintRolloverIssue = Pick<
   "status" | "sprint_id" | "archived_at"
 >;
 
-/** Return true only for an unarchived issue that can be carried forward. */
+/** Return true for an unarchived issue that can be carried forward. */
 export function isSprintRolloverCandidate(
   issue: SprintRolloverIssue,
   sourceSprintId: string,

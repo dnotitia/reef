@@ -2,7 +2,7 @@
 
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useRef } from "react";
+import { useCallback } from "react";
 import { buildOpenIssueHref } from "../../lib/issueHref";
 
 /**
@@ -17,15 +17,11 @@ export function useOpenIssue() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { vault } = useActiveVault();
-  const latestTargetRef = useRef({ searchParams, vault });
-  latestTargetRef.current = { searchParams, vault };
   return useCallback(
     (id: string, opener?: HTMLElement) => {
-      const { searchParams: latestSearchParams, vault: latestVault } =
-        latestTargetRef.current;
       opener?.focus({ preventScroll: true });
-      router.push(buildOpenIssueHref(latestVault, id, latestSearchParams));
+      router.push(buildOpenIssueHref(vault, id, searchParams));
     },
-    [router],
+    [router, searchParams, vault],
   );
 }

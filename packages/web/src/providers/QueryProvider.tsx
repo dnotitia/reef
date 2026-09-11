@@ -74,7 +74,7 @@ function createQueryCacheStorage() {
     setItem: (key: string, value: string) => {
       // A cache clear emits QueryCache removal events. The persister can
       // throttle those events past clearAuthScopedClientCache(), so an empty
-      // snapshot must remove the key instead of recreating account-scoped
+      // snapshot removes the key instead of recreating account-scoped
       // persistence during logout or account denial.
       if (key === PERSISTED_QUERY_CACHE_KEY && isEmptyPersistedClient(value)) {
         window.localStorage.removeItem(key);

@@ -98,7 +98,7 @@ export async function deleteVault(params: DeleteVaultParams): Promise<void> {
  *  - issue documents — by their deterministic id→path (reef's docs in the
  *    shared-name `issues/` collection);
  *  - vault-skill documents — by the exact paths reef installed;
- *  - no private activity collection — legacy activity documents are deliberately
+ *  - no private activity collection — older activity documents are deliberately
  *    left untouched because the removed surface has no active ownership path.
  *
  * Then every reef table is dropped, `reef_settings` LAST so `has_reef_config`

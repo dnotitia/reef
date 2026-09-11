@@ -536,7 +536,7 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
           // and Planning dates / Relationship inputs stop truncating. The
           // Desktop uses the user-resizable width; the narrow sheet keeps the
           // established 94vw inset, while the small-mobile CSS breakpoint fills
-          // the viewport so fixed chrome controls cannot spill past the edge.
+          // the viewport so fixed chrome controls stay inside the edge.
           // The issue body below owns the scroll and uses `overscroll-contain`
           // to stop chaining to the page.
           // Keep the sheet viewport fixed while the issue body owns vertical

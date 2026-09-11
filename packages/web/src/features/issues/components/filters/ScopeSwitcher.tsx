@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 import type { IssueLayout, IssueScope } from "../../lib/viewMode";
 
 interface ScopeSwitcherProps {
@@ -31,6 +31,7 @@ export function ScopeSwitcher({
   const { vault } = useActiveVault();
   const [isPending, startTransition] = useTransition();
   const [pendingScope, setPendingScope] = useState<IssueScope | null>(null);
+  const displayedPendingScope = isPending ? pendingScope : null;
   const t = useTranslations("issues.filters");
 
   const layoutForScope = useCallback(
@@ -51,7 +52,7 @@ export function ScopeSwitcher({
 
   const selectScope = useCallback(
     (scope: IssueScope) => {
-      if (scope === activeScope || pendingScope === scope) return;
+      if (scope === activeScope || displayedPendingScope === scope) return;
       preloadScope(scope);
       const next = new URLSearchParams(searchParams);
       next.set("scope", scope);
@@ -66,17 +67,13 @@ export function ScopeSwitcher({
     [
       activeScope,
       layoutForScope,
-      pendingScope,
+      displayedPendingScope,
       preloadScope,
       router,
       searchParams,
       vault,
     ],
   );
-
-  useEffect(() => {
-    if (!isPending) setPendingScope(null);
-  }, [isPending]);
 
   return (
     <div
@@ -98,7 +95,7 @@ export function ScopeSwitcher({
             key={scope}
             type="button"
             aria-pressed={isActive}
-            aria-busy={pendingScope === scope ? true : undefined}
+            aria-busy={displayedPendingScope === scope ? true : undefined}
             aria-label={label}
             title={label}
             data-testid={`scope-switcher-${scope}`}

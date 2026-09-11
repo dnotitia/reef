@@ -50,7 +50,7 @@ import { useTranslations } from "next-intl";
 /**
  * Placeholder widths (in `w-*` units) for the filter-bar controls. The shared
  * `issueFilterChromeKeys` registry decides which controls exist for the
- * URL-known scope; this table only owns each control's fixed geometry. Keeping
+ * URL-known scope; this table defines each control's fixed geometry. Keeping
  * the same `flex flex-wrap gap-2` container makes the skeleton wrap to the same
  * number of rows as the live FilterBar at any width (REEF-258).
  */
@@ -380,7 +380,7 @@ export function IssuesWorkspaceSkeleton({
           />
         }
       />
-      {/* Fixed toolbar labels use the normal control chrome; only the board's
+      {/* Fixed toolbar labels use the normal control chrome; the board's
           unresolved card/value placeholders remain Skeleton bars. */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {/* Mirrors IssueFilterToolbar's outer bar (border-b · px-6 · py-2.5) and

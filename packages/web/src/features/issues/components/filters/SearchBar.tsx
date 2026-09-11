@@ -37,8 +37,10 @@ export function SearchBar({
   const inputRef = useRef<HTMLInputElement>(null);
   const localValueRef = useRef(localValue);
   const debouncedValueRef = useRef(debounced);
-  localValueRef.current = localValue;
-  debouncedValueRef.current = debounced;
+  useEffect(() => {
+    localValueRef.current = localValue;
+    debouncedValueRef.current = debounced;
+  }, [debounced, localValue]);
 
   // Push the settled value into the store so the list query re-runs on it.
   useEffect(() => {
@@ -58,9 +60,9 @@ export function SearchBar({
 
       // A result consumer can keep the main thread busy after the debounce
       // value has been committed. While the user is typing, an older store
-      // write must not restore that value over the live draft. Explicit reset
+      // write should not restore that value over the live draft. Explicit reset
       // intents (My View, clear filters, URL adoption, or a vault switch) carry
-      // the monotonic token and always win.
+      // the monotonic token wins.
       if (
         !resetRequested &&
         localValueRef.current !== debouncedValueRef.current

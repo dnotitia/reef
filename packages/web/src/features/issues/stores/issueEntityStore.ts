@@ -43,7 +43,7 @@ function sameIssueValue(left: unknown, right: unknown): boolean {
   );
 }
 
-/** Keep the first list projection reference when a refetch only changes identity. */
+/** Keep the first list projection reference when a refetch just changes identity. */
 export function areIssueListItemsEqual(
   left: IssueListItem,
   right: IssueListItem,

@@ -94,7 +94,7 @@ describe("deleteVault", () => {
 describe("detachReef", () => {
   it("deletes only reef-owned documents/files and drops every table, settings last", async () => {
     // 6 vault-skill docs + 2 issue docs + attachment URI query + 2 attachment
-    // files + 12 tables. Legacy activity-inbox documents and rows are left
+    // files + 12 tables. older activity-inbox documents and rows are left
     // untouched because this obsolete surface has no active ownership path.
     const { calls } = setupFetch([
       ...Array.from({ length: 8 }, () => ({ status: 204 })),
@@ -148,7 +148,7 @@ describe("detachReef", () => {
       "/api/v1/documents/reef-sample/overview/vault-skill.md",
     );
     // 6 vault-skill docs + 2 issue docs. No activity-inbox collection is
-    // deleted: previously stored legacy documents remain inertly available.
+    // deleted: previously stored older documents remain inertly available.
     expect(docDeletes).toHaveLength(8);
     expect(collectionDeletes).toEqual([]);
 

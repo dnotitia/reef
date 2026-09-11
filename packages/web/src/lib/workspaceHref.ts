@@ -20,7 +20,7 @@ export const WORKSPACE_PREFIX = "/workspace";
  * URL (REEF-315).
  *
  * `path` is the leading-slash dashboard path (a query string may ride along).
- * A dashboard URL cannot be built without a valid vault. Callers that render
+ * A dashboard URL requires a valid vault. Callers that render
  * before a workspace is selected therefore land on the workspace picker rather
  * than emitting a vault-less dashboard path.
  */

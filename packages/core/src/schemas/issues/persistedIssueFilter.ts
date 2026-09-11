@@ -200,7 +200,7 @@ function canonicalLabelFilter(value: string): string | undefined {
 /**
  * Sanitizes the filter portion shared by IndexedDB and My View snapshots.
  * Invalid fields are dropped independently, arrays are sorted/deduplicated,
- * and a sort direction is kept only when its field is valid.
+ * and a sort direction is kept when its field is valid.
  */
 export function normalizePersistedIssueFilter(
   value: unknown,

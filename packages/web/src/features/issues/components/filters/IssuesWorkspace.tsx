@@ -280,6 +280,8 @@ export function IssuesWorkspace({
   const planningCatalogQuery = usePlanningCatalog(vault);
   const workspaceAccess = useWorkspaceAccess(vault);
   const hydrated = useHydrated();
+  const [renderTime] = useState(() => Date.now());
+  const now = hydrated ? renderTime : null;
   const [rolloverOpen, setRolloverOpen] = useState(false);
   const [rolloverMounted, setRolloverMounted] = useState(false);
   const [rolloverResume, setRolloverResume] =
@@ -317,7 +319,7 @@ export function IssuesWorkspace({
   );
   // Keep the two header controls on the same user intent while the App Router
   // is still reflecting an earlier view navigation. The URL remains the source
-  // of truth; this only lets a scope change normalize the latest requested view.
+  // of truth; this just lets a scope change normalize the latest requested view.
   const [pendingLayout, setPendingLayout] = useState<IssueLayout | null>(null);
   const previousLayout = useRef(layout);
   const headerLayout = pendingLayout ?? layout;
@@ -436,7 +438,7 @@ export function IssuesWorkspace({
             />
           ) : (
             // Backlog scope drops the facets it pins or does not partition on
-            // (Status/Sprint/Release/Due); Active keeps only workflow statuses.
+            // (Status/Sprint/Release/Due); Active keeps workflow statuses.
             <IssueFilterToolbar
               backlogScope={scope === "backlog"}
               scope={scope}
@@ -468,7 +470,7 @@ export function IssuesWorkspace({
               sprint={activeSprint}
               issues={rolloverIssueQuery.data}
               issueState={rolloverIssueState}
-              now={hydrated ? Date.now() : null}
+              now={now}
               canEdit={workspaceAccess.canEditWorkspace}
               priority={rolloverResumes.length > 0 ? "secondary" : "primary"}
               onOpen={() => {
@@ -526,7 +528,7 @@ export function IssuesWorkspace({
           catalog={planningCatalogQuery.data}
           issues={rolloverIssueQuery.data}
           issueState={rolloverIssueState}
-          now={hydrated ? Date.now() : null}
+          now={now}
           canEdit={workspaceAccess.canEditWorkspace}
           onRetryIssues={() => void rolloverIssueQuery.refetch()}
         />

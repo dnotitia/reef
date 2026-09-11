@@ -27,7 +27,7 @@ export interface CommentMentionOptions {
 
 /**
  * CommonMark renders a consecutive `\\` run as one literal backslash. Comment
- * bodies preserve the authored run, so double only runs of two or more before
+ * bodies preserve the authored run, so double runs of two or more before
  * handing the source to the Markdown renderer. A single `\\@` remains the
  * existing ordinary-mention escape.
  */

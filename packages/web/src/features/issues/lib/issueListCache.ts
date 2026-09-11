@@ -166,7 +166,7 @@ export function updateIssueListCaches(
 }
 
 /**
- * Restore only the issue that belongs to a failed mutation. Restoring an
+ * Restore the issue that belongs to a failed mutation. Restoring an
  * entire list snapshot can erase a sibling row's newer optimistic update when
  * two rows are saved at the same time.
  */

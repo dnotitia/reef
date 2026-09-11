@@ -57,7 +57,7 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
     vaultsQuery.isSuccess &&
     vaultsQuery.data.some((v) => v.name === vault && v.has_reef_config);
   // One-way URL→Dexie sync: remember this vault as the per-browser default
-  // only after auth and membership are confirmed. Passing "" while the
+  // after auth and membership are confirmed. Passing "" while the
   // session or membership is unknown makes the sync a no-op.
   useSyncActiveVaultFromUrl(isMember ? vault : "");
 

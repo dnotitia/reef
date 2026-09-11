@@ -1128,8 +1128,8 @@ export async function reorderIssue(
         throw new ConflictError({ path: issuePathFor(issueId) });
       }
 
-      // A null `after_id` is the canonical scope tail. The client must only
-      // send it once that tail is known (or deliberately asks for the true
+      // A null `after_id` is the canonical scope tail. The client sends it
+      // once that tail is known (or deliberately asks for the true
       // end); a visible page boundary is not an ordering authority.
       const toIndex = afterId ? afterIndex : beforeId ? withoutMoved.length : 0;
       if (toIndex < 0 || toIndex > withoutMoved.length) {
@@ -1157,7 +1157,7 @@ export async function reorderIssue(
       }
 
       // Recheck every row whose rank the algebra is about to rewrite. A
-      // concurrent change to an unranked tail row must not be silently folded
+      // concurrent change to an unranked tail row should not be silently folded
       // into a materialized run.
       const guardRows = new Map<
         string,

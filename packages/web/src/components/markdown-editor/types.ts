@@ -34,13 +34,13 @@ export interface MarkdownEditorProps {
   vault?: string;
   /**
    * Optional file upload hook for issue-owned editor surfaces. The editor
-   * mutates markdown after this resolves, inserting only successful attachment
+   * mutates markdown after this resolves, inserting successful attachment
    * items and leaving failed/cancelled items out of the document.
    */
   onUploadFiles?: (files: File[]) => Promise<MarkdownUploadBatchResult>;
   /** Common target resolver used for ephemeral WYSIWYG reference resolution. */
   adapters?: Pick<MarkdownAdapters, "targetResolver">;
-  /** Source identity used by the common target resolver; never serialized. */
+  /** Source identity used by the common target resolver; is not serialized. */
   resolverContext?: MarkdownTargetResolverContext;
   /** Resolve stored image URLs (for example akb:// file URIs) for WYSIWYG paint. */
   resolveImageSrc?: (src: string) => string;
@@ -56,7 +56,7 @@ export interface MarkdownEditorProps {
   /**
    * A non-persistent height supplied by a containing layout (for example, a
    * maximized New Issue dialog). A larger preferred value may temporarily grow
-   * a saved baseline, while explicit user resizing always wins and persists.
+   * a saved baseline, while explicit user resizing takes precedence and persists.
    */
   preferredHeight?: number;
   /** Optional observation seam for a containing layout's transient geometry. */

@@ -319,13 +319,14 @@ describe("slashCommandExtension", () => {
       cancelable: true,
       key: "Escape",
     });
+    const stopPropagation = vi.spyOn(event, "stopPropagation");
     const handled = editor.view.someProp("handleKeyDown", (handler) =>
       handler(editor.view, event),
     );
 
     expect(handled).toBe(true);
     expect(event.defaultPrevented).toBe(true);
-    expect(event.cancelBubble).toBe(true);
+    expect(stopPropagation).toHaveBeenCalledOnce();
     await waitFor(() => {
       expect(
         document.querySelector('[data-testid="slash-command-menu"]'),

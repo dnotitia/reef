@@ -8,7 +8,7 @@ import {
 import { clearConfigByPrefix, getConfigValue, setConfigValue } from "./config";
 import { type ConfigEntry, db } from "./db";
 
-export const MY_VIEW_STORAGE_KEY_PREFIX = "my_view:";
+const MY_VIEW_STORAGE_KEY_PREFIX = "my_view:";
 
 export type MyView = MyViewEnvelope;
 

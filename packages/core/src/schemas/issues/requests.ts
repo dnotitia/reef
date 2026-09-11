@@ -128,9 +128,9 @@ export const DEFAULT_ISSUE_SORT_ORDER = "desc" satisfies "asc" | "desc";
  * facets, and assigned_to / requester match exactly rather than by substring.
  * milestone_id stays a single scalar (narrowing to one milestone is the common
  * case — multi-select left out of scope per REEF-267 Scope).
- * The `*_unset` flags are filter-only predicates; they do not add sentinels to
+ * The `*_unset` flags are filter-specific predicates; they do not add sentinels to
  * the stored issue enums or values.
- * `due_unset` is used only for a pure no-due-date request; mixed due-state
+ * `due_unset` is used for a pure no-due-date request; mixed due-state
  * selections remain client-side so their union preserves the existing date
  * boundary and resolved-issue rules.
  */
@@ -223,9 +223,9 @@ export type IssueListResponse = z.infer<typeof IssueListResponseSchema>;
 /**
  * The shared Manual-order drag command used by Board, List, and Backlog.
  *
- * The browser sends only the moved issue and its intended neighbours. The
+ * The browser sends the moved issue and its intended neighbours. The
  * adapter reads the canonical rank-ordered set before applying the command;
- * the client page is therefore never treated as the complete ordering source.
+ * the client page is therefore not treated as the complete ordering source.
  */
 export const IssueReorderGroupSchema = z
   .object({
@@ -291,11 +291,11 @@ export const IssueReorderGroupSchema = z
   });
 
 const IssueReorderExpectedSchema = z.object({
-  issue_rank: z.number().finite().nullable(),
+  issue_rank: z.number().nullable(),
   issue_updated_at: IsoDateFieldSchema,
-  before_rank: z.number().finite().nullable(),
+  before_rank: z.number().nullable(),
   before_updated_at: IsoDateFieldSchema.nullable(),
-  after_rank: z.number().finite().nullable(),
+  after_rank: z.number().nullable(),
   after_updated_at: IsoDateFieldSchema.nullable(),
 });
 
@@ -348,7 +348,7 @@ export const IssueReorderResponseSchema = z.object({
     .array(
       z.object({
         id: z.string().min(1),
-        rank: z.number().finite(),
+        rank: z.number(),
         updated_at: IsoDateFieldSchema.optional(),
       }),
     )
@@ -372,7 +372,7 @@ export const IssueRelationSchema = z.object({
   issue_type: IssueTypeEnum,
   parent_id: z.string().nullable(),
   title: z.string().min(1),
-  rank: z.number().finite().nullable(),
+  rank: z.number().nullable(),
 });
 
 export type IssueRelation = z.infer<typeof IssueRelationSchema>;

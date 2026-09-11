@@ -72,7 +72,7 @@ function getMaximizedDescriptionHeight({
 }) {
   // The shell measures the space remaining in the scrollable form body after
   // the Description heading/title. MarkdownEditor owns the REEF-545 clamp;
-  // this value remains transient and is never persisted here.
+  // this value remains transient and is not persisted here.
   if (
     typeof availableHeight === "number" &&
     Number.isFinite(availableHeight) &&
@@ -128,7 +128,7 @@ export interface NewIssueDialogGeometry {
   onToggleMaximize: () => void;
 }
 
-/** Owns only create-dialog canvas geometry; the MarkdownEditor owns its height policy. */
+/** Owns create-dialog canvas geometry; the MarkdownEditor owns its height policy. */
 export function useNewIssueDialogGeometry(
   open: boolean,
   formBodyRef: { current: HTMLDivElement | null },
@@ -147,9 +147,8 @@ export function useNewIssueDialogGeometry(
   const [viewport, setViewport] = useState(readViewport);
   const [normalHeight, setNormalHeight] = useState<number | null>(null);
   const normalHeightRef = useRef<number | null>(null);
-  const [isMaximized, setIsMaximized] = useState(false);
-  const isMaximizedRef = useRef(false);
-  const [sessionLoaded, setSessionLoaded] = useState(false);
+  const [isMaximized, setIsMaximized] = useState(readStoredExpanded);
+  const isMaximizedRef = useRef(isMaximized);
   const [maximizedDescriptionHeight, setMaximizedDescriptionHeight] = useState<
     number | null
   >(null);
@@ -190,16 +189,12 @@ export function useNewIssueDialogGeometry(
     measureMaximizedDescriptionHeight();
   }, [measureMaximizedDescriptionHeight, measureNormalHeight]);
 
-  useEffect(() => {
-    const restored = readStoredExpanded();
-    isMaximizedRef.current = restored;
-    setIsMaximized(restored);
-    setSessionLoaded(true);
-  }, []);
-
   useLayoutEffect(() => {
     if (!open) return;
-    syncViewport();
+    let disposed = false;
+    queueMicrotask(() => {
+      if (!disposed) syncViewport();
+    });
     window.addEventListener("resize", syncViewport);
 
     const observer =
@@ -212,6 +207,7 @@ export function useNewIssueDialogGeometry(
     if (observer && dialogElement) observer.observe(dialogElement);
 
     return () => {
+      disposed = true;
       window.removeEventListener("resize", syncViewport);
       observer?.disconnect();
     };
@@ -226,19 +222,17 @@ export function useNewIssueDialogGeometry(
   const canMaximize = useMemo(
     () =>
       open &&
-      sessionLoaded &&
       canExpandNewIssueDialog({
         viewportWidth: viewport.width,
         viewportHeight: viewport.height,
-        normalHeight: normalHeightRef.current ?? normalHeight,
+        normalHeight,
       }),
-    [normalHeight, open, sessionLoaded, viewport.height, viewport.width],
+    [normalHeight, open, viewport.height, viewport.width],
   );
 
   useEffect(() => {
     if (
       !open ||
-      !sessionLoaded ||
       !isMaximized ||
       normalHeightRef.current === null ||
       canMaximize
@@ -247,7 +241,7 @@ export function useNewIssueDialogGeometry(
     isMaximizedRef.current = false;
     setIsMaximized(false);
     storeExpanded(false);
-  }, [canMaximize, isMaximized, open, sessionLoaded]);
+  }, [canMaximize, isMaximized, open]);
 
   const onToggleMaximize = useCallback(() => {
     if (!canMaximize) return;
@@ -258,7 +252,7 @@ export function useNewIssueDialogGeometry(
     storeExpanded(next);
   }, [canMaximize]);
 
-  const effectiveNormalHeight = normalHeightRef.current ?? normalHeight;
+  const effectiveNormalHeight = normalHeight;
   const preferredDescriptionHeight =
     isMaximized && canMaximize && effectiveNormalHeight !== null
       ? getMaximizedDescriptionHeight({

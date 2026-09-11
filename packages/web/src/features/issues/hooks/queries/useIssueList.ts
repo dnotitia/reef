@@ -21,7 +21,7 @@ export function useIssueList(
   query?: IssueQueryParams,
   options?: {
     /**
-     * Enable the query only while the owning surface is needed. Disabled
+     * Enable the query while the owning surface is needed. Disabled
      * queries keep their cache entry but do not start a request.
      */
     enabled?: boolean;

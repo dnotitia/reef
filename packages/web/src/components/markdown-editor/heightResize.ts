@@ -30,7 +30,7 @@ export const MARKDOWN_SURFACE_CLASS = "reef-markdown-surface";
 export const EDITOR_RESIZABLE_BODY_ID = "markdown-editor-body-frame";
 export const EDITOR_BODY_MIN_HEIGHT = 200;
 export const EDITOR_BODY_DEFAULT_HEIGHT = 320;
-export const EDITOR_BODY_MAX_HEIGHT = 960;
+const EDITOR_BODY_MAX_HEIGHT = 960;
 export const EDITOR_BODY_KEYBOARD_STEP = 32;
 /**
  * The height control is useful once the editor has enough room for a stable
@@ -40,10 +40,10 @@ export const EDITOR_BODY_KEYBOARD_STEP = 32;
  */
 export const EDITOR_BODY_RESIZE_MIN_WIDTH = 1024;
 export const EDITOR_BODY_FINE_POINTER_MEDIA_QUERY = "(pointer: fine)";
-export const EDITOR_BODY_VIEWPORT_RESERVATION = 160;
+const EDITOR_BODY_VIEWPORT_RESERVATION = 160;
 export const EDITOR_BODY_SESSION_STORAGE_KEY =
   "reef:issue-description-height:v1";
-export const EDITOR_BODY_SESSION_STORAGE_EVENT =
+const EDITOR_BODY_SESSION_STORAGE_EVENT =
   "reef:issue-description-height-change";
 export const EDITOR_RESIZE_DESCRIPTION_ID =
   "markdown-editor-resize-description";
@@ -280,9 +280,10 @@ export function useMarkdownEditorHeightResize(
     startHeight: number;
   } | null>(null);
 
-  // Opted-in issue descriptions always own a fixed frame. This callback is
-  // retained for the editor's value-sync seam, but it deliberately never
-  // measures content: an empty body must not collapse the 320px default.
+  // Opted-in issue descriptions use a fixed frame. This callback is retained for
+  // the editor's value-sync seam, but it deliberately does not
+  // measures content: an empty body should not collapse the 320px default.
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- state setter dependencies are stable; keep the minimal hook dependency list.
   const refreshAutoHeight = useCallback(() => {
     if (!isResizeAvailable || manualHeightState !== null) return;
     const nextHeight = clampEditorHeight(
@@ -311,6 +312,9 @@ export function useMarkdownEditorHeightResize(
       manualHeightRef.current = nextHeight;
       currentHeightRef.current = nextHeight;
       if (nextHeight !== manualHeightState) {
+        // The viewport clamp is an external layout correction; keep the
+        // persisted manual value aligned with the measured frame.
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- layout correction follows the external viewport measurement.
         setManualHeight(nextHeight);
         storeEditorHeight(nextHeight);
       }
@@ -337,6 +341,7 @@ export function useMarkdownEditorHeightResize(
     storedEditorHeight,
   ]);
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- state setter dependencies are stable; keep the minimal hook dependency list.
   const enterManualMode = useCallback(() => {
     if (!isResizeAvailable) return null;
     const existingHeight = manualHeightRef.current;
@@ -352,6 +357,7 @@ export function useMarkdownEditorHeightResize(
   }, [effectiveHeight, isResizeAvailable, maxHeight]);
 
   const updateHeight = useCallback(
+    // eslint-disable-next-line react-hooks/preserve-manual-memoization -- state setter dependencies are stable; keep the minimal hook dependency list.
     (value: number) => {
       if (!isResizeAvailable) return;
       const nextHeight = clampEditorHeight(value, maxHeight);
@@ -397,6 +403,7 @@ export function useMarkdownEditorHeightResize(
   );
 
   const onPointerDown = useCallback(
+    // eslint-disable-next-line react-hooks/preserve-manual-memoization -- state setter dependencies are stable; keep the minimal hook dependency list.
     (event: PointerEvent<HTMLDivElement>) => {
       if (!isResizeAvailable || event.button !== 0) return;
       const startHeight = enterManualMode();
@@ -424,6 +431,7 @@ export function useMarkdownEditorHeightResize(
   );
 
   const finishPointerResize = useCallback(
+    // eslint-disable-next-line react-hooks/preserve-manual-memoization -- state setter dependencies are stable; keep the minimal hook dependency list.
     (event: PointerEvent<HTMLDivElement>) => {
       const drag = dragRef.current;
       if (!drag || drag.pointerId !== event.pointerId) return;

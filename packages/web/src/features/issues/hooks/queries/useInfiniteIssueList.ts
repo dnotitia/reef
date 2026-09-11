@@ -23,7 +23,7 @@ export function useInfiniteIssueList(vault: string, query: IssueQueryParams) {
     initialPageParam: null as string | null,
     staleTime: 60_000,
     // Revalidate persisted snapshots on reload/remount so a fresh empty page
-    // cannot mask a current server read failure (V7).
+    // does not mask a current server read failure (V7).
     refetchOnMount: "always",
     retry: false,
     placeholderData: (previousData, previousQuery) =>
