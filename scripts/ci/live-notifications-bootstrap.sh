@@ -118,6 +118,11 @@ fi
 [[ -x "$NODE_BIN" && -x "$NPM_BIN" ]] || die "pinned Node.js/npm are unavailable"
 [[ "$($NODE_BIN --version)" == "v$NODE_VERSION" ]] || die "pinned Node.js version verification failed"
 
+# npm's launcher is a #!/usr/bin/env node script. Put the resolved Node bin
+# directory on PATH before the first npm invocation, including private-node
+# installs on hosts without a usable system Node.
+export PATH="$(dirname "$NODE_BIN"):${PATH:-}"
+
 PNPM_BIN="$SYSTEM_PNPM"
 if [[ "$SYSTEM_PNPM_VERSION" != "$PNPM_VERSION" || ! -x "$PNPM_BIN" ]]; then
   mkdir -p -- "$PNPM_HOME" || die "could not create private pnpm root"
@@ -129,7 +134,7 @@ fi
 [[ -x "$PNPM_BIN" ]] || die "pinned pnpm is unavailable"
 [[ "$($PNPM_BIN --version)" == "$PNPM_VERSION" ]] || die "pinned pnpm version verification failed"
 
-export PATH="$(dirname "$NODE_BIN"):$(dirname "$PNPM_BIN"):${PATH:-}"
+export PATH="$(dirname "$PNPM_BIN"):${PATH:-}"
 export REEF_LIVE_NOTIFICATIONS_RUNTIME_ROOT="$RUNTIME_ROOT"
 export REEF_LIVE_NOTIFICATIONS_NODE_BIN="$NODE_BIN"
 export REEF_LIVE_NOTIFICATIONS_PNPM_BIN="$PNPM_BIN"
