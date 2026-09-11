@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import {
   AKB_REVISION,
@@ -12,6 +13,39 @@ import {
 } from "./live-notifications-runtime.mjs";
 
 describe("live notification runtime contract", () => {
+  it("bootstraps the pinned Node/pnpm toolchain privately before publishing stdout", async () => {
+    const bootstrap = await readFile(
+      new URL(
+        "../../../scripts/ci/live-notifications-bootstrap.sh",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+
+    expect(bootstrap).toContain("exec 3>&1 1>&2");
+    expect(bootstrap).toContain(
+      "tr -d '[:space:]' < \"$ROOT_DIR/.node-version\"",
+    );
+    expect(bootstrap).toContain('"packageManager"');
+    expect(bootstrap).toContain("https://nodejs.org/dist/v${NODE_VERSION}");
+    expect(bootstrap).toContain("SHASUMS256.txt");
+    expect(bootstrap).toContain('PNPM_HOME="$TOOLCHAIN_ROOT/pnpm"');
+    expect(bootstrap).not.toContain("/usr/local");
+    expect(bootstrap).toContain(
+      'export REEF_LIVE_NOTIFICATIONS_NODE_BIN="$NODE_BIN"',
+    );
+    expect(bootstrap).toContain(
+      'exec "$NODE_BIN" "$ROOT_DIR/scripts/ci/live-notifications-runtime.mjs"',
+    );
+    expect(
+      bootstrap.indexOf(
+        'exec "$NODE_BIN" "$ROOT_DIR/scripts/ci/live-notifications-runtime.mjs"',
+      ),
+    ).toBeGreaterThan(
+      bootstrap.indexOf('[[ "$($PNPM_BIN --version)" == "$PNPM_VERSION" ]]'),
+    );
+  });
+
   it("accepts only the approved serve scenario and private paths", () => {
     expect(
       parseOptions(

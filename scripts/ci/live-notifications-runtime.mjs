@@ -199,8 +199,9 @@ function runLoggedCommand(command, args, { cwd, env, logPath }) {
   });
 }
 
-async function resolveToolchain(runtimeRoot, logsDir) {
-  const node = executable("node");
+async function resolveToolchain() {
+  const node =
+    process.env.REEF_LIVE_NOTIFICATIONS_NODE_BIN ?? executable("node");
   if (!node) fail("Node.js is required by the live runtime");
   const expectedNode = (
     await readFile(join(REPO_ROOT, ".node-version"), "utf8")
@@ -209,26 +210,9 @@ async function resolveToolchain(runtimeRoot, logsDir) {
     fail(`Node.js ${expectedNode} is required by the Reef checkout`);
   }
 
-  let pnpm = executable("pnpm");
-  if (!pnpm) {
-    const corepack = executable("corepack");
-    if (!corepack) fail("pnpm or corepack is required by the live runtime");
-    const toolchainBin = await makePrivateDirectory(
-      join(runtimeRoot, "toolchain", "bin"),
-    );
-    await runLoggedCommand(
-      corepack,
-      ["enable", "--install-directory", toolchainBin],
-      {
-        cwd: REPO_ROOT,
-        env: redactEnvironment(process.env),
-        logPath: join(logsDir, "toolchain.log"),
-      },
-    );
-    process.env.PATH = `${toolchainBin}:${process.env.PATH ?? ""}`;
-    pnpm = executable("pnpm");
-  }
-  if (!pnpm) fail("pnpm was not available after corepack setup");
+  const pnpm =
+    process.env.REEF_LIVE_NOTIFICATIONS_PNPM_BIN ?? executable("pnpm");
+  if (!pnpm) fail("pinned pnpm was not provided by the shell bootstrap");
   const packageJson = JSON.parse(
     await readFile(join(REPO_ROOT, "package.json"), "utf8"),
   );
@@ -1375,7 +1359,7 @@ async function main() {
     fail(`${PASSWORD_ENV} is required`);
   }
 
-  const toolchain = await resolveToolchain(runtimeRoot, logsDir);
+  const toolchain = await resolveToolchain();
   const buildEnv = redactEnvironment(process.env);
   buildEnv.CI = buildEnv.CI ?? "1";
   await buildReefRuntime(toolchain.pnpm, logsDir, buildEnv);

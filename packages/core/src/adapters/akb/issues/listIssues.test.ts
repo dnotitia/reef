@@ -84,13 +84,37 @@ describe("listIssues → SQL", () => {
       }),
     });
     expect(capturedSql(calls)).toContain(
-      `WHERE "updated_at" >= $1 AND "updated_at" < $2`,
+      `WHERE "updated_at" >= (($1::text)::timestamptz) AND "updated_at" < (($2::text)::timestamptz)`,
     );
     expect(capturedSql(calls)).toContain("LIMIT $3");
     expect(capturedParams(calls)).toEqual([
       "2026-06-01T07:00:00.000Z",
       "2026-06-03T07:00:00.000Z",
       3,
+    ]);
+  });
+
+  it("pushes a created-at timestamp range into an unpaginated server query", async () => {
+    const { calls } = setupFetch([{ body: makeIssueQueryResponse([]) }]);
+    await listIssues({
+      adapter: makeTestAkbAdapter(),
+      vault: "reef-acme",
+      query: IssueListQuerySchema.parse({
+        date_range: {
+          field: "created_at",
+          from: "2026-06-01T07:00:00.000Z",
+          to: "2026-06-03T07:00:00.000Z",
+        },
+        archived: true,
+      }),
+    });
+    expect(capturedSql(calls)).toContain(
+      `WHERE "created_at" >= (($1::text)::timestamptz) AND "created_at" < (($2::text)::timestamptz)`,
+    );
+    expect(capturedSql(calls)).not.toContain("LIMIT");
+    expect(capturedParams(calls)).toEqual([
+      "2026-06-01T07:00:00.000Z",
+      "2026-06-03T07:00:00.000Z",
     ]);
   });
 
