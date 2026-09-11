@@ -457,10 +457,10 @@ function intersectBoundary(
 
 /**
  * Resolve the visible editor/dialog clipping rectangle for the portaled menu.
- * Only elements that actually clip or scroll their contents are boundaries;
- * layout wrappers around the editor must not shrink the menu to their height.
+ * Elements that actually clip or scroll their contents are boundaries;
+ * layout wrappers around the editor should not shrink the menu to their height.
  * Every clipping ancestor is intersected so a dialog that is being scrolled
- * cannot leave a stale popup behind.
+ * does not leave a stale popup behind.
  */
 export function getSlashMenuBoundary(
   editorRoot: HTMLElement,

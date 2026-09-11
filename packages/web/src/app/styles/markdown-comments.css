@@ -1,7 +1,7 @@
 /* Streamdown owns its element tree and data-streamdown markers. This scope
  * mirrors the editor's semantic hierarchy while retaining the comment's
  * 13px density. The root's default `space-y-4` is deliberately overridden so
- * a long comment cannot create a different rhythm from the issue body.
+ * a long comment does not create a different rhythm from the issue body.
  * Element selectors shared with the editor use a zero-specificity scope so
  * these disjoint renderers do not impose a source-order dependency. */
 .reef-markdown-comment {

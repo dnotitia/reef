@@ -152,7 +152,7 @@ export function sprintRowFields(
       params.add(item.capacity_points, "sprint capacity_points"),
     ],
   ];
-  // Planning updates must preserve extension metadata such as the durable
+  // Planning updates preserve extension metadata such as the durable
   // sprint-rollover claim. Inserts pass an explicit `{}` or idempotency
   // envelope; ordinary edits use a no-op self-assignment so the existing
   // planning update parameter ordering remains stable.

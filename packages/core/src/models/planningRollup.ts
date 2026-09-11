@@ -13,9 +13,9 @@ export interface PlanningRollup {
   inProgress: number;
   /** Issues in the backlog/todo lifecycle buckets. */
   notStarted: number;
-  /** Null when there are no linked issues, never a synthetic 0% value. */
+  /** Null when there are no linked issues, not a synthetic 0% value. */
   completionRate: number | null;
-  /** Sum of only the issues with an estimate_points value. */
+  /** Sum of the issues that have an estimate_points value. */
   estimatedPoints: number;
   /** Sum of estimate_points for completed issues with an estimate. */
   completedPoints: number;
@@ -75,7 +75,7 @@ function emptyRollup(capacityPoints: number | null): PlanningRollup {
  * The map is initialized from `items`, so successful empty planning items are
  * represented explicitly. Issues linked to an id absent from the current
  * catalog are ignored because there is no row to render for them. A missing
- * estimate remains visible through `unestimatedCount`; it never contributes to
+ * estimate remains visible through `unestimatedCount`; it does not contribute to
  * either points total or an inferred capacity value.
  */
 export function computePlanningRollup(

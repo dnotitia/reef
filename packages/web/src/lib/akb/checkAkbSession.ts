@@ -43,7 +43,7 @@ export async function getAkbSessionStatus(
       cache: "no-store",
       signal,
     });
-    // A superseded route transition or coordinator timeout must not let a late
+    // A superseded route transition or coordinator timeout should not let a late
     // profile response consume or replace the newest denial marker.
     if (signal?.aborted) return inactiveFromPendingDenial();
     if (res.ok) {

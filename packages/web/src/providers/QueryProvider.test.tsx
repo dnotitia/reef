@@ -1,6 +1,7 @@
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useEffect } from "react";
 import { clearAuthScopedClientCache } from "@/lib/storage/clientCache";
 
 const queryClientRef = vi.hoisted(() => ({
@@ -10,7 +11,9 @@ import { QueryProvider } from "./QueryProvider";
 
 function QueryClientConsumer() {
   const client = useQueryClient();
-  queryClientRef.current = client;
+  useEffect(() => {
+    queryClientRef.current = client;
+  }, [client]);
   return (
     <div data-testid="has-client">{client ? "client-available" : "none"}</div>
   );

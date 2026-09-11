@@ -286,7 +286,7 @@ function activeNavForPath(routeSegments: string[]) {
 
 /**
  * Auth-pending shell for a vault URL. The protected children stay unmounted;
- * only the pathname selects an existing static loading surface so a hard
+ * the pathname selects an existing static loading surface so a hard
  * navigation keeps its destination chrome visible while `/auth/me` resolves.
  */
 export function WorkspaceAuthPendingSkeleton({

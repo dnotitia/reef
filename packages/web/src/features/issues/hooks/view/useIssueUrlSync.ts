@@ -365,7 +365,7 @@ export function useIssueUrlSync(options?: {
   const replaceNextWrite = useRef(false);
   // Tracks the last query this hook accepted or wrote. A changed query that
   // is not ours is browser back/forward or another URL owner (scope/layout),
-  // so it must hydrate the filter and List display state instead of being
+  // so it hydrates the filter and List display state instead of being
   // overwritten by the store mirror.
   const lastUrlQuery = useRef<string | null>(null);
   const skipMirrorAfterUrlAdoption = useRef(false);
@@ -526,7 +526,7 @@ export function useIssueUrlSync(options?: {
 
     // A fixed planning detail surface owns the URL's view axis but keeps the
     // user's ordinary issue filters in the shared store. A view switch on that
-    // route should not interpret the view-only query as an empty filter.
+    // route should not interpret the view query as an empty filter.
     if (
       preserveFilterOnNonListRoute &&
       pathname !== withVault(vault, ISSUES_LIST_BASE)
@@ -691,7 +691,7 @@ export function useIssueUrlSync(options?: {
         applied.listOptionalColumns ?? [],
       );
       // The explicit My View action owns the complete navigation. Suppress the
-      // store mirror effect for this one state replacement so it cannot push an
+      // store mirror effect for this one state replacement so it does not push an
       // intermediate URL built from the previous workspace axes.
       skipNextWrite.current = true;
       pendingExplicitUrl.current = normalizeParams(query);

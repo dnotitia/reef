@@ -35,8 +35,8 @@
     animation: none;
   }
   /* Reorder success remains visibly settled for reduced-motion users. The
-   * normal save-confirm pulse still disappears without movement; only reorder
-   * carries an explicit success state and therefore needs this static cue. */
+   * normal save-confirm pulse still disappears without movement; the reorder
+   * state carries an explicit success state and therefore needs this static cue. */
   .reef-reorder-success-card::after {
     opacity: 1;
   }

@@ -256,7 +256,7 @@ export async function hydrateIssuesByDocumentUri(
       const issue = rowToIssue(row);
       if (issue.archived_at == null) issues.set(uri, issue);
     } catch {
-      // A malformed projection must not hide valid search results.
+      // A malformed projection should not hide valid search results.
     }
   }
   return issues;

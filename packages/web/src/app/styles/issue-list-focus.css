@@ -1,5 +1,5 @@
 /* Focus and selection are separate meanings. Selection chrome belongs to the
- * row/card state, while this boundary belongs only to the keyboard navigation
+ * row/card state, while this boundary belongs to the keyboard navigation
  * owner. A pseudo-element keeps the table boundary inside its scrollport and
  * above sticky-cell paint without changing row geometry. */
 .reef-issue-list-row {
@@ -79,9 +79,9 @@
   pointer-events: none;
 }
 
-/* A selected state is intentionally only a fill while a child owns focus. The
+/* A selected state intentionally uses a fill while a child owns focus. The
  * checkbox owns its own keyboard focus ring, so selecting with a pointer
- * cannot create a second row-sized border. Restore the boundary when the row
+ * does not create a second row-sized border. Restore the boundary when the row
  * itself is the keyboard navigation owner. */
 .reef-issue-list-row[aria-selected="true"] > td:first-child::after {
   content: none;
@@ -105,7 +105,7 @@
 }
 
 /* The hidden native checkbox fills one labeled hit target. Paint focus on the
- * target only when the browser considers the input keyboard-visible; the inset
+ * target when the browser considers the input keyboard-visible; the inset
  * offset keeps all four edges inside a clipped first-column scrollport. Pointer
  * selection therefore keeps its check + selected-row fill without a duplicate
  * focus border. */

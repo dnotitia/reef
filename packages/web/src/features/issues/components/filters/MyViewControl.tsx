@@ -375,7 +375,10 @@ export function MyViewControl({
     currentSnapshotTextRef.current = currentSnapshotText;
   }, [currentSnapshotText]);
   const canSave = Boolean(actor && vault);
-  const scopedItems = loadedOwnerKey === ownerKey ? items : [];
+  const scopedItems = useMemo(
+    () => (loadedOwnerKey === ownerKey ? items : []),
+    [items, loadedOwnerKey, ownerKey],
+  );
   const exactMatch = useMemo(
     () =>
       scopedItems.find(

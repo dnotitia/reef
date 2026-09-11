@@ -7,7 +7,7 @@ import { WorkspaceResumeStatus } from "./WorkspaceResumeStatus";
 
 /**
  * Single-screen onboarding for new projects. Configured workspaces are
- * resumed before this panel renders, so this surface only creates a workspace.
+ * resumed before this panel renders, so this surface creates a workspace.
  *
  * Required greenfield step: create or initialize an akb vault and write its
  * reef config (a row in the vault's `reef_settings` table, plus any

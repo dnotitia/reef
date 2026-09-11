@@ -51,10 +51,7 @@ function compareIssueNumber(
 }
 
 /** Numeric ticket-number DESC tiebreaker shared by every client issue order. */
-export function compareIssueNumberDesc(
-  a: IssueListItem,
-  b: IssueListItem,
-): number {
+function compareIssueNumberDesc(a: IssueListItem, b: IssueListItem): number {
   return compareIssueNumber(a, b, "desc");
 }
 
@@ -72,7 +69,7 @@ export function sortIssues(
   if (field === "title") {
     // The server owns the canonical `und-x-icu` title order. Keeping the
     // cursor pages' order here prevents a browser ICU variant from re-sorting
-    // only the rows already loaded and changing the global order at page
+    // the loaded rows and changing the global order at page
     // boundaries. Filtering callers preserve this input order.
     return [...issues];
   }
@@ -143,7 +140,7 @@ export function sortIssuesByRankOrder(
  */
 export interface SharedIssueFacets {
   assignee?: string | readonly string[];
-  /** Match NULL, empty, and whitespace-only assigned_to values. */
+  /** Match NULL, empty, and whitespace-valued assigned_to values. */
   assigneeUnset?: boolean;
   label?: string;
   sprint_id?: string | readonly string[];

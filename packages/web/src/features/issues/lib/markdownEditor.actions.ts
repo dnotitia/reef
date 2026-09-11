@@ -165,7 +165,7 @@ async function uploadDocumentAsset(
   };
 }
 
-export function createIssueMarkdownUploadAdapter(
+function createIssueMarkdownUploadAdapter(
   options: IssueMarkdownUploadAdapterOptions,
 ): MarkdownUploadAdapter {
   return {

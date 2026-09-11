@@ -399,7 +399,7 @@ export function computeHealthRollup(
       const resolved = planningRollup?.completed ?? stats.resolved;
       // Reports define `open` as committed active work, which intentionally
       // excludes backlog. The shared rollup's lifecycle total is broader and is
-      // used for the common completion contract, not this health-only signal.
+      // used for the common completion contract, not this health-specific signal.
       const open = stats.open;
       const completion = planningRollup
         ? (planningRollup.completionRate ?? 0)

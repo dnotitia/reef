@@ -40,7 +40,7 @@ export function parseScopeParam(value: string | null | undefined): IssueScope {
 /**
  * Coerce a raw `?view=` value into a layout. `backlog` is intentionally not a
  * layout value: backlog is a scope, so the old mixed `view=backlog` URL is not
- * interpreted as a compatibility route.
+ * interpreted as a special layout.
  */
 export function parseViewParam(value: string | null | undefined): IssueLayout {
   return ISSUE_LAYOUTS.includes(value as IssueLayout)

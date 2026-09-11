@@ -138,7 +138,7 @@ export function subscribeAuthCoordinator(
 }
 
 /**
- * Start a cold auth bootstrap. Only its result may commit; explicit
+ * Start a cold auth bootstrap. Its result alone may commit; explicit
  * invalidations, unmounts, and newer probes abort or supersede all older work.
  */
 export function bootstrapAuthSession(probe: AuthProbe): void {
@@ -155,7 +155,7 @@ export function revalidateAuthSession(probe: AuthProbe): void {
   runAuthProbe(probe, true);
 }
 
-/** Start cold bootstrap only when no probe or established session is current. */
+/** Start cold bootstrap when no probe or established session is current. */
 export function ensureAuthSession(probe: AuthProbe): void {
   latestProbe = probe;
   if (establishedSession || currentProbe) return;
@@ -200,7 +200,7 @@ export function invalidateAuthSession(): void {
   setStatus("inactive");
 }
 
-/** Test-only cleanup for the module-level coordinator. */
+/** Test-specific cleanup for the module-level coordinator. */
 export function __resetAuthCoordinatorForTests(): void {
   cancelCurrentProbe();
   listeners.clear();

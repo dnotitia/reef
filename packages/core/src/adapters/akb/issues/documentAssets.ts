@@ -170,7 +170,7 @@ export async function getDocumentAssetMetadata(
   );
 }
 
-/** Discard only an uploader-owned unclaimed asset. */
+/** Discard an uploader-owned unclaimed asset. */
 export async function discardDocumentAsset(
   adapter: AkbAdapter,
   vault: string,

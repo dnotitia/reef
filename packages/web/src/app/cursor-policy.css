@@ -4,7 +4,7 @@
  * Interactive components expose their native element or accessible role and
  * state here; feature components do not choose cursor values themselves.
  * `data-reef-interaction` is reserved for non-native surfaces whose behavior
- * cannot be expressed by an element or role alone.
+ * requires more than an element or role alone.
  */
 @layer components {
   :where(

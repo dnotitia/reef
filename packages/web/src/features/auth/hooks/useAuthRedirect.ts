@@ -16,7 +16,7 @@ import {
   normalizeSafeRedirect,
 } from "@/lib/akb/safeRedirect";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 /**
  * `root` — RootPage at `/`: redirect to the Dexie default workspace's
@@ -33,15 +33,13 @@ export type AuthGateStatus = "checking" | "active" | "inactive";
 /**
  * Shared client-side auth gate. A single coordinator owns probe freshness,
  * timeout, focus/visibility revalidation, and auth-change invalidation. This
- * hook owns only route-specific login navigation and the protected subtree's
+ * hook owns route-specific login navigation and the protected subtree's
  * render status.
  */
 export function useAuthRedirect(mode: AuthGateMode): AuthGateStatus {
   const router = useRouter();
   const replace = router.replace;
   const pathname = usePathname();
-  const pathnameRef = useRef(pathname);
-  pathnameRef.current = pathname;
   const [status, setStatus] = useState<AuthGateStatus>(() =>
     hasEstablishedAuthSession() ? "active" : "checking",
   );
@@ -72,7 +70,7 @@ export function useAuthRedirect(mode: AuthGateMode): AuthGateStatus {
             })
           : mode === "workspace"
             ? buildPathWithParams("/login", {
-                redirect: normalizeSafeRedirect(pathnameRef.current),
+                redirect: normalizeSafeRedirect(pathname),
               })
             : "/login",
       );
@@ -103,7 +101,7 @@ export function useAuthRedirect(mode: AuthGateMode): AuthGateStatus {
       unsubscribeCoordinator();
       unsubscribeAccountDenial();
     };
-  }, [mode, replace]);
+  }, [mode, pathname, replace]);
 
   return status;
 }

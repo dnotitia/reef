@@ -34,7 +34,7 @@ export type IssueQueryParams = Record<string, string | string[]>;
  *
  * The builder consistently returns at least the default sort (priority desc,
  * REEF-057), so the board and list render deterministically even with no
- * explicit filter. A pure `no_due` selection is sent as the filter-only
+ * explicit filter. A pure `no_due` selection is sent as the filter-specific
  * `due_unset` predicate; mixed due selections remain client-side so the existing
  * relative-date rules can be unioned correctly. The default is applied here
  * just — not written into the filter store / URL / persisted slot — so an unset
@@ -104,7 +104,7 @@ export function buildIssueQuery(
     q.sort_order = "asc";
     return q;
   }
-  // Date ranges are normalized to absolute half-open instants only for the
+  // Date ranges are normalized to absolute half-open instants just for the
   // server query. The browser URL/persistence value remains the selected
   // calendar dates so a restore can use the current browser timezone. Manual
   // rank queries intentionally keep their complete ordering spine and apply
@@ -118,7 +118,7 @@ export function buildIssueQuery(
   // A pure no-due selection can be resolved server-side so paginated List
   // queries do not have to scan date-bearing pages before finding matches. A
   // mixed selection stays client-side: the existing overdue/due-soon windows
-  // are now-relative and must be unioned with no-due rows without changing
+  // are now-relative and are unioned with no-due rows without changing
   // their resolved-issue exclusions. Manual ordering intentionally skips this
   // optimization because it fetches the complete rank spine first.
   if (scopedFilter.due?.length === 1 && scopedFilter.due[0] === "no_due") {

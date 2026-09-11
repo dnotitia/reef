@@ -14,7 +14,7 @@ import { IssueReorderRequestSchema, akbReorderIssue } from "@reef/core";
  *
  * Persist a Manual-order move from Board, List, or Backlog. The adapter reads
  * canonical neighbours and applies rank plus an optional single-value group
- * change atomically; the browser page is never treated as the full ordering.
+ * change atomically; the browser page is not treated as the full ordering.
  */
 export async function POST(request: Request): Promise<Response> {
   let rawBody: unknown;

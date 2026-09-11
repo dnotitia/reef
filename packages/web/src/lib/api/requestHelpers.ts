@@ -428,8 +428,8 @@ export async function requireVaultOwner(
 
 /**
  * Enforce the writer floor for user-triggered planning mutations. The UI gate
- * is only a convenience; this role check runs before the close-and-rollover
- * use case so a reader cannot mutate planning rows through a direct request.
+ * is a convenience; this role check runs before the close-and-rollover
+ * use case so a reader does not mutate planning rows through a direct request.
  */
 export async function requireVaultWriter(
   adapter: AkbAdapter,

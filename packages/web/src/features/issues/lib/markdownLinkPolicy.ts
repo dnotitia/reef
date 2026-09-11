@@ -4,7 +4,7 @@ import { isAkbFileUri } from "./attachmentUrls";
 /**
  * Issue Markdown links that stay inside Reef or target a validated AKB object
  * may follow their authored destination directly. Every other href is treated
- * as external and must pass through the shared visible confirmation dialog.
+ * as external and pass through the shared visible confirmation dialog.
  */
 export function isDirectIssueMarkdownHref(href: string): boolean {
   return (

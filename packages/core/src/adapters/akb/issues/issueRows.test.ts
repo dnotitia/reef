@@ -163,7 +163,7 @@ describe("hydrateIssuesByDocumentUri", () => {
     ]);
 
     const issues = await hydrateIssuesByDocumentUri(
-      // The duplicate must not become a duplicate SQL value or map entry.
+      // The duplicate should not become a duplicate SQL value or map entry.
       makeAdapter(),
       "reef",
       [firstUri, firstUri, missingUri],

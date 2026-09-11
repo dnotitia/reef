@@ -159,7 +159,7 @@ export function SortControl({
 
   // Derived during render — no effect, no mirrored state (you-might-not-need-an-effect).
   // On rank-backed surfaces the shared Manual state is a real mode rather than
-  // an implicit field default. Legacy filters with no orderingMode resolve to
+  // an implicit field default. older filters with no orderingMode resolve to
   // Manual until a field is selected.
   const rankOrderActive =
     supportsRankOrder &&
@@ -172,7 +172,7 @@ export function SortControl({
   const effectiveDirection = directionLabel(effectiveField, effectiveOrder);
   const sortIsActive = rankOrderActive || !isDefault;
   // Radix owns pointer hover/open timing. Keeping a second pointer flag here
-  // races its delayed open callback; focus is the only local pin needed to
+  // races its delayed open callback; focus is the sole local pin needed to
   // keep the tooltip visible through a keyboard or pointer click.
   const directionFocusedRef = useRef(false);
   const [directionTooltipOpen, setDirectionTooltipOpen] = useState(false);

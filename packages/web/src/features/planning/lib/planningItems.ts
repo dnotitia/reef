@@ -78,7 +78,7 @@ function compareTargetDates(
 /**
  * Select open milestones for the Planning Overview in a stable order.
  *
- * The catalog is a server/cache boundary, so callers must be able to pass its
+ * The catalog is a server/cache boundary, so callers need to be able to pass its
  * arrays directly without having their order changed. `filter` creates the
  * working array before sorting it, and ids use code-point comparisons instead
  * of locale-sensitive collation.

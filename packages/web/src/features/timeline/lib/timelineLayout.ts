@@ -265,7 +265,7 @@ function compareText(a: string, b: string): number {
  * Project a complete sprint range onto the visible quarter. Sprints with a
  * missing or inverted range, or with no overlap, are intentionally omitted.
  */
-export function getSprintBand(
+function getSprintBand(
   sprint: Sprint,
   range: TimelineRange,
 ): TimelineSprintBand | null {
@@ -299,7 +299,7 @@ export function getSprintBand(
  * released release uses its actual deployment date; otherwise its target date
  * remains the planned projection.
  */
-export function getPlanningMarker(
+function getPlanningMarker(
   item: Milestone | Release,
   kind: TimelinePlanningMarkerKind,
   range: TimelineRange,
@@ -338,7 +338,7 @@ function comparePlanningMarkers(
 }
 
 /**
- * Build the read-only planning projection for the visible quarter. The
+ * Build the non-mutating planning projection for the visible quarter. The
  * catalog is deliberately passed in rather than fetched here so quarter
  * navigation stays a client-side recalculation over the shared Query cache.
  */

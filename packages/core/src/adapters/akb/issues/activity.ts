@@ -980,7 +980,7 @@ export async function listIssueActivity(
  * facets locally; fetching one issue at a time would turn the report into an
  * N+1 request path.
  *
- * The query selects only status changes, projects them through the same parser
+ * The query selects status changes, projects them through the same parser
  * as the issue timeline, skips malformed rows, and collapses duplicate
  * `(reef_id, event_key)` records before returning. A missing activity table is
  * an empty history, matching the per-issue read's resilience contract.

@@ -108,7 +108,7 @@ function buildCurrentCanonicalSlot(
 /**
  * Build a Board target from the canonical rank spine of the destination group.
  * Board buckets are not themselves rank-ordered, so adjacent UI buckets are
- * never used as a before/after pair. An empty destination keeps the moved issue
+ * is not used as a before/after pair. An empty destination keeps the moved issue
  * at its current canonical slot; a populated destination uses its canonical
  * edge and fills a missing after anchor from the global spine.
  */

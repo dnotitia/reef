@@ -178,16 +178,6 @@ export function MarkdownEditor({
   const linksOpenedFromMouseUpRef = useRef(
     new WeakMap<HTMLAnchorElement, number>(),
   );
-  const setBodyFrameRef = useCallback(
-    (element: HTMLDivElement | null) => {
-      if (typeof externalBodyFrameRef === "function") {
-        externalBodyFrameRef(element);
-      } else if (externalBodyFrameRef) {
-        externalBodyFrameRef.current = element;
-      }
-    },
-    [externalBodyFrameRef],
-  );
   const {
     isResizeAvailable: isHeightResizeAvailable,
     isManual: isManualHeight,
@@ -486,7 +476,7 @@ export function MarkdownEditor({
       )}
 
       <div
-        ref={setBodyFrameRef}
+        ref={externalBodyFrameRef}
         id={enableHeightResize ? EDITOR_RESIZABLE_BODY_ID : undefined}
         data-testid="markdown-editor-body-frame"
         className={cn(

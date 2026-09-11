@@ -208,7 +208,8 @@ export function SprintDetailPage() {
   const issueQuery = useIssueList(routeSprintId ? vault : "");
   const access = useWorkspaceAccess(vault);
   const hydrated = useHydrated();
-  const now = hydrated ? Date.now() : null;
+  const [renderTime] = useState(() => Date.now());
+  const now = hydrated ? renderTime : null;
   const t = useTranslations("planning.detail");
   const [rolloverOpen, setRolloverOpen] = useState(false);
   const [rolloverResume, setRolloverResume] =
@@ -293,7 +294,7 @@ export function SprintDetailPage() {
         dimension: "sprint",
         catalog,
         filters: DEFAULT_REPORT_FILTERS satisfies ReportFilters,
-        now: now ?? Date.now(),
+        now: renderTime,
       }).find((row) => row.id === sprint.id)?.verdict ?? null)
     : null;
 

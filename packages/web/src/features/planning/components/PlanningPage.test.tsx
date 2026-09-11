@@ -985,7 +985,7 @@ describe("PlanningPage", () => {
     });
     const row = title.closest("tr") as HTMLElement;
     // The sprint name navigates to the dedicated detail surface, while the
-    // adjacent chevron remains the only goal disclosure control.
+    // adjacent chevron remains the sole goal disclosure control.
     expect(
       within(row).getAllByRole("button", { expanded: false }),
     ).toHaveLength(1);

@@ -206,7 +206,7 @@ export function NewIssueDialog({
   const { data: relations } = relationsQuery;
   // Optional GitHub grounding for enrichment code tools. Labels come from AKB
   // vault context; the first deployment-managed monitored repository enables
-  // read-only code search.
+  // non-mutating code search.
   const repoContext: EnrichmentRepoContext | undefined = configQuery.data
     ?.config.monitored_repos[0]
     ? {

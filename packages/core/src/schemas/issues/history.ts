@@ -3,7 +3,7 @@ import { IsoDateFieldSchema } from "../common/date";
 
 /**
  * One entry from AKB's document history endpoint. The `author` value is the
- * AKB principal (often an opaque id); Reef deliberately never uses it as the
+ * AKB principal (often an opaque id); Reef deliberately does not use it as the
  * visible actor. `author_name` is the optional human-readable projection.
  */
 export const AkbDocumentHistoryEntrySchema = z.object({
@@ -20,7 +20,7 @@ export type AkbDocumentHistoryEntry = z.infer<
 /**
  * The envelope returned by `GET /api/v1/history/{vault}/{doc_id:path}`.
  * Entries stay unknown until the adapter validates them individually: one
- * malformed commit must not hide the rest of an issue's timeline.
+ * malformed commit should not hide the rest of an issue's timeline.
  */
 export const AkbDocumentHistoryResponseSchema = z.object({
   kind: z.literal("document_history"),

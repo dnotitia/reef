@@ -35,7 +35,7 @@ const scopedLowlight = {
   ...boundedLowlight,
   // Unknown and empty fences intentionally render as readable plain code. The
   // presentation decoration calls highlightAuto with an empty subset so it
-  // cannot guess a grammar and paint unrelated tokens.
+  // does not guess a grammar and paint unrelated tokens.
   highlightAuto: (value: string) =>
     boundedLowlight.highlightAuto(value, { subset: [] }),
 };

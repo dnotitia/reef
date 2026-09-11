@@ -9,7 +9,7 @@ interface FlashState {
   flashedIssueKeys: Set<string>;
   reorderFlashedIssueKeys: Set<string>;
   flashIssue: (vault: string, id: string, source?: "issue" | "reorder") => void;
-  /** Clear only this vault/issue key, so another flash is never dropped. */
+  /** Clear this vault/issue key, so another flash is not dropped. */
   clearFlash: (vault: string, id: string) => void;
 }
 
@@ -92,7 +92,7 @@ export function useIssueFlash(vault: string, issueId: string): boolean {
   return useFlashStore((s) => s.flashedIssueKeys.has(key));
 }
 
-/** Subscribe only to the reorder success pulse for an issue. */
+/** Subscribe to the reorder success pulse for an issue. */
 export function useIssueReorderFlash(vault: string, issueId: string): boolean {
   const key = flashKey(vault, issueId);
   return useFlashStore((s) => s.reorderFlashedIssueKeys.has(key));

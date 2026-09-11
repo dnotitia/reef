@@ -1,4 +1,4 @@
-/* Named role utilities are the only shared source for routed product
+/* Named role utilities are the sole shared source for routed product
  * typography. Markdown surfaces intentionally do not consume these classes;
  * their established rhythm is scoped below. */
 @layer components {

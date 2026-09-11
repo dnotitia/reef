@@ -5,8 +5,8 @@ import { z } from "zod";
  *
  * Keep these schemas strict: AKB-internal event ids and database positions are
  * deliberately not part of the consumer contract. The cursor is opaque and
- * the payload is a small event-specific object that consumers must interpret
- * only after validating the envelope.
+ * the payload is a small event-specific object that consumers interpret after
+ * validating the envelope.
  */
 export const ChangeEventEnvelopeV1Schema = z.strictObject({
   version: z.literal(1),

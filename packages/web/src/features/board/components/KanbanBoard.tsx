@@ -252,8 +252,8 @@ export function KanbanBoard({
     coordinateGetter: sortableKeyboardCoordinates,
   });
   // Keep the hook's dependency shape stable while label grouping remains
-  // read-only. The cards and columns gate their own drag affordances with
-  // dragEnabled, so the stable context sensors cannot activate a label drag.
+  // non-mutating. The cards and columns gate their own drag affordances with
+  // dragEnabled, so the stable context sensors stay inert for a label drag.
   const sensors = useSensors(pointerSensor, keyboardSensor);
 
   const allIssues = issues ?? EMPTY_ISSUES;
@@ -599,7 +599,7 @@ export function KanbanBoard({
 
   // PointerSensor can activate on the first move without emitting a later
   // collision update when a pointer jumps directly to its destination. Use
-  // the final rendered DOM target only to recover that drop target; canonical
+  // the final rendered DOM target to recover that drop target; canonical
   // rank resolution remains owned by the shared reorder helper and server.
   function pointerDropTargetAtLastPointer(): {
     id: string;

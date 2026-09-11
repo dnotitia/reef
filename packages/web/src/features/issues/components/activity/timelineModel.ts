@@ -647,7 +647,7 @@ export function buildEntries(
   });
 }
 
-/** Return the foldable event kind, or null for an event that must stay alone. */
+/** Return the foldable event kind, or null for an event that stays alone. */
 function foldableKind(
   entry: CommentEntry | SystemEntry,
 ): "status_change" | "body_update" | null {

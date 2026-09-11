@@ -5,7 +5,7 @@ import {
   parseAkbDocumentUri,
 } from "@/lib/akb/documentUri";
 
-export const LINK_CLICK_SUPPRESSION_MS = 1000;
+const LINK_CLICK_SUPPRESSION_MS = 1000;
 
 function findClickedEditorLink(
   root: ParentNode,
@@ -39,8 +39,7 @@ function isDirectEditorLink(
 
   // Runtime AKB_WEB_URL retargeting replaces the rendered href but preserves
   // the validated Markdown source in both renderer-owned attributes. Require
-  // that pair to agree so an ordinary external href cannot opt itself out of
-  // confirmation with a single arbitrary data attribute.
+  // that pair to agree; ordinary external hrefs still require confirmation.
   const documentUri = anchor.getAttribute("data-document-uri");
   const retargetedDocumentUri = anchor.getAttribute("data-akb-uri");
   return (

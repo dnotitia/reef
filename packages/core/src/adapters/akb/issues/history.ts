@@ -65,8 +65,8 @@ function visibleActor(value: string | null | undefined): string | null {
 
 /**
  * Project one validated AKB history entry into Reef's body-update read model.
- * Only the exact `action: update` trailer is user-visible; the raw commit
- * message and opaque `author` value never cross the web boundary.
+ * The exact `action: update` trailer is user-visible; the raw commit
+ * message and opaque `author` value do not cross the web boundary.
  */
 export function projectIssueBodyHistoryEntry(
   entry: AkbDocumentHistoryEntry,

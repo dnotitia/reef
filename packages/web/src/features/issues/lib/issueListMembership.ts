@@ -201,10 +201,10 @@ export function listInvalidationPredicate(
 
 /**
  * Rank reorder invalidation follows the field-aware issue-list decision
- * (REEF-323): the response patches every cached row, so only Manual/rank
+ * (REEF-323): the response patches every cached row, so Manual/rank
  * variants and the server-stamped `updated_at` variants need a refetch.
- * Priority/title/date/etc. field-sort variants cannot change order or
- * membership from a rank-only write.
+ * Priority/title/date/etc. field-sort variants do not change order or
+ * membership from a rank-specific write.
  */
 export function rankReorderInvalidationPredicate({
   queryKey,
@@ -235,8 +235,8 @@ function issuePatchForReorderGroup(group: IssueReorderGroup): IssueUpdatePatch {
 }
 
 /**
- * Combine the rank-only predicate with the field-aware membership predicate
- * for a Board/Backlog cross-group move. Same-group Manual moves use only the
+ * Combine the rank-specific predicate with the field-aware membership predicate
+ * for a Board/Backlog cross-group move. Same-group Manual moves use the
  * rank and `updated_at` branches; a group mutation also invalidates variants
  * filtered or sorted by that group field.
  */

@@ -75,7 +75,7 @@ export function TimelineBody({ vault, scope = "active" }: TimelineBodyProps) {
   const searchQuery = useIssueStore((state) => state.searchQuery);
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const searchTransitionPending = deferredSearchQuery !== searchQuery;
-  const settledSearchQueryRef = useRef(searchQuery);
+  const [settledSearchQuery, setSettledSearchQuery] = useState(searchQuery);
   const scopedFilter = useMemo(
     () => filterForIssueScope(filter, scope),
     [filter, scope],
@@ -100,11 +100,12 @@ export function TimelineBody({ vault, scope = "active" }: TimelineBodyProps) {
   // the user that the latest intent is still converging.
   const displaySearchQuery =
     isPlaceholderData || searchTransitionPending
-      ? settledSearchQueryRef.current
+      ? settledSearchQuery
       : deferredSearchQuery;
   useEffect(() => {
     if (!isPending && !isFetching && !isPlaceholderData) {
-      settledSearchQueryRef.current = searchQuery;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- this effect records the settled query used while placeholder data is visible.
+      setSettledSearchQuery(searchQuery);
     }
   }, [isFetching, isPending, isPlaceholderData, searchQuery]);
   const planningQuery = usePlanningCatalog(vault);

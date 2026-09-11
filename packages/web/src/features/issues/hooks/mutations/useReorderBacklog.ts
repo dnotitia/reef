@@ -149,7 +149,7 @@ function requestBody(input: ReorderIssueInput): Record<string, unknown> {
 
 /**
  * Persist a Manual-order move for any supported issue surface. The browser
- * optimistically changes only the moved entity's rank; the server response
+ * optimistically changes just the moved entity's rank; the server response
  * supplies any additional materialized ranks, so no client-owned id sequence
  * is introduced.
  */
@@ -175,7 +175,7 @@ export function useReorderBacklog() {
     },
     onMutate: async (input) => {
       // A new reorder supersedes any older save-confirm pulse for this issue;
-      // the next pulse may only be emitted by this mutation's canonical result.
+      // the next pulse may just be emitted by this mutation's canonical result.
       useFlashStore.getState().clearFlash(input.vault, input.issueId);
       const listKey = ["issues", "list", input.vault] as const;
       await queryClient.cancelQueries({ queryKey: listKey });
@@ -196,7 +196,7 @@ export function useReorderBacklog() {
       }
       // A rejected anchor may reflect another user's committed order. Restore
       // the local snapshot immediately, then re-read every active list cache so
-      // rollback converges to the server rather than merely to stale input.
+      // recovery converges to the server rather than merely to stale input.
       await invalidateReorderQueries(queryClient, input);
     },
     onSuccess: (data, input) => {
@@ -209,7 +209,7 @@ export function useReorderBacklog() {
       updateIssueListCaches(queryClient, input.vault, (issue) =>
         mapOptimisticIssue(issue, input, rankById, input.expected.issueRank),
       );
-      // The shared save-confirm pulse is emitted only after the response's
+      // The shared save-confirm pulse is emitted after the response's
       // canonical assignments have replaced the optimistic projection.
       useFlashStore
         .getState()

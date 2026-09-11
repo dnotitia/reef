@@ -105,6 +105,19 @@ const SLOW_TEST_SUPPRESSIONS = new Set([
   "IssueContextMenu patches changed status, priority, assignee, and sprint values but not no-ops",
   "IssueContextMenu preserves root chrome while sharing submenu panel and option chrome",
   "IssueListTable adds and removes planning columns independently without changing the query",
+  // Cross-boundary contract tests retain their real async persistence, debounce,
+  // mutation, and focus transitions; keep these names paired with the summary.
+  "QueryProvider does not recreate an empty persisted snapshot after account cache cleanup",
+  "MyViewControl saves, applies, marks changed, updates, renames, duplicates, and deletes a view",
+  "NewIssueDialog maximizes the two-dimensional create canvas and restores it without remounting the draft",
+  "FilterBar keeps the fixed assignee choice out of member-search empty state",
+  "TemplatesSection connects template validation to the specific name or label field",
+  "IssueDetail clears the assignee with null when Unassigned is selected",
+  "CreateWorkspaceDialog opens from the store, creates a workspace, then closes (AC4)",
+  "useIssueFilterPersistence persists unset selections without introducing a stored issue sentinel",
+  "DashboardShell returns focus to the new issue trigger after keyboard dismissal",
+  "FilterBar keeps an incomplete updated-at range visible with an inline correction",
+  "NewIssueDialog renders the dialog form when open",
 ]);
 
 const LARGE_FILE_EXTRA_ROOTS = ["scripts"];
@@ -388,6 +401,138 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
   [
     "packages/web/src/components/ui/context-menu.tsx",
     "Shared context-menu primitive keeping trigger, portal, keyboard, and positioning behavior together; split a leaf when another menu primitive shares it.",
+  ],
+  [
+    "packages/web/tests/e2e/issues/issue-surfaces.hermetic.spec.ts",
+    "Single hermetic issue-surface matrix sharing fixture auth, seeded data, and cross-surface navigation; split a capability group when another issue suite reuses that setup.",
+  ],
+  [
+    "packages/web/tests/e2e/harness/mock-sql.mjs",
+    "Single fixture SQL interpreter keeping parsing, predicates, ordering, and row mutation semantics aligned for hermetic tests; split statement families when another harness needs an independent owner.",
+  ],
+  [
+    "packages/web/tests/e2e/harness/mock-fixtures.mjs",
+    "Single hermetic fixture catalog keeping seeded issue, planning, account, and configuration state together; split a domain fixture when another runtime owns its lifecycle.",
+  ],
+  [
+    "packages/web/tests/e2e/auth/auth-soft-navigation.hermetic.spec.ts",
+    "Single auth soft-navigation contract suite sharing session, route, and fixture reset setup; split an auth capability when another suite reuses the harness.",
+  ],
+  [
+    "packages/core/src/adapters/akb/planning/sprintRollover.ts",
+    "Single sprint-rollover adapter boundary keeping ordered preparation, source close, target activation, issue movement, and resume state together; extract a phase when another use case shares its contract.",
+  ],
+  [
+    "packages/web/src/app/globals.test.ts",
+    "Single global stylesheet contract suite sharing the rendered document, token setup, and routed chrome assertions; split a style family when another global-style suite needs the harness.",
+  ],
+  [
+    "packages/web/tests/e2e/planning/planning.hermetic.spec.ts",
+    "Single hermetic planning workflow matrix sharing fixture setup, navigation, and related-data assertions; split a planning capability when another suite reuses those fixtures.",
+  ],
+  [
+    "packages/web/tests/e2e/system/typography.hermetic.spec.ts",
+    "Single typography contract suite sharing route traversal, token fixtures, and computed-style assertions; split a typography surface when another suite needs the same setup.",
+  ],
+  [
+    "packages/web/src/features/planning/components/SprintRolloverDialog.tsx",
+    "Single rollover dialog composition keeping resume initialization, form validation, preview, result summaries, and retry state together; extract a leaf when another rollover surface shares it.",
+  ],
+  [
+    "packages/web/tests/e2e/issues/issue-list-virtualization.hermetic.spec.ts",
+    "Single virtualized issue-list contract suite sharing seeded rows, scroll helpers, and viewport assertions; split a virtualization scenario family when another list suite reuses the harness.",
+  ],
+  [
+    "packages/web/src/features/planning/components/PlanningPage.test.tsx",
+    "Single Planning page regression matrix sharing query, navigation, editor, and rollover fixtures; split a workflow family when another planning page suite reuses them.",
+  ],
+  [
+    "packages/web/src/features/board/components/KanbanBoard.tsx",
+    "Single board composition boundary keeping query projection, grouping, drag sensors, focus, and card rendering aligned; extract a board sub-surface when another board consumes it.",
+  ],
+  [
+    "packages/web/src/features/reports/lib/aggregate.test.ts",
+    "Single report aggregation contract suite covering shared rollups, filters, and edge-case fixtures; split a report dimension when another aggregation suite shares the data builders.",
+  ],
+  [
+    "packages/web/src/features/issues/components/create/NewIssueDialog.test.tsx",
+    "Single create-dialog workflow suite sharing form, markdown, planning, enrichment, and draft fixtures; split an interaction family when another create surface reuses the harness.",
+  ],
+  [
+    "packages/web/src/features/issues/components/filters/FilterBar.test.tsx",
+    "Single filter-bar interaction matrix sharing field fixtures, URL state, and responsive control assertions; split a facet family when another filter suite reuses the setup.",
+  ],
+  [
+    "packages/web/tests/e2e/issues/issues-updated-at-range.hermetic.spec.ts",
+    "Single updated-at range workflow suite sharing seeded issue timestamps, query inspection, and date-picker helpers; split a range scenario family when another date-filter suite reuses them.",
+  ],
+  [
+    "packages/web/src/features/issues/components/list/IssueListTable.test.tsx",
+    "Single issue-table contract suite sharing query, column, selection, and reorder fixtures; split a table interaction family when another list suite reuses the harness.",
+  ],
+  [
+    "packages/web/src/features/issues/lib/issueListUtils.test.ts",
+    "Single issue-list utility matrix sharing canonical issue fixtures across filtering, search, sort, and dependency cases; split a utility family when another caller needs its fixtures.",
+  ],
+  [
+    "packages/web/tests/e2e/issues/issues-sort-reorder.hermetic.spec.ts",
+    "Single sort-and-reorder workflow suite sharing issue fixtures, server projections, and keyboard/pointer helpers; split a sort family when another ordering suite reuses the setup.",
+  ],
+  [
+    "packages/core/src/adapters/akb/planning/planning-rollover.test.ts",
+    "Single planning-rollover adapter contract suite sharing table, issue, activity, and resume fixtures across ordered phases; split a phase family when another adapter consumes the harness.",
+  ],
+  [
+    "packages/web/tests/e2e/harness/mock-akb.mjs",
+    "Single hermetic AKB fixture boundary keeping auth, documents, tables, and request dispatch aligned; split a service family when another fixture backend owns it.",
+  ],
+  [
+    "packages/web/src/features/issues/components/filters/MyViewControl.tsx",
+    "Single named-view control owns CRUD state, dialogs, storage synchronization, and menu composition; extract a storage hook when another surface shares that state.",
+  ],
+  [
+    "packages/web/src/features/issues/hooks/view/useIssueUrlSync.ts",
+    "Single issue URL synchronization hook keeping route parsing, store mirroring, persistence handoff, and race guards together; extract a policy helper when another route shares it.",
+  ],
+  [
+    "packages/web/src/features/planning/components/PlanningTable.tsx",
+    "Single planning table composition keeping catalog rows, inline expansion, CRUD actions, and rollover affordances aligned; extract a row family when another planning table consumes it.",
+  ],
+  [
+    "packages/web/src/features/board/components/KanbanCard.tsx",
+    "Single board card composition keeping status, priority, relation, drag, and inline-action behavior aligned; extract a card leaf when another board surface shares it.",
+  ],
+  [
+    "packages/web/src/app/styles/markdown-editor.css",
+    "Single markdown-editor stylesheet keeping the Tiptap semantic tree, source mode, overlays, and resize states together; split a style family when another editor surface shares it.",
+  ],
+  [
+    "packages/web/src/features/reports/components/ReportCharts.tsx",
+    "Single report chart surface keeping shared labels, responsive chart layout, accessibility captions, and empty states aligned; extract a chart leaf when another report consumes it.",
+  ],
+  [
+    "packages/web/src/app/styles/tokens.css",
+    "Single design-token stylesheet intentionally keeping semantic colors, typography roles, and surface variables together; split a token family when a separate theme owner appears.",
+  ],
+  [
+    "packages/core/src/adapters/akb/issues/issueQuery.ts",
+    "Single issue-query adapter boundary keeping filter, sort, keyset, date-range, and count SQL semantics aligned; extract a query family when another adapter shares those builders.",
+  ],
+  [
+    "packages/web/src/features/issues/components/list/IssueListRow.tsx",
+    "Single issue-row composition keeping field cells, selection, focus, reorder, and interaction affordances aligned; extract a cell family when another row surface shares it.",
+  ],
+  [
+    "packages/core/src/adapters/akb/issues/attachments.ts",
+    "Single attachment adapter boundary keeping validation, ownership, upload, metadata, and cleanup semantics together; extract a phase when another asset surface reuses it.",
+  ],
+  [
+    "packages/web/src/features/issues/components/filters/IssuesWorkspace.tsx",
+    "Single issues workspace composition keeping route state, filter chrome, rollover overlays, and view selection aligned; extract a route-owned section when another workspace shares it.",
+  ],
+  [
+    "packages/web/src/features/issues/components/comments/CommentCard.tsx",
+    "Single comment card workflow keeping markdown rendering, mentions, edit state, reactions, and activity metadata aligned; extract a leaf when another comment surface shares it.",
   ],
 ]);
 

@@ -22,11 +22,11 @@ export type AuthResponseClassification =
   | "other-error";
 
 /**
- * Keep status-only responses meaningful at the browser boundary. A plain 401
+ * Keep status-specific responses meaningful at the browser boundary. A plain 401
  * without an established session belongs to the first-visit flow, while a
- * plain 401 after an established session is an ordinary request error. Only
- * the server-owned invalidation header can invalidate an established session.
- * A resource 403 never signs the account out unless the server supplies that
+ * plain 401 after an established session is an ordinary request error. The
+ * server-owned invalidation header is the sole path that invalidates an
+ * established session. A resource 403 does not sign the account out unless the
  * explicit invalidation header.
  */
 export function classifyAuthResponse(
@@ -54,7 +54,7 @@ function ensureAuthEventCancellationListener(): void {
   window.addEventListener(AUTH_CHANGED_EVENT, abortAuthScopedRequests);
 }
 
-/** Abort protected requests that must not repopulate a revoked account. */
+/** Abort protected requests that should not repopulate a revoked account. */
 export function abortAuthScopedRequests(): void {
   for (const controller of inFlightRequests) controller.abort();
 }

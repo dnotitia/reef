@@ -256,7 +256,7 @@
   --type-chart-label-line-height: 16px;
   --type-chart-label-tracking: 0;
 
-  /* Contextual legacy consumers. These roles intentionally keep nearby
+  /* Contextual older consumers. These roles intentionally keep nearby
      consumers separate when the historical rendering contracts differ. */
   --type-list-group-size: 12px;
   --type-list-group-weight: 600;

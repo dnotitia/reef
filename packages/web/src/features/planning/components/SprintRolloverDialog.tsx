@@ -494,7 +494,6 @@ export function SprintRolloverDialog({
     null,
   );
   const initializedFor = useRef<string | null>(null);
-  const sourceAtOpen = useRef<Sprint | null>(null);
   const targetDatesAreSuggested = useRef(true);
   const targetNameInputId = useId();
   const sourceEndInputId = useId();
@@ -511,17 +510,19 @@ export function SprintRolloverDialog({
   const targetEndErrorId = `${targetEndInputId}-error`;
 
   const resumeSource = resume?.result.source_sprint;
-  const dialogSource = sourceAtOpen.current ?? source ?? resumeSource;
+  const [latchedSource, setLatchedSource] = useState<Sprint | null>(null);
+  const dialogSource = latchedSource ?? source ?? resumeSource;
 
   useEffect(() => {
     if (!open) {
-      sourceAtOpen.current = null;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- the closed dialog releases its captured source for the next open cycle.
+      setLatchedSource(null);
       return;
     }
-    if (!sourceAtOpen.current && (source ?? resumeSource)) {
-      sourceAtOpen.current = source ?? resumeSource ?? null;
+    if (latchedSource === null && (source ?? resumeSource)) {
+      setLatchedSource(source ?? resumeSource ?? null);
     }
-  }, [open, resumeSource, source]);
+  }, [latchedSource, open, resumeSource, source]);
 
   function clearFieldError(field: RolloverField) {
     setFieldErrors((current) => {
@@ -565,6 +566,7 @@ export function SprintRolloverDialog({
     initializedFor.current = dialogSource.id;
     if (matchingResume) {
       const target = matchingResume.target;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- this effect initializes the dialog form after the source or resume snapshot changes.
       setTargetMode(target.kind);
       setTargetId(target.kind === "existing" ? target.id : "");
       setTargetName(

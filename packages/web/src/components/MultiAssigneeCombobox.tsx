@@ -26,7 +26,7 @@ interface MultiAssigneeComboboxProps {
   placeholder?: string;
   /** Filter affordance — paints the brand ring when set. */
   active?: boolean;
-  /** Include the filter-only choice for NULL/blank assigned_to values. */
+  /** Include the filter-specific choice for NULL/blank assigned_to values. */
   unassigned?: boolean;
   onUnassignedToggle?: (checked: boolean) => void;
   triggerTestId?: string;
@@ -42,7 +42,7 @@ interface MultiAssigneeComboboxProps {
  * same vault-member typeahead (`useUserSearch` + a 300ms debounce) but feeds the
  * searchable `MultiSelectCombobox`, so several logins OR-combine within the
  * facet. The optional unassigned choice is kept outside the login values so a
- * real username can never collide with its filter marker. The closed trigger
+ * real username does not collide with its filter marker. The closed trigger
  * shows the shared "(N)" facet summary like every other multi-select facet,
  * which also keeps the trigger short regardless of how many people are picked
  * (REEF-246 truncation concern).

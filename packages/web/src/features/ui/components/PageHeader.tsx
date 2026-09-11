@@ -22,7 +22,7 @@ interface PageHeaderProps {
   /**
    * Non-interactive header chrome for a loading surface. Unlike `actions`, this
    * stays visible during route/data pending so fixed labels do not blink. The
-   * loading caller must provide inert presentation (not controls with client
+   * loading caller provides inert presentation (not controls with client
    * handlers).
    */
   staticTitleAdjacent?: React.ReactNode;

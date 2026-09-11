@@ -617,6 +617,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
     editFocusedIssue,
   });
   const shortcutRegistry = commandRegistry.shortcutBindings;
+  const { pendingClose, setPendingClose } = commandRegistry;
 
   const closeUnreadyLazySurfaces = useCallback(
     (event: KeyboardEvent): boolean => {
@@ -653,9 +654,9 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
           close: useAskAiStore.getState().close,
         },
         {
-          open: commandRegistry.pendingClose !== null,
+          open: pendingClose !== null,
           selector: '[data-testid="close-issue-dialog"]',
-          close: () => commandRegistry.setPendingClose(null),
+          close: () => setPendingClose(null),
         },
       ];
 
@@ -669,7 +670,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
       if (closed) event.preventDefault();
       return closed;
     },
-    [commandRegistry.pendingClose, commandRegistry.setPendingClose],
+    [pendingClose, setPendingClose],
   );
 
   // Global shortcut dispatcher. Bindings are declared above with scope +

@@ -9,7 +9,7 @@ import {
 } from "@reef/core";
 import { X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 export function SprintRolloverNudge({
   sprint,
@@ -30,12 +30,11 @@ export function SprintRolloverNudge({
 }) {
   const locale = useLocale();
   const t = useTranslations("planning.rollover");
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissedSprintId, setDismissedSprintId] = useState<string | null>(
+    null,
+  );
   const sprintId = sprint?.id;
-
-  useEffect(() => {
-    if (sprintId) setDismissed(false);
-  }, [sprintId]);
+  const dismissed = sprintId !== undefined && dismissedSprintId === sprintId;
 
   if (
     dismissed ||
@@ -102,7 +101,7 @@ export function SprintRolloverNudge({
           hitTarget="coarse"
           aria-label={t("dismissNudge")}
           className="absolute top-1 right-1 text-muted-foreground hover:text-foreground"
-          onClick={() => setDismissed(true)}
+          onClick={() => setDismissedSprintId(sprint.id)}
         >
           <X aria-hidden="true" className="size-4" />
         </Button>

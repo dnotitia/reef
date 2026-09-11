@@ -142,6 +142,8 @@ export function PlanningPage() {
   const deleteMutation = useDeletePlanningItem(vault);
   const access = useWorkspaceAccess(vault);
   const hydrated = useHydrated();
+  const [renderTime] = useState(() => Date.now());
+  const now = hydrated ? renderTime : null;
   const [rolloverSource, setRolloverSource] = useState<Sprint | null>(null);
   const [rolloverResume, setRolloverResume] =
     useState<SprintRolloverResume | null>(null);
@@ -364,7 +366,7 @@ export function PlanningPage() {
           sprint={activeSprint}
           issues={issues}
           issueState={rolloverIssueState}
-          now={hydrated ? Date.now() : null}
+          now={now}
           canEdit={access.canEditWorkspace}
           priority={rolloverResumes.length > 0 ? "secondary" : "primary"}
           onOpen={openRollover}
@@ -382,7 +384,7 @@ export function PlanningPage() {
             issueAggregationState={issueAggregationState}
             isIssueFetching={issueQuery.isFetching}
             onRetryIssues={() => void issueQuery.refetch()}
-            now={hydrated ? Date.now() : null}
+            now={now}
           />
         ) : (
           <PlanningTable
@@ -458,7 +460,7 @@ export function PlanningPage() {
         catalog={catalog}
         issues={issues}
         issueState={rolloverIssueState}
-        now={hydrated ? Date.now() : null}
+        now={now}
         canEdit={access.canEditWorkspace}
         onRetryIssues={() => void issueQuery.refetch()}
       />

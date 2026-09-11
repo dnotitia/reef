@@ -134,6 +134,7 @@ function RepoPickerSectionContent({
   // frame runs (REEF-536).
   useEffect(() => {
     if (updateConfig.isPending) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- this effect mirrors the server projection without remounting the interactive selector.
     setSelectedMonitoredRepos(
       new Set(serverMonitoredList.map((r) => `${r.owner}/${r.name}`)),
     );

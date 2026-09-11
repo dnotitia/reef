@@ -79,7 +79,7 @@ describe("KanbanBoard in-column sorting (REEF-059)", () => {
       new Response(
         JSON.stringify({
           // The title comparator is owned by the server's ICU collation; the
-          // board must not re-sort only the loaded rows after pagination.
+          // board should not re-sort just the loaded rows after pagination.
           issues: [
             FILTER_ISSUES[3],
             FILTER_ISSUES[0],

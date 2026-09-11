@@ -1,5 +1,5 @@
 /* Group headers live in table cells whose intrinsic width follows the table's
- * horizontal scroll content. Give only their content the visible List
+ * horizontal scroll content. Give their content the visible List
  * scrollport width so the label yields to the count and open control. */
 [data-testid="issue-list-scroll-container"] {
   container-type: inline-size;
@@ -11,7 +11,7 @@
 
 /* At true narrow mobile widths the default List and an already-expanded List
  * share the same readable sticky prefix. Optional columns still own the
- * horizontal overflow, but they must not leave the title behind the viewport
+ * horizontal overflow, but they should not leave the title behind the viewport
  * edge. The 481–767px gap intentionally preserves the effective-200% layout
  * used by the existing sticky-boundary contract. */
 @media (max-width: 480px) {

@@ -77,10 +77,10 @@ function orGroup(parts: readonly string[]): string {
 
 /**
  * Build the safe half-open predicate for a registered issue date field. The
- * field-to-column mapping is resolved from the core registry; a caller cannot
- * interpolate an arbitrary SQL identifier through `date_range.field`.
+ * field-to-column mapping is resolved from the core registry; callers have no
+ * path to interpolate an arbitrary SQL identifier through `date_range.field`.
  */
-export function buildIssueDateRangeWhere(
+function buildIssueDateRangeWhere(
   range: IssueDateRangeQuery,
   params: SqlParameterBuilder,
 ): string {
@@ -286,9 +286,9 @@ const ISSUE_TITLE_COLLATION = "und-x-icu";
 /**
  * The lead `ORDER BY` / keyset expression for a sort field. `priority` sorts by
  * the rank `CASE`; the nullable `rank` / `estimate_points` / date columns are
- * wrapped in `COALESCE` so the value comparison never hits a NULL. Date
+ * wrapped in `COALESCE` so the value comparison does not hit a NULL. Date
  * ORDER BY/keyset callers add a separate direction-independent NULL bucket
- * before this expression so missing dates always stay at the tail.
+ * before this expression so missing dates consistently stay at the tail.
  * `created_at` / `updated_at` / `title` are NOT NULL. ORDER BY and the keyset
  * share these expressions so paging stays exact.
  *
@@ -440,7 +440,7 @@ export function buildKeysetWhere(
   }
   if (isDateSortField(sortField)) {
     // Date cursors use the empty lead value as the NULL marker (ISO date
-    // fields cannot contain an empty string). The bucket is always ASC so the
+    // fields do not contain an empty string). The bucket is consistently ASC so the
     // real dates precede the NULL tail for both date directions.
     const nullBucket = dateNullBucketExpr(sortField);
     const cursorNullBucket = params.add(
