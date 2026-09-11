@@ -405,11 +405,10 @@ export async function continueToWorkspace(
   // The auto-resume redirect can settle before DashboardShell's client effects
   // install the global shortcut listener. Prove the shell is interactive so a
   // caller's first shortcut is not lost in that hydration window.
+  await expect(page.locator('[data-interaction-ready="true"]')).toHaveCount(1);
   const globalSearchInput = page.locator('[data-testid="global-search-input"]');
-  await expect(async () => {
-    await page.keyboard.press("Control+K");
-    await expect(globalSearchInput).toBeVisible({ timeout: 1_000 });
-  }).toPass({ timeout: 15_000 });
+  await page.keyboard.press("Control+K");
+  await expect(globalSearchInput).toBeVisible({ timeout: 15_000 });
   await page.keyboard.press("Escape");
   await expect(globalSearchInput).toHaveCount(0);
 }

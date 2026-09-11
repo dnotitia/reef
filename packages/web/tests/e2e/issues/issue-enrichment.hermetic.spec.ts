@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
+  continueToWorkspace,
   openExistingWorkspace,
   resetFixture,
 } from "../harness/fixture";
@@ -16,6 +17,7 @@ test.describe("Hermetic New Issue enrichment", () => {
   }) => {
     await openExistingWorkspace(page);
     await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await continueToWorkspace(page);
     await page.getByTestId("new-issue-trigger").click();
     await page
       .getByTestId("new-issue-title-input")
