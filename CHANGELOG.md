@@ -29,6 +29,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Issue date-range filters no longer fail at the AKB timestamp boundary.**
+  Created and updated date ranges now cast their positional bounds in SQL while
+  preserving date-only comparisons and half-open boundaries across List, Board,
+  Backlog, and Timeline. (REEF-619)
 - **Planning header controls align with the title and workspace description.**
 - **Markdown editor focus chrome remains continuous across internal dividers.**
   Toolbar and editor-body separators no longer paint over the inset focus ring.
