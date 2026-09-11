@@ -254,7 +254,7 @@ describe("buildIssueWhere", () => {
         archived: true,
       }),
     ).toEqual({
-      sql: '"created_at" >= $1 AND "created_at" < $2',
+      sql: '"created_at" >= (($1::text)::timestamptz) AND "created_at" < (($2::text)::timestamptz)',
       params: ["2026-06-01T00:00:00.000Z", "2026-06-03T00:00:00.000Z"],
     });
   });
@@ -361,7 +361,7 @@ describe("buildIssueWhere", () => {
         archived: true,
       }),
     ).toEqual({
-      sql: `"updated_at" >= $1 AND "updated_at" < $2`,
+      sql: `"updated_at" >= (($1::text)::timestamptz) AND "updated_at" < (($2::text)::timestamptz)`,
       params: ["2026-06-01T07:00:00.000Z", "2026-06-03T07:00:00.000Z"],
     });
   });

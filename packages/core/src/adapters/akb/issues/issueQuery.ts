@@ -93,8 +93,14 @@ export function buildIssueDateRangeWhere(
   const column = quoteIdent(definition.column);
   const from = params.add(range.from, "date range start");
   const to = params.add(range.to, "date range end");
+  const fromBoundary =
+    definition.storage === "timestamp"
+      ? `((${from}::text)::timestamptz)`
+      : from;
+  const toBoundary =
+    definition.storage === "timestamp" ? `((${to}::text)::timestamptz)` : to;
   const nullableGuard = definition.nullable ? `${column} IS NOT NULL AND ` : "";
-  return `${nullableGuard}${column} >= ${from} AND ${column} < ${to}`;
+  return `${nullableGuard}${column} >= ${fromBoundary} AND ${column} < ${toBoundary}`;
 }
 
 /**

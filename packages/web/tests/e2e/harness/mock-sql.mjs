@@ -1196,10 +1196,12 @@ function filterIssueRows(rows, sql, vault) {
   }
 
   const dateRange = sql.match(
-    /"(created_at|updated_at|start_date|due_date)"\s+>=\s+'([^']+)'\s+AND\s+"\1"\s+<\s+'([^']+)'/i,
+    /"(created_at|updated_at|start_date|due_date)"\s+>=\s+('[^']+'|\(\s*\(\s*'[^']+'\s*::text\s*\)\s*::timestamptz\s*\))\s+AND\s+"\1"\s+<\s+('[^']+'|\(\s*\(\s*'[^']+'\s*::text\s*\)\s*::timestamptz\s*\))/i,
   );
   if (dateRange) {
-    const [, dateField, rawFrom, rawTo] = dateRange;
+    const [, dateField, fromBoundary, toBoundary] = dateRange;
+    const rawFrom = fromBoundary.match(/'([^']+)'/)?.[1];
+    const rawTo = toBoundary.match(/'([^']+)'/)?.[1];
     const from = Date.parse(rawFrom);
     const to = Date.parse(rawTo);
     out = out.filter((row) => {
