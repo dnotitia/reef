@@ -2,7 +2,7 @@ import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { apiFetch } from "@/lib/apiClient";
 import type { IssueMetadata, PlanningCatalog } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -361,6 +361,53 @@ describe("TimelineBody", () => {
       .map((c) => String(c[0]))
       .filter((u) => u.startsWith("/api/issues"));
     expect(issueUrls.some((u) => u.includes("q=Scheduled"))).toBe(true);
+  });
+
+  it("keeps settled timeline items while a search query is still a placeholder", async () => {
+    let issueRequests = 0;
+    let releaseNext: ((response: Response) => void) | undefined;
+    const nextResponse = new Promise<Response>((resolve) => {
+      releaseNext = resolve;
+    });
+    mockApiFetch.mockImplementation(async (url) => {
+      const path = String(url);
+      if (path.startsWith("/api/vault-members")) {
+        return new Response(JSON.stringify({ users: [] }), { status: 200 });
+      }
+      if (path.startsWith("/api/issues/relations")) {
+        return new Response(JSON.stringify({ relations: [] }), { status: 200 });
+      }
+      if (path.startsWith("/api/planning")) {
+        return new Response(JSON.stringify(planningCatalog), { status: 200 });
+      }
+      if (path.startsWith("/api/issues?")) {
+        issueRequests += 1;
+        return issueRequests === 1
+          ? new Response(JSON.stringify({ issues }), { status: 200 })
+          : nextResponse;
+      }
+      return new Response(JSON.stringify({ issues }), { status: 200 });
+    });
+    render(wrap(<TimelineBody vault="reef-acme" />));
+
+    expect(await screen.findByText("Scheduled A")).toBeInTheDocument();
+    act(() => {
+      useIssueStore.setState({
+        filter: {},
+        searchQuery: "zzzz-no-such-issue",
+        selectedIssueId: null,
+      });
+    });
+
+    expect(await screen.findByText("Scheduled A")).toBeInTheDocument();
+    expect(screen.getByTestId("search-progress-bar")).toBeVisible();
+
+    releaseNext?.(
+      new Response(JSON.stringify({ issues: [] }), { status: 200 }),
+    );
+    await waitFor(() => {
+      expect(screen.queryByText("Scheduled A")).toBeNull();
+    });
   });
 
   it("applies dependency filters", async () => {

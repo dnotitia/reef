@@ -85,6 +85,7 @@ import {
   useDeferredValue,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { toast } from "sonner";
@@ -158,6 +159,7 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
   const searchQuery = useIssueStore((state) => state.searchQuery);
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const searchTransitionPending = deferredSearchQuery !== searchQuery;
+  const settledSearchQueryRef = useRef(searchQuery);
   const openIssue = useOpenIssue();
   const searchParams = useSearchParams();
   const reorder = useReorderBacklog();
@@ -251,7 +253,20 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
     isPlaceholderData,
     refetch,
   } = useIssueList(vault, query);
-  const resultsUpdating = searchTransitionPending || (isFetching && !isPending);
+  // Placeholder data belongs to the previous query. Keep its filter and row
+  // set visible until the replacement arrives, while the updating signal tells
+  // the user that the latest intent is still converging.
+  const displaySearchQuery =
+    isPlaceholderData || searchTransitionPending
+      ? settledSearchQueryRef.current
+      : deferredSearchQuery;
+  useEffect(() => {
+    if (!isPending && !isFetching && !isPlaceholderData) {
+      settledSearchQueryRef.current = searchQuery;
+    }
+  }, [isFetching, isPending, isPlaceholderData, searchQuery]);
+  const resultsUpdating =
+    searchTransitionPending || isPlaceholderData || (isFetching && !isPending);
   const staleWindowDays = useResolvedAutoHideWindows(vault);
   const { data: relations } = useIssueRelations(vault);
 
@@ -300,10 +315,10 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
 
   const visibleIssues = useMemo(() => {
     const filtered = filterIssues(allIssues, backlogFilter, {
-      searchActive: deferredSearchQuery.trim().length > 0,
+      searchActive: displaySearchQuery.trim().length > 0,
       staleWindowDays,
     });
-    const searched = searchIssues(filtered, deferredSearchQuery);
+    const searched = searchIssues(filtered, displaySearchQuery);
     const depFiltered = applyDependencyFilter(
       searched,
       filter.dependencyFilter ?? null,
@@ -316,7 +331,7 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
     allIssues,
     backlogFilter,
     graph,
-    deferredSearchQuery,
+    displaySearchQuery,
     filter,
     isRankOrder,
     staleWindowDays,
