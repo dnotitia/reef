@@ -35,7 +35,7 @@ COPY --from=deps /app/ ./
 COPY --from=pruner /app/out/full/ ./
 
 # Run deferred dependency/workspace scripts with source available, then build.
-RUN pnpm rebuild --pending && pnpm run build
+RUN pnpm --filter @reef/web rebuild --pending && pnpm run build
 
 
 # Stage 4: runner — minimal runtime image.
