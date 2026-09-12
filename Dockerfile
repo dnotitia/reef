@@ -1,44 +1,13 @@
-# Stage 1: pruner — resolve Turbo from the repository dependency and produce
-# the Docker-specific pruned workspace.
-FROM node:24.18.1-alpine AS pruner
-WORKDIR /app
-
-# Resolve the package manager and Turbo from the checked-in root manifests.
-RUN corepack enable
-COPY . .
-RUN pnpm install --frozen-lockfile
-RUN pnpm exec turbo prune @reef/web --docker \
-    && cp tsdown.config.mjs out/full/tsdown.config.mjs \
-    && test -f out/full/tsdown.config.mjs \
-    && cp tsconfig.base.json out/full/tsconfig.base.json \
-    && test -f out/full/tsconfig.base.json
-
-
-# Stage 2: deps — install only the pruned workspace dependencies.
-FROM node:24.18.1-alpine AS deps
-WORKDIR /app
-RUN corepack enable
-COPY --from=pruner /app/out/json/ ./
-COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
-# Workspace prepare needs source, which is copied in the builder stage.
-RUN pnpm install --frozen-lockfile --ignore-scripts
-
-
-# Stage 3: builder — build from the pruned source tree.
+# Stage 1: builder — install from the full source tree so Git-hosted workspace
+# dependencies can run their prepare/build lifecycle before Next bundles them.
 FROM node:24.18.1-alpine AS builder
 WORKDIR /app
-
-# Enable the package manager declared by the pruned root package.json.
 RUN corepack enable
-
-COPY --from=deps /app/ ./
-COPY --from=pruner /app/out/full/ ./
-
-# Run deferred dependency/workspace scripts with source available, then build.
-RUN pnpm --filter @reef/web rebuild --pending && pnpm run build
+COPY . .
+RUN pnpm install --frozen-lockfile && pnpm run build
 
 
-# Stage 4: runner — minimal runtime image.
+# Stage 2: runner — minimal runtime image.
 FROM node:24.18.1-alpine AS runner
 WORKDIR /app
 

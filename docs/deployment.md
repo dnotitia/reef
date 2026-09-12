@@ -22,13 +22,12 @@ See [Required environment](#required-environment) for the full env contract.
 
 ## 1. Build the image
 
-reef-web builds from the repo-root [`Dockerfile`](../Dockerfile). The multi-stage
-build first resolves the repository-pinned Turbo dependency, runs
-`turbo prune @reef/web --docker`, installs only the pruned manifests and lockfile,
-defers install scripts until the pruned source is copied, builds the Next.js
-`standalone` output, and runs it as a non-root user on port
-`3000`. The final image contains the standalone runtime, static assets, and
-public assets only; workspace source is not a runtime fallback.
+reef-web builds from the repo-root [`Dockerfile`](../Dockerfile). The builder
+copies the full source tree, runs the frozen repository install so Git-hosted
+workspace dependencies can prepare their artifacts, builds the Next.js
+`standalone` output, and runs it as a non-root user on port `3000`. The final
+image contains the standalone runtime, static assets, and public assets only;
+workspace source is not a runtime fallback.
 
 ```bash
 # From the repository root
