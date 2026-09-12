@@ -36,14 +36,12 @@ export async function handleAkb(req, res, url, state) {
 
   if (path === "/api/v1/auth/config" && req.method === "GET") {
     return json(res, 200, {
-      local_auth: { enabled: state.localAuthEnabled },
-      keycloak: state.keycloakEnabled
-        ? {
-            enabled: true,
-            login_url: "/api/v1/auth/keycloak/login",
-            sso_only: state.ssoOnly,
-          }
-        : { enabled: false, login_url: null, sso_only: false },
+      schema_version: 2,
+      auth_mode: "local",
+      local_auth: { enabled: true },
+      keycloak: { enabled: false, browser_session_ready: false },
+      providers: [],
+      mcp_oauth: { enabled: false },
     });
   }
 

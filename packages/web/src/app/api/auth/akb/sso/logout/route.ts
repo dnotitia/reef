@@ -1,69 +1,54 @@
-import { getAkbBackendUrl } from "@/lib/akb/akbBackendUrl";
 import {
-  SSO_LOGOUT_COOKIE,
-  SSO_LOGOUT_ID_TOKEN_COOKIE,
   buildClearedAuthCookies,
   parseCookieHeader,
 } from "@/lib/akb/sessionCookie";
-import { logger } from "@/lib/logging/logger";
-import { AkbApiError, akbStartKeycloakLogout } from "@reef/core";
+import {
+  AUTH_V2_LOGOUT_COOKIE,
+  buildClearedAuthV2LogoutCookie,
+  buildClearedAuthV2SessionCookie,
+  buildClearedAuthV2StateCookie,
+} from "@/server/auth-v2/cookie";
+import { readAuthV2RuntimeConfig } from "@/server/auth-v2/config";
 
 export async function GET(request: Request): Promise<Response> {
-  const requestUrl = new URL(request.url);
   const cookies = parseCookieHeader(request.headers.get("cookie"));
-  const idTokenHint = cookies[SSO_LOGOUT_ID_TOKEN_COOKIE];
-  const logoutNonce = cookies[SSO_LOGOUT_COOKIE];
-  const requestedNonce = requestUrl.searchParams.get("nonce");
-  if (!idTokenHint || !logoutNonce || requestedNonce !== logoutNonce) {
-    return invalidContinuationResponse();
-  }
-
-  let backendUrl: string;
-  try {
-    backendUrl = getAkbBackendUrl();
-  } catch (err) {
-    logger.error({ err }, "akb_sso_logout: backend url missing");
-    return loginRedirect();
-  }
-
-  try {
-    const { location } = await akbStartKeycloakLogout({
-      baseUrl: backendUrl,
-      idTokenHint,
+  const requestedNonce = new URL(request.url).searchParams.get("nonce");
+  const cookieNonce = cookies[AUTH_V2_LOGOUT_COOKIE];
+  if (!requestedNonce || !cookieNonce || requestedNonce !== cookieNonce) {
+    return new Response(null, {
+      status: 403,
+      headers: { "Cache-Control": "no-store" },
     });
-    return redirectWithCookieCleanup(location);
-  } catch (err) {
-    if (err instanceof AkbApiError) {
-      logger.error(
-        { err, status: err.status },
-        "akb_sso_logout: backend rejected logout start",
-      );
-      return loginRedirect();
-    }
-    throw err;
+  }
+
+  try {
+    const config = readAuthV2RuntimeConfig();
+    if (!config.enabled) return redirectToLogin();
+    const location = new URL(`${config.issuer}/protocol/openid-connect/logout`);
+    location.searchParams.set("client_id", config.clientId);
+    location.searchParams.set(
+      "post_logout_redirect_uri",
+      `${config.publicOrigin}/login`,
+    );
+    const headers = clearAuthHeaders();
+    headers.set("Location", location.toString());
+    return new Response(null, { status: 302, headers });
+  } catch {
+    return redirectToLogin();
   }
 }
-
-function loginRedirect(): Response {
-  // Relative same-origin Location; request.url's host is the container bind
-  // address behind the ingress (REEF-137 follow-up).
-  return redirectWithCookieCleanup("/login");
-}
-
-function invalidContinuationResponse(): Response {
-  return new Response(null, {
-    status: 403,
-    headers: { "Cache-Control": "no-store" },
-  });
-}
-
-function redirectWithCookieCleanup(location: string): Response {
-  const headers = new Headers({
-    Location: location,
-    "Cache-Control": "no-store",
-  });
-  for (const cookie of buildClearedAuthCookies()) {
-    headers.append("Set-Cookie", cookie);
-  }
+function redirectToLogin(): Response {
+  const headers = clearAuthHeaders();
+  headers.set("Location", "/login");
   return new Response(null, { status: 302, headers });
+}
+
+function clearAuthHeaders(): Headers {
+  const headers = new Headers({ "Cache-Control": "no-store" });
+  for (const cookie of buildClearedAuthCookies())
+    headers.append("Set-Cookie", cookie);
+  headers.append("Set-Cookie", buildClearedAuthV2SessionCookie());
+  headers.append("Set-Cookie", buildClearedAuthV2StateCookie());
+  headers.append("Set-Cookie", buildClearedAuthV2LogoutCookie());
+  return headers;
 }

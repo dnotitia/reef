@@ -12,7 +12,8 @@ import {
  * the original destination preserved. The fixture keeps Keycloak disabled by
  * default; these tests opt in via the /__e2e/keycloak toggle.
  */
-test.describe("SSO-first login auto-redirect", () => {
+test.describe("SSO companion cutover", () => {
+  test.skip(true, "SSO companion OIDC + Redis runtime is prepared separately");
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
     await resetFixture(request, "empty");

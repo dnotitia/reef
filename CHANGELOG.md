@@ -14,6 +14,12 @@ explicitly in the entries below.
 
 ### Added
 
+- **Authentication now follows AKB schema v2.** Local mode uses the current
+  local session contract; SSO mode uses a Reef companion OIDC BFF with PKCE,
+  encrypted Redis token custody, refresh locking, back-channel logout, and an
+  opaque httpOnly browser handle. Legacy provider-less exchange and token-
+  bearing logout paths are removed. (REEF-623)
+
 - **Timeline planning overlays show sprint bands and milestone/release markers.**
   Read-only planning data shares the existing quarter day grid and catalog cache,
   including clipped sprint ranges, release-date precedence, and same-day marker

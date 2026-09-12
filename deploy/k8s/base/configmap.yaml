@@ -8,11 +8,17 @@ data:
   # overlay with the real Service DNS (namespace + Service name differ per
   # cluster), e.g. http://backend.<akb-namespace>.svc.cluster.local:8000.
   AKB_BACKEND_URL: "http://akb-backend.example.svc.cluster.local:8000"
-  # reef-web's own canonical public origin. Sent to akb as the absolute SSO
-  # callback base so it survives akb's redirect allowlist when reef runs
-  # alongside akb's own frontend. Bare origin only (no path/query/fragment),
-  # https for non-loopback; must match the ingress host (ingress.yaml).
+  # Explicit human-auth mode. AKB's schema_version=2 catalog must agree.
+  REEF_AUTH_MODE: "local"
+  # SSO-only deployments set this to sso and provide the companion OIDC
+  # settings below. Secret-bearing Redis/key values belong in reef-web-secret.
   REEF_PUBLIC_ORIGIN: "https://reef.example.com"
+  # REEF_KEYCLOAK_ISSUER: "https://identity.example.com/realms/reef"
+  # REEF_KEYCLOAK_TRANSPORT_URL: "http://keycloak.identity.svc.cluster.local:8080/realms/reef"
+  # REEF_KEYCLOAK_CLIENT_ID: "reef-web"
+  # REEF_AKB_API_AUDIENCE: "https://akb.example.com/api"
+  # REEF_SESSION_REDIS_URL: "rediss://redis.example.com:6379/0"
+  # REEF_AUTH_SESSION_NAMESPACE: "reef-sso-epoch"
   # akb web app base (REEF-083 / REEF-368). reef-web has no in-app document
   # viewer, so a linked akb document's "open" action points at akb's own
   # frontend at this origin. Read on the SERVER at runtime, so setting it here is

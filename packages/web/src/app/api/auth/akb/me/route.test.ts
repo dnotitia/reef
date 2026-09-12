@@ -139,9 +139,7 @@ describe("GET /api/auth/akb/me", () => {
 function expectClearedAuthCookies(res: Response) {
   const setCookie = res.headers.get("set-cookie") ?? "";
   expect(setCookie).toContain("__reef_session=");
-  expect(setCookie).toContain("__reef_sso=");
-  expect(setCookie).toContain("__reef_sso_id_token=");
-  expect(setCookie).not.toContain("__reef_sso_start=");
+  expect(setCookie).toContain("__reef_auth_v2=");
   expect(setCookie).toContain("Max-Age=0");
   expect(res.headers.get("x-reef-auth-invalidated")).toBe("1");
 }

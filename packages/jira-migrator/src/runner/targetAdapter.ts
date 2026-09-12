@@ -62,7 +62,7 @@ export interface AkbJiraMigrationTargetConfig {
 }
 
 interface TargetCore {
-  createAdapter(input: { baseUrl: string; jwt: string }): AkbAdapter;
+  createAdapter(input: { baseUrl: string; credential: string }): AkbAdapter;
   getCurrentActor(input: {
     adapter: AkbAdapter;
     jwt: string;
@@ -260,7 +260,7 @@ export function createAkbJiraMigrationTarget(
 ): AkbJiraMigrationTarget {
   const adapter = core.createAdapter({
     baseUrl: config.baseUrl,
-    jwt: config.jwt,
+    credential: config.jwt,
   });
   const vault = config.vault;
   let issuePrefix = config.issuePrefix ?? null;

@@ -37,7 +37,10 @@ function installSqlRouter(
 }
 
 function makeAdapter() {
-  return createAkbAdapter({ baseUrl: "https://akb.test", jwt: "jwt.example" });
+  return createAkbAdapter({
+    baseUrl: "https://akb.test",
+    credential: "jwt.example",
+  });
 }
 
 const ACTIVE_SPRINT = {

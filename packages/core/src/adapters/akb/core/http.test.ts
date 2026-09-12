@@ -35,7 +35,7 @@ describe("bounded AKB JWT adapter", () => {
     const { calls } = setupFetch([{ status: 204, empty: true }]);
     const adapter = createAkbAdapter({
       baseUrl: "https://akb.test",
-      jwt: "akb-jwt",
+      credential: "akb-jwt",
     });
 
     await adapter.request("/api/v1/auth/me");
@@ -49,7 +49,7 @@ describe("bounded AKB JWT adapter", () => {
     const { calls } = setupFetch([{ status: 204, empty: true }]);
     const adapter = createAkbAdapter({
       baseUrl: "https://akb.test",
-      jwt: "akb-jwt",
+      credential: "akb-jwt",
     });
 
     await adapter.request("/api/v1/project", {
@@ -64,7 +64,7 @@ describe("bounded AKB JWT adapter", () => {
     setupFetch([{ body: { username: "alice", padding: "x".repeat(128) } }]);
     const adapter = createAkbAdapter({
       baseUrl: "https://akb.test",
-      jwt: "akb-jwt",
+      credential: "akb-jwt",
       requestPolicy: { maxJsonResponseBytes: 64, timeoutMs: 1_000 },
     });
 
@@ -92,7 +92,7 @@ describe("bounded AKB JWT adapter", () => {
     );
     const adapter = createAkbAdapter({
       baseUrl: "https://akb.test",
-      jwt: "akb-jwt",
+      credential: "akb-jwt",
       requestPolicy: { maxJsonResponseBytes: 64, timeoutMs: 20 },
     });
 

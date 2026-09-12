@@ -56,7 +56,9 @@ server-only `packages/web/src/server/` tree and must not be reintroduced here.
   overwrite a later external document edit. These are existing AKB
   capabilities, not new row/cross-store plumbing.
 - In the web request path, `createAkbAdapter({ ... })` is constructed per
-  request from the `__reef_session` cookie and forwards
-  `Authorization: Bearer <akb-jwt>` to `AKB_BACKEND_URL`. Operator and worker
-  runtimes may construct the same public adapter from deployment-managed
-  credentials; they must not import web cookie helpers.
+  request from the active auth carrier and forwards
+  `Authorization: Bearer <credential>` to `AKB_BACKEND_URL`. Its credential may
+  be a fixed local-session value or an async SSO resolver that performs bounded
+  Redis-backed refresh before the individual request/stream starts. Operator
+  and worker runtimes may construct the same public adapter from deployment-
+  managed credentials; they must not import web cookie helpers.

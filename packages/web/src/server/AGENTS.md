@@ -6,8 +6,9 @@
   agent application code, and provider-specific error normalization. Use the
   public `@reef/core` surface for AKB access, domain schemas, models, errors,
   and observability.
-- Keep credentials in request-scoped server adapters or the httpOnly AKB
-  session boundary. Do not log tokens, raw cookies, prompt text, or upstream
-  response bodies.
+- Keep credentials in request-scoped server adapters or the mode-specific
+  httpOnly session boundary. SSO access/refresh/ID tokens stay encrypted in
+  Redis and never enter browser cookies, URLs, response bodies, logs, or spans.
+  Do not log raw cookies, prompt text, or upstream response bodies.
 - Wrap async provider boundaries in OpenTelemetry spans and use the shared web
   logger for request/server diagnostics.

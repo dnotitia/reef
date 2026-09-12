@@ -1,75 +1,71 @@
-import { getAkbBackendUrl } from "@/lib/akb/akbBackendUrl";
 import {
   buildPathWithParams,
   normalizeSafeRedirect,
 } from "@/lib/akb/safeRedirect";
-import { buildSsoStartCookie } from "@/lib/akb/sessionCookie";
+import {
+  buildAuthV2StateCookie,
+  buildClearedAuthV2StateCookie,
+} from "@/server/auth-v2/cookie";
+import {
+  AuthV2RouteRuntimeError,
+  getAuthV2RouteRuntime,
+} from "@/server/auth-v2/runtime";
 import { logger } from "@/lib/logging/logger";
-import { AkbApiError, akbGetAuthConfig } from "@reef/core";
 
 export async function GET(request: Request): Promise<Response> {
-  const requestUrl = new URL(request.url);
-  const nextPath = normalizeSafeRedirect(
-    requestUrl.searchParams.get("redirect"),
-  );
-  const nonce = crypto.randomUUID();
-  const completionPath = buildPathWithParams("/login/sso-complete", {
-    state: nonce,
-    next: nextPath,
-  });
-  const callbackPath = buildPathWithParams("/api/auth/akb/sso/callback", {
-    redirect: completionPath,
-  });
-
-  let backendUrl: string;
-  try {
-    backendUrl = getAkbBackendUrl();
-  } catch (err) {
-    logger.error({ err }, "akb_sso_start: backend url missing");
-    return loginErrorRedirect("backend_unconfigured");
-  }
+  const url = new URL(request.url);
+  const redirectPath = normalizeSafeRedirect(url.searchParams.get("redirect"));
+  const requestedProvider = url.searchParams.get("provider");
+  let runtime: Awaited<ReturnType<typeof getAuthV2RouteRuntime>> | undefined;
 
   try {
-    const { config } = await akbGetAuthConfig({ baseUrl: backendUrl });
-    const loginUrl = config.keycloak.login_url;
-    if (!config.keycloak.enabled || !loginUrl) {
-      return loginErrorRedirect("sso_disabled");
+    runtime = await getAuthV2RouteRuntime();
+    const available = runtime.contract.providers.filter(
+      (provider) => provider.login_url !== null,
+    );
+    const provider = requestedProvider
+      ? available.find((candidate) => candidate.alias === requestedProvider)
+      : available.length === 1
+        ? available[0]
+        : undefined;
+    if (!provider) {
+      return failureRedirect(
+        available.length > 1 ? "provider_required" : "sso_unavailable",
+      );
     }
-
-    // Same-origin redirect: emit a RELATIVE Location so the browser resolves it
-    // against the user's public origin. Behind the ingress, `request.url`'s host
-    // is the container's internal bind address (0.0.0.0:3000), not the public
-    // host — an absolute Location here would send the browser to 0.0.0.0:3000
-    // (REEF-137 follow-up).
-    const proxyPath = buildPathWithParams("/api/auth/akb/sso/login", {
-      redirect: callbackPath,
-    });
-
+    const started = await runtime
+      .protocolFor(provider.alias)
+      .beginAuthorization({
+        stateStore: runtime.stateStore,
+        redirectPath,
+      });
     const headers = new Headers({
-      Location: proxyPath,
+      Location: started.location,
       "Cache-Control": "no-store",
     });
-    headers.append("Set-Cookie", buildSsoStartCookie(nonce));
+    headers.append(
+      "Set-Cookie",
+      buildAuthV2StateCookie(provider.alias, started.browserBinding),
+    );
     return new Response(null, { status: 302, headers });
-  } catch (err) {
-    if (err instanceof AkbApiError) {
-      logger.error(
-        { err, status: err.status },
-        "akb_sso_start: backend rejected config request",
-      );
-      return loginErrorRedirect("backend_unconfigured");
+  } catch (error) {
+    if (!(error instanceof AuthV2RouteRuntimeError)) {
+      logger.error({ code: "auth_v2_start_failed" }, "auth_v2 start failed");
     }
-    throw err;
+    return failureRedirect(
+      error instanceof AuthV2RouteRuntimeError
+        ? error.code
+        : "sso_start_failed",
+    );
+  } finally {
+    await runtime?.close();
   }
 }
-
-function loginErrorRedirect(code: string): Response {
-  // Relative same-origin Location (see the proxyPath note above).
-  return new Response(null, {
-    status: 302,
-    headers: {
-      Location: buildPathWithParams("/login", { sso_error: code }),
-      "Cache-Control": "no-store",
-    },
+function failureRedirect(code: string): Response {
+  const headers = new Headers({
+    Location: buildPathWithParams("/login", { sso_error: code }),
+    "Cache-Control": "no-store",
   });
+  headers.append("Set-Cookie", buildClearedAuthV2StateCookie());
+  return new Response(null, { status: 302, headers });
 }

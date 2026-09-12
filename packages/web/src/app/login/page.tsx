@@ -21,7 +21,7 @@ type LoginSearchParams = { [key: string]: string | string[] | undefined };
  * is retired). We still read it so older bookmarks carrying ?error= land
  * on a sensible message.
  *
- * SSO-first deployments (REEF-312) may opt into skipping the panel entirely:
+ * SSO deployments may opt into skipping the panel entirely:
  * see {@link resolveSsoAutoRedirect}. When that does not fire, the page is async
  * (it awaits `searchParams`), so it delegates instead of calling the
  * `useTranslations` hook directly. It resolves the error *kind* and delegates
@@ -65,8 +65,7 @@ export default async function LoginPage({
  * Returns the same-origin `/api/auth/akb/sso/start` path to redirect to, or
  * null to render the panel. It fires for a *clean* entry into `/login`:
  *
- * - The deployment opted in (`REEF_SSO_AUTO_REDIRECT`) or AKB declares its
- *   authoritative `keycloak.sso_only` presentation policy.
+ * - The deployment opted in (`REEF_SSO_AUTO_REDIRECT`).
  * - No SSO/session error is present (`?sso_error=` / `?error=`). This is the
  *   loop guard: an SSO failure returns here, so auto-redirecting again would
  *   bounce the user between reef and Keycloak forever.
@@ -93,10 +92,13 @@ async function resolveSsoAutoRedirect({
 
   const result = await loadAkbAuthConfig();
   if (!result.ok) return null;
-  if (!result.config.keycloak.enabled || !result.config.keycloak.login_url) {
+  if (result.config.auth_mode !== "sso") {
     return null;
   }
-  if (!ssoAutoRedirectEnabled() && !result.config.keycloak.sso_only) {
+  const availableProviders = result.config.providers.filter(
+    (provider) => provider.login_url !== null,
+  );
+  if (availableProviders.length !== 1 || !ssoAutoRedirectEnabled()) {
     return null;
   }
 

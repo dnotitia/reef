@@ -34,7 +34,7 @@ export function createEventProcessor(
 ): EventProcessor {
   const adapter = createAkbAdapter({
     baseUrl: options.baseUrl,
-    jwt: options.jwt,
+    credential: options.jwt,
     requestPolicy: options.requestPolicy,
   });
   const tail = createAkbChangeEventTail(adapter);

@@ -50,8 +50,14 @@ describe("createAkbAdapter", () => {
   });
 
   it("two calls with the same jwt produce distinct request closures", () => {
-    const a1 = createAkbAdapter({ baseUrl: "https://akb.test", jwt: "x" });
-    const a2 = createAkbAdapter({ baseUrl: "https://akb.test", jwt: "x" });
+    const a1 = createAkbAdapter({
+      baseUrl: "https://akb.test",
+      credential: "x",
+    });
+    const a2 = createAkbAdapter({
+      baseUrl: "https://akb.test",
+      credential: "x",
+    });
     expect(a1.request).not.toBe(a2.request);
   });
 });

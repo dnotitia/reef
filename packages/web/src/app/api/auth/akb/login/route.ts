@@ -2,11 +2,16 @@ import { getAkbBackendUrl } from "@/lib/akb/akbBackendUrl";
 import {
   DEFAULT_SESSION_MAX_AGE_SECONDS,
   buildClearedAuthInvalidationCookie,
-  buildClearedSsoCookies,
   buildSessionCookie,
   decodeJwtExp,
 } from "@/lib/akb/sessionCookie";
 import { respondWithError } from "@/lib/api/requestHelpers";
+import { loadAkbAuthConfig } from "@/lib/akb/loadAkbAuthConfig";
+import {
+  buildClearedAuthV2LogoutCookie,
+  buildClearedAuthV2SessionCookie,
+  buildClearedAuthV2StateCookie,
+} from "@/server/auth-v2/cookie";
 import { logger } from "@/lib/logging/logger";
 import {
   AkbApiError,
@@ -38,6 +43,23 @@ const LoginRequestSchema = z.object({
 });
 
 export async function POST(request: Request): Promise<Response> {
+  const catalog = await loadAkbAuthConfig();
+  if (!catalog.ok) {
+    return Response.json(
+      { error: "The workspace authentication configuration is unavailable." },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+  if (
+    catalog.config.auth_mode !== "local" ||
+    !catalog.config.local_auth.enabled
+  ) {
+    return Response.json(
+      { error: "local_auth_disabled" },
+      { status: 404, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
   let rawBody: unknown;
   try {
     rawBody = await request.json();
@@ -113,9 +135,9 @@ export async function POST(request: Request): Promise<Response> {
 
   const headers = new Headers({ "Content-Type": "application/json" });
   headers.append("Set-Cookie", buildSessionCookie(jwt, { maxAgeSeconds }));
-  for (const cookie of buildClearedSsoCookies()) {
-    headers.append("Set-Cookie", cookie);
-  }
+  headers.append("Set-Cookie", buildClearedAuthV2SessionCookie());
+  headers.append("Set-Cookie", buildClearedAuthV2StateCookie());
+  headers.append("Set-Cookie", buildClearedAuthV2LogoutCookie());
   headers.append("Set-Cookie", buildClearedAuthInvalidationCookie());
   headers.append("Cache-Control", "no-store");
 

@@ -13,7 +13,16 @@ import {
 import {
   buildClearedEstablishedAuthCookies,
   decodeSessionUsername,
+  parseCookieHeader,
 } from "@/lib/akb/sessionCookie";
+import { AUTH_V2_SESSION_COOKIE } from "@/server/auth-v2/cookie";
+import { readAuthV2RuntimeConfig } from "@/server/auth-v2/config";
+import { resolveAuthV2Credential } from "@/server/auth-v2/routeHelpers";
+import {
+  buildClearedAuthV2LogoutCookie,
+  buildClearedAuthV2SessionCookie,
+  buildClearedAuthV2StateCookie,
+} from "@/server/auth-v2/cookie";
 import {
   type AkbAccountErrorCode,
   type AkbAdapter,
@@ -171,6 +180,9 @@ async function withClearedEstablishedAuthCookies(
   for (const cookie of buildClearedEstablishedAuthCookies()) {
     response.headers.append("Set-Cookie", cookie);
   }
+  response.headers.append("Set-Cookie", buildClearedAuthV2SessionCookie());
+  response.headers.append("Set-Cookie", buildClearedAuthV2StateCookie());
+  response.headers.append("Set-Cookie", buildClearedAuthV2LogoutCookie());
   response.headers.set("Cache-Control", "no-store");
   response.headers.set(AUTH_INVALIDATED_HEADER, "1");
   if (accountError) {
@@ -285,20 +297,51 @@ export async function respondWithError(
 export function getAkbAdapter(
   request: Request,
 ): { adapter: AkbAdapter } | { response: Promise<Response> } {
-  let jwt: string;
+  const cookies = parseCookieHeader(request.headers.get("cookie"));
+  let mode: "local" | "sso";
   try {
-    jwt = extractAkbSession(request);
-  } catch (err) {
-    // The localized response is a Promise (locale detection is async). This
-    // helper stays sync; every consumer either `return`s `.response` (the async
-    // Route Handler flattens it) or ignores it, so the deferral is invisible.
+    mode = readAuthV2RuntimeConfig().mode;
+  } catch {
+    return { response: backendErrorResponse() };
+  }
+  if (mode === "local") {
+    let jwt: string;
+    try {
+      jwt = extractAkbSession(request);
+    } catch (err) {
+      return {
+        response: authErrorResponse({
+          clearEstablishedAuth: isExpiredLocalSession(err),
+        }),
+      };
+    }
+    let backendUrl: string;
+    try {
+      backendUrl = getAkbBackendUrl();
+    } catch {
+      return { response: backendErrorResponse() };
+    }
     return {
-      response: authErrorResponse({
-        clearEstablishedAuth: isExpiredLocalSession(err),
-      }),
+      adapter: createAkbAdapter({ baseUrl: backendUrl, credential: jwt }),
     };
   }
-  return { adapter: createAkbAdapter({ baseUrl: getAkbBackendUrl(), jwt }) };
+
+  const handle = cookies[AUTH_V2_SESSION_COOKIE];
+  if (!handle || !/^[A-Za-z0-9_-]{43}$/u.test(handle)) {
+    return { response: authErrorResponse() };
+  }
+  let backendUrl: string;
+  try {
+    backendUrl = getAkbBackendUrl();
+  } catch {
+    return { response: backendErrorResponse() };
+  }
+  return {
+    adapter: createAkbAdapter({
+      baseUrl: backendUrl,
+      credential: () => resolveAuthV2Credential(handle),
+    }),
+  };
 }
 
 /**
@@ -322,29 +365,15 @@ export async function getAkbCurrentActor(
   // This helper is already async, so it awaits the localized error responses to
   // a settled `Response` — the GitHub credential resolvers read `.status` off
   // this `response` arm, so it needs to be settled.
-  let jwt: string;
-  try {
-    jwt = extractAkbSession(request);
-  } catch (err) {
-    return {
-      response: await authErrorResponse({
-        clearEstablishedAuth: isExpiredLocalSession(err),
-      }),
-    };
-  }
-
-  let backendUrl: string;
-  try {
-    backendUrl = getAkbBackendUrl();
-  } catch {
-    return { response: await backendErrorResponse() };
-  }
-
   let actor: string | null;
   try {
+    const adapterResult = getAkbAdapter(request);
+    if ("response" in adapterResult) {
+      return { response: await adapterResult.response };
+    }
     ({ actor } = await akbGetCurrentActor({
-      adapter: createAkbAdapter({ baseUrl: backendUrl, jwt }),
-      jwt,
+      adapter: adapterResult.adapter,
+      jwt: "",
     }));
   } catch (err) {
     if (err instanceof AuthError) {

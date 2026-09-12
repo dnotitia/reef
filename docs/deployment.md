@@ -1,8 +1,10 @@
 # Deploying reef
 
-reef ships as a single stateless web service, **reef-web**, that talks to an
-[akb](https://github.com/dnotitia/akb) backend. reef-web persists nothing of its
-own: the akb session lives in an httpOnly cookie, monitored repositories are
+reef ships as a single web service, **reef-web**, that talks to an
+[akb](https://github.com/dnotitia/akb) backend. Local mode persists no product
+state of its own: the AKB session lives in an httpOnly cookie. SSO mode uses
+deployment-managed Redis only for encrypted OIDC custody, one-time login state,
+and refresh locks. Monitored repositories are
 accessed through deployment-managed GitHub credentials, and LLM config is
 deployment-managed server state. That means deployment is just "run the
 container, point it at akb, and optionally give it one OpenAI-compatible LLM
@@ -102,9 +104,10 @@ cp -r deploy/k8s/overlays/example deploy/k8s/overlays/my-cluster
 
 ### Provide optional capability secrets
 
-The Deployment reads optional GitHub and LLM credentials from a Secret named
-`reef-web-secret` in the same namespace. The Secret reference is optional, so
-an AKB/Keycloak-only deployment does not need to create an empty Secret.
+The Deployment reads optional GitHub and LLM credentials, and production SSO
+Redis/encryption settings, from a Secret named `reef-web-secret` in the same
+namespace. Local AKB-only deployments may omit the Secret; SSO deployments
+must provide its auth custody values.
 
 To enable AI, create the Secret with `REEF_LLM_API_KEY`:
 
@@ -121,7 +124,9 @@ enable AI, partial configuration fails closed, and no values is an intentionally
 disabled capability. Keycloak remains independent, so a Keycloak-only
 deployment is valid.
 
-`GET /api/healthz` is the Reef workload liveness/readiness endpoint. The legacy-
+`GET /api/healthz` is the Reef workload liveness endpoint. `GET /api/readyz`
+performs the bounded mode-aware readiness check, including SSO Redis and pinned
+JWKS when SSO is enabled. The legacy-
 named `GET /api/ai/managed-platform` endpoint is an LLM capability declaration:
 valid enabled and disabled states return 200, while malformed LLM configuration
 returns 503. It must not be used as the workload readiness probe.
@@ -206,7 +211,8 @@ REEF_GITHUB_APP_PRIVATE_KEY="$(cat github-app.private-key.pem)" \
 docker compose up
 ```
 
-reef-web is stateless, so there is no database or volume to manage. If your
+reef-web has no product database or volume to manage. SSO deployments must
+provide the external authenticated Redis configured above. If your
 akb backend runs in the same Compose project, give it a service name and use
 that as the host in `AKB_BACKEND_URL` (e.g. `http://akb-backend:8000`).
 
@@ -220,8 +226,16 @@ the `reef-web-config` ConfigMap plus the optional `reef-web-secret` Secret).
 | Variable | Required | Description |
 | --- | --- | --- |
 | `AKB_BACKEND_URL` | yes | Base URL of the akb backend reef-web calls server-side. In-cluster this is a Service DNS name (`http://<service>.<namespace>.svc.cluster.local:8000`). |
-| `REEF_PUBLIC_ORIGIN` | yes for SSO | reef-web's canonical external origin — bare `scheme://host[:port]`, no path. Sent to akb as the absolute SSO callback base so reef and akb's own frontend can share a tenant Keycloak. Must match the ingress/public host. `https` except for localhost dev. |
-| `REEF_SSO_AUTO_REDIRECT` | no | Optional SSO-first presentation override for a hybrid AKB. AKB `keycloak.sso_only=true` redirects without it; AKB `local_auth.enabled=false` suppresses password login even when `?password=1`/`?prompt=login` is present. SSO/session errors suppress automatic redirect as the loop guard. |
+| `REEF_AUTH_MODE` | yes | Explicit `local` or `sso`; must match AKB's `schema_version=2` `auth_mode`. No hybrid or legacy fallback is supported. |
+| `REEF_PUBLIC_ORIGIN` | yes for SSO | Reef's canonical external origin — bare `scheme://host[:port]`, no path. It is used for the fixed OIDC callback and post-logout redirect and must match the registered companion origin. |
+| `REEF_KEYCLOAK_ISSUER` | yes for SSO | Public Keycloak realm issuer used for browser authorization and JWT `iss`. |
+| `REEF_KEYCLOAK_TRANSPORT_URL` | yes in production SSO | Private/in-cluster realm URL used for token, JWKS, and revocation calls. Its realm path must match the issuer. |
+| `REEF_KEYCLOAK_CLIENT_ID` | yes for SSO | Dedicated Reef companion client id, registered in AKB's human API allowlist. |
+| `REEF_AKB_API_AUDIENCE` | yes for SSO | Exact AKB human API audience required on the Keycloak access token. |
+| `REEF_SESSION_REDIS_URL` | yes in production SSO | Authenticated Redis endpoint for encrypted session/login-state custody and refresh locks. |
+| `REEF_SESSION_ENCRYPTION_KEY` | yes in production SSO | Independent 32-byte AES-256-GCM key, base64/base64url encoded, stored in the deployment Secret. |
+| `REEF_AUTH_SESSION_NAMESPACE` | yes in production SSO | Deployment-managed namespace/epoch. Change it for mode, issuer, client, or key cutover; never reuse an old SSO namespace. |
+| `REEF_SSO_AUTO_REDIRECT` | no | Explicit opt-in to automatic entry when exactly one AKB provider is ready. It does not enable SSO or provide a local fallback. |
 | `REEF_LLM_API_KEY` | for enabled AI | Key for the configured OpenAI-compatible endpoint. Keep it in a Secret; never inline it in manifests or commit it. |
 | `REEF_LLM_BASE_URL` | for enabled AI | OpenAI-compatible endpoint base URL. It may target OpenRouter or an akb-platform gateway. |
 | `REEF_LLM_MODEL` | for enabled AI | Deployment-selected model id passed to the configured endpoint. |
@@ -243,8 +257,9 @@ Optional tracing/observability:
 | `LOG_LEVEL` | pino level for backend stdout logs (`debug`/`info`/`warn`/`error`). Defaults to `debug` in development and `info` otherwise. |
 | `NEXT_PUBLIC_AKB_WEB_URL` | Public URL of the akb web app, used to open a linked akb document in a new tab from an issue. Optional; when unset that action is hidden. |
 
-Per-user secrets are intentionally **not** environment variables: the akb
-session is an httpOnly cookie minted per request. GitHub and LLM credentials are
+Per-user product secrets are intentionally **not** environment variables. Local
+AKB credentials are carried by an httpOnly cookie; SSO token material stays in
+encrypted Redis and its cookie is only an opaque handle. GitHub and LLM credentials are
 deployment-managed server secrets, not browser storage. The three `REEF_LLM_*`
 values must be set together; with none set, AI routes are unavailable but Reef,
 AKB, and Keycloak flows remain ready.

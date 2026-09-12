@@ -50,7 +50,7 @@ function setupFetch(responses: FetchResponseSpec[]): FetchCall[] {
 function makeAdapter() {
   return createAkbAdapter({
     baseUrl: "https://akb.test",
-    jwt: "jwt.example.token",
+    credential: "jwt.example.token",
   });
 }
 

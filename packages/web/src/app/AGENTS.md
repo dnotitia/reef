@@ -1,7 +1,7 @@
 # `web/src/app` — App Router Rules
 
 - Route Handlers (`app/api/*/route.ts`) are thin wrappers: validate with Zod,
-  extract the `__reef_session` cookie, resolve request-scoped server adapters or
+  resolve the active mode-specific httpOnly auth carrier, resolve request-scoped server adapters or
   application use cases, call `@reef/core` for AKB/domain behavior, translate
   errors to PM-facing language, and return the response.
 - No business logic in Route Handlers. All user-initiated mutations go through
