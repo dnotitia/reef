@@ -2,7 +2,7 @@
 
 import { SESSION_COOKIE } from "@/lib/akb/sessionCookie";
 import { AuthError } from "@reef/core";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   EXPIRED_JWT,
   FUTURE_EXP,
@@ -32,6 +32,10 @@ function requestWithSession(jwt: string): Request {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
+});
+
+beforeEach(() => {
+  vi.stubEnv("REEF_AUTH_MODE", "local");
 });
 
 describe("resolveOptionalActor", () => {

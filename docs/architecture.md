@@ -25,10 +25,12 @@ reef has three runtime tiers:
   has no Next.js, React, DOM, browser-storage, GitHub SDK, LLM client, or AI SDK
   runtime dependencies.
 - **reef-web** — a Next.js App Router application that renders the product UI and
-  acts as a **stateless Backend-for-Frontend (BFF)** over the AKB vault. Its
+  acts as a Backend-for-Frontend (BFF) over the AKB vault. Its
   server-only adapters own GitHub/LLM I/O and its application tree owns agents;
   Route Handlers validate input, resolve those use cases, call core for AKB/domain
-  behavior, and translate errors. It persists no user-specific server state.
+  behavior, and translate errors. Local mode persists no user-specific server
+  state; SSO mode stores only encrypted OIDC custody and one-time login state in
+  deployment-managed Redis.
 
 Two Reef-owned auxiliary runtimes stay outside the interactive web request path:
 
@@ -42,7 +44,7 @@ Two Reef-owned auxiliary runtimes stay outside the interactive web request path:
 ```
 Browser (React UI, Zustand, TanStack Query, Dexie)
    │  apiFetch → /api/* Route Handlers
-reef-web (stateless Next.js BFF)
+reef-web (mode-aware Next.js BFF)
   ├── @reef/core AKB adapter + domain contracts
   └── server-only adapters/application
        ├── GitHub (monitored repos)                         — read-only grounding
@@ -68,15 +70,15 @@ logic to Next.js and scatter external I/O across the app.
 
 - **`core` owns AKB product I/O** — data-plane reads and writes plus auth/session
   calls (`login`, `getMe`, `getCurrentActor`). The AKB adapter is constructed per
-  request and forwards an `Authorization: Bearer <pat>` header to
+  request and forwards an `Authorization: Bearer <credential>` header to
   `AKB_BACKEND_URL`.
 - **`web` owns provider and agent application I/O** under
   `packages/web/src/server/`. GitHub credential resolution, GitHub transport,
   LLM configuration, LLM transport, agent tools, and agent use cases stay out of
   core and are consumed by routes through the server application barrel.
 - **Route Handlers** under `packages/web/src/app/api/*/route.ts` remain thin. A
-  handler validates the request with a Zod schema, extracts the AKB session
-  cookie, resolves server application dependencies, calls core for AKB/domain
+  handler validates the request with a Zod schema, resolves the active
+  mode-specific auth carrier and server application dependencies, calls core for AKB/domain
   behavior, and translates errors into PM-facing language and HTTP status. It
   owns no inline provider fetch, business logic, or inline AKB wire schema.
 - **All user mutations flow through `apiFetch`** in client `.actions.ts` files,
@@ -143,15 +145,20 @@ from known stale-base writes.
 
 reef-web is Reef's interactive server; the Jira migrator is an operator-run
 process and the Event Processor is a private deployment process. To keep data
-ownership with the team and avoid per-user storage, **reef-web persists nothing
-that belongs to a specific user**: no database, no server-side session store, no
-Redis, no per-user cache, no KMS. Per-user state lives at the edges. The three
-credentials the web product needs are each placed deliberately:
+ownership with the team and avoid product-data storage, **reef-web persists no
+product data that belongs to a specific user**: no product database or
+per-user cache. SSO's narrowly-scoped encrypted token custody and one-time
+login state are the explicit Redis exception; per-user product state lives at
+the edges. The three
+credential surfaces the web product needs are each placed deliberately:
 
-- **AKB session** — a JWT inside the `__reef_session` httpOnly cookie. It is
-  decoded read-only per request and forwarded to AKB as
-  `Authorization: Bearer <pat>`. It is never mirrored to server memory or disk,
-  and `httpOnly` keeps it out of browser JavaScript.
+- **AKB local session** — a JWT inside the `__reef_session` httpOnly cookie. It
+  is decoded read-only per request and forwarded as a bearer credential.
+- **Companion SSO session** — an opaque `__reef_auth_v2` handle in an httpOnly
+  cookie. Reef resolves it through AES-256-GCM encrypted Redis custody and
+  forwards only the currently verified Keycloak access token to AKB. Access,
+  refresh, and ID tokens never reach browser JavaScript, URLs, response bodies,
+  logs, or spans.
 - **GitHub credentials** — deployment-managed server environment:
   `REEF_GITHUB_APP_ID`, `REEF_GITHUB_APP_INSTALLATION_ID`, and
   `REEF_GITHUB_APP_PRIVATE_KEY`. reef-web mints per-request installation tokens
@@ -225,8 +232,9 @@ emerge:
   store. `config` holds the active `vault`, theme, AKB user id, and per-vault UI
   preferences (saved issue filters). Monitored repos,
   `project_prefix`, GitHub credentials, and LLM settings are *not* in
-  `config` — they are AKB or deployment state. The AKB session is not browser
-  JavaScript state at all; it is the `__reef_session` cookie.
+  `config` — they are AKB or deployment state. Local auth is not browser
+  JavaScript state; it is the `__reef_session` cookie. SSO exposes only its
+  opaque `__reef_auth_v2` handle.
 
 Changing a Dexie store layout requires a version bump plus a migration closure,
 and changing a persisted query shape may require a TanStack Query buster bump.

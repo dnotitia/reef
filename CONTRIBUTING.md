@@ -32,8 +32,8 @@ reef is a monorepo with four private, non-published packages:
   behavior that touches schemas, models, AKB adapters, or shared contracts
   starts in `core`.
 - **`packages/web` (`@reef/web`)** — the Next.js App Router application and its
-  stateless BFF. Route Handlers under `src/app/api/*` are thin wrappers that
-  validate requests, manage the session cookie, call `core`, and translate
+  mode-aware BFF. Route Handlers under `src/app/api/*` are thin wrappers that
+  validate requests, manage the active mode's session carrier, call `core`, and translate
   errors.
 - **`packages/jira-migrator` (`@reef/jira-migrator`)** — the operator-run,
   one-shot Jira-to-Reef migration package. Jira access stays read-only; apply

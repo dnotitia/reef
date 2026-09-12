@@ -30,27 +30,91 @@ const AkbLoginResponseSchema = z.object({
   user: AkbUserSchema,
 });
 
-export const AkbAuthConfigSchema = z.object({
-  local_auth: z
-    .object({
-      enabled: z.boolean(),
-    })
-    .default({ enabled: true }),
-  keycloak: z.object({
-    enabled: z.boolean(),
+export const AkbAuthProviderTypeSchema = z.enum([
+  "oidc",
+  "keycloak-oidc",
+  "local-realm",
+]);
+
+export type AkbAuthProviderType = z.infer<typeof AkbAuthProviderTypeSchema>;
+
+const AkbAuthProviderSchema = z
+  .object({
+    provider_type: AkbAuthProviderTypeSchema,
+    alias: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,62}$/u),
+    display_name: z.string().min(1).max(120),
     login_url: z.string().min(1).nullable(),
-    sso_only: z.boolean().default(false),
-    enrollment_mode: z.enum(["open", "invite_only", "disabled"]).optional(),
-  }),
-});
+  })
+  .strict();
+
+const authConfigCommon = {
+  schema_version: z.literal(2),
+  mcp_oauth: z.object({ enabled: z.boolean() }).strict(),
+};
+
+function providerCatalogSchema() {
+  return z
+    .array(AkbAuthProviderSchema)
+    .max(32)
+    .superRefine((providers, context) => {
+      const aliases = new Set<string>();
+      for (const [index, provider] of providers.entries()) {
+        if (aliases.has(provider.alias)) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [index, "alias"],
+            message: "provider aliases must be unique",
+          });
+        }
+        aliases.add(provider.alias);
+      }
+    });
+}
+
+const AkbLocalAuthConfigSchema = z
+  .object({
+    ...authConfigCommon,
+    auth_mode: z.literal("local"),
+    local_auth: z.object({ enabled: z.literal(true) }).strict(),
+    keycloak: z
+      .object({
+        enabled: z.literal(false),
+        browser_session_ready: z.literal(false),
+      })
+      .strict(),
+    providers: z.array(AkbAuthProviderSchema).length(0),
+  })
+  .strict();
+
+const AkbSsoAuthConfigSchema = z
+  .object({
+    ...authConfigCommon,
+    auth_mode: z.literal("sso"),
+    local_auth: z.object({ enabled: z.literal(false) }).strict(),
+    keycloak: z
+      .object({ enabled: z.literal(true), browser_session_ready: z.boolean() })
+      .strict(),
+    providers: providerCatalogSchema(),
+  })
+  .strict();
+
+export const AkbAuthConfigSchema = z.discriminatedUnion("auth_mode", [
+  AkbLocalAuthConfigSchema,
+  AkbSsoAuthConfigSchema,
+]);
 
 export type AkbAuthConfig = z.infer<typeof AkbAuthConfigSchema>;
 
-const AkbKeycloakExchangeResponseSchema = z.object({
-  token: z.string().min(1),
-  user: AkbUserSchema,
-  kc_id_token: z.string().min(1).optional(),
-});
+export const AKB_AUTH_V2_ACCOUNT_DENIAL_CODES = [
+  "membership_required",
+  "account_suspended",
+  "identity_conflict",
+] as const;
+
+export type AkbAuthV2AccountDenialCode =
+  (typeof AKB_AUTH_V2_ACCOUNT_DENIAL_CODES)[number];
+
+export type AkbAuthV2Config = AkbAuthConfig;
 
 // `/auth/me` wire shape. `z.looseObject` is LOAD-BEARING: email / display_name
 // / is_admin / auth_method (and any future akb field) should survive untouched so
@@ -200,221 +264,10 @@ export function getAuthConfig(
         message: "auth_config_shape_mismatch",
       });
     }
+    span.setAttribute("auth_mode", parsed.data.auth_mode);
     span.setAttribute("keycloak_enabled", parsed.data.keycloak.enabled);
+    span.setAttribute("provider_count", parsed.data.providers.length);
     return { config: parsed.data };
-  });
-}
-
-export interface ExchangeKeycloakCodeParams {
-  baseUrl: string;
-  code: string;
-}
-
-export interface ExchangeKeycloakCodeResult {
-  token: string;
-  user: AkbUser;
-  kcIdToken?: string;
-}
-
-export interface StartKeycloakLoginParams {
-  baseUrl: string;
-  loginUrl: string;
-  redirectPath: string;
-}
-
-export interface StartKeycloakLoginResult {
-  location: string;
-}
-
-export interface StartKeycloakLogoutParams {
-  baseUrl: string;
-  idTokenHint: string;
-}
-
-export interface StartKeycloakLogoutResult {
-  location: string;
-}
-
-export function startKeycloakLogin(
-  params: StartKeycloakLoginParams,
-): Promise<StartKeycloakLoginResult> {
-  const { baseUrl, loginUrl, redirectPath } = params;
-  return withSpan("akb.auth.keycloak_login_start", {}, async () => {
-    const url = new URL(
-      normalizeKeycloakLoginPath(loginUrl),
-      `${stripTrailingSlashes(baseUrl)}/`,
-    );
-    url.searchParams.set("redirect", redirectPath);
-
-    let response: Response;
-    const signal = AbortSignal.timeout(AKB_AUTH_TIMEOUT_MS);
-    try {
-      response = await fetch(url, {
-        method: "GET",
-        headers: { Accept: "text/html,application/xhtml+xml" },
-        redirect: "manual",
-        signal,
-      });
-    } catch (err) {
-      throw new AkbApiError({
-        status: 0,
-        message: err instanceof Error ? err.message : "Network error",
-      });
-    }
-
-    if (response.status === 401 || response.status === 403) {
-      throw new AuthError({ message: "keycloak_login_start_failed" });
-    }
-    if (response.status < 300 || response.status >= 400) {
-      throw new AkbApiError({
-        status: response.status,
-        message: "keycloak_login_start_failed",
-      });
-    }
-
-    const location = response.headers.get("location");
-    if (!location) {
-      throw new AkbApiError({
-        status: 502,
-        message: "keycloak_login_start_missing_location",
-      });
-    }
-
-    let redirectLocation: URL;
-    try {
-      redirectLocation = new URL(location);
-    } catch {
-      throw new AkbApiError({
-        status: 502,
-        message: "keycloak_login_start_relative_location",
-      });
-    }
-    if (!["http:", "https:"].includes(redirectLocation.protocol)) {
-      throw new AkbApiError({
-        status: 502,
-        message: "keycloak_login_start_invalid_location",
-      });
-    }
-
-    return { location: redirectLocation.toString() };
-  });
-}
-
-function normalizeKeycloakLoginPath(loginUrl: string): string {
-  let url: URL;
-  try {
-    url = new URL(loginUrl, "https://reef.invalid");
-  } catch {
-    throw new AkbApiError({
-      status: 502,
-      message: "keycloak_login_url_invalid",
-    });
-  }
-
-  if (
-    url.origin !== "https://reef.invalid" ||
-    url.pathname !== "/api/v1/auth/keycloak/login" ||
-    url.search !== "" ||
-    url.hash !== ""
-  ) {
-    throw new AkbApiError({
-      status: 502,
-      message: "keycloak_login_url_invalid",
-    });
-  }
-
-  return url.pathname;
-}
-
-export function startKeycloakLogout(
-  params: StartKeycloakLogoutParams,
-): Promise<StartKeycloakLogoutResult> {
-  const { baseUrl, idTokenHint } = params;
-  return withSpan("akb.auth.keycloak_logout_start", {}, async () => {
-    const url = `${stripTrailingSlashes(baseUrl)}/api/v1/auth/keycloak/logout`;
-
-    let response: Response;
-    const signal = AbortSignal.timeout(AKB_AUTH_TIMEOUT_MS);
-    try {
-      response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "text/html,application/xhtml+xml",
-        },
-        body: JSON.stringify({ id_token_hint: idTokenHint }),
-        redirect: "manual",
-        signal,
-      });
-    } catch (err) {
-      throw new AkbApiError({
-        status: 0,
-        message: err instanceof Error ? err.message : "Network error",
-      });
-    }
-
-    if (response.status < 300 || response.status >= 400) {
-      throw new AkbApiError({
-        status: response.status,
-        message: "keycloak_logout_start_failed",
-      });
-    }
-
-    const location = response.headers.get("location");
-    if (!location) {
-      throw new AkbApiError({
-        status: 502,
-        message: "keycloak_logout_start_missing_location",
-      });
-    }
-
-    let redirectLocation: URL;
-    try {
-      redirectLocation = new URL(location);
-    } catch {
-      throw new AkbApiError({
-        status: 502,
-        message: "keycloak_logout_start_relative_location",
-      });
-    }
-    if (!["http:", "https:"].includes(redirectLocation.protocol)) {
-      throw new AkbApiError({
-        status: 502,
-        message: "keycloak_logout_start_invalid_location",
-      });
-    }
-
-    return { location: redirectLocation.toString() };
-  });
-}
-
-export function exchangeKeycloakCode(
-  params: ExchangeKeycloakCodeParams,
-): Promise<ExchangeKeycloakCodeResult> {
-  const { baseUrl, code } = params;
-  return withSpan("akb.auth.keycloak_exchange", {}, async (span) => {
-    const payload = await fetchTokenlessJson({
-      baseUrl,
-      path: "/api/v1/auth/keycloak/exchange",
-      method: "POST",
-      body: { code },
-      failureMessage: "keycloak_exchange_failed",
-      nonJsonMessage: "keycloak_exchange_non_json",
-      authStatuses: new Set([400, 401, 403]),
-    });
-    const parsed = AkbKeycloakExchangeResponseSchema.safeParse(payload);
-    if (!parsed.success) {
-      throw new AkbApiError({
-        status: 502,
-        message: "keycloak_exchange_shape_mismatch",
-      });
-    }
-    span.setAttribute("user_id", parsed.data.user.id);
-    return {
-      token: parsed.data.token,
-      user: parsed.data.user,
-      kcIdToken: parsed.data.kc_id_token,
-    };
   });
 }
 

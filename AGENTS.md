@@ -43,11 +43,14 @@ metadata.
 
 ## Core Invariants
 
-- reef-web persists nothing that belongs to a specific user: no database,
-  server-side session store, Redis, KMS, or per-user cache.
-- The akb session is the `__reef_session` httpOnly cookie; decode it read-only
-  per request and forward the AKB-issued JWT to akb as
-  `Authorization: Bearer <akb-jwt>`.
+- reef-web persists no product data that belongs to a specific user. Local mode
+  keeps its AKB session in `__reef_session`; SSO mode is the explicit exception
+  and keeps only encrypted OIDC token custody plus one-time login state in
+  deployment-managed Redis. No product database, per-user cache, or
+  browser-readable credential store is allowed.
+- The active mode accepts only its own httpOnly carrier (`__reef_session` for
+  local, opaque `__reef_auth_v2` for SSO). Resolve the credential at each AKB
+  request boundary and forward it as `Authorization: Bearer <credential>`.
 - GitHub access for monitored-repo grounding is deployment
   managed through `REEF_GITHUB_APP_ID`, `REEF_GITHUB_APP_INSTALLATION_ID`, and
   `REEF_GITHUB_APP_PRIVATE_KEY`, with `REEF_GITHUB_PAT` allowed only as a
@@ -69,8 +72,8 @@ metadata.
   application owns monitored-repository GitHub I/O, deployment-managed LLM I/O,
   and agent execution; it consumes core's public schemas, errors, models, and
   AKB adapter. Route Handlers remain thin: they
-  own session/cookie lifecycle (set/clear the `__reef_session` cookie, decode
-  it, translate `ReefError` to PM-facing language), never an inline `fetch` or
+  own session/cookie lifecycle (set/clear the mode-specific auth cookie, decode
+  only local JWT claims read-only, translate `ReefError` to PM-facing language), never an inline `fetch` or
   an inline AKB wire schema.
 
 ## TypeScript And Boundaries

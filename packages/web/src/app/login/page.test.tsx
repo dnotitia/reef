@@ -30,15 +30,26 @@ import LoginPage from "./page";
 const loadAkbAuthConfigMock = vi.mocked(loadAkbAuthConfig);
 
 function ssoEnabledConfig(options: { ssoOnly?: boolean } = {}) {
+  void options;
   return {
     ok: true as const,
     config: {
-      local_auth: { enabled: true },
+      schema_version: 2 as const,
+      auth_mode: "sso" as const,
+      local_auth: { enabled: false as false },
       keycloak: {
-        enabled: true,
-        login_url: "/api/v1/auth/keycloak/login",
-        sso_only: options.ssoOnly ?? false,
+        enabled: true as true,
+        browser_session_ready: true,
       },
+      providers: [
+        {
+          provider_type: "keycloak-oidc" as const,
+          alias: "workforce",
+          display_name: "Company SSO",
+          login_url: "/api/v1/auth/sso/workforce/login",
+        },
+      ],
+      mcp_oauth: { enabled: false },
     },
   };
 }
@@ -133,14 +144,15 @@ describe("LoginPage", () => {
       expect(loadAkbAuthConfigMock).toHaveBeenCalledTimes(1);
     });
 
-    it("redirects when AKB declares an SSO-only policy without an env override", async () => {
+    it("does not redirect without explicit auto-redirect opt-in", async () => {
       loadAkbAuthConfigMock.mockResolvedValue(
         ssoEnabledConfig({ ssoOnly: true }),
       );
-
-      await expect(
-        LoginPage({ searchParams: Promise.resolve({ redirect: "/issues" }) }),
-      ).rejects.toThrow("REDIRECT:/api/auth/akb/sso/start?redirect=%2Fissues");
+      const view = await LoginPage({
+        searchParams: Promise.resolve({ redirect: "/issues" }),
+      });
+      render(<IntlTestProvider>{view}</IntlTestProvider>);
+      expect(screen.getByTestId("login-panel")).toBeInTheDocument();
     });
 
     it("redirects to SSO start, preserving the redirect destination", async () => {
@@ -214,8 +226,12 @@ describe("LoginPage", () => {
       loadAkbAuthConfigMock.mockResolvedValue({
         ok: true,
         config: {
+          schema_version: 2 as const,
+          auth_mode: "local" as const,
           local_auth: { enabled: true },
-          keycloak: { enabled: false, login_url: null, sso_only: false },
+          keycloak: { enabled: false, browser_session_ready: false },
+          providers: [],
+          mcp_oauth: { enabled: false },
         },
       });
 

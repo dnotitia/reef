@@ -17,7 +17,7 @@ import { AkbAuthConfigSchema, isAkbAccountErrorCode } from "@reef/core";
 import { Building2, KeyRound } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export interface LoginPanelProps {
   redirectTo?: string;
@@ -26,6 +26,7 @@ export interface LoginPanelProps {
 interface AuthCapabilities {
   ssoEnabled: boolean;
   localAuthEnabled: boolean;
+  providers: Array<{ alias: string; displayName: string }>;
 }
 
 export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
@@ -141,19 +142,32 @@ export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
           signal: controller.signal,
         });
         if (!res.ok) {
-          setCapabilities({ ssoEnabled: false, localAuthEnabled: true });
+          setCapabilities({
+            ssoEnabled: false,
+            localAuthEnabled: false,
+            providers: [],
+          });
           return;
         }
         const config = AkbAuthConfigSchema.parse(await res.json());
+        const providers = config.providers
+          .filter((provider) => provider.login_url !== null)
+          .map((provider) => ({
+            alias: provider.alias,
+            displayName: provider.display_name,
+          }));
         setCapabilities({
-          ssoEnabled: Boolean(
-            config.keycloak.enabled && config.keycloak.login_url,
-          ),
+          ssoEnabled: config.auth_mode === "sso" && providers.length > 0,
           localAuthEnabled: config.local_auth.enabled,
+          providers,
         });
       } catch {
         if (!controller.signal.aborted) {
-          setCapabilities({ ssoEnabled: false, localAuthEnabled: true });
+          setCapabilities({
+            ssoEnabled: false,
+            localAuthEnabled: false,
+            providers: [],
+          });
         }
       }
     }
@@ -161,11 +175,6 @@ export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
     void loadConfig();
     return () => controller.abort();
   }, []);
-
-  const ssoStartUrl = useMemo(() => {
-    const params = new URLSearchParams({ redirect: safeRedirect });
-    return `/api/auth/akb/sso/start?${params.toString()}`;
-  }, [safeRedirect]);
 
   const ssoEnabled = capabilities?.ssoEnabled ?? false;
   const localAuthEnabled = capabilities?.localAuthEnabled ?? false;
@@ -203,16 +212,27 @@ export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
           />
         )}
 
-        {ssoEnabled && (
-          <a
-            href={ssoStartUrl}
-            className={cn(
-              "inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-brand-fill px-4 font-medium text-brand-on-fill text-sm whitespace-nowrap transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
-            )}
-          >
-            <KeyRound className="size-4" aria-hidden="true" />
-            {t("continueWithSso")}
-          </a>
+        {ssoEnabled && capabilities && (
+          <div className="flex flex-col gap-2">
+            {capabilities.providers.map((provider) => {
+              const params = new URLSearchParams({
+                provider: provider.alias,
+                redirect: safeRedirect,
+              });
+              return (
+                <a
+                  key={provider.alias}
+                  href={`/api/auth/akb/sso/start?${params.toString()}`}
+                  className={cn(
+                    "inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-brand-fill px-4 font-medium text-brand-on-fill text-sm whitespace-nowrap transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
+                  )}
+                >
+                  <KeyRound className="size-4" aria-hidden="true" />
+                  {provider.displayName}
+                </a>
+              );
+            })}
+          </div>
         )}
 
         {capabilities && !ssoEnabled && !localAuthEnabled && (

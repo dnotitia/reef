@@ -1,5 +1,3 @@
-import { getAkbBackendUrl } from "@/lib/akb/akbBackendUrl";
-import { extractAkbSession } from "@/lib/akb/extractAkbSession";
 import {
   AUTH_ACCOUNT_ERROR_HEADER,
   AUTH_INVALIDATED_HEADER,
@@ -12,9 +10,14 @@ import {
   AuthError,
   ReefError,
   akbGetMe,
-  createAkbAdapter,
   isAkbAccountErrorCode,
 } from "@reef/core";
+import { getAkbAdapter } from "@/lib/api/requestHelpers";
+import {
+  buildClearedAuthV2LogoutCookie,
+  buildClearedAuthV2SessionCookie,
+  buildClearedAuthV2StateCookie,
+} from "@/server/auth-v2/cookie";
 
 /**
  * GET /api/auth/akb/me
@@ -31,39 +34,13 @@ import {
  * session into a 5xx — just an akb 401 (→ clear) or 5xx/network (→ 502) does.
  */
 export async function GET(request: Request): Promise<Response> {
-  let jwt: string;
-  try {
-    jwt = extractAkbSession(request);
-  } catch (err) {
-    if (err instanceof AuthError) {
-      // A request made before a user ever established a session is a plain
-      // first-visit 401.  Keep the invalidation marker and cookie clearing for
-      // an established session that akb later rejects, but do not make the
-      // client treat a missing cookie as an external auth change.
-      return sessionErrorResponse(
-        err.toUserMessage(),
-        undefined,
-        err.context.message !== "missing_session_cookie",
-      );
-    }
-    throw err;
-  }
-
-  let backendUrl: string;
-  try {
-    backendUrl = getAkbBackendUrl();
-  } catch (err) {
-    logger.error({ err }, "akb_me: backend url missing");
-    return Response.json(
-      { error: "The workspace backend is not configured." },
-      { status: 503 },
-    );
-  }
+  const adapterResult = getAkbAdapter(request);
+  if ("response" in adapterResult) return adapterResult.response;
 
   let profile: unknown;
   try {
     ({ profile } = await akbGetMe({
-      adapter: createAkbAdapter({ baseUrl: backendUrl, jwt }),
+      adapter: adapterResult.adapter,
     }));
   } catch (err) {
     if (err instanceof AuthError) {
@@ -123,6 +100,9 @@ function sessionErrorResponse(
     for (const cookie of buildClearedEstablishedAuthCookies()) {
       headers.append("Set-Cookie", cookie);
     }
+    headers.append("Set-Cookie", buildClearedAuthV2SessionCookie());
+    headers.append("Set-Cookie", buildClearedAuthV2StateCookie());
+    headers.append("Set-Cookie", buildClearedAuthV2LogoutCookie());
   }
   if (code) headers.set(AUTH_ACCOUNT_ERROR_HEADER, code);
   return new Response(

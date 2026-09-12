@@ -35,7 +35,7 @@ export function setupFetch(responses: FetchResponseSpec[]): {
 export function makeTestAkbAdapter(): AkbAdapter {
   return createAkbAdapter({
     baseUrl: "https://akb.test",
-    jwt: "fixture-auth-value",
+    credential: "fixture-auth-value",
   });
 }
 

@@ -23,10 +23,19 @@ describe("GET /api/auth/akb/config", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response(
         JSON.stringify({
-          keycloak: {
-            enabled: true,
-            login_url: "/api/v1/auth/keycloak/login",
-          },
+          schema_version: 2,
+          auth_mode: "sso",
+          local_auth: { enabled: false },
+          keycloak: { enabled: true, browser_session_ready: true },
+          providers: [
+            {
+              provider_type: "keycloak-oidc",
+              alias: "workforce",
+              display_name: "Company SSO",
+              login_url: "/api/v1/auth/sso/workforce/login",
+            },
+          ],
+          mcp_oauth: { enabled: false },
         }),
         { status: 200 },
       ),
@@ -36,12 +45,19 @@ describe("GET /api/auth/akb/config", () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      local_auth: { enabled: true },
-      keycloak: {
-        enabled: true,
-        login_url: "/api/v1/auth/keycloak/login",
-        sso_only: false,
-      },
+      schema_version: 2,
+      auth_mode: "sso",
+      local_auth: { enabled: false },
+      keycloak: { enabled: true, browser_session_ready: true },
+      providers: [
+        {
+          provider_type: "keycloak-oidc",
+          alias: "workforce",
+          display_name: "Company SSO",
+          login_url: "/api/v1/auth/sso/workforce/login",
+        },
+      ],
+      mcp_oauth: { enabled: false },
     });
     expect(res.headers.get("cache-control")).toBe("no-store");
     expect(globalThis.fetch).toHaveBeenCalledWith(
@@ -54,10 +70,12 @@ describe("GET /api/auth/akb/config", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response(
         JSON.stringify({
-          keycloak: {
-            enabled: true,
-            login_url: "/api/v1/auth/keycloak/login",
-          },
+          schema_version: 2,
+          auth_mode: "sso",
+          local_auth: { enabled: false },
+          keycloak: { enabled: true, browser_session_ready: true },
+          providers: [],
+          mcp_oauth: { enabled: false },
         }),
         { status: 200 },
       ),

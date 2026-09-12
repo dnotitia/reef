@@ -93,6 +93,6 @@ export function setupFetch(responses: FetchResponseSpec[]): {
 export function makeAdapter() {
   return createAkbAdapter({
     baseUrl: "https://akb.test",
-    jwt: "jwt.example.token",
+    credential: "jwt.example.token",
   });
 }

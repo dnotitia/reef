@@ -36,8 +36,8 @@ spec:
                 name: reef-web-config
             - secretRef:
                 name: reef-web-secret
-                # GitHub and LLM capabilities are optional. Deployments that
-                # only use AKB/Keycloak do not need an otherwise empty Secret.
+                # GitHub/LLM are optional in local mode; production SSO requires
+                # its Redis URL and encryption key in this Secret.
                 optional: true
           resources:
             requests:
@@ -54,7 +54,7 @@ spec:
             periodSeconds: 20
           readinessProbe:
             httpGet:
-              path: /api/healthz
+              path: /api/readyz
               port: 3000
             initialDelaySeconds: 5
             periodSeconds: 10

@@ -1,5 +1,20 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/akb/loadAkbAuthConfig", () => ({
+  loadAkbAuthConfig: vi.fn(async () => ({
+    ok: true,
+    config: {
+      schema_version: 2,
+      auth_mode: "local",
+      local_auth: { enabled: true },
+      keycloak: { enabled: false, browser_session_ready: false },
+      providers: [],
+      mcp_oauth: { enabled: false },
+    },
+  })),
+}));
+
 import { POST } from "./route";
 
 function makeJwt(payload: object): string {
@@ -57,9 +72,7 @@ describe("POST /api/auth/akb/login", () => {
 
     const setCookie = res.headers.get("set-cookie") ?? "";
     expect(setCookie).toMatch(/__reef_session=/);
-    expect(setCookie).toContain("__reef_sso=");
-    expect(setCookie).toContain("__reef_sso_id_token=");
-    expect(setCookie).toContain("__reef_sso_start=");
+    expect(setCookie).toContain("__reef_auth_v2=");
     expect(setCookie).toContain("HttpOnly");
     expect(setCookie).toContain("SameSite=Lax");
     expect(setCookie).toContain("Path=/");
@@ -123,7 +136,7 @@ describe("POST /api/auth/akb/login", () => {
       expect((await res.json()).error).toMatch(message);
       const setCookie = res.headers.get("set-cookie") ?? "";
       expect(setCookie).toContain("__reef_session=");
-      expect(setCookie).toContain("__reef_sso=");
+      expect(setCookie).toContain("__reef_auth_v2=");
       expect(setCookie).toContain("Max-Age=0");
       expect(res.headers.get("cache-control")).toBe("no-store");
     },

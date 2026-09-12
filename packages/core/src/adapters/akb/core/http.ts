@@ -25,6 +25,8 @@ export interface AkbAdapter {
   request: AkbRequest;
 }
 
+export type AkbCredential = string | (() => Promise<string>);
+
 /** Adapter capability for long-lived authenticated responses. */
 export interface AkbStreamAdapter extends AkbAdapter {
   stream: AkbStreamRequest;
@@ -197,9 +199,15 @@ function filenameFromContentDisposition(header: string | null): string | null {
   return plain?.[1] ?? null;
 }
 
+function resolveCredential(credential: AkbCredential): Promise<string> {
+  return typeof credential === "function"
+    ? credential()
+    : Promise.resolve(credential);
+}
+
 function makeRequest(
   baseUrl: string,
-  bearerToken: string,
+  credential: AkbCredential,
   requestPolicy?: AkbRequestPolicy,
 ): AkbRequest {
   return async (path, init = {}) => {
@@ -216,6 +224,7 @@ function makeRequest(
       span.setAttribute("akb.http.path", path);
       const startMs = Date.now();
       try {
+        const bearerToken = await resolveCredential(credential);
         const headers: Record<string, string> = {
           Authorization: `Bearer ${bearerToken}`,
           Accept: "application/json",
@@ -325,7 +334,7 @@ function makeRequest(
 
 function makeStreamRequest(
   baseUrl: string,
-  bearerToken: string,
+  credential: AkbCredential,
 ): AkbStreamRequest {
   return async (path, init = {}) => {
     const url = buildUrl(baseUrl, path, init.query);
@@ -335,6 +344,7 @@ function makeStreamRequest(
       const startMs = Date.now();
       try {
         let response: Response;
+        const bearerToken = await resolveCredential(credential);
         try {
           response = await fetch(url, {
             method: "GET",
@@ -383,7 +393,7 @@ function makeStreamRequest(
  */
 export function createAkbAdapter(input: {
   baseUrl: string;
-  jwt: string;
+  credential: AkbCredential;
   requestPolicy?: AkbRequestPolicy;
 }): AkbStreamAdapter {
   if (
@@ -396,7 +406,7 @@ export function createAkbAdapter(input: {
     throw new Error("AKB request policy must use positive integer bounds");
   }
   return {
-    request: makeRequest(input.baseUrl, input.jwt, input.requestPolicy),
-    stream: makeStreamRequest(input.baseUrl, input.jwt),
+    request: makeRequest(input.baseUrl, input.credential, input.requestPolicy),
+    stream: makeStreamRequest(input.baseUrl, input.credential),
   };
 }

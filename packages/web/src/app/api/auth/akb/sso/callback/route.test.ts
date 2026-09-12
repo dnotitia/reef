@@ -1,317 +1,101 @@
-// @vitest-environment node
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const runtimeRef = vi.hoisted(() => ({
+  current: undefined as Record<string, unknown> | undefined,
+}));
+
+vi.mock("@/server/auth-v2/runtime", () => ({
+  AuthV2RouteRuntimeError: class AuthV2RouteRuntimeError extends Error {},
+  getAuthV2RouteRuntime: vi.fn(async () => runtimeRef.current),
+}));
+
+import { buildAuthV2StateCookie } from "@/server/auth-v2/cookie";
 import { GET } from "./route";
 
-const SESSION_COOKIE = "__reef_session";
-const SSO_ID_TOKEN_COOKIE = "__reef_sso_id_token";
-const SSO_SESSION_COOKIE = "__reef_sso";
-const SSO_START_COOKIE = "__reef_sso_start";
-const AUTH_INVALIDATION_COOKIE = "__reef_auth_invalidated";
+const binding = "A".repeat(43);
 
-function makeJwt(payload: object): string {
-  const header = Buffer.from(
-    JSON.stringify({ alg: "HS256", typ: "JWT" }),
-  ).toString("base64url");
-  const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  return `${header}.${body}.sig-not-verified`;
-}
-
-const futureExp = Math.floor(Date.now() / 1000) + 60 * 60 * 24;
-const VALID_JWT = makeJwt({ exp: futureExp, sub: "user-1" });
-const VALID_USER = {
-  id: "user-1",
-  username: "alice",
-  email: "alice@example.com",
-  display_name: "Alice",
-  is_admin: false,
-};
-
-function makeCompletionPath(state = "nonce-1", next = "/issues"): string {
-  const params = new URLSearchParams({ state, next });
-  return `/login/sso-complete?${params.toString()}`;
-}
-
-function makeNestedCallbackPath(state = "nonce-1", next = "/issues"): string {
-  const params = new URLSearchParams({
-    redirect: makeCompletionPath(state, next),
-  });
-  return `/api/auth/akb/sso/callback?${params.toString()}`;
-}
-
-function makeCallbackRequest(options: {
-  code?: string;
-  ssoError?: string;
-  redirect?: string;
-  cookie?: string;
-}): Request {
-  const params = new URLSearchParams();
-  if (options.code) params.set("code", options.code);
-  if (options.ssoError) params.set("sso_error", options.ssoError);
-  if (options.redirect) params.set("redirect", options.redirect);
-  return new Request(
-    `http://localhost/api/auth/akb/sso/callback?${params.toString()}`,
-    {
-      method: "GET",
-      headers: options.cookie ? { cookie: options.cookie } : undefined,
+function setup(completeAuthorization: () => Promise<unknown>) {
+  runtimeRef.current = {
+    contract: {
+      auth_mode: "sso",
+      providers: [
+        {
+          alias: "workforce",
+          provider_type: "keycloak-oidc",
+          display_name: "Company SSO",
+          login_url: "/api/v1/auth/sso/workforce/login",
+        },
+      ],
     },
-  );
+    protocolFor: () => ({ completeAuthorization }),
+    stateStore: {},
+    store: {
+      issue: vi.fn(async () => ({
+        handle: "H".repeat(43),
+        expiresAt: 2_000_100,
+      })),
+    },
+    now: () => 2_000_000,
+    close: vi.fn(async () => undefined),
+  };
 }
-
-describe("GET /api/auth/akb/sso/callback", () => {
+describe("SSO callback route", () => {
   beforeEach(() => {
-    vi.stubEnv("AKB_BACKEND_URL", "http://akb.test");
-    vi.stubEnv("NODE_ENV", "test");
+    setup(async () => ({
+      providerAlias: "workforce",
+      redirectPath: "/workspace/reef",
+      subject: "subject-1",
+      sessionId: "sid-1",
+      tokenSet: {
+        accessToken: "access-token",
+        refreshToken: "refresh-token",
+        idToken: "id-token",
+        accessTokenExpiresAt: 2_000_060,
+        refreshTokenExpiresAt: 2_000_600,
+      },
+      account: { id: "u-1", username: "alice" },
+    }));
   });
 
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    vi.restoreAllMocks();
-  });
-
-  it("exchanges code server-side, sets session cookies, and redirects to completion", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          token: VALID_JWT,
-          user: VALID_USER,
-          kc_id_token: "keycloak-id-token",
-        }),
-        { status: 200 },
+  it("turns a verified code into an opaque session cookie", async () => {
+    const response = await GET(
+      new Request(
+        "https://reef.test/api/auth/akb/sso/callback?code=code&state=state",
+        {
+          headers: {
+            cookie: buildAuthV2StateCookie("workforce", binding),
+          },
+        },
       ),
     );
-    const completionPath = makeCompletionPath("nonce-1", "/issues?status=open");
-
-    const res = await GET(
-      makeCallbackRequest({
-        code: "one-time-code",
-        redirect: completionPath,
-        cookie: `${SSO_START_COOKIE}=nonce-1`,
-      }),
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe("/workspace/reef");
+    expect(response.headers.get("set-cookie")).toContain(
+      "__reef_auth_v2=HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH",
     );
-
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe(completionPath);
-    const setCookie = res.headers.get("set-cookie") ?? "";
-    expect(setCookie).toContain(`${SESSION_COOKIE}=`);
-    expect(setCookie).toContain(`${SSO_SESSION_COOKIE}=1`);
-    expect(setCookie).toContain(`${SSO_ID_TOKEN_COOKIE}=keycloak-id-token`);
-    expect(setCookie).toContain(`${SSO_START_COOKIE}=`);
-    expect(setCookie).toContain("Max-Age=0");
-    expect(setCookie).toContain("HttpOnly");
-    expect(setCookie).not.toContain("one-time-code");
-
-    expect(fetchSpy).toHaveBeenCalledWith(
-      "http://akb.test/api/v1/auth/keycloak/exchange",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ code: "one-time-code" }),
-      }),
-    );
+    expect(response.headers.get("set-cookie")).not.toContain("access-token");
   });
 
-  it("accepts an echoed callback redirect that nests the completion path", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-      new Response(JSON.stringify({ token: VALID_JWT, user: VALID_USER }), {
-        status: 200,
-      }),
-    );
-
-    const res = await GET(
-      makeCallbackRequest({
-        code: "one-time-code",
-        redirect: makeNestedCallbackPath("nonce-1", "/issues?status=open"),
-        cookie: `${SSO_START_COOKIE}=nonce-1`,
-      }),
-    );
-
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe(
-      makeCompletionPath("nonce-1", "/issues?status=open"),
-    );
-  });
-
-  it("clears a stale SSO id token when the exchange response omits one", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          token: VALID_JWT,
-          user: VALID_USER,
-        }),
-        { status: 200 },
+  it("clears auth state on account denial", async () => {
+    setup(async () => {
+      const error = new Error("denied");
+      error.name = "AccountValidationError";
+      Object.assign(error, { code: "membership_required" });
+      throw error;
+    });
+    const response = await GET(
+      new Request(
+        "https://reef.test/api/auth/akb/sso/callback?code=code&state=state",
+        {
+          headers: {
+            cookie: buildAuthV2StateCookie("workforce", binding),
+          },
+        },
       ),
     );
-
-    const res = await GET(
-      makeCallbackRequest({
-        code: "one-time-code",
-        redirect: makeCompletionPath("nonce-1", "/issues"),
-        cookie: `${SSO_START_COOKIE}=nonce-1; ${SSO_ID_TOKEN_COOKIE}=old-token`,
-      }),
+    expect(response.headers.get("location")).toBe(
+      "/login?sso_error=membership_required",
     );
-
-    expect(res.status).toBe(302);
-    const setCookie = res.headers.get("set-cookie") ?? "";
-    expect(setCookie).toContain(`${SSO_ID_TOKEN_COOKIE}=`);
-    expect(setCookie).toContain("Max-Age=0");
-    expect(setCookie).not.toContain("old-token");
-  });
-
-  it("redirects to missing_code without calling akb when code is absent", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
-
-    const res = await GET(
-      makeCallbackRequest({
-        redirect: makeCompletionPath(),
-        cookie: `${SSO_START_COOKIE}=nonce-1`,
-      }),
-    );
-
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("/login?sso_error=missing_code");
-    expect(fetchSpy).not.toHaveBeenCalled();
-    expect(res.headers.get("set-cookie")).toContain(`${SSO_START_COOKIE}=`);
-  });
-
-  it.each(["membership_required", "account_suspended", "identity_conflict"])(
-    "preserves trusted AKB account SSO error %s",
-    async (ssoError) => {
-      const fetchSpy = vi.spyOn(globalThis, "fetch");
-
-      const res = await GET(
-        makeCallbackRequest({
-          ssoError,
-          redirect: makeCompletionPath(),
-          cookie: `${SSO_START_COOKIE}=nonce-1`,
-        }),
-      );
-
-      expect(res.status).toBe(302);
-      expect(res.headers.get("location")).toBe(`/login?sso_error=${ssoError}`);
-      expect(fetchSpy).not.toHaveBeenCalled();
-      const setCookie = res.headers.get("set-cookie") ?? "";
-      expect(setCookie).toContain(`${SSO_START_COOKIE}=`);
-      expect(setCookie).toContain(`${SESSION_COOKIE}=`);
-      expect(setCookie).toContain(`${SSO_SESSION_COOKIE}=`);
-      expect(setCookie).toContain(`${AUTH_INVALIDATION_COOKIE}=1`);
-      expect(setCookie).toContain("Max-Age=0");
-      expect(res.headers.get("x-reef-auth-invalidated")).toBe("1");
-      expect(res.headers.get("x-reef-account-error")).toBe(ssoError);
-    },
-  );
-
-  it("does not reflect an unrecognized upstream SSO error", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
-
-    const res = await GET(
-      makeCallbackRequest({
-        ssoError: "arbitrary_upstream_text",
-        redirect: makeCompletionPath(),
-        cookie: `${SSO_START_COOKIE}=nonce-1`,
-      }),
-    );
-
-    expect(res.headers.get("location")).toBe("/login?sso_error=missing_code");
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
-  it("validates SSO state before accepting an account error", async () => {
-    const res = await GET(
-      makeCallbackRequest({
-        ssoError: "account_suspended",
-        redirect: makeCompletionPath("nonce-1"),
-        cookie: `${SSO_START_COOKIE}=different`,
-      }),
-    );
-
-    expect(res.headers.get("location")).toBe(
-      "/login?sso_error=invalid_sso_state",
-    );
-  });
-
-  it("redirects to invalid_sso_state on missing or mismatched nonce", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
-
-    const res = await GET(
-      makeCallbackRequest({
-        code: "one-time-code",
-        redirect: makeCompletionPath("nonce-1"),
-        cookie: `${SSO_START_COOKIE}=different`,
-      }),
-    );
-
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe(
-      "/login?sso_error=invalid_sso_state",
-    );
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
-  it("rejects unsafe completion next paths", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
-    const unsafeCompletion = makeCompletionPath("nonce-1", "//evil.example");
-
-    const res = await GET(
-      makeCallbackRequest({
-        code: "one-time-code",
-        redirect: unsafeCompletion,
-        cookie: `${SSO_START_COOKIE}=nonce-1`,
-      }),
-    );
-
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe(
-      "/login?sso_error=invalid_sso_state",
-    );
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
-  it("redirects to exchange_failed when akb rejects the code", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-      new Response(JSON.stringify({ detail: "bad code" }), { status: 400 }),
-    );
-
-    const res = await GET(
-      makeCallbackRequest({
-        code: "bad-code",
-        redirect: makeCompletionPath(),
-        cookie: `${SSO_START_COOKIE}=nonce-1`,
-      }),
-    );
-
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe(
-      "/login?sso_error=exchange_failed",
-    );
-    expect(res.headers.get("set-cookie")).toContain(`${SSO_START_COOKIE}=`);
-  });
-
-  it("preserves an account denial returned by code exchange", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          message: "The login identity conflicts with this account",
-          code: "identity_conflict",
-        }),
-        { status: 409 },
-      ),
-    );
-
-    const res = await GET(
-      makeCallbackRequest({
-        code: "one-time-code",
-        redirect: makeCompletionPath(),
-        cookie: `${SSO_START_COOKIE}=nonce-1`,
-      }),
-    );
-
-    expect(res.headers.get("location")).toBe(
-      "/login?sso_error=identity_conflict",
-    );
-    const setCookie = res.headers.get("set-cookie") ?? "";
-    expect(setCookie).toContain(`${SSO_START_COOKIE}=`);
-    expect(setCookie).toContain(`${SESSION_COOKIE}=`);
-    expect(setCookie).toContain(`${SSO_SESSION_COOKIE}=`);
-    expect(setCookie).toContain("Max-Age=0");
-    expect(res.headers.get("x-reef-account-error")).toBe("identity_conflict");
+    expect(response.headers.get("x-reef-auth-invalidated")).toBe("1");
   });
 });

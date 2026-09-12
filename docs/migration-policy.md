@@ -32,8 +32,9 @@ that could mis-render old cached data:
 - Mention the cache invalidation in `CHANGELOG.md` under `Migration` or
   `Changed`, depending on user impact.
 
-Browser migrations must never move the akb session into IndexedDB. The akb
-session stays in the `__reef_session` httpOnly cookie, and GitHub credentials
+Browser migrations must never move the akb session into IndexedDB. Local mode
+stays in the `__reef_session` httpOnly cookie; SSO mode stays in its opaque
+`__reef_auth_v2` handle and encrypted server custody. GitHub credentials
 stay deployment-managed server state rather than browser-local state.
 
 ## akb Compatibility

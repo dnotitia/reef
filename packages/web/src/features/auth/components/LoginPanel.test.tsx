@@ -50,14 +50,28 @@ function configResponse(
   enabled: boolean,
   options: { localAuth?: boolean; ssoOnly?: boolean } = {},
 ) {
+  void options.ssoOnly;
+  const authMode = enabled ? "sso" : "local";
   return new Response(
     JSON.stringify({
-      local_auth: { enabled: options.localAuth ?? true },
+      schema_version: 2,
+      auth_mode: authMode,
+      local_auth: { enabled: enabled ? false : (options.localAuth ?? true) },
       keycloak: {
         enabled,
-        login_url: enabled ? "/api/v1/auth/keycloak/login" : null,
-        sso_only: options.ssoOnly ?? false,
+        browser_session_ready: enabled,
       },
+      providers: enabled
+        ? [
+            {
+              provider_type: "keycloak-oidc",
+              alias: "workforce",
+              display_name: "Company SSO",
+              login_url: "/api/v1/auth/sso/workforce/login",
+            },
+          ]
+        : [],
+      mcp_oauth: { enabled: false },
     }),
     { status: 200, headers: { "content-type": "application/json" } },
   );
@@ -329,11 +343,11 @@ describe("LoginPanel", () => {
     renderWithQueryClient(<LoginPanel redirectTo="/issues?status=open" />);
 
     const ssoLink = await screen.findByRole("link", {
-      name: "Continue with SSO",
+      name: "Company SSO",
     });
     expect(ssoLink).toHaveAttribute(
       "href",
-      "/api/auth/akb/sso/start?redirect=%2Fissues%3Fstatus%3Dopen",
+      "/api/auth/akb/sso/start?provider=workforce&redirect=%2Fissues%3Fstatus%3Dopen",
     );
     expect(screen.getByText("Sign-in method", { exact: true })).toBeVisible();
     expect(
@@ -341,11 +355,6 @@ describe("LoginPanel", () => {
         "Use the identity provider configured for this workspace.",
         { exact: true },
       ),
-    ).toBeVisible();
-    expect(
-      screen.getByText("Or sign in with username and password", {
-        exact: true,
-      }),
     ).toBeVisible();
     expect(document.body).not.toHaveTextContent(/akb-platform/i);
   });
@@ -355,15 +364,12 @@ describe("LoginPanel", () => {
 
     renderWithQueryClient(<LoginPanel redirectTo="/issues" />, "ko");
 
-    const ssoLink = await screen.findByRole("link", { name: "SSO로 계속하기" });
+    const ssoLink = await screen.findByRole("link", { name: "Company SSO" });
     expect(screen.getByText("로그인 방법", { exact: true })).toBeVisible();
     expect(
       screen.getByText("워크스페이스에 연결된 인증 제공자를 사용합니다.", {
         exact: true,
       }),
-    ).toBeVisible();
-    expect(
-      screen.getByText("또는 사용자 이름과 비밀번호로 로그인", { exact: true }),
     ).toBeVisible();
     expect(document.body).not.toHaveTextContent(/akb-platform/i);
   });
@@ -381,7 +387,7 @@ describe("LoginPanel", () => {
     renderWithQueryClient(<LoginPanel redirectTo="/issues" />);
 
     expect(
-      await screen.findByRole("link", { name: "Continue with SSO" }),
+      await screen.findByRole("link", { name: "Company SSO" }),
     ).toBeVisible();
     expect(screen.queryByTestId("login-username")).not.toBeInTheDocument();
     expect(screen.queryByTestId("login-password")).not.toBeInTheDocument();
@@ -413,7 +419,7 @@ describe("LoginPanel", () => {
 
     await waitFor(() => {
       expect(
-        screen.queryByRole("link", { name: /continue with sso/i }),
+        screen.queryByRole("link", { name: /company sso/i }),
       ).not.toBeInTheDocument();
     });
     expect(screen.queryByText("Sign-in method")).not.toBeInTheDocument();
@@ -421,18 +427,14 @@ describe("LoginPanel", () => {
     expect(screen.getByTestId("login-username")).toBeInTheDocument();
   });
 
-  it("falls back to password-only when config fetch fails", async () => {
+  it("fails closed when config fetch fails", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
 
     renderWithQueryClient(<LoginPanel />);
 
-    await waitFor(() => {
-      expect(
-        screen.queryByRole("link", { name: /continue with sso/i }),
-      ).not.toBeInTheDocument();
-    });
-    expect(screen.queryByText("Sign-in method")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("sso-option-region")).not.toBeInTheDocument();
-    expect(screen.getByTestId("login-password")).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /no sign-in method is available/i,
+    );
+    expect(screen.queryByTestId("login-username")).not.toBeInTheDocument();
   });
 });

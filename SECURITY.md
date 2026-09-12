@@ -1,8 +1,8 @@
 # Security Policy
 
 reef sits on the credential path for a team: it brokers deployment-managed
-GitHub credentials, the `__reef_session` httpOnly cookie that carries an AKB
-session, and optional server-side LLM credentials, and it proxies configured
+GitHub credentials, local AKB sessions, companion SSO sessions whose browser
+carrier is only an opaque handle, and optional server-side LLM credentials, and it proxies configured
 requests to an LLM. Because of that, we take security reports seriously and ask
 that they be disclosed privately.
 

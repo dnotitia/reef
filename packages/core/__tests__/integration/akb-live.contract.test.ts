@@ -281,7 +281,7 @@ describe("AKB live adapter construction", () => {
   it("preserves the stream capability when request instrumentation wraps the adapter", () => {
     const baseAdapter = createAkbAdapter({
       baseUrl: "https://akb.test",
-      jwt: "test-jwt",
+      credential: "test-jwt",
     });
     const wrapped = wrapLiveAdapter(baseAdapter, baseAdapter.request);
 
@@ -317,7 +317,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
       password: PASSWORD,
     });
     sessionToken = token;
-    const baseAdapter = createAkbAdapter({ baseUrl, jwt: token });
+    const baseAdapter = createAkbAdapter({ baseUrl, credential: token });
     adapter = wrapLiveAdapter(baseAdapter, async (...args) => {
       const [path, init] = args;
       if (
@@ -740,7 +740,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
 
     const invalidSessionAdapter = createAkbAdapter({
       baseUrl,
-      jwt: "invalid-session-token",
+      credential: "invalid-session-token",
     });
     const invalidSession = await getMe({
       adapter: invalidSessionAdapter,

@@ -66,7 +66,7 @@ describe("AKB Change Event Tail", () => {
 
     const adapter = createAkbAdapter({
       baseUrl: "https://akb.test",
-      jwt: "deployment-managed-jwt",
+      credential: "deployment-managed-jwt",
     });
     const records = [];
     for await (const record of createAkbChangeEventTail(adapter).subscribe({
@@ -107,7 +107,7 @@ describe("AKB Change Event Tail", () => {
     vi.stubGlobal("fetch", fetchMock);
     const adapter = createAkbAdapter({
       baseUrl: "https://akb.test",
-      jwt: "jwt",
+      credential: "jwt",
     });
     const tail = createAkbChangeEventTail(adapter);
 
@@ -227,7 +227,7 @@ describe("AKB Change Event Tail", () => {
     vi.stubGlobal("fetch", fetchMock);
     const adapter = createAkbAdapter({
       baseUrl: "https://akb.test",
-      jwt: "jwt",
+      credential: "jwt",
     });
 
     let caught: unknown;
