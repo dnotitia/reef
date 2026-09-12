@@ -92,6 +92,48 @@ describe("akb auth adapter", () => {
     expect(calls[0]?.url).toBe("https://akb.test/api/v1/auth/config");
   });
 
+  it("accepts brokered OIDC alongside a local-realm provider", async () => {
+    const config = {
+      ...SSO_CONFIG,
+      providers: [
+        {
+          provider_type: "oidc",
+          alias: "entra",
+          display_name: "teams",
+          login_url: "/api/v1/auth/sso/entra/login",
+        },
+        SSO_CONFIG.providers[1],
+      ],
+    } as const;
+    setupFetch([{ status: 200, body: config }]);
+
+    await expect(getAuthConfig({ baseUrl: BASE_URL })).resolves.toEqual({
+      config,
+    });
+  });
+
+  it("rejects provider types outside the v2 catalog", async () => {
+    setupFetch([
+      {
+        status: 200,
+        body: {
+          ...SSO_CONFIG,
+          providers: [
+            {
+              ...SSO_CONFIG.providers[0],
+              provider_type: "saml",
+            },
+          ],
+        },
+      },
+    ]);
+
+    await expect(getAuthConfig({ baseUrl: BASE_URL })).rejects.toMatchObject({
+      name: "AkbApiError",
+      status: 502,
+    });
+  });
+
   it("rejects the retired unversioned capability shape without fallback", async () => {
     setupFetch([
       {

@@ -7,6 +7,7 @@ import {
 } from "jose";
 import {
   AKB_AUTH_V2_ACCOUNT_DENIAL_CODES,
+  type AkbAuthProviderType,
   type AkbAuthV2AccountDenialCode,
 } from "@reef/core";
 
@@ -35,7 +36,7 @@ export interface OidcTokenValidatorConfig {
   audience: string;
   clientId: string;
   providerAlias: string;
-  providerType?: "keycloak-oidc" | "local-realm";
+  providerType?: AkbAuthProviderType;
   /** A fixed JWKS resolver owned by Reef configuration. */
   jwks: JWTVerifyGetKey;
   clockToleranceSeconds?: number;
@@ -248,7 +249,9 @@ function validateConfig(
   if (
     typeof providerAlias !== "string" ||
     !PROVIDER_ALIAS_PATTERN.test(providerAlias) ||
-    (providerType !== "keycloak-oidc" && providerType !== "local-realm")
+    (providerType !== "oidc" &&
+      providerType !== "keycloak-oidc" &&
+      providerType !== "local-realm")
   ) {
     throw new OidcTokenValidationError(
       "oidc_validator_config_invalid",

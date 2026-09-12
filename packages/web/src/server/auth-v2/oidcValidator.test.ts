@@ -33,7 +33,7 @@ describe("OIDC access-token validator", () => {
       audience: "https://akb.test/api",
       clientId: "reef-web",
       providerAlias: "workforce",
-      providerType: "keycloak-oidc",
+      providerType: "oidc",
       jwks,
       now: () => new Date(now * 1_000),
     });

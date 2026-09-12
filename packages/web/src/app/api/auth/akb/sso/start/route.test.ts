@@ -7,7 +7,7 @@ const runtimeRef = vi.hoisted(() => ({
           auth_mode: "sso";
           providers: Array<{
             alias: string;
-            provider_type: "keycloak-oidc" | "local-realm";
+            provider_type: "oidc" | "keycloak-oidc" | "local-realm";
             display_name: string;
             login_url: string | null;
           }>;

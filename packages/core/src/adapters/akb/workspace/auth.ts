@@ -30,9 +30,17 @@ const AkbLoginResponseSchema = z.object({
   user: AkbUserSchema,
 });
 
+export const AkbAuthProviderTypeSchema = z.enum([
+  "oidc",
+  "keycloak-oidc",
+  "local-realm",
+]);
+
+export type AkbAuthProviderType = z.infer<typeof AkbAuthProviderTypeSchema>;
+
 const AkbAuthProviderSchema = z
   .object({
-    provider_type: z.enum(["keycloak-oidc", "local-realm"]),
+    provider_type: AkbAuthProviderTypeSchema,
     alias: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,62}$/u),
     display_name: z.string().min(1).max(120),
     login_url: z.string().min(1).nullable(),

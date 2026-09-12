@@ -1,6 +1,12 @@
 // @vitest-environment node
 import { createHash } from "node:crypto";
-import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from "jose";
+import {
+  createLocalJWKSet,
+  exportJWK,
+  generateKeyPair,
+  SignJWT,
+  type JWTVerifyGetKey,
+} from "jose";
 import { describe, expect, it } from "vitest";
 import type { AkbAuthConfig } from "@reef/core";
 import type { AuthV2EnabledRuntimeConfig } from "./config";
@@ -18,6 +24,56 @@ function atHash(accessToken: string): string {
 }
 
 describe("companion OIDC protocol", () => {
+  it("uses the alias hint for generic brokered OIDC providers", async () => {
+    const runtime: AuthV2EnabledRuntimeConfig = {
+      enabled: true,
+      mode: "sso",
+      issuer: ISSUER,
+      transportUrl: ISSUER,
+      clientId: "reef-web",
+      audience: "https://akb.test/api",
+      publicOrigin: "https://reef.test",
+      redisUrl: "redis://localhost:6379",
+      encryptionKey: new Uint8Array(32),
+      sessionNamespace: "test",
+    };
+    const protocol = createAuthV2OidcProtocol({
+      runtime,
+      contract: {
+        schema_version: 2,
+        auth_mode: "sso",
+        local_auth: { enabled: false },
+        keycloak: { enabled: true, browser_session_ready: true },
+        providers: [
+          {
+            provider_type: "oidc",
+            alias: "entra",
+            display_name: "Teams",
+            login_url: "/api/v1/auth/sso/entra/login",
+          },
+        ],
+        mcp_oauth: { enabled: true },
+      },
+      providerAlias: "entra",
+      jwks: (async () => {
+        throw new Error("JWKS is not used while starting authorization");
+      }) as JWTVerifyGetKey,
+      now: () => NOW,
+    });
+
+    const started = await protocol.beginAuthorization({
+      stateStore: {
+        issue: async () => ({ state: "state", browserBinding: "B".repeat(43) }),
+        consume: async () => null,
+      },
+      redirectPath: "/workspace/reef",
+    });
+
+    expect(new URL(started.location).searchParams.get("kc_idp_hint")).toBe(
+      "entra",
+    );
+  });
+
   it("builds provider-bound PKCE and completes with a verified account", async () => {
     const { privateKey, publicKey } = await generateKeyPair("RS256", {
       modulusLength: 2048,

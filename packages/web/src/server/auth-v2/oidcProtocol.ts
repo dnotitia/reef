@@ -6,7 +6,7 @@ import {
   type JWTPayload,
 } from "jose";
 import { z } from "zod";
-import type { AkbAuthConfig } from "@reef/core";
+import type { AkbAuthConfig, AkbAuthProviderType } from "@reef/core";
 import type { AuthV2EnabledRuntimeConfig } from "./config";
 import {
   createOidcTokenValidator,
@@ -215,7 +215,7 @@ export function createAuthV2OidcProtocol(params: {
       location.searchParams.set("code_challenge", codeChallenge(codeVerifier));
       location.searchParams.set("code_challenge_method", "S256");
       location.searchParams.set("max_age", "0");
-      if (provider.provider_type === "keycloak-oidc") {
+      if (provider.provider_type !== "local-realm") {
         location.searchParams.set("kc_idp_hint", params.providerAlias);
       }
       return {
@@ -513,7 +513,7 @@ async function validateAuthorizationResponse(
   jwks: JWTVerifyGetKey,
   runtime: AuthV2EnabledRuntimeConfig,
   providerAlias: string,
-  providerType: "keycloak-oidc" | "local-realm",
+  providerType: AkbAuthProviderType,
   now: () => number,
 ): Promise<AuthV2OidcTokenSet> {
   const parsed = AuthorizationTokenResponseSchema.safeParse(raw);
@@ -562,7 +562,7 @@ async function verifyIdToken(
   subject: string,
   expectedSessionId: string | undefined,
   now: () => number,
-  providerType: "keycloak-oidc" | "local-realm",
+  providerType: AkbAuthProviderType,
   providerAlias: string,
   requireAtHash: boolean,
 ): Promise<JWTPayload> {
