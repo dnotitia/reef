@@ -6,6 +6,7 @@ import {
   generateKeyPair,
   SignJWT,
   type JWTVerifyGetKey,
+  errors as joseErrors,
 } from "jose";
 import { describe, expect, it } from "vitest";
 import type { AkbAuthConfig } from "@reef/core";
@@ -221,5 +222,192 @@ describe("companion OIDC protocol", () => {
     });
     expect(completed.subject).toBe("subject-1");
     expect(completed.account.username).toBe("alice");
+  });
+
+  it("keeps the known refresh deadline when rotation omits refresh_expires_in", async () => {
+    const { privateKey, publicKey } = await generateKeyPair("RS256", {
+      modulusLength: 2048,
+    });
+    const jwks = createLocalJWKSet({
+      keys: [{ ...(await exportJWK(publicKey)), kid: "key-1" }],
+    });
+    const runtime: AuthV2EnabledRuntimeConfig = {
+      enabled: true,
+      mode: "sso",
+      issuer: ISSUER,
+      transportUrl: ISSUER,
+      clientId: "reef-web",
+      audience: "https://akb.test/api",
+      publicOrigin: "https://reef.test",
+      redisUrl: "redis://localhost:6379",
+      encryptionKey: new Uint8Array(32),
+      sessionNamespace: "test",
+    };
+    const protocol = createAuthV2OidcProtocol({
+      runtime,
+      contract: {
+        schema_version: 2,
+        auth_mode: "sso",
+        local_auth: { enabled: false },
+        keycloak: { enabled: true, browser_session_ready: true },
+        providers: [
+          {
+            provider_type: "keycloak-oidc",
+            alias: "workforce",
+            display_name: "Company SSO",
+            login_url: "/api/v1/auth/sso/workforce/login",
+          },
+        ],
+        mcp_oauth: { enabled: false },
+      },
+      providerAlias: "workforce",
+      jwks,
+      now: () => NOW,
+      fetch: async () => {
+        const accessToken = await new SignJWT({
+          aud: runtime.audience,
+          sub: "subject-1",
+          azp: runtime.clientId,
+          typ: "Bearer",
+          jti: "jti-2",
+          sid: "sid-1",
+          identity_provider: "workforce",
+          scope: "openid profile",
+        })
+          .setProtectedHeader({ alg: "RS256", typ: "JWT", kid: "key-1" })
+          .setIssuer(ISSUER)
+          .setIssuedAt(NOW)
+          .setExpirationTime(NOW + 300)
+          .sign(privateKey);
+        return new Response(
+          JSON.stringify({
+            access_token: accessToken,
+            refresh_token: "refresh-2",
+            token_type: "Bearer",
+            expires_in: 300,
+          }),
+          { status: 200 },
+        );
+      },
+    });
+
+    const result = await protocol.refresh({
+      refreshToken: "refresh-1",
+      providerAlias: "workforce",
+      subject: "subject-1",
+      sessionId: "sid-1",
+      previousIdToken: "id-1",
+      previousRefreshTokenExpiresAt: NOW + 600,
+    });
+
+    expect(result.refreshToken).toBe("refresh-2");
+    expect(result.refreshTokenExpiresAt).toBe(NOW + 600);
+  });
+
+  it("reports a retryable JWKS error when the rotated ID token cannot be checked", async () => {
+    const { privateKey, publicKey } = await generateKeyPair("RS256", {
+      modulusLength: 2048,
+    });
+    const localJwks = createLocalJWKSet({
+      keys: [{ ...(await exportJWK(publicKey)), kid: "key-1" }],
+    });
+    let jwksCalls = 0;
+    const jwks: JWTVerifyGetKey = async (protectedHeader, token) => {
+      jwksCalls += 1;
+      if (jwksCalls === 2) throw new joseErrors.JWKSTimeout();
+      return localJwks(protectedHeader, token);
+    };
+    const runtime: AuthV2EnabledRuntimeConfig = {
+      enabled: true,
+      mode: "sso",
+      issuer: ISSUER,
+      transportUrl: ISSUER,
+      clientId: "reef-web",
+      audience: "https://akb.test/api",
+      publicOrigin: "https://reef.test",
+      redisUrl: "redis://localhost:6379",
+      encryptionKey: new Uint8Array(32),
+      sessionNamespace: "test",
+    };
+    const protocol = createAuthV2OidcProtocol({
+      runtime,
+      contract: {
+        schema_version: 2,
+        auth_mode: "sso",
+        local_auth: { enabled: false },
+        keycloak: { enabled: true, browser_session_ready: true },
+        providers: [
+          {
+            provider_type: "keycloak-oidc",
+            alias: "workforce",
+            display_name: "Company SSO",
+            login_url: "/api/v1/auth/sso/workforce/login",
+          },
+        ],
+        mcp_oauth: { enabled: false },
+      },
+      providerAlias: "workforce",
+      jwks,
+      now: () => NOW,
+      fetch: async () => {
+        const accessToken = await new SignJWT({
+          aud: runtime.audience,
+          sub: "subject-1",
+          azp: runtime.clientId,
+          typ: "Bearer",
+          jti: "jti-2",
+          sid: "sid-1",
+          identity_provider: "workforce",
+          scope: "openid profile",
+        })
+          .setProtectedHeader({ alg: "RS256", typ: "JWT", kid: "key-1" })
+          .setIssuer(ISSUER)
+          .setIssuedAt(NOW)
+          .setExpirationTime(NOW + 300)
+          .sign(privateKey);
+        const idToken = await new SignJWT({
+          aud: runtime.clientId,
+          azp: runtime.clientId,
+          sub: "subject-1",
+          sid: "sid-1",
+          identity_provider: "workforce",
+        })
+          .setProtectedHeader({ alg: "RS256", typ: "JWT", kid: "key-1" })
+          .setIssuer(ISSUER)
+          .setIssuedAt(NOW)
+          .setExpirationTime(NOW + 300)
+          .sign(privateKey);
+        return new Response(
+          JSON.stringify({
+            access_token: accessToken,
+            refresh_token: "refresh-2",
+            id_token: idToken,
+            token_type: "Bearer",
+            expires_in: 300,
+            refresh_expires_in: 900,
+          }),
+          { status: 200 },
+        );
+      },
+    });
+
+    await expect(
+      protocol.refresh({
+        refreshToken: "refresh-1",
+        providerAlias: "workforce",
+        subject: "subject-1",
+        sessionId: "sid-1",
+        previousIdToken: "id-1",
+        previousRefreshTokenExpiresAt: NOW + 600,
+      }),
+    ).rejects.toMatchObject({
+      name: "AuthV2OidcProtocolError",
+      code: "auth_v2_keyset_unavailable",
+      kind: "unavailable",
+      custody: {
+        refreshToken: "refresh-2",
+        refreshTokenExpiresAt: NOW + 900,
+      },
+    });
   });
 });

@@ -243,17 +243,21 @@ describe("getAkbAdapter", () => {
     expect(response.headers.get("x-reef-auth-invalidated")).toBe("1");
   });
 
-  it("does not clear SSO state for a request with no session cookie", async () => {
+  it("signals passive SSO expiry when a protected request has no handle", async () => {
+    vi.stubEnv("REEF_AUTH_MODE", "sso");
+    vi.stubEnv("REEF_KEYCLOAK_ISSUER", "https://idp.test/realms/reef");
+    vi.stubEnv("REEF_KEYCLOAK_CLIENT_ID", "reef-web");
+    vi.stubEnv("REEF_AKB_API_AUDIENCE", "https://akb.test/api");
+    vi.stubEnv("REEF_PUBLIC_ORIGIN", "https://reef.test");
     const result = getAkbAdapter(
       new Request("https://reef.test/api/issues?vault=reef-acme"),
     );
 
     expect(result).toHaveProperty("response");
     if (!("response" in result)) throw new Error("expected auth response");
-    expect((await result.response).headers.get("set-cookie")).toBeNull();
-    expect(
-      (await result.response).headers.get("x-reef-auth-invalidated"),
-    ).toBeNull();
+    const response = await result.response;
+    expect(response.headers.get("set-cookie")).toContain("__reef_auth_v2=");
+    expect(response.headers.get("x-reef-auth-invalidated")).toBe("1");
   });
 });
 

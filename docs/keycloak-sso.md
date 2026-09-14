@@ -19,9 +19,9 @@ SSO mode additionally requires:
     REEF_AKB_API_AUDIENCE=https://akb.example.com/api
     REEF_SESSION_REDIS_URL=rediss://redis.example.com:6379/0
     REEF_SESSION_ENCRYPTION_KEY=<32-byte-base64-key>
-    REEF_AUTH_SESSION_NAMESPACE=reef-sso-<epoch>
+    REEF_AUTH_SESSION_NAMESPACE=reef-sso-<epoch>-v2
 
-The public issuer, companion client id, API audience, callback, post-logout URI, and back-channel logout URI must be registered with the actual AKB and Keycloak deployment. Reef does not create Secrets or change Keycloak/AKB administrative configuration. Production SSO fails closed without authenticated Redis, an independent AES-256-GCM key, or a fresh deployment namespace. Change the namespace on an auth mode, issuer, client, or session-key cutover; do not reuse a previous SSO namespace after sso → local → sso.
+The public issuer, companion client id, API audience, callback, post-logout URI, and back-channel logout URI must be registered with the actual AKB and Keycloak deployment. Reef does not create Secrets or change Keycloak/AKB administrative configuration. Production SSO fails closed without authenticated Redis, an independent AES-256-GCM key, or a fresh deployment namespace. Change the namespace on an auth mode, issuer, client, session-key, or session-record-schema cutover; old encrypted records are not parsed or migrated. Do not reuse a previous SSO namespace after sso → local → sso.
 
 ## Browser flow
 

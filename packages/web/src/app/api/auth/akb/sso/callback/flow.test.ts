@@ -299,7 +299,20 @@ describe("Reef callback to AKB companion completion integration", () => {
         ?.split(";")[0]
         ?.split("=")[1] ?? "";
     expect(handle).toMatch(/^[A-Za-z0-9_-]{43}$/u);
-    expect((await f.store.resolve(handle))?.access_token).toBe(f.access);
+    const linkedSession = await f.store.resolve(handle);
+    expect(linkedSession?.access_token).toBe(f.access);
+    expect(linkedSession?.absolute_expires_at).toBe(
+      (linkedSession?.issued_at ?? 0) + 86_400,
+    );
+    expect(linkedSession?.refresh_token_expires_at).toBeGreaterThan(
+      linkedSession?.access_token_expires_at ?? Number.POSITIVE_INFINITY,
+    );
+    expect(linkedSession?.refresh_token_expires_at).toBeLessThan(
+      linkedSession?.absolute_expires_at ?? 0,
+    );
+    expect(
+      cookies.find((value) => value.startsWith(`${AUTH_V2_SESSION_COOKIE}=`)),
+    ).toContain("Max-Age=86400");
     expect(cookies.join()).not.toContain(f.access);
     expect(f.calls).toEqual([
       `${issuer}/protocol/openid-connect/token`,
@@ -330,9 +343,22 @@ describe("Reef callback to AKB companion completion integration", () => {
         ?.split(";")[0]
         ?.split("=")[1] ?? "";
     expect(nextHandle).toMatch(/^[A-Za-z0-9_-]{43}$/u);
-    expect((await ordinary.store.resolve(nextHandle))?.access_token).toBe(
-      ordinary.access,
+    const ordinarySession = await ordinary.store.resolve(nextHandle);
+    expect(ordinarySession?.access_token).toBe(ordinary.access);
+    expect(ordinarySession?.absolute_expires_at).toBe(
+      (ordinarySession?.issued_at ?? 0) + 86_400,
     );
+    expect(ordinarySession?.refresh_token_expires_at).toBeGreaterThan(
+      ordinarySession?.access_token_expires_at ?? Number.POSITIVE_INFINITY,
+    );
+    expect(ordinarySession?.refresh_token_expires_at).toBeLessThan(
+      ordinarySession?.absolute_expires_at ?? 0,
+    );
+    expect(
+      nextLogin.headers
+        .getSetCookie()
+        .find((value) => value.startsWith(`${AUTH_V2_SESSION_COOKIE}=`)),
+    ).toContain("Max-Age=86400");
     expect(ordinary.calls).toEqual([
       `${issuer}/protocol/openid-connect/token`,
       `${akbOrigin}/api/v1/auth/me`,

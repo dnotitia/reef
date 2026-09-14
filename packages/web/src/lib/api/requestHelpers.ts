@@ -328,7 +328,13 @@ export function getAkbAdapter(
 
   const handle = cookies[AUTH_V2_SESSION_COOKIE];
   if (!handle || !/^[A-Za-z0-9_-]{43}$/u.test(handle)) {
-    return { response: authErrorResponse() };
+    // SSO has no server-readable session marker besides the opaque handle. A
+    // missing/invalid handle is therefore an explicit passive expiry signal:
+    // clear protected browser data while leaving account preferences for a
+    // possible same-account re-login.
+    return {
+      response: authErrorResponse({ clearEstablishedAuth: true }),
+    };
   }
   let backendUrl: string;
   try {

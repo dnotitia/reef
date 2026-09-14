@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const runtimeRef = vi.hoisted(() => ({
   current: undefined as Record<string, unknown> | undefined,
+  issue: undefined as ReturnType<typeof vi.fn> | undefined,
 }));
 
 vi.mock("@/server/auth-v2/runtime", () => ({
@@ -15,6 +16,11 @@ import { GET } from "./route";
 const binding = "A".repeat(43);
 
 function setup(completeAuthorization: () => Promise<unknown>) {
+  const issue = vi.fn(async () => ({
+    handle: "H".repeat(43),
+    expiresAt: 2_000_000 + 86_400,
+  }));
+  runtimeRef.issue = issue;
   runtimeRef.current = {
     contract: {
       auth_mode: "sso",
@@ -29,12 +35,7 @@ function setup(completeAuthorization: () => Promise<unknown>) {
     },
     protocolFor: () => ({ completeAuthorization }),
     stateStore: {},
-    store: {
-      issue: vi.fn(async () => ({
-        handle: "H".repeat(43),
-        expiresAt: 2_000_100,
-      })),
-    },
+    store: { issue },
     now: () => 2_000_000,
     close: vi.fn(async () => undefined),
   };
@@ -74,6 +75,13 @@ describe("SSO callback route", () => {
       "__reef_auth_v2=HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH",
     );
     expect(response.headers.get("set-cookie")).not.toContain("access-token");
+    expect(runtimeRef.issue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        refresh_token_expires_at: 2_000_600,
+        absolute_expires_at: 2_000_000 + 86_400,
+      }),
+    );
+    expect(response.headers.get("set-cookie")).toContain("Max-Age=86400");
   });
 
   it("clears auth state on account denial", async () => {

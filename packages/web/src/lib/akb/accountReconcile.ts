@@ -11,6 +11,32 @@ import { clearAllMyViews } from "@/lib/storage/myView";
 import { clearWorkspaceFavorites } from "@/lib/storage/workspaceFavorites";
 
 /**
+ * Clear authenticated product data without deleting browser-local account
+ * preferences. Passive session expiry uses this narrower boundary so stale
+ * protected data cannot survive while the next same-account login can still
+ * restore the user's workspace context.
+ */
+export function clearAuthenticatedBrowserState(): void {
+  clearAuthScopedClientCache();
+}
+
+/** Clear preferences that must not cross an account boundary. */
+export async function clearAccountPreferenceState(): Promise<void> {
+  useIssueStore.getState().resetFilterScope();
+  // Clear EVERY account-scoped key in the Dexie `config` store. The canonical
+  // inventory lives in db.ts: active `vault`, `filter:*`, `my_view:*`,
+  // `workspace_favorites`, and `akb_user_id`. `theme` is device-scoped and
+  // intentionally preserved.
+  await Promise.all([
+    setActiveVault(""),
+    clearAllIssueFilters(),
+    clearAllMyViews(),
+    clearWorkspaceFavorites(),
+    clearAkbUserId(),
+  ]);
+}
+
+/**
  * Wipe every AKB-account-scoped slice of browser state.
  *
  * The persisted query cache, the Dexie `vault` pointer, the per-vault issue
@@ -28,20 +54,8 @@ import { clearWorkspaceFavorites } from "@/lib/storage/workspaceFavorites";
  * so both clear exactly the same surface.
  */
 export async function wipeAkbScopedBrowserState(): Promise<void> {
-  clearAuthScopedClientCache();
-  useIssueStore.getState().resetFilterScope();
-  // Clear EVERY akb-account-scoped key in the Dexie `config` store. The
-  // canonical inventory lives in db.ts (config store doc): active `vault`,
-  // `filter:*`, `my_view:*`, `workspace_favorites`, and `akb_user_id`.
-  // `theme` is device-scoped and intentionally preserved.
-  // When a new account-scoped config key is added, clear it here too (REEF-068).
-  await Promise.all([
-    setActiveVault(""),
-    clearAllIssueFilters(),
-    clearAllMyViews(),
-    clearWorkspaceFavorites(),
-    clearAkbUserId(),
-  ]);
+  clearAuthenticatedBrowserState();
+  await clearAccountPreferenceState();
 }
 
 /**

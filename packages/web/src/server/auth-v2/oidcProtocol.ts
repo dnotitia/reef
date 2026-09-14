@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import {
   decodeProtectedHeader,
+  errors as joseErrors,
   jwtVerify,
   type JWTVerifyGetKey,
   type JWTPayload,
@@ -109,6 +110,7 @@ export class AuthV2OidcProtocolError extends Error {
       | "auth_v2_token_response_invalid"
       | "auth_v2_id_token_invalid"
       | "auth_v2_refresh_rejected"
+      | "auth_v2_access_token_invalid"
       | "auth_v2_revocation_failed"
       | "auth_v2_keyset_unavailable",
     readonly kind: AuthV2OidcProtocolErrorKind,
@@ -140,6 +142,7 @@ export interface AuthV2OidcProtocol {
     subject: string;
     sessionId?: string;
     previousIdToken?: string;
+    previousRefreshTokenExpiresAt: number;
   }): Promise<AuthV2OidcTokenSet>;
   revoke(refreshToken: string): Promise<void>;
   logoutLocation(): string;
@@ -318,7 +321,9 @@ export function createAuthV2OidcProtocol(params: {
       if (
         !isBoundedToken(input.refreshToken) ||
         !PROVIDER_ALIAS_RE.test(input.providerAlias) ||
-        !isBoundedClaim(input.subject)
+        !isBoundedClaim(input.subject) ||
+        !Number.isSafeInteger(input.previousRefreshTokenExpiresAt) ||
+        input.previousRefreshTokenExpiresAt <= 0
       ) {
         throw new AuthV2OidcProtocolError(
           "auth_v2_refresh_rejected",
@@ -340,6 +345,10 @@ export function createAuthV2OidcProtocol(params: {
           "invalid",
         );
       }
+      const refreshTokenExpiresAt =
+        parsed.data.refresh_expires_in === undefined
+          ? input.previousRefreshTokenExpiresAt
+          : now() + parsed.data.refresh_expires_in;
       let accessIdentity: ValidatedOidcToken;
       try {
         accessIdentity = await validator.validate(parsed.data.access_token);
@@ -353,13 +362,14 @@ export function createAuthV2OidcProtocol(params: {
             "unavailable",
             {
               refreshToken: parsed.data.refresh_token ?? input.refreshToken,
-              refreshTokenExpiresAt:
-                now() +
-                (parsed.data.refresh_expires_in ?? MAX_REFRESH_TOKEN_SECONDS),
+              refreshTokenExpiresAt,
             },
           );
         }
-        throw error;
+        throw new AuthV2OidcProtocolError(
+          "auth_v2_access_token_invalid",
+          "invalid",
+        );
       }
       if (
         accessIdentity.subject !== input.subject ||
@@ -391,6 +401,19 @@ export function createAuthV2OidcProtocol(params: {
         } catch (error) {
           if (
             error instanceof AuthV2OidcProtocolError &&
+            error.code === "auth_v2_keyset_unavailable"
+          ) {
+            throw new AuthV2OidcProtocolError(
+              "auth_v2_keyset_unavailable",
+              "unavailable",
+              {
+                refreshToken: parsed.data.refresh_token ?? input.refreshToken,
+                refreshTokenExpiresAt,
+              },
+            );
+          }
+          if (
+            error instanceof AuthV2OidcProtocolError &&
             error.code === "auth_v2_id_token_invalid"
           ) {
             throw error;
@@ -409,8 +432,6 @@ export function createAuthV2OidcProtocol(params: {
           "invalid",
         );
       }
-      const refreshExpiresAt =
-        now() + (parsed.data.refresh_expires_in ?? MAX_REFRESH_TOKEN_SECONDS);
       return {
         accessToken: parsed.data.access_token,
         refreshToken: parsed.data.refresh_token ?? input.refreshToken,
@@ -420,7 +441,7 @@ export function createAuthV2OidcProtocol(params: {
           parsed.data.expires_in,
           accessIdentity.expiresAt,
         ),
-        refreshTokenExpiresAt: refreshExpiresAt,
+        refreshTokenExpiresAt,
       };
     },
 
@@ -626,9 +647,23 @@ async function verifyIdToken(
       throw new Error("id token claims");
     }
     return payload;
-  } catch {
+  } catch (error) {
+    if (isJwksUnavailableError(error)) {
+      throw new AuthV2OidcProtocolError(
+        "auth_v2_keyset_unavailable",
+        "unavailable",
+      );
+    }
     throw new AuthV2OidcProtocolError("auth_v2_id_token_invalid", "invalid");
   }
+}
+
+function isJwksUnavailableError(error: unknown): boolean {
+  return (
+    error instanceof joseErrors.JWKSTimeout ||
+    error instanceof joseErrors.JWKSInvalid ||
+    (error instanceof joseErrors.JOSEError && error.code === "ERR_JOSE_GENERIC")
+  );
 }
 
 function keycloakEndpoints(runtime: AuthV2EnabledRuntimeConfig) {

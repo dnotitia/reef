@@ -1,6 +1,9 @@
 import { isAkbAccountErrorCode } from "@reef/core";
 import { recordAkbAccountDenial } from "./akb/accountDenialClient";
-import { wipeAkbScopedBrowserState } from "./akb/accountReconcile";
+import {
+  clearAuthenticatedBrowserState,
+  wipeAkbScopedBrowserState,
+} from "./akb/accountReconcile";
 import {
   AUTH_ACCOUNT_ERROR_HEADER,
   AUTH_INVALIDATED_HEADER,
@@ -70,7 +73,11 @@ async function handleEstablishedSessionInvalidation(
   abortAuthScopedRequests();
   invalidateAuthSession();
   try {
-    await wipeAkbScopedBrowserState();
+    if (isAkbAccountErrorCode(accountError)) {
+      await wipeAkbScopedBrowserState();
+    } else {
+      clearAuthenticatedBrowserState();
+    }
   } catch {
     // Best-effort persistent cleanup; the authoritative response still wins.
   }

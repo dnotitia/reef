@@ -28,6 +28,7 @@ import {
   setWorkspaceFavorites,
 } from "@/lib/storage/workspaceFavorites";
 import {
+  clearAuthenticatedBrowserState,
   reconcileAkbAccount,
   wipeAkbScopedBrowserState,
 } from "./accountReconcile";
@@ -208,5 +209,60 @@ describe("wipeAkbScopedBrowserState", () => {
     expect(useIssueStore.getState().filter).toEqual({});
     expect(useIssueStore.getState().filterVault).toBeNull();
     expect(useIssueStore.getState().listOptionalColumns).toEqual([]);
+  });
+});
+
+describe("clearAuthenticatedBrowserState", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    useIssueStore.setState({
+      filter: {},
+      filterVault: null,
+      searchQuery: "",
+      selectedIssueId: null,
+      listOptionalColumns: [],
+    });
+    await db.config.clear();
+  });
+
+  it("clears protected cache state while preserving account preferences", async () => {
+    await setAkbUserId("user-1");
+    await setActiveVault("reef-acme");
+    await setWorkspaceFavorites(["reef-acme"]);
+    await setPersistedIssueFilter("reef-acme", { status: ["todo"] });
+    await createMyView({
+      actor: "user-1",
+      vault: "reef-acme",
+      name: "Acme personal",
+      snapshot: {
+        filter: { status: ["todo"] },
+        scope: "active",
+        layout: "board",
+        grouping: "status",
+        ordering: { mode: "manual" },
+        display: {},
+      },
+    });
+    useIssueStore.setState({
+      filter: { status: ["todo"] },
+      filterVault: "reef-acme",
+      searchQuery: "auth",
+      selectedIssueId: null,
+      listOptionalColumns: ["release"],
+    });
+
+    clearAuthenticatedBrowserState();
+
+    expect(clearAuthScopedClientCache).toHaveBeenCalledOnce();
+    expect(await getAkbUserId()).toBe("user-1");
+    expect(await getActiveVault()).toBe("reef-acme");
+    expect(await getWorkspaceFavorites()).toEqual(["reef-acme"]);
+    expect(await getPersistedIssueFilter("reef-acme")).toEqual({
+      status: ["todo"],
+    });
+    expect(await listMyViews("user-1", "reef-acme")).toHaveLength(1);
+    expect(useIssueStore.getState().filter).toEqual({ status: ["todo"] });
+    expect(useIssueStore.getState().filterVault).toBe("reef-acme");
+    expect(useIssueStore.getState().listOptionalColumns).toEqual(["release"]);
   });
 });

@@ -236,7 +236,7 @@ the `reef-web-config` ConfigMap plus the optional `reef-web-secret` Secret).
 | `REEF_AKB_LOGIN_PRIVATE_KEY` | only for enabled account enrollment | RSA private PEM (at least 2048 bits) in deployment Secret storage. AKB receives only the public key. Never reuse an operator PAT or expose this key to the browser. |
 | `REEF_SESSION_REDIS_URL` | yes in production SSO | Authenticated Redis endpoint for encrypted session/login-state custody and refresh locks. |
 | `REEF_SESSION_ENCRYPTION_KEY` | yes in production SSO | Independent 32-byte AES-256-GCM key, base64/base64url encoded, stored in the deployment Secret. |
-| `REEF_AUTH_SESSION_NAMESPACE` | yes in production SSO | Deployment-managed namespace/epoch. Change it for mode, issuer, client, or key cutover; never reuse an old SSO namespace. |
+| `REEF_AUTH_SESSION_NAMESPACE` | yes in production SSO | Deployment-managed namespace/epoch for encrypted session records. Change it for mode, issuer, client, key, or record-schema cutover; old records are not parsed or migrated. Never reuse an old SSO namespace. |
 | `REEF_SSO_AUTO_REDIRECT` | no | Explicit opt-in to automatic entry when exactly one AKB provider is ready. It does not enable SSO or provide a local fallback. |
 | `REEF_LLM_API_KEY` | for enabled AI | Key for the configured OpenAI-compatible endpoint. Keep it in a Secret; never inline it in manifests or commit it. |
 | `REEF_LLM_BASE_URL` | for enabled AI | OpenAI-compatible endpoint base URL. It may target OpenRouter or an akb-platform gateway. |
