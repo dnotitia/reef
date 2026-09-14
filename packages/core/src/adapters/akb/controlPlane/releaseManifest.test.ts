@@ -33,9 +33,17 @@ describe("Reef App Release Blueprint and Manifest v2", () => {
     expect(blueprint.schema.fingerprint).toBe(
       "dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727",
     );
-    expect(blueprint.transition_plans).toHaveLength(1);
+    expect(blueprint.transition_plans).toHaveLength(2);
     expect(blueprint.transition_plans[0]?.source).toBe("fresh");
     expect(blueprint.transition_plans[0]?.steps).toHaveLength(12);
+    expect(blueprint.transition_plans[1]).toEqual({
+      source: {
+        release_version: "0.14.0",
+        schema_fingerprint:
+          "dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727",
+      },
+      steps: [],
+    });
     expect(
       blueprint.transition_plans[0]?.steps.every(
         (step) =>
@@ -123,12 +131,13 @@ describe("Reef App Release Blueprint and Manifest v2", () => {
       image_digest: IMAGE_DIGEST,
       schema_version: REEF_SCHEMA_VERSION,
     });
-    expect(first.manifest.transition_plans).toHaveLength(1);
+    expect(first.manifest.transition_plans).toHaveLength(2);
     expect(
       first.manifest.transition_plans[0]?.steps.every((step) =>
         /^[0-9a-f]{64}$/u.test(step.checksum),
       ),
     ).toBe(true);
+    expect(first.manifest.transition_plans[1]?.steps).toEqual([]);
   });
 
   it("keeps mutable app display metadata outside the release checksum", async () => {
@@ -240,6 +249,70 @@ describe("Reef App Release Blueprint and Manifest v2", () => {
       finalizeAppReleaseManifest({
         blueprint: wrongVersion,
         version: "0.13.0",
+        sourceRevision: SOURCE_REVISION,
+        imageDigest: IMAGE_DIGEST,
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("accepts only explicit same-fingerprint schema no-op sources", async () => {
+    const blueprint = await buildReleaseBlueprint();
+    const mismatch = structuredClone(blueprint);
+    const mismatchPlan = mismatch.transition_plans[1];
+    if (!mismatchPlan || mismatchPlan.source === "fresh") {
+      throw new Error("expected a no-op transition plan");
+    }
+    mismatchPlan.source.schema_fingerprint = "f".repeat(64);
+    await expect(
+      finalizeAppReleaseManifest({
+        blueprint: mismatch,
+        version: "0.14.1",
+        sourceRevision: SOURCE_REVISION,
+        imageDigest: IMAGE_DIGEST,
+      }),
+    ).rejects.toThrow();
+
+    const nonEmpty = structuredClone(blueprint);
+    const nonEmptyPlan = nonEmpty.transition_plans[1];
+    const freshStep = nonEmpty.transition_plans[0]?.steps[0];
+    if (!nonEmptyPlan || nonEmptyPlan.source === "fresh" || !freshStep) {
+      throw new Error("expected a no-op transition plan and fresh step");
+    }
+    nonEmptyPlan.steps = [freshStep];
+    await expect(
+      finalizeAppReleaseManifest({
+        blueprint: nonEmpty,
+        version: "0.14.1",
+        sourceRevision: SOURCE_REVISION,
+        imageDigest: IMAGE_DIGEST,
+      }),
+    ).rejects.toThrow();
+
+    const duplicate = structuredClone(blueprint);
+    duplicate.transition_plans.push(
+      structuredClone(duplicate.transition_plans[1]),
+    );
+    await expect(
+      finalizeAppReleaseManifest({
+        blueprint: duplicate,
+        version: "0.14.1",
+        sourceRevision: SOURCE_REVISION,
+        imageDigest: IMAGE_DIGEST,
+      }),
+    ).rejects.toThrow();
+
+    const unknown = structuredClone(blueprint);
+    unknown.transition_plans.push({
+      source: {
+        release_version: "0.13.0",
+        schema_fingerprint: blueprint.schema.fingerprint,
+      },
+      steps: [],
+    });
+    await expect(
+      finalizeAppReleaseManifest({
+        blueprint: unknown,
+        version: "0.14.1",
         sourceRevision: SOURCE_REVISION,
         imageDigest: IMAGE_DIGEST,
       }),
