@@ -8,6 +8,7 @@ import * as core from "../packages/core/dist/index.js";
 import { parseAllDocuments } from "yaml";
 import {
   applyKubernetesRelease,
+  assertKubernetesReadback,
   observeRollout,
   renderKubernetesManifest,
   runReleaseDeployment,
@@ -1524,6 +1525,101 @@ spec:
   assert.equal(
     getContainerEnv(getDeployment(getResources(renderedA))).REEF_RELEASE_ID,
     registrationA.releaseId,
+  );
+});
+
+test("Kubernetes readback ignores terminating pods but rejects live identity mismatches", () => {
+  const registration = {
+    appId: APP_ID,
+    releaseId: RELEASE_ID,
+    appKey: "reef",
+    version: "0.14.1",
+    sourceRevision: "a".repeat(40),
+    imageDigest: IMAGE_DIGEST,
+    manifestChecksum: "c".repeat(64),
+  };
+  const image = `registry.example/reef-web@${IMAGE_DIGEST}`;
+  const provenance = [
+    "Deploy reef-web v0.14.1",
+    `source ${registration.sourceRevision}`,
+    `app ${APP_ID}`,
+    `release ${RELEASE_ID}`,
+    `image ${IMAGE_DIGEST}`,
+    `manifest ${registration.manifestChecksum}`,
+  ].join("; ");
+  const releaseEnv = [
+    { name: "REEF_APP_ID", value: APP_ID },
+    { name: "REEF_RELEASE_ID", value: RELEASE_ID },
+    { name: "REEF_RELEASE_VERSION", value: "0.14.1" },
+    {
+      name: "REEF_RELEASE_SOURCE_REVISION",
+      value: registration.sourceRevision,
+    },
+    { name: "REEF_RELEASE_IMAGE_DIGEST", value: IMAGE_DIGEST },
+    {
+      name: "REEF_RELEASE_MANIFEST_CHECKSUM",
+      value: registration.manifestChecksum,
+    },
+  ];
+  const deployment = {
+    metadata: { annotations: { "kubernetes.io/change-cause": provenance } },
+    spec: {
+      template: {
+        metadata: { annotations: { "kubernetes.io/change-cause": provenance } },
+        spec: { containers: [{ name: "reef-web", image, env: releaseEnv }] },
+      },
+    },
+  };
+  const livePod = {
+    metadata: { name: "reef-web-current" },
+    spec: { containers: [{ name: "reef-web", image }] },
+    status: {
+      containerStatuses: [
+        {
+          name: "reef-web",
+          ready: true,
+          imageID: `containerd://sha256:${"d".repeat(64)}`,
+        },
+      ],
+    },
+  };
+  const terminatingPod = {
+    metadata: {
+      name: "reef-web-old",
+      deletionTimestamp: "2026-09-14T06:00:00Z",
+    },
+    spec: {
+      containers: [
+        { name: "reef-web", image: "registry.example/reef-web@sha256:bad" },
+      ],
+    },
+    status: { containerStatuses: [{ name: "reef-web", ready: false }] },
+  };
+
+  assert.doesNotThrow(() =>
+    assertKubernetesReadback({
+      deployment,
+      pods: { items: [livePod, terminatingPod] },
+      registration,
+      imageRepository: "registry.example/reef-web",
+    }),
+  );
+  assert.throws(
+    () =>
+      assertKubernetesReadback({
+        deployment,
+        pods: {
+          items: [
+            {
+              ...terminatingPod,
+              metadata: { name: "reef-web-live-mismatch" },
+            },
+          ],
+        },
+        registration,
+        imageRepository: "registry.example/reef-web",
+      }),
+    (error) => error?.stage === "runtime_identity_mismatch",
   );
 });
 

@@ -821,7 +821,7 @@ function findContainer(containers, name) {
     : undefined;
 }
 
-function assertKubernetesReadback({
+export function assertKubernetesReadback({
   deployment,
   pods,
   registration,
@@ -880,12 +880,19 @@ function assertKubernetesReadback({
       );
     }
   }
-  if (!Array.isArray(pods.items) || pods.items.length === 0) {
+  const activePods = Array.isArray(pods.items)
+    ? pods.items.filter(
+        (pod) =>
+          pod?.metadata?.deletionTimestamp === undefined ||
+          pod?.metadata?.deletionTimestamp === null,
+      )
+    : [];
+  if (activePods.length === 0) {
     throw new DeploymentError("No reef-web pod was returned after readiness", {
       stage: "runtime_identity_mismatch",
     });
   }
-  for (const pod of pods.items) {
+  for (const pod of activePods) {
     const podContainer = findContainer(pod.spec?.containers, "reef-web");
     const status = findContainer(pod.status?.containerStatuses, "reef-web");
     // Runtimes may report a config/platform identifier instead of the
