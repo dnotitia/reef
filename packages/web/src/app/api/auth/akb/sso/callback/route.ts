@@ -19,6 +19,7 @@ import {
   getAuthV2RouteRuntime,
 } from "@/server/auth-v2/runtime";
 import type { AccountValidationError } from "@/server/auth-v2/oidcValidator";
+import { AUTH_V2_ABSOLUTE_LIFETIME_SECONDS } from "@/server/auth-v2/sessionStore";
 import { logger } from "@/lib/logging/logger";
 
 export async function GET(request: Request): Promise<Response> {
@@ -52,10 +53,7 @@ export async function GET(request: Request): Promise<Response> {
         accountValidator: runtime.accountValidator,
       });
     const issuedAt = runtime.now();
-    const absoluteExpiresAt = Math.min(
-      result.tokenSet.refreshTokenExpiresAt,
-      issuedAt + 31_536_000,
-    );
+    const absoluteExpiresAt = issuedAt + AUTH_V2_ABSOLUTE_LIFETIME_SECONDS;
     const session = await runtime.store.issue({
       provider_alias: result.providerAlias,
       subject: result.subject,
@@ -65,6 +63,7 @@ export async function GET(request: Request): Promise<Response> {
       id_token: result.tokenSet.idToken,
       issued_at: issuedAt,
       access_token_expires_at: result.tokenSet.accessTokenExpiresAt,
+      refresh_token_expires_at: result.tokenSet.refreshTokenExpiresAt,
       absolute_expires_at: absoluteExpiresAt,
     });
     const headers = new Headers({

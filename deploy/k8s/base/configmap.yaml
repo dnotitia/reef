@@ -18,7 +18,7 @@ data:
   # REEF_KEYCLOAK_CLIENT_ID: "reef-web"
   # REEF_AKB_API_AUDIENCE: "https://akb.example.com/api"
   # REEF_SESSION_REDIS_URL: "rediss://redis.example.com:6379/0"
-  # REEF_AUTH_SESSION_NAMESPACE: "reef-sso-epoch"
+  # REEF_AUTH_SESSION_NAMESPACE: "reef-sso-epoch-v2"
   # akb web app base (REEF-083 / REEF-368). reef-web has no in-app document
   # viewer, so a linked akb document's "open" action points at akb's own
   # frontend at this origin. Read on the SERVER at runtime, so setting it here is

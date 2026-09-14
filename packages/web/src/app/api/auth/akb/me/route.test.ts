@@ -1,6 +1,17 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const runtimeRef = vi.hoisted(() => ({
+  current: undefined as Record<string, unknown> | undefined,
+}));
+
+vi.mock("@/server/auth-v2/runtime", () => ({
+  AuthV2RouteRuntimeError: class AuthV2RouteRuntimeError extends Error {},
+  getAuthV2RouteRuntime: vi.fn(async () => runtimeRef.current),
+}));
+
 import { GET } from "./route";
+import { AuthV2RedisBackendError } from "@/server/auth-v2/redisBackend";
 
 function makeJwt(payload: object): string {
   const header = Buffer.from(
@@ -29,6 +40,7 @@ describe("GET /api/auth/akb/me", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
+    runtimeRef.current = undefined;
   });
 
   it("returns a plain first-visit 401 when no session cookie is present", async () => {
@@ -133,6 +145,28 @@ describe("GET /api/auth/akb/me", () => {
     });
     const res = await GET(req);
     expect(res.status).toBe(401);
+  });
+
+  it("returns a retryable 503 for an SSO Redis outage without invalidating", async () => {
+    vi.stubEnv("REEF_AUTH_MODE", "sso");
+    vi.stubEnv("REEF_KEYCLOAK_ISSUER", "https://idp.test/realms/reef");
+    vi.stubEnv("REEF_KEYCLOAK_CLIENT_ID", "reef-web");
+    vi.stubEnv("REEF_AKB_API_AUDIENCE", "https://akb.test/api");
+    vi.stubEnv("REEF_PUBLIC_ORIGIN", "https://reef.test");
+    runtimeRef.current = {
+      store: {
+        resolve: async () => {
+          throw new AuthV2RedisBackendError();
+        },
+      },
+      close: async () => undefined,
+    };
+
+    const res = await GET(makeRequest(`__reef_auth_v2=${"H".repeat(43)}`));
+
+    expect(res.status).toBe(502);
+    expect(res.headers.get("x-reef-auth-invalidated")).toBeNull();
+    expect(res.headers.get("set-cookie")).toBeNull();
   });
 });
 

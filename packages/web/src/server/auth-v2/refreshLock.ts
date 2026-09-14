@@ -57,18 +57,27 @@ export function createAuthV2RefreshLock(
         throw new AuthV2RefreshLockError();
       }
       const owner = randomBytes(OWNER_BYTES).toString("base64url");
-      const result = await client.set(lockKey(handle, namespace), owner, {
-        EX: ttlSeconds,
-        NX: true,
-      });
+      let result: string | null | undefined;
+      try {
+        result = await client.set(lockKey(handle, namespace), owner, {
+          EX: ttlSeconds,
+          NX: true,
+        });
+      } catch {
+        throw new AuthV2RefreshLockError();
+      }
       return result === "OK" ? owner : null;
     },
     async release(handle, owner) {
       if (!isOpaqueHandle(handle) || !isOpaqueOwner(owner)) return;
-      await client.eval(RELEASE_IF_OWNER, {
-        keys: [lockKey(handle, namespace)],
-        arguments: [owner],
-      });
+      try {
+        await client.eval(RELEASE_IF_OWNER, {
+          keys: [lockKey(handle, namespace)],
+          arguments: [owner],
+        });
+      } catch {
+        throw new AuthV2RefreshLockError();
+      }
     },
   };
 }

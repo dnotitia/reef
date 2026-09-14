@@ -35,6 +35,15 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **SSO sessions now separate refresh credential and Reef lifetimes.** Active
+  sessions can rotate credentials beyond the initial refresh window, while
+  Redis expires idle sessions at the current refresh deadline and the browser
+  handle remains bounded by Reef's fixed 24-hour absolute deadline.
+- **Passive session expiry no longer deletes browser-local workspace context.**
+  Protected caches are cleared, but same-account re-login preserves the active
+  workspace, saved filters, My Views, and workspace favorites; account switches,
+  explicit sign-out, and stable account denials still clear that preference
+  state.
 - **Notification reads no longer reconcile schema state on the request path.**
   Reader inbox queries and the unread badge now work with an available schema
   even when its version stamp is old, while genuine data and schema failures

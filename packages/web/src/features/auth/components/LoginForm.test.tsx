@@ -132,7 +132,10 @@ describe("LoginForm", () => {
       vi.fn().mockResolvedValue(
         new Response(JSON.stringify({ error: "Account suspended." }), {
           status: 403,
-          headers: { "X-Reef-Auth-Invalidated": "1" },
+          headers: {
+            "X-Reef-Auth-Invalidated": "1",
+            "X-Reef-Account-Error": "account_suspended",
+          },
         }),
       ),
     );
