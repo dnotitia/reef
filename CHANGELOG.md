@@ -12,102 +12,91 @@ explicitly in the entries below.
 
 ## Unreleased
 
-### Added
+## v0.15.0 - 2026-09-14
 
-- **Authentication now follows AKB schema v2.** Local mode uses the current
-  local session contract; SSO mode uses a Reef companion OIDC BFF with PKCE,
-  encrypted Redis token custody, refresh locking, back-channel logout, and an
-  opaque httpOnly browser handle. Legacy provider-less exchange and token-
-  bearing logout paths are removed. (REEF-623)
+### Added
 
 - **Timeline planning overlays show sprint bands and milestone/release markers.**
   Read-only planning data shares the existing quarter day grid and catalog cache,
   including clipped sprint ranges, release-date precedence, and same-day marker
-  stacks with keyboard-accessible details.
+  stacks with keyboard-accessible details. (REEF-357)
 - **Planning opens with a combined Overview.** The current sprint, unfinished
   milestones, and planned/in-progress releases share stable dates, planning
-  statuses, issue rollups, and the existing detail links; the complete catalog
-  remains available through the List view.
+  statuses, issue rollups, and existing detail links; the complete catalog
+  remains available through the List view. (REEF-596)
 - **Planning can close an active sprint and roll unfinished work into an
   explicitly selected next sprint.** The action persists its target and
   per-issue progress so partial failures can be retried without duplicate
   sprint or activity records.
 
-### Fixed
-
-- **SSO sessions now separate refresh credential and Reef lifetimes.** Active
-  sessions can rotate credentials beyond the initial refresh window, while
-  Redis expires idle sessions at the current refresh deadline and the browser
-  handle remains bounded by Reef's fixed 24-hour absolute deadline.
-- **Passive session expiry no longer deletes browser-local workspace context.**
-  Protected caches are cleared, but same-account re-login preserves the active
-  workspace, saved filters, My Views, and workspace favorites; account switches,
-  explicit sign-out, and stable account denials still clear that preference
-  state.
-- **Notification reads no longer reconcile schema state on the request path.**
-  Reader inbox queries and the unread badge now work with an available schema
-  even when its version stamp is old, while genuine data and schema failures
-  remain visible.
-- **Workspace resource permission denials keep their 403 boundary.**
-  A real AKB 403 now explains that access is insufficient without converting
-  it to a sign-in failure or clearing the active session.
-- **Issue search and filter input now converges without dropping characters.**
-  Live drafts survive stale debounce echoes, URL restoration, and explicit view
-  resets; heavy Board, List, Backlog, and Timeline result updates remain visibly
-  and accessibly marked while the prior result is retained.
-- **Issue date-range filters no longer fail at the AKB timestamp boundary.**
-  Created and updated date ranges now cast their positional bounds in SQL while
-  preserving date-only comparisons and half-open boundaries across List, Board,
-  Backlog, and Timeline. (REEF-619)
-- **Issue lists continue past the first page when sorted by created or updated
-  date.** Timestamp cursor values are interpreted at the AKB boundary without
-  losing their original precision or changing the existing tie-break order.
-- **Planning header controls align with the title and workspace description.**
-- **Markdown editor focus chrome remains continuous across internal dividers.**
-  Toolbar and editor-body separators no longer paint over the inset focus ring.
-- **Planning Overview keeps long names readable and the hierarchy intentional.**
-  Item links stay single-line with full-value pointer and keyboard access,
-  progress segments no longer animate layout width, successful deletion stays
-  silent when the row disappears, and the current sprint carries stronger
-  execution-plan emphasis than upcoming targets.
-- **Sprint rollover validation and conflicts now use localized guidance.**
-  Invalid dates name the required correction, and an already-active sprint is
-  identified by name instead of only showing a generic save conflict.
-- **Sprint rollover completion and validation states are clearer on every screen
-  size.** Completed runs replace the edit form with a read-only handoff summary,
-  field errors stay beside their inputs, and touch-sized controls preserve the
-  compact desktop layout.
-- **Interrupted sprint rollovers can be resumed after closing or refreshing.**
-  The saved target and date request reappear from the durable rollover state, so
-  existing and newly created targets can continue without starting over.
-
-### Migration
-
-- Existing Reef vaults reuse the current `reef_sprints.meta` JSON envelope; no
-  table migration is required. Refresh the installed vault-skill documents
-  before using generic AKB agents with the sprint rollover workflow.
-
 ### Changed
 
+- **Breaking: authentication now requires AKB's schema-v2 capability catalog
+  and one explicit `REEF_AUTH_MODE`.** Local mode accepts only the current local
+  session contract. SSO mode is now a Reef companion OIDC BFF with PKCE,
+  encrypted Redis token custody, refresh locking, back-channel logout, and an
+  opaque httpOnly browser handle; the legacy provider-less exchange and token-
+  bearing logout paths have been removed. (REEF-623)
 - **Issue-body Markdown editing now uses the shared AKB editor core and stable
   document attachments.** Uploaded images are stored as canonical
   `/api/assets/<uuid>` targets, resolve through authenticated runtime URLs, and
   retain successful items when a mixed upload batch partially fails; existing
   non-image issue attachments and comment uploads keep their current behavior.
+  (REEF-593)
 - **Loading surfaces keep their product chrome visible.** App navigation, issue
   scopes and views, detail and settings labels, planning tabs and headers, My
-  Work metrics, and report filters and card titles remain in place while values
-  load; unknown data, permissions, and counts stay deferred until their queries
-  resolve.
-- **Planning view state is URL-owned.** The new Overview/List switch restores
-  across reload and history navigation, while existing `kind`/`detail` links
-  continue to open the corresponding List item.
+  Work metrics, and report filters and titles remain in place while values load;
+  unknown data and permissions stay deferred until queries resolve. Unused
+  dialogs and issue views are loaded on demand. (REEF-613, REEF-614)
+- **Planning view state is URL-owned.** The Overview/List switch restores across
+  reload and history navigation, while existing `kind`/`detail` links continue
+  to open the corresponding List item.
+
+### Fixed
+
+- **Active SSO sessions and browser-local workspace preferences survive the
+  correct boundaries.** Refresh credentials can rotate throughout Reef's fixed
+  24-hour session lifetime, and passive expiry preserves same-account workspace,
+  My Views, filters, and favorites. Account switches, explicit sign-out, and
+  stable account denials still clear them. (REEF-624)
+- **Reader notification access and permission guidance are restored.** Inbox
+  reads no longer attempt schema reconciliation, and resource-level AKB 403
+  responses remain permission failures without signing out the user.
+- **Issue search no longer drops characters or flashes empty results during
+  debounce and result handoff.** Board, List, Backlog, and Timeline retain the
+  prior result and expose accessible update progress. (REEF-615)
+- **Created/updated date filters and timestamp-sorted pagination work across
+  every issue view.** AKB timestamp bounds and cursors are cast without losing
+  date-only semantics, precision, or tie-break ordering. (REEF-619, REEF-620)
+- **Interrupted sprint rollovers resume safely with clearer validation and
+  conflict guidance.** Persisted targets are reused and partial retries do not
+  create duplicate sprint or activity records.
+
+### Migration
+
+- **SSO deployments require a coordinated companion-client cutover.** Configure
+  `REEF_AUTH_MODE=sso`, the public issuer and private transport URL, companion
+  client id, AKB audience, authenticated Redis, an independent AES-256-GCM key,
+  and a fresh `REEF_AUTH_SESSION_NAMESPACE`. Existing legacy SSO cookies and
+  encrypted records are not migrated; local deployments must explicitly set
+  `REEF_AUTH_MODE=local`.
+- Existing Reef vaults reuse the current `reef_sprints.meta` JSON envelope; no
+  table migration is required. Refresh the installed vault-skill documents
+  before generic AKB agents perform sprint rollover.
 
 ### Operational
 
+- **Kubernetes readiness now uses `/api/readyz`.** In SSO mode it checks the
+  configured auth contract, Redis reachability, and pinned JWKS; `/api/healthz`
+  remains the liveness endpoint. The container build now installs and builds
+  from the full source tree so Git-hosted workspace dependencies can prepare.
 - **The AKB Document Attachment API is now a runtime prerequisite for issue
   body image uploads.** Deploy the AKB asset upload, metadata, discard, copy,
   policy, and stable-byte routes before enabling this Reef revision.
+- Publish `reef-web:v0.15.0` and the release commit SHA with an immutable digest.
+  Rollback to v0.14.1 in SSO mode also requires restoring its previous AKB and
+  authentication configuration; v0.15.0 Redis session records are not consumed
+  by the earlier release.
 
 ## v0.14.1 - 2026-09-04
 
