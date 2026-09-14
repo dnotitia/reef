@@ -62,7 +62,7 @@
     "jose": "^6.2.9",
     "lowlight": "^3.3.0",
     "lucide-react": "^1.30.0",
-    "next": "^16.3.0",
+    "next": "^16.3.3",
     "next-intl": "4.13.5",
     "pino": "^10.3.1",
     "prom-client": "^15.1.3",
