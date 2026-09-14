@@ -231,9 +231,9 @@ the `reef-web-config` ConfigMap plus the optional `reef-web-secret` Secret).
 | `REEF_KEYCLOAK_TRANSPORT_URL` | yes in production SSO | Private/in-cluster realm URL used for token, JWKS, and revocation calls. Its realm path must match the issuer. |
 | `REEF_KEYCLOAK_CLIENT_ID` | yes for SSO | Dedicated Reef companion client id, registered in AKB's human API allowlist. |
 | `REEF_AKB_API_AUDIENCE` | yes for SSO | Exact AKB human API audience required on the Keycloak access token. |
-| `REEF_AKB_LOGIN_AUDIENCE` | yes for SSO login | Exact canonical AKB public origin plus `/api/v1/auth/sso/companion/complete`. Separate from the API token audience and private AKB transport URL. |
-| `REEF_AKB_LOGIN_KEY_ID` | yes for SSO login | Dedicated BFF signing key ID registered with AKB for the Reef OIDC client. |
-| `REEF_AKB_LOGIN_PRIVATE_KEY` | yes for SSO login | RSA private PEM (at least 2048 bits) in deployment Secret storage. AKB receives only the public key. Never reuse an operator PAT or expose this key to the browser. |
+| `REEF_AKB_LOGIN_AUDIENCE` | only for enabled account enrollment | Exact canonical AKB public origin plus `/api/v1/auth/sso/companion/complete`. Separate from the API token audience and private AKB transport URL. Set all three `REEF_AKB_LOGIN_*` values to enable; leave all unset/empty for ordinary SSO. |
+| `REEF_AKB_LOGIN_KEY_ID` | only for enabled account enrollment | Dedicated BFF signing key ID registered with AKB for the Reef OIDC client. Partial configuration fails new logins closed. |
+| `REEF_AKB_LOGIN_PRIVATE_KEY` | only for enabled account enrollment | RSA private PEM (at least 2048 bits) in deployment Secret storage. AKB receives only the public key. Never reuse an operator PAT or expose this key to the browser. |
 | `REEF_SESSION_REDIS_URL` | yes in production SSO | Authenticated Redis endpoint for encrypted session/login-state custody and refresh locks. |
 | `REEF_SESSION_ENCRYPTION_KEY` | yes in production SSO | Independent 32-byte AES-256-GCM key, base64/base64url encoded, stored in the deployment Secret. |
 | `REEF_AUTH_SESSION_NAMESPACE` | yes in production SSO | Deployment-managed namespace/epoch. Change it for mode, issuer, client, or key cutover; never reuse an old SSO namespace. |
@@ -307,25 +307,59 @@ credentials.
 ### Teams account linking during Reef sign-in
 
 Reef remains the OIDC client: browser navigation is Reef → Keycloak/Microsoft →
-Reef callback. After state, PKCE, nonce and token verification, the callback
-calls AKB's `POST /api/v1/auth/sso/companion/complete`, then `/auth/me`. Both must
-resolve the same AKB user before Reef issues an opaque session. This avoids an
-AKB browser visit; it does not remove the login dependency on AKB availability.
-Ordinary bearer requests, session probes and refresh do not call completion.
+Reef callback. After state, PKCE, nonce and token verification, ordinary SSO
+calls `/auth/me` before issuing an opaque Reef session. It requires neither the
+companion completion endpoint nor its RSA signing key when all three
+`REEF_AKB_LOGIN_*` values are unset/empty. AKB account validation is still required.
 
-Deploy the companion completion API on AKB first. Its
+Account enrollment/linking is an optional deployment capability for migration
+or ongoing onboarding. Setting all three values enables
+`POST /api/v1/auth/sso/companion/complete` before `/auth/me` on every SSO callback,
+including already linked accounts, until the capability is disabled. Both must
+resolve the same AKB user. There is no extra browser visit or automatic fallback
+from a failed `/auth/me` to completion. An ordinary 401 cannot reliably identify
+an unlinked account. Session probes and refresh never call completion.
+
+To enable enrollment, deploy the companion completion API and replay migration
+101 on AKB first. Its
 `keycloak_companion_login_clients` configuration registers the exact Reef OIDC
 client, allowed `provider_aliases`, and `public_keys` mapping key ID to public
 PEM. Keep the existing API companion azp allowlist and authoritative-domain
 policy configured; the new opt-in does not replace them. Register every provider
 that Reef exposes: for a deployment offering both Teams (`entra`) and the
 Keycloak workspace account (`local`), allow both aliases. This does not grant
-the local provider authoritative-email adoption. All SSO callbacks use the new
-completion step, including already linked accounts. Set the three
+the local provider authoritative-email adoption. Set the three
 `REEF_AKB_LOGIN_*` values above only in deployment configuration. The audience
 must match AKB's public origin even when `AKB_BACKEND_URL` uses private transport.
-An unregistered key, unsupported AKB version (404/410), invalid assertion, or
-unavailable backend fails login closed; no legacy exchange fallback is used.
+Partial/invalid configuration, an unregistered key, unsupported AKB version
+(404/410), invalid assertion, or unavailable backend fails enrollment-enabled
+login closed; no ordinary-login or legacy exchange fallback is used.
+
+To retire the capability after the intended accounts are linked:
+
+1. Verify the intended users have an AKB identity binding. A successful login
+   for one user does not prove the rest of the deployment has migrated.
+2. Remove all three `REEF_AKB_LOGIN_*` values and redeploy **all Reef instances**.
+   Verify a fresh Teams login succeeds with the original AKB user ID using
+   `/auth/me` alone; do not rely only on an already established session.
+3. After the previous instances and their in-flight callbacks have drained,
+   remove this client's `keycloak_companion_login_clients` registration on AKB
+   and apply the configuration. Keep the OIDC client and the ordinary API
+   `keycloak_companion_client_ids_by_origin` allowlist. Other companion clients
+   may keep their own enrollment registration.
+
+Removing the completion registration revokes that caller's ability to use the
+completion API. It does not unlink identities or revoke existing account grants;
+retain migration 101 and the identity data. The signing private key can be
+removed from active deployment secrets once no instance uses it. This does not
+remove the separate Redis session encryption key or normal OIDC configuration.
+
+A future unlinked local account still needs approved linking: re-enable this
+capability, use AKB's existing account-linking process, or keep enrollment
+enabled for ongoing onboarding. Disabling completion does not change AKB's
+existing enrollment policy, including JIT provisioning where already allowed;
+it does not add automatic email adoption to `/auth/me`. The switch is managed
+by the operator, not automatically inferred from login results.
 
 Reef signs RS256 assertions for 60 seconds with a random `jti`. The assertion's
 `request_hash` is SHA-256/base64url of the compact UTF-8 JSON array

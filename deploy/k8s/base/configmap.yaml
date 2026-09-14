@@ -36,7 +36,10 @@ data:
   # after an OTLP collector / Langfuse is deployed and reachable in-cluster.
   # OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.example.svc.cluster.local:4318"
 
-  # SSO companion completion (register the matching public key on AKB first).
+  # Optional SSO account enrollment (register the public key/providers on AKB first).
+  # Set all three LOGIN values to enable; leave all absent/empty for ordinary SSO.
+  # To retire, remove all three and roll out every Reef instance before removing
+  # AKB's completion registration. Keep the ordinary OIDC/API client allowlist.
   # REEF_AKB_LOGIN_AUDIENCE: "https://akb.example.com/api/v1/auth/sso/companion/complete"
   # REEF_AKB_LOGIN_KEY_ID: "reef-login-v1"
   # Put REEF_AKB_LOGIN_PRIVATE_KEY in the deployment Secret, never this ConfigMap.

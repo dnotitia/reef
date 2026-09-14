@@ -93,12 +93,20 @@ export function signCompanionLogin(input: {
   }
 }
 
-/** Completion requires callback proof; refresh/ordinary account checks only use /me. */
+/** Optional enrollment uses callback proof; ordinary SSO needs only /me. */
 export function createCompanionAccountValidator(params: {
   clientId: string;
   baseUrl: () => string;
   env?: AuthV2Environment;
 }): AccountValidator<AkbUser> {
+  const env = params.env ?? process.env;
+  // All absent/empty disables enrollment. Any configured field opts in so an
+  // incomplete setup fails signing rather than silently bypassing completion.
+  const completionConfigured = [
+    env.REEF_AKB_LOGIN_AUDIENCE,
+    env.REEF_AKB_LOGIN_KEY_ID,
+    env.REEF_AKB_LOGIN_PRIVATE_KEY,
+  ].some(Boolean);
   return async (input) => {
     try {
       const adapter = createAkbAdapter({
@@ -106,7 +114,7 @@ export function createCompanionAccountValidator(params: {
         credential: input.accessToken,
       });
       let completedUser: AkbUser | undefined;
-      if (input.loginProof) {
+      if (input.loginProof && completionConfigured) {
         const request: AkbCompanionLoginRequest = {
           provider_alias: input.providerAlias,
           nonce: input.loginProof.nonce,
@@ -116,7 +124,7 @@ export function createCompanionAccountValidator(params: {
           request,
           accessToken: input.accessToken,
           idToken: input.loginProof.idToken,
-          env: params.env,
+          env,
         });
         const completed = await akbCompleteCompanionLogin({
           adapter,

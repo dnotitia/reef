@@ -75,7 +75,14 @@ afterEach(() => {
   ref.runtime = undefined;
 });
 
-async function fixture(denial?: string) {
+async function fixture(
+  options: {
+    denial?: string;
+    completionEnabled?: boolean;
+    account?: { bound: boolean };
+  } = {},
+) {
+  const account = options.account ?? { bound: false };
   const config: AuthV2EnabledRuntimeConfig = {
     enabled: true,
     mode: "sso",
@@ -123,14 +130,16 @@ async function fixture(denial?: string) {
   const accountValidator = createCompanionAccountValidator({
     clientId: config.clientId,
     baseUrl: () => akbOrigin,
-    env: {
-      NODE_ENV: "test",
-      REEF_AKB_LOGIN_AUDIENCE: audience,
-      REEF_AKB_LOGIN_KEY_ID: "reef-1",
-      REEF_AKB_LOGIN_PRIVATE_KEY: bffKeys.privateKey
-        .export({ type: "pkcs8", format: "pem" })
-        .toString(),
-    },
+    env: options.completionEnabled
+      ? {
+          NODE_ENV: "test",
+          REEF_AKB_LOGIN_AUDIENCE: audience,
+          REEF_AKB_LOGIN_KEY_ID: "reef-1",
+          REEF_AKB_LOGIN_PRIVATE_KEY: bffKeys.privateKey
+            .export({ type: "pkcs8", format: "pem" })
+            .toString(),
+        }
+      : {},
   });
   ref.runtime = {
     config,
@@ -194,7 +203,6 @@ async function fixture(denial?: string) {
     .setExpirationTime(time + 300)
     .sign(idpKeys.privateKey);
   const calls: string[] = [];
-  let bound = false;
   const user = { id: "existing-local-user", username: "alice" };
   vi.stubGlobal(
     "fetch",
@@ -221,6 +229,7 @@ async function fixture(denial?: string) {
         `Bearer ${access}`,
       );
       if (url === audience) {
+        expect(options.completionEnabled).toBe(true);
         const headers = new Headers(init.headers);
         const { payload } = await jwtVerify(
           headers.get("x-akb-login-assertion") ?? "",
@@ -236,25 +245,42 @@ async function fixture(denial?: string) {
             .digest("base64url"),
         );
         expect(headers.get("x-akb-id-token")).toBe(id);
-        if (denial)
+        if (options.denial)
           return Response.json(
-            { code: denial, detail: { code: denial, message: "denied" } },
+            {
+              code: options.denial,
+              detail: { code: options.denial, message: "denied" },
+            },
             { status: 403 },
           );
-        bound = true;
+        account.bound = true;
         return Response.json({ user });
       }
       expect(url).toBe(`${akbOrigin}/api/v1/auth/me`);
-      expect(bound).toBe(true);
+      if (options.denial) {
+        return Response.json(
+          {
+            code: options.denial,
+            detail: { code: options.denial, message: "denied" },
+          },
+          { status: 403 },
+        );
+      }
+      if (!account.bound) {
+        return Response.json(
+          { detail: "Invalid or expired token" },
+          { status: 401 },
+        );
+      }
       return Response.json(user);
     }),
   );
-  return { state, cookie, calls, store, access };
+  return { state, cookie, calls, store, access, account };
 }
 
 describe("Reef callback to AKB companion completion integration", () => {
   it("finishes the original local account login without an AKB browser redirect", async () => {
-    const f = await fixture();
+    const f = await fixture({ completionEnabled: true });
     const request = () =>
       new Request(
         `https://reef.test/api/auth/akb/sso/callback?code=single-code&state=${f.state}`,
@@ -283,11 +309,50 @@ describe("Reef callback to AKB companion completion integration", () => {
     const replay = await callback(request());
     expect(replay.headers.get("location")).toContain("sso_error=");
     expect(f.calls).toHaveLength(3);
+    // A fresh OIDC login after removing all completion configuration reuses
+    // the durable AKB identity and never needs the BFF key/endpoint again.
+    const ordinary = await fixture({ account: f.account });
+    const nextLogin = await callback(
+      new Request(
+        `https://reef.test/api/auth/akb/sso/callback?code=single-code&state=${ordinary.state}`,
+        { headers: { cookie: ordinary.cookie } },
+      ),
+    );
+    expect(nextLogin.headers.get("location")).toBe("/workspace/reef");
+    const nextHandle =
+      nextLogin.headers
+        .getSetCookie()
+        .find(
+          (value) =>
+            value.startsWith(`${AUTH_V2_SESSION_COOKIE}=`) &&
+            !value.includes("Max-Age=0"),
+        )
+        ?.split(";")[0]
+        ?.split("=")[1] ?? "";
+    expect(nextHandle).toMatch(/^[A-Za-z0-9_-]{43}$/u);
+    expect((await ordinary.store.resolve(nextHandle))?.access_token).toBe(
+      ordinary.access,
+    );
+    expect(ordinary.calls).toEqual([
+      `${issuer}/protocol/openid-connect/token`,
+      `${akbOrigin}/api/v1/auth/me`,
+    ]);
   });
-  it.each(["membership_required", "account_suspended", "identity_conflict"])(
-    "does not issue a session for %s",
-    async (denial) => {
-      const f = await fixture(denial);
+  it.each([
+    ["membership_required", true],
+    ["account_suspended", true],
+    ["identity_conflict", true],
+    ["membership_required", false],
+    ["account_suspended", false],
+    ["identity_conflict", false],
+  ] as const)(
+    "does not issue a session for %s (completion enabled: %s)",
+    async (denial, completionEnabled) => {
+      const f = await fixture({
+        denial,
+        completionEnabled,
+        account: { bound: true },
+      });
       const response = await callback(
         new Request(
           `https://reef.test/api/auth/akb/sso/callback?code=single-code&state=${f.state}`,
@@ -307,6 +372,33 @@ describe("Reef callback to AKB companion completion integration", () => {
       expect(f.calls).toHaveLength(2);
     },
   );
+  it("fails an unlinked login with enrollment disabled without a retry or a session", async () => {
+    const f = await fixture();
+    const response = await callback(
+      new Request(
+        `https://reef.test/api/auth/akb/sso/callback?code=single-code&state=${f.state}`,
+        { headers: { cookie: f.cookie } },
+      ),
+    );
+    expect(response.headers.get("location")).toContain(
+      "sso_error=sso_callback_failed",
+    );
+    expect(response.headers.get("x-reef-auth-invalidated")).toBe("1");
+    expect(
+      response.headers
+        .getSetCookie()
+        .some(
+          (value) =>
+            value.startsWith(`${AUTH_V2_SESSION_COOKIE}=`) &&
+            value.includes("Max-Age=0"),
+        ),
+    ).toBe(true);
+    expect(f.account.bound).toBe(false);
+    expect(f.calls).toEqual([
+      `${issuer}/protocol/openid-connect/token`,
+      `${akbOrigin}/api/v1/auth/me`,
+    ]);
+  });
   it("refuses another browser before exchanging the code or contacting AKB", async () => {
     const f = await fixture();
     const response = await callback(

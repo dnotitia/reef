@@ -38,8 +38,9 @@ explicitly in the entries below.
 - **Teams sign-in now completes AKB account linking from Reef's callback.**
   A deployment-authenticated companion request reuses AKB's account linking
   policy before Reef validates `/auth/me` and issues its session. Browser
-  navigation stays on Reef and the identity provider. Requires the companion
-  completion API on AKB plus the registered Reef signing key and audience.
+  navigation stays on Reef and the identity provider. Enrollment is optional:
+  ordinary SSO for linked accounts uses `/auth/me` without a completion API or
+  signing key when all `REEF_AKB_LOGIN_*` values are unset/empty.
 
 - **Notification reads no longer reconcile schema state on the request path.**
   Reader inbox queries and the unread badge now work with an available schema
@@ -80,12 +81,16 @@ explicitly in the entries below.
 
 ### Migration
 
-- **SSO deployment requires the AKB companion completion contract.** Deploy
+- **Optional SSO account enrollment uses the AKB companion completion contract.** Deploy
   AKB's completion endpoint and replay migration, register the BFF public key
   and every exposed provider, then configure `REEF_AKB_LOGIN_AUDIENCE`,
   `REEF_AKB_LOGIN_KEY_ID`, and `REEF_AKB_LOGIN_PRIVATE_KEY` before deploying
-  Reef. New SSO logins fail closed without this setup; existing session
-  validation and refresh continue to use the ordinary AKB account boundary.
+  Reef with enrollment enabled. Partial/invalid configuration fails new logins
+  closed. To retire enrollment, remove all three values and redeploy every Reef
+  instance before removing AKB's completion registration; retain the ordinary
+  API client allowlist and identity bindings. Linked accounts keep signing in
+  without the RSA key. Future unlinked users need an approved linking path or
+  enrollment reactivation. Session validation and refresh remain unchanged.
 
 - Existing Reef vaults reuse the current `reef_sprints.meta` JSON envelope; no
   table migration is required. Refresh the installed vault-skill documents

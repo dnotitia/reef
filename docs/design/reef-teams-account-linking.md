@@ -13,6 +13,13 @@ AKB는 계정 authority로서 명시적인 companion 로그인 완료 API에서 
 PR #531의 공통 계정 서비스를 재사용하고 일반 /auth/me, REST/MCP, PAT의 authority는
 확장하지 않는다. AKB 자체 브라우저 로그인은 기존 callback을 계속 사용한다.
 
+계정 연결·가입은 관리자가 필요할 때 활성화하는 선택 기능이다. 기존
+`REEF_AKB_LOGIN_AUDIENCE`, `REEF_AKB_LOGIN_KEY_ID`, `REEF_AKB_LOGIN_PRIVATE_KEY`를
+모두 설정하면 활성화하고, 모두 미설정/빈 값이면 일반 SSO만 사용한다. 새 토글은 추가하지 않는다.
+일부만 설정하거나 잘못 설정하면 새 로그인은 실패하며 일반 경로로 조용히 전환하지 않는다.
+연결된 계정의 일반 SSO는 RSA 키와 완료 API 없이 `/auth/me`로 계정을 확인한다.
+연결 기능을 켜 둔 기간에는 이미 연결된 계정을 포함한 모든 callback이 완료 API를 사용한다.
+
 이는 표준 OIDC 로그인 위에 추가하는 AKB 계정 등록 계약이다. OIDC에 이미 정의된
 endpoint나 PR #531에 이미 허용된 경로라고 주장하지 않는다. 새로운 신뢰 관계는
 “등록된 Reef BFF가 자신의 browser-bound 로그인 검증을 수행한다”는 명시적 위임이다.
@@ -33,12 +40,14 @@ sequenceDiagram
   R->>K: PKCE code 교환 (서버 간)
   K-->>R: access / ID / refresh token
   R->>R: OIDC 및 provider 검증
-  R->>A: 인증된 서버 요청: 로그인 완료 증빙
-  A->>A: 호출자·토큰·중복 처리 검증
-  A->>A: PR #531 계정 연결/가입
-  A-->>R: 확정된 AKB 사용자 ID
+  opt 관리자가 계정 연결 기능을 활성화한 기간
+    R->>A: RSA 서명된 로그인 완료 증빙
+    A->>A: 호출자·토큰·중복 처리 검증
+    A->>A: PR #531 계정 연결/가입
+    A-->>R: 확정된 AKB 사용자 ID
+  end
   R->>A: 기존 /auth/me로 실제 API 계정 확인
-  A-->>R: 같은 AKB 사용자
+  A-->>R: AKB 사용자 (완료 단계를 거쳤으면 ID 일치 확인)
   R->>R: 암호화 Redis 세션 발급
   R-->>U: 원래 Reef 화면
 ```
@@ -50,7 +59,9 @@ HTTPS 요청이다. 최초에 Reef가 이미 수행하는 AKB auth/config 조회
 ## 자동 바인딩이 일어나는 위치
 
 기존 Reef callback의 accountValidator는 /auth/me만 호출하여 미연결 계정이 거부됐다.
-구현에서는 OIDC 검증 성공과 /auth/me 사이에 명시적인 completeCompanionLogin 단계를 추가했다.
+연결 기능을 활성화한 경우에만 OIDC 검증 성공과 /auth/me 사이에 명시적인
+completeCompanionLogin 단계를 추가한다. 실패한 /auth/me의 일반 401을 미연결 상태로
+간주하거나, 이를 계기로 완료 API를 재시도하지 않는다.
 
 AKB 내부:
 1. 검증된 (issuer, subject)의 기존 identity가 있으면 그 계정의 상태를 확인한다.
@@ -61,6 +72,21 @@ AKB 내부:
 
 PR #531의 subject/address 잠금, pending 정리, audit, 기존 PAT/Vault 권한 보존을 재사용한다.
 Reef는 이메일 검색·계정 병합·DB mutation을 수행하지 않는다.
+
+## 전환 완료 후 운영
+
+1. 대상 사용자들의 identity 연결을 확인한다. 한 사용자의 성공으로 전체 전환 완료를 추정하지 않는다.
+2. Reef의 세 완료 설정을 모두 제거하고 모든 인스턴스를 재배포한다.
+3. 새 Teams 로그인으로 기존 AKB ID가 유지되고 완료 API 없이 성공하는지 확인한다.
+4. 이전 인스턴스와 진행 중 callback이 종료되면 AKB에서 해당 client의
+   `keycloak_companion_login_clients` 등록을 제거하고 설정을 적용한다.
+
+일반 API의 `keycloak_companion_client_ids_by_origin`, Keycloak client, Redis 암호화 키는 유지한다.
+완료 등록을 지워도 AKB identity와 기존 권한은 유지된다. RSA 개인키는 활성 배포의 Secret에서
+제거할 수 있지만 identity 데이터나 migration 101을 되돌리지 않는다.
+앞으로 들어오는 미연결 사용자는 기능을 다시 활성화하거나 AKB의 기존 연결 절차가 필요하다.
+계속 신규 연결이 필요한 운영이라면 기능을 유지할 수 있다. AKB의 기존 open enrollment/JIT
+정책을 변경하거나 bearer 경로에 authoritative email 자동 연결을 추가하지 않는다.
 
 ## 신규 서버 API 계약
 
@@ -74,8 +100,9 @@ POST /api/v1/auth/sso/companion/complete (이번 AKB 변경에서 추가)
 
 응답: { user: { id, username, email, display_name, is_admin } }, no-store.
 AKB browser cookie, 새 API token, refresh token 또는 AKB 세션을 발급하지 않는다.
-Reef는 반환 ID와 /auth/me의 ID가 일치해야 자신의 세션을 만든다. /auth/me는 연결 mutation을
-하지 않고 실제 bearer 경로에서도 동일한 계정으로 접근 가능한지 검증한다.
+완료 단계를 거친 Reef는 반환 ID와 /auth/me의 ID가 일치해야 자신의 세션을 만든다.
+/auth/me의 기존 계정 정책은 변경하지 않으며 authoritative email 자동 연결 권한을 추가하지 않는다.
+실제 bearer 경로에서도 동일한 계정으로 접근 가능한지 검증한다.
 
 refresh token은 Reef 내부에 남는다. 모든 credential은 HTTPS 헤더로만 전달하며 URL,
 로그, span, 오류 본문에 남기지 않는다. 신규 credential 헤더도 ingress/APM redaction에 넣는다.
@@ -88,7 +115,8 @@ refresh token은 Reef 내부에 남는다. 모든 credential은 HTTPS 헤더로�
   access/ID token provider 및 기존 at_hash profile을 검증.
 - account completion에 전달하는 provider/nonce는 query나 token에서 새로 선택하지
   않고 검증된 로그인 상태에서 얻음.
-- 이 API는 해당 callback 단계에서만 호출. 일반 요청/refresh/session polling에서 호출하지 않음.
+- 이 API는 기능이 활성화된 callback 단계에서만 호출. 비활성 callback과
+  일반 요청/refresh/session polling에서 호출하지 않음.
 
 ## AKB의 검증과 명시적인 위임 범위
 
@@ -147,7 +175,7 @@ Microsoft/Keycloak이 MFA·consent·계정 선택을 요구할 수 있지만 AKB
 AKB: companion complete route, BFF 검증/허용 client 설정, token-pair 검증 재사용,
 PR #531 공통 projection 호출, assertion replay 방지, credential redaction 및 문서.
 Reef core: 새 요청/응답 Zod 계약과 tracing을 포함한 adapter/public export.
-Reef web: 검증된 callback 단계에서만 completion 호출, /auth/me 일치 검증 후 기존 세션 발급.
+Reef web: 선택적으로 활성화한 callback 단계에서 completion 호출, /auth/me 검증 후 기존 세션 발급.
 UI: 기존 Teams 버튼·기존 오류 UI 유지. AKB 경유·복귀 API와 추가 연결 화면 없음.
 
 검증:
@@ -158,8 +186,10 @@ UI: 기존 Teams 버튼·기존 오류 UI 유지. AKB 경유·복귀 API와 추�
 - 동일 subject 동시 로그인, 서로 다른 subject의 같은 이메일, stopped/service/recovery,
   identity conflict 및 unverified email 정책 회귀.
 - state/PKCE/OIDC 회귀, 계정 완료 전 세션 미발급, 실패 쿠키 정리, 원래 경로 복귀.
-- AKB 먼저 opt-in disabled로 배포 후 client 등록, Reef 배포. 구버전 AKB의 404/410은
-  fail-closed로 처리하고 옛 exchange로 fallback하지 않음.
+- 일반 SSO는 완료 설정/API 없이 동작. 연결 기능을 켤 때만 AKB API/마이그레이션 배포 후
+  client 등록과 Reef 설정 적용. 활성화 상태에서 404/410은 fail-closed로 처리.
+- 연결 후 기능을 끄고 새 로그인해도 같은 AKB ID 유지. 비활성 미연결/401은 자동 재시도 없음.
+- 일부 설정/잘못된 키로 일반 로그인 경로를 우회하지 않음. 계정 거부와 쿠키 정리 유지.
 - 운영은 우선 설정 읽기 확인. 실제 사용자 로그인/배포는 별도 검증 단계로 보고.
 
 ## 근거와 기존 안 상태

@@ -39,11 +39,11 @@ const user = {
   username: "alice",
   email: "alice@corp.example",
 };
-const createValidator = () =>
+const createValidator = (environment = env) =>
   createCompanionAccountValidator({
     clientId: "reef-web",
     baseUrl: () => "https://akb.test",
-    env,
+    env: environment,
   });
 
 afterEach(() => vi.unstubAllGlobals());
@@ -185,6 +185,85 @@ describe("companion account boundary", () => {
       "https://akb.test/api/v1/auth/me",
     );
   });
+  it.each([
+    {},
+    {
+      REEF_AKB_LOGIN_AUDIENCE: "",
+      REEF_AKB_LOGIN_KEY_ID: "",
+      REEF_AKB_LOGIN_PRIVATE_KEY: "",
+    },
+  ])(
+    "SSO callback needs no completion endpoint or key when enrollment is off",
+    async (environment) => {
+      const fetchMock = vi.fn().mockResolvedValue(Response.json(user));
+      vi.stubGlobal("fetch", fetchMock);
+      const validator = createCompanionAccountValidator({
+        clientId: "reef-web",
+        baseUrl: () => "https://akb.test",
+        env: environment,
+      });
+      expect(await validator(input)).toEqual({
+        outcome: "accepted",
+        account: user,
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(
+        "https://akb.test/api/v1/auth/me",
+      );
+      const headers = new Headers(fetchMock.mock.calls[0]?.[1]?.headers);
+      expect(headers.has("x-akb-login-assertion")).toBe(false);
+      expect(headers.has("x-akb-id-token")).toBe(false);
+    },
+  );
+  it.each([
+    { REEF_AKB_LOGIN_AUDIENCE: "" },
+    { REEF_AKB_LOGIN_KEY_ID: "" },
+    { REEF_AKB_LOGIN_PRIVATE_KEY: "" },
+    { REEF_AKB_LOGIN_PRIVATE_KEY: "invalid-private-key-canary" },
+  ])(
+    "configured enrollment fails closed instead of falling back to /me",
+    async (override) => {
+      const fetchMock = vi.fn().mockResolvedValue(Response.json(user));
+      vi.stubGlobal("fetch", fetchMock);
+      expect(await createValidator({ ...env, ...override })(input)).toEqual({
+        outcome: "unavailable",
+      });
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
+  it.each([
+    "membership_required",
+    "account_suspended",
+    "identity_conflict",
+    undefined,
+  ])(
+    "disabled enrollment never retries /me denial (%s) with completion",
+    async (code) => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(
+          Response.json(
+            code
+              ? { code, detail: { code, message: "denied" } }
+              : { detail: "Invalid or expired token" },
+            { status: code ? 403 : 401 },
+          ),
+        );
+      vi.stubGlobal("fetch", fetchMock);
+      const validator = createCompanionAccountValidator({
+        clientId: "reef-web",
+        baseUrl: () => "https://akb.test",
+        env: {},
+      });
+      expect(await validator(input)).toEqual(
+        code ? { outcome: "denied", code } : { outcome: "unavailable" },
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(
+        "https://akb.test/api/v1/auth/me",
+      );
+    },
+  );
   it.each(["membership_required", "account_suspended", "identity_conflict"])(
     "preserves account denial %s without /me retries",
     async (code) => {
