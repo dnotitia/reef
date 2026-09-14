@@ -151,7 +151,10 @@ describe("SsoCompletePage", () => {
         vi.fn().mockResolvedValue(
           new Response(JSON.stringify({ error: "account denied", code }), {
             status: 401,
-            headers: { "X-Reef-Auth-Invalidated": "1" },
+            headers: {
+              "X-Reef-Auth-Invalidated": "1",
+              "X-Reef-Account-Error": code,
+            },
           }),
         ),
       );

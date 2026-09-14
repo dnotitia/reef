@@ -7,6 +7,7 @@ import { localizeError } from "@/lib/api/errorLocalization";
 import { logger } from "@/lib/logging/logger";
 import {
   type AkbAccountErrorCode,
+  AkbApiError,
   AuthError,
   ReefError,
   akbGetMe,
@@ -58,6 +59,15 @@ export async function GET(request: Request): Promise<Response> {
       );
     }
     if (err instanceof ReefError) {
+      if (
+        err instanceof AkbApiError &&
+        (err.status === 409 || err.status === 503) &&
+        err.context.message.startsWith("auth_v2_")
+      ) {
+        const response = await localizeError(err);
+        response.headers.set("Cache-Control", "no-store");
+        return response;
+      }
       // Any other akb-translated error maps to the same 502 the pre-refactor
       // route returned for every non-401 non-ok response: 5xx/network surface as
       // AkbApiError, but a misconfigured 404/409/422 surfaces as

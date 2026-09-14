@@ -1,10 +1,12 @@
 import { expect, test } from "@playwright/test";
 import {
   openExistingWorkspace,
+  readIndexedDbConfig,
   resetFixture,
   releaseAuthProbe,
   setAkbAccountDenial,
   setAuthControl,
+  signInAsAlice,
   writeIndexedDbConfig,
 } from "../harness/fixture";
 
@@ -417,6 +419,63 @@ test.describe("auth soft navigation", () => {
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await probe;
     await expectLogin(page, ISSUES_PATH);
+  });
+
+  test("preserves browser-local workspace context across passive expiry and same-account login", async ({
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    await expect
+      .poll(() => readIndexedDbConfig(page, "vault"))
+      .toBe("reef-e2e");
+    await writeIndexedDbConfig(
+      page,
+      "workspace_favorites",
+      JSON.stringify({ version: 1, favorites: ["reef-e2e"] }),
+    );
+    await writeIndexedDbConfig(
+      page,
+      "filter:reef-e2e",
+      JSON.stringify({ version: 1, filter: { status: ["todo"] } }),
+    );
+    await page.evaluate(() => {
+      window.localStorage.setItem(
+        "REACT_QUERY_OFFLINE_CACHE",
+        JSON.stringify({ account: "protected-data" }),
+      );
+    });
+
+    await setAuthControl(request, { session: "revoked" });
+    const probe = page.waitForRequest(isAuthProbeRequest);
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await probe;
+    await expectLogin(page, ISSUES_PATH);
+
+    await expect
+      .poll(() => readIndexedDbConfig(page, "vault"))
+      .toBe("reef-e2e");
+    await expect
+      .poll(() => readIndexedDbConfig(page, "workspace_favorites"))
+      .toBe(JSON.stringify({ version: 1, favorites: ["reef-e2e"] }));
+    await expect
+      .poll(() => readIndexedDbConfig(page, "filter:reef-e2e"))
+      .toBe(JSON.stringify({ version: 1, filter: { status: ["todo"] } }));
+    await expect
+      .poll(() =>
+        page.evaluate(() => localStorage.getItem("REACT_QUERY_OFFLINE_CACHE")),
+      )
+      .toBeNull();
+
+    await setAuthControl(request, { session: "active" });
+    await signInAsAlice(page);
+    await page.goto(ISSUES_PATH);
+    await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect
+      .poll(() => readIndexedDbConfig(page, "workspace_favorites"))
+      .toBe(JSON.stringify({ version: 1, favorites: ["reef-e2e"] }));
   });
 
   test("fails closed at the bounded probe timeout without exposing destination content", async ({

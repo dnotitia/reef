@@ -61,19 +61,19 @@ export function createAuthV2RedisBackend(
       ) {
         throw new AuthV2RedisBackendError();
       }
-      await client.set(key, value, { EX: ttlSeconds });
+      await redisCall(() => client.set(key, value, { EX: ttlSeconds }));
     },
     async get(key) {
       if (!isValidKey(key)) throw new AuthV2RedisBackendError();
-      return client.get(key);
+      return redisCall(() => client.get(key));
     },
     async del(key) {
       if (!isValidKey(key)) throw new AuthV2RedisBackendError();
-      await client.del(key);
+      await redisCall(() => client.del(key));
     },
     async consume(key) {
       if (!isValidKey(key)) throw new AuthV2RedisBackendError();
-      return client.getDel(key);
+      return redisCall(() => client.getDel(key));
     },
     async replace(key, expectedValue, value, ttlSeconds) {
       if (
@@ -83,24 +83,28 @@ export function createAuthV2RedisBackend(
       ) {
         throw new AuthV2RedisBackendError();
       }
-      const result = await client.eval(COMPARE_AND_SET, {
-        keys: [key],
-        arguments: [expectedValue, value, String(ttlSeconds)],
-      });
+      const result = await redisCall(() =>
+        client.eval(COMPARE_AND_SET, {
+          keys: [key],
+          arguments: [expectedValue, value, String(ttlSeconds)],
+        }),
+      );
       return Number(result) === 1;
     },
     async addToSet(key, member, ttlSeconds) {
       if (!client.sAdd || !client.expire) throw new AuthV2RedisBackendError();
-      await client.sAdd(key, member);
-      await client.expire(key, ttlSeconds);
+      await redisCall(async () => {
+        await client.sAdd?.(key, member);
+        await client.expire?.(key, ttlSeconds);
+      });
     },
     async members(key) {
       if (!client.sMembers) throw new AuthV2RedisBackendError();
-      return client.sMembers(key);
+      return redisCall(() => client.sMembers?.(key) ?? Promise.reject());
     },
     async removeFromSet(key, member) {
       if (!client.sRem) throw new AuthV2RedisBackendError();
-      await client.sRem(key, member);
+      await redisCall(() => client.sRem?.(key, member) ?? Promise.reject());
     },
   };
 }
@@ -128,4 +132,14 @@ function hasControlCharacter(value: string): boolean {
     if (code <= 0x1f || code === 0x7f) return true;
   }
   return false;
+}
+
+async function redisCall<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch {
+    // Do not let node-redis include the configured URL or upstream details in
+    // the auth boundary. Callers map this bounded error to a retryable 503.
+    throw new AuthV2RedisBackendError();
+  }
 }

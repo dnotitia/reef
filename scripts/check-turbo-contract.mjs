@@ -6,6 +6,7 @@ import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { pathToFileURL } from "node:url";
 
 import { discoverWorkspacePackages } from "./maintenance/workspaces.mjs";
 
@@ -288,6 +289,35 @@ async function runCacheProof(packageName) {
   }
 }
 
+export function verifyDockerBuildContract(source) {
+  const builder = source.match(
+    /FROM\s+node:[^\n]+\s+AS\s+builder([\s\S]*?)(?=\nFROM\s|$)/u,
+  )?.[1];
+  assert(builder, "Docker must declare a builder stage");
+  assert(
+    /^\s*COPY\s+\.\s+\.\s*$/mu.test(builder),
+    "Docker builder must copy the full source tree",
+  );
+  assert(
+    /\bcorepack\s+enable\b/u.test(builder),
+    "Docker builder must enable Corepack",
+  );
+  assert(
+    /\bpnpm\s+install\s+--frozen-lockfile\b/u.test(builder) &&
+      !/\bpnpm\s+install\b[^\n]*\b--ignore-scripts\b/u.test(builder),
+    "Docker builder must install with the frozen lockfile and run dependency lifecycles",
+  );
+  assert(
+    /\bpnpm\s+run\s+build\b/u.test(builder),
+    "Docker builder must run the canonical workspace build",
+  );
+  assert(/USER 1001/u.test(source), "Docker runner must remain non-root");
+  assert(
+    !/RUN\s+.*(?:npm|pnpm)\s+install\s+(-g|--global).*turbo/u.test(source),
+    "Docker must not install a second global Turbo version",
+  );
+}
+
 function verifyRepositoryHandoffs() {
   assert(
     /\n {2}reuse-pr-ci:\n[\s\S]*?if:\s*\$\{\{ github\.event_name == 'merge_group' \}\}/u.test(
@@ -342,33 +372,7 @@ function verifyRepositoryHandoffs() {
       /Workspace dependency .*build artifact/u.test(productionArtifactScript),
     "the production artifact must verify discovered workspace dependency artifacts",
   );
-  assert(
-    /turbo\s+prune\s+@reef\/web\s+--docker/u.test(dockerfile),
-    "Docker must prune the @reef/web workspace with Turbo",
-  );
-  assert(
-    /turbo\s+prune\s+@reef\/web\s+--docker[\s\\]+&&\s*cp\s+tsdown\.config\.mjs\s+out\/full\/tsdown\.config\.mjs[\s\\]+&&\s*test\s+-f\s+out\/full\/tsdown\.config\.mjs/u.test(
-      dockerfile,
-    ),
-    "Docker pruned output must contain the root tsdown build configuration",
-  );
-  assert(
-    /tsconfig\.base\.json\s+out\/full\/tsconfig\.base\.json[\s\\]+&&\s*test\s+-f\s+out\/full\/tsconfig\.base\.json/u.test(
-      dockerfile,
-    ),
-    "Docker pruned output must contain the root TypeScript base configuration",
-  );
-  assert(
-    /out\/json/u.test(dockerfile) &&
-      /out\/full/u.test(dockerfile) &&
-      /pnpm-lock\.yaml/u.test(dockerfile),
-    "Docker must install from the pruned manifests and lockfile",
-  );
-  assert(/USER 1001/u.test(dockerfile), "Docker runner must remain non-root");
-  assert(
-    !/RUN\s+.*(?:npm|pnpm)\s+install\s+(-g|--global).*turbo/u.test(dockerfile),
-    "Docker must not install a second global Turbo version",
-  );
+  verifyDockerBuildContract(dockerfile);
   const forbiddenRemoteCacheNames = ["TURBO_TOKEN", "TURBO_TEAM"];
   const configText = JSON.stringify(turboConfig);
   for (const name of forbiddenRemoteCacheNames) {
@@ -606,9 +610,14 @@ async function main() {
   );
 }
 
-try {
-  await main();
-} catch (error) {
-  console.error(`turbo contract failed: ${error.message}`);
-  process.exitCode = 1;
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
+) {
+  try {
+    await main();
+  } catch (error) {
+    console.error(`turbo contract failed: ${error.message}`);
+    process.exitCode = 1;
+  }
 }

@@ -10,6 +10,7 @@ import {
   subscribeAkbAccountDenialCleared,
   subscribeAkbAccountDenied,
 } from "@/lib/akb/accountDenialClient";
+import { wipeAkbScopedBrowserState } from "@/lib/akb/accountReconcile";
 import { normalizeSafeRedirect } from "@/lib/akb/safeRedirect";
 import { apiFetch } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
@@ -37,7 +38,23 @@ export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
     null,
   );
   const pendingReplacementTokenRef = useRef<string | undefined>(undefined);
+  const handledAccountErrorRef = useRef<string | undefined>(undefined);
   const t = useTranslations("auth.panel");
+
+  useEffect(() => {
+    const accountError = searchParams.get("sso_error");
+    if (
+      !isAkbAccountErrorCode(accountError) ||
+      handledAccountErrorRef.current === accountError
+    ) {
+      return;
+    }
+    handledAccountErrorRef.current = accountError;
+    // A browser navigation from the SSO callback cannot expose response
+    // headers to apiClient. Reconcile callback-level stable denials here; the
+    // protected-response path already performs the same full wipe.
+    void wipeAkbScopedBrowserState().catch(() => undefined);
+  }, [searchParams]);
 
   useEffect(() => {
     const replaceSearchParams = (nextParams: URLSearchParams) => {

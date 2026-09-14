@@ -5,28 +5,44 @@ import type { AuthV2SessionCipher } from "./sessionCipher";
 const HANDLE_BYTES = 32;
 const HANDLE_PATTERN = /^[A-Za-z0-9_-]{43}$/u;
 
-const AuthV2SessionRecordSchema = z.object({
-  provider_alias: z.string().min(1).max(63),
-  subject: z.string().min(1).max(512),
-  session_id: z.string().min(1).max(2_048).nullable().optional(),
-  access_token: z
-    .string()
-    .min(1)
-    .max(512 * 1024),
-  refresh_token: z
-    .string()
-    .min(1)
-    .max(512 * 1024),
-  id_token: z
-    .string()
-    .min(1)
-    .max(512 * 1024),
-  issued_at: z.number().int().positive(),
-  access_token_expires_at: z.number().int().positive(),
-  absolute_expires_at: z.number().int().positive(),
-});
+/** Reef's fixed session lifetime; refresh rotation never moves this deadline. */
+export const AUTH_V2_ABSOLUTE_LIFETIME_SECONDS = 24 * 60 * 60;
+
+const AuthV2SessionRecordSchema = z
+  .object({
+    provider_alias: z.string().min(1).max(63),
+    subject: z.string().min(1).max(512),
+    session_id: z.string().min(1).max(2_048).nullable().optional(),
+    access_token: z
+      .string()
+      .min(1)
+      .max(512 * 1024),
+    refresh_token: z
+      .string()
+      .min(1)
+      .max(512 * 1024),
+    id_token: z
+      .string()
+      .min(1)
+      .max(512 * 1024),
+    issued_at: z.number().int().positive(),
+    access_token_expires_at: z.number().int().positive(),
+    refresh_token_expires_at: z.number().int().positive(),
+    absolute_expires_at: z.number().int().positive(),
+  })
+  .strict();
 
 export type AuthV2SessionRecord = z.infer<typeof AuthV2SessionRecordSchema>;
+
+/** The only lifetime Redis and session resolution are allowed to enforce. */
+export function effectiveSessionExpiresAt(
+  record: Pick<
+    AuthV2SessionRecord,
+    "refresh_token_expires_at" | "absolute_expires_at"
+  >,
+): number {
+  return Math.min(record.refresh_token_expires_at, record.absolute_expires_at);
+}
 
 export interface AuthV2SessionBackend {
   set(key: string, value: string, ttlSeconds: number): Promise<void>;
@@ -77,11 +93,19 @@ export function createAuthV2SessionStore(params: {
       const parsed = AuthV2SessionRecordSchema.parse(record);
       const nowSeconds = now();
       // Keep the Redis record through access-token expiry so a caller can
-      // perform a refresh-token rotation under the refresh lock. The absolute
-      // session deadline is the only lifetime that storage may extend to.
-      const expiresAt = parsed.absolute_expires_at;
+      // perform a refresh-token rotation under the refresh lock. Redis expires
+      // at the earlier of the current refresh credential deadline and Reef's
+      // fixed absolute deadline.
+      const expiresAt = effectiveSessionExpiresAt(parsed);
       const ttlSeconds = expiresAt - nowSeconds;
-      if (parsed.access_token_expires_at <= nowSeconds || ttlSeconds <= 0) {
+      if (
+        parsed.access_token_expires_at <= nowSeconds ||
+        parsed.refresh_token_expires_at <= nowSeconds ||
+        parsed.absolute_expires_at <= nowSeconds ||
+        parsed.absolute_expires_at !==
+          parsed.issued_at + AUTH_V2_ABSOLUTE_LIFETIME_SECONDS ||
+        ttlSeconds <= 0
+      ) {
         throw new AuthV2SessionStoreError();
       }
 
@@ -96,7 +120,9 @@ export function createAuthV2SessionStore(params: {
           ttlSeconds,
         );
       }
-      return { handle, expiresAt };
+      // The browser handle cookie follows the fixed Reef deadline, not the
+      // current idle/refresh deadline. The Redis TTL above remains effective.
+      return { handle, expiresAt: parsed.absolute_expires_at };
     },
 
     async resolve(handle) {
@@ -118,7 +144,11 @@ export function createAuthV2SessionStore(params: {
         throw new AuthV2SessionStoreError();
       }
 
-      if (record.absolute_expires_at <= now()) {
+      const nowSeconds = now();
+      if (
+        record.refresh_token_expires_at <= nowSeconds ||
+        record.absolute_expires_at <= nowSeconds
+      ) {
         await params.backend.del(key);
         return null;
       }
@@ -132,7 +162,9 @@ export function createAuthV2SessionStore(params: {
       if (
         parsedExpected.provider_alias !== parsedReplacement.provider_alias ||
         parsedExpected.subject !== parsedReplacement.subject ||
-        parsedReplacement.absolute_expires_at >
+        parsedExpected.session_id !== parsedReplacement.session_id ||
+        parsedExpected.issued_at !== parsedReplacement.issued_at ||
+        parsedReplacement.absolute_expires_at !==
           parsedExpected.absolute_expires_at
       ) {
         return false;
@@ -150,19 +182,34 @@ export function createAuthV2SessionStore(params: {
       }
       if (JSON.stringify(current) !== JSON.stringify(parsedExpected))
         return false;
-      const expiresAt = parsedReplacement.absolute_expires_at;
-      const ttlSeconds = expiresAt - now();
-      if (ttlSeconds <= 0) return false;
+      const expiresAt = effectiveSessionExpiresAt(parsedReplacement);
+      const nowSeconds = now();
+      const ttlSeconds = expiresAt - nowSeconds;
+      if (
+        parsedReplacement.refresh_token_expires_at <= nowSeconds ||
+        parsedReplacement.absolute_expires_at <= nowSeconds ||
+        ttlSeconds <= 0
+      ) {
+        return false;
+      }
       const ciphertext = params.cipher.encrypt(
         JSON.stringify(parsedReplacement),
         key,
       );
-      return params.backend.replace(
+      const replaced = await params.backend.replace(
         key,
         currentCiphertext,
         ciphertext,
         ttlSeconds,
       );
+      if (replaced && parsedReplacement.session_id && params.backend.addToSet) {
+        await params.backend.addToSet(
+          sessionIdKey(parsedReplacement.session_id, indexPrefix),
+          handle,
+          ttlSeconds,
+        );
+      }
+      return replaced;
     },
 
     async revoke(handle) {
