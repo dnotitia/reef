@@ -111,13 +111,21 @@ export class AccountValidationError extends Error {
   constructor(
     readonly code: AccountValidationErrorCode,
     readonly kind: AccountValidationErrorKind,
+    readonly redirectPath?: string,
   ) {
     super(code);
     this.name = "AccountValidationError";
   }
 }
 
+export interface CompanionLoginProof {
+  nonce: string;
+  idToken: string;
+}
+
 export interface AccountValidationInput {
+  /** Present only after successful browser-bound OIDC code completion. */
+  loginProof?: CompanionLoginProof;
   /** The already verified bearer token, for the AKB adapter's Authorization header. */
   accessToken: string;
   subject: string;
@@ -194,6 +202,7 @@ export async function validateOidcTokenAndAccount<Account>(
   accessToken: string,
   validator: OidcTokenValidator,
   accountValidator: AccountValidator<Account>,
+  loginProof?: CompanionLoginProof,
 ): Promise<OidcAuthenticatedPrincipal<Account>> {
   const identity = await validator.validate(accessToken);
   if (typeof accountValidator !== "function") {
@@ -207,6 +216,7 @@ export async function validateOidcTokenAndAccount<Account>(
       subject: identity.subject,
       issuer: identity.issuer,
       providerAlias: identity.providerAlias,
+      ...(loginProof ? { loginProof } : {}),
     });
   } catch (error) {
     if (error instanceof AccountValidationError) throw error;

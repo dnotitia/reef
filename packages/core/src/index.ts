@@ -665,3 +665,12 @@ export {
 export { extractErrorDetail } from "./utils/extractErrorDetail";
 export { parseLenientJson } from "./utils/parseLenientJson";
 export { stripTrailingSlashes } from "./adapters/url";
+
+export {
+  AKB_COMPANION_LOGIN_PATH,
+  AkbCompanionLoginRequestSchema,
+  AkbCompanionLoginResponseSchema,
+  type AkbCompanionLoginRequest,
+  type AkbCompanionLoginResponse,
+} from "./schemas/auth/companionLogin";
+export { completeCompanionLogin as akbCompleteCompanionLogin } from "./adapters/akb/workspace/companionLogin";

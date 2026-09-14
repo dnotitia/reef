@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  AkbUserSchema,
+  type AkbUser,
+} from "../../../schemas/auth/companionLogin";
 import { AkbApiError, AuthError, isAkbAccountErrorCode } from "../../../errors";
 import { stripTrailingSlashes } from "../../url";
 import { readAkbErrorResponse } from "../core/errorResponse";
@@ -15,15 +19,10 @@ const MAX_AKB_AUTH_RESPONSE_BYTES = 2 * 1024 * 1024;
 // requestHelpers.ts). core is the single origin of every akb wire schema, so
 // the auth envelopes belong here alongside the auth client.
 
-export const AkbUserSchema = z.object({
-  id: z.string().min(1),
-  username: z.string().min(1),
-  email: z.string().nullable().optional(),
-  display_name: z.string().nullable().optional(),
-  is_admin: z.boolean().optional(),
-});
-
-export type AkbUser = z.infer<typeof AkbUserSchema>;
+export {
+  AkbUserSchema,
+  type AkbUser,
+} from "../../../schemas/auth/companionLogin";
 
 const AkbLoginResponseSchema = z.object({
   token: z.string().min(1),

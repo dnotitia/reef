@@ -9,6 +9,7 @@ import { z } from "zod";
 import type { AkbAuthConfig, AkbAuthProviderType } from "@reef/core";
 import type { AuthV2EnabledRuntimeConfig } from "./config";
 import {
+  AccountValidationError,
   createOidcTokenValidator,
   validateOidcTokenAndAccount,
   type AccountValidator,
@@ -242,7 +243,11 @@ export function createAuthV2OidcProtocol(params: {
         throw new AuthV2OidcProtocolError("auth_v2_state_invalid", "invalid");
       }
       const transaction = await stateStore.consume(state, browserBinding);
-      if (!transaction || transaction.client_id !== params.runtime.clientId) {
+      if (
+        !transaction ||
+        transaction.client_id !== params.runtime.clientId ||
+        transaction.provider_alias !== params.providerAlias
+      ) {
         throw new AuthV2OidcProtocolError("auth_v2_state_invalid", "invalid");
       }
       let tokenSet: AuthV2OidcTokenSet;
@@ -275,12 +280,27 @@ export function createAuthV2OidcProtocol(params: {
         );
       }
 
-      const principal: OidcAuthenticatedPrincipal<Account> =
-        await validateOidcTokenAndAccount(
+      let principal: OidcAuthenticatedPrincipal<Account>;
+      try {
+        principal = await validateOidcTokenAndAccount(
           tokenSet.accessToken,
           validator,
           accountValidator,
+          {
+            nonce: transaction.nonce,
+            idToken: tokenSet.idToken,
+          },
         );
+      } catch (error) {
+        if (error instanceof AccountValidationError) {
+          throw new AccountValidationError(
+            error.code,
+            error.kind,
+            transaction.redirect_path,
+          );
+        }
+        throw error;
+      }
       return {
         providerAlias: params.providerAlias,
         redirectPath: transaction.redirect_path,

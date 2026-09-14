@@ -969,7 +969,12 @@ provider catalog. Local login posts to `/api/auth/akb/login`; SSO uses Reef's
 companion OIDC BFF and keeps only an opaque httpOnly handle in the
 `__reef_auth_v2` cookie while encrypted token custody stays in Redis. Reef
 forwards the currently verified Keycloak access token to AKB, which remains the
-account authority. After either path succeeds, the previous account's workspace-scoped browser state is
+account authority. During a successful SSO callback, Reef first completes AKB
+account linking through an authenticated server request and confirms the same
+account with `/auth/me`; browser navigation never visits AKB. The Teams button
+and error panel stay unchanged. Missing companion configuration or denied
+admission prevents session issuance without a polling or redirect loop.
+After either path succeeds, the previous account's workspace-scoped browser state is
 reconciled away. There is no GitHub-OAuth sign-in, popup, or
 management-repository selection.
 

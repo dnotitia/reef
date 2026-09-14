@@ -1,4 +1,8 @@
 import {
+  buildPathWithParams,
+  normalizeSafeRedirect,
+} from "@/lib/akb/safeRedirect";
+import {
   isAkbAccountErrorCode,
   type AkbAuthV2AccountDenialCode,
 } from "@reef/core";
@@ -18,7 +22,7 @@ import {
   AuthV2RouteRuntimeError,
   getAuthV2RouteRuntime,
 } from "@/server/auth-v2/runtime";
-import type { AccountValidationError } from "@/server/auth-v2/oidcValidator";
+import { AccountValidationError } from "@/server/auth-v2/oidcValidator";
 import { logger } from "@/lib/logging/logger";
 
 export async function GET(request: Request): Promise<Response> {
@@ -85,8 +89,10 @@ export async function GET(request: Request): Promise<Response> {
     headers.append("Set-Cookie", buildClearedAuthV2StateCookie());
     return new Response(null, { status: 302, headers });
   } catch (error) {
+    const redirectPath =
+      error instanceof AccountValidationError ? error.redirectPath : undefined;
     if (isAccountDenialError(error)) {
-      return callbackFailure(error.code);
+      return callbackFailure(error.code, redirectPath);
     }
     if (!(error instanceof AuthV2RouteRuntimeError)) {
       logger.error(
@@ -98,6 +104,7 @@ export async function GET(request: Request): Promise<Response> {
       error instanceof AuthV2RouteRuntimeError
         ? error.code
         : "sso_callback_failed",
+      redirectPath,
     );
   } finally {
     await runtime?.close();
@@ -130,9 +137,14 @@ function safeErrorCode(error: unknown): string | null {
   return null;
 }
 
-function callbackFailure(code: string): Response {
+function callbackFailure(code: string, redirectPath?: string): Response {
   const headers = new Headers({
-    Location: `/login?sso_error=${encodeURIComponent(code)}`,
+    Location: buildPathWithParams("/login", {
+      sso_error: code,
+      ...(redirectPath
+        ? { redirect: normalizeSafeRedirect(redirectPath) }
+        : {}),
+    }),
     "Cache-Control": "no-store",
     "X-Reef-Auth-Invalidated": "1",
   });

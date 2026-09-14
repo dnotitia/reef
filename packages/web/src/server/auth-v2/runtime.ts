@@ -1,13 +1,6 @@
 import { createRemoteJWKSet } from "jose";
-import {
-  type AkbAuthConfig,
-  type AkbUser,
-  AkbUserSchema,
-  akbGetMe,
-  createAkbAdapter,
-  isAkbAccountErrorCode,
-  AuthError,
-} from "@reef/core";
+import type { AkbAuthConfig, AkbUser } from "@reef/core";
+import { createCompanionAccountValidator } from "./companionLogin";
 import { getAkbBackendUrl } from "@/lib/akb/akbBackendUrl";
 import { loadAkbAuthConfig } from "@/lib/akb/loadAkbAuthConfig";
 import {
@@ -19,10 +12,7 @@ import {
   createAuthV2OidcProtocol,
   type AuthV2OidcProtocol,
 } from "./oidcProtocol";
-import type {
-  AccountValidationResult,
-  AccountValidator,
-} from "./oidcValidator";
+import type { AccountValidator } from "./oidcValidator";
 import { connectAuthV2Redis, type AuthV2RedisRuntime } from "./redisRuntime";
 import { createAuthV2SessionCipher } from "./sessionCipher";
 import {
@@ -117,41 +107,10 @@ export async function getAuthV2RouteRuntime(): Promise<AuthV2RouteRuntime> {
     return protocol;
   };
 
-  const accountValidator: AccountValidator<AkbUser> = async (
-    input,
-  ): Promise<AccountValidationResult<AkbUser>> => {
-    let baseUrl: string;
-    try {
-      baseUrl = getAkbBackendUrl();
-    } catch {
-      return { outcome: "unavailable" };
-    }
-    try {
-      const { profile } = await akbGetMe({
-        adapter: createAkbAdapter({
-          baseUrl,
-          credential: input.accessToken,
-        }),
-      });
-      const parsed = AkbUserSchema.safeParse({
-        id: profile.user_id ?? profile.id ?? profile.sub,
-        username: profile.username,
-        email: profile.email,
-        display_name: profile.display_name,
-        is_admin: profile.is_admin,
-      });
-      if (!parsed.success) return { outcome: "unavailable" };
-      return { outcome: "accepted", account: parsed.data };
-    } catch (error) {
-      if (
-        error instanceof AuthError &&
-        isAkbAccountErrorCode(error.context.code)
-      ) {
-        return { outcome: "denied", code: error.context.code };
-      }
-      return { outcome: "unavailable" };
-    }
-  };
+  const accountValidator = createCompanionAccountValidator({
+    clientId: config.clientId,
+    baseUrl: getAkbBackendUrl,
+  });
 
   return {
     config,

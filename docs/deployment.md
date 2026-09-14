@@ -231,6 +231,9 @@ the `reef-web-config` ConfigMap plus the optional `reef-web-secret` Secret).
 | `REEF_KEYCLOAK_TRANSPORT_URL` | yes in production SSO | Private/in-cluster realm URL used for token, JWKS, and revocation calls. Its realm path must match the issuer. |
 | `REEF_KEYCLOAK_CLIENT_ID` | yes for SSO | Dedicated Reef companion client id, registered in AKB's human API allowlist. |
 | `REEF_AKB_API_AUDIENCE` | yes for SSO | Exact AKB human API audience required on the Keycloak access token. |
+| `REEF_AKB_LOGIN_AUDIENCE` | yes for SSO login | Exact canonical AKB public origin plus `/api/v1/auth/sso/companion/complete`. Separate from the API token audience and private AKB transport URL. |
+| `REEF_AKB_LOGIN_KEY_ID` | yes for SSO login | Dedicated BFF signing key ID registered with AKB for the Reef OIDC client. |
+| `REEF_AKB_LOGIN_PRIVATE_KEY` | yes for SSO login | RSA private PEM (at least 2048 bits) in deployment Secret storage. AKB receives only the public key. Never reuse an operator PAT or expose this key to the browser. |
 | `REEF_SESSION_REDIS_URL` | yes in production SSO | Authenticated Redis endpoint for encrypted session/login-state custody and refresh locks. |
 | `REEF_SESSION_ENCRYPTION_KEY` | yes in production SSO | Independent 32-byte AES-256-GCM key, base64/base64url encoded, stored in the deployment Secret. |
 | `REEF_AUTH_SESSION_NAMESPACE` | yes in production SSO | Deployment-managed namespace/epoch. Change it for mode, issuer, client, or key cutover; never reuse an old SSO namespace. |
@@ -300,3 +303,51 @@ pino config, and typed API errors surface only their numeric upstream HTTP
 status — not the upstream-controlled detail body (an LLM provider response, an
 Octokit message) and not the nested request/response objects that carry
 credentials.
+
+### Teams account linking during Reef sign-in
+
+Reef remains the OIDC client: browser navigation is Reef → Keycloak/Microsoft →
+Reef callback. After state, PKCE, nonce and token verification, the callback
+calls AKB's `POST /api/v1/auth/sso/companion/complete`, then `/auth/me`. Both must
+resolve the same AKB user before Reef issues an opaque session. This avoids an
+AKB browser visit; it does not remove the login dependency on AKB availability.
+Ordinary bearer requests, session probes and refresh do not call completion.
+
+Deploy the companion completion API on AKB first. Its
+`keycloak_companion_login_clients` configuration registers the exact Reef OIDC
+client, allowed `provider_aliases`, and `public_keys` mapping key ID to public
+PEM. Keep the existing API companion azp allowlist and authoritative-domain
+policy configured; the new opt-in does not replace them. Register every provider
+that Reef exposes: for a deployment offering both Teams (`entra`) and the
+Keycloak workspace account (`local`), allow both aliases. This does not grant
+the local provider authoritative-email adoption. All SSO callbacks use the new
+completion step, including already linked accounts. Set the three
+`REEF_AKB_LOGIN_*` values above only in deployment configuration. The audience
+must match AKB's public origin even when `AKB_BACKEND_URL` uses private transport.
+An unregistered key, unsupported AKB version (404/410), invalid assertion, or
+unavailable backend fails login closed; no legacy exchange fallback is used.
+
+Reef signs RS256 assertions for 60 seconds with a random `jti`. The assertion's
+`request_hash` is SHA-256/base64url of the compact UTF-8 JSON array
+`[provider_alias, nonce, access_token, id_token]`. AKB independently validates
+the BFF signature, token pair and original provider/nonce, then applies the same
+account policy as its own browser login. The BFF authentication delegates the
+browser-state verification to Reef; it does not turn a user bearer into account
+linking authority. Never log `X-AKB-ID-Token`, `X-AKB-Login-Assertion`, token
+headers, login nonce or state. Include the new credential headers in ingress and
+APM redaction policies. AKB needs a header budget sufficient for two bounded JWTs
+plus the BFF assertion; Reef sends no refresh token or browser cookie to this API.
+
+Completion uses AKB's shared login account projection, including the existing
+account locks, pending-admission transaction and role synchronization. The only
+new table records consumed assertion IDs until expiry to reject replay. No
+completion-result cache or cross-service login transaction is maintained. Reef
+does not retry completion automatically; after a failed sign-in, the user can
+start a new OIDC login, which rechecks the current AKB account policy.
+
+For signing-key rotation, register the new public key on AKB before switching
+Reef to its key ID/private key, then remove the old key after in-flight login
+requests have expired. Use a prepared real IdP/AKB endpoint to canary an existing
+unbound local user and verify preserved AKB ID, PAT/Vault grants, identity binding
+and cleared pending admission. Automatic binding follows AKB policy and never
+guarantees additional workspace privileges.

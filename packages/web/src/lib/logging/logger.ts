@@ -39,6 +39,8 @@ import pino from "pino";
 const SENSITIVE_HEADERS = [
   "authorization",
   "x-reef-llm",
+  "x-akb-id-token",
+  "x-akb-login-assertion",
   "cookie",
   "set-cookie",
   "proxy-authorization",

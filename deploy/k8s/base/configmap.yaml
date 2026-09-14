@@ -35,3 +35,8 @@ data:
   # OpenTelemetry trace export — optional, no-op when unset. Wire this only
   # after an OTLP collector / Langfuse is deployed and reachable in-cluster.
   # OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.example.svc.cluster.local:4318"
+
+  # SSO companion completion (register the matching public key on AKB first).
+  # REEF_AKB_LOGIN_AUDIENCE: "https://akb.example.com/api/v1/auth/sso/companion/complete"
+  # REEF_AKB_LOGIN_KEY_ID: "reef-login-v1"
+  # Put REEF_AKB_LOGIN_PRIVATE_KEY in the deployment Secret, never this ConfigMap.

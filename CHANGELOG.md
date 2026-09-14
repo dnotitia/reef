@@ -35,6 +35,12 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Teams sign-in now completes AKB account linking from Reef's callback.**
+  A deployment-authenticated companion request reuses AKB's account linking
+  policy before Reef validates `/auth/me` and issues its session. Browser
+  navigation stays on Reef and the identity provider. Requires the companion
+  completion API on AKB plus the registered Reef signing key and audience.
+
 - **Notification reads no longer reconcile schema state on the request path.**
   Reader inbox queries and the unread badge now work with an available schema
   even when its version stamp is old, while genuine data and schema failures
@@ -73,6 +79,13 @@ explicitly in the entries below.
   existing and newly created targets can continue without starting over.
 
 ### Migration
+
+- **SSO deployment requires the AKB companion completion contract.** Deploy
+  AKB's completion endpoint and replay migration, register the BFF public key
+  and every exposed provider, then configure `REEF_AKB_LOGIN_AUDIENCE`,
+  `REEF_AKB_LOGIN_KEY_ID`, and `REEF_AKB_LOGIN_PRIVATE_KEY` before deploying
+  Reef. New SSO logins fail closed without this setup; existing session
+  validation and refresh continue to use the ordinary AKB account boundary.
 
 - Existing Reef vaults reuse the current `reef_sprints.meta` JSON envelope; no
   table migration is required. Refresh the installed vault-skill documents

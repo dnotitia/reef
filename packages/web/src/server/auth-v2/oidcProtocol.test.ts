@@ -208,10 +208,16 @@ describe("companion OIDC protocol", () => {
       code: "one-time-code",
       state: started.state,
       browserBinding: started.browserBinding,
-      accountValidator: async () => ({
-        outcome: "accepted" as const,
-        account: { id: "u-1", username: "alice" },
-      }),
+      accountValidator: async (input) => {
+        expect(input.loginProof).toEqual({
+          nonce: transaction?.nonce,
+          idToken: expect.any(String),
+        });
+        return {
+          outcome: "accepted" as const,
+          account: { id: "u-1", username: "alice" },
+        };
+      },
     });
     expect(completed.subject).toBe("subject-1");
     expect(completed.account.username).toBe("alice");

@@ -304,3 +304,18 @@ describe("buildLoggerOptions — dev pretty vs prod JSON, redaction, error allow
     expect(out).not.toHaveProperty("response");
   });
 });
+
+it("redacts companion login token and assertion headers", () => {
+  const options = buildLoggerOptions();
+  const serializer = options.serializers?.headers;
+  expect(serializer).toBeDefined();
+  expect(
+    serializer?.({
+      "X-AKB-ID-Token": "secret-id",
+      "x-akb-login-assertion": "secret-proof",
+    }),
+  ).toEqual({
+    "X-AKB-ID-Token": "[REDACTED]",
+    "x-akb-login-assertion": "[REDACTED]",
+  });
+});
