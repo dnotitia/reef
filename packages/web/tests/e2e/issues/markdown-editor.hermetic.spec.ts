@@ -1299,7 +1299,20 @@ test.describe("Hermetic Markdown editor fixture", () => {
       })
       .toBe(persistedSource);
 
+    const refreshedIssueResponse = page.waitForResponse((response) => {
+      const request = response.request();
+      return (
+        new URL(response.url()).pathname === "/api/issues/REEF-001" &&
+        request.method() === "GET"
+      );
+    });
     await page.reload();
+    const refreshedIssue = await refreshedIssueResponse;
+    expect(refreshedIssue.ok()).toBeTruthy();
+    const refreshedDocument = (await refreshedIssue.json()) as {
+      content?: string;
+    };
+    expect(refreshedDocument.content).toContain(persistedMarker.trim());
     await expect(page.getByTestId("issue-detail")).toBeVisible();
     const reopenedEditor = page.locator(".reef-markdown-editor");
     await expect(reopenedEditor).toBeVisible();
@@ -1308,6 +1321,9 @@ test.describe("Hermetic Markdown editor fixture", () => {
       .getByRole("button")
       .click();
     const reopenedSource = page.getByTestId("markdown-source-textarea");
+    await expect
+      .poll(() => reopenedSource.inputValue())
+      .toContain(persistedMarker.trim());
     const reopenedMarkdown = await reopenedSource.inputValue();
     expect(reopenedMarkdown).toContain(persistedMarker.trim());
     expect(reopenedMarkdown).toContain(MARKDOWN_FIXTURE_LARGE_IMAGE_PATH);
