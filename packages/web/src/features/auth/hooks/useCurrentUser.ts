@@ -1,6 +1,7 @@
 "use client";
 
-import { apiFetch } from "@/lib/apiClient";
+import { apiFetch, classifyAuthResponse } from "@/lib/apiClient";
+import { hasEstablishedAuthSession } from "@/lib/akb/authCoordinator";
 import { type AkbMeProfile, AkbMeProfileSchema } from "@reef/core";
 import { useQuery } from "@tanstack/react-query";
 
@@ -14,11 +15,12 @@ export const CURRENT_USER_QUERY_KEY = ["auth", "me"] as const;
 /**
  * Resolves the signed-in akb user for display (the workspace account menu).
  *
- * `/api/auth/akb/me` decodes the `__reef_session` cookie server-side and
- * returns the public profile. A 401 means there is no live session — we map it
- * to `null` (a logged-out display state) rather than throwing, and disable
- * retries so an expired cookie doesn't spin a refetch loop. Identity rarely
- * changes within a session, so a long `staleTime` keeps this off the hot path.
+ * The browser cannot inspect its httpOnly session cookie, so this query asks
+ * the server for the public profile. A first-visit 401 or explicit server
+ * invalidation maps to null; an ambiguous status-only 401 after this tab
+ * established a session remains an error so stale account identity is kept.
+ * Retries are disabled, and identity rarely changes within a session, so a
+ * long staleTime keeps this off the hot path.
  *
  * A `null` cached on a passive cookie expiry would otherwise stay fresh for the
  * whole `staleTime`, so the sign-in paths re-fetch identity explicitly: both
@@ -35,7 +37,12 @@ export function useCurrentUser() {
     queryKey: CURRENT_USER_QUERY_KEY,
     queryFn: async ({ signal }) => {
       const res = await apiFetch("/api/auth/akb/me", { signal });
-      if (res.status === 401) return null;
+      if (
+        res.status === 401 &&
+        classifyAuthResponse(res, hasEstablishedAuthSession()) !== "other-error"
+      ) {
+        return null;
+      }
       if (!res.ok) throw new Error(`me failed: ${res.status}`);
       return AkbMeProfileSchema.parse(await res.json());
     },

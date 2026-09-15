@@ -1732,6 +1732,14 @@
       "identityConflict": "로그인 ID가 이 워크스페이스에 연결된 계정과 충돌합니다. 워크스페이스 관리자에게 문의해 주세요.",
       "sessionEnded": "이전 세션이 종료되었습니다. 다시 로그인해 주세요."
     },
+    "sessionVerification": {
+      "title": "세션을 확인할 수 없습니다",
+      "description": "로그인 상태를 확인하지 못했습니다. 다시 확인할 때까지 보호된 페이지를 숨겨 둡니다.",
+      "revalidationTitle": "세션 재확인을 사용할 수 없습니다",
+      "revalidationDescription": "세션 확인에 실패했지만 현재 페이지와 작업은 유지됩니다. 준비되면 다시 확인해 주세요.",
+      "retry": "다시 시도",
+      "retrying": "확인 중…"
+    },
     "sso": {
       "finishing": "로그인을 마무리하는 중…"
     },

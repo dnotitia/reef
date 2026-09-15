@@ -188,6 +188,7 @@ export function createState(scenario) {
     authProbeHoldCount: 0,
     authProbeReleaseWaiters: new Set(),
     authProbeHang: false,
+    authProbeFailureStatus: null,
     protectedResponse: "healthy",
     commitSeq: 0,
     planningSeq: 10,

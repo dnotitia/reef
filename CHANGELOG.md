@@ -22,6 +22,14 @@ explicitly in the entries below.
   `latest`, version/source tag mutation, and version/commit identity overrides
   are no longer deployment inputs.
 
+### Fixed
+
+- **Transient auth revalidation no longer signs out an established session.**
+  Refresh contention, temporary failures, and probe timeouts preserve the current
+  workspace with a retry action; a first visit keeps protected content hidden
+  until the session can be verified. Explicit invalidation still follows the
+  existing logout flow. (REEF-641)
+
 ### Operational
 
 - **The release CLI records full deployment provenance.** Each image build is

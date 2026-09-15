@@ -54,7 +54,7 @@ describe("useAuthRedirect", () => {
   });
 
   it("redirects immediately when a protected request reports an account denial", async () => {
-    getAkbSessionStatus.mockResolvedValue({ active: true });
+    getAkbSessionStatus.mockResolvedValue({ state: "active" });
 
     renderHook(() => useAuthRedirect("workspace"));
     await waitFor(() => expect(accountDeniedHandler.current).toBeDefined());
@@ -69,7 +69,7 @@ describe("useAuthRedirect", () => {
   });
 
   it("routes unauthenticated users to /login", async () => {
-    getAkbSessionStatus.mockResolvedValue({ active: false });
+    getAkbSessionStatus.mockResolvedValue({ state: "inactive" });
 
     renderHook(() => useAuthRedirect("root"));
 
@@ -83,7 +83,7 @@ describe("useAuthRedirect", () => {
       code: "membership_required",
       token: "denial-token",
     });
-    getAkbSessionStatus.mockResolvedValue({ active: false });
+    getAkbSessionStatus.mockResolvedValue({ state: "inactive" });
 
     renderHook(() => useAuthRedirect("workspace"));
 
@@ -95,7 +95,7 @@ describe("useAuthRedirect", () => {
   });
 
   it("preserves an explicit workspace URL through login", async () => {
-    getAkbSessionStatus.mockResolvedValue({ active: false });
+    getAkbSessionStatus.mockResolvedValue({ state: "inactive" });
 
     renderHook(() => useAuthRedirect("workspace"));
 
@@ -108,7 +108,7 @@ describe("useAuthRedirect", () => {
 
   it("preserves an AKB account denial when routing to login", async () => {
     getAkbSessionStatus.mockResolvedValue({
-      active: false,
+      state: "inactive",
       accountError: "membership_required",
     });
 
@@ -122,7 +122,7 @@ describe("useAuthRedirect", () => {
   });
 
   it("leaves authenticated root workspace selection to the resume policy", async () => {
-    getAkbSessionStatus.mockResolvedValue({ active: true });
+    getAkbSessionStatus.mockResolvedValue({ state: "active" });
 
     const { result } = renderHook(() => useAuthRedirect("root"));
 
@@ -134,8 +134,15 @@ describe("useAuthRedirect", () => {
 
   it("does not redirect when an in-flight auth probe is aborted during navigation", async () => {
     let capturedSignal: AbortSignal | undefined;
-    let resolveSession!: (value: { active: boolean }) => void;
-    const sessionPromise = new Promise<{ active: boolean }>((resolve) => {
+    let resolveSession!: (
+      value:
+        | { state: "active" }
+        | { state: "inactive" }
+        | { state: "unavailable" },
+    ) => void;
+    const sessionPromise = new Promise<
+      { state: "active" } | { state: "inactive" } | { state: "unavailable" }
+    >((resolve) => {
       resolveSession = resolve;
     });
     getAkbSessionStatus.mockImplementation((signal?: AbortSignal) => {
@@ -149,7 +156,7 @@ describe("useAuthRedirect", () => {
     expect(capturedSignal?.aborted).toBe(true);
 
     await act(async () => {
-      resolveSession({ active: false });
+      resolveSession({ state: "inactive" });
       await sessionPromise;
     });
 
@@ -157,7 +164,7 @@ describe("useAuthRedirect", () => {
   });
 
   it("keeps an established guard active when the protected pathname changes", async () => {
-    getAkbSessionStatus.mockResolvedValue({ active: true });
+    getAkbSessionStatus.mockResolvedValue({ state: "active" });
     const { result, rerender } = renderHook(() => useAuthRedirect("workspace"));
 
     await waitFor(() => expect(result.current).toBe("active"));
@@ -171,9 +178,12 @@ describe("useAuthRedirect", () => {
   });
 
   it("keeps the protected tree active while focus revalidation is pending", async () => {
-    getAkbSessionStatus.mockResolvedValueOnce({ active: true });
+    getAkbSessionStatus.mockResolvedValueOnce({ state: "active" });
     getAkbSessionStatus.mockImplementationOnce(
-      () => new Promise<{ active: boolean }>(() => {}),
+      () =>
+        new Promise<
+          { state: "active" } | { state: "inactive" } | { state: "unavailable" }
+        >(() => {}),
     );
     const { result } = renderHook(() => useAuthRedirect("workspace"));
 
@@ -186,7 +196,7 @@ describe("useAuthRedirect", () => {
   });
 
   it("redirects an active guard when the auth cache/event bridge invalidates it", async () => {
-    getAkbSessionStatus.mockResolvedValue({ active: true });
+    getAkbSessionStatus.mockResolvedValue({ state: "active" });
     const { result } = renderHook(() => useAuthRedirect("workspace"));
 
     await waitFor(() => expect(result.current).toBe("active"));
@@ -197,5 +207,14 @@ describe("useAuthRedirect", () => {
         "/login?redirect=%2Fworkspace%2Fraw-vault%2Fissues",
       );
     });
+  });
+
+  it("keeps an unavailable probe on the current route without redirecting", async () => {
+    getAkbSessionStatus.mockResolvedValue({ state: "unavailable" });
+
+    const { result } = renderHook(() => useAuthRedirect("workspace"));
+
+    await waitFor(() => expect(result.current).toBe("unavailable"));
+    expect(replace).not.toHaveBeenCalled();
   });
 });

@@ -6,8 +6,10 @@ const apiFetch = vi.hoisted(() => vi.fn());
 const consumePendingAkbAccountErrorIfUnchanged = vi.hoisted(() => vi.fn());
 const recordAkbAccountDenialIfUnchanged = vi.hoisted(() => vi.fn());
 const snapshotPendingAkbAccountError = vi.hoisted(() => vi.fn());
+const hasEstablishedAuthSession = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/apiClient", () => ({ apiFetch }));
+vi.mock("@/lib/akb/authCoordinator", () => ({ hasEstablishedAuthSession }));
 vi.mock("./accountDenialClient", () => ({
   consumePendingAkbAccountErrorIfUnchanged: (snapshot: unknown) =>
     consumePendingAkbAccountErrorIfUnchanged(snapshot),
@@ -16,7 +18,7 @@ vi.mock("./accountDenialClient", () => ({
   snapshotPendingAkbAccountError: () => snapshotPendingAkbAccountError(),
 }));
 
-import { getAkbSessionStatus, hasActiveAkbSession } from "./checkAkbSession";
+import { getAkbSessionStatus } from "./checkAkbSession";
 
 describe("getAkbSessionStatus", () => {
   beforeEach(() => {
@@ -24,6 +26,8 @@ describe("getAkbSessionStatus", () => {
     consumePendingAkbAccountErrorIfUnchanged.mockReset();
     recordAkbAccountDenialIfUnchanged.mockReset();
     snapshotPendingAkbAccountError.mockReset();
+    hasEstablishedAuthSession.mockReset();
+    hasEstablishedAuthSession.mockReturnValue(false);
   });
 
   it("reports an active session for a successful profile response", async () => {
@@ -35,11 +39,10 @@ describe("getAkbSessionStatus", () => {
       .mockReturnValueOnce(undefined);
     apiFetch.mockResolvedValue(new Response("{}", { status: 200 }));
 
-    await expect(getAkbSessionStatus()).resolves.toEqual({ active: true });
+    await expect(getAkbSessionStatus()).resolves.toEqual({ state: "active" });
     expect(consumePendingAkbAccountErrorIfUnchanged).toHaveBeenCalledWith(
       snapshot,
     );
-    await expect(hasActiveAkbSession()).resolves.toBe(true);
   });
 
   it("reports a denial recorded while a successful probe is in flight", async () => {
@@ -51,7 +54,7 @@ describe("getAkbSessionStatus", () => {
     apiFetch.mockResolvedValue(new Response("{}", { status: 200 }));
 
     await expect(getAkbSessionStatus()).resolves.toEqual({
-      active: false,
+      state: "inactive",
       accountError: "account_suspended",
       accountErrorToken: "denial-11",
     });
@@ -73,7 +76,7 @@ describe("getAkbSessionStatus", () => {
     );
 
     await expect(getAkbSessionStatus()).resolves.toEqual({
-      active: false,
+      state: "inactive",
       accountError: "membership_required",
       accountErrorToken: "denial-5",
     });
@@ -91,7 +94,7 @@ describe("getAkbSessionStatus", () => {
     );
 
     await expect(getAkbSessionStatus()).resolves.toEqual({
-      active: false,
+      state: "inactive",
       accountError: "identity_conflict",
       accountErrorToken: "denial-7",
     });
@@ -101,12 +104,48 @@ describe("getAkbSessionStatus", () => {
     );
   });
 
-  it("does not trust an unknown response code", async () => {
+  it("treats a first-visit 401 as definitively unauthenticated", async () => {
     apiFetch.mockResolvedValue(
       Response.json({ error: "No session.", code: "unknown" }, { status: 401 }),
     );
 
-    await expect(getAkbSessionStatus()).resolves.toEqual({ active: false });
+    await expect(getAkbSessionStatus()).resolves.toEqual({ state: "inactive" });
+  });
+
+  it("does not turn a status-only established-session 401 into logout", async () => {
+    hasEstablishedAuthSession.mockReturnValue(true);
+    apiFetch.mockResolvedValue(
+      Response.json({ error: "Unauthorized." }, { status: 401 }),
+    );
+
+    await expect(getAkbSessionStatus()).resolves.toEqual({
+      state: "unavailable",
+    });
+  });
+
+  it.each([403, 409, 500, 502, 503])(
+    "classifies status-only %i responses as unavailable",
+    async (status) => {
+      hasEstablishedAuthSession.mockReturnValue(true);
+      apiFetch.mockResolvedValue(
+        Response.json({ error: "Temporary probe failure." }, { status }),
+      );
+
+      await expect(getAkbSessionStatus()).resolves.toEqual({
+        state: "unavailable",
+      });
+    },
+  );
+
+  it("honors an explicit server invalidation signal", async () => {
+    apiFetch.mockResolvedValue(
+      new Response(null, {
+        status: 401,
+        headers: { "x-reef-auth-invalidated": "1" },
+      }),
+    );
+
+    await expect(getAkbSessionStatus()).resolves.toEqual({ state: "inactive" });
   });
 
   it("recovers a denial consumed by an earlier protected request", async () => {
@@ -119,16 +158,18 @@ describe("getAkbSessionStatus", () => {
     });
 
     await expect(getAkbSessionStatus()).resolves.toEqual({
-      active: false,
+      state: "inactive",
       accountError: "account_suspended",
       accountErrorToken: "denial-8",
     });
   });
 
-  it("treats network failures as an inactive session", async () => {
+  it("treats network failures as unavailable", async () => {
     apiFetch.mockRejectedValue(new Error("offline"));
 
-    await expect(getAkbSessionStatus()).resolves.toEqual({ active: false });
+    await expect(getAkbSessionStatus()).resolves.toEqual({
+      state: "unavailable",
+    });
   });
 
   it("preserves a pending denial when a concurrent session probe fails", async () => {
@@ -139,7 +180,7 @@ describe("getAkbSessionStatus", () => {
     });
 
     await expect(getAkbSessionStatus()).resolves.toEqual({
-      active: false,
+      state: "inactive",
       accountError: "identity_conflict",
       accountErrorToken: "denial-9",
     });

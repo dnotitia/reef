@@ -356,6 +356,7 @@ export async function setAuthControl(
     probeDelayOnce?: boolean;
     probeHold?: boolean;
     probeHang?: boolean;
+    probeFailureStatus?: 500 | 503 | null;
     session?: "active" | "revoked";
     protectedResponse?: "healthy" | "unauthorized" | "forbidden";
   },
@@ -366,6 +367,7 @@ export async function setAuthControl(
       probe_delay_once: control.probeDelayOnce ?? false,
       probe_hold: control.probeHold ?? false,
       probe_hang: control.probeHang ?? false,
+      probe_failure_status: control.probeFailureStatus ?? null,
       session: control.session ?? "active",
       protected_response: control.protectedResponse ?? "healthy",
     },

@@ -2,9 +2,10 @@ import type { AkbAccountErrorCode } from "@reef/core";
 
 /** Result of the browser's cookie-backed AKB session probe. */
 export type AkbSessionStatus =
-  | { active: true }
+  | { state: "active" }
   | {
-      active: false;
+      state: "inactive";
       accountError?: AkbAccountErrorCode;
       accountErrorToken?: string;
-    };
+    }
+  | { state: "unavailable" };

@@ -11,6 +11,7 @@ type VaultsState = {
 
 const {
   authStatusRef,
+  establishedSessionRef,
   paramsRef,
   notFoundMock,
   syncMock,
@@ -18,8 +19,9 @@ const {
   vaultsRef,
 } = vi.hoisted(() => ({
   authStatusRef: {
-    current: "active" as "checking" | "active" | "inactive",
+    current: "active" as "checking" | "active" | "inactive" | "unavailable",
   },
+  establishedSessionRef: { current: true },
   paramsRef: {
     current: { vault: "reef-acme" } as Record<string, string | string[]>,
   },
@@ -39,6 +41,31 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/features/auth/hooks/useAuthRedirect", () => ({
   useAuthRedirect: () => authStatusRef.current,
+  retryAuthSession: vi.fn(async () => undefined),
+}));
+vi.mock("@/lib/akb/authCoordinator", () => ({
+  hasEstablishedAuthSession: () => establishedSessionRef.current,
+}));
+vi.mock("@/features/auth/components/AuthVerificationFallback", () => ({
+  AuthVerificationFallback: ({
+    mode,
+    onRetry,
+  }: {
+    mode: "blocking" | "inline";
+    onRetry: () => void;
+  }) => (
+    <div
+      data-testid={
+        mode === "blocking"
+          ? "auth-verification-unavailable"
+          : "auth-revalidation-status"
+      }
+    >
+      <button type="button" onClick={onRetry}>
+        Retry
+      </button>
+    </div>
+  ),
 }));
 vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   useSyncActiveVaultFromUrl: syncMock,
@@ -71,6 +98,7 @@ describe("WorkspaceGuard (REEF-315)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     authStatusRef.current = "active";
+    establishedSessionRef.current = true;
     paramsRef.current = { vault: "reef-acme" };
     vaultsRef.current = {
       isPending: false,
@@ -82,6 +110,7 @@ describe("WorkspaceGuard (REEF-315)", () => {
 
   it("does not mount workspace data queries until the session is verified", () => {
     authStatusRef.current = "checking";
+    establishedSessionRef.current = false;
 
     render(
       <WorkspaceGuard appVersion="1.0.0">
@@ -95,18 +124,43 @@ describe("WorkspaceGuard (REEF-315)", () => {
     expect(vaultsMock).not.toHaveBeenCalled();
   });
 
-  it("keeps the established shell and page content during revalidation", () => {
-    render(
+  it("keeps the established shell and mounted page content when revalidation is unavailable", () => {
+    const { rerender } = render(
+      <WorkspaceGuard appVersion="1.0.0">
+        <span data-testid="page" />
+      </WorkspaceGuard>,
+    );
+    const page = screen.getByTestId("page");
+
+    authStatusRef.current = "unavailable";
+    rerender(
       <WorkspaceGuard appVersion="1.0.0">
         <span data-testid="page" />
       </WorkspaceGuard>,
     );
 
     expect(screen.getByTestId("dashboard-shell")).toBeInTheDocument();
-    expect(screen.getByTestId("page")).toBeInTheDocument();
+    expect(screen.getByTestId("page")).toBe(page);
+    expect(screen.getByTestId("auth-revalidation-status")).toBeInTheDocument();
+    expect(vaultsMock).toHaveBeenCalled();
+  });
+
+  it("keeps the protected tree hidden on an unavailable first visit and offers retry", () => {
+    authStatusRef.current = "unavailable";
+    establishedSessionRef.current = false;
+
+    render(
+      <WorkspaceGuard appVersion="1.0.0">
+        <span data-testid="page" />
+      </WorkspaceGuard>,
+    );
+
     expect(
-      screen.queryByTestId("auth-revalidation-status"),
-    ).not.toBeInTheDocument();
+      screen.getByTestId("auth-verification-unavailable"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("dashboard-shell")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("page")).not.toBeInTheDocument();
+    expect(vaultsMock).not.toHaveBeenCalled();
   });
 
   it("renders the DashboardShell for a member's workspace and syncs the URL vault", () => {

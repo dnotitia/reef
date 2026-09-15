@@ -487,6 +487,19 @@ test.describe("Hermetic runtime discovery", () => {
             code: "membership_required|account_suspended|identity_conflict|null",
           },
         },
+        auth_control: {
+          method: "POST",
+          path: "/__e2e/auth-control",
+          content_type: "application/json",
+          body: {
+            probe_delay_ms: "<milliseconds>",
+            probe_delay_once: "<boolean>",
+            probe_hang: "<boolean>",
+            probe_failure_status: "null|500|503",
+            session: "active|revoked",
+            protected_response: "healthy|unauthorized|forbidden",
+          },
+        },
         issue_reorder_control: {
           method: "POST",
           path: "/__e2e/issue-reorder-control",
@@ -527,6 +540,7 @@ test.describe("Hermetic runtime discovery", () => {
             auth_control: [
               "session revoke",
               "bounded probe delay (including one-shot) or hang",
+              "temporary auth-probe 5xx response",
               "healthy, plain 401, or resource 403 protected responses",
             ],
             account_denial: [

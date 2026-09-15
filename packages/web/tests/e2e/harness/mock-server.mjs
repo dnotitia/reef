@@ -35,6 +35,7 @@ import { sha256 } from "./mock-utils.mjs";
 
 const PORT = Number(process.env.REEF_E2E_MOCK_PORT ?? 7354);
 const HOST = process.env.REEF_E2E_MOCK_HOST ?? "127.0.0.1";
+const AUTH_PROBE_FAILURE_STATUSES = new Set([500, 503]);
 
 let state = createState("configured");
 
@@ -259,6 +260,12 @@ const server = createServer(async (req, res) => {
       state.authProbeDelayOnce = body?.probe_delay_once === true;
       state.authProbeHold = body?.probe_hold === true;
       state.authProbeHang = body?.probe_hang === true;
+      const probeFailureStatus = Number(body?.probe_failure_status);
+      state.authProbeFailureStatus = AUTH_PROBE_FAILURE_STATUSES.has(
+        probeFailureStatus,
+      )
+        ? probeFailureStatus
+        : null;
       state.protectedResponse = AUTH_PROTECTED_RESPONSES.has(
         body?.protected_response,
       )
@@ -273,6 +280,7 @@ const server = createServer(async (req, res) => {
         probe_delay_ms: state.authProbeDelayMs,
         probe_hold: state.authProbeHold,
         probe_hang: state.authProbeHang,
+        probe_failure_status: state.authProbeFailureStatus,
         session: body?.session === "revoked" ? "revoked" : "active",
         protected_response: state.protectedResponse,
       });

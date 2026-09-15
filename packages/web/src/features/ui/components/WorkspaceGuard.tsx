@@ -1,8 +1,13 @@
 "use client";
 
-import { useAuthRedirect } from "@/features/auth/hooks/useAuthRedirect";
+import {
+  retryAuthSession,
+  useAuthRedirect,
+} from "@/features/auth/hooks/useAuthRedirect";
+import { AuthVerificationFallback } from "@/features/auth/components/AuthVerificationFallback";
 import { useSyncActiveVaultFromUrl } from "@/features/settings/hooks/useActiveVault";
 import { useVaults } from "@/features/settings/hooks/useVaults";
+import { hasEstablishedAuthSession } from "@/lib/akb/authCoordinator";
 import { VAULT_NAME_RE } from "@/lib/akb/vaultName";
 import {
   notFound,
@@ -37,23 +42,27 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Keep the protected tree unmounted until `/auth/me` confirms the session.
-  // Otherwise its parallel queries can consume and clear an account-denial
-  // cookie before this guard preserves the stable AKB denial code.
+  // Keep a cold protected tree unmounted until `/auth/me` confirms the session.
+  // Once established, an unavailable background check keeps the mounted tree
+  // in place so transient failures do not discard the user's current work.
   const authStatus = useAuthRedirect("workspace");
+  const establishedAuthSession = hasEstablishedAuthSession();
+  const canRenderAuthenticatedTree =
+    authStatus === "active" ||
+    (authStatus === "unavailable" && establishedAuthSession);
 
   // Malformed segment → hard 404. The auth hook above remains unconditional so
   // hook order is stable across route changes.
   if (!VAULT_NAME_RE.test(vault)) notFound();
 
-  const vaultsQuery = useVaults({ enabled: authStatus === "active" });
+  const vaultsQuery = useVaults({ enabled: canRenderAuthenticatedTree });
   // A usable reef workspace is one the user can access AND that already carries
   // a reef config — the same `has_reef_config` bar the sidebar switcher and
   // onboarding use. A bare AKB vault the user merely belongs to is a dead end
   // (no issues/config surfaces), so treat it as not-a-workspace rather than
   // rendering an uninitialized board and persisting it as the default.
   const isMember =
-    authStatus === "active" &&
+    canRenderAuthenticatedTree &&
     vaultsQuery.isSuccess &&
     vaultsQuery.data.some((v) => v.name === vault && v.has_reef_config);
   // One-way URL→Dexie sync: remember this vault as the per-browser default
@@ -61,7 +70,13 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
   // session or membership is unknown makes the sync a no-op.
   useSyncActiveVaultFromUrl(isMember ? vault : "");
 
-  if (authStatus !== "active") {
+  if (authStatus === "unavailable" && !establishedAuthSession) {
+    return (
+      <AuthVerificationFallback mode="blocking" onRetry={retryAuthSession} />
+    );
+  }
+
+  if (!canRenderAuthenticatedTree) {
     return (
       <WorkspaceAuthPendingSkeleton
         pathname={pathname}
@@ -82,5 +97,14 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
     );
   }
 
-  return <DashboardShell appVersion={appVersion}>{children}</DashboardShell>;
+  return (
+    <DashboardShell appVersion={appVersion}>
+      <>
+        {authStatus === "unavailable" ? (
+          <AuthVerificationFallback mode="inline" onRetry={retryAuthSession} />
+        ) : null}
+        {children}
+      </>
+    </DashboardShell>
+  );
 }

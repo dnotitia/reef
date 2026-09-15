@@ -1,7 +1,11 @@
 "use client";
 
 import { AppShellSkeleton } from "@/components/AppShellSkeleton";
-import { useAuthRedirect } from "@/features/auth/hooks/useAuthRedirect";
+import { AuthVerificationFallback } from "@/features/auth/components/AuthVerificationFallback";
+import {
+  retryAuthSession,
+  useAuthRedirect,
+} from "@/features/auth/hooks/useAuthRedirect";
 import { WorkspaceResumeStatus } from "@/features/onboarding/components/WorkspaceResumeStatus";
 import { useWorkspaceAutoResume } from "@/features/onboarding/hooks/useWorkspaceAutoResume";
 
@@ -17,6 +21,12 @@ export default function RootPage() {
     enabled: authStatus === "active",
     redirectWhenEmpty: true,
   });
+
+  if (authStatus === "unavailable") {
+    return (
+      <AuthVerificationFallback mode="blocking" onRetry={retryAuthSession} />
+    );
+  }
 
   if (authStatus !== "active" || resume.status === "disabled") {
     return <AppShellSkeleton />;

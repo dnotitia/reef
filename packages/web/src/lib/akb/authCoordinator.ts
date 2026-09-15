@@ -2,15 +2,16 @@ import { AUTH_CHANGED_EVENT } from "@/lib/storage/clientCache";
 import type { AkbAccountErrorCode } from "@reef/core";
 import type { AkbSessionStatus } from "./authSessionStatus";
 
-/**
- * The maximum time a browser auth probe may keep a protected surface in the
- * checking state. A stalled AKB/network request is an authentication failure
- * from the browser's point of view: fail closed and let the mounted guard
- * converge on the safe login route.
- */
+/** The maximum time one browser auth probe may remain pending. */
 export const AUTH_PROBE_TIMEOUT_MS = 5_000;
+export const AUTH_PROBE_RETRY_DELAY_MS = 250;
+const AUTH_PROBE_MAX_ATTEMPTS = 2;
 
-export type AuthCoordinatorStatus = "checking" | "active" | "inactive";
+export type AuthCoordinatorStatus =
+  | "checking"
+  | "active"
+  | "inactive"
+  | "unavailable";
 
 export interface AuthCoordinatorSnapshot {
   status: AuthCoordinatorStatus;
@@ -45,7 +46,7 @@ function notify(): void {
 
 function setStatus(
   status: AuthCoordinatorStatus,
-  result?: Extract<AkbSessionStatus, { active: false }>,
+  result?: Extract<AkbSessionStatus, { state: "inactive" }>,
 ): void {
   if (status === "active") establishedSession = true;
   if (status === "inactive") establishedSession = false;
@@ -142,17 +143,22 @@ export function subscribeAuthCoordinator(
  * invalidations, unmounts, and newer probes abort or supersede all older work.
  */
 export function bootstrapAuthSession(probe: AuthProbe): void {
-  runAuthProbe(probe, false);
+  void runAuthProbe(probe, false);
 }
 
 /**
  * Revalidate an established session without exposing probe progress to the
- * protected tree. An inactive or timed-out result still commits immediately so
- * the mounted guard can converge on the safe login route.
+ * protected tree. Only definitive invalidation ends the established session.
  */
 export function revalidateAuthSession(probe: AuthProbe): void {
   if (!establishedSession || snapshot.status !== "active") return;
-  runAuthProbe(probe, true);
+  void runAuthProbe(probe, true);
+}
+
+/** Retry an unavailable result while keeping the current surface mounted. */
+export function retryAuthSession(probe: AuthProbe): Promise<void> {
+  if (currentProbe) return Promise.resolve();
+  return runAuthProbe(probe, true);
 }
 
 /** Start cold bootstrap when no probe or established session is current. */
@@ -162,7 +168,10 @@ export function ensureAuthSession(probe: AuthProbe): void {
   bootstrapAuthSession(probe);
 }
 
-function runAuthProbe(probe: AuthProbe, background: boolean): void {
+async function runAuthProbe(
+  probe: AuthProbe,
+  background: boolean,
+): Promise<void> {
   latestProbe = probe;
   cancelCurrentProbe();
 
@@ -170,28 +179,82 @@ function runAuthProbe(probe: AuthProbe, background: boolean): void {
   const controller = new AbortController();
   currentProbe = { controller, generation: probeGeneration };
   if (!background) setStatus("checking");
-  const signal = AbortSignal.any([
-    controller.signal,
-    AbortSignal.timeout(AUTH_PROBE_TIMEOUT_MS),
-  ]);
 
-  void (async () => {
-    try {
-      const result = await probe(signal);
+  try {
+    for (let attempt = 0; attempt < AUTH_PROBE_MAX_ATTEMPTS; attempt += 1) {
       if (probeGeneration !== generation || controller.signal.aborted) return;
-      setStatus(
-        result.active ? "active" : "inactive",
-        result.active ? undefined : result,
-      );
-    } catch {
+
+      const signal = AbortSignal.any([
+        controller.signal,
+        AbortSignal.timeout(AUTH_PROBE_TIMEOUT_MS),
+      ]);
+      const result = await probeUntilSettled(probe, signal);
       if (probeGeneration !== generation || controller.signal.aborted) return;
-      setStatus("inactive");
-    } finally {
-      if (currentProbe?.generation === probeGeneration) {
-        currentProbe = undefined;
+
+      if (result.state !== "unavailable") {
+        setStatus(
+          result.state,
+          result.state === "inactive" ? result : undefined,
+        );
+        return;
       }
+
+      if (attempt + 1 === AUTH_PROBE_MAX_ATTEMPTS) {
+        setStatus("unavailable");
+        return;
+      }
+      await waitBeforeRetry(AUTH_PROBE_RETRY_DELAY_MS, controller.signal);
     }
-  })();
+  } finally {
+    if (currentProbe?.generation === probeGeneration) {
+      currentProbe = undefined;
+    }
+  }
+}
+
+function probeUntilSettled(
+  probe: AuthProbe,
+  signal: AbortSignal,
+): Promise<AkbSessionStatus> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result: AkbSessionStatus) => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", onAbort);
+      resolve(result);
+    };
+    const onAbort = () => finish({ state: "unavailable" });
+
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+
+    try {
+      void probe(signal).then(finish, () => finish({ state: "unavailable" }));
+    } catch {
+      finish({ state: "unavailable" });
+    }
+  });
+}
+
+function waitBeforeRetry(delayMs: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const finish = () => {
+      if (timer !== undefined) clearTimeout(timer);
+      signal.removeEventListener("abort", finish);
+      resolve();
+    };
+    if (signal.aborted) {
+      finish();
+      return;
+    }
+    timer = setTimeout(finish, delayMs);
+    signal.addEventListener("abort", finish, { once: true });
+  });
 }
 
 /** Mark the session unusable and synchronously notify every mounted guard. */

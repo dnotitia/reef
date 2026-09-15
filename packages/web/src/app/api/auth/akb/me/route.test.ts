@@ -168,6 +168,47 @@ describe("GET /api/auth/akb/me", () => {
     expect(res.headers.get("x-reef-auth-invalidated")).toBeNull();
     expect(res.headers.get("set-cookie")).toBeNull();
   });
+
+  it("returns an SSO refresh-lock conflict without invalidating the session", async () => {
+    vi.stubEnv("REEF_AUTH_MODE", "sso");
+    vi.stubEnv("REEF_KEYCLOAK_ISSUER", "https://idp.test/realms/reef");
+    vi.stubEnv("REEF_KEYCLOAK_CLIENT_ID", "reef-web");
+    vi.stubEnv("REEF_AKB_API_AUDIENCE", "https://akb.test/api");
+    vi.stubEnv("REEF_PUBLIC_ORIGIN", "https://reef.test");
+    const handle = "H".repeat(43);
+    runtimeRef.current = {
+      store: {
+        resolve: async () => ({
+          provider_alias: "workforce",
+          subject: "subject-1",
+          session_id: "sid-1",
+          access_token: "access-1",
+          refresh_token: "refresh-1",
+          id_token: "id-1",
+          issued_at: 100,
+          access_token_expires_at: 110,
+          refresh_token_expires_at: 200,
+          absolute_expires_at: 1_000,
+        }),
+      },
+      refreshLock: {
+        acquire: async () => null,
+        release: async () => undefined,
+      },
+      now: () => 111,
+      protocolFor: () => {
+        throw new Error("refresh protocol should not run without the lock");
+      },
+      close: async () => undefined,
+    };
+
+    const res = await GET(makeRequest(`__reef_auth_v2=${handle}`));
+
+    expect(res.status).toBe(409);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(res.headers.get("x-reef-auth-invalidated")).toBeNull();
+    expect(res.headers.get("set-cookie")).toBeNull();
+  });
 });
 
 function expectClearedAuthCookies(res: Response) {

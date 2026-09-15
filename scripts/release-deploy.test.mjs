@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -18,6 +19,9 @@ const APP_ID = "11111111-1111-4111-8111-111111111111";
 const RELEASE_ID = "22222222-2222-4222-8222-222222222222";
 const IMAGE_DIGEST = `sha256:${"b".repeat(64)}`;
 const TOKEN = "system-admin-secret";
+const PRODUCT_VERSION = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+).version;
 
 test("build-only creates a verifiable build artifact without AKB or Kubernetes calls", async () => {
   const temporaryDirectory = await mkdtemp(
@@ -27,7 +31,7 @@ test("build-only creates a verifiable build artifact without AKB or Kubernetes c
   const sourceRevision = "a".repeat(40);
   const secondImageDigest = `sha256:${"c".repeat(64)}`;
   const existingRegistryTags = new Set([
-    `registry.example/reef-web:v0.14.1`,
+    `registry.example/reef-web:v${PRODUCT_VERSION}`,
     `registry.example/reef-web:${sourceRevision}`,
   ]);
   const commands = [];
@@ -87,7 +91,7 @@ test("build-only creates a verifiable build artifact without AKB or Kubernetes c
       image_digest: IMAGE_DIGEST,
       image_reference: `registry.example/reef-web@${IMAGE_DIGEST}`,
       source_revision: sourceRevision,
-      version: "0.14.1",
+      version: PRODUCT_VERSION,
     });
     assert.deepEqual(JSON.parse(await readFile(artifactPath, "utf8")), result);
     assert.equal(
@@ -96,7 +100,7 @@ test("build-only creates a verifiable build artifact without AKB or Kubernetes c
     );
     const dockerArgs =
       commands.find(({ command }) => command === "docker")?.args ?? [];
-    assert.ok(dockerArgs.includes(`REEF_VERSION=0.14.1`));
+    assert.ok(dockerArgs.includes(`REEF_VERSION=${PRODUCT_VERSION}`));
     assert.ok(dockerArgs.includes(`REEF_SOURCE_REVISION=${sourceRevision}`));
     const dockerTags = dockerArgs
       .flatMap((argument, index) =>
@@ -104,19 +108,18 @@ test("build-only creates a verifiable build artifact without AKB or Kubernetes c
       )
       .filter(Boolean);
     assert.equal(
-      dockerTags.some((tag) => tag.endsWith(":v0.14.1")),
+      dockerTags.some((tag) => tag.endsWith(`:v${PRODUCT_VERSION}`)),
       false,
     );
     assert.equal(
       dockerTags.some((tag) => tag.endsWith(`:${sourceRevision}`)),
       false,
     );
+    const buildTagPrefix = `registry.example/reef-web:build-${PRODUCT_VERSION}-${sourceRevision}-`;
+    assert.equal(dockerTags[0].startsWith(buildTagPrefix), true);
     assert.match(
-      dockerTags[0],
-      new RegExp(
-        `^registry\\.example/reef-web:build-0\\.14\\.1-${sourceRevision}-[0-9a-f-]{36}$`,
-        "u",
-      ),
+      dockerTags[0].slice(buildTagPrefix.length),
+      /^[0-9a-f-]{36}$/u,
     );
 
     const rebuilt = await runReleaseDeployment({
@@ -133,7 +136,7 @@ test("build-only creates a verifiable build artifact without AKB or Kubernetes c
     assert.notEqual(rebuilt.image_digest, result.image_digest);
     assert.deepEqual(JSON.parse(await readFile(artifactPath, "utf8")), rebuilt);
     assert.equal(
-      existingRegistryTags.has(`registry.example/reef-web:v0.14.1`),
+      existingRegistryTags.has(`registry.example/reef-web:v${PRODUCT_VERSION}`),
       true,
     );
     assert.equal(
@@ -256,7 +259,7 @@ test("register consumes a build artifact generated for a host-port registry", as
       registered,
     );
     for (const imageRepository of [
-      `${registry}/reef-web:v0.14.1`,
+      `${registry}/reef-web:v${PRODUCT_VERSION}`,
       `${registry}/reef-web@${IMAGE_DIGEST}`,
       "reef-web:123",
     ]) {
@@ -355,7 +358,7 @@ test("register-only returns a reusable result without rollout or Kubernetes muta
         image_digest: IMAGE_DIGEST,
         image_reference: `registry.example/reef-web@${IMAGE_DIGEST}`,
         source_revision: "a".repeat(40),
-        version: "0.14.1",
+        version: PRODUCT_VERSION,
       })}\n`,
     );
     const result = await runReleaseDeployment({
@@ -412,7 +415,7 @@ test("register-only rejects a mutable image reference before any child or AKB ca
         image_digest: "reef-web:latest",
         image_reference: "registry.example/reef-web@reef-web:latest",
         source_revision: "a".repeat(40),
-        version: "0.14.1",
+        version: PRODUCT_VERSION,
       })}\n`,
     );
     await assert.rejects(
@@ -593,7 +596,7 @@ spec:
           metadata: {
             annotations: {
               "kubernetes.io/change-cause": [
-                "Deploy reef-web v0.14.1",
+                `Deploy reef-web v${PRODUCT_VERSION}`,
                 `source ${sourceRevision}`,
                 `app ${APP_ID}`,
                 `release ${RELEASE_ID}`,
@@ -607,7 +610,7 @@ spec:
               metadata: {
                 annotations: {
                   "kubernetes.io/change-cause": [
-                    "Deploy reef-web v0.14.1",
+                    `Deploy reef-web v${PRODUCT_VERSION}`,
                     `source ${sourceRevision}`,
                     `app ${APP_ID}`,
                     `release ${RELEASE_ID}`,
@@ -624,7 +627,7 @@ spec:
                     env: [
                       { name: "REEF_APP_ID", value: APP_ID },
                       { name: "REEF_RELEASE_ID", value: RELEASE_ID },
-                      { name: "REEF_RELEASE_VERSION", value: "0.14.1" },
+                      { name: "REEF_RELEASE_VERSION", value: PRODUCT_VERSION },
                       {
                         name: "REEF_RELEASE_SOURCE_REVISION",
                         value: sourceRevision,
@@ -658,7 +661,7 @@ spec:
           data: {
             REEF_APP_ID: APP_ID,
             REEF_RELEASE_ID: RELEASE_ID,
-            REEF_RELEASE_VERSION: "0.14.1",
+            REEF_RELEASE_VERSION: PRODUCT_VERSION,
             REEF_RELEASE_SOURCE_REVISION: sourceRevision,
             REEF_RELEASE_IMAGE_DIGEST: IMAGE_DIGEST,
             REEF_RELEASE_MANIFEST_CHECKSUM: manifestChecksum,
@@ -681,7 +684,7 @@ spec:
                     env: [
                       { name: "REEF_APP_ID", value: APP_ID },
                       { name: "REEF_RELEASE_ID", value: RELEASE_ID },
-                      { name: "REEF_RELEASE_VERSION", value: "0.14.1" },
+                      { name: "REEF_RELEASE_VERSION", value: PRODUCT_VERSION },
                       {
                         name: "REEF_RELEASE_SOURCE_REVISION",
                         value: sourceRevision,
@@ -813,7 +816,7 @@ spec:
       image_digest: IMAGE_DIGEST,
       image_reference: `registry.example/reef-web@${IMAGE_DIGEST}`,
       source_revision: sourceRevision,
-      version: "0.14.1",
+      version: PRODUCT_VERSION,
     });
     assert.deepEqual(JSON.parse(await readFile(receiptPath, "utf8")), result);
     assert.equal(
