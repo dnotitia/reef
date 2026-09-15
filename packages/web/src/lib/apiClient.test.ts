@@ -162,7 +162,7 @@ describe("apiClient.fetch — browser request headers", () => {
   });
 
   it("does not invalidate an established session on a status-only 401", async () => {
-    bootstrapAuthSession(async () => ({ active: true }));
+    bootstrapAuthSession(async () => ({ state: "active" }));
     await vi.waitFor(() =>
       expect(getAuthCoordinatorSnapshot().status).toBe("active"),
     );

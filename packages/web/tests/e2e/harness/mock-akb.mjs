@@ -74,6 +74,11 @@ export async function handleAkb(req, res, url, state) {
 
   if (path === "/api/v1/auth/me" && req.method === "GET") {
     if (!(await waitForAuthProbe(req, state))) return;
+    if (state.authProbeFailureStatus !== null) {
+      return json(res, state.authProbeFailureStatus, {
+        error: "e2e temporary auth probe failure",
+      });
+    }
     return json(res, 200, {
       id: user.id,
       user_id: user.id,

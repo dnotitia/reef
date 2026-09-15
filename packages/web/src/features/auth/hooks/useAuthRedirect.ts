@@ -8,7 +8,9 @@ import {
 import { getAkbSessionStatus } from "@/lib/akb/checkAkbSession";
 import {
   ensureAuthSession,
+  getAuthCoordinatorSnapshot,
   hasEstablishedAuthSession,
+  retryAuthSession as retryCoordinatorAuthSession,
   subscribeAuthCoordinator,
 } from "@/lib/akb/authCoordinator";
 import {
@@ -28,7 +30,7 @@ import { useEffect, useState } from "react";
  * `onboarding` — `/onboarding` page: session check; vault is being picked here.
  */
 export type AuthGateMode = "root" | "workspace" | "onboarding";
-export type AuthGateStatus = "checking" | "active" | "inactive";
+export type AuthGateStatus = "checking" | "active" | "inactive" | "unavailable";
 
 /**
  * Shared client-side auth gate. A single coordinator owns probe freshness,
@@ -40,9 +42,11 @@ export function useAuthRedirect(mode: AuthGateMode): AuthGateStatus {
   const router = useRouter();
   const replace = router.replace;
   const pathname = usePathname();
-  const [status, setStatus] = useState<AuthGateStatus>(() =>
-    hasEstablishedAuthSession() ? "active" : "checking",
-  );
+  const [status, setStatus] = useState<AuthGateStatus>(() => {
+    const current = getAuthCoordinatorSnapshot().status;
+    if (current === "unavailable") return current;
+    return hasEstablishedAuthSession() ? "active" : "checking";
+  });
 
   useEffect(() => {
     let mounted = true;
@@ -104,4 +108,9 @@ export function useAuthRedirect(mode: AuthGateMode): AuthGateStatus {
   }, [mode, pathname, replace]);
 
   return status;
+}
+
+/** Retry the current cookie-backed auth probe without changing the URL. */
+export function retryAuthSession(): Promise<void> {
+  return retryCoordinatorAuthSession(getAkbSessionStatus);
 }

@@ -1541,6 +1541,14 @@
       "identityConflict": "This sign-in identity conflicts with the account linked to this workspace. Contact a workspace administrator.",
       "sessionEnded": "Your previous session has ended. Please sign in again."
     },
+    "sessionVerification": {
+      "title": "We couldn't verify your session",
+      "description": "We couldn't confirm your sign-in. Protected content stays hidden until the session can be checked.",
+      "revalidationTitle": "Session check unavailable",
+      "revalidationDescription": "We couldn't confirm your session. Your current page and work remain open; retry when you're ready.",
+      "retry": "Retry",
+      "retrying": "Checking…"
+    },
     "sso": {
       "finishing": "Finishing sign-in…"
     },

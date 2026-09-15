@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AUTH_PROBE_TIMEOUT_MS,
+  AUTH_PROBE_RETRY_DELAY_MS,
   __resetAuthCoordinatorForTests,
   getAuthCoordinatorSnapshot,
   hasEstablishedAuthSession,
@@ -9,8 +10,9 @@ import {
   subscribeAuthCoordinator,
 } from "./authCoordinator";
 
-const active = { active: true } as const;
-const inactive = { active: false } as const;
+const active = { state: "active" } as const;
+const inactive = { state: "inactive" } as const;
+const unavailable = { state: "unavailable" } as const;
 
 describe("auth coordinator", () => {
   beforeEach(() => {
@@ -23,8 +25,12 @@ describe("auth coordinator", () => {
   });
 
   it("commits only the newest probe result and aborts the previous probe", async () => {
-    let resolveFirst!: (value: typeof active | typeof inactive) => void;
-    const first = new Promise<typeof active | typeof inactive>((resolve) => {
+    let resolveFirst!: (
+      value: typeof active | typeof inactive | typeof unavailable,
+    ) => void;
+    const first = new Promise<
+      typeof active | typeof inactive | typeof unavailable
+    >((resolve) => {
       resolveFirst = resolve;
     });
     const firstProbe = vi.fn((signal: AbortSignal) => {
@@ -51,15 +57,20 @@ describe("auth coordinator", () => {
     unsubscribe();
   });
 
-  it("fails closed and aborts a probe at the bounded timeout", async () => {
-    const timeout = new AbortController();
+  it("reports unavailable rather than unauthenticated after bounded probe timeouts", async () => {
+    vi.useFakeTimers();
+    const timeoutControllers: AbortController[] = [];
     const timeoutSpy = vi
       .spyOn(AbortSignal, "timeout")
-      .mockReturnValue(timeout.signal);
+      .mockImplementation(() => {
+        const timeout = new AbortController();
+        timeoutControllers.push(timeout);
+        return timeout.signal;
+      });
     const probe = vi.fn(
       (signal: AbortSignal) =>
-        new Promise<typeof active>((_resolve, reject) => {
-          signal.addEventListener("abort", () => reject(signal.reason), {
+        new Promise<typeof unavailable>((resolve) => {
+          signal.addEventListener("abort", () => resolve(unavailable), {
             once: true,
           });
         }),
@@ -72,15 +83,44 @@ describe("auth coordinator", () => {
 
     bootstrapAuthSession(probe);
     expect(AbortSignal.timeout).toHaveBeenCalledWith(AUTH_PROBE_TIMEOUT_MS);
-    timeout.abort(new DOMException("Timed out", "TimeoutError"));
+    timeoutControllers[0]?.abort(new DOMException("Timed out", "TimeoutError"));
+    await Promise.resolve();
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(AUTH_PROBE_RETRY_DELAY_MS);
+    await Promise.resolve();
+    await Promise.resolve();
+    timeoutControllers[1]?.abort(new DOMException("Timed out", "TimeoutError"));
     await Promise.resolve();
     await Promise.resolve();
 
-    const signal = probe.mock.calls[0]?.[0] as AbortSignal;
-    expect(signal.aborted).toBe(true);
-    expect(states.at(-1)).toBe("inactive");
+    expect(probe).toHaveBeenCalledTimes(2);
+    expect(getAuthCoordinatorSnapshot().status).toBe("unavailable");
+    expect(states.at(-1)).toBe("unavailable");
     unsubscribe();
     timeoutSpy.mockRestore();
+  });
+
+  it("retries an unavailable probe once and keeps the retry count finite", async () => {
+    vi.useFakeTimers();
+    const probe = vi
+      .fn()
+      .mockResolvedValueOnce(unavailable)
+      .mockResolvedValueOnce(unavailable);
+    const unsubscribe = subscribeAuthCoordinator(() => {}, probe);
+
+    bootstrapAuthSession(probe);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(probe).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(AUTH_PROBE_RETRY_DELAY_MS);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(probe).toHaveBeenCalledTimes(2);
+    expect(getAuthCoordinatorSnapshot().status).toBe("unavailable");
+    expect(hasEstablishedAuthSession()).toBe(false);
+    unsubscribe();
   });
 
   it("turns AUTH_CHANGED_EVENT into an immediate inactive transition", async () => {
@@ -128,12 +168,14 @@ describe("auth coordinator", () => {
     await Promise.resolve();
     expect(hasEstablishedAuthSession()).toBe(true);
 
-    let resolveRevalidation!: (value: typeof active | typeof inactive) => void;
-    const revalidation = new Promise<typeof active | typeof inactive>(
-      (resolve) => {
-        resolveRevalidation = resolve;
-      },
-    );
+    let resolveRevalidation!: (
+      value: typeof active | typeof inactive | typeof unavailable,
+    ) => void;
+    const revalidation = new Promise<
+      typeof active | typeof inactive | typeof unavailable
+    >((resolve) => {
+      resolveRevalidation = resolve;
+    });
     const revalidationProbe = vi.fn(() => revalidation);
 
     revalidateAuthSession(revalidationProbe);
@@ -146,6 +188,33 @@ describe("auth coordinator", () => {
     unsubscribe();
   });
 
+  it("preserves an established session when background revalidation is unavailable", async () => {
+    vi.useFakeTimers();
+    const activeProbe = vi.fn(async () => active);
+    const unsubscribe = subscribeAuthCoordinator(() => {}, activeProbe);
+
+    bootstrapAuthSession(activeProbe);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(hasEstablishedAuthSession()).toBe(true);
+
+    const unavailableProbe = vi
+      .fn()
+      .mockResolvedValueOnce(unavailable)
+      .mockResolvedValueOnce(unavailable);
+    revalidateAuthSession(unavailableProbe);
+    await Promise.resolve();
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(AUTH_PROBE_RETRY_DELAY_MS);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(unavailableProbe).toHaveBeenCalledTimes(2);
+    expect(getAuthCoordinatorSnapshot().status).toBe("unavailable");
+    expect(hasEstablishedAuthSession()).toBe(true);
+    unsubscribe();
+  });
+
   it("keeps an established session active while background revalidation is pending", async () => {
     const activeProbe = vi.fn(async () => active);
     const unsubscribe = subscribeAuthCoordinator(() => {}, activeProbe);
@@ -154,10 +223,14 @@ describe("auth coordinator", () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    let resolveRevalidation!: (value: typeof active) => void;
-    const revalidation = new Promise<typeof active>((resolve) => {
-      resolveRevalidation = resolve;
-    });
+    let resolveRevalidation!: (
+      value: typeof active | typeof unavailable,
+    ) => void;
+    const revalidation = new Promise<typeof active | typeof unavailable>(
+      (resolve) => {
+        resolveRevalidation = resolve;
+      },
+    );
     const revalidationProbe = vi.fn(() => revalidation);
 
     revalidateAuthSession(revalidationProbe);
@@ -169,6 +242,31 @@ describe("auth coordinator", () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(getAuthCoordinatorSnapshot().status).toBe("active");
+    unsubscribe();
+  });
+
+  it("does not restore an invalidated session from a late successful probe", async () => {
+    const activeProbe = vi.fn(async () => active);
+    const unsubscribe = subscribeAuthCoordinator(() => {}, activeProbe);
+
+    bootstrapAuthSession(activeProbe);
+    await Promise.resolve();
+    await Promise.resolve();
+    let resolveStale!: (value: typeof active) => void;
+    const staleProbe = vi.fn(
+      () =>
+        new Promise<typeof active>((resolve) => {
+          resolveStale = resolve;
+        }),
+    );
+    revalidateAuthSession(staleProbe);
+    window.dispatchEvent(new Event("reef:auth-changed"));
+    resolveStale(active);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(getAuthCoordinatorSnapshot().status).toBe("inactive");
+    expect(hasEstablishedAuthSession()).toBe(false);
     unsubscribe();
   });
 });

@@ -17,19 +17,27 @@ import {
   recordAkbAccountDenialIfUnchanged,
   snapshotPendingAkbAccountError,
 } from "./accountDenialClient";
+import { hasEstablishedAuthSession } from "./authCoordinator";
+import { AUTH_INVALIDATED_HEADER } from "./headers";
 import type { AkbSessionStatus } from "./authSessionStatus";
 
 export type { AkbSessionStatus } from "./authSessionStatus";
 
-function inactiveFromPendingDenial(): AkbSessionStatus {
+function inactiveFromPendingDenial():
+  | Extract<AkbSessionStatus, { state: "inactive" }>
+  | undefined {
   const pending = snapshotPendingAkbAccountError();
   return pending
     ? {
-        active: false,
+        state: "inactive",
         accountError: pending.code,
         accountErrorToken: pending.token,
       }
-    : { active: false };
+    : undefined;
+}
+
+function unavailableOrPendingDenial(): AkbSessionStatus {
+  return inactiveFromPendingDenial() ?? { state: "unavailable" };
 }
 
 export async function getAkbSessionStatus(
@@ -43,15 +51,14 @@ export async function getAkbSessionStatus(
       cache: "no-store",
       signal,
     });
-    // A superseded route transition or coordinator timeout should not let a late
-    // profile response consume or replace the newest denial marker.
-    if (signal?.aborted) return inactiveFromPendingDenial();
+    const invalidated = res.headers.get(AUTH_INVALIDATED_HEADER) === "1";
     if (res.ok) {
+      // A superseded route transition or coordinator timeout should not let a
+      // late profile response consume or replace the newest denial marker.
+      if (signal?.aborted) return unavailableOrPendingDenial();
       consumePendingAkbAccountErrorIfUnchanged(pendingAtProbeStart);
       const remainingDenial = inactiveFromPendingDenial();
-      return "accountError" in remainingDenial
-        ? remainingDenial
-        : { active: true };
+      return remainingDenial ?? { state: "active" };
     }
 
     const body: unknown = await res.json().catch(() => null);
@@ -65,19 +72,22 @@ export async function getAkbSessionStatus(
         pendingAtProbeStart,
       );
       return {
-        active: false,
+        state: "inactive",
         accountError: selected?.code ?? code,
         ...(selected ? { accountErrorToken: selected.token } : {}),
       };
     }
-    return inactiveFromPendingDenial();
+    const pendingDenial = inactiveFromPendingDenial();
+    if (pendingDenial) return pendingDenial;
+    if (invalidated) return { state: "inactive" };
+    if (signal?.aborted) return { state: "unavailable" };
+    // A plain first-visit 401 proves there is no session. Once this tab has
+    // verified a session, a status-only 401 is ambiguous and must preserve it.
+    if (res.status === 401 && !hasEstablishedAuthSession()) {
+      return { state: "inactive" };
+    }
+    return { state: "unavailable" };
   } catch {
-    return inactiveFromPendingDenial();
+    return unavailableOrPendingDenial();
   }
-}
-
-export async function hasActiveAkbSession(
-  signal?: AbortSignal,
-): Promise<boolean> {
-  return (await getAkbSessionStatus(signal)).active;
 }

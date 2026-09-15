@@ -478,20 +478,148 @@ test.describe("auth soft navigation", () => {
       .toBe(JSON.stringify({ version: 1, favorites: ["reef-e2e"] }));
   });
 
-  test("fails closed at the bounded probe timeout without exposing destination content", async ({
+  test("preserves an established workspace through a bounded auth probe timeout and retry", async ({
     page,
     request,
   }) => {
+    test.setTimeout(60_000);
     await openExistingWorkspace(page);
+    const currentUrl = page.url();
+    await writeIndexedDbConfig(
+      page,
+      "workspace_favorites",
+      JSON.stringify({ version: 1, favorites: ["reef-e2e"] }),
+    );
+    await writeIndexedDbConfig(
+      page,
+      "filter:reef-e2e",
+      JSON.stringify({ version: 1, filter: { status: ["todo"] } }),
+    );
     await setAuthControl(request, { probeHang: true });
 
     const probe = page.waitForRequest(isAuthProbeRequest);
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await probe;
-    await expectLogin(page, ISSUES_PATH);
-    await expect(page.locator('[data-testid="planning-skeleton"]')).toHaveCount(
+    await expect(
+      page.locator('[data-testid="auth-revalidation-status"]'),
+    ).toBeVisible({ timeout: 20_000 });
+    await expect(page).toHaveURL(currentUrl);
+    await expectPersistentShell(page);
+    await expect(page.getByTestId("kanban-board")).toBeVisible();
+    await expect
+      .poll(() => readIndexedDbConfig(page, "workspace_favorites"))
+      .toBe(JSON.stringify({ version: 1, favorites: ["reef-e2e"] }));
+    await expect
+      .poll(() => readIndexedDbConfig(page, "filter:reef-e2e"))
+      .toBe(JSON.stringify({ version: 1, filter: { status: ["todo"] } }));
+
+    await setAuthControl(request, { probeHang: false });
+    const retryProbe = page.waitForResponse(
+      (response) =>
+        isAuthProbeRequest(response.request()) && response.status() === 200,
+    );
+    await page.getByTestId("auth-revalidation-retry").click();
+    await retryProbe;
+
+    await expect(page).toHaveURL(currentUrl);
+    await expect(
+      page.locator('[data-testid="auth-revalidation-status"]'),
+    ).toHaveCount(0);
+    await expect(page.getByTestId("kanban-board")).toBeVisible();
+    await expect
+      .poll(() => readIndexedDbConfig(page, "workspace_favorites"))
+      .toBe(JSON.stringify({ version: 1, favorites: ["reef-e2e"] }));
+
+    await page.locator('a[href="/workspace/reef-e2e/planning"]').click();
+    await expect(page.getByRole("heading", { name: "Planning" })).toBeVisible();
+  });
+
+  test("keeps an established workspace after an auth Route Handler 502 and recovers", async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(60_000);
+    await openExistingWorkspace(page);
+    const currentUrl = page.url();
+    await setAuthControl(request, { probeFailureStatus: 500 });
+
+    let probeFailureCount = 0;
+    const countProbeFailures = (
+      response: import("@playwright/test").Response,
+    ) => {
+      if (isAuthProbeRequest(response.request()) && response.status() === 502) {
+        probeFailureCount += 1;
+      }
+    };
+    page.on("response", countProbeFailures);
+
+    try {
+      const firstFailure = page.waitForResponse(
+        (response) =>
+          isAuthProbeRequest(response.request()) && response.status() === 502,
+      );
+      await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+      const response = await firstFailure;
+      expect(response.headers()["x-reef-auth-invalidated"] ?? null).toBeNull();
+      expect(response.headers()["set-cookie"] ?? null).toBeNull();
+
+      await expect(
+        page.locator('[data-testid="auth-revalidation-status"]'),
+      ).toBeVisible({ timeout: 10_000 });
+      expect(probeFailureCount).toBe(2);
+      await expect(page).toHaveURL(currentUrl);
+      await expectPersistentShell(page);
+      await expect(page.getByTestId("kanban-board")).toBeVisible();
+
+      await setAuthControl(request, { probeFailureStatus: null });
+      const retryResponse = page.waitForResponse(
+        (retry) =>
+          isAuthProbeRequest(retry.request()) && retry.status() === 200,
+      );
+      await page.getByTestId("auth-revalidation-retry").click();
+      await retryResponse;
+
+      await expect(page).toHaveURL(currentUrl);
+      await expect(
+        page.locator('[data-testid="auth-revalidation-status"]'),
+      ).toHaveCount(0);
+      await expect(page.getByTestId("kanban-board")).toBeVisible();
+    } finally {
+      page.off("response", countProbeFailures);
+    }
+  });
+
+  test("keeps protected content hidden and offers retry when initial verification times out", async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(60_000);
+    await openExistingWorkspace(page);
+    const currentUrl = page.url();
+    await setAuthControl(request, { probeHang: true });
+
+    await page.reload();
+    await expect(page.getByTestId("auth-verification-unavailable")).toBeVisible(
+      { timeout: 20_000 },
+    );
+    await expect(page).toHaveURL(currentUrl);
+    await expect(page.getByTestId("kanban-board")).toHaveCount(0);
+    await expect(page.locator('[data-testid="dashboard-shell"]')).toHaveCount(
       0,
     );
+
+    await setAuthControl(request, { probeHang: false });
+    const retryProbe = page.waitForResponse(
+      (response) =>
+        isAuthProbeRequest(response.request()) && response.status() === 200,
+    );
+    await page.getByTestId("auth-verification-retry").click();
+    await retryProbe;
+
+    await expect(page).toHaveURL(currentUrl);
+    await expect(page.getByTestId("kanban-board")).toBeVisible({
+      timeout: 15_000,
+    });
   });
 
   test("keeps a valid slow destination in the protected shell until page data completes", async ({

@@ -85,6 +85,7 @@ export function runtimeDiscovery(state) {
           probe_delay_ms: "<milliseconds>",
           probe_delay_once: "<boolean>",
           probe_hang: "<boolean>",
+          probe_failure_status: "null|500|503",
           session: "active|revoked",
           protected_response: "healthy|unauthorized|forbidden",
         },
@@ -113,6 +114,7 @@ export function runtimeDiscovery(state) {
           auth_control: [
             "session revoke",
             "bounded probe delay (including one-shot) or hang",
+            "temporary auth-probe 5xx response",
             "healthy, plain 401, or resource 403 protected responses",
           ],
           account_denial: [
