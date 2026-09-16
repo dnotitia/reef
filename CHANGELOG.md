@@ -14,6 +14,12 @@ explicitly in the entries below.
 
 ### Changed
 
+- **The AKB notification projector now runs as a private Event Processor.**
+  `pnpm dev` starts the web and processor processes together while
+  `pnpm dev:web` keeps the web-only path. Event Gap recovery, periodic source
+  reconciliation, health/readiness/metrics, and bounded SIGTERM drain preserve
+  activation, Source Cursor, and notification identity state.
+
 - **Release deployment now uses immutable AKB registration and rollout state.**
   The operator CLI registers the verified App Release Manifest, waits for a
   canonical AKB rollout to reach `applied`, and only then applies the matching
@@ -31,6 +37,12 @@ explicitly in the entries below.
   existing logout flow. (REEF-641)
 
 ### Operational
+
+- **Web and Event Processor release artifacts are bound together.** The release
+  CLI builds two named OCI targets from one source revision, records both
+  immutable digests in the release manifest and receipt, and applies the
+  processor as a private single-replica `Recreate` Deployment with no public
+  Service, Ingress, or HPA.
 
 - **The release CLI records full deployment provenance.** Each image build is
   pushed under a unique source/version-bound build tag and applied by digest;

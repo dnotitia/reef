@@ -31,6 +31,10 @@ const productionArtifactScript = await readFile(
   path.join(root, "scripts", "package-production-artifact.mjs"),
   "utf8",
 );
+const releaseDeployScript = await readFile(
+  path.join(root, "scripts", "release-deploy.mjs"),
+  "utf8",
+);
 
 function fail(message) {
   throw new Error(message);
@@ -313,6 +317,18 @@ export function verifyDockerBuildContract(source) {
   );
   assert(/USER 1001/u.test(source), "Docker runner must remain non-root");
   assert(
+    /FROM\s+[^\n]+\s+AS\s+reef-web\b/u.test(source),
+    "Docker must declare the reef-web runtime target",
+  );
+  assert(
+    /FROM\s+[^\n]+\s+AS\s+reef-event-processor\b/u.test(source),
+    "Docker must declare the private event processor runtime target",
+  );
+  assert(
+    /pnpm\s+deploy\s+--filter\s+@reef\/event-processor\s+--prod/u.test(builder),
+    "Docker builder must prepare an isolated production event processor runtime",
+  );
+  assert(
     !/RUN\s+.*(?:npm|pnpm)\s+install\s+(-g|--global).*turbo/u.test(source),
     "Docker must not install a second global Turbo version",
   );
@@ -371,6 +387,18 @@ function verifyRepositoryHandoffs() {
       /workspace:/u.test(productionArtifactScript) &&
       /Workspace dependency .*build artifact/u.test(productionArtifactScript),
     "the production artifact must verify discovered workspace dependency artifacts",
+  );
+  assert(
+    /reef-event-processor/u.test(releaseDeployScript) &&
+      /runtime_images/u.test(releaseDeployScript) &&
+      /--target/u.test(releaseDeployScript),
+    "release deployment must build and carry the private event processor image",
+  );
+  assert(
+    rootManifest.scripts?.dev ===
+      "turbo run dev --filter=@reef/web --filter=@reef/event-processor" &&
+      rootManifest.scripts?.["dev:web"] === "turbo run dev --filter=@reef/web",
+    "development entrypoints must distinguish web-only from the web-plus-processor run",
   );
   verifyDockerBuildContract(dockerfile);
   const forbiddenRemoteCacheNames = ["TURBO_TOKEN", "TURBO_TEAM"];

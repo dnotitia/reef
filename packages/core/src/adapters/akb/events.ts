@@ -42,6 +42,8 @@ export interface ChangeEventTailInput {
   /** Start at the earliest retained event; mutually exclusive with cursors. */
   start?: "earliest";
   signal?: AbortSignal;
+  /** Called after AKB accepts the authenticated stream request. */
+  onOpen?: () => void;
 }
 
 export type ChangeEventTailRecord =
@@ -272,6 +274,7 @@ export function createAkbChangeEventTail(
         request,
       );
       await assertStreamResponse(response);
+      input.onOpen?.();
       for await (const record of readChangeEventStream(response)) {
         if (record.type === "change" && record.event.vault !== input.vault) {
           throw new EventTailError({ code: "protocol", status: 502 });

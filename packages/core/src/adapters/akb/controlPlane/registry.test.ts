@@ -74,7 +74,10 @@ async function finalizedRelease() {
     blueprint: await buildReleaseBlueprint(),
     version: "0.14.1",
     sourceRevision: "a".repeat(40),
-    imageDigest: `sha256:${"b".repeat(64)}`,
+    runtimeImages: {
+      web: `sha256:${"b".repeat(64)}`,
+      eventProcessor: `sha256:${"c".repeat(64)}`,
+    },
   });
 }
 

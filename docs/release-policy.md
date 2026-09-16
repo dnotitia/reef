@@ -1,7 +1,8 @@
 # Release Policy
 
 reef is versioned as a single repository product: the deployed `reef-web`
-application plus its private core, event-processing, and operator packages.
+application and private `reef-event-processor`, plus their Core and operator
+packages.
 
 The pnpm workspace contains `packages/web`, `packages/core`,
 `packages/event-processor`, and `packages/jira-migrator`. None is published or
@@ -141,14 +142,13 @@ git push origin v0.2.0
 
 Release images should be traceable by both immutable version and commit:
 
-- `reef-web:vX.Y.Z`
-- `reef-web:<git-sha>`
-- `reef-web:latest` only as a convenience pointer for non-reproducible manual
+- `reef-web:vX.Y.Z` and `reef-event-processor:vX.Y.Z`
+- `reef-web:<git-sha>` and `reef-event-processor:<git-sha>`
+- `latest` only as a convenience pointer for non-reproducible manual
   workflows.
 
-Production deployment should prefer immutable version tags once release
-automation supports them. `latest` may remain available for development and
-manual smoke deployments, but it should not be the only deployable reference.
+Production deployment uses the separate immutable digests recorded for both
+runtime images. Mutable tags are never the only deployable reference.
 
 ## GitHub Releases
 

@@ -1,14 +1,15 @@
 # Deploying reef
 
-reef ships as a single web service, **reef-web**, that talks to an
-[akb](https://github.com/dnotitia/akb) backend. Local mode persists no product
-state of its own: the AKB session lives in an httpOnly cookie. SSO mode uses
-deployment-managed Redis only for encrypted OIDC custody, one-time login state,
-and refresh locks. Monitored repositories are
-accessed through deployment-managed GitHub credentials, and LLM config is
-deployment-managed server state. That means deployment is just "run the
-container, point it at akb, and optionally give it one OpenAI-compatible LLM
-endpoint plus GitHub configuration."
+reef ships as two containers from one release: **reef-web**, the
+browser-facing BFF, and the private **reef-event-processor**, which tails AKB
+Change Events and reconciles Inbox notifications. Both images are built from
+the same clean source revision and release manifest, then deployed by
+immutable digest. The processor has no public Service or Ingress and uses only
+Core's public interfaces. Local mode persists no product state of its own: the
+AKB session lives in an httpOnly cookie. SSO mode uses deployment-managed Redis
+only for encrypted OIDC custody, one-time login state, and refresh locks.
+Monitored repositories are accessed through deployment-managed GitHub
+credentials, and LLM config is deployment-managed server state.
 
 This guide covers three ways to run it:
 
@@ -18,20 +19,26 @@ This guide covers three ways to run it:
 
 See [Required environment](#required-environment) for the full env contract.
 
+For local development, `pnpm dev` starts web and the processor together;
+`pnpm dev:web` starts only the web process. The processor requires the three
+processor inputs above and exits at startup when any is missing or malformed.
+
 ---
 
 ## 1. Build the image
 
-reef-web builds from the repo-root [`Dockerfile`](../Dockerfile). The builder
-copies the full source tree, runs the frozen repository install so Git-hosted
-workspace dependencies can prepare their artifacts, builds the Next.js
-`standalone` output, and runs it as a non-root user on port `3000`. The final
-image contains the standalone runtime, static assets, and public assets only;
-workspace source is not a runtime fallback.
+The repo-root [`Dockerfile`](../Dockerfile) copies the full source tree, runs
+the frozen repository install, and builds both runtime targets. The
+`reef-web` target runs Next.js standalone as a non-root user on port `3000`.
+The `reef-event-processor` target contains only Core and processor artifacts
+and listens on its private health port `9090`.
 
 ```bash
 # From the repository root
 docker build -t reef-web:local .
+
+# Build the private processor image
+docker build --target reef-event-processor -t reef-event-processor:local .
 
 # For a cluster, use the release CLI. It pushes one unique build tag, records
 # the digest returned by buildx, and never moves an existing version/source tag.
@@ -66,6 +73,8 @@ deploy/k8s/
   base/                 # neutral manifests — never deployed directly
     configmap.yaml      #   reef-web-config (env), placeholder values
     deployment.yaml     #   reef-web Deployment (neutral digest placeholder)
+    event-processor-configmap.yaml # processor defaults
+    event-processor-deployment.yaml # private single-replica processor
     service.yaml        #   reef-web Service on :3000
     ingress.yaml        #   reef-web Ingress (nginx, SSE-safe, cert-manager)
     kustomization.yaml
@@ -79,8 +88,10 @@ deploy/k8s/
 
 The base carries placeholder values (`reef.example.com`, an example akb backend
 DNS name) and **no namespace**. Each overlay sets the namespace, public host,
-and akb backend URL for one environment; the one-shot CLI supplies the
-immutable image repository and digest at deploy time.
+and akb backend URL for one environment; the one-shot CLI supplies both
+immutable image repositories and digests at deploy time. The processor uses
+`replicas: 1` and `strategy: Recreate`; no HPA, processor Service, or processor
+Ingress is defined.
 
 ### Create your overlay
 
@@ -129,6 +140,33 @@ JWKS when SSO is enabled. The legacy-
 named `GET /api/ai/managed-platform` endpoint is an LLM capability declaration:
 valid enabled and disabled states return 200, while malformed LLM configuration
 returns 503. It must not be used as the workload readiness probe.
+
+Create the processor Secret in the same namespace. The token is read only by
+the private process and is never written to a ConfigMap, image, release
+receipt, log, or metric:
+
+```bash
+kubectl create secret generic reef-event-processor-secret \
+  --namespace my-namespace \
+  --from-literal=REEF_EVENT_PROCESSOR_AKB_TOKEN="$REEF_EVENT_PROCESSOR_AKB_TOKEN"
+```
+
+The processor reads `AKB_BACKEND_URL` and `REEF_EVENT_PROCESSOR_VAULT` plus
+these bounded settings (defaults shown):
+
+| Variable | Default | Valid range |
+| --- | ---: | --- |
+| `REEF_EVENT_PROCESSOR_HOST` | `0.0.0.0` | IP address or hostname |
+| `REEF_EVENT_PROCESSOR_PORT` | `9090` | 1–65535 |
+| `REEF_EVENT_PROCESSOR_RECONNECT_DELAY_MS` | `1000` | 100–60000 |
+| `REEF_EVENT_PROCESSOR_RECONCILIATION_INTERVAL_MS` | `300000` | 15000–86400000 |
+| `REEF_EVENT_PROCESSOR_DRAIN_TIMEOUT_MS` | `20000` | 1000–60000 |
+
+The three processor inputs are required. The AKB endpoint must be HTTPS, or a
+private local/cluster HTTP origin; embedded credentials, paths, queries, and
+fragments are rejected at startup. The processor exposes internal-only
+`/healthz`, `/readyz`, and `/metrics` on port `9090`. Readiness stays down
+during startup, Event Gap recovery, and SIGTERM shutdown.
 
 ### TLS
 
@@ -190,12 +228,13 @@ REEF_RELEASE_RECEIPT=/tmp/reef-registration.json \
 ```
 
 The build artifact is written by the normal build path and contains
-`image_repository`, `image_digest`, `image_reference`, `source_revision`, and
-the root `version`. register-only compares all of them with the current clean
-checkout before finalizing the Manifest; a bare digest is rejected. The
-registration receipt is a safe handoff containing `app_id`, `release_id`,
-`image_repository`, product version, full source revision, image digest,
-manifest checksum, and the replay flags. Keep both files outside the repository
+`runtime_images.web` and `runtime_images.event_processor`, each with
+`image_repository`, `image_digest`, and `image_reference`, plus
+`source_revision` and the root `version`. register-only compares all of them
+with the current clean checkout before finalizing the Manifest; a bare digest
+is rejected. The registration receipt is a safe handoff containing `app_id`,
+`release_id`, both runtime image repositories and digests, product version,
+full source revision, manifest checksum, and the replay flags. Keep both files outside the repository
 so the clean-source check does not treat them as product changes.
 
 If AKB reports a blocked rollout, fix the cause and explicitly resume the same
@@ -215,7 +254,8 @@ The CLI derives provenance from the root package version and full `HEAD`; it
 does not accept version/commit identity overrides or deploy a mutable `latest`
 reference. `kubernetes.io/change-cause` and the `REEF_RELEASE_*` PodTemplate
 environment variables include the verified App/Release IDs, source revision,
-digest, and manifest checksum. The fixed `reef-web-config` ConfigMap remains
+both runtime digests, and manifest checksum. The fixed `reef-web-config` and
+`reef-event-processor-config` ConfigMaps remain
 for stable workload settings and is not rewritten with release identity, so an
 older ReplicaSet cannot observe a later release's coordinates. The control-
 plane credential is used only by the one-shot process and is removed from child
@@ -252,6 +292,12 @@ services:
       REEF_GITHUB_APP_PRIVATE_KEY: ${REEF_GITHUB_APP_PRIVATE_KEY:?set REEF_GITHUB_APP_PRIVATE_KEY}
       # Optional dev/CI fallback when no GitHub App is configured
       # REEF_GITHUB_PAT: ${REEF_GITHUB_PAT}
+  reef-event-processor:
+    image: ghcr.io/myorg/reef-event-processor@sha256:<verified-digest>
+    environment:
+      AKB_BACKEND_URL: http://akb-backend:8000
+      REEF_EVENT_PROCESSOR_AKB_TOKEN: ${REEF_EVENT_PROCESSOR_AKB_TOKEN:?set REEF_EVENT_PROCESSOR_AKB_TOKEN}
+      REEF_EVENT_PROCESSOR_VAULT: ${REEF_EVENT_PROCESSOR_VAULT:?set REEF_EVENT_PROCESSOR_VAULT}
 ```
 
 ```bash
@@ -264,7 +310,8 @@ REEF_GITHUB_APP_PRIVATE_KEY="$(cat github-app.private-key.pem)" \
 docker compose up
 ```
 
-reef-web has no product database or volume to manage. SSO deployments must
+reef-web and reef-event-processor have no product database or volume to manage.
+SSO deployments must
 provide the external authenticated Redis configured above. If your
 akb backend runs in the same Compose project, give it a service name and use
 that as the host in `AKB_BACKEND_URL` (e.g. `http://akb-backend:8000`).
@@ -275,10 +322,13 @@ that as the host in `AKB_BACKEND_URL` (e.g. `http://akb-backend:8000`).
 
 reef-web reads its configuration from the process environment (in Kubernetes:
 the `reef-web-config` ConfigMap plus the optional `reef-web-secret` Secret).
+The event processor reads the processor ConfigMap and Secret shown above.
 
 | Variable | Required | Description |
 | --- | --- | --- |
 | `AKB_BACKEND_URL` | yes | Base URL of the akb backend reef-web calls server-side. In-cluster this is a Service DNS name (`http://<service>.<namespace>.svc.cluster.local:8000`). |
+| `REEF_EVENT_PROCESSOR_AKB_TOKEN` | yes for processor | Deployment-managed AKB credential used only in the private processor process. |
+| `REEF_EVENT_PROCESSOR_VAULT` | yes for processor | Explicit AKB Vault whose activity/comment Source State is reconciled. |
 | `REEF_AUTH_MODE` | yes | Explicit `local` or `sso`; must match AKB's `schema_version=2` `auth_mode`. No hybrid or legacy fallback is supported. |
 | `REEF_PUBLIC_ORIGIN` | yes for SSO | Reef's canonical external origin — bare `scheme://host[:port]`, no path. It is used for the fixed OIDC callback and post-logout redirect and must match the registered companion origin. |
 | `REEF_KEYCLOAK_ISSUER` | yes for SSO | Public Keycloak realm issuer used for browser authorization and JWT `iss`. |

@@ -43,5 +43,6 @@ export default [
   }),
   packageConfig("packages/event-processor", "@reef/event-processor", {
     index: "src/index.ts",
+    main: "src/main.ts",
   }),
 ];

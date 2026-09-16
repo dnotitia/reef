@@ -8,7 +8,9 @@ WORKDIR /app
 RUN corepack enable
 COPY . .
 RUN pnpm install --frozen-lockfile && pnpm run build
-FROM node:24.18.1-alpine AS runner
+RUN pnpm deploy --filter @reef/event-processor --prod /tmp/reef-event-processor
+FROM node:24.18.1-alpine AS reef-web
+FROM node:24.18.1-alpine AS reef-event-processor
 USER 1001
 `;
 
