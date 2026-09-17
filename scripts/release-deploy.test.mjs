@@ -322,8 +322,9 @@ test("register consumes a build artifact generated for a host-port registry", as
     }
     assert.ok(url.endsWith(`/apps/${APP_ID}/releases`));
     const body = JSON.parse(String(init.body));
-    assert.equal(body.manifest.runtime_images.web, IMAGE_DIGEST);
-    assert.equal(body.manifest.runtime_images.event_processor, IMAGE_DIGEST);
+    assert.equal(body.manifest.manifest_version, 2);
+    assert.equal(body.manifest.image_digest, IMAGE_DIGEST);
+    assert.equal(body.manifest.runtime_images, undefined);
     return new Response(
       JSON.stringify({
         id: RELEASE_ID,
@@ -589,6 +590,56 @@ test("register-only rejects a mutable image reference before any child or AKB ca
       0,
     );
     assert.equal(commands.at(-1)?.command, "git");
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
+test("register-only rejects a build artifact missing the processor image", async () => {
+  const temporaryDirectory = await mkdtemp(
+    path.join(os.tmpdir(), "reef-register-missing-processor-test-"),
+  );
+  const buildArtifactPath = path.join(temporaryDirectory, "build.json");
+  const commands = [];
+  try {
+    await writeFile(
+      buildArtifactPath,
+      `${JSON.stringify({
+        kind: "reef-build-artifact",
+        runtime_images: { web: RUNTIME_IMAGES.web },
+        source_revision: "a".repeat(40),
+        version: PRODUCT_VERSION,
+      })}\n`,
+    );
+    await assert.rejects(
+      runReleaseDeployment({
+        rootDir: path.resolve("."),
+        env: {
+          AKB_BACKEND_URL: "https://akb.example.test",
+          REEF_CONTROL_PLANE_TOKEN: TOKEN,
+        },
+        options: { mode: "register", build_artifact: buildArtifactPath },
+        runCommand: async (command, args, options) => {
+          commands.push({ command, args, options });
+          if (command === "pnpm")
+            return { exitCode: 0, stdout: "", stderr: "" };
+          if (command === "git" && args[0] === "status")
+            return { exitCode: 0, stdout: "", stderr: "" };
+          if (command === "git" && args[0] === "rev-parse")
+            return { exitCode: 0, stdout: `${"a".repeat(40)}\n`, stderr: "" };
+          throw new Error("unexpected command");
+        },
+        fetchImpl: async () => {
+          throw new Error("network must not be reached");
+        },
+        core,
+      }),
+      /both runtime images/u,
+    );
+    assert.equal(
+      commands.some(({ command }) => command === "docker"),
+      false,
+    );
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
   }
@@ -1300,10 +1351,7 @@ test("resume uses a new key for the blocked source and then deploys the resumed 
     blueprint: await core.buildReleaseBlueprint(),
     version: "0.14.1",
     sourceRevision,
-    runtimeImages: {
-      web: IMAGE_DIGEST,
-      eventProcessor: EVENT_PROCESSOR_IMAGE_DIGEST,
-    },
+    imageDigest: IMAGE_DIGEST,
   });
   const registration = {
     kind: "reef-release-receipt",
@@ -1680,7 +1728,7 @@ spec:
               value: keep
             - name: REEF_RELEASE_ID
               value: stale
-`;
+${EVENT_PROCESSOR_MANIFEST}`;
   const registrationA = {
     appId: APP_ID,
     releaseId: RELEASE_ID,
@@ -1688,6 +1736,7 @@ spec:
     version: "0.14.1",
     sourceRevision: "a".repeat(40),
     imageDigest: IMAGE_DIGEST,
+    eventProcessorImageDigest: IMAGE_DIGEST,
     manifestChecksum: "d".repeat(64),
   };
   const registrationB = {
@@ -1696,6 +1745,7 @@ spec:
     version: "0.14.2",
     sourceRevision: "c".repeat(40),
     imageDigest: `sha256:${"e".repeat(64)}`,
+    eventProcessorImageDigest: `sha256:${"e".repeat(64)}`,
     manifestChecksum: "f".repeat(64),
   };
   const getResources = (yaml) =>
@@ -1723,10 +1773,12 @@ spec:
   const renderedA = renderKubernetesManifest(renderedBase, {
     registration: registrationA,
     imageRepository: "registry.example/reef-web",
+    eventProcessorImageRepository: "registry.example/reef-event-processor",
   });
   const renderedB = renderKubernetesManifest(renderedBase, {
     registration: registrationB,
     imageRepository: "registry.example/reef-web",
+    eventProcessorImageRepository: "registry.example/reef-event-processor",
   });
   const resourcesA = getResources(renderedA);
   const resourcesB = getResources(renderedB);
@@ -1763,15 +1815,17 @@ test("Kubernetes readback ignores terminating pods but rejects live identity mis
     version: "0.14.1",
     sourceRevision: "a".repeat(40),
     imageDigest: IMAGE_DIGEST,
+    eventProcessorImageDigest: IMAGE_DIGEST,
     manifestChecksum: "c".repeat(64),
   };
   const image = `registry.example/reef-web@${IMAGE_DIGEST}`;
   const provenance = [
-    "Deploy reef-web v0.14.1",
+    "Deploy reef v0.14.1",
     `source ${registration.sourceRevision}`,
     `app ${APP_ID}`,
     `release ${RELEASE_ID}`,
-    `image ${IMAGE_DIGEST}`,
+    `web-image ${IMAGE_DIGEST}`,
+    `event-processor-image ${IMAGE_DIGEST}`,
     `manifest ${registration.manifestChecksum}`,
   ].join("; ");
   const releaseEnv = [
@@ -1822,6 +1876,16 @@ test("Kubernetes readback ignores terminating pods but rejects live identity mis
     },
     status: { containerStatuses: [{ name: "reef-web", ready: false }] },
   };
+  const eventProcessorDeployment = processorDeploymentFixture(
+    registration.sourceRevision,
+    registration.manifestChecksum,
+    IMAGE_DIGEST,
+    registration.version,
+  );
+  const eventProcessorPods = processorPodFixture(
+    registration.sourceRevision,
+    registration.manifestChecksum,
+  );
 
   assert.doesNotThrow(() =>
     assertKubernetesReadback({
@@ -1829,7 +1893,21 @@ test("Kubernetes readback ignores terminating pods but rejects live identity mis
       pods: { items: [livePod, terminatingPod] },
       registration,
       imageRepository: "registry.example/reef-web",
+      eventProcessorImageRepository: "registry.example/reef-event-processor",
+      eventProcessorDeployment,
+      eventProcessorPods,
     }),
+  );
+  assert.throws(
+    () =>
+      assertKubernetesReadback({
+        deployment,
+        pods: { items: [livePod] },
+        registration,
+        imageRepository: "registry.example/reef-web",
+        eventProcessorImageRepository: "registry.example/reef-event-processor",
+      }),
+    (error) => error?.stage === "runtime_identity_mismatch",
   );
   assert.throws(
     () =>
@@ -1845,6 +1923,27 @@ test("Kubernetes readback ignores terminating pods but rejects live identity mis
         },
         registration,
         imageRepository: "registry.example/reef-web",
+        eventProcessorImageRepository: "registry.example/reef-event-processor",
+        eventProcessorDeployment,
+        eventProcessorPods,
+      }),
+    (error) => error?.stage === "runtime_identity_mismatch",
+  );
+  const mismatchedProcessorDeployment = structuredClone(
+    eventProcessorDeployment,
+  );
+  mismatchedProcessorDeployment.spec.template.spec.containers[0].image =
+    "registry.example/reef-event-processor@sha256:bad";
+  assert.throws(
+    () =>
+      assertKubernetesReadback({
+        deployment,
+        pods: { items: [livePod] },
+        registration,
+        imageRepository: "registry.example/reef-web",
+        eventProcessorImageRepository: "registry.example/reef-event-processor",
+        eventProcessorDeployment: mismatchedProcessorDeployment,
+        eventProcessorPods,
       }),
     (error) => error?.stage === "runtime_identity_mismatch",
   );
@@ -1859,6 +1958,7 @@ test("Kubernetes readiness failure is non-zero and stops before identity readbac
     version: "0.14.1",
     sourceRevision: "a".repeat(40),
     imageDigest: IMAGE_DIGEST,
+    eventProcessorImageDigest: IMAGE_DIGEST,
     manifestChecksum: "c".repeat(64),
   };
   const rendered = `apiVersion: v1
@@ -1884,6 +1984,7 @@ spec:
       kustomizeDir: path.resolve("deploy/k8s/overlays/example"),
       registration,
       imageRepository: "registry.example/reef-web",
+      eventProcessorImageRepository: "registry.example/reef-event-processor",
       token: TOKEN,
       env: { REEF_CONTROL_PLANE_TOKEN: TOKEN },
       runCommand: async (command, args) => {

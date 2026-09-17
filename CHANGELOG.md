@@ -40,9 +40,11 @@ explicitly in the entries below.
 
 - **Web and Event Processor release artifacts are bound together.** The release
   CLI builds two named OCI targets from one source revision, records both
-  immutable digests in the release manifest and receipt, and applies the
+  immutable digests in the Reef build artifact and receipt, and applies the
   processor as a private single-replica `Recreate` Deployment with no public
-  Service, Ingress, or HPA.
+  Service, Ingress, or HPA. AKB registration remains Manifest v2 with the web
+  digest only; the processor digest is outside the AKB manifest/checksum until
+  AKB-337.
 
 - **The release CLI records full deployment provenance.** Each image build is
   pushed under a unique source/version-bound build tag and applied by digest;

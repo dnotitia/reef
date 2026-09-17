@@ -17,14 +17,9 @@ import {
 } from "./releaseManifest";
 
 const SOURCE_REVISION = "a".repeat(40);
-const WEB_IMAGE_DIGEST = `sha256:${"b".repeat(64)}`;
-const EVENT_PROCESSOR_IMAGE_DIGEST = `sha256:${"c".repeat(64)}`;
-const RUNTIME_IMAGES = {
-  web: WEB_IMAGE_DIGEST,
-  eventProcessor: EVENT_PROCESSOR_IMAGE_DIGEST,
-};
+const IMAGE_DIGEST = `sha256:${"b".repeat(64)}`;
 
-describe("Reef App Release Blueprint and Manifest v3", () => {
+describe("Reef App Release Blueprint and Manifest v2", () => {
   it("projects the twelve-table schema through the AKB canonical shape", async () => {
     const blueprint = await buildReleaseBlueprint();
 
@@ -109,19 +104,19 @@ describe("Reef App Release Blueprint and Manifest v3", () => {
     ).toBe('{"a":{"a":"값","z":true},"z":"é"}');
   });
 
-  it("finalizes a deterministic strict v3 release payload with both runtime images", async () => {
+  it("finalizes a deterministic strict v2 release payload", async () => {
     const blueprint = await buildReleaseBlueprint();
     const first = await finalizeAppReleaseManifest({
       blueprint,
       version: "0.13.0",
       sourceRevision: SOURCE_REVISION,
-      runtimeImages: RUNTIME_IMAGES,
+      imageDigest: IMAGE_DIGEST,
     });
     const second = await finalizeAppReleaseManifest({
       blueprint: structuredClone(blueprint),
       version: "0.13.0",
       sourceRevision: SOURCE_REVISION,
-      runtimeImages: RUNTIME_IMAGES,
+      imageDigest: IMAGE_DIGEST,
     });
 
     expect(canonicalJson(first)).toBe(canonicalJson(second));
@@ -130,13 +125,10 @@ describe("Reef App Release Blueprint and Manifest v3", () => {
       first.manifest,
     );
     expect(first.manifest).toMatchObject({
-      manifest_version: 3,
+      manifest_version: 2,
       app_key: "reef",
       source_revision: SOURCE_REVISION,
-      runtime_images: {
-        web: WEB_IMAGE_DIGEST,
-        event_processor: EVENT_PROCESSOR_IMAGE_DIGEST,
-      },
+      image_digest: IMAGE_DIGEST,
       schema_version: REEF_SCHEMA_VERSION,
     });
     expect(first.manifest.transition_plans).toHaveLength(2);
@@ -162,13 +154,13 @@ describe("Reef App Release Blueprint and Manifest v3", () => {
       blueprint,
       version: "0.13.0",
       sourceRevision: SOURCE_REVISION,
-      runtimeImages: RUNTIME_IMAGES,
+      imageDigest: IMAGE_DIGEST,
     });
     const second = await finalizeAppReleaseManifest({
       blueprint: changedMetadata,
       version: "0.13.0",
       sourceRevision: SOURCE_REVISION,
-      runtimeImages: RUNTIME_IMAGES,
+      imageDigest: IMAGE_DIGEST,
     });
 
     expect(second.manifest_checksum).toBe(first.manifest_checksum);
@@ -180,28 +172,25 @@ describe("Reef App Release Blueprint and Manifest v3", () => {
       blueprint,
       version: "0.13.0",
       sourceRevision: SOURCE_REVISION,
-      runtimeImages: RUNTIME_IMAGES,
+      imageDigest: IMAGE_DIGEST,
     });
     const sourceChanged = await finalizeAppReleaseManifest({
       blueprint,
       version: "0.13.0",
       sourceRevision: "c".repeat(40),
-      runtimeImages: RUNTIME_IMAGES,
+      imageDigest: IMAGE_DIGEST,
     });
     const imageChanged = await finalizeAppReleaseManifest({
       blueprint,
       version: "0.13.0",
       sourceRevision: SOURCE_REVISION,
-      runtimeImages: {
-        ...RUNTIME_IMAGES,
-        eventProcessor: `sha256:${"d".repeat(64)}`,
-      },
+      imageDigest: `sha256:${"d".repeat(64)}`,
     });
     const versionChanged = await finalizeAppReleaseManifest({
       blueprint,
       version: "0.14.0",
       sourceRevision: SOURCE_REVISION,
-      runtimeImages: RUNTIME_IMAGES,
+      imageDigest: IMAGE_DIGEST,
     });
 
     expect(
@@ -217,24 +206,8 @@ describe("Reef App Release Blueprint and Manifest v3", () => {
   it.each([
     ["version", { version: "0.13" }],
     ["source revision", { sourceRevision: "short" }],
-    [
-      "image tag",
-      {
-        runtimeImages: {
-          web: "reef:latest",
-          eventProcessor: EVENT_PROCESSOR_IMAGE_DIGEST,
-        },
-      },
-    ],
-    [
-      "malformed image digest",
-      {
-        runtimeImages: {
-          web: WEB_IMAGE_DIGEST,
-          eventProcessor: "sha256:ABC",
-        },
-      },
-    ],
+    ["image tag", { imageDigest: "reef:latest" }],
+    ["malformed image digest", { imageDigest: "sha256:ABC" }],
   ])("rejects an invalid %s before finalization", async (_label, overrides) => {
     const blueprint = await buildReleaseBlueprint();
     await expect(
@@ -242,7 +215,7 @@ describe("Reef App Release Blueprint and Manifest v3", () => {
         blueprint,
         version: "0.13.0",
         sourceRevision: SOURCE_REVISION,
-        runtimeImages: RUNTIME_IMAGES,
+        imageDigest: IMAGE_DIGEST,
         ...overrides,
       }),
     ).rejects.toThrow();
@@ -269,7 +242,7 @@ describe("Reef App Release Blueprint and Manifest v3", () => {
         blueprint: stale,
         version: "0.13.0",
         sourceRevision: SOURCE_REVISION,
-        runtimeImages: RUNTIME_IMAGES,
+        imageDigest: IMAGE_DIGEST,
       }),
     ).rejects.toThrow();
     await expect(
@@ -277,7 +250,7 @@ describe("Reef App Release Blueprint and Manifest v3", () => {
         blueprint: wrongVersion,
         version: "0.13.0",
         sourceRevision: SOURCE_REVISION,
-        runtimeImages: RUNTIME_IMAGES,
+        imageDigest: IMAGE_DIGEST,
       }),
     ).rejects.toThrow();
   });
@@ -295,7 +268,7 @@ describe("Reef App Release Blueprint and Manifest v3", () => {
         blueprint: mismatch,
         version: "0.14.1",
         sourceRevision: SOURCE_REVISION,
-        runtimeImages: RUNTIME_IMAGES,
+        imageDigest: IMAGE_DIGEST,
       }),
     ).rejects.toThrow();
 
@@ -311,7 +284,7 @@ describe("Reef App Release Blueprint and Manifest v3", () => {
         blueprint: nonEmpty,
         version: "0.14.1",
         sourceRevision: SOURCE_REVISION,
-        runtimeImages: RUNTIME_IMAGES,
+        imageDigest: IMAGE_DIGEST,
       }),
     ).rejects.toThrow();
 
@@ -324,7 +297,7 @@ describe("Reef App Release Blueprint and Manifest v3", () => {
         blueprint: duplicate,
         version: "0.14.1",
         sourceRevision: SOURCE_REVISION,
-        runtimeImages: RUNTIME_IMAGES,
+        imageDigest: IMAGE_DIGEST,
       }),
     ).rejects.toThrow();
 
@@ -341,7 +314,7 @@ describe("Reef App Release Blueprint and Manifest v3", () => {
         blueprint: unknown,
         version: "0.14.1",
         sourceRevision: SOURCE_REVISION,
-        runtimeImages: RUNTIME_IMAGES,
+        imageDigest: IMAGE_DIGEST,
       }),
     ).rejects.toThrow();
   });
@@ -364,7 +337,7 @@ describe("Reef App Release Blueprint and Manifest v3", () => {
         blueprint: invalid,
         version: "0.13.0",
         sourceRevision: SOURCE_REVISION,
-        runtimeImages: RUNTIME_IMAGES,
+        imageDigest: IMAGE_DIGEST,
       }),
     ).rejects.toThrow();
 
@@ -372,7 +345,7 @@ describe("Reef App Release Blueprint and Manifest v3", () => {
       blueprint,
       version: "0.13.0",
       sourceRevision: SOURCE_REVISION,
-      runtimeImages: RUNTIME_IMAGES,
+      imageDigest: IMAGE_DIGEST,
     });
     await expect(
       verifyFinalizedRelease({
@@ -388,10 +361,10 @@ describe("Reef App Release Blueprint and Manifest v3", () => {
       blueprint,
       version: "0.13.0",
       sourceRevision: SOURCE_REVISION,
-      runtimeImages: RUNTIME_IMAGES,
+      imageDigest: IMAGE_DIGEST,
     });
     const mutated = structuredClone(finalized);
-    mutated.manifest.runtime_images.event_processor = `sha256:${"d".repeat(64)}`;
+    mutated.manifest.image_digest = `sha256:${"c".repeat(64)}`;
 
     await expect(verifyFinalizedRelease(mutated)).rejects.toThrow();
   });

@@ -5,9 +5,9 @@ import {
   FinalizedReleasePayloadSchema,
   ReefAppDefinitionSchema,
   ReleaseBlueprintSchema,
-  ReleaseRuntimeImageDigestsSchema,
   ReleaseSourceRevisionSchema,
   ReleaseVersionSchema,
+  ReleaseImageDigestSchema,
   ReleaseManifestTableSchema,
   type AppReleaseManifest,
   type FinalizedReleasePayload,
@@ -16,7 +16,6 @@ import {
   type ReleaseDesiredSchemaProjection,
   type ReleaseManifestStep,
   type ReleaseManifestTable,
-  type ReleaseRuntimeImageDigests,
   type ReleaseTransitionSource,
 } from "../../../schemas/controlPlane";
 import {
@@ -283,7 +282,7 @@ function manifestChecksumInput(
     manifest_version: manifest.manifest_version,
     app_key: manifest.app_key,
     source_revision: manifest.source_revision,
-    runtime_images: manifest.runtime_images,
+    image_digest: manifest.image_digest,
     schema_version: manifest.schema_version,
     schema: manifest.schema,
     transition_plans: manifest.transition_plans.map((plan) => ({
@@ -294,7 +293,7 @@ function manifestChecksumInput(
   };
 }
 
-/** Compute the AKB App Release Manifest v3 checksum for a product version. */
+/** Compute the AKB App Release Manifest v2 checksum for a product version. */
 export async function calculateReleaseManifestChecksum(
   manifest: AppReleaseManifest,
   version: string,
@@ -313,7 +312,7 @@ export interface FinalizeAppReleaseManifestInput {
   blueprint: unknown;
   version: string;
   sourceRevision: string;
-  runtimeImages: ReleaseRuntimeImageDigests;
+  imageDigest: string;
 }
 
 /**
@@ -334,20 +333,17 @@ export async function finalizeAppReleaseManifest(
     input.sourceRevision,
     "source revision",
   ).toLowerCase();
-  const runtimeImages = parseReleaseValue(
-    ReleaseRuntimeImageDigestsSchema,
-    input.runtimeImages,
-    "runtime images",
+  const imageDigest = parseReleaseValue(
+    ReleaseImageDigestSchema,
+    input.imageDigest,
+    "image digest",
   );
 
   const manifest = AppReleaseManifestSchema.parse({
-    manifest_version: 3,
+    manifest_version: 2,
     app_key: blueprint.app_definition.app_key,
     source_revision: sourceRevision,
-    runtime_images: {
-      web: runtimeImages.web,
-      event_processor: runtimeImages.eventProcessor,
-    },
+    image_digest: imageDigest,
     schema_version: blueprint.schema_version,
     schema: blueprint.schema,
     transition_plans: blueprint.transition_plans.map((plan) => ({
@@ -379,10 +375,7 @@ export async function verifyFinalizedRelease(
     blueprint: await buildReleaseBlueprint(),
     version: payload.version,
     sourceRevision: payload.manifest.source_revision,
-    runtimeImages: {
-      web: payload.manifest.runtime_images.web,
-      eventProcessor: payload.manifest.runtime_images.event_processor,
-    },
+    imageDigest: payload.manifest.image_digest,
   });
   if (canonicalJson(payload.manifest) !== canonicalJson(expected.manifest)) {
     throw releaseValidationError(

@@ -3,13 +3,17 @@
 reef ships as two containers from one release: **reef-web**, the
 browser-facing BFF, and the private **reef-event-processor**, which tails AKB
 Change Events and reconciles Inbox notifications. Both images are built from
-the same clean source revision and release manifest, then deployed by
-immutable digest. The processor has no public Service or Ingress and uses only
-Core's public interfaces. Local mode persists no product state of its own: the
-AKB session lives in an httpOnly cookie. SSO mode uses deployment-managed Redis
-only for encrypted OIDC custody, one-time login state, and refresh locks.
-Monitored repositories are accessed through deployment-managed GitHub
-credentials, and LLM config is deployment-managed server state.
+the same clean source revision and product version, then deployed by immutable
+digests recorded in Reef's build artifact and receipt. AKB registration uses
+the existing Manifest v2 contract and records only the web digest in
+`image_digest`; the processor digest is deliberately outside the AKB manifest
+and checksum until AKB-337 extends that contract. The processor has no public
+Service or Ingress and uses only Core's public interfaces. Local mode persists
+no product state of its own: the AKB session lives in an httpOnly cookie. SSO
+mode uses deployment-managed Redis only for encrypted OIDC custody, one-time
+login state, and refresh locks. Monitored repositories are accessed through
+deployment-managed GitHub credentials, and LLM config is deployment-managed
+server state.
 
 This guide covers three ways to run it:
 
@@ -40,8 +44,9 @@ docker build -t reef-web:local .
 # Build the private processor image
 docker build --target reef-event-processor -t reef-event-processor:local .
 
-# For a cluster, use the release CLI. It pushes one unique build tag, records
-# the digest returned by buildx, and never moves an existing version/source tag.
+# For a cluster, use the release CLI. It pushes one unique build tag per
+# runtime, records both digests returned by buildx, and never moves an existing
+# version/source tag.
 REGISTRY=ghcr.io/myorg \
 REEF_BUILD_ARTIFACT=/tmp/reef-build.json \
   deploy/k8s/deploy.sh build
@@ -232,10 +237,14 @@ The build artifact is written by the normal build path and contains
 `image_repository`, `image_digest`, and `image_reference`, plus
 `source_revision` and the root `version`. register-only compares all of them
 with the current clean checkout before finalizing the Manifest; a bare digest
-is rejected. The registration receipt is a safe handoff containing `app_id`,
-`release_id`, both runtime image repositories and digests, product version,
-full source revision, manifest checksum, and the replay flags. Keep both files outside the repository
-so the clean-source check does not treat them as product changes.
+is rejected. The AKB request is Manifest v2 with the web digest in
+`image_digest`; `runtime_images` is not sent to AKB. The registration receipt is
+a safe handoff containing `app_id`, `release_id`, both runtime image
+repositories and digests, product version, full source revision, manifest
+checksum, and the replay flags. Receipt and Kubernetes verification reject a
+missing or mismatched processor image, while the AKB registry does not verify
+that processor digest. Keep both files outside the repository so the
+clean-source check does not treat them as product changes.
 
 If AKB reports a blocked rollout, fix the cause and explicitly resume the same
 source job with a new idempotency key. The receipt supplies the original
@@ -254,7 +263,7 @@ The CLI derives provenance from the root package version and full `HEAD`; it
 does not accept version/commit identity overrides or deploy a mutable `latest`
 reference. `kubernetes.io/change-cause` and the `REEF_RELEASE_*` PodTemplate
 environment variables include the verified App/Release IDs, source revision,
-both runtime digests, and manifest checksum. The fixed `reef-web-config` and
+both runtime digests, and the web-only AKB manifest checksum. The fixed `reef-web-config` and
 `reef-event-processor-config` ConfigMaps remain
 for stable workload settings and is not rewritten with release identity, so an
 older ReplicaSet cannot observe a later release's coordinates. The control-

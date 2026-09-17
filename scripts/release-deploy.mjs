@@ -462,7 +462,12 @@ function imageFromArtifact(value, core, label) {
 }
 
 function runtimeImagesFromArtifact(value, core, label) {
-  if (!value || typeof value !== "object") {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    !value.web ||
+    !value.event_processor
+  ) {
     throw new DeploymentError(`${label} must include both runtime images`, {
       stage: "artifact_validation",
     });
@@ -505,10 +510,7 @@ async function finalizeRelease({
       blueprint,
       version,
       sourceRevision,
-      runtimeImages: {
-        web: runtimeImages.web.imageDigest,
-        eventProcessor: runtimeImages.eventProcessor.imageDigest,
-      },
+      imageDigest: runtimeImages.web.imageDigest,
     });
     return await core.verifyFinalizedRelease(payload);
   } catch (error) {
@@ -580,18 +582,14 @@ function registrationFromCore(core, app, release, payload, runtimeImages) {
     appKey: app.appKey,
     version: payload.version,
     sourceRevision: payload.manifest.source_revision,
-    runtimeImageDigests: {
-      web: payload.manifest.runtime_images.web,
-      eventProcessor: payload.manifest.runtime_images.event_processor,
-    },
+    imageDigest: payload.manifest.image_digest,
     manifestChecksum: payload.manifest_checksum,
     appReplayed: app.replayed === true,
     releaseReplayed: release.replayed === true,
   });
   const registration = {
     ...parsed,
-    imageDigest: parsed.runtimeImageDigests.web,
-    eventProcessorImageDigest: parsed.runtimeImageDigests.eventProcessor,
+    eventProcessorImageDigest: runtimeImages.eventProcessor.imageDigest,
     imageRepositories: {
       web: runtimeImages.web.imageRepository,
       eventProcessor: runtimeImages.eventProcessor.imageRepository,
@@ -661,13 +659,13 @@ function makeReceipt(registration, fields = {}, runtimeImages) {
     runtime_images: {
       web: {
         image_repository: runtimeImages.web.imageRepository,
-        image_digest: registration.runtimeImageDigests.web,
-        image_reference: `${runtimeImages.web.imageRepository}@${registration.runtimeImageDigests.web}`,
+        image_digest: registration.imageDigest,
+        image_reference: `${runtimeImages.web.imageRepository}@${registration.imageDigest}`,
       },
       event_processor: {
         image_repository: runtimeImages.eventProcessor.imageRepository,
-        image_digest: registration.runtimeImageDigests.eventProcessor,
-        image_reference: `${runtimeImages.eventProcessor.imageRepository}@${registration.runtimeImageDigests.eventProcessor}`,
+        image_digest: registration.eventProcessorImageDigest,
+        image_reference: `${runtimeImages.eventProcessor.imageRepository}@${registration.eventProcessorImageDigest}`,
       },
     },
     manifest_checksum: registration.manifestChecksum,
@@ -710,10 +708,7 @@ async function readReceipt(receiptPath, core) {
       appKey: parsed.app_key,
       version: parsed.version,
       sourceRevision: parsed.source_revision,
-      runtimeImageDigests: {
-        web: parsed.runtime_images.web.image_digest,
-        eventProcessor: parsed.runtime_images.event_processor.image_digest,
-      },
+      imageDigest: parsed.runtime_images.web.image_digest,
       manifestChecksum: parsed.manifest_checksum,
       appReplayed: parsed.app_replayed === true,
       releaseReplayed: parsed.release_replayed === true,
@@ -725,9 +720,7 @@ async function readReceipt(receiptPath, core) {
     );
     const registration = {
       ...parsedRegistration,
-      imageDigest: parsedRegistration.runtimeImageDigests.web,
-      eventProcessorImageDigest:
-        parsedRegistration.runtimeImageDigests.eventProcessor,
+      eventProcessorImageDigest: runtimeImages.eventProcessor.imageDigest,
       imageRepositories: {
         web: runtimeImages.web.imageRepository,
         eventProcessor: runtimeImages.eventProcessor.imageRepository,
@@ -760,9 +753,8 @@ function sameRegistration(left, right) {
     left?.releaseId === right?.releaseId &&
     left?.version === right?.version &&
     left?.sourceRevision === right?.sourceRevision &&
-    left?.runtimeImageDigests?.web === right?.runtimeImageDigests?.web &&
-    left?.runtimeImageDigests?.eventProcessor ===
-      right?.runtimeImageDigests?.eventProcessor &&
+    left?.imageDigest === right?.imageDigest &&
+    left?.eventProcessorImageDigest === right?.eventProcessorImageDigest &&
     left?.manifestChecksum === right?.manifestChecksum
   );
 }
@@ -795,10 +787,11 @@ async function reusableReceiptRelease({
     payload.manifest_checksum !== receipt.registration.manifestChecksum ||
     payload.manifest.source_revision !==
       receipt.registration.sourceRevision.toLowerCase() ||
-    payload.manifest.runtime_images.web !==
-      receipt.registration.runtimeImageDigests.web ||
-    payload.manifest.runtime_images.event_processor !==
-      receipt.registration.runtimeImageDigests.eventProcessor ||
+    payload.manifest.image_digest !== receipt.registration.imageDigest ||
+    receipt.runtimeImages.web.imageDigest !==
+      receipt.registration.imageDigest ||
+    receipt.runtimeImages.eventProcessor.imageDigest !==
+      receipt.registration.eventProcessorImageDigest ||
     receipt.runtimeImages.web.imageRepository !== `${registry}/reef-web` ||
     receipt.runtimeImages.eventProcessor.imageRepository !==
       `${registry}/reef-event-processor`
@@ -822,36 +815,15 @@ async function reusableReceiptRelease({
 }
 
 function buildProvenanceAnnotation(registration) {
-  if (!registration.runtimeImageDigests) {
-    return [
-      `Deploy reef-web v${registration.version}`,
-      `source ${registration.sourceRevision}`,
-      `app ${registration.appId}`,
-      `release ${registration.releaseId}`,
-      `image ${registration.imageDigest}`,
-      `manifest ${registration.manifestChecksum}`,
-    ].join("; ");
-  }
-  const digests = runtimeImageDigests(registration);
   return [
     `Deploy reef v${registration.version}`,
     `source ${registration.sourceRevision}`,
     `app ${registration.appId}`,
     `release ${registration.releaseId}`,
-    `web-image ${digests.web}`,
-    `event-processor-image ${digests.eventProcessor}`,
+    `web-image ${registration.imageDigest}`,
+    `event-processor-image ${registration.eventProcessorImageDigest}`,
     `manifest ${registration.manifestChecksum}`,
   ].join("; ");
-}
-
-function runtimeImageDigests(registration) {
-  return (
-    registration.runtimeImageDigests ?? {
-      web: registration.imageDigest,
-      eventProcessor:
-        registration.eventProcessorImageDigest ?? registration.imageDigest,
-    }
-  );
 }
 
 const IDENTITY_CONFIG_KEYS = Object.freeze({
@@ -908,7 +880,7 @@ export function renderKubernetesManifest(
       resource?.kind === "Deployment" &&
       resource?.metadata?.name === "reef-event-processor",
   );
-  if (eventProcessorImageRepository && !eventProcessorDeployment) {
+  if (!eventProcessorImageRepository || !eventProcessorDeployment) {
     throw new DeploymentError(
       "kustomize output must contain the private reef-event-processor Deployment",
       { stage: "kubernetes_render" },
@@ -949,9 +921,6 @@ export function renderKubernetesManifest(
       value: String(registration[registrationKey]),
     });
   }
-  if (!eventProcessorImageRepository || !eventProcessorDeployment) {
-    return resources.map((resource) => stringify(resource)).join("---\n");
-  }
   const processorContainers =
     eventProcessorDeployment.spec?.template?.spec?.containers;
   const processorContainer = Array.isArray(processorContainers)
@@ -974,7 +943,7 @@ export function renderKubernetesManifest(
       { stage: "kubernetes_render" },
     );
   }
-  processorContainer.image = `${eventProcessorImageRepository}@${runtimeImageDigests(registration).eventProcessor}`;
+  processorContainer.image = `${eventProcessorImageRepository}@${registration.eventProcessorImageDigest}`;
   const processorTemplateMetadata =
     eventProcessorDeployment.spec.template.metadata ?? {};
   eventProcessorDeployment.spec.template.metadata = processorTemplateMetadata;
@@ -1156,8 +1125,14 @@ export function assertKubernetesReadback({
       );
     }
   }
-  if (eventProcessorDeployment !== undefined) {
-    const processorExpectedImage = `${eventProcessorImageRepository}@${runtimeImageDigests(registration).eventProcessor}`;
+  if (!eventProcessorImageRepository || !eventProcessorDeployment) {
+    throw new DeploymentError(
+      "Kubernetes event processor Deployment is missing from runtime readback",
+      { stage: "runtime_identity_mismatch" },
+    );
+  }
+  {
+    const processorExpectedImage = `${eventProcessorImageRepository}@${registration.eventProcessorImageDigest}`;
     const processorDeploymentContainer = findContainer(
       eventProcessorDeployment.spec?.template?.spec?.containers,
       "reef-event-processor",
@@ -1243,8 +1218,7 @@ export function assertKubernetesReadback({
         typeof processorStatus?.imageID !== "string" ||
         processorStatus.imageID.length === 0 ||
         (processorRuntimeDigest !== undefined &&
-          processorRuntimeDigest !==
-            runtimeImageDigests(registration).eventProcessor)
+          processorRuntimeDigest !== registration.eventProcessorImageDigest)
       ) {
         throw new DeploymentError(
           "A reef-event-processor pod does not match the applied release",
@@ -1928,10 +1902,7 @@ async function runResume({
     release.version !== registration.version ||
     release.manifestChecksum !== registration.manifestChecksum ||
     verifiedRelease.manifest.source_revision !== registration.sourceRevision ||
-    verifiedRelease.manifest.runtime_images.web !==
-      registration.runtimeImageDigests.web ||
-    verifiedRelease.manifest.runtime_images.event_processor !==
-      registration.runtimeImageDigests.eventProcessor
+    verifiedRelease.manifest.image_digest !== registration.imageDigest
   ) {
     throw new DeploymentError(
       "The resumed release identity does not match the receipt",

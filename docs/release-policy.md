@@ -124,10 +124,14 @@ Before creating a release tag:
    - `pnpm --filter @reef/web run test:e2e` when the required environment is available.
 5. Run `pnpm run release:blueprint:check` to verify the committed schema-v3
    Release Blueprint against the Core schema source.
-6. After the image is built and a release payload has been assembled, run
-   `pnpm run release:manifest:check <finalized-payload.json>` to verify the
-   full source revision, immutable image digest, desired schema, transition
-   plan, and manifest checksum before registry submission.
+6. After both runtime images are built and a release payload has been
+   assembled, run `pnpm run release:manifest:check <finalized-payload.json>` to
+   verify the full source revision, immutable **web** image digest, desired
+   schema, transition plan, and Manifest v2 checksum before registry
+   submission. The processor digest is verified in the Reef build artifact,
+   receipt, and Kubernetes readback; it is not part of the AKB manifest or
+   checksum, and AKB registry acceptance must not be described as processor
+   verification until AKB-337 lands.
 7. Confirm Docker image build and size checks pass.
 8. Confirm streaming routes still pass the SSE smoke test for the target
    environment when staging is available.

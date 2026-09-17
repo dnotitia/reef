@@ -4,18 +4,6 @@ import { AkbTableColumnTypeSchema } from "../adapters/akb/core/tableManifest";
 /** UUIDs and lifecycle values are part of the AKB app-installation wire contract. */
 export const ControlPlaneIdSchema = z.uuid();
 export const ControlPlaneDateTimeSchema = z.string().min(1);
-export const ReleaseImageDigestSchema = z
-  .string()
-  .length(71)
-  .regex(/^sha256:[0-9a-f]{64}$/u);
-export const ReleaseRuntimeImageDigestsSchema = z.strictObject({
-  web: ReleaseImageDigestSchema,
-  eventProcessor: ReleaseImageDigestSchema,
-});
-export const ReleaseRuntimeImagesSchema = z.strictObject({
-  web: ReleaseImageDigestSchema,
-  event_processor: ReleaseImageDigestSchema,
-});
 
 export const ControlPlaneInstallationLifecycleEnum = z.enum([
   "installing",
@@ -119,7 +107,10 @@ export const ReleaseRegistrationResultSchema = z.object({
     .min(40)
     .max(64)
     .regex(/^[0-9a-fA-F]{40,64}$/u),
-  runtimeImageDigests: ReleaseRuntimeImageDigestsSchema,
+  imageDigest: z
+    .string()
+    .length(71)
+    .regex(/^sha256:[0-9a-f]{64}$/u),
   manifestChecksum: z
     .string()
     .length(64)
@@ -203,10 +194,6 @@ export type ControlPlaneAppDefinition = z.infer<
 export type ControlPlaneAppRelease = z.infer<
   typeof ControlPlaneAppReleaseSchema
 >;
-export type ReleaseRuntimeImageDigests = z.infer<
-  typeof ReleaseRuntimeImageDigestsSchema
->;
-export type ReleaseRuntimeImages = z.infer<typeof ReleaseRuntimeImagesSchema>;
 export type ReleaseRegistrationResult = z.infer<
   typeof ReleaseRegistrationResultSchema
 >;
@@ -243,6 +230,11 @@ export const ReleaseSourceRevisionSchema = z
   .min(40)
   .max(64)
   .regex(/^[0-9a-fA-F]{40,64}$/u);
+
+export const ReleaseImageDigestSchema = z
+  .string()
+  .length(71)
+  .regex(/^sha256:[0-9a-f]{64}$/u);
 
 const ReleaseIdentifierSchema = z
   .string()
@@ -349,10 +341,10 @@ export const ReleaseBlueprintSchema = z.strictObject({
 });
 
 export const AppReleaseManifestSchema = z.strictObject({
-  manifest_version: z.literal(3),
+  manifest_version: z.literal(2),
   app_key: z.literal("reef"),
   source_revision: ReleaseSourceRevisionSchema,
-  runtime_images: ReleaseRuntimeImagesSchema,
+  image_digest: ReleaseImageDigestSchema,
   schema_version: z.literal(3),
   schema: ReleaseDesiredSchemaProjectionSchema,
   transition_plans: z
