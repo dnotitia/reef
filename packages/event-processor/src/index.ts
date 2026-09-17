@@ -6,17 +6,24 @@ import {
 } from "@reef/core";
 import {
   runEventProcessor,
+  type EventProcessorReconciliationOutcome,
+  type EventProcessorTailState,
   type EventProcessorRuntime,
   type RunEventProcessorOptions,
 } from "./processor.js";
 
 export interface EventProcessorOptions {
   baseUrl: string;
-  jwt: string;
+  credential: string;
   vault: string;
   batchSize?: number;
   reconnectDelayMs?: number;
+  reconciliationIntervalMs?: number;
   onError?: (error: unknown) => void;
+  onReady?: () => void;
+  onTailState?: (state: EventProcessorTailState) => void;
+  onRecoveryChange?: (recovering: boolean) => void;
+  onReconciliation?: (outcome: EventProcessorReconciliationOutcome) => void;
   requestPolicy?: AkbRequestPolicy;
 }
 
@@ -34,7 +41,7 @@ export function createEventProcessor(
 ): EventProcessor {
   const adapter = createAkbAdapter({
     baseUrl: options.baseUrl,
-    credential: options.jwt,
+    credential: options.credential,
     requestPolicy: options.requestPolicy,
   });
   const tail = createAkbChangeEventTail(adapter);
@@ -51,7 +58,12 @@ export function createEventProcessor(
     vault: options.vault,
     signal,
     reconnectDelayMs: options.reconnectDelayMs ?? 1_000,
+    reconciliationIntervalMs: options.reconciliationIntervalMs,
     onError: options.onError,
+    onReady: options.onReady,
+    onTailState: options.onTailState,
+    onRecoveryChange: options.onRecoveryChange,
+    onReconciliation: options.onReconciliation,
   });
   return {
     run: (signal) => runEventProcessor(runtime, runOptions(signal)),

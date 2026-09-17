@@ -17,7 +17,8 @@
     "node": ">=24.15.0"
   },
   "scripts": {
-    "dev": "turbo run dev --filter=@reef/web",
+    "dev": "turbo run dev --filter=@reef/web --filter=@reef/event-processor",
+    "dev:web": "turbo run dev --filter=@reef/web",
     "build": "turbo run build --filter=@reef/web",
     "build:packages": "turbo run build --filter='./packages/**' --filter='!@reef/web'",
     "package:production-artifact": "node scripts/package-production-artifact.mjs",

@@ -18,10 +18,116 @@ import {
 const APP_ID = "11111111-1111-4111-8111-111111111111";
 const RELEASE_ID = "22222222-2222-4222-8222-222222222222";
 const IMAGE_DIGEST = `sha256:${"b".repeat(64)}`;
+const EVENT_PROCESSOR_IMAGE_DIGEST = `sha256:${"c".repeat(64)}`;
+const RUNTIME_IMAGES = {
+  web: {
+    image_repository: "registry.example/reef-web",
+    image_digest: IMAGE_DIGEST,
+    image_reference: `registry.example/reef-web@${IMAGE_DIGEST}`,
+  },
+  event_processor: {
+    image_repository: "registry.example/reef-event-processor",
+    image_digest: EVENT_PROCESSOR_IMAGE_DIGEST,
+    image_reference: `registry.example/reef-event-processor@${EVENT_PROCESSOR_IMAGE_DIGEST}`,
+  },
+};
 const TOKEN = "system-admin-secret";
 const PRODUCT_VERSION = JSON.parse(
   readFileSync(new URL("../package.json", import.meta.url), "utf8"),
 ).version;
+const EVENT_PROCESSOR_MANIFEST = `---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reef-event-processor
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata: {}
+    spec:
+      containers:
+        - name: reef-event-processor
+          image: reef-event-processor:latest
+`;
+
+function processorDeploymentFixture(
+  sourceRevision,
+  manifestChecksum,
+  digest = IMAGE_DIGEST,
+  version = PRODUCT_VERSION,
+) {
+  const image = `registry.example/reef-event-processor@${digest}`;
+  const provenance = [
+    `Deploy reef v${version}`,
+    `source ${sourceRevision}`,
+    `app ${APP_ID}`,
+    `release ${RELEASE_ID}`,
+    `web-image ${IMAGE_DIGEST}`,
+    `event-processor-image ${digest}`,
+    `manifest ${manifestChecksum}`,
+  ].join("; ");
+  return {
+    metadata: { annotations: { "kubernetes.io/change-cause": provenance } },
+    spec: {
+      replicas: 1,
+      strategy: { type: "Recreate" },
+      template: {
+        metadata: { annotations: { "kubernetes.io/change-cause": provenance } },
+        spec: {
+          containers: [
+            {
+              name: "reef-event-processor",
+              image,
+              env: [
+                { name: "REEF_APP_ID", value: APP_ID },
+                { name: "REEF_RELEASE_ID", value: RELEASE_ID },
+                { name: "REEF_RELEASE_VERSION", value: version },
+                { name: "REEF_RELEASE_SOURCE_REVISION", value: sourceRevision },
+                {
+                  name: "REEF_RELEASE_MANIFEST_CHECKSUM",
+                  value: manifestChecksum,
+                },
+                { name: "REEF_EVENT_PROCESSOR_IMAGE_DIGEST", value: digest },
+              ],
+            },
+          ],
+        },
+      },
+    },
+  };
+}
+
+function processorPodFixture(
+  sourceRevision,
+  manifestChecksum,
+  digest = IMAGE_DIGEST,
+) {
+  return {
+    items: [
+      {
+        spec: {
+          containers: [
+            {
+              name: "reef-event-processor",
+              image: `registry.example/reef-event-processor@${digest}`,
+            },
+          ],
+        },
+        status: {
+          containerStatuses: [
+            {
+              name: "reef-event-processor",
+              ready: true,
+              imageID: `containerd://sha256:${"d".repeat(64)}`,
+            },
+          ],
+        },
+      },
+    ],
+  };
+}
 
 test("build-only creates a verifiable build artifact without AKB or Kubernetes calls", async () => {
   const temporaryDirectory = await mkdtemp(
@@ -87,9 +193,18 @@ test("build-only creates a verifiable build artifact without AKB or Kubernetes c
     });
     assert.deepEqual(result, {
       kind: "reef-build-artifact",
-      image_repository: "registry.example/reef-web",
-      image_digest: IMAGE_DIGEST,
-      image_reference: `registry.example/reef-web@${IMAGE_DIGEST}`,
+      runtime_images: {
+        web: {
+          image_repository: "registry.example/reef-web",
+          image_digest: IMAGE_DIGEST,
+          image_reference: `registry.example/reef-web@${IMAGE_DIGEST}`,
+        },
+        event_processor: {
+          image_repository: "registry.example/reef-event-processor",
+          image_digest: secondImageDigest,
+          image_reference: `registry.example/reef-event-processor@${secondImageDigest}`,
+        },
+      },
       source_revision: sourceRevision,
       version: PRODUCT_VERSION,
     });
@@ -115,6 +230,10 @@ test("build-only creates a verifiable build artifact without AKB or Kubernetes c
       dockerTags.some((tag) => tag.endsWith(`:${sourceRevision}`)),
       false,
     );
+    const dockerBuildTargets = commands
+      .filter(({ command }) => command === "docker")
+      .map(({ args }) => args[args.indexOf("--target") + 1]);
+    assert.deepEqual(dockerBuildTargets, ["reef-web", "reef-event-processor"]);
     const buildTagPrefix = `registry.example/reef-web:build-${PRODUCT_VERSION}-${sourceRevision}-`;
     assert.equal(dockerTags[0].startsWith(buildTagPrefix), true);
     assert.match(
@@ -132,8 +251,11 @@ test("build-only creates a verifiable build artifact without AKB or Kubernetes c
       },
       core,
     });
-    assert.equal(rebuilt.image_digest, secondImageDigest);
-    assert.notEqual(rebuilt.image_digest, result.image_digest);
+    assert.equal(rebuilt.runtime_images.web.image_digest, secondImageDigest);
+    assert.notEqual(
+      rebuilt.runtime_images.web.image_digest,
+      result.runtime_images.web.image_digest,
+    );
     assert.deepEqual(JSON.parse(await readFile(artifactPath, "utf8")), rebuilt);
     assert.equal(
       existingRegistryTags.has(`registry.example/reef-web:v${PRODUCT_VERSION}`),
@@ -145,7 +267,7 @@ test("build-only creates a verifiable build artifact without AKB or Kubernetes c
     );
     assert.equal(
       commands.filter(({ command }) => command === "docker").length,
-      2,
+      4,
     );
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
@@ -200,7 +322,9 @@ test("register consumes a build artifact generated for a host-port registry", as
     }
     assert.ok(url.endsWith(`/apps/${APP_ID}/releases`));
     const body = JSON.parse(String(init.body));
+    assert.equal(body.manifest.manifest_version, 2);
     assert.equal(body.manifest.image_digest, IMAGE_DIGEST);
+    assert.equal(body.manifest.runtime_images, undefined);
     return new Response(
       JSON.stringify({
         id: RELEASE_ID,
@@ -224,8 +348,14 @@ test("register consumes a build artifact generated for a host-port registry", as
       fetchImpl,
       core,
     });
-    assert.equal(built.image_repository, `${registry}/reef-web`);
-    assert.equal(built.image_reference, `${registry}/reef-web@${IMAGE_DIGEST}`);
+    assert.equal(
+      built.runtime_images.web.image_repository,
+      `${registry}/reef-web`,
+    );
+    assert.equal(
+      built.runtime_images.event_processor.image_repository,
+      `${registry}/reef-event-processor`,
+    );
 
     const registered = await runReleaseDeployment({
       rootDir: path.resolve("."),
@@ -243,11 +373,14 @@ test("register consumes a build artifact generated for a host-port registry", as
       core,
     });
     assert.equal(registered.outcome, "registered");
-    assert.equal(registered.image_repository, `${registry}/reef-web`);
+    assert.equal(
+      registered.runtime_images.web.image_repository,
+      `${registry}/reef-web`,
+    );
     assert.equal(requests.length, 2);
     assert.equal(
       commands.filter(({ command }) => command === "docker").length,
-      1,
+      2,
     );
     assert.equal(
       commands.some(({ command }) => command === "kubectl"),
@@ -267,8 +400,14 @@ test("register consumes a build artifact generated for a host-port registry", as
         artifactPath,
         `${JSON.stringify({
           ...built,
-          image_repository: imageRepository,
-          image_reference: `${imageRepository}@${IMAGE_DIGEST}`,
+          runtime_images: {
+            web: {
+              image_repository: imageRepository,
+              image_digest: IMAGE_DIGEST,
+              image_reference: `${imageRepository}@${IMAGE_DIGEST}`,
+            },
+            event_processor: built.runtime_images.event_processor,
+          },
         })}\n`,
       );
       await assert.rejects(
@@ -354,9 +493,7 @@ test("register-only returns a reusable result without rollout or Kubernetes muta
       buildArtifactPath,
       `${JSON.stringify({
         kind: "reef-build-artifact",
-        image_repository: "registry.example/reef-web",
-        image_digest: IMAGE_DIGEST,
-        image_reference: `registry.example/reef-web@${IMAGE_DIGEST}`,
+        runtime_images: RUNTIME_IMAGES,
         source_revision: "a".repeat(40),
         version: PRODUCT_VERSION,
       })}\n`,
@@ -411,9 +548,14 @@ test("register-only rejects a mutable image reference before any child or AKB ca
       buildArtifactPath,
       `${JSON.stringify({
         kind: "reef-build-artifact",
-        image_repository: "registry.example/reef-web",
-        image_digest: "reef-web:latest",
-        image_reference: "registry.example/reef-web@reef-web:latest",
+        runtime_images: {
+          ...RUNTIME_IMAGES,
+          web: {
+            ...RUNTIME_IMAGES.web,
+            image_digest: "reef-web:latest",
+            image_reference: "registry.example/reef-web@reef-web:latest",
+          },
+        },
         source_revision: "a".repeat(40),
         version: PRODUCT_VERSION,
       })}\n`,
@@ -453,6 +595,56 @@ test("register-only rejects a mutable image reference before any child or AKB ca
   }
 });
 
+test("register-only rejects a build artifact missing the processor image", async () => {
+  const temporaryDirectory = await mkdtemp(
+    path.join(os.tmpdir(), "reef-register-missing-processor-test-"),
+  );
+  const buildArtifactPath = path.join(temporaryDirectory, "build.json");
+  const commands = [];
+  try {
+    await writeFile(
+      buildArtifactPath,
+      `${JSON.stringify({
+        kind: "reef-build-artifact",
+        runtime_images: { web: RUNTIME_IMAGES.web },
+        source_revision: "a".repeat(40),
+        version: PRODUCT_VERSION,
+      })}\n`,
+    );
+    await assert.rejects(
+      runReleaseDeployment({
+        rootDir: path.resolve("."),
+        env: {
+          AKB_BACKEND_URL: "https://akb.example.test",
+          REEF_CONTROL_PLANE_TOKEN: TOKEN,
+        },
+        options: { mode: "register", build_artifact: buildArtifactPath },
+        runCommand: async (command, args, options) => {
+          commands.push({ command, args, options });
+          if (command === "pnpm")
+            return { exitCode: 0, stdout: "", stderr: "" };
+          if (command === "git" && args[0] === "status")
+            return { exitCode: 0, stdout: "", stderr: "" };
+          if (command === "git" && args[0] === "rev-parse")
+            return { exitCode: 0, stdout: `${"a".repeat(40)}\n`, stderr: "" };
+          throw new Error("unexpected command");
+        },
+        fetchImpl: async () => {
+          throw new Error("network must not be reached");
+        },
+        core,
+      }),
+      /both runtime images/u,
+    );
+    assert.equal(
+      commands.some(({ command }) => command === "docker"),
+      false,
+    );
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
 test("register-only rejects a build artifact from another source revision or product version", async () => {
   const temporaryDirectory = await mkdtemp(
     path.join(os.tmpdir(), "reef-register-stale-test-"),
@@ -464,9 +656,7 @@ test("register-only rejects a build artifact from another source revision or pro
       buildArtifactPath,
       `${JSON.stringify({
         kind: "reef-build-artifact",
-        image_repository: "registry.example/reef-web",
-        image_digest: IMAGE_DIGEST,
-        image_reference: `registry.example/reef-web@${IMAGE_DIGEST}`,
+        runtime_images: RUNTIME_IMAGES,
         source_revision: "b".repeat(40),
         version: "0.14.0",
       })}\n`,
@@ -572,7 +762,11 @@ spec:
       return { exitCode: 0, stdout: "", stderr: "" };
     }
     if (command === "kubectl" && args[0] === "kustomize") {
-      return { exitCode: 0, stdout: kustomizeOutput, stderr: "" };
+      return {
+        exitCode: 0,
+        stdout: `${kustomizeOutput}${EVENT_PROCESSOR_MANIFEST}`,
+        stderr: "",
+      };
     }
     if (command === "kubectl" && args[0] === "apply") {
       appliedInput = options.input;
@@ -596,11 +790,12 @@ spec:
           metadata: {
             annotations: {
               "kubernetes.io/change-cause": [
-                `Deploy reef-web v${PRODUCT_VERSION}`,
+                `Deploy reef v${PRODUCT_VERSION}`,
                 `source ${sourceRevision}`,
                 `app ${APP_ID}`,
                 `release ${RELEASE_ID}`,
-                `image ${IMAGE_DIGEST}`,
+                `web-image ${IMAGE_DIGEST}`,
+                `event-processor-image ${IMAGE_DIGEST}`,
                 `manifest ${manifestChecksum}`,
               ].join("; "),
             },
@@ -610,11 +805,12 @@ spec:
               metadata: {
                 annotations: {
                   "kubernetes.io/change-cause": [
-                    `Deploy reef-web v${PRODUCT_VERSION}`,
+                    `Deploy reef v${PRODUCT_VERSION}`,
                     `source ${sourceRevision}`,
                     `app ${APP_ID}`,
                     `release ${RELEASE_ID}`,
-                    `image ${IMAGE_DIGEST}`,
+                    `web-image ${IMAGE_DIGEST}`,
+                    `event-processor-image ${IMAGE_DIGEST}`,
                     `manifest ${manifestChecksum}`,
                   ].join("; "),
                 },
@@ -653,6 +849,19 @@ spec:
     if (
       command === "kubectl" &&
       args[0] === "get" &&
+      args[1] === "deployment/reef-event-processor"
+    ) {
+      return {
+        exitCode: 0,
+        stdout: JSON.stringify(
+          processorDeploymentFixture(sourceRevision, manifestChecksum),
+        ),
+        stderr: "",
+      };
+    }
+    if (
+      command === "kubectl" &&
+      args[0] === "get" &&
       args[1] === "configmap/reef-web-config"
     ) {
       return {
@@ -671,6 +880,15 @@ spec:
       };
     }
     if (command === "kubectl" && args[0] === "get" && args[1] === "pods") {
+      if (args.includes("app=reef-event-processor")) {
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify(
+            processorPodFixture(sourceRevision, manifestChecksum),
+          ),
+          stderr: "",
+        };
+      }
       return {
         exitCode: 0,
         stdout: JSON.stringify({
@@ -812,9 +1030,18 @@ spec:
     assert.match(appliedInput, /REEF_RELEASE_ID/u);
     assert.deepEqual(JSON.parse(await readFile(buildArtifactPath, "utf8")), {
       kind: "reef-build-artifact",
-      image_repository: "registry.example/reef-web",
-      image_digest: IMAGE_DIGEST,
-      image_reference: `registry.example/reef-web@${IMAGE_DIGEST}`,
+      runtime_images: {
+        web: {
+          image_repository: "registry.example/reef-web",
+          image_digest: IMAGE_DIGEST,
+          image_reference: `registry.example/reef-web@${IMAGE_DIGEST}`,
+        },
+        event_processor: {
+          image_repository: "registry.example/reef-event-processor",
+          image_digest: IMAGE_DIGEST,
+          image_reference: `registry.example/reef-event-processor@${IMAGE_DIGEST}`,
+        },
+      },
       source_revision: sourceRevision,
       version: PRODUCT_VERSION,
     });
@@ -827,7 +1054,7 @@ spec:
       commands.filter(
         ({ command, args }) => command === "kubectl" && args[0] === "rollout",
       ).length,
-      1,
+      2,
     );
     assert.equal(
       commands.some(
@@ -892,8 +1119,7 @@ spec:
         app_key: result.app_key,
         version: result.version,
         source_revision: result.source_revision,
-        image_digest: result.image_digest,
-        image_repository: result.image_repository,
+        runtime_images: result.runtime_images,
         manifest_checksum: result.manifest_checksum,
         app_replayed: result.app_replayed,
         release_replayed: result.release_replayed,
@@ -918,7 +1144,10 @@ spec:
       core,
     });
     assert.equal(registeredReceiptDeployment.release_id, result.release_id);
-    assert.equal(registeredReceiptDeployment.image_digest, result.image_digest);
+    assert.equal(
+      registeredReceiptDeployment.runtime_images.web.image_digest,
+      result.runtime_images.web.image_digest,
+    );
     assert.notEqual(registeredReceiptDeployment.request_key, requestKey);
     assert.equal(
       commands.filter(({ command }) => command === "docker").length,
@@ -1131,8 +1360,18 @@ test("resume uses a new key for the blocked source and then deploys the resumed 
     app_key: "reef",
     version: payload.version,
     source_revision: sourceRevision,
-    image_digest: IMAGE_DIGEST,
-    image_repository: "registry.example/reef-web",
+    runtime_images: {
+      web: {
+        image_repository: "registry.example/reef-web",
+        image_digest: IMAGE_DIGEST,
+        image_reference: `registry.example/reef-web@${IMAGE_DIGEST}`,
+      },
+      event_processor: {
+        image_repository: "registry.example/reef-event-processor",
+        image_digest: EVENT_PROCESSOR_IMAGE_DIGEST,
+        image_reference: `registry.example/reef-event-processor@${EVENT_PROCESSOR_IMAGE_DIGEST}`,
+      },
+    },
     manifest_checksum: payload.manifest_checksum,
     app_replayed: false,
     release_replayed: false,
@@ -1167,7 +1406,7 @@ spec:
       containers:
         - name: reef-web
           image: reef-web:latest
-`,
+${EVENT_PROCESSOR_MANIFEST}`,
         stderr: "",
       };
     }
@@ -1181,6 +1420,24 @@ spec:
     if (
       command === "kubectl" &&
       args[0] === "get" &&
+      args[1] === "deployment/reef-event-processor"
+    ) {
+      return {
+        exitCode: 0,
+        stdout: JSON.stringify(
+          processorDeploymentFixture(
+            sourceRevision,
+            payload.manifest_checksum,
+            EVENT_PROCESSOR_IMAGE_DIGEST,
+            "0.14.1",
+          ),
+        ),
+        stderr: "",
+      };
+    }
+    if (
+      command === "kubectl" &&
+      args[0] === "get" &&
       args[1] === "deployment/reef-web"
     ) {
       return {
@@ -1189,11 +1446,12 @@ spec:
           metadata: {
             annotations: {
               "kubernetes.io/change-cause": [
-                "Deploy reef-web v0.14.1",
+                "Deploy reef v0.14.1",
                 `source ${sourceRevision}`,
                 `app ${APP_ID}`,
                 `release ${RELEASE_ID}`,
-                `image ${IMAGE_DIGEST}`,
+                `web-image ${IMAGE_DIGEST}`,
+                `event-processor-image ${EVENT_PROCESSOR_IMAGE_DIGEST}`,
                 `manifest ${payload.manifest_checksum}`,
               ].join("; "),
             },
@@ -1203,11 +1461,12 @@ spec:
               metadata: {
                 annotations: {
                   "kubernetes.io/change-cause": [
-                    "Deploy reef-web v0.14.1",
+                    "Deploy reef v0.14.1",
                     `source ${sourceRevision}`,
                     `app ${APP_ID}`,
                     `release ${RELEASE_ID}`,
-                    `image ${IMAGE_DIGEST}`,
+                    `web-image ${IMAGE_DIGEST}`,
+                    `event-processor-image ${EVENT_PROCESSOR_IMAGE_DIGEST}`,
                     `manifest ${payload.manifest_checksum}`,
                   ].join("; "),
                 },
@@ -1264,6 +1523,19 @@ spec:
       };
     }
     if (command === "kubectl" && args[0] === "get" && args[1] === "pods") {
+      if (args.includes("app=reef-event-processor")) {
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify(
+            processorPodFixture(
+              sourceRevision,
+              payload.manifest_checksum,
+              EVENT_PROCESSOR_IMAGE_DIGEST,
+            ),
+          ),
+          stderr: "",
+        };
+      }
       return {
         exitCode: 0,
         stdout: JSON.stringify({
@@ -1456,7 +1728,7 @@ spec:
               value: keep
             - name: REEF_RELEASE_ID
               value: stale
-`;
+${EVENT_PROCESSOR_MANIFEST}`;
   const registrationA = {
     appId: APP_ID,
     releaseId: RELEASE_ID,
@@ -1464,6 +1736,7 @@ spec:
     version: "0.14.1",
     sourceRevision: "a".repeat(40),
     imageDigest: IMAGE_DIGEST,
+    eventProcessorImageDigest: IMAGE_DIGEST,
     manifestChecksum: "d".repeat(64),
   };
   const registrationB = {
@@ -1472,6 +1745,7 @@ spec:
     version: "0.14.2",
     sourceRevision: "c".repeat(40),
     imageDigest: `sha256:${"e".repeat(64)}`,
+    eventProcessorImageDigest: `sha256:${"e".repeat(64)}`,
     manifestChecksum: "f".repeat(64),
   };
   const getResources = (yaml) =>
@@ -1499,10 +1773,12 @@ spec:
   const renderedA = renderKubernetesManifest(renderedBase, {
     registration: registrationA,
     imageRepository: "registry.example/reef-web",
+    eventProcessorImageRepository: "registry.example/reef-event-processor",
   });
   const renderedB = renderKubernetesManifest(renderedBase, {
     registration: registrationB,
     imageRepository: "registry.example/reef-web",
+    eventProcessorImageRepository: "registry.example/reef-event-processor",
   });
   const resourcesA = getResources(renderedA);
   const resourcesB = getResources(renderedB);
@@ -1539,15 +1815,17 @@ test("Kubernetes readback ignores terminating pods but rejects live identity mis
     version: "0.14.1",
     sourceRevision: "a".repeat(40),
     imageDigest: IMAGE_DIGEST,
+    eventProcessorImageDigest: IMAGE_DIGEST,
     manifestChecksum: "c".repeat(64),
   };
   const image = `registry.example/reef-web@${IMAGE_DIGEST}`;
   const provenance = [
-    "Deploy reef-web v0.14.1",
+    "Deploy reef v0.14.1",
     `source ${registration.sourceRevision}`,
     `app ${APP_ID}`,
     `release ${RELEASE_ID}`,
-    `image ${IMAGE_DIGEST}`,
+    `web-image ${IMAGE_DIGEST}`,
+    `event-processor-image ${IMAGE_DIGEST}`,
     `manifest ${registration.manifestChecksum}`,
   ].join("; ");
   const releaseEnv = [
@@ -1598,6 +1876,16 @@ test("Kubernetes readback ignores terminating pods but rejects live identity mis
     },
     status: { containerStatuses: [{ name: "reef-web", ready: false }] },
   };
+  const eventProcessorDeployment = processorDeploymentFixture(
+    registration.sourceRevision,
+    registration.manifestChecksum,
+    IMAGE_DIGEST,
+    registration.version,
+  );
+  const eventProcessorPods = processorPodFixture(
+    registration.sourceRevision,
+    registration.manifestChecksum,
+  );
 
   assert.doesNotThrow(() =>
     assertKubernetesReadback({
@@ -1605,7 +1893,21 @@ test("Kubernetes readback ignores terminating pods but rejects live identity mis
       pods: { items: [livePod, terminatingPod] },
       registration,
       imageRepository: "registry.example/reef-web",
+      eventProcessorImageRepository: "registry.example/reef-event-processor",
+      eventProcessorDeployment,
+      eventProcessorPods,
     }),
+  );
+  assert.throws(
+    () =>
+      assertKubernetesReadback({
+        deployment,
+        pods: { items: [livePod] },
+        registration,
+        imageRepository: "registry.example/reef-web",
+        eventProcessorImageRepository: "registry.example/reef-event-processor",
+      }),
+    (error) => error?.stage === "runtime_identity_mismatch",
   );
   assert.throws(
     () =>
@@ -1621,6 +1923,27 @@ test("Kubernetes readback ignores terminating pods but rejects live identity mis
         },
         registration,
         imageRepository: "registry.example/reef-web",
+        eventProcessorImageRepository: "registry.example/reef-event-processor",
+        eventProcessorDeployment,
+        eventProcessorPods,
+      }),
+    (error) => error?.stage === "runtime_identity_mismatch",
+  );
+  const mismatchedProcessorDeployment = structuredClone(
+    eventProcessorDeployment,
+  );
+  mismatchedProcessorDeployment.spec.template.spec.containers[0].image =
+    "registry.example/reef-event-processor@sha256:bad";
+  assert.throws(
+    () =>
+      assertKubernetesReadback({
+        deployment,
+        pods: { items: [livePod] },
+        registration,
+        imageRepository: "registry.example/reef-web",
+        eventProcessorImageRepository: "registry.example/reef-event-processor",
+        eventProcessorDeployment: mismatchedProcessorDeployment,
+        eventProcessorPods,
       }),
     (error) => error?.stage === "runtime_identity_mismatch",
   );
@@ -1635,6 +1958,7 @@ test("Kubernetes readiness failure is non-zero and stops before identity readbac
     version: "0.14.1",
     sourceRevision: "a".repeat(40),
     imageDigest: IMAGE_DIGEST,
+    eventProcessorImageDigest: IMAGE_DIGEST,
     manifestChecksum: "c".repeat(64),
   };
   const rendered = `apiVersion: v1
@@ -1660,12 +1984,17 @@ spec:
       kustomizeDir: path.resolve("deploy/k8s/overlays/example"),
       registration,
       imageRepository: "registry.example/reef-web",
+      eventProcessorImageRepository: "registry.example/reef-event-processor",
       token: TOKEN,
       env: { REEF_CONTROL_PLANE_TOKEN: TOKEN },
       runCommand: async (command, args) => {
         commands.push({ command, args });
         if (args[0] === "kustomize")
-          return { exitCode: 0, stdout: rendered, stderr: "" };
+          return {
+            exitCode: 0,
+            stdout: `${rendered}${EVENT_PROCESSOR_MANIFEST}`,
+            stderr: "",
+          };
         if (args[0] === "apply") return { exitCode: 0, stdout: "", stderr: "" };
         if (args[0] === "rollout")
           return { exitCode: 1, stdout: "", stderr: "not ready" };

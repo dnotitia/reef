@@ -26,6 +26,7 @@ const DEFAULT_ROLLOUT_POLL_MS = 1_000;
 const DEFAULT_KUBERNETES_TIMEOUT_MS = 120_000;
 const CREDENTIAL_ENV_KEYS = [
   "REEF_CONTROL_PLANE_TOKEN",
+  "REEF_EVENT_PROCESSOR_AKB_TOKEN",
   "REEF_AKB_ADMIN_TOKEN",
   "AKB_DEPLOYMENT_TOKEN",
   "AKB_ADMIN_TOKEN",
@@ -33,6 +34,13 @@ const CREDENTIAL_ENV_KEYS = [
 const OCI_REPOSITORY_COMPONENT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
 const OCI_REGISTRY_COMPONENT_PATTERN =
   /^[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]+)?$/u;
+const RUNTIME_IMAGES = Object.freeze({
+  web: Object.freeze({ name: "reef-web", target: "reef-web" }),
+  eventProcessor: Object.freeze({
+    name: "reef-event-processor",
+    target: "reef-event-processor",
+  }),
+});
 
 const USAGE = `Usage:
   deploy/k8s/deploy.sh build --build-artifact <path> [options]
@@ -320,14 +328,14 @@ function parseDigest(core, value) {
 async function buildAndPushImage({
   rootDir,
   registry,
+  runtime,
   sourceRevision,
   version,
   runCommand,
   env,
   core,
-  artifactPath,
 }) {
-  const imageRepository = `${registry}/reef-web`;
+  const imageRepository = `${registry}/${runtime.name}`;
   // Keep every pushed tag unique. The release identity travels in the image
   // labels/build args and the digest returned by buildx; a public version or
   // source tag must never be moved by a later artifact.
@@ -347,6 +355,8 @@ async function buildAndPushImage({
         `REEF_VERSION=${version}`,
         "--build-arg",
         `REEF_SOURCE_REVISION=${sourceRevision}`,
+        "--target",
+        runtime.target,
         "--tag",
         `${imageRepository}:${buildTag}`,
         "--push",
@@ -367,27 +377,108 @@ async function buildAndPushImage({
       });
     }
     const imageDigest = parseDigest(core, metadata?.["containerimage.digest"]);
-    const image = { imageRepository, imageDigest };
-    if (artifactPath) {
-      await writeBuildArtifact(
-        artifactPath,
-        buildArtifactRecord(image, { sourceRevision, version }),
-      );
-    }
-    return image;
+    return { imageRepository, imageDigest };
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
 }
 
-function buildArtifactRecord(image, { sourceRevision, version }) {
+async function buildAndPushImages({
+  rootDir,
+  registry,
+  sourceRevision,
+  version,
+  runCommand,
+  env,
+  core,
+  artifactPath,
+}) {
+  const web = await buildAndPushImage({
+    rootDir,
+    registry,
+    runtime: RUNTIME_IMAGES.web,
+    sourceRevision,
+    version,
+    runCommand,
+    env,
+    core,
+  });
+  const eventProcessor = await buildAndPushImage({
+    rootDir,
+    registry,
+    runtime: RUNTIME_IMAGES.eventProcessor,
+    sourceRevision,
+    version,
+    runCommand,
+    env,
+    core,
+  });
+  const images = { web, eventProcessor };
+  if (artifactPath) {
+    await writeBuildArtifact(
+      artifactPath,
+      buildArtifactRecord(images, { sourceRevision, version }),
+    );
+  }
+  return images;
+}
+
+function serializeRuntimeImages(images) {
+  return {
+    web: {
+      image_repository: images.web.imageRepository,
+      image_digest: images.web.imageDigest,
+      image_reference: `${images.web.imageRepository}@${images.web.imageDigest}`,
+    },
+    event_processor: {
+      image_repository: images.eventProcessor.imageRepository,
+      image_digest: images.eventProcessor.imageDigest,
+      image_reference: `${images.eventProcessor.imageRepository}@${images.eventProcessor.imageDigest}`,
+    },
+  };
+}
+
+function buildArtifactRecord(images, { sourceRevision, version }) {
   return {
     kind: "reef-build-artifact",
-    image_repository: image.imageRepository,
-    image_digest: image.imageDigest,
-    image_reference: `${image.imageRepository}@${image.imageDigest}`,
+    runtime_images: serializeRuntimeImages(images),
     source_revision: sourceRevision,
     version,
+  };
+}
+
+function imageFromArtifact(value, core, label) {
+  const imageDigest = parseDigest(core, value?.image_digest);
+  const imageRepository = validateImageRepository(
+    value?.image_repository,
+    `${label} image repository`,
+  );
+  if (value?.image_reference !== `${imageRepository}@${imageDigest}`) {
+    throw new DeploymentError(`${label} image reference is not digest-pinned`, {
+      stage: "artifact_validation",
+    });
+  }
+  return { imageRepository, imageDigest };
+}
+
+function runtimeImagesFromArtifact(value, core, label) {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    !value.web ||
+    !value.event_processor
+  ) {
+    throw new DeploymentError(`${label} must include both runtime images`, {
+      stage: "artifact_validation",
+    });
+  }
+  return {
+    web: imageFromArtifact(value.web, core, `${label} web`),
+    eventProcessor: imageFromArtifact(
+      value.event_processor,
+      core,
+      `${label} event processor`,
+    ),
   };
 }
 
@@ -395,7 +486,7 @@ async function finalizeRelease({
   rootDir,
   sourceRevision,
   version,
-  imageDigest,
+  runtimeImages,
   core,
 }) {
   let blueprint;
@@ -419,7 +510,7 @@ async function finalizeRelease({
       blueprint,
       version,
       sourceRevision,
-      imageDigest,
+      imageDigest: runtimeImages.web.imageDigest,
     });
     return await core.verifyFinalizedRelease(payload);
   } catch (error) {
@@ -460,33 +551,32 @@ async function readBuildArtifact(artifactPath, core, identity) {
       stage: "artifact_validation",
     });
   }
-  const imageDigest = parseDigest(core, artifact?.image_digest);
+  const runtimeImages = runtimeImagesFromArtifact(
+    artifact?.runtime_images,
+    core,
+    "Build artifact",
+  );
   const sourceRevision = core.ReleaseSourceRevisionSchema.safeParse(
     artifact?.source_revision,
   );
   const version = core.ReleaseVersionSchema.safeParse(artifact?.version);
-  const repository = validateImageRepository(
-    artifact?.image_repository,
-    "build artifact image repository",
-  );
   if (
     artifact?.kind !== "reef-build-artifact" ||
     !sourceRevision.success ||
     !version.success ||
     sourceRevision.data.toLowerCase() !== identity.sourceRevision ||
-    version.data !== identity.version ||
-    artifact?.image_reference !== `${repository}@${imageDigest}`
+    version.data !== identity.version
   ) {
     throw new DeploymentError(
       "The build identity artifact does not match the current source and version",
       { stage: "artifact_validation" },
     );
   }
-  return { imageRepository: repository, imageDigest };
+  return runtimeImages;
 }
 
-function registrationFromCore(core, app, release, payload) {
-  const registration = core.ReleaseRegistrationResultSchema.parse({
+function registrationFromCore(core, app, release, payload, runtimeImages) {
+  const parsed = core.ReleaseRegistrationResultSchema.parse({
     appId: app.id,
     releaseId: release.id,
     appKey: app.appKey,
@@ -497,6 +587,14 @@ function registrationFromCore(core, app, release, payload) {
     appReplayed: app.replayed === true,
     releaseReplayed: release.replayed === true,
   });
+  const registration = {
+    ...parsed,
+    eventProcessorImageDigest: runtimeImages.eventProcessor.imageDigest,
+    imageRepositories: {
+      web: runtimeImages.web.imageRepository,
+      eventProcessor: runtimeImages.eventProcessor.imageRepository,
+    },
+  };
   if (
     release.appId !== registration.appId ||
     release.version !== registration.version ||
@@ -518,6 +616,7 @@ async function registerRelease({
   payload,
   appId,
   createRegistry,
+  runtimeImages,
   fetchImpl,
 }) {
   const baseUrl = requireNonEmpty(env.AKB_BACKEND_URL, "AKB_BACKEND_URL");
@@ -540,7 +639,7 @@ async function registerRelease({
       );
     }
     const release = await registry.createRelease({ appId: app.id, ...payload });
-    return registrationFromCore(core, app, release, payload);
+    return registrationFromCore(core, app, release, payload, runtimeImages);
   } catch (error) {
     if (error instanceof DeploymentError) throw error;
     throw new DeploymentError("AKB App or Release registration failed", {
@@ -549,7 +648,7 @@ async function registerRelease({
   }
 }
 
-function makeReceipt(registration, fields = {}, imageRepository) {
+function makeReceipt(registration, fields = {}, runtimeImages) {
   return {
     kind: "reef-release-receipt",
     app_id: registration.appId,
@@ -557,11 +656,21 @@ function makeReceipt(registration, fields = {}, imageRepository) {
     app_key: registration.appKey,
     version: registration.version,
     source_revision: registration.sourceRevision,
-    image_digest: registration.imageDigest,
+    runtime_images: {
+      web: {
+        image_repository: runtimeImages.web.imageRepository,
+        image_digest: registration.imageDigest,
+        image_reference: `${runtimeImages.web.imageRepository}@${registration.imageDigest}`,
+      },
+      event_processor: {
+        image_repository: runtimeImages.eventProcessor.imageRepository,
+        image_digest: registration.eventProcessorImageDigest,
+        image_reference: `${runtimeImages.eventProcessor.imageRepository}@${registration.eventProcessorImageDigest}`,
+      },
+    },
     manifest_checksum: registration.manifestChecksum,
     app_replayed: registration.appReplayed,
     release_replayed: registration.releaseReplayed,
-    ...(imageRepository ? { image_repository: imageRepository } : {}),
     ...fields,
   };
 }
@@ -593,22 +702,31 @@ async function readReceipt(receiptPath, core) {
     if (parsed.kind !== "reef-release-receipt") {
       throw new Error("unexpected receipt kind");
     }
-    const registration = core.ReleaseRegistrationResultSchema.parse({
+    const parsedRegistration = core.ReleaseRegistrationResultSchema.parse({
       appId: parsed.app_id,
       releaseId: parsed.release_id,
       appKey: parsed.app_key,
       version: parsed.version,
       sourceRevision: parsed.source_revision,
-      imageDigest: parsed.image_digest,
+      imageDigest: parsed.runtime_images.web.image_digest,
       manifestChecksum: parsed.manifest_checksum,
       appReplayed: parsed.app_replayed === true,
       releaseReplayed: parsed.release_replayed === true,
     });
-    const imageRepository = validateImageRepository(
-      parsed.image_repository,
-      "receipt image repository",
+    const runtimeImages = runtimeImagesFromArtifact(
+      parsed.runtime_images,
+      core,
+      "Release receipt",
     );
-    return { registration, receipt: parsed, imageRepository };
+    const registration = {
+      ...parsedRegistration,
+      eventProcessorImageDigest: runtimeImages.eventProcessor.imageDigest,
+      imageRepositories: {
+        web: runtimeImages.web.imageRepository,
+        eventProcessor: runtimeImages.eventProcessor.imageRepository,
+      },
+    };
+    return { registration, receipt: parsed, runtimeImages };
   } catch {
     throw new DeploymentError(
       "The supplied receipt has invalid release identity",
@@ -636,6 +754,7 @@ function sameRegistration(left, right) {
     left?.version === right?.version &&
     left?.sourceRevision === right?.sourceRevision &&
     left?.imageDigest === right?.imageDigest &&
+    left?.eventProcessorImageDigest === right?.eventProcessorImageDigest &&
     left?.manifestChecksum === right?.manifestChecksum
   );
 }
@@ -644,13 +763,12 @@ async function reusableReceiptRelease({
   rootDir,
   core,
   identity,
-  imageRepository,
+  registry,
   appId,
   receipt,
 }) {
   if (
     !receipt ||
-    receipt.imageRepository !== imageRepository ||
     (appId !== undefined && receipt.registration.appId !== appId) ||
     receipt.registration.version !== identity.version ||
     receipt.registration.sourceRevision.toLowerCase() !==
@@ -662,14 +780,21 @@ async function reusableReceiptRelease({
     rootDir,
     sourceRevision: identity.sourceRevision,
     version: identity.version,
-    imageDigest: receipt.registration.imageDigest,
+    runtimeImages: receipt.runtimeImages,
     core,
   });
   if (
     payload.manifest_checksum !== receipt.registration.manifestChecksum ||
     payload.manifest.source_revision !==
       receipt.registration.sourceRevision.toLowerCase() ||
-    payload.manifest.image_digest !== receipt.registration.imageDigest
+    payload.manifest.image_digest !== receipt.registration.imageDigest ||
+    receipt.runtimeImages.web.imageDigest !==
+      receipt.registration.imageDigest ||
+    receipt.runtimeImages.eventProcessor.imageDigest !==
+      receipt.registration.eventProcessorImageDigest ||
+    receipt.runtimeImages.web.imageRepository !== `${registry}/reef-web` ||
+    receipt.runtimeImages.eventProcessor.imageRepository !==
+      `${registry}/reef-event-processor`
   ) {
     throw new DeploymentError(
       "The release receipt does not match the current canonical release",
@@ -683,10 +808,7 @@ async function reusableReceiptRelease({
     );
   }
   return {
-    image: {
-      imageRepository: receipt.imageRepository,
-      imageDigest: receipt.registration.imageDigest,
-    },
+    images: receipt.runtimeImages,
     payload,
     registration: receipt.registration,
   };
@@ -694,11 +816,12 @@ async function reusableReceiptRelease({
 
 function buildProvenanceAnnotation(registration) {
   return [
-    `Deploy reef-web v${registration.version}`,
+    `Deploy reef v${registration.version}`,
     `source ${registration.sourceRevision}`,
     `app ${registration.appId}`,
     `release ${registration.releaseId}`,
-    `image ${registration.imageDigest}`,
+    `web-image ${registration.imageDigest}`,
+    `event-processor-image ${registration.eventProcessorImageDigest}`,
     `manifest ${registration.manifestChecksum}`,
   ].join("; ");
 }
@@ -712,9 +835,18 @@ const IDENTITY_CONFIG_KEYS = Object.freeze({
   REEF_RELEASE_MANIFEST_CHECKSUM: "manifestChecksum",
 });
 
+const RUNTIME_IDENTITY_KEYS = Object.freeze({
+  REEF_APP_ID: "appId",
+  REEF_RELEASE_ID: "releaseId",
+  REEF_RELEASE_VERSION: "version",
+  REEF_RELEASE_SOURCE_REVISION: "sourceRevision",
+  REEF_RELEASE_MANIFEST_CHECKSUM: "manifestChecksum",
+  REEF_EVENT_PROCESSOR_IMAGE_DIGEST: "eventProcessorImageDigest",
+});
+
 export function renderKubernetesManifest(
   renderedYaml,
-  { registration, imageRepository },
+  { registration, imageRepository, eventProcessorImageRepository },
 ) {
   let documents;
   try {
@@ -740,6 +872,17 @@ export function renderKubernetesManifest(
   if (!deployment || !configMap) {
     throw new DeploymentError(
       "kustomize output must contain reef-web Deployment and reef-web-config",
+      { stage: "kubernetes_render" },
+    );
+  }
+  const eventProcessorDeployment = resources.find(
+    (resource) =>
+      resource?.kind === "Deployment" &&
+      resource?.metadata?.name === "reef-event-processor",
+  );
+  if (!eventProcessorImageRepository || !eventProcessorDeployment) {
+    throw new DeploymentError(
+      "kustomize output must contain the private reef-event-processor Deployment",
       { stage: "kubernetes_render" },
     );
   }
@@ -777,6 +920,67 @@ export function renderKubernetesManifest(
       name: key,
       value: String(registration[registrationKey]),
     });
+  }
+  const processorContainers =
+    eventProcessorDeployment.spec?.template?.spec?.containers;
+  const processorContainer = Array.isArray(processorContainers)
+    ? processorContainers.find(
+        (candidate) => candidate?.name === "reef-event-processor",
+      )
+    : undefined;
+  if (!processorContainer) {
+    throw new DeploymentError(
+      "reef-event-processor container is missing from kustomize output",
+      { stage: "kubernetes_render" },
+    );
+  }
+  if (
+    eventProcessorDeployment.spec?.replicas !== 1 ||
+    eventProcessorDeployment.spec?.strategy?.type !== "Recreate"
+  ) {
+    throw new DeploymentError(
+      "reef-event-processor must use one replica and a Recreate rollout",
+      { stage: "kubernetes_render" },
+    );
+  }
+  processorContainer.image = `${eventProcessorImageRepository}@${registration.eventProcessorImageDigest}`;
+  const processorTemplateMetadata =
+    eventProcessorDeployment.spec.template.metadata ?? {};
+  eventProcessorDeployment.spec.template.metadata = processorTemplateMetadata;
+  const processorAnnotations = processorTemplateMetadata.annotations ?? {};
+  processorTemplateMetadata.annotations = processorAnnotations;
+  processorAnnotations["kubernetes.io/change-cause"] = provenance;
+  const processorDeploymentAnnotations =
+    eventProcessorDeployment.metadata.annotations ?? {};
+  eventProcessorDeployment.metadata.annotations =
+    processorDeploymentAnnotations;
+  processorDeploymentAnnotations["kubernetes.io/change-cause"] = provenance;
+  const processorEnv = Array.isArray(processorContainer.env)
+    ? processorContainer.env.filter(
+        (entry) => !Object.hasOwn(RUNTIME_IDENTITY_KEYS, entry?.name),
+      )
+    : [];
+  processorContainer.env = processorEnv;
+  for (const [key, registrationKey] of Object.entries(RUNTIME_IDENTITY_KEYS)) {
+    processorContainer.env.push({
+      name: key,
+      value: String(registration[registrationKey]),
+    });
+  }
+  const forbiddenProcessorExposure = resources.some(
+    (resource) =>
+      (resource?.kind === "Service" || resource?.kind === "Ingress") &&
+      (resource?.metadata?.name === "reef-event-processor" ||
+        resource?.spec?.selector?.app === "reef-event-processor"),
+  );
+  if (
+    forbiddenProcessorExposure ||
+    resources.some((resource) => resource?.kind === "HorizontalPodAutoscaler")
+  ) {
+    throw new DeploymentError(
+      "Event processor must remain private with no public Service, Ingress, or HPA",
+      { stage: "kubernetes_render" },
+    );
   }
   return resources.map((resource) => stringify(resource)).join("---\n");
 }
@@ -826,6 +1030,9 @@ export function assertKubernetesReadback({
   pods,
   registration,
   imageRepository,
+  eventProcessorImageRepository,
+  eventProcessorDeployment,
+  eventProcessorPods,
 }) {
   const expectedImage = `${imageRepository}@${registration.imageDigest}`;
   const deploymentContainer = findContainer(
@@ -918,6 +1125,108 @@ export function assertKubernetesReadback({
       );
     }
   }
+  if (!eventProcessorImageRepository || !eventProcessorDeployment) {
+    throw new DeploymentError(
+      "Kubernetes event processor Deployment is missing from runtime readback",
+      { stage: "runtime_identity_mismatch" },
+    );
+  }
+  {
+    const processorExpectedImage = `${eventProcessorImageRepository}@${registration.eventProcessorImageDigest}`;
+    const processorDeploymentContainer = findContainer(
+      eventProcessorDeployment.spec?.template?.spec?.containers,
+      "reef-event-processor",
+    );
+    if (
+      eventProcessorDeployment.spec?.replicas !== 1 ||
+      eventProcessorDeployment.spec?.strategy?.type !== "Recreate" ||
+      processorDeploymentContainer?.image !== processorExpectedImage
+    ) {
+      throw new DeploymentError(
+        "Kubernetes event processor Deployment does not match the release",
+        { stage: "runtime_identity_mismatch" },
+      );
+    }
+    const processorCause =
+      eventProcessorDeployment.spec?.template?.metadata?.annotations?.[
+        "kubernetes.io/change-cause"
+      ];
+    const processorDeploymentCause =
+      eventProcessorDeployment.metadata?.annotations?.[
+        "kubernetes.io/change-cause"
+      ];
+    if (
+      processorCause !== buildProvenanceAnnotation(registration) ||
+      processorDeploymentCause !== processorCause
+    ) {
+      throw new DeploymentError(
+        "Kubernetes event processor provenance does not match the release",
+        { stage: "runtime_identity_mismatch" },
+      );
+    }
+    const processorConfig = Object.fromEntries(
+      (Array.isArray(processorDeploymentContainer?.env)
+        ? processorDeploymentContainer.env
+        : []
+      )
+        .filter(
+          (entry) => entry && Object.hasOwn(RUNTIME_IDENTITY_KEYS, entry.name),
+        )
+        .map((entry) => [entry.name, entry.value]),
+    );
+    for (const [key, registrationKey] of Object.entries(
+      RUNTIME_IDENTITY_KEYS,
+    )) {
+      if (processorConfig[key] !== String(registration[registrationKey])) {
+        throw new DeploymentError(
+          "Kubernetes event processor release configuration does not match the applied release",
+          { stage: "runtime_identity_mismatch" },
+        );
+      }
+    }
+    const activeProcessorPods = Array.isArray(eventProcessorPods?.items)
+      ? eventProcessorPods.items.filter(
+          (pod) =>
+            pod?.metadata?.deletionTimestamp === undefined ||
+            pod?.metadata?.deletionTimestamp === null,
+        )
+      : [];
+    if (activeProcessorPods.length === 0) {
+      throw new DeploymentError(
+        "No reef-event-processor pod was returned after readiness",
+        { stage: "runtime_identity_mismatch" },
+      );
+    }
+    for (const pod of activeProcessorPods) {
+      const processorPodContainer = findContainer(
+        pod.spec?.containers,
+        "reef-event-processor",
+      );
+      const processorStatus = findContainer(
+        pod.status?.containerStatuses,
+        "reef-event-processor",
+      );
+      const processorRuntimeDigest =
+        typeof processorStatus?.imageID === "string"
+          ? processorStatus.imageID.match(
+              /@(sha256:[0-9a-f]{64})(?:$|[^0-9a-f])/u,
+            )?.[1]
+          : undefined;
+      if (
+        processorPodContainer?.image !== processorExpectedImage ||
+        processorStatus?.ready !== true ||
+        typeof processorStatus?.imageID !== "string" ||
+        processorStatus.imageID.length === 0 ||
+        (processorRuntimeDigest !== undefined &&
+          processorRuntimeDigest !== registration.eventProcessorImageDigest)
+      ) {
+        throw new DeploymentError(
+          "A reef-event-processor pod does not match the applied release",
+          { stage: "runtime_identity_mismatch" },
+        );
+      }
+    }
+  }
 }
 
 export async function applyKubernetesRelease({
@@ -926,6 +1235,7 @@ export async function applyKubernetesRelease({
   kustomizeDir,
   registration,
   imageRepository,
+  eventProcessorImageRepository,
   token,
   runCommand = defaultRunCommand,
   env = process.env,
@@ -940,6 +1250,7 @@ export async function applyKubernetesRelease({
   const manifest = renderKubernetesManifest(rendered, {
     registration,
     imageRepository,
+    eventProcessorImageRepository,
   });
   assertNoCredentialInManifest(manifest, token);
   await runChecked(
@@ -966,6 +1277,19 @@ export async function applyKubernetesRelease({
     ],
     { cwd: rootDir, env, stage: "runtime_readiness" },
   );
+  await runChecked(
+    runCommand,
+    "kubectl",
+    [
+      "rollout",
+      "status",
+      "deployment/reef-event-processor",
+      "--namespace",
+      namespace,
+      `--timeout=${Math.ceil(kubernetesTimeoutMs / 1000)}s`,
+    ],
+    { cwd: rootDir, env, stage: "runtime_readiness" },
+  );
   const deployment = await kubernetesJson({
     runCommand,
     rootDir,
@@ -973,6 +1297,20 @@ export async function applyKubernetesRelease({
     args: [
       "get",
       "deployment/reef-web",
+      "--namespace",
+      namespace,
+      "--output",
+      "json",
+    ],
+    stage: "runtime_identity_readback",
+  });
+  const eventProcessorDeployment = await kubernetesJson({
+    runCommand,
+    rootDir,
+    env,
+    args: [
+      "get",
+      "deployment/reef-event-processor",
       "--namespace",
       namespace,
       "--output",
@@ -996,13 +1334,38 @@ export async function applyKubernetesRelease({
     ],
     stage: "runtime_identity_readback",
   });
+  const eventProcessorPods = await kubernetesJson({
+    runCommand,
+    rootDir,
+    env,
+    args: [
+      "get",
+      "pods",
+      "--namespace",
+      namespace,
+      "--selector",
+      "app=reef-event-processor",
+      "--output",
+      "json",
+    ],
+    stage: "runtime_identity_readback",
+  });
   assertKubernetesReadback({
     deployment,
     pods,
     registration,
     imageRepository,
+    eventProcessorDeployment,
+    eventProcessorPods,
+    eventProcessorImageRepository,
   });
-  return { manifest, deployment, pods };
+  return {
+    manifest,
+    deployment,
+    pods,
+    eventProcessorDeployment,
+    eventProcessorPods,
+  };
 }
 
 function delay(milliseconds) {
@@ -1172,7 +1535,7 @@ async function runBuildOnly({ rootDir, env, options, core, runCommand }) {
   const releaseCore = core ?? (await loadCore(rootDir));
   const identity = await readSourceIdentity(rootDir, runCommand, env);
   const registry = validateRegistry(options.registry ?? env.REGISTRY);
-  const image = await buildAndPushImage({
+  const images = await buildAndPushImages({
     rootDir,
     registry,
     sourceRevision: identity.sourceRevision,
@@ -1182,7 +1545,7 @@ async function runBuildOnly({ rootDir, env, options, core, runCommand }) {
     core: releaseCore,
     artifactPath,
   });
-  return buildArtifactRecord(image, identity);
+  return buildArtifactRecord(images, identity);
 }
 
 async function runRegisterOnly({
@@ -1214,7 +1577,7 @@ async function runRegisterOnly({
     rootDir,
     sourceRevision: identity.sourceRevision,
     version: identity.version,
-    imageDigest: buildArtifact.imageDigest,
+    runtimeImages: buildArtifact,
     core: releaseCore,
   });
   const receiptPath = options.receipt ?? env.REEF_RELEASE_RECEIPT;
@@ -1226,21 +1589,14 @@ async function runRegisterOnly({
     appId:
       options.app_id ?? env.REEF_APP_ID ?? previousReceipt?.registration.appId,
     createRegistry: releaseCore.createAkbAppRegistry,
+    runtimeImages: buildArtifact,
     fetchImpl,
   });
   await writeReceipt(
     receiptPath,
-    makeReceipt(
-      registration,
-      { outcome: "registered" },
-      buildArtifact.imageRepository,
-    ),
+    makeReceipt(registration, { outcome: "registered" }, buildArtifact),
   );
-  return makeReceipt(
-    registration,
-    { outcome: "registered" },
-    buildArtifact.imageRepository,
-  );
+  return makeReceipt(registration, { outcome: "registered" }, buildArtifact);
 }
 
 async function runDeploy({
@@ -1291,22 +1647,21 @@ async function runDeploy({
     "Kubernetes timeout",
     DEFAULT_KUBERNETES_TIMEOUT_MS,
   );
-  const imageRepository = `${registry}/reef-web`;
   const reused = await reusableReceiptRelease({
     rootDir,
     core: releaseCore,
     identity,
-    imageRepository,
+    registry,
     appId: options.app_id ?? env.REEF_APP_ID,
     receipt: previousReceipt,
   });
-  let image;
+  let runtimeImages;
   let payload;
   let registration;
   if (reused) {
-    ({ image, payload, registration } = reused);
+    ({ images: runtimeImages, payload, registration } = reused);
   } else {
-    image = await buildAndPushImage({
+    runtimeImages = await buildAndPushImages({
       rootDir,
       registry,
       sourceRevision: identity.sourceRevision,
@@ -1320,7 +1675,7 @@ async function runDeploy({
       rootDir,
       sourceRevision: identity.sourceRevision,
       version: identity.version,
-      imageDigest: image.imageDigest,
+      runtimeImages,
       core: releaseCore,
     });
     registration = await registerRelease({
@@ -1332,12 +1687,13 @@ async function runDeploy({
         env.REEF_APP_ID ??
         previousReceipt?.registration.appId,
       createRegistry: releaseCore.createAkbAppRegistry,
+      runtimeImages,
       fetchImpl,
     });
   }
   const previousRequestKey =
     previousReceipt &&
-    previousReceipt.imageRepository === image.imageRepository &&
+    previousReceipt &&
     sameRegistration(previousReceipt.registration, registration)
       ? previousReceipt.receipt.request_key
       : undefined;
@@ -1351,11 +1707,7 @@ async function runDeploy({
   );
   await writeReceipt(
     receiptPath,
-    makeReceipt(
-      registration,
-      { request_key: requestKey },
-      image.imageRepository,
-    ),
+    makeReceipt(registration, { request_key: requestKey }, runtimeImages),
   );
   let requestAndObservation;
   try {
@@ -1382,7 +1734,7 @@ async function runDeploy({
           deployment_status: "not_applied",
           outcome: "rollout_failed",
         },
-        image.imageRepository,
+        runtimeImages,
       ),
     );
     throw error;
@@ -1396,7 +1748,7 @@ async function runDeploy({
       deployment_status: "pending",
       outcome: "rollout_applied",
     },
-    image.imageRepository,
+    runtimeImages,
   );
   await writeReceipt(receiptPath, appliedReceipt);
   try {
@@ -1405,7 +1757,9 @@ async function runDeploy({
       namespace,
       kustomizeDir,
       registration,
-      imageRepository: image.imageRepository,
+      imageRepository: runtimeImages.web.imageRepository,
+      eventProcessorImageRepository:
+        runtimeImages.eventProcessor.imageRepository,
       token: requireNonEmpty(
         env.REEF_CONTROL_PLANE_TOKEN,
         "REEF_CONTROL_PLANE_TOKEN",
@@ -1426,7 +1780,7 @@ async function runDeploy({
           deployment_status: "failed",
           outcome: "runtime_failed",
         },
-        image.imageRepository,
+        runtimeImages,
       ),
     );
     throw error;
@@ -1440,7 +1794,7 @@ async function runDeploy({
       deployment_status: "ready",
       outcome: "deployed",
     },
-    image.imageRepository,
+    runtimeImages,
   );
   await writeReceipt(receiptPath, complete);
   return complete;
@@ -1586,12 +1940,12 @@ async function runResume({
           deployment_status: "not_applied",
           outcome: "resume_failed",
         },
-        saved.imageRepository,
+        saved.runtimeImages,
       ),
     );
     throw error;
   }
-  const imageRepository = saved.imageRepository;
+  const runtimeImages = saved.runtimeImages;
   const receipt = makeReceipt(
     registration,
     {
@@ -1603,7 +1957,7 @@ async function runResume({
       deployment_status: "pending",
       outcome: "rollout_applied",
     },
-    saved.imageRepository,
+    runtimeImages,
   );
   await writeReceipt(receiptPath, receipt);
   try {
@@ -1612,7 +1966,9 @@ async function runResume({
       namespace,
       kustomizeDir,
       registration,
-      imageRepository,
+      imageRepository: runtimeImages.web.imageRepository,
+      eventProcessorImageRepository:
+        runtimeImages.eventProcessor.imageRepository,
       token: requireNonEmpty(
         env.REEF_CONTROL_PLANE_TOKEN,
         "REEF_CONTROL_PLANE_TOKEN",

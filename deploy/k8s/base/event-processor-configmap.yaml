@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: reef-event-processor-config
+data:
+  AKB_BACKEND_URL: "http://akb-backend.akb.svc.cluster.local:8000"
+  REEF_EVENT_PROCESSOR_VAULT: "reef-test"
+  REEF_EVENT_PROCESSOR_HOST: "0.0.0.0"
+  REEF_EVENT_PROCESSOR_PORT: "9090"
+  REEF_EVENT_PROCESSOR_RECONNECT_DELAY_MS: "1000"
+  REEF_EVENT_PROCESSOR_RECONCILIATION_INTERVAL_MS: "300000"
+  REEF_EVENT_PROCESSOR_DRAIN_TIMEOUT_MS: "20000"

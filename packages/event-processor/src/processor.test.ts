@@ -1,4 +1,5 @@
 import {
+  AuthError,
   EventTailError,
   type AkbNotificationProjectionResult,
   type ChangeEventTailRecord,
@@ -49,18 +50,22 @@ const checkpointRecord = (cursor: string): ChangeEventTailRecord => ({
 });
 
 function runtimeWithStreams(
-  streams: Array<readonly ChangeEventTailRecord[]>,
+  streams: Array<readonly ChangeEventTailRecord[] | Error>,
   projectNotifications: () => Promise<AkbNotificationProjectionResult>,
-  onSubscribe: (lastEventId: string | undefined) => void,
+  onSubscribe: (input: {
+    lastEventId: string | undefined;
+    start: "earliest" | undefined;
+  }) => void,
 ): EventProcessorRuntime {
   let streamIndex = 0;
   return {
     projectNotifications,
     tail: {
-      async *subscribe({ lastEventId, signal }) {
-        onSubscribe(lastEventId);
+      async *subscribe({ lastEventId, start, signal }) {
+        onSubscribe({ lastEventId, start });
         const records =
           streams[Math.min(streamIndex++, streams.length - 1)] ?? [];
+        if (records instanceof Error) throw records;
         for (const record of records) {
           if (signal?.aborted) return;
           yield record;
@@ -104,7 +109,7 @@ describe("Event Processor", () => {
     expect(project).toHaveBeenCalledTimes(2);
   });
 
-  it("keeps burst reconciliation serialized after activation", async () => {
+  it("coalesces a burst into serialized reconciliation after activation", async () => {
     const controller = new AbortController();
     const project = vi.fn(async () => {
       if (project.mock.calls.length === 2) controller.abort();
@@ -120,7 +125,7 @@ describe("Event Processor", () => {
         ],
       ],
       project,
-      (cursor) => subscribedCursors.push(cursor),
+      ({ lastEventId }) => subscribedCursors.push(lastEventId),
     );
 
     await runEventProcessor(runtime, {
@@ -129,7 +134,7 @@ describe("Event Processor", () => {
       reconnectDelayMs: 0,
     });
 
-    expect(project).toHaveBeenCalledTimes(3);
+    expect(project).toHaveBeenCalledTimes(2);
     expect(project.mock.invocationCallOrder[0]).toBeLessThan(
       project.mock.invocationCallOrder[1] ?? Number.MAX_SAFE_INTEGER,
     );
@@ -147,7 +152,7 @@ describe("Event Processor", () => {
     const runtime = runtimeWithStreams(
       [[activityRecord("activity-1")], [activityRecord("activity-1")]],
       project,
-      (cursor) => subscribedCursors.push(cursor),
+      ({ lastEventId }) => subscribedCursors.push(lastEventId),
     );
 
     await runEventProcessor(runtime, {
@@ -172,9 +177,9 @@ describe("Event Processor", () => {
     const runtime = runtimeWithStreams(
       [[activityRecord("activity-1")], []],
       project,
-      (cursor) => {
-        subscribedCursors.push(cursor);
-        if (cursor === "activity-1") controller.abort();
+      ({ lastEventId }) => {
+        subscribedCursors.push(lastEventId);
+        if (lastEventId === "activity-1") controller.abort();
       },
     );
 
@@ -188,24 +193,140 @@ describe("Event Processor", () => {
     expect(subscribedCursors).toEqual([undefined, "activity-1"]);
   });
 
-  it("never treats a retained event gap as a reconnectable empty tail", async () => {
-    const project = vi.fn(async () => projectionResult());
+  it("reconciles an event gap and resumes after its latest cursor without losing new events", async () => {
+    const controller = new AbortController();
+    const project = vi.fn(async () => {
+      if (project.mock.calls.length === 3) controller.abort();
+      return projectionResult();
+    });
+    const subscriptions: Array<{
+      lastEventId: string | undefined;
+      start: "earliest" | undefined;
+    }> = [];
+    const runtime = runtimeWithStreams(
+      [
+        new EventTailError({
+          code: "event_gap",
+          status: 410,
+          latestCursor: "latest-at-gap",
+        }),
+        [activityRecord("change-after-reconciliation")],
+      ],
+      project,
+      (input) => subscriptions.push(input),
+    );
+
+    await runEventProcessor(runtime, {
+      vault: "reef-sample",
+      signal: controller.signal,
+      reconnectDelayMs: 0,
+      reconciliationIntervalMs: 60_000,
+    });
+
+    expect(project).toHaveBeenCalledTimes(3);
+    expect(subscriptions).toEqual([
+      { lastEventId: undefined, start: undefined },
+      { lastEventId: "latest-at-gap", start: undefined },
+    ]);
+  });
+
+  it("uses the earliest retained cursor when an event gap lacks a latest cursor", async () => {
+    const controller = new AbortController();
+    const project = vi.fn(async () => {
+      if (project.mock.calls.length === 3) controller.abort();
+      return projectionResult();
+    });
+    const subscriptions: Array<{
+      lastEventId: string | undefined;
+      start: "earliest" | undefined;
+    }> = [];
+    const runtime = runtimeWithStreams(
+      [
+        new EventTailError({ code: "event_gap", status: 410 }),
+        [activityRecord("retained-change")],
+      ],
+      project,
+      (input) => subscriptions.push(input),
+    );
+
+    await runEventProcessor(runtime, {
+      vault: "reef-sample",
+      signal: controller.signal,
+      reconnectDelayMs: 0,
+      reconciliationIntervalMs: 60_000,
+    });
+
+    expect(project).toHaveBeenCalledTimes(3);
+    expect(subscriptions[1]).toEqual({
+      lastEventId: undefined,
+      start: "earliest",
+    });
+  });
+
+  it("fails closed for an invalid cursor and authentication failures", async () => {
+    for (const error of [
+      new EventTailError({ code: "invalid_event_cursor", status: 400 }),
+      new AuthError({ origin: "akb", status: 403 }),
+    ]) {
+      const project = vi.fn(async () => projectionResult());
+      const subscribed: Array<string | undefined> = [];
+      const runtime = runtimeWithStreams([error], project, ({ lastEventId }) =>
+        subscribed.push(lastEventId),
+      );
+
+      await expect(
+        runEventProcessor(runtime, {
+          vault: "reef-sample",
+          reconnectDelayMs: 0,
+          reconciliationIntervalMs: 60_000,
+        }),
+      ).rejects.toMatchObject(
+        error instanceof EventTailError
+          ? { code: "invalid_event_cursor", status: 400 }
+          : { name: "AuthError" },
+      );
+      expect(project).toHaveBeenCalledOnce();
+      expect(subscribed).toEqual([undefined]);
+    }
+  });
+
+  it("runs periodic reconciliation during a quiet tail and serializes it with event work", async () => {
+    const controller = new AbortController();
+    let active = 0;
+    let maxActive = 0;
+    const project = vi.fn(async () => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      const call = project.mock.calls.length;
+      if (call === 2) await new Promise((resolve) => setTimeout(resolve, 30));
+      if (call === 3) controller.abort();
+      active -= 1;
+      return projectionResult();
+    });
     const runtime: EventProcessorRuntime = {
       projectNotifications: project,
       tail: {
-        async *subscribe() {
-          for (const record of [] as ChangeEventTailRecord[]) yield record;
-          throw new EventTailError({ code: "event_gap", status: 410 });
+        async *subscribe({ signal }) {
+          yield activityRecord("activity-while-periodic-pending");
+          await new Promise<void>((resolve) => {
+            if (signal?.aborted) resolve();
+            else
+              signal?.addEventListener("abort", () => resolve(), {
+                once: true,
+              });
+          });
         },
       },
     };
 
-    await expect(
-      runEventProcessor(runtime, {
-        vault: "reef-sample",
-        reconnectDelayMs: 0,
-      }),
-    ).rejects.toMatchObject({ code: "event_gap", status: 410 });
-    expect(project).toHaveBeenCalledOnce();
+    await runEventProcessor(runtime, {
+      vault: "reef-sample",
+      signal: controller.signal,
+      reconnectDelayMs: 0,
+      reconciliationIntervalMs: 5,
+    });
+
+    expect(project).toHaveBeenCalledTimes(3);
+    expect(maxActive).toBe(1);
   });
 });

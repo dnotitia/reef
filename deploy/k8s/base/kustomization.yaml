@@ -1,14 +1,16 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# Base manifests for reef-web. These carry neutral placeholder values
-# (example.com host, example akb backend DNS) and no namespace — an overlay
-# under ../overlays sets the namespace, host, and backend URL. The one-shot
-# release CLI supplies the immutable image repository and digest.
+# Base manifests for reef-web and the private event processor. These carry
+# neutral placeholder values and no namespace — an overlay under ../overlays
+# sets the namespace, host, and backend URL. The one-shot release CLI supplies
+# both immutable image repositories and digests.
 # Do not deploy this base directly; copy overlays/example to your own overlay.
 
 resources:
   - configmap.yaml
   - deployment.yaml
+  - event-processor-configmap.yaml
+  - event-processor-deployment.yaml
   - service.yaml
   - ingress.yaml

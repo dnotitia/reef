@@ -68,10 +68,12 @@ describe("AKB Change Event Tail", () => {
       baseUrl: "https://akb.test",
       credential: "deployment-managed-jwt",
     });
+    const onOpen = vi.fn();
     const records = [];
     for await (const record of createAkbChangeEventTail(adapter).subscribe({
       vault: "reef-sample",
       lastEventId: "opaque-cursor",
+      onOpen,
     })) {
       records.push(record);
     }
@@ -90,6 +92,7 @@ describe("AKB Change Event Tail", () => {
       "Last-Event-ID": "opaque-cursor",
     });
     expect(records).toHaveLength(2);
+    expect(onOpen).toHaveBeenCalledOnce();
     expect(records[0]).toMatchObject({
       type: "checkpoint",
       cursor: "cursor-1",

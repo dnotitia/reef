@@ -18,3 +18,4 @@ resources:
 patches:
   - path: patch-config.yaml
   - path: patch-ingress.yaml
+  - path: patch-event-processor-config.yaml

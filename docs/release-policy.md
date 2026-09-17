@@ -1,7 +1,8 @@
 # Release Policy
 
 reef is versioned as a single repository product: the deployed `reef-web`
-application plus its private core, event-processing, and operator packages.
+application and private `reef-event-processor`, plus their Core and operator
+packages.
 
 The pnpm workspace contains `packages/web`, `packages/core`,
 `packages/event-processor`, and `packages/jira-migrator`. None is published or
@@ -123,10 +124,14 @@ Before creating a release tag:
    - `pnpm --filter @reef/web run test:e2e` when the required environment is available.
 5. Run `pnpm run release:blueprint:check` to verify the committed schema-v3
    Release Blueprint against the Core schema source.
-6. After the image is built and a release payload has been assembled, run
-   `pnpm run release:manifest:check <finalized-payload.json>` to verify the
-   full source revision, immutable image digest, desired schema, transition
-   plan, and manifest checksum before registry submission.
+6. After both runtime images are built and a release payload has been
+   assembled, run `pnpm run release:manifest:check <finalized-payload.json>` to
+   verify the full source revision, immutable **web** image digest, desired
+   schema, transition plan, and Manifest v2 checksum before registry
+   submission. The processor digest is verified in the Reef build artifact,
+   receipt, and Kubernetes readback; it is not part of the AKB manifest or
+   checksum, and AKB registry acceptance must not be described as processor
+   verification until AKB-337 lands.
 7. Confirm Docker image build and size checks pass.
 8. Confirm streaming routes still pass the SSE smoke test for the target
    environment when staging is available.
@@ -141,14 +146,13 @@ git push origin v0.2.0
 
 Release images should be traceable by both immutable version and commit:
 
-- `reef-web:vX.Y.Z`
-- `reef-web:<git-sha>`
-- `reef-web:latest` only as a convenience pointer for non-reproducible manual
+- `reef-web:vX.Y.Z` and `reef-event-processor:vX.Y.Z`
+- `reef-web:<git-sha>` and `reef-event-processor:<git-sha>`
+- `latest` only as a convenience pointer for non-reproducible manual
   workflows.
 
-Production deployment should prefer immutable version tags once release
-automation supports them. `latest` may remain available for development and
-manual smoke deployments, but it should not be the only deployable reference.
+Production deployment uses the separate immutable digests recorded for both
+runtime images. Mutable tags are never the only deployable reference.
 
 ## GitHub Releases
 
