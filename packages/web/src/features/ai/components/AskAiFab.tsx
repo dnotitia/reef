@@ -1,6 +1,12 @@
 "use client";
 
+import { APP_ACTION_CATALOG } from "@/features/commands/lib/appActionCatalog";
 import { useAiAvailable } from "@/features/settings/hooks/useAiAvailable";
+import {
+  formatShortcut,
+  getShortcutKeys,
+  isMacLike,
+} from "@/features/shortcuts/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import { Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -21,18 +27,9 @@ interface AskAiFabProps {
   onPreload?: () => void;
 }
 
-function isMacLikeNavigator(): boolean {
-  if (typeof navigator === "undefined") return false;
-  const nav = navigator as unknown as {
-    platform?: string;
-    userAgent?: string;
-    userAgentData?: { platform?: string };
-  };
-  const probe = `${nav.userAgentData?.platform ?? ""} ${nav.userAgent ?? ""} ${
-    nav.platform ?? ""
-  }`;
-  return /Mac|iPhone|iPad/i.test(probe);
-}
+const ASK_AI_SHORTCUT = APP_ACTION_CATALOG.find(
+  (action) => action.id === "ai.toggle",
+)?.shortcut;
 
 /**
  * Floating action button that toggles the global Ask AI panel.
@@ -49,10 +46,15 @@ export function AskAiFab({ messageCount = 0, onPreload }: AskAiFabProps) {
   const { isAvailable, isLoading } = useAiAvailable();
 
   if (isLoading || !isAvailable) return null;
+  if (!ASK_AI_SHORTCUT) {
+    throw new Error("Ask AI must declare a shortcut in the app-action catalog");
+  }
 
   const hasUnread = !isOpen && messageCount > seenCount;
-  const isMac = isMacLikeNavigator();
-  const shortcut = isMac ? "⌘⇧A" : "Ctrl+Shift+A";
+  const shortcut = formatShortcut(
+    getShortcutKeys(ASK_AI_SHORTCUT),
+    isMacLike(),
+  );
 
   return (
     <button

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const useAiAvailableMock = vi.fn();
 vi.mock("@/features/settings/hooks/useAiAvailable", () => ({
@@ -10,6 +10,10 @@ import { useAskAiStore } from "../stores/useAskAiStore";
 import { AskAiFab } from "./AskAiFab";
 
 describe("AskAiFab", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     useAskAiStore.setState({ isOpen: false, seenMessageCount: 0 });
@@ -46,6 +50,36 @@ describe("AskAiFab", () => {
     expect(useAskAiStore.getState().isOpen).toBe(true);
     fireEvent.click(screen.getByTestId("ask-ai-fab"));
     expect(useAskAiStore.getState().isOpen).toBe(false);
+  });
+
+  it("uses the shared Windows/Linux Period chord in every accessible label", () => {
+    vi.stubGlobal("navigator", {
+      platform: "Win32",
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    });
+
+    render(<AskAiFab />);
+    const fab = screen.getByTestId("ask-ai-fab");
+
+    expect(fab).toHaveAttribute("aria-label", "Ask AI (Ctrl+Shift+.)");
+    expect(fab).toHaveAttribute("title", "Ask AI (Ctrl+Shift+.)");
+    expect(fab.querySelector(".sr-only")).toHaveTextContent(
+      "Ask AI (Ctrl+Shift+.)",
+    );
+  });
+
+  it("uses the shared macOS Period chord in every accessible label", () => {
+    vi.stubGlobal("navigator", {
+      platform: "MacIntel",
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+    });
+
+    render(<AskAiFab />);
+    const fab = screen.getByTestId("ask-ai-fab");
+
+    expect(fab).toHaveAttribute("aria-label", "Ask AI (⌘+⇧+.)");
+    expect(fab).toHaveAttribute("title", "Ask AI (⌘+⇧+.)");
+    expect(fab.querySelector(".sr-only")).toHaveTextContent("Ask AI (⌘+⇧+.)");
   });
 
   it("warms the lazy panel chunk on hover and focus (REEF-097 AC3)", () => {

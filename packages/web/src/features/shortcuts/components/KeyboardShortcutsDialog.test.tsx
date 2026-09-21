@@ -74,6 +74,28 @@ describe("KeyboardShortcutsDialog", () => {
     expect(screen.getAllByText("Ctrl").length).toBeGreaterThan(0);
   });
 
+  it("renders the Ask AI Period chord from the shared catalog", () => {
+    Object.defineProperty(window.navigator, "userAgent", {
+      value: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      configurable: true,
+    });
+    Object.defineProperty(window.navigator, "platform", {
+      value: "Win32",
+      configurable: true,
+    });
+    useShortcutsStore.setState({ isOpen: true });
+    render(<KeyboardShortcutsDialog />);
+
+    const row = screen
+      .getAllByTestId("shortcut-row")
+      .find((el) => el.getAttribute("data-shortcut-label") === "ai.toggle");
+    expect(row).toBeDefined();
+    expect(within(row as HTMLElement).getByText("Ctrl")).toBeVisible();
+    expect(within(row as HTMLElement).getByText("Shift")).toBeVisible();
+    expect(within(row as HTMLElement).getByText(".")).toBeVisible();
+    expect(within(row as HTMLElement).queryByText("A")).not.toBeInTheDocument();
+  });
+
   it("renders the Firefox-safe fallback for New issue", () => {
     Object.defineProperty(window.navigator, "userAgent", {
       value:

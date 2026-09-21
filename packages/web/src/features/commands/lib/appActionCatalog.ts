@@ -337,11 +337,18 @@ export const APP_ACTION_CATALOG: ReadonlyArray<AppActionDescriptor> = [
     surfaces: ["shortcut", "cheatsheet"],
     focusPolicy: "handoff",
     shortcut: {
-      keys: ["mod", "shift", "A"],
+      keys: ["mod", "shift", "."],
       scope: "global",
       bindings: [
         {
-          keys: [{ key: "a", modKey: true, shiftKey: true }],
+          keys: [
+            {
+              key: ".",
+              code: "Period",
+              primaryModKey: true,
+              shiftKey: true,
+            },
+          ],
           allowInteractiveTarget: true,
         },
       ],

@@ -1254,9 +1254,10 @@ error message, stack, or digest.
 
 Global shortcuts are registered once at the shell from the same app-action
 catalog used by the command palette and keyboard-shortcuts sheet: **⌘I** opens
-New Issue (**⌘⌥N** on Firefox), **⌘K** toggles search and commands, **⌘⇧A**
-toggles Ask AI, **⌘?** opens the keyboard-shortcuts sheet, and **Esc** closes
-the active panel. Text-field focus is respected so typing is never hijacked.
+New Issue (**⌘⌥N** on Firefox), **⌘K** toggles search and commands, **⌘⇧.**
+toggles Ask AI on macOS (**Ctrl+Shift+.** on Windows/Linux), **⌘?** opens the
+keyboard-shortcuts sheet, and **Esc** closes the active panel. Text-field focus
+is respected so typing is never hijacked.
 When List selection is active, the single-issue `s` / `a` / `p` / `l`
 shortcuts are suppressed and Esc clears the selection only after any focused
 interactive overlay has had the chance to consume it.

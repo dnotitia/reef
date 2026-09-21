@@ -25,6 +25,18 @@ async function expectIssueListKeyboardReady(page: Page) {
   return rows;
 }
 
+async function getAskAiShortcutPress(page: Page) {
+  return page.evaluate(() => {
+    const nav = navigator as Navigator & {
+      userAgentData?: { platform?: string };
+    };
+    const probe = `${nav.userAgentData?.platform ?? ""} ${nav.userAgent} ${
+      nav.platform
+    }`;
+    return /Mac|iPhone|iPad/i.test(probe) ? "Meta+Shift+." : "Control+Shift+.";
+  });
+}
+
 async function expectFocusedGeometryStable(locator: Locator) {
   await expect
     .poll(() =>
@@ -52,6 +64,29 @@ test.describe("Hermetic issue keyboard navigation", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
     await resetFixture(request, "configured");
+  });
+
+  test("toggles Ask AI with the platform-primary Period shortcut", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await expect(page.getByTestId("ask-ai-fab")).toBeVisible();
+
+    const shortcut = await getAskAiShortcutPress(page);
+    await page.locator("main").focus();
+    await page.keyboard.press(shortcut);
+    await expect(page.getByTestId("ask-ai-dialog")).toHaveAttribute(
+      "aria-hidden",
+      "false",
+    );
+
+    await page.locator("main").focus();
+    await page.keyboard.press(shortcut);
+    await expect(page.getByTestId("ask-ai-dialog")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
   });
 
   test("moves list focus with j/k and opens the focused issue with Enter", async ({
