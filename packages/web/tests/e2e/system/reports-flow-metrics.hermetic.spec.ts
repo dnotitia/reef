@@ -2,8 +2,12 @@ import { expect, test } from "@playwright/test";
 import { openExistingWorkspace, resetFixture } from "../harness/fixture";
 
 test.describe("Hermetic Reports flow metrics", () => {
-  test.beforeEach(async ({ context, request }) => {
+  test.beforeEach(async ({ context, page, request }) => {
     await context.clearCookies();
+    const { REPORTS_FIXTURE_NOW } = await import(
+      "../harness/mock-fixtures.mjs"
+    );
+    await page.clock.setFixedTime(new Date(REPORTS_FIXTURE_NOW));
     await resetFixture(request, "configured");
   });
 
