@@ -51,6 +51,31 @@ describe("app action catalog", () => {
     });
   });
 
+  it("defines the Ask AI shortcut as the platform-primary Period chord", () => {
+    const action = APP_ACTION_CATALOG.find(
+      (candidate) => candidate.id === "ai.toggle",
+    );
+
+    expect(action?.shortcut).toMatchObject({
+      keys: ["mod", "shift", "."],
+      bindings: [
+        {
+          keys: [
+            {
+              key: ".",
+              code: "Period",
+              primaryModKey: true,
+              shiftKey: true,
+            },
+          ],
+        },
+      ],
+    });
+    expect(action?.shortcut?.bindings[0]?.keys[0]).not.toMatchObject({
+      key: "a",
+    });
+  });
+
   it("keeps command aliases searchable independently of the active locale", () => {
     const dark = APP_ACTION_CATALOG.find(
       (candidate) => candidate.id === "theme.dark",

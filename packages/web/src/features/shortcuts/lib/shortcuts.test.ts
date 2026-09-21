@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, expect, it, vi } from "vitest";
+import { APP_ACTION_CATALOG } from "@/features/commands/lib/appActionCatalog";
 import {
   SHORTCUT_GROUPS,
   type ShortcutBinding,
@@ -132,6 +133,56 @@ describe("shortcut dispatch", () => {
     ).toBe(false);
   });
 
+  it("matches the platform-primary Period binding by code and rejects other chords", () => {
+    const binding = APP_ACTION_CATALOG.find(
+      (action) => action.id === "ai.toggle",
+    )?.shortcut?.bindings[0];
+    const period = binding?.keys[0];
+    expect(period).toBeDefined();
+    if (!period) throw new Error("Ask AI shortcut binding is missing");
+
+    vi.stubGlobal("navigator", {
+      platform: "MacIntel",
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+    });
+    expect(
+      matchesShortcutKey(
+        event(">", { code: "Period", metaKey: true, shiftKey: true }),
+        period,
+      ),
+    ).toBe(true);
+    expect(
+      matchesShortcutKey(
+        event(">", { code: "Period", ctrlKey: true, shiftKey: true }),
+        period,
+      ),
+    ).toBe(false);
+    expect(
+      matchesShortcutKey(event(".", { code: "Period", metaKey: true }), period),
+    ).toBe(false);
+    expect(
+      matchesShortcutKey(event("a", { metaKey: true, shiftKey: true }), period),
+    ).toBe(false);
+
+    vi.stubGlobal("navigator", {
+      platform: "Win32",
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    });
+    expect(
+      matchesShortcutKey(
+        event(">", { code: "Period", ctrlKey: true, shiftKey: true }),
+        period,
+      ),
+    ).toBe(true);
+    expect(
+      matchesShortcutKey(
+        event(">", { code: "Period", metaKey: true, shiftKey: true }),
+        period,
+      ),
+    ).toBe(false);
+    vi.unstubAllGlobals();
+  });
+
   it("detects editable targets including contenteditable descendants", () => {
     const wrapper = document.createElement("div");
     wrapper.contentEditable = "true";
@@ -223,6 +274,42 @@ describe("shortcut dispatch", () => {
     ).toBe(true);
     expect(blocked).not.toHaveBeenCalled();
     expect(allowed).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the Ask AI binding out of editable targets", () => {
+    const catalogBinding = APP_ACTION_CATALOG.find(
+      (action) => action.id === "ai.toggle",
+    )?.shortcut?.bindings[0];
+    expect(catalogBinding).toBeDefined();
+    const handler = vi.fn();
+    const registry: ShortcutBinding[] = [
+      {
+        labelKey: "ai.toggle",
+        scope: "global",
+        keys: catalogBinding?.keys ?? [],
+        allowEditableTarget: catalogBinding?.allowEditableTarget,
+        allowInteractiveTarget: catalogBinding?.allowInteractiveTarget,
+        handler,
+      },
+    ];
+    const input = document.createElement("input");
+    const textarea = document.createElement("textarea");
+    const contentEditable = document.createElement("div");
+    contentEditable.contentEditable = "true";
+    const roleTextbox = document.createElement("div");
+    roleTextbox.setAttribute("role", "textbox");
+    const targets = [input, textarea, contentEditable, roleTextbox];
+
+    for (const target of targets) {
+      expect(
+        dispatchShortcut(
+          event(">", { code: "Period", ctrlKey: true, shiftKey: true }, target),
+          registry,
+          "global",
+        ).handled,
+      ).toBe(false);
+    }
+    expect(handler).not.toHaveBeenCalled();
   });
 
   it("blocks shortcuts in focused controls unless a binding opts in", () => {

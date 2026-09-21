@@ -12,6 +12,7 @@ const require = createRequire(import.meta.url);
 export const fixtureLogin = require("./fixture-login.json");
 
 export const NOW = "2026-06-15T00:00:00.000Z";
+export const REPORTS_FIXTURE_NOW = "2026-06-30T00:00:00.000Z";
 const NOW_MS = Date.parse(NOW);
 export const REEF_VAULT = "reef-e2e";
 export const ISSUE_TITLE_COLLATOR = new Intl.Collator("en-US");
