@@ -30,6 +30,9 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Ask AI now uses the platform-primary Period shortcut.** `⌘⇧.` on macOS
+  and `Ctrl+Shift+.` on Windows/Linux toggle the panel, with the app-action
+  catalog and keyboard shortcut guidance kept in sync. (REEF-622)
 - **Transient auth revalidation no longer signs out an established session.**
   Refresh contention, temporary failures, and probe timeouts preserve the current
   workspace with a retry action; a first visit keeps protected content hidden
