@@ -336,7 +336,7 @@ function workspaceRecoveryVault(name) {
   for (const issue of vault.issues) {
     issue.document_uri = issueDocumentUri(name, issue.reef_id);
   }
-  vault.tables = new Set();
+  vault.tables = new Set(["reef_settings"]);
   vault.settings = new Map([["custom_setting", "keep-me"]]);
   seedOutdatedVaultSkill(vault);
   seedReferenceDocument(vault, "docs/user-notes.md", {

@@ -17,6 +17,7 @@ export function runtimeDiscovery(state) {
     scenario: state.scenario,
     operations: {
       health: { method: "GET", path: "/__e2e/health" },
+      state: { method: "GET", path: "/__e2e/state" },
       reset: {
         method: "POST",
         path: "/__e2e/reset",
@@ -57,7 +58,7 @@ export function runtimeDiscovery(state) {
         path: "/__e2e/workspace-initialization-control",
         content_type: "application/json",
         body: {
-          operation: "document|tables|null",
+          operation: "document|document_get|tables|null",
           failures: "<count>",
           successes_before_failure: "<count>",
         },
@@ -339,6 +340,12 @@ export function runtimeDiscovery(state) {
         scenario: "workspace_recovery",
         workspace: "raw-vault",
         start_path: "/onboarding",
+        fixture_login: {
+          username: "writer",
+          password: fixtureLogin.password,
+          role: "writer",
+          is_admin: false,
+        },
         controls: {
           workspace_initialization_control: [
             "fail one document write to leave a partial vault",

@@ -67,7 +67,7 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
   issue_update_pending: Record<string, number>;
   issue_list_pending: Record<string, number>;
   workspace_initialization: {
-    failure_operation: "document" | "tables" | null;
+    failure_operation: "document" | "document_get" | "tables" | null;
     failures_remaining: number;
     successes_before_failure: number | null;
   };
