@@ -29,6 +29,23 @@ function putResponse(path: string) {
   };
 }
 
+function documentResponse(
+  doc: ReturnType<typeof buildReefVaultSkillDocuments>[number],
+  content = doc.content,
+) {
+  return {
+    uri: `akb://reef-new/doc/${doc.path}`,
+    vault: "reef-new",
+    path: doc.path,
+    title: doc.title,
+    type: doc.type,
+    status: "active",
+    summary: doc.summary,
+    tags: doc.tags,
+    content,
+  };
+}
+
 function setupFetch(responses: FetchResponseSpec[]): FetchCall[] {
   const calls: FetchCall[] = [];
   const queue = [...responses];
@@ -137,6 +154,12 @@ describe("installReefVaultSkill", () => {
       type: "skill",
       tags: ["akb:skill", "reef:pm-workspace"],
     });
+    expect(calls[1].url).toBe(
+      "https://akb.test/api/v1/documents/reef-new/reef/runbooks/pm-model.md",
+    );
+    expect(bodyOf(calls[1])).toMatchObject({
+      type: "reference",
+    });
   });
 
   it("stamps the current skill version after the documents land", async () => {
@@ -171,6 +194,60 @@ describe("installReefVaultSkill", () => {
     ]);
     expect(JSON.parse(String(insertBody.params?.[1]))).toMatchObject({
       version: REEF_VAULT_SKILL_VERSION,
+    });
+  });
+
+  it("preserves existing skill documents during brownfield onboarding", async () => {
+    const docs = buildReefVaultSkillDocuments("reef-new");
+    const calls = setupFetch([
+      { body: { kind: "table_sql", result: "DELETE 1" } },
+      ...docs.map((doc) => ({ body: documentResponse(doc) })),
+      ...stampResponses(),
+    ]);
+
+    await installReefVaultSkill({
+      adapter: makeAdapter(),
+      vault: "reef-new",
+      preserveExisting: true,
+    });
+
+    expect(calls).toHaveLength(10);
+    expect(calls[0]?.url).toBe("https://akb.test/api/v1/tables/reef-new/sql");
+    expect(calls.slice(1, 7).every((call) => call.init?.method === "GET")).toBe(
+      true,
+    );
+    expect(calls[1]?.url).toBe(
+      "https://akb.test/api/v1/documents/reef-new/overview/vault-skill.md",
+    );
+    expect(calls[7]?.url).toBe("https://akb.test/api/v1/tables/reef-new");
+  });
+
+  it("does not stamp the current version over a preserved stale document", async () => {
+    const docs = buildReefVaultSkillDocuments("reef-new");
+    const calls = setupFetch([
+      { body: { kind: "table_sql", result: "DELETE 1" } },
+      ...docs.map((doc, index) => ({
+        body: documentResponse(
+          doc,
+          index === 0 ? "OUTDATED MANUAL SKILL CONTENT" : doc.content,
+        ),
+      })),
+      { body: { kind: "table_sql", result: "DELETE 1" } },
+    ]);
+
+    await installReefVaultSkill({
+      adapter: makeAdapter(),
+      vault: "reef-new",
+      preserveExisting: true,
+    });
+
+    expect(calls).toHaveLength(docs.length + 1);
+    expect(calls.slice(1).every((call) => call.init?.method === "GET")).toBe(
+      true,
+    );
+    expect(bodyOf(calls[0])).toEqual({
+      sql: "DELETE FROM reef_settings WHERE key = $1",
+      params: ["vault_skill"],
     });
   });
 

@@ -108,6 +108,8 @@ export const SUPPORTED_SCENARIOS = [
   "demo_board",
   "content_search",
   "raw_only",
+  "workspace_recovery",
+  "workspace_recovery_current_stamp",
   "notifications",
   "skill_outdated",
   "comment_mentions",
@@ -218,6 +220,10 @@ export function createScenarioVaults(scenario) {
     vaults.set("raw-vault", rawVault("raw-vault"));
   } else if (scenario === "raw_only") {
     vaults.set("raw-vault", rawVault("raw-vault"));
+  } else if (scenario === "workspace_recovery") {
+    vaults.set("raw-vault", workspaceRecoveryVault("raw-vault"));
+  } else if (scenario === "workspace_recovery_current_stamp") {
+    vaults.set("raw-vault", workspaceRecoveryCurrentStampVault("raw-vault"));
   }
   return vaults;
 }
@@ -323,6 +329,41 @@ function seedOutdatedVaultSkill(vault) {
     updated_at: NOW,
     current_commit: "e2e-seed-outdated-vault-skill",
   });
+}
+
+function workspaceRecoveryVault(name) {
+  const vault = configuredVault(name);
+  for (const issue of vault.issues) {
+    issue.document_uri = issueDocumentUri(name, issue.reef_id);
+  }
+  vault.tables = new Set(["reef_settings"]);
+  vault.settings = new Map([["custom_setting", "keep-me"]]);
+  seedOutdatedVaultSkill(vault);
+  seedReferenceDocument(vault, "docs/user-notes.md", {
+    title: "User notes",
+    type: "reference",
+    summary: "A user-owned document that onboarding must preserve.",
+    content: "KEEP THIS USER DOCUMENT",
+    tags: ["user-owned"],
+  });
+  seedReferenceDocument(vault, "reef/runbooks/custom.md", {
+    title: "Custom runbook",
+    type: "reference",
+    summary: "A user-owned runbook outside Reef's managed set.",
+    content: "KEEP THIS CUSTOM RUNBOOK",
+    tags: ["user-owned"],
+  });
+  return vault;
+}
+
+function workspaceRecoveryCurrentStampVault(name) {
+  const vault = workspaceRecoveryVault(name);
+  vault.tables = new Set(["reef_settings"]);
+  vault.settings.set("vault_skill", {
+    version: 22,
+    synced_at: "2026-06-20T00:00:00.000Z",
+  });
+  return vault;
 }
 
 function markdownFixtureVault(name) {

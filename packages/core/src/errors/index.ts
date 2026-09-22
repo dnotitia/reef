@@ -91,6 +91,8 @@ export const ERROR_MESSAGES_EN = {
   },
   akb: {
     auth: "You do not have permission to perform this workspace action. Ask a workspace administrator for access.",
+    reservedSystemPath:
+      "Workspace setup could not finish because it attempted a reserved system path. Please contact an operator.",
     membershipRequired:
       "This account does not have access to this workspace. Ask a workspace administrator for membership.",
     accountSuspended:
@@ -265,6 +267,28 @@ export class AkbApiError extends ReefError {
   constructor(context: AkbApiErrorContext) {
     super(resolveEnMessage(`akb.${apiCode(context.status)}`));
     this.name = "AkbApiError";
+    this.status = context.status;
+    this.context = context;
+  }
+
+  toUserMessage(): string {
+    return this.message;
+  }
+}
+
+export interface AkbReservedSystemPathErrorContext {
+  /** HTTP status returned by AKB for the reserved-path policy denial. */
+  status: number;
+}
+
+/** A policy denial distinct from a resource-level AKB ACL denial. */
+export class AkbReservedSystemPathError extends ReefError {
+  readonly status: number;
+  readonly context: AkbReservedSystemPathErrorContext;
+
+  constructor(context: AkbReservedSystemPathErrorContext) {
+    super(resolveEnMessage("akb.reservedSystemPath"));
+    this.name = "AkbReservedSystemPathError";
     this.status = context.status;
     this.context = context;
   }
@@ -591,6 +615,9 @@ export function describeError(err: unknown): ErrorDescriptor {
     };
   }
   if (err instanceof AuthError) return authErrorCode(err.context);
+  if (err instanceof AkbReservedSystemPathError) {
+    return { code: "akb.reservedSystemPath", status: err.status };
+  }
   if (err instanceof NotFoundError) {
     return { ...notFoundCode(err.context), status: 404 };
   }

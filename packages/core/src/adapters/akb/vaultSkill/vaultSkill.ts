@@ -11,6 +11,7 @@ import {
   REEF_SETTINGS_VAULT_SKILL_KEY,
   decodeSettingsValue,
   ensureDocumentPutResponse,
+  ensureDocumentResponse,
   ensureReefTables,
   isMissingTableError,
   runSql,
@@ -30,6 +31,8 @@ export { REEF_VAULT_SKILL_VERSION } from "./version";
 export interface InstallReefVaultSkillParams {
   adapter: AkbAdapter;
   vault: string;
+  /** Keep existing Reef-owned documents when onboarding a partially seeded vault. */
+  preserveExisting?: boolean;
 }
 
 export interface GetVaultSkillStatusParams {
@@ -97,10 +100,31 @@ async function upsertDocument(
   adapter: AkbAdapter,
   vault: string,
   doc: ReefVaultSkillDocument,
-): Promise<void> {
+  preserveExisting: boolean,
+): Promise<boolean> {
+  if (preserveExisting) {
+    try {
+      const payload = await adapter.request(
+        `/api/v1/documents/${encodeURIComponent(vault)}/${doc.path}`,
+        { resource: doc.path },
+      );
+      const existing = ensureDocumentResponse(payload);
+      return (
+        existing.title === doc.title &&
+        existing.type === doc.type &&
+        existing.summary === doc.summary &&
+        existing.content === doc.content &&
+        existing.tags.length === doc.tags.length &&
+        existing.tags.every((tag, index) => tag === doc.tags[index])
+      );
+    } catch (err) {
+      if (!(err instanceof NotFoundError)) throw err;
+    }
+  }
+
   try {
     await patchDocument(adapter, vault, doc);
-    return;
+    return true;
   } catch (err) {
     if (!(err instanceof NotFoundError)) throw err;
   }
@@ -111,6 +135,7 @@ async function upsertDocument(
     if (!(err instanceof ConflictError)) throw err;
     await patchDocument(adapter, vault, doc);
   }
+  return true;
 }
 
 /**
@@ -158,6 +183,30 @@ async function stampVaultSkillVersion(
 }
 
 /**
+ * Remove the Reef-owned skill stamp before brownfield preservation checks
+ * managed content. A missing table is expected for a raw vault; writeConfig
+ * will provision the tables after onboarding, but it must not recreate a
+ * misleading current-version stamp if a later document operation fails.
+ */
+async function clearVaultSkillVersion(
+  adapter: AkbAdapter,
+  vault: string,
+): Promise<void> {
+  const params = new SqlParameterBuilder();
+  const keyParam = params.add(REEF_SETTINGS_VAULT_SKILL_KEY, "settings key");
+  try {
+    await runSql(
+      adapter,
+      vault,
+      `DELETE FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key = ${keyParam}`,
+      params.params,
+    );
+  } catch (err) {
+    if (!isMissingTableError(err)) throw err;
+  }
+}
+
+/**
  * Read the stored `vault_skill` stamp, or `null` when the vault has not been
  * stamped (older onboarding, or tables not provisioned yet) or the stored
  * value is unparseable. A `null` reads downstream as "not up to date", so the
@@ -192,23 +241,41 @@ async function readInstalledVaultSkill(
 
 /**
  * Install (or re-apply) the Reef PM vault-skill documents, then stamp the
- * installed version. Idempotent: every document is upserted, and the version
- * row is written last so a partial failure leaves the prior stamp and a retry
- * converges. This is the single write path for both vault creation and the
- * Settings "update instructions" action.
+ * installed version when every managed document matches this release.
+ * Idempotent: every document is upserted, and the version row is written last
+ * so a partial failure leaves a clean retry point. Brownfield onboarding
+ * clears the prior stamp before preserving documents; it re-stamps only when
+ * every managed document matches, so stale content or a later failure cannot
+ * claim the current instructions. This is the single write path for both vault
+ * creation and the Settings "update instructions" action.
  */
 export async function installReefVaultSkill(
   params: InstallReefVaultSkillParams,
 ): Promise<void> {
-  const { adapter, vault } = params;
+  const { adapter, vault, preserveExisting = false } = params;
   return withSpan("akb.install_reef_vault_skill", { vault }, async (span) => {
     const docs = buildReefVaultSkillDocuments(vault);
     span.setAttribute("document_count", docs.length);
-    for (const doc of docs) {
-      await upsertDocument(adapter, vault, doc);
+    span.setAttribute("preserve_existing", preserveExisting);
+    if (preserveExisting) {
+      await clearVaultSkillVersion(adapter, vault);
     }
-    await stampVaultSkillVersion(adapter, vault);
-    span.setAttribute("skill_version", REEF_VAULT_SKILL_VERSION);
+    let allDocumentsCurrent = true;
+    for (const doc of docs) {
+      const documentIsCurrent = await upsertDocument(
+        adapter,
+        vault,
+        doc,
+        preserveExisting,
+      );
+      allDocumentsCurrent = allDocumentsCurrent && documentIsCurrent;
+    }
+    if (!preserveExisting || allDocumentsCurrent) {
+      await stampVaultSkillVersion(adapter, vault);
+      span.setAttribute("skill_version", REEF_VAULT_SKILL_VERSION);
+    } else {
+      span.setAttribute("skill_version_stamped", false);
+    }
   });
 }
 

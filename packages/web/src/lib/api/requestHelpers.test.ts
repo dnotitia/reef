@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { SESSION_COOKIE } from "@/lib/akb/sessionCookie";
-import { AuthError } from "@reef/core";
+import { AkbReservedSystemPathError, AuthError } from "@reef/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   EXPIRED_JWT,
@@ -226,6 +226,20 @@ describe("respondWithError", () => {
     expect(response.status).toBe(403);
     expect(response.headers.get("set-cookie")).toBeNull();
     expect(response.headers.get("x-reef-auth-invalidated")).toBeNull();
+  });
+
+  it("keeps the Reef session for an AKB reserved-system-path policy denial", async () => {
+    const response = await respondWithError(
+      new AkbReservedSystemPathError({ status: 403 }),
+    );
+
+    expect(response.status).toBe(403);
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(response.headers.get("x-reef-auth-invalidated")).toBeNull();
+    expect(await response.json()).toEqual({
+      error:
+        "Workspace setup could not finish because it attempted a reserved system path. Please contact an operator.",
+    });
   });
 });
 

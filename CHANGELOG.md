@@ -14,6 +14,12 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Workspace onboarding now initializes Reef documents in the canonical AKB
+  layout and can resume safely after partial setup.** Ordinary runbooks live
+  under `reef/runbooks`, the reserved `overview` system path is rejected with
+  a stable structured error, and brownfield onboarding preserves existing
+  skill, runbook, issue, settings, and user documents. (REEF-642)
+
 - **The AKB notification projector now runs as a private Event Processor.**
   `pnpm dev` starts the web and processor processes together while
   `pnpm dev:web` keeps the web-only path. Event Gap recovery, periodic source

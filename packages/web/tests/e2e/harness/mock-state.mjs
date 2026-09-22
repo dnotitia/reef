@@ -157,6 +157,9 @@ export function createState(scenario) {
     contentSearchDelayMs: 0,
     vaultListDelayMs: 0,
     vaultListFailures: 0,
+    workspaceInitFailureOperation: null,
+    workspaceInitFailureRemaining: 0,
+    workspaceInitFailureSuccessesBefore: null,
     issueUpdateFailures: new Map(),
     issueUpdateDelays: new Map(),
     issueUpdateHolds: new Map(),
@@ -298,6 +301,11 @@ export function publicState(state) {
     issue_update_calls: Object.fromEntries(state.issueUpdateCalls),
     issue_update_pending: Object.fromEntries(state.issueUpdatePending),
     issue_list_pending: Object.fromEntries(state.issueListPending),
+    workspace_initialization: {
+      failure_operation: state.workspaceInitFailureOperation,
+      failures_remaining: state.workspaceInitFailureRemaining,
+      successes_before_failure: state.workspaceInitFailureSuccessesBefore,
+    },
     github_repos: state.githubRepos.map((repo) => ({
       id: repo.id,
       full_name: repo.full_name,

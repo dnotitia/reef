@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AkbApiError,
+  AkbReservedSystemPathError,
   AuthError,
   ConflictError,
   ERROR_MESSAGES_EN,
@@ -340,6 +341,15 @@ describe("describeError", () => {
     });
   });
 
+  it("maps an AKB reserved-system-path denial separately from ACL / 403", () => {
+    const error = new AkbReservedSystemPathError({ status: 403 });
+    expect(describeError(error)).toEqual({
+      code: "akb.reservedSystemPath",
+      status: 403,
+    });
+    expect(error.toUserMessage()).not.toContain("reserved_system_path");
+  });
+
   it.each([
     ["membership_required", "akb.membershipRequired", 403],
     ["account_suspended", "akb.accountSuspended", 403],
@@ -480,6 +490,7 @@ describe("describeError", () => {
       new LlmError({ message: "" }),
       new GitHubApiError({ status: 500, message: "" }),
       new AkbApiError({ status: 404, message: "" }),
+      new AkbReservedSystemPathError({ status: 403 }),
       new Error("boom"),
     ];
     for (const err of errors) {

@@ -397,6 +397,14 @@ export async function handleAkb(req, res, url, state) {
   if (tablesMatch && req.method === "POST") {
     const vault = vaultFor(decodeURIComponent(tablesMatch[1]));
     if (!vault) return;
+    if (consumeWorkspaceInitializationFailure(state, "tables")) {
+      return json(res, 503, {
+        detail: {
+          message: "fixture workspace table initialization failed",
+          code: "e2e_workspace_table_initialization_failed",
+        },
+      });
+    }
     const body = await readJson(req);
     if (typeof body?.name === "string") vault.tables.add(body.name);
     return json(res, 200, { ok: true });
@@ -461,6 +469,38 @@ export async function handleAkb(req, res, url, state) {
     const body = await readJson(req);
     const vault = vaultFor(String(body?.vault ?? ""));
     if (!vault) return;
+    if (consumeWorkspaceInitializationFailure(state, "document")) {
+      return json(res, 503, {
+        detail: {
+          message: "fixture workspace document initialization failed",
+          code: "e2e_workspace_document_initialization_failed",
+        },
+      });
+    }
+    const collection = String(body?.collection ?? "documents")
+      .replace(/^\/+/, "")
+      .replace(/\/+$/, "");
+    const slug = String(
+      body?.slug ?? slugify(String(body?.title ?? "document")),
+    );
+    const type = String(body?.type ?? "document");
+    const canonicalSkill =
+      collection === "overview" && slug === "vault-skill" && type === "skill";
+    if (
+      (collection === "overview" ||
+        collection.startsWith("overview/") ||
+        type === "skill") &&
+      !canonicalSkill
+    ) {
+      const message =
+        "The requested document targets AKB's reserved system path.";
+      return json(res, 403, {
+        message,
+        error: message,
+        code: "reserved_system_path",
+        detail: { message, code: "reserved_system_path" },
+      });
+    }
     const stored = putDocument(state, vault, body);
     return json(res, 200, documentPutResponse(vault, stored));
   }
@@ -491,6 +531,14 @@ export async function handleAkb(req, res, url, state) {
     const docPath = decodeURIComponent(docMatch[2]);
     const existing = vault.documents.get(docPath);
     if (req.method === "GET") {
+      if (consumeWorkspaceInitializationFailure(state, "document_get")) {
+        return json(res, 503, {
+          detail: {
+            message: "fixture workspace document read failed",
+            code: "e2e_workspace_document_read_failed",
+          },
+        });
+      }
       if (!existing) return json(res, 404, { error: "document not found" });
       return json(res, 200, documentResponse(vault, existing));
     }
@@ -646,6 +694,23 @@ function putDocument(state, vault, body) {
   };
   vault.documents.set(path, stored);
   return stored;
+}
+
+function consumeWorkspaceInitializationFailure(state, operation) {
+  if (
+    state.workspaceInitFailureOperation !== operation ||
+    state.workspaceInitFailureRemaining <= 0
+  ) {
+    return false;
+  }
+  if (state.workspaceInitFailureSuccessesBefore !== null) {
+    if (state.workspaceInitFailureSuccessesBefore > 0) {
+      state.workspaceInitFailureSuccessesBefore -= 1;
+      return false;
+    }
+  }
+  state.workspaceInitFailureRemaining -= 1;
+  return true;
 }
 
 function searchVaultDocuments(vault, url) {

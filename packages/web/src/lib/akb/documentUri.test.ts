@@ -11,10 +11,10 @@ import {
 describe("parseAkbDocumentUri", () => {
   it("parses the location-aware coll form with a nested collection", () => {
     expect(
-      parseAkbDocumentUri("akb://reef-test/coll/overview/reef/doc/pm-model.md"),
+      parseAkbDocumentUri("akb://reef-test/coll/reef/runbooks/doc/pm-model.md"),
     ).toEqual({
       vault: "reef-test",
-      collection: "overview/reef",
+      collection: "reef/runbooks",
       slug: "pm-model.md",
     });
   });

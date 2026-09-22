@@ -691,6 +691,21 @@ test.describe("Hermetic runtime discovery", () => {
         },
       },
     });
+    expect(contract.operations.state).toEqual({
+      method: "GET",
+      path: "/__e2e/state",
+    });
+    expect(
+      contract.operations.workspace_initialization_control.body.operation,
+    ).toBe("document|document_get|tables|null");
+    expect(contract.tasks.workspace_initialization.fixture_login).toEqual({
+      username: "writer",
+      password: fixtureLogin.password,
+      role: "writer",
+      is_admin: false,
+    });
+    const stateResponse = await request.get(`${E2E_MOCK_URL}/__e2e/state`);
+    expect(stateResponse.status()).toBe(200);
     const imageInput = contract.fixture_inputs?.image_upload;
     expect(imageInput).toMatchObject({
       method: "GET",

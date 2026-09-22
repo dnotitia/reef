@@ -249,6 +249,7 @@ describe("POST /api/vaults", () => {
     expect(mockAkbInstallReefVaultSkill).toHaveBeenCalledWith(
       expect.objectContaining({
         vault: "reef-new",
+        preserveExisting: true,
       }),
     );
     expect(mockAkbCreateVault.mock.invocationCallOrder[0]).toBeLessThan(

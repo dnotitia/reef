@@ -34,7 +34,7 @@ describe("root skill — history and comment routing (REEF-252)", () => {
 
   it("links the comments-and-activity runbook in the runbook list", () => {
     expect(content).toContain(
-      "akb://reef-test/doc/overview/reef/comments-and-activity.md",
+      "akb://reef-test/doc/reef/runbooks/comments-and-activity.md",
     );
   });
 

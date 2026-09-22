@@ -33,11 +33,11 @@ These few rules, if broken, produce a malformed or invisible issue. They are sho
 
 Creating an issue needs two runbooks, not one: conversational-playbook.md (what to decide, when to ask, planning-link judgment) and issue-workflows.md (the write mechanics). Reading only the mechanics one is the common miss -- it is how planning links and PM judgment get dropped. For other intents, read the one the router names; use akb_browse before akb_put on an unfamiliar collection.
 
-- PM data model: akb://${vault}/doc/overview/reef/pm-model.md
-- Creating and updating issues (mechanics): akb://${vault}/doc/overview/reef/issue-workflows.md
-- Reading an issue's activity history and its comments: akb://${vault}/doc/overview/reef/comments-and-activity.md
-- Acting like a PM (deciding fields, asking, confirming): akb://${vault}/doc/overview/reef/conversational-playbook.md
-- Sprints, milestones, and releases: akb://${vault}/doc/overview/reef/planning-workflows.md
+- PM data model: akb://${vault}/doc/reef/runbooks/pm-model.md
+- Creating and updating issues (mechanics): akb://${vault}/doc/reef/runbooks/issue-workflows.md
+- Reading an issue's activity history and its comments: akb://${vault}/doc/reef/runbooks/comments-and-activity.md
+- Acting like a PM (deciding fields, asking, confirming): akb://${vault}/doc/reef/runbooks/conversational-playbook.md
+- Sprints, milestones, and releases: akb://${vault}/doc/reef/runbooks/planning-workflows.md
 
 ## Intent router
 

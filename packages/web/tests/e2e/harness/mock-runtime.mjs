@@ -17,6 +17,7 @@ export function runtimeDiscovery(state) {
     scenario: state.scenario,
     operations: {
       health: { method: "GET", path: "/__e2e/health" },
+      state: { method: "GET", path: "/__e2e/state" },
       reset: {
         method: "POST",
         path: "/__e2e/reset",
@@ -51,6 +52,16 @@ export function runtimeDiscovery(state) {
         path: "/__e2e/issue-list-failure",
         content_type: "application/json",
         body: { enabled: "<boolean>", next_page_failures: "<count>" },
+      },
+      workspace_initialization_control: {
+        method: "POST",
+        path: "/__e2e/workspace-initialization-control",
+        content_type: "application/json",
+        body: {
+          operation: "document|document_get|tables|null",
+          failures: "<count>",
+          successes_before_failure: "<count>",
+        },
       },
       planning_catalog_control: {
         method: "POST",
@@ -324,6 +335,28 @@ export function runtimeDiscovery(state) {
         scenario: "configured_caught_up",
         workspace: "reef-e2e",
         start_path: "/workspace/reef-e2e/my-work",
+      },
+      workspace_initialization: {
+        scenario: "workspace_recovery",
+        workspace: "raw-vault",
+        start_path: "/onboarding",
+        fixture_login: {
+          username: "writer",
+          password: fixtureLogin.password,
+          role: "writer",
+          is_admin: false,
+        },
+        controls: {
+          workspace_initialization_control: [
+            "fail one document write to leave a partial vault",
+            "clear the failure and retry the same workspace name",
+          ],
+        },
+        interaction: {
+          type: "workspace_initialization",
+          operation:
+            "create a workspace as a non-admin, recover a partially initialized same-name vault, preserve existing documents/settings/issues, and retry after a document write failure",
+        },
       },
     },
   };
