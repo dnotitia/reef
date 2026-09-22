@@ -117,7 +117,11 @@ export async function POST(request: Request): Promise<Response> {
       await createVault({ adapter, name, description });
     }
 
-    await installReefVaultSkill({ adapter, vault: name });
+    await installReefVaultSkill({
+      adapter,
+      vault: name,
+      preserveExisting: true,
+    });
 
     // writeConfig provisions the reef tables lazily (idempotent), so the
     // brownfield/greenfield branches and the Settings PATCH path all reach a

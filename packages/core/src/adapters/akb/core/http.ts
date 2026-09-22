@@ -2,6 +2,7 @@ import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { z } from "zod";
 import {
   AkbApiError,
+  AkbReservedSystemPathError,
   AuthError,
   ConflictError,
   NotFoundError,
@@ -173,6 +174,9 @@ function translateAkbHttpError(
   code: string | undefined,
   resource: string | undefined,
 ): never {
+  if (code === "reserved_system_path") {
+    throw new AkbReservedSystemPathError({ status });
+  }
   if (isAkbAccountErrorCode(code)) {
     throw new AuthError({ origin: "akb", code, status, message });
   }

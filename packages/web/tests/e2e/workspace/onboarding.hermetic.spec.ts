@@ -1,8 +1,12 @@
 import { expect, test, type Locator } from "@playwright/test";
 import {
+  E2E_MOCK_URL,
+  fixtureWriterLogin,
   readFixtureState,
   resetFixture,
   signInAsAlice,
+  signInAsUser,
+  setWorkspaceInitializationControl,
   waitForPasswordLogin,
   writeIndexedDbConfig,
 } from "../harness/fixture";
@@ -79,6 +83,270 @@ test.describe("Hermetic onboarding flow", () => {
         (call) =>
           call.method === "POST" &&
           call.path === "/akb/api/v1/tables/reef-new/sql",
+      ),
+    ).toBe(true);
+  });
+
+  test("creates a workspace as a non-admin and can create and read an issue", async ({
+    page,
+    request,
+  }) => {
+    await signInAsUser(page, fixtureWriterLogin);
+    await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+
+    await page.getByTestId("greenfield-vault-name-input").fill("reef-new");
+    await page.getByTestId("greenfield-create-btn").click();
+    await page.waitForURL(/\/issues\/?$/, { timeout: 10_000 });
+
+    const createdIssueResponse = await page.request.post("/api/issues", {
+      data: {
+        vault: "reef-new",
+        prefix: "REEF",
+        create: {
+          fields: { title: "Writer-created issue" },
+          content: "Created by a non-admin workspace owner.",
+        },
+      },
+    });
+    expect(createdIssueResponse.status()).toBe(201);
+    const createdIssue = (await createdIssueResponse.json()) as {
+      issue: { id: string; title: string };
+    };
+    expect(createdIssue.issue.title).toBe("Writer-created issue");
+
+    const readIssueResponse = await page.request.get(
+      `/api/issues/${createdIssue.issue.id}?vault=reef-new`,
+    );
+    expect(readIssueResponse.status()).toBe(200);
+    const readIssue = (await readIssueResponse.json()) as {
+      issue: { id: string; title: string };
+    };
+    expect(readIssue.issue).toMatchObject({
+      id: createdIssue.issue.id,
+      title: "Writer-created issue",
+    });
+
+    const state = await readFixtureState(request);
+    const created = state.vaults.find((vault) => vault.name === "reef-new");
+    const paths = created?.documents.map((document) => document.path) ?? [];
+    expect(paths).toContain("overview/vault-skill.md");
+    expect(
+      paths.filter((path) => path.startsWith("reef/runbooks/")),
+    ).toHaveLength(5);
+    expect(paths.some((path) => path.startsWith("overview/reef/"))).toBe(false);
+
+    const loginResponse = await request.post(
+      `${E2E_MOCK_URL}/akb/api/v1/auth/login`,
+      { data: fixtureWriterLogin },
+    );
+    expect(loginResponse.ok()).toBe(true);
+    const login = (await loginResponse.json()) as { token: string };
+    const reservedDocumentResponse = await request.post(
+      `${E2E_MOCK_URL}/akb/api/v1/documents`,
+      {
+        headers: { Authorization: `Bearer ${login.token}` },
+        data: {
+          vault: "reef-new",
+          collection: "overview/reef",
+          slug: "legacy",
+          title: "Legacy reserved document",
+          type: "reference",
+          content: "must be rejected",
+        },
+      },
+    );
+    expect(reservedDocumentResponse.status()).toBe(403);
+    expect(await reservedDocumentResponse.json()).toMatchObject({
+      code: "reserved_system_path",
+      detail: { code: "reserved_system_path" },
+    });
+  });
+
+  test("recovers an incomplete brownfield workspace without replacing user data", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "workspace_recovery");
+    await signInAsUser(page, fixtureWriterLogin);
+    await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+
+    await page.getByTestId("greenfield-vault-name-input").fill("raw-vault");
+    await page.getByTestId("greenfield-create-btn").click();
+    await page.waitForURL(/\/issues\/?$/, { timeout: 10_000 });
+
+    const state = await readFixtureState(request);
+    const recovered = state.vaults.find((vault) => vault.name === "raw-vault");
+    expect(recovered).toBeDefined();
+    expect(recovered?.settings).toMatchObject({
+      custom_setting: "keep-me",
+      project_prefix: "REEF",
+    });
+    expect(recovered?.settings.vault_skill).toBeUndefined();
+    expect(recovered?.tables).toContain("reef_issues");
+    expect(recovered?.issue_ids).toContain("REEF-001");
+
+    const documents = recovered?.documents ?? [];
+    expect(
+      documents.find((document) => document.path === "overview/vault-skill.md")
+        ?.content,
+    ).toBe("OUTDATED MANUAL SKILL CONTENT");
+    expect(
+      documents.find((document) => document.path === "docs/user-notes.md")
+        ?.content,
+    ).toBe("KEEP THIS USER DOCUMENT");
+    expect(
+      documents.find((document) => document.path === "reef/runbooks/custom.md")
+        ?.content,
+    ).toBe("KEEP THIS CUSTOM RUNBOOK");
+    expect(
+      documents.find((document) => document.path === "issues/reef-001.md")
+        ?.content,
+    ).toBe("Alpha description from fixture.");
+    expect(
+      documents.filter((document) =>
+        document.path.startsWith("reef/runbooks/"),
+      ),
+    ).toHaveLength(6);
+    expect(
+      documents.some((document) => document.path.startsWith("overview/reef/")),
+    ).toBe(false);
+  });
+
+  test("clears a current brownfield skill stamp before a failed preservation retry", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "workspace_recovery_current_stamp");
+    await setWorkspaceInitializationControl(request, {
+      operation: "document_get",
+      failures: 1,
+      successesBeforeFailure: 1,
+    });
+    await signInAsUser(page, fixtureWriterLogin);
+    await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+
+    await page.getByTestId("greenfield-vault-name-input").fill("raw-vault");
+    const firstCreateResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/vaults" &&
+        response.request().method() === "POST",
+    );
+    await page.getByTestId("greenfield-create-btn").click();
+    expect((await firstCreateResponse).ok()).toBe(false);
+    await expect(page).toHaveURL(/\/onboarding$/);
+
+    const failedState = await readFixtureState(request);
+    const failed = failedState.vaults.find(
+      (vault) => vault.name === "raw-vault",
+    );
+    expect(failed?.settings.custom_setting).toBe("keep-me");
+    expect(failed?.settings.vault_skill).toBeUndefined();
+    expect(
+      failed?.documents.find(
+        (document) => document.path === "overview/vault-skill.md",
+      )?.content,
+    ).toBe("OUTDATED MANUAL SKILL CONTENT");
+    expect(
+      failed?.documents.find(
+        (document) => document.path === "docs/user-notes.md",
+      )?.content,
+    ).toBe("KEEP THIS USER DOCUMENT");
+    expect(
+      failed?.documents.find(
+        (document) => document.path === "issues/reef-001.md",
+      )?.content,
+    ).toBe("Alpha description from fixture.");
+
+    await setWorkspaceInitializationControl(request, {
+      operation: null,
+      failures: 0,
+      successesBeforeFailure: null,
+    });
+    await page.getByTestId("greenfield-create-btn").click();
+    await page.waitForURL(/\/issues\/?$/, { timeout: 10_000 });
+
+    const retriedState = await readFixtureState(request);
+    const retried = retriedState.vaults.find(
+      (vault) => vault.name === "raw-vault",
+    );
+    expect(retried?.settings.custom_setting).toBe("keep-me");
+    expect(retried?.settings.vault_skill).toBeUndefined();
+    expect(retried?.tables).toContain("reef_issues");
+    expect(
+      retried?.documents.find(
+        (document) => document.path === "overview/vault-skill.md",
+      )?.content,
+    ).toBe("OUTDATED MANUAL SKILL CONTENT");
+  });
+
+  test("keeps a failed initialization retryable after a document failure", async ({
+    page,
+    request,
+  }) => {
+    await setWorkspaceInitializationControl(request, {
+      operation: "document",
+      failures: 1,
+      successesBeforeFailure: 2,
+    });
+    await signInAsUser(page, fixtureWriterLogin);
+    await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+
+    await page.getByTestId("greenfield-vault-name-input").fill("reef-retry");
+    const firstCreateResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/vaults" &&
+        response.request().method() === "POST",
+    );
+    await page.getByTestId("greenfield-create-btn").click();
+    expect((await firstCreateResponse).ok()).toBe(false);
+    await expect(page).toHaveURL(/\/onboarding$/);
+    await expect(page.getByTestId("greenfield-create-error")).toBeVisible();
+
+    const failedState = await readFixtureState(request);
+    const partial = failedState.vaults.find(
+      (vault) => vault.name === "reef-retry",
+    );
+    expect(partial).toBeDefined();
+    expect(partial?.tables).not.toContain("reef_issues");
+    expect(partial?.documents).toHaveLength(2);
+    const partialDocuments = partial?.documents ?? [];
+    const partialRootContent = partialDocuments.find(
+      (document) => document.path === "overview/vault-skill.md",
+    )?.content;
+    const partialModelContent = partialDocuments.find(
+      (document) => document.path === "reef/runbooks/pm-model.md",
+    )?.content;
+    expect(partialRootContent).toBeTruthy();
+    expect(partialModelContent).toBeTruthy();
+
+    await setWorkspaceInitializationControl(request, {
+      operation: null,
+      failures: 0,
+      successesBeforeFailure: null,
+    });
+    await page.getByTestId("greenfield-create-btn").click();
+    await page.waitForURL(/\/issues\/?$/, { timeout: 10_000 });
+
+    const retriedState = await readFixtureState(request);
+    const retried = retriedState.vaults.filter(
+      (vault) => vault.name === "reef-retry",
+    );
+    expect(retried).toHaveLength(1);
+    expect(retried[0]?.settings.project_prefix).toBe("REEF");
+    expect(retried[0]?.tables).toContain("reef_issues");
+    expect(
+      retried[0]?.documents.find(
+        (document) => document.path === "overview/vault-skill.md",
+      )?.content,
+    ).toBe(partialRootContent);
+    expect(
+      retried[0]?.documents.find(
+        (document) => document.path === "reef/runbooks/pm-model.md",
+      )?.content,
+    ).toBe(partialModelContent);
+    expect(
+      retried[0]?.documents.some(
+        (document) => document.path === "overview/vault-skill.md",
       ),
     ).toBe(true);
   });

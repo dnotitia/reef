@@ -25,6 +25,8 @@ export type FixtureScenario =
   | "backlog_bulk_partial_failure"
   | "demo_board"
   | "raw_only"
+  | "workspace_recovery"
+  | "workspace_recovery_current_stamp"
   | "notifications"
   | "skill_outdated"
   | "comment_mentions"
@@ -64,6 +66,11 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
   issue_update_calls: Record<string, number>;
   issue_update_pending: Record<string, number>;
   issue_list_pending: Record<string, number>;
+  workspace_initialization: {
+    failure_operation: "document" | "tables" | null;
+    failures_remaining: number;
+    successes_before_failure: number | null;
+  };
   vaults: Array<{
     name: string;
     tables: string[];
@@ -207,6 +214,27 @@ export async function setVaultListControl(
       data: {
         delay_ms: control.delayMs ?? 0,
         failures: control.failures ?? 0,
+      },
+    },
+  );
+  expect(response.ok()).toBeTruthy();
+}
+
+export async function setWorkspaceInitializationControl(
+  request: APIRequestContext,
+  control: {
+    operation?: "document" | "document_get" | "tables" | null;
+    failures?: number;
+    successesBeforeFailure?: number | null;
+  },
+): Promise<void> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/workspace-initialization-control`,
+    {
+      data: {
+        operation: control.operation ?? null,
+        failures: control.failures ?? 0,
+        successes_before_failure: control.successesBeforeFailure ?? null,
       },
     },
   );

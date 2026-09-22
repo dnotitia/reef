@@ -27,7 +27,7 @@ export function buildReefVaultSkillDocuments(
   vault: string,
 ): ReefVaultSkillDocument[] {
   const rootCollection = "overview";
-  const runbookCollection = "overview/reef";
+  const runbookCollection = "reef/runbooks";
   return [
     {
       path: docPath(rootCollection, "vault-skill"),

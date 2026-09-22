@@ -110,6 +110,36 @@ const server = createServer(async (req, res) => {
       });
     }
     if (
+      url.pathname === "/__e2e/workspace-initialization-control" &&
+      req.method === "POST"
+    ) {
+      const body = await readJson(req);
+      const operation = ["document", "document_get", "tables"].includes(
+        body?.operation,
+      )
+        ? body.operation
+        : null;
+      const parsedSuccessesBeforeFailure = Number(
+        body?.successes_before_failure,
+      );
+      state.workspaceInitFailureOperation = operation;
+      state.workspaceInitFailureRemaining = Math.max(
+        0,
+        Number(body?.failures ?? 0),
+      );
+      state.workspaceInitFailureSuccessesBefore =
+        Number.isFinite(parsedSuccessesBeforeFailure) &&
+        parsedSuccessesBeforeFailure >= 0
+          ? Math.floor(parsedSuccessesBeforeFailure)
+          : null;
+      return json(res, 200, {
+        ok: true,
+        operation,
+        failures: state.workspaceInitFailureRemaining,
+        successes_before_failure: state.workspaceInitFailureSuccessesBefore,
+      });
+    }
+    if (
       url.pathname === "/__e2e/issue-update-control" &&
       req.method === "POST"
     ) {

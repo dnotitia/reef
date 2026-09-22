@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   AkbApiError,
+  AkbReservedSystemPathError,
   AuthError,
   ConflictError,
   NotFoundError,
@@ -191,6 +192,19 @@ describe("akb HTTP error translation (REEF-363)", () => {
         body: { detail: { message: "denied", code: "permission_denied" } },
       }),
     ).toBeInstanceOf(AuthError);
+    expect(
+      await requestError({
+        status: 403,
+        body: {
+          message: "reserved namespace",
+          code: "reserved_system_path",
+          detail: {
+            message: "reserved namespace",
+            code: "reserved_system_path",
+          },
+        },
+      }),
+    ).toBeInstanceOf(AkbReservedSystemPathError);
   });
 
   it.each([
