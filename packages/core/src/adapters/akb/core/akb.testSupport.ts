@@ -43,7 +43,7 @@ export {
   listComments,
   listIssueAttachments,
   listIssueActivity,
-  listReportActivity,
+  listReportStatusActivity,
   listIssues,
   listPlanningCatalog,
   reconcileJiraImportedAttachmentActivityActor,

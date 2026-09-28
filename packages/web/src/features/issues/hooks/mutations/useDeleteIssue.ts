@@ -2,6 +2,7 @@
 
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { reportsQueryKey } from "@/features/reports/lib/queryKey";
 
 interface DeleteIssueInput {
   id: string;
@@ -36,6 +37,7 @@ export function useDeleteIssue() {
       void queryClient.invalidateQueries({
         queryKey: ["issues", "detail", vault, id],
       });
+      void queryClient.invalidateQueries({ queryKey: reportsQueryKey(vault) });
     },
   });
 }

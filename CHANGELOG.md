@@ -12,6 +12,12 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Changed
+
+- Reports now receive validated server-computed aggregates, flow metrics, health
+  rollups, pivots, and forecasts in one workspace-scoped response instead of
+  loading issue and activity rows into the browser. (REEF-617)
+
 ## v0.16.1 - 2026-09-28
 
 ### Migration

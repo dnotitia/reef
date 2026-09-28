@@ -11,21 +11,44 @@ test.describe("Hermetic Reports flow metrics", () => {
     await resetFixture(request, "configured");
   });
 
-  test("renders the cycle/lead switcher from one vault activity read", async ({
+  test("renders reports from one precomputed response and switches cycle/lead locally", async ({
     page,
   }) => {
-    const activityRequests: string[] = [];
+    const reportRequests: string[] = [];
+    const fullDatasetRequests: string[] = [];
+    const reportBodies: Promise<unknown>[] = [];
+    await openExistingWorkspace(page);
+
     page.on("request", (request) => {
       const url = new URL(request.url());
+      if (request.method() === "GET" && url.pathname === "/api/reports") {
+        reportRequests.push(request.url());
+      }
       if (
         request.method() === "GET" &&
         url.pathname === "/api/reports/activity"
       ) {
-        activityRequests.push(request.url());
+        fullDatasetRequests.push(request.url());
+      }
+      if (
+        request.method() === "GET" &&
+        url.pathname === "/api/issues" &&
+        url.searchParams.size === 1 &&
+        url.searchParams.has("vault")
+      ) {
+        fullDatasetRequests.push(request.url());
+      }
+    });
+    page.on("response", (response) => {
+      const url = new URL(response.url());
+      if (
+        response.request().method() === "GET" &&
+        url.pathname === "/api/reports"
+      ) {
+        reportBodies.push(response.json());
       }
     });
 
-    await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/reports");
 
     const card = page.getByTestId("report-card-flow-metrics");
@@ -48,6 +71,18 @@ test.describe("Hermetic Reports flow metrics", () => {
       /Lead time/,
     );
 
-    expect(activityRequests).toHaveLength(1);
+    expect(reportRequests).toHaveLength(1);
+    expect(fullDatasetRequests).toEqual([]);
+    const report = (await Promise.all(reportBodies))[0] as Record<
+      string,
+      unknown
+    >;
+    expect(report).toHaveProperty("aggregates");
+    expect(report).toHaveProperty("flowMetrics");
+    expect(report).toHaveProperty("forecast");
+    expect(report).toHaveProperty("healthRollup");
+    expect(report).toHaveProperty("pivot");
+    expect(report).not.toHaveProperty("issues");
+    expect(report).not.toHaveProperty("activity");
   });
 });

@@ -16,9 +16,13 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import {
   computePlanningRollup,
+  computeHealthRollup,
+  DEFAULT_REPORT_FILTERS,
   type IssueListItem,
   type PlanningCatalog,
   type PlanningRollup,
+  type HealthRollupRow,
+  type ReportFilters,
   type Sprint,
   type SprintRolloverResume,
 } from "@reef/core";
@@ -26,14 +30,6 @@ import { SprintDetailHeader } from "./SprintDetailHeader";
 import { SprintDetailPageSkeleton } from "./SprintDetailPageSkeleton";
 import { SprintRolloverDialog } from "./SprintRolloverDialog";
 import { SprintRolloverResumeNotice } from "./SprintRolloverResumeNotice";
-import {
-  DEFAULT_REPORT_FILTERS,
-  type ReportFilters,
-} from "../../reports/lib/aggregateModel";
-import {
-  computeHealthRollup,
-  type HealthRollupRow,
-} from "../../reports/lib/healthRollup";
 
 function detailView(searchParams: URLSearchParams): "board" | "list" {
   return parseIssueViewState(searchParams).layout === "list" ? "list" : "board";

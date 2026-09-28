@@ -3,11 +3,7 @@
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { withVault } from "@/lib/workspaceHref";
-import type {
-  FlowMetricKind,
-  FlowMetricResult,
-  FlowMetrics,
-} from "../lib/aggregateModel";
+import type { FlowMetricKind, FlowMetricResult, FlowMetrics } from "@reef/core";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import { useState } from "react";
@@ -18,23 +14,14 @@ export interface FlowMetricsCardProps {
   metrics: FlowMetrics;
   periodLabel: string;
   vault: string;
-  isPending: boolean;
-  isError: boolean;
-  isFetching: boolean;
-  onRetry: () => void;
 }
 
 export function FlowMetricsCard({
   metrics,
   periodLabel,
   vault,
-  isPending,
-  isError,
-  isFetching,
-  onRetry,
 }: FlowMetricsCardProps) {
   const t = useTranslations("reports.cards");
-  const common = useTranslations("common");
   const [metric, setMetric] = useState<FlowMetricKind>("cycle");
   const metricResult = metrics[metric];
   const metricLabel = t(metric === "cycle" ? "cycleTime" : "leadTime");
@@ -73,55 +60,13 @@ export function FlowMetricsCard({
         </span>
       </div>
 
-      {isPending ? (
-        <FlowMetricsLoading />
-      ) : isError ? (
-        <div
-          data-testid="flow-metrics-error"
-          role="alert"
-          className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive-focus/30 bg-destructive-fill/[0.04] px-3 py-3"
-        >
-          <p className="text-sm text-destructive-text">
-            {t("flowMetricsError")}
-          </p>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            busy={isFetching}
-            onClick={onRetry}
-            aria-label={common("retry")}
-          >
-            {common("retry")}
-          </Button>
-        </div>
-      ) : (
-        <FlowMetricResultView
-          metric={metric}
-          result={metricResult}
-          metricLabel={metricLabel}
-          vault={vault}
-        />
-      )}
+      <FlowMetricResultView
+        metric={metric}
+        result={metricResult}
+        metricLabel={metricLabel}
+        vault={vault}
+      />
     </Card>
-  );
-}
-
-function FlowMetricsLoading() {
-  const common = useTranslations("common");
-  return (
-    <div data-testid="flow-metrics-loading" className="flex flex-col gap-4">
-      <output className="sr-only">{common("loading")}</output>
-      <div className="h-40 w-full animate-pulse rounded-md bg-surface-hover" />
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-hidden="true">
-        {["one", "two", "three", "four"].map((key) => (
-          <div
-            key={key}
-            className="h-12 animate-pulse rounded-md bg-surface-hover"
-          />
-        ))}
-      </div>
-    </div>
   );
 }
 

@@ -361,6 +361,18 @@ export function handleSql(state, vault, sql, username) {
   if (lower.startsWith("with upd as (update reef_issues")) {
     return handleIssueConditionalUpdate(state, vault, normalized);
   }
+  if (
+    lower.startsWith(
+      "select *, count(*) over () as report_issue_count from reef_issues",
+    )
+  ) {
+    const rows = filterIssueRows(vault.issues, normalized, vault);
+    const reportIssueCount = String(rows.length);
+    return tableQuery(
+      [...Object.keys(vault.issues[0] ?? {}), "report_issue_count"],
+      rows.map((row) => ({ ...row, report_issue_count: reportIssueCount })),
+    );
+  }
   if (lower.startsWith("select * from reef_issues")) {
     if (state.issueListFailure) {
       return { error: "e2e forced issue list failure" };

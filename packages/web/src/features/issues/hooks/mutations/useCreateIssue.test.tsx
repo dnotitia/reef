@@ -13,6 +13,7 @@ vi.mock("@/lib/apiClient", async () => {
 });
 
 import { apiFetch } from "@/lib/apiClient";
+import { reportsQueryKey } from "@/features/reports/lib/queryKey";
 import type { IssueListItem, IssueMetadata } from "@reef/core";
 import { getIssueEntity, purgeAll } from "../../stores/issueEntityStore";
 import { useCreateIssue } from "./useCreateIssue";
@@ -101,6 +102,9 @@ describe("useCreateIssue", () => {
 
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ["issues", "list", "reef-acme"],
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: reportsQueryKey("reef-acme"),
     });
   });
 

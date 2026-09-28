@@ -1,4 +1,5 @@
 import { apiFetch } from "@/lib/apiClient";
+import { reportsQueryKey } from "@/features/reports/lib/queryKey";
 import type { IssueListItem } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
@@ -106,6 +107,9 @@ describe("useBulkUpdateIssues", () => {
         (call) => call[0]?.queryKey?.[1] === "relations",
       ),
     ).toHaveLength(1);
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: reportsQueryKey("reef-test"),
+    });
   });
 
   it("keeps unchanged items request-free and classifies a stale id as not found", async () => {

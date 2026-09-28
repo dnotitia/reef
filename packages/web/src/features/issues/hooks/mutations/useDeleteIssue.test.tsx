@@ -13,6 +13,7 @@ vi.mock("@/lib/apiClient", async () => {
 });
 
 import { apiFetch } from "@/lib/apiClient";
+import { reportsQueryKey } from "@/features/reports/lib/queryKey";
 import { useDeleteIssue } from "./useDeleteIssue";
 
 const mockApiFetch = vi.mocked(apiFetch);
@@ -90,6 +91,9 @@ describe("useDeleteIssue", () => {
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ["issues", "detail", "reef-acme", "REEF-001"],
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: reportsQueryKey("reef-acme"),
     });
   });
 

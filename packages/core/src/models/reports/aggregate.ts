@@ -1,19 +1,17 @@
+import type { ActivityEvent } from "../../schemas/issues/activity";
+import type {
+  IssueListItem,
+  IssueType,
+  Priority,
+  Severity,
+  Status,
+} from "../../schemas/issues/metadata";
 import {
-  indexIssuesById,
-  unresolvedBlockerCountIn,
-} from "@/features/issues/lib/dependencyUtils";
-import { isActive } from "@/features/issues/lib/issueListUtils";
-import {
-  type ActivityEvent,
-  type IssueListItem,
-  type IssueType,
-  type Priority,
-  type Severity,
-  type Status,
-  isResolvedStatus,
-} from "@reef/core";
-import { PRIORITY_OPTIONS } from "@reef/core/fields";
-import { STATUS_OPTIONS } from "@reef/core/fields";
+  PRIORITY_OPTIONS,
+  STATUS_OPTIONS,
+} from "../../schemas/issues/fieldRegistry";
+import { isResolvedStatus } from "../status";
+import { isIssueActive } from "../sharedIssueFacets";
 import {
   AGING_BUCKETS,
   type AggregateOptions,
@@ -54,6 +52,18 @@ export {
   WEEK_MS,
 } from "./aggregateModel";
 
+function unresolvedBlockerCountIn(
+  issue: IssueListItem,
+  issuesById: ReadonlyMap<string, IssueListItem>,
+): number {
+  let count = 0;
+  for (const dependencyId of issue.depends_on ?? []) {
+    const dependency = issuesById.get(dependencyId);
+    if (!dependency || !isResolvedStatus(dependency.status)) count++;
+  }
+  return count;
+}
+
 /** Single-pass aggregation. Every distribution bucket carries both an issue
  *  `count` and a story-`points` sum; `filters.measure` selects which one ranked
  *  lists sort by (desc, then name-asc) and which a card renders. Priority
@@ -76,7 +86,7 @@ export function computeAggregates(
   const filteredIssues = issues.filter((issue) =>
     matchesFilters(issue, filters),
   );
-  const dependencyIndex = indexIssuesById(issues);
+  const dependencyIndex = new Map(issues.map((issue) => [issue.id, issue]));
   // Each bucket accrues a count and a point sum in one pass; the seeded zero
   // buckets give every distribution a fresh, independent Tally per key.
   const seed = <K>(keys: readonly K[]): Map<K, Tally> =>
@@ -170,7 +180,7 @@ export function computeAggregates(
       }
     }
 
-    if (filters.scope !== "all" && !isActive(issue)) continue;
+    if (filters.scope !== "all" && !isIssueActive(issue)) continue;
     total++;
     kpis.active++;
 

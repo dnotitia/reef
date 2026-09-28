@@ -14,6 +14,7 @@ import { getIssueEntity } from "@/features/issues/stores/issueEntityStore";
 import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
 import type { IssueUpdatePatch } from "@reef/core";
 import { useQueryClient } from "@tanstack/react-query";
+import { reportsQueryKey } from "@/features/reports/lib/queryKey";
 import { useCallback, useRef, useState } from "react";
 
 export type BulkFailureReason = "not_found" | "conflict" | "request_failed";
@@ -136,6 +137,9 @@ export function useBulkUpdateIssues(vault: string) {
               queryKey: ["issues", "relations", vault],
             });
           }
+          await queryClient.invalidateQueries({
+            queryKey: reportsQueryKey(vault),
+          });
         }
 
         useIssueSelectionStore

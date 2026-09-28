@@ -1,7 +1,10 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { computeAggregates } from "../lib/aggregate";
-import type { ReportAggregates, StatusCount } from "../lib/aggregateModel";
+import {
+  computeAggregates,
+  type ReportAggregates,
+  type StatusCount,
+} from "@reef/core";
 import {
   DeadlineCard,
   HealthSummary,

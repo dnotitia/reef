@@ -154,7 +154,7 @@ export {
   appendStatusChangeEvent,
   diffFieldActivityEvents,
   listIssueActivity,
-  listReportActivity,
+  listReportStatusActivity,
   reconcileJiraImportedAttachmentActivityActor,
   reconcileJiraChangelogActivityEvents,
   statusChangeEventKey,
@@ -165,6 +165,7 @@ export {
   parseHistoryTrailers,
   projectIssueBodyHistoryEntry,
 } from "./issues/history";
+export { getReports, type GetReportsParams } from "./reports";
 export { ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE } from "../../schemas/issues/activity";
 export {
   readTemplate,
