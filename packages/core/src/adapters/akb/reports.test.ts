@@ -35,6 +35,11 @@ describe("getReports", () => {
       last_status_change: "2026-05-24T00:00:00.000Z",
       closed_at: "2026-05-25T00:00:00.000Z",
     };
+    const archivedIssue = {
+      ...SAMPLE_ISSUE,
+      id: "REEF-618",
+      archived_at: "2026-05-24T00:00:00.000Z",
+    };
     const activity = [
       {
         id: "event-1",
@@ -70,7 +75,10 @@ describe("getReports", () => {
     const { calls } = setupFetch([
       {
         body: makeSqlQueryResponse(
-          [{ ...makeIssueRow(issue), report_issue_count: "1" }],
+          [
+            { ...makeIssueRow(issue), report_issue_count: "2" },
+            { ...makeIssueRow(archivedIssue), report_issue_count: "2" },
+          ],
           REPORT_ISSUE_ROW_COLUMNS,
         ),
       },
@@ -99,10 +107,15 @@ describe("getReports", () => {
     });
 
     expect(ReportResponseSchema.safeParse(report).success).toBe(true);
-    expect(report.issueCount).toBe(1);
-    expect(report.aggregates.filteredTotal).toBe(1);
+    expect(report.issueCount).toBe(2);
+    expect(report.aggregates.filteredTotal).toBe(2);
     expect(report.aggregates.byStatus).toContainEqual({
       status: "done",
+      count: 1,
+      points: 0,
+    });
+    expect(report.aggregates.byStatus).toContainEqual({
+      status: "todo",
       count: 1,
       points: 0,
     });
@@ -111,7 +124,7 @@ describe("getReports", () => {
     expect(report).not.toHaveProperty("activity");
     expect(calls).toHaveLength(5);
     expect(sqlRequestBody(calls[0]).sql).toContain("COUNT(*) OVER ()");
-    expect(sqlRequestBody(calls[0]).sql).toContain("archived_at IS NULL");
+    expect(sqlRequestBody(calls[0]).sql).not.toContain("archived_at IS NULL");
     expect(sqlRequestBody(calls[1]).sql).toContain(
       "reef_id IN (SELECT reef_id FROM reef_issues)",
     );

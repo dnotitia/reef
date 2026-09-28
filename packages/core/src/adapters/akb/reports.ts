@@ -48,7 +48,7 @@ async function listReportIssues(
         vault,
         `SELECT *, COUNT(*) OVER () AS report_issue_count FROM ${tableRef(
           REEF_ISSUES_TABLE,
-        )} WHERE archived_at IS NULL`,
+        )}`,
       );
       rows = result.kind === "table_query" ? result.items : [];
     } catch (err) {
