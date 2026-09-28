@@ -149,6 +149,7 @@ function makeReportResponse(
     rollupDimension,
     aggregates,
     flowMetrics,
+    flowMetricsUnavailable: false,
     forecast,
     healthRollup: computeHealthRollup(issues, {
       dimension: rollupDimension,

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { AuthError } from "../../errors";
 import { ReportResponseSchema } from "../../schemas/reports";
 import { getReports } from "./reports";
 import {
@@ -119,6 +120,7 @@ describe("getReports", () => {
       count: 1,
       points: 0,
     });
+    expect(report.flowMetricsUnavailable).toBe(false);
     expect(report.flowMetrics.cycle.completionWindowCount).toBeGreaterThan(0);
     expect(report).not.toHaveProperty("issues");
     expect(report).not.toHaveProperty("activity");
@@ -128,5 +130,66 @@ describe("getReports", () => {
     expect(sqlRequestBody(calls[1]).sql).toContain(
       "reef_id IN (SELECT reef_id FROM reef_issues)",
     );
+  });
+
+  it("keeps report aggregates available when activity and planning reads fail", async () => {
+    setupFetch([
+      {
+        body: makeSqlQueryResponse(
+          [{ ...makeIssueRow(SAMPLE_ISSUE), report_issue_count: "1" }],
+          REPORT_ISSUE_ROW_COLUMNS,
+        ),
+      },
+      { status: 500, body: { detail: "activity unavailable" } },
+      { status: 500, body: { detail: "planning unavailable" } },
+      { body: makeSqlQueryResponse([], ["id", "name", "status"]) },
+      { body: makeSqlQueryResponse([], ["id", "name", "status"]) },
+    ]);
+
+    const report = await getReports({
+      adapter: makeAdapter(),
+      vault: "reef-sample",
+      request: {
+        filters: { period: "12w", scope: "active", measure: "count" },
+        asOf: Date.parse("2026-05-26T00:00:00.000Z"),
+        rollupDimension: "milestone",
+        pivotRow: "assignee",
+        pivotCol: "status",
+      },
+    });
+
+    expect(report.aggregates.filteredTotal).toBe(1);
+    expect(report.flowMetricsUnavailable).toBe(true);
+    expect(report.availableDimensions).toEqual([]);
+    expect(report.healthRollup).toEqual([]);
+  });
+
+  it("does not suppress an AKB authorization error from an auxiliary read", async () => {
+    setupFetch([
+      {
+        body: makeSqlQueryResponse(
+          [{ ...makeIssueRow(SAMPLE_ISSUE), report_issue_count: "1" }],
+          REPORT_ISSUE_ROW_COLUMNS,
+        ),
+      },
+      { status: 401, body: { detail: "session expired" } },
+      { body: makeSqlQueryResponse([], ["id", "name", "status"]) },
+      { body: makeSqlQueryResponse([], ["id", "name", "status"]) },
+      { body: makeSqlQueryResponse([], ["id", "name", "status"]) },
+    ]);
+
+    await expect(
+      getReports({
+        adapter: makeAdapter(),
+        vault: "reef-sample",
+        request: {
+          filters: { period: "12w", scope: "active", measure: "count" },
+          asOf: Date.parse("2026-05-26T00:00:00.000Z"),
+          rollupDimension: "milestone",
+          pivotRow: "assignee",
+          pivotCol: "status",
+        },
+      }),
+    ).rejects.toBeInstanceOf(AuthError);
   });
 });

@@ -1,7 +1,7 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import type { FlowMetricResult, FlowMetrics } from "@reef/core";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { FlowMetricsCard } from "./FlowMetricsCard";
 
 function metricResult(
@@ -76,6 +76,9 @@ function renderCard(
         metrics={metrics}
         periodLabel="Last 12 weeks"
         vault="reef-acme"
+        isError={false}
+        isFetching={false}
+        onRetry={() => {}}
         {...props}
       />
     </IntlTestProvider>,
@@ -150,5 +153,16 @@ describe("FlowMetricsCard", () => {
       "0/2 · 0%",
     );
     expect(screen.queryByTestId("flow-metrics-chart")).toBeNull();
+  });
+
+  it("shows an activity error and retries the report request", () => {
+    const onRetry = vi.fn();
+    renderCard({ isError: true, onRetry });
+
+    expect(screen.getByTestId("flow-metrics-error")).toHaveTextContent(
+      "Flow history couldn't be loaded.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(onRetry).toHaveBeenCalledOnce();
   });
 });

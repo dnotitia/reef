@@ -268,6 +268,9 @@ export function ReportsPage() {
                   metrics={flowMetrics}
                   periodLabel={periodLabels[filters.period]}
                   vault={vault}
+                  isError={report.flowMetricsUnavailable}
+                  isFetching={reportsQuery.isFetching}
+                  onRetry={() => void reportsQuery.refetch()}
                 />
 
                 {/* Forward-looking forecast sits right after the present-state

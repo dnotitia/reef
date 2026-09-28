@@ -9,6 +9,13 @@ import {
 export const ReportPeriodSchema = z.enum(["4w", "12w", "quarter", "all"]);
 export const ReportScopeSchema = z.enum(["active", "all", "completed"]);
 export const ReportMeasureSchema = z.enum(["count", "points"]);
+const MAX_JAVASCRIPT_DATE_MS = 8_640_000_000_000_000;
+export const MAX_REPORT_AS_OF_MS = MAX_JAVASCRIPT_DATE_MS - 1;
+const ReportAsOfSchema = z
+  .number()
+  .int()
+  .nonnegative()
+  .max(MAX_REPORT_AS_OF_MS);
 export const RollupDimensionSchema = z.enum([
   "milestone",
   "sprint",
@@ -43,7 +50,7 @@ export const ReportRequestSchema = z
       scope: "active",
       measure: "count",
     }),
-    asOf: z.number().int().nonnegative(),
+    asOf: ReportAsOfSchema,
     rollupDimension: RollupDimensionSchema.default("milestone"),
     pivotRow: PivotFieldSchema.default("assignee"),
     pivotCol: PivotFieldSchema.default("status"),
@@ -248,13 +255,14 @@ export const PivotResultSchema = z.object({
 });
 
 export const ReportResponseSchema = z.object({
-  asOf: z.number().int().nonnegative(),
+  asOf: ReportAsOfSchema,
   issueCount: z.number().int().nonnegative(),
   parentName: z.string().nullable(),
   availableDimensions: z.array(RollupDimensionSchema),
   rollupDimension: RollupDimensionSchema,
   aggregates: ReportAggregatesSchema,
   flowMetrics: FlowMetricsSchema,
+  flowMetricsUnavailable: z.boolean(),
   forecast: ForecastSchema,
   healthRollup: z.array(HealthRollupRowSchema),
   pivot: PivotResultSchema,

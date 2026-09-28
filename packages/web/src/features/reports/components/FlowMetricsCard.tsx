@@ -14,14 +14,21 @@ export interface FlowMetricsCardProps {
   metrics: FlowMetrics;
   periodLabel: string;
   vault: string;
+  isError: boolean;
+  isFetching: boolean;
+  onRetry: () => void;
 }
 
 export function FlowMetricsCard({
   metrics,
   periodLabel,
   vault,
+  isError,
+  isFetching,
+  onRetry,
 }: FlowMetricsCardProps) {
   const t = useTranslations("reports.cards");
+  const common = useTranslations("common");
   const [metric, setMetric] = useState<FlowMetricKind>("cycle");
   const metricResult = metrics[metric];
   const metricLabel = t(metric === "cycle" ? "cycleTime" : "leadTime");
@@ -60,12 +67,34 @@ export function FlowMetricsCard({
         </span>
       </div>
 
-      <FlowMetricResultView
-        metric={metric}
-        result={metricResult}
-        metricLabel={metricLabel}
-        vault={vault}
-      />
+      {isError ? (
+        <div
+          data-testid="flow-metrics-error"
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive-focus/30 bg-destructive-fill/[0.04] px-3 py-3"
+        >
+          <p className="text-sm text-destructive-text">
+            {t("flowMetricsError")}
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            busy={isFetching}
+            onClick={onRetry}
+            aria-label={common("retry")}
+          >
+            {common("retry")}
+          </Button>
+        </div>
+      ) : (
+        <FlowMetricResultView
+          metric={metric}
+          result={metricResult}
+          metricLabel={metricLabel}
+          vault={vault}
+        />
+      )}
     </Card>
   );
 }

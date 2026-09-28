@@ -1,4 +1,4 @@
-import { SchemaValidationError } from "../../errors";
+import { AuthError, SchemaValidationError } from "../../errors";
 import {
   computeAggregates,
   computeFlowMetrics,
@@ -100,12 +100,34 @@ export async function getReports({
       rollup_dimension: request.rollupDimension,
     },
     async (span) => {
-      const [issueResult, activity, catalog] = await Promise.all([
+      const [issueResult, activityResult, planningResult] = await Promise.all([
         listReportIssues(adapter, vault),
-        listReportStatusActivity(adapter, vault),
-        listPlanningCatalog({ adapter, vault }),
+        listReportStatusActivity(adapter, vault).then(
+          (events) => ({ events, unavailable: false }),
+          (err: unknown) => {
+            if (err instanceof AuthError) throw err;
+            return { events: [], unavailable: true };
+          },
+        ),
+        listPlanningCatalog({ adapter, vault }).then(
+          (catalog) => ({ catalog, unavailable: false }),
+          (err: unknown) => {
+            if (err instanceof AuthError) throw err;
+            return {
+              catalog: {
+                sprints: [],
+                milestones: [],
+                releases: [],
+                rollover_resumes: [],
+              },
+              unavailable: true,
+            };
+          },
+        ),
       ]);
       const { issues, issueCount } = issueResult;
+      const activity = activityResult.events;
+      const { catalog } = planningResult;
 
       const now = request.asOf;
       const aggregates = computeAggregates(issues, {
@@ -124,12 +146,16 @@ export async function getReports({
         weeklyThroughput: aggregates.throughput.map((week) => week.closed),
         horizonWeeks: DEFAULT_FORECAST_HORIZON_WEEKS,
       });
-      const availableDimensions = [
-        ...(catalog.milestones.length > 0 ? (["milestone"] as const) : []),
-        ...(catalog.sprints.length > 0 ? (["sprint"] as const) : []),
-        ...(catalog.releases.length > 0 ? (["release"] as const) : []),
-        ...(distinctParentIds(issues).length > 0 ? (["parent"] as const) : []),
-      ];
+      const availableDimensions = planningResult.unavailable
+        ? []
+        : [
+            ...(catalog.milestones.length > 0 ? (["milestone"] as const) : []),
+            ...(catalog.sprints.length > 0 ? (["sprint"] as const) : []),
+            ...(catalog.releases.length > 0 ? (["release"] as const) : []),
+            ...(distinctParentIds(issues).length > 0
+              ? (["parent"] as const)
+              : []),
+          ];
       const rollupDimension = availableDimensions.includes(
         request.rollupDimension,
       )
@@ -157,6 +183,7 @@ export async function getReports({
         rollupDimension,
         aggregates,
         flowMetrics,
+        flowMetricsUnavailable: activityResult.unavailable,
         forecast,
         healthRollup,
         pivot,
@@ -165,6 +192,11 @@ export async function getReports({
         const response = ReportResponseSchema.parse(result);
         span.setAttribute("issue_count", issues.length);
         span.setAttribute("activity_count", activity.length);
+        span.setAttribute("activity_available", !activityResult.unavailable);
+        span.setAttribute(
+          "planning_catalog_available",
+          !planningResult.unavailable,
+        );
         span.setAttribute("aggregate_issue_count", aggregates.filteredTotal);
         return response;
       } catch (err) {
