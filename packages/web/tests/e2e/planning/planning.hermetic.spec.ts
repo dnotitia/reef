@@ -895,7 +895,9 @@ test.describe("Hermetic planning workflow", () => {
         `pending Planning Overview accessibility tree should include ${header}`,
       ).toContain(header);
     }
-    await expect(page.getByRole("status")).toHaveText("Loading…");
+    await expect(page.getByRole("main").getByRole("status")).toHaveText(
+      "Loading…",
+    );
     expect(releaseCatalogResponse).toBeDefined();
     releaseCatalogResponse?.();
 

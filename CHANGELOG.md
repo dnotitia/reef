@@ -12,6 +12,13 @@ explicitly in the entries below.
 
 ## Unreleased
 
+## v0.16.1 - 2026-09-28
+
+### Migration
+
+- Add an empty schema transition from v0.16.0. The schema-v3 projection,
+  application behavior, and fresh-install plan remain unchanged. (REEF-423)
+
 ## v0.16.0 - 2026-09-28
 
 ### Changed
