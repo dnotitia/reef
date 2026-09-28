@@ -53,7 +53,8 @@ explicitly in the entries below.
 - Refresh existing vault-skill/runbook documents through Settings to install the
   canonical `reef/runbooks` paths. Onboarding preserves older instructions and
   does not stamp them as current. Existing schema-v3 tables and browser storage
-  need no schema upgrade or data backfill.
+  need no schema upgrade or data backfill. The Blueprint includes an explicit
+  schema no-op transition from v0.15.0.
 
 ### Operational
 

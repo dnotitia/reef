@@ -88,6 +88,7 @@ vi.mock("@reef/core", () => ({ setCoreLogger: mocks.setCoreLogger }));
 vi.mock("@ai-sdk/otel", () => ({ OpenTelemetry: mocks.OpenTelemetry }));
 vi.mock("ai", () => ({ registerTelemetry: mocks.registerTelemetry }));
 
+import { version } from "../../../package.json";
 import { registerNode } from "./instrumentation-node";
 
 describe("registerNode", () => {
@@ -118,7 +119,7 @@ describe("registerNode", () => {
     });
     expect(mocks.resourceFromAttributes).toHaveBeenCalledWith({
       "service.name": "reef-web",
-      "service.version": "0.15.0",
+      "service.version": version,
     });
     expect(mocks.NodeSDK).toHaveBeenCalledWith({
       resource: mocks.resource,

@@ -1,3 +1,4 @@
+import { version } from "../../../../../package.json";
 import { type Page, expect, test } from "@playwright/test";
 import { openExistingWorkspace, resetFixture } from "../harness/fixture";
 
@@ -107,7 +108,7 @@ test.describe("Hermetic dashboard surfaces and global dialogs", () => {
       page.locator('[data-testid="account-release-notes"]'),
     ).toHaveAttribute(
       "href",
-      "https://github.com/dnotitia/reef/releases/tag/v0.15.0",
+      `https://github.com/dnotitia/reef/releases/tag/v${version}`,
     );
     await page.keyboard.press("Escape");
 
