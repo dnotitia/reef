@@ -12,62 +12,64 @@ explicitly in the entries below.
 
 ## Unreleased
 
+## v0.16.0 - 2026-09-28
+
 ### Changed
 
-- **Workspace onboarding now initializes Reef documents in the canonical AKB
-  layout and can resume safely after partial setup.** Ordinary runbooks live
-  under `reef/runbooks`, the reserved `overview` system path is rejected with
-  a stable structured error, and brownfield onboarding preserves existing
-  skill, runbook, issue, settings, and user documents. (REEF-642)
-
-- **The AKB notification projector now runs as a private Event Processor.**
-  `pnpm dev` starts the web and processor processes together while
-  `pnpm dev:web` keeps the web-only path. Event Gap recovery, periodic source
-  reconciliation, health/readiness/metrics, and bounded SIGTERM drain preserve
-  activation, Source Cursor, and notification identity state.
-
-- **Release deployment now uses immutable AKB registration and rollout state.**
-  The operator CLI registers the verified App Release Manifest, waits for a
-  canonical AKB rollout to reach `applied`, and only then applies the matching
-  Kubernetes image digest and release configuration. Registration-only and
-  explicit blocked-rollout resume paths produce reusable receipts; mutable
-  `latest`, version/source tag mutation, and version/commit identity overrides
-  are no longer deployment inputs.
+- **Breaking: notification projection runs in a separate private Event
+  Processor.** It recovers from Event Gaps, reconciles source state periodically,
+  and drains on shutdown. `pnpm dev` starts both processes; `pnpm dev:web`
+  starts only the web application. (REEF-583)
+- **Breaking: cluster deployment requires immutable AKB release registration
+  and rollout.** The release CLI verifies and registers the Manifest, waits for
+  AKB's rollout to reach `applied`, then applies both runtime image digests to
+  Kubernetes. Retries reuse verified receipts; blocked rollouts require explicit
+  resume. Mutable tags and version/source overrides are no longer deployment
+  inputs. (REEF-421)
 
 ### Fixed
 
-- **Ask AI now uses the platform-primary Period shortcut.** `⌘⇧.` on macOS
-  and `Ctrl+Shift+.` on Windows/Linux toggle the panel, with the app-action
-  catalog and keyboard shortcut guidance kept in sync. (REEF-622)
+- **Non-admin users can create workspaces and retry partial setup under the
+  same name.** Ordinary runbooks use `reef/runbooks` instead of the reserved
+  `overview` path. Onboarding preserves existing instructions, issues, settings,
+  and user documents rather than overwriting a partially initialized workspace.
+  (REEF-642)
 - **Transient auth revalidation no longer signs out an established session.**
-  Refresh contention, temporary failures, and probe timeouts preserve the current
-  workspace with a retry action; a first visit keeps protected content hidden
-  until the session can be verified. Explicit invalidation still follows the
-  existing logout flow. (REEF-641)
+  Refresh contention, temporary failures, and probe timeouts preserve the
+  workspace with a retry action; first visits keep protected content hidden
+  until verification succeeds. (REEF-641)
+- **Ask AI uses the platform-primary Period shortcut.** `⌘⇧.` on macOS and
+  `Ctrl+Shift+.` on Windows/Linux toggle the panel; shortcut guidance matches
+  the action. (REEF-622)
+
+### Migration
+
+- Deploy the Event Processor alongside the web application with
+  `AKB_BACKEND_URL`, `REEF_EVENT_PROCESSOR_VAULT`, and the secret
+  `REEF_EVENT_PROCESSOR_AKB_TOKEN`. AKB must provide the Change Event stream
+  and source reconciliation APIs; cluster deployment additionally requires the
+  App Registry and rollout APIs plus an operator-only
+  `REEF_CONTROL_PLANE_TOKEN`.
+- Refresh existing vault-skill/runbook documents through Settings to install the
+  canonical `reef/runbooks` paths. Onboarding preserves older instructions and
+  does not stamp them as current. Existing schema-v3 tables and browser storage
+  need no schema upgrade or data backfill.
 
 ### Operational
 
-- **Web and Event Processor release artifacts are bound together.** The release
-  CLI builds two named OCI targets from one source revision, records both
-  immutable digests in the Reef build artifact and receipt, and applies the
-  processor as a private single-replica `Recreate` Deployment with no public
-  Service, Ingress, or HPA. AKB registration remains Manifest v2 with the web
-  digest only; the processor digest is outside the AKB manifest/checksum until
-  AKB-337.
-
-- **The release CLI records full deployment provenance.** Each image build is
-  pushed under a unique source/version-bound build tag and applied by digest;
-  Kubernetes PodTemplate environment and rollout history carry the App/Release
-  IDs, product version, full source revision, immutable image digest, and
-  manifest checksum. Readiness or runtime identity failures exit non-zero after
-  AKB success and are distinct from rollout failures. Live Kubernetes
-  apply/readiness/pod identity verification remains a required pre-merge gate
-  for this change.
-- **Release retries reuse verified receipts.** A matching receipt reuses its
-  immutable image and Release coordinates, persists the rollout key before the
-  first request, and replays blocked requests without automatically resuming
-  them. Registration-only receipts can continue into deployment with a new
-  rollout key.
+- **Release artifacts bind web and processor images to one source revision.**
+  Both digests are recorded in the build artifact and receipt. AKB Manifest v2
+  verifies only the web digest; processor identity is verified by Reef's receipt
+  and Kubernetes readback, outside the AKB manifest/checksum.
+- Run the processor as a private single-replica `Recreate` Deployment with
+  internal `/healthz`, `/readyz`, and `/metrics` endpoints and no public Service,
+  Ingress, or HPA. The CLI checks readiness and runtime identity after apply and
+  records release provenance in both PodTemplates.
+- Release image archives contain `reef-web:v0.16.0` and
+  `reef-event-processor:v0.16.0` plus full source-revision tags. Pin deployments
+  to each verified digest. For rollback to v0.15.0, restore its web image and
+  deployment configuration and remove the separate processor workload; retain
+  AKB cursor and notification state so a later redeploy can reconcile it.
 
 ## v0.15.0 - 2026-09-14
 
