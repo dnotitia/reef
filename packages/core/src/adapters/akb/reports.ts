@@ -41,14 +41,10 @@ async function listReportIssues(
   return withSpan("akb.list_report_issues", { vault }, async (span) => {
     let rows: Record<string, unknown>[];
     try {
-      // Keep the simple population count in AKB SQL alongside the row read;
-      // all multidimensional calculations consume the validated core models.
       const result = await runSql(
         adapter,
         vault,
-        `SELECT *, COUNT(*) OVER () AS report_issue_count FROM ${tableRef(
-          REEF_ISSUES_TABLE,
-        )}`,
+        `SELECT * FROM ${tableRef(REEF_ISSUES_TABLE)}`,
       );
       rows = result.kind === "table_query" ? result.items : [];
     } catch (err) {
@@ -59,13 +55,6 @@ async function listReportIssues(
       throw err;
     }
 
-    const rawCount = rows[0]?.report_issue_count ?? rows.length;
-    const sqlIssueCount = Number(rawCount);
-    if (!Number.isSafeInteger(sqlIssueCount) || sqlIssueCount < 0) {
-      throw new SchemaValidationError({
-        issues: ["report issue count from AKB SQL is invalid"],
-      });
-    }
     const issues: IssueListItem[] = [];
     for (const row of rows) {
       try {
@@ -76,7 +65,6 @@ async function listReportIssues(
     }
     span.setAttribute("row_count", rows.length);
     span.setAttribute("issue_count", issues.length);
-    span.setAttribute("sql_issue_count", sqlIssueCount);
     return { issues, issueCount: issues.length };
   });
 }

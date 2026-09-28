@@ -23,8 +23,6 @@ const REPORT_ACTIVITY_COLUMNS = [
   "updated_at",
   "created_by",
 ];
-const REPORT_ISSUE_ROW_COLUMNS = [...ISSUE_ROW_COLUMNS, "report_issue_count"];
-
 describe("getReports", () => {
   it("loads AKB report inputs and returns only schema-validated aggregates", async () => {
     const issue = {
@@ -76,11 +74,8 @@ describe("getReports", () => {
     const { calls } = setupFetch([
       {
         body: makeSqlQueryResponse(
-          [
-            { ...makeIssueRow(issue), report_issue_count: "2" },
-            { ...makeIssueRow(archivedIssue), report_issue_count: "2" },
-          ],
-          REPORT_ISSUE_ROW_COLUMNS,
+          [makeIssueRow(issue), makeIssueRow(archivedIssue)],
+          ISSUE_ROW_COLUMNS,
         ),
       },
       {
@@ -125,7 +120,7 @@ describe("getReports", () => {
     expect(report).not.toHaveProperty("issues");
     expect(report).not.toHaveProperty("activity");
     expect(calls).toHaveLength(5);
-    expect(sqlRequestBody(calls[0]).sql).toContain("COUNT(*) OVER ()");
+    expect(sqlRequestBody(calls[0]).sql).not.toContain("COUNT(*) OVER ()");
     expect(sqlRequestBody(calls[0]).sql).not.toContain("archived_at IS NULL");
     expect(sqlRequestBody(calls[1]).sql).toContain(
       "reef_id IN (SELECT reef_id FROM reef_issues)",
@@ -136,8 +131,8 @@ describe("getReports", () => {
     setupFetch([
       {
         body: makeSqlQueryResponse(
-          [{ ...makeIssueRow(SAMPLE_ISSUE), report_issue_count: "1" }],
-          REPORT_ISSUE_ROW_COLUMNS,
+          [makeIssueRow(SAMPLE_ISSUE)],
+          ISSUE_ROW_COLUMNS,
         ),
       },
       { status: 500, body: { detail: "activity unavailable" } },
@@ -168,8 +163,8 @@ describe("getReports", () => {
     setupFetch([
       {
         body: makeSqlQueryResponse(
-          [{ ...makeIssueRow(SAMPLE_ISSUE), report_issue_count: "1" }],
-          REPORT_ISSUE_ROW_COLUMNS,
+          [makeIssueRow(SAMPLE_ISSUE)],
+          ISSUE_ROW_COLUMNS,
         ),
       },
       { status: 401, body: { detail: "session expired" } },
