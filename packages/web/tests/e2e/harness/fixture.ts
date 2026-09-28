@@ -16,6 +16,7 @@ export const fixtureWriterLogin = {
 export type FixtureScenario =
   | "empty"
   | "configured"
+  | "reports_outliers"
   | "configured_empty"
   | "configured_caught_up"
   | "updated_at_range"

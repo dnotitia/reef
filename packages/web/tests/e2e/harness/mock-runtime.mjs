@@ -200,6 +200,16 @@ export function runtimeDiscovery(state) {
             "observe catalog and linked-issue read failures separately from true empty planning data, retry each failed read, and verify the planning rows converge to accurate counts and safe deletion availability",
         },
       },
+      flow_metrics_outliers: {
+        scenario: "reports_outliers",
+        workspace: REEF_VAULT,
+        start_path: "/workspace/reef-e2e/reports",
+        interaction: {
+          type: "report_outlier_navigation",
+          operation:
+            "open a cycle-time outlier from Reports and navigate to its source issue",
+        },
+      },
       sprint_rollover: {
         scenario: "sprint_rollover",
         workspace: "reef-e2e",
