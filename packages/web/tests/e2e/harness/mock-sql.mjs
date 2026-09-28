@@ -144,6 +144,26 @@ export function handleSql(state, vault, sql, username) {
     );
   }
 
+  if (
+    lower.startsWith(
+      'select "status", count(*) as count, coalesce(sum("estimate_points"), 0) as points from reef_issues where',
+    )
+  ) {
+    const issueIds = new Set(JSON.parse(sqlValues(normalized).at(-1) ?? "[]"));
+    const groups = new Map();
+    for (const issue of vault.issues) {
+      if (!issueIds.has(issue.reef_id)) continue;
+      const current = groups.get(issue.status) ?? { count: 0, points: 0 };
+      current.count += 1;
+      current.points += Number(issue.estimate_points ?? 0);
+      groups.set(issue.status, current);
+    }
+    return tableQuery(
+      ["status", "count", "points"],
+      [...groups.entries()].map(([status, totals]) => ({ status, ...totals })),
+    );
+  }
+
   if (lower.startsWith("select * from reef_subscriptions")) {
     let subscriptions = [...vault.subscriptions];
     const reefId = matchSqlString(normalized, /reef_id\s*=\s*'([^']+)'/i);
