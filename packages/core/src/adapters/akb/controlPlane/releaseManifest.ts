@@ -41,6 +41,10 @@ export const REEF_SUPPORTED_TRANSITION_SOURCES: readonly ReleaseTransitionSource
       release_version: "0.15.0",
       schema_fingerprint: REEF_BASELINE_SCHEMA_FINGERPRINT,
     }),
+    Object.freeze({
+      release_version: "0.16.0",
+      schema_fingerprint: REEF_BASELINE_SCHEMA_FINGERPRINT,
+    }),
   ]);
 
 /** Mutable display metadata is intentionally not part of a release checksum. */
