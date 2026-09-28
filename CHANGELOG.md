@@ -12,6 +12,12 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Fixed
+
+- **Saved Light, Dark, and System themes apply before the first paint.** The
+  nonce-authorized root bootstrap reads the existing localStorage mirror, and
+  segmented-control fills switch immediately with the root theme. (REEF-643)
+
 ## v0.16.1 - 2026-09-28
 
 ### Migration

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "fake-indexeddb/auto";
 
-import { render, waitFor } from "@testing-library/react";
+import { act, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setConfigValue } from "../../../lib/storage/config";
 import { db } from "../../../lib/storage/db";
@@ -19,6 +19,7 @@ function resetStore() {
 
 const addEventListener = vi.fn();
 const removeEventListener = vi.fn();
+let systemPrefersDark = false;
 
 describe("useThemeSync", () => {
   beforeEach(async () => {
@@ -28,11 +29,12 @@ describe("useThemeSync", () => {
     await db.config.clear();
     addEventListener.mockClear();
     removeEventListener.mockClear();
+    systemPrefersDark = false;
     Object.defineProperty(window, "matchMedia", {
       writable: true,
       configurable: true,
       value: vi.fn().mockImplementation((q: string) => ({
-        matches: false,
+        matches: systemPrefersDark,
         media: q,
         addEventListener,
         removeEventListener,
@@ -66,6 +68,22 @@ describe("useThemeSync", () => {
         expect.any(Function),
       ),
     );
+  });
+
+  it("applies later OS color-scheme changes while the preference is 'system'", async () => {
+    render(<Harness />);
+
+    await waitFor(() => expect(useThemeStore.getState().theme).toBe("system"));
+    const listener = addEventListener.mock.calls.find(
+      ([eventName]) => eventName === "change",
+    )?.[1];
+    expect(listener).toEqual(expect.any(Function));
+
+    systemPrefersDark = true;
+    act(() => (listener as () => void)());
+
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+    expect(window.localStorage.getItem("reef.theme")).toBe("system");
   });
 
   it("does not subscribe to the OS change for a fixed preference", async () => {

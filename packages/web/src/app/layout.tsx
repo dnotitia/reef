@@ -1,3 +1,4 @@
+import { THEME_BOOTSTRAP_SCRIPT } from "@/features/preferences/lib/theme";
 import { Toaster } from "@/components/ui/sonner";
 import { getAkbWebUrl } from "@/lib/akb/akbWebUrl";
 import { AkbWebUrlProvider } from "@/providers/AkbWebUrlProvider";
@@ -54,7 +55,8 @@ export default async function RootLayout({
   // header (which carries a fresh nonce) blocks every script — breaking
   // hydration. Do not delete this without replacing it with another dynamic
   // opt-in (e.g. `export const dynamic = "force-dynamic"`).
-  await headers();
+  const requestHeaders = await headers();
+  const nonce = requestHeaders.get("x-nonce") ?? undefined;
 
   // The active UI locale, resolved per request from the detection chain
   // (NEXT_LOCALE cookie → Accept-Language → en) by `i18n/request.ts`. Reading it
@@ -70,14 +72,14 @@ export default async function RootLayout({
   // the value is not frozen at build time.
   const akbWebUrl = getAkbWebUrl();
 
-  // suppressHydrationWarning on <html>: the root ThemeSync owner adds/removes
-  // `.dark` on documentElement during hydration, so the server-rendered class
-  // attribute differs from the client one for any non-light user. Without
-  // this, every dark-mode user sees a hydration warning on every load.
+  // suppressHydrationWarning on <html>: the browser boot script and root
+  // ThemeSync owner can add/remove `.dark` on documentElement, so the
+  // server-rendered class attribute can differ from the client one. Without
+  // this, users whose resolved theme is dark see a hydration warning on load.
   // (`lang` is server-resolved from the cookie, so it does not itself mismatch.)
-  // A no-flash inline boot script is not possible under the current CSP
-  // ('strict-dynamic' + nonce) without re-introducing the mismatch; a
-  // server-side theme cookie is the path forward.
+  // The proxy's request nonce authorizes this synchronous script under the
+  // strict CSP. Applying the localStorage mirror before browser paint keeps the
+  // first rendered surface aligned with the theme persisted by ThemeSync.
   return (
     <html
       lang={locale}
@@ -85,6 +87,12 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
+        <script
+          data-theme-bootstrap
+          nonce={nonce}
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: This repository-owned static script contains no user data and carries the request CSP nonce.
+          dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }}
+        />
         {/* No-prop provider inherits locale + messages + formats from
             `getRequestConfig` (next-intl v4), serializing them to the client. */}
         <NextIntlClientProvider>
