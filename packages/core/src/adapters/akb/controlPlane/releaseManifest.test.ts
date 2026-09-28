@@ -33,7 +33,7 @@ describe("Reef App Release Blueprint and Manifest v2", () => {
     expect(blueprint.schema.fingerprint).toBe(
       "dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727",
     );
-    expect(blueprint.transition_plans).toHaveLength(2);
+    expect(blueprint.transition_plans).toHaveLength(3);
     expect(blueprint.transition_plans[0]?.source).toBe("fresh");
     expect(blueprint.transition_plans[0]?.steps).toHaveLength(12);
     expect(blueprint.transition_plans[1]).toEqual({
@@ -41,6 +41,13 @@ describe("Reef App Release Blueprint and Manifest v2", () => {
         release_version: "0.14.0",
         schema_fingerprint:
           "dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727",
+      },
+      steps: [],
+    });
+    expect(blueprint.transition_plans[2]).toEqual({
+      source: {
+        release_version: "0.15.0",
+        schema_fingerprint: blueprint.schema.fingerprint,
       },
       steps: [],
     });
@@ -131,7 +138,7 @@ describe("Reef App Release Blueprint and Manifest v2", () => {
       image_digest: IMAGE_DIGEST,
       schema_version: REEF_SCHEMA_VERSION,
     });
-    expect(first.manifest.transition_plans).toHaveLength(2);
+    expect(first.manifest.transition_plans).toHaveLength(3);
     expect(
       first.manifest.transition_plans[0]?.steps.every((step) =>
         /^[0-9a-f]{64}$/u.test(step.checksum),
