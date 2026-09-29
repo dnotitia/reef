@@ -65,6 +65,7 @@ import type { IssueMetadata, Status } from "../../../schemas/issues/metadata";
 import {
   type AkbAdapter,
   REEF_ACTIVITY_TABLE,
+  REEF_ISSUES_TABLE,
   decodeSettingsValue,
   ensureReefTables,
   isMissingTableError,
@@ -975,17 +976,15 @@ export async function listIssueActivity(
 }
 
 /**
- * List status-change activity for the whole vault in one read. Reports uses
- * this bulk seam to calculate flow metrics after applying its existing issue
- * facets locally; fetching one issue at a time would turn the report into an
- * N+1 request path.
+ * Read status-change activity for the issues currently projected in the vault.
+ * Report calculations stay in core, so raw events never cross into the browser.
  *
  * The query selects status changes, projects them through the same parser
  * as the issue timeline, skips malformed rows, and collapses duplicate
  * `(reef_id, event_key)` records before returning. A missing activity table is
  * an empty history, matching the per-issue read's resilience contract.
  */
-export async function listReportActivity(
+export async function listReportStatusActivity(
   adapter: AkbAdapter,
   vault: string,
 ): Promise<ActivityEvent[]> {
@@ -1001,7 +1000,9 @@ export async function listReportActivity(
         )} WHERE event_type = ${sqlParams.add(
           ACTIVITY_EVENT_STATUS_CHANGE,
           "activity event_type",
-        )} ORDER BY meta->>'at' ASC, reef_id ASC, id ASC`,
+        )} AND reef_id IN (SELECT reef_id FROM ${tableRef(
+          REEF_ISSUES_TABLE,
+        )}) ORDER BY meta->>'at' ASC, reef_id ASC, id ASC`,
         sqlParams.params,
       );
       rows = res.kind === "table_query" ? res.items : [];

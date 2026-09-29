@@ -30,6 +30,7 @@ vi.mock("@/lib/storage/assigneeRecents", () => ({
 }));
 
 import { apiFetch } from "@/lib/apiClient";
+import { reportsQueryKey } from "@/features/reports/lib/queryKey";
 import type { IssueMetadata } from "@reef/core";
 import { issueBodyHistoryKey } from "../queries/useIssueBodyHistory";
 import {
@@ -293,6 +294,9 @@ describe("useUpdateIssue", () => {
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ["issues", "relations", "reef-acme"],
     });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: reportsQueryKey("reef-acme"),
+    });
     // A status change logs a reef_activity event, so the timeline's activity
     // query refetches to show the transition immediately (REEF-064).
     expect(invalidateSpy).toHaveBeenCalledWith({
@@ -330,6 +334,9 @@ describe("useUpdateIssue", () => {
     );
     expect(invalidateSpy).not.toHaveBeenCalledWith({
       queryKey: ["issues", "relations", "reef-acme"],
+    });
+    expect(invalidateSpy).not.toHaveBeenCalledWith({
+      queryKey: reportsQueryKey("reef-acme"),
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ["issues", "activity", "reef-acme", "REEF-001"],

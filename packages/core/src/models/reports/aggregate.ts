@@ -1,19 +1,17 @@
+import type { ActivityEvent } from "../../schemas/issues/activity";
+import type {
+  IssueListItem,
+  IssueType,
+  Priority,
+  Severity,
+  Status,
+} from "../../schemas/issues/metadata";
 import {
-  indexIssuesById,
-  unresolvedBlockerCountIn,
-} from "@/features/issues/lib/dependencyUtils";
-import { isActive } from "@/features/issues/lib/issueListUtils";
-import {
-  type ActivityEvent,
-  type IssueListItem,
-  type IssueType,
-  type Priority,
-  type Severity,
-  type Status,
-  isResolvedStatus,
-} from "@reef/core";
-import { PRIORITY_OPTIONS } from "@reef/core/fields";
-import { STATUS_OPTIONS } from "@reef/core/fields";
+  PRIORITY_OPTIONS,
+  STATUS_OPTIONS,
+} from "../../schemas/issues/fieldRegistry";
+import { isResolvedStatus } from "../status";
+import { isIssueActive } from "../sharedIssueFacets";
 import {
   AGING_BUCKETS,
   type AggregateOptions,
@@ -33,6 +31,7 @@ import {
   type ReportAggregates,
   type ReportKpis,
   type ReportMeasure,
+  type StatusCount,
   type RiskSummary,
   SEVERITY_OPTIONS,
   type Tally,
@@ -54,6 +53,18 @@ export {
   WEEK_MS,
 } from "./aggregateModel";
 
+function unresolvedBlockerCountIn(
+  issue: IssueListItem,
+  issuesById: ReadonlyMap<string, IssueListItem>,
+): number {
+  let count = 0;
+  for (const dependencyId of issue.depends_on ?? []) {
+    const dependency = issuesById.get(dependencyId);
+    if (!dependency || !isResolvedStatus(dependency.status)) count++;
+  }
+  return count;
+}
+
 /** Single-pass aggregation. Every distribution bucket carries both an issue
  *  `count` and a story-`points` sum; `filters.measure` selects which one ranked
  *  lists sort by (desc, then name-asc) and which a card renders. Priority
@@ -61,6 +72,23 @@ export {
 export function computeAggregates(
   issues: ReadonlyArray<IssueListItem>,
   options: AggregateOptions = {},
+): ReportAggregates {
+  return calculateAggregates(issues, options);
+}
+
+/** Internal adapter entry point for a status distribution grouped by AKB SQL. */
+export function computeAggregatesWithStatusCounts(
+  issues: ReadonlyArray<IssueListItem>,
+  options: AggregateOptions,
+  statusCounts: readonly StatusCount[],
+): ReportAggregates {
+  return calculateAggregates(issues, options, statusCounts);
+}
+
+function calculateAggregates(
+  issues: ReadonlyArray<IssueListItem>,
+  options: AggregateOptions,
+  statusCounts?: readonly StatusCount[],
 ): ReportAggregates {
   const {
     assigneeLimit = 5,
@@ -76,12 +104,12 @@ export function computeAggregates(
   const filteredIssues = issues.filter((issue) =>
     matchesFilters(issue, filters),
   );
-  const dependencyIndex = indexIssuesById(issues);
+  const dependencyIndex = new Map(issues.map((issue) => [issue.id, issue]));
   // Each bucket accrues a count and a point sum in one pass; the seeded zero
   // buckets give every distribution a fresh, independent Tally per key.
   const seed = <K>(keys: readonly K[]): Map<K, Tally> =>
     new Map(keys.map((k) => [k, { count: 0, points: 0 }]));
-  const statusBuckets = seed<Status>(STATUS_OPTIONS);
+  const statusBuckets = statusCounts ? null : seed<Status>(STATUS_OPTIONS);
   const priorityBuckets = seed<Priority | "none">([
     ...PRIORITY_OPTIONS,
     "none",
@@ -170,11 +198,11 @@ export function computeAggregates(
       }
     }
 
-    if (filters.scope !== "all" && !isActive(issue)) continue;
-    total++;
+    if (filters.scope !== "all" && !isIssueActive(issue)) continue;
+    if (!statusCounts) total++;
     kpis.active++;
 
-    tally(statusBuckets, issue.status, pts);
+    if (statusBuckets) tally(statusBuckets, issue.status, pts);
     if (issue.status === "in_progress" || issue.status === "in_review") {
       kpis.inProgress++;
     }
@@ -257,13 +285,19 @@ export function computeAggregates(
   );
 
   const ZERO: Tally = { count: 0, points: 0 };
+  const sqlFilteredTotal = statusCounts?.reduce(
+    (sum, bucket) => sum + bucket.count,
+    0,
+  );
   return {
-    filteredTotal: filteredIssues.length,
-    total,
-    byStatus: STATUS_OPTIONS.map((status) => {
-      const t = statusBuckets.get(status) ?? ZERO;
-      return { status, count: t.count, points: t.points };
-    }),
+    filteredTotal: sqlFilteredTotal ?? filteredIssues.length,
+    total: sqlFilteredTotal ?? total,
+    byStatus:
+      statusCounts?.map((bucket) => ({ ...bucket })) ??
+      STATUS_OPTIONS.map((status) => {
+        const t = statusBuckets?.get(status) ?? ZERO;
+        return { status, count: t.count, points: t.points };
+      }),
     byPriority: [...PRIORITY_OPTIONS, "none" as const].map((priority) => {
       const t = priorityBuckets.get(priority) ?? ZERO;
       return { priority, count: t.count, points: t.points };

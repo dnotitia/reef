@@ -1,8 +1,13 @@
-import type { IssueMetadata } from "@reef/core";
+import {
+  computePivot,
+  DEFAULT_REPORT_FILTERS,
+  type IssueMetadata,
+  type PivotFieldKey,
+} from "@reef/core";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
-import { DEFAULT_REPORT_FILTERS } from "../lib/aggregate";
 import { PivotCard } from "./PivotCard";
 
 afterEach(cleanup);
@@ -44,7 +49,24 @@ const issues = [
 ];
 
 function renderCard() {
-  render(<PivotCard issues={issues} filters={DEFAULT_REPORT_FILTERS} />);
+  render(<ControlledPivotCard />);
+}
+
+function ControlledPivotCard() {
+  const [rowField, setRowField] = useState<PivotFieldKey>("assignee");
+  const [colField, setColField] = useState<PivotFieldKey>("status");
+  const result = computePivot(issues, rowField, colField, {
+    filters: DEFAULT_REPORT_FILTERS,
+  });
+  return (
+    <PivotCard
+      result={result}
+      rowField={rowField}
+      colField={colField}
+      onRowFieldChange={setRowField}
+      onColFieldChange={setColField}
+    />
+  );
 }
 
 describe("PivotCard (REEF-189)", () => {

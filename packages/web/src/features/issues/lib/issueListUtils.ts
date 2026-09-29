@@ -4,17 +4,18 @@ import {
   createIssueDateRangeMatcher,
   isResolvedStatus,
   isStaleResolved,
+  isIssueActive as isActive,
+  matchesSharedFacets,
   parseIssueId,
 } from "@reef/core";
 import type { IssueFilter } from "../stores/useIssueStore";
 
+export { isActive, matchesSharedFacets };
+export type { SharedIssueFacets } from "@reef/core";
+
 /** True when the issue has not been archived. Shared by Board / Reports /
  *  filterIssues so a future change to the archive predicate stays in one
  *  place. */
-export function isActive(issue: IssueListItem): boolean {
-  return issue.archived_at == null;
-}
-
 /** Custom priority sort rank — higher number = higher priority */
 const PRIORITY_RANK: Record<string, number> = {
   critical: 4,
@@ -123,33 +124,6 @@ export function sortIssuesByRankOrder(
 }
 
 /**
- * The issue facets shared between the `/issues` list filter and the `/reports`
- * scope bar: assignee, label, and the three planning ids. Both surfaces keep
- * their own extra controls (issues adds status/type/priority/…, reports adds
- * period/scope), but these should match identically everywhere — so the
- * predicate lives here once and both call it (REEF-074). `IssueFilter` and the
- * reports `ReportFilters` both structurally satisfy this shape.
- *
- * `assignee` / `sprint_id` / `release_id` accept either a single scalar (reports
- * still selects one) or a multi-select array (the issues filter, REEF-267); the
- * predicate normalizes both and OR-combines within the facet, so the two
- * surfaces share one matching semantics regardless of cardinality. `milestone_id`
- * stays single (multi-select out of scope), and `parent_id` is the one facet
- * `/reports` sets today (the portfolio rollup drill, REEF-187 — no issues-list
- * control), both exact-id single values.
- */
-export interface SharedIssueFacets {
-  assignee?: string | readonly string[];
-  /** Match NULL, empty, and whitespace-valued assigned_to values. */
-  assigneeUnset?: boolean;
-  label?: string;
-  sprint_id?: string | readonly string[];
-  milestone_id?: string;
-  release_id?: string | readonly string[];
-  parent_id?: string;
-}
-
-/**
  * Returns whether the issue view is narrowed by a facet or free-text query.
  * Sort and display options are intentionally left to each surface so callers
  * can preserve their own empty-state semantics.
@@ -190,16 +164,6 @@ interface FilterIssuesOptions {
   };
 }
 
-/** Normalize a facet that may arrive as a single scalar (reports) or a
- *  multi-select array (issues, REEF-267) into an array; an unset facet is an
- *  empty array, which the caller treats as "passes". */
-function facetValues(
-  value: string | readonly string[] | undefined,
-): readonly string[] {
-  if (value == null) return [];
-  return Array.isArray(value) ? value : [value as string];
-}
-
 /**
  * Issue label filters are stored as a comma-joined string (URL/persistence
  * friendly) but edited as discrete chips. These two helpers are the single
@@ -218,53 +182,6 @@ export function formatLabelFilter(
   labels: readonly string[],
 ): string | undefined {
   return labels.length > 0 ? labels.join(",") : undefined;
-}
-
-/** OR-match the issue's labels against a comma-separated filter; case- and
- *  whitespace-insensitive, exact per token. Empty filter passes. */
-function matchesLabelFilter(issue: IssueListItem, label: string): boolean {
-  const filterLabels = parseLabelFilter(label).map((l) => l.toLowerCase());
-  if (filterLabels.length === 0) return true;
-  const issueLabels = issue.labels?.map((l) => l.toLowerCase()) ?? [];
-  return filterLabels.some((fl) => issueLabels.includes(fl));
-}
-
-/**
- * Match an issue against the facets shared by the issues list and reports.
- * Assignee is a case-insensitive EXACT match of `assigned_to` (REEF-267 — no
- * longer a substring, so filtering to `ann` does not incidentally return `joann`),
- * OR-combined across the selected logins; sprint / release are exact id equality
- * OR-combined across selected ids; milestone / parent are single exact ids; label
- * is comma-separated OR (see `matchesLabelFilter`). An unset facet consistently
- * passes. The exact predicate is the single source both surfaces share, so the
- * issues filter and reports do not diverge (AC5).
- */
-export function matchesSharedFacets(
-  issue: IssueListItem,
-  facets: SharedIssueFacets,
-): boolean {
-  const assignees = facetValues(facets.assignee);
-  if (assignees.length || facets.assigneeUnset) {
-    const who = issue.assigned_to?.toLowerCase() ?? "";
-    const matchesAssigned = assignees.some(
-      (assignee) =>
-        assignee.trim().length > 0 && assignee.toLowerCase() === who,
-    );
-    const matchesUnset = Boolean(
-      facets.assigneeUnset && !issue.assigned_to?.trim(),
-    );
-    if (!matchesAssigned && !matchesUnset) return false;
-  }
-  const sprints = facetValues(facets.sprint_id);
-  if (sprints.length && !sprints.includes(issue.sprint_id ?? "")) return false;
-  if (facets.milestone_id && issue.milestone_id !== facets.milestone_id)
-    return false;
-  const releases = facetValues(facets.release_id);
-  if (releases.length && !releases.includes(issue.release_id ?? ""))
-    return false;
-  if (facets.parent_id && issue.parent_id !== facets.parent_id) return false;
-  if (facets.label && !matchesLabelFilter(issue, facets.label)) return false;
-  return true;
 }
 
 /**

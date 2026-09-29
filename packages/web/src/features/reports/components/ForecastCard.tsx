@@ -3,13 +3,13 @@
 import { formatTimestampMonthDay } from "@/features/issues/lib/dateHelpers";
 import { cn } from "@/lib/utils";
 import { useLocale, useTranslations } from "next-intl";
-import { WEEK_MS } from "../lib/aggregate";
-import type {
-  CompletionForecast,
-  CountForecast,
-  MonteCarloForecast,
-} from "../lib/monteCarlo";
-import { MAX_FORECAST_WEEKS } from "../lib/monteCarlo";
+import {
+  MAX_FORECAST_WEEKS,
+  WEEK_MS,
+  type CompletionForecast,
+  type CountForecast,
+  type MonteCarloForecast,
+} from "@reef/core";
 import { Card } from "./ReportLayout";
 import { RowEmpty } from "./ReportSummarySections";
 

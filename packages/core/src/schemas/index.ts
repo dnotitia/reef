@@ -4,3 +4,4 @@ export * from "./workspace";
 export * from "./planning";
 export * from "./ai";
 export * from "./events";
+export * from "./reports";

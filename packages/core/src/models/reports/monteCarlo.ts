@@ -10,7 +10,7 @@
  *   - "How many by date?"      → items finished within a fixed week horizon.
  *
  * Both are count-based (issue counts, does not story points) and run entirely in
- * the browser. The forecast is **deterministic by default**: the RNG is seeded
+ * the caller. The forecast is **deterministic by default**: the RNG is seeded
  * from the inputs, so identical data yields an identical forecast (a feature for
  * a number a PM may quote) while still drawing a representative random sample.
  * Callers may inject their own `rng` (tests do, for fully controlled streams).

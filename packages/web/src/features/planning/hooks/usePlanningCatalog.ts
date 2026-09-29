@@ -16,6 +16,7 @@ import {
   type SprintRolloverTarget,
 } from "@reef/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { reportsQueryKey } from "@/features/reports/lib/queryKey";
 
 export type PlanningKind = "sprints" | "milestones" | "releases";
 export type PlanningItem = Sprint | Milestone | Release;
@@ -110,6 +111,7 @@ export function useCreatePlanningItem(vault: string) {
       await queryClient.invalidateQueries({
         queryKey: planningCatalogKey(vault),
       });
+      await queryClient.invalidateQueries({ queryKey: reportsQueryKey(vault) });
     },
   });
 }
@@ -148,6 +150,7 @@ export function useUpdatePlanningItem(vault: string) {
       await queryClient.invalidateQueries({
         queryKey: ["issues", "list", vault],
       });
+      await queryClient.invalidateQueries({ queryKey: reportsQueryKey(vault) });
     },
   });
 }
@@ -174,6 +177,7 @@ export function useDeletePlanningItem(vault: string) {
       await queryClient.invalidateQueries({
         queryKey: ["issues", "list", vault],
       });
+      await queryClient.invalidateQueries({ queryKey: reportsQueryKey(vault) });
     },
   });
 }
@@ -212,6 +216,7 @@ export function useCloseSprintAndRollover(vault: string) {
       await queryClient.invalidateQueries({
         queryKey: ["issues", "relations", vault],
       });
+      await queryClient.invalidateQueries({ queryKey: reportsQueryKey(vault) });
     },
   });
 }

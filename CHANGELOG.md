@@ -12,6 +12,12 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Changed
+
+- Reports now receive validated server-computed aggregates, flow metrics, health
+  rollups, pivots, and forecasts in one workspace-scoped response instead of
+  loading issue and activity rows into the browser. (REEF-617)
+
 ### Fixed
 
 - **Saved Light, Dark, and System themes apply before the first paint.** The

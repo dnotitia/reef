@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import type { MonteCarloForecast } from "../lib/monteCarlo";
+import type { MonteCarloForecast } from "@reef/core";
 import { ForecastCard } from "./ForecastCard";
 
 // 2026-06-01 (UTC) — a fixed `now` so the resolved forecast dates are stable.

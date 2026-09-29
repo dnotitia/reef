@@ -2,6 +2,7 @@
 
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
+import { reportsQueryKey } from "@/features/reports/lib/queryKey";
 import {
   assigneeRecentsQueryKey,
   rememberRecentAssigneeLogin,
@@ -322,6 +323,9 @@ export function useUpdateIssue(options: UseUpdateIssueOptions = {}) {
       // `updated_at`) and variants sorted by the edited field — while an
       // unrelated assignee-filtered variant stays patched in place.
       if (reconciliation === "immediate") {
+        void queryClient.invalidateQueries({
+          queryKey: reportsQueryKey(vault),
+        });
         void queryClient.invalidateQueries({
           queryKey: ["issues", "list", vault],
           predicate: listInvalidationPredicate(patch),

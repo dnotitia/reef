@@ -7,14 +7,13 @@ import { ViewSwitcher } from "@/features/issues/components/filters/ViewSwitcher"
 import { formatDisplayDate } from "@/features/issues/lib/dateHelpers";
 import { withVault } from "@/lib/workspaceHref";
 import { useLocale, useTranslations } from "next-intl";
-import type { PlanningRollup, Sprint } from "@reef/core";
+import type { HealthRollupRow, PlanningRollup, Sprint } from "@reef/core";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { sprintDetailPath } from "../lib/planningUrls";
 import {
   type SprintTimeState,
   sprintTimeState,
 } from "../lib/sprintDetailUtils";
-import type { HealthRollupRow } from "../../reports/lib/healthRollup";
 
 const HEALTH_COLOR: Record<
   NonNullable<HealthRollupRow["verdict"]>["level"],

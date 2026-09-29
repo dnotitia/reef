@@ -1,6 +1,6 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
-import type { FlowMetricResult, FlowMetrics } from "../lib/aggregateModel";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import type { FlowMetricResult, FlowMetrics } from "@reef/core";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { FlowMetricsCard } from "./FlowMetricsCard";
 
@@ -76,7 +76,6 @@ function renderCard(
         metrics={metrics}
         periodLabel="Last 12 weeks"
         vault="reef-acme"
-        isPending={false}
         isError={false}
         isFetching={false}
         onRetry={() => {}}
@@ -132,22 +131,6 @@ describe("FlowMetricsCard", () => {
     expect(screen.queryByTestId("flow-metrics-outliers-lead")).toBeNull();
   });
 
-  it("keeps loading and retry errors inside the card", () => {
-    const onRetry = vi.fn();
-    renderCard({ isPending: true });
-    expect(screen.getByTestId("flow-metrics-loading")).toBeInTheDocument();
-
-    renderCard({
-      isPending: false,
-      isError: true,
-      onRetry,
-    });
-    const error = screen.getByTestId("flow-metrics-error");
-    expect(error).toHaveTextContent("Flow history couldn't be loaded.");
-    fireEvent.click(within(error).getByRole("button", { name: "Retry" }));
-    expect(onRetry).toHaveBeenCalledOnce();
-  });
-
   it("shows a metric-specific empty state when no sample is measurable", () => {
     renderCard({
       metrics: {
@@ -170,5 +153,16 @@ describe("FlowMetricsCard", () => {
       "0/2 · 0%",
     );
     expect(screen.queryByTestId("flow-metrics-chart")).toBeNull();
+  });
+
+  it("shows an activity error and retries the report request", () => {
+    const onRetry = vi.fn();
+    renderCard({ isError: true, onRetry });
+
+    expect(screen.getByTestId("flow-metrics-error")).toHaveTextContent(
+      "Flow history couldn't be loaded.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(onRetry).toHaveBeenCalledOnce();
   });
 });

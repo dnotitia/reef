@@ -8,36 +8,32 @@ import {
   useSeverityLabels,
   useStatusLabels,
 } from "@/i18n/fieldLabels";
-import type { IssueListItem } from "@reef/core";
+import { PIVOT_FIELD_KEYS } from "@reef/core";
+import type { PivotFieldKey, PivotResult } from "@reef/core";
 import { useTranslations } from "next-intl";
-import { useMemo, useState } from "react";
-import type { ReportFilters } from "../lib/aggregateModel";
-import {
-  PIVOT_FIELD_KEYS,
-  type PivotFieldKey,
-  type PivotValueLabels,
-  computePivot,
-} from "../lib/pivot";
-import { PivotMatrix } from "./ReportCharts";
+import { useMemo } from "react";
+import { PivotMatrix, type DisplayPivotResult } from "./ReportCharts";
 import { Card } from "./ReportLayout";
 
 /**
  * Custom 2-D pivot card (REEF-189). The PM picks any two categorical fields for
  * the rows and columns and sees a count-based crosstab — the "ask any cross
- * without shipping a new card" surface. Axis selection is local card state: the
- * pivot is a recomputed view of the already-loaded issues (a single client
- * pass), not a persisted dashboard, so it needs no URL/store wiring (Notes:
- * persistence is a later question).
+ * without shipping a new card" surface. Axis selection is page state and is
+ * included in the server report query key.
  */
 export function PivotCard({
-  issues,
-  filters,
+  result,
+  rowField,
+  colField,
+  onRowFieldChange,
+  onColFieldChange,
 }: {
-  issues: ReadonlyArray<IssueListItem>;
-  filters: ReportFilters;
+  result: PivotResult;
+  rowField: PivotFieldKey;
+  colField: PivotFieldKey;
+  onRowFieldChange: (field: PivotFieldKey) => void;
+  onColFieldChange: (field: PivotFieldKey) => void;
 }) {
-  const [rowField, setRowField] = useState<PivotFieldKey>("assignee");
-  const [colField, setColField] = useState<PivotFieldKey>("status");
   const t = useTranslations("reports.cards");
 
   // Pivot axis FIELD names follow the locale (REEF-304). Every pivot field is a
@@ -56,30 +52,49 @@ export function PivotCard({
     [fieldNames],
   );
 
-  // The enum-axis value labels resolve in the active locale (REEF-292); each
-  // hook is memoized per locale, so this bundle is a stable `computePivot` dep.
+  // The value labels resolve in the active locale (REEF-292); labels stay in
+  // the web layer while the core response carries stable bucket keys.
   const statusLabels = useStatusLabels();
   const issueTypeLabels = useIssueTypeLabels();
   const priorityLabels = usePriorityLabels();
   const severityLabels = useSeverityLabels();
-  const labels: PivotValueLabels = useMemo(
-    () => ({
-      status: statusLabels,
-      type: issueTypeLabels,
-      priority: priorityLabels,
-      severity: severityLabels,
-      unassigned: t("unassigned"),
-      unlabeled: t("unlabeled"),
-      none: t("none"),
-      other: t("other"),
-    }),
-    [statusLabels, issueTypeLabels, priorityLabels, severityLabels, t],
-  );
-
-  const result = useMemo(
-    () => computePivot(issues, rowField, colField, labels, { filters }),
-    [issues, rowField, colField, labels, filters],
-  );
+  const displayResult = useMemo<DisplayPivotResult>(() => {
+    const valueLabel = (field: PivotFieldKey, key: string): string => {
+      if (key === "\0other") return t("other");
+      if (key === "\0none") return t("none");
+      if (field === "status")
+        return statusLabels[key as keyof typeof statusLabels] ?? key;
+      if (field === "type")
+        return issueTypeLabels[key as keyof typeof issueTypeLabels] ?? key;
+      if (field === "priority")
+        return priorityLabels[key as keyof typeof priorityLabels] ?? key;
+      if (field === "severity")
+        return severityLabels[key as keyof typeof severityLabels] ?? key;
+      if (field === "assignee" && key === "Unassigned") return t("unassigned");
+      if (field === "label" && key === "Unlabeled") return t("unlabeled");
+      return key;
+    };
+    return {
+      ...result,
+      rows: result.rows.map((axis) => ({
+        ...axis,
+        label: valueLabel(rowField, axis.key),
+      })),
+      cols: result.cols.map((axis) => ({
+        ...axis,
+        label: valueLabel(colField, axis.key),
+      })),
+    };
+  }, [
+    result,
+    rowField,
+    colField,
+    statusLabels,
+    issueTypeLabels,
+    priorityLabels,
+    severityLabels,
+    t,
+  ]);
 
   // Disclose any dynamic-axis cap instead of silently truncating it away. Each
   // note is a localized "{n} {field} values"; the two are joined with a locale
@@ -116,7 +131,7 @@ export function PivotCard({
           label={t("rows")}
           value={rowField}
           exclude={colField}
-          onChange={setRowField}
+          onChange={onRowFieldChange}
           fieldLabels={fieldLabels}
           testId="pivot-row-field"
         />
@@ -130,12 +145,12 @@ export function PivotCard({
           label={t("columns")}
           value={colField}
           exclude={rowField}
-          onChange={setColField}
+          onChange={onColFieldChange}
           fieldLabels={fieldLabels}
           testId="pivot-col-field"
         />
       </div>
-      <PivotMatrix result={result} fieldLabels={fieldLabels} />
+      <PivotMatrix result={displayResult} fieldLabels={fieldLabels} />
       {foldedText && (
         <p className="type-caption text-muted-foreground">
           {t("foldedNote", { folded: foldedText })}

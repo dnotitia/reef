@@ -25,6 +25,9 @@ export { buildIssueUpdateMetadataPatch } from "./issueUpdate";
 export { filterValidCommentThreadMembers } from "./commentThreads";
 export { computePlanningRollup } from "./planningRollup";
 export type { PlanningRollup, PlanningRollupItem } from "./planningRollup";
+export { isIssueActive, matchesSharedFacets } from "./sharedIssueFacets";
+export type { SharedIssueFacets } from "./sharedIssueFacets";
+export * from "./reports";
 export {
   SPRINT_ROLLOVER_ISSUE_STATUSES,
   addUtcCalendarDays,

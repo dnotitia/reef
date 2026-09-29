@@ -3,6 +3,7 @@
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
 import type { IssueCreateInput, IssueMetadata } from "@reef/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { reportsQueryKey } from "@/features/reports/lib/queryKey";
 import { prependIssueToIssueListCaches } from "../../lib/issueListCache";
 import { toListItem } from "../../lib/toListItem";
 import { upsertIssue } from "../../stores/issueEntityStore";
@@ -68,6 +69,7 @@ export function useCreateIssue() {
       void queryClient.invalidateQueries({
         queryKey: ["issues", "relations", vault],
       });
+      void queryClient.invalidateQueries({ queryKey: reportsQueryKey(vault) });
     },
   });
 }

@@ -1,6 +1,20 @@
 import { useViewStore } from "@/features/ui/stores/useViewStore";
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
-import type { IssueMetadata } from "@reef/core";
+import {
+  ACTIVE_STATUSES,
+  computeAggregates,
+  computeFlowMetrics,
+  computeForecast,
+  computeHealthRollup,
+  computePivot,
+  DEFAULT_FORECAST_HORIZON_WEEKS,
+  DEFAULT_REPORT_FILTERS,
+  distinctParentIds,
+  ReportRequestSchema,
+  ReportResponseSchema,
+  type IssueMetadata,
+  type ReportRequest,
+} from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -74,18 +88,94 @@ function respond(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status });
 }
 
+function makeReportResponse(
+  issuesPayload: IssueMetadata[],
+  search: URLSearchParams,
+) {
+  const optionalFilter = (key: string) => search.get(key) ?? undefined;
+  const request = ReportRequestSchema.parse({
+    filters: {
+      ...DEFAULT_REPORT_FILTERS,
+      period: search.get("period") ?? undefined,
+      scope: search.get("scope") ?? undefined,
+      measure: search.get("measure") ?? undefined,
+      sprint_id: optionalFilter("sprint_id"),
+      milestone_id: optionalFilter("milestone_id"),
+      release_id: optionalFilter("release_id"),
+      parent_id: optionalFilter("parent_id"),
+      assignee: optionalFilter("assignee"),
+      label: optionalFilter("label"),
+    },
+    asOf: Number(search.get("asOf")),
+    rollupDimension: search.get("rollupDimension") ?? undefined,
+    pivotRow: search.get("pivotRow") ?? undefined,
+    pivotCol: search.get("pivotCol") ?? undefined,
+  }) as ReportRequest;
+  const issues = issuesPayload;
+  const aggregates = computeAggregates(issues, {
+    filters: request.filters,
+    now: request.asOf,
+  });
+  const flowMetrics = computeFlowMetrics(issues, [], {
+    filters: request.filters,
+    now: request.asOf,
+  });
+  const remaining = aggregates.byStatus
+    .filter((bucket) => ACTIVE_STATUSES.includes(bucket.status))
+    .reduce((sum, bucket) => sum + bucket.count, 0);
+  const forecast = computeForecast({
+    remaining,
+    weeklyThroughput: aggregates.throughput.map((week) => week.closed),
+    horizonWeeks: DEFAULT_FORECAST_HORIZON_WEEKS,
+  });
+  const availableDimensions = distinctParentIds(issues).length
+    ? (["parent"] as const)
+    : ([] as const);
+  const rollupDimension = availableDimensions[0] ?? request.rollupDimension;
+  const catalog = {
+    sprints: [],
+    milestones: [],
+    releases: [],
+    rollover_resumes: [],
+  };
+  return ReportResponseSchema.parse({
+    asOf: request.asOf,
+    issueCount: issues.length,
+    parentName: request.filters.parent_id
+      ? (issues.find((issue) => issue.id === request.filters.parent_id)
+          ?.title ?? request.filters.parent_id)
+      : null,
+    availableDimensions,
+    rollupDimension,
+    aggregates,
+    flowMetrics,
+    flowMetricsUnavailable: false,
+    forecast,
+    healthRollup: computeHealthRollup(issues, {
+      dimension: rollupDimension,
+      catalog,
+      filters: request.filters,
+      now: request.asOf,
+    }),
+    pivot: computePivot(issues, request.pivotRow, request.pivotCol, {
+      filters: request.filters,
+    }),
+  });
+}
+
 /**
- * URL-aware apiFetch mock. The scope bar reuses the issues filter leaves, so
- * rendering it fires planning-catalog and vault-member lookups alongside the
- * issues list; route each to a benign empty payload.
+ * URL-aware apiFetch mock. The scope bar also fetches planning-catalog and
+ * vault-member options; route those reads to benign empty payloads.
  */
-function mockApi(issuesPayload: IssueMetadata[], activityPayload = []) {
+function mockApi(issuesPayload: IssueMetadata[]) {
   mockApiFetch.mockImplementation((input) => {
-    const path = String(input);
-    if (path.startsWith("/api/reports/activity")) {
-      return Promise.resolve(respond({ activity: activityPayload }));
+    const url = new URL(String(input), "http://localhost");
+    if (url.pathname === "/api/reports") {
+      return Promise.resolve(
+        respond(makeReportResponse(issuesPayload, url.searchParams)),
+      );
     }
-    if (path.startsWith("/api/planning")) {
+    if (url.pathname.startsWith("/api/planning")) {
       return Promise.resolve(
         respond({
           sprints: [],
@@ -95,10 +185,10 @@ function mockApi(issuesPayload: IssueMetadata[], activityPayload = []) {
         }),
       );
     }
-    if (path.startsWith("/api/vault-members")) {
+    if (url.pathname.startsWith("/api/vault-members")) {
       return Promise.resolve(respond({ users: [] }));
     }
-    return Promise.resolve(respond({ issues: issuesPayload }));
+    throw new Error(`Unexpected reports request: ${url.pathname}`);
   });
 }
 
@@ -152,31 +242,26 @@ describe("ReportsPage", () => {
     expect(header).toHaveTextContent("reef-acme");
   });
 
-  it("requests /api/issues?vault={vault} when a vault is active", async () => {
-    mockApiFetch.mockResolvedValue(
-      new Response(JSON.stringify({ issues: [] }), { status: 200 }),
-    );
+  it("requests one precomputed report payload when a vault is active", async () => {
+    mockApi([]);
 
     render(wrap(<ReportsPage />));
-    // Eventually issuesQuery.isPending flips to false (issues=[]); aggregates render.
-    await screen.findByText(/Reports|Status|Priority/i);
-    expect(mockApiFetch).toHaveBeenCalledWith("/api/issues?vault=reef-acme");
-  });
-
-  it("requests report activity through one vault-scoped bulk endpoint", async () => {
-    mockApi(issues);
-
-    render(wrap(<ReportsPage />));
-
-    await screen.findByTestId("report-card-flow-metrics");
-    expect(mockApiFetch).toHaveBeenCalledWith(
-      "/api/reports/activity?vault=reef-acme",
+    await screen.findByTestId("reports-empty");
+    const reportCalls = mockApiFetch.mock.calls.filter(([input]) =>
+      String(input).startsWith("/api/reports?"),
     );
+    expect(reportCalls).toHaveLength(1);
+    expect(String(reportCalls[0]?.[0])).toContain("vault=reef-acme");
+    expect(String(reportCalls[0]?.[0])).toContain("period=12w");
     expect(
-      mockApiFetch.mock.calls.filter(([input]) =>
-        String(input).startsWith("/api/reports/activity"),
-      ),
-    ).toHaveLength(1);
+      mockApiFetch.mock.calls.some(([input]) => {
+        const path = String(input);
+        return (
+          path.startsWith("/api/issues") ||
+          path.startsWith("/api/reports/activity")
+        );
+      }),
+    ).toBe(false);
   });
 
   it("renders the default report scope bar and risk-first summary", async () => {
@@ -287,7 +372,7 @@ describe("ReportsPage", () => {
     fireEvent.click(screen.getByText("Last 4 weeks"));
 
     expect(
-      within(screen.getByTestId("report-card-throughput")).getByText(
+      within(await screen.findByTestId("report-card-throughput")).getByText(
         /Last 4 weeks/,
       ),
     ).toBeInTheDocument();
@@ -319,6 +404,7 @@ describe("ReportsPage", () => {
     await screen.findByTestId("report-scope-bar");
     setLabelFilter("docs");
 
+    await screen.findByTestId("kpi-at-risk");
     expect(
       within(screen.getByTestId("kpi-at-risk")).getByText("0"),
     ).toBeInTheDocument();
@@ -413,7 +499,7 @@ describe("ReportsPage", () => {
     await screen.findByTestId("report-scope-bar");
     setLabelFilter("missing");
 
-    const empty = screen.getByTestId("reports-empty");
+    const empty = await screen.findByTestId("reports-empty");
     expect(
       within(empty).getByRole("heading", {
         name: "No matching report data",
@@ -473,8 +559,11 @@ describe("ReportsPage", () => {
     // Drill into the parent (the parent axis has items here), then scope to
     // zero with a label that matches nothing.
     fireEvent.click(screen.getByTestId("health-rollup-row-E1"));
+    await screen.findByTestId("report-label-input");
     setLabelFilter("missing");
-    expect(screen.getByText("No matching report data")).toBeInTheDocument();
+    expect(
+      await screen.findByText("No matching report data"),
+    ).toBeInTheDocument();
 
     const clear = screen.getByTestId("reports-clear-parent-scope");
     expect(clear).toHaveTextContent("Reports epic");
@@ -487,6 +576,9 @@ describe("ReportsPage", () => {
 
     // Parent facet cleared → its affordance disappears (the label filter still
     // scopes the page, so the empty state itself remains).
+    expect(
+      await screen.findByText("No matching report data"),
+    ).toBeInTheDocument();
     expect(
       screen.queryByTestId("reports-clear-parent-scope"),
     ).not.toBeInTheDocument();
@@ -530,13 +622,19 @@ describe("ReportsPage", () => {
     await screen.findByTestId("report-scope-bar");
 
     fireEvent.click(screen.getByTestId("health-rollup-row-E1"));
+    await screen.findByTestId("report-label-input");
     setLabelFilter("docs");
 
-    expect(screen.getByText("No matching report data")).toBeInTheDocument();
+    expect(
+      await screen.findByText("No matching report data"),
+    ).toBeInTheDocument();
     expect(screen.getByText("docs")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("reports-clear-parent-scope"));
 
+    expect(
+      await screen.findByText("No matching report data"),
+    ).toBeInTheDocument();
     expect(
       screen.queryByTestId("reports-clear-parent-scope"),
     ).not.toBeInTheDocument();
