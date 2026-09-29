@@ -13,6 +13,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { IssueListItem, Sprint } from "@reef/core";
 
 const {
   mockPush,
@@ -147,6 +148,19 @@ import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelecti
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { IssuesWorkspace } from "./IssuesWorkspace";
 
+const OVERDUE_SPRINT: Sprint = {
+  id: "11111111-1111-4111-8111-111111111111",
+  name: "Sprint 14",
+  status: "active",
+  start_date: "2000-09-01",
+  end_date: "2000-09-05",
+  goal: "",
+  capacity_points: null,
+};
+const ROLLOVER_ISSUES = [
+  { sprint_id: OVERDUE_SPRINT.id, status: "todo", archived_at: null },
+] as unknown as IssueListItem[];
+
 function wrap(ui: ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -195,6 +209,109 @@ describe("IssuesWorkspace", () => {
     useIssueSelectionStore.getState().setRunning(false);
     useIssueSelectionStore.getState().clearForContextChange();
     await db.config.clear();
+  });
+
+  it("holds a possible rollover frame until eligible issue data resolves", async () => {
+    mockUsePlanningCatalog.mockReturnValue({
+      data: {
+        sprints: [OVERDUE_SPRINT],
+        milestones: [],
+        releases: [],
+        rollover_resumes: [],
+      },
+      isPending: false,
+      isError: false,
+      isFetching: false,
+    });
+    mockUseIssueList.mockReturnValue({
+      data: undefined,
+      isPending: true,
+      isError: false,
+      isFetching: true,
+      refetch: vi.fn(() => Promise.resolve()),
+    });
+
+    const { rerender } = render(wrap(<IssuesWorkspace />));
+
+    expect(
+      screen.getByTestId("sprint-rollover-pending-skeleton"),
+    ).toBeInTheDocument();
+
+    mockUseIssueList.mockReturnValue({
+      data: ROLLOVER_ISSUES,
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(() => Promise.resolve()),
+    });
+    rerender(wrap(<IssuesWorkspace />));
+
+    expect(await screen.findByTestId("sprint-rollover-nudge")).toBeVisible();
+    expect(screen.queryByTestId("sprint-rollover-pending-skeleton")).toBeNull();
+  });
+
+  it("releases the frame on a failed read and restores it while retrying", () => {
+    mockUsePlanningCatalog.mockReturnValue({
+      data: {
+        sprints: [OVERDUE_SPRINT],
+        milestones: [],
+        releases: [],
+        rollover_resumes: [],
+      },
+      isPending: false,
+      isError: false,
+      isFetching: false,
+    });
+    mockUseIssueList.mockReturnValue({
+      data: undefined,
+      isPending: false,
+      isError: true,
+      isFetching: false,
+      refetch: vi.fn(() => Promise.resolve()),
+    });
+
+    const { rerender } = render(wrap(<IssuesWorkspace />));
+
+    expect(screen.queryByTestId("sprint-rollover-pending-skeleton")).toBeNull();
+    expect(screen.queryByTestId("sprint-rollover-nudge")).toBeNull();
+
+    mockUseIssueList.mockReturnValue({
+      data: undefined,
+      isPending: false,
+      isError: true,
+      isFetching: true,
+      refetch: vi.fn(() => Promise.resolve()),
+    });
+    rerender(wrap(<IssuesWorkspace />));
+
+    expect(
+      screen.getByTestId("sprint-rollover-pending-skeleton"),
+    ).toBeInTheDocument();
+  });
+
+  it("does not reserve the frame for an active sprint that has not ended", () => {
+    mockUsePlanningCatalog.mockReturnValue({
+      data: {
+        sprints: [{ ...OVERDUE_SPRINT, end_date: "2099-09-05" }],
+        milestones: [],
+        releases: [],
+        rollover_resumes: [],
+      },
+      isPending: false,
+      isError: false,
+      isFetching: false,
+    });
+    mockUseIssueList.mockReturnValue({
+      data: undefined,
+      isPending: true,
+      isError: false,
+      isFetching: true,
+      refetch: vi.fn(() => Promise.resolve()),
+    });
+
+    render(wrap(<IssuesWorkspace />));
+
+    expect(screen.queryByTestId("sprint-rollover-pending-skeleton")).toBeNull();
   });
 
   it("defaults to the board view when no ?view= is present", async () => {
