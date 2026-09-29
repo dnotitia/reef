@@ -14,14 +14,9 @@ import pkg from "../../../../../package.json";
 export default function OnboardingPage() {
   const t = useTranslations("onboarding");
   return (
-    <main className="relative flex min-h-screen flex-col items-center justify-center gap-8 bg-surface-page p-8">
-      <div className="flex flex-col items-center gap-2 text-center">
-        <h1 className="font-display text-3xl font-semibold text-foreground">
-          reef{/* i18n-exempt: brand name */}
-        </h1>
-        <p className="text-sm text-muted-foreground">{t("pageSubtitle")}</p>
-      </div>
-      <OnboardingClient appVersion={pkg.version} />
-    </main>
+    <OnboardingClient
+      appVersion={pkg.version}
+      pageSubtitle={t("pageSubtitle")}
+    />
   );
 }

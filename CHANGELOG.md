@@ -24,6 +24,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Workspace resume and issue-view loading keep their destination frame visible.**
+  Login retains the app shell while a saved workspace is checked, and list and
+  timeline loading preserve their table and schedule structures instead of
+  collapsing to one generic bar.
 - **The issues board holds its rollover notice space while an eligible sprint is
   being resolved.** The board stays in place as issue data arrives, and the
   frame collapses once the loaded data confirms there is no notice to show.

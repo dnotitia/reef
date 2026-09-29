@@ -9,6 +9,7 @@ import {
 import { IssueFilterToolbar } from "@/features/issues/components/filters/IssueFilterToolbar";
 import { ScopeSwitcher } from "@/features/issues/components/filters/ScopeSwitcher";
 import { ViewSwitcher } from "@/features/issues/components/filters/ViewSwitcher";
+import { IssueViewLoading } from "@/features/issues/components/filters/IssueViewLoading";
 import { LazyLoadFallback } from "@/features/ui/components/LazyLoadFallback";
 import { SprintRolloverNudge } from "@/features/planning/components/SprintRolloverNudge";
 import { SprintRolloverPendingSkeleton } from "@/features/planning/components/SprintRolloverPendingSkeleton";
@@ -45,23 +46,6 @@ import type { SprintRolloverResume } from "@reef/core";
 interface DynamicLoadingProps {
   error?: Error | null;
   retry?: () => void;
-}
-
-type IssueViewLoadingName = "board" | "list" | "backlog" | "timeline";
-
-function IssueViewLoading({
-  error,
-  retry,
-  name,
-}: DynamicLoadingProps & { name: IssueViewLoadingName }) {
-  return (
-    <LazyLoadFallback
-      error={error}
-      retry={retry}
-      surface="view"
-      testId={`issues-${name}-loading`}
-    />
-  );
 }
 
 function OptionalViewLoading({ error, retry }: DynamicLoadingProps) {
