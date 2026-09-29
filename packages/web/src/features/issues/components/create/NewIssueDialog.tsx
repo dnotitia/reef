@@ -274,12 +274,8 @@ export function NewIssueDialog({
             issues: existingIssues ?? [],
             searchDocuments: (query: string, signal: AbortSignal) =>
               fetchVaultDocumentSearch(query, vault, signal),
-            suggestionsLabel: markdownEditor("mentionSuggestions"),
             mentionOptionLabel: (username: string) =>
               markdownEditor("mentionOption", { username: `@${username}` }),
-            peopleSectionLabel: markdownEditor("peopleSection"),
-            issuesSectionLabel: markdownEditor("issuesSection"),
-            documentsSectionLabel: markdownEditor("documentsSection"),
             issueOptionLabel: (issue: IssueListItem) =>
               markdownEditor("issueOption", {
                 id: issue.id,
@@ -289,9 +285,6 @@ export function NewIssueDialog({
               markdownEditor("documentOption", {
                 title: hit.title ?? akbDocumentSlugTitle(hit.uri),
               }),
-            documentSearchLoadingLabel: markdownEditor("documentSearchLoading"),
-            documentSearchErrorLabel: markdownEditor("documentSearchError"),
-            documentSearchEmptyLabel: markdownEditor("documentSearchEmpty"),
           }
         : undefined,
     [existingIssues, markdownEditor, queryVault, vault, vaultMembers],

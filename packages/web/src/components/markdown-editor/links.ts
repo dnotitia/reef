@@ -1,5 +1,6 @@
 import { linkSafetyConfig } from "@/components/markdown/linkSafety";
 import { isDirectIssueMarkdownHref } from "@/features/issues/lib/markdownLinkPolicy";
+import { isAkbFileUri } from "@/features/issues/lib/attachmentUrls";
 import {
   buildAkbDocumentUrl,
   parseAkbDocumentUri,
@@ -36,6 +37,16 @@ function isDirectEditorLink(
   akbWebBase: string | null,
 ): boolean {
   if (isDirectIssueMarkdownHref(renderedHref)) return true;
+
+  // Resolving a display href leaves the source identity in this data attribute.
+  // Validate that target before opening the runtime URL without confirmation.
+  const markdownTarget = anchor.dataset.markdownTarget;
+  if (
+    markdownTarget &&
+    (isAkbFileUri(markdownTarget) || parseAkbDocumentUri(markdownTarget))
+  ) {
+    return true;
+  }
 
   // Runtime AKB_WEB_URL retargeting replaces the rendered href but preserves
   // the validated Markdown source in both renderer-owned attributes. Require

@@ -975,7 +975,10 @@ describe("IssueDetail", { timeout: 10_000 }, () => {
     );
 
     await screen.findByDisplayValue("Sample title");
-    await user.type(screen.getByLabelText("Blocks"), "reef-002");
+    await user.type(
+      screen.getByRole("combobox", { name: "Blocks" }),
+      "reef-002",
+    );
     await user.click(screen.getByRole("button", { name: "Add Blocks" }));
 
     await waitFor(() => expect(patchCalls()).toHaveLength(1));

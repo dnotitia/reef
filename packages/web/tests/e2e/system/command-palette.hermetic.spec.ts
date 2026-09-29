@@ -45,6 +45,13 @@ async function changeLocaleFromFocusedEditor(page: Page, locale: "en" | "ko") {
   await localeAction.click();
   await expect(discard).toHaveCount(0);
   await expect(page.locator("html")).toHaveAttribute("lang", locale);
+  const editorWrapper = page.locator('[data-testid="markdown-editor"]').last();
+  await expect(
+    editorWrapper.getByRole("button", {
+      name: locale === "en" ? "Redo" : "다시 실행",
+      exact: true,
+    }),
+  ).toBeVisible();
 }
 
 test.describe("Hermetic command palette", () => {
@@ -420,9 +427,9 @@ test.describe("Hermetic command palette", () => {
 
     await changeLocaleFromFocusedEditor(page, "en");
     await expect(dialog).toBeVisible();
-    expect.soft(editor).toBeFocused();
-    expect
-      .soft(await page.evaluate(() => window.getSelection()?.toString() ?? ""))
+    await expect(editor).toBeFocused();
+    await expect
+      .poll(() => page.evaluate(() => window.getSelection()?.toString() ?? ""))
       .toBe(selectedText);
 
     await expect(editor.locator("strong")).toContainText("Locale draft text");
@@ -442,10 +449,10 @@ test.describe("Hermetic command palette", () => {
 
     await changeLocaleFromFocusedEditor(page, "ko");
     await expect(page.locator("html")).toHaveAttribute("lang", "ko");
-    expect.soft(editor).toBeFocused();
+    await expect(editor).toBeFocused();
     await changeLocaleFromFocusedEditor(page, "en");
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
-    expect.soft(editor).toBeFocused();
+    await expect(editor).toBeFocused();
   });
 
   test("keeps issue detail open and focused through locale commands from its Markdown editor", async ({

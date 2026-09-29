@@ -24,6 +24,9 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Markdown editor labels follow the selected language in New Issue and issue
+  details.** The app uses the shared editor's public API for its toolbar,
+  mentions, slash commands, and attachment uploads.
 - **Issue search keeps one results-level progress indicator through debounce and
   refresh.** Empty searches start quietly, and board, list, backlog, and timeline
   searches share one progress bar and live announcement. (REEF-645)

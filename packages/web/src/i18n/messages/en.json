@@ -1708,95 +1708,16 @@
     }
   },
   "markdownEditor": {
-    "bold": "Bold",
-    "italic": "Italic",
-    "strikethrough": "Strikethrough",
-    "inlineCode": "Inline Code",
-    "heading1": "Heading 1",
-    "heading2": "Heading 2",
-    "heading3": "Heading 3",
-    "bulletList": "Bullet List",
-    "numberedList": "Numbered List",
-    "quote": "Quote",
-    "codeBlock": "Code Block",
-    "divider": "Divider",
-    "link": "Link",
-    "linkUrl": "Link URL",
     "attachFile": "Attach file",
     "source": "Source",
     "toggleSourceMode": "Toggle source mode",
-    "apply": "Apply",
     "uploading": "Uploading attachment…",
     "uploadError": "Couldn't upload that file.",
     "resizeHandle": "Resize issue description editor",
     "resizeHandleDescription": "Diagonal handle controls the issue description editor height. Current {current}px; minimum {min}px; maximum {max}px.",
-    "mentionSuggestions": "Mention suggestions",
     "mentionOption": "Mention {username}",
-    "peopleSection": "People",
-    "issuesSection": "Issues",
-    "documentsSection": "Documents",
     "issueOption": "{id}: {title}",
-    "documentOption": "Document: {title}",
-    "documentSearchLoading": "Searching documents…",
-    "documentSearchError": "Couldn't search documents.",
-    "documentSearchEmpty": "No matching documents.",
-    "slash": {
-      "header": "Insert block",
-      "escapeHint": "Esc",
-      "sections": {
-        "text": "TEXT",
-        "lists": "LISTS",
-        "structure": "STRUCTURE"
-      },
-      "footer": {
-        "navigation": "↑↓ Navigate",
-        "insert": "↵ Insert",
-        "close": "Esc Close"
-      },
-      "empty": "No matching blocks.",
-      "commands": {
-        "heading1": {
-          "label": "Heading 1",
-          "description": "Large section heading"
-        },
-        "heading2": {
-          "label": "Heading 2",
-          "description": "Medium section heading"
-        },
-        "heading3": {
-          "label": "Heading 3",
-          "description": "Small section heading"
-        },
-        "quote": {
-          "label": "Quote",
-          "description": "Call out a quotation"
-        },
-        "bulletList": {
-          "label": "Bullet list",
-          "description": "Create an unordered list"
-        },
-        "numberedList": {
-          "label": "Numbered list",
-          "description": "Create an ordered list"
-        },
-        "taskList": {
-          "label": "Task list",
-          "description": "Track work with checkboxes"
-        },
-        "table": {
-          "label": "Table",
-          "description": "Insert a basic 3 × 2 table"
-        },
-        "codeBlock": {
-          "label": "Code block",
-          "description": "Add a fenced code block"
-        },
-        "divider": {
-          "label": "Divider",
-          "description": "Separate sections with a rule"
-        }
-      }
-    }
+    "documentOption": "Document: {title}"
   },
   "misc": {
     "offlineBanner": "You're offline — viewing cached data. Changes will sync when you reconnect.",
