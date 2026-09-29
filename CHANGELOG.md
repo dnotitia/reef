@@ -14,10 +14,22 @@ explicitly in the entries below.
 
 ### Changed
 
+- Reports now receive validated server-computed aggregates, flow metrics, health
+  rollups, pivots, and forecasts in one workspace-scoped response instead of
+  loading issue and activity rows into the browser. (REEF-617)
 - **Workspace setup follows AKB's app installation lifecycle.** Owners and
   admins explicitly approve install, restore, or fresh-install commands;
   ordinary members receive only the canonical active status. Uninstall retains
   AKB data, while full vault deletion remains separate. (REEF-418)
+
+### Fixed
+
+- **The issues board holds its rollover notice space while an eligible sprint is
+  being resolved.** The board stays in place as issue data arrives, and the
+  frame collapses once the loaded data confirms there is no notice to show.
+- **Saved Light, Dark, and System themes apply before the first paint.** The
+  nonce-authorized root bootstrap reads the existing localStorage mirror, and
+  segmented-control fills switch immediately with the root theme. (REEF-643)
 
 ### Migration
 

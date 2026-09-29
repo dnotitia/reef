@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useMemo } from "react";
-import type { ReportPeriod } from "./aggregateModel";
+import type { ReportPeriod } from "@reef/core";
 
 /**
  * Locale-aware throughput-period labels (REEF-304). The window names the period

@@ -2,6 +2,7 @@
 
 import type { ActivityEvent, IssueMetadata, Status } from "@reef/core";
 import { describe, expect, it } from "vitest";
+import { MAX_REPORT_AS_OF_MS } from "../../schemas/reports";
 import {
   DEFAULT_REPORT_FILTERS,
   computeAggregates,
@@ -41,6 +42,12 @@ function statusEvent(
 }
 
 describe("computeAggregates — status", () => {
+  it("supports the latest schema-valid report asOf timestamp", () => {
+    expect(() =>
+      computeAggregates([], { now: MAX_REPORT_AS_OF_MS }),
+    ).not.toThrow();
+  });
+
   it("returns all status buckets in canonical order, including zero counts", () => {
     const { byStatus } = computeAggregates([
       makeIssue({ id: "REEF-001", status: "todo" }),

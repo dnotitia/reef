@@ -1,7 +1,7 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import type { RiskBucket } from "../lib/aggregateModel";
+import type { RiskBucket } from "@reef/core";
 import { RankedBarList, RiskMatrix } from "./ReportCharts";
 
 afterEach(cleanup);

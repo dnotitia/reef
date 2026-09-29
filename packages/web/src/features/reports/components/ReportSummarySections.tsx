@@ -2,14 +2,15 @@
 
 import { useEnrichmentEmptyLabels, useStatusLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
-import { type Status, isResolvedStatus } from "@reef/core";
+import {
+  type Status,
+  isResolvedStatus,
+  type NamedCount,
+  type ReportAggregates,
+  type ReportMeasure,
+  type StatusCount,
+} from "@reef/core";
 import { useTranslations } from "next-intl";
-import type {
-  NamedCount,
-  ReportAggregates,
-  ReportMeasure,
-  StatusCount,
-} from "../lib/aggregateModel";
 import { type Segment, SegmentedBar } from "./ReportCharts";
 import { Card } from "./ReportLayout";
 

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -21,8 +21,12 @@ vi.mock("@/lib/useHydrated", () => ({
 }));
 
 import { apiFetch } from "@/lib/apiClient";
+import { reportsQueryKey } from "@/features/reports/lib/queryKey";
 import type { PlanningCatalog } from "@reef/core";
-import { usePlanningCatalog } from "./usePlanningCatalog";
+import {
+  useCreatePlanningItem,
+  usePlanningCatalog,
+} from "./usePlanningCatalog";
 
 const mockApiFetch = vi.mocked(apiFetch);
 
@@ -75,6 +79,36 @@ describe("usePlanningCatalog", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual(CATALOG);
     expect(mockApiFetch).toHaveBeenCalledWith("/api/planning?vault=reef-acme");
+  });
+
+  it("refreshes report data after creating a planning item", async () => {
+    const sprint = CATALOG.sprints[0];
+    if (!sprint) throw new Error("expected a planning fixture sprint");
+    const input = {
+      name: sprint.name,
+      status: sprint.status,
+      start_date: sprint.start_date,
+      end_date: sprint.end_date,
+      goal: sprint.goal,
+      capacity_points: sprint.capacity_points,
+    };
+    mockApiFetch.mockResolvedValue(
+      new Response(JSON.stringify({ item: sprint }), { status: 201 }),
+    );
+    const queryClient = createQueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderHook(() => useCreatePlanningItem("reef-acme"), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({ kind: "sprints", item: input });
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: reportsQueryKey("reef-acme"),
+    });
   });
 
   it("keeps a catalog failure distinct and refetches to a successful catalog", async () => {

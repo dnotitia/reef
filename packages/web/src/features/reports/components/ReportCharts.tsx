@@ -4,14 +4,17 @@ import { formatTimestampMonthDay } from "@/features/issues/lib/dateHelpers";
 import { usePriorityLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import { useLocale, useTranslations } from "next-intl";
-import type {
-  AgingBucketKey,
-  FlowMetricResult,
-  RiskBucket,
-  RiskPriority,
-} from "../lib/aggregateModel";
-import { type PivotAxis, type PivotResult, pivotCell } from "../lib/pivot";
-import type { PivotFieldKey } from "../lib/pivot";
+import {
+  pivotCell,
+  pivotTotal,
+  type AgingBucketKey,
+  type FlowMetricResult,
+  type PivotAxis,
+  type PivotFieldKey,
+  type PivotResult,
+  type RiskBucket,
+  type RiskPriority,
+} from "@reef/core";
 export { NetThroughputChart } from "./ThroughputCharts";
 
 /**
@@ -171,6 +174,15 @@ const AGING_BUCKETS: readonly AgingBucketKey[] = [
 const HEAT_CELL =
   "h-9 rounded-md border border-border-subtle bg-surface-hover text-center align-middle type-report-cell text-foreground";
 
+export interface DisplayPivotAxis extends PivotAxis {
+  label: string;
+}
+
+export interface DisplayPivotResult extends Omit<PivotResult, "rows" | "cols"> {
+  rows: DisplayPivotAxis[];
+  cols: DisplayPivotAxis[];
+}
+
 /** Neutral density fill for a count cell. A single gray ramp — distinct from the
  *  brand-tinted value bars — so a heat cell does not compete with a quantity bar
  *  for the same color meaning (REEF-248). Empty cells return `undefined` to keep
@@ -281,7 +293,7 @@ export function PivotMatrix({
   result,
   fieldLabels,
 }: {
-  result: PivotResult;
+  result: DisplayPivotResult;
   fieldLabels: Record<PivotFieldKey, string>;
 }) {
   const { rows, cols, max } = result;
@@ -355,7 +367,7 @@ export function PivotMatrix({
                   "border-border font-medium text-foreground",
                 )}
               >
-                {result.colTotals.get(c.key) ?? 0}
+                {pivotTotal(result.colTotals, c.key)}
               </td>
             ))}
             <td
@@ -380,9 +392,9 @@ function PivotRow({
   result,
   max,
 }: {
-  row: PivotAxis;
-  cols: ReadonlyArray<PivotAxis>;
-  result: PivotResult;
+  row: DisplayPivotAxis;
+  cols: ReadonlyArray<DisplayPivotAxis>;
+  result: DisplayPivotResult;
   max: number;
 }) {
   return (
@@ -408,7 +420,7 @@ function PivotRow({
         );
       })}
       <td className={cn(HEAT_CELL, "border-border font-medium")}>
-        {result.rowTotals.get(row.key) ?? 0}
+        {pivotTotal(result.rowTotals, row.key)}
       </td>
     </tr>
   );

@@ -1,26 +1,38 @@
-import {
-  indexIssuesById,
-  unresolvedBlockerCountIn,
-} from "@/features/issues/lib/dependencyUtils";
-import {
-  computePlanningRollup,
-  type IssueListItem,
-  type Milestone,
-  type PlanningCatalog,
-  type Release,
-  type Sprint,
-  isResolvedStatus,
-} from "@reef/core";
+import type { IssueListItem } from "../../schemas/issues/metadata";
+import type {
+  Milestone,
+  PlanningCatalog,
+  Release,
+  Sprint,
+} from "../../schemas/planning/catalog";
+import { isResolvedStatus } from "../status";
+import { computePlanningRollup } from "../planningRollup";
+import type {
+  HealthRollupRow,
+  ReportFilters,
+  RollupDimension,
+} from "../../schemas/reports";
 import {
   DAY_MS,
   DEFAULT_REPORT_FILTERS,
   REPORT_PERIOD_WEEKS,
-  type ReportFilters,
   WEEK_MS,
   completionTime,
   isOpenReportWork,
   matchesFilters,
 } from "./aggregateModel";
+
+function unresolvedBlockerCountIn(
+  issue: IssueListItem,
+  issuesById: ReadonlyMap<string, IssueListItem>,
+): number {
+  let count = 0;
+  for (const dependencyId of issue.depends_on ?? []) {
+    const dependency = issuesById.get(dependencyId);
+    if (!dependency || !isResolvedStatus(dependency.status)) count++;
+  }
+  return count;
+}
 
 /**
  * Per-planning-item health rollup (REEF-191). A pure derivation over the
@@ -33,8 +45,6 @@ import {
  * function normalizes each planning item's linked issues into the `HealthInput`
  * that function judges.
  */
-
-export type RollupDimension = "milestone" | "sprint" | "release" | "parent";
 
 /** Worst-first; an empty item (no linked issues) has no verdict and sorts last. */
 export type RagLevel = "off_track" | "at_risk" | "on_track";
@@ -100,27 +110,6 @@ export interface HealthVerdict {
   /** The dominant driving signal, surfaced as a caption so the verdict is
    *  auditable rather than a black box. */
   reason: VerdictReason;
-}
-
-export interface HealthRollupRow {
-  id: string;
-  name: string;
-  kind: RollupDimension;
-  /** Closed milestone / released release / closed sprint — finished work,
-   *  de-emphasized and hidden unless "show shipped" is on. */
-  shipped: boolean;
-  /** The item's deadline (milestone/release `target_date`, sprint `end_date`). */
-  targetDate: string | null;
-  total: number;
-  resolved: number;
-  open: number;
-  overdue: number;
-  blocked: number;
-  net: number;
-  /** Issue-count completion (resolved / total), for the progress bar. */
-  completion: number;
-  /** null when the item has no linked issues in scope. */
-  verdict: HealthVerdict | null;
 }
 
 /**
@@ -355,7 +344,7 @@ export function computeHealthRollup(
     ? computePlanningRollup(planningKind, catalog[planningKind], matched)
     : undefined;
 
-  const dependencyIndex = indexIssuesById(issues);
+  const dependencyIndex = new Map(issues.map((issue) => [issue.id, issue]));
 
   const throughputWeeks =
     filters.period === "all" ? 26 : REPORT_PERIOD_WEEKS[filters.period];

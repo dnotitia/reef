@@ -1,3 +1,11 @@
+import {
+  DEFAULT_REPORT_FILTERS,
+  computeHealthRollup,
+  distinctParentIds,
+  type HealthRollupRow,
+  type RollupDimension,
+  type ReportFilters,
+} from "@reef/core";
 import type {
   IssueMetadata,
   Milestone,
@@ -7,9 +15,6 @@ import type {
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_REPORT_FILTERS } from "../lib/aggregate";
-import type { ReportFilters } from "../lib/aggregateModel";
-import type { RollupDimension } from "../lib/healthRollup";
 import { HealthRollup } from "./HealthRollup";
 
 afterEach(cleanup);
@@ -92,12 +97,27 @@ function ControlledHealthRollup({
   onDrill: (dimension: string, id: string) => void;
 }) {
   const [dimension, setDimension] = useState<RollupDimension>("milestone");
+  const availableDimensions = [
+    ...(testCatalog.milestones.length > 0 ? (["milestone"] as const) : []),
+    ...(testCatalog.sprints.length > 0 ? (["sprint"] as const) : []),
+    ...(testCatalog.releases.length > 0 ? (["release"] as const) : []),
+    ...(distinctParentIds(testIssues).length > 0 ? (["parent"] as const) : []),
+  ];
+  const activeDimension = availableDimensions.includes(dimension)
+    ? dimension
+    : (availableDimensions[0] ?? dimension);
+  const rows: HealthRollupRow[] = computeHealthRollup(testIssues, {
+    dimension: activeDimension,
+    catalog: testCatalog,
+    filters,
+    now: Date.parse("2026-06-17T12:00:00.000Z"),
+  });
   return (
     <HealthRollup
-      issues={testIssues}
-      catalog={testCatalog}
+      rows={rows}
+      availableDimensions={availableDimensions}
       filters={filters}
-      dimension={dimension}
+      dimension={activeDimension}
       onDimensionChange={setDimension}
       onDrill={onDrill}
     />

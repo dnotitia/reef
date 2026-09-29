@@ -11,7 +11,7 @@ import {
   appendStatusChangeEvent,
   diffFieldActivityEvents,
   listIssueActivity,
-  listReportActivity,
+  listReportStatusActivity,
   makeAdapter,
   makeListTablesResponse,
   makeSqlMutationResponse,
@@ -359,7 +359,7 @@ describe("listIssueActivity", () => {
   });
 });
 
-describe("listReportActivity", () => {
+describe("listReportStatusActivity", () => {
   it("reads status changes in one vault query and de-duplicates event keys", async () => {
     const duplicateKey =
       "status_change:todo->in_progress@2026-06-18T01:00:00.000Z";
@@ -406,7 +406,7 @@ describe("listReportActivity", () => {
       },
     ]);
 
-    const events = await listReportActivity(makeAdapter(), "reef-sample");
+    const events = await listReportStatusActivity(makeAdapter(), "reef-sample");
 
     expect(events.map((event) => event.id)).toEqual(["e1", "e2"]);
     expect(events[0]).toMatchObject({
@@ -422,6 +422,7 @@ describe("listReportActivity", () => {
     const body = sqlRequestBody(calls[0]);
     expect(body.sql).toContain(`FROM ${REEF_ACTIVITY_TABLE}`);
     expect(body.sql).toContain("event_type = $1");
+    expect(body.sql).toContain("reef_id IN (SELECT reef_id FROM reef_issues)");
     expect(body.sql).toContain("ORDER BY meta->>'at' ASC");
     expect(body.params).toEqual(["status_change"]);
   });
@@ -432,7 +433,7 @@ describe("listReportActivity", () => {
     ]);
 
     await expect(
-      listReportActivity(makeAdapter(), "reef-sample"),
+      listReportStatusActivity(makeAdapter(), "reef-sample"),
     ).resolves.toEqual([]);
     expect(calls).toHaveLength(1);
   });

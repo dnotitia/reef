@@ -11,6 +11,7 @@ import { ScopeSwitcher } from "@/features/issues/components/filters/ScopeSwitche
 import { ViewSwitcher } from "@/features/issues/components/filters/ViewSwitcher";
 import { LazyLoadFallback } from "@/features/ui/components/LazyLoadFallback";
 import { SprintRolloverNudge } from "@/features/planning/components/SprintRolloverNudge";
+import { SprintRolloverPendingSkeleton } from "@/features/planning/components/SprintRolloverPendingSkeleton";
 import { SprintRolloverResumeNotice } from "@/features/planning/components/SprintRolloverResumeNotice";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import { selectActiveSprint } from "@/features/planning/lib/planningItems";
@@ -33,6 +34,7 @@ import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNot
 import { PageHeader } from "@/features/ui/components/PageHeader";
 import { withVault } from "@/lib/workspaceHref";
 import { useHydrated } from "@/lib/useHydrated";
+import { shouldShowSprintRolloverNudge } from "@reef/core";
 import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
@@ -309,6 +311,41 @@ export function IssuesWorkspace({
     : rolloverIssueQuery.isPending || !rolloverIssueQuery.data
       ? "loading"
       : "available";
+  // Ask the shared nudge policy whether this sprint could show a nudge, using
+  // one carry-forward issue only while the real issue list is still unknown.
+  const mayShowRolloverNudge =
+    activeSprint !== null &&
+    shouldShowSprintRolloverNudge({
+      sprint: activeSprint,
+      issues: rolloverIssueQuery.data ?? [
+        {
+          sprint_id: activeSprint.id,
+          status: "todo",
+          archived_at: null,
+        },
+      ],
+      now: renderTime,
+    });
+  const planningCatalogIsLoading =
+    !planningCatalogQuery.data &&
+    (planningCatalogQuery.isPending || planningCatalogQuery.isFetching);
+  const rolloverIssuesAreLoading =
+    !rolloverIssueQuery.data &&
+    (rolloverIssueQuery.isPending || rolloverIssueQuery.isFetching);
+  const rolloverIssueReadCanResolve =
+    !rolloverIssueQuery.isError || rolloverIssueQuery.isFetching;
+  const rolloverIssueReadIsRetrying =
+    rolloverIssueQuery.isError && rolloverIssueQuery.isFetching;
+  const shouldShowRolloverPendingFrame =
+    !fixedSprintId &&
+    scope === "active" &&
+    layout === "board" &&
+    rolloverIssueReadCanResolve &&
+    (planningCatalogIsLoading ||
+      (mayShowRolloverNudge &&
+        (rolloverIssuesAreLoading ||
+          now === null ||
+          rolloverIssueReadIsRetrying)));
   const nav = useTranslations("nav");
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
@@ -464,6 +501,9 @@ export function IssuesWorkspace({
                 setRolloverOpen(true);
               }}
             />
+          ) : null}
+          {shouldShowRolloverPendingFrame ? (
+            <SprintRolloverPendingSkeleton />
           ) : null}
           {!fixedSprintId && scope === "active" && layout === "board" ? (
             <SprintRolloverNudge

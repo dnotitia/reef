@@ -16,6 +16,7 @@ export const fixtureWriterLogin = {
 export type FixtureScenario =
   | "empty"
   | "configured"
+  | "reports_outliers"
   | "configured_empty"
   | "configured_caught_up"
   | "updated_at_range"
@@ -154,10 +155,17 @@ export async function setIssueListFailure(
   request: APIRequestContext,
   enabled: boolean,
   nextPageFailures = 0,
+  delayMs = 0,
 ): Promise<void> {
   const response = await request.post(
     `${E2E_MOCK_URL}/__e2e/issue-list-failure`,
-    { data: { enabled, next_page_failures: nextPageFailures } },
+    {
+      data: {
+        enabled,
+        next_page_failures: nextPageFailures,
+        delay_ms: delayMs,
+      },
+    },
   );
   expect(response.ok()).toBeTruthy();
 }
@@ -165,10 +173,11 @@ export async function setIssueListFailure(
 export async function setPlanningCatalogFailure(
   request: APIRequestContext,
   enabled: boolean,
+  delayMs = 0,
 ): Promise<void> {
   const response = await request.post(
     `${E2E_MOCK_URL}/__e2e/planning-catalog-failure`,
-    { data: { enabled } },
+    { data: { enabled, delay_ms: delayMs } },
   );
   expect(response.ok()).toBeTruthy();
 }

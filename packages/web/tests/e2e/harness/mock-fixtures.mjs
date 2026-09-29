@@ -104,6 +104,7 @@ export const MARKDOWN_FIXTURE = [
 export const SUPPORTED_SCENARIOS = [
   "empty",
   "configured",
+  "reports_outliers",
   "configured_empty",
   "configured_caught_up",
   "updated_at_range",
@@ -143,6 +144,7 @@ export const AUTH_PROBE_HANG_MAX_MS = 8_000;
 
 const CONFIGURED_SCENARIOS = new Set([
   "configured",
+  "reports_outliers",
   "configured_empty",
   "configured_caught_up",
   "updated_at_range",
@@ -188,6 +190,7 @@ export function createScenarioVaults(scenario) {
                       : scenario === "typography"
                         ? typographyVault(REEF_VAULT)
                         : configuredVault(REEF_VAULT);
+    if (scenario === "reports_outliers") seedReportOutlierIssues(vault);
     if (scenario === "notifications") seedNotifications(vault);
     if (scenario === "skill_outdated") seedOutdatedVaultSkill(vault);
     if (scenario === "comment_mentions") {
@@ -231,6 +234,63 @@ export function createScenarioVaults(scenario) {
     vaults.set("raw-vault", workspaceRecoveryCurrentStampVault("raw-vault"));
   }
   return vaults;
+}
+
+function seedReportOutlierIssues(vault) {
+  const dayMs = 24 * 60 * 60 * 1000;
+  vault.issues = [];
+  vault.documents = new Map();
+  vault.documentHistory = new Map();
+  vault.comments = [];
+  vault.activity = [];
+  vault.notifications = [];
+  vault.subscriptions = [];
+  vault.attachments = [];
+  vault.files = new Map();
+
+  for (let index = 0; index < 20; index += 1) {
+    const id = `REEF-${String(index + 1).padStart(3, "0")}`;
+    const title =
+      index === 19
+        ? "Long-running cycle outlier"
+        : `Short cycle sample ${index + 1}`;
+    const startedAt =
+      index === 19
+        ? "2026-05-01T00:00:00.000Z"
+        : new Date(Date.UTC(2026, 5, index + 1)).toISOString();
+    const completedAt = new Date(
+      Date.parse(startedAt) + (index === 19 ? 28 : 1) * dayMs,
+    ).toISOString();
+    const reopenedAt = new Date(
+      Date.parse(completedAt) + 60 * 60 * 1000,
+    ).toISOString();
+
+    vault.issues.push(
+      issueRow({
+        id,
+        title,
+        status: "in_progress",
+        created_at: new Date(Date.parse(startedAt) - dayMs).toISOString(),
+        updated_at: reopenedAt,
+        last_status_change: reopenedAt,
+      }),
+    );
+    vault.activity.push(
+      activityRow(id, "status_change", startedAt, {
+        from: "todo",
+        to: "in_progress",
+      }),
+      activityRow(id, "status_change", completedAt, {
+        from: "in_progress",
+        to: "done",
+      }),
+      activityRow(id, "status_change", reopenedAt, {
+        from: "done",
+        to: "in_progress",
+      }),
+    );
+    seedIssueDocument(vault, id, `${title} report-flow fixture body.`);
+  }
 }
 
 function seedIssueDocument(vault, id, content) {

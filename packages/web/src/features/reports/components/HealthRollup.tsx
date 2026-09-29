@@ -3,20 +3,19 @@
 import { formatDisplayDate } from "@/features/issues/lib/dateHelpers";
 import { useEnrichmentEmptyLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
-import type { IssueListItem, PlanningCatalog } from "@reef/core";
+import {
+  DAY_MS,
+  type HealthRollupRow,
+  type ReportFilters,
+  type RollupDimension,
+} from "@reef/core";
 import { useLocale, useTranslations } from "next-intl";
 import { memo, useMemo, useState } from "react";
-import type { ReportFilters } from "../lib/aggregateModel";
-import { DAY_MS } from "../lib/aggregateModel";
 import {
-  type HealthRollupRow,
   ROLLUP_DIMENSIONS,
   type RagLevel,
-  type RollupDimension,
   type VerdictReason,
-  computeHealthRollup,
-  distinctParentIds,
-} from "../lib/healthRollup";
+} from "@reef/core";
 
 /** A loose translator for the runtime-built `reason.{code}` / day-count keys. */
 type LooseT = (key: string, values?: Record<string, string | number>) => string;
@@ -79,43 +78,24 @@ const AXIS_KEY: Record<RollupDimension, keyof ReportFilters> = {
   parent: "parent_id",
 };
 
-function dimensionItemCount(
-  dimension: RollupDimension,
-  catalog: PlanningCatalog,
-  issues: ReadonlyArray<IssueListItem>,
-): number {
-  if (dimension === "milestone") return catalog.milestones.length;
-  if (dimension === "sprint") return catalog.sprints.length;
-  if (dimension === "release") return catalog.releases.length;
-  // Parent isn't a catalog entity — count the distinct parents issues point at.
-  return distinctParentIds(issues).length;
-}
-
 export function HealthRollup({
-  issues,
-  catalog,
+  rows,
+  availableDimensions,
   filters,
   dimension,
   onDimensionChange,
   onDrill,
 }: {
-  issues: ReadonlyArray<IssueListItem>;
-  catalog: PlanningCatalog;
+  rows: ReadonlyArray<HealthRollupRow>;
+  availableDimensions: ReadonlyArray<RollupDimension>;
   filters: ReportFilters;
   dimension: RollupDimension;
   onDimensionChange: (dimension: RollupDimension) => void;
   /** Toggle the page scope to one planning item (drill in / out). */
   onDrill: (dimension: RollupDimension, id: string) => void;
 }) {
-  // Offer dimensions that have items; derive during render so a vault switch
-  // does not strand the toggle on an empty dimension (no effect). The parent
-  // axis depends on issues (referenced parents), the planning axes on catalog.
-  const availableDims = useMemo(
-    () =>
-      ROLLUP_DIMENSIONS.filter(
-        (d) => dimensionItemCount(d, catalog, issues) > 0,
-      ),
-    [catalog, issues],
+  const availableDims = ROLLUP_DIMENSIONS.filter((item) =>
+    availableDimensions.includes(item),
   );
   const [showShipped, setShowShipped] = useState(false);
   const t = useTranslations("reports.cards");
@@ -124,12 +104,6 @@ export function HealthRollup({
   const activeDim = availableDims.includes(dimension)
     ? dimension
     : (availableDims[0] ?? "milestone");
-
-  const rows = useMemo(
-    () =>
-      computeHealthRollup(issues, { dimension: activeDim, catalog, filters }),
-    [issues, activeDim, catalog, filters],
-  );
 
   if (availableDims.length === 0) return null;
 

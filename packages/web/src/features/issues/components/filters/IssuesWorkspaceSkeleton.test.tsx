@@ -10,6 +10,9 @@ describe("IssuesWorkspaceSkeleton", () => {
     // placeholders are all present so a hard-nav first paint reads as "loading
     // the board".
     expect(screen.getByTestId("issues-skeleton")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("sprint-rollover-pending-skeleton"),
+    ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Issues" })).toBeInTheDocument();
     expect(
       screen.getByRole("group", { name: "Issue scope" }),
@@ -84,6 +87,7 @@ describe("IssuesWorkspaceSkeleton", () => {
     expect(
       screen.queryByRole("heading", { name: "In Progress" }),
     ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("sprint-rollover-pending-skeleton")).toBeNull();
   });
 
   it("reflects a URL-selected sort in the pending filter chrome", () => {
@@ -143,6 +147,9 @@ describe("IssuesWorkspaceSkeleton", () => {
         screen.getByTestId(`issues-${layout}-skeleton`),
       ).toBeInTheDocument();
       expect(screen.queryByTestId("board-columns-skeleton")).toBeNull();
+      expect(
+        screen.queryByTestId("sprint-rollover-pending-skeleton"),
+      ).toBeNull();
     },
   );
 

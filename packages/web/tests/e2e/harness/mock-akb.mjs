@@ -581,12 +581,20 @@ export async function handleAkb(req, res, url, state) {
     const issueListKey = /^\s*select \* from reef_issues\b/i.test(sql)
       ? vault.name
       : null;
+    const isPlanningCatalogRead =
+      /^\s*select \* from reef_(?:sprints|milestones|releases)\b/i.test(sql);
     const isReorder = /^\s*with updated as \(update reef_issues\b/i.test(sql);
     if (updateKey) beginIssueUpdateRequest(state, updateKey);
     if (issueListKey) beginIssueListRequest(state, issueListKey);
     try {
       if (updateKey && consumeIssueUpdateHold(state, updateKey)) {
         await waitForIssueUpdateRelease(state, updateKey);
+      }
+      if (issueListKey && state.issueListDelayMs > 0) {
+        await sleep(state.issueListDelayMs);
+      }
+      if (isPlanningCatalogRead && state.planningCatalogDelayMs > 0) {
+        await sleep(state.planningCatalogDelayMs);
       }
       const delayMs = updateKey
         ? (state.issueUpdateDelays.get(updateKey) ?? 0)

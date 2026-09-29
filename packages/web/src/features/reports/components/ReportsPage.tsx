@@ -2,31 +2,24 @@
 
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
-import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { PageHeader } from "@/features/ui/components/PageHeader";
 import { preloadNewIssueDialog } from "@/features/ui/lib/lazyDialogPreload";
 import { useViewStore } from "@/features/ui/stores/useViewStore";
 import { useIssueTypeLabels, useSeverityLabels } from "@/i18n/fieldLabels";
-import { ACTIVE_STATUSES, type Status } from "@reef/core";
+import {
+  DEFAULT_REPORT_FILTERS,
+  type PivotFieldKey,
+  type ReportFilters,
+  type ReportRequest,
+  type RollupDimension,
+} from "@reef/core";
 import { Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useMemo, useState } from "react";
-import {
-  DEFAULT_REPORT_FILTERS,
-  computeAggregates,
-  computeFlowMetrics,
-} from "../lib/aggregate";
-import type { ReportFilters } from "../lib/aggregateModel";
-import type { RollupDimension } from "../lib/healthRollup";
-import {
-  DEFAULT_FORECAST_HORIZON_WEEKS,
-  computeForecast,
-} from "../lib/monteCarlo";
 import { useReportPeriodLabels } from "../lib/useReportPeriodLabels";
-import { useReportActivity } from "../hooks/queries/useReportActivity";
+import { useReports } from "../hooks/queries/useReports";
 import { ForecastCard } from "./ForecastCard";
 import { FlowMetricsCard } from "./FlowMetricsCard";
 import { HealthRollup } from "./HealthRollup";
@@ -48,10 +41,6 @@ import {
   formatSigned,
 } from "./ReportSummarySections";
 
-/** Open work (committed, not-yet-resolved) is the forecast population — the same
- *  active statuses the dashboard's open-work cards floor to (REEF-190). */
-const ACTIVE_STATUS_SET = new Set<Status>(ACTIVE_STATUSES);
-
 export function ReportsPage() {
   const t = useTranslations("reports.page");
   const nav = useTranslations("nav");
@@ -61,44 +50,17 @@ export function ReportsPage() {
   const issueTypeLabels = useIssueTypeLabels();
   const { vault, isLoading: vaultLoading } = useActiveVault();
   const openNewIssueDialog = useViewStore((state) => state.openNewIssueDialog);
-  const issuesQuery = useIssueList(vault);
-  const activityQuery = useReportActivity(vault);
-  const planningQuery = usePlanningCatalog(vault);
   const [filters, setFilters] = useState<ReportFilters>(DEFAULT_REPORT_FILTERS);
   const [rollupDimension, setRollupDimension] =
     useState<RollupDimension>("milestone");
+  const [pivotRow, setPivotRow] = useState<PivotFieldKey>("assignee");
+  const [pivotCol, setPivotCol] = useState<PivotFieldKey>("status");
   const [nowMs] = useState(() => Date.now());
-
-  // Aggregation is a single pass over every issue; memoize so unrelated
-  // re-renders (e.g. a sibling popover opening) don't recompute it.
-  const issues = useMemo(() => issuesQuery.data ?? [], [issuesQuery.data]);
-  const agg = useMemo(
-    () => computeAggregates(issues, { filters }),
-    [issues, filters],
+  const request = useMemo<ReportRequest>(
+    () => ({ filters, asOf: nowMs, rollupDimension, pivotRow, pivotCol }),
+    [filters, nowMs, rollupDimension, pivotRow, pivotCol],
   );
-  const flowMetrics = useMemo(
-    () =>
-      computeFlowMetrics(issues, activityQuery.data ?? [], {
-        filters,
-        now: nowMs,
-      }),
-    [activityQuery.data, filters, issues, nowMs],
-  );
-
-  // Monte Carlo forecast off the same single-pass aggregate: remaining open work
-  // from the status buckets, weekly throughput from the period's closed series.
-  // Keyed on `agg` (itself memoized on issues+filters) so the bootstrap re-runs
-  // when the data does, does not on an unrelated re-render (REEF-190).
-  const forecast = useMemo(() => {
-    const remaining = agg.byStatus
-      .filter((bucket) => ACTIVE_STATUS_SET.has(bucket.status))
-      .reduce((sum, bucket) => sum + bucket.count, 0);
-    return computeForecast({
-      remaining,
-      weeklyThroughput: agg.throughput.map((week) => week.closed),
-      horizonWeeks: DEFAULT_FORECAST_HORIZON_WEEKS,
-    });
-  }, [agg]);
+  const reportsQuery = useReports(vault, request);
 
   // Drilling a rollup row scopes the whole page to that planning item by
   // setting its shared report filter; clicking the active row clears it. The
@@ -126,26 +88,6 @@ export function ReportsPage() {
     });
   }, []);
 
-  const catalog = planningQuery.data;
-
-  // The parent rollup drill is the one report facet with no scope-bar control
-  // (the planning axes each have a combobox there). Resolve its label so the
-  // empty-state clear affordance below can name the parent it scopes to.
-  const parentScopeName = filters.parent_id
-    ? (issues.find((issue) => issue.id === filters.parent_id)?.title ??
-      filters.parent_id)
-    : null;
-
-  // The measure toggle re-weights the load/throughput cards (Risk map,
-  // Deadlines, and the KPI tiles stay count-based posture). Naming the measure
-  // on each switched card keeps the partial scoping from reading as broken —
-  // the same affordance the Period control uses on the Throughput card
-  // (REEF-185, REEF-188).
-  const pointsMode = filters.measure === "points";
-  const netValue = pointsMode
-    ? agg.netThroughput.reduce((sum, week) => sum + week.netPoints, 0)
-    : agg.riskSummary.netThroughput;
-
   if (!vaultLoading && !vault) {
     // App-level "no workspace" gate, shared across all five surfaces (REEF-259).
     // It renders beneath the header without PageShell's PageBody so the shared
@@ -159,7 +101,7 @@ export function ReportsPage() {
     );
   }
 
-  if (vaultLoading || issuesQuery.isPending) {
+  if (vaultLoading || reportsQuery.isPending) {
     return (
       <PageShell description={vault || undefined}>
         <ReportsSkeleton />
@@ -167,7 +109,7 @@ export function ReportsPage() {
     );
   }
 
-  if (issuesQuery.isError) {
+  if (reportsQuery.isError) {
     return (
       <PageShell description={vault || undefined}>
         <div
@@ -178,8 +120,8 @@ export function ReportsPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => void issuesQuery.refetch()}
-            busy={issuesQuery.isFetching}
+            onClick={() => void reportsQuery.refetch()}
+            busy={reportsQuery.isFetching}
             aria-label={c("retry")}
           >
             {c("retry")}
@@ -189,7 +131,16 @@ export function ReportsPage() {
     );
   }
 
-  if (issues.length === 0) {
+  const report = reportsQuery.data;
+  if (!report) {
+    return (
+      <PageShell description={vault || undefined}>
+        <ReportsSkeleton />
+      </PageShell>
+    );
+  }
+
+  if (report.issueCount === 0) {
     return (
       <PageShell
         description={vault || undefined}
@@ -218,6 +169,15 @@ export function ReportsPage() {
       </PageShell>
     );
   }
+
+  const agg = report.aggregates;
+  const flowMetrics = report.flowMetrics;
+  const forecast = report.forecast;
+  const parentScopeName = report.parentName;
+  const pointsMode = filters.measure === "points";
+  const netValue = pointsMode
+    ? agg.netThroughput.reduce((sum, week) => sum + week.netPoints, 0)
+    : agg.riskSummary.netThroughput;
 
   return (
     <PageShell description={vault || undefined}>
@@ -262,17 +222,13 @@ export function ReportsPage() {
               <div className="flex flex-col gap-4">
                 <HealthSummary agg={agg} />
 
-                {/* Per-item RAG rollup sits between the global pulse and the
-                    detail charts — a scannable portfolio index that drills into
-                    them. The component self-hides when no dimension has items
-                    (planning axes from the catalog, parent axis from issue
-                    links), so the guard is catalog presence. */}
-                {catalog && (
+                {/* Per-item RAG rollup is precomputed with the report payload. */}
+                {report.availableDimensions.length > 0 && (
                   <HealthRollup
-                    issues={issues}
-                    catalog={catalog}
+                    rows={report.healthRollup}
+                    availableDimensions={report.availableDimensions}
                     filters={filters}
-                    dimension={rollupDimension}
+                    dimension={report.rollupDimension}
                     onDimensionChange={setRollupDimension}
                     onDrill={handleDrill}
                   />
@@ -312,10 +268,9 @@ export function ReportsPage() {
                   metrics={flowMetrics}
                   periodLabel={periodLabels[filters.period]}
                   vault={vault}
-                  isPending={activityQuery.isPending}
-                  isError={activityQuery.isError}
-                  isFetching={activityQuery.isFetching}
-                  onRetry={() => void activityQuery.refetch()}
+                  isError={report.flowMetricsUnavailable}
+                  isFetching={reportsQuery.isFetching}
+                  onRetry={() => void reportsQuery.refetch()}
                 />
 
                 {/* Forward-looking forecast sits right after the present-state
@@ -323,7 +278,7 @@ export function ReportsPage() {
                     projected (REEF-190). */}
                 <ForecastCard
                   forecast={forecast}
-                  now={nowMs}
+                  now={report.asOf}
                   periodLabel={periodLabels[filters.period]}
                 />
 
@@ -331,7 +286,13 @@ export function ReportsPage() {
                     (assignee × status, type × priority, ...) without shipping a
                     new fixed card. Full width: it can grow to many columns
                     (REEF-189). */}
-                <PivotCard issues={issues} filters={filters} />
+                <PivotCard
+                  result={report.pivot}
+                  rowField={pivotRow}
+                  colField={pivotCol}
+                  onRowFieldChange={setPivotRow}
+                  onColFieldChange={setPivotCol}
+                />
               </div>
             </ReportSection>
 

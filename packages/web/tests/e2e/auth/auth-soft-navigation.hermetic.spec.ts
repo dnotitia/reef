@@ -1228,10 +1228,10 @@ test.describe("auth soft navigation", () => {
         await waitForPreHydrationStyles(earlyPage);
         const pendingProbe = earlyPage.waitForRequest(isAuthProbeRequest);
 
-        // JavaScript is deliberately held, so this capture is the server HTML
-        // and CSS paint before React hydration can run. The explicit stylesheet,
-        // font, and two-frame boundary above only settles paint; client scripts
-        // remain held so React cannot hydrate this capture.
+        // React bundles are held so React cannot hydrate this capture, while
+        // the nonce-authorized synchronous theme bootstrap still runs first.
+        // The stylesheet, font, and two-frame boundary above only settle paint;
+        // the measured surface remains the server-rendered skeleton.
         const beforeHydration = await earlyPage.evaluate(
           ({ includeScopeRect, selector }) => {
             const html = document.documentElement;
@@ -1285,7 +1285,7 @@ test.describe("auth soft navigation", () => {
         if (surface.name === "issues") {
           expect(beforeHydration.scopeRect).not.toBeNull();
         }
-        expect(beforeHydration.darkClass).toBe(false);
+        expect(beforeHydration.darkClass).toBe(mode.dark);
 
         holdScripts = false;
         for (const release of scriptReleaseWaiters.splice(0)) release();
