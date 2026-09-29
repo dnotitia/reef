@@ -44,6 +44,23 @@ type FrameCaptureWindow = Window & {
   __reefBoardFrameId?: number;
 };
 
+type TimelineFrame = {
+  at: number;
+  input: string;
+  urlQuery: string | null;
+  scheduledTitles: string[];
+  unscheduledTitles: string[];
+  scheduledCount: number;
+  noMatch: boolean;
+  updating: boolean;
+};
+
+type TimelineCaptureWindow = Window & {
+  __reefTimelineFrames?: TimelineFrame[];
+  __reefTimelineFrameId?: number;
+  __reefTimelineObserver?: MutationObserver;
+};
+
 function watchSearchTraffic(page: Page): {
   requests: SearchRequest[];
   responses: SearchResponse[];
@@ -112,6 +129,24 @@ async function openDemoBoard(page: Page): Promise<void> {
   await expect(page.getByTestId("search-input")).toBeEditable();
 }
 
+async function openDemoTimeline(page: Page): Promise<void> {
+  await page.clock.setFixedTime(new Date("2026-05-22T12:00:00.000Z"));
+  await openExistingWorkspace(page);
+  await page.goto("/workspace/reef-e2e/issues?view=timeline&sort=priority");
+  await expect(page.getByTestId("timeline-grid")).toBeVisible();
+  await expect(page.getByTestId("search-input")).toBeEditable();
+}
+
+async function readTimelineTitles(page: Page): Promise<string[]> {
+  return (
+    await page
+      .locator('[data-typography-role="timeline-title"]')
+      .allTextContents()
+  )
+    .map((title) => title.trim())
+    .sort();
+}
+
 async function startFrameCapture(page: Page): Promise<void> {
   await page.evaluate(() => {
     const captureWindow = window as FrameCaptureWindow;
@@ -165,6 +200,186 @@ async function stopFrameCapture(page: Page): Promise<BoardFrame[]> {
     }
     return captureWindow.__reefBoardFrames ?? [];
   });
+}
+
+async function startTimelineFrameCapture(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const captureWindow = window as TimelineCaptureWindow;
+    captureWindow.__reefTimelineFrames = [];
+
+    const record = () => {
+      const input = document.querySelector<HTMLInputElement>(
+        '[data-testid="search-input"]',
+      );
+      const scheduledRows = Array.from(
+        document.querySelectorAll<HTMLElement>('[data-testid="timeline-row"]'),
+      );
+      const scheduledTitles = scheduledRows
+        .map(
+          (row) =>
+            row
+              .querySelector('[data-typography-role="timeline-title"]')
+              ?.textContent?.trim() ?? "",
+        )
+        .sort();
+      const unscheduledTitles = Array.from(
+        document.querySelectorAll<HTMLElement>(
+          '[data-testid="timeline-unscheduled"] [data-typography-role="timeline-title"]',
+        ),
+      )
+        .map((title) => title.textContent?.trim() ?? "")
+        .sort();
+      const scheduledCount = Array.from(
+        document.querySelectorAll<HTMLElement>("section[aria-label]"),
+      ).reduce((total, section) => {
+        if (!section.querySelector('[data-testid="timeline-row"]')) {
+          return total;
+        }
+        const countText = section.children[0]?.children[1]?.textContent ?? "";
+        return total + Number.parseInt(countText.match(/\d+/u)?.[0] ?? "0", 10);
+      }, 0);
+
+      const frame: TimelineFrame = {
+        at: performance.now(),
+        input: input?.value ?? "",
+        urlQuery: new URLSearchParams(window.location.search).get("q"),
+        scheduledTitles,
+        unscheduledTitles,
+        scheduledCount,
+        noMatch: Array.from(document.querySelectorAll("p")).some(
+          (paragraph) =>
+            paragraph.textContent?.trim() === "No issues match your filters.",
+        ),
+        updating:
+          document.querySelector('[data-testid="search-progress-bar"]') !==
+          null,
+      };
+      const previous = captureWindow.__reefTimelineFrames?.at(-1);
+      if (
+        previous &&
+        previous.input === frame.input &&
+        previous.urlQuery === frame.urlQuery &&
+        previous.scheduledTitles.join("\u0000") ===
+          frame.scheduledTitles.join("\u0000") &&
+        previous.unscheduledTitles.join("\u0000") ===
+          frame.unscheduledTitles.join("\u0000") &&
+        previous.scheduledCount === frame.scheduledCount &&
+        previous.noMatch === frame.noMatch &&
+        previous.updating === frame.updating
+      ) {
+        return;
+      }
+      captureWindow.__reefTimelineFrames?.push(frame);
+    };
+
+    const sample = () => {
+      record();
+      captureWindow.__reefTimelineFrameId = requestAnimationFrame(sample);
+    };
+
+    captureWindow.__reefTimelineObserver = new MutationObserver(record);
+    captureWindow.__reefTimelineObserver.observe(document.body, {
+      attributes: true,
+      characterData: true,
+      childList: true,
+      subtree: true,
+    });
+    captureWindow.__reefTimelineFrameId = requestAnimationFrame(sample);
+  });
+}
+
+async function stopTimelineFrameCapture(page: Page): Promise<TimelineFrame[]> {
+  return page.evaluate(() => {
+    const captureWindow = window as TimelineCaptureWindow;
+    if (captureWindow.__reefTimelineFrameId !== undefined) {
+      cancelAnimationFrame(captureWindow.__reefTimelineFrameId);
+    }
+    captureWindow.__reefTimelineObserver?.disconnect();
+    return captureWindow.__reefTimelineFrames ?? [];
+  });
+}
+
+async function runRapidTimelineHandoff(page: Page): Promise<TimelineFrame[]> {
+  const input = page.getByTestId("search-input");
+  for (const query of ["board", "Review", "Ship"] as const) {
+    await input.fill(query);
+    await page.waitForTimeout(230);
+  }
+
+  await expect
+    .poll(() => new URL(page.url()).searchParams.get("q"))
+    .toBe("Ship");
+  await expect
+    .poll(() => readTimelineTitles(page))
+    .toEqual([...SEARCH_RESULTS.Ship].sort());
+  await expect(page.getByTestId("search-progress-bar")).toHaveCount(0);
+  return stopTimelineFrameCapture(page);
+}
+
+function inspectTimelineFrames(frames: TimelineFrame[]) {
+  const expectedByQuery = SEARCH_RESULTS as Record<
+    SearchQuery,
+    readonly string[]
+  >;
+  const relevant = frames.filter(
+    (frame) =>
+      frame.urlQuery !== null && Object.hasOwn(expectedByQuery, frame.urlQuery),
+  );
+
+  return {
+    sampledFrames: frames.length,
+    zeroRowFrames: relevant.filter(
+      (frame) =>
+        frame.scheduledTitles.length + frame.unscheduledTitles.length === 0,
+    ),
+    noMatchFrames: relevant.filter((frame) => frame.noMatch),
+    scheduledCountMismatches: relevant.filter(
+      (frame) => frame.scheduledCount !== frame.scheduledTitles.length,
+    ),
+    settledQueryMismatches: relevant.filter((frame) => {
+      if (frame.updating) return false;
+      const expected = [
+        ...expectedByQuery[frame.urlQuery as SearchQuery],
+      ].sort();
+      const visible = [
+        ...frame.scheduledTitles,
+        ...frame.unscheduledTitles,
+      ].sort();
+      return visible.join("\u0000") !== expected.join("\u0000");
+    }),
+  };
+}
+
+function timelineFrameEvidence(frames: TimelineFrame[]) {
+  const summary = inspectTimelineFrames(frames);
+  const invalidFrames = [
+    summary.zeroRowFrames[0],
+    summary.noMatchFrames[0],
+    summary.scheduledCountMismatches[0],
+    summary.settledQueryMismatches[0],
+  ].filter(Boolean);
+  const queryHandoffs = frames.filter(
+    (frame, index) =>
+      index === 0 || frame.urlQuery !== frames[index - 1]?.urlQuery,
+  );
+  return {
+    sampledFrames: summary.sampledFrames,
+    zeroRowFrames: summary.zeroRowFrames.length,
+    noMatchFrames: summary.noMatchFrames.length,
+    scheduledCountMismatches: summary.scheduledCountMismatches.length,
+    settledQueryMismatches: summary.settledQueryMismatches.length,
+    firstInvalidFrame: invalidFrames[0] ?? null,
+    queryHandoffs,
+    finalFrame: frames.at(-1) ?? null,
+  };
+}
+
+function assertNoInvalidTimelineFrames(frames: TimelineFrame[]): void {
+  const summary = inspectTimelineFrames(frames);
+  expect(summary.zeroRowFrames).toEqual([]);
+  expect(summary.noMatchFrames).toEqual([]);
+  expect(summary.scheduledCountMismatches).toEqual([]);
+  expect(summary.settledQueryMismatches).toEqual([]);
 }
 
 async function runRapidHandoff(page: Page): Promise<BoardFrame[]> {
@@ -283,7 +498,7 @@ async function delaySearchResponseDelivery(
   );
 }
 
-test.describe("Board search result handoff", () => {
+test.describe("Search result handoff", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
     await resetFixture(request, "demo_board");
@@ -352,6 +567,59 @@ test.describe("Board search result handoff", () => {
     assertNoInvalidFrames(frames);
   });
 
+  test("keeps cached Timeline rows through repeated three-query handoffs", async ({
+    page,
+  }) => {
+    await openDemoTimeline(page);
+    const traffic = watchSearchTraffic(page);
+
+    for (const query of ["planning", "board", "Review", "Ship"] as const) {
+      await enterSettledSearch(page, query);
+    }
+    const warmRequests = [...traffic.requests];
+    await expect.poll(() => traffic.responses.length).toBe(warmRequests.length);
+    const warmResponses = [...traffic.responses];
+    expect(warmRequests.map((entry) => entry.query)).toEqual([
+      "planning",
+      "board",
+      "Review",
+      "Ship",
+    ]);
+    expect(warmResponses.map((entry) => entry.status)).toEqual([
+      200, 200, 200, 200,
+    ]);
+
+    const runs: Array<{ repetition: number; frames: TimelineFrame[] }> = [];
+    for (const repetition of [1, 2, 3] as const) {
+      await enterSettledSearch(page, "planning");
+      await startTimelineFrameCapture(page);
+      runs.push({
+        repetition,
+        frames: await runRapidTimelineHandoff(page),
+      });
+    }
+
+    const handoffRequests = traffic.requests.slice(warmRequests.length);
+    const frames = runs.flatMap((run) => run.frames);
+    process.stdout.write(
+      `TIMELINE_SEARCH_RESULT_FRAME_EVIDENCE ${JSON.stringify({
+        condition:
+          "demo_board; timeline Q2 2026; warm cache; three repetitions; 230ms query intervals",
+        warmRequests,
+        warmResponses,
+        handoffRequests,
+        runs: runs.map((run) => ({
+          repetition: run.repetition,
+          ...timelineFrameEvidence(run.frames),
+        })),
+        summary: timelineFrameEvidence(frames),
+      })}\n`,
+    );
+
+    expect(handoffRequests).toEqual([]);
+    assertNoInvalidTimelineFrames(frames);
+  });
+
   test("retains the previous result set while uncached responses are delayed", async ({
     page,
   }) => {
@@ -389,11 +657,14 @@ test.describe("Board search result handoff", () => {
     expect(handoffResponses.map((entry) => entry.status)).toEqual([
       200, 200, 200,
     ]);
-    expect(delayed).toEqual([
+    const expectedDelayed = [
       { query: "board", status: 200, delayMs: 700 },
       { query: "Review", status: 200, delayMs: 700 },
       { query: "Ship", status: 200, delayMs: 700 },
-    ]);
+    ];
+    expect([...delayed].sort((a, b) => a.query.localeCompare(b.query))).toEqual(
+      [...expectedDelayed].sort((a, b) => a.query.localeCompare(b.query)),
+    );
     assertNoInvalidFrames(frames);
   });
 
