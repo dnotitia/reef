@@ -109,11 +109,209 @@ async function captureBoardGeometry(
   return geometry;
 }
 
+async function captureIssueViewGeometry(
+  page: Page,
+  testInfo: TestInfo,
+  phase: string,
+  view: "list" | "timeline",
+) {
+  const geometry = await page.evaluate(
+    ({ samplePhase, sampleView }) => {
+      const round = (value: number) => Math.round(value * 10) / 10;
+      const measure = (selector: string) => {
+        const element = document.querySelector<HTMLElement>(selector);
+        if (!element) throw new Error(`Missing frame element: ${selector}`);
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return {
+          rect: {
+            top: round(rect.top),
+            left: round(rect.left),
+            width: round(rect.width),
+            height: round(rect.height),
+          },
+          styles: {
+            display: style.display,
+            position: style.position,
+            boxSizing: style.boxSizing,
+            minHeight: style.minHeight,
+            marginBottom: style.marginBottom,
+            paddingTop: style.paddingTop,
+            paddingRight: style.paddingRight,
+            paddingBottom: style.paddingBottom,
+            paddingLeft: style.paddingLeft,
+            borderBottomWidth: style.borderBottomWidth,
+            borderBottomStyle: style.borderBottomStyle,
+            borderBottomColor: style.borderBottomColor,
+            backgroundColor: style.backgroundColor,
+          },
+        };
+      };
+      const body = document.querySelector<HTMLElement>(
+        `[data-testid="issues-${sampleView}-loading"], [data-testid="issue-list-scroll-container"], [data-testid="timeline-grid-skeleton"], [data-testid="timeline-grid"]`,
+      );
+      if (!body) throw new Error(`Missing ${sampleView} loading frame`);
+      const bodyRect = body.getBoundingClientRect();
+      const bodyStyle = getComputedStyle(body);
+      const skeleton = document.querySelector<HTMLElement>(
+        `[data-testid="issues-${sampleView}-loading"]`,
+      );
+      const skeletonRect = skeleton?.getBoundingClientRect();
+      const timelineGrid = document.querySelector<HTMLElement>(
+        '[data-testid="timeline-grid-skeleton"]',
+      );
+      return {
+        phase: samplePhase,
+        view: sampleView,
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        header: measure('[data-slot="page-header"]'),
+        toolbar: measure('[data-testid="issue-filter-toolbar"]'),
+        viewSwitcher: measure('[data-testid="view-switcher"]'),
+        body: {
+          testId: body.dataset.testid,
+          top: round(bodyRect.top),
+          width: round(bodyRect.width),
+          height: round(bodyRect.height),
+          display: bodyStyle.display,
+          minHeight: bodyStyle.minHeight,
+          overflow: bodyStyle.overflow,
+          skeletonHeight: skeletonRect ? round(skeletonRect.height) : null,
+          timelineGridWidth: timelineGrid
+            ? round(timelineGrid.getBoundingClientRect().width)
+            : null,
+          skeletonRows: body.querySelectorAll('[data-testid="skeleton-row"]')
+            .length,
+          tableHeaders: body.querySelectorAll("thead th").length,
+          skeletonBars: body.querySelectorAll(".reef-shimmer").length,
+        },
+      };
+    },
+    { samplePhase: phase, sampleView: view },
+  );
+  await mkdir(testInfo.outputDir, { recursive: true });
+  const geometryPath = testInfo.outputPath(`${phase}.json`);
+  const screenshotPath = testInfo.outputPath(`${phase}.png`);
+  await writeFile(geometryPath, JSON.stringify(geometry, null, 2));
+  await writeFile(
+    screenshotPath,
+    await page.screenshot({ animations: "disabled" }),
+  );
+  await testInfo.attach(`${phase}-geometry`, {
+    path: geometryPath,
+    contentType: "application/json",
+  });
+  await testInfo.attach(`${phase}-screen`, {
+    path: screenshotPath,
+    contentType: "image/png",
+  });
+  return geometry;
+}
+
 test.describe("Hermetic issues board hydration (REEF-315)", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
     await resetFixture(request, "demo_board");
   });
+
+  for (const view of ["list", "timeline"] as const) {
+    test(`keeps fixed issue chrome while the ${view} view code loads`, async ({
+      context,
+      page,
+      request,
+    }, testInfo) => {
+      await context.clearCookies();
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await resetFixture(request, "demo_board");
+      await openExistingWorkspace(page);
+      await expect(page.locator(board)).toBeVisible();
+      await expect(page.locator(card).first()).toBeVisible();
+
+      let releaseChunk = () => {};
+      let heldChunkUrl = "";
+      let heldScriptChunk = false;
+      let resolveChunkHeld: (url: string) => void = () => {};
+      const chunkHeld = new Promise<string>((resolve) => {
+        resolveChunkHeld = resolve;
+      });
+      const chunkReleased = new Promise<void>((resolve) => {
+        releaseChunk = resolve;
+      });
+      const chunkMatcher = (url: URL) =>
+        url.pathname.includes("/_next/static/chunks/");
+      const holdChunk = async (route: import("@playwright/test").Route) => {
+        if (route.request().resourceType() !== "script") {
+          await route.continue();
+          return;
+        }
+        heldChunkUrl ||= route.request().url();
+        if (!heldScriptChunk) {
+          heldScriptChunk = true;
+          resolveChunkHeld(heldChunkUrl);
+        }
+        await chunkReleased;
+        await route.continue().catch(() => undefined);
+      };
+
+      await page.route(chunkMatcher, holdChunk);
+      try {
+        await page.getByTestId(`view-switcher-${view}`).click();
+        const requestedChunk = await chunkHeld;
+        expect(new URL(requestedChunk).pathname).toContain(
+          "/_next/static/chunks/",
+        );
+        await expect(page).toHaveURL(new RegExp(`[?&]view=${view}(?:&|$)`));
+        await expect(page.getByTestId(`issues-${view}-loading`)).toBeVisible();
+        await expect(page.locator('[data-slot="page-header"]')).toBeVisible();
+        await expect(page.getByTestId("issue-filter-toolbar")).toBeVisible();
+        await expect(
+          page.getByRole("heading", { name: "Issues" }),
+        ).toBeVisible();
+
+        const pending = await captureIssueViewGeometry(
+          page,
+          testInfo,
+          `${view}-code-pending`,
+          view,
+        );
+
+        if (view === "list") {
+          const loadingView = page.getByTestId("issues-list-loading");
+          await expect(
+            loadingView.locator("table thead th").first(),
+          ).toBeVisible({
+            timeout: 1_000,
+          });
+          await expect(
+            loadingView.getByTestId("skeleton-row").first(),
+          ).toBeVisible({ timeout: 1_000 });
+        } else {
+          await expect(page.getByTestId("timeline-grid-skeleton")).toBeVisible({
+            timeout: 1_000,
+          });
+          expect(pending.body.timelineGridWidth).toBeGreaterThan(1_000);
+        }
+
+        releaseChunk();
+        await expect(
+          page.getByTestId(
+            view === "list" ? "issue-list-scroll-container" : "timeline-grid",
+          ),
+        ).toBeVisible();
+        const ready = await captureIssueViewGeometry(
+          page,
+          testInfo,
+          `${view}-code-ready`,
+          view,
+        );
+        expect(pending.header).toEqual(ready.header);
+        expect(pending.toolbar).toEqual(ready.toolbar);
+        expect(pending.viewSwitcher.rect).toEqual(ready.viewSwitcher.rect);
+      } finally {
+        releaseChunk();
+        await page.unroute(chunkMatcher, holdChunk);
+      }
+    });
+  }
 
   test("warm-cache hard reload of the board does not hydration-mismatch", async ({
     page,

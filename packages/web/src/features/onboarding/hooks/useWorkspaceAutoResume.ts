@@ -49,6 +49,8 @@ export function useWorkspaceAutoResume({
         : null,
     [vaultsQuery.data, rememberedVault],
   );
+  const hasConfiguredWorkspace =
+    vaultsQuery.data?.some((vault) => vault.has_reef_config) ?? false;
 
   const retry = useCallback(() => {
     pendingResumeRef.current = null;
@@ -65,7 +67,7 @@ export function useWorkspaceAutoResume({
       !enabled ||
       vaultsQuery.isPending ||
       vaultsQuery.isError ||
-      rememberedVaultLoading ||
+      (rememberedVaultLoading && hasConfiguredWorkspace) ||
       !vaultsQuery.data
     ) {
       return;
@@ -111,6 +113,7 @@ export function useWorkspaceAutoResume({
     };
   }, [
     enabled,
+    hasConfiguredWorkspace,
     persistActiveVault,
     redirectWhenEmpty,
     rememberedVaultLoading,
@@ -127,7 +130,7 @@ export function useWorkspaceAutoResume({
   else if (vaultsQuery.isError || persistFailed) status = "error";
   else if (
     vaultsQuery.isPending ||
-    rememberedVaultLoading ||
+    (rememberedVaultLoading && hasConfiguredWorkspace) ||
     !vaultsQuery.data
   ) {
     status = "pending";

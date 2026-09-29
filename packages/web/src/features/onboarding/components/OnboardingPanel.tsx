@@ -16,9 +16,16 @@ import { WorkspaceResumeStatus } from "./WorkspaceResumeStatus";
  * repos remain optional; AI is configured at deployment level and shown as
  * unavailable if the server lacks LLM settings.
  */
-export function OnboardingPanel() {
+export function OnboardingPanel({
+  resumeState,
+}: {
+  resumeState?: ReturnType<typeof useWorkspaceAutoResume>;
+} = {}) {
   const t = useTranslations("onboarding");
-  const resume = useWorkspaceAutoResume();
+  const ownResume = useWorkspaceAutoResume({
+    enabled: resumeState === undefined,
+  });
+  const resume = resumeState ?? ownResume;
 
   if (resume.status !== "empty") {
     return (

@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { SearchProgressBar } from "@/components/ui/SearchProgressBar";
-import { Skeleton } from "@/components/ui/skeleton";
+import { TimelineGridSkeleton } from "@/features/timeline/components/TimelineGridSkeleton";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
 import { useResolvedAutoHideWindows } from "@/features/issues/hooks/useResolvedAutoHideWindows";
@@ -39,18 +39,6 @@ const EMPTY_ISSUES: IssueListItem[] = [];
 const WORKFLOW_STATUS_SET: ReadonlySet<string> = new Set(
   WORKFLOW_STATUS_OPTIONS,
 );
-
-function TimelineSkeleton() {
-  return (
-    <div className="flex h-full flex-col gap-2 px-6 py-4">
-      <Skeleton className="h-10 w-full" />
-      <Skeleton className="h-9 w-full" />
-      <Skeleton className="h-9 w-full" />
-      <Skeleton className="h-9 w-11/12" />
-      <Skeleton className="h-9 w-10/12" />
-    </div>
-  );
-}
 
 interface TimelineBodyProps {
   vault: string;
@@ -238,7 +226,7 @@ export function TimelineBody({
         (planningQuery.isPending && visibleIssues.length === 0) ? (
           <div role="status" aria-live="polite" className="h-full">
             <span className="sr-only">{t("loading")}</span>
-            <TimelineSkeleton />
+            <TimelineGridSkeleton />
           </div>
         ) : (
           <>
