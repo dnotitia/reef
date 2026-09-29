@@ -24,6 +24,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Direct issue links keep the detail frame visible while authentication, issue
+  data, and the editor load.** Hard entry and reload carry the same panel and
+  chrome into the interactive Sheet without a blank handoff or stacked modal.
+  (REEF-648)
 - **Issue search keeps one results-level progress indicator through debounce and
   refresh.** Empty searches start quietly, and board, list, backlog, and timeline
   searches share one progress bar and live announcement. (REEF-645)

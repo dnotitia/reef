@@ -7,6 +7,8 @@ import {
 import { AuthVerificationFallback } from "@/features/auth/components/AuthVerificationFallback";
 import { useSyncActiveVaultFromUrl } from "@/features/settings/hooks/useActiveVault";
 import { useVaults } from "@/features/settings/hooks/useVaults";
+import { IssueDetailAuthPendingSkeleton } from "@/features/issues/components/detail/IssueDetailAuthPendingSkeleton";
+import { IssueDetailEntryHandoffProvider } from "@/features/issues/components/detail/IssueDetailEntryHandoff";
 import { hasEstablishedAuthSession } from "@/lib/akb/authCoordinator";
 import { VAULT_NAME_RE } from "@/lib/akb/vaultName";
 import {
@@ -15,7 +17,7 @@ import {
   usePathname,
   useSearchParams,
 } from "next/navigation";
-import type { ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { DashboardShell } from "./DashboardShell";
 import { WorkspaceAccessDenied } from "./WorkspaceAccessDenied";
 import { WorkspaceAuthPendingSkeleton } from "./WorkspaceAuthPendingSkeleton";
@@ -23,6 +25,19 @@ import { WorkspaceAuthPendingSkeleton } from "./WorkspaceAuthPendingSkeleton";
 interface WorkspaceGuardProps {
   appVersion: string;
   children: ReactNode;
+}
+
+function directIssueDetailId(pathname: string | null): string | null {
+  const segments = (pathname ?? "").split("/").filter(Boolean);
+  const workspaceIndex = segments.indexOf("workspace");
+  if (
+    workspaceIndex === -1 ||
+    segments.length !== workspaceIndex + 4 ||
+    segments[workspaceIndex + 2] !== "issues"
+  ) {
+    return null;
+  }
+  return segments[workspaceIndex + 3] ?? null;
 }
 
 /**
@@ -41,6 +56,13 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
   const vault = typeof params.vault === "string" ? params.vault : "";
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [authPendingPathname, setAuthPendingPathname] = useState<string | null>(
+    null,
+  );
+  const completeAuthHandoff = useCallback(
+    () => setAuthPendingPathname(null),
+    [],
+  );
 
   // Keep a cold protected tree unmounted until `/auth/me` confirms the session.
   // Once established, an unavailable background check keeps the mounted tree
@@ -50,6 +72,18 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
   const canRenderAuthenticatedTree =
     authStatus === "active" ||
     (authStatus === "unavailable" && establishedAuthSession);
+
+  useEffect(() => {
+    if (!canRenderAuthenticatedTree) {
+      // Record the route whose authenticated children are still gated so a
+      // direct issue entry can keep its static panel through this handoff.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- auth transition boundary
+      setAuthPendingPathname(pathname);
+    } else if (authPendingPathname && authPendingPathname !== pathname) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- route changed before auth handoff completed
+      setAuthPendingPathname(null);
+    }
+  }, [authPendingPathname, canRenderAuthenticatedTree, pathname]);
 
   // Malformed segment → hard 404. The auth hook above remains unconditional so
   // hook order is stable across route changes.
@@ -100,7 +134,7 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
     );
   }
 
-  return (
+  const shell = (
     <DashboardShell appVersion={appVersion}>
       <>
         {authStatus === "unavailable" ? (
@@ -109,5 +143,22 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
         {children}
       </>
     </DashboardShell>
+  );
+  const entryIssueId = directIssueDetailId(pathname);
+  const handoffPending =
+    entryIssueId !== null && authPendingPathname === pathname;
+
+  if (!handoffPending || !entryIssueId) return shell;
+
+  return (
+    <IssueDetailEntryHandoffProvider onReady={completeAuthHandoff}>
+      {shell}
+      <IssueDetailAuthPendingSkeleton
+        issueId={entryIssueId}
+        searchParams={searchParams.toString()}
+        showWorkspaceSkeleton={false}
+        overlayOnly
+      />
+    </IssueDetailEntryHandoffProvider>
   );
 }
