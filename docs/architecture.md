@@ -121,9 +121,11 @@ columns; ad-hoc fields live in the row's `meta` JSON. `IssueMetadataSchema` is
 canonical, and all issue schemas derive from it. Automated changes record their
 trigger in `reef_issues.meta.source`.
 
-Supporting state lives in sibling tables provisioned when a vault is set up:
+Supporting state lives in sibling tables owned by AKB's Reef app installation:
 `reef_templates` (templates addressed by name, not searchable documents),
-`reef_settings`, and `monitored_repos`. The issue id prefix is the
+`reef_settings`, and `monitored_repos`. Reef seeds missing settings and default
+templates only after AKB reports the installation active, preserving existing
+values. The issue id prefix is the
 `project_prefix` value in `reef_settings` (starts with uppercase A–Z, followed
 by uppercase A–Z, digits, or underscores; default `REEF`).
 

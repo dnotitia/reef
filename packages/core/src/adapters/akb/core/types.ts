@@ -12,6 +12,7 @@ import type {
   SprintRolloverTarget,
 } from "../../../schemas/planning/catalog";
 import type { Config } from "../../../schemas/workspace/config";
+import type { WorkspaceInstallationStatus } from "../../../schemas/controlPlane";
 import type { AkbAdapter } from "./http";
 
 export interface VaultMember {
@@ -35,11 +36,10 @@ export interface VaultSummary {
   status?: string | null;
   role?: string | null;
   created_at?: string | null;
-  has_reef_config?: boolean;
 }
 
 export interface EnrichedVaultSummary extends VaultSummary {
-  has_reef_config: boolean;
+  installation_status: WorkspaceInstallationStatus;
 }
 
 export interface ReadIssueParams {
@@ -430,12 +430,5 @@ export interface DeleteVaultParams {
   adapter: AkbAdapter;
   vault: string;
   /** Acting user — recorded on the audit span before the irreversible delete. */
-  actor: string;
-}
-
-export interface DetachReefParams {
-  adapter: AkbAdapter;
-  vault: string;
-  /** Acting user — recorded on the audit span for the detach. */
   actor: string;
 }

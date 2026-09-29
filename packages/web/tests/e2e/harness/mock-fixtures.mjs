@@ -7,6 +7,11 @@ import {
   slugify,
   uuidFor,
 } from "./mock-utils.mjs";
+import {
+  E2E_REEF_APP_ID,
+  E2E_REEF_RELEASE_ID,
+  E2E_REEF_RELEASE_VERSION,
+} from "./mock-installation.mjs";
 
 const require = createRequire(import.meta.url);
 export const fixtureLogin = require("./fixture-login.json");
@@ -333,6 +338,9 @@ function seedOutdatedVaultSkill(vault) {
 
 function workspaceRecoveryVault(name) {
   const vault = configuredVault(name);
+  // The underlying vault predates Reef's app installation. Its existing data
+  // must survive the owner-approved installation and data initialization.
+  vault.installation = null;
   for (const issue of vault.issues) {
     issue.document_uri = issueDocumentUri(name, issue.reef_id);
   }
@@ -446,6 +454,19 @@ function markdownFixtureVault(name) {
   return vault;
 }
 
+function vaultIdFor(name) {
+  return uuidFor(Number.parseInt(sha256(Buffer.from(name)).slice(0, 12), 16));
+}
+
+function installationIdFor(name) {
+  return uuidFor(
+    Number.parseInt(
+      sha256(Buffer.from(`installation:${name}`)).slice(0, 12),
+      16,
+    ),
+  );
+}
+
 function configuredVault(name) {
   const sprintId = uuidFor(1);
   const milestoneId = uuidFor(2);
@@ -485,12 +506,19 @@ function configuredVault(name) {
     }),
   ];
   const vault = {
-    id: `vault-${name}`,
+    id: vaultIdFor(name),
     name,
     description: "Hermetic reef E2E workspace",
     status: "active",
     role: "owner",
     created_at: NOW,
+    installation: {
+      id: installationIdFor(name),
+      appId: E2E_REEF_APP_ID,
+      lifecycle: "active",
+      currentReleaseId: E2E_REEF_RELEASE_ID,
+      currentReleaseVersion: E2E_REEF_RELEASE_VERSION,
+    },
     tables: new Set([
       "reef_settings",
       "monitored_repos",
@@ -1419,12 +1447,13 @@ function demoBoardVault(name) {
 
 export function rawVault(name) {
   return {
-    id: `vault-${name}`,
+    id: vaultIdFor(name),
     name,
     description: "Raw akb vault",
     status: "active",
     role: "owner",
     created_at: NOW,
+    installation: null,
     tables: new Set(),
     settings: new Map(),
     monitoredRepos: [],

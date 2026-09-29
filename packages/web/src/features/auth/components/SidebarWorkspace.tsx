@@ -62,7 +62,7 @@ function WorkspaceMonogram({ name, large }: { name: string; large?: boolean }) {
  *    rail — the active-page rail is a nav signal; the footer identity rows
  *    stay symmetric with the account row below, REEF-168.)
  *  - Collapsed (w-14): the monogram just, with the vault name in `title`.
- *  - Click: an upward popover listing the user's reef-config vaults (with
+ *  - Click: an upward popover listing the user's active Reef workspaces (with
  *    search), the current one marked with ✓ + a brand rail; picking another
  *    switches the active vault. A pinned "New workspace" entry is consistently
  *    present — even with zero reef vaults — and opens the create dialog.
@@ -89,7 +89,8 @@ export function SidebarWorkspace({
     return (vaultsQuery.data ?? [])
       .filter(
         (vault) =>
-          vault.has_reef_config && isValidWorkspaceFavoriteName(vault.name),
+          vault.installation_status === "ready" &&
+          isValidWorkspaceFavoriteName(vault.name),
       )
       .filter((vault) => {
         const foldedName = vault.name.toLowerCase();

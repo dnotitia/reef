@@ -1,12 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { deleteTemplate } from "./templates";
+import { deleteTemplate, initializeTemplateIfMissing } from "./templates";
 import {
-  ALL_REEF_TABLES,
   SAMPLE_TEMPLATE,
   TEMPLATE_ROW_COLUMNS,
   listTemplates,
   makeAdapter,
-  makeListTablesResponse,
   makeSqlMutationResponse,
   makeSqlQueryResponse,
   makeTemplateRow,
@@ -17,6 +15,31 @@ import {
 } from "../core/akb.testSupport";
 
 describe("templates", () => {
+  it("seeds a default template without replacing an existing template row", async () => {
+    const { calls } = setupFetch([
+      { body: makeSqlMutationResponse("INSERT 0 0") },
+    ]);
+
+    await initializeTemplateIfMissing({
+      adapter: makeAdapter(),
+      vault: "reef-sample",
+      template: SAMPLE_TEMPLATE,
+    });
+
+    expect(sqlRequestBody(calls[0])).toEqual({
+      sql: 'INSERT INTO reef_templates ("name", "label", "description", "title_prefix", "priority", "default_labels", "body") SELECT $1, $2, $3, $4, $5, $6::json, $7 WHERE NOT EXISTS (SELECT 1 FROM reef_templates WHERE name = $1) ON CONFLICT DO NOTHING',
+      params: [
+        SAMPLE_TEMPLATE.name,
+        SAMPLE_TEMPLATE.label,
+        SAMPLE_TEMPLATE.description,
+        SAMPLE_TEMPLATE.title_prefix,
+        null,
+        JSON.stringify(SAMPLE_TEMPLATE.default_labels),
+        SAMPLE_TEMPLATE.body,
+      ],
+    });
+  });
+
   it("reads and writes retained issue templates", async () => {
     const { calls: readCalls } = setupFetch([
       { body: makeSqlQueryResponse([makeTemplateRow()], TEMPLATE_ROW_COLUMNS) },
@@ -34,7 +57,6 @@ describe("templates", () => {
     });
 
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlQueryResponse([], TEMPLATE_ROW_COLUMNS) },
       { body: makeSqlMutationResponse("INSERT 0 1") },
     ]);
@@ -43,12 +65,12 @@ describe("templates", () => {
       vault: "reef-sample",
       template: SAMPLE_TEMPLATE,
     });
-    expect(calls).toHaveLength(3);
-    expect(sqlRequestBody(calls[1])).toEqual({
+    expect(calls).toHaveLength(2);
+    expect(sqlRequestBody(calls[0])).toEqual({
       sql: "SELECT * FROM reef_templates WHERE name = $1",
       params: [SAMPLE_TEMPLATE.name],
     });
-    expect(sqlRequestBody(calls[2])).toEqual({
+    expect(sqlRequestBody(calls[1])).toEqual({
       sql: 'INSERT INTO reef_templates ("name", "label", "description", "title_prefix", "priority", "default_labels", "body") VALUES ($1, $2, $3, $4, $5, $6::json, $7)',
       params: [
         SAMPLE_TEMPLATE.name,
@@ -71,7 +93,6 @@ describe("templates", () => {
       body: "body's \\ 한글😀",
     };
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       {
         body: makeSqlQueryResponse(
           [makeTemplateRow(template)],
@@ -87,7 +108,7 @@ describe("templates", () => {
       template,
     });
 
-    expect(sqlRequestBody(calls[2])).toEqual({
+    expect(sqlRequestBody(calls[1])).toEqual({
       sql: 'UPDATE reef_templates SET "label" = $1, "description" = $2, "title_prefix" = $3, "priority" = $4, "default_labels" = $5::json, "body" = $6 WHERE name = $7',
       params: [
         template.label,

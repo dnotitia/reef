@@ -11,7 +11,7 @@ export function selectConfiguredWorkspace(
   rememberedVault: string,
 ): string | null {
   const configuredNames = vaults
-    .filter((vault) => vault.has_reef_config)
+    .filter((vault) => vault.installation_status === "ready")
     .map((vault) => vault.name)
     .toSorted(compareAscii);
 

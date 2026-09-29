@@ -36,7 +36,6 @@ export {
   deleteRelease,
   deleteSprint,
   deleteVault,
-  detachReef,
   diffFieldActivityEvents,
   ensureReefTables,
   grantVaultMember,

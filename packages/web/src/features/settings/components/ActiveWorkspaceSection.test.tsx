@@ -49,7 +49,10 @@ function wrap(ui: ReactNode) {
 }
 
 function vaultsResponse(
-  vaults: Array<{ name: string; has_reef_config: boolean }>,
+  vaults: Array<{
+    name: string;
+    installation_status: "ready" | "not_installed";
+  }>,
 ) {
   return new Response(
     JSON.stringify({
@@ -59,7 +62,7 @@ function vaultsResponse(
         status: "active",
         role: "owner",
         created_at: null,
-        has_reef_config: v.has_reef_config,
+        installation_status: v.installation_status,
       })),
     }),
     { status: 200 },
@@ -75,7 +78,9 @@ describe("ActiveWorkspaceSection", () => {
     mockApiFetch.mockImplementation(async (url) => {
       const u = String(url);
       if (u.startsWith("/api/vaults")) {
-        return vaultsResponse([{ name: "reef-acme", has_reef_config: true }]);
+        return vaultsResponse([
+          { name: "reef-acme", installation_status: "ready" },
+        ]);
       }
       return new Response("{}", { status: 200 });
     });
@@ -98,16 +103,15 @@ describe("ActiveWorkspaceSection", () => {
     );
   });
 
-  it("excludes vaults without a reef config from the workspace picker (matches onboarding)", async () => {
-    // A vault with has_reef_config=false is a dead-end active workspace (reef
-    // does not read issues there and Settings offers no init path), so the picker
-    // should filter it out exactly like onboarding does (REEF-143).
+  it("excludes uninstalled vaults from the workspace picker (matches onboarding)", async () => {
+    // An uninstalled vault cannot serve Reef requests until an owner restores
+    // it, so the picker filters it out exactly like onboarding does.
     mockApiFetch.mockImplementation(async (url) => {
       const u = String(url);
       if (u.startsWith("/api/vaults")) {
         return vaultsResponse([
-          { name: "reef-acme", has_reef_config: true },
-          { name: "plain-vault", has_reef_config: false },
+          { name: "reef-acme", installation_status: "ready" },
+          { name: "plain-vault", installation_status: "not_installed" },
         ]);
       }
       return new Response("{}", { status: 200 });
@@ -131,8 +135,8 @@ describe("ActiveWorkspaceSection", () => {
       const u = String(url);
       if (u.startsWith("/api/vaults")) {
         return vaultsResponse([
-          { name: "reef-acme", has_reef_config: true },
-          { name: "reef-beta", has_reef_config: true },
+          { name: "reef-acme", installation_status: "ready" },
+          { name: "reef-beta", installation_status: "ready" },
         ]);
       }
       return new Response("{}", { status: 200 });

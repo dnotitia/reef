@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { AkbApiError, AuthError, ControlPlaneError } from "../../src/errors";
+import {
+  AkbApiError,
+  AuthError,
+  ConflictError,
+  ControlPlaneError,
+} from "../../src/errors";
 import {
   type AkbAdapter,
   type AkbStreamAdapter,
@@ -14,6 +19,10 @@ import {
   getCurrentActor,
   getMe,
   login,
+  readInstallation,
+  readMemberInstallationActive,
+  requestInstallation,
+  uninstallInstallation,
   listIssues,
   listIssueBodyHistory,
   readIssue,
@@ -95,6 +104,90 @@ const USERNAME = process.env.AKB_E2E_USERNAME ?? "reef-smoke";
 const PASSWORD = process.env.AKB_E2E_PASSWORD ?? "reef-smoke-pw-123";
 const EMAIL = process.env.REEF_LIVE_AKB_EMAIL ?? "reef-smoke@example.com";
 
+function fixtureOrigin(): string {
+  if (!FIXTURE_BASE_URL) {
+    throw new Error(
+      "REEF_LIVE_AKB_FIXTURE_URL is required for app-installation-lifecycle live tests",
+    );
+  }
+  return FIXTURE_BASE_URL.replace(/\/+$/u, "");
+}
+
+async function resetLifecycleFixture(): Promise<void> {
+  const response = await fetch(`${fixtureOrigin()}/reset`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ scenario: "app-installation-lifecycle" }),
+  });
+  expect(response.status).toBe(200);
+}
+
+async function lifecycleFixtureDiscovery(): Promise<Record<string, unknown>> {
+  const response = await fetch(`${fixtureOrigin()}/discover`, {
+    redirect: "manual",
+  });
+  expect(response.status).toBe(200);
+  const discovery = record(
+    await response.json(),
+    "lifecycle fixture discovery",
+  );
+  expect(discovery.scenario).toBe("app-installation-lifecycle");
+  return discovery;
+}
+
+async function lifecycleActorAdapter(
+  discovery: Record<string, unknown>,
+  actorName: string,
+): Promise<AkbAdapter> {
+  const actors = record(discovery.actors, "lifecycle fixture actors");
+  const actor = record(actors[actorName], `lifecycle actor ${actorName}`);
+  const username = requiredString(
+    actor,
+    "username",
+    `lifecycle actor ${actorName}`,
+  );
+  const baseUrl = BASE_URL;
+  if (!baseUrl) {
+    throw new Error(
+      "REEF_LIVE_AKB_URL is required for app-installation-lifecycle live tests",
+    );
+  }
+  const { token } = await login({ baseUrl, username, password: PASSWORD });
+  return createAkbAdapter({ baseUrl, credential: token });
+}
+
+function lifecycleFixture(
+  discovery: Record<string, unknown>,
+  fixtureName: string,
+): Record<string, unknown> {
+  const fixtures = record(discovery.fixtures, "lifecycle fixture catalog");
+  return record(fixtures[fixtureName], `lifecycle fixture ${fixtureName}`);
+}
+
+function lifecycleActorControl(
+  discovery: Record<string, unknown>,
+  controlName: string,
+): Record<string, unknown> {
+  const controls = record(discovery.controls, "lifecycle fixture controls");
+  return record(controls[controlName], `lifecycle control ${controlName}`);
+}
+
+async function applyLifecycleFixtureControl(
+  body: Record<string, unknown>,
+): Promise<void> {
+  const response = await fetch(`${fixtureOrigin()}/control`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  expect(response.status).toBe(200);
+  const result = record(
+    await response.json(),
+    "lifecycle fixture control result",
+  );
+  expect(result.status).toBe("accepted");
+}
+
 const SEED_ISSUE_ID = "REEF-001";
 const SEED_DOC_PATH = "issues/reef-001.md";
 
@@ -134,12 +227,345 @@ function expectSafeControlPlaneError(
     upstreamStatus: number;
     httpStatus: number;
     retryable: boolean;
+    upstreamCode?: string;
   },
 ): void {
   expect(thrown).toBeInstanceOf(ControlPlaneError);
   expect(thrown).toMatchObject(expected);
   expect(JSON.stringify(thrown)).not.toContain(PASSWORD);
 }
+
+describe("app-installation-lifecycle fixture selection", () => {
+  it.skipIf(LIVE_SCENARIO !== "app-installation-lifecycle")(
+    "requires the selected external fixture and discovers its exact contract",
+    async () => {
+      expect(BASE_URL?.length).toBeGreaterThan(0);
+      expect(FIXTURE_BASE_URL?.length).toBeGreaterThan(0);
+      const discovery = await lifecycleFixtureDiscovery();
+      const activeStatus = record(
+        discovery.member_installation_active,
+        "member installation active coordinate",
+      );
+      const activeFixture = lifecycleFixture(discovery, "status_active");
+      const appId = requiredString(activeFixture, "app_id", "active fixture");
+      const vaultId = requiredString(
+        activeFixture,
+        "vault_id",
+        "active fixture",
+      );
+      expect(activeStatus).toMatchObject({
+        service: "app",
+        method: "GET",
+        app_id: appId,
+        vault_id: vaultId,
+        path: `/api/v1/apps/${appId}/installations/${vaultId}/active`,
+      });
+      expect(record(discovery.actors, "lifecycle actors")).toHaveProperty(
+        "reader",
+      );
+      expect(record(discovery.actors, "lifecycle actors")).toHaveProperty(
+        "target_owner",
+      );
+      expect(record(discovery.commands, "lifecycle commands")).toHaveProperty(
+        "install",
+      );
+      expect(record(discovery.controls, "lifecycle controls")).toHaveProperty(
+        "member_installation_state",
+      );
+    },
+  );
+});
+
+describe.skipIf(!BASE_URL || LIVE_SCENARIO !== "app-installation-lifecycle")(
+  "app installation lifecycle live contract",
+  () => {
+    const baseUrl = BASE_URL as string;
+
+    it("member availability is exact, scoped, and fails closed", async () => {
+      await resetLifecycleFixture();
+      const discovery = await lifecycleFixtureDiscovery();
+      const activeFixture = lifecycleFixture(discovery, "status_active");
+      const appId = requiredString(activeFixture, "app_id", "active fixture");
+      const vaultId = requiredString(
+        activeFixture,
+        "vault_id",
+        "active fixture",
+      );
+      const readerAdapter = await lifecycleActorAdapter(discovery, "reader");
+      const systemAdminLogin = await login({
+        baseUrl,
+        username: USERNAME,
+        password: PASSWORD,
+      });
+      const systemAdminAdapter = createAkbAdapter({
+        baseUrl,
+        credential: systemAdminLogin.token,
+      });
+
+      try {
+        const memberStatus = lifecycleActorControl(
+          discovery,
+          "member_installation_state",
+        );
+        const memberStatusBody = record(
+          memberStatus.body,
+          "member status control body",
+        );
+        const states = memberStatus.states;
+        expect(Array.isArray(states)).toBe(true);
+        const expectedStates = [
+          "installing",
+          "active",
+          "upgrading",
+          "blocked",
+          "uninstalled",
+        ];
+        expect(states).toEqual(expectedStates);
+
+        for (const state of expectedStates) {
+          await applyLifecycleFixtureControl({
+            ...memberStatusBody,
+            kind: state,
+            enabled: true,
+          });
+          const active = await readMemberInstallationActive({
+            adapter: readerAdapter,
+            appId,
+            vaultId,
+          });
+          expect(active === (state === "active")).toBe(true);
+        }
+
+        const detailedReaderError = await readInstallation({
+          adapter: readerAdapter,
+          appId,
+          vaultId,
+        }).catch((error: unknown) => error);
+        expect(detailedReaderError).toBeInstanceOf(AuthError);
+        expect(detailedReaderError).toMatchObject({
+          context: { origin: "akb", status: 403 },
+        });
+
+        const adminMemberStatusError = await readMemberInstallationActive({
+          adapter: systemAdminAdapter,
+          appId,
+          vaultId,
+        }).catch((error: unknown) => error);
+        expect(adminMemberStatusError).toBeInstanceOf(AuthError);
+        expect(adminMemberStatusError).toMatchObject({
+          context: { origin: "akb", status: 403 },
+        });
+
+        await applyLifecycleFixtureControl({
+          ...memberStatusBody,
+          kind: "active",
+          enabled: true,
+        });
+        const faultControl = lifecycleActorControl(
+          discovery,
+          "fault_injection",
+        );
+        const faultBody = record(faultControl.body, "fault control body");
+        await applyLifecycleFixtureControl({ ...faultBody, enabled: true });
+        const unavailable = await readMemberInstallationActive({
+          adapter: readerAdapter,
+          appId,
+          vaultId,
+        }).catch((error: unknown) => error);
+        expectSafeControlPlaneError(unavailable, {
+          category: "unavailable",
+          upstreamStatus: 503,
+          httpStatus: 503,
+          retryable: true,
+          upstreamCode: "member_installation_status_unavailable",
+        });
+
+        const disableFault = record(
+          faultControl.disable_body,
+          "fault disable control body",
+        );
+        await applyLifecycleFixtureControl(disableFault);
+        const memberAccess = lifecycleActorControl(discovery, "member_access");
+        const memberAccessBody = record(
+          memberAccess.body,
+          "member access control body",
+        );
+        await applyLifecycleFixtureControl({
+          ...memberAccessBody,
+          enabled: false,
+        });
+        const deniedMembership = await readMemberInstallationActive({
+          adapter: readerAdapter,
+          appId,
+          vaultId,
+        }).catch((error: unknown) => error);
+        expect(deniedMembership).toBeInstanceOf(AuthError);
+        expect(deniedMembership).toMatchObject({
+          context: { origin: "akb", status: 403 },
+        });
+        expect(JSON.stringify(deniedMembership)).not.toContain(PASSWORD);
+      } finally {
+        await resetLifecycleFixture();
+      }
+    }, 60_000);
+
+    it("management commands use user sessions, replay safely, and preserve retained data", async () => {
+      await resetLifecycleFixture();
+      const discovery = await lifecycleFixtureDiscovery();
+      const ownerAdapter = await lifecycleActorAdapter(
+        discovery,
+        "target_owner",
+      );
+      const readerAdapter = await lifecycleActorAdapter(discovery, "reader");
+      const commands = record(discovery.commands, "lifecycle commands");
+      const install = record(commands.install, "install command");
+      const installArgs = {
+        appId: requiredString(install, "app_id", "install command"),
+        vaultId: requiredString(install, "vault_id", "install command"),
+        releaseId: requiredString(install, "release_id", "install command"),
+      };
+
+      try {
+        const readerDenied = await requestInstallation({
+          adapter: readerAdapter,
+          ...installArgs,
+          mode: "install",
+        }).catch((error: unknown) => error);
+        expect(readerDenied).toBeInstanceOf(AuthError);
+        expect(readerDenied).toMatchObject({
+          context: { origin: "akb", status: 403 },
+        });
+
+        const firstInstall = await requestInstallation({
+          adapter: ownerAdapter,
+          ...installArgs,
+          mode: "install",
+        });
+        const replayedInstall = await requestInstallation({
+          adapter: ownerAdapter,
+          ...installArgs,
+          mode: "install",
+        });
+        expect(firstInstall.commandStatus).toBe("accepted");
+        expect(replayedInstall.commandStatus).toBe("already_applied");
+        expect(replayedInstall.replayed).toBe(true);
+
+        const conflict = record(
+          commands.conflict_release,
+          "conflicting install command",
+        );
+        const conflictError = await requestInstallation({
+          adapter: ownerAdapter,
+          appId: requiredString(conflict, "app_id", "conflicting command"),
+          vaultId: requiredString(conflict, "vault_id", "conflicting command"),
+          releaseId: requiredString(
+            conflict,
+            "release_id",
+            "conflicting command",
+          ),
+          mode: "install",
+        }).catch((error: unknown) => error);
+        expect(conflictError).toBeInstanceOf(ConflictError);
+
+        const activeFixture = lifecycleFixture(discovery, "status_active");
+        const activeAppId = requiredString(
+          activeFixture,
+          "app_id",
+          "active fixture",
+        );
+        const activeVaultId = requiredString(
+          activeFixture,
+          "vault_id",
+          "active fixture",
+        );
+        const observedCalls: Array<{
+          path: string;
+          method: string;
+          body: unknown;
+        }> = [];
+        const observingAdapter: AkbAdapter = {
+          request: async (path, init) => {
+            observedCalls.push({
+              path,
+              method: init?.method ?? "GET",
+              body: init?.body,
+            });
+            return ownerAdapter.request(path, init);
+          },
+        };
+        const uninstalled = await uninstallInstallation({
+          adapter: observingAdapter,
+          appId: activeAppId,
+          vaultId: activeVaultId,
+        });
+        const uninstallCall = observedCalls.at(-1);
+        expect(
+          uninstalled.commandStatus === "accepted" &&
+            uninstallCall?.method === "DELETE" &&
+            uninstallCall.body === undefined,
+        ).toBe(true);
+        const uninstallReplay = await uninstallInstallation({
+          adapter: ownerAdapter,
+          appId: activeAppId,
+          vaultId: activeVaultId,
+        });
+        expect(uninstallReplay.commandStatus).toBe("already_applied");
+        expect(uninstallReplay.replayed).toBe(true);
+        await expect(
+          readMemberInstallationActive({
+            adapter: ownerAdapter,
+            appId: activeAppId,
+            vaultId: activeVaultId,
+          }),
+        ).resolves.toBe(false);
+
+        const restore = record(
+          commands.restore_compatible,
+          "compatible restore command",
+        );
+        const restored = await requestInstallation({
+          adapter: ownerAdapter,
+          appId: requiredString(restore, "app_id", "restore command"),
+          vaultId: requiredString(restore, "vault_id", "restore command"),
+          releaseId: requiredString(restore, "release_id", "restore command"),
+          mode: "restore",
+        });
+        expect(restored.commandStatus).toBe("accepted");
+
+        const freshRetained = lifecycleFixture(discovery, "fresh_retained");
+        const retainedConflict = await requestInstallation({
+          adapter: ownerAdapter,
+          appId: requiredString(freshRetained, "app_id", "retained fixture"),
+          vaultId: requiredString(
+            freshRetained,
+            "vault_id",
+            "retained fixture",
+          ),
+          releaseId: requiredString(
+            freshRetained,
+            "requested_release_id",
+            "retained fixture",
+          ),
+          mode: "fresh",
+        }).catch((error: unknown) => error);
+        expect(retainedConflict).toBeInstanceOf(ConflictError);
+
+        const freshEmpty = record(commands.fresh_empty, "fresh empty command");
+        const freshInstallation = await requestInstallation({
+          adapter: ownerAdapter,
+          appId: requiredString(freshEmpty, "app_id", "fresh command"),
+          vaultId: requiredString(freshEmpty, "vault_id", "fresh command"),
+          releaseId: requiredString(freshEmpty, "release_id", "fresh command"),
+          mode: "fresh",
+        });
+        expect(freshInstallation.commandStatus).toBe("accepted");
+        expect(freshInstallation.replayed).toBe(false);
+      } finally {
+        await resetLifecycleFixture();
+      }
+    }, 60_000);
+  },
+);
 
 /**
  * Ensure a login-able seed user exists. akb grants admin to the FIRST registered

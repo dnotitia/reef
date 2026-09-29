@@ -56,15 +56,17 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
   if (!VAULT_NAME_RE.test(vault)) notFound();
 
   const vaultsQuery = useVaults({ enabled: canRenderAuthenticatedTree });
-  // A usable reef workspace is one the user can access AND that already carries
-  // a reef config — the same `has_reef_config` bar the sidebar switcher and
-  // onboarding use. A bare AKB vault the user merely belongs to is a dead end
-  // (no issues/config surfaces), so treat it as not-a-workspace rather than
-  // rendering an uninitialized board and persisting it as the default.
+  // Render Reef only after AKB reports the canonical installation active and
+  // the server has completed preservation-safe initialization.
   const isMember =
     canRenderAuthenticatedTree &&
     vaultsQuery.isSuccess &&
-    vaultsQuery.data.some((v) => v.name === vault && v.has_reef_config);
+    vaultsQuery.data.some(
+      (v) => v.name === vault && v.installation_status === "ready",
+    );
+  const requestedVault = vaultsQuery.data?.find(
+    (entry) => entry.name === vault,
+  );
   // One-way URL→Dexie sync: remember this vault as the per-browser default
   // after auth and membership are confirmed. Passing "" while the
   // session or membership is unknown makes the sync a no-op.
@@ -93,6 +95,7 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
         appVersion={appVersion}
         vault={vault}
         vaults={vaultsQuery.data}
+        installationStatus={requestedVault?.installation_status}
       />
     );
   }

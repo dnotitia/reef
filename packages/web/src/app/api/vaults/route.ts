@@ -6,26 +6,25 @@ import {
 } from "@/lib/api/requestHelpers";
 import { logger } from "@/lib/logging/logger";
 import {
+  type AuthError,
+  type EnrichedVaultSummary,
   type Config,
   ConfigSchema,
+  AuthError as AkbAuthError,
   CreateVaultRequestSchema,
-  type EnrichedVaultSummary,
   EnrichedVaultSummarySchema,
   akbCreateVault as createVault,
-  akbInstallReefVaultSkill as installReefVaultSkill,
-  akbListVaults as listVaults,
   akbReadConfig as readConfig,
-  akbWriteConfig as writeConfig,
+  akbListVaults as listVaults,
+  isAkbAccountErrorCode,
 } from "@reef/core";
 import { z } from "zod";
+import { readWorkspaceInstallationState } from "@/server/adapters/workspaceInstallation";
 
 /**
  * GET /api/vaults → { vaults: EnrichedVaultSummary[] }
  *
- * Lists the akb vaults the current user can access; backs Settings and the
- * existing-workspace path in onboarding. Each entry is enriched with
- * `has_reef_config` by fanning out `readConfig` per vault, so callers can
- * distinguish reef-ready workspaces from raw akb vaults.
+ * Lists accessible AKB vaults with their canonical Reef installation state.
  */
 
 const VaultsResponseSchema = z.object({
@@ -33,9 +32,17 @@ const VaultsResponseSchema = z.object({
 });
 
 const CreateVaultResponseSchema = z.object({
+  vault_id: z.string().min(1),
   name: z.string().min(1),
   config: ConfigSchema,
 });
+
+function isSessionOrAccountDenial(error: unknown): error is AuthError {
+  return (
+    error instanceof AkbAuthError &&
+    (error.context.status === 401 || isAkbAccountErrorCode(error.context.code))
+  );
+}
 
 export async function GET(request: Request): Promise<Response> {
   const adapterResult = getAkbAdapter(request);
@@ -45,28 +52,29 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const { vaults } = await listVaults({ adapter });
 
-    const configChecks = await Promise.allSettled(
-      vaults.map((v) => readConfig({ adapter, vault: v.name })),
+    const installationChecks = await Promise.allSettled(
+      vaults.map((vault) => readWorkspaceInstallationState({ adapter, vault })),
     );
 
-    const enriched: EnrichedVaultSummary[] = vaults.map((v, idx) => {
-      const check = configChecks[idx];
+    const enriched: EnrichedVaultSummary[] = vaults.map((vault, idx) => {
+      const check = installationChecks[idx];
       if (check.status === "fulfilled") {
-        return { ...v, has_reef_config: check.value.exists };
+        return {
+          ...vault,
+          installation_status: check.value.installation_status,
+        };
       }
-      // One failing vault should not blow up the whole list — fall back to
-      // `false` (treated as "not configured for reef") and log for
-      // observability. NotFoundError is already mapped to {exists: false}
-      // inside readConfig, so reaching here means a real failure (auth,
-      // network, schema).
+      if (isSessionOrAccountDenial(check.reason)) throw check.reason;
       logger.error(
-        { err: check.reason, vault: v.name },
-        "readConfig failed during /api/vaults fan-out",
+        { err: check.reason, vault: vault.name },
+        "installation status read failed during /api/vaults fan-out",
       );
-      return { ...v, has_reef_config: false };
+      return { ...vault, installation_status: "unknown" };
     });
 
-    return Response.json(VaultsResponseSchema.parse({ vaults: enriched }));
+    return Response.json(VaultsResponseSchema.parse({ vaults: enriched }), {
+      headers: { "Cache-Control": "no-store" },
+    });
   } catch (err) {
     logger.error({ err }, "list_vaults failed");
     return respondWithError(err, { resourceKind: "workspace" });
@@ -103,37 +111,26 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const { vaults } = await listVaults({ adapter });
-    const existing = vaults.find((v) => v.name === name);
+    const existing = vaults.find((vault) => vault.name === name);
+    let vaultId: string;
 
     if (existing) {
       const current = await readConfig({ adapter, vault: name });
-      if (current.exists) {
+      if (current.exists || !existing.id) {
         return Response.json(
-          { error: "A workspace with that name is already configured." },
+          { error: "A workspace with that name already exists." },
           { status: 409 },
         );
       }
+      vaultId = existing.id;
     } else {
-      await createVault({ adapter, name, description });
+      const created = await createVault({ adapter, name, description });
+      vaultId = created.vault_id;
     }
 
-    await installReefVaultSkill({
-      adapter,
-      vault: name,
-      preserveExisting: true,
-    });
-
-    // writeConfig provisions the reef tables lazily (idempotent), so the
-    // brownfield/greenfield branches and the Settings PATCH path all reach a
-    // ready vault through one code path.
-    await writeConfig({
-      adapter,
-      vault: name,
-      config,
-      message: "Initialize reef workspace config",
-    });
-
-    return Response.json(CreateVaultResponseSchema.parse({ name, config }));
+    return Response.json(
+      CreateVaultResponseSchema.parse({ vault_id: vaultId, name, config }),
+    );
   } catch (err) {
     logger.error({ err, vault: name }, "create_vault failed");
     return respondWithError(err, { resourceKind: "workspace" });

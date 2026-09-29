@@ -9,7 +9,7 @@ const access = vi.hoisted(() => ({
   },
 }));
 const deleteMutate = vi.hoisted(() => vi.fn());
-const detachMutate = vi.hoisted(() => vi.fn());
+const uninstallMutate = vi.hoisted(() => vi.fn());
 
 vi.mock("@/features/settings/hooks/useWorkspaceAccess", () => ({
   useWorkspaceAccess: () => access.current,
@@ -18,7 +18,7 @@ vi.mock("@/features/settings/hooks/useWorkspaceAccess", () => ({
 vi.mock("@/features/settings/hooks/useWorkspaceTeardown", () => ({
   useWorkspaceTeardown: () => ({
     deleteWorkspace: { mutate: deleteMutate, isPending: false },
-    detachReef: { mutate: detachMutate, isPending: false },
+    uninstallReef: { mutate: uninstallMutate, isPending: false },
   }),
 }));
 
@@ -35,21 +35,22 @@ function renderSection() {
 beforeEach(() => {
   access.current = { role: "owner", isResolving: false };
   deleteMutate.mockClear();
-  detachMutate.mockClear();
+  uninstallMutate.mockClear();
 });
 
 describe("DangerZoneSection", () => {
-  it("shows both destructive actions for the owner", () => {
+  it("shows uninstall and full deletion for the owner", () => {
     renderSection();
     expect(screen.getByTestId("danger-zone-section")).toBeInTheDocument();
-    expect(screen.getByTestId("danger-zone-detach")).toBeInTheDocument();
+    expect(screen.getByTestId("danger-zone-uninstall")).toBeInTheDocument();
     expect(screen.getByTestId("danger-zone-delete")).toBeInTheDocument();
   });
 
-  it("renders nothing for a non-owner (admin)", () => {
+  it("lets an admin uninstall but not delete the whole vault", () => {
     access.current = { role: "admin", isResolving: false };
     renderSection();
-    expect(screen.queryByTestId("danger-zone-section")).not.toBeInTheDocument();
+    expect(screen.getByTestId("danger-zone-uninstall")).toBeInTheDocument();
+    expect(screen.queryByTestId("danger-zone-delete")).not.toBeInTheDocument();
   });
 
   it("renders nothing while the role is still resolving", () => {
@@ -58,14 +59,15 @@ describe("DangerZoneSection", () => {
     expect(screen.queryByTestId("danger-zone-section")).not.toBeInTheDocument();
   });
 
-  it("detach opens a one-step confirm with no typing gate", () => {
+  it("uninstall opens a one-step confirmation and retains workspace data", () => {
     renderSection();
-    fireEvent.click(screen.getByTestId("danger-zone-detach"));
+    fireEvent.click(screen.getByTestId("danger-zone-uninstall"));
 
     expect(screen.getByTestId("workspace-destructive-dialog")).toHaveAttribute(
       "data-mode",
-      "detach",
+      "uninstall",
     );
+    expect(screen.getByText(/AKB keeps its tables/i)).toBeInTheDocument();
     expect(
       screen.queryByTestId("workspace-delete-confirm-input"),
     ).not.toBeInTheDocument();
@@ -73,7 +75,7 @@ describe("DangerZoneSection", () => {
     const confirm = screen.getByTestId("workspace-destructive-confirm");
     expect(confirm).not.toBeDisabled();
     fireEvent.click(confirm);
-    expect(detachMutate).toHaveBeenCalledTimes(1);
+    expect(uninstallMutate).toHaveBeenCalledTimes(1);
     expect(deleteMutate).not.toHaveBeenCalled();
   });
 
@@ -96,6 +98,6 @@ describe("DangerZoneSection", () => {
     expect(confirm).not.toBeDisabled();
     fireEvent.click(confirm);
     expect(deleteMutate).toHaveBeenCalledTimes(1);
-    expect(detachMutate).not.toHaveBeenCalled();
+    expect(uninstallMutate).not.toHaveBeenCalled();
   });
 });

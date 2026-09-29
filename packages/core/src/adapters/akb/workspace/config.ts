@@ -23,7 +23,6 @@ import {
   REEF_SETTINGS_STALE_HIDE_COMPLETED_DAYS_KEY,
   REEF_SETTINGS_TABLE,
   decodeSettingsValue,
-  ensureReefTables,
   isMissingTableError,
   SqlParameterBuilder,
   runSql,
@@ -43,9 +42,9 @@ import type {
 // `project_prefix` row holds the prefix; `monitored_repos` is a typed table
 // of GitHub repos addressed by `github_id`.
 //
-// The akb tables themselves are created lazily by `ensureReefTables` from the
-// `POST /api/vaults` route. `writeConfig` assumes they already exist and will
-// fail loudly if they don't — auto-healing on write would mask corruption.
+// AKB's canonical app installation owns these tables. `writeConfig` assumes
+// they already exist and fails if they don't; Reef data initialization only
+// adds missing default rows after AKB reports the installation active.
 //
 // Concurrency: writes are replace-all (DELETE + INSERT), non-transactional
 // across statements. The brief window with empty rows is observable to a
@@ -209,12 +208,6 @@ export async function readConfig(
 /**
  * Replace-all write of the workspace config.
  *
- * Calls `ensureReefTables` lazily so both entry points — `POST /api/vaults`
- * (greenfield + brownfield onboarding) and `PATCH /api/config` (Settings
- * editing a does not-configured workspace) — provision the tables uniformly.
- * `ensureReefTables` is idempotent (listTables first), so the redundant call
- * during onboarding costs one extra round-trip but does not duplicates work.
- *
  * Single-row `reef_settings` upsert is implemented as DELETE+INSERT for
  * symmetry with the `monitored_repos` replace; both are non-transactional,
  * see file-header note.
@@ -224,8 +217,6 @@ export async function writeConfig(params: WriteConfigParams): Promise<void> {
   return withSpan("akb.write_config", { vault }, async (span) => {
     span.setAttribute("write_strategy", "replace_all");
     span.setAttribute("monitored_repo_count", config.monitored_repos.length);
-
-    await ensureReefTables({ adapter, vault });
 
     // (1) Replace the project_prefix row in reef_settings.
     await runConfigSql(
@@ -360,6 +351,50 @@ export async function writeConfig(params: WriteConfigParams): Promise<void> {
         )} (github_id, owner, name, description) VALUES ${valuesClause}`;
       });
     }
+  });
+}
+
+/**
+ * Add initial settings without replacing any values already in the vault.
+ * The app installation owns table creation; this routine writes only after
+ * that installation is active and never provisions or alters schema.
+ */
+export async function initializeConfigIfMissing(
+  params: WriteConfigParams,
+): Promise<void> {
+  const { adapter, vault, config } = params;
+  return withSpan("akb.initialize_config", { vault }, async (span) => {
+    const settings = [
+      [REEF_SETTINGS_PROJECT_PREFIX_KEY, config.project_prefix],
+      ...(config.authoring_language
+        ? [[REEF_SETTINGS_AUTHORING_LANGUAGE_KEY, config.authoring_language]]
+        : []),
+    ] as const;
+
+    for (const [key, value] of settings) {
+      await runConfigSql(adapter, vault, (sqlParams) => {
+        const keyParam = sqlParams.add(key, "settings key");
+        const valueParam = sqlParams.addJson(value, "initial setting");
+        return `INSERT INTO ${tableRef(REEF_SETTINGS_TABLE)} (key, value) SELECT ${keyParam}, ${valueParam} WHERE NOT EXISTS (SELECT 1 FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key = ${keyParam}) ON CONFLICT DO NOTHING`;
+      });
+    }
+
+    for (const repo of config.monitored_repos) {
+      await runConfigSql(adapter, vault, (sqlParams) => {
+        const githubId = sqlParams.add(
+          repo.github_id,
+          "monitored_repo github_id",
+        );
+        const owner = sqlParams.add(repo.owner, "monitored_repo owner");
+        const name = sqlParams.add(repo.name, "monitored_repo name");
+        const description = sqlParams.add(
+          repo.description ?? null,
+          "monitored_repo description",
+        );
+        return `INSERT INTO ${tableRef(MONITORED_REPOS_TABLE)} (github_id, owner, name, description) SELECT ${githubId}, ${owner}, ${name}, ${description} WHERE NOT EXISTS (SELECT 1 FROM ${tableRef(MONITORED_REPOS_TABLE)} WHERE github_id = ${githubId}) ON CONFLICT DO NOTHING`;
+      });
+    }
+    span.setAttribute("monitored_repo_count", config.monitored_repos.length);
   });
 }
 

@@ -34,6 +34,7 @@ vi.mock("@/features/settings/hooks/useGithubAppAvailable", () => ({
 import { apiFetch } from "@/lib/apiClient";
 import { getActiveVault, setActiveVault } from "@/lib/storage/config";
 import { db } from "@/lib/storage/db";
+import { DEFAULT_CONFIG } from "@reef/core";
 import { OnboardingPanel } from "./OnboardingPanel";
 
 const mockApiFetch = vi.mocked(apiFetch);
@@ -46,7 +47,10 @@ function wrap(ui: ReactNode) {
 }
 
 function vaultsResponse(
-  entries: ReadonlyArray<{ name: string; has_reef_config: boolean }>,
+  entries: ReadonlyArray<{
+    name: string;
+    installation_status: "ready" | "not_installed";
+  }>,
 ) {
   return new Response(
     JSON.stringify({
@@ -56,7 +60,7 @@ function vaultsResponse(
         status: "active",
         role: "owner",
         created_at: null,
-        has_reef_config: e.has_reef_config,
+        installation_status: e.installation_status,
       })),
     }),
     { status: 200 },
@@ -64,10 +68,13 @@ function vaultsResponse(
 }
 
 interface MockApiOptions {
-  vaults?: ReadonlyArray<{ name: string; has_reef_config: boolean }>;
+  vaults?: ReadonlyArray<{
+    name: string;
+    installation_status: "ready" | "not_installed";
+  }>;
   repos?: ReadonlyArray<{ full_name: string; id: number }>;
   postStatus?: number;
-  postBody?: unknown;
+  postBody?: Record<string, unknown>;
 }
 
 function setupMockApi({
@@ -76,15 +83,37 @@ function setupMockApi({
   postStatus = 200,
   postBody = {
     name: "reef-new",
-    config: { project_prefix: "REEF", monitored_repos: [] },
+    config: DEFAULT_CONFIG,
   },
 }: MockApiOptions = {}) {
   mockApiFetch.mockImplementation(async (url, init) => {
     const u = String(url);
-    if (u.startsWith("/api/vaults") && init?.method === "POST") {
-      return new Response(JSON.stringify(postBody), { status: postStatus });
+    if (u === "/api/vaults" && init?.method === "POST") {
+      return new Response(
+        JSON.stringify({
+          vault_id: "33333333-3333-4333-8333-333333333333",
+          ...postBody,
+        }),
+        { status: postStatus },
+      );
     }
-    if (u.startsWith("/api/vaults")) return vaultsResponse(vaults);
+    if (u.endsWith("/installation") && init?.method === "POST") {
+      return new Response(
+        JSON.stringify({
+          installation_status: "ready",
+          command_status: "accepted",
+          replayed: false,
+        }),
+        { status: 200 },
+      );
+    }
+    if (u === "/api/config" && init?.method === "PATCH") {
+      const body = JSON.parse(String(init.body)) as { patch: unknown };
+      return new Response(JSON.stringify({ config: body.patch }), {
+        status: 200,
+      });
+    }
+    if (u === "/api/vaults") return vaultsResponse(vaults);
     if (u.startsWith("/api/repos")) {
       return new Response(JSON.stringify({ repos }), { status: 200 });
     }
@@ -140,6 +169,9 @@ describe("OnboardingPanel", () => {
       "reef-new",
     );
     await user.click(screen.getByTestId("greenfield-create-btn"));
+    expect(await screen.findByTestId("greenfield-approval-step")).toBeVisible();
+    expect(mockPush).not.toHaveBeenCalled();
+    await user.click(screen.getByTestId("installation-reef-new-approve"));
 
     await waitFor(() =>
       expect(mockPush).toHaveBeenCalledWith("/workspace/reef-new/issues"),
@@ -165,6 +197,7 @@ describe("OnboardingPanel", () => {
       postBody: {
         name: "reef-new",
         config: {
+          ...DEFAULT_CONFIG,
           project_prefix: "REEF",
           monitored_repos: [{ github_id: 111, owner: "octo", name: "cat" }],
         },
@@ -185,6 +218,8 @@ describe("OnboardingPanel", () => {
       "reef-new",
     );
     await user.click(screen.getByTestId("greenfield-create-btn"));
+    expect(await screen.findByTestId("greenfield-approval-step")).toBeVisible();
+    await user.click(screen.getByTestId("installation-reef-new-approve"));
 
     await waitFor(() =>
       expect(mockPush).toHaveBeenCalledWith("/workspace/reef-new/issues"),
@@ -199,9 +234,9 @@ describe("OnboardingPanel", () => {
     await setActiveVault("reef-zeta");
     setupMockApi({
       vaults: [
-        { name: "reef-alpha", has_reef_config: true },
-        { name: "reef-zeta", has_reef_config: true },
-        { name: "raw-vault", has_reef_config: false },
+        { name: "reef-alpha", installation_status: "ready" },
+        { name: "reef-zeta", installation_status: "ready" },
+        { name: "raw-vault", installation_status: "not_installed" },
       ],
     });
 
@@ -218,8 +253,8 @@ describe("OnboardingPanel", () => {
     await setActiveVault("missing");
     setupMockApi({
       vaults: [
-        { name: "reef-zeta", has_reef_config: true },
-        { name: "reef-alpha", has_reef_config: true },
+        { name: "reef-zeta", installation_status: "ready" },
+        { name: "reef-alpha", installation_status: "ready" },
       ],
     });
 
@@ -233,7 +268,7 @@ describe("OnboardingPanel", () => {
 
   it("persists and navigates once under Strict Effects", async () => {
     setupMockApi({
-      vaults: [{ name: "reef-acme", has_reef_config: true }],
+      vaults: [{ name: "reef-acme", installation_status: "ready" }],
     });
 
     render(
@@ -253,7 +288,7 @@ describe("OnboardingPanel", () => {
 
   it("shows onboarding only after a successful raw-only response", async () => {
     setupMockApi({
-      vaults: [{ name: "raw-vault", has_reef_config: false }],
+      vaults: [{ name: "raw-vault", installation_status: "not_installed" }],
     });
 
     render(wrap(<OnboardingPanel />));
@@ -281,7 +316,7 @@ describe("OnboardingPanel", () => {
     expect(screen.getByRole("status")).toBeVisible();
 
     resolveVaults(
-      vaultsResponse([{ name: "reef-acme", has_reef_config: true }]),
+      vaultsResponse([{ name: "reef-acme", installation_status: "ready" }]),
     );
     await waitFor(() =>
       expect(mockReplace).toHaveBeenCalledWith("/workspace/reef-acme/issues"),
@@ -295,7 +330,9 @@ describe("OnboardingPanel", () => {
         attempts += 1;
         return attempts === 1
           ? new Response("failed", { status: 500 })
-          : vaultsResponse([{ name: "reef-acme", has_reef_config: true }]);
+          : vaultsResponse([
+              { name: "reef-acme", installation_status: "ready" },
+            ]);
       }
       return new Response("{}", { status: 200 });
     });

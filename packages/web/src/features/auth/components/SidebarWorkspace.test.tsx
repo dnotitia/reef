@@ -68,7 +68,10 @@ function wrap(ui: ReactNode, locale: Locale = "en") {
 }
 
 function vaultsResponse(
-  entries: ReadonlyArray<{ name: string; has_reef_config: boolean }>,
+  entries: ReadonlyArray<{
+    name: string;
+    installation_status: "ready" | "not_installed";
+  }>,
 ) {
   return new Response(
     JSON.stringify({
@@ -78,7 +81,7 @@ function vaultsResponse(
         status: "active",
         role: "owner",
         created_at: null,
-        has_reef_config: e.has_reef_config,
+        installation_status: e.installation_status,
       })),
     }),
     { status: 200 },
@@ -86,7 +89,10 @@ function vaultsResponse(
 }
 
 function setupVaults(
-  entries: ReadonlyArray<{ name: string; has_reef_config: boolean }>,
+  entries: ReadonlyArray<{
+    name: string;
+    installation_status: "ready" | "not_installed";
+  }>,
 ) {
   mockApiFetch.mockImplementation(async (url) => {
     const u = String(url);
@@ -112,7 +118,7 @@ describe("SidebarWorkspace", () => {
 
   it("shows the active vault name and monogram when expanded, with no brand rail (REEF-168)", async () => {
     await setActiveVault("reef-acme");
-    setupVaults([{ name: "reef-acme", has_reef_config: true }]);
+    setupVaults([{ name: "reef-acme", installation_status: "ready" }]);
 
     render(wrap(<SidebarWorkspace collapsed={false} />));
 
@@ -129,7 +135,7 @@ describe("SidebarWorkspace", () => {
 
   it("wraps the loading skeleton in the flex-1 text column so the chevron stays trailing (REEF-168)", async () => {
     activeVaultMock.loading = true;
-    setupVaults([{ name: "reef-acme", has_reef_config: true }]);
+    setupVaults([{ name: "reef-acme", installation_status: "ready" }]);
 
     render(wrap(<SidebarWorkspace collapsed={false} />));
 
@@ -147,7 +153,7 @@ describe("SidebarWorkspace", () => {
 
   it("shows only the monogram with a title when collapsed (AC1)", async () => {
     await setActiveVault("reef-acme");
-    setupVaults([{ name: "reef-acme", has_reef_config: true }]);
+    setupVaults([{ name: "reef-acme", installation_status: "ready" }]);
 
     render(wrap(<SidebarWorkspace collapsed={true} />));
 
@@ -161,9 +167,9 @@ describe("SidebarWorkspace", () => {
   it("opens an upward popover listing only reef-config vaults, marking the current one (AC2)", async () => {
     await setActiveVault("reef-acme");
     setupVaults([
-      { name: "reef-acme", has_reef_config: true },
-      { name: "reef-beta", has_reef_config: true },
-      { name: "raw-vault", has_reef_config: false },
+      { name: "reef-acme", installation_status: "ready" },
+      { name: "reef-beta", installation_status: "ready" },
+      { name: "raw-vault", installation_status: "not_installed" },
     ]);
     const user = userEvent.setup();
 
@@ -190,8 +196,8 @@ describe("SidebarWorkspace", () => {
   it("switches the active vault when another workspace is picked (AC2)", async () => {
     await setActiveVault("reef-acme");
     setupVaults([
-      { name: "reef-acme", has_reef_config: true },
-      { name: "reef-beta", has_reef_config: true },
+      { name: "reef-acme", installation_status: "ready" },
+      { name: "reef-beta", installation_status: "ready" },
     ]);
     const user = userEvent.setup();
 
@@ -209,8 +215,8 @@ describe("SidebarWorkspace", () => {
     navState.pathname = "/issues";
     await setActiveVault("reef-acme");
     setupVaults([
-      { name: "reef-acme", has_reef_config: true },
-      { name: "reef-beta", has_reef_config: true },
+      { name: "reef-acme", installation_status: "ready" },
+      { name: "reef-beta", installation_status: "ready" },
     ]);
     const user = userEvent.setup();
 
@@ -229,7 +235,7 @@ describe("SidebarWorkspace", () => {
   it("does not navigate when re-picking the already-active workspace", async () => {
     navState.pathname = "/issues";
     await setActiveVault("reef-acme");
-    setupVaults([{ name: "reef-acme", has_reef_config: true }]);
+    setupVaults([{ name: "reef-acme", installation_status: "ready" }]);
     const user = userEvent.setup();
 
     render(wrap(<SidebarWorkspace collapsed={false} />));
@@ -245,8 +251,8 @@ describe("SidebarWorkspace", () => {
   it("filters the workspace list by the search input (AC2)", async () => {
     await setActiveVault("reef-acme");
     setupVaults([
-      { name: "reef-acme", has_reef_config: true },
-      { name: "reef-beta", has_reef_config: true },
+      { name: "reef-acme", installation_status: "ready" },
+      { name: "reef-beta", installation_status: "ready" },
     ]);
     const user = userEvent.setup();
 
@@ -269,9 +275,9 @@ describe("SidebarWorkspace", () => {
   it("moves a workspace between groups without closing or resetting the search", async () => {
     await setActiveVault("reef-acme");
     setupVaults([
-      { name: "reef-acme", has_reef_config: true },
-      { name: "reef-beta", has_reef_config: true },
-      { name: "raw-vault", has_reef_config: false },
+      { name: "reef-acme", installation_status: "ready" },
+      { name: "reef-beta", installation_status: "ready" },
+      { name: "raw-vault", installation_status: "not_installed" },
     ]);
     const user = userEvent.setup();
 
@@ -330,11 +336,11 @@ describe("SidebarWorkspace", () => {
   it("sorts each group deterministically and drops invalid or duplicate candidates", async () => {
     await setActiveVault("reef-alpha");
     setupVaults([
-      { name: "reef-zeta", has_reef_config: true },
-      { name: "reef-alpha", has_reef_config: true },
-      { name: "reef-alpha", has_reef_config: true },
-      { name: "Bad Vault", has_reef_config: true },
-      { name: "raw-vault", has_reef_config: false },
+      { name: "reef-zeta", installation_status: "ready" },
+      { name: "reef-alpha", installation_status: "ready" },
+      { name: "reef-alpha", installation_status: "ready" },
+      { name: "Bad Vault", installation_status: "ready" },
+      { name: "raw-vault", installation_status: "not_installed" },
     ]);
     const user = userEvent.setup();
 
@@ -367,8 +373,8 @@ describe("SidebarWorkspace", () => {
       .spyOn(db.config, "put")
       .mockRejectedValueOnce(new Error("storage unavailable"));
     setupVaults([
-      { name: "reef-acme", has_reef_config: true },
-      { name: "reef-beta", has_reef_config: true },
+      { name: "reef-acme", installation_status: "ready" },
+      { name: "reef-beta", installation_status: "ready" },
     ]);
     const user = userEvent.setup();
 
@@ -395,8 +401,8 @@ describe("SidebarWorkspace", () => {
     await setActiveVault("reef-acme");
     await setWorkspaceFavorites(["reef-acme"]);
     setupVaults([
-      { name: "reef-acme", has_reef_config: true },
-      { name: "reef-beta", has_reef_config: true },
+      { name: "reef-acme", installation_status: "ready" },
+      { name: "reef-beta", installation_status: "ready" },
     ]);
     const user = userEvent.setup();
 
@@ -421,8 +427,8 @@ describe("SidebarWorkspace", () => {
     await setActiveVault("reef-acme");
     await setWorkspaceFavorites(["reef-beta"]);
     setupVaults([
-      { name: "reef-acme", has_reef_config: true },
-      { name: "reef-beta", has_reef_config: true },
+      { name: "reef-acme", installation_status: "ready" },
+      { name: "reef-beta", installation_status: "ready" },
     ]);
     const user = userEvent.setup();
 
@@ -439,7 +445,7 @@ describe("SidebarWorkspace", () => {
 
   it("draws the switcher search input's ring on pointer and keyboard focus", async () => {
     await setActiveVault("reef-acme");
-    setupVaults([{ name: "reef-acme", has_reef_config: true }]);
+    setupVaults([{ name: "reef-acme", installation_status: "ready" }]);
     const user = userEvent.setup();
 
     render(wrap(<SidebarWorkspace collapsed={false} />));
@@ -452,7 +458,7 @@ describe("SidebarWorkspace", () => {
 
   it("gives the trigger a focus-visible ring for keyboard users (REEF-172)", async () => {
     await setActiveVault("reef-acme");
-    setupVaults([{ name: "reef-acme", has_reef_config: true }]);
+    setupVaults([{ name: "reef-acme", installation_status: "ready" }]);
 
     render(wrap(<SidebarWorkspace collapsed={false} />));
 
@@ -466,7 +472,7 @@ describe("SidebarWorkspace", () => {
 
   it("opts the search input out of autocomplete/spellcheck and uses an ellipsis placeholder (REEF-172)", async () => {
     await setActiveVault("reef-acme");
-    setupVaults([{ name: "reef-acme", has_reef_config: true }]);
+    setupVaults([{ name: "reef-acme", installation_status: "ready" }]);
     const user = userEvent.setup();
 
     render(wrap(<SidebarWorkspace collapsed={false} />));
@@ -481,7 +487,7 @@ describe("SidebarWorkspace", () => {
   });
 
   it("always offers New workspace — even with zero reef vaults — and opens the create dialog (AC3)", async () => {
-    setupVaults([{ name: "raw-vault", has_reef_config: false }]);
+    setupVaults([{ name: "raw-vault", installation_status: "not_installed" }]);
     const user = userEvent.setup();
 
     render(wrap(<SidebarWorkspace collapsed={false} />));
@@ -521,7 +527,7 @@ describe("SidebarWorkspace", () => {
 
   it("renders a New workspace entry alongside the populated list (AC3)", async () => {
     await setActiveVault("reef-acme");
-    setupVaults([{ name: "reef-acme", has_reef_config: true }]);
+    setupVaults([{ name: "reef-acme", installation_status: "ready" }]);
     const user = userEvent.setup();
 
     render(wrap(<SidebarWorkspace collapsed={false} />));
@@ -535,7 +541,7 @@ describe("SidebarWorkspace", () => {
 
   it("sizes the switcher panel to the account-menu width so the footer menus align (REEF-171)", async () => {
     await setActiveVault("reef-acme");
-    setupVaults([{ name: "reef-acme", has_reef_config: true }]);
+    setupVaults([{ name: "reef-acme", installation_status: "ready" }]);
     const user = userEvent.setup();
 
     render(wrap(<SidebarWorkspace collapsed={false} />));

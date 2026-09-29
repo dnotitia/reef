@@ -13,6 +13,37 @@ export const ControlPlaneInstallationLifecycleEnum = z.enum([
   "uninstalled",
 ]);
 
+/** Canonical workspace lifecycle surfaced after Reef's initialization succeeds. */
+export const WorkspaceInstallationStatusEnum = z.enum([
+  "ready",
+  "installing",
+  "upgrading",
+  "blocked",
+  "uninstalled",
+  "not_installed",
+  "adoption_required",
+  "management_required",
+  "target_unavailable",
+  "unknown",
+]);
+
+/** AKB's command acknowledgement is distinct from the installation lifecycle. */
+export const ControlPlaneCommandStatusEnum = z.enum([
+  "accepted",
+  "already_applied",
+]);
+
+/** Minimal member-scoped availability response; deliberately not a lifecycle projection. */
+export const ControlPlaneInstallationAvailabilitySchema = z.strictObject({
+  active: z.boolean(),
+});
+
+export const ControlPlaneInstallationCommandResultSchema = z.object({
+  installation: z.lazy(() => ControlPlaneInstallationSchema),
+  commandStatus: ControlPlaneCommandStatusEnum,
+  replayed: z.boolean(),
+});
+
 export const ControlPlaneReleaseReferenceSchema = z.object({
   id: ControlPlaneIdSchema.nullable().optional(),
   version: z.string().min(1).nullable().optional(),
@@ -119,6 +150,17 @@ export const ReleaseRegistrationResultSchema = z.object({
   releaseReplayed: z.boolean(),
 });
 
+/** Runtime identity copied from the validated ReleaseRegistrationResult handoff. */
+export const ReefRuntimeReleaseIdentitySchema = z.strictObject({
+  appId: ReleaseRegistrationResultSchema.shape.appId,
+  releaseId: ReleaseRegistrationResultSchema.shape.releaseId,
+  appKey: ReleaseRegistrationResultSchema.shape.appKey,
+  version: ReleaseRegistrationResultSchema.shape.version,
+  sourceRevision: ReleaseRegistrationResultSchema.shape.sourceRevision,
+  manifestChecksum: ReleaseRegistrationResultSchema.shape.manifestChecksum,
+  imageDigest: ReleaseRegistrationResultSchema.shape.imageDigest,
+});
+
 export const ControlPlaneRolloutStepSchema = z.object({
   stepId: z.string().min(1),
   operation: z.string().min(1),
@@ -188,6 +230,18 @@ export type ControlPlaneDrift = z.infer<typeof ControlPlaneDriftSchema>;
 export type ControlPlaneInstallation = z.infer<
   typeof ControlPlaneInstallationSchema
 >;
+export type WorkspaceInstallationStatus = z.infer<
+  typeof WorkspaceInstallationStatusEnum
+>;
+export type ControlPlaneCommandStatus = z.infer<
+  typeof ControlPlaneCommandStatusEnum
+>;
+export type ControlPlaneInstallationAvailability = z.infer<
+  typeof ControlPlaneInstallationAvailabilitySchema
+>;
+export type ControlPlaneInstallationCommandResult = z.infer<
+  typeof ControlPlaneInstallationCommandResultSchema
+>;
 export type ControlPlaneAppDefinition = z.infer<
   typeof ControlPlaneAppDefinitionSchema
 >;
@@ -196,6 +250,9 @@ export type ControlPlaneAppRelease = z.infer<
 >;
 export type ReleaseRegistrationResult = z.infer<
   typeof ReleaseRegistrationResultSchema
+>;
+export type ReefRuntimeReleaseIdentity = z.infer<
+  typeof ReefRuntimeReleaseIdentitySchema
 >;
 export type ControlPlaneRolloutStep = z.infer<
   typeof ControlPlaneRolloutStepSchema

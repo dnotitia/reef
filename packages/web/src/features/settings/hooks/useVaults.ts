@@ -15,10 +15,8 @@ const VaultsResponseSchema = z.object({
 });
 
 /**
- * Lists the akb vaults the signed-in user can access. Each entry carries
- * `has_reef_config` so callers can offer just vaults that already have a reef
- * config: both onboarding and the Settings active-workspace picker filter on it
- * (REEF-143).
+ * Lists accessible AKB vaults with the canonical installation state read by
+ * the server. Readiness never comes from Reef config-table presence.
  */
 export function useVaults({ enabled = true }: { enabled?: boolean } = {}) {
   const hydrated = useHydrated();

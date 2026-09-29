@@ -6,6 +6,10 @@ import {
   REEF_VAULT,
 } from "./mock-fixtures.mjs";
 import {
+  E2E_REEF_APP_ID,
+  E2E_REEF_RELEASE_VERSION,
+} from "./mock-installation.mjs";
+import {
   headerQuoted,
   json,
   readJson,
@@ -29,6 +33,38 @@ import {
   waitForIssueUpdateRelease,
 } from "./mock-state.mjs";
 import { docUri, makeJwt, slugify, uuidFor } from "./mock-utils.mjs";
+
+const REEF_INSTALLATION_TABLES = [
+  "reef_settings",
+  "monitored_repos",
+  "reef_issues",
+  "reef_sprints",
+  "reef_milestones",
+  "reef_releases",
+  "reef_templates",
+  "reef_comments",
+  "reef_attachments",
+  "reef_activity",
+  "reef_notifications",
+  "reef_subscriptions",
+];
+
+function installationWire(vault) {
+  const installation = vault.installation;
+  if (!installation) return null;
+  return {
+    installation_id: installation.id,
+    app_id: installation.appId,
+    vault_id: vault.id,
+    lifecycle: installation.lifecycle,
+    current_release: installation.currentReleaseId
+      ? {
+          id: installation.currentReleaseId,
+          version: installation.currentReleaseVersion,
+        }
+      : null,
+  };
+}
 
 export async function handleAkb(req, res, url, state) {
   const path = url.pathname.slice("/akb".length);
@@ -132,14 +168,123 @@ export async function handleAkb(req, res, url, state) {
     });
   }
 
+  const installationMatch = path.match(
+    /^\/api\/v1\/apps\/([^/]+)\/installations\/([^/]+)(\/active)?$/,
+  );
+  if (installationMatch) {
+    const appId = decodeURIComponent(installationMatch[1]);
+    const vaultId = decodeURIComponent(installationMatch[2]);
+    const vault = [...state.vaults.values()].find(
+      (candidate) => candidate.id === vaultId,
+    );
+
+    if (installationMatch[3] === "/active" && req.method === "GET") {
+      const memberRole = vault ? roleForVault(vault, state, username) : null;
+      if (
+        user?.is_admin ||
+        !["owner", "admin", "writer", "reader"].includes(memberRole)
+      ) {
+        return json(res, 403, { error: "vault membership required" });
+      }
+      const active =
+        appId === E2E_REEF_APP_ID &&
+        vault.installation?.appId === appId &&
+        vault.installation.lifecycle === "active";
+      return json(res, 200, { active });
+    }
+
+    if (!vault) return json(res, 404, { error: "vault not found" });
+
+    if (
+      appId !== E2E_REEF_APP_ID ||
+      (vault.installation && vault.installation.appId !== appId)
+    ) {
+      return json(res, 404, { error: "installation not found" });
+    }
+    if (
+      roleForVault(vault, state, username) !== "owner" &&
+      roleForVault(vault, state, username) !== "admin"
+    ) {
+      return json(res, 403, { error: "installation management required" });
+    }
+    if (installationMatch[3] || req.method === "GET") {
+      if (req.method !== "GET")
+        return json(res, 405, { error: "method not allowed" });
+      if (!vault.installation)
+        return json(res, 404, { error: "installation not found" });
+      return json(res, 200, installationWire(vault));
+    }
+    if (req.method === "PUT") {
+      const body = await readJson(req);
+      const mode = body?.mode;
+      const releaseId = String(body?.release_id ?? "");
+      if (
+        !["install", "restore", "fresh"].includes(mode) ||
+        !Array.isArray(body?.capabilities) ||
+        body.capabilities.length !== 1 ||
+        body.capabilities[0] !== "installation:read"
+      ) {
+        return json(res, 422, { error: "invalid installation command" });
+      }
+      if (mode === "restore") {
+        if (vault.installation?.lifecycle !== "uninstalled") {
+          return json(res, 409, { error: "installation cannot be restored" });
+        }
+        if (!vault.installation.currentReleaseId) {
+          return json(res, 409, { error: "retained release unavailable" });
+        }
+      }
+      const replayed =
+        (mode === "install" || mode === "fresh") &&
+        vault.installation?.lifecycle === "active" &&
+        vault.installation.currentReleaseId === releaseId;
+      const currentReleaseId =
+        mode === "restore" ? vault.installation.currentReleaseId : releaseId;
+      if (!vault.installation) {
+        vault.installation = {
+          id: uuidFor(20000 + state.commitSeq),
+          appId,
+          currentReleaseId,
+          currentReleaseVersion: E2E_REEF_RELEASE_VERSION,
+          lifecycle: "active",
+        };
+      } else {
+        vault.installation = {
+          ...vault.installation,
+          appId,
+          lifecycle: "active",
+          currentReleaseId,
+          currentReleaseVersion: E2E_REEF_RELEASE_VERSION,
+        };
+      }
+      for (const table of REEF_INSTALLATION_TABLES) vault.tables.add(table);
+      return json(res, 200, {
+        ...installationWire(vault),
+        command_status: replayed ? "already_applied" : "accepted",
+        replayed,
+      });
+    }
+    if (req.method === "DELETE") {
+      if (!vault.installation) {
+        return json(res, 404, { error: "installation not found" });
+      }
+      const replayed = vault.installation.lifecycle === "uninstalled";
+      vault.installation = { ...vault.installation, lifecycle: "uninstalled" };
+      return json(res, 200, {
+        ...installationWire(vault),
+        command_status: replayed ? "already_applied" : "accepted",
+        replayed,
+      });
+    }
+  }
+
   if (path === "/api/v1/vaults" && req.method === "POST") {
     const name = url.searchParams.get("name");
     if (!name) return json(res, 422, { error: "missing vault name" });
-    if (!state.vaults.has(name)) {
-      state.vaults.set(name, rawVault(name));
-    }
+    if (!state.vaults.has(name)) state.vaults.set(name, rawVault(name));
+    const vault = state.vaults.get(name);
     return json(res, 200, {
-      vault_id: `vault-${name}`,
+      vault_id: vault.id,
       name,
       template: null,
       public_access: "none",

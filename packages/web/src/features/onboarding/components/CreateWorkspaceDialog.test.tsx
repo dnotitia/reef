@@ -35,14 +35,31 @@ function wrap(ui: ReactNode) {
 function setupMockApi() {
   mockApiFetch.mockImplementation(async (url, init) => {
     const u = String(url);
-    if (u.startsWith("/api/vaults") && init?.method === "POST") {
+    if (u === "/api/vaults" && init?.method === "POST") {
       return new Response(
         JSON.stringify({
+          vault_id: "33333333-3333-4333-8333-333333333333",
           name: "reef-new",
           config: { project_prefix: "REEF", monitored_repos: [] },
         }),
         { status: 200 },
       );
+    }
+    if (u === "/api/vaults/reef-new/installation" && init?.method === "POST") {
+      return new Response(
+        JSON.stringify({
+          installation_status: "ready",
+          command_status: "accepted",
+          replayed: false,
+        }),
+        { status: 200 },
+      );
+    }
+    if (u === "/api/config" && init?.method === "PATCH") {
+      const body = JSON.parse(String(init.body)) as { patch: unknown };
+      return new Response(JSON.stringify({ config: body.patch }), {
+        status: 200,
+      });
     }
     if (u.startsWith("/api/vaults")) {
       return new Response(JSON.stringify({ vaults: [] }), { status: 200 });
@@ -76,7 +93,7 @@ describe("CreateWorkspaceDialog", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("opens from the store, creates a workspace, then closes (AC4)", async () => {
+  it("waits for installation approval before entering the new workspace", async () => {
     setupMockApi();
     const user = userEvent.setup();
 
@@ -94,6 +111,12 @@ describe("CreateWorkspaceDialog", () => {
       "reef-new",
     );
     await user.click(screen.getByTestId("create-workspace-create-btn"));
+
+    expect(
+      await screen.findByTestId("create-workspace-approval-step"),
+    ).toBeVisible();
+    expect(mockPush).not.toHaveBeenCalled();
+    await user.click(screen.getByTestId("installation-reef-new-approve"));
 
     await waitFor(() =>
       expect(mockPush).toHaveBeenCalledWith("/workspace/reef-new/issues"),

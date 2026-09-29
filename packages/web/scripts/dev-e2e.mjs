@@ -6,6 +6,14 @@ import { chmod, unlink, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
+import {
+  E2E_REEF_APP_ID,
+  E2E_REEF_IMAGE_DIGEST,
+  E2E_REEF_MANIFEST_CHECKSUM,
+  E2E_REEF_RELEASE_ID,
+  E2E_REEF_RELEASE_VERSION,
+  E2E_REEF_SOURCE_REVISION,
+} from "../tests/e2e/harness/mock-installation.mjs";
 
 const MODULE_PATH = fileURLToPath(import.meta.url);
 const PACKAGE_ROOT = resolve(dirname(MODULE_PATH), "..");
@@ -625,6 +633,12 @@ export async function startRuntime(options) {
         process.env.REEF_GITHUB_APP_INSTALLATION_ID ?? "789",
       REEF_GITHUB_APP_PRIVATE_KEY:
         process.env.REEF_GITHUB_APP_PRIVATE_KEY ?? E2E_GITHUB_APP_PRIVATE_KEY,
+      REEF_APP_ID: E2E_REEF_APP_ID,
+      REEF_RELEASE_ID: E2E_REEF_RELEASE_ID,
+      REEF_RELEASE_VERSION: E2E_REEF_RELEASE_VERSION,
+      REEF_RELEASE_SOURCE_REVISION: E2E_REEF_SOURCE_REVISION,
+      REEF_RELEASE_IMAGE_DIGEST: E2E_REEF_IMAGE_DIGEST,
+      REEF_RELEASE_MANIFEST_CHECKSUM: E2E_REEF_MANIFEST_CHECKSUM,
     },
   );
   await waitForOk(options.webOrigin, 120_000);

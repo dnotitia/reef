@@ -1,9 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { http, HttpResponse } from "msw";
+import { DEFAULT_CONFIG } from "@reef/core";
 import { OnboardingPanel } from "./OnboardingPanel";
 
 function vaultPayload(
-  entries: ReadonlyArray<{ name: string; has_reef_config: boolean }>,
+  entries: ReadonlyArray<{
+    name: string;
+    installation_status: "ready" | "not_installed";
+  }>,
 ) {
   return {
     vaults: entries.map((e) => ({
@@ -12,7 +16,7 @@ function vaultPayload(
       status: "active",
       role: "owner" as const,
       created_at: null,
-      has_reef_config: e.has_reef_config,
+      installation_status: e.installation_status,
     })),
   };
 }
@@ -22,7 +26,10 @@ function handlers({
   repos = [],
   createStatus = 200,
 }: {
-  vaults?: ReadonlyArray<{ name: string; has_reef_config: boolean }>;
+  vaults?: ReadonlyArray<{
+    name: string;
+    installation_status: "ready" | "not_installed";
+  }>;
   repos?: ReadonlyArray<{ full_name: string; id: number }>;
   createStatus?: number;
 } = {}) {
@@ -37,9 +44,24 @@ function handlers({
         );
       }
       return HttpResponse.json({
+        vault_id: "33333333-3333-4333-8333-333333333333",
         name: "reef-new",
-        config: { project_prefix: "REEF", monitored_repos: [] },
+        config: DEFAULT_CONFIG,
       });
+    }),
+    http.post("/api/vaults/:vault/installation", () =>
+      HttpResponse.json(
+        {
+          installation_status: "ready",
+          command_status: "accepted",
+          replayed: false,
+        },
+        { status: 202 },
+      ),
+    ),
+    http.patch("/api/config", async ({ request }) => {
+      const body = (await request.json()) as { patch: unknown };
+      return HttpResponse.json({ config: body.patch });
     }),
   ];
 }
@@ -97,9 +119,9 @@ export const ExistingWorkspaces: Story = {
     msw: {
       handlers: handlers({
         vaults: [
-          { name: "reef-acme", has_reef_config: true },
-          { name: "reef-zen", has_reef_config: true },
-          { name: "raw-personal", has_reef_config: false },
+          { name: "reef-acme", installation_status: "ready" },
+          { name: "reef-zen", installation_status: "ready" },
+          { name: "raw-personal", installation_status: "not_installed" },
         ],
       }),
     },
@@ -119,10 +141,25 @@ export const NoGitHubToken: Story = {
         ),
         http.post("/api/vaults", () =>
           HttpResponse.json({
+            vault_id: "33333333-3333-4333-8333-333333333333",
             name: "reef-new",
-            config: { project_prefix: "REEF", monitored_repos: [] },
+            config: DEFAULT_CONFIG,
           }),
         ),
+        http.post("/api/vaults/:vault/installation", () =>
+          HttpResponse.json(
+            {
+              installation_status: "ready",
+              command_status: "accepted",
+              replayed: false,
+            },
+            { status: 202 },
+          ),
+        ),
+        http.patch("/api/config", async ({ request }) => {
+          const body = (await request.json()) as { patch: unknown };
+          return HttpResponse.json({ config: body.patch });
+        }),
       ],
     },
   },

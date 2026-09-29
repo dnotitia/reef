@@ -12,6 +12,19 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Changed
+
+- **Workspace setup follows AKB's app installation lifecycle.** Owners and
+  admins explicitly approve install, restore, or fresh-install commands;
+  ordinary members receive only the canonical active status. Uninstall retains
+  AKB data, while full vault deletion remains separate. (REEF-418)
+
+### Migration
+
+- Deploy an AKB build with the app installation lifecycle API before deploying
+  this Reef version. Readiness no longer falls back to the presence of Reef
+  configuration or tables. (REEF-418)
+
 ## v0.16.1 - 2026-09-28
 
 ### Migration

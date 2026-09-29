@@ -8,6 +8,7 @@ import {
   respondWithError,
 } from "@/lib/api/requestHelpers";
 import { logger } from "@/lib/logging/logger";
+import { requireWorkspaceReady } from "@/server/adapters/workspaceInstallation";
 import {
   AuthoringLanguageSchema,
   type Config,
@@ -64,6 +65,7 @@ export async function GET(request: Request): Promise<Response> {
   const { adapter } = adapterResult;
 
   try {
+    await requireWorkspaceReady({ adapter, vaultName: vault });
     const { config } = await readConfig({ adapter, vault });
     return Response.json({ config });
   } catch (err) {
@@ -90,6 +92,7 @@ export async function PATCH(request: Request): Promise<Response> {
   const { adapter } = adapterResult;
 
   try {
+    await requireWorkspaceReady({ adapter, vaultName: vault });
     const { config: current } = await readConfig({ adapter, vault });
 
     // Drop undefined entries so `.optional()` keys present-but-undefined

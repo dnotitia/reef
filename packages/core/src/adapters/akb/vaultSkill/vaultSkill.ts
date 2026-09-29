@@ -12,7 +12,6 @@ import {
   decodeSettingsValue,
   ensureDocumentPutResponse,
   ensureDocumentResponse,
-  ensureReefTables,
   isMissingTableError,
   runSql,
   tableRef,
@@ -36,6 +35,11 @@ export interface InstallReefVaultSkillParams {
 }
 
 export interface GetVaultSkillStatusParams {
+  adapter: AkbAdapter;
+  vault: string;
+}
+
+export interface HasReefVaultSkillDocumentsParams {
   adapter: AkbAdapter;
   vault: string;
 }
@@ -141,11 +145,9 @@ async function upsertDocument(
 /**
  * Record the installed skill version in `reef_settings` as a single
  * `vault_skill` row (DELETE+INSERT upsert, mirroring `writeConfig`'s
- * `project_prefix` write). `ensureReefTables` is idempotent, so this is safe
- * both from vault creation (tables provisioned moments later by `writeConfig`)
- * and from the re-apply path (tables already exist). The `synced_at` ISO
- * timestamp is JS-side (`…T…Z`), not akb's `now()::text`, so it round-trips
- * cleanly through display.
+ * `project_prefix` write). The app installation owns table creation, so this
+ * stamp only runs against the already-installed Reef schema. The `synced_at`
+ * ISO timestamp is JS-side (`…T…Z`), not akb's `now()::text`.
  */
 async function stampVaultSkillVersion(
   adapter: AkbAdapter,
@@ -155,7 +157,6 @@ async function stampVaultSkillVersion(
     version: REEF_VAULT_SKILL_VERSION,
     synced_at: new Date().toISOString(),
   };
-  await ensureReefTables({ adapter, vault });
   const deleteParams = new SqlParameterBuilder();
   const deleteKey = deleteParams.add(
     REEF_SETTINGS_VAULT_SKILL_KEY,
@@ -277,6 +278,39 @@ export async function installReefVaultSkill(
       span.setAttribute("skill_version_stamped", false);
     }
   });
+}
+
+/** Check that every Reef-managed skill document exists without requiring the
+ * version stamp to match. Members may customize these documents after setup. */
+export async function hasReefVaultSkillDocuments(
+  params: HasReefVaultSkillDocumentsParams,
+): Promise<boolean> {
+  const { adapter, vault } = params;
+  return withSpan(
+    "akb.has_reef_vault_skill_documents",
+    { vault },
+    async (span) => {
+      const docs = buildReefVaultSkillDocuments(vault);
+      span.setAttribute("document_count", docs.length);
+      for (const doc of docs) {
+        try {
+          const payload = await adapter.request(
+            `/api/v1/documents/${encodeURIComponent(vault)}/${doc.path}`,
+            { resource: doc.path },
+          );
+          ensureDocumentResponse(payload);
+        } catch (error) {
+          if (error instanceof NotFoundError) {
+            span.setAttribute("complete", false);
+            return false;
+          }
+          throw error;
+        }
+      }
+      span.setAttribute("complete", true);
+      return true;
+    },
+  );
 }
 
 /**

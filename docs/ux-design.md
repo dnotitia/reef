@@ -983,9 +983,16 @@ shows an explicit retry state.
 Users with no configured workspace enter `/onboarding`. Its required step is
 **Create a project workspace**: name a new akb vault (lowercase/digits/
 hyphens), choose an issue **prefix** (uppercase, e.g. `REEF`), optionally add a
-description and monitored repositories, and create. Raw vaults do not count as
-configured workspaces and therefore do not bypass onboarding. Monitored
-repository access comes from deployment-managed GitHub
+description and monitored repositories, and create. Reef then asks the owner
+or admin to approve its registered AKB app release before initializing tables,
+templates, configuration, and managed instructions. Raw vaults do not count as
+configured workspaces and therefore do not bypass onboarding. An existing
+member can enter an active workspace after Reef initialization is complete;
+members see only whether Reef is ready, while owners and admins manage install,
+restore, and fresh-install actions. A blocked install requires an AKB operator
+to resolve its state. Uninstall revokes Reef's grant but keeps the vault data;
+full vault deletion remains a separate owner-only, typed-name confirmation.
+Monitored repository access comes from deployment-managed GitHub
 credentials, so onboarding configures a *workspace*, not a Git repo, and no
 issue is committed under anyone's GitHub identity.
 
