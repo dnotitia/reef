@@ -634,7 +634,7 @@ async function deleteTemporaryDocument(
 }
 
 interface FileRequestObservation {
-  surface: "akb" | "presigned";
+  surface: "akb" | "transfer" | "other";
   hasAuthorization: boolean;
   stage: string;
 }
@@ -645,12 +645,16 @@ function installFileFetchObserver(options: { failUpload?: boolean } = {}): {
 } {
   const observations: FileRequestObservation[] = [];
   const originalFetch = globalThis.fetch;
+  let downloadTransferUrl: string | undefined;
   globalThis.fetch = async (...args: Parameters<typeof fetch>) => {
     const [input, init] = args;
     const request = new Request(input, init);
     const method = request.method;
     const url = new URL(request.url);
-    const isAkb = method !== "PUT" && url.pathname.startsWith("/api/v1/");
+    const isDownloadTransfer =
+      method === "GET" && downloadTransferUrl === request.url;
+    const isTransfer = method === "PUT" || isDownloadTransfer;
+    const isAkb = !isTransfer && url.pathname.startsWith("/api/v1/");
     const stage =
       method === "PUT"
         ? "transfer_upload"
@@ -658,22 +662,37 @@ function installFileFetchObserver(options: { failUpload?: boolean } = {}): {
           ? "initiate"
           : method === "POST" && url.pathname.endsWith("/confirm")
             ? "confirm"
-            : method === "GET" && url.pathname.endsWith("/download")
-              ? "download_metadata"
-              : method === "GET" && !isAkb
-                ? "transfer_download"
+            : isDownloadTransfer
+              ? "transfer_download"
+              : method === "GET" && url.pathname.endsWith("/download")
+                ? "download_metadata"
                 : method === "DELETE" && url.pathname.includes("/api/v1/files/")
                   ? "delete"
                   : "other";
     observations.push({
-      surface: isAkb ? "akb" : "presigned",
+      surface: isAkb ? "akb" : isTransfer ? "transfer" : "other",
       hasAuthorization: request.headers.has("authorization"),
       stage,
     });
     if (options.failUpload && method === "PUT") {
       return new Response(null, { status: 503 });
     }
-    return originalFetch(...args);
+    const response = await originalFetch(...args);
+    if (stage === "download_metadata" && response.ok) {
+      const metadata: unknown = await response
+        .clone()
+        .json()
+        .catch(() => null);
+      if (
+        typeof metadata === "object" &&
+        metadata !== null &&
+        "download_url" in metadata &&
+        typeof metadata.download_url === "string"
+      ) {
+        downloadTransferUrl = new URL(metadata.download_url, request.url).href;
+      }
+    }
+    return response;
   };
   return {
     observations,
@@ -688,9 +707,15 @@ function expectFileCredentialBoundary(
 ): void {
   const apiCalls = observations.filter(({ surface }) => surface === "akb");
   const transferCalls = observations.filter(
-    ({ surface }) => surface === "presigned",
+    ({ surface }) => surface === "transfer",
+  );
+  const transferStages = observations.filter(({ stage }) =>
+    stage.startsWith("transfer_"),
   );
   expect(apiCalls.every(({ hasAuthorization }) => hasAuthorization)).toBe(true);
+  expect(transferStages.every(({ surface }) => surface === "transfer")).toBe(
+    true,
+  );
   expect(transferCalls.every(({ hasAuthorization }) => !hasAuthorization)).toBe(
     true,
   );
@@ -1120,31 +1145,22 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
     const localAuth = record(rawConfig.local_auth, "auth config local_auth");
     const keycloak = record(rawConfig.keycloak, "auth config keycloak");
     const schemaVersion = rawConfig.schema_version;
-    // The pinned AKB ref predates the auth-config version field; moving main
-    // publishes v2. Both responses still expose the fields Core consumes.
-    expect([undefined, 2]).toContain(schemaVersion);
+    expect(schemaVersion).toBe(2);
     expect(localAuth.enabled).toBe(true);
-    expect(keycloak.enabled).toBe(false);
+    expect(keycloak).toMatchObject({
+      enabled: false,
+      browser_session_ready: false,
+    });
     expect(JSON.stringify(rawConfig)).not.toContain(PASSWORD);
 
-    const hasLegacyLoginUrl = Object.prototype.hasOwnProperty.call(
-      keycloak,
-      "login_url",
-    );
-    let coreConfigBoundary: "parsed" | "not_run_current_v2_shape" = "parsed";
-    if (hasLegacyLoginUrl) {
-      const parsed = await getAuthConfig({ baseUrl });
-      expect(parsed.config.local_auth.enabled).toBe(true);
-      expect(parsed.config.keycloak.enabled).toBe(false);
-    } else {
-      // AKB main's v2 config intentionally no longer carries the legacy
-      // login_url field. Preserve the existing Core public schema and record
-      // this moving-main incompatibility instead of silently normalizing it.
-      const error = await getAuthConfig({ baseUrl }).catch((caught) => caught);
-      expect(error).toBeInstanceOf(AkbApiError);
-      expect(error).toMatchObject({ status: 502 });
-      coreConfigBoundary = "not_run_current_v2_shape";
-    }
+    const parsedConfig = await getAuthConfig({ baseUrl });
+    expect(parsedConfig.config).toMatchObject({
+      schema_version: 2,
+      auth_mode: "local",
+      local_auth: { enabled: true },
+      keycloak: { enabled: false, browser_session_ready: false },
+      providers: [],
+    });
 
     const { profile } = await getMe({ adapter });
     expect(typeof profile.username).toBe("string");
@@ -1193,7 +1209,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
         schema_version: schemaVersion,
         local_auth_enabled: true,
         keycloak_enabled: false,
-        core_boundary: coreConfigBoundary,
+        core_boundary: "parsed",
       },
       success: {
         login: "observed",

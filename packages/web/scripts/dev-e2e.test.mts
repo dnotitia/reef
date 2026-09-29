@@ -499,6 +499,136 @@ describe("dev:e2e runtime contract", () => {
     );
   });
 
+  it("probes onboarding approval readiness from its declared task start", async () => {
+    const events: string[] = [];
+    const state = { workspaceName: "", approvalStep: false };
+    const readinessTestIds = new Set([
+      "greenfield-vault-name-input",
+      "greenfield-create-btn",
+      "greenfield-approval-step",
+      "installation-raw-vault-approve",
+    ]);
+    const testIdLocator = (testId: string) => ({
+      waitFor: async ({ state: expected }: { state: string }) => {
+        events.push(`wait:${testId}:${expected}`);
+        const visible =
+          testId === "greenfield-vault-name-input" ||
+          testId === "greenfield-create-btn"
+            ? !state.approvalStep
+            : state.approvalStep;
+        if ((expected === "visible") !== visible) {
+          throw new Error(`${testId} is not ${expected}`);
+        }
+      },
+      fill: async (value: string) => {
+        events.push(`fill:${testId}:${value}`);
+        if (testId !== "greenfield-vault-name-input") {
+          throw new Error(`${testId} is not an input`);
+        }
+        state.workspaceName = value;
+      },
+      inputValue: async () => state.workspaceName,
+      click: async (options?: { trial?: boolean }) => {
+        events.push(`${options?.trial ? "trial" : "click"}:${testId}`);
+        if (testId === "greenfield-create-btn" && state.workspaceName) {
+          state.approvalStep = true;
+        }
+      },
+      isEnabled: async () => true,
+    });
+    const loginSelectors = new Set([
+      '[data-testid="akb-login-form"]',
+      '[data-testid="login-username"]',
+      '[data-testid="login-password"]',
+      '[data-testid="login-submit"]',
+    ]);
+    const page = {
+      locator: (selector: string) => {
+        events.push(`locator:${selector}`);
+        return {
+          waitFor: async () => {
+            if (!loginSelectors.has(selector)) {
+              throw new Error(
+                `Unexpected workspace readiness probe: ${selector}`,
+              );
+            }
+          },
+          fill: async () => {},
+          click: async () => {},
+          isVisible: async () => false,
+        };
+      },
+      getByTestId: (testId: string) => {
+        if (!readinessTestIds.has(testId)) {
+          throw new Error(`Unexpected onboarding readiness control: ${testId}`);
+        }
+        return testIdLocator(testId);
+      },
+      goto: async (url: string) => events.push(`goto:${new URL(url).pathname}`),
+      keyboard: {
+        press: async (key: string) => events.push(`key:${key}`),
+      },
+      waitForURL: async () => {},
+      waitForResponse: async () => ({ ok: () => true }),
+    };
+    const context = {
+      newPage: async () => page,
+      close: async () => {},
+    };
+    const browser = {
+      newContext: async () => context,
+      close: async () => {},
+    };
+    const browserType = {
+      launch: vi.fn().mockResolvedValue(browser),
+    } as unknown as typeof import("@playwright/test").chromium;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          status: "ready",
+          fixture_login: {
+            username: "writer",
+            password: "fixture-password",
+            login_path: "/login",
+          },
+          tasks: {
+            workspace_initialization: {
+              scenario: "workspace_recovery",
+              workspace: "raw-vault",
+              start_path: "/onboarding",
+            },
+          },
+        }),
+      }),
+    );
+
+    try {
+      const { waitForClientInteractionReady } = await import("./dev-e2e.mjs");
+      await waitForClientInteractionReady(
+        {
+          webOrigin: "http://localhost:9135",
+          fixtureOrigin: "http://127.0.0.1:9136",
+          scenario: "workspace_recovery",
+        },
+        { browserType, timeoutMs: 20 },
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    expect(events).toContain("fill:greenfield-vault-name-input:raw-vault");
+    expect(events).toContain("click:greenfield-create-btn");
+    expect(events).toContain("wait:greenfield-approval-step:visible");
+    expect(events).toContain("wait:installation-raw-vault-approve:visible");
+    expect(events).toContain("trial:installation-raw-vault-approve");
+    expect(events).not.toContain("key:Control+K");
+    expect(events).not.toContain(
+      `locator:${CLIENT_READINESS_INTERACTIONS.newIssue.trigger}`,
+    );
+  });
+
   it("does not treat the issue-detail shell as visible before content loads", async () => {
     await expect(
       probeWorkspaceClickInteractions(
