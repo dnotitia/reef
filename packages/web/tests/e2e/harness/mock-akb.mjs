@@ -28,6 +28,7 @@ import {
   issueUpdateKey,
   nextCommit,
   rememberSqlCall,
+  roleForVault,
   vaultSummary,
   waitForAuthProbeRelease,
   waitForIssueUpdateRelease,

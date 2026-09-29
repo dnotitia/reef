@@ -81,7 +81,13 @@ export function handleSql(state, vault, sql, username) {
     const insert = parseInsert(normalized);
     if (insert) {
       const row = objectFromColumns(insert.columns, insert.values);
-      if (typeof row.key === "string") vault.settings.set(row.key, row.value);
+      const exists = vault.settings.has(row.key);
+      if (
+        typeof row.key === "string" &&
+        (!isInsertIfMissing(normalized) || !exists)
+      ) {
+        vault.settings.set(row.key, row.value);
+      }
     }
     return tableSql();
   }
@@ -105,13 +111,19 @@ export function handleSql(state, vault, sql, username) {
     if (insert) {
       for (const values of insert.valueRows) {
         const row = objectFromColumns(insert.columns, values);
-        vault.monitoredRepos.push({
+        const repo = {
           github_id: Number(row.github_id),
           owner: String(row.owner),
           name: String(row.name),
           description:
             row.description == null ? undefined : String(row.description),
-        });
+        };
+        const exists = vault.monitoredRepos.some(
+          (existing) => existing.github_id === repo.github_id,
+        );
+        if (!isInsertIfMissing(normalized) || !exists) {
+          vault.monitoredRepos.push(repo);
+        }
       }
     }
     return tableSql();
@@ -470,7 +482,13 @@ export function handleSql(state, vault, sql, username) {
   if (lower.startsWith("insert into reef_templates")) {
     const insert = parseInsert(normalized);
     if (insert) {
-      vault.templates.push(objectFromColumns(insert.columns, insert.values));
+      const row = objectFromColumns(insert.columns, insert.values);
+      const exists = vault.templates.some(
+        (template) => template.name === row.name,
+      );
+      if (!isInsertIfMissing(normalized) || !exists) {
+        vault.templates.push(row);
+      }
     }
     return tableSql();
   }
@@ -1589,12 +1607,17 @@ function parseInsert(sql) {
   let searchFrom = sql.toLowerCase().indexOf(" values ", columnsEnd);
   if (searchFrom < 0) {
     const selectStart = sql.toLowerCase().indexOf(" select ", columnsEnd);
-    const fromStart =
+    const valuesStart = selectStart + " select ".length;
+    const clauseStart =
       selectStart < 0
         ? -1
-        : sql.toLowerCase().indexOf(" from ", selectStart + 8);
-    if (selectStart < 0 || fromStart < 0) return null;
-    const values = splitSqlCsv(sql.slice(selectStart + 8, fromStart)).map(
+        : findTopLevelSqlKeyword(sql, valuesStart, [
+            "where",
+            "from",
+            "on conflict",
+          ]);
+    if (selectStart < 0 || clauseStart < 0) return null;
+    const values = splitSqlCsv(sql.slice(valuesStart, clauseStart)).map(
       parseSqlValue,
     );
     return { columns, values, valueRows: [values] };
@@ -1613,6 +1636,57 @@ function parseInsert(sql) {
     searchFrom += 1;
   }
   return { columns, values: valueRows[0] ?? [], valueRows };
+}
+
+function findTopLevelSqlKeyword(sql, start, keywords) {
+  let quote = null;
+  let depth = 0;
+  const lower = sql.toLowerCase();
+  for (let index = start; index < sql.length; index += 1) {
+    const character = sql[index];
+    if (quote) {
+      if (character === quote && sql[index + 1] === quote) {
+        index += 1;
+      } else if (character === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (character === "'" || character === '"') {
+      quote = character;
+      continue;
+    }
+    if (character === "(") {
+      depth += 1;
+      continue;
+    }
+    if (character === ")") {
+      depth -= 1;
+      continue;
+    }
+    if (depth !== 0) continue;
+
+    for (const keyword of keywords) {
+      if (!lower.startsWith(keyword, index)) continue;
+      const before = lower[index - 1];
+      const after = lower[index + keyword.length];
+      if (
+        (before == null || !/[a-z0-9_]/.test(before)) &&
+        (after == null || !/[a-z0-9_]/.test(after))
+      ) {
+        return index;
+      }
+    }
+  }
+  return -1;
+}
+
+function isInsertIfMissing(sql) {
+  const lower = sql.toLowerCase();
+  return (
+    lower.includes("where not exists") &&
+    /on\s+conflict\s+do\s+nothing\b/i.test(sql)
+  );
 }
 
 function parseUpdate(sql) {
@@ -1643,7 +1717,7 @@ function parseSqlValue(value) {
   if (/^-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(trimmed)) {
     return Number(trimmed);
   }
-  if (/^'.*'(?:\:\:json(?:b)?|\:\:text)?$/i.test(trimmed)) {
+  if (/^'[\s\S]*'(?:\:\:json(?:b)?|\:\:text)?$/i.test(trimmed)) {
     const raw = trimmed.replace(/::jsonb?$/i, "").replace(/::text$/i, "");
     const unquoted = raw.slice(1, -1).replace(/''/g, "'");
     if (/::jsonb?$/i.test(trimmed)) {
