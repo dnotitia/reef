@@ -515,16 +515,11 @@ function markdownFixtureVault(name) {
 }
 
 function vaultIdFor(name) {
-  return uuidFor(Number.parseInt(sha256(Buffer.from(name)).slice(0, 12), 16));
+  return uuidFor(sha256(Buffer.from(name)).slice(0, 12));
 }
 
 function installationIdFor(name) {
-  return uuidFor(
-    Number.parseInt(
-      sha256(Buffer.from(`installation:${name}`)).slice(0, 12),
-      16,
-    ),
-  );
+  return uuidFor(sha256(Buffer.from(`installation:${name}`)).slice(0, 12));
 }
 
 function configuredVault(name) {

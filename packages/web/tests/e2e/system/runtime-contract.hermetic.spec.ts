@@ -6,6 +6,7 @@ import {
   expect,
   test,
 } from "@playwright/test";
+import { ControlPlaneIdSchema } from "@reef/core";
 import {
   E2E_MOCK_URL,
   clearPersistedQueryCacheOnLoad,
@@ -368,6 +369,30 @@ async function expectRuntimeFocus(locator: Locator) {
 }
 
 test.describe("Hermetic runtime discovery", () => {
+  test("keeps raw, configured, and new fixture identifiers valid Core UUIDs", async () => {
+    const { createScenarioVaults, rawVault } = await import(
+      "../harness/mock-fixtures.mjs"
+    );
+    const raw = createScenarioVaults("raw_only").get("raw-vault");
+    const configured = createScenarioVaults("configured").get("reef-e2e");
+    const created = rawVault("reef-new");
+
+    expect(raw).toBeDefined();
+    expect(configured).toBeDefined();
+    if (!raw || !configured?.installation) {
+      throw new Error("missing raw or configured fixture");
+    }
+
+    for (const [name, id] of [
+      ["raw vault", raw.id],
+      ["configured vault", configured.id],
+      ["new vault", created.id],
+      ["installation", configured.installation.id],
+    ]) {
+      expect(ControlPlaneIdSchema.safeParse(id).success, name).toBe(true);
+    }
+  });
+
   test("exposes loaded issue detail content for a cold deep-link readiness probe", async ({
     page,
     request,
