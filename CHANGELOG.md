@@ -17,6 +17,10 @@ explicitly in the entries below.
 - Reports now receive validated server-computed aggregates, flow metrics, health
   rollups, pivots, and forecasts in one workspace-scoped response instead of
   loading issue and activity rows into the browser. (REEF-617)
+- **Workspace setup follows AKB's app installation lifecycle.** Owners and
+  admins explicitly approve install, restore, or fresh-install commands;
+  ordinary members receive only the canonical active status. Uninstall retains
+  AKB data, while full vault deletion remains separate. (REEF-418)
 
 ### Fixed
 
@@ -33,6 +37,12 @@ explicitly in the entries below.
 - **Saved Light, Dark, and System themes apply before the first paint.** The
   nonce-authorized root bootstrap reads the existing localStorage mirror, and
   segmented-control fills switch immediately with the root theme. (REEF-643)
+
+### Migration
+
+- Deploy an AKB build with the app installation lifecycle API before deploying
+  this Reef version. Readiness no longer falls back to the presence of Reef
+  configuration or tables. (REEF-418)
 
 ## v0.16.1 - 2026-09-28
 

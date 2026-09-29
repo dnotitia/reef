@@ -5,12 +5,21 @@ vi.mock("@/lib/logging/logger", () => ({
   logger: { error: vi.fn() },
 }));
 
-const { mockAkbReadConfig, mockAkbWriteConfig, mockCreateAkbAdapter } =
-  vi.hoisted(() => ({
-    mockAkbReadConfig: vi.fn(),
-    mockAkbWriteConfig: vi.fn(),
-    mockCreateAkbAdapter: vi.fn(),
-  }));
+const {
+  mockAkbReadConfig,
+  mockAkbWriteConfig,
+  mockCreateAkbAdapter,
+  mockRequireWorkspaceReady,
+} = vi.hoisted(() => ({
+  mockAkbReadConfig: vi.fn(),
+  mockAkbWriteConfig: vi.fn(),
+  mockCreateAkbAdapter: vi.fn(),
+  mockRequireWorkspaceReady: vi.fn(),
+}));
+
+vi.mock("@/server/adapters/workspaceInstallation", () => ({
+  requireWorkspaceReady: mockRequireWorkspaceReady,
+}));
 
 vi.mock("@reef/core", async () => {
   const actual =
@@ -47,6 +56,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("AKB_BACKEND_URL", "http://akb.test");
   mockCreateAkbAdapter.mockReturnValue({ request: vi.fn() });
+  mockRequireWorkspaceReady.mockResolvedValue({ installation_status: "ready" });
 });
 
 afterEach(() => {
@@ -80,6 +90,20 @@ describe("GET /api/config", () => {
     const res = await GET(req);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ config: BASE_CONFIG });
+  });
+
+  it("requires workspace readiness before reading config", async () => {
+    mockRequireWorkspaceReady.mockRejectedValueOnce(
+      new AuthError({ origin: "akb", status: 403 }),
+    );
+    const req = new Request("http://localhost/api/config?vault=reef-acme", {
+      headers: authedHeaders(),
+    });
+
+    const res = await GET(req);
+
+    expect(res.status).toBe(403);
+    expect(mockAkbReadConfig).not.toHaveBeenCalled();
   });
 
   it("translates NotFoundError to 404 with config label", async () => {
@@ -261,5 +285,25 @@ describe("PATCH /api/config", () => {
     });
     const res = await PATCH(req);
     expect(res.status).toBe(401);
+  });
+
+  it("requires workspace readiness before writing config", async () => {
+    mockRequireWorkspaceReady.mockRejectedValueOnce(
+      new AuthError({ origin: "akb", status: 403 }),
+    );
+    const req = new Request("http://localhost/api/config", {
+      method: "PATCH",
+      headers: authedHeaders(),
+      body: JSON.stringify({
+        vault: "reef-acme",
+        patch: { project_prefix: "ACME" },
+      }),
+    });
+
+    const res = await PATCH(req);
+
+    expect(res.status).toBe(403);
+    expect(mockAkbReadConfig).not.toHaveBeenCalled();
+    expect(mockAkbWriteConfig).not.toHaveBeenCalled();
   });
 });

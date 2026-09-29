@@ -9,11 +9,19 @@ import { useCallback } from "react";
 import { toast } from "sonner";
 import { useSetActiveVault } from "./useActiveVault";
 import { useVaults } from "./useVaults";
+import { z } from "zod";
+
+const InstallationStatusSchema = z.object({
+  installation_status: z.literal("uninstalled"),
+});
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 /**
- * The two destructive workspace-lifecycle actions in Settings › Workspace
- * (REEF-322): permanently delete the whole akb vault, or remove just the reef
- * layer (detach) and leave the vault and its non-reef content intact. Both end
+ * The two workspace-lifecycle actions in Settings › Workspace: permanently
+ * delete the whole AKB vault, or uninstall Reef while AKB retains its data. Both end
  * the same way — the active vault is no longer a usable reef workspace — so they
  * share one success path: invalidate the vault list, switch the active vault to
  * the next reef workspace (or none → onboarding), navigate, and toast.
@@ -30,7 +38,7 @@ export function useWorkspaceTeardown(vault: string) {
   // remaining reef workspace (or fall back to onboarding when none is left).
   const onWorkspaceGone = useCallback(async () => {
     const next = (vaultsQuery.data ?? []).find(
-      (v) => v.name !== vault && v.has_reef_config,
+      (v) => v.name !== vault && v.installation_status === "ready",
     );
     await queryClient.invalidateQueries({ queryKey: ["vaults"] });
     await setActiveVault.mutateAsync(next?.name ?? "");
@@ -55,24 +63,40 @@ export function useWorkspaceTeardown(vault: string) {
     },
   });
 
-  const detachReef = useMutation<void, Error, void>({
+  const uninstallReef = useMutation<void, Error, void>({
     mutationFn: async () => {
       const res = await apiFetch(
-        `/api/vaults/${encodeURIComponent(vault)}/reef`,
+        `/api/vaults/${encodeURIComponent(vault)}/installation`,
         { method: "DELETE" },
       );
       if (!res.ok) {
-        await throwHttpError(res, `Failed to remove reef: ${res.status}`);
+        await throwHttpError(res, `Failed to uninstall reef: ${res.status}`);
       }
+      for (let attempt = 0; attempt < 80; attempt += 1) {
+        const statusResponse = await apiFetch(
+          `/api/vaults/${encodeURIComponent(vault)}/installation`,
+          { cache: "no-store" },
+        );
+        if (!statusResponse.ok) {
+          await throwHttpError(
+            statusResponse,
+            `Failed to read installation status: ${statusResponse.status}`,
+          );
+        }
+        const body: unknown = await statusResponse.json();
+        if (InstallationStatusSchema.safeParse(body).success) return;
+        await delay(1500);
+      }
+      throw new Error(t("uninstall.stillRunning"));
     },
     onSuccess: async () => {
       await onWorkspaceGone();
-      toast.success(t("detach.success", { workspace: vault }));
+      toast.success(t("uninstall.success", { workspace: vault }));
     },
     onError: (err) => {
-      toast.error(err.message || t("detach.failed"));
+      toast.error(err.message || t("uninstall.failed"));
     },
   });
 
-  return { deleteWorkspace, detachReef };
+  return { deleteWorkspace, uninstallReef };
 }

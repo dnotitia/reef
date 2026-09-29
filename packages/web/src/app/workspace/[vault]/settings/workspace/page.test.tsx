@@ -19,6 +19,9 @@ vi.mock("@/features/settings/components/TemplatesSection", () => ({
 vi.mock("@/features/settings/components/WorkspaceSkillSection", () => ({
   WorkspaceSkillSection: () => <section>Workspace skill</section>,
 }));
+vi.mock("@/features/settings/components/WorkspaceInstallationSection", () => ({
+  WorkspaceInstallationSection: () => null,
+}));
 vi.mock("@/features/settings/components/DangerZoneSection", () => ({
   DangerZoneSection: () => <section>Danger zone</section>,
 }));

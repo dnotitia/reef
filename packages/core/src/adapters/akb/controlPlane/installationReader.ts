@@ -381,6 +381,19 @@ function mapInstallation(value: WireInstallation): ControlPlaneInstallation {
   });
 }
 
+/** Parse and project an AKB installation response without exposing private wire fields. */
+export function parseControlPlaneInstallation(
+  value: unknown,
+): ControlPlaneInstallation {
+  const wire = WireInstallationSchema.safeParse(value);
+  if (!wire.success) {
+    throw new SchemaValidationError({
+      issues: ["AKB installation response did not match the expected shape"],
+    });
+  }
+  return mapInstallation(wire.data);
+}
+
 function errorFields(error: ControlPlaneError): ObserveFields {
   return {
     "control_plane.upstream_status": error.upstreamStatus,

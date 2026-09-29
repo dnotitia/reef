@@ -8,6 +8,7 @@ import { ResolvedAutoHideSection } from "@/features/settings/components/Resolved
 import { SettingsGroup } from "@/features/settings/components/SettingsGroup";
 import { TemplatesSection } from "@/features/settings/components/TemplatesSection";
 import { WorkspaceSkillSection } from "@/features/settings/components/WorkspaceSkillSection";
+import { WorkspaceInstallationSection } from "@/features/settings/components/WorkspaceInstallationSection";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useWorkspaceAccess } from "@/features/settings/hooks/useWorkspaceAccess";
 import { useTranslations } from "next-intl";
@@ -50,6 +51,8 @@ export default function WorkspaceGeneralPage() {
       scopeName={scopeName}
       testId="settings-group-workspace"
     >
+      <WorkspaceInstallationSection vault={vault} />
+
       {/* Monitored Repositories — team-shared grounding repos */}
       <section className="flex flex-col gap-3">
         <h3 className="type-settings-section text-muted-foreground">
@@ -98,8 +101,7 @@ export default function WorkspaceGeneralPage() {
         <WorkspaceSkillSection />
       </section>
 
-      {/* Danger zone — owner-scoped workspace lifecycle (delete / detach). Renders
-          itself null for non-owners, so it sits at the foot of the group. */}
+      {/* Workspace lifecycle actions; AKB authorizes the current user. */}
       <DangerZoneSection vault={vault} />
     </SettingsGroup>
   );

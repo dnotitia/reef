@@ -7,6 +7,7 @@ import {
   setAuthControl,
   setIssueUpdateControl,
 } from "../harness/fixture";
+import { PERSISTED_QUERY_CACHE_KEY } from "../../../src/lib/storage/clientCache";
 
 function sprintByName(
   state: Awaited<ReturnType<typeof readFixtureState>>,
@@ -378,6 +379,11 @@ test.describe("Hermetic sprint rollover workflow", () => {
       { issueId: "REEF-002", failures: 1 },
     ]);
     await openPlanning(page);
+    const sourceSprintId = sprintByName(
+      await readFixtureState(request),
+      "Sprint 14 - Rollover fixture",
+    )?.id;
+    if (!sourceSprintId) throw new Error("Rollover source sprint is missing");
     await page
       .getByRole("button", {
         name: "Close Sprint 14 - Rollover fixture and roll over",
@@ -393,6 +399,86 @@ test.describe("Hermetic sprint rollover workflow", () => {
     await expect(
       page.getByTestId("sprint-rollover-resume-notice"),
     ).toBeVisible();
+
+    // The cache persister is asynchronous and throttled. Make this an actual
+    // saved-resume revalidation test instead of reloading from its older empty
+    // snapshot before the partial rollover reaches localStorage.
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            ({ cacheKey, vaultName, sourceId }) => {
+              type CachedQuery = {
+                queryKey?: unknown;
+                state?: { data?: unknown };
+              };
+              type CachedClient = {
+                clientState?: { queries?: CachedQuery[] };
+              };
+              type CachedResume = {
+                end_date?: string;
+                target?: { kind?: string };
+                result?: {
+                  status?: string;
+                  source_sprint_id?: string;
+                  phases?: { issue_rollover?: string };
+                };
+              };
+
+              try {
+                const raw = window.localStorage.getItem(cacheKey);
+                if (!raw) return null;
+                const persisted = JSON.parse(raw) as CachedClient;
+                const planningQuery = persisted.clientState?.queries?.find(
+                  (query) => {
+                    const key = query.queryKey;
+                    return (
+                      Array.isArray(key) &&
+                      key[0] === "planning" &&
+                      key[1] === "catalog" &&
+                      key[2] === vaultName
+                    );
+                  },
+                );
+                const catalog = planningQuery?.state?.data as
+                  | { rollover_resumes?: CachedResume[] }
+                  | undefined;
+                const resume = catalog?.rollover_resumes?.find(
+                  (candidate) =>
+                    candidate.result?.source_sprint_id === sourceId &&
+                    candidate.result.status === "partial",
+                );
+                if (!resume?.result) return null;
+                return {
+                  endDate: resume.end_date,
+                  sourceSprintId: resume.result.source_sprint_id,
+                  status: resume.result.status,
+                  issueRollover: resume.result.phases?.issue_rollover,
+                  targetKind: resume.target?.kind,
+                };
+              } catch {
+                return null;
+              }
+            },
+            {
+              cacheKey: PERSISTED_QUERY_CACHE_KEY,
+              vaultName: REEF_E2E_VAULT,
+              sourceId: sourceSprintId,
+            },
+          ),
+        {
+          timeout: 5_000,
+          message:
+            "The partial rollover resume should be persisted before reader revalidation",
+        },
+      )
+      .toEqual({
+        endDate: "2026-06-14",
+        sourceSprintId,
+        status: "partial",
+        issueRollover: "partial",
+        targetKind: "new",
+      });
 
     await setAuthControl(request, {
       protectedResponse: "forbidden",

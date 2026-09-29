@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Collaborator } from "../../../schemas/workspace/collaborator";
+import { WorkspaceInstallationStatusEnum } from "../../../schemas/controlPlane";
 import { withSpan } from "../core/shared";
 import type {
   CreateVaultParams,
@@ -73,11 +74,10 @@ const VaultSummarySchema = z.object({
   status: z.string().nullable().optional(),
   role: z.string().nullable().optional(),
   created_at: z.string().nullable().optional(),
-  has_reef_config: z.boolean().optional(),
 });
 
 export const EnrichedVaultSummarySchema = VaultSummarySchema.extend({
-  has_reef_config: z.boolean(),
+  installation_status: WorkspaceInstallationStatusEnum,
 });
 
 const VaultListResponseSchema = z.object({

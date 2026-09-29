@@ -6,17 +6,14 @@ import {
   resetFixture,
 } from "../harness/fixture";
 
-// REEF-322: the Settings › Workspace danger zone removes a workspace two ways —
-// detach (drop only the reef layer, keep the akb vault) and full delete (drop
-// the whole vault). Both run through the real reef-web Route Handlers and akb
-// fixture, then redirect the app away from the now-unusable workspace.
-test.describe("Hermetic workspace deletion danger zone (REEF-322)", () => {
+// Settings offers recoverable Reef uninstall and owner-only full vault delete.
+test.describe("Hermetic workspace lifecycle danger zone", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
     await resetFixture(request, "configured");
   });
 
-  test("detach removes the reef layer, keeps the vault, and redirects to onboarding", async ({
+  test("uninstall keeps AKB data and redirects to onboarding", async ({
     page,
     request,
   }) => {
@@ -36,24 +33,112 @@ test.describe("Hermetic workspace deletion danger zone (REEF-322)", () => {
       reefBefore?.documents.some((d) => d.path.startsWith("issues/")),
     ).toBe(true);
 
-    // Detach is a one-step confirm (no typing gate).
-    await main.getByTestId("danger-zone-detach").click();
+    // Uninstall is recoverable, so confirmation does not require typing the name.
+    await main.getByTestId("danger-zone-uninstall").click();
     const dialog = page.getByTestId("workspace-destructive-dialog");
-    await expect(dialog).toHaveAttribute("data-mode", "detach");
+    await expect(dialog).toHaveAttribute("data-mode", "uninstall");
     await dialog.getByTestId("workspace-destructive-confirm").click();
 
-    // The workspace is no longer a reef workspace → app falls back to onboarding.
+    // An uninstalled workspace is no longer available to Reef until restored.
     await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
 
-    // The vault survives, but its reef tables and issue documents are gone.
+    // AKB retains the data so the app can restore it later.
     const after = await readFixtureState(request);
     const reefAfter = after.vaults.find((v) => v.name === "reef-e2e");
     expect(reefAfter).toBeDefined();
-    expect(reefAfter?.tables).not.toContain("reef_settings");
-    expect(reefAfter?.tables).not.toContain("reef_issues");
+    expect(reefAfter?.tables).toContain("reef_settings");
+    expect(reefAfter?.tables).toContain("reef_issues");
     expect(reefAfter?.documents.some((d) => d.path.startsWith("issues/"))).toBe(
-      false,
+      true,
     );
+  });
+
+  test("rejects fresh after Remove and restores the retained workspace", async ({
+    page,
+    request,
+  }) => {
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page);
+
+    const installationResponse = await page.request.get(
+      "/api/vaults/reef-e2e/installation",
+    );
+    expect(installationResponse.ok()).toBe(true);
+    const installationBody = await installationResponse.json();
+    const retainedReleaseId = installationBody.installation.currentRelease
+      .id as string;
+    expect(retainedReleaseId).toBeTruthy();
+
+    const before = await readFixtureState(request);
+    const reefBefore = before.vaults.find((vault) => vault.name === "reef-e2e");
+    expect(reefBefore?.issue_ids).toContain("REEF-001");
+    expect(
+      reefBefore?.documents.some((document) =>
+        document.path.startsWith("issues/"),
+      ),
+    ).toBe(true);
+
+    await page.goto("/workspace/reef-e2e/settings/workspace");
+    const main = page.getByRole("main");
+    await main.getByTestId("danger-zone-uninstall").click();
+    const dialog = page.getByTestId("workspace-destructive-dialog");
+    await dialog.getByTestId("workspace-destructive-confirm").click();
+    await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+
+    const installationActions = page.getByTestId(
+      "workspace-installation-reef-e2e",
+    );
+    await expect(installationActions).toHaveAttribute(
+      "data-status",
+      "uninstalled",
+    );
+
+    const freshResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname ===
+          "/api/vaults/reef-e2e/installation" &&
+        response.request().method() === "POST",
+    );
+    await installationActions
+      .getByTestId("installation-reef-e2e-fresh")
+      .click();
+    expect((await freshResponsePromise).status()).toBe(409);
+
+    const afterFresh = await readFixtureState(request);
+    const retainedAfterFresh = afterFresh.vaults.find(
+      (vault) => vault.name === "reef-e2e",
+    );
+    expect(retainedAfterFresh?.installation?.lifecycle).toBe("uninstalled");
+    expect(retainedAfterFresh?.tables).toEqual(reefBefore?.tables);
+    expect(retainedAfterFresh?.settings).toEqual(reefBefore?.settings);
+    expect(retainedAfterFresh?.issue_ids).toEqual(reefBefore?.issue_ids);
+    expect(retainedAfterFresh?.issues).toEqual(reefBefore?.issues);
+    expect(retainedAfterFresh?.documents).toEqual(reefBefore?.documents);
+
+    const restoreResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname ===
+          "/api/vaults/reef-e2e/installation" &&
+        response.request().method() === "POST",
+    );
+    await installationActions
+      .getByTestId("installation-reef-e2e-restore")
+      .click();
+    const restoreResponse = await restoreResponsePromise;
+    expect(restoreResponse.status()).toBe(202);
+    const restoredBody = await restoreResponse.json();
+    expect(restoredBody.installation.currentRelease.id).toBe(retainedReleaseId);
+
+    const afterRestore = await readFixtureState(request);
+    const restored = afterRestore.vaults.find(
+      (vault) => vault.name === "reef-e2e",
+    );
+    expect(restored?.installation?.lifecycle).toBe("active");
+    expect(restored?.tables).toEqual(reefBefore?.tables);
+    expect(restored?.settings).toEqual(reefBefore?.settings);
+    expect(restored?.issue_ids).toEqual(reefBefore?.issue_ids);
+    expect(restored?.issues).toEqual(reefBefore?.issues);
+    expect(restored?.documents).toEqual(reefBefore?.documents);
   });
 
   test("delete requires typing the name, removes the whole vault, and redirects", async ({

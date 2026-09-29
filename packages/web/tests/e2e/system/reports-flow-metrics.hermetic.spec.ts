@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { ReportResponseSchema } from "@reef/core";
 import {
   E2E_MOCK_URL,
+  REPORTS_FIXTURE_NOW,
   openExistingWorkspace,
   resetFixture,
 } from "../harness/fixture";
@@ -9,9 +10,6 @@ import {
 test.describe("Hermetic Reports flow metrics", () => {
   test.beforeEach(async ({ context, page, request }) => {
     await context.clearCookies();
-    const { REPORTS_FIXTURE_NOW } = await import(
-      "../harness/mock-fixtures.mjs"
-    );
     await page.clock.setFixedTime(new Date(REPORTS_FIXTURE_NOW));
     await resetFixture(request, "configured");
   });

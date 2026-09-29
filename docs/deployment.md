@@ -26,6 +26,9 @@ See [Required environment](#required-environment) for the full env contract.
 For local development, `pnpm dev` starts web and the processor together;
 `pnpm dev:web` starts only the web process. The processor requires the three
 processor inputs above and exits at startup when any is missing or malformed.
+AKB must expose the App installation lifecycle API before onboarding can install,
+restore, or uninstall Reef. Reef reads readiness from AKB's canonical
+installation state and does not infer it from existing tables or configuration.
 
 ---
 

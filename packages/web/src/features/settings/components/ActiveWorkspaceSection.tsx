@@ -24,21 +24,16 @@ import { VaultPickerInput } from "./VaultPickerInput";
  * where it inverted the parent/child relationship and competed with the
  * group's shared-permission framing (REEF-150).
  *
- * The `has_reef_config` filter and the per-user Dexie storage are unchanged
- * from when this lived in RepoPickerSection; the placement and framing
- * moved.
+ * Only workspaces with a canonical active installation and completed
+ * initialization can become the per-user active workspace.
  */
 export function ActiveWorkspaceSection() {
   const t = useTranslations("settings.config");
   const vaultsQuery = useVaults();
-  // just vaults that already carry a reef config are valid active workspaces:
-  // reef reads/writes issues in the active vault, and Settings has no path to
-  // initialize a bare vault (onboarding's "Create workspace" does that). Mirror
-  // onboarding's `has_reef_config` filter so both surfaces offer the same list
-  // instead of selecting into a dead end (empty board / config-load error)
-  // (REEF-143).
+  // Exclude raw, legacy, unavailable, and incomplete installations.
   const availableVaults = useMemo(
-    () => (vaultsQuery.data ?? []).filter((v) => v.has_reef_config),
+    () =>
+      (vaultsQuery.data ?? []).filter((v) => v.installation_status === "ready"),
     [vaultsQuery.data],
   );
   const vaultsLoading = vaultsQuery.isPending;

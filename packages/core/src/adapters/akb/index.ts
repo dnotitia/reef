@@ -94,7 +94,8 @@ export {
   type VaultSummary,
   type EnrichedVaultSummary,
 } from "./workspace/vaults";
-export { deleteVault, detachReef } from "./workspace/workspaceDeletion";
+export { deleteVault } from "./workspace/workspaceDeletion";
+export { initializeReefWorkspace } from "./workspace/initializeWorkspace";
 export {
   readIssue,
   claimIssueId,
@@ -170,6 +171,7 @@ export { ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE } from "../../schemas/issues/
 export {
   readTemplate,
   writeTemplate,
+  initializeTemplateIfMissing,
   deleteTemplate,
   listTemplates,
 } from "./workspace/templates";
@@ -198,14 +200,17 @@ export type {
 export {
   buildReefVaultSkillDocuments,
   installReefVaultSkill,
+  hasReefVaultSkillDocuments,
   getVaultSkillStatus,
   REEF_VAULT_SKILL_VERSION,
   type InstallReefVaultSkillParams,
+  type HasReefVaultSkillDocumentsParams,
   type GetVaultSkillStatusParams,
   type ReefVaultSkillDocument,
 } from "./vaultSkill/vaultSkill";
 export {
   readConfig,
+  initializeConfigIfMissing,
   writeConfig,
   readAuthoringLanguage,
 } from "./workspace/config";
@@ -216,6 +221,14 @@ export {
   type ControlPlaneRequestPolicy,
   type ControlPlaneTokenSource,
 } from "./controlPlane/installationReader";
+export {
+  readMemberInstallationActive,
+  readInstallation,
+  requestInstallation,
+  uninstallInstallation,
+  type ReadInstallationParams,
+  type RequestInstallationParams,
+} from "./controlPlane/installationLifecycle";
 export {
   createAkbAppRegistry,
   type AkbAppRegistry,

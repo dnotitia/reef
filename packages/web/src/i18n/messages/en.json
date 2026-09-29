@@ -195,27 +195,84 @@
     "switchError": "Couldn't switch workspace. Please try again.",
     "accessDenied": {
       "title": "You don't have access to this workspace",
+      "installationTitle": "This workspace needs installation attention",
       "body": "You're not a member of \"{vault}\", or it no longer exists. Open one of your workspaces instead.",
+      "installation": {
+        "ready": "This workspace is ready for Reef.",
+        "installing": "Reef installation is still running. Check its status again shortly.",
+        "upgrading": "Reef is applying an update. Check its status again shortly.",
+        "blocked": "AKB has blocked this installation. An AKB operator must resolve it before Reef can continue.",
+        "uninstalled": "Reef is uninstalled and its data is retained. An owner or admin can restore it from Onboarding.",
+        "not_installed": "Reef is not installed in this AKB Vault. An owner or admin can approve installation from Onboarding.",
+        "adoption_required": "Legacy Reef data is present. An operator must review adoption before this Vault can be used.",
+        "management_required": "Reef is not ready in this Vault yet. Ask a Vault owner or admin to inspect the installation and finish setup.",
+        "target_unavailable": "The deployment has no valid registered Reef release target. Contact the operator.",
+        "unknown": "Reef could not confirm the installation state. Retry from Onboarding."
+      },
       "switchHeading": "Your workspaces",
       "empty": "You don't have any reef workspaces yet.",
       "onboardingCta": "Set up a workspace"
     }
   },
+  "workspaceInstallation": {
+    "title": "AKB app installation",
+    "status": {
+      "ready": "Ready",
+      "installing": "Installing",
+      "upgrading": "Updating",
+      "blocked": "Blocked",
+      "uninstalled": "Uninstalled",
+      "not_installed": "Not installed",
+      "adoption_required": "Adoption review needed",
+      "management_required": "Owner or admin needed",
+      "target_unavailable": "Deployment target unavailable",
+      "unknown": "Status unavailable"
+    },
+    "description": {
+      "ready": "AKB reports the registered Reef release active and Reef's data-preserving initialization is complete.",
+      "installing": "AKB accepted the command. Reef will wait for canonical activation before initializing workspace data.",
+      "upgrading": "AKB is applying the registered release. Reef will wait for canonical activation before continuing.",
+      "blocked": "AKB has blocked this installation. An AKB operator must resolve it before Reef can continue.",
+      "uninstalled": "The Reef grant is revoked, and AKB retains its owned data. Restore uses the retained release; a fresh install will not purge retained resources.",
+      "not_installed": "Approve the registered Reef release. This grants only installation:read and starts Reef's preservation-safe setup after AKB activation.",
+      "adoption_required": "Legacy Reef tables or settings were found. Reef will not infer their ownership or change their schema.",
+      "management_required": "Reef is not ready in this Vault yet. Ask a Vault owner or admin to inspect the installation and finish setup.",
+      "target_unavailable": "The deployment's registered Reef app or release identity is missing or invalid.",
+      "unknown": "AKB's canonical installation state could not be confirmed. No setup was started."
+    },
+    "button": {
+      "install": "Approve and install Reef",
+      "restore": "Restore retained installation",
+      "fresh": "Request fresh installation",
+      "checkStatus": "Check status",
+      "finish": "Finish workspace setup"
+    },
+    "acknowledgementAccepted": "AKB accepted the command. Reef is checking canonical installation state.",
+    "acknowledgementReplayed": "AKB confirmed this command was already applied. Reef is checking canonical installation state.",
+    "checking": "Checking AKB",
+    "finishing": "Completing setup",
+    "stillRunning": "AKB is still processing the command. Check status again shortly.",
+    "commandFailed": "The installation command failed.",
+    "statusFailed": "Could not read the installation status.",
+    "finishFailed": "The installation is active, but workspace setup did not finish. Retry setup."
+  },
   "settings": {
     "dangerZone": {
       "title": "Danger zone",
-      "detach": {
-        "label": "Remove reef from this workspace",
-        "blurb": "Deletes all reef issues, planning, activity, comments, and templates. The akb vault and any documents that aren't part of reef stay untouched.",
-        "button": "Remove reef",
-        "confirmTitle": "Remove reef from {workspace}?",
-        "confirmDescription": "This deletes reef's issues, planning, activity, comments, and templates from this workspace. You can set reef up here again later.",
-        "staysHeading": "Stays in the vault",
-        "stays1": "The akb vault itself",
-        "stays2": "Any documents and files that aren't part of reef",
-        "pending": "Removing…",
-        "success": "Removed reef from {workspace}.",
-        "failed": "Couldn't remove reef from the workspace."
+      "uninstall": {
+        "label": "Uninstall Reef from this workspace",
+        "blurb": "Revokes Reef's installation grant. AKB retains Reef-owned resources and all workspace data for restore.",
+        "button": "Uninstall Reef",
+        "confirmTitle": "Uninstall Reef from {workspace}?",
+        "confirmDescription": "This revokes Reef's grant. AKB keeps its tables, issues, templates, files, settings, and custom instructions.",
+        "staysHeading": "Retained by AKB",
+        "stays1": "The AKB Vault and its documents",
+        "stays2": "Reef tables, issues, templates, and files",
+        "stays3": "Workspace settings and customized instructions",
+        "pending": "Uninstalling…",
+        "success": "Reef was uninstalled from {workspace}; AKB retained its data.",
+        "failed": "Couldn't uninstall Reef from the workspace.",
+        "stillRunning": "AKB가 설치 제거를 처리 중입니다. 잠시 후 상태를 다시 확인하세요."
       },
       "delete": {
         "label": "Delete this workspace",
@@ -380,6 +437,8 @@
         "authoringLanguage": "Authoring Language",
         "completedIssues": "Completed Issues",
         "templates": "Templates",
+        "installation": "AKB app installation",
+        "otherInstallations": "Other accessible installations",
         "workspaceAiInstructions": "Workspace AI Instructions"
       }
     },
@@ -1776,6 +1835,9 @@
     "newWorkspaceDescription": "Create a new akb vault and a reef project prefix.",
     "createWorkspaceTitle": "Create a project workspace",
     "createWorkspaceSubtitle": "Start with a new akb vault and a reef project prefix.",
+    "installApprovalIntro": "Before workspace data is initialized, approve the registered Reef release for this AKB Vault.",
+    "existingVaultsTitle": "Use an existing AKB Vault",
+    "existingVaultsDescription": "Choose an empty Vault to install Reef, restore a retained installation, or review its current state.",
     "existingWorkspace": "Use an existing reef workspace",
     "existingWorkspaceHint": "Pick an akb vault that already has a reef config document.",
     "existingWorkspaceEmpty": "No existing reef workspaces found.",

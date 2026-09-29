@@ -4,14 +4,14 @@ import type { EnrichedVaultSummary } from "@reef/core";
 import { describe, expect, it } from "vitest";
 import { selectConfiguredWorkspace } from "./workspaceResumePolicy";
 
-function vault(name: string, hasReefConfig: boolean): EnrichedVaultSummary {
+function vault(name: string, ready: boolean): EnrichedVaultSummary {
   return {
     name,
     description: null,
     status: "active",
     role: "owner",
     created_at: null,
-    has_reef_config: hasReefConfig,
+    installation_status: ready ? "ready" : "not_installed",
   };
 }
 

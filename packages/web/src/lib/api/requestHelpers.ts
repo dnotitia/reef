@@ -433,13 +433,12 @@ export async function resolveOptionalActor(
 }
 
 /**
- * Enforce the owner-scoped policy for destructive workspace-lifecycle actions
- * (REEF-322 delete / detach). akb's own floor for deleting a vault or dropping a
- * table is *admin*, but reef restricts these to the workspace owner — so the
- * server verifies the caller's role rather than trusting the client-side
- * Danger Zone gate (a non-owner admin could otherwise call the route directly).
- * The caller's per-vault role comes from the same `my/vaults` projection the UI
- * gate reads. Returns `{ owner: true }` to proceed, or `{ response }` (403, or a
+ * Enforce the owner-scoped policy for deleting an entire Vault. Installation
+ * uninstall goes through AKB's dedicated owner/admin authorization boundary.
+ * The server verifies this role rather than trusting the client-side Danger
+ * Zone gate.
+ * The caller's per-vault role comes from AKB's `my/vaults` projection. Returns
+ * `{ owner: true }` to proceed, or `{ response }` (403, or a
  * translated upstream error) to return as-is.
  */
 export async function requireVaultOwner(

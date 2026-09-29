@@ -7,12 +7,21 @@ import {
   slugify,
   uuidFor,
 } from "./mock-utils.mjs";
+import {
+  E2E_REEF_APP_ID,
+  E2E_REEF_RELEASE_ID,
+  E2E_REEF_RELEASE_VERSION,
+} from "./mock-installation.mjs";
+import { DEFAULT_ISSUE_TEMPLATES } from "../../../src/features/settings/lib/defaultIssueTemplates.ts";
+import {
+  akbBuildReefVaultSkillDocuments,
+  REEF_VAULT_SKILL_VERSION,
+} from "@reef/core";
 
 const require = createRequire(import.meta.url);
 export const fixtureLogin = require("./fixture-login.json");
 
 export const NOW = "2026-06-15T00:00:00.000Z";
-export const REPORTS_FIXTURE_NOW = "2026-06-30T00:00:00.000Z";
 const NOW_MS = Date.parse(NOW);
 export const REEF_VAULT = "reef-e2e";
 export const ISSUE_TITLE_COLLATOR = new Intl.Collator("en-US");
@@ -228,7 +237,36 @@ export function createScenarioVaults(scenario) {
   } else if (scenario === "workspace_recovery_current_stamp") {
     vaults.set("raw-vault", workspaceRecoveryCurrentStampVault("raw-vault"));
   }
+  for (const vault of vaults.values()) {
+    if (vault.installation?.lifecycle === "active") {
+      seedCompleteWorkspace(vault);
+    }
+  }
   return vaults;
+}
+
+function seedCompleteWorkspace(vault) {
+  const templateNames = new Set(vault.templates.map(({ name }) => name));
+  for (const template of DEFAULT_ISSUE_TEMPLATES) {
+    if (!templateNames.has(template.name)) {
+      vault.templates.push({
+        ...template,
+        default_labels: [...template.default_labels],
+      });
+    }
+  }
+
+  if (!vault.settings.has("vault_skill")) {
+    vault.settings.set("vault_skill", {
+      version: REEF_VAULT_SKILL_VERSION,
+      synced_at: NOW,
+    });
+  }
+  for (const document of akbBuildReefVaultSkillDocuments(vault.name)) {
+    if (!vault.documents.has(document.path)) {
+      seedReferenceDocument(vault, document.path, document);
+    }
+  }
 }
 
 function seedReportOutlierIssues(vault) {
@@ -393,11 +431,15 @@ function seedOutdatedVaultSkill(vault) {
 
 function workspaceRecoveryVault(name) {
   const vault = configuredVault(name);
+  // The underlying vault predates Reef's app installation. Its existing data
+  // must survive the owner-approved installation and data initialization.
+  vault.installation = null;
   for (const issue of vault.issues) {
     issue.document_uri = issueDocumentUri(name, issue.reef_id);
   }
   vault.tables = new Set(["reef_settings"]);
   vault.settings = new Map([["custom_setting", "keep-me"]]);
+  vault.templates = [];
   seedOutdatedVaultSkill(vault);
   seedReferenceDocument(vault, "docs/user-notes.md", {
     title: "User notes",
@@ -506,6 +548,14 @@ function markdownFixtureVault(name) {
   return vault;
 }
 
+function vaultIdFor(name) {
+  return uuidFor(sha256(Buffer.from(name)).slice(0, 12));
+}
+
+function installationIdFor(name) {
+  return uuidFor(sha256(Buffer.from(`installation:${name}`)).slice(0, 12));
+}
+
 function configuredVault(name) {
   const sprintId = uuidFor(1);
   const milestoneId = uuidFor(2);
@@ -545,12 +595,19 @@ function configuredVault(name) {
     }),
   ];
   const vault = {
-    id: `vault-${name}`,
+    id: vaultIdFor(name),
     name,
     description: "Hermetic reef E2E workspace",
     status: "active",
     role: "owner",
     created_at: NOW,
+    installation: {
+      id: installationIdFor(name),
+      appId: E2E_REEF_APP_ID,
+      lifecycle: "active",
+      currentReleaseId: E2E_REEF_RELEASE_ID,
+      currentReleaseVersion: E2E_REEF_RELEASE_VERSION,
+    },
     tables: new Set([
       "reef_settings",
       "monitored_repos",
@@ -1479,12 +1536,13 @@ function demoBoardVault(name) {
 
 export function rawVault(name) {
   return {
-    id: `vault-${name}`,
+    id: vaultIdFor(name),
     name,
     description: "Raw akb vault",
     status: "active",
     role: "owner",
     created_at: NOW,
+    installation: null,
     tables: new Set(),
     settings: new Map(),
     monitoredRepos: [],

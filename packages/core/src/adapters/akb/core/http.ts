@@ -38,7 +38,7 @@ export interface AkbRequestPolicy {
   maxJsonResponseBytes: number;
 }
 
-export type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
+export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export interface AkbRequestInit {
   method?: HttpMethod;

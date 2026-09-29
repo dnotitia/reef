@@ -3,6 +3,7 @@ import fixtureLogin from "./fixture-login.json";
 
 export const E2E_MOCK_URL =
   process.env.REEF_E2E_MOCK_URL ?? "http://127.0.0.1:7354";
+export const REPORTS_FIXTURE_NOW = "2026-06-30T00:00:00.000Z";
 
 export const fixtureReaderLogin = {
   username: "bob",
@@ -74,6 +75,12 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
   };
   vaults: Array<{
     name: string;
+    id: string;
+    installation: {
+      id: string;
+      app_id: string;
+      lifecycle: string;
+    } | null;
     tables: string[];
     settings: Record<string, unknown>;
     monitored_repos: Array<{

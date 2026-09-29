@@ -6,6 +6,14 @@ import { chmod, unlink, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
+import {
+  E2E_REEF_APP_ID,
+  E2E_REEF_IMAGE_DIGEST,
+  E2E_REEF_MANIFEST_CHECKSUM,
+  E2E_REEF_RELEASE_ID,
+  E2E_REEF_RELEASE_VERSION,
+  E2E_REEF_SOURCE_REVISION,
+} from "../tests/e2e/harness/mock-installation.mjs";
 
 const MODULE_PATH = fileURLToPath(import.meta.url);
 const PACKAGE_ROOT = resolve(dirname(MODULE_PATH), "..");
@@ -23,6 +31,13 @@ const SAFE_SCENARIO = /^[A-Za-z][A-Za-z0-9_-]*$/u;
 const CLIENT_READY_TIMEOUT_MS = 120_000;
 const CLIENT_READINESS = { mode: "browser", status: "ready" };
 export const CLIENT_READINESS_INTERACTIONS = Object.freeze({
+  onboarding: Object.freeze({
+    workspaceNameInput: "greenfield-vault-name-input",
+    createWorkspaceTrigger: "greenfield-create-btn",
+    installationApprovalStep: "greenfield-approval-step",
+    installationApprovalPrefix: "installation-",
+    installationApprovalSuffix: "-approve",
+  }),
   issueDetail: Object.freeze({
     // The modal test id wraps Radix's portal and therefore has no layout box.
     // Readiness must observe the loaded public detail surface, not that empty
@@ -220,6 +235,8 @@ export function getClientReadinessInputs(discovery, scenario) {
           (candidate) => typeof candidate === "string",
         )
       : undefined);
+  const workspace =
+    typeof task?.workspace === "string" ? task.workspace : undefined;
   return {
     username: requireString(fixtureLogin?.username, "fixture login username"),
     password: requireString(fixtureLogin?.password, "fixture login password"),
@@ -228,6 +245,7 @@ export function getClientReadinessInputs(discovery, scenario) {
       startPath,
       `client readiness start path for scenario "${requestedScenario}"`,
     ),
+    ...(workspace ? { workspace } : {}),
   };
 }
 
@@ -296,6 +314,13 @@ function isIssueDetailStartPath(startPath) {
   );
 }
 
+function isOnboardingStartPath(startPath) {
+  if (typeof startPath !== "string") return false;
+  return (
+    new URL(startPath, "http://reef-e2e.invalid").pathname === "/onboarding"
+  );
+}
+
 async function dismissIssueDetailStart(page, timeoutMs) {
   const issueDetail = CLIENT_READINESS_INTERACTIONS.issueDetail;
   const issueDetailModal = page.locator(issueDetail.observable);
@@ -349,15 +374,68 @@ export async function probeWorkspaceClickInteractions(
   );
 }
 
+async function probeOnboardingInteractions(page, timeoutMs, workspace) {
+  const targetWorkspace = requireString(workspace, "onboarding workspace");
+  const onboarding = CLIENT_READINESS_INTERACTIONS.onboarding;
+  const workspaceNameInput = page.getByTestId(onboarding.workspaceNameInput);
+  await waitForInteractionState(
+    workspaceNameInput,
+    "visible",
+    "onboarding workspace name input",
+    timeoutMs,
+  );
+  await workspaceNameInput.fill(targetWorkspace, { timeout: timeoutMs });
+  if (
+    (await workspaceNameInput.inputValue({ timeout: timeoutMs })) !==
+    targetWorkspace
+  ) {
+    throw new Error(
+      "Client interaction readiness did not accept onboarding input",
+    );
+  }
+
+  const createWorkspace = page.getByTestId(onboarding.createWorkspaceTrigger);
+  await waitForInteractionState(
+    createWorkspace,
+    "visible",
+    "onboarding workspace creation trigger",
+    timeoutMs,
+  );
+  await createWorkspace.click({ timeout: timeoutMs });
+
+  const approvalStep = page.getByTestId(onboarding.installationApprovalStep);
+  await waitForInteractionState(
+    approvalStep,
+    "visible",
+    "onboarding installation approval step after input",
+    timeoutMs,
+  );
+  const approval = approvalStep.getByTestId(
+    `${onboarding.installationApprovalPrefix}${targetWorkspace}${onboarding.installationApprovalSuffix}`,
+  );
+  await waitForInteractionState(
+    approval,
+    "visible",
+    "onboarding installation approval control",
+    timeoutMs,
+  );
+  if (!(await approval.isEnabled())) {
+    throw new Error(
+      "Client interaction readiness found a disabled installation approval control",
+    );
+  }
+  // Verify that the real button is actionable without approving installation
+  // or mutating the task's fixture state.
+  await approval.click({ trial: true, timeout: timeoutMs });
+}
+
 export async function waitForClientInteractionReady(
   { webOrigin, fixtureOrigin, scenario },
   { browserType = chromium, timeoutMs = CLIENT_READY_TIMEOUT_MS } = {},
 ) {
   const discovery = await readRuntimeDiscovery(fixtureOrigin);
-  const { username, password, loginPath, startPath } = getClientReadinessInputs(
-    discovery,
-    scenario,
-  );
+  const { username, password, loginPath, startPath, workspace } =
+    getClientReadinessInputs(discovery, scenario);
   const browser = await browserType.launch({ headless: true });
   const context = await browser.newContext();
   const page = await context.newPage();
@@ -397,17 +475,21 @@ export async function waitForClientInteractionReady(
         timeout: timeoutMs,
       },
     );
-    const issueDetailStart = isIssueDetailStartPath(startPath);
-    if (issueDetailStart) {
-      // Escape closes the global search layer and can then reach the declared
-      // issue-detail Sheet. Close a detail start before probing global
-      // shortcuts so the readiness probe does not destroy its own start state.
-      await dismissIssueDetailStart(page, timeoutMs);
+    if (isOnboardingStartPath(startPath)) {
+      await probeOnboardingInteractions(page, timeoutMs, workspace);
+    } else {
+      const issueDetailStart = isIssueDetailStartPath(startPath);
+      if (issueDetailStart) {
+        // Escape closes the global search layer and can then reach the declared
+        // issue-detail Sheet. Close a detail start before probing global
+        // shortcuts so the readiness probe does not destroy its own start state.
+        await dismissIssueDetailStart(page, timeoutMs);
+      }
+      await probeSearchInteraction(page, timeoutMs);
+      await probeWorkspaceClickInteractions(page, timeoutMs, {
+        startPath: issueDetailStart ? undefined : startPath,
+      });
     }
-    await probeSearchInteraction(page, timeoutMs);
-    await probeWorkspaceClickInteractions(page, timeoutMs, {
-      startPath: issueDetailStart ? undefined : startPath,
-    });
   } finally {
     await context.close().catch(() => undefined);
     await browser.close().catch(() => undefined);
@@ -625,6 +707,12 @@ export async function startRuntime(options) {
         process.env.REEF_GITHUB_APP_INSTALLATION_ID ?? "789",
       REEF_GITHUB_APP_PRIVATE_KEY:
         process.env.REEF_GITHUB_APP_PRIVATE_KEY ?? E2E_GITHUB_APP_PRIVATE_KEY,
+      REEF_APP_ID: E2E_REEF_APP_ID,
+      REEF_RELEASE_ID: E2E_REEF_RELEASE_ID,
+      REEF_RELEASE_VERSION: E2E_REEF_RELEASE_VERSION,
+      REEF_RELEASE_SOURCE_REVISION: E2E_REEF_SOURCE_REVISION,
+      REEF_RELEASE_IMAGE_DIGEST: E2E_REEF_IMAGE_DIGEST,
+      REEF_RELEASE_MANIFEST_CHECKSUM: E2E_REEF_MANIFEST_CHECKSUM,
     },
   );
   await waitForOk(options.webOrigin, 120_000);
@@ -634,7 +722,7 @@ export async function startRuntime(options) {
     scenario: options.scenario,
   });
   process.stdout.write(
-    "[dev:e2e] browser hydration and workspace interaction readiness confirmed\n",
+    "[dev:e2e] browser hydration and declared interaction readiness confirmed\n",
   );
 
   const payload = buildReadyPayload({

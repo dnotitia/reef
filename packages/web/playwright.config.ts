@@ -1,5 +1,13 @@
 import { generateKeyPairSync } from "node:crypto";
 import { defineConfig, devices } from "@playwright/test";
+import {
+  E2E_REEF_APP_ID,
+  E2E_REEF_IMAGE_DIGEST,
+  E2E_REEF_MANIFEST_CHECKSUM,
+  E2E_REEF_RELEASE_ID,
+  E2E_REEF_RELEASE_VERSION,
+  E2E_REEF_SOURCE_REVISION,
+} from "./tests/e2e/harness/mock-installation.mjs";
 
 /**
  * Hermetic E2E defaults. Playwright exercises reef-web and its Route Handlers
@@ -28,6 +36,14 @@ function buildWebServerEnv(): Record<string, string> {
     // The hermetic fixture exercises the local AKB auth contract. Production
     // standalone does not get the development-only auth-mode default.
     REEF_AUTH_MODE: "local",
+    // Match the deployment-bound fixture target used by dev:e2e so configured
+    // workspaces stay resumable in both hermetic runtimes.
+    REEF_APP_ID: E2E_REEF_APP_ID,
+    REEF_RELEASE_ID: E2E_REEF_RELEASE_ID,
+    REEF_RELEASE_VERSION: E2E_REEF_RELEASE_VERSION,
+    REEF_RELEASE_SOURCE_REVISION: E2E_REEF_SOURCE_REVISION,
+    REEF_RELEASE_IMAGE_DIGEST: E2E_REEF_IMAGE_DIGEST,
+    REEF_RELEASE_MANIFEST_CHECKSUM: E2E_REEF_MANIFEST_CHECKSUM,
     // The E2E-only asset rewrite uses this loopback origin in both dev and
     // production-build harnesses; ordinary production has no fixture origin.
     REEF_E2E_MOCK_URL: E2E_MOCK_URL,

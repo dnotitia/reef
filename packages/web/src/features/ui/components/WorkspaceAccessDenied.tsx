@@ -4,7 +4,10 @@ import { ReefMark } from "@/components/ui/reef-mark";
 import { AccountMenu } from "@/features/auth/components/AccountMenu";
 import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
-import type { EnrichedVaultSummary } from "@reef/core";
+import type {
+  EnrichedVaultSummary,
+  WorkspaceInstallationStatus,
+} from "@reef/core";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 
@@ -15,6 +18,7 @@ interface WorkspaceAccessDeniedProps {
   vault: string;
   /** The vaults the user CAN access, from `useVaults()`. */
   vaults: EnrichedVaultSummary[];
+  installationStatus?: WorkspaceInstallationStatus;
 }
 
 /**
@@ -22,17 +26,23 @@ interface WorkspaceAccessDeniedProps {
  * `/workspace/{vault}/...` URL whose `vault` is a well-formed name the
  * signed-in user is not a member of should not silently fall back to their own
  * workspace — that would open someone else's deep link in the wrong context.
- * Instead we name the problem and offer the user's own reef workspaces as the
- * way out (the same `has_reef_config` set the sidebar switcher lists), or a
+ * Instead we name the problem and offer the user's own canonically ready Reef
+ * workspaces as the way out, or a
  * path into onboarding when they have none.
  */
 export function WorkspaceAccessDenied({
   appVersion,
   vault,
   vaults,
+  installationStatus,
 }: WorkspaceAccessDeniedProps) {
   const t = useTranslations("workspace.accessDenied");
-  const reefVaults = vaults.filter((v) => v.has_reef_config);
+  const reefVaults = vaults.filter((v) => v.installation_status === "ready");
+  const hasInstallationState = installationStatus !== undefined;
+  const title = hasInstallationState ? t("installationTitle") : t("title");
+  const body = hasInstallationState
+    ? t(`installation.${installationStatus}`)
+    : t("body", { vault });
 
   return (
     <div
@@ -49,11 +59,9 @@ export function WorkspaceAccessDenied({
         <ReefMark className="size-10" decorative />
         <div className="flex flex-col gap-2">
           <h1 className="font-display text-lg font-semibold text-foreground">
-            {t("title")}
+            {title}
           </h1>
-          <p className="text-sm text-muted-foreground">
-            {t("body", { vault })}
-          </p>
+          <p className="text-sm text-muted-foreground">{body}</p>
         </div>
 
         {reefVaults.length > 0 ? (

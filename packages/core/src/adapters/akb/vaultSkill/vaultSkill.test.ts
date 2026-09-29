@@ -5,6 +5,7 @@ import {
   buildReefVaultSkillDocuments,
   createAkbAdapter,
   getVaultSkillStatus,
+  hasReefVaultSkillDocuments,
   installReefVaultSkill,
 } from "../index";
 
@@ -80,35 +81,9 @@ function bodyOf(
   };
 }
 
-const ALL_REEF_TABLES = [
-  "reef_settings",
-  "monitored_repos",
-  "reef_issues",
-  "reef_sprints",
-  "reef_milestones",
-  "reef_releases",
-  "reef_templates",
-  "reef_comments",
-  "reef_attachments",
-  "reef_activity",
-  "reef_notifications",
-  "reef_subscriptions",
-];
-
-/**
- * Responses for the version stamp that `installReefVaultSkill` now performs
- * after the documents land: `ensureReefTables` lists tables (all present here,
- * so zero creates), then a DELETE + INSERT on `reef_settings`.
- */
+/** Responses for the version stamp written after the managed documents land. */
 function stampResponses(): FetchResponseSpec[] {
   return [
-    {
-      body: {
-        kind: "table",
-        vault: "reef-new",
-        items: ALL_REEF_TABLES.map((name) => ({ name })),
-      },
-    },
     { body: { kind: "table_sql", result: "DELETE 0" } },
     { body: { kind: "table_sql", result: "INSERT 0 1" } },
   ];
@@ -142,8 +117,8 @@ describe("installReefVaultSkill", () => {
 
     await installReefVaultSkill({ adapter: makeAdapter(), vault: "reef-new" });
 
-    // 6 document upserts, then the version stamp (listTables + DELETE + INSERT).
-    expect(calls).toHaveLength(9);
+    // 6 document upserts, then the version stamp (DELETE + INSERT).
+    expect(calls).toHaveLength(8);
     expect(
       calls.slice(0, 6).every((call) => call.init?.method === "PATCH"),
     ).toBe(true);
@@ -172,10 +147,8 @@ describe("installReefVaultSkill", () => {
     await installReefVaultSkill({ adapter: makeAdapter(), vault: "reef-new" });
 
     // The stamp runs last so a partial document failure leaves the old version.
-    const listTables = calls[6];
-    const del = calls[7];
-    const insert = calls[8];
-    expect(listTables.url).toBe("https://akb.test/api/v1/tables/reef-new");
+    const del = calls[6];
+    const insert = calls[7];
     expect(del.url).toBe("https://akb.test/api/v1/tables/reef-new/sql");
     expect(bodyOf(del)).toEqual({
       sql: "DELETE FROM reef_settings WHERE key = $1",
@@ -211,7 +184,7 @@ describe("installReefVaultSkill", () => {
       preserveExisting: true,
     });
 
-    expect(calls).toHaveLength(10);
+    expect(calls).toHaveLength(9);
     expect(calls[0]?.url).toBe("https://akb.test/api/v1/tables/reef-new/sql");
     expect(calls.slice(1, 7).every((call) => call.init?.method === "GET")).toBe(
       true,
@@ -219,7 +192,7 @@ describe("installReefVaultSkill", () => {
     expect(calls[1]?.url).toBe(
       "https://akb.test/api/v1/documents/reef-new/overview/vault-skill.md",
     );
-    expect(calls[7]?.url).toBe("https://akb.test/api/v1/tables/reef-new");
+    expect(calls[7]?.url).toBe("https://akb.test/api/v1/tables/reef-new/sql");
   });
 
   it("does not stamp the current version over a preserved stale document", async () => {
@@ -400,5 +373,47 @@ describe("getVaultSkillStatus", () => {
     });
 
     expect(status.installed_version).toBeNull();
+  });
+});
+
+describe("hasReefVaultSkillDocuments", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("accepts existing user-customized skill documents without reading the version stamp", async () => {
+    const docs = buildReefVaultSkillDocuments("reef-new");
+    const calls = setupFetch(
+      docs.map((doc) => ({ body: documentResponse(doc, "USER CUSTOMIZED") })),
+    );
+
+    await expect(
+      hasReefVaultSkillDocuments({ adapter: makeAdapter(), vault: "reef-new" }),
+    ).resolves.toBe(true);
+    expect(calls).toHaveLength(docs.length);
+    expect(calls.every(({ init }) => init?.method === "GET")).toBe(true);
+    expect(calls.some(({ url }) => url.includes("/tables/"))).toBe(false);
+  });
+
+  it("returns false when a managed skill document is missing", async () => {
+    const [first, second] = buildReefVaultSkillDocuments("reef-new");
+    const calls = setupFetch([
+      { body: documentResponse(first) },
+      { status: 404, body: { detail: "missing" } },
+    ]);
+
+    await expect(
+      hasReefVaultSkillDocuments({ adapter: makeAdapter(), vault: "reef-new" }),
+    ).resolves.toBe(false);
+    expect(calls).toHaveLength(2);
+    expect(calls[1]?.url).toContain(second.path);
+  });
+
+  it("propagates upstream failures instead of treating them as missing setup", async () => {
+    setupFetch([{ status: 503, body: { detail: "unavailable" } }]);
+
+    await expect(
+      hasReefVaultSkillDocuments({ adapter: makeAdapter(), vault: "reef-new" }),
+    ).rejects.toMatchObject({ status: 503 });
   });
 });

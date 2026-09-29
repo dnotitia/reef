@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { useTranslations } from "next-intl";
 import { useId, useState } from "react";
 
-export type WorkspaceDestructiveMode = "delete" | "detach";
+export type WorkspaceDestructiveMode = "delete" | "uninstall";
 
 interface WorkspaceDestructiveDialogProps {
   /** Which destructive action this confirm step commits. */
@@ -32,12 +32,11 @@ interface WorkspaceDestructiveDialogProps {
  *  - `delete` — permanent full-vault delete. Guarded by a type-the-name gate
  *    (the confirm button stays disabled until the input matches the vault) and a
  *    destructive-tinted blast-radius inventory of what is removed.
- *  - `detach` — remove the reef layer; the vault and non-reef content
- *    survive. Recoverable, so it is a single step (no typing) with a neutral
- *    "stays in the vault" inventory.
+ *  - `uninstall` — revoke the Reef grant while AKB retains all owned resources.
+ *    Recoverable, so it is a single step with a data-retention inventory.
  *
  * The friction gradient — typed gate vs single step — is the signal that delete
- * is permanent and detach is not.
+ * is permanent and uninstall retains AKB data.
  */
 export function WorkspaceDestructiveDialog({
   mode,
@@ -76,12 +75,12 @@ export function WorkspaceDestructiveDialog({
           <DialogTitle>
             {isDelete
               ? t("delete.confirmTitle", { workspace: vault })
-              : t("detach.confirmTitle", { workspace: vault })}
+              : t("uninstall.confirmTitle", { workspace: vault })}
           </DialogTitle>
           <DialogDescription>
             {isDelete
               ? t("delete.confirmDescription")
-              : t("detach.confirmDescription")}
+              : t("uninstall.confirmDescription")}
           </DialogDescription>
         </DialogHeader>
 
@@ -99,11 +98,12 @@ export function WorkspaceDestructiveDialog({
         ) : (
           <div className="flex flex-col gap-1.5 rounded-md border border-border-subtle bg-surface-subtle/60 px-3 py-2.5 text-xs text-muted-foreground">
             <p className="font-medium text-foreground/80">
-              {t("detach.staysHeading")}
+              {t("uninstall.staysHeading")}
             </p>
             <ul className="list-disc space-y-0.5 pl-4 leading-relaxed">
-              <li>{t("detach.stays1")}</li>
-              <li>{t("detach.stays2")}</li>
+              <li>{t("uninstall.stays1")}</li>
+              <li>{t("uninstall.stays2")}</li>
+              <li>{t("uninstall.stays3")}</li>
             </ul>
           </div>
         )}
@@ -148,8 +148,8 @@ export function WorkspaceDestructiveDialog({
                 ? t("delete.pending")
                 : t("delete.button")
               : isPending
-                ? t("detach.pending")
-                : t("detach.button")}
+                ? t("uninstall.pending")
+                : t("uninstall.button")}
           </Button>
         </DialogFooter>
       </DialogContent>

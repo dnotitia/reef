@@ -31,8 +31,10 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { type SyntheticEvent, useState } from "react";
 import { z } from "zod";
+import { WorkspaceInstallationActions } from "./WorkspaceInstallationActions";
 
 const CreateVaultResponseSchema = z.object({
+  vault_id: z.string().min(1),
   name: z.string().min(1),
   config: ConfigSchema,
 });
@@ -65,9 +67,9 @@ export interface CreateWorkspaceFormProps {
 }
 
 /**
- * The shared "create a project workspace" form: a new akb vault plus its reef
- * config (project prefix and optional monitored repos), posted to
- * `POST /api/vaults`. Extracted from OnboardingPanel (REEF-146) so the sidebar
+ * The shared "create a project workspace" form: create or select a raw AKB
+ * vault, then request its Reef installation before saving Reef config.
+ * Extracted from OnboardingPanel (REEF-146) so the sidebar
  * "New workspace" dialog reuses the exact same create path instead of
  * duplicating it. The surrounding framing (section header, onboarding's
  * secondary flows, the dialog chrome) stays with each caller; this component
@@ -104,6 +106,10 @@ export function CreateWorkspaceForm({
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [createError, setCreateError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [pendingVault, setPendingVault] = useState<{
+    name: string;
+    config: z.infer<typeof ConfigSchema>;
+  } | null>(null);
 
   const nameId = `${idPrefix}-vault-name-input`;
   const nameErrorId = `${idPrefix}-vault-name-error`;
@@ -185,19 +191,61 @@ export function CreateWorkspaceForm({
       }
 
       const created = CreateVaultResponseSchema.parse(await res.json());
-      await setActiveVault.mutateAsync(created.name);
-      queryClient.setQueryData(["config", created.name], {
-        config: created.config,
-      });
+      setPendingVault({ name: created.name, config: created.config });
       await queryClient.invalidateQueries({ queryKey: ["vaults"] });
-      router.push(withVault(created.name, "/issues"));
-      onCreated?.(created.name);
     } catch (err) {
       const message = err instanceof Error ? err.message : t("createFailed");
       setCreateError(message);
     } finally {
       setCreating(false);
     }
+  }
+
+  async function finishWorkspaceSetup() {
+    if (!pendingVault) return;
+    const response = await apiFetch("/api/config", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        vault: pendingVault.name,
+        patch: pendingVault.config,
+      }),
+    });
+    if (!response.ok) {
+      await throwHttpError(
+        response,
+        `PATCH /api/config returned ${response.status}`,
+      );
+    }
+    const saved = z
+      .object({ config: ConfigSchema })
+      .parse(await response.json());
+    await setActiveVault.mutateAsync(pendingVault.name);
+    queryClient.setQueryData(["config", pendingVault.name], {
+      config: saved.config,
+    });
+    await queryClient.invalidateQueries({ queryKey: ["vaults"] });
+    router.push(withVault(pendingVault.name, "/issues"));
+    onCreated?.(pendingVault.name);
+  }
+
+  if (pendingVault) {
+    return (
+      <div
+        className="flex flex-col gap-4"
+        data-testid={`${idPrefix}-approval-step`}
+      >
+        <p className="text-sm text-muted-foreground">
+          {t("installApprovalIntro")}
+        </p>
+        <WorkspaceInstallationActions
+          vault={pendingVault.name}
+          initialStatus="not_installed"
+          canManage
+          onReady={finishWorkspaceSetup}
+        />
+      </div>
+    );
   }
 
   return (

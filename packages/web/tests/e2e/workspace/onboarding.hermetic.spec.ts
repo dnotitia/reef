@@ -1,7 +1,15 @@
-import { expect, test, type Locator } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Locator,
+} from "@playwright/test";
+import { DEFAULT_CONFIG } from "@reef/core";
+import { DEFAULT_ISSUE_TEMPLATES } from "../../../src/features/settings/lib/defaultIssueTemplates";
 import {
   E2E_MOCK_URL,
   fixtureWriterLogin,
+  fixtureReaderLogin,
   readFixtureState,
   resetFixture,
   signInAsAlice,
@@ -43,10 +51,65 @@ async function expectWidthContained(container: Locator, child: Locator) {
   );
 }
 
+async function postFixtureSql(
+  request: APIRequestContext,
+  token: string,
+  vault: string,
+  sql: string,
+  params: Array<string | number | null>,
+) {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/akb/api/v1/tables/${vault}/sql`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { sql, params },
+    },
+  );
+  expect(response.ok()).toBe(true);
+}
+
 test.describe("Hermetic onboarding flow", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
     await resetFixture(request, "empty");
+  });
+
+  test("an active initialized reader enters the workspace without management details", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "notifications");
+    await signInAsAlice(page);
+
+    const ownerVaults = await page.request.get("/api/vaults");
+    expect(ownerVaults.ok()).toBe(true);
+    expect(
+      (await ownerVaults.json()).vaults.find(
+        (vault: { name: string }) => vault.name === "reef-e2e",
+      )?.installation_status,
+    ).toBe("ready");
+
+    await context.clearCookies();
+    await signInAsUser(page, fixtureReaderLogin);
+    await page.waitForURL(/\/workspace\/reef-e2e\/issues\/?$/, {
+      timeout: 15_000,
+    });
+    await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
+
+    const statusResponse = await page.request.get(
+      "/api/vaults/reef-e2e/installation",
+    );
+    expect(statusResponse.ok()).toBe(true);
+    expect(await statusResponse.json()).toEqual({
+      installation_status: "ready",
+    });
+
+    const mutationResponse = await page.request.post(
+      "/api/vaults/reef-e2e/installation",
+      { data: { mode: "install" } },
+    );
+    expect(mutationResponse.status()).toBe(403);
   });
 
   test("creates a reef workspace through real Route Handlers", async ({
@@ -68,6 +131,12 @@ test.describe("Hermetic onboarding flow", () => {
     ).toHaveValue("REEF");
     await page.locator('[data-testid="greenfield-create-btn"]').click();
 
+    await expect(page.getByTestId("greenfield-approval-step")).toBeVisible();
+    await expect(page).toHaveURL(/\/onboarding$/);
+    await page
+      .getByTestId("greenfield-approval-step")
+      .getByTestId("installation-reef-new-approve")
+      .click();
     await page.waitForURL(/\/issues\/?$/, { timeout: 10_000 });
     await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
     await expect(page.getByTestId("sidebar-workspace-trigger")).toContainText(
@@ -76,7 +145,21 @@ test.describe("Hermetic onboarding flow", () => {
 
     const state = await readFixtureState(request);
     const created = state.vaults.find((vault) => vault.name === "reef-new");
-    expect(created?.settings.project_prefix).toBe("REEF");
+    expect(created?.settings.project_prefix).toBe(
+      DEFAULT_CONFIG.project_prefix,
+    );
+    expect(created?.monitored_repos).toEqual(DEFAULT_CONFIG.monitored_repos);
+    const initialSettings = created?.settings;
+    const expectedTemplates = DEFAULT_ISSUE_TEMPLATES.map((template) => ({
+      name: template.name,
+      label: template.label,
+      description: template.description,
+      title_prefix: template.title_prefix ?? null,
+      priority: template.priority ?? null,
+      default_labels: template.default_labels ?? [],
+      body: template.body,
+    }));
+    expect(created?.templates).toEqual(expectedTemplates);
     expect(created?.tables).toContain("reef_issues");
     expect(
       state.calls.some(
@@ -85,6 +168,64 @@ test.describe("Hermetic onboarding flow", () => {
           call.path === "/akb/api/v1/tables/reef-new/sql",
       ),
     ).toBe(true);
+
+    const loginResponse = await request.post(
+      `${E2E_MOCK_URL}/akb/api/v1/auth/login`,
+      { data: fixtureWriterLogin },
+    );
+    expect(loginResponse.ok()).toBe(true);
+    const login = (await loginResponse.json()) as { token: string };
+    await postFixtureSql(
+      request,
+      login.token,
+      "reef-new",
+      "INSERT INTO reef_settings (key, value) SELECT $1, $2::json WHERE NOT EXISTS (SELECT 1 FROM reef_settings WHERE key = $1) ON CONFLICT DO NOTHING",
+      ["project_prefix", JSON.stringify("REPLACED")],
+    );
+    await postFixtureSql(
+      request,
+      login.token,
+      "reef-new",
+      'INSERT INTO reef_templates ("name", "label", "description", "title_prefix", "priority", "default_labels", "body") SELECT $1, $2, $3, $4, $5, $6::json, $7 WHERE NOT EXISTS (SELECT 1 FROM reef_templates WHERE name = $1) ON CONFLICT DO NOTHING',
+      [
+        "bug",
+        "Replacement",
+        "Replacement description",
+        "Replacement: ",
+        "low",
+        JSON.stringify(["replacement"]),
+        "Replacement body",
+      ],
+    );
+    const monitoredRepoSql =
+      "INSERT INTO monitored_repos (github_id, owner, name, description) SELECT $1, $2, $3, $4 WHERE NOT EXISTS (SELECT 1 FROM monitored_repos WHERE github_id = $1) ON CONFLICT DO NOTHING";
+    await postFixtureSql(request, login.token, "reef-new", monitoredRepoSql, [
+      12345,
+      "saved-owner",
+      "saved-repo",
+      "Saved description",
+    ]);
+    await postFixtureSql(request, login.token, "reef-new", monitoredRepoSql, [
+      12345,
+      "replacement-owner",
+      "replacement-repo",
+      "Replacement description",
+    ]);
+
+    const afterRepeatedInitialization = await readFixtureState(request);
+    const preserved = afterRepeatedInitialization.vaults.find(
+      (vault) => vault.name === "reef-new",
+    );
+    expect(preserved?.settings).toEqual(initialSettings);
+    expect(preserved?.templates).toEqual(expectedTemplates);
+    expect(preserved?.monitored_repos).toEqual([
+      {
+        github_id: 12345,
+        owner: "saved-owner",
+        name: "saved-repo",
+        description: "Saved description",
+      },
+    ]);
   });
 
   test("creates a workspace as a non-admin and can create and read an issue", async ({
@@ -96,6 +237,11 @@ test.describe("Hermetic onboarding flow", () => {
 
     await page.getByTestId("greenfield-vault-name-input").fill("reef-new");
     await page.getByTestId("greenfield-create-btn").click();
+    await expect(page.getByTestId("greenfield-approval-step")).toBeVisible();
+    await page
+      .getByTestId("greenfield-approval-step")
+      .getByTestId("installation-reef-new-approve")
+      .click();
     await page.waitForURL(/\/issues\/?$/, { timeout: 10_000 });
 
     const createdIssueResponse = await page.request.post("/api/issues", {
@@ -172,6 +318,11 @@ test.describe("Hermetic onboarding flow", () => {
 
     await page.getByTestId("greenfield-vault-name-input").fill("raw-vault");
     await page.getByTestId("greenfield-create-btn").click();
+    await expect(page.getByTestId("greenfield-approval-step")).toBeVisible();
+    await page
+      .getByTestId("greenfield-approval-step")
+      .getByTestId("installation-raw-vault-approve")
+      .click();
     await page.waitForURL(/\/issues\/?$/, { timeout: 10_000 });
 
     const state = await readFixtureState(request);
@@ -220,19 +371,32 @@ test.describe("Hermetic onboarding flow", () => {
     await setWorkspaceInitializationControl(request, {
       operation: "document_get",
       failures: 1,
-      successesBeforeFailure: 1,
+      // The owner readiness probe and initialization preflight each read the
+      // existing root document and observe one missing managed document. Let
+      // those four reads and the preservation root read finish, then fail on
+      // the next preservation read after its old stamp has been cleared.
+      successesBeforeFailure: 5,
     });
     await signInAsUser(page, fixtureWriterLogin);
     await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
 
     await page.getByTestId("greenfield-vault-name-input").fill("raw-vault");
-    const firstCreateResponse = page.waitForResponse(
+    const firstInstallResponse = page.waitForResponse(
       (response) =>
-        new URL(response.url()).pathname === "/api/vaults" &&
+        new URL(response.url()).pathname ===
+          "/api/vaults/raw-vault/installation" &&
         response.request().method() === "POST",
     );
     await page.getByTestId("greenfield-create-btn").click();
-    expect((await firstCreateResponse).ok()).toBe(false);
+    await expect(page.getByTestId("greenfield-approval-step")).toBeVisible();
+    await page
+      .getByTestId("greenfield-approval-step")
+      .getByTestId("installation-raw-vault-approve")
+      .click();
+    expect((await firstInstallResponse).ok()).toBe(false);
+    await expect(
+      page.getByTestId("greenfield-approval-step").getByRole("alert"),
+    ).toBeVisible();
     await expect(page).toHaveURL(/\/onboarding$/);
 
     const failedState = await readFixtureState(request);
@@ -262,7 +426,10 @@ test.describe("Hermetic onboarding flow", () => {
       failures: 0,
       successesBeforeFailure: null,
     });
-    await page.getByTestId("greenfield-create-btn").click();
+    await page
+      .getByTestId("greenfield-approval-step")
+      .getByTestId("installation-raw-vault-approve")
+      .click();
     await page.waitForURL(/\/issues\/?$/, { timeout: 10_000 });
 
     const retriedState = await readFixtureState(request);
@@ -292,22 +459,30 @@ test.describe("Hermetic onboarding flow", () => {
     await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
 
     await page.getByTestId("greenfield-vault-name-input").fill("reef-retry");
-    const firstCreateResponse = page.waitForResponse(
+    const firstInstallResponse = page.waitForResponse(
       (response) =>
-        new URL(response.url()).pathname === "/api/vaults" &&
+        new URL(response.url()).pathname ===
+          "/api/vaults/reef-retry/installation" &&
         response.request().method() === "POST",
     );
     await page.getByTestId("greenfield-create-btn").click();
-    expect((await firstCreateResponse).ok()).toBe(false);
+    await expect(page.getByTestId("greenfield-approval-step")).toBeVisible();
+    await page
+      .getByTestId("greenfield-approval-step")
+      .getByTestId("installation-reef-retry-approve")
+      .click();
+    expect((await firstInstallResponse).ok()).toBe(false);
     await expect(page).toHaveURL(/\/onboarding$/);
-    await expect(page.getByTestId("greenfield-create-error")).toBeVisible();
+    await expect(
+      page.getByTestId("greenfield-approval-step").getByRole("alert"),
+    ).toBeVisible();
 
     const failedState = await readFixtureState(request);
     const partial = failedState.vaults.find(
       (vault) => vault.name === "reef-retry",
     );
     expect(partial).toBeDefined();
-    expect(partial?.tables).not.toContain("reef_issues");
+    expect(partial?.tables).toContain("reef_issues");
     expect(partial?.documents).toHaveLength(2);
     const partialDocuments = partial?.documents ?? [];
     const partialRootContent = partialDocuments.find(
@@ -324,7 +499,10 @@ test.describe("Hermetic onboarding flow", () => {
       failures: 0,
       successesBeforeFailure: null,
     });
-    await page.getByTestId("greenfield-create-btn").click();
+    await page
+      .getByTestId("greenfield-approval-step")
+      .getByTestId("installation-reef-retry-approve")
+      .click();
     await page.waitForURL(/\/issues\/?$/, { timeout: 10_000 });
 
     const retriedState = await readFixtureState(request);

@@ -15,10 +15,10 @@ vi.mock("@/features/auth/hooks/useCurrentUser", () => ({
 }));
 import { WorkspaceAccessDenied } from "./WorkspaceAccessDenied";
 
-function vault(name: string, hasReefConfig: boolean): EnrichedVaultSummary {
+function vault(name: string, ready: boolean): EnrichedVaultSummary {
   return {
     name,
-    has_reef_config: hasReefConfig,
+    installation_status: ready ? "ready" : "not_installed",
   } as EnrichedVaultSummary;
 }
 

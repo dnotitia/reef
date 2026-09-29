@@ -14,7 +14,7 @@ import { useState } from "react";
 interface VaultPickerInputProps {
   /**
    * Vaults to render. Callers are responsible for any pre-filtering
-   * (`has_reef_config` etc.) — this component handles search-within-list
+   * (installation state etc.) — this component handles search-within-list
    * and selection.
    */
   vaults: readonly EnrichedVaultSummary[];
@@ -38,7 +38,7 @@ interface VaultPickerInputProps {
 /**
  * Presentational popover for picking an akb vault. Used by both
  * `RepoPickerSection` (Settings) and the onboarding panel; pre-filtering
- * (e.g. `has_reef_config`) happens at the call site.
+ * (e.g. canonical readiness) happens at the call site.
  */
 export function VaultPickerInput({
   vaults,

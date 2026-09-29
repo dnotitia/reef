@@ -43,6 +43,7 @@ vi.mock("@/features/settings/hooks/useGithubAppAvailable", () => ({
 import { apiFetch } from "@/lib/apiClient";
 import { getActiveVault } from "@/lib/storage/config";
 import { db } from "@/lib/storage/db";
+import { DEFAULT_CONFIG } from "@reef/core";
 import { CreateWorkspaceForm } from "./CreateWorkspaceForm";
 
 const mockApiFetch = vi.mocked(apiFetch);
@@ -55,17 +56,39 @@ function wrap(ui: ReactNode) {
 }
 
 function setupMockApi(
-  postBody: unknown = {
+  postBody: Record<string, unknown> = {
     name: "reef-new",
-    config: { project_prefix: "REEF", monitored_repos: [] },
+    config: DEFAULT_CONFIG,
   },
 ) {
   mockApiFetch.mockImplementation(async (url, init) => {
     const u = String(url);
-    if (u.startsWith("/api/vaults") && init?.method === "POST") {
-      return new Response(JSON.stringify(postBody), { status: 200 });
+    if (u === "/api/vaults" && init?.method === "POST") {
+      return new Response(
+        JSON.stringify({
+          vault_id: "33333333-3333-4333-8333-333333333333",
+          ...postBody,
+        }),
+        { status: 200 },
+      );
     }
-    if (u.startsWith("/api/vaults")) {
+    if (u.endsWith("/installation") && init?.method === "POST") {
+      return new Response(
+        JSON.stringify({
+          installation_status: "ready",
+          command_status: "accepted",
+          replayed: false,
+        }),
+        { status: 200 },
+      );
+    }
+    if (u === "/api/config" && init?.method === "PATCH") {
+      const body = JSON.parse(String(init.body)) as { patch: unknown };
+      return new Response(JSON.stringify({ config: body.patch }), {
+        status: 200,
+      });
+    }
+    if (u === "/api/vaults") {
       return new Response(JSON.stringify({ vaults: [] }), { status: 200 });
     }
     if (u.startsWith("/api/repos")) {
@@ -112,7 +135,7 @@ describe("CreateWorkspaceForm", () => {
     );
   });
 
-  it("creates the vault, sets it active, navigates to /issues, and fires onCreated (AC4)", async () => {
+  it("waits for install approval before setup and navigation (AC4)", async () => {
     setupMockApi();
     const onCreated = vi.fn();
     const user = userEvent.setup();
@@ -131,6 +154,12 @@ describe("CreateWorkspaceForm", () => {
       "reef-new",
     );
     await user.click(screen.getByTestId("create-workspace-create-btn"));
+
+    expect(
+      await screen.findByTestId("create-workspace-approval-step"),
+    ).toBeVisible();
+    expect(mockPush).not.toHaveBeenCalled();
+    await user.click(screen.getByTestId("installation-reef-new-approve"));
 
     await waitFor(() =>
       expect(mockPush).toHaveBeenCalledWith("/workspace/reef-new/issues"),

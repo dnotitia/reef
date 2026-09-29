@@ -6,7 +6,10 @@ type VaultsState = {
   isPending: boolean;
   isSuccess: boolean;
   isError: boolean;
-  data?: Array<{ name: string; has_reef_config: boolean }>;
+  data?: Array<{
+    name: string;
+    installation_status: "ready" | "not_installed";
+  }>;
 };
 
 const {
@@ -104,7 +107,7 @@ describe("WorkspaceGuard (REEF-315)", () => {
       isPending: false,
       isSuccess: true,
       isError: false,
-      data: [{ name: "reef-acme", has_reef_config: true }],
+      data: [{ name: "reef-acme", installation_status: "ready" }],
     };
   });
 
@@ -207,7 +210,7 @@ describe("WorkspaceGuard (REEF-315)", () => {
       isPending: false,
       isSuccess: true,
       isError: false,
-      data: [{ name: "reef-other", has_reef_config: true }],
+      data: [{ name: "reef-other", installation_status: "ready" }],
     };
     render(
       <WorkspaceGuard appVersion="1.0.0">
@@ -228,7 +231,7 @@ describe("WorkspaceGuard (REEF-315)", () => {
       isPending: false,
       isSuccess: true,
       isError: false,
-      data: [{ name: "reef-acme", has_reef_config: false }],
+      data: [{ name: "reef-acme", installation_status: "not_installed" }],
     };
     render(
       <WorkspaceGuard appVersion="1.0.0">

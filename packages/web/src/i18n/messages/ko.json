@@ -195,27 +195,84 @@
     "switchError": "워크스페이스를 전환하지 못했습니다. 다시 시도해 주세요.",
     "accessDenied": {
       "title": "이 워크스페이스에 접근할 수 없습니다",
+      "installationTitle": "워크스페이스 설치 확인이 필요합니다",
       "body": "\"{vault}\" 워크스페이스의 멤버가 아니거나 더 이상 존재하지 않습니다. 대신 내 워크스페이스 중 하나를 열어 주세요.",
+      "installation": {
+        "ready": "이 워크스페이스는 reef를 사용할 준비가 됐습니다.",
+        "installing": "reef 설치를 진행 중입니다. 잠시 후 상태를 다시 확인하세요.",
+        "upgrading": "reef 업데이트를 적용 중입니다. 잠시 후 상태를 다시 확인하세요.",
+        "blocked": "AKB가 설치를 차단했습니다. reef를 계속 사용하려면 AKB 운영자가 문제를 해결해야 합니다.",
+        "uninstalled": "reef가 제거되었고 데이터는 보존되어 있습니다. 소유자나 관리자가 온보딩에서 복원할 수 있습니다.",
+        "not_installed": "이 AKB 볼트에는 reef가 설치되지 않았습니다. 소유자나 관리자가 온보딩에서 설치를 승인할 수 있습니다.",
+        "adoption_required": "기존 reef 데이터가 있습니다. 운영자가 도입 여부를 검토해야 이 볼트를 사용할 수 있습니다.",
+        "management_required": "이 볼트는 아직 reef를 사용할 준비가 되지 않았습니다. 설치 상태를 확인하고 설정을 마칠 수 있도록 소유자나 관리자에게 요청하세요.",
+        "target_unavailable": "배포에 유효한 reef 릴리스 대상이 없습니다. 운영자에게 문의하세요.",
+        "unknown": "reef 설치 상태를 확인하지 못했습니다. 온보딩에서 다시 시도하세요."
+      },
       "switchHeading": "내 워크스페이스",
       "empty": "아직 reef 워크스페이스가 없습니다.",
       "onboardingCta": "워크스페이스 설정하기"
     }
   },
+  "workspaceInstallation": {
+    "title": "AKB 앱 설치",
+    "status": {
+      "ready": "준비됨",
+      "installing": "설치 중",
+      "upgrading": "업데이트 중",
+      "blocked": "차단됨",
+      "uninstalled": "설치 제거됨",
+      "not_installed": "미설치",
+      "adoption_required": "도입 검토 필요",
+      "management_required": "소유자 또는 관리자 필요",
+      "target_unavailable": "배포 대상 사용 불가",
+      "unknown": "상태 확인 불가"
+    },
+    "description": {
+      "ready": "AKB가 등록된 reef 릴리스를 활성 상태로 보고 있으며, 데이터 보존형 초기화도 완료되었습니다.",
+      "installing": "AKB가 명령을 접수했습니다. 정식 활성화를 확인한 뒤 워크스페이스 데이터를 초기화합니다.",
+      "upgrading": "AKB가 등록된 릴리스를 적용하고 있습니다. 정식 활성화를 확인한 뒤 계속합니다.",
+      "blocked": "AKB가 설치를 차단했습니다. reef를 계속 사용하려면 AKB 운영자가 문제를 해결해야 합니다.",
+      "uninstalled": "reef 권한은 해제되었지만 AKB가 소유 데이터는 보존했습니다. 복원은 보존된 릴리스를 사용하며, 새 설치도 보존 데이터를 자동 삭제하지 않습니다.",
+      "not_installed": "등록된 reef 릴리스를 승인하세요. installation:read 권한만 부여되며, AKB 활성화 후 데이터 보존 방식으로 설정을 진행합니다.",
+      "adoption_required": "기존 reef 테이블 또는 설정이 있습니다. 소유권을 추정하거나 스키마를 변경하지 않습니다.",
+      "management_required": "이 볼트는 아직 reef를 사용할 준비가 되지 않았습니다. 설치 상태를 확인하고 설정을 마칠 수 있도록 소유자나 관리자에게 요청하세요.",
+      "target_unavailable": "배포의 등록된 reef 앱 또는 릴리스 식별자가 없거나 올바르지 않습니다.",
+      "unknown": "AKB의 정식 설치 상태를 확인하지 못했습니다. 설정을 시작하지 않았습니다."
+    },
+    "button": {
+      "install": "승인하고 reef 설치",
+      "restore": "보존된 설치 복원",
+      "fresh": "새 설치 요청",
+      "checkStatus": "상태 확인",
+      "finish": "워크스페이스 설정 마치기"
+    },
+    "acknowledgementAccepted": "AKB가 명령을 접수했습니다. 정식 설치 상태를 확인하고 있습니다.",
+    "acknowledgementReplayed": "AKB가 이 명령이 이미 적용되었음을 확인했습니다. 정식 설치 상태를 확인하고 있습니다.",
+    "checking": "AKB 확인 중",
+    "finishing": "설정 마무리 중",
+    "stillRunning": "AKB에서 아직 처리 중입니다. 잠시 후 상태를 다시 확인하세요.",
+    "commandFailed": "설치 명령을 처리하지 못했습니다.",
+    "statusFailed": "설치 상태를 읽지 못했습니다.",
+    "finishFailed": "설치는 활성화되었지만 워크스페이스 설정을 마치지 못했습니다. 다시 시도하세요."
+  },
   "settings": {
     "dangerZone": {
       "title": "위험 구역",
-      "detach": {
-        "label": "이 워크스페이스에서 reef 제거",
-        "blurb": "reef의 모든 이슈·플래닝·활동·코멘트·템플릿을 삭제합니다. akb 볼트와 reef와 무관한 문서는 그대로 유지됩니다.",
-        "button": "reef 제거",
-        "confirmTitle": "{workspace}에서 reef를 제거할까요?",
-        "confirmDescription": "이 워크스페이스에서 reef의 이슈·플래닝·활동·코멘트·템플릿을 삭제합니다. 나중에 여기에 reef를 다시 설정할 수 있습니다.",
-        "staysHeading": "볼트에 남는 것",
-        "stays1": "akb 볼트 자체",
-        "stays2": "reef와 무관한 문서 및 파일",
-        "pending": "제거 중…",
-        "success": "{workspace}에서 reef를 제거했습니다.",
-        "failed": "워크스페이스에서 reef를 제거하지 못했습니다."
+      "uninstall": {
+        "label": "이 워크스페이스에서 reef 설치 제거",
+        "blurb": "reef 설치 권한을 해제합니다. AKB는 복원을 위해 reef 소유 리소스와 모든 워크스페이스 데이터를 보존합니다.",
+        "button": "reef 설치 제거",
+        "confirmTitle": "{workspace}에서 reef 설치를 제거할까요?",
+        "confirmDescription": "reef 권한을 해제합니다. AKB는 테이블, 이슈, 템플릿, 파일, 설정, 사용자 지정 지침을 보존합니다.",
+        "staysHeading": "AKB가 보존하는 데이터",
+        "stays1": "AKB 볼트와 문서",
+        "stays2": "reef 테이블, 이슈, 템플릿, 파일",
+        "stays3": "워크스페이스 설정과 사용자 지정 지침",
+        "pending": "설치 제거 중…",
+        "success": "{workspace}에서 reef 설치를 제거했고 AKB가 데이터를 보존했습니다.",
+        "failed": "워크스페이스에서 reef 설치를 제거하지 못했습니다.",
+        "stillRunning": "AKB가 설치 제거를 처리 중입니다. 잠시 후 상태를 다시 확인하세요."
       },
       "delete": {
         "label": "이 워크스페이스 삭제",
@@ -380,6 +437,8 @@
         "authoringLanguage": "작성 언어",
         "completedIssues": "완료된 이슈",
         "templates": "템플릿",
+        "installation": "AKB 앱 설치",
+        "otherInstallations": "접근할 수 있는 다른 설치",
         "workspaceAiInstructions": "워크스페이스 AI 지침"
       }
     },
@@ -1968,6 +2027,9 @@
     "newWorkspaceDescription": "새 akb 볼트와 reef 프로젝트 접두사를 만듭니다.",
     "createWorkspaceTitle": "프로젝트 워크스페이스 만들기",
     "createWorkspaceSubtitle": "새 akb 볼트와 reef 프로젝트 접두사로 시작하세요.",
+    "installApprovalIntro": "워크스페이스 데이터를 초기화하기 전에 이 AKB 볼트에 등록된 reef 릴리스 설치를 승인하세요.",
+    "existingVaultsTitle": "기존 AKB 볼트 사용",
+    "existingVaultsDescription": "reef를 설치할 빈 볼트를 선택하거나 보존된 설치를 복원하고 현재 상태를 확인하세요.",
     "existingWorkspace": "기존 reef 워크스페이스 사용",
     "existingWorkspaceHint": "이미 reef 설정 문서가 있는 akb 볼트를 선택하세요.",
     "existingWorkspaceEmpty": "기존 reef 워크스페이스를 찾을 수 없습니다.",

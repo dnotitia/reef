@@ -9,7 +9,6 @@ import {
   REEF_TEMPLATES_TABLE,
   buildRowAssignments,
   decodeStringArray,
-  ensureReefTables,
   isMissingTableError,
   quoteIdent,
   runSql,
@@ -126,11 +125,9 @@ export async function readTemplate(
  * akb-auto `created_at`) and INSERT otherwise. Last-write-wins, non-
  * transactional.
  *
- * Provisions `reef_templates` lazily via `ensureReefTables` (mirroring
- * `writeConfig`, NOT `writeIssue`): `listTemplates` treats a missing table as
- * an empty list, so the Settings "add a template" flow is a legitimate path
- * even on a vault that predates the table — the first write should create it
- * rather than 500.
+ * Writes only to the Reef-owned table created by AKB's canonical app
+ * installation. Workspace initialization uses `initializeTemplateIfMissing`
+ * to seed defaults without replacing edits already stored in the vault.
  */
 export async function writeTemplate(
   params: WriteTemplateParams,
@@ -140,7 +137,6 @@ export async function writeTemplate(
     "akb.write_template",
     { vault, name: template.name },
     async (span) => {
-      await ensureReefTables({ adapter, vault });
       const existing = await selectTemplateRows(adapter, vault, template.name);
       if (existing.length > 0) {
         span.setAttribute("template_exists", true);
@@ -170,6 +166,36 @@ export async function writeTemplate(
         vault,
         `INSERT INTO ${tableRef(REEF_TEMPLATES_TABLE)} (${columns}) VALUES (${values})`,
         params.params,
+      );
+    },
+  );
+}
+
+/** Insert an initial template only when its name is still absent. */
+export async function initializeTemplateIfMissing(params: {
+  adapter: AkbAdapter;
+  vault: string;
+  template: Template;
+}): Promise<void> {
+  const { adapter, vault, template } = params;
+  await withSpan(
+    "akb.initialize_template",
+    { vault, name: template.name },
+    async () => {
+      const sqlParams = new SqlParameterBuilder();
+      const nameParam = sqlParams.add(template.name, "template name");
+      const fields = templateRowMutableFields(template, sqlParams);
+      const columns = ["name", ...fields.map(([column]) => column)]
+        .map(quoteIdent)
+        .join(", ");
+      const values = [nameParam, ...fields.map(([, value]) => value)].join(
+        ", ",
+      );
+      await runSql(
+        adapter,
+        vault,
+        `INSERT INTO ${tableRef(REEF_TEMPLATES_TABLE)} (${columns}) SELECT ${values} WHERE NOT EXISTS (SELECT 1 FROM ${tableRef(REEF_TEMPLATES_TABLE)} WHERE name = ${nameParam}) ON CONFLICT DO NOTHING`,
+        sqlParams.params,
       );
     },
   );

@@ -50,7 +50,8 @@ export function useWorkspaceAutoResume({
     [vaultsQuery.data, rememberedVault],
   );
   const hasConfiguredWorkspace =
-    vaultsQuery.data?.some((vault) => vault.has_reef_config) ?? false;
+    vaultsQuery.data?.some((vault) => vault.installation_status === "ready") ??
+    false;
 
   const retry = useCallback(() => {
     pendingResumeRef.current = null;
