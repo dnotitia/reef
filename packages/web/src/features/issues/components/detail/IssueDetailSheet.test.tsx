@@ -67,8 +67,8 @@ import {
   ISSUE_DETAIL_MIN_WIDTH,
   ISSUE_DETAIL_RESTORE_WIDTH_SESSION_STORAGE_KEY,
   ISSUE_DETAIL_SESSION_STORAGE_KEY,
-  IssueDetailSheet,
-} from "./IssueDetailSheet";
+} from "./issueDetailSizing";
+import { IssueDetailSheet } from "./IssueDetailSheet";
 
 function wrap(ui: ReactNode, locale: Locale = "en") {
   const queryClient = new QueryClient({

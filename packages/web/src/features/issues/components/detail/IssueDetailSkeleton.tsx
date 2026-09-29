@@ -2,6 +2,7 @@
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { SECTION_HEADER_CLASS } from "@/components/FormSection";
+import { MarkdownEditorLoadingSkeleton } from "@/components/markdown-editor/MarkdownEditorLoadingSkeleton";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
@@ -146,8 +147,8 @@ function RailSectionSkeleton({
  * swaps in and out.
  *
  * The main canvas reserves the loaded column's full height: title + description
- * (the description bar sized to the MarkdownEditor's toolbar + 320px initial
- * body frame, not a short stub), then Sub-issues, linked documents, refs, and the Activity
+ * (the shared MarkdownEditor toolbar and current tab-local body frame), then
+ * Sub-issues, linked documents, refs, and the Activity
  * timeline + composer below it. Before REEF-258 it stopped after the description,
  * so the panel grew ~2× when the real lower sections hydrated in; the reserved
  * sections keep the visible region from jumping.
@@ -243,13 +244,12 @@ export function IssueDetailSkeleton() {
                 testId="issue-detail-description-label"
                 labelClassName="text-xs font-medium text-muted-foreground"
               />
-              {/* Description value reserves the MarkdownEditor's height: a ~36px
-                toolbar strip over its 320px initial body frame (≈356px), so the
-                editor chunk loading in does not push the sections below down. */}
-              <Skeleton
-                aria-hidden="true"
-                style={wave(HEADER_SKELETONS + 3)}
-                className="h-[356px] w-full"
+              {/* The same loading surface is used at the lazy editor boundary.
+                It reads the tab-local Description height and keeps toolbar
+                wrapping aligned while the issue body or editor is pending. */}
+              <MarkdownEditorLoadingSkeleton
+                enableHeightResize
+                waveIndex={HEADER_SKELETONS + 3}
               />
             </div>
 

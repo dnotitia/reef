@@ -1633,7 +1633,8 @@ describe("MarkdownEditor", () => {
       render(<MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />);
       const frame = screen.getByTestId("markdown-editor-body-frame");
       expect(frame).toHaveStyle({ height: "480px" });
-      expect(frame).toHaveClass("overflow-hidden", "mr-1", "mb-1");
+      expect(frame).toHaveClass("overflow-hidden");
+      expect(frame).toHaveStyle({ marginBottom: "4px", marginRight: "4px" });
       expect(screen.getByTestId("editor-content")).toHaveClass("overflow-auto");
       act(() => fireEvent.click(screen.getByTitle("Toggle source mode")));
       expect(screen.getByTestId("markdown-source-textarea")).toHaveClass(

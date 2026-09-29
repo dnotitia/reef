@@ -445,6 +445,15 @@ Source mode retains its native vertical resize fallback when the dedicated
 handle is unavailable. Planning, template, and other MarkdownEditor consumers
 remain opt-out.
 
+The Issue Detail sheet width and Description height are read from the current
+tab's session storage before the first UI paint. The nonce-authorized layout
+bootstrap applies their viewport-clamped values to the loading shell, including
+while issue data or the editor code is pending. Loading and ready states share
+the panel width, editor body frame, toolbar height, and spacing, so hydration and
+lazy loading do not move the content below the Description. Missing, malformed,
+or out-of-range stored values use the same defaults and clamp boundaries as the
+interactive controls.
+
 Inline marks inside the same scoped surface follow the same semantic hierarchy:
 links use the `--brand-text` role and keep a visible underline in default,
 hover, visited, and keyboard-focus states; inline code uses the existing Geist
@@ -542,7 +551,8 @@ fluid main column:
   action toggles the maximum width and restores the preceding splitter width.
   The width and toggle state live for the current browser tab session; narrow
   viewports keep the existing responsive `min(94vw, 1440px)` layout without a
-  splitter or width action.
+  splitter or width action. Saved width is applied to the loading shell on first
+  paint, so issue and editor loading preserve the same panel frame.
   Relation targets render as compact issue rows rather than pill chips.
 - **Ask AI** — a floating non-modal panel (≈420×560) anchored bottom-right,
   above its FAB.

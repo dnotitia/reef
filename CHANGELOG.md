@@ -24,6 +24,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Issue detail restores its tab-local panel width and Description height while
+  the issue or editor loads.** Loading skeletons use the saved dimensions from
+  first paint, so the panel, toolbar, and content below the editor do not jump
+  when the loaded UI takes over. (REEF-650)
 - **Issue search keeps one results-level progress indicator through debounce and
   refresh.** Empty searches start quietly, and board, list, backlog, and timeline
   searches share one progress bar and live announcement. (REEF-645)
