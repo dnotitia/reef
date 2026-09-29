@@ -53,6 +53,49 @@ describe("SearchBar", () => {
     expect(input.value).toBe("Al");
   });
 
+  it("does not push a stale debounced query over an external store update", async () => {
+    const user = userEvent.setup();
+    useIssueStore.setState({ searchQuery: "A" });
+    render(<SearchBar />);
+    const input = screen.getByTestId("search-input") as HTMLInputElement;
+
+    await user.type(input, "l");
+    act(() => {
+      useIssueStore.setState({ searchQuery: "restored" });
+    });
+
+    expect(input.value).toBe("Al");
+    expect(useIssueStore.getState().searchQuery).toBe("restored");
+  });
+
+  it("reflects external search clears and restores", async () => {
+    useIssueStore.setState({ searchQuery: "saved" });
+    render(<SearchBar />);
+    const input = screen.getByTestId("search-input") as HTMLInputElement;
+
+    act(() => {
+      useIssueStore.setState((state) => ({
+        searchQuery: "",
+        searchQueryResetToken: state.searchQueryResetToken + 1,
+      }));
+    });
+    await waitFor(() => {
+      expect(input.value).toBe("");
+      expect(useIssueStore.getState().searchQuery).toBe("");
+    });
+
+    act(() => {
+      useIssueStore.setState((state) => ({
+        searchQuery: "restored",
+        searchQueryResetToken: state.searchQueryResetToken + 1,
+      }));
+    });
+    await waitFor(() => {
+      expect(input.value).toBe("restored");
+      expect(useIssueStore.getState().searchQuery).toBe("restored");
+    });
+  });
+
   it("updates store after 150ms debounce", async () => {
     const user = userEvent.setup();
     render(<SearchBar />);

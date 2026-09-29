@@ -38,6 +38,7 @@ export function SearchBar({
   const inputRef = useRef<HTMLInputElement>(null);
   const localValueRef = useRef(localValue);
   const debouncedValueRef = useRef(debounced);
+  const previousDebouncedRef = useRef(debounced);
   useEffect(() => {
     localValueRef.current = localValue;
     debouncedValueRef.current = debounced;
@@ -45,11 +46,12 @@ export function SearchBar({
 
   // Push the settled value into the store so the list query re-runs on it.
   useEffect(() => {
-    if (searchQuery === debounced) return;
+    if (previousDebouncedRef.current === debounced) return;
+    previousDebouncedRef.current = debounced;
     startStoreTransition(() => {
       setSearchQuery(debounced);
     });
-  }, [debounced, searchQuery, setSearchQuery]);
+  }, [debounced, setSearchQuery]);
 
   // The active result surface owns the single progress indicator and live
   // announcement. Forward input-side work so it can cover debounce and store
