@@ -18,6 +18,12 @@ explicitly in the entries below.
   rollups, pivots, and forecasts in one workspace-scoped response instead of
   loading issue and activity rows into the browser. (REEF-617)
 
+### Fixed
+
+- **Saved Light, Dark, and System themes apply before the first paint.** The
+  nonce-authorized root bootstrap reads the existing localStorage mirror, and
+  segmented-control fills switch immediately with the root theme. (REEF-643)
+
 ## v0.16.1 - 2026-09-28
 
 ### Migration
