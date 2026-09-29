@@ -6,7 +6,7 @@ import {
   retryAuthSession,
   useAuthRedirect,
 } from "@/features/auth/hooks/useAuthRedirect";
-import { WorkspaceResumeStatus } from "@/features/onboarding/components/WorkspaceResumeStatus";
+import { WorkspaceResumeShell } from "@/features/onboarding/components/WorkspaceResumeShell";
 import { useWorkspaceAutoResume } from "@/features/onboarding/hooks/useWorkspaceAutoResume";
 
 /**
@@ -30,9 +30,5 @@ export default function WorkspaceRootPage() {
   if (authStatus !== "active" || resume.status === "disabled") {
     return <AppShellSkeleton />;
   }
-  return (
-    <main className="flex min-h-screen items-center justify-center p-6">
-      <WorkspaceResumeStatus status={resume.status} onRetry={resume.retry} />
-    </main>
-  );
+  return <WorkspaceResumeShell status={resume.status} onRetry={resume.retry} />;
 }

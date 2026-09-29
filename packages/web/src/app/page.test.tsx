@@ -13,7 +13,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const useAuthRedirect = vi.hoisted(() => vi.fn());
 vi.mock("@/features/auth/hooks/useAuthRedirect", () => ({ useAuthRedirect }));
 const useWorkspaceAutoResume = vi.hoisted(() =>
-  vi.fn(() => ({ status: "disabled", retry: vi.fn() })),
+  vi.fn(() => ({
+    status: "disabled" as
+      | "disabled"
+      | "pending"
+      | "redirecting"
+      | "empty"
+      | "error",
+    retry: vi.fn(),
+  })),
 );
 vi.mock("@/features/onboarding/hooks/useWorkspaceAutoResume", () => ({
   useWorkspaceAutoResume,
@@ -43,5 +51,32 @@ describe("apps/web root page", () => {
   it("still runs the root redirect gate", () => {
     render(<RootPage />);
     expect(useAuthRedirect).toHaveBeenCalledWith("root");
+  });
+
+  it.each(["pending", "redirecting"] as const)(
+    "keeps the board app shell while workspace resume is %s",
+    (status) => {
+      useAuthRedirect.mockReturnValue("active");
+      useWorkspaceAutoResume.mockReturnValue({ status, retry: vi.fn() });
+
+      render(<RootPage />);
+
+      expect(screen.getByTestId("app-shell-skeleton")).toBeInTheDocument();
+      expect(screen.getByTestId("board-columns-skeleton")).toBeInTheDocument();
+      expect(screen.queryByTestId("workspace-resume-loading")).toBeNull();
+    },
+  );
+
+  it("keeps workspace resume errors and retry inside the app shell", () => {
+    useAuthRedirect.mockReturnValue("active");
+    const retry = vi.fn();
+    useWorkspaceAutoResume.mockReturnValue({ status: "error", retry });
+
+    render(<RootPage />);
+
+    expect(screen.getByTestId("app-shell-skeleton")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-resume-error")).toBeInTheDocument();
+    screen.getByRole("button", { name: "Retry" }).click();
+    expect(retry).toHaveBeenCalledOnce();
   });
 });
