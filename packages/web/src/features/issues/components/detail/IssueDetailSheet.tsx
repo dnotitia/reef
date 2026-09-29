@@ -498,6 +498,7 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
       >
         <SheetContent
           side="right"
+          data-reef-issue-detail-sheet=""
           // The sheet's own persistent chrome bar owns the close affordance
           // (REEF-286), so the overlay X is suppressed here to avoid a
           // duplicate, colliding control in the top-right corner.

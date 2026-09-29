@@ -608,11 +608,23 @@ export function NewIssueDialog({
         } grid-rows-[auto_minmax(0,1fr)_auto] gap-5 overflow-hidden pb-[calc(1.25rem+env(safe-area-inset-bottom))]`}
         style={dialogStyle}
         onInteractOutside={(e) => {
+          // The command palette is another Radix dialog portaled outside this
+          // dialog. Moving focus or choosing an item inside that layer must not
+          // treat the in-progress draft as an outside dismissal.
+          const target = e.detail.originalEvent.target;
+          if (
+            target instanceof Element &&
+            target.closest(
+              '[data-slot="dialog-content"], [data-slot="dialog-overlay"]',
+            )
+          ) {
+            e.preventDefault();
+            return;
+          }
           // The relation picker renders its dropdown in a body portal, so Radix
           // sees a click on one of its options as "outside" the dialog. That is
           // a normal in-dialog selection, not a dismiss — keep the dialog open
           // and does not prompt to discard for it.
-          const target = e.detail.originalEvent.target;
           if (
             target instanceof Element &&
             target.closest('[data-testid="relation-dropdown-panel"]')

@@ -177,6 +177,10 @@ describe("MarkdownEditor", () => {
   it("renders the editor container", () => {
     render(<MarkdownEditor value="" onChange={vi.fn()} />);
     expect(screen.getByTestId("markdown-editor")).toBeInTheDocument();
+    expect(screen.getByTestId("markdown-editor")).toHaveAttribute(
+      "data-reef-editable-markdown",
+      "",
+    );
   });
 
   it("paints the inset focus-within ring above clipped edit lanes and dividers", () => {
@@ -853,6 +857,9 @@ describe("MarkdownEditor", () => {
     rerender(<MarkdownEditor value="# Body" onChange={vi.fn()} readOnly />);
     expect(editorOptions().editorProps?.attributes?.class).toContain(
       MARKDOWN_SURFACE_CLASS,
+    );
+    expect(screen.getByTestId("markdown-editor")).not.toHaveAttribute(
+      "data-reef-editable-markdown",
     );
     expect(screen.queryByTestId("markdown-toolbar")).not.toBeInTheDocument();
   });

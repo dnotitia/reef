@@ -426,6 +426,7 @@ export function MarkdownEditor({
     <div
       ref={rootRef}
       data-testid="markdown-editor"
+      data-reef-editable-markdown={readOnly ? undefined : ""}
       onBlur={(event) => {
         // Fire when focus truly exits the editor subtree (toolbar + content) —
         // relatedTarget still inside means an internal focus shift.

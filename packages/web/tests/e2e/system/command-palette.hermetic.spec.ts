@@ -1,14 +1,50 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { openExistingWorkspace, resetFixture } from "../harness/fixture";
 
 const searchInput = '[data-testid="global-search-input"]';
 const commandInput = '[data-testid="command-palette-input"]';
+const PRIMARY_MODIFIER = process.platform === "darwin" ? "Meta" : "Control";
 
 async function enterCommandMode(page: import("@playwright/test").Page) {
   await expect(page.locator("[data-interaction-ready=true]")).toBeVisible();
   await page.keyboard.press("Control+K");
   await page.locator(searchInput).fill(">");
   await expect(page.locator(commandInput)).toBeFocused();
+}
+
+async function selectEditorContents(page: Page, editor: Locator) {
+  const selectedText = await editor.evaluate((element) => {
+    const selection = window.getSelection();
+    if (!selection) throw new Error("Browser selection API is unavailable");
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    return selection.toString();
+  });
+  expect(selectedText.trim()).not.toBe("");
+  return selectedText;
+}
+
+async function changeLocaleFromFocusedEditor(page: Page, locale: "en" | "ko") {
+  await page.keyboard.press(`${PRIMARY_MODIFIER}+K`);
+  await expect(page.locator(searchInput)).toBeVisible();
+  const discard = page.getByTestId("discard-draft-confirm");
+  await expect(discard).toHaveCount(0);
+  await page.locator(searchInput).fill(">");
+  await expect(page.locator(commandInput)).toBeFocused();
+  await expect(discard).toHaveCount(0);
+  await page
+    .locator('[data-testid="command-page-entry"][data-command-page="locale"]')
+    .click();
+  await expect(discard).toHaveCount(0);
+  const localeAction = page.locator(
+    `[data-testid="command-action"][data-command-id="locale.${locale}"]`,
+  );
+  await expect(localeAction).toBeVisible();
+  await localeAction.click();
+  await expect(discard).toHaveCount(0);
+  await expect(page.locator("html")).toHaveAttribute("lang", locale);
 }
 
 test.describe("Hermetic command palette", () => {
@@ -355,6 +391,97 @@ test.describe("Hermetic command palette", () => {
       .click();
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
     await expect(page.getByRole("main")).toBeFocused();
+  });
+
+  test("keeps New Issue draft focus, selection, and undo history through locale commands", async ({
+    context,
+    page,
+  }) => {
+    await context.addCookies([
+      { name: "NEXT_LOCALE", value: "ko", url: "http://localhost:7353" },
+    ]);
+    await openExistingWorkspace(page);
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+    await page
+      .getByRole("button", { name: /^새 이슈(?: \([^)]*\))?$/u })
+      .click();
+
+    const dialog = page.getByTestId("new-issue-dialog");
+    const editorWrapper = dialog.getByTestId("markdown-editor");
+    const editor = editorWrapper.locator(".reef-markdown-editor");
+    await expect(editor).toBeVisible();
+    await editor.fill("Locale draft text");
+    const selectedText = await selectEditorContents(page, editor);
+    await editorWrapper
+      .getByRole("button", { name: "굵게", exact: true })
+      .click();
+    await expect(editor.locator("strong")).toContainText("Locale draft text");
+    await expect(editor).toBeFocused();
+
+    await changeLocaleFromFocusedEditor(page, "en");
+    await expect(dialog).toBeVisible();
+    expect.soft(editor).toBeFocused();
+    expect
+      .soft(await page.evaluate(() => window.getSelection()?.toString() ?? ""))
+      .toBe(selectedText);
+
+    await expect(editor.locator("strong")).toContainText("Locale draft text");
+    await page.keyboard.press(`${PRIMARY_MODIFIER}+Z`);
+    await expect(editor.locator("strong")).toHaveCount(0);
+    await expect(editor).toContainText("Locale draft text");
+    await expect(editor).toBeFocused();
+    const redo = editorWrapper.getByRole("button", {
+      name: "Redo",
+      exact: true,
+    });
+    await expect(redo).toBeEnabled();
+    await redo.click();
+    await expect(editor.locator("strong")).toContainText("Locale draft text");
+    await editor.focus();
+    await expect(editor).toBeFocused();
+
+    await changeLocaleFromFocusedEditor(page, "ko");
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+    expect.soft(editor).toBeFocused();
+    await changeLocaleFromFocusedEditor(page, "en");
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
+    expect.soft(editor).toBeFocused();
+  });
+
+  test("keeps issue detail open and focused through locale commands from its Markdown editor", async ({
+    context,
+    page,
+  }) => {
+    await context.addCookies([
+      { name: "NEXT_LOCALE", value: "ko", url: "http://localhost:7353" },
+    ]);
+    await openExistingWorkspace(page);
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+    await page.goto("/workspace/reef-e2e/issues/REEF-001");
+
+    const editorWrapper = page.getByTestId("markdown-editor");
+    const editor = editorWrapper.locator(".reef-markdown-editor");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await expect(editor).toBeVisible();
+    const selectedText = await selectEditorContents(page, editor);
+    await editorWrapper
+      .getByRole("button", { name: "굵게", exact: true })
+      .click();
+    await expect(editor).toBeFocused();
+
+    await changeLocaleFromFocusedEditor(page, "en");
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
+    expect.soft(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/REEF-001$/u);
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    expect.soft(editor).toBeFocused();
+    expect
+      .soft(await page.evaluate(() => window.getSelection()?.toString() ?? ""))
+      .toBe(selectedText);
+
+    await changeLocaleFromFocusedEditor(page, "ko");
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+    expect.soft(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/REEF-001$/u);
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
   });
 
   test("restores focus after a same-surface theme command", async ({
