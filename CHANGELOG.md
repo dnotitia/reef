@@ -20,6 +20,9 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **The issues board holds its rollover notice space while an eligible sprint is
+  being resolved.** The board stays in place as issue data arrives, and the
+  frame collapses once the loaded data confirms there is no notice to show.
 - **Saved Light, Dark, and System themes apply before the first paint.** The
   nonce-authorized root bootstrap reads the existing localStorage mirror, and
   segmented-control fills switch immediately with the root theme. (REEF-643)

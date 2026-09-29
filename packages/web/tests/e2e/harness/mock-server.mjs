@@ -82,10 +82,15 @@ const server = createServer(async (req, res) => {
         0,
         Number(body?.next_page_failures ?? 0),
       );
+      state.issueListDelayMs = Math.max(
+        0,
+        Math.min(Number(body?.delay_ms ?? 0), 5_000),
+      );
       return json(res, 200, {
         ok: true,
         issue_list_failure: state.issueListFailure,
         issue_list_next_page_failures: state.issueListNextPageFailures,
+        issue_list_delay_ms: state.issueListDelayMs,
       });
     }
     if (
@@ -94,9 +99,14 @@ const server = createServer(async (req, res) => {
     ) {
       const body = await readJson(req);
       state.planningCatalogFailure = body?.enabled === true;
+      state.planningCatalogDelayMs = Math.max(
+        0,
+        Math.min(Number(body?.delay_ms ?? 0), 5_000),
+      );
       return json(res, 200, {
         ok: true,
         planning_catalog_failure: state.planningCatalogFailure,
+        planning_catalog_delay_ms: state.planningCatalogDelayMs,
       });
     }
     if (url.pathname === "/__e2e/vault-list-control" && req.method === "POST") {
