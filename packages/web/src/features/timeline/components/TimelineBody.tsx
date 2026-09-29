@@ -55,6 +55,7 @@ function TimelineSkeleton() {
 interface TimelineBodyProps {
   vault: string;
   scope?: IssueScope;
+  searchInputPending?: boolean;
 }
 
 /**
@@ -65,7 +66,11 @@ interface TimelineBodyProps {
  * IssuesWorkspace; the quarter navigation controls live in this body's own
  * sub-toolbar since they are timeline-specific.
  */
-export function TimelineBody({ vault, scope = "active" }: TimelineBodyProps) {
+export function TimelineBody({
+  vault,
+  scope = "active",
+  searchInputPending = false,
+}: TimelineBodyProps) {
   const t = useTranslations("timeline");
   const c = useTranslations("common");
   // The timeline groups by workflow status just; keep a stray backlog status
@@ -180,7 +185,10 @@ export function TimelineBody({ vault, scope = "active" }: TimelineBodyProps) {
   );
   const activeFilters = hasScopeFilters(filter, searchQuery, scope);
   const resultsUpdating =
-    searchTransitionPending || isPlaceholderData || (isFetching && !isPending);
+    searchInputPending ||
+    searchTransitionPending ||
+    isPlaceholderData ||
+    (isFetching && !isPending);
   const planningOverlay = useMemo(
     () => getPlanningOverlay(planningQuery.data, range),
     [planningQuery.data, range],
@@ -272,8 +280,7 @@ export function TimelineBody({ vault, scope = "active" }: TimelineBodyProps) {
             {resultsUpdating && !shouldRenderGrid ? (
               <div
                 className="flex h-full items-center justify-center px-6 py-12"
-                role="status"
-                aria-live="polite"
+                aria-hidden="true"
               >
                 <span className="text-sm text-muted-foreground">
                   {c("updatingResults")}

@@ -1,7 +1,6 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
-import { SearchProgressBar } from "@/components/ui/SearchProgressBar";
 import {
   SEARCH_DEBOUNCE_WARM,
   useDebouncedQuery,
@@ -13,12 +12,14 @@ import { useIssueStore } from "../../stores/useIssueStore";
 
 export function SearchBar({
   searchTransitionPending = false,
+  onSearchPendingChange,
 }: {
   searchTransitionPending?: boolean;
+  onSearchPendingChange?: (pending: boolean) => void;
 }) {
   const t = useTranslations("issues.filters");
-  const common = useTranslations("common");
   const setSearchQuery = useIssueStore((state) => state.setSearchQuery);
+  const searchQuery = useIssueStore((state) => state.searchQuery);
   const [isStoreUpdatePending, startStoreTransition] = useTransition();
 
   // The issue store is the search's data owner; the shared warm-tier debounce
@@ -44,10 +45,23 @@ export function SearchBar({
 
   // Push the settled value into the store so the list query re-runs on it.
   useEffect(() => {
+    if (searchQuery === debounced) return;
     startStoreTransition(() => {
       setSearchQuery(debounced);
     });
-  }, [debounced, setSearchQuery]);
+  }, [debounced, searchQuery, setSearchQuery]);
+
+  // The active result surface owns the single progress indicator and live
+  // announcement. Forward input-side work so it can cover debounce and store
+  // handoff without adding another copy under the search field.
+  const searchPending =
+    isDebouncing ||
+    isStoreUpdatePending ||
+    searchQuery !== debounced ||
+    searchTransitionPending;
+  useEffect(() => {
+    onSearchPendingChange?.(searchPending);
+  }, [onSearchPendingChange, searchPending]);
 
   // Reflect an external store change (a restored/persisted filter, or a clear
   // from elsewhere) back into the input.
@@ -105,17 +119,6 @@ export function SearchBar({
         onKeyDown={handleKeyDown}
         data-testid="search-input"
       />
-      {/* Keep feedback visible from raw debounce through the store/URL handoff;
-          the result surface also marks placeholder data while it converges. */}
-      <SearchProgressBar
-        active={isDebouncing || isStoreUpdatePending || searchTransitionPending}
-        className="top-0 bottom-auto h-1"
-      />
-      {isDebouncing || isStoreUpdatePending || searchTransitionPending ? (
-        <span role="status" aria-live="polite" className="sr-only">
-          {common("updatingResults")}
-        </span>
-      ) : null}
       {localValue && (
         <button
           type="button"

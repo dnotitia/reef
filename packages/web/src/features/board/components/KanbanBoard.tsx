@@ -156,6 +156,7 @@ interface KanbanBoardProps {
   scope?: IssueScope;
   groupBy?: IssueGroupBy;
   fixedSprintId?: string;
+  searchInputPending?: boolean;
 }
 
 /**
@@ -168,6 +169,7 @@ export function KanbanBoard({
   scope = "active",
   groupBy,
   fixedSprintId,
+  searchInputPending = false,
 }: KanbanBoardProps) {
   const effectiveGroupBy =
     groupBy ?? (scope === "backlog" ? "priority" : "status");
@@ -380,7 +382,10 @@ export function KanbanBoard({
     visibleIssues.length === 0 &&
     hasActiveFilters;
   const resultsUpdating =
-    searchTransitionPending || isPlaceholderData || (isFetching && !isPending);
+    searchInputPending ||
+    searchTransitionPending ||
+    isPlaceholderData ||
+    (isFetching && !isPending);
   const renderedOccurrences = useMemo(
     () =>
       issueGroups.flatMap(({ bucket, issues }) =>

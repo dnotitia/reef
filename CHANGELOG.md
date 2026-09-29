@@ -20,6 +20,9 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Issue search keeps one results-level progress indicator through debounce and
+  refresh.** Empty searches start quietly, and board, list, backlog, and timeline
+  searches share one progress bar and live announcement. (REEF-645)
 - **The issues board holds its rollover notice space while an eligible sprint is
   being resolved.** The board stays in place as issue data arrives, and the
   frame collapses once the loaded data confirms there is no notice to show.

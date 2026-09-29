@@ -351,6 +351,7 @@ export function IssuesWorkspace({
   const searchQuery = useIssueStore((state) => state.searchQuery);
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const searchTransitionPending = deferredSearchQuery !== searchQuery;
+  const [searchInputPending, setSearchInputPending] = useState(false);
   const clearSelectionForContextChange = useIssueSelectionStore(
     (state) => state.clearForContextChange,
   );
@@ -472,6 +473,7 @@ export function IssuesWorkspace({
               listOptionalColumns={listOptionalColumns}
               applyMyViewSnapshot={applyMyViewSnapshot}
               searchTransitionPending={searchTransitionPending}
+              onSearchPendingChange={setSearchInputPending}
             />
           ) : (
             // Backlog scope drops the facets it pins or does not partition on
@@ -489,6 +491,7 @@ export function IssuesWorkspace({
               listOptionalColumns={listOptionalColumns}
               applyMyViewSnapshot={applyMyViewSnapshot}
               searchTransitionPending={searchTransitionPending}
+              onSearchPendingChange={setSearchInputPending}
             />
           )}
           {!fixedSprintId && !rolloverOpen ? (
@@ -539,6 +542,7 @@ export function IssuesWorkspace({
                 scope={scope}
                 groupBy={groupBy}
                 fixedSprintId={fixedSprintId}
+                searchInputPending={searchInputPending}
               />
             ) : layout === "list" && scope === "active" ? (
               <IssueListTable
@@ -546,11 +550,20 @@ export function IssuesWorkspace({
                 scope={scope}
                 groupBy={groupBy}
                 fixedSprintId={fixedSprintId}
+                searchInputPending={searchInputPending}
               />
             ) : layout === "list" ? (
-              <BacklogView vault={vault} groupBy={groupBy} />
+              <BacklogView
+                vault={vault}
+                groupBy={groupBy}
+                searchInputPending={searchInputPending}
+              />
             ) : (
-              <TimelineBody vault={vault} scope={scope} />
+              <TimelineBody
+                vault={vault}
+                scope={scope}
+                searchInputPending={searchInputPending}
+              />
             )}
           </div>
         </>

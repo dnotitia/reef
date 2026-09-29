@@ -73,22 +73,47 @@ describe("SearchBar", () => {
     expect(screen.getByTestId("search-clear-button")).toBeTruthy();
   });
 
-  it("shows updating feedback while the warm debounce is pending", async () => {
-    render(<SearchBar />);
+  it("leaves search feedback at the results surface while the debounce is pending", async () => {
+    const pendingChanges: boolean[] = [];
+    render(
+      <SearchBar
+        onSearchPendingChange={(pending) => pendingChanges.push(pending)}
+      />,
+    );
     const input = screen.getByTestId("search-input");
 
     fireEvent.change(input, { target: { value: "auth" } });
 
-    expect(screen.getByTestId("search-progress-bar")).toBeVisible();
-    expect(screen.getByRole("status")).toHaveTextContent("Updating results…");
+    expect(pendingChanges.at(-1)).toBe(true);
+    expect(screen.queryByTestId("search-progress-bar")).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
 
     await waitFor(() => {
       expect(useIssueStore.getState().searchQuery).toBe("auth");
     });
     await waitFor(() => {
-      expect(screen.queryByTestId("search-progress-bar")).toBeNull();
-      expect(screen.queryByRole("status")).toBeNull();
+      expect(pendingChanges.at(-1)).toBe(false);
     });
+    const firstPending = pendingChanges.indexOf(true);
+    const lastSettled = pendingChanges.lastIndexOf(false);
+    expect(firstPending).toBeGreaterThan(-1);
+    expect(pendingChanges.slice(firstPending, lastSettled)).toEqual(
+      pendingChanges.slice(firstPending, lastSettled).map(() => true),
+    );
+  });
+
+  it("does not report an unchanged empty query as a search on mount", async () => {
+    const pendingChanges: boolean[] = [];
+    render(
+      <SearchBar
+        onSearchPendingChange={(pending) => pendingChanges.push(pending)}
+      />,
+    );
+
+    await waitFor(() => expect(pendingChanges.length).toBeGreaterThan(0));
+    expect(pendingChanges).not.toContain(true);
+    expect(screen.queryByTestId("search-progress-bar")).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("clear button clears the query", async () => {

@@ -134,6 +134,7 @@ function BacklogColumnGroup() {
 interface BacklogViewProps {
   vault: string;
   groupBy?: IssueGroupBy;
+  searchInputPending?: boolean;
 }
 
 /**
@@ -149,7 +150,11 @@ interface BacklogViewProps {
  * below a divider. Picking a sort from the toolbar switches to that sort and
  * disables reordering until rank order is restored.
  */
-export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
+export function BacklogView({
+  vault,
+  groupBy = "priority",
+  searchInputPending = false,
+}: BacklogViewProps) {
   const t = useTranslations("issues.backlog");
   const reorderT = useTranslations("issues.reorder");
   const groupT = useTranslations("issues.filters");
@@ -266,7 +271,10 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
     }
   }, [isFetching, isPending, isPlaceholderData, searchQuery]);
   const resultsUpdating =
-    searchTransitionPending || isPlaceholderData || (isFetching && !isPending);
+    searchInputPending ||
+    searchTransitionPending ||
+    isPlaceholderData ||
+    (isFetching && !isPending);
   const staleWindowDays = useResolvedAutoHideWindows(vault);
   const { data: relations } = useIssueRelations(vault);
 
@@ -536,7 +544,7 @@ export function BacklogView({ vault, groupBy = "priority" }: BacklogViewProps) {
         </div>
       ) : count === 0 ? (
         resultsUpdating ? (
-          <div role="status" aria-live="polite" className="py-12 text-center">
+          <div aria-hidden="true" className="py-12 text-center">
             <span className="text-sm text-muted-foreground">
               {c("updatingResults")}
             </span>
