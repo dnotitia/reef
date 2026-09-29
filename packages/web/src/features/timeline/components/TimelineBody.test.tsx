@@ -391,6 +391,8 @@ describe("TimelineBody", () => {
     render(wrap(<TimelineBody vault="reef-acme" />));
 
     expect(await screen.findByText("Scheduled A")).toBeInTheDocument();
+    expect(screen.getByTestId("timeline-unscheduled")).toBeInTheDocument();
+    expect(screen.getByText("No dates")).toBeInTheDocument();
     act(() => {
       useIssueStore.setState({
         filter: {},
@@ -400,6 +402,7 @@ describe("TimelineBody", () => {
     });
 
     expect(await screen.findByText("Scheduled A")).toBeInTheDocument();
+    expect(screen.getByText("No dates")).toBeInTheDocument();
     expect(screen.getByTestId("search-progress-bar")).toBeVisible();
 
     releaseNext?.(

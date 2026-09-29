@@ -376,10 +376,9 @@ export function IssueListTable({
   // Placeholder data belongs to the previous query. Keep its filter and row
   // set visible until the replacement arrives, while the updating signal tells
   // the user that the latest intent is still converging.
-  const displaySearchQuery =
-    isPlaceholderData || searchTransitionPending
-      ? settledSearchQueryRef.current
-      : deferredSearchQuery;
+  const displaySearchQuery = isPlaceholderData
+    ? settledSearchQueryRef.current
+    : searchQuery;
   useEffect(() => {
     if (!isPending && !isFetching && !isPlaceholderData) {
       settledSearchQueryRef.current = searchQuery;

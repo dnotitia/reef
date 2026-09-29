@@ -91,10 +91,9 @@ export function TimelineBody({
   // Placeholder data belongs to the previous query. Keep its filter and grid
   // visible until the replacement arrives, while the updating signal tells
   // the user that the latest intent is still converging.
-  const displaySearchQuery =
-    isPlaceholderData || searchTransitionPending
-      ? settledSearchQuery
-      : deferredSearchQuery;
+  const displaySearchQuery = isPlaceholderData
+    ? settledSearchQuery
+    : searchQuery;
   useEffect(() => {
     if (!isPending && !isFetching && !isPlaceholderData) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- this effect records the settled query used while placeholder data is visible.
