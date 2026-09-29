@@ -67,6 +67,16 @@ function installationWire(vault) {
   };
 }
 
+function hasRetainedResources(vault) {
+  return (
+    vault.tables.size > 0 ||
+    vault.settings.size > 0 ||
+    vault.documents.size > 0 ||
+    (vault.files?.size ?? 0) > 0 ||
+    (vault.assets?.size ?? 0) > 0
+  );
+}
+
 export async function handleAkb(req, res, url, state) {
   const path = url.pathname.slice("/akb".length);
   const vaultFor = (name) => getVault(name, res, state);
@@ -181,10 +191,7 @@ export async function handleAkb(req, res, url, state) {
 
     if (installationMatch[3] === "/active" && req.method === "GET") {
       const memberRole = vault ? roleForVault(vault, state, username) : null;
-      if (
-        user?.is_admin ||
-        !["owner", "admin", "writer", "reader"].includes(memberRole)
-      ) {
+      if (!["owner", "admin", "writer", "reader"].includes(memberRole)) {
         return json(res, 403, { error: "vault membership required" });
       }
       const active =
@@ -234,6 +241,13 @@ export async function handleAkb(req, res, url, state) {
         if (!vault.installation.currentReleaseId) {
           return json(res, 409, { error: "retained release unavailable" });
         }
+      }
+      if (
+        mode === "fresh" &&
+        vault.installation?.lifecycle === "uninstalled" &&
+        hasRetainedResources(vault)
+      ) {
+        return json(res, 409, { error: "vault contains retained resources" });
       }
       const replayed =
         (mode === "install" || mode === "fresh") &&

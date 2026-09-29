@@ -53,6 +53,94 @@ test.describe("Hermetic workspace lifecycle danger zone", () => {
     );
   });
 
+  test("rejects fresh after Remove and restores the retained workspace", async ({
+    page,
+    request,
+  }) => {
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page);
+
+    const installationResponse = await page.request.get(
+      "/api/vaults/reef-e2e/installation",
+    );
+    expect(installationResponse.ok()).toBe(true);
+    const installationBody = await installationResponse.json();
+    const retainedReleaseId = installationBody.installation.currentRelease
+      .id as string;
+    expect(retainedReleaseId).toBeTruthy();
+
+    const before = await readFixtureState(request);
+    const reefBefore = before.vaults.find((vault) => vault.name === "reef-e2e");
+    expect(reefBefore?.issue_ids).toContain("REEF-001");
+    expect(
+      reefBefore?.documents.some((document) =>
+        document.path.startsWith("issues/"),
+      ),
+    ).toBe(true);
+
+    await page.goto("/workspace/reef-e2e/settings/workspace");
+    const main = page.getByRole("main");
+    await main.getByTestId("danger-zone-uninstall").click();
+    const dialog = page.getByTestId("workspace-destructive-dialog");
+    await dialog.getByTestId("workspace-destructive-confirm").click();
+    await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+
+    const installationActions = page.getByTestId(
+      "workspace-installation-reef-e2e",
+    );
+    await expect(installationActions).toHaveAttribute(
+      "data-status",
+      "uninstalled",
+    );
+
+    const freshResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname ===
+          "/api/vaults/reef-e2e/installation" &&
+        response.request().method() === "POST",
+    );
+    await installationActions
+      .getByTestId("installation-reef-e2e-fresh")
+      .click();
+    expect((await freshResponsePromise).status()).toBe(409);
+
+    const afterFresh = await readFixtureState(request);
+    const retainedAfterFresh = afterFresh.vaults.find(
+      (vault) => vault.name === "reef-e2e",
+    );
+    expect(retainedAfterFresh?.installation?.lifecycle).toBe("uninstalled");
+    expect(retainedAfterFresh?.tables).toEqual(reefBefore?.tables);
+    expect(retainedAfterFresh?.settings).toEqual(reefBefore?.settings);
+    expect(retainedAfterFresh?.issue_ids).toEqual(reefBefore?.issue_ids);
+    expect(retainedAfterFresh?.issues).toEqual(reefBefore?.issues);
+    expect(retainedAfterFresh?.documents).toEqual(reefBefore?.documents);
+
+    const restoreResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname ===
+          "/api/vaults/reef-e2e/installation" &&
+        response.request().method() === "POST",
+    );
+    await installationActions
+      .getByTestId("installation-reef-e2e-restore")
+      .click();
+    const restoreResponse = await restoreResponsePromise;
+    expect(restoreResponse.status()).toBe(202);
+    const restoredBody = await restoreResponse.json();
+    expect(restoredBody.installation.currentRelease.id).toBe(retainedReleaseId);
+
+    const afterRestore = await readFixtureState(request);
+    const restored = afterRestore.vaults.find(
+      (vault) => vault.name === "reef-e2e",
+    );
+    expect(restored?.installation?.lifecycle).toBe("active");
+    expect(restored?.tables).toEqual(reefBefore?.tables);
+    expect(restored?.settings).toEqual(reefBefore?.settings);
+    expect(restored?.issue_ids).toEqual(reefBefore?.issue_ids);
+    expect(restored?.issues).toEqual(reefBefore?.issues);
+    expect(restored?.documents).toEqual(reefBefore?.documents);
+  });
+
   test("delete requires typing the name, removes the whole vault, and redirects", async ({
     page,
     request,
