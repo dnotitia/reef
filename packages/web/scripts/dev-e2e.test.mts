@@ -506,9 +506,18 @@ describe("dev:e2e runtime contract", () => {
       "greenfield-vault-name-input",
       "greenfield-create-btn",
       "greenfield-approval-step",
-      "installation-raw-vault-approve",
     ]);
     const testIdLocator = (testId: string) => ({
+      getByTestId: (childTestId: string) => {
+        events.push(`scope:${testId}:${childTestId}`);
+        if (testId !== "greenfield-approval-step") {
+          throw new Error(`${testId} cannot scope readiness controls`);
+        }
+        if (childTestId !== "installation-raw-vault-approve") {
+          throw new Error(`Unexpected approval control: ${childTestId}`);
+        }
+        return testIdLocator(childTestId);
+      },
       waitFor: async ({ state: expected }: { state: string }) => {
         events.push(`wait:${testId}:${expected}`);
         const visible =
@@ -621,6 +630,9 @@ describe("dev:e2e runtime contract", () => {
     expect(events).toContain("fill:greenfield-vault-name-input:raw-vault");
     expect(events).toContain("click:greenfield-create-btn");
     expect(events).toContain("wait:greenfield-approval-step:visible");
+    expect(events).toContain(
+      "scope:greenfield-approval-step:installation-raw-vault-approve",
+    );
     expect(events).toContain("wait:installation-raw-vault-approve:visible");
     expect(events).toContain("trial:installation-raw-vault-approve");
     expect(events).not.toContain("key:Control+K");

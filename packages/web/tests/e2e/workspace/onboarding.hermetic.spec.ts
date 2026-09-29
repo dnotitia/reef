@@ -371,10 +371,11 @@ test.describe("Hermetic onboarding flow", () => {
     await setWorkspaceInitializationControl(request, {
       operation: "document_get",
       failures: 1,
-      // Read the existing root document and observe one missing managed
-      // document, then fail during the preservation upsert after its old stamp
-      // has been cleared.
-      successesBeforeFailure: 3,
+      // The owner readiness probe and initialization preflight each read the
+      // existing root document and observe one missing managed document. Let
+      // those four reads and the preservation root read finish, then fail on
+      // the next preservation read after its old stamp has been cleared.
+      successesBeforeFailure: 5,
     });
     await signInAsUser(page, fixtureWriterLogin);
     await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });

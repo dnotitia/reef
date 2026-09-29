@@ -164,7 +164,7 @@ function initialToolLoopChunks(created) {
           function: {
             name: "search_documents",
             arguments: JSON.stringify({
-              query: "Spec overview",
+              query: "spec-overview",
               limit: 3,
             }),
           },

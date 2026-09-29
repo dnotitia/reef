@@ -410,7 +410,7 @@ async function probeOnboardingInteractions(page, timeoutMs, workspace) {
     "onboarding installation approval step after input",
     timeoutMs,
   );
-  const approval = page.getByTestId(
+  const approval = approvalStep.getByTestId(
     `${onboarding.installationApprovalPrefix}${targetWorkspace}${onboarding.installationApprovalSuffix}`,
   );
   await waitForInteractionState(

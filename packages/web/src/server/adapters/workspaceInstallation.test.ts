@@ -149,7 +149,7 @@ describe("readWorkspaceInstallationState", () => {
     ).rejects.toBeInstanceOf(AuthError);
   });
 
-  it("uses the management projection and initialization only for owners/admins", async () => {
+  it("keeps a complete owner workspace ready without reinitializing it", async () => {
     const installation = {
       installationId: "44444444-4444-4444-8444-444444444444",
       appId: target.appId,
@@ -166,10 +166,46 @@ describe("readWorkspaceInstallationState", () => {
     expect(state).toEqual({ installation_status: "ready", installation });
     expect(mockAkbReadInstallation).toHaveBeenCalledTimes(1);
     expect(mockAkbReadMemberInstallationActive).not.toHaveBeenCalled();
+    expect(mockAkbInitializeReefWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("initializes an incomplete active owner workspace and verifies readiness", async () => {
+    const installation = {
+      installationId: "44444444-4444-4444-8444-444444444444",
+      appId: target.appId,
+      vaultId: vault.id,
+      lifecycle: "active",
+    };
+    mockAkbReadInstallation.mockResolvedValueOnce(installation);
+    mockAkbReadConfig
+      .mockResolvedValueOnce({
+        exists: false,
+        config: { project_prefix: "REEF", monitored_repos: [] },
+      })
+      .mockResolvedValueOnce({
+        exists: true,
+        config: { project_prefix: "REEF", monitored_repos: [] },
+      });
+    mockAkbListTemplates
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(completeTemplates());
+    mockAkbHasReefVaultSkillDocuments
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+
+    const state = await readWorkspaceInstallationState({
+      adapter: { request: vi.fn() } as never,
+      vault: { ...vault, role: "owner" },
+    });
+
+    expect(state).toEqual({ installation_status: "ready", installation });
     expect(mockAkbInitializeReefWorkspace).toHaveBeenCalledWith({
       adapter: expect.any(Object),
       vault: vault.name,
       defaultTemplates: DEFAULT_ISSUE_TEMPLATES,
     });
+    expect(mockAkbReadConfig).toHaveBeenCalledTimes(2);
+    expect(mockAkbListTemplates).toHaveBeenCalledTimes(2);
+    expect(mockAkbHasReefVaultSkillDocuments).toHaveBeenCalledTimes(2);
   });
 });

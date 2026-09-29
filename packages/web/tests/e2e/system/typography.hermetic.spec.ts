@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
   openExistingWorkspace,
+  REPORTS_FIXTURE_NOW,
   resetFixture,
   REEF_E2E_VAULT,
 } from "../harness/fixture";
@@ -859,9 +860,6 @@ test.describe("Hermetic typography role contract", () => {
 
   test.beforeEach(async ({ context, page, request }) => {
     await context.clearCookies();
-    const { REPORTS_FIXTURE_NOW } = await import(
-      "../harness/mock-fixtures.mjs"
-    );
     await page.clock.setFixedTime(new Date(REPORTS_FIXTURE_NOW));
     await resetFixture(request, "configured");
   });

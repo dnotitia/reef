@@ -290,7 +290,7 @@ test.describe("Hermetic settings workflows", () => {
       .not.toContain("e2e-template");
   });
 
-  test("seeds the canonical issue-type default templates from an empty workspace (REEF-256)", async ({
+  test("restores the canonical issue-type default templates after deletion from a Ready workspace (REEF-256)", async ({
     page,
     request,
   }) => {
@@ -298,7 +298,23 @@ test.describe("Hermetic settings workflows", () => {
     await page.goto("/workspace/reef-e2e/settings/workspace");
     const main = page.getByRole("main");
 
-    // A workspace with no templates shows the seed-defaults call to action.
+    // This configured workspace is already Ready with the canonical defaults.
+    // Remove them through the real Settings flow to exercise its explicit
+    // restore action without bypassing workspace readiness.
+    const templateNames = ["epic", "story", "task", "bug", "spike", "chore"];
+    for (const name of templateNames) {
+      await expect(
+        main.locator(`[data-testid="templates-row-${name}"]`),
+      ).toBeVisible();
+    }
+    page.on("dialog", (dialog) => dialog.accept());
+    for (const name of templateNames) {
+      await main.locator(`[data-testid="templates-delete-${name}"]`).click();
+      await expect(
+        main.locator(`[data-testid="templates-row-${name}"]`),
+      ).toHaveCount(0);
+    }
+
     await expect(
       main.locator('[data-testid="templates-section-empty"]'),
     ).toBeVisible();
@@ -306,7 +322,7 @@ test.describe("Hermetic settings workflows", () => {
 
     // All six canonical issue types land as rows; the legacy feature /
     // tech-debt templates are gone.
-    for (const name of ["epic", "story", "task", "bug", "spike", "chore"]) {
+    for (const name of templateNames) {
       await expect(
         main.locator(`[data-testid="templates-row-${name}"]`),
       ).toBeVisible();

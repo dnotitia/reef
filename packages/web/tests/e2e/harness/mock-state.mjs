@@ -314,6 +314,14 @@ export function publicState(state) {
     })),
     vaults: [...state.vaults.values()].map((vault) => ({
       name: vault.name,
+      id: vault.id,
+      installation: vault.installation
+        ? {
+            id: vault.installation.id,
+            app_id: vault.installation.appId,
+            lifecycle: vault.installation.lifecycle,
+          }
+        : null,
       tables: [...vault.tables],
       settings: Object.fromEntries(vault.settings.entries()),
       monitored_repos: vault.monitoredRepos,

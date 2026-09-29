@@ -6,7 +6,12 @@ import {
   expect,
   test,
 } from "@playwright/test";
-import { ControlPlaneIdSchema } from "@reef/core";
+import {
+  ControlPlaneIdSchema,
+  REEF_VAULT_SKILL_VERSION,
+  akbBuildReefVaultSkillDocuments,
+} from "@reef/core";
+import { DEFAULT_ISSUE_TEMPLATES } from "../../../src/features/settings/lib/defaultIssueTemplates";
 import {
   E2E_MOCK_URL,
   clearPersistedQueryCacheOnLoad,
@@ -172,7 +177,11 @@ type RuntimeSurfaceObservation = {
     role: RuntimeSurfaceRole;
     className: string;
   }>;
-  clippedText: Array<{ tag: string; text: string; className: string }>;
+  clippedText: Array<{
+    tag: string;
+    text: string;
+    className: string;
+  }>;
   outOfViewportControls: Array<{ tag: string; text: string }>;
   documentOverflow: boolean;
   bodyOverflow: boolean;
@@ -281,6 +290,86 @@ async function observeRuntimeSurface(
       }
       return false;
     };
+    const intersectsViewport = (element: HTMLElement) => {
+      const rect = element.getBoundingClientRect();
+      return (
+        rect.right > 0 &&
+        rect.left < window.innerWidth &&
+        rect.bottom > 0 &&
+        rect.top < window.innerHeight
+      );
+    };
+    const hasScrollableOwnerBetween = (
+      element: HTMLElement,
+      ancestor: HTMLElement,
+      axis: "x" | "y",
+    ) => {
+      let owner = element.parentElement;
+      while (owner && owner !== ancestor) {
+        const styles = getComputedStyle(owner);
+        const overflow = axis === "x" ? styles.overflowX : styles.overflowY;
+        const scrollExtent =
+          axis === "x" ? owner.scrollWidth : owner.scrollHeight;
+        const clientExtent =
+          axis === "x" ? owner.clientWidth : owner.clientHeight;
+        if (
+          (overflow === "auto" || overflow === "scroll") &&
+          scrollExtent > clientExtent + 1
+        ) {
+          return true;
+        }
+        owner = owner.parentElement;
+      }
+      return false;
+    };
+    const hasClippedText = (element: HTMLElement) => {
+      const textRects: DOMRect[] = [];
+      const textNodes = document.createTreeWalker(
+        element,
+        NodeFilter.SHOW_TEXT,
+      );
+      let textNode = textNodes.nextNode();
+      while (textNode) {
+        const parent = textNode.parentElement;
+        if (!parent?.closest('.sr-only,[aria-hidden="true"]')) {
+          const range = document.createRange();
+          range.selectNodeContents(textNode);
+          textRects.push(...Array.from(range.getClientRects()));
+        }
+        textNode = textNodes.nextNode();
+      }
+      let ancestor: HTMLElement | null = element;
+
+      while (ancestor) {
+        const styles = getComputedStyle(ancestor);
+        const clipsX =
+          styles.overflowX === "hidden" || styles.overflowX === "clip";
+        const clipsY =
+          styles.overflowY === "hidden" || styles.overflowY === "clip";
+        if (clipsX || clipsY) {
+          const clippingAncestor = ancestor;
+          const bounds = clippingAncestor.getBoundingClientRect();
+          if (
+            textRects.some(
+              (rect) =>
+                (clipsX &&
+                  !hasScrollableOwnerBetween(element, clippingAncestor, "x") &&
+                  (rect.left < bounds.left - 1 ||
+                    rect.right > bounds.right + 1)) ||
+                (clipsY &&
+                  !hasScrollableOwnerBetween(element, clippingAncestor, "y") &&
+                  (rect.top < bounds.top - 1 ||
+                    rect.bottom > bounds.bottom + 1)),
+            )
+          ) {
+            return true;
+          }
+        }
+        ancestor = ancestor.parentElement;
+      }
+
+      return false;
+    };
     const outOfViewportControls = Array.from(
       document.querySelectorAll<HTMLElement>(
         "button,a,input,textarea,select,[role=button],[role=link]",
@@ -307,10 +396,10 @@ async function observeRuntimeSurface(
       document.querySelectorAll<HTMLElement>("h1,h2,h3,h4,p,button,a,label"),
     )
       .filter(isVisible)
+      .filter(intersectsViewport)
       .filter((element) => {
         if (element.classList.contains("sr-only")) return false;
         const styles = getComputedStyle(element);
-        if (element.scrollWidth <= element.clientWidth + 1) return false;
         if (
           styles.textOverflow === "ellipsis" ||
           element.hasAttribute("title") ||
@@ -319,7 +408,7 @@ async function observeRuntimeSurface(
           return false;
         }
         if (hasHorizontalScrollOwner(element)) return false;
-        return true;
+        return hasClippedText(element);
       })
       .map((element) => ({
         tag: element.tagName.toLowerCase(),
@@ -369,28 +458,81 @@ async function expectRuntimeFocus(locator: Locator) {
 }
 
 test.describe("Hermetic runtime discovery", () => {
-  test("keeps raw, configured, and new fixture identifiers valid Core UUIDs", async () => {
-    const { createScenarioVaults, rawVault } = await import(
-      "../harness/mock-fixtures.mjs"
-    );
-    const raw = createScenarioVaults("raw_only").get("raw-vault");
-    const configured = createScenarioVaults("configured").get("reef-e2e");
-    const created = rawVault("reef-new");
+  test("keeps raw, configured, new vault, and installation identifiers valid Core UUIDs", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "configured");
+    const state = await readFixtureState(request);
+    const raw = state.vaults.find((vault) => vault.name === "raw-vault");
+    const configured = state.vaults.find((vault) => vault.name === "reef-e2e");
 
     expect(raw).toBeDefined();
     expect(configured).toBeDefined();
     if (!raw || !configured?.installation) {
       throw new Error("missing raw or configured fixture");
     }
-
     for (const [name, id] of [
       ["raw vault", raw.id],
       ["configured vault", configured.id],
-      ["new vault", created.id],
       ["installation", configured.installation.id],
+      ["app", configured.installation.app_id],
     ]) {
       expect(ControlPlaneIdSchema.safeParse(id).success, name).toBe(true);
     }
+
+    await openExistingWorkspace(page);
+    const create = await page
+      .context()
+      .request.post(new URL("/api/vaults", page.url()).toString(), {
+        data: {
+          name: "reef-new",
+          project_prefix: "REEF",
+          monitored_repos: [],
+        },
+      });
+    expect(create.ok()).toBe(true);
+    const created = (await create.json()) as { vault_id: string };
+    expect(ControlPlaneIdSchema.safeParse(created.vault_id).success).toBe(true);
+  });
+
+  test("seeds canonical setup only into active configured fixtures", async ({
+    request,
+  }) => {
+    await resetFixture(request, "configured");
+    const configuredState = await readFixtureState(request);
+    const configured = configuredState.vaults.find(
+      (vault) => vault.name === "reef-e2e",
+    );
+    expect(configured).toBeDefined();
+    if (!configured) throw new Error("missing configured fixture");
+
+    expect(configured.templates.map(({ name }) => name).sort()).toEqual(
+      DEFAULT_ISSUE_TEMPLATES.map(({ name }) => name).sort(),
+    );
+    expect(configured.settings.vault_skill).toMatchObject({
+      version: REEF_VAULT_SKILL_VERSION,
+    });
+    for (const document of akbBuildReefVaultSkillDocuments("reef-e2e")) {
+      expect(configured.documents).toContainEqual(
+        expect.objectContaining({
+          path: document.path,
+          title: document.title,
+          content: document.content,
+        }),
+      );
+    }
+
+    await resetFixture(request, "workspace_recovery");
+    const recoveryState = await readFixtureState(request);
+    const recovery = recoveryState.vaults.find(
+      (vault) => vault.name === "raw-vault",
+    );
+    expect(recovery).toBeDefined();
+    if (!recovery) throw new Error("missing recovery fixture");
+    expect(recovery.installation).toBeNull();
+    expect(recovery.templates).toEqual([]);
+    expect(recovery.settings.project_prefix).toBeUndefined();
   });
 
   test("exposes loaded issue detail content for a cold deep-link readiness probe", async ({
@@ -1537,7 +1679,10 @@ test.describe("Hermetic runtime discovery", () => {
           expect(observation.bodyOverflow).toBe(false);
           expect(observation.mainOverflow).toBe(false);
           expect(observation.unresolvedSurfaceFills).toEqual([]);
-          expect(observation.clippedText).toEqual([]);
+          expect(
+            observation.clippedText,
+            `${route.name} / ${theme} / ${viewport.name}`,
+          ).toEqual([]);
           expect(observation.outOfViewportControls).toEqual([]);
           const tokenColors = Object.values(observation.roleTokenColors);
           expect(

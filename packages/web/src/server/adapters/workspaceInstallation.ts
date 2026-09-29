@@ -124,11 +124,26 @@ export async function readWorkspaceInstallationState(params: {
     };
   }
 
-  await akbInitializeReefWorkspace({
-    adapter,
-    vault: vault.name,
-    defaultTemplates: DEFAULT_ISSUE_TEMPLATES,
-  });
+  if (
+    !(await isReefInitializationComplete({
+      adapter,
+      vault: vault.name,
+    }))
+  ) {
+    await akbInitializeReefWorkspace({
+      adapter,
+      vault: vault.name,
+      defaultTemplates: DEFAULT_ISSUE_TEMPLATES,
+    });
+    if (
+      !(await isReefInitializationComplete({
+        adapter,
+        vault: vault.name,
+      }))
+    ) {
+      return { installation_status: "management_required", installation };
+    }
+  }
   return { installation_status: "ready", installation };
 }
 

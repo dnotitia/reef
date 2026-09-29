@@ -12,12 +12,16 @@ import {
   E2E_REEF_RELEASE_ID,
   E2E_REEF_RELEASE_VERSION,
 } from "./mock-installation.mjs";
+import { DEFAULT_ISSUE_TEMPLATES } from "../../../src/features/settings/lib/defaultIssueTemplates.ts";
+import {
+  akbBuildReefVaultSkillDocuments,
+  REEF_VAULT_SKILL_VERSION,
+} from "@reef/core";
 
 const require = createRequire(import.meta.url);
 export const fixtureLogin = require("./fixture-login.json");
 
 export const NOW = "2026-06-15T00:00:00.000Z";
-export const REPORTS_FIXTURE_NOW = "2026-06-30T00:00:00.000Z";
 const NOW_MS = Date.parse(NOW);
 export const REEF_VAULT = "reef-e2e";
 export const ISSUE_TITLE_COLLATOR = new Intl.Collator("en-US");
@@ -233,7 +237,36 @@ export function createScenarioVaults(scenario) {
   } else if (scenario === "workspace_recovery_current_stamp") {
     vaults.set("raw-vault", workspaceRecoveryCurrentStampVault("raw-vault"));
   }
+  for (const vault of vaults.values()) {
+    if (vault.installation?.lifecycle === "active") {
+      seedCompleteWorkspace(vault);
+    }
+  }
   return vaults;
+}
+
+function seedCompleteWorkspace(vault) {
+  const templateNames = new Set(vault.templates.map(({ name }) => name));
+  for (const template of DEFAULT_ISSUE_TEMPLATES) {
+    if (!templateNames.has(template.name)) {
+      vault.templates.push({
+        ...template,
+        default_labels: [...template.default_labels],
+      });
+    }
+  }
+
+  if (!vault.settings.has("vault_skill")) {
+    vault.settings.set("vault_skill", {
+      version: REEF_VAULT_SKILL_VERSION,
+      synced_at: NOW,
+    });
+  }
+  for (const document of akbBuildReefVaultSkillDocuments(vault.name)) {
+    if (!vault.documents.has(document.path)) {
+      seedReferenceDocument(vault, document.path, document);
+    }
+  }
 }
 
 function seedReportOutlierIssues(vault) {
@@ -406,6 +439,7 @@ function workspaceRecoveryVault(name) {
   }
   vault.tables = new Set(["reef_settings"]);
   vault.settings = new Map([["custom_setting", "keep-me"]]);
+  vault.templates = [];
   seedOutdatedVaultSkill(vault);
   seedReferenceDocument(vault, "docs/user-notes.md", {
     title: "User notes",
