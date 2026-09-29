@@ -20,6 +20,9 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Issue search keeps one results-level progress indicator through debounce and
+  refresh.** Empty searches start quietly, and board, list, backlog, and timeline
+  searches share one progress bar and live announcement. (REEF-645)
 - **Workspace resume and issue-view loading keep their destination frame visible.**
   Login retains the app shell while a saved workspace is checked, and list and
   timeline loading preserve their table and schedule structures instead of

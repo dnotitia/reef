@@ -53,6 +53,49 @@ describe("SearchBar", () => {
     expect(input.value).toBe("Al");
   });
 
+  it("does not push a stale debounced query over an external store update", async () => {
+    const user = userEvent.setup();
+    useIssueStore.setState({ searchQuery: "A" });
+    render(<SearchBar />);
+    const input = screen.getByTestId("search-input") as HTMLInputElement;
+
+    await user.type(input, "l");
+    act(() => {
+      useIssueStore.setState({ searchQuery: "restored" });
+    });
+
+    expect(input.value).toBe("Al");
+    expect(useIssueStore.getState().searchQuery).toBe("restored");
+  });
+
+  it("reflects external search clears and restores", async () => {
+    useIssueStore.setState({ searchQuery: "saved" });
+    render(<SearchBar />);
+    const input = screen.getByTestId("search-input") as HTMLInputElement;
+
+    act(() => {
+      useIssueStore.setState((state) => ({
+        searchQuery: "",
+        searchQueryResetToken: state.searchQueryResetToken + 1,
+      }));
+    });
+    await waitFor(() => {
+      expect(input.value).toBe("");
+      expect(useIssueStore.getState().searchQuery).toBe("");
+    });
+
+    act(() => {
+      useIssueStore.setState((state) => ({
+        searchQuery: "restored",
+        searchQueryResetToken: state.searchQueryResetToken + 1,
+      }));
+    });
+    await waitFor(() => {
+      expect(input.value).toBe("restored");
+      expect(useIssueStore.getState().searchQuery).toBe("restored");
+    });
+  });
+
   it("updates store after 150ms debounce", async () => {
     const user = userEvent.setup();
     render(<SearchBar />);
@@ -73,22 +116,47 @@ describe("SearchBar", () => {
     expect(screen.getByTestId("search-clear-button")).toBeTruthy();
   });
 
-  it("shows updating feedback while the warm debounce is pending", async () => {
-    render(<SearchBar />);
+  it("leaves search feedback at the results surface while the debounce is pending", async () => {
+    const pendingChanges: boolean[] = [];
+    render(
+      <SearchBar
+        onSearchPendingChange={(pending) => pendingChanges.push(pending)}
+      />,
+    );
     const input = screen.getByTestId("search-input");
 
     fireEvent.change(input, { target: { value: "auth" } });
 
-    expect(screen.getByTestId("search-progress-bar")).toBeVisible();
-    expect(screen.getByRole("status")).toHaveTextContent("Updating results…");
+    expect(pendingChanges.at(-1)).toBe(true);
+    expect(screen.queryByTestId("search-progress-bar")).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
 
     await waitFor(() => {
       expect(useIssueStore.getState().searchQuery).toBe("auth");
     });
     await waitFor(() => {
-      expect(screen.queryByTestId("search-progress-bar")).toBeNull();
-      expect(screen.queryByRole("status")).toBeNull();
+      expect(pendingChanges.at(-1)).toBe(false);
     });
+    const firstPending = pendingChanges.indexOf(true);
+    const lastSettled = pendingChanges.lastIndexOf(false);
+    expect(firstPending).toBeGreaterThan(-1);
+    expect(pendingChanges.slice(firstPending, lastSettled)).toEqual(
+      pendingChanges.slice(firstPending, lastSettled).map(() => true),
+    );
+  });
+
+  it("does not report an unchanged empty query as a search on mount", async () => {
+    const pendingChanges: boolean[] = [];
+    render(
+      <SearchBar
+        onSearchPendingChange={(pending) => pendingChanges.push(pending)}
+      />,
+    );
+
+    await waitFor(() => expect(pendingChanges.length).toBeGreaterThan(0));
+    expect(pendingChanges).not.toContain(true);
+    expect(screen.queryByTestId("search-progress-bar")).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("clear button clears the query", async () => {

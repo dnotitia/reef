@@ -30,6 +30,7 @@ interface IssueFilterToolbarProps {
   listOptionalColumns?: readonly MyViewListColumn[];
   applyMyViewSnapshot: (snapshot: MyViewSnapshot) => void;
   searchTransitionPending?: boolean;
+  onSearchPendingChange?: (pending: boolean) => void;
 }
 
 export function IssueFilterToolbar({
@@ -48,13 +49,17 @@ export function IssueFilterToolbar({
   listOptionalColumns,
   applyMyViewSnapshot,
   searchTransitionPending = false,
+  onSearchPendingChange,
 }: IssueFilterToolbarProps) {
   return (
     <div
       className="flex min-w-0 flex-col gap-2 border-b border-border-subtle bg-surface-page px-6 py-2.5"
       data-testid="issue-filter-toolbar"
     >
-      <SearchBar searchTransitionPending={searchTransitionPending} />
+      <SearchBar
+        searchTransitionPending={searchTransitionPending}
+        onSearchPendingChange={onSearchPendingChange}
+      />
       <FilterBar
         backlogScope={backlogScope}
         scope={scope}

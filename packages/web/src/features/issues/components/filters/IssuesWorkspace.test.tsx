@@ -22,6 +22,7 @@ const {
   mockUseIssueList,
   mockUsePlanningCatalog,
   navigationState,
+  searchPendingCallback,
 } = vi.hoisted(() => ({
   mockPush: vi.fn(),
   mockReplace: vi.fn(),
@@ -31,6 +32,9 @@ const {
   navigationState: {
     pathname: "/workspace/reef-acme/issues",
     searchParams: new URLSearchParams(),
+  },
+  searchPendingCallback: {
+    current: null as ((pending: boolean) => void) | null,
   },
 }));
 
@@ -71,16 +75,19 @@ vi.mock("@/features/board/components/KanbanBoard", () => ({
     vault,
     groupBy,
     fixedSprintId,
+    searchInputPending,
   }: {
     vault: string;
     groupBy?: string;
     fixedSprintId?: string;
+    searchInputPending?: boolean;
   }) => (
     <div
       data-testid="board-body"
       data-vault={vault}
       data-group-by={groupBy}
       data-fixed-sprint-id={fixedSprintId}
+      data-search-input-pending={Boolean(searchInputPending)}
     />
   ),
 }));
@@ -89,16 +96,19 @@ vi.mock("@/features/issues/components/list/IssueListTable", () => ({
     vault,
     groupBy,
     fixedSprintId,
+    searchInputPending,
   }: {
     vault: string;
     groupBy?: string;
     fixedSprintId?: string;
+    searchInputPending?: boolean;
   }) => (
     <div
       data-testid="list-body"
       data-vault={vault}
       data-group-by={groupBy}
       data-fixed-sprint-id={fixedSprintId}
+      data-search-input-pending={Boolean(searchInputPending)}
     />
   ),
 }));
@@ -108,8 +118,18 @@ vi.mock("@/features/issues/components/bulk/IssueBulkActionBar", () => ({
   ),
 }));
 vi.mock("@/features/timeline/components/TimelineBody", () => ({
-  TimelineBody: ({ vault }: { vault: string }) => (
-    <div data-testid="timeline-body" data-vault={vault} />
+  TimelineBody: ({
+    vault,
+    searchInputPending,
+  }: {
+    vault: string;
+    searchInputPending?: boolean;
+  }) => (
+    <div
+      data-testid="timeline-body"
+      data-vault={vault}
+      data-search-input-pending={Boolean(searchInputPending)}
+    />
   ),
 }));
 vi.mock("@/features/issues/components/filters/IssueFilterToolbar", () => ({
@@ -120,6 +140,7 @@ vi.mock("@/features/issues/components/filters/IssueFilterToolbar", () => ({
     showsBacklogReorderHint,
     fixedSprintId,
     fixedSprintName,
+    onSearchPendingChange,
   }: {
     groupBy?: string;
     showSortControl?: boolean;
@@ -127,21 +148,25 @@ vi.mock("@/features/issues/components/filters/IssueFilterToolbar", () => ({
     showsBacklogReorderHint?: boolean;
     fixedSprintId?: string;
     fixedSprintName?: string;
-  }) => (
-    <div
-      data-testid="filter-toolbar"
-      data-group-by={groupBy}
-      data-show-sort={showSortControl}
-      data-supports-rank={supportsRankOrder}
-      data-shows-drag-hint={showsBacklogReorderHint}
-      data-fixed-sprint-id={fixedSprintId}
-      data-fixed-sprint-name={fixedSprintName}
-    >
-      {showSortControl ? (
-        <span data-testid="sort-control" data-location="filter-toolbar" />
-      ) : null}
-    </div>
-  ),
+    onSearchPendingChange?: (pending: boolean) => void;
+  }) => {
+    searchPendingCallback.current = onSearchPendingChange ?? null;
+    return (
+      <div
+        data-testid="filter-toolbar"
+        data-group-by={groupBy}
+        data-show-sort={showSortControl}
+        data-supports-rank={supportsRankOrder}
+        data-shows-drag-hint={showsBacklogReorderHint}
+        data-fixed-sprint-id={fixedSprintId}
+        data-fixed-sprint-name={fixedSprintName}
+      >
+        {showSortControl ? (
+          <span data-testid="sort-control" data-location="filter-toolbar" />
+        ) : null}
+      </div>
+    );
+  },
 }));
 
 import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
@@ -177,6 +202,7 @@ describe("IssuesWorkspace", () => {
     vi.clearAllMocks();
     navigationState.pathname = "/workspace/reef-acme/issues";
     navigationState.searchParams = new URLSearchParams();
+    searchPendingCallback.current = null;
     mockUseActiveVault.mockReturnValue({
       vault: "reef-acme",
       isLoading: false,
@@ -335,6 +361,16 @@ describe("IssuesWorkspace", () => {
     expect(screen.queryByTestId("issue-bulk-action-bar")).toBeNull();
     expect(screen.queryByTestId("list-body")).toBeNull();
     expect(screen.queryByTestId("timeline-body")).toBeNull();
+  });
+
+  it("routes search input pending into the active result surface", async () => {
+    render(wrap(<IssuesWorkspace />));
+    const board = await screen.findByTestId("board-body");
+    await waitFor(() => expect(searchPendingCallback.current).not.toBeNull());
+
+    expect(board).toHaveAttribute("data-search-input-pending", "false");
+    act(() => searchPendingCallback.current?.(true));
+    expect(board).toHaveAttribute("data-search-input-pending", "true");
   });
 
   it("keeps scope beside the title and layout in the right action area", () => {

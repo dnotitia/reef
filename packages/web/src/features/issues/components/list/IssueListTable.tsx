@@ -124,6 +124,7 @@ interface IssueListTableProps {
   scope?: IssueScope;
   groupBy?: IssueGroupBy;
   fixedSprintId?: string;
+  searchInputPending?: boolean;
 }
 
 function IssueListColumnGroup({
@@ -315,6 +316,7 @@ export function IssueListTable({
   scope = "active",
   groupBy = "none",
   fixedSprintId,
+  searchInputPending = false,
 }: IssueListTableProps) {
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
@@ -507,6 +509,7 @@ export function IssueListTable({
   const selectAllState = loadedSelectionState(selectedIds, visibleIssueIds);
   const hasActiveFilters = hasScopeFilters(filter, searchQuery, scope);
   const resultsUpdating =
+    searchInputPending ||
     searchTransitionPending ||
     isPlaceholderData ||
     (isFetching && !isPending && !isFetchingNextPage);
