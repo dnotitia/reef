@@ -41,6 +41,10 @@ explicitly in the entries below.
   board, list, and backlog views.** Cached searches no longer show a blank
   result set while the input catches up, and delayed searches retain the prior
   results until the requested set arrives. (REEF-646)
+- **Directly opened issue details keep their Sheet and wayfinding mounted while
+  a relationship destination loads.** The existing Sheet follows the replaced
+  issue URL, keeping Back, Close, and the destination-specific editor together.
+  (REEF-649)
 
 ### Migration
 

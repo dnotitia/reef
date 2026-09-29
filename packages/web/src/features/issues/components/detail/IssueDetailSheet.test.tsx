@@ -108,7 +108,15 @@ describe("IssueDetailSheet", () => {
       isLoading: true,
       refetch: () => Promise.resolve(),
     });
-    render(wrap(<IssueDetailSheet issueId="REEF-001" onClose={() => {}} />));
+    render(
+      wrap(
+        <IssueDetailSheet
+          entryRoute="modal"
+          issueId="REEF-001"
+          onClose={() => {}}
+        />,
+      ),
+    );
     // Skeletons render a series of <Skeleton/> elements — no error thrown is the smoke check.
     expect(screen.getByTestId("issue-detail-modal")).toBeInTheDocument();
     expect(
@@ -122,7 +130,15 @@ describe("IssueDetailSheet", () => {
       isLoading: false,
       refetch: () => Promise.resolve(),
     });
-    render(wrap(<IssueDetailSheet issueId="REEF-001" onClose={() => {}} />));
+    render(
+      wrap(
+        <IssueDetailSheet
+          entryRoute="modal"
+          issueId="REEF-001"
+          onClose={() => {}}
+        />,
+      ),
+    );
     expect(screen.getByTestId("issue-detail-no-vault")).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "Onboarding" });
     expect(link).toHaveAttribute("href", "/onboarding");
@@ -135,7 +151,15 @@ describe("IssueDetailSheet", () => {
       isLoading: false,
       refetch: () => Promise.resolve(),
     });
-    render(wrap(<IssueDetailSheet issueId="REEF-001" onClose={() => {}} />));
+    render(
+      wrap(
+        <IssueDetailSheet
+          entryRoute="modal"
+          issueId="REEF-001"
+          onClose={() => {}}
+        />,
+      ),
+    );
     expect(
       screen.queryByTestId("issue-detail-no-vault"),
     ).not.toBeInTheDocument();
@@ -154,7 +178,15 @@ describe("IssueDetailSheet", () => {
       ...vaultState,
       refetch: () => Promise.resolve(),
     });
-    render(wrap(<IssueDetailSheet issueId="REEF-001" onClose={() => {}} />));
+    render(
+      wrap(
+        <IssueDetailSheet
+          entryRoute="modal"
+          issueId="REEF-001"
+          onClose={() => {}}
+        />,
+      ),
+    );
 
     const closers = screen.getAllByRole("button", { name: "Close" });
     expect(closers).toHaveLength(1);
@@ -173,7 +205,15 @@ describe("IssueDetailSheet", () => {
       ...vaultState,
       refetch: () => Promise.resolve(),
     });
-    render(wrap(<IssueDetailSheet issueId="REEF-001" onClose={() => {}} />));
+    render(
+      wrap(
+        <IssueDetailSheet
+          entryRoute="modal"
+          issueId="REEF-001"
+          onClose={() => {}}
+        />,
+      ),
+    );
 
     const bar = screen.getByTestId("issue-detail-chrome");
     expect(bar).toHaveTextContent("REEF-001");
@@ -190,7 +230,15 @@ describe("IssueDetailSheet", () => {
       isLoading: false,
       refetch: () => Promise.resolve(),
     });
-    render(wrap(<IssueDetailSheet issueId="REEF-001" onClose={onClose} />));
+    render(
+      wrap(
+        <IssueDetailSheet
+          entryRoute="modal"
+          issueId="REEF-001"
+          onClose={onClose}
+        />,
+      ),
+    );
 
     await user.click(screen.getByTestId("issue-close"));
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -214,7 +262,15 @@ describe("IssueDetailSheet", () => {
         isLoading: false,
         refetch: () => Promise.resolve(),
       });
-      render(wrap(<IssueDetailSheet issueId="REEF-001" onClose={onClose} />));
+      render(
+        wrap(
+          <IssueDetailSheet
+            entryRoute="modal"
+            issueId="REEF-001"
+            onClose={onClose}
+          />,
+        ),
+      );
 
       await user.keyboard("{Escape}");
 
@@ -237,7 +293,15 @@ describe("IssueDetailSheet", () => {
         isLoading: false,
         refetch: () => Promise.resolve(),
       });
-      render(wrap(<IssueDetailSheet issueId={issueId} onClose={onClose} />));
+      render(
+        wrap(
+          <IssueDetailSheet
+            entryRoute="modal"
+            issueId={issueId}
+            onClose={onClose}
+          />,
+        ),
+      );
       return onClose;
     }
 
@@ -353,7 +417,15 @@ describe("IssueDetailSheet", () => {
       isLoading: false,
       refetch: () => Promise.resolve(),
     });
-    render(wrap(<IssueDetailSheet issueId="REEF-001" onClose={() => {}} />));
+    render(
+      wrap(
+        <IssueDetailSheet
+          entryRoute="modal"
+          issueId="REEF-001"
+          onClose={() => {}}
+        />,
+      ),
+    );
 
     const content = document.querySelector('[data-slot="sheet-content"]');
     expect(content).not.toBeNull();
@@ -386,7 +458,11 @@ describe("IssueDetailSheet", () => {
       });
       return render(
         wrap(
-          <IssueDetailSheet issueId="REEF-001" onClose={() => {}} />,
+          <IssueDetailSheet
+            entryRoute="modal"
+            issueId="REEF-001"
+            onClose={() => {}}
+          />,
           locale,
         ),
       );
@@ -493,7 +569,13 @@ describe("IssueDetailSheet", () => {
       );
 
       first.rerender(
-        wrap(<IssueDetailSheet issueId="REEF-002" onClose={() => {}} />),
+        wrap(
+          <IssueDetailSheet
+            entryRoute="modal"
+            issueId="REEF-002"
+            onClose={() => {}}
+          />,
+        ),
       );
       await waitFor(() =>
         expect(screen.getByRole("separator")).toHaveAttribute(
@@ -705,7 +787,14 @@ describe("IssueDetailSheet", () => {
       expect(toggle.className).toContain("focus-visible:ring-2");
 
       first.rerender(
-        wrap(<IssueDetailSheet issueId="REEF-002" onClose={() => {}} />, "ko"),
+        wrap(
+          <IssueDetailSheet
+            entryRoute="modal"
+            issueId="REEF-002"
+            onClose={() => {}}
+          />,
+          "ko",
+        ),
       );
       await waitFor(() =>
         expect(screen.getByRole("separator")).toHaveAttribute(
@@ -740,7 +829,15 @@ describe("IssueDetailSheet", () => {
         isLoading: false,
         refetch: () => Promise.resolve(),
       });
-      render(wrap(<IssueDetailSheet issueId="REEF-001" onClose={() => {}} />));
+      render(
+        wrap(
+          <IssueDetailSheet
+            entryRoute="modal"
+            issueId="REEF-001"
+            onClose={() => {}}
+          />,
+        ),
+      );
 
       expect(screen.queryByRole("separator")).not.toBeInTheDocument();
       expect(

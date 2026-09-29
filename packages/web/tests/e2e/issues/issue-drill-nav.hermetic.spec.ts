@@ -1,8 +1,12 @@
+import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import {
   openExistingWorkspace,
   readFixtureState,
   resetFixture,
+  setIssueReadControl,
+  waitForIssueReadIdle,
+  waitForIssueReadPending,
 } from "../harness/fixture";
 
 // The demo_board fixture wires a parent chain REEF-101 → REEF-102 → REEF-103
@@ -12,9 +16,122 @@ import {
 const ROOT = "REEF-101";
 const MID = "REEF-102";
 const LEAF = "REEF-103";
+const SHORT_CHILD = "REEF-112";
+const ROOT_TITLE = "Review monitored-repo findings";
+const SHORT_CHILD_TITLE = "Mobile density";
+const NEW_TAB_MODIFIER: "Control" | "Meta" =
+  process.platform === "darwin" ? "Meta" : "Control";
 
 const drillBack = '[data-testid="issue-drill-back"]';
 const breadcrumb = '[data-testid="issue-parent-breadcrumb"]';
+
+interface IssueDrillFrame {
+  time: number;
+  pathname: string;
+  activePanels: Array<{
+    instanceId: string;
+    rect: { x: number; y: number; width: number; height: number };
+  }>;
+  activeDialogs: number;
+  backCount: number;
+  closeCount: number;
+  titleValues: string[];
+}
+
+function startIssueDrillFrameRecorder(destinationId: string) {
+  type RecorderWindow = Window & {
+    __reef649RecordFrame?: (frame: IssueDrillFrame) => Promise<void>;
+    __reef649MarkClick?: (
+      time: number,
+      defaultPrevented: boolean,
+    ) => Promise<void>;
+  };
+  const recorderWindow = window as RecorderWindow;
+  const documentId = String(performance.timeOrigin);
+  const panelIds = new WeakMap<Element, string>();
+  let nextPanelId = 1;
+
+  document.addEventListener(
+    "click",
+    (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest(`a[data-issue-id="${destinationId}"]`) === null)
+        return;
+      void recorderWindow.__reef649MarkClick?.(
+        performance.timeOrigin + performance.now(),
+        event.defaultPrevented,
+      );
+    },
+    false,
+  );
+
+  const recordFrame = () => {
+    if (sessionStorage.getItem("__reef649_issue_drill_trace") !== "recording") {
+      return;
+    }
+    const panels = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-slot="sheet-content"]'),
+    );
+    const activePanels = panels.flatMap((panel) => {
+      const rect = panel.getBoundingClientRect();
+      const style = getComputedStyle(panel);
+      const visible =
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        panel.closest('[aria-hidden="true"]') === null;
+      if (!visible) return [];
+      let instanceId = panelIds.get(panel);
+      if (instanceId === undefined) {
+        instanceId = `${documentId}:${nextPanelId}`;
+        nextPanelId += 1;
+        panelIds.set(panel, instanceId);
+      }
+      return [
+        {
+          instanceId,
+          rect: {
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+          },
+        },
+      ];
+    });
+    const activeDialog = panels.find(
+      (panel) =>
+        panel.getAttribute("role") === "dialog" &&
+        panel.closest('[aria-hidden="true"]') === null,
+    );
+    const frame: IssueDrillFrame = {
+      time: performance.timeOrigin + performance.now(),
+      pathname: location.pathname,
+      activePanels,
+      activeDialogs: activeDialog ? 1 : 0,
+      backCount:
+        activeDialog?.querySelectorAll('[data-testid="issue-drill-back"]')
+          .length ?? 0,
+      closeCount:
+        activeDialog?.querySelectorAll('[data-testid="issue-close"]').length ??
+        0,
+      titleValues: Array.from(
+        activeDialog?.querySelectorAll<HTMLInputElement>(
+          '[data-testid="issue-title-input"]',
+        ) ?? [],
+      ).map((input) => input.value),
+    };
+    const recordFrameOnHost = recorderWindow.__reef649RecordFrame;
+    if (!recordFrameOnHost) return;
+    void recordFrameOnHost(frame).then(() => {
+      requestAnimationFrame(recordFrame);
+    });
+  };
+
+  requestAnimationFrame(recordFrame);
+}
 
 test.describe("Hermetic issue drill navigation (REEF-270)", () => {
   test.beforeEach(async ({ context, request }) => {
@@ -589,5 +706,418 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
     await expect(
       page.locator('[data-testid="issue-detail-modal"]'),
     ).toHaveCount(0);
+  });
+});
+
+test.describe("Direct detail first relationship move", () => {
+  test.use({
+    viewport: { width: 1440, height: 900 },
+    colorScheme: "light",
+  });
+
+  test.beforeEach(async ({ context, request }) => {
+    await context.clearCookies();
+    await resetFixture(request, "demo_board");
+  });
+
+  async function openDirectRoot(
+    page: import("@playwright/test").Page,
+    beforeOpen?: () => Promise<void>,
+  ): Promise<void> {
+    await openExistingWorkspace(page);
+    await beforeOpen?.();
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.goto(`/workspace/reef-e2e/issues/${ROOT}?view=list`);
+    await expect(page.locator('[data-testid="issue-title-input"]')).toHaveValue(
+      ROOT_TITLE,
+    );
+    await expect(
+      page.locator(
+        `[data-testid="issue-children"] a[data-issue-id="${SHORT_CHILD}"]`,
+      ),
+    ).toBeVisible();
+  }
+
+  async function captureFirstMove(
+    page: import("@playwright/test").Page,
+    request: import("@playwright/test").APIRequestContext,
+    testInfo: import("@playwright/test").TestInfo,
+    artifactPrefix: string,
+    waitForDelayedRead: boolean,
+  ): Promise<void> {
+    const frames: IssueDrillFrame[] = [];
+    let clickAt: number | null = null;
+    let clickDefaultPrevented: boolean | null = null;
+    await page.exposeFunction(
+      "__reef649RecordFrame",
+      (frame: IssueDrillFrame) => {
+        frames.push(frame);
+      },
+    );
+    await page.exposeFunction(
+      "__reef649MarkClick",
+      (time: number, defaultPrevented: boolean) => {
+        clickAt ??= time;
+        clickDefaultPrevented ??= defaultPrevented;
+      },
+    );
+    await page.addInitScript(startIssueDrillFrameRecorder, SHORT_CHILD);
+    await page.evaluate(() => {
+      sessionStorage.setItem("__reef649_issue_drill_trace", "recording");
+    });
+    await page.evaluate(startIssueDrillFrameRecorder, SHORT_CHILD);
+
+    const beforeClick = await page.screenshot();
+    const beforePath = `${artifactPrefix}-click-before.png`;
+    await writeFile(testInfo.outputPath(beforePath), beforeClick);
+    await testInfo.attach(beforePath, {
+      body: beforeClick,
+      contentType: "image/png",
+    });
+
+    const clickStartedAt = Date.now();
+    await page
+      .locator(
+        `[data-testid="issue-children"] a[data-issue-id="${SHORT_CHILD}"]`,
+      )
+      .click();
+    await page.waitForURL(new RegExp(`/issues/${SHORT_CHILD}\\?view=list$`), {
+      timeout: 10_000,
+    });
+    if (waitForDelayedRead) {
+      await waitForIssueReadPending(request, SHORT_CHILD);
+    }
+    await page.waitForTimeout(250);
+    const pendingFrames = frames.filter(
+      (frame) => clickAt !== null && frame.time >= clickAt,
+    );
+    expect(pendingFrames.length).toBeGreaterThan(4);
+    expect(
+      pendingFrames.every(
+        (frame) => frame.activePanels.length === 1 && frame.activeDialogs === 1,
+      ),
+    ).toBe(true);
+    expect(
+      pendingFrames.every(
+        (frame) => frame.backCount === 1 && frame.closeCount === 1,
+      ),
+    ).toBe(true);
+    expect(
+      pendingFrames.every((frame) =>
+        frame.titleValues.every((value) => value !== ROOT_TITLE),
+      ),
+    ).toBe(true);
+
+    await expect(page.locator('[data-testid="issue-title-input"]')).toHaveValue(
+      SHORT_CHILD_TITLE,
+      { timeout: 15_000 },
+    );
+    if (waitForDelayedRead) {
+      await waitForIssueReadIdle(request, SHORT_CHILD);
+      expect(Date.now() - clickStartedAt).toBeGreaterThan(800);
+    }
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+
+    const destinationReady = await page.screenshot();
+    const readyPath = `${artifactPrefix}-destination-ready.png`;
+    await writeFile(testInfo.outputPath(readyPath), destinationReady);
+    await testInfo.attach(readyPath, {
+      body: destinationReady,
+      contentType: "image/png",
+    });
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          sessionStorage.removeItem("__reef649_issue_drill_trace");
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        }),
+    );
+    const trace = {
+      viewport: await page.evaluate(() => ({
+        width: innerWidth,
+        height: innerHeight,
+      })),
+      clickAt,
+      clickDefaultPrevented,
+      elapsedMs: Date.now() - clickStartedAt,
+      readyAt: Date.now(),
+      frames,
+    };
+    const traceJson = JSON.stringify(trace, null, 2);
+    const tracePath = `${artifactPrefix}-transition-frames.json`;
+    await writeFile(testInfo.outputPath(tracePath), traceJson);
+    await testInfo.attach(tracePath, {
+      body: traceJson,
+      contentType: "application/json",
+    });
+
+    expect(trace.viewport).toEqual({ width: 1440, height: 900 });
+    expect(trace.clickAt).not.toBeNull();
+    expect(trace.clickDefaultPrevented).toBe(true);
+    const transitionFrames = trace.frames.filter(
+      (frame) =>
+        frame.time >= (trace.clickAt ?? 0) && frame.time <= trace.readyAt,
+    );
+    expect(transitionFrames.length).toBeGreaterThan(10);
+    expect(
+      transitionFrames.every(
+        (frame) => frame.activePanels.length === 1 && frame.activeDialogs === 1,
+      ),
+    ).toBe(true);
+    expect(
+      transitionFrames.every(
+        (frame) => frame.backCount === 1 && frame.closeCount === 1,
+      ),
+    ).toBe(true);
+    expect(
+      transitionFrames.every((frame) =>
+        frame.titleValues.every((value) => value !== ROOT_TITLE),
+      ),
+    ).toBe(true);
+    expect(
+      new Set(
+        transitionFrames.flatMap((frame) =>
+          frame.activePanels.map((panel) => panel.instanceId),
+        ),
+      ).size,
+    ).toBe(1);
+    await expect(
+      page.locator('[data-testid="issue-drill-back"]'),
+    ).toHaveAttribute("data-back-to", ROOT);
+  }
+
+  test("keeps one 1440×900 sheet through the delayed first move in three fresh contexts", async ({
+    browser,
+    request,
+  }, testInfo) => {
+    for (const contextNumber of [1, 2, 3]) {
+      const videoDirectory = testInfo.outputPath(
+        `context-${contextNumber}-video`,
+      );
+      await mkdir(videoDirectory, { recursive: true });
+      const context = await browser.newContext({
+        viewport: { width: 1440, height: 900 },
+        colorScheme: "light",
+        recordVideo: {
+          dir: videoDirectory,
+          size: { width: 1440, height: 900 },
+        },
+      });
+      const page = await context.newPage();
+      const video = page.video();
+      try {
+        await openDirectRoot(
+          page,
+          contextNumber === 1
+            ? () =>
+                setIssueReadControl(request, {
+                  issueId: SHORT_CHILD,
+                  delayMs: 1_200,
+                })
+            : undefined,
+        );
+        await captureFirstMove(
+          page,
+          request,
+          testInfo,
+          `context-${contextNumber}`,
+          contextNumber === 1,
+        );
+        if (contextNumber === 1) {
+          const state = await readFixtureState(request);
+          expect(state.calls).toContainEqual(
+            expect.objectContaining({
+              method: "GET",
+              path: `/akb/api/v1/documents/reef-e2e/issues/${SHORT_CHILD.toLowerCase()}.md`,
+            }),
+          );
+          await setIssueReadControl(request, { issueId: SHORT_CHILD });
+        }
+
+        await page.locator(drillBack).click();
+        await page.waitForURL(new RegExp(`/issues/${ROOT}\\?view=list$`));
+        await page
+          .locator(
+            `[data-testid="issue-children"] a[data-issue-id="${SHORT_CHILD}"]`,
+          )
+          .click();
+        await page.waitForURL(
+          new RegExp(`/issues/${SHORT_CHILD}\\?view=list$`),
+        );
+        await expect(
+          page.locator('[data-testid="issue-title-input"]'),
+        ).toHaveValue(SHORT_CHILD_TITLE);
+        await page.locator('[data-testid="issue-close"]').click();
+        await page.waitForURL(/\/issues\?view=list$/);
+      } finally {
+        await context.close();
+        const videoPath = video ? await video.path() : null;
+        if (videoPath) {
+          await copyFile(
+            videoPath,
+            testInfo.outputPath(`context-${contextNumber}.webm`),
+          );
+          await testInfo.attach(`context-${contextNumber}.webm`, {
+            path: testInfo.outputPath(`context-${contextNumber}.webm`),
+            contentType: "video/webm",
+          });
+        }
+      }
+    }
+  });
+
+  test("preserves Back, Escape, Close, the entry query, and new-tab relation clicks", async ({
+    page,
+    context,
+  }) => {
+    await openDirectRoot(page);
+
+    const childLink = page.locator(
+      `[data-testid="issue-children"] a[data-issue-id="${SHORT_CHILD}"]`,
+    );
+    const [modifierTab] = await Promise.all([
+      context.waitForEvent("page", { timeout: 10_000 }),
+      childLink.click({ modifiers: [NEW_TAB_MODIFIER] }),
+    ]);
+    await modifierTab.waitForURL(
+      new RegExp(`/issues/${SHORT_CHILD}\\?view=list$`),
+    );
+    await expect(
+      modifierTab.locator('[data-testid="issue-title-input"]'),
+    ).toHaveValue(SHORT_CHILD_TITLE);
+    await expect(modifierTab.locator(drillBack)).toHaveCount(0);
+    await modifierTab.close();
+    await expect(page).toHaveURL(new RegExp(`/issues/${ROOT}\\?view=list$`));
+
+    const [middleTab] = await Promise.all([
+      context.waitForEvent("page"),
+      childLink.click({ button: "middle" }),
+    ]);
+    await middleTab.waitForURL(
+      new RegExp(`/issues/${SHORT_CHILD}\\?view=list$`),
+    );
+    await expect(
+      middleTab.locator('[data-testid="issue-title-input"]'),
+    ).toHaveValue(SHORT_CHILD_TITLE);
+    await middleTab.close();
+
+    await page
+      .locator(`[data-testid="issue-children"] a[data-issue-id="${MID}"]`)
+      .click();
+    await page.waitForURL(new RegExp(`/issues/${MID}\\?view=list$`));
+    await expect(page.locator(drillBack)).toHaveAttribute("data-back-to", ROOT);
+    await page
+      .locator(`[data-testid="issue-children"] a[data-issue-id="${LEAF}"]`)
+      .click();
+    await page.waitForURL(new RegExp(`/issues/${LEAF}\\?view=list$`));
+    await expect(page.locator(drillBack)).toHaveAttribute("data-back-to", MID);
+
+    await page.locator(drillBack).click();
+    await page.waitForURL(new RegExp(`/issues/${MID}\\?view=list$`));
+    await expect(page.locator(drillBack)).toHaveAttribute("data-back-to", ROOT);
+    await page.keyboard.press("Escape");
+    await page.waitForURL(new RegExp(`/issues/${ROOT}\\?view=list$`));
+    await expect(page.locator(drillBack)).toHaveCount(0);
+    await page.locator('[data-testid="issue-close"]').click();
+    await page.waitForURL(/\/issues\?view=list$/);
+    await expect(
+      page.locator('[data-testid="issue-detail-modal"]'),
+    ).toHaveCount(0);
+  });
+
+  test("keeps autosaved edits isolated to the drilled issue", async ({
+    page,
+    request,
+  }) => {
+    await openDirectRoot(page);
+    await page
+      .locator(
+        `[data-testid="issue-children"] a[data-issue-id="${SHORT_CHILD}"]`,
+      )
+      .click();
+    await page.waitForURL(new RegExp(`/issues/${SHORT_CHILD}\\?view=list$`));
+    const titleInput = page.locator('[data-testid="issue-title-input"]');
+    await expect(titleInput).toHaveValue(SHORT_CHILD_TITLE);
+    await titleInput.fill("Mobile density edited");
+    await titleInput.press("Enter");
+    await expect(page.getByTestId("issue-save-status")).toContainText("Saved", {
+      timeout: 15_000,
+    });
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        return state.vaults
+          .find((vault) => vault.name === "reef-e2e")
+          ?.issues.find((issue) => issue.id === SHORT_CHILD)?.title;
+      })
+      .toBe("Mobile density edited");
+
+    await page.locator(drillBack).click();
+    await page.waitForURL(new RegExp(`/issues/${ROOT}\\?view=list$`));
+    await expect(page.locator('[data-testid="issue-title-input"]')).toHaveValue(
+      ROOT_TITLE,
+    );
+    const savedIssues = await readFixtureState(request);
+    const fixtureVault = savedIssues.vaults.find(
+      (vault) => vault.name === "reef-e2e",
+    );
+    expect(fixtureVault?.issues.find((issue) => issue.id === ROOT)?.title).toBe(
+      ROOT_TITLE,
+    );
+    expect(
+      fixtureVault?.issues.find((issue) => issue.id === SHORT_CHILD)?.title,
+    ).toBe("Mobile density edited");
+
+    await page
+      .locator(
+        `[data-testid="issue-children"] a[data-issue-id="${SHORT_CHILD}"]`,
+      )
+      .click();
+    await page.waitForURL(new RegExp(`/issues/${SHORT_CHILD}\\?view=list$`));
+    await expect(page.locator('[data-testid="issue-title-input"]')).toHaveValue(
+      "Mobile density edited",
+    );
+    await page.locator('[data-testid="issue-close"]').click();
+    await page.waitForURL(/\/issues\?view=list$/);
+  });
+
+  test("keeps wayfinding available when the destination issue read fails", async ({
+    page,
+    request,
+  }) => {
+    await openDirectRoot(page);
+    await setIssueReadControl(request, {
+      issueId: SHORT_CHILD,
+      failureStatus: 404,
+    });
+    await page
+      .locator(
+        `[data-testid="issue-children"] a[data-issue-id="${SHORT_CHILD}"]`,
+      )
+      .click();
+    await page.waitForURL(new RegExp(`/issues/${SHORT_CHILD}\\?view=list$`));
+    await expect(
+      page.locator('[data-testid="issue-detail-error"]'),
+    ).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(
+      page.locator('[data-testid="issue-detail-modal"]'),
+    ).toHaveCount(1);
+    await expect(page.locator(drillBack)).toHaveAttribute("data-back-to", ROOT);
+    await expect(page.locator('[data-testid="issue-close"]')).toBeVisible();
+
+    await page.locator(drillBack).click();
+    await page.waitForURL(new RegExp(`/issues/${ROOT}\\?view=list$`));
+    await expect(page.locator('[data-testid="issue-title-input"]')).toHaveValue(
+      ROOT_TITLE,
+    );
+    await page.locator('[data-testid="issue-close"]').click();
+    await page.waitForURL(/\/issues\?view=list$/);
   });
 });

@@ -15,10 +15,11 @@ import { useIssueNavStack } from "../../stores/useIssueNavStack";
  *    a modifier/middle click opening a new tab lands on a deep link whose
  *    backdrop keeps the originating view instead of the Board default (REEF-222),
  *    and starts a fresh depth-0 trail.
- *  - `onClick` (plain left click) records the hop on the in-memory nav
- *    stack and swaps the sheet content with `router.replace`, keeping the browser
- *    history flat (list ⇄ sheet) so Close returns to the list in one step. A
- *    drill is an in-panel content swap, not a new history entry.
+ *  - `onClick` (plain left click) records the hop on the in-memory nav stack
+ *    and swaps the active issue in place. Base-route sessions replace only the
+ *    URL with Next's native history integration so their Sheet stays mounted;
+ *    intercepted sessions use `router.replace`. Both keep browser history flat
+ *    (list ⇄ sheet), so Close returns to the list in one step.
  *
  * Modifier / non-primary clicks fall through to the anchor's native behavior
  * (open in a new tab/window), matching every other reef relation link.
@@ -28,6 +29,7 @@ export function useIssueDrill(fromIssueId: string) {
   const searchParams = useSearchParams();
   const { vault } = useActiveVault();
   const drill = useIssueNavStack((state) => state.drill);
+  const entryRoute = useIssueNavStack((state) => state.entryRoute);
 
   return useCallback(
     (targetId: string) => {
@@ -49,10 +51,17 @@ export function useIssueDrill(fromIssueId: string) {
           }
           event.preventDefault();
           drill(fromIssueId, targetId);
-          router.replace(href);
+          if (entryRoute === "base") {
+            // A hard-open detail already owns a live base-route sheet. Replace
+            // only the URL so the sheet survives the first relationship move;
+            // Next synchronizes native history updates with pathname/search hooks.
+            window.history.replaceState(null, "", href);
+          } else {
+            router.replace(href);
+          }
         },
       };
     },
-    [router, searchParams, vault, drill, fromIssueId],
+    [router, searchParams, vault, drill, fromIssueId, entryRoute],
   );
 }

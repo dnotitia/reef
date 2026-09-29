@@ -27,8 +27,16 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/features/issues/components/detail/IssueDetailSheet", () => ({
-  IssueDetailSheet: ({ issueId }: { issueId: string }) => (
-    <div data-testid="mock-issue-detail-sheet">{issueId}</div>
+  IssueDetailSheet: ({
+    issueId,
+    entryRoute,
+  }: {
+    issueId: string;
+    entryRoute: "base" | "modal";
+  }) => (
+    <div data-testid="mock-issue-detail-sheet" data-entry-route={entryRoute}>
+      {issueId}
+    </div>
   ),
 }));
 
@@ -91,5 +99,27 @@ describe("Intercepting route — /(dashboard)/@modal/(.)issues/[id]", () => {
     expect(screen.queryByTestId("mock-issue-detail-sheet")).toBeNull();
     expect(useIssueNavStack.getState().trail).toEqual([]);
     expect(useIssueNavStack.getState().exitOwner).toBeNull();
+  });
+
+  it("yields to the original base sheet without clearing its drill trail", () => {
+    const baseExit = vi.fn();
+    useIssueNavStack.setState({
+      trail: ["REEF-001"],
+      currentId: "REEF-002",
+      hasDrilledInSession: true,
+      entryRoute: "base",
+      exitOwner: baseExit,
+    });
+    mockUsePathname.mockReturnValue("/workspace/reef-acme/issues/REEF-002");
+
+    render(
+      <IssueModalPage
+        params={{ id: "REEF-002" } as unknown as Promise<{ id: string }>}
+      />,
+    );
+
+    expect(screen.queryByTestId("mock-issue-detail-sheet")).toBeNull();
+    expect(useIssueNavStack.getState().trail).toEqual(["REEF-001"]);
+    expect(useIssueNavStack.getState().entryRoute).toBe("base");
   });
 });

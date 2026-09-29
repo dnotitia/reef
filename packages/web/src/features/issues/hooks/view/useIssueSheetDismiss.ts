@@ -4,11 +4,16 @@ import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect } from "react";
 import { buildOpenIssueHref } from "../../lib/issueHref";
-import { useIssueNavStack } from "../../stores/useIssueNavStack";
+import {
+  type IssueDetailEntryRoute,
+  useIssueNavStack,
+} from "../../stores/useIssueNavStack";
 
 interface UseIssueSheetDismissArgs {
   /** Issue id currently shown in the sheet (the live detail route param). */
   issueId: string;
+  /** Route that mounted the first sheet in the current detail session. */
+  entryRoute: IssueDetailEntryRoute;
   /**
    * Exit the sheet to its entry view — the list/board the user came from. The
    * first sheet in a detail session owns this callback; a relation drill can
@@ -33,6 +38,7 @@ interface UseIssueSheetDismissArgs {
  */
 export function useIssueSheetDismiss({
   issueId,
+  entryRoute,
   onExit,
 }: UseIssueSheetDismissArgs) {
   const router = useRouter();
@@ -69,8 +75,8 @@ export function useIssueSheetDismiss({
   // that `drill()` just recorded. The first callback still wins; remounted
   // relation routes are ignored by the store.
   useEffect(() => {
-    registerExitOwner(onExit);
-  }, [onExit, registerExitOwner]);
+    registerExitOwner(onExit, entryRoute);
+  }, [entryRoute, onExit, registerExitOwner]);
 
   // Solely trust the trail when it actually describes the on-screen issue, so the
   // outgoing sheet does not flash a Back to itself the instant a hop moves the
@@ -83,9 +89,14 @@ export function useIssueSheetDismiss({
   const goBack = useCallback(() => {
     const previous = back();
     if (previous) {
-      router.replace(buildOpenIssueHref(vault, previous, searchParams));
+      const href = buildOpenIssueHref(vault, previous, searchParams);
+      if (entryRoute === "base") {
+        window.history.replaceState(null, "", href);
+      } else {
+        router.replace(href);
+      }
     }
-  }, [back, router, searchParams, vault]);
+  }, [back, entryRoute, router, searchParams, vault]);
 
   const exit = useCallback(() => {
     const sessionExit = useIssueNavStack.getState().exitOwner ?? onExit;
