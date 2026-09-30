@@ -139,7 +139,9 @@ test.describe("Hermetic issue sub-issue loading", () => {
     await openExistingWorkspace(page);
     await clearPersistedQueryCacheOnLoad(page);
     await recordIssueChildrenFrames(page);
-    await setIssueListFailure(request, false, 0, 1_200);
+    // Leave enough time for the detail route to hydrate before the delayed
+    // list request settles, so the pending UI is observable under load.
+    await setIssueListFailure(request, false, 0, 5_000);
 
     await page.goto(`/workspace/${REEF_E2E_VAULT}/issues/${ROOT}?view=list`, {
       waitUntil: "domcontentloaded",
@@ -199,12 +201,22 @@ test.describe("Hermetic issue sub-issue loading", () => {
     );
     expect(lastPendingFrame).toBeDefined();
     expect(firstSettledFrame).toBeDefined();
-    expect(
-      Math.abs(
-        (lastPendingFrame?.linkedDocumentsTop ?? 0) -
-          (firstSettledFrame?.linkedDocumentsTop ?? 0),
-      ),
-    ).toBeLessThanOrEqual(2);
+    const linkedDocumentsTopDelta = Math.abs(
+      (lastPendingFrame?.linkedDocumentsTop ?? 0) -
+        (firstSettledFrame?.linkedDocumentsTop ?? 0),
+    );
+    process.stdout.write(
+      `ISSUE_CHILDREN_LOADING_FRAME_EVIDENCE ${JSON.stringify({
+        loadingFrameCount: loadingFrames.length,
+        lastPendingLinkedDocumentsTop: lastPendingFrame?.linkedDocumentsTop,
+        firstSettledLinkedDocumentsTop: firstSettledFrame?.linkedDocumentsTop,
+        linkedDocumentsTopDelta,
+        settledChildCount: firstSettledFrame?.childIds.length,
+        settledProgressNow: firstSettledFrame?.progressNow,
+        settledProgressMax: firstSettledFrame?.progressMax,
+      })}\n`,
+    );
+    expect(linkedDocumentsTopDelta).toBeLessThanOrEqual(2);
 
     // Creating a sub-issue invalidates the whole-vault list. Existing child
     // rows stay visible while that background request is delayed.
@@ -223,7 +235,9 @@ test.describe("Hermetic issue sub-issue loading", () => {
     await expect(midLink).toBeVisible();
     await expect(shortChildLink).toBeVisible();
     await expect(children.getByText("0 of 3 done")).toBeVisible();
-    await expect(children.getByRole("progressbar")).toHaveAttribute(
+    // The create-and-add-another dialog keeps the background detail subtree
+    // inert, so inspect the rendered bar directly instead of the a11y tree.
+    await expect(children.locator('[role="progressbar"]')).toHaveAttribute(
       "aria-valuemax",
       "3",
     );
