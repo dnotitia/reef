@@ -18,20 +18,18 @@ import {
 } from "@akb/markdown-editor/react";
 import {
   parseMarkdown,
-  serializeMarkdown,
-  type MarkdownAsset,
   type MarkdownCommands,
   type MarkdownNode,
   type MarkdownTargetResolution,
 } from "@akb/markdown-editor";
 import { Button } from "@/components/ui/button";
 import { linkSafetyConfig } from "@/components/markdown/linkSafety";
-import { isAkbFileUri } from "@/features/issues/lib/attachmentUrls";
-import { filterIssueBodyMentionCandidates } from "@/features/issues/lib/issueBodyMentionCandidates";
 import {
-  appendMarkdownSnippets,
-  filesFromFileList,
-} from "@/features/issues/lib/attachmentMarkdown";
+  attachmentFileTypeLabel,
+  isAkbFileUri,
+} from "@/features/issues/lib/attachmentUrls";
+import { filterIssueBodyMentionCandidates } from "@/features/issues/lib/issueBodyMentionCandidates";
+import { filesFromFileList } from "@/features/issues/lib/attachmentMarkdown";
 import {
   normalizeUrl,
   openLinkWindow,
@@ -40,6 +38,7 @@ import {
   extractAkbDocumentUris,
   normalizeAkbDocumentMarkdownLinks,
 } from "@/lib/akb/markdownDocumentLinks";
+import { parseAkbDocumentUri } from "@/lib/akb/documentUri";
 import { resolveAkbDocumentTitles } from "@/lib/akb/documentTitleResolver";
 import { cn } from "@/lib/utils";
 import { useAkbWebUrl } from "@/providers/AkbWebUrlProvider";
@@ -83,26 +82,131 @@ function localeForMarkdownEditor(locale: string): MarkdownLocale {
   return locale;
 }
 
-function markdownForAsset(asset: MarkdownAsset): string | null {
-  if (asset.kind !== "attachment") return null;
-  return serializeMarkdown({
-    type: "doc",
-    content: [
-      {
-        type: "paragraph",
-        content: [
-          {
-            type: "image",
-            attrs: {
-              target: asset.target,
-              alt: asset.alt ?? "",
-              title: asset.title ?? null,
-            },
-          },
-        ],
-      },
-    ],
-  });
+// The pinned Markdown parser keeps escaped slashes in uploaded image alt text
+// literally. Collapse its serialized pairs in the editor input copy so the
+// rendered alt text stays the original filename; persisted Markdown stays
+// escaped and standards-compatible.
+const ASSET_IMAGE_MARKDOWN_ALT =
+  /(!\[)(.*?)(\]\(\/api\/assets\/[0-9a-f-]{36}(?:\?[^)]*)?(?:\s+"[^"]*")?\))/giu;
+
+function markdownForEditor(markdown: string): string {
+  return markdown.replace(
+    ASSET_IMAGE_MARKDOWN_ALT,
+    (_match, opening: string, alt: string, target: string) =>
+      opening + alt.replace(/\\\\/gu, "\\") + target,
+  );
+}
+
+function setAttributeIfChanged(
+  element: Element,
+  name: string,
+  value: string,
+): void {
+  if (element.getAttribute(name) !== value) element.setAttribute(name, value);
+}
+
+function decorateIssueMarkdownLinks(
+  root: ParentNode,
+  resolutions: ReadonlyMap<string, MarkdownTargetResolution>,
+  mentionConfig: MarkdownEditorProps["mentionConfig"],
+): void {
+  root
+    .querySelectorAll<HTMLAnchorElement>(
+      'a[data-markdown-target], a[data-reef-file-link="true"], a[data-markdown-reference="true"], a[data-reference-kind]',
+    )
+    .forEach((anchor) => {
+      const target = anchor.dataset.markdownTarget;
+      if (target && isAkbFileUri(target)) {
+        anchor.removeAttribute("data-document-uri");
+        setAttributeIfChanged(anchor, "data-reef-file-link", "true");
+        setAttributeIfChanged(anchor, "data-reef-file-uri", target);
+        setAttributeIfChanged(
+          anchor,
+          "data-reef-file-type",
+          attachmentFileTypeLabel(anchor.textContent ?? ""),
+        );
+        setAttributeIfChanged(anchor, "data-reference-kind", "file");
+
+        if (resolutions.get(target)?.status === "available") {
+          setAttributeIfChanged(anchor, "target", "_blank");
+          setAttributeIfChanged(anchor, "rel", "noreferrer");
+        } else {
+          anchor.removeAttribute("target");
+          anchor.removeAttribute("rel");
+        }
+      } else if (anchor.dataset.reefFileLink === "true") {
+        anchor.removeAttribute("data-reef-file-link");
+        anchor.removeAttribute("data-reef-file-uri");
+        anchor.removeAttribute("data-reef-file-type");
+        anchor.removeAttribute("data-reference-kind");
+        anchor.removeAttribute("target");
+        anchor.removeAttribute("rel");
+      }
+
+      if (
+        target &&
+        parseAkbDocumentUri(target) &&
+        anchor.dataset.reefFileLink !== "true"
+      ) {
+        setAttributeIfChanged(anchor, "data-reference-kind", "document");
+        setAttributeIfChanged(anchor, "data-document-uri", target);
+        setAttributeIfChanged(anchor, "target", "_blank");
+        setAttributeIfChanged(anchor, "rel", "noreferrer");
+      } else if (anchor.dataset.referenceKind === "document") {
+        anchor.removeAttribute("data-reference-kind");
+        anchor.removeAttribute("data-document-uri");
+        anchor.removeAttribute("target");
+        anchor.removeAttribute("rel");
+      }
+
+      if (anchor.dataset.markdownReference !== "true") return;
+      const kind = anchor.dataset.markdownReferenceKind;
+      const id = anchor.dataset.markdownReferenceId;
+      if (anchor.dataset.markdownReferenceEscaped === "true" || !kind || !id) {
+        anchor.removeAttribute("data-reef-mention");
+        anchor.removeAttribute("data-reference-kind");
+        anchor.removeAttribute("data-issue-id");
+        anchor.removeAttribute("data-issue-status");
+        anchor
+          .querySelector("[data-markdown-reference-token]")
+          ?.removeAttribute("data-reference-id");
+        anchor
+          .querySelector("[data-markdown-reference-label]")
+          ?.removeAttribute("data-reference-title");
+        return;
+      }
+
+      if (kind === "person") {
+        const member = mentionConfig?.members.find(
+          (candidate) =>
+            candidate.username.toLocaleLowerCase() === id.toLocaleLowerCase(),
+        );
+        if (member) setAttributeIfChanged(anchor, "data-reef-mention", "true");
+        else anchor.removeAttribute("data-reef-mention");
+        return;
+      }
+
+      const issue = mentionConfig?.issues.find(
+        (candidate) => candidate.id === id,
+      );
+      if (!issue) {
+        anchor.removeAttribute("data-reference-kind");
+        anchor.removeAttribute("data-issue-id");
+        anchor.removeAttribute("data-issue-status");
+        return;
+      }
+      setAttributeIfChanged(anchor, "data-reference-kind", "issue");
+      setAttributeIfChanged(anchor, "data-issue-id", issue.id);
+      setAttributeIfChanged(anchor, "data-issue-status", issue.status);
+      const token = anchor.querySelector<HTMLElement>(
+        "[data-markdown-reference-token]",
+      );
+      if (token) setAttributeIfChanged(token, "data-reference-id", "");
+      const label = anchor.querySelector<HTMLElement>(
+        "[data-markdown-reference-label]",
+      );
+      if (label) setAttributeIfChanged(label, "data-reference-title", "");
+    });
 }
 
 function legacyImageResolutions(
@@ -161,6 +265,8 @@ function MarkdownEditorContent({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const sourceTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const sourceDirtyRef = useRef(false);
   const titleByUriRef = useRef(new Map<string, string | null>());
   const pendingTitleUrisRef = useRef(new Set<string>());
   const activeVaultRef = useRef(vault);
@@ -170,12 +276,14 @@ function MarkdownEditorContent({
     new WeakMap<HTMLAnchorElement, number>(),
   );
   const [sourceMode, setSourceMode] = useState(false);
+  const sourceModeRef = useRef(sourceMode);
   const [sourceValue, setSourceValue] = useState(value);
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [uploadError, setUploadError] = useState(false);
   const [mentionOpen, setMentionOpen] = useState(false);
   const [slashOpen, setSlashOpen] = useState(false);
   const [externalLinkHref, setExternalLinkHref] = useState<string | null>(null);
+  sourceModeRef.current = sourceMode;
 
   const normalizeMarkdown = useCallback(
     (markdown: string) =>
@@ -185,6 +293,10 @@ function MarkdownEditorContent({
   const initialMarkdown = useMemo(
     () => normalizeAkbDocumentMarkdownLinks(value),
     [value],
+  );
+  const editorInitialMarkdown = useMemo(
+    () => markdownForEditor(initialMarkdown),
+    [initialMarkdown],
   );
 
   const mentionReferenceAdapter = useMemo<
@@ -214,7 +326,7 @@ function MarkdownEditorContent({
             return {
               id: candidate.issue.id,
               kind: "issue",
-              title: config.issueOptionLabel(candidate.issue),
+              title: candidate.issue.title,
               subtitle: candidate.issue.id,
               value: candidate.issue.id,
             };
@@ -338,7 +450,7 @@ function MarkdownEditorContent({
         lastSyncedValueRef.current = next;
         setSourceValue(next);
         onChangeRef.current(next);
-        commandsRef.current?.setMarkdown(next);
+        commandsRef.current?.setMarkdown(markdownForEditor(next));
         if (!rootRef.current?.contains(document.activeElement)) {
           onBlurRef.current?.(next);
         }
@@ -354,7 +466,9 @@ function MarkdownEditorContent({
       latestValueRef.current = markdown;
       lastSyncedValueRef.current = markdown;
       if (!sourceMode) setSourceValue(markdown);
-      if (markdown !== rawMarkdown) commandsRef.current?.setMarkdown(markdown);
+      if (markdown !== rawMarkdown) {
+        commandsRef.current?.setMarkdown(markdownForEditor(markdown));
+      }
       if (changed) onChangeRef.current(markdown);
       queueDocumentTitleResolution(markdown);
     },
@@ -362,7 +476,7 @@ function MarkdownEditorContent({
   );
 
   const editor = useMarkdownEditor({
-    initialMarkdown,
+    initialMarkdown: editorInitialMarkdown,
     profile: "preserve",
     editable: !readOnly,
     onChange: (markdown) => publishMarkdown(markdown),
@@ -385,6 +499,29 @@ function MarkdownEditorContent({
       ]),
     [resolveImageSrc, targetResolutions, value],
   );
+  useEffect(() => {
+    const surface = surfaceRef.current;
+    if (!surface) return;
+
+    const decorate = () =>
+      decorateIssueMarkdownLinks(surface, resolutions, mentionConfig);
+    decorate();
+    const observer = new MutationObserver(decorate);
+    observer.observe(surface, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: [
+        "data-markdown-target",
+        "data-markdown-resolution",
+        "data-markdown-reference-kind",
+        "data-markdown-reference-id",
+        "data-markdown-reference-resolution",
+      ],
+    });
+    return () => observer.disconnect();
+  }, [mentionConfig, resolutions]);
   const referenceResolutions = useMarkdownReferenceResolutions(
     value,
     mentionReferenceAdapter,
@@ -424,7 +561,7 @@ function MarkdownEditorContent({
     if (normalized !== lastSyncedValueRef.current) {
       lastSyncedValueRef.current = normalized;
       if (normalized !== value) onChangeRef.current(normalized);
-      commands.setMarkdown(normalized);
+      commands.setMarkdown(markdownForEditor(normalized));
       setSourceValue(normalized);
     }
     queueDocumentTitleResolution(normalized);
@@ -437,14 +574,14 @@ function MarkdownEditorContent({
   const handleSourceChange = useCallback(
     (event: ChangeEvent<HTMLTextAreaElement>) => {
       const next = normalizeMarkdown(event.currentTarget.value);
+      sourceDirtyRef.current = true;
       latestValueRef.current = next;
       lastSyncedValueRef.current = next;
       setSourceValue(next);
       onChangeRef.current(next);
-      commands.setMarkdown(next);
       queueDocumentTitleResolution(next);
     },
-    [commands, normalizeMarkdown, queueDocumentTitleResolution],
+    [normalizeMarkdown, queueDocumentTitleResolution],
   );
 
   const handleUploadFiles = useCallback(
@@ -455,21 +592,34 @@ function MarkdownEditorContent({
       try {
         const result = await onUploadFiles(files);
         if (result.failed > 0 || result.cancelled > 0) setUploadError(true);
-        const snippets = result.items
-          .filter(
-            (item): item is Extract<typeof item, { status: "success" }> =>
-              item.status === "success" && item.asset.kind === "attachment",
-          )
-          .map((item) => markdownForAsset(item.asset))
-          .filter((markdown): markdown is string => markdown !== null);
+        const assets = result.items.flatMap((item) =>
+          item.status === "success" && item.asset.kind === "attachment"
+            ? [item.asset]
+            : [],
+        );
+        if (assets.length === 0) return;
         const current = latestValueRef.current;
-        const next = appendMarkdownSnippets(current, snippets);
-        if (next === current) return;
-        latestValueRef.current = next;
-        lastSyncedValueRef.current = next;
+        if (!commands.focus("end"))
+          throw new Error("Markdown editor is unavailable.");
+        if (current.trim() && !commands.insertMarkdown("\n\n")) {
+          throw new Error("Could not prepare the Markdown insertion point.");
+        }
+        for (const asset of assets) {
+          if (
+            !commands.insertImage(asset.target, asset.alt ?? "", asset.title)
+          ) {
+            throw new Error("Could not insert an uploaded image.");
+          }
+        }
+        const next = latestValueRef.current;
         setSourceValue(next);
-        onChangeRef.current(next);
-        commands.setMarkdown(next);
+        if (sourceModeRef.current) {
+          sourceTextareaRef.current?.focus();
+          sourceTextareaRef.current?.setSelectionRange(
+            next.length,
+            next.length,
+          );
+        }
         queueDocumentTitleResolution(next);
         if (!rootRef.current?.contains(document.activeElement)) {
           onBlurRef.current?.(next);
@@ -555,7 +705,10 @@ function MarkdownEditorContent({
       const next = normalizeMarkdown(sourceValue);
       latestValueRef.current = next;
       lastSyncedValueRef.current = next;
-      commands.setMarkdown(next);
+      if (sourceDirtyRef.current) {
+        commands.setMarkdown(markdownForEditor(next));
+      }
+      sourceDirtyRef.current = false;
       onChangeRef.current(next);
       queueDocumentTitleResolution(next);
       setSourceMode(false);
@@ -563,6 +716,7 @@ function MarkdownEditorContent({
       return;
     }
     setSourceValue(latestValueRef.current);
+    sourceDirtyRef.current = false;
     setSourceMode(true);
   }, [
     commands,
@@ -776,6 +930,7 @@ function MarkdownEditorContent({
 
         {sourceMode ? (
           <textarea
+            ref={sourceTextareaRef}
             value={sourceValue}
             onChange={handleSourceChange}
             onPaste={handleSourcePaste}

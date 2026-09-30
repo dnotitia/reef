@@ -562,14 +562,10 @@ describe("NewIssueDialog", () => {
         signal: AbortSignal,
       ) => Promise<unknown>;
       mentionOptionLabel: (username: string) => string;
-      issueOptionLabel: (issue: { id: string; title: string }) => string;
     } | null;
     expect(config?.issues).toEqual([]);
     expect(typeof config?.searchDocuments).toBe("function");
     expect(config?.mentionOptionLabel("alice")).toBe("Mention @alice");
-    expect(
-      config?.issueOptionLabel({ id: "REEF-001", title: "Example issue" }),
-    ).toBe("REEF-001: Example issue");
   });
 
   it.each([

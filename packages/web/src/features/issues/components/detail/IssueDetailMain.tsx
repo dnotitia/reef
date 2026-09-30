@@ -90,11 +90,6 @@ export function IssueDetailMain({
         fetchVaultDocumentSearch(query, vault, signal),
       mentionOptionLabel: (username: string) =>
         markdownEditor("mentionOption", { username: `@${username}` }),
-      issueOptionLabel: (candidate: IssueListItem) =>
-        markdownEditor("issueOption", {
-          id: candidate.id,
-          title: candidate.title,
-        }),
       documentOptionLabel: (hit: DocumentSearchHit) =>
         markdownEditor("documentOption", {
           title: hit.title ?? akbDocumentSlugTitle(hit.uri),

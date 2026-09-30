@@ -14,6 +14,7 @@ import {
 } from "@/features/issues/hooks/queries/useIssue";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
+import { useAkbWebUrl } from "@/providers/AkbWebUrlProvider";
 import {
   createIssueMarkdownTargetResolver,
   uploadIssueMarkdownFiles,
@@ -161,11 +162,16 @@ function IssueDetailLoaded({
   const handledConflictRef = useRef(conflictCount);
   const issue = data.issue;
   const isArchived = issue.archived_at != null;
+  const akbWebBase = useAkbWebUrl();
   const markdownAdapters = useMemo(
     () => ({
-      targetResolver: createIssueMarkdownTargetResolver({ issueId, vault }),
+      targetResolver: createIssueMarkdownTargetResolver({
+        issueId,
+        vault,
+        akbWebBase,
+      }),
     }),
-    [issueId, vault],
+    [akbWebBase, issueId, vault],
   );
   const resolveBodyImageSrc = useMemo(
     () => (url: string) => resolveIssueAttachmentUrl({ issueId, vault, url }),

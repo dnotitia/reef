@@ -118,7 +118,7 @@ describe("issue Markdown adapters", () => {
     expect(mockApiFetch).not.toHaveBeenCalled();
   });
 
-  it("resolves stable attachments and rejects cross-vault document links", async () => {
+  it("resolves stable attachments and same-vault document links", async () => {
     const resolver = createIssueMarkdownTargetResolver({
       issueId: "REEF-001",
       vault: "reef-test",
@@ -150,6 +150,16 @@ describe("issue Markdown adapters", () => {
     ).resolves.toMatchObject({
       status: "unavailable",
       reason: "cross-vault",
+    });
+    await expect(
+      resolver.resolve("akb://reef-test/coll/docs/doc/guide.md", {
+        vault: "reef-test",
+      }),
+    ).resolves.toEqual({
+      target: "akb://reef-test/coll/docs/doc/guide.md",
+      kind: "document",
+      status: "available",
+      runtimeUrl: "https://akb.example/vault/reef-test/doc/docs%2Fguide.md",
     });
     expect(mockApiFetch).toHaveBeenCalledTimes(1);
   });

@@ -69,6 +69,5 @@ export interface MarkdownEditorMentionConfig {
   issues: readonly IssueListItem[];
   searchDocuments?: IssueBodyDocumentSearch;
   mentionOptionLabel: (username: string) => string;
-  issueOptionLabel: (issue: IssueListItem) => string;
   documentOptionLabel: (hit: DocumentSearchHit) => string;
 }

@@ -1908,7 +1908,6 @@
     "resizeHandle": "이슈 설명 편집기 높이 조절",
     "resizeHandleDescription": "대각선 그립으로 이슈 설명 편집기 높이를 조절합니다. 현재 {current}px, 최소 {min}px, 최대 {max}px입니다.",
     "mentionOption": "{username} 멘션",
-    "issueOption": "{id}: {title}",
     "documentOption": "문서: {title}"
   },
   "misc": {

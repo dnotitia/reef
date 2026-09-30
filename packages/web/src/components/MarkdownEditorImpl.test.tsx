@@ -32,8 +32,12 @@ const markdownMocks = vi.hoisted(() => ({
   editorOptions: null as Record<string, unknown> | null,
   handle: { testHandle: true },
   commands: {
-    focus: vi.fn(),
+    focus: vi.fn(() => true),
     setMarkdown: vi.fn(() => true),
+    insertMarkdown: vi.fn((_markdown: string) => true),
+    insertImage: vi.fn(
+      (_target: string, _alt?: string, _title?: string) => true,
+    ),
   },
   state: { isEmpty: true },
   targetResolutions: new Map<string, unknown>(),
@@ -96,7 +100,7 @@ vi.mock("@akb/markdown-editor/react", async (importOriginal) => {
           "Heading 1",
           "Heading 2",
           "Heading 3",
-          "Bullet List",
+          "Bullet list",
           "Numbered List",
           "Quote",
           "Code Block",
@@ -223,6 +227,20 @@ const successfulUpload = {
   partial: false,
 };
 
+function mockImageInsertion(initialMarkdown: string) {
+  let markdown = initialMarkdown;
+  markdownMocks.commands.insertMarkdown.mockImplementation((snippet) => {
+    markdown += snippet;
+    emitEditorChange(markdown);
+    return true;
+  });
+  markdownMocks.commands.insertImage.mockImplementation((target, alt = "") => {
+    markdown += `![${alt}](${target})`;
+    emitEditorChange(markdown);
+    return true;
+  });
+}
+
 function issue(id: string, title: string): IssueListItem {
   return IssueListItemSchema.parse({
     id,
@@ -239,6 +257,8 @@ function issue(id: string, title: string): IssueListItem {
 describe("MarkdownEditor product adapter", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    markdownMocks.commands.insertMarkdown.mockImplementation(() => true);
+    markdownMocks.commands.insertImage.mockImplementation(() => true);
     markdownMocks.editorOptions = null;
     markdownMocks.surfaceProps = null;
     markdownMocks.surfaceLink = null;
@@ -298,7 +318,7 @@ describe("MarkdownEditor product adapter", () => {
     expect(screen.getByTestId("markdown-editor-content")).toBeEmptyDOMElement();
   });
 
-  it("inserts successful upload results while reporting partial failures", async () => {
+  it("inserts successful uploads through the public image command and reports partial failures", async () => {
     const onChange = vi.fn();
     const onBlur = vi.fn();
     const onUploadFiles = vi.fn().mockResolvedValue({
@@ -316,6 +336,7 @@ describe("MarkdownEditor product adapter", () => {
       partial: true,
     });
     renderEditor({ value: "Existing body", onChange, onBlur, onUploadFiles });
+    mockImageInsertion("Existing body");
     const file = new File(["x"], "brief.pdf", { type: "application/pdf" });
 
     fireEvent.change(screen.getByTestId("markdown-attachment-input"), {
@@ -326,10 +347,19 @@ describe("MarkdownEditor product adapter", () => {
       "Existing body\n\n![brief.png](/api/assets/00000000-0000-4000-8000-000000000001)";
     await waitFor(() => {
       expect(onUploadFiles).toHaveBeenCalledWith([file]);
-      expect(onChange).toHaveBeenCalledWith(expected);
+      expect(onChange).toHaveBeenLastCalledWith(expected);
       expect(onBlur).toHaveBeenCalledWith(expected);
     });
-    expect(markdownMocks.commands.setMarkdown).toHaveBeenCalledWith(expected);
+    expect(markdownMocks.commands.focus).toHaveBeenCalledWith("end");
+    expect(markdownMocks.commands.insertMarkdown).toHaveBeenCalledWith("\n\n");
+    expect(markdownMocks.commands.insertImage).toHaveBeenCalledWith(
+      "/api/assets/00000000-0000-4000-8000-000000000001",
+      "brief.png",
+      undefined,
+    );
+    expect(markdownMocks.commands.setMarkdown).not.toHaveBeenCalledWith(
+      expected,
+    );
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Couldn't upload that file.",
     );
@@ -361,6 +391,7 @@ describe("MarkdownEditor product adapter", () => {
     fireEvent.click(screen.getByTitle("Toggle source mode"));
     const source = screen.getByTestId("markdown-source-textarea");
     fireEvent.change(source, { target: { value: "Source draft" } });
+    mockImageInsertion("Source draft");
 
     fireEvent.paste(source, {
       clipboardData: {
@@ -372,6 +403,11 @@ describe("MarkdownEditor product adapter", () => {
       "Source draft\n\n![brief.png](/api/assets/00000000-0000-4000-8000-000000000001)";
     await waitFor(() => expect(source).toHaveValue(expected));
     expect(onChange).toHaveBeenLastCalledWith(expected);
+    expect(markdownMocks.commands.insertImage).toHaveBeenCalledWith(
+      "/api/assets/00000000-0000-4000-8000-000000000001",
+      "brief.png",
+      undefined,
+    );
   });
 
   it("uses the latest Source and WYSIWYG values for change, blur, and mode handoff", () => {
@@ -406,6 +442,32 @@ describe("MarkdownEditor product adapter", () => {
       "contenteditable",
       "true",
     );
+  });
+
+  it("does not reparse an unchanged Source view", () => {
+    const markdown = String.raw`![reef'\\한글😀.png](/api/assets/00000000-0000-4000-8000-000000000001)`;
+    renderEditor({ value: markdown, onChange: vi.fn() });
+    markdownMocks.commands.setMarkdown.mockClear();
+
+    fireEvent.click(screen.getByTitle("Toggle source mode"));
+    expect(screen.getByTestId("markdown-source-textarea")).toHaveValue(
+      markdown,
+    );
+    fireEvent.click(screen.getByTitle("Toggle source mode"));
+
+    expect(markdownMocks.commands.setMarkdown).not.toHaveBeenCalled();
+  });
+
+  it("prepares uploaded image alt escapes for the shared Markdown parser", () => {
+    const persistedMarkdown =
+      "![reef'\\\\한글😀.png](/api/assets/00000000-0000-4000-8000-000000000001)";
+    const editorMarkdown =
+      "![reef'\\한글😀.png](/api/assets/00000000-0000-4000-8000-000000000001)";
+    renderEditor({ value: persistedMarkdown, onChange: vi.fn() });
+
+    expect(markdownMocks.editorOptions).toMatchObject({
+      initialMarkdown: editorMarkdown,
+    });
   });
 
   it("does not reset the editor when the controlled Markdown value is unchanged", () => {
@@ -546,7 +608,6 @@ describe("MarkdownEditor product adapter", () => {
         issues: [authIssue],
         searchDocuments,
         mentionOptionLabel: (username) => `@${username}`,
-        issueOptionLabel: (candidate) => candidate.title,
         documentOptionLabel: (hit) => hit.title ?? hit.uri,
       },
     });
@@ -587,7 +648,6 @@ describe("MarkdownEditor product adapter", () => {
         members: [],
         issues: [authIssue],
         mentionOptionLabel: (username) => `@${username}`,
-        issueOptionLabel: (candidate) => candidate.title,
         documentOptionLabel: (hit) => hit.title ?? hit.uri,
       },
     });

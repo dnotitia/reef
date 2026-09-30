@@ -98,12 +98,14 @@ export function openClickedEditorLink(
     Date.now() - openedAt < LINK_CLICK_SUPPRESSION_MS
   ) {
     event.preventDefault();
+    window.getSelection()?.removeAllRanges();
     return true;
   }
 
   if (!openEditorLink(anchor, requestExternalConfirmation, akbWebBase))
     return false;
   event.preventDefault();
+  window.getSelection()?.removeAllRanges();
   return true;
 }
 

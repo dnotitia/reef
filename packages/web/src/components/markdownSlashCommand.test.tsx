@@ -8,6 +8,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -58,11 +59,9 @@ describe("shared slash command surface", () => {
 
     content.focus();
     await user.keyboard("/");
-    const menu = await screen.findByTestId("slash-command-menu");
+    const menu = await screen.findByRole("listbox", { name: "Insert block" });
     expect(menu.querySelectorAll('[role="option"]')).toHaveLength(10);
-    expect(
-      menu.querySelectorAll(".markdown-slash-command-section"),
-    ).toHaveLength(3);
+    expect(within(menu).getAllByRole("region")).toHaveLength(3);
     expect(menu.querySelector("input")).toBeNull();
     expect(content).toHaveAttribute("aria-expanded", "true");
     expect(onOpenChange).toHaveBeenLastCalledWith(true, expect.any(Function));
@@ -82,17 +81,19 @@ describe("shared slash command surface", () => {
 
     inline.content.focus();
     await user.keyboard("inline /");
-    expect(screen.queryByTestId("slash-command-menu")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("listbox", { name: "Insert block" }),
+    ).not.toBeInTheDocument();
 
     inline.unmount();
     const { content, onChange } = renderSharedEditor();
     content.focus();
     await user.keyboard("/");
-    await screen.findByTestId("slash-command-menu");
+    await screen.findByRole("listbox", { name: "Insert block" });
     fireEvent.keyDown(content, { key: "Escape" });
     await waitFor(() => {
       expect(
-        screen.queryByTestId("slash-command-menu"),
+        screen.queryByRole("listbox", { name: "Insert block" }),
       ).not.toBeInTheDocument();
     });
     expect(onChange).toHaveBeenLastCalledWith("/", expect.anything());
@@ -103,17 +104,12 @@ describe("shared slash command surface", () => {
     const { content, onChange } = renderSharedEditor();
     content.focus();
     await user.keyboard("/");
-    const menu = await screen.findByTestId("slash-command-menu");
-    const table = menu.querySelector<HTMLButtonElement>(
-      '[data-slash-command="table"]',
-    );
-    expect(table).not.toBeNull();
-
-    fireEvent.click(table as HTMLButtonElement);
+    await screen.findByRole("listbox", { name: "Insert block" });
+    fireEvent.click(screen.getByRole("option", { name: /^Table\b/u }));
 
     await waitFor(() => {
       expect(
-        screen.queryByTestId("slash-command-menu"),
+        screen.queryByRole("listbox", { name: "Insert block" }),
       ).not.toBeInTheDocument();
       expect(content.querySelectorAll("table tr")).toHaveLength(3);
     });
@@ -125,7 +121,7 @@ describe("shared slash command surface", () => {
     const { content, onChange } = renderSharedEditor();
     content.focus();
     await user.keyboard("/");
-    const menu = await screen.findByTestId("slash-command-menu");
+    const menu = await screen.findByRole("listbox", { name: "Insert block" });
     expect(menu.querySelector('[role="option"]')).toHaveAttribute(
       "aria-selected",
       "true",

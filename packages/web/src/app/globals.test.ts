@@ -1000,7 +1000,7 @@ describe("global focus styles", () => {
 
   it("contains editor images without enlarging small evidence or leaking globally", () => {
     const css = readGlobalCss();
-    const imageStart = css.indexOf(".reef-markdown-editor > img {");
+    const imageStart = css.indexOf(".reef-markdown-editor img {");
     expect(imageStart).toBeGreaterThan(-1);
     const imageEnd = findCssBlockEnd(css, imageStart);
     const imageBlock = css.slice(imageStart, imageEnd);
@@ -1050,7 +1050,7 @@ describe("global focus styles", () => {
     }
 
     const typeBadgeStart = css.indexOf(
-      '.reef-markdown-editor\n  a[data-reef-file-link="true"]\n  > [data-reef-file-type]::after {',
+      '.reef-markdown-editor a[data-reef-file-link="true"]::after {',
     );
     expect(typeBadgeStart).toBeGreaterThan(fileLinkEnd);
     const typeBadgeEnd = findCssBlockEnd(css, typeBadgeStart);

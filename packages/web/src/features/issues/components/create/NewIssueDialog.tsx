@@ -276,11 +276,6 @@ export function NewIssueDialog({
               fetchVaultDocumentSearch(query, vault, signal),
             mentionOptionLabel: (username: string) =>
               markdownEditor("mentionOption", { username: `@${username}` }),
-            issueOptionLabel: (issue: IssueListItem) =>
-              markdownEditor("issueOption", {
-                id: issue.id,
-                title: issue.title,
-              }),
             documentOptionLabel: (hit: DocumentSearchHit) =>
               markdownEditor("documentOption", {
                 title: hit.title ?? akbDocumentSlugTitle(hit.uri),

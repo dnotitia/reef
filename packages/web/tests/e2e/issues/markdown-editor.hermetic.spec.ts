@@ -750,7 +750,9 @@ test.describe("Hermetic Markdown editor fixture", () => {
       "src",
       MARKDOWN_FIXTURE_TRANSPARENT_IMAGE_PATH,
     );
-    await expect(brokenImage).toHaveAttribute("alt", "Broken fixture image");
+    await expect(brokenImage).toHaveAccessibleName(
+      /Image unavailable: Broken fixture image/u,
+    );
     await expect
       .poll(() =>
         largeImage.evaluate(
@@ -817,17 +819,19 @@ test.describe("Hermetic Markdown editor fixture", () => {
     expect(imageGeometry.broken).toMatchObject({
       maxWidth: "100%",
       maxHeight: "512px",
-      display: "block",
+      display: "none",
       marginBlockStart: "16px",
       marginBlockEnd: "16px",
     });
 
     const fileLink = editor.getByRole("link", { name: "incident.log" });
     await expect(fileLink).toHaveAttribute("data-reef-file-link", "true");
-    await expect(fileLink.locator("[data-reef-file-type]")).toHaveAttribute(
-      "data-reef-file-type",
-      "LOG",
-    );
+    await expect(fileLink).toHaveAttribute("data-reef-file-type", "LOG");
+    expect(
+      await fileLink.evaluate(
+        (element) => getComputedStyle(element, "::after").content,
+      ),
+    ).toBe('"LOG"');
     await expect(fileLink).toHaveAttribute(
       "data-reef-file-uri",
       MARKDOWN_FIXTURE_FILE_URI,
@@ -1634,18 +1638,21 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await page.keyboard.press("Backspace");
     await page.keyboard.type("/");
 
-    const menu = page.getByTestId("slash-command-menu");
+    const menu = page.locator(".markdown-slash-command-popup");
     await expect(menu).toBeVisible();
     await expect(menu.getByRole("option")).toHaveCount(10);
-    await expect(menu.locator("[data-slash-section]")).toHaveCount(3);
+    await expect(menu.getByRole("region")).toHaveCount(3);
     await expect(menu.locator("input")).toHaveCount(0);
-    await expect(page.locator('[data-slash-command*="reef" i]')).toHaveCount(0);
+    await expect(
+      menu.getByRole("option").filter({ hasText: /reef/iu }),
+    ).toHaveCount(0);
     await expect(editor).toHaveAttribute("aria-expanded", "true");
 
     await page.keyboard.type("table");
     await expect(menu.getByRole("option")).toHaveCount(1);
-    await expect(menu.locator('[data-slash-command="table"]')).toBeVisible();
-    await menu.locator('[data-slash-command="table"]').click();
+    const tableOption = menu.getByRole("option", { name: /^Table\b/u });
+    await expect(tableOption).toBeVisible();
+    await tableOption.click();
     await expect(menu).toHaveCount(0);
 
     await expect(editor.locator("table")).toHaveCount(1);
@@ -1671,14 +1678,35 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await page.getByTestId("issue-title-input").click();
     await saveResponse;
 
+    const sourceMarkdown = await source.inputValue();
+    expect(
+      sourceMarkdown
+        .split(/\r?\n/u)
+        .filter((line) => line.trimStart().startsWith("|")),
+    ).toHaveLength(4);
+    const fixture = await readFixtureState(request);
+    const persistedDocument = fixture.vaults
+      .find((vault) => vault.name === REEF_E2E_VAULT)
+      ?.documents.find((document) => document.title === "REEF-001");
+    expect(persistedDocument?.content).toBe(sourceMarkdown);
+
     await page.reload();
     await expect(page.getByTestId("issue-detail")).toBeVisible();
     const reopenedEditor = page.locator(".reef-markdown-editor");
     await expect(reopenedEditor).toBeVisible();
     await expect(reopenedEditor.locator("table")).toHaveCount(1);
-    await expect(reopenedEditor.locator("table tr")).toHaveCount(3);
-    await expect(reopenedEditor.locator("table th")).toHaveCount(2);
-    await expect(reopenedEditor.locator("table td")).toHaveCount(4);
+    const reopenedRows = await reopenedEditor
+      .locator("table tr")
+      .evaluateAll((rows) =>
+        rows.map((row) =>
+          Array.from(row.children).map((cell) => cell.tagName.toLowerCase()),
+        ),
+      );
+    expect(reopenedRows).toEqual([
+      ["th", "th"],
+      ["td", "td"],
+      ["td", "td"],
+    ]);
   });
 
   test("keeps the create surface placeholder discoverable without saving it", async ({
@@ -1696,11 +1724,13 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await page.getByTestId("new-issue-trigger").click();
     const dialog = page.getByTestId("new-issue-dialog");
     await expect(dialog).toBeVisible();
-    const editor = dialog.locator(".reef-markdown-editor");
-    await expect(
-      editor.locator("p.is-empty:only-child[data-placeholder]"),
-    ).toHaveAttribute(
-      "data-placeholder",
+    const markdownEditor = dialog.getByTestId("markdown-editor");
+    const editor = markdownEditor.locator(".reef-markdown-editor");
+    const placeholder = markdownEditor.getByTestId(
+      "markdown-editor-placeholder",
+    );
+    await expect(placeholder).toBeVisible();
+    await expect(placeholder).toHaveText(
       "Describe the issue or type / to insert a block…",
     );
 
@@ -1715,9 +1745,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
 
     await editor.click();
     await page.keyboard.type("Body authored in the editor");
-    await expect(
-      editor.locator("p.is-empty:only-child[data-placeholder]"),
-    ).toHaveCount(0);
+    await expect(placeholder).toHaveCount(0);
 
     await sourceToggle.click();
     await expect(source).toHaveValue("Body authored in the editor");
@@ -1747,11 +1775,11 @@ test.describe("Hermetic Markdown editor fixture", () => {
     const editor = dialog.locator(".reef-markdown-editor");
     await editor.click();
     await page.keyboard.type("/");
-    const menu = page.getByTestId("slash-command-menu");
+    const menu = page.locator(".markdown-slash-command-popup");
     await expect(menu).toBeVisible();
 
     const options = menu.getByRole("option");
-    const optionsViewport = menu.locator(".reef-slash-command-options");
+    const optionsViewport = menu.locator(".markdown-slash-command-options");
     const selectedCount = () =>
       menu.locator('[role="option"][aria-selected="true"]').count();
     const isSelectedVisible = () =>
@@ -1768,7 +1796,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
         );
       });
 
-    const table = menu.locator('[data-slash-command="table"]');
+    const table = menu.getByRole("option", { name: /^Table\b/u });
     await table.hover();
     await expect(table).toHaveAttribute("aria-selected", "true");
     await expect.poll(selectedCount).toBe(1);
@@ -1829,16 +1857,16 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await editor.click();
     await page.keyboard.type("/");
 
-    const menu = page.getByTestId("slash-command-menu");
+    const menu = page.locator(".markdown-slash-command-popup");
     await expect(menu).toBeVisible();
     await expect(menu.getByRole("option")).toHaveCount(10);
 
     const initialGeometry = await page.evaluate(() => {
       const menu = document.querySelector<HTMLElement>(
-        '[data-testid="slash-command-menu"]',
+        ".markdown-slash-command-popup",
       );
       const options = menu?.querySelector<HTMLElement>(
-        ".reef-slash-command-options",
+        ".markdown-slash-command-options",
       );
       const trigger = document.querySelector<HTMLElement>(
         '[data-testid="new-issue-dialog"] .reef-markdown-editor p',
@@ -1875,7 +1903,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
       initialGeometry.viewportWidth,
     );
 
-    const options = menu.locator(".reef-slash-command-options");
+    const options = menu.locator(".markdown-slash-command-options");
     await options.hover();
     const optionsBox = await options.boundingBox();
     if (!optionsBox) throw new Error("Slash options geometry is unavailable");
@@ -1897,7 +1925,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
       .poll(async () =>
         activeOption.evaluate((option) => {
           const options = option.closest<HTMLElement>(
-            ".reef-slash-command-options",
+            ".markdown-slash-command-options",
           );
           if (!options) return false;
           const optionRect = option.getBoundingClientRect();
@@ -1996,27 +2024,33 @@ test.describe("Hermetic Markdown editor fixture", () => {
     const listbox = page.getByRole("listbox");
     await expect(listbox).toBeVisible();
     await expect(editor).toHaveAttribute("aria-expanded", "true");
+    await expect(listbox.getByRole("region", { name: "People" })).toBeVisible();
+    await expect(listbox.getByRole("region", { name: "Issues" })).toBeVisible();
     await expect(
-      listbox.locator('[data-reference-section="people"]'),
-    ).toBeVisible();
-    await expect(
-      listbox.locator('[data-reference-section="issues"]'),
-    ).toBeVisible();
-    await expect(
-      listbox.locator('[data-reference-section="documents"]'),
+      listbox.getByRole("region", { name: "Documents" }),
     ).toBeVisible();
 
     await expect(
-      listbox.getByRole("option").filter({ hasText: "alice" }),
+      listbox
+        .getByRole("region", { name: "People" })
+        .getByRole("option")
+        .filter({ hasText: "alice" }),
     ).toBeVisible();
     await expect(
-      listbox.getByRole("option").filter({ hasText: "REEF-002" }),
+      listbox
+        .getByRole("region", { name: "Issues" })
+        .getByRole("option")
+        .filter({ hasText: "REEF-002" }),
     ).toBeVisible();
     await expect(
-      listbox.getByRole("option").filter({ hasText: "Alpha reference" }),
+      listbox
+        .getByRole("region", { name: "Documents" })
+        .getByRole("option")
+        .filter({ hasText: "Alpha reference" }),
     ).toBeVisible();
 
     await listbox
+      .getByRole("region", { name: "Documents" })
       .getByRole("option")
       .filter({ hasText: "Alpha reference" })
       .click();
@@ -2062,6 +2096,11 @@ test.describe("Hermetic Markdown editor fixture", () => {
 
     const listbox = page.getByRole("listbox");
     await expect(listbox).toBeVisible();
+    await expect(
+      editor.getByRole("img", {
+        name: /Image unavailable: Broken fixture image/u,
+      }),
+    ).toBeVisible();
     const bodyBeforeEscape = await editor.textContent();
 
     await page.keyboard.press("Escape");

@@ -247,7 +247,7 @@ async function expectNotesControlsAccessible(page: Page) {
     "Heading 1",
     "Heading 2",
     "Heading 3",
-    "Bullet List",
+    "Bullet list",
     "Numbered List",
     "Quote",
     "Code Block",
