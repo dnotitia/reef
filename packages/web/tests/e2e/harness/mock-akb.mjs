@@ -20,6 +20,8 @@ import { handleSql, matchSqlString, resolveSqlParams } from "./mock-sql.mjs";
 import {
   beginAuthProbeHold,
   endAuthProbeHold,
+  beginIssueReadRequest,
+  endIssueReadRequest,
   beginIssueUpdateRequest,
   beginIssueListRequest,
   consumeIssueUpdateHold,
@@ -699,16 +701,40 @@ export async function handleAkb(req, res, url, state) {
     const docPath = decodeURIComponent(docMatch[2]);
     const existing = vault.documents.get(docPath);
     if (req.method === "GET") {
-      if (consumeWorkspaceInitializationFailure(state, "document_get")) {
-        return json(res, 503, {
-          detail: {
-            message: "fixture workspace document read failed",
-            code: "e2e_workspace_document_read_failed",
-          },
-        });
+      const issueDocument = docPath.match(/^issues\/(reef-\d+)\.md$/i);
+      const readControl = issueDocument
+        ? state.issueReadControls.get(
+            `${vault.name}:${issueDocument[1].toUpperCase()}`,
+          )
+        : null;
+      const issueReadKey = issueDocument
+        ? `${vault.name}:${issueDocument[1].toUpperCase()}`
+        : null;
+      if (readControl && issueReadKey) {
+        beginIssueReadRequest(state, issueReadKey);
       }
-      if (!existing) return json(res, 404, { error: "document not found" });
-      return json(res, 200, documentResponse(vault, existing));
+      try {
+        if (readControl?.delayMs) await sleep(readControl.delayMs);
+        if (readControl?.failureStatus) {
+          return json(res, readControl.failureStatus, {
+            error: "e2e issue read failure",
+          });
+        }
+        if (consumeWorkspaceInitializationFailure(state, "document_get")) {
+          return json(res, 503, {
+            detail: {
+              message: "fixture workspace document read failed",
+              code: "e2e_workspace_document_read_failed",
+            },
+          });
+        }
+        if (!existing) return json(res, 404, { error: "document not found" });
+        return json(res, 200, documentResponse(vault, existing));
+      } finally {
+        if (readControl && issueReadKey) {
+          endIssueReadRequest(state, issueReadKey);
+        }
+      }
     }
     if (req.method === "PATCH") {
       if (!existing) return json(res, 404, { error: "document not found" });

@@ -59,6 +59,16 @@ export function endIssueListRequest(state, key) {
   else state.issueListPending.set(key, pending - 1);
 }
 
+export function beginIssueReadRequest(state, key) {
+  state.issueReadPending.set(key, (state.issueReadPending.get(key) ?? 0) + 1);
+}
+
+export function endIssueReadRequest(state, key) {
+  const pending = state.issueReadPending.get(key) ?? 0;
+  if (pending <= 1) state.issueReadPending.delete(key);
+  else state.issueReadPending.set(key, pending - 1);
+}
+
 export function waitForIssueUpdateRelease(state, key) {
   return new Promise((resolve) => {
     const waiters = state.issueUpdateReleaseWaiters.get(key) ?? [];
@@ -153,6 +163,8 @@ export function createState(scenario) {
     issueListFailure: false,
     issueListNextPageFailures: 0,
     issueListDelayMs: 0,
+    issueReadControls: new Map(),
+    issueReadPending: new Map(),
     planningCatalogFailure: false,
     planningCatalogDelayMs: 0,
     contentSearchMode: "healthy",
@@ -303,6 +315,7 @@ export function publicState(state) {
     issue_update_calls: Object.fromEntries(state.issueUpdateCalls),
     issue_update_pending: Object.fromEntries(state.issueUpdatePending),
     issue_list_pending: Object.fromEntries(state.issueListPending),
+    issue_read_pending: Object.fromEntries(state.issueReadPending),
     workspace_initialization: {
       failure_operation: state.workspaceInitFailureOperation,
       failures_remaining: state.workspaceInitFailureRemaining,

@@ -1,5 +1,7 @@
 import { create } from "zustand";
 
+export type IssueDetailEntryRoute = "base" | "modal";
+
 /**
  * In-memory drill trail for the issue detail sheet (REEF-270).
  *
@@ -40,6 +42,8 @@ interface IssueNavStackState {
   hasDrilledInSession: boolean;
   /** Issue the trail currently expects on screen, or null before any open. */
   currentId: string | null;
+  /** Route that first opened this sheet; it owns the live surface for the session. */
+  entryRoute: IssueDetailEntryRoute | null;
   /**
    * Exit callback captured by the first sheet in the current detail session.
    * Relation routes may remount the sheet through `@modal`, but they do not
@@ -64,8 +68,11 @@ interface IssueNavStackState {
    * so reset to a depth-0 trail rooted at this id and a new entry owner.
    */
   reconcile: (id: string) => void;
-  /** Capture the entry route's exit callback once for the current session. */
-  registerExitOwner: (onExit: () => void) => void;
+  /** Capture the entry route and its exit callback once for the current session. */
+  registerExitOwner: (
+    onExit: () => void,
+    entryRoute: IssueDetailEntryRoute,
+  ) => void;
   /** Empty the trail entirely (Close / outside click / return to the list). */
   clear: () => void;
 }
@@ -74,6 +81,7 @@ export const useIssueNavStack = create<IssueNavStackState>((set, get) => ({
   trail: [],
   hasDrilledInSession: false,
   currentId: null,
+  entryRoute: null,
   exitOwner: null,
 
   drill: (fromId, toId) =>
@@ -97,13 +105,14 @@ export const useIssueNavStack = create<IssueNavStackState>((set, get) => ({
       trail: [],
       hasDrilledInSession: false,
       currentId: id,
+      entryRoute: null,
       exitOwner: null,
     });
   },
 
-  registerExitOwner: (onExit) => {
+  registerExitOwner: (onExit, entryRoute) => {
     if (get().exitOwner !== null) return;
-    set({ exitOwner: onExit });
+    set({ exitOwner: onExit, entryRoute });
   },
 
   clear: () =>
@@ -111,6 +120,7 @@ export const useIssueNavStack = create<IssueNavStackState>((set, get) => ({
       trail: [],
       hasDrilledInSession: false,
       currentId: null,
+      entryRoute: null,
       exitOwner: null,
     }),
 }));

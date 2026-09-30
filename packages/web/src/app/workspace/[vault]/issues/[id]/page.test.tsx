@@ -19,12 +19,18 @@ vi.mock("@/features/issues/components/filters/IssuesWorkspace", () => ({
 vi.mock("@/features/issues/components/detail/IssueDetailSheet", () => ({
   IssueDetailSheet: ({
     issueId,
+    entryRoute,
     onClose,
   }: {
     issueId: string;
+    entryRoute: "base" | "modal";
     onClose: () => void;
   }) => (
-    <div data-testid="issue-detail-sheet" data-issue-id={issueId}>
+    <div
+      data-testid="issue-detail-sheet"
+      data-issue-id={issueId}
+      data-entry-route={entryRoute}
+    >
       <button type="button" data-testid="mock-close" onClick={onClose}>
         Close
       </button>
@@ -68,6 +74,10 @@ describe("IssuePage (base route — hard navigation deep link)", () => {
     expect(screen.getByTestId("issues-workspace-backdrop")).toBeInTheDocument();
     // RTL flushes effects, so the post-mount sheet is present here.
     expect(screen.getByTestId("issue-detail-sheet")).toBeInTheDocument();
+    expect(screen.getByTestId("issue-detail-sheet")).toHaveAttribute(
+      "data-entry-route",
+      "base",
+    );
   });
 
   // regression for the hydration mismatch (REEF-165). The sheet is a modal Radix
@@ -147,13 +157,34 @@ describe("IssuePage (base route — hard navigation deep link)", () => {
     );
   });
 
-  it("yields the base sheet once a drill activates the intercepting route", () => {
+  it("keeps the base sheet mounted and updates it to the drilled issue", () => {
+    useIssueNavStack.getState().registerExitOwner(() => {}, "base");
     useIssueNavStack.getState().drill("REEF-103", "REEF-102");
 
     render(
       <IssuePage
         params={
           makeParams("REEF-103") as unknown as Promise<{
+            id: string;
+            vault: string;
+          }>
+        }
+      />,
+    );
+
+    expect(screen.getByTestId("issue-detail-sheet")).toHaveAttribute(
+      "data-issue-id",
+      "REEF-102",
+    );
+  });
+
+  it("does not render a second sheet in the base slot when the modal owns the session", () => {
+    useIssueNavStack.getState().registerExitOwner(() => {}, "modal");
+
+    render(
+      <IssuePage
+        params={
+          makeParams("REEF-042") as unknown as Promise<{
             id: string;
             vault: string;
           }>

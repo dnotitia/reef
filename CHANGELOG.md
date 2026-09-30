@@ -24,6 +24,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Issue detail restores its tab-local panel width and Description height while
+  the issue or editor loads.** Loading skeletons use the saved dimensions from
+  first paint, so the panel, toolbar, and content below the editor do not jump
+  when the loaded UI takes over. (REEF-650)
 - **Markdown editor labels follow the selected language in New Issue and issue
   details.** The app uses the shared editor's public API for its toolbar,
   mentions, slash commands, and attachment uploads.
@@ -44,6 +48,10 @@ explicitly in the entries below.
   board, list, and backlog views.** Cached searches no longer show a blank
   result set while the input catches up, and delayed searches retain the prior
   results until the requested set arrives. (REEF-646)
+- **Directly opened issue details keep their Sheet and wayfinding mounted while
+  a relationship destination loads.** The existing Sheet follows the replaced
+  issue URL, keeping Back, Close, and the destination-specific editor together.
+  (REEF-649)
 
 ### Migration
 

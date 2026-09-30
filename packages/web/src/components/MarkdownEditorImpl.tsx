@@ -58,6 +58,7 @@ import {
 } from "react";
 import {
   EDITOR_BODY_FRAME_CLASS,
+  EDITOR_BODY_MANUAL_FRAME_MARGIN_PX,
   EDITOR_BODY_SIZING,
   EDITOR_CONTENT_CLASS,
   EDITOR_MANUAL_SCROLL_SURFACE_CLASS,
@@ -427,7 +428,6 @@ function MarkdownEditorContent({
         : undefined,
     [handleMentionOpenChange, mentionReferenceAdapter, vault],
   );
-
   const queueDocumentTitleResolution = useCallback(
     (markdown: string) => {
       if (!vault || activeVaultRef.current !== vault) return;
@@ -541,6 +541,15 @@ function MarkdownEditorContent({
     onPointerMove,
     onPointerUp,
   } = useMarkdownEditorHeightResize(enableHeightResize, preferredHeight);
+  const bodyFrameLayoutStyle = {
+    ...bodyFrameStyle,
+    ...(isManual
+      ? {
+          marginBottom: `${EDITOR_BODY_MANUAL_FRAME_MARGIN_PX}px`,
+          marginRight: `${EDITOR_BODY_MANUAL_FRAME_MARGIN_PX}px`,
+        }
+      : {}),
+  };
 
   useEffect(() => {
     commandsRef.current = commands;
@@ -882,9 +891,9 @@ function MarkdownEditorContent({
         className={cn(
           EDITOR_BODY_FRAME_CLASS,
           enableHeightResize && isResizeAvailable && "relative",
-          isManual && "min-h-0 overflow-hidden mr-1 mb-1",
+          isManual && "min-h-0 overflow-hidden",
         )}
-        style={bodyFrameStyle}
+        style={bodyFrameLayoutStyle}
       >
         <div
           ref={surfaceRef}

@@ -24,6 +24,7 @@ import {
   EDITOR_BODY_RESIZE_MIN_WIDTH,
   EDITOR_BODY_SESSION_STORAGE_KEY,
   EDITOR_CONTENT_CLASS,
+  EDITOR_MANUAL_SCROLL_SURFACE_CLASS,
   EDITOR_RESIZABLE_BODY_ID,
   MARKDOWN_SURFACE_CLASS,
 } from "./markdown-editor/heightResize";
@@ -701,6 +702,11 @@ describe("MarkdownEditor product adapter", () => {
       expect(frame).toHaveAttribute("id", EDITOR_RESIZABLE_BODY_ID);
       expect(frame.className).toContain(EDITOR_BODY_FRAME_CLASS);
       expect(frame).toHaveStyle({ height: "480px" });
+      expect(frame).toHaveClass("overflow-hidden");
+      expect(frame).toHaveStyle({ marginBottom: "4px", marginRight: "4px" });
+      const scrollSurface = screen.getByTestId("markdown-editor-content")
+        .parentElement?.parentElement;
+      expect(scrollSurface).toHaveClass(EDITOR_MANUAL_SCROLL_SURFACE_CLASS);
       fireEvent.click(screen.getByTitle("Toggle source mode"));
       expect(screen.getByTestId("markdown-source-textarea")).toHaveClass(
         "resize-none",
