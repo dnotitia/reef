@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
+  clearPersistedQueryCache,
   clearPersistedQueryCacheOnLoad,
   openExistingWorkspace,
   readFixtureState,
@@ -27,6 +28,13 @@ interface IssueChildrenFrame {
 
 async function recordIssueChildrenFrames(page: Page): Promise<void> {
   await page.addInitScript((frameKey) => {
+    try {
+      sessionStorage.setItem(`${frameKey}:recording`, "1");
+      sessionStorage.setItem(frameKey, "[]");
+    } catch {
+      // The initial about:blank document does not have origin storage access.
+    }
+
     const visible = (element: Element | null): boolean => {
       if (!(element instanceof HTMLElement)) return false;
       const rect = element.getBoundingClientRect();
@@ -94,10 +102,6 @@ async function recordIssueChildrenFrames(page: Page): Promise<void> {
 
     requestAnimationFrame(recordFrame);
   }, FRAME_KEY);
-  await page.evaluate((frameKey) => {
-    sessionStorage.setItem(`${frameKey}:recording`, "1");
-    sessionStorage.setItem(frameKey, "[]");
-  }, FRAME_KEY);
 }
 
 async function readIssueChildrenFrames(
@@ -132,25 +136,36 @@ test.describe("Hermetic issue sub-issue loading", () => {
   });
 
   test("keeps the detail frame while loading, retains rows on revalidation, and scopes children to the parent", async ({
-    page,
+    page: initialPage,
+    context,
     request,
   }) => {
+    await initialPage.setViewportSize({ width: 1440, height: 900 });
+    await openExistingWorkspace(initialPage);
+    // Close the workspace page so its throttled query-cache persister cannot
+    // rewrite the cached list between clearing storage and the detail page boot.
+    await initialPage.close();
+    const page = await context.newPage();
     await page.setViewportSize({ width: 1440, height: 900 });
-    await openExistingWorkspace(page);
+    await page.goto("/api/healthz");
+    await clearPersistedQueryCache(page);
     await clearPersistedQueryCacheOnLoad(page);
     await recordIssueChildrenFrames(page);
-    // Leave enough time for the detail route to hydrate before the delayed
-    // list request settles, so the pending UI is observable under load.
-    await setIssueListFailure(request, false, 0, 5_000);
-
-    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues/${ROOT}?view=list`, {
-      waitUntil: "domcontentloaded",
-    });
-    await expect(page.getByTestId("issue-detail")).toBeVisible();
-    await waitForIssueListPending(request);
+    await setIssueListFailure(request, false, 0, 1_200);
 
     const children = page.getByTestId("issue-children");
-    await expect(children.getByTestId("issue-children-loading")).toBeVisible();
+    const issueListPending = waitForIssueListPending(request);
+    // Release navigation at document commit so locator polling can observe the
+    // detail UI during the 1.2s list delay instead of after DOMContentLoaded.
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues/${ROOT}?view=list`, {
+      waitUntil: "commit",
+    });
+    await Promise.all([
+      issueListPending,
+      expect(page.getByTestId("issue-detail")).toBeVisible(),
+      expect(children.getByTestId("issue-children-loading")).toBeVisible(),
+    ]);
+
     await expect(children.getByTestId("issue-children-empty")).toHaveCount(0);
     await expect(children.getByRole("progressbar")).toHaveCount(0);
     await expect(children.locator("a[data-issue-id]")).toHaveCount(0);
