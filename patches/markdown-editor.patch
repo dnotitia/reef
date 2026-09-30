@@ -1,0 +1,139 @@
+diff --git a/dist/extensions.js b/dist/extensions.js
+--- a/dist/extensions.js
++++ b/dist/extensions.js
+@@ -70,6 +70,7 @@
+             updateA11y(node);
+             checkboxWrapper.contentEditable = 'false';
+             checkbox.type = 'checkbox';
++            checkbox.tabIndex = 0;
+             checkbox.addEventListener('mousedown', event => event.preventDefault());
+             const handleCheckboxChange = (event) => {
+                 event.stopImmediatePropagation();
+@@ -158,3 +158,5 @@
+     'aria-disabled',
+     'aria-label',
++    'aria-hidden',
++    'contenteditable',
+     'data-markdown-reference-id',
+@@ -168,6 +170,7 @@
+     'data-markdown-reference-value',
+     'href',
+     'rel',
+     'target',
+     'title',
++    'tabindex',
+ ]);
+@@ -472,4 +475,5 @@
+     'data-markdown-target',
+     'href',
+     'title',
++    'tabindex',
+ ]);
+@@ -490,7 +495,8 @@
+                 if (value === null || value === undefined || value === false)
+                     continue;
+                 dom.setAttribute(name, value === true ? '' : String(value));
+             }
++            if (dom.hasAttribute('href')) dom.setAttribute('tabindex', '0');
+             return {
+                 dom,
+                 contentDOM: dom,
+diff --git a/dist/react/index.js b/dist/react/index.js
+--- a/dist/react/index.js
++++ b/dist/react/index.js
+@@ -312,7 +312,7 @@
+     }
+ }
+ function markdownKeyboardControls(root) {
+-    return Array.from(root.querySelectorAll('input[type="checkbox"]:not(:disabled), pre[data-markdown-code][tabindex="0"]'));
++    return Array.from(root.querySelectorAll('a[href], input[type="checkbox"]:not(:disabled), pre[data-markdown-code][tabindex="0"]'));
+ }
+ function markdownTaskText(task) {
+     const content = task.querySelector(':scope > div');
+@@ -867,7 +867,7 @@
+             const controls = markdownKeyboardControls(root);
+             if (!controls.length)
+                 return;
+-            const controlTarget = editorTarget?.closest('input[type="checkbox"]:not(:disabled), pre[data-markdown-code][tabindex="0"]');
++            const controlTarget = editorTarget?.closest('a[href], input[type="checkbox"]:not(:disabled), pre[data-markdown-code][tabindex="0"]');
+             const currentIndex = controlTarget ? controls.indexOf(controlTarget) : -1;
+             if (currentIndex >= 0) {
+                 const nextIndex = currentIndex + (event.shiftKey ? -1 : 1);
+@@ -918,7 +918,7 @@
+                 return;
+             }
+             const target = event.target instanceof HTMLElement ? event.target : null;
+-            const controlTarget = target?.closest('input[type="checkbox"]:not(:disabled), pre[data-markdown-code][tabindex="0"]');
++            const controlTarget = target?.closest('a[href], input[type="checkbox"]:not(:disabled), pre[data-markdown-code][tabindex="0"]');
+             if (!controlTarget)
+                 return;
+             const controls = markdownKeyboardControls(root);
+@@ -950,5 +950,6 @@
+                 element.removeAttribute('aria-label');
+                 element.removeAttribute('aria-disabled');
++                element.removeAttribute('tabindex');
+                 delete element.dataset.markdownReferenceResolution;
+                 delete element.dataset.markdownReferenceRuntimeUrl;
+                 delete element.dataset.markdownReferenceTitle;
+@@ -993,4 +994,5 @@
+                     element.setAttribute('target', '_blank');
+                     element.setAttribute('rel', 'noreferrer');
++                    element.setAttribute('tabindex', '0');
+                     element.dataset.markdownReferenceRuntimeUrl = resolution.runtimeUrl;
+                 }
+diff --git a/dist/react/markdown-slash-command.js b/dist/react/markdown-slash-command.js
+--- a/dist/react/markdown-slash-command.js
++++ b/dist/react/markdown-slash-command.js
+@@ -181,1 +181,1 @@
+-/** Intersect the viewport with every clipping ancestor around the editor. */
++/** Bound the portaled menu by its dialog, or by the viewport outside dialogs. */
+@@ -189,10 +189,5 @@
+-    let current = editorRoot;
+-    while (current && current !== document.body) {
+-        const styles = getComputedStyle(current);
+-        if (isClippingOverflow(styles.overflowX) || isClippingOverflow(styles.overflowY)) {
+-            intersectMarkdownSlashBoundary(boundary, current.getBoundingClientRect());
+-        }
+-        current = current.parentElement;
+-    }
++    const dialog = editorRoot.closest('[role="dialog"]');
++    if (dialog)
++        intersectMarkdownSlashBoundary(boundary, dialog.getBoundingClientRect());
+     return boundary;
+ }
+@@ -202,1 +197,1 @@
+-/** Resolve below/above placement and clamp to the editor's clipping boundary. */
++/** Resolve below/above placement and clamp to the dialog or viewport boundary. */
+@@ -253,8 +248,8 @@
+-    const optionTop = option.offsetTop;
+-    const optionBottom = optionTop + option.offsetHeight;
+-    if (optionTop < options.scrollTop)
+-        options.scrollTop = optionTop;
+-    else if (optionBottom > options.scrollTop + options.clientHeight) {
+-        options.scrollTop = optionBottom - options.clientHeight;
++    const optionRect = option.getBoundingClientRect();
++    const optionsRect = options.getBoundingClientRect();
++    if (optionRect.top < optionsRect.top)
++        options.scrollTop += optionRect.top - optionsRect.top;
++    else if (optionRect.bottom > optionsRect.bottom) {
++        options.scrollTop += optionRect.bottom - optionsRect.bottom;
+     }
+ }
+diff --git a/dist/react/markdown-reference-menu.js b/dist/react/markdown-reference-menu.js
+--- a/dist/react/markdown-reference-menu.js
++++ b/dist/react/markdown-reference-menu.js
+@@ -111,8 +111,8 @@
+-    const optionTop = option.offsetTop;
+-    const optionBottom = optionTop + option.offsetHeight;
+-    if (optionTop < options.scrollTop)
+-        options.scrollTop = optionTop;
+-    else if (optionBottom > options.scrollTop + options.clientHeight) {
+-        options.scrollTop = optionBottom - options.clientHeight;
++    const optionRect = option.getBoundingClientRect();
++    const optionsRect = options.getBoundingClientRect();
++    if (optionRect.top < optionsRect.top)
++        options.scrollTop += optionRect.top - optionsRect.top;
++    else if (optionRect.bottom > optionsRect.bottom) {
++        options.scrollTop += optionRect.bottom - optionsRect.bottom;
+     }
+ }

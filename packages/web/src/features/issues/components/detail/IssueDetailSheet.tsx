@@ -57,6 +57,10 @@ interface IssueDetailSheetProps {
    * in-memory nav stack (REEF-270).
    */
   onClose: () => void;
+  /** Called once the portaled Sheet content has mounted and opened. */
+  onReady?: () => void;
+  /** Avoid an entry animation when replacing an already-visible hard-entry shell. */
+  disableOpenAnimation?: boolean;
 }
 
 const ISSUE_DETAIL_PANEL_ID = "issue-detail-panel";
@@ -393,6 +397,8 @@ export function IssueDetailSheet({
   issueId,
   entryRoute,
   onClose,
+  onReady,
+  disableOpenAnimation = false,
 }: IssueDetailSheetProps) {
   const t = useTranslations("issues.detail");
   const nav = useTranslations("nav");
@@ -425,6 +431,12 @@ export function IssueDetailSheet({
       openerRef.current = active.closest<HTMLElement>("[data-issue-id]");
     }
   }, [issueId]);
+  const handleSheetContentReady = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (node) onReady?.();
+    },
+    [onReady],
+  );
 
   const restoreOpenerFocus = useCallback((event: Event) => {
     const opener = openerRef.current;
@@ -498,6 +510,8 @@ export function IssueDetailSheet({
         <SheetContent
           side="right"
           data-reef-issue-detail-sheet=""
+          ref={handleSheetContentReady}
+          disableOpenAnimation={disableOpenAnimation}
           // The sheet's own persistent chrome bar owns the close affordance
           // (REEF-286), so the overlay X is suppressed here to avoid a
           // duplicate, colliding control in the top-right corner.

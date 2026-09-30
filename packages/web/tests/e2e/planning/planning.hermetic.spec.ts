@@ -238,35 +238,48 @@ async function expectEditorBodyToOwnScroll(page: Page) {
 async function expectNotesControlsAccessible(page: Page) {
   const editor = page.getByTestId("markdown-editor");
   await expect(editor).toBeVisible();
-  const toolbar = editor.getByTestId("markdown-toolbar");
+  const toolbarContainer = editor.getByTestId("markdown-toolbar");
+  const toolbar = toolbarContainer.getByRole("toolbar", {
+    name: "Text formatting",
+  });
   for (const label of [
-    "Bold",
-    "Italic",
-    "Strikethrough",
-    "Inline Code",
+    "Paragraph",
     "Heading 1",
     "Heading 2",
     "Heading 3",
-    "Bullet list",
-    "Numbered List",
-    "Quote",
-    "Code Block",
-    "Divider",
-    "Link",
-    "Source",
+    "Bold",
+    "Italic",
+    "Strikethrough",
+    "Inline code",
+    "Bulleted list",
+    "Numbered list",
+    "Task list",
+    "Blockquote",
+    "Code block",
+    "Horizontal rule",
+    "Insert table",
+    "Insert link",
+    "Undo",
+    "Redo",
   ]) {
     await expect(toolbar.getByRole("button", { name: label })).toBeVisible();
   }
 
-  const toolbarButtons = toolbar.getByRole("button");
-  await expect(toolbarButtons).toHaveCount(14);
+  const toolbarButtons = toolbar.locator(
+    "button[data-markdown-toolbar-button]:not(:disabled)",
+  );
+  await expect(toolbar.getByRole("button")).toHaveCount(18);
+  await expect(toolbarButtons).toHaveCount(16);
   await toolbarButtons.first().focus();
-  for (let index = 0; index < 14; index += 1) {
+  for (let index = 0; index < 16; index += 1) {
     await expect(toolbarButtons.nth(index)).toBeFocused();
-    if (index < 13) await page.keyboard.press("Tab");
+    if (index < 15) await page.keyboard.press("ArrowRight");
   }
 
-  await toolbar.getByRole("button", { name: "Source" }).click();
+  const sourceButton = toolbarContainer.getByRole("button", { name: "Source" });
+  await page.keyboard.press("Tab");
+  await expect(sourceButton).toBeFocused();
+  await sourceButton.click();
   const source = editor.getByTestId("markdown-source-textarea");
   await expect(source).toBeVisible();
   await source.fill(
@@ -274,7 +287,7 @@ async function expectNotesControlsAccessible(page: Page) {
       "\n",
     ),
   );
-  await toolbar.getByRole("button", { name: "Source" }).click();
+  await sourceButton.click();
   await expect(editor.locator('[contenteditable="true"]')).toBeVisible();
 }
 

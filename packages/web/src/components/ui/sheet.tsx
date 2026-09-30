@@ -51,6 +51,7 @@ function SheetOverlay({
 interface SheetContentProps
   extends React.ComponentProps<typeof DialogPrimitive.Content> {
   side?: "top" | "right" | "bottom" | "left";
+  disableOpenAnimation?: boolean;
   /**
    * Render the built-in top-right close affordance. Defaults to `true` so every
    * existing sheet is unchanged; surfaces whose own header owns the close
@@ -65,6 +66,7 @@ function SheetContent({
   children,
   side = "right",
   showCloseButton = true,
+  disableOpenAnimation = false,
   onEscapeKeyDown,
   ...props
 }: SheetContentProps) {
@@ -77,12 +79,17 @@ function SheetContent({
   );
   return (
     <SheetPortal>
-      <SheetOverlay />
+      <SheetOverlay
+        className={
+          disableOpenAnimation ? "data-[state=open]:animate-none" : undefined
+        }
+      />
       <DialogPrimitive.Content
         data-slot="sheet-content"
         onEscapeKeyDown={handleEscapeKeyDown}
         className={cn(
           "fixed z-50 flex flex-col gap-4 bg-surface-elevated shadow-xl shadow-foreground/10 transition ease-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=open]:duration-200",
+          disableOpenAnimation && "data-[state=open]:animate-none",
           side === "right" &&
             "inset-y-0 right-0 h-full w-3/4 border-l border-border-subtle data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm",
           side === "left" &&

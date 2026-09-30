@@ -1,13 +1,15 @@
 "use client";
 
 import { IssueDetailSheet } from "@/features/issues/components/detail/IssueDetailSheet";
+import { IssueDetailAuthPendingSkeleton } from "@/features/issues/components/detail/IssueDetailAuthPendingSkeleton";
+import { useIssueDetailEntryHandoff } from "@/features/issues/components/detail/IssueDetailEntryHandoff";
 import { IssuesWorkspace } from "@/features/issues/components/filters/IssuesWorkspace";
 import { IssuesWorkspaceSkeleton } from "@/features/issues/components/filters/IssuesWorkspaceSkeleton";
 import { useIssueNavStack } from "@/features/issues/stores/useIssueNavStack";
 import { useHydrated } from "@/lib/useHydrated";
 import { withVault } from "@/lib/workspaceHref";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, use } from "react";
+import { Suspense, use, useCallback, useState } from "react";
 
 interface IssuePageProps {
   params: Promise<{ id: string; vault: string }>;
@@ -52,19 +54,41 @@ export default function IssuePage({ params }: IssuePageProps) {
   // DOM mid-hydration — attributes the server HTML does not had, so React reports a
   // hydration mismatch across the whole backdrop subtree. Deferring the sheet to
   // a post-mount render lets the workspace hydrate cleanly first; the slide-over
-  // then mounts (and animates in) afterward. The intercepting soft-nav route
-  // doesn't need this — its backdrop hydrated before the sheet ever opens.
+  // then mounts afterward. The static detail shell stays until the portaled
+  // content is ready, so hydration and portal mounting cannot expose the board.
+  // The intercepting soft-nav route doesn't need this — its backdrop hydrated
+  // before the sheet ever opens.
   const mounted = useHydrated();
+  const [sheetReady, setSheetReady] = useState(false);
+  const completeGuardHandoff = useIssueDetailEntryHandoff();
+  const handleSheetReady = useCallback(() => {
+    setSheetReady(true);
+    completeGuardHandoff?.();
+  }, [completeGuardHandoff]);
 
   return (
     <>
-      <Suspense fallback={<IssuesWorkspaceSkeleton />}>
-        <IssuesWorkspace />
-      </Suspense>
+      {mounted || hasDrilledInSession ? (
+        <Suspense fallback={<IssuesWorkspaceSkeleton />}>
+          <IssuesWorkspace />
+        </Suspense>
+      ) : null}
+      {entryRoute !== "modal" &&
+      !hasDrilledInSession &&
+      !sheetReady &&
+      !completeGuardHandoff ? (
+        <IssueDetailAuthPendingSkeleton
+          issueId={id}
+          searchParams={searchParams.toString()}
+          showWorkspaceSkeleton={!mounted}
+        />
+      ) : null}
       {mounted && entryRoute !== "modal" && (
         <IssueDetailSheet
           entryRoute="base"
           issueId={sheetIssueId}
+          onReady={handleSheetReady}
+          disableOpenAnimation
           onClose={() => router.push(withVault(vault, entryViewPath))}
         />
       )}

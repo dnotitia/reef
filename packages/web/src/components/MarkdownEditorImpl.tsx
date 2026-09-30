@@ -24,10 +24,7 @@ import {
 } from "@akb/markdown-editor";
 import { Button } from "@/components/ui/button";
 import { linkSafetyConfig } from "@/components/markdown/linkSafety";
-import {
-  attachmentFileTypeLabel,
-  isAkbFileUri,
-} from "@/features/issues/lib/attachmentUrls";
+import { isAkbFileUri } from "@/features/issues/lib/attachmentUrls";
 import { filterIssueBodyMentionCandidates } from "@/features/issues/lib/issueBodyMentionCandidates";
 import { filesFromFileList } from "@/features/issues/lib/attachmentMarkdown";
 import {
@@ -38,10 +35,8 @@ import {
   extractAkbDocumentUris,
   normalizeAkbDocumentMarkdownLinks,
 } from "@/lib/akb/markdownDocumentLinks";
-import { parseAkbDocumentUri } from "@/lib/akb/documentUri";
 import { resolveAkbDocumentTitles } from "@/lib/akb/documentTitleResolver";
 import { cn } from "@/lib/utils";
-import { useAkbWebUrl } from "@/providers/AkbWebUrlProvider";
 import { formatMentionToken } from "@reef/core";
 import { useLocale, useTranslations } from "next-intl";
 import { Paperclip } from "lucide-react";
@@ -98,118 +93,6 @@ function markdownForEditor(markdown: string): string {
   );
 }
 
-function setAttributeIfChanged(
-  element: Element,
-  name: string,
-  value: string,
-): void {
-  if (element.getAttribute(name) !== value) element.setAttribute(name, value);
-}
-
-function decorateIssueMarkdownLinks(
-  root: ParentNode,
-  resolutions: ReadonlyMap<string, MarkdownTargetResolution>,
-  mentionConfig: MarkdownEditorProps["mentionConfig"],
-): void {
-  root
-    .querySelectorAll<HTMLAnchorElement>(
-      'a[data-markdown-target], a[data-reef-file-link="true"], a[data-markdown-reference="true"], a[data-reference-kind]',
-    )
-    .forEach((anchor) => {
-      const target = anchor.dataset.markdownTarget;
-      if (target && isAkbFileUri(target)) {
-        anchor.removeAttribute("data-document-uri");
-        setAttributeIfChanged(anchor, "data-reef-file-link", "true");
-        setAttributeIfChanged(anchor, "data-reef-file-uri", target);
-        setAttributeIfChanged(
-          anchor,
-          "data-reef-file-type",
-          attachmentFileTypeLabel(anchor.textContent ?? ""),
-        );
-        setAttributeIfChanged(anchor, "data-reference-kind", "file");
-
-        if (resolutions.get(target)?.status === "available") {
-          setAttributeIfChanged(anchor, "target", "_blank");
-          setAttributeIfChanged(anchor, "rel", "noreferrer");
-        } else {
-          anchor.removeAttribute("target");
-          anchor.removeAttribute("rel");
-        }
-      } else if (anchor.dataset.reefFileLink === "true") {
-        anchor.removeAttribute("data-reef-file-link");
-        anchor.removeAttribute("data-reef-file-uri");
-        anchor.removeAttribute("data-reef-file-type");
-        anchor.removeAttribute("data-reference-kind");
-        anchor.removeAttribute("target");
-        anchor.removeAttribute("rel");
-      }
-
-      if (
-        target &&
-        parseAkbDocumentUri(target) &&
-        anchor.dataset.reefFileLink !== "true"
-      ) {
-        setAttributeIfChanged(anchor, "data-reference-kind", "document");
-        setAttributeIfChanged(anchor, "data-document-uri", target);
-        setAttributeIfChanged(anchor, "target", "_blank");
-        setAttributeIfChanged(anchor, "rel", "noreferrer");
-      } else if (anchor.dataset.referenceKind === "document") {
-        anchor.removeAttribute("data-reference-kind");
-        anchor.removeAttribute("data-document-uri");
-        anchor.removeAttribute("target");
-        anchor.removeAttribute("rel");
-      }
-
-      if (anchor.dataset.markdownReference !== "true") return;
-      const kind = anchor.dataset.markdownReferenceKind;
-      const id = anchor.dataset.markdownReferenceId;
-      if (anchor.dataset.markdownReferenceEscaped === "true" || !kind || !id) {
-        anchor.removeAttribute("data-reef-mention");
-        anchor.removeAttribute("data-reference-kind");
-        anchor.removeAttribute("data-issue-id");
-        anchor.removeAttribute("data-issue-status");
-        anchor
-          .querySelector("[data-markdown-reference-token]")
-          ?.removeAttribute("data-reference-id");
-        anchor
-          .querySelector("[data-markdown-reference-label]")
-          ?.removeAttribute("data-reference-title");
-        return;
-      }
-
-      if (kind === "person") {
-        const member = mentionConfig?.members.find(
-          (candidate) =>
-            candidate.username.toLocaleLowerCase() === id.toLocaleLowerCase(),
-        );
-        if (member) setAttributeIfChanged(anchor, "data-reef-mention", "true");
-        else anchor.removeAttribute("data-reef-mention");
-        return;
-      }
-
-      const issue = mentionConfig?.issues.find(
-        (candidate) => candidate.id === id,
-      );
-      if (!issue) {
-        anchor.removeAttribute("data-reference-kind");
-        anchor.removeAttribute("data-issue-id");
-        anchor.removeAttribute("data-issue-status");
-        return;
-      }
-      setAttributeIfChanged(anchor, "data-reference-kind", "issue");
-      setAttributeIfChanged(anchor, "data-issue-id", issue.id);
-      setAttributeIfChanged(anchor, "data-issue-status", issue.status);
-      const token = anchor.querySelector<HTMLElement>(
-        "[data-markdown-reference-token]",
-      );
-      if (token) setAttributeIfChanged(token, "data-reference-id", "");
-      const label = anchor.querySelector<HTMLElement>(
-        "[data-markdown-reference-label]",
-      );
-      if (label) setAttributeIfChanged(label, "data-reference-title", "");
-    });
-}
-
 function legacyImageResolutions(
   markdown: string,
   resolveImageSrc: ((src: string) => string) | undefined,
@@ -257,7 +140,6 @@ function MarkdownEditorContent({
   bodyFrameRef,
 }: MarkdownEditorProps) {
   const t = useTranslations("markdownEditor");
-  const akbWebBase = useAkbWebUrl();
   const latestValueRef = useRef(value);
   const lastSyncedValueRef = useRef(value);
   const onChangeRef = useRef(onChange);
@@ -499,29 +381,6 @@ function MarkdownEditorContent({
       ]),
     [resolveImageSrc, targetResolutions, value],
   );
-  useEffect(() => {
-    const surface = surfaceRef.current;
-    if (!surface) return;
-
-    const decorate = () =>
-      decorateIssueMarkdownLinks(surface, resolutions, mentionConfig);
-    decorate();
-    const observer = new MutationObserver(decorate);
-    observer.observe(surface, {
-      subtree: true,
-      childList: true,
-      characterData: true,
-      attributes: true,
-      attributeFilter: [
-        "data-markdown-target",
-        "data-markdown-resolution",
-        "data-markdown-reference-kind",
-        "data-markdown-reference-id",
-        "data-markdown-reference-resolution",
-      ],
-    });
-    return () => observer.disconnect();
-  }, [mentionConfig, resolutions]);
   const referenceResolutions = useMarkdownReferenceResolutions(
     value,
     mentionReferenceAdapter,
@@ -758,10 +617,9 @@ function MarkdownEditorContent({
         event.nativeEvent,
         linksOpenedFromMouseUpRef.current,
         setExternalLinkHref,
-        akbWebBase,
       );
     },
-    [akbWebBase],
+    [],
   );
   const handleSurfaceMouseDownCapture = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
@@ -780,10 +638,9 @@ function MarkdownEditorContent({
         event.nativeEvent,
         linksOpenedFromMouseUpRef.current,
         setExternalLinkHref,
-        akbWebBase,
       );
     },
-    [akbWebBase],
+    [],
   );
 
   const editorBodyClassName = cn(

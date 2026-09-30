@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
+import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockBack, mockPush, mockUseSearchParams } = vi.hoisted(() => ({
@@ -20,23 +21,56 @@ vi.mock("@/features/issues/components/detail/IssueDetailSheet", () => ({
   IssueDetailSheet: ({
     issueId,
     entryRoute,
+    onReady,
     onClose,
+    disableOpenAnimation,
   }: {
     issueId: string;
     entryRoute: "base" | "modal";
+    onReady?: () => void;
     onClose: () => void;
-  }) => (
-    <div
-      data-testid="issue-detail-sheet"
-      data-issue-id={issueId}
-      data-entry-route={entryRoute}
-    >
-      <button type="button" data-testid="mock-close" onClick={onClose}>
-        Close
-      </button>
-    </div>
-  ),
+    disableOpenAnimation?: boolean;
+  }) => {
+    useEffect(() => onReady?.(), [onReady]);
+    return (
+      <div
+        data-testid="issue-detail-sheet"
+        data-issue-id={issueId}
+        data-entry-route={entryRoute}
+        data-disable-open-animation={disableOpenAnimation ? "true" : "false"}
+      >
+        <button type="button" data-testid="mock-close" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    );
+  },
 }));
+
+vi.mock(
+  "@/features/issues/components/detail/IssueDetailAuthPendingSkeleton",
+  () => ({
+    IssueDetailAuthPendingSkeleton: ({
+      issueId,
+      searchParams,
+      showWorkspaceSkeleton,
+    }: {
+      issueId: string;
+      searchParams: string;
+      showWorkspaceSkeleton: boolean;
+    }) => (
+      <div
+        data-testid="issue-detail-pending-shell"
+        data-issue-id={issueId}
+        data-search-params={searchParams}
+      >
+        {showWorkspaceSkeleton ? (
+          <div data-testid="issues-workspace-backdrop" />
+        ) : null}
+      </div>
+    ),
+  }),
+);
 
 vi.mock("react", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react")>();
@@ -78,16 +112,19 @@ describe("IssuePage (base route — hard navigation deep link)", () => {
       "data-entry-route",
       "base",
     );
+    expect(screen.getByTestId("issue-detail-sheet")).toHaveAttribute(
+      "data-disable-open-animation",
+      "true",
+    );
   });
 
   // regression for the hydration mismatch (REEF-165). The sheet is a modal Radix
   // Dialog whose aria-hidden management mutates the backdrop DOM; rendering it in
   // the same SSR/hydration pass as the IssuesWorkspace backdrop made those
   // mutations clash with hydration across the whole backdrop subtree. The sheet
-  // should be deferred to a post-mount client render, so server output carries the
-  // backdrop but NOT the sheet (effects do not run during SSR, so `mounted` stays
-  // false and the sheet is gated out).
-  it("omits the IssueDetailSheet from server-rendered output (deferred to post-mount)", () => {
+  // should be deferred to a post-mount client render. A static detail shell is
+  // safe in server output and keeps the route visible until that mount.
+  it("renders the safe detail shell but omits the interactive Sheet on the server", () => {
     const html = renderToString(
       <IssuePage
         params={
@@ -98,6 +135,7 @@ describe("IssuePage (base route — hard navigation deep link)", () => {
         }
       />,
     );
+    expect(html).toContain("issue-detail-pending-shell");
     expect(html).toContain("issues-workspace-backdrop");
     expect(html).not.toContain("issue-detail-sheet");
   });

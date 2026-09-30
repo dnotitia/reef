@@ -1,10 +1,7 @@
 import { linkSafetyConfig } from "@/components/markdown/linkSafety";
 import { isDirectIssueMarkdownHref } from "@/features/issues/lib/markdownLinkPolicy";
 import { isAkbFileUri } from "@/features/issues/lib/attachmentUrls";
-import {
-  buildAkbDocumentUrl,
-  parseAkbDocumentUri,
-} from "@/lib/akb/documentUri";
+import { parseAkbDocumentUri } from "@/lib/akb/documentUri";
 
 const LINK_CLICK_SUPPRESSION_MS = 1000;
 
@@ -34,12 +31,11 @@ export function openLinkWindow(href: string, target = "_blank"): boolean {
 function isDirectEditorLink(
   anchor: HTMLAnchorElement,
   renderedHref: string,
-  akbWebBase: string | null,
 ): boolean {
   if (isDirectIssueMarkdownHref(renderedHref)) return true;
 
-  // Resolving a display href leaves the source identity in this data attribute.
-  // Validate that target before opening the runtime URL without confirmation.
+  // The shared Markdown surface preserves the authored target while resolving
+  // its runtime href. Validate that target before opening without confirmation.
   const markdownTarget = anchor.dataset.markdownTarget;
   if (
     markdownTarget &&
@@ -47,33 +43,18 @@ function isDirectEditorLink(
   ) {
     return true;
   }
-
-  // Runtime AKB_WEB_URL retargeting replaces the rendered href but preserves
-  // the validated Markdown source in both renderer-owned attributes. Require
-  // that pair to agree; ordinary external hrefs still require confirmation.
-  const documentUri = anchor.getAttribute("data-document-uri");
-  const retargetedDocumentUri = anchor.getAttribute("data-akb-uri");
-  return (
-    documentUri !== null &&
-    retargetedDocumentUri === documentUri &&
-    parseAkbDocumentUri(documentUri) !== null &&
-    buildAkbDocumentUrl(akbWebBase, documentUri) === renderedHref
-  );
+  return false;
 }
 
 function openEditorLink(
   anchor: HTMLAnchorElement,
   requestExternalConfirmation: (href: string) => void,
-  akbWebBase: string | null,
 ): boolean {
   const authoredHref = anchor.getAttribute("href") ?? "";
   const href = anchor.href || authoredHref;
   if (!href) return false;
 
-  if (
-    linkSafetyConfig.enabled &&
-    !isDirectEditorLink(anchor, authoredHref, akbWebBase)
-  ) {
+  if (linkSafetyConfig.enabled && !isDirectEditorLink(anchor, authoredHref)) {
     requestExternalConfirmation(href);
     return true;
   }
@@ -86,7 +67,6 @@ export function openClickedEditorLink(
   event: MouseEvent,
   linksOpenedFromMouseUp: WeakMap<HTMLAnchorElement, number>,
   requestExternalConfirmation: (href: string) => void,
-  akbWebBase: string | null,
 ): boolean {
   if (event.button !== 0) return false;
   const anchor = findClickedEditorLink(root, event);
@@ -102,8 +82,7 @@ export function openClickedEditorLink(
     return true;
   }
 
-  if (!openEditorLink(anchor, requestExternalConfirmation, akbWebBase))
-    return false;
+  if (!openEditorLink(anchor, requestExternalConfirmation)) return false;
   event.preventDefault();
   window.getSelection()?.removeAllRanges();
   return true;
@@ -125,13 +104,11 @@ export function openEditorLinkOnMouseUp(
   event: MouseEvent,
   linksOpenedFromMouseUp: WeakMap<HTMLAnchorElement, number>,
   requestExternalConfirmation: (href: string) => void,
-  akbWebBase: string | null,
 ): boolean {
   if (event.button !== 0) return false;
   const anchor = findClickedEditorLink(root, event);
   if (!anchor) return false;
-  if (!openEditorLink(anchor, requestExternalConfirmation, akbWebBase))
-    return false;
+  if (!openEditorLink(anchor, requestExternalConfirmation)) return false;
 
   linksOpenedFromMouseUp.set(anchor, Date.now());
   event.preventDefault();

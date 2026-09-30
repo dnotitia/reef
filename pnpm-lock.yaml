@@ -59,6 +59,9 @@ overrides:
   vite: 6.4.3
   ws: 8.21.0
 
+patchedDependencies:
+  '@akb/markdown-editor@0.16.0': 7680e0646fb21ecd65ca7c6d33fc9870e785022bd5f73cfeea67eb15bb00edb6
+
 importers:
 
   .:
@@ -176,7 +179,7 @@ importers:
         version: 1.0.58(zod@4.4.3)
       '@akb/markdown-editor':
         specifier: git+https://github.com/dnotitia/akb.git#5853b2fc6ab9a6916778c8a1a90ed5a2213c2ed0&path:/frontend/packages/markdown-editor
-        version: https://codeload.github.com/dnotitia/akb/tar.gz/5853b2fc6ab9a6916778c8a1a90ed5a2213c2ed0#path:/frontend/packages/markdown-editor(@floating-ui/dom@1.7.6)(@tiptap/extension-list@3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))(@tiptap/pm@3.31.3))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        version: https://codeload.github.com/dnotitia/akb/tar.gz/5853b2fc6ab9a6916778c8a1a90ed5a2213c2ed0#path:/frontend/packages/markdown-editor(patch_hash=7680e0646fb21ecd65ca7c6d33fc9870e785022bd5f73cfeea67eb15bb00edb6)(@floating-ui/dom@1.7.6)(@tiptap/extension-list@3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))(@tiptap/pm@3.31.3))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@dnd-kit/core':
         specifier: ^6.3.1
         version: 6.3.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -6176,7 +6179,7 @@ snapshots:
     dependencies:
       json-schema: 0.4.0
 
-  '@akb/markdown-editor@https://codeload.github.com/dnotitia/akb/tar.gz/5853b2fc6ab9a6916778c8a1a90ed5a2213c2ed0#path:/frontend/packages/markdown-editor(@floating-ui/dom@1.7.6)(@tiptap/extension-list@3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))(@tiptap/pm@3.31.3))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+  '@akb/markdown-editor@https://codeload.github.com/dnotitia/akb/tar.gz/5853b2fc6ab9a6916778c8a1a90ed5a2213c2ed0#path:/frontend/packages/markdown-editor(patch_hash=7680e0646fb21ecd65ca7c6d33fc9870e785022bd5f73cfeea67eb15bb00edb6)(@floating-ui/dom@1.7.6)(@tiptap/extension-list@3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))(@tiptap/pm@3.31.3))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@radix-ui/react-dialog': 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@tiptap/core': 3.31.3(@tiptap/pm@3.31.3)

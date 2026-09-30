@@ -460,9 +460,9 @@ hover, visited, and keyboard-focus states; inline code uses the existing Geist
 Mono stack on `--surface-subtle` with a `--border-subtle` hairline, compact
 padding, and no generated backticks; bold, italic, and strikethrough retain
 `--foreground` contrast (600 weight, italic style, and a clear line-through),
-including when the marks are nested. Roster-resolved issue-body mentions keep
-their sanitized `data-reef-mention` marker, brand/500 treatment, and no
-underline or link behavior. These rules are editor-scoped and do not alter
+including when the marks are nested. Roster-resolved issue-body mentions use
+the shared editor's resolved person-reference marker, brand/500 treatment, and
+no underline or link behavior. These rules are editor-scoped and do not alter
 fenced code blocks, comments, or AI Markdown.
 
 Issue-body images are block evidence: they keep intrinsic width and height until
@@ -473,18 +473,17 @@ keep their non-empty alt text readable. These image rules are scoped to the
 `.reef-markdown-editor` surface only.
 
 Only an explicit Markdown link whose target is an AKB file URI is rendered as a
-compact inline attachment action. Its authored filename remains the anchor text;
-the final alphanumeric extension is shown in uppercase (or `FILE` when absent or
-outside the bounded extension rule), and long labels wrap within narrow issue
-panels. In WYSIWYG mode the link opens the existing issue-scoped authenticated
-attachment proxy in a safe new window, while Source mode and saved Markdown keep
-the raw AKB URI. Ordinary URLs, AKB document links, comments, and AI Markdown
-retain their existing rendering.
+compact inline attachment action with a file glyph. Its authored filename
+remains the anchor text and wraps within narrow issue panels. In WYSIWYG mode
+the link opens the existing issue-scoped authenticated attachment proxy in a
+safe new window, while Source mode and saved Markdown keep the raw AKB URI.
+Ordinary URLs, AKB document links, comments, and AI Markdown retain their
+existing rendering.
 
 Persisted known issue IDs, AKB document/file links, and resolved mentions share
-one compact visual hierarchy in WYSIWYG through their semantic markers and
-labels; ordinary URLs keep their existing underlined treatment. Source mode and
-saved Markdown remain unchanged.
+one compact visual hierarchy in WYSIWYG through the shared editor's public
+reference and target markers; ordinary URLs keep their existing underlined
+treatment. Source mode and saved Markdown remain unchanged.
 
 Block Markdown keeps the same controlled density. Fenced code uses the existing
 Geist Mono stack at `13px/20px` on `--surface-subtle`, with a

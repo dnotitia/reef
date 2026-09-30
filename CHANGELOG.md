@@ -24,6 +24,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Direct issue links keep the detail frame visible while authentication, issue
+  data, and the editor load.** Hard entry and reload carry the same panel and
+  chrome into the interactive Sheet without a blank handoff or stacked modal.
+  (REEF-648)
 - **Issue detail restores its tab-local panel width and Description height while
   the issue or editor loads.** Loading skeletons use the saved dimensions from
   first paint, so the panel, toolbar, and content below the editor do not jump
@@ -31,6 +35,9 @@ explicitly in the entries below.
 - **Markdown editor labels follow the selected language in New Issue and issue
   details.** The app uses the shared editor's public API for its toolbar,
   mentions, slash commands, and attachment uploads.
+- **Issue-body references stay presentation-only in Markdown editing.** Runtime
+  labels and destinations no longer feed back into the editor document, so
+  Source mode and save/reload preserve the authored tokens. (REEF-626)
 - **Issue search keeps one results-level progress indicator through debounce and
   refresh.** Empty searches start quietly, and board, list, backlog, and timeline
   searches share one progress bar and live announcement. (REEF-645)

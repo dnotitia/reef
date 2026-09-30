@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -16,6 +16,7 @@ const {
   authStatusRef,
   establishedSessionRef,
   paramsRef,
+  pathnameRef,
   notFoundMock,
   syncMock,
   vaultsMock,
@@ -28,6 +29,7 @@ const {
   paramsRef: {
     current: { vault: "reef-acme" } as Record<string, string | string[]>,
   },
+  pathnameRef: { current: "/workspace/reef-acme/issues" },
   notFoundMock: vi.fn(() => {
     throw new Error("NEXT_NOT_FOUND");
   }),
@@ -38,7 +40,7 @@ const {
 
 vi.mock("next/navigation", () => ({
   useParams: () => paramsRef.current,
-  usePathname: () => "/workspace/reef-acme/issues",
+  usePathname: () => pathnameRef.current,
   useSearchParams: () => new URLSearchParams(),
   notFound: notFoundMock,
 }));
@@ -84,6 +86,14 @@ vi.mock("@/features/settings/hooks/useVaults", () => ({
 vi.mock("./WorkspaceAuthPendingSkeleton", () => ({
   WorkspaceAuthPendingSkeleton: () => <div data-testid="auth-loading-shell" />,
 }));
+vi.mock(
+  "@/features/issues/components/detail/IssueDetailAuthPendingSkeleton",
+  () => ({
+    IssueDetailAuthPendingSkeleton: ({ issueId }: { issueId: string }) => (
+      <div data-testid="issue-entry-handoff-shell">{issueId}</div>
+    ),
+  }),
+);
 vi.mock("./DashboardShell", () => ({
   DashboardShell: ({ children }: { children: ReactNode }) => (
     <div data-testid="dashboard-shell">{children}</div>
@@ -96,6 +106,20 @@ vi.mock("./WorkspaceAccessDenied", () => ({
 }));
 
 import { WorkspaceGuard } from "./WorkspaceGuard";
+import { useIssueDetailEntryHandoff } from "@/features/issues/components/detail/IssueDetailEntryHandoff";
+
+function HandoffReadyPage() {
+  const completeHandoff = useIssueDetailEntryHandoff();
+  return (
+    <button
+      type="button"
+      data-testid="handoff-ready"
+      onClick={() => completeHandoff?.()}
+    >
+      Ready
+    </button>
+  );
+}
 
 describe("WorkspaceGuard (REEF-315)", () => {
   beforeEach(() => {
@@ -103,6 +127,7 @@ describe("WorkspaceGuard (REEF-315)", () => {
     authStatusRef.current = "active";
     establishedSessionRef.current = true;
     paramsRef.current = { vault: "reef-acme" };
+    pathnameRef.current = "/workspace/reef-acme/issues";
     vaultsRef.current = {
       isPending: false,
       isSuccess: true,
@@ -125,6 +150,33 @@ describe("WorkspaceGuard (REEF-315)", () => {
     expect(screen.queryByTestId("dashboard-shell")).not.toBeInTheDocument();
     expect(screen.queryByTestId("page")).not.toBeInTheDocument();
     expect(vaultsMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps the static issue detail frame over the authenticated tree until the Sheet is ready", () => {
+    authStatusRef.current = "checking";
+    establishedSessionRef.current = false;
+    pathnameRef.current = "/workspace/reef-acme/issues/REEF-001";
+    const { rerender } = render(
+      <WorkspaceGuard appVersion="1.0.0">
+        <HandoffReadyPage />
+      </WorkspaceGuard>,
+    );
+    expect(screen.getByTestId("auth-loading-shell")).toBeInTheDocument();
+
+    authStatusRef.current = "active";
+    establishedSessionRef.current = true;
+    rerender(
+      <WorkspaceGuard appVersion="1.0.0">
+        <HandoffReadyPage />
+      </WorkspaceGuard>,
+    );
+
+    expect(screen.getByTestId("dashboard-shell")).toBeInTheDocument();
+    expect(screen.getByTestId("issue-entry-handoff-shell")).toHaveTextContent(
+      "REEF-001",
+    );
+    fireEvent.click(screen.getByTestId("handoff-ready"));
+    expect(screen.queryByTestId("issue-entry-handoff-shell")).toBeNull();
   });
 
   it("keeps the established shell and mounted page content when revalidation is unavailable", () => {

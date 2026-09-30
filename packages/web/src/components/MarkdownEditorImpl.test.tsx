@@ -42,6 +42,7 @@ const markdownMocks = vi.hoisted(() => ({
   },
   state: { isEmpty: true },
   targetResolutions: new Map<string, unknown>(),
+  referenceResolutions: new Map<string, unknown>(),
   surfaceProps: null as Record<string, unknown> | null,
   surfaceLink: null as {
     href: string;
@@ -160,7 +161,9 @@ vi.mock("@akb/markdown-editor/react", async (importOriginal) => {
     useMarkdownCommands: vi.fn(() => markdownMocks.commands),
     useMarkdownState: vi.fn(() => markdownMocks.state),
     useMarkdownTargetResolutions: vi.fn(() => markdownMocks.targetResolutions),
-    useMarkdownReferenceResolutions: vi.fn(() => new Map()),
+    useMarkdownReferenceResolutions: vi.fn(
+      () => markdownMocks.referenceResolutions,
+    ),
   };
 });
 
@@ -264,6 +267,7 @@ describe("MarkdownEditor product adapter", () => {
     markdownMocks.surfaceProps = null;
     markdownMocks.surfaceLink = null;
     markdownMocks.targetResolutions = new Map();
+    markdownMocks.referenceResolutions = new Map();
     markdownMocks.state.isEmpty = true;
     sessionStorage.clear();
     setPointerCapability(true);
@@ -317,6 +321,58 @@ describe("MarkdownEditor product adapter", () => {
     });
     expect(resolveImageSrc).toHaveBeenCalledWith(target);
     expect(screen.getByTestId("markdown-editor-content")).toBeEmptyDOMElement();
+  });
+
+  it("passes refreshed target resolutions to the shared surface when markdown changes", () => {
+    const target = "akb://reef-test/coll/docs/doc/spec-overview.md";
+    const props = {
+      value: `[AKB report](${target})`,
+      onChange: vi.fn(),
+    };
+    const view = renderEditor(props);
+    const targetResolution = {
+      target,
+      kind: "document",
+      status: "unavailable",
+      label: "Pending",
+    };
+    markdownMocks.targetResolutions = new Map([[target, targetResolution]]);
+    view.rerender(
+      <IntlTestProvider locale="en">
+        <MarkdownEditor {...props} value={`${props.value}\n\nUpdated`} />
+      </IntlTestProvider>,
+    );
+
+    const resolutions = markdownMocks.surfaceProps?.resolutions as
+      | ReadonlyMap<string, unknown>
+      | undefined;
+    expect(resolutions?.get(target)).toEqual(targetResolution);
+  });
+
+  it("passes reference-resolution updates to the shared surface", () => {
+    const props = {
+      value: "@alice",
+      onChange: vi.fn(),
+    };
+    const view = renderEditor(props);
+    const resolvedPerson = {
+      status: "available",
+      kind: "person",
+      id: "alice",
+      title: "@alice",
+    };
+    markdownMocks.referenceResolutions = new Map([
+      ["person:alice", resolvedPerson],
+    ]);
+    view.rerender(
+      <IntlTestProvider locale="en">
+        <MarkdownEditor {...props} />
+      </IntlTestProvider>,
+    );
+
+    expect(markdownMocks.surfaceProps?.referenceResolutions).toEqual(
+      markdownMocks.referenceResolutions,
+    );
   });
 
   it("inserts successful uploads through the public image command and reports partial failures", async () => {

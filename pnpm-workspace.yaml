@@ -1,6 +1,10 @@
 packages:
   - "packages/*"
 
+# Keep resolved reference labels out of ProseMirror's authored document state.
+patchedDependencies:
+  "@akb/markdown-editor@0.16.0": patches/markdown-editor.patch
+
 catalog:
   "@octokit/rest": ^22.0.1
   "@opentelemetry/api": ^1.9.1

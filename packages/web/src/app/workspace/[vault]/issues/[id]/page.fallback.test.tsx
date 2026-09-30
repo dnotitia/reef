@@ -20,6 +20,20 @@ vi.mock("@/features/issues/components/filters/IssuesWorkspace", async () => {
 vi.mock("@/features/issues/components/detail/IssueDetailSheet", () => ({
   IssueDetailSheet: () => null,
 }));
+vi.mock(
+  "@/features/issues/components/detail/IssueDetailAuthPendingSkeleton",
+  () => ({
+    IssueDetailAuthPendingSkeleton: ({
+      showWorkspaceSkeleton,
+    }: {
+      showWorkspaceSkeleton: boolean;
+    }) => (
+      <div data-testid="issue-detail-pending-shell">
+        {showWorkspaceSkeleton ? <div data-testid="issues-skeleton" /> : null}
+      </div>
+    ),
+  }),
+);
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), back: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
