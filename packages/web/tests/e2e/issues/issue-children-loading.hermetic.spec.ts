@@ -12,7 +12,7 @@ import {
 const ROOT = "REEF-101";
 const MID = "REEF-102";
 const SHORT_CHILD = "REEF-112";
-const FRAME_KEY = "__reef651_issue_children_frames";
+const FRAME_KEY = "__reef_issue_children_frames";
 
 interface IssueChildrenFrame {
   loading: boolean;
@@ -125,7 +125,7 @@ async function waitForIssueListPending(
     .toBeGreaterThan(0);
 }
 
-test.describe("Hermetic issue sub-issue loading (REEF-651)", () => {
+test.describe("Hermetic issue sub-issue loading", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
     await resetFixture(request, "demo_board");
