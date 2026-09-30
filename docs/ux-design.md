@@ -557,6 +557,10 @@ fluid main column:
   placeholder until the whole-vault list succeeds; request failures offer retry,
   and cached child rows remain visible while the list revalidates.
   Relation targets render as compact issue rows rather than pill chips.
+  The attachment section appears only for downloadable files or a read error.
+  An initial read keeps one polite, visually hidden status and reserves no
+  space; cached files stay visible during revalidation, and failures offer a
+  localized Retry action without discarding any cached list.
 - **Ask AI** — a floating non-modal panel (≈420×560) anchored bottom-right,
   above its FAB.
 - **Authenticated exception surfaces** — `/onboarding` and the workspace

@@ -28,6 +28,9 @@ explicitly in the entries below.
   data, and the editor load.** Hard entry and reload carry the same panel and
   chrome into the interactive Sheet without a blank handoff or stacked modal.
   (REEF-648)
+- **Issue detail no longer reserves blank space for attachments while files are
+  loading.** Empty results and inline-image-only results leave Delivery and
+  Activity in place until downloadable files are available. (REEF-652)
 - **Issue details distinguish unloaded sub-issues from a confirmed empty list.**
   The section keeps its add action while loading, offers retry after a failed
   request, and retains known child rows when background revalidation fails.

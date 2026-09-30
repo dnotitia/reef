@@ -107,6 +107,38 @@ export async function waitForIssueReadIdle(
     .toBe(0);
 }
 
+export async function setAttachmentReadControl(
+  request: APIRequestContext,
+  options: { issueId: string; delayMs?: number },
+  vault = REEF_E2E_VAULT,
+): Promise<void> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/attachment-read-control`,
+    {
+      data: {
+        vault,
+        issue_id: options.issueId,
+        delay_ms: options.delayMs ?? 0,
+      },
+    },
+  );
+  expect(response.ok()).toBeTruthy();
+}
+
+export async function waitForAttachmentReadPending(
+  request: APIRequestContext,
+  issueId: string,
+  vault = REEF_E2E_VAULT,
+): Promise<void> {
+  const key = `${vault}:${issueId.toUpperCase()}`;
+  await expect
+    .poll(
+      async () =>
+        (await readFixtureState(request)).attachment_read_pending[key] ?? 0,
+    )
+    .toBeGreaterThan(0);
+}
+
 export async function readFixtureState(request: APIRequestContext): Promise<{
   scenario: string;
   calls: Array<{ method: string; path: string }>;
@@ -120,6 +152,7 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
   issue_update_pending: Record<string, number>;
   issue_list_pending: Record<string, number>;
   issue_read_pending: Record<string, number>;
+  attachment_read_pending: Record<string, number>;
   workspace_initialization: {
     failure_operation: "document" | "document_get" | "tables" | null;
     failures_remaining: number;

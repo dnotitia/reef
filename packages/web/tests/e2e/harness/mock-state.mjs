@@ -23,6 +23,10 @@ export function issueUpdateKey(vault, issueId) {
   return `${vault}:${issueId}`;
 }
 
+export function attachmentReadKey(vault, issueId) {
+  return `${vault}:${issueId.toUpperCase()}`;
+}
+
 export function setIssueUpdateHold(state, key, held) {
   if (held) state.issueUpdateHolds.set(key, 1);
   else state.issueUpdateHolds.delete(key);
@@ -67,6 +71,19 @@ export function endIssueReadRequest(state, key) {
   const pending = state.issueReadPending.get(key) ?? 0;
   if (pending <= 1) state.issueReadPending.delete(key);
   else state.issueReadPending.set(key, pending - 1);
+}
+
+export function beginAttachmentReadRequest(state, key) {
+  state.attachmentReadPending.set(
+    key,
+    (state.attachmentReadPending.get(key) ?? 0) + 1,
+  );
+}
+
+export function endAttachmentReadRequest(state, key) {
+  const pending = state.attachmentReadPending.get(key) ?? 0;
+  if (pending <= 1) state.attachmentReadPending.delete(key);
+  else state.attachmentReadPending.set(key, pending - 1);
 }
 
 export function waitForIssueUpdateRelease(state, key) {
@@ -165,6 +182,8 @@ export function createState(scenario) {
     issueListDelayMs: 0,
     issueReadControls: new Map(),
     issueReadPending: new Map(),
+    attachmentReadControls: new Map(),
+    attachmentReadPending: new Map(),
     planningCatalogFailure: false,
     planningCatalogDelayMs: 0,
     contentSearchMode: "healthy",
@@ -316,6 +335,7 @@ export function publicState(state) {
     issue_update_pending: Object.fromEntries(state.issueUpdatePending),
     issue_list_pending: Object.fromEntries(state.issueListPending),
     issue_read_pending: Object.fromEntries(state.issueReadPending),
+    attachment_read_pending: Object.fromEntries(state.attachmentReadPending),
     workspace_initialization: {
       failure_operation: state.workspaceInitFailureOperation,
       failures_remaining: state.workspaceInitFailureRemaining,
