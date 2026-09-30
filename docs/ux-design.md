@@ -897,6 +897,10 @@ Opening an issue routes to `/workspace/{vault}/issues/[id]`, intercepted by a
 parallel route (`@modal/(.)issues/[id]`) so it renders as a right-side Sheet over
 the board without a full navigation; a hard navigation or deep link renders the
 same panel through the base route. The chrome is identical either way.
+When a hard-open detail drills into a relationship, its base-route Sheet keeps
+owning the session and replaces only the issue URL while the destination loads.
+The intercepted slot yields to that mounted Sheet; soft-open sessions continue
+to let the intercepted route own the Sheet.
 
 Editing is **inline auto-save**: there is no Save button and no
 dirty state. Local state mirrors the loaded issue for responsive typing, and

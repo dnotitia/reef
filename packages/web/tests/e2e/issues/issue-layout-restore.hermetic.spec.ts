@@ -78,6 +78,45 @@ test.describe("Hermetic persisted issue layout", () => {
         height: JSON.stringify(SAVED_HEIGHT),
       });
 
+    const originalSheet = page.getByTestId("issue-detail-modal");
+    await originalSheet.evaluate((element) => {
+      element.setAttribute("data-reef-regression-sheet", "entry");
+    });
+    await page
+      .locator('[data-testid="issue-children"] a[data-issue-id="REEF-102"]')
+      .click();
+    await page.waitForURL(/\/issues\/REEF-102\?view=list$/);
+    await expect(
+      page.locator(
+        '[data-testid="issue-detail-modal"][data-reef-regression-sheet="entry"]',
+      ),
+    ).toHaveCount(1);
+    await expect(page.getByTestId("issue-drill-back")).toHaveAttribute(
+      "data-back-to",
+      "REEF-101",
+    );
+    await expect(
+      page.getByTestId("issue-detail-resize-handle"),
+    ).toHaveAttribute("aria-valuenow", String(SAVED_WIDTH));
+    await expect(
+      page.getByTestId("markdown-editor-resize-handle"),
+    ).toHaveAttribute("aria-valuenow", String(SAVED_HEIGHT));
+    await page.getByTestId("issue-drill-back").click();
+    await page.waitForURL(/\/issues\/REEF-101\?view=list$/);
+    await expect(
+      page.locator(
+        '[data-testid="issue-detail-modal"][data-reef-regression-sheet="entry"]',
+      ),
+    ).toHaveCount(1);
+    await expect(panelHandle).toHaveAttribute(
+      "aria-valuenow",
+      String(SAVED_WIDTH),
+    );
+    await expect(descriptionHandle).toHaveAttribute(
+      "aria-valuenow",
+      String(SAVED_HEIGHT),
+    );
+
     const hydrationWarnings: string[] = [];
     page.on("console", (message) => {
       if (

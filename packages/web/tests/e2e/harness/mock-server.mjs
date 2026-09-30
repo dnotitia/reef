@@ -176,6 +176,32 @@ const server = createServer(async (req, res) => {
       }
       return json(res, 200, { ok: true, vault, updates: controls });
     }
+    if (url.pathname === "/__e2e/issue-read-control" && req.method === "POST") {
+      const body = await readJson(req);
+      const vault = String(body?.vault ?? REEF_VAULT);
+      const issueId = String(body?.issue_id ?? "").toUpperCase();
+      if (!/^REEF-\d+$/.test(issueId)) {
+        return json(res, 400, { ok: false, error: "invalid issue_id" });
+      }
+      const delayMs = Math.max(0, Math.min(Number(body?.delay_ms ?? 0), 5_000));
+      const requestedStatus = Number(body?.failure_status);
+      const failureStatus = [404, 500, 503].includes(requestedStatus)
+        ? requestedStatus
+        : null;
+      const key = `${vault}:${issueId}`;
+      if (delayMs === 0 && failureStatus === null) {
+        state.issueReadControls.delete(key);
+      } else {
+        state.issueReadControls.set(key, { delayMs, failureStatus });
+      }
+      return json(res, 200, {
+        ok: true,
+        vault,
+        issue_id: issueId,
+        delay_ms: delayMs,
+        failure_status: failureStatus,
+      });
+    }
     if (
       url.pathname === "/__e2e/issue-update-release" &&
       req.method === "POST"

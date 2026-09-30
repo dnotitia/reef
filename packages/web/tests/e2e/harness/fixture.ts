@@ -56,6 +56,57 @@ export async function resetFixture(
   expect(response.ok()).toBeTruthy();
 }
 
+export async function setIssueReadControl(
+  request: APIRequestContext,
+  options: {
+    issueId: string;
+    delayMs?: number;
+    failureStatus?: 404 | 500 | 503 | null;
+  },
+  vault = REEF_E2E_VAULT,
+): Promise<void> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/issue-read-control`,
+    {
+      data: {
+        vault,
+        issue_id: options.issueId,
+        delay_ms: options.delayMs ?? 0,
+        failure_status: options.failureStatus ?? null,
+      },
+    },
+  );
+  expect(response.ok()).toBeTruthy();
+}
+
+export async function waitForIssueReadPending(
+  request: APIRequestContext,
+  issueId: string,
+  vault = REEF_E2E_VAULT,
+): Promise<void> {
+  const key = `${vault}:${issueId.toUpperCase()}`;
+  await expect
+    .poll(
+      async () =>
+        (await readFixtureState(request)).issue_read_pending[key] ?? 0,
+    )
+    .toBeGreaterThan(0);
+}
+
+export async function waitForIssueReadIdle(
+  request: APIRequestContext,
+  issueId: string,
+  vault = REEF_E2E_VAULT,
+): Promise<void> {
+  const key = `${vault}:${issueId.toUpperCase()}`;
+  await expect
+    .poll(
+      async () =>
+        (await readFixtureState(request)).issue_read_pending[key] ?? 0,
+    )
+    .toBe(0);
+}
+
 export async function readFixtureState(request: APIRequestContext): Promise<{
   scenario: string;
   calls: Array<{ method: string; path: string }>;
@@ -68,6 +119,7 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
   issue_update_calls: Record<string, number>;
   issue_update_pending: Record<string, number>;
   issue_list_pending: Record<string, number>;
+  issue_read_pending: Record<string, number>;
   workspace_initialization: {
     failure_operation: "document" | "document_get" | "tables" | null;
     failures_remaining: number;

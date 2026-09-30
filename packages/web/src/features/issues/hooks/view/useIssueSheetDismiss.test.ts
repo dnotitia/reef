@@ -25,6 +25,7 @@ vi.mock("@/features/settings/hooks/useActiveVault", () => ({
 afterEach(() => {
   mockReplace.mockClear();
   useIssueNavStack.getState().clear();
+  window.history.replaceState(null, "", "/");
 });
 
 describe("useIssueSheetDismiss (REEF-270)", () => {
@@ -33,7 +34,11 @@ describe("useIssueSheetDismiss (REEF-270)", () => {
     useIssueNavStack.setState({ trail: ["REEF-A"], currentId: "REEF-A" });
 
     const { result } = renderHook(() =>
-      useIssueSheetDismiss({ issueId: "REEF-Z", onExit: vi.fn() }),
+      useIssueSheetDismiss({
+        entryRoute: "modal",
+        issueId: "REEF-Z",
+        onExit: vi.fn(),
+      }),
     );
 
     // The mount reconcile reset the stale trail away; REEF-Z is depth 0.
@@ -48,7 +53,11 @@ describe("useIssueSheetDismiss (REEF-270)", () => {
     useIssueNavStack.setState({ trail: [], currentId: null });
 
     const { result } = renderHook(() =>
-      useIssueSheetDismiss({ issueId: "REEF-B", onExit: vi.fn() }),
+      useIssueSheetDismiss({
+        entryRoute: "modal",
+        issueId: "REEF-B",
+        onExit: vi.fn(),
+      }),
     );
 
     expect(result.current.backTo).toBeNull();
@@ -59,7 +68,11 @@ describe("useIssueSheetDismiss (REEF-270)", () => {
     useIssueNavStack.setState({ trail: ["REEF-A"], currentId: "REEF-B" });
 
     const { result } = renderHook(() =>
-      useIssueSheetDismiss({ issueId: "REEF-B", onExit: vi.fn() }),
+      useIssueSheetDismiss({
+        entryRoute: "modal",
+        issueId: "REEF-B",
+        onExit: vi.fn(),
+      }),
     );
 
     expect(result.current.backTo).toBe("REEF-A");
@@ -70,7 +83,7 @@ describe("useIssueSheetDismiss (REEF-270)", () => {
     const onExit = vi.fn();
 
     const { result } = renderHook(() =>
-      useIssueSheetDismiss({ issueId: "REEF-B", onExit }),
+      useIssueSheetDismiss({ entryRoute: "modal", issueId: "REEF-B", onExit }),
     );
 
     act(() => result.current.dismissViaEsc());
@@ -87,7 +100,7 @@ describe("useIssueSheetDismiss (REEF-270)", () => {
     const onExit = vi.fn();
 
     const { result } = renderHook(() =>
-      useIssueSheetDismiss({ issueId: "REEF-B", onExit }),
+      useIssueSheetDismiss({ entryRoute: "modal", issueId: "REEF-B", onExit }),
     );
 
     act(() => result.current.dismissViaEsc());
@@ -104,7 +117,7 @@ describe("useIssueSheetDismiss (REEF-270)", () => {
     const onExit = vi.fn();
 
     const { result } = renderHook(() =>
-      useIssueSheetDismiss({ issueId: "REEF-C", onExit }),
+      useIssueSheetDismiss({ entryRoute: "modal", issueId: "REEF-C", onExit }),
     );
 
     act(() => result.current.exit());
@@ -118,11 +131,16 @@ describe("useIssueSheetDismiss (REEF-270)", () => {
     const interceptedRouteExit = vi.fn();
 
     renderHook(() =>
-      useIssueSheetDismiss({ issueId: "REEF-103", onExit: deepLinkExit }),
+      useIssueSheetDismiss({
+        entryRoute: "base",
+        issueId: "REEF-103",
+        onExit: deepLinkExit,
+      }),
     );
     useIssueNavStack.getState().drill("REEF-103", "REEF-102");
     const { result: parentSheet } = renderHook(() =>
       useIssueSheetDismiss({
+        entryRoute: "modal",
         issueId: "REEF-102",
         onExit: interceptedRouteExit,
       }),
@@ -134,12 +152,33 @@ describe("useIssueSheetDismiss (REEF-270)", () => {
     expect(interceptedRouteExit).not.toHaveBeenCalled();
   });
 
+  it("keeps Back inside the base sheet and replaces its URL in place", () => {
+    useIssueNavStack.getState().drill("REEF-A", "REEF-B");
+    const { result } = renderHook(() =>
+      useIssueSheetDismiss({
+        entryRoute: "base",
+        issueId: "REEF-B",
+        onExit: vi.fn(),
+      }),
+    );
+
+    act(() => result.current.goBack());
+
+    expect(window.location.pathname).toBe("/workspace/reef-test/issues/REEF-A");
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(useIssueNavStack.getState().currentId).toBe("REEF-A");
+  });
+
   it("does not let an outgoing rerender reconcile over a recorded drill", () => {
     const firstExit = vi.fn();
     const replacementExit = vi.fn();
     const { rerender } = renderHook(
       ({ onExit }: { onExit: () => void }) =>
-        useIssueSheetDismiss({ issueId: "REEF-103", onExit }),
+        useIssueSheetDismiss({
+          entryRoute: "modal",
+          issueId: "REEF-103",
+          onExit,
+        }),
       { initialProps: { onExit: firstExit } },
     );
 
