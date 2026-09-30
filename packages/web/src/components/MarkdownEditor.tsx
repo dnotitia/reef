@@ -1,7 +1,7 @@
 "use client";
 
-import { Skeleton } from "@/components/ui/skeleton";
 import dynamic from "next/dynamic";
+import { MarkdownEditorLoadingSkeleton } from "./markdown-editor/MarkdownEditorLoadingSkeleton";
 import type { MarkdownEditorProps } from "./markdown-editor/types";
 
 /**
@@ -17,53 +17,23 @@ import type { MarkdownEditorProps } from "./markdown-editor/types";
  *
  * `ssr: false` is natural: the editor is a client component that opts out of
  * SSR (`immediatelyRender: false`) already, so there is no server output to
- * preserve. The loading skeleton below holds the editor's height floor so the
- * surrounding form does not shift when the chunk arrives.
+ * preserve. The shared loading skeleton reads the same tab-local sizing policy
+ * as the editor and mirrors its toolbar so the surrounding form does not shift
+ * when the chunk arrives.
  */
-
-/**
- * Placeholder shown while the editor chunk loads. Mirrors the editor's outer
- * shell and reserves either the opted-in 320px issue Description frame or the
- * existing 200px automatic floor, plus the inset body frame and toolbar strip.
- * The read-mode Planning table inline expand has no toolbar, so it over-reserves by
- * the toolbar height for a frame — an acceptable trade to keep
- * the primary authoring surfaces from shifting on load.
- */
-function MarkdownEditorSkeleton({
-  enableHeightResize = false,
-}: Pick<MarkdownEditorProps, "enableHeightResize">) {
-  const bodyHeight = enableHeightResize ? "min-h-[320px]" : "min-h-[200px]";
-
-  return (
-    <div
-      aria-hidden="true"
-      data-testid="markdown-editor-skeleton"
-      className="rounded-md border border-border bg-surface-elevated"
-    >
-      <div className="flex items-center gap-1 border-b border-border-subtle px-2 py-1">
-        <Skeleton className="h-7 w-32" />
-      </div>
-      <div className="p-1" data-testid="markdown-editor-skeleton-body-frame">
-        <div className={`${bodyHeight} px-3 py-2`}>
-          <Skeleton className="h-3 w-2/3" />
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /**
  * Keep separate lazy boundaries for the two public height policies. Next's
  * dynamic loading component receives its own load state, not the caller's
  * props, so selecting the boundary at this small wrapper is what lets the
- * opted-in issue surfaces reserve 320px while every other consumer keeps the
- * existing 200px skeleton.
+ * opted-in issue surfaces restore the saved Description height while every
+ * other consumer keeps the existing 200px automatic floor.
  */
 const ResizableMarkdownEditor = dynamic<MarkdownEditorProps>(
   () => import("./MarkdownEditorImpl").then((m) => m.MarkdownEditor),
   {
     ssr: false,
-    loading: () => <MarkdownEditorSkeleton enableHeightResize />,
+    loading: () => <MarkdownEditorLoadingSkeleton enableHeightResize />,
   },
 );
 
@@ -71,7 +41,7 @@ const AutomaticMarkdownEditor = dynamic<MarkdownEditorProps>(
   () => import("./MarkdownEditorImpl").then((m) => m.MarkdownEditor),
   {
     ssr: false,
-    loading: () => <MarkdownEditorSkeleton />,
+    loading: () => <MarkdownEditorLoadingSkeleton />,
   },
 );
 

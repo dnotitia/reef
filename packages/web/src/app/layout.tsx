@@ -1,4 +1,5 @@
 import { THEME_BOOTSTRAP_SCRIPT } from "@/features/preferences/lib/theme";
+import { PERSISTED_LAYOUT_BOOTSTRAP_SCRIPT } from "@/features/ui/lib/persistedLayoutBootstrap";
 import { Toaster } from "@/components/ui/sonner";
 import { getAkbWebUrl } from "@/lib/akb/akbWebUrl";
 import { AkbWebUrlProvider } from "@/providers/AkbWebUrlProvider";
@@ -92,6 +93,14 @@ export default async function RootLayout({
           nonce={nonce}
           // biome-ignore lint/security/noDangerouslySetInnerHtml: This repository-owned static script contains no user data and carries the request CSP nonce.
           dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }}
+        />
+        <script
+          data-layout-bootstrap
+          nonce={nonce}
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: This repository-owned static script contains no user data and carries the request CSP nonce.
+          dangerouslySetInnerHTML={{
+            __html: PERSISTED_LAYOUT_BOOTSTRAP_SCRIPT,
+          }}
         />
         {/* No-prop provider inherits locale + messages + formats from
             `getRequestConfig` (next-intl v4), serializing them to the client. */}

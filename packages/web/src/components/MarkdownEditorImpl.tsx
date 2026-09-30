@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createMarkdownEditorExtensions } from "./markdown-editor/extensions";
 import {
   EDITOR_BODY_FRAME_CLASS,
+  EDITOR_BODY_MANUAL_FRAME_MARGIN_PX,
   EDITOR_BODY_SIZING,
   EDITOR_CONTENT_CLASS,
   EDITOR_MANUAL_BODY_CLASS,
@@ -231,6 +232,15 @@ export function MarkdownEditor({
     isManualHeight ? EDITOR_MANUAL_BODY_CLASS : EDITOR_BODY_SIZING,
     "px-3 py-2 max-w-none",
   );
+  const bodyFrameLayoutStyle = {
+    ...bodyFrameStyle,
+    ...(isManualHeight
+      ? {
+          marginBottom: `${EDITOR_BODY_MANUAL_FRAME_MARGIN_PX}px`,
+          marginRight: `${EDITOR_BODY_MANUAL_FRAME_MARGIN_PX}px`,
+        }
+      : {}),
+  };
 
   const slashMessages = useMarkdownEditorSlashMessages();
   const targetResolver = adapters?.targetResolver;
@@ -482,9 +492,9 @@ export function MarkdownEditor({
         className={cn(
           EDITOR_BODY_FRAME_CLASS,
           enableHeightResize && isHeightResizeAvailable && "relative",
-          isManualHeight && "min-h-0 overflow-hidden mr-1 mb-1",
+          isManualHeight && "min-h-0 overflow-hidden",
         )}
-        style={bodyFrameStyle}
+        style={bodyFrameLayoutStyle}
       >
         {sourceMode ? (
           <textarea

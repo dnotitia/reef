@@ -19,7 +19,7 @@ import {
   type KeyboardEvent,
   type PointerEvent,
   useCallback,
-  useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -31,6 +31,17 @@ import { IssueDetailCloseButton } from "./IssueDetailCloseButton";
 import { IssueDetailSkeleton } from "./IssueDetailSkeleton";
 import { IssueDrillBackBar } from "./IssueDrillBackBar";
 import type { IssueDetailEntryRoute } from "../../stores/useIssueNavStack";
+import {
+  clampIssueDetailWidth,
+  getIssueDetailMaxWidth,
+  ISSUE_DETAIL_DEFAULT_WIDTH,
+  ISSUE_DETAIL_DESKTOP_MIN_WIDTH,
+  ISSUE_DETAIL_EXPANDED_SESSION_STORAGE_KEY,
+  ISSUE_DETAIL_KEYBOARD_STEP,
+  ISSUE_DETAIL_MIN_WIDTH,
+  ISSUE_DETAIL_RESTORE_WIDTH_SESSION_STORAGE_KEY,
+  ISSUE_DETAIL_SESSION_STORAGE_KEY,
+} from "./issueDetailSizing";
 
 interface IssueDetailSheetProps {
   /** Issue ID like "REEF-001". */
@@ -50,16 +61,6 @@ interface IssueDetailSheetProps {
 
 const ISSUE_DETAIL_PANEL_ID = "issue-detail-panel";
 const ISSUE_DETAIL_RESIZE_DESCRIPTION_ID = "issue-detail-resize-description";
-const ISSUE_DETAIL_DESKTOP_MIN_WIDTH = 1280;
-export const ISSUE_DETAIL_DEFAULT_WIDTH = 1440;
-export const ISSUE_DETAIL_MIN_WIDTH = 1200;
-const ISSUE_DETAIL_MAX_WIDTH = 1680;
-export const ISSUE_DETAIL_KEYBOARD_STEP = 32;
-export const ISSUE_DETAIL_SESSION_STORAGE_KEY = "reef:issue-detail-width:v2";
-export const ISSUE_DETAIL_EXPANDED_SESSION_STORAGE_KEY =
-  "reef:issue-detail-expanded:v2";
-export const ISSUE_DETAIL_RESTORE_WIDTH_SESSION_STORAGE_KEY =
-  "reef:issue-detail-restore-width:v2";
 
 function isIssueOpener(element: HTMLElement, issueId: string): boolean {
   const surface = element.closest<HTMLElement>("[data-issue-id]");
@@ -82,21 +83,6 @@ function getViewportWidth() {
 
 function getServerViewportWidth() {
   return 0;
-}
-
-export function getIssueDetailMaxWidth(viewportWidth: number) {
-  return Math.max(
-    ISSUE_DETAIL_MIN_WIDTH,
-    Math.min(viewportWidth * 0.94, ISSUE_DETAIL_MAX_WIDTH),
-  );
-}
-
-export function clampIssueDetailWidth(value: number, maxWidth: number) {
-  const safeMax = Math.max(ISSUE_DETAIL_MIN_WIDTH, maxWidth);
-  if (!Number.isFinite(value)) {
-    return Math.min(ISSUE_DETAIL_DEFAULT_WIDTH, safeMax);
-  }
-  return Math.min(Math.max(value, ISSUE_DETAIL_MIN_WIDTH), safeMax);
 }
 
 function readStoredIssueDetailWidth() {
@@ -180,6 +166,7 @@ function storeIssueDetailRestoreWidth(width: number | null) {
 }
 
 interface IssueDetailResizeHandlers {
+  hasLoadedSessionState: boolean;
   isExpanded: boolean;
   isDesktop: boolean;
   isResizing: boolean;
@@ -206,6 +193,7 @@ function useIssueDetailResize(): IssueDetailResizeHandlers {
   const isDesktop = viewportWidth >= ISSUE_DETAIL_DESKTOP_MIN_WIDTH;
   const maxWidth = getIssueDetailMaxWidth(viewportWidth);
   const [panelWidth, setPanelWidth] = useState(ISSUE_DETAIL_DEFAULT_WIDTH);
+  const [hasLoadedSessionState, setHasLoadedSessionState] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const panelWidthRef = useRef(ISSUE_DETAIL_DEFAULT_WIDTH);
@@ -219,7 +207,7 @@ function useIssueDetailResize(): IssueDetailResizeHandlers {
     startWidth: number;
   } | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isDesktop || loadedSessionStateRef.current) return;
     loadedSessionStateRef.current = true;
     const storedWidth = readStoredIssueDetailWidth();
@@ -236,9 +224,10 @@ function useIssueDetailResize(): IssueDetailResizeHandlers {
     const nextPanelWidth = nextExpanded ? maxWidth : nextNormalWidth;
     panelWidthRef.current = nextPanelWidth;
     setPanelWidth(nextPanelWidth);
+    setHasLoadedSessionState(true);
   }, [isDesktop, maxWidth]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isDesktop || !loadedSessionStateRef.current) return;
     if (expandedRef.current) {
       if (panelWidthRef.current === maxWidth) return;
@@ -361,6 +350,7 @@ function useIssueDetailResize(): IssueDetailResizeHandlers {
   }
 
   return {
+    hasLoadedSessionState,
     isExpanded,
     isDesktop,
     isResizing,
@@ -407,6 +397,7 @@ export function IssueDetailSheet({
   const t = useTranslations("issues.detail");
   const nav = useTranslations("nav");
   const {
+    hasLoadedSessionState,
     isExpanded,
     isDesktop,
     isResizing,
@@ -554,7 +545,9 @@ export function IssueDetailSheet({
           className="issue-detail-sheet min-w-0 overflow-hidden"
           style={
             {
-              "--issue-detail-width": `${panelWidth}px`,
+              "--issue-detail-width": hasLoadedSessionState
+                ? `${panelWidth}px`
+                : "var(--reef-issue-detail-initial-width, var(--issue-detail-width-default))",
               width: isDesktop
                 ? "var(--issue-detail-width)"
                 : "min(94vw, var(--issue-detail-width-default))",
