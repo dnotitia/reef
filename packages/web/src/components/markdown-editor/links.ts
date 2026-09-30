@@ -59,6 +59,10 @@ function openEditorLink(
     return true;
   }
 
+  // Mouseup can open the new window before the later click handler clears the
+  // browser selection. Clear it first so returning from that window cannot
+  // restore the clicked text as an editor selection.
+  window.getSelection()?.removeAllRanges();
   return openLinkWindow(href, anchor.getAttribute("target") ?? "_blank");
 }
 

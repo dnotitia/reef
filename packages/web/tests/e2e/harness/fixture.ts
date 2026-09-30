@@ -561,7 +561,11 @@ export async function signInAsUser(
   await page.waitForURL((url) => url.pathname !== "/login", {
     timeout: 10_000,
   });
-  await page.goto("/onboarding");
+  if (new URL(page.url()).pathname !== "/onboarding") {
+    // Preserve the first mount when login already landed there; a second mount
+    // would consume one-shot API controls before the caller can observe them.
+    await page.goto("/onboarding");
+  }
 }
 
 export async function signInAsAlice(page: Page): Promise<void> {

@@ -1704,6 +1704,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     const reopenedEditor = page.locator(".reef-markdown-editor");
     await expect(reopenedEditor).toBeVisible();
     await expect(reopenedEditor.locator("table")).toHaveCount(1);
+    await expect(reopenedEditor.locator("table tr")).toHaveCount(3);
     const reopenedRows = await reopenedEditor
       .locator("table tr")
       .evaluateAll((rows) =>
@@ -2110,7 +2111,22 @@ test.describe("Hermetic Markdown editor fixture", () => {
         name: /Broken fixture image/u,
       }),
     ).toBeVisible();
-    const bodyBeforeEscape = await editor.textContent();
+    const readDocumentText = () =>
+      editor.evaluate((root) => {
+        const document = root.cloneNode(true) as HTMLElement;
+        document
+          .querySelectorAll("[data-markdown-image-message]")
+          .forEach((message) => message.remove());
+        return {
+          text: document.textContent ?? "",
+          imageAltTexts: Array.from(
+            document.querySelectorAll<HTMLImageElement>(
+              "img[data-markdown-image], img[data-markdown-target]",
+            ),
+          ).map((image) => image.getAttribute("alt")),
+        };
+      });
+    const bodyBeforeEscape = await readDocumentText();
 
     await page.keyboard.press("Escape");
 
@@ -2118,7 +2134,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await expect(page.getByTestId("issue-detail")).toBeVisible();
     await expect(editor).toBeFocused();
     await expect(editor).toHaveAttribute("aria-expanded", "false");
-    await expect(editor).toHaveText(bodyBeforeEscape ?? "");
+    await expect.poll(readDocumentText).toEqual(bodyBeforeEscape);
   });
 
   test("does not open the @ menu inside inline code", async ({
