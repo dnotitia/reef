@@ -394,10 +394,12 @@ export function handleSql(state, vault, sql, username) {
     return handleIssueConditionalUpdate(state, vault, normalized);
   }
   if (lower.startsWith("select * from reef_issues")) {
-    if (state.issueListFailure) {
+    const issueListQuery = isIssueListQuery(normalized);
+    if (issueListQuery && state.issueListFailure) {
       return { error: "e2e forced issue list failure" };
     }
     if (
+      issueListQuery &&
       state.issueListNextPageFailures > 0 &&
       /cast\(substring\("reef_id"\s+from\s+'\[0-9\]\+\$'\)\s+as\s+numeric\)\s*</i.test(
         normalized,
@@ -1549,6 +1551,14 @@ export function resolveSqlParams(sql, params) {
     resolved += character;
   }
   return resolved;
+}
+
+export function isIssueListQuery(sql) {
+  const normalized = sql.replace(/\s+/g, " ").trim();
+  return (
+    /^select \* from reef_issues\b/i.test(normalized) &&
+    !/^select \* from reef_issues\s+where\s+"?reef_id"?\s*=/i.test(normalized)
+  );
 }
 
 function sqlParameterLiteral(value) {

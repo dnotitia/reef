@@ -16,7 +16,12 @@ import {
   readRawBody,
   sleep,
 } from "./mock-http.mjs";
-import { handleSql, matchSqlString, resolveSqlParams } from "./mock-sql.mjs";
+import {
+  handleSql,
+  isIssueListQuery,
+  matchSqlString,
+  resolveSqlParams,
+} from "./mock-sql.mjs";
 import {
   attachmentReadKey,
   beginAttachmentReadRequest,
@@ -598,9 +603,7 @@ export async function handleAkb(req, res, url, state) {
       /^\s*update\s+reef_issues\b/i.test(sql) &&
       matchSqlString(sql, /where "?reef_id"?\s*=\s*'([^']+)'/i);
     const updateKey = issueId ? issueUpdateKey(vault.name, issueId) : null;
-    const issueListKey = /^\s*select \* from reef_issues\b/i.test(sql)
-      ? vault.name
-      : null;
+    const issueListKey = isIssueListQuery(sql) ? vault.name : null;
     const attachmentIssueId =
       /^\s*select \* from reef_attachments\b/i.test(sql) &&
       matchSqlString(sql, /where\s+reef_id\s*=\s*'([^']+)'/i);

@@ -8,9 +8,33 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { IssueChildren } from "./IssueChildren";
+import { IssueChildren as IssueChildrenComponent } from "./IssueChildren";
+
+type IssueChildrenProps = ComponentProps<typeof IssueChildrenComponent>;
+
+function IssueChildren(
+  props: Omit<
+    IssueChildrenProps,
+    "allIssuesPending" | "allIssuesError" | "onRetryAllIssues"
+  > &
+    Partial<
+      Pick<
+        IssueChildrenProps,
+        "allIssuesPending" | "allIssuesError" | "onRetryAllIssues"
+      >
+    >,
+) {
+  return (
+    <IssueChildrenComponent
+      allIssuesPending={false}
+      allIssuesError={false}
+      onRetryAllIssues={() => {}}
+      {...props}
+    />
+  );
+}
 
 const { mockReplace } = vi.hoisted(() => ({ mockReplace: vi.fn() }));
 const currentLogin = vi.hoisted(() => ({ value: null as string | null }));
@@ -135,6 +159,65 @@ describe("IssueChildren", () => {
       screen.getByRole("button", { name: "Add sub-issue" }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+  });
+
+  it("shows a loading placeholder instead of a confirmed empty state while the list is pending", () => {
+    render(
+      <IssueChildren
+        issueId={PARENT}
+        allIssues={[]}
+        allIssuesPending
+        action={<button type="button">Add sub-issue</button>}
+      />,
+    );
+
+    expect(screen.getByTestId("issue-children-loading")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("issue-children-empty"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add sub-issue" })).toBeVisible();
+  });
+
+  it("shows a retryable load error instead of an empty state", async () => {
+    const user = userEvent.setup();
+    const retry = vi.fn();
+
+    render(
+      <IssueChildren
+        issueId={PARENT}
+        allIssues={[]}
+        allIssuesError
+        onRetryAllIssues={retry}
+      />,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Couldn't load sub-issues.",
+    );
+    expect(
+      screen.queryByTestId("issue-children-empty"),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
+  it("keeps known children visible when revalidation fails", () => {
+    render(
+      <IssueChildren
+        issueId={PARENT}
+        allIssues={ALL}
+        allIssuesError
+        onRetryAllIssues={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(screen.getByText("REEF-101")).toBeInTheDocument();
+    expect(screen.getByText("REEF-102")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("issue-children-empty"),
+    ).not.toBeInTheDocument();
   });
 
   it("summarizes resolved vs total and exposes a progressbar", () => {

@@ -247,6 +247,9 @@ function renderMainElement(
       vault="reef-test"
       issue={undefined}
       allIssues={[]}
+      allIssuesPending={false}
+      allIssuesError={false}
+      onRetryAllIssues={vi.fn()}
       relations={[]}
       title=""
       body=""

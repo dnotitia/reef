@@ -553,6 +553,9 @@ fluid main column:
   viewports keep the existing responsive `min(94vw, 1440px)` layout without a
   splitter or width action. Saved width is applied to the loading shell on first
   paint, so issue and editor loading preserve the same panel frame.
+  Sub-issues stays directly below Description. Its pending state uses a row
+  placeholder until the whole-vault list succeeds; request failures offer retry,
+  and cached child rows remain visible while the list revalidates.
   Relation targets render as compact issue rows rather than pill chips.
   The attachment section appears only for downloadable files or a read error.
   An initial read keeps one polite, visually hidden status and reserves no

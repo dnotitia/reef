@@ -1345,6 +1345,8 @@
     "relations": {
       "subIssues": "하위 이슈",
       "addSubIssue": "하위 이슈 추가",
+      "subIssuesLoading": "하위 이슈를 불러오는 중…",
+      "subIssuesLoadError": "하위 이슈를 불러오지 못했습니다.",
       "noSubIssues": "아직 하위 이슈가 없습니다.",
       "unassigned": "미할당",
       "assigneeLabel": "담당자: {name}",
