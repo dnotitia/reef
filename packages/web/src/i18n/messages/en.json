@@ -892,6 +892,8 @@
     "attachments": {
       "heading": "Attachments",
       "loading": "Loading attachments…",
+      "loadError": "Couldn't load attachments.",
+      "retry": "Retry",
       "download": "Download"
     },
     "create": {

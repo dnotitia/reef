@@ -2,6 +2,7 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -12,6 +13,7 @@ vi.mock("@/lib/apiClient", async () => {
 });
 
 import { apiFetch } from "@/lib/apiClient";
+import { issueAttachmentsKey } from "@/features/issues/hooks/queries/useIssueAttachments";
 import { IssueAttachments } from "./IssueAttachments";
 
 const mockApiFetch = vi.mocked(apiFetch);
@@ -20,15 +22,26 @@ function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status });
 }
 
-function renderWithProviders(children: ReactNode) {
-  const queryClient = new QueryClient({
+function renderWithProviders(
+  children: ReactNode,
+  queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
-  });
-  return render(
+  }),
+) {
+  const result = render(
     <IntlTestProvider>
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     </IntlTestProvider>,
   );
+  return { ...result, queryClient };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
 }
 
 beforeEach(() => {
@@ -36,6 +49,95 @@ beforeEach(() => {
 });
 
 describe("IssueAttachments", () => {
+  it("announces an empty cold read without rendering a layout section", async () => {
+    const response = deferred<Response>();
+    mockApiFetch.mockReturnValue(response.promise);
+
+    const { container } = renderWithProviders(
+      <IssueAttachments issueId="REEF-001" vault="v" />,
+    );
+
+    expect(
+      screen.queryByRole("heading", { name: "Attachments" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading attachments");
+    expect(container.querySelector("section")).not.toBeInTheDocument();
+
+    response.resolve(json({ attachments: [] }));
+    await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("keeps known files visible while a warm query is revalidating", async () => {
+    const response = deferred<Response>();
+    mockApiFetch.mockReturnValue(response.promise);
+    const files = [
+      {
+        id: "file-1",
+        reef_id: "REEF-001",
+        file_uri: "akb://reef-test/issues/file/file-1",
+        filename: "notes.pdf",
+        mime_type: "application/pdf",
+        size_bytes: 2048,
+        author: "alice",
+        created_at: "2026-07-09T01:00:00.000Z",
+        source: "comment",
+        inline: false,
+        original_jira_attachment_id: null,
+        meta: null,
+      },
+    ];
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    queryClient.setQueryData(issueAttachmentsKey("v", "REEF-001"), files);
+
+    renderWithProviders(
+      <IssueAttachments issueId="REEF-001" vault="v" />,
+      queryClient,
+    );
+
+    expect(screen.getByText("notes.pdf")).toBeInTheDocument();
+    await waitFor(() => expect(mockApiFetch).toHaveBeenCalledTimes(1));
+    response.resolve(json({ attachments: files }));
+  });
+
+  it("shows a retryable error and recovers after a failed read", async () => {
+    mockApiFetch
+      .mockResolvedValueOnce(json({ message: "Unavailable" }, 503))
+      .mockResolvedValueOnce(
+        json({
+          attachments: [
+            {
+              id: "file-1",
+              reef_id: "REEF-001",
+              file_uri: "akb://reef-test/issues/file/file-1",
+              filename: "notes.pdf",
+              mime_type: "application/pdf",
+              size_bytes: 2048,
+              author: "alice",
+              created_at: "2026-07-09T01:00:00.000Z",
+              source: "comment",
+              inline: false,
+              original_jira_attachment_id: null,
+              meta: null,
+            },
+          ],
+        }),
+      );
+    const user = userEvent.setup();
+
+    renderWithProviders(<IssueAttachments issueId="REEF-001" vault="v" />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "load attachments",
+    );
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByText("notes.pdf")).toBeInTheDocument();
+    expect(mockApiFetch).toHaveBeenCalledTimes(2);
+  });
+
   it("hides inline images while showing downloadable attachments", async () => {
     mockApiFetch.mockResolvedValue(
       json({

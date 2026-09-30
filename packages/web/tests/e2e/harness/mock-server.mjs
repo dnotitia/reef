@@ -21,6 +21,7 @@ import { handleOpenRouter } from "./mock-openrouter.mjs";
 import { runtimeDiscovery } from "./mock-runtime.mjs";
 import {
   createState,
+  attachmentReadKey,
   issueUpdateKey,
   normalizeScenario,
   publicState,
@@ -200,6 +201,27 @@ const server = createServer(async (req, res) => {
         issue_id: issueId,
         delay_ms: delayMs,
         failure_status: failureStatus,
+      });
+    }
+    if (
+      url.pathname === "/__e2e/attachment-read-control" &&
+      req.method === "POST"
+    ) {
+      const body = await readJson(req);
+      const vault = String(body?.vault ?? REEF_VAULT);
+      const issueId = String(body?.issue_id ?? "").toUpperCase();
+      if (!/^REEF-\d+$/.test(issueId)) {
+        return json(res, 400, { ok: false, error: "invalid issue_id" });
+      }
+      const delayMs = Math.max(0, Math.min(Number(body?.delay_ms ?? 0), 5_000));
+      const key = attachmentReadKey(vault, issueId);
+      if (delayMs === 0) state.attachmentReadControls.delete(key);
+      else state.attachmentReadControls.set(key, { delayMs });
+      return json(res, 200, {
+        ok: true,
+        vault,
+        issue_id: issueId,
+        delay_ms: delayMs,
       });
     }
     if (

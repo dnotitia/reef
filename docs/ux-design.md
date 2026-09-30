@@ -554,6 +554,10 @@ fluid main column:
   splitter or width action. Saved width is applied to the loading shell on first
   paint, so issue and editor loading preserve the same panel frame.
   Relation targets render as compact issue rows rather than pill chips.
+  The attachment section appears only for downloadable files or a read error.
+  An initial read keeps one polite, visually hidden status and reserves no
+  space; cached files stay visible during revalidation, and failures offer a
+  localized Retry action without discarding any cached list.
 - **Ask AI** — a floating non-modal panel (≈420×560) anchored bottom-right,
   above its FAB.
 - **Authenticated exception surfaces** — `/onboarding` and the workspace

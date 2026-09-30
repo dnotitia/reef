@@ -18,8 +18,11 @@ import {
 } from "./mock-http.mjs";
 import { handleSql, matchSqlString, resolveSqlParams } from "./mock-sql.mjs";
 import {
+  attachmentReadKey,
+  beginAttachmentReadRequest,
   beginAuthProbeHold,
   endAuthProbeHold,
+  endAttachmentReadRequest,
   beginIssueReadRequest,
   endIssueReadRequest,
   beginIssueUpdateRequest,
@@ -598,11 +601,18 @@ export async function handleAkb(req, res, url, state) {
     const issueListKey = /^\s*select \* from reef_issues\b/i.test(sql)
       ? vault.name
       : null;
+    const attachmentIssueId =
+      /^\s*select \* from reef_attachments\b/i.test(sql) &&
+      matchSqlString(sql, /where\s+reef_id\s*=\s*'([^']+)'/i);
+    const attachmentKey = attachmentIssueId
+      ? attachmentReadKey(vault.name, attachmentIssueId)
+      : null;
     const isPlanningCatalogRead =
       /^\s*select \* from reef_(?:sprints|milestones|releases)\b/i.test(sql);
     const isReorder = /^\s*with updated as \(update reef_issues\b/i.test(sql);
     if (updateKey) beginIssueUpdateRequest(state, updateKey);
     if (issueListKey) beginIssueListRequest(state, issueListKey);
+    if (attachmentKey) beginAttachmentReadRequest(state, attachmentKey);
     try {
       if (updateKey && consumeIssueUpdateHold(state, updateKey)) {
         await waitForIssueUpdateRelease(state, updateKey);
@@ -613,6 +623,10 @@ export async function handleAkb(req, res, url, state) {
       if (isPlanningCatalogRead && state.planningCatalogDelayMs > 0) {
         await sleep(state.planningCatalogDelayMs);
       }
+      const attachmentDelayMs = attachmentKey
+        ? (state.attachmentReadControls.get(attachmentKey)?.delayMs ?? 0)
+        : 0;
+      if (attachmentDelayMs > 0) await sleep(attachmentDelayMs);
       const delayMs = updateKey
         ? (state.issueUpdateDelays.get(updateKey) ?? 0)
         : isReorder
@@ -632,6 +646,7 @@ export async function handleAkb(req, res, url, state) {
     } finally {
       if (updateKey) endIssueUpdateRequest(state, updateKey);
       if (issueListKey) endIssueListRequest(state, issueListKey);
+      if (attachmentKey) endAttachmentReadRequest(state, attachmentKey);
     }
   }
 

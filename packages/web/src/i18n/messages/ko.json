@@ -1084,6 +1084,8 @@
     "attachments": {
       "heading": "첨부파일",
       "loading": "첨부파일을 불러오는 중…",
+      "loadError": "첨부파일을 불러오지 못했습니다.",
+      "retry": "다시 시도",
       "download": "다운로드"
     },
     "create": {

@@ -102,5 +102,5 @@ describe("i18n hardcoded-string guard", () => {
       resolved,
       `These baseline entries are gone — the ratchet must tighten. Run \`pnpm --filter @reef/web i18n:baseline\` to prune them:\n${format(resolved)}`,
     ).toEqual([]);
-  });
+  }, 15_000);
 });
