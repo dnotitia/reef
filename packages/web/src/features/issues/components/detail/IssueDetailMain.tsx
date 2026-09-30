@@ -38,6 +38,9 @@ export function IssueDetailMain({
   vault,
   issue,
   allIssues,
+  allIssuesPending,
+  allIssuesError,
+  onRetryAllIssues,
   relations,
   title,
   body,
@@ -59,6 +62,9 @@ export function IssueDetailMain({
   vault: string;
   issue: IssueMetadata | undefined;
   allIssues: readonly IssueListItem[];
+  allIssuesPending: boolean;
+  allIssuesError: boolean;
+  onRetryAllIssues: () => void;
   relations: ComponentProps<typeof IssueChildren>["relationGraph"];
   title: string;
   body: string;
@@ -205,6 +211,9 @@ export function IssueDetailMain({
       <IssueChildren
         issueId={issueId}
         allIssues={allIssues}
+        allIssuesPending={allIssuesPending}
+        allIssuesError={allIssuesError}
+        onRetryAllIssues={onRetryAllIssues}
         members={vaultMembers}
         relationGraph={relations}
         action={addSubIssueAction}

@@ -59,11 +59,15 @@ export function IssueDetail({ issueId, vault, onClose }: IssueDetailProps) {
   const t = useTranslations("issues.detail");
   const c = useTranslations("common");
   const { data, isPending, isError, error, refetch } = useIssue(issueId, vault);
-  // Whole-vault list, the relation inputs' option source. The parent breadcrumb
-  // that also reads it now lives in the sheet's persistent chrome bar (REEF-286),
-  // which owns its own `useIssueList` read for the crumb's loading skeleton
-  // (REEF-283) — so the body no longer threads `allIssuesPending` through.
-  const { data: allIssues = [] } = useIssueList(vault);
+  // Whole-vault list, the relation inputs' option source and Sub-issues rows.
+  // Preserve its query state so an unloaded list is not presented as empty.
+  // The parent breadcrumb owns its own query in the persistent chrome bar.
+  const {
+    data: allIssues,
+    isPending: allIssuesPending,
+    isError: allIssuesError,
+    refetch: refetchAllIssues,
+  } = useIssueList(vault);
   // Whole-vault relation graph for accurate blocked badges in the relation dropdowns.
   const { data: relations } = useIssueRelations(vault);
 
@@ -98,6 +102,9 @@ export function IssueDetail({ issueId, vault, onClose }: IssueDetailProps) {
       vault={vault}
       data={data}
       allIssues={allIssues}
+      allIssuesPending={allIssuesPending}
+      allIssuesError={allIssuesError}
+      onRetryAllIssues={() => void refetchAllIssues()}
       relations={relations}
       onClose={onClose}
     />
@@ -109,11 +116,17 @@ function IssueDetailLoaded({
   vault,
   data,
   allIssues,
+  allIssuesPending,
+  allIssuesError,
+  onRetryAllIssues,
   relations,
   onClose,
 }: IssueDetailProps & {
   data: IssueDetailResponse;
   allIssues: ReturnType<typeof useIssueList>["data"];
+  allIssuesPending: boolean;
+  allIssuesError: boolean;
+  onRetryAllIssues: () => void;
   relations: ReturnType<typeof useIssueRelations>["data"];
 }) {
   const t = useTranslations("toasts");
@@ -394,6 +407,9 @@ function IssueDetailLoaded({
           vault={vault}
           issue={issue}
           allIssues={allIssues ?? []}
+          allIssuesPending={allIssuesPending}
+          allIssuesError={allIssuesError}
+          onRetryAllIssues={onRetryAllIssues}
           relations={relations}
           title={draft.title}
           body={draft.body}

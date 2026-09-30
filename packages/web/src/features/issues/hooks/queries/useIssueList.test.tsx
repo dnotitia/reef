@@ -149,6 +149,40 @@ describe("useIssueList", () => {
     await waitFor(() => expect(result.current.data).toEqual([]));
   });
 
+  it("does not reuse a previous vault's rows while the new vault loads", async () => {
+    const firstVaultRows = [{ ...ISSUES[0], id: "REEF-FIRST" }];
+    mockApiFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ issues: firstVaultRows }), { status: 200 }),
+    );
+    let resolveSecond: (response: Response) => void = () => {};
+    mockApiFetch.mockReturnValueOnce(
+      new Promise<Response>((resolve) => {
+        resolveSecond = resolve;
+      }),
+    );
+
+    const { result, rerender } = renderHook(
+      ({ vault }: { vault: string }) => useIssueList(vault),
+      {
+        wrapper: createWrapper(),
+        initialProps: { vault: "reef-first" },
+      },
+    );
+    await waitFor(() => expect(result.current.data).toEqual(firstVaultRows));
+
+    rerender({ vault: "reef-second" });
+    expect(result.current.data).toBeUndefined();
+    expect(result.current.isPending).toBe(true);
+
+    const secondVaultRows = [{ ...ISSUES[0], id: "REEF-SECOND" }];
+    resolveSecond(
+      new Response(JSON.stringify({ issues: secondVaultRows }), {
+        status: 200,
+      }),
+    );
+    await waitFor(() => expect(result.current.data).toEqual(secondVaultRows));
+  });
+
   it("drops prior rows (no placeholder) on a key change when keepPreviousData is false (REEF-267)", async () => {
     // The identity-scoped My Work query opts out so an account switch does not
     // reuses the previous login's rows in the same vault.

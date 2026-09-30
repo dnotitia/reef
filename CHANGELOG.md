@@ -28,6 +28,10 @@ explicitly in the entries below.
   data, and the editor load.** Hard entry and reload carry the same panel and
   chrome into the interactive Sheet without a blank handoff or stacked modal.
   (REEF-648)
+- **Issue details distinguish unloaded sub-issues from a confirmed empty list.**
+  The section keeps its add action while loading, offers retry after a failed
+  request, and retains known child rows when background revalidation fails.
+  (REEF-651)
 - **Issue detail restores its tab-local panel width and Description height while
   the issue or editor loads.** Loading skeletons use the saved dimensions from
   first paint, so the panel, toolbar, and content below the editor do not jump

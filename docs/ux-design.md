@@ -553,6 +553,9 @@ fluid main column:
   viewports keep the existing responsive `min(94vw, 1440px)` layout without a
   splitter or width action. Saved width is applied to the loading shell on first
   paint, so issue and editor loading preserve the same panel frame.
+  Sub-issues stays directly below Description. Its pending state uses a row
+  placeholder until the whole-vault list succeeds; request failures offer retry,
+  and cached child rows remain visible while the list revalidates.
   Relation targets render as compact issue rows rather than pill chips.
 - **Ask AI** — a floating non-modal panel (≈420×560) anchored bottom-right,
   above its FAB.
