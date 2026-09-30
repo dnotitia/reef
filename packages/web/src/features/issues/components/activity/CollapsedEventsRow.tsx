@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+import type { VaultMember } from "@reef/core";
 import { ActivityEventRow } from "./ActivityEventRow";
 import type { SystemEntry } from "./timelineModel";
 
@@ -32,9 +33,11 @@ function isBodyUpdate(entry: SystemEntry | undefined): boolean {
 export function CollapsedEventsRow({
   events,
   vault,
+  members = [],
 }: {
   events: SystemEntry[];
   vault: string;
+  members?: readonly VaultMember[];
 }) {
   const statusLabels = useStatusLabels();
   const t = useTranslations("issues.activity");
@@ -82,6 +85,7 @@ export function CollapsedEventsRow({
               key={entry.event.id}
               event={entry.event}
               vault={vault}
+              members={members}
             />
           ))
         : null}

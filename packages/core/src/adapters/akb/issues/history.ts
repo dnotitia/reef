@@ -74,12 +74,14 @@ export function projectIssueBodyHistoryEntry(
   const { action, agent } = parseHistoryTrailers(entry.message);
   if (action !== "update") return null;
 
-  const actor = visibleActor(entry.author_name) ?? visibleActor(agent);
+  const actorUsername = visibleActor(agent);
+  const actorFallback = visibleActor(entry.author_name) ?? actorUsername;
   return IssueBodyHistoryEventSchema.parse({
     id: `body-update:${entry.hash}`,
     hash: entry.hash,
     at: entry.date,
-    actor,
+    actorUsername,
+    actorFallback,
     kind: "body_update",
   });
 }

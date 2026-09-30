@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useIssueAttachments } from "@/features/issues/hooks/queries/useIssueAttachments";
 import { issueAttachmentDownloadHref } from "@/features/issues/lib/attachmentUrls";
 import { formatAbsoluteTime } from "@/lib/relativeTime";
-import { FileText, Loader2 } from "lucide-react";
+import { FileText } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { ISSUE_SECTION_HEADER_CLASS } from "../shared/IssueFormSection";
 
@@ -31,31 +31,47 @@ export function IssueAttachments({
 }) {
   const t = useTranslations("issues.attachments");
   const locale = useLocale();
-  const { data = [], isLoading } = useIssueAttachments(issueId, vault);
-  const files = data.filter(
+  const { data, isPending, isError, isFetching, refetch } = useIssueAttachments(
+    issueId,
+    vault,
+  );
+  const files = (data ?? []).filter(
     (attachment) =>
       !(attachment.inline && attachment.mime_type.startsWith("image/")),
   );
 
-  if (isLoading) {
+  if (isPending) {
     return (
-      <section className="flex min-w-0 flex-col gap-2">
-        <h3 className={ISSUE_SECTION_HEADER_CLASS}>{t("heading")}</h3>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-          {t("loading")}
-        </div>
-      </section>
+      <p role="status" className="sr-only">
+        {t("loading")}
+      </p>
     );
   }
 
-  if (files.length === 0) {
+  if (!isError && files.length === 0) {
     return null;
   }
 
   return (
     <section className="flex min-w-0 flex-col gap-2">
       <h3 className={ISSUE_SECTION_HEADER_CLASS}>{t("heading")}</h3>
+      {isError ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <p role="alert" className="text-xs text-destructive">
+            {t("loadError")}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            hitTarget="compact"
+            disabled={isFetching}
+            onClick={() => void refetch()}
+          >
+            {t("retry")}
+          </Button>
+        </div>
+      ) : null}
       <div className="grid gap-2">
         {files.map((attachment) => {
           const href = issueAttachmentDownloadHref({

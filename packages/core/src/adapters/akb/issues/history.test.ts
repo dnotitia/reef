@@ -38,18 +38,19 @@ describe("parseHistoryTrailers", () => {
 });
 
 describe("projectIssueBodyHistoryEntry", () => {
-  it("filters non-update actions and uses author_name before agent", () => {
+  it("keeps the agent identity separate from the readable actor fallback", () => {
     expect(
       projectIssueBodyHistoryEntry(
         entry({
-          author_name: "Alice Example",
-          message: "x\n\naction: update\nagent: codex",
+          author_name: "  Former Display Name  ",
+          message: "x\n\naction: update\nagent: fixture.editor",
         }),
       ),
     ).toMatchObject({
       id: "body-update:commit-1",
       hash: "commit-1",
-      actor: "Alice Example",
+      actorUsername: "fixture.editor",
+      actorFallback: "Former Display Name",
       kind: "body_update",
     });
     expect(
@@ -57,24 +58,73 @@ describe("projectIssueBodyHistoryEntry", () => {
     ).toBeNull();
   });
 
-  it("falls back to agent and hides unknown or raw UUID actors", () => {
+  it("keeps a displayable agent as the fallback when author_name is absent", () => {
     expect(
       projectIssueBodyHistoryEntry(
         entry({
           author_name: null,
-          message: "x\n\naction: update\nagent: codex",
+          message: "x\n\naction: update\nagent: fixture.editor",
         }),
       ),
-    ).toMatchObject({ actor: "codex" });
+    ).toMatchObject({
+      actorUsername: "fixture.editor",
+      actorFallback: "fixture.editor",
+    });
+  });
+
+  it("does not project opaque author UUIDs or unknown actor strings", () => {
+    const event = projectIssueBodyHistoryEntry(
+      entry({
+        message: "x\n\naction: update\nagent: unknown",
+        author_name: "  ",
+        author: "9b2f1d27-6ca8-4b2a-8b1f-3e9f6d4b8c20",
+      }),
+    );
+
+    expect(event).toMatchObject({ actorUsername: null, actorFallback: null });
+    expect(JSON.stringify(event)).not.toContain(
+      "9b2f1d27-6ca8-4b2a-8b1f-3e9f6d4b8c20",
+    );
+  });
+
+  it("uses the readable author_name fallback when the agent is not in the roster", () => {
     expect(
       projectIssueBodyHistoryEntry(
         entry({
-          author_name: null,
+          author_name: "Historical Editor",
+          message: "x\n\naction: update\nagent: former.editor",
+        }),
+      ),
+    ).toMatchObject({
+      actorUsername: "former.editor",
+      actorFallback: "Historical Editor",
+    });
+  });
+
+  it("keeps a readable author_name when the agent trailer is absent", () => {
+    expect(
+      projectIssueBodyHistoryEntry(
+        entry({
+          author_name: "Historical Editor",
           message: "x\n\naction: update",
-          author: "9b2f1d27-6ca8-4b2a-8b1f-3e9f6d4b8c20",
         }),
       ),
-    ).toMatchObject({ actor: null });
+    ).toMatchObject({
+      actorUsername: null,
+      actorFallback: "Historical Editor",
+    });
+  });
+
+  it("hides unknown and raw UUID agent values", () => {
+    expect(
+      projectIssueBodyHistoryEntry(
+        entry({
+          author_name: null,
+          message:
+            "x\n\naction: update\nagent: 9b2f1d27-6ca8-4b2a-8b1f-3e9f6d4b8c20",
+        }),
+      ),
+    ).toMatchObject({ actorUsername: null, actorFallback: null });
   });
 });
 
@@ -102,8 +152,16 @@ describe("listIssueBodyHistory", () => {
     await expect(
       listIssueBodyHistory(makeAdapter(), "reef-sample", "REEF-127"),
     ).resolves.toEqual([
-      expect.objectContaining({ id: "body-update:update-1", actor: "alice" }),
-      expect.objectContaining({ id: "body-update:update-2", actor: "codex" }),
+      expect.objectContaining({
+        id: "body-update:update-1",
+        actorUsername: "codex",
+        actorFallback: "alice",
+      }),
+      expect.objectContaining({
+        id: "body-update:update-2",
+        actorUsername: "codex",
+        actorFallback: "codex",
+      }),
     ]);
     expect(calls[0]?.url).toBe(
       "https://akb.test/api/v1/history/reef-sample/issues/reef-127.md?limit=100",

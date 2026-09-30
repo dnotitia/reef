@@ -27,6 +27,7 @@ import {
   type Priority,
   type RelationField,
   type Status,
+  type VaultMember,
   filterValidCommentThreadMembers,
 } from "@reef/core";
 
@@ -232,8 +233,24 @@ export type TimelineSystemEvent =
       hash: string;
       at: string;
       actor: string | null;
+      actorFallback: string | null;
       kind: "body_update";
     };
+
+/** Resolve timeline identities against the current vault membership roster. */
+export function resolveTimelineActor(
+  event: Pick<TimelineSystemEvent, "actor"> & {
+    actorFallback?: string | null;
+  },
+  members: readonly VaultMember[],
+): string | null {
+  const actor = event.actor;
+  if (actor) {
+    const member = members.find((candidate) => candidate.username === actor);
+    if (member) return member.display_name?.trim() || actor;
+  }
+  return event.actorFallback?.trim() || actor;
+}
 
 export interface CommentEntry {
   type: "comment";
@@ -411,7 +428,8 @@ function fromBodyHistoryEvent(
     id: event.id,
     hash: event.hash,
     at: event.at,
-    actor: event.actor,
+    actor: event.actorUsername,
+    actorFallback: event.actorFallback,
     kind: "body_update",
   };
 }

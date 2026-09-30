@@ -21,6 +21,7 @@ import { handleOpenRouter } from "./mock-openrouter.mjs";
 import { runtimeDiscovery } from "./mock-runtime.mjs";
 import {
   createState,
+  attachmentReadKey,
   issueUpdateKey,
   normalizeScenario,
   publicState,
@@ -74,6 +75,34 @@ const server = createServer(async (req, res) => {
       releaseAllIssueUpdateHolds(state);
       state = createState(normalizeScenario(body?.scenario));
       return json(res, 200, { ok: true, scenario: state.scenario });
+    }
+    if (
+      url.pathname === "/__e2e/activity-identity-control" &&
+      req.method === "POST"
+    ) {
+      const body = await readJson(req);
+      if (state.scenario !== "activity_display_names") {
+        return json(res, 409, { error: "unsupported fixture scenario" });
+      }
+      const vault = getVault(String(body?.vault ?? REEF_VAULT), res, state);
+      const username = String(body?.username ?? "");
+      const displayName = body?.display_name;
+      if (!vault || !username || typeof displayName !== "string") {
+        return json(res, 400, { error: "invalid identity control" });
+      }
+      if (displayName.length > 120) {
+        return json(res, 400, { error: "display name is too long" });
+      }
+      const member = vault.members.find(
+        (candidate) => candidate.username === username,
+      );
+      if (!member) return json(res, 404, { error: "member not found" });
+      member.display_name = displayName;
+      return json(res, 200, {
+        ok: true,
+        username,
+        display_name: displayName,
+      });
     }
     if (url.pathname === "/__e2e/issue-list-failure" && req.method === "POST") {
       const body = await readJson(req);
@@ -200,6 +229,27 @@ const server = createServer(async (req, res) => {
         issue_id: issueId,
         delay_ms: delayMs,
         failure_status: failureStatus,
+      });
+    }
+    if (
+      url.pathname === "/__e2e/attachment-read-control" &&
+      req.method === "POST"
+    ) {
+      const body = await readJson(req);
+      const vault = String(body?.vault ?? REEF_VAULT);
+      const issueId = String(body?.issue_id ?? "").toUpperCase();
+      if (!/^REEF-\d+$/.test(issueId)) {
+        return json(res, 400, { ok: false, error: "invalid issue_id" });
+      }
+      const delayMs = Math.max(0, Math.min(Number(body?.delay_ms ?? 0), 5_000));
+      const key = attachmentReadKey(vault, issueId);
+      if (delayMs === 0) state.attachmentReadControls.delete(key);
+      else state.attachmentReadControls.set(key, { delayMs });
+      return json(res, 200, {
+        ok: true,
+        vault,
+        issue_id: issueId,
+        delay_ms: delayMs,
       });
     }
     if (

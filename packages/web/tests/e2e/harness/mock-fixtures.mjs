@@ -123,6 +123,7 @@ export const SUPPORTED_SCENARIOS = [
   "notifications",
   "skill_outdated",
   "comment_mentions",
+  "activity_display_names",
   "large_vault",
   "markdown_fixture",
   "typography",
@@ -158,6 +159,7 @@ const CONFIGURED_SCENARIOS = new Set([
   "notifications",
   "skill_outdated",
   "comment_mentions",
+  "activity_display_names",
   "typography",
   "large_vault",
   "status_quick_edit",
@@ -183,17 +185,19 @@ export function createScenarioVaults(scenario) {
                 ? assigneePickerVault(REEF_VAULT)
                 : scenario === "planning_overflow"
                   ? planningOverflowVault(REEF_VAULT)
-                  : scenario === "epic_grouping"
-                    ? epicGroupingVault(REEF_VAULT)
-                    : scenario === "sprint_rollover" ||
-                        scenario === "sprint_rollover_empty"
-                      ? sprintRolloverVault(
-                          REEF_VAULT,
-                          scenario === "sprint_rollover_empty",
-                        )
-                      : scenario === "typography"
-                        ? typographyVault(REEF_VAULT)
-                        : configuredVault(REEF_VAULT);
+                  : scenario === "activity_display_names"
+                    ? activityDisplayNamesVault(REEF_VAULT)
+                    : scenario === "epic_grouping"
+                      ? epicGroupingVault(REEF_VAULT)
+                      : scenario === "sprint_rollover" ||
+                          scenario === "sprint_rollover_empty"
+                        ? sprintRolloverVault(
+                            REEF_VAULT,
+                            scenario === "sprint_rollover_empty",
+                          )
+                        : scenario === "typography"
+                          ? typographyVault(REEF_VAULT)
+                          : configuredVault(REEF_VAULT);
     if (scenario === "reports_outliers") seedReportOutlierIssues(vault);
     if (scenario === "notifications") seedNotifications(vault);
     if (scenario === "skill_outdated") seedOutdatedVaultSkill(vault);
@@ -874,6 +878,95 @@ function sprintRolloverVault(name, empty = false) {
       `${issue.title} rollover fixture body.`,
     );
   }
+  return vault;
+}
+
+function activityDisplayNamesVault(name) {
+  const vault = configuredVault(name);
+  const issue = vault.issues.find(
+    (candidate) => candidate.reef_id === "REEF-001",
+  );
+  if (!issue)
+    throw new Error("Activity display-name fixture requires REEF-001");
+
+  issue.assigned_to = "fixture.editor";
+  issue.meta.author = "fixture.editor";
+  issue.meta.last_editor = "fixture.editor";
+  issue.meta.implementation_refs = [
+    {
+      type: "pull_request",
+      repo: "fixture/reef",
+      ref: "25",
+      url: "https://github.com/fixture/reef/pull/25",
+      title: "Fixture delivery",
+      actor: "fixture.editor",
+      detected_at: "2026-06-21T00:00:00.000Z",
+    },
+  ];
+  vault.members.push(
+    {
+      username: "fixture.editor",
+      display_name: "Current Fixture Editor",
+      email: "fixture.editor@example.com",
+      role: "writer",
+      since: NOW,
+    },
+    {
+      username: "fixture.blank",
+      display_name: "   ",
+      email: "fixture.blank@example.com",
+      role: "writer",
+      since: NOW,
+    },
+  );
+
+  for (const event of vault.activity.filter(
+    (candidate) =>
+      candidate.reef_id === "REEF-001" &&
+      candidate.event_type === "status_change",
+  )) {
+    event.meta.actor = "fixture.editor";
+    event.created_by = "fixture.editor";
+  }
+  vault.activity.push(
+    activityRow(
+      "REEF-001",
+      "priority_change",
+      "2026-06-20T00:00:00.000Z",
+      { from: "medium", to: "high" },
+      "fixture.editor",
+    ),
+  );
+  vault.documentHistory.set(issuePathFor("REEF-001"), [
+    {
+      hash: "display-name-body-1",
+      message: "Update issue body\n\naction: update\nagent: fixture.editor",
+      author: "00000000-0000-4000-8000-000000000201",
+      author_name: "Former Fixture Editor",
+      date: "2026-06-22T00:00:00.000Z",
+    },
+    {
+      hash: "display-name-body-2",
+      message: "Update issue body\n\naction: update\nagent: former.editor",
+      author: "00000000-0000-4000-8000-000000000202",
+      author_name: "Historical Editor",
+      date: "2026-06-22T00:01:00.000Z",
+    },
+    {
+      hash: "display-name-body-3",
+      message: "Update issue body\n\naction: update\nagent: fixture.blank",
+      author: "00000000-0000-4000-8000-000000000203",
+      author_name: "Stale Blank Display",
+      date: "2026-06-22T00:02:00.000Z",
+    },
+    {
+      hash: "display-name-body-4",
+      message: "Update issue body\n\naction: update\nagent: retired.editor",
+      author: "00000000-0000-4000-8000-000000000204",
+      author_name: null,
+      date: "2026-06-22T00:03:00.000Z",
+    },
+  ]);
   return vault;
 }
 
@@ -1564,17 +1657,17 @@ export function rawVault(name) {
 
 /** Build a seeded reef_activity row (REEF-277). `at` is unique per event so it
  * doubles as a stable id seed and a sufficient event_key for dedup. */
-function activityRow(reefId, eventType, at, payload) {
+function activityRow(reefId, eventType, at, payload, actor = "alice") {
   return {
     id: uuidFor(at.replace(/\D/g, "").slice(-12)),
     reef_id: reefId,
     event_type: eventType,
     event_key: `${eventType}@${at}`,
     payload,
-    meta: { actor: "alice", at, source: null },
+    meta: { actor, at, source: null },
     created_at: at,
     updated_at: at,
-    created_by: "alice",
+    created_by: actor,
   };
 }
 

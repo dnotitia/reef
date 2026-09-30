@@ -3,6 +3,7 @@
 import { PersonAvatar, personToneFor } from "@/components/fields/PersonAvatar";
 import { useOverlayOpenRegistration } from "@/components/ui/overlayDismiss";
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
+import { vaultMemberDisplayName } from "@/lib/vaultMemberNames";
 import {
   type AttachmentMarkdownUploadResult,
   appendMarkdownSnippets,
@@ -319,13 +320,13 @@ export function CommentMentionTextarea({
             >
               <PersonAvatar
                 identityKey={member.username}
-                name={member.display_name ?? member.username}
+                name={vaultMemberDisplayName(member)}
                 size="xs"
                 tone={personToneFor(member.username, currentLogin)}
                 decorative
               />
               <span className="min-w-0 truncate" translate="no">
-                {member.display_name ?? member.username}
+                {vaultMemberDisplayName(member)}
               </span>
               <span
                 className="ml-auto shrink-0 type-card-metadata text-muted-foreground"

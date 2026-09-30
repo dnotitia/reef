@@ -552,7 +552,14 @@ fluid main column:
   viewports keep the existing responsive `min(94vw, 1440px)` layout without a
   splitter or width action. Saved width is applied to the loading shell on first
   paint, so issue and editor loading preserve the same panel frame.
+  Sub-issues stays directly below Description. Its pending state uses a row
+  placeholder until the whole-vault list succeeds; request failures offer retry,
+  and cached child rows remain visible while the list revalidates.
   Relation targets render as compact issue rows rather than pill chips.
+  The attachment section appears only for downloadable files or a read error.
+  An initial read keeps one polite, visually hidden status and reserves no
+  space; cached files stay visible during revalidation, and failures offer a
+  localized Retry action without discarding any cached list.
 - **Ask AI** — a floating non-modal panel (≈420×560) anchored bottom-right,
   above its FAB.
 - **Authenticated exception surfaces** — `/onboarding` and the workspace
@@ -930,6 +937,13 @@ type name kept for screen readers. Sub-issue rows also show a read-only assignee
 avatar and display name (or a localized unassigned label), with long names
 truncated inside the row and available through their own tooltip and accessible
 name.
+
+Activity actor identities resolve against the current vault roster and show the
+member's trimmed display name. A blank or missing roster name falls back to the
+stable username; document-history events use AKB's readable author name when
+their agent is no longer in the roster. Assignee values and mention suggestions
+use the same trimmed roster display name while retaining usernames for identity
+and mention tokens.
 
 The chrome also carries an actor-scoped notification control. Its trigger names
 and shows the effective **Watch / Watching / Muted** state, while the menu

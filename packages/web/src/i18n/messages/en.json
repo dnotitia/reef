@@ -892,6 +892,8 @@
     "attachments": {
       "heading": "Attachments",
       "loading": "Loading attachments…",
+      "loadError": "Couldn't load attachments.",
+      "retry": "Retry",
       "download": "Download"
     },
     "create": {
@@ -1151,6 +1153,8 @@
     "relations": {
       "subIssues": "Sub-issues",
       "addSubIssue": "Add sub-issue",
+      "subIssuesLoading": "Loading sub-issues…",
+      "subIssuesLoadError": "Couldn't load sub-issues.",
       "noSubIssues": "No sub-issues yet.",
       "unassigned": "Unassigned",
       "assigneeLabel": "Assignee: {name}",
