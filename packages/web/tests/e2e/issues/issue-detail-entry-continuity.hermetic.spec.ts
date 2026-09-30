@@ -464,6 +464,10 @@ test.describe("Hermetic issue detail hard-entry continuity", () => {
       releaseEditor = resolve;
     });
     let editorChunkIsHeld = false;
+    // The loading skeleton shares the `reef-markdown-editor` CSS variable
+    // prefix and can be preloaded before the issue query. Match the actual
+    // editor root so this gate cannot block hydration before the detail API.
+    const editorChunkMarker = /"data-testid"\s*:\s*"markdown-editor"/u;
     await page.route(
       (url) => url.pathname.includes("/_next/static/chunks/"),
       async (route) => {
@@ -473,7 +477,7 @@ test.describe("Hermetic issue detail hard-entry continuity", () => {
         }
         const response = await route.fetch();
         const body = await response.text();
-        if (!editorChunkIsHeld && body.includes("reef-markdown-editor")) {
+        if (!editorChunkIsHeld && editorChunkMarker.test(body)) {
           editorChunkIsHeld = true;
           resolveEditorHeld();
           await editorRelease;
