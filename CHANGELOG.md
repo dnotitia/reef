@@ -24,6 +24,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Direct issue links keep the detail frame visible while authentication, issue
+  data, and the editor load.** Hard entry and reload carry the same panel and
+  chrome into the interactive Sheet without a blank handoff or stacked modal.
+  (REEF-648)
 - **Issue detail restores its tab-local panel width and Description height while
   the issue or editor loads.** Loading skeletons use the saved dimensions from
   first paint, so the panel, toolbar, and content below the editor do not jump

@@ -8,8 +8,7 @@ import {
   SEGMENTED_CONTROL_ITEM_INACTIVE,
   SEGMENTED_CONTROL_TRACK,
 } from "@/components/segmentedControl";
-import { IssueDetailSkeleton } from "@/features/issues/components/detail/IssueDetailSkeleton";
-import { IssueChromeIdentity } from "@/features/issues/components/detail/IssueChromeIdentity";
+import { IssueDetailAuthPendingSkeleton } from "@/features/issues/components/detail/IssueDetailAuthPendingSkeleton";
 import { IssuesWorkspaceSkeleton } from "@/features/issues/components/filters/IssuesWorkspaceSkeleton";
 import { NotificationInboxSkeleton } from "@/features/inbox/components/NotificationInbox";
 import { MyWorkPageSkeleton } from "@/features/my-work/components/MyWorkPageSkeleton";
@@ -29,86 +28,8 @@ import { PageBody } from "@/features/ui/components/PageBody";
 import { PageHeader } from "@/features/ui/components/PageHeader";
 import { useViewStore } from "@/features/ui/stores/useViewStore";
 import { cn } from "@/lib/utils";
-import {
-  Building2,
-  Maximize2,
-  Server,
-  SlidersHorizontal,
-  X,
-} from "lucide-react";
+import { Building2, Server, SlidersHorizontal } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useEffect, useRef } from "react";
-
-function IssueDetailAuthPendingSkeleton({
-  issueId,
-  searchParams,
-}: {
-  issueId: string;
-  searchParams: string;
-}) {
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    dialogRef.current?.focus();
-  }, []);
-  return (
-    <div className="relative h-full min-h-0 min-w-0">
-      <div aria-hidden="true" className="h-full">
-        <IssuesWorkspaceSkeleton searchParams={searchParams} />
-      </div>
-      <div
-        className="fixed inset-0 z-50 bg-foreground/20 backdrop-blur-[2px]"
-        aria-hidden="true"
-      />
-      <div
-        data-testid="issue-detail-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label={issueId}
-        ref={dialogRef}
-        tabIndex={-1}
-        className="issue-detail-sheet fixed inset-y-0 right-0 z-50 flex min-w-0 flex-col overflow-hidden border-l border-border-subtle bg-surface-elevated shadow-xl shadow-foreground/10"
-        style={{
-          width: "min(94vw, var(--issue-detail-width-default))",
-          maxWidth: "var(--issue-detail-width-default)",
-        }}
-      >
-        <div
-          data-testid="issue-detail-chrome"
-          className="issue-detail-chrome flex items-center gap-2 px-6 pt-4 max-[480px]:pb-1"
-        >
-          <IssueChromeIdentity
-            issueId={issueId}
-            status={undefined}
-            issueType={undefined}
-            parentId={null}
-            allIssues={[]}
-            allIssuesPending
-          />
-          <div className="issue-detail-actions flex shrink-0 items-center gap-2">
-            <span
-              aria-hidden="true"
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground"
-            >
-              <Maximize2 className="h-4 w-4" />
-            </span>
-            <span
-              aria-hidden="true"
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground"
-            >
-              <X className="h-4 w-4" />
-            </span>
-          </div>
-        </div>
-        <div
-          data-testid="issue-detail-scroll"
-          className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain"
-        >
-          <IssueDetailSkeleton />
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function StaticSettingsTabs({
   active,
