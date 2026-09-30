@@ -1,11 +1,25 @@
-import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import {
+  expect,
+  test,
+  type Browser,
+  type BrowserContext,
+  type Page,
+  type Route,
+  type TestInfo,
+} from "@playwright/test";
 import { mkdir, writeFile } from "node:fs/promises";
 import {
   REEF_E2E_VAULT,
   clearPersistedQueryCache,
+  continueToWorkspace,
   openExistingWorkspace,
+  readFixtureState,
   resetFixture,
+  setWorkspaceInitializationControl,
   setAuthControl,
+  signInAsAlice,
+  signInAsUser,
+  fixtureReaderLogin,
 } from "../harness/fixture";
 
 test.use({ video: "on" });
@@ -22,6 +36,106 @@ interface DetailFrame {
 }
 
 type DetailFrameWindow = Window & { __reefDetailFrames?: DetailFrame[] };
+
+async function newVideoContext(
+  browser: Browser,
+  testInfo: TestInfo,
+): Promise<BrowserContext> {
+  await mkdir(testInfo.outputDir, { recursive: true });
+  return browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    recordVideo: {
+      dir: testInfo.outputDir,
+      size: { width: 1440, height: 900 },
+    },
+  });
+}
+
+async function closeAndAttachVideo(
+  context: BrowserContext,
+  page: Page,
+  testInfo: TestInfo,
+  label: string,
+): Promise<void> {
+  const video = page.video();
+  await context.close();
+  if (!video) return;
+  await testInfo.attach(`${label}-video`, {
+    path: await video.path(),
+    contentType: "video/webm",
+  });
+}
+
+async function hasPersistedDetailQuery(
+  page: Page,
+  vault: string,
+  issueId: string,
+): Promise<boolean> {
+  return page.evaluate(
+    ({ vaultName, id }) => {
+      const raw = window.localStorage.getItem("REACT_QUERY_OFFLINE_CACHE");
+      if (!raw) return false;
+      try {
+        const persisted = JSON.parse(raw) as {
+          clientState?: { queries?: Array<{ queryKey?: unknown }> };
+        };
+        return (
+          persisted.clientState?.queries?.some(
+            ({ queryKey }) =>
+              JSON.stringify(queryKey) ===
+              JSON.stringify(["issues", "detail", vaultName, id]),
+          ) ?? false
+        );
+      } catch {
+        return false;
+      }
+    },
+    { vaultName: vault, id: issueId },
+  );
+}
+
+function createResponseGate() {
+  let signalResponse!: (status: number) => void;
+  let releaseResponse!: () => void;
+  const responseReady = new Promise<number>((resolve) => {
+    signalResponse = resolve;
+  });
+  const releaseWait = new Promise<void>((resolve) => {
+    releaseResponse = resolve;
+  });
+  return {
+    responseReady,
+    signalResponse,
+    releaseWait,
+    release: releaseResponse,
+  };
+}
+
+async function holdIssueDetailResponse(
+  page: Page,
+  vault: string,
+  issueId: string,
+) {
+  const gate = createResponseGate();
+  const matcher = (url: URL) =>
+    url.pathname === `/api/issues/${issueId}` &&
+    url.searchParams.get("vault") === vault;
+  const handler = async (route: Route) => {
+    if (route.request().method() !== "GET") {
+      await route.continue();
+      return;
+    }
+    const response = await route.fetch();
+    gate.signalResponse(response.status());
+    await gate.releaseWait;
+    await route.fulfill({ response });
+  };
+  await page.route(matcher, handler);
+  return {
+    ...gate,
+    remove: () => page.unroute(matcher, handler),
+  };
+}
 
 async function saveFrames(page: Page, info: TestInfo, label: string) {
   const frames = await page.evaluate(
@@ -186,46 +300,118 @@ function collectHydrationWarnings(page: Page) {
   return warnings;
 }
 
-test.describe("Hermetic issue detail hard-entry continuity (REEF-648)", () => {
+test.describe("Hermetic issue detail hard-entry continuity", () => {
   test("keeps the same panel through three cold and three warm hard entries", async ({
-    context,
-    page,
+    browser,
     request,
   }, testInfo) => {
-    testInfo.setTimeout(180_000);
-    await context.clearCookies();
-    await page.setViewportSize({ width: 1440, height: 900 });
-    const hydrationWarnings = collectHydrationWarnings(page);
-
-    await resetFixture(request, "demo_board");
-    await openExistingWorkspace(page);
-    await installFrameRecorder(page);
-    await clearPersistedQueryCache(page);
+    testInfo.setTimeout(300_000);
     const issuePath = `/workspace/${REEF_E2E_VAULT}/issues/REEF-101`;
 
-    for (const [cacheState, count] of [
-      ["cold", 3],
-      ["warm", 3],
-    ] as const) {
-      for (let iteration = 1; iteration <= count; iteration += 1) {
-        if (cacheState === "cold") await clearPersistedQueryCache(page);
+    for (let iteration = 1; iteration <= 3; iteration += 1) {
+      await resetFixture(request, "demo_board");
+      const context = await newVideoContext(browser, testInfo);
+      const page = await context.newPage();
+      const hydrationWarnings = collectHydrationWarnings(page);
+      try {
+        // Every cold entry gets a genuinely fresh context and an authenticated
+        // session created through the fixture-backed login UI.
+        await signInAsAlice(page);
+        await clearPersistedQueryCache(page);
+        await expect
+          .poll(() => hasPersistedDetailQuery(page, REEF_E2E_VAULT, "REEF-101"))
+          .toBe(false);
+        await installFrameRecorder(page);
         await setAuthControl(request, {
           probeDelayMs: 700,
           probeDelayOnce: true,
           session: "active",
         });
+        const detailResponse = page.waitForResponse(
+          (response) =>
+            new URL(response.url()).pathname === "/api/issues/REEF-101" &&
+            response.request().method() === "GET",
+        );
         await page.goto(issuePath, { waitUntil: "domcontentloaded" });
+        expect((await detailResponse).status()).toBe(200);
         await expect(page.getByTestId("issue-close")).toBeVisible();
         await page.waitForTimeout(150);
-        await captureAndAssertContinuity(
-          page,
-          testInfo,
-          `${cacheState}-${iteration}`,
-        );
+        await captureAndAssertContinuity(page, testInfo, `cold-${iteration}`);
+        expect(hydrationWarnings).toEqual([]);
+      } finally {
+        await closeAndAttachVideo(context, page, testInfo, `cold-${iteration}`);
       }
     }
 
-    expect(hydrationWarnings).toEqual([]);
+    await resetFixture(request, "demo_board");
+    const context = await newVideoContext(browser, testInfo);
+    const page = await context.newPage();
+    const hydrationWarnings = collectHydrationWarnings(page);
+    try {
+      await signInAsAlice(page);
+      await clearPersistedQueryCache(page);
+      await expect
+        .poll(() => hasPersistedDetailQuery(page, REEF_E2E_VAULT, "REEF-101"))
+        .toBe(false);
+      await installFrameRecorder(page);
+
+      // This one direct entry seeds the persistent detail query; the measured
+      // warm runs below are all actual reloads of this same page/context.
+      const seedResponse = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === "/api/issues/REEF-101" &&
+          response.request().method() === "GET",
+      );
+      await page.goto(issuePath, { waitUntil: "domcontentloaded" });
+      expect((await seedResponse).status()).toBe(200);
+      await expect(page.getByTestId("issue-title-input")).toHaveValue(
+        "Review monitored-repo findings",
+      );
+      await expect
+        .poll(() => hasPersistedDetailQuery(page, REEF_E2E_VAULT, "REEF-101"))
+        .toBe(true);
+
+      for (let iteration = 1; iteration <= 3; iteration += 1) {
+        expect(
+          await hasPersistedDetailQuery(page, REEF_E2E_VAULT, "REEF-101"),
+          `warm-${iteration}: detail query was not persisted before reload`,
+        ).toBe(true);
+        const gate = await holdIssueDetailResponse(
+          page,
+          REEF_E2E_VAULT,
+          "REEF-101",
+        );
+        try {
+          const reload = page.reload({ waitUntil: "domcontentloaded" });
+          expect(await gate.responseReady).toBe(200);
+          await reload;
+          // The real detail Route Handler response is held. Seeing the issue
+          // here proves the page hydrated it from the persisted cache.
+          await expect(page.getByTestId("issue-title-input")).toHaveValue(
+            "Review monitored-repo findings",
+          );
+          expect(
+            await hasPersistedDetailQuery(page, REEF_E2E_VAULT, "REEF-101"),
+            `warm-${iteration}: detail query disappeared during reload`,
+          ).toBe(true);
+          await captureAndAssertContinuity(page, testInfo, `warm-${iteration}`);
+          const responseDelivered = page.waitForResponse(
+            (response) =>
+              new URL(response.url()).pathname === "/api/issues/REEF-101" &&
+              response.request().method() === "GET" &&
+              response.status() === 200,
+          );
+          gate.release();
+          await responseDelivered;
+        } finally {
+          gate.release();
+          await gate.remove();
+        }
+      }
+      expect(hydrationWarnings).toEqual([]);
+    } finally {
+      await closeAndAttachVideo(context, page, testInfo, "warm-reloads");
+    }
   });
 
   test("keeps the frame while the original issue response and editor chunk are delayed", async ({
@@ -314,5 +500,253 @@ test.describe("Hermetic issue detail hard-entry continuity (REEF-648)", () => {
     await page.waitForTimeout(150);
     await captureAndAssertContinuity(page, testInfo, "editor-ready");
     expect(hydrationWarnings).toEqual([]);
+  });
+
+  test("keeps the issue panel available for a real detail failure and retry", async ({
+    context,
+    page,
+    request,
+  }) => {
+    test.setTimeout(60_000);
+    await context.clearCookies();
+    await resetFixture(request, "demo_board");
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await expect(
+      page.locator('[data-testid="issue-list-row"][data-issue-id="REEF-101"]'),
+    ).toBeVisible();
+    await setWorkspaceInitializationControl(request, {
+      operation: "document_get",
+      failures: 4,
+    });
+    expect(
+      (await readFixtureState(request)).workspace_initialization,
+    ).toMatchObject({
+      failure_operation: "document_get",
+      failures_remaining: 4,
+    });
+
+    const issuePath = `/workspace/${REEF_E2E_VAULT}/issues/REEF-101`;
+    let failedReadCount = 0;
+    const countFailedReads = (
+      response: import("@playwright/test").Response,
+    ) => {
+      if (
+        new URL(response.url()).pathname === "/api/issues/REEF-101" &&
+        response.request().method() === "GET" &&
+        response.status() >= 500
+      ) {
+        failedReadCount += 1;
+      }
+    };
+    page.on("response", countFailedReads);
+    await page
+      .getByText("Review monitored-repo findings", { exact: true })
+      .click();
+    await expect(page).toHaveURL((url) => url.pathname === issuePath);
+    await expect.poll(() => failedReadCount).toBe(4);
+    await expect(page.getByTestId("issue-detail-error")).toBeVisible();
+    await expect(page.getByTestId("issue-close")).toBeVisible();
+    await expect(page.getByTestId("issue-detail")).toHaveCount(0);
+    await expect(page.getByTestId("issue-title-input")).toHaveCount(0);
+
+    const recoveredRead = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/issues/REEF-101" &&
+        response.request().method() === "GET" &&
+        response.status() === 200,
+    );
+    await page
+      .getByTestId("issue-detail-error")
+      .getByRole("button", { name: "Retry" })
+      .click();
+    await recoveredRead;
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await expect(page.getByTestId("issue-title-input")).toHaveValue(
+      "Review monitored-repo findings",
+    );
+    await expect(page.getByTestId("issue-close")).toBeVisible();
+    await expect(page).toHaveURL((url) => url.pathname === issuePath);
+    page.off("response", countFailedReads);
+  });
+
+  test("keeps an unknown issue inside the panel error state", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await context.clearCookies();
+    await resetFixture(request, "demo_board");
+    await openExistingWorkspace(page);
+
+    const missingPath = `/workspace/${REEF_E2E_VAULT}/issues/REEF-999`;
+    const missingRead = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/issues/REEF-999" &&
+        response.request().method() === "GET",
+    );
+    await page.goto(missingPath, { waitUntil: "domcontentloaded" });
+    expect((await missingRead).status()).toBe(404);
+    await expect(page.getByTestId("issue-detail-error")).toBeVisible();
+    await expect(page.getByTestId("issue-close")).toBeVisible();
+    await expect(page.getByTestId("issue-detail")).toHaveCount(0);
+    await expect(page.getByTestId("issue-title-input")).toHaveCount(0);
+    await expect(page.getByTestId("issue-detail-error")).toContainText(
+      "Issue not found",
+    );
+  });
+
+  test("hides the previous issue data while a different account loads it", async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(60_000);
+    await resetFixture(request, "demo_board");
+    await openExistingWorkspace(page);
+    const issuePath = `/workspace/${REEF_E2E_VAULT}/issues/REEF-101`;
+    await page.goto(issuePath, { waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("issue-title-input")).toHaveValue(
+      "Review monitored-repo findings",
+    );
+
+    const aliceOnlyTitle = "Alice session issue title";
+    await page.getByTestId("issue-title-input").fill(aliceOnlyTitle);
+    await page.getByTestId("issue-title-input").press("Enter");
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        return state.vaults
+          .find((vault) => vault.name === REEF_E2E_VAULT)
+          ?.issues.find((issue) => issue.id === "REEF-101")?.title;
+      })
+      .toBe(aliceOnlyTitle);
+
+    await page.getByTestId("issue-close").click();
+    await expect(page).toHaveURL(
+      new RegExp(`/workspace/${REEF_E2E_VAULT}/issues/?$`),
+    );
+    await page.getByLabel("Account menu").click();
+    await page.getByTestId("account-signout").click();
+    await page.waitForURL(/\/login(?:\?|$)/, { timeout: 10_000 });
+    await expect
+      .poll(() => hasPersistedDetailQuery(page, REEF_E2E_VAULT, "REEF-101"))
+      .toBe(false);
+
+    await resetFixture(request, "demo_board");
+    await signInAsUser(page, fixtureReaderLogin);
+    expect(
+      await hasPersistedDetailQuery(page, REEF_E2E_VAULT, "REEF-101"),
+    ).toBe(false);
+
+    const gate = await holdIssueDetailResponse(
+      page,
+      REEF_E2E_VAULT,
+      "REEF-101",
+    );
+    try {
+      const loadDetail = page.goto(issuePath, {
+        waitUntil: "domcontentloaded",
+      });
+      expect(await gate.responseReady).toBe(200);
+      await loadDetail;
+      await expect(page.getByTestId("issue-detail-skeleton")).toBeVisible();
+      await expect(page.getByTestId("issue-title-input")).toHaveCount(0);
+      await expect(page.getByText(aliceOnlyTitle, { exact: true })).toHaveCount(
+        0,
+      );
+
+      const responseDelivered = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === "/api/issues/REEF-101" &&
+          response.request().method() === "GET" &&
+          response.status() === 200,
+      );
+      gate.release();
+      await responseDelivered;
+      await expect(page.getByTestId("issue-title-input")).toHaveValue(
+        "Review monitored-repo findings",
+      );
+      await expect(page.getByText(aliceOnlyTitle, { exact: true })).toHaveCount(
+        0,
+      );
+    } finally {
+      gate.release();
+      await gate.remove();
+    }
+  });
+
+  test("hides the previous issue data while switching vaults", async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(60_000);
+    await resetFixture(request, "configured_multi");
+    await signInAsAlice(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues`);
+    await continueToWorkspace(page, REEF_E2E_VAULT);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues/REEF-001`, {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(page.getByTestId("issue-title-input")).toHaveValue(
+      "Initial issue Alpha",
+    );
+
+    const sourceOnlyTitle = "reef-e2e private issue title";
+    await page.getByTestId("issue-title-input").fill(sourceOnlyTitle);
+    await page.getByTestId("issue-title-input").press("Enter");
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        return state.vaults
+          .find((vault) => vault.name === REEF_E2E_VAULT)
+          ?.issues.find((issue) => issue.id === "REEF-001")?.title;
+      })
+      .toBe(sourceOnlyTitle);
+    await expect
+      .poll(() => hasPersistedDetailQuery(page, REEF_E2E_VAULT, "REEF-001"))
+      .toBe(true);
+    await page.getByTestId("issue-close").click();
+    await expect(page).toHaveURL(
+      new RegExp(`/workspace/${REEF_E2E_VAULT}/issues/?$`),
+    );
+
+    await page.getByTestId("sidebar-workspace-trigger").click();
+    await page.getByTestId("workspace-switcher-option-reef-zeta").click();
+    await expect(page).toHaveURL(/\/workspace\/reef-zeta\/issues(?:\?|$)/);
+    await expect(page.getByTestId("kanban-board")).toBeVisible();
+    await expect(
+      page.getByText("Initial issue Alpha", { exact: true }),
+    ).toBeVisible();
+
+    const gate = await holdIssueDetailResponse(page, "reef-zeta", "REEF-001");
+    try {
+      await page.getByText("Initial issue Alpha", { exact: true }).click();
+      await expect(page).toHaveURL(/\/workspace\/reef-zeta\/issues\/REEF-001/);
+      expect(await gate.responseReady).toBe(200);
+      await expect(page.getByTestId("issue-detail-skeleton")).toBeVisible();
+      await expect(page.getByTestId("issue-title-input")).toHaveCount(0);
+      await expect(
+        page.getByText(sourceOnlyTitle, { exact: true }),
+      ).toHaveCount(0);
+
+      const responseDelivered = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === "/api/issues/REEF-001" &&
+          new URL(response.url()).searchParams.get("vault") === "reef-zeta" &&
+          response.request().method() === "GET" &&
+          response.status() === 200,
+      );
+      gate.release();
+      await responseDelivered;
+      await expect(page.getByTestId("issue-title-input")).toHaveValue(
+        "Initial issue Alpha",
+      );
+      await expect(
+        page.getByText(sourceOnlyTitle, { exact: true }),
+      ).toHaveCount(0);
+    } finally {
+      gate.release();
+      await gate.remove();
+    }
   });
 });
