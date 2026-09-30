@@ -7,6 +7,7 @@ import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { useUserSearch } from "@/features/issues/hooks/queries/useUserSearch";
+import { useVaultRoster } from "@/features/settings/hooks/useVaultRoster";
 import { orderAssigneeCollaborators } from "@/lib/assigneeOptionOrder";
 import {
   assigneeRecentsQueryKey,
@@ -17,6 +18,7 @@ import {
   useDebouncedQuery,
 } from "@/lib/useDebouncedQuery";
 import { useHydrated } from "@/lib/useHydrated";
+import { resolveVaultMemberName } from "@/lib/vaultMemberNames";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useMemo } from "react";
@@ -109,6 +111,7 @@ export function AssigneeCombobox({
     isError,
   } = useUserSearch(debouncedQuery, vault);
   const currentLogin = useCurrentUserLogin();
+  const { data: vaultMembers = [] } = useVaultRoster(vault);
   const { data: recentLogins = [] } = useQuery({
     queryKey: assigneeRecentsQueryKey(currentLogin, vault),
     queryFn: () => getRecentAssigneeLogins(currentLogin, vault),
@@ -158,6 +161,7 @@ export function AssigneeCombobox({
       renderValue={(login) => (
         <PersonChip
           identityKey={login}
+          name={resolveVaultMemberName(login, vaultMembers) ?? undefined}
           size="sm"
           tone={personToneFor(login, currentLogin)}
           wrapperClassName="min-w-0 flex-1"
@@ -174,7 +178,11 @@ export function AssigneeCombobox({
       emptyState={t("noMembers")}
       disabled={disabled || !vault}
       active={active}
-      ariaLabel={value ? `${resolvedLabel}: ${value}` : resolvedLabel}
+      ariaLabel={
+        value
+          ? `${resolvedLabel}: ${resolveVaultMemberName(value, vaultMembers)}`
+          : resolvedLabel
+      }
       align={align}
       className={className}
       contentClassName={panelClassName}

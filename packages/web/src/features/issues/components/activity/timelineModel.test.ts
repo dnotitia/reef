@@ -9,6 +9,7 @@ import {
   type IssueBodyHistoryEvent,
   type IssueMetadata,
   type Status,
+  type VaultMember,
 } from "@reef/core";
 import { describe, expect, it } from "vitest";
 import {
@@ -16,6 +17,7 @@ import {
   buildTimeline,
   collapseRuns,
   groupCommentThreads,
+  resolveTimelineActor,
   reconstructEvents,
 } from "./timelineModel";
 
@@ -64,16 +66,77 @@ function activity(
 function bodyUpdate(
   id: string,
   at: string,
-  actor: string | null = "alice",
+  actorUsername: string | null = "alice",
+  actorFallback: string | null = actorUsername,
 ): IssueBodyHistoryEvent {
   return {
     id: `body-update:${id}`,
     hash: id,
     at,
-    actor,
+    actorUsername,
+    actorFallback,
     kind: "body_update",
   };
 }
+
+describe("resolveTimelineActor", () => {
+  const members: VaultMember[] = [
+    {
+      username: "fixture.editor",
+      display_name: " Current Editor ",
+      role: "writer",
+    },
+    { username: "fixture.blank", display_name: "  ", role: "writer" },
+  ];
+
+  it("resolves a stable username from the current roster", () => {
+    expect(resolveTimelineActor({ actor: "fixture.editor" }, members)).toBe(
+      "Current Editor",
+    );
+  });
+
+  it("falls back to username for a blank display name or missing roster entry", () => {
+    expect(resolveTimelineActor({ actor: "fixture.blank" }, members)).toBe(
+      "fixture.blank",
+    );
+    expect(resolveTimelineActor({ actor: "retired.editor" }, members)).toBe(
+      "retired.editor",
+    );
+  });
+
+  it("uses the username when a matched history author has a blank roster name", () => {
+    expect(
+      resolveTimelineActor(
+        { actor: "fixture.blank", actorFallback: "Old Display Name" },
+        members,
+      ),
+    ).toBe("fixture.blank");
+  });
+
+  it("uses the readable history fallback before an unregistered agent", () => {
+    expect(
+      resolveTimelineActor(
+        {
+          actor: "former.editor",
+          actorFallback: "Historical Editor",
+        },
+        members,
+      ),
+    ).toBe("Historical Editor");
+    expect(
+      resolveTimelineActor(
+        {
+          actor: null,
+          actorFallback: "Historical Editor",
+        },
+        [],
+      ),
+    ).toBe("Historical Editor");
+    expect(
+      resolveTimelineActor({ actor: "legacy.agent", actorFallback: null }, []),
+    ).toBe("legacy.agent");
+  });
+});
 
 describe("buildEntries — merge-sort (AC1)", () => {
   it("interleaves comments and activity ascending by timestamp", () => {
@@ -305,6 +368,7 @@ describe("buildEntries — merge-sort (AC1)", () => {
         id: "body-update:h1",
         hash: "h1",
         actor: "alice",
+        actorFallback: "alice",
         kind: "body_update",
       },
     });
@@ -465,11 +529,21 @@ describe("collapseRuns (AC3)", () => {
     const body = (
       id: string,
       at: string,
-    ): ReturnType<typeof buildEntries>[number] => ({
-      type: "system",
-      at,
-      event: bodyUpdate(id, at),
-    });
+    ): ReturnType<typeof buildEntries>[number] => {
+      const historyEvent = bodyUpdate(id, at);
+      return {
+        type: "system",
+        at,
+        event: {
+          id: historyEvent.id,
+          hash: historyEvent.hash,
+          at: historyEvent.at,
+          actor: historyEvent.actorUsername,
+          actorFallback: historyEvent.actorFallback,
+          kind: "body_update",
+        },
+      };
+    };
     const entries = collapseRuns([
       body("b1", "2026-06-02T00:00:00.000Z"),
       body("b2", "2026-06-03T00:00:00.000Z"),

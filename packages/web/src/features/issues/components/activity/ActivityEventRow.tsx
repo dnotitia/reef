@@ -5,6 +5,7 @@ import { PlanningKindIcon } from "@/components/fields/PlanningKindIcon";
 import { StatusIcon } from "@/components/ui/status-icon";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import { findPlanningName } from "@/features/planning/lib/planningItems";
+import { resolveVaultMemberName } from "@/lib/vaultMemberNames";
 import {
   useClosedReasonLabels,
   useIssueTypeLabels,
@@ -21,6 +22,7 @@ import type {
   Priority,
   RelationField,
   Status,
+  VaultMember,
 } from "@reef/core";
 import type { PlanningKind } from "@reef/core/fields/planning";
 import {
@@ -44,7 +46,10 @@ import {
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { type ReactNode, memo, useState } from "react";
-import type { TimelineSystemEvent } from "./timelineModel";
+import {
+  resolveTimelineActor,
+  type TimelineSystemEvent,
+} from "./timelineModel";
 
 const DELIVERY_ICON = {
   pull_request: GitPullRequest,
@@ -100,11 +105,7 @@ function deliveryLabel(ref: ImplementationRef): string {
   return `branch ${ref.ref}`;
 }
 
-/**
- * The actor name as an emphasized inline token. An actor is a login/username —
- * a code identifier — so `translate="no"` keeps machine translation from
- * mangling it (REEF-279/282 convention).
- */
+/** Keep roster names and username fallbacks intact as identity labels. */
 function Actor({ name }: { name: string }) {
   return (
     <span className="font-medium text-foreground" translate="no">
@@ -113,11 +114,8 @@ function Actor({ name }: { name: string }) {
   );
 }
 
-/**
- * A login/username value (assignee) as a token. Like the actor, it is a code
- * identifier, so it is kept un-translated.
- */
-function loginToken(text: string): ReactNode {
+/** Keep an assignee's roster name or username fallback intact. */
+function personToken(text: string): ReactNode {
   return (
     <span className="font-medium text-foreground" translate="no">
       {text}
@@ -267,6 +265,7 @@ function glyphFor(event: TimelineSystemEvent): ReactNode {
 /** The one-line description, by event kind. */
 function lineFor(
   event: TimelineSystemEvent,
+  members: readonly VaultMember[],
   resolvePlanning: PlanningNameResolver,
   labels: EventLabels,
   t: ActivityTranslator,
@@ -276,7 +275,7 @@ function lineFor(
   // (`<actor/>`), not plain values, so build it once as a tag. The `hasActor`
   // select drops the tag on the subject-led system phrasing (where it is not
   // invoked), so a null actor safely returns null.
-  const anActor = event.actor;
+  const anActor = resolveTimelineActor(event, members);
   const hasActor = anActor ? "true" : "false";
   const actor = () => (anActor ? <Actor name={anActor} /> : null);
 
@@ -341,24 +340,26 @@ function lineFor(
     }
     case "assignee_change": {
       const { from, to } = event;
-      if (from && to)
+      const fromName = resolveVaultMemberName(from, members);
+      const toName = resolveVaultMemberName(to, members);
+      if (fromName && toName)
         return t.rich("assigneeReassigned", {
           hasActor,
           actor,
-          from: () => loginToken(from),
-          to: () => loginToken(to),
+          from: () => personToken(fromName),
+          to: () => personToken(toName),
         });
-      if (to)
+      if (toName)
         return t.rich("assigneeAssigned", {
           hasActor,
           actor,
-          to: () => loginToken(to),
+          to: () => personToken(toName),
         });
-      if (from)
+      if (fromName)
         return t.rich("assigneeUnassigned", {
           hasActor,
           actor,
-          from: () => loginToken(from),
+          from: () => personToken(fromName),
         });
       return t.rich("assigneeChanged", { hasActor, actor });
     }
@@ -589,10 +590,13 @@ function lineFor(
 export const ActivityEventRow = memo(function ActivityEventRow({
   event,
   vault,
+  members = [],
 }: {
   event: TimelineSystemEvent;
   /** Active vault — resolves `planning_link` ids to names (REEF-276). */
   vault: string;
+  /** Current role-bearing roster used to resolve stable user identities. */
+  members?: readonly VaultMember[];
 }) {
   const [nowMs] = useState(() => Date.now());
   const locale = useLocale();
@@ -626,7 +630,7 @@ export const ActivityEventRow = memo(function ActivityEventRow({
       </span>
       <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 type-card-metadata text-muted-foreground">
         <span className="min-w-0">
-          {lineFor(event, resolvePlanning, labels, t)}
+          {lineFor(event, members, resolvePlanning, labels, t)}
         </span>
         <time
           dateTime={event.at}

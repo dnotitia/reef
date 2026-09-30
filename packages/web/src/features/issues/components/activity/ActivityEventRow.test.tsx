@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
+import type { VaultMember } from "@reef/core";
 import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -13,8 +14,11 @@ vi.mock("@/features/planning/hooks/usePlanningCatalog", () => ({
 import { ActivityEventRow } from "./ActivityEventRow";
 import type { TimelineSystemEvent } from "./timelineModel";
 
-function renderEvent(event: TimelineSystemEvent) {
-  return render(<ActivityEventRow event={event} vault="v" />);
+function renderEvent(
+  event: TimelineSystemEvent,
+  members: readonly VaultMember[] = [],
+) {
+  return render(<ActivityEventRow event={event} vault="v" members={members} />);
 }
 
 function renderLocalizedEvent(event: TimelineSystemEvent, locale: "en" | "ko") {
@@ -97,6 +101,7 @@ describe("ActivityEventRow — body history", () => {
       hash: "abc123",
       at: AT,
       actor: "alice",
+      actorFallback: "alice",
       kind: "body_update",
     });
     const bodyGlyph = body.container.querySelector("svg");
@@ -113,6 +118,53 @@ describe("ActivityEventRow — body history", () => {
     });
     const titleGlyph = title.container.querySelector("svg");
     expect(titleGlyph).toHaveClass("lucide-type");
+  });
+
+  it("resolves event actors through the current roster and keeps safe fallbacks", () => {
+    const roster = [
+      {
+        username: "fixture.editor",
+        display_name: " Fixture Editor ",
+        role: "writer",
+      },
+      { username: "fixture.blank", display_name: "   ", role: "writer" },
+    ] as const;
+    const current = renderEvent(
+      { id: "current", at: AT, actor: "fixture.editor", kind: "created" },
+      roster,
+    );
+    expect(current.getByText("Fixture Editor")).toBeInTheDocument();
+    expect(current.queryByText("fixture.editor")).not.toBeInTheDocument();
+    current.unmount();
+
+    const blank = renderEvent(
+      { id: "blank", at: AT, actor: "fixture.blank", kind: "created" },
+      roster,
+    );
+    expect(blank.getByText("fixture.blank")).toBeInTheDocument();
+    blank.unmount();
+
+    const missing = renderEvent({
+      id: "missing",
+      at: AT,
+      actor: "retired.editor",
+      kind: "created",
+    });
+    expect(missing.getByText("retired.editor")).toBeInTheDocument();
+    missing.unmount();
+
+    const historyFallback = renderEvent({
+      id: "fallback",
+      hash: "history-1",
+      at: AT,
+      actor: "former.editor",
+      actorFallback: "Historical Editor",
+      kind: "body_update",
+    });
+    expect(historyFallback.getByText("Historical Editor")).toBeInTheDocument();
+    expect(
+      historyFallback.queryByText("former.editor"),
+    ).not.toBeInTheDocument();
   });
 });
 

@@ -24,6 +24,16 @@ export function runtimeDiscovery(state) {
         content_type: "application/json",
         body: { scenario: "<supported_scenario>" },
       },
+      activity_identity_control: {
+        method: "POST",
+        path: "/__e2e/activity-identity-control",
+        content_type: "application/json",
+        body: {
+          vault: "<vault>",
+          username: "<username>",
+          display_name: "<display_name>",
+        },
+      },
       account_denial: {
         method: "POST",
         path: "/__e2e/account-denial",
@@ -149,6 +159,27 @@ export function runtimeDiscovery(state) {
           type: "assignee_picker",
           operation:
             "open issue detail, browse the complete writer/admin/owner roster, search by display name or login, select a candidate, reload to verify recent-first ordering, and verify a failed save leaves the existing assignment and recent history unchanged",
+        },
+      },
+      activity_display_names: {
+        scenario: "activity_display_names",
+        workspace: "reef-e2e",
+        start_path: "/workspace/reef-e2e/issues/REEF-001",
+        controls: {
+          activity_identity_control: [
+            "change a member display name without changing the stable username",
+          ],
+        },
+        identities: {
+          current_roster: "fixture.editor",
+          blank_display_name: "fixture.blank",
+          historical_fallback: "Historical Editor",
+          missing_roster_fallback: "retired.editor",
+        },
+        interaction: {
+          type: "activity_display_names",
+          operation:
+            "inspect creator, status, priority, delivery, assignee, and expanded body-history actors against the current roster; change the editor display name and reload to verify that the stable username resolves to its latest label",
         },
       },
       issue_drill_navigation: {

@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { openExistingWorkspace, resetFixture } from "../harness/fixture";
+import {
+  openExistingWorkspace,
+  resetFixture,
+  setActivityDisplayName,
+} from "../harness/fixture";
 
 // REEF-277: the issue activity timeline now records title / labels / due date /
 // estimate / parent / relation / archive changes. These flows render the seeded
@@ -235,5 +239,103 @@ test.describe("Hermetic issue activity timeline (REEF-277)", () => {
       return response.status;
     });
     expect(crossIssueStatus).toBe(404);
+  });
+});
+
+test.describe("Hermetic activity display names", () => {
+  test.beforeEach(async ({ context, request }) => {
+    await context.clearCookies();
+    await resetFixture(request, "activity_display_names");
+  });
+
+  test("resolves current roster names and readable history fallbacks", async ({
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues/REEF-001");
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+
+    const created = page
+      .locator('[data-testid="activity-event"]')
+      .filter({ hasText: "created this issue" });
+    await expect(created).toContainText("Current Fixture Editor");
+    await expect(
+      page.getByRole("button", {
+        name: "Assignee: Current Fixture Editor",
+      }),
+    ).toBeVisible();
+
+    const priority = page
+      .locator('[data-testid="activity-event"]')
+      .filter({ hasText: "changed priority" });
+    await expect(priority).toContainText("Current Fixture Editor");
+    const delivery = page
+      .locator('[data-testid="activity-event"]')
+      .filter({ hasText: "Fixture delivery" });
+    await expect(delivery).toContainText("Current Fixture Editor");
+
+    const statusChanges = page.getByRole("button", {
+      name: "3 status changes",
+    });
+    await statusChanges.click();
+    await expect(
+      page
+        .locator('[data-testid="activity-event"]')
+        .filter({ hasText: "moved" })
+        .filter({ hasText: "Current Fixture Editor" }),
+    ).toHaveCount(3);
+
+    const bodyUpdates = page.getByRole("button", {
+      name: "4 body updates",
+    });
+    await bodyUpdates.click();
+    const expandedBodyRows = page.locator('[data-testid="activity-event"]');
+    await expect(
+      expandedBodyRows.filter({
+        hasText: "Current Fixture Editor updated the issue body",
+      }),
+    ).toHaveCount(1);
+    await expect(
+      expandedBodyRows.filter({
+        hasText: "Historical Editor updated the issue body",
+      }),
+    ).toHaveCount(1);
+    await expect(
+      expandedBodyRows.filter({
+        hasText: "fixture.blank updated the issue body",
+      }),
+    ).toHaveCount(1);
+    await expect(
+      expandedBodyRows.filter({
+        hasText: "retired.editor updated the issue body",
+      }),
+    ).toHaveCount(1);
+
+    const commentDraft = page.getByLabel("Add a comment");
+    await commentDraft.fill("@");
+    const editorSuggestion = page.getByRole("option", {
+      name: "Mention @fixture.editor",
+    });
+    await expect(editorSuggestion).toContainText("Current Fixture Editor");
+    await editorSuggestion.click();
+    await expect(commentDraft).toHaveValue("@fixture.editor ");
+
+    await setActivityDisplayName(
+      request,
+      "fixture.editor",
+      "  Updated Fixture Editor  ",
+    );
+    await page.reload();
+    await expect(
+      page
+        .locator('[data-testid="activity-event"]')
+        .filter({ hasText: "created this issue" }),
+    ).toContainText("Updated Fixture Editor");
+    await expect(
+      page.getByRole("button", {
+        name: "Assignee: Updated Fixture Editor",
+      }),
+    ).toBeVisible();
   });
 });

@@ -122,4 +122,36 @@ describe("comment mention draft", () => {
       ).map((member) => member.username),
     ).toEqual(["Bob Smith", "bob"]);
   });
+
+  it("matches a trimmed display name and falls back to username when blank", () => {
+    expect(
+      commentMentionSuggestions(
+        [
+          {
+            username: "fixture.editor",
+            display_name: "  Fixture Editor  ",
+            role: "writer",
+          },
+          {
+            username: "fixture.blank",
+            display_name: "   ",
+            role: "writer",
+          },
+        ],
+        { start: 0, query: "fixture editor" },
+      ).map((member) => member.username),
+    ).toEqual(["fixture.editor"]);
+    expect(
+      commentMentionSuggestions(
+        [
+          {
+            username: "fixture.blank",
+            display_name: "   ",
+            role: "writer",
+          },
+        ],
+        { start: 0, query: "fixture.blank" },
+      ).map((member) => member.username),
+    ).toEqual(["fixture.blank"]);
+  });
 });

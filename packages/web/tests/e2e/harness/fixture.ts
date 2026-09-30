@@ -32,6 +32,7 @@ export type FixtureScenario =
   | "notifications"
   | "skill_outdated"
   | "comment_mentions"
+  | "activity_display_names"
   | "large_vault"
   | "markdown_fixture"
   | "typography"
@@ -53,6 +54,19 @@ export async function resetFixture(
   const response = await request.post(`${E2E_MOCK_URL}/__e2e/reset`, {
     data: { scenario },
   });
+  expect(response.ok()).toBeTruthy();
+}
+
+export async function setActivityDisplayName(
+  request: APIRequestContext,
+  username: string,
+  displayName: string,
+  vault = REEF_E2E_VAULT,
+): Promise<void> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/activity-identity-control`,
+    { data: { vault, username, display_name: displayName } },
+  );
   expect(response.ok()).toBeTruthy();
 }
 

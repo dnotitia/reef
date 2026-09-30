@@ -1681,14 +1681,15 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
         updated.commit_hash.startsWith(event.hash),
     ).toBe(true);
     expect(Object.keys(event ?? {}).sort()).toEqual([
-      "actor",
+      "actorFallback",
+      "actorUsername",
       "at",
       "hash",
       "id",
       "kind",
     ]);
-    if (event?.actor !== null) {
-      expect(event?.actor).not.toMatch(
+    if (event?.actorUsername !== null) {
+      expect(event?.actorUsername).not.toMatch(
         /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu,
       );
     }

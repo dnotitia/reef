@@ -76,6 +76,34 @@ const server = createServer(async (req, res) => {
       state = createState(normalizeScenario(body?.scenario));
       return json(res, 200, { ok: true, scenario: state.scenario });
     }
+    if (
+      url.pathname === "/__e2e/activity-identity-control" &&
+      req.method === "POST"
+    ) {
+      const body = await readJson(req);
+      if (state.scenario !== "activity_display_names") {
+        return json(res, 409, { error: "unsupported fixture scenario" });
+      }
+      const vault = getVault(String(body?.vault ?? REEF_VAULT), res, state);
+      const username = String(body?.username ?? "");
+      const displayName = body?.display_name;
+      if (!vault || !username || typeof displayName !== "string") {
+        return json(res, 400, { error: "invalid identity control" });
+      }
+      if (displayName.length > 120) {
+        return json(res, 400, { error: "display name is too long" });
+      }
+      const member = vault.members.find(
+        (candidate) => candidate.username === username,
+      );
+      if (!member) return json(res, 404, { error: "member not found" });
+      member.display_name = displayName;
+      return json(res, 200, {
+        ok: true,
+        username,
+        display_name: displayName,
+      });
+    }
     if (url.pathname === "/__e2e/issue-list-failure" && req.method === "POST") {
       const body = await readJson(req);
       state.issueListFailure = body?.enabled === true;
