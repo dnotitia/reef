@@ -3,6 +3,8 @@
 import { IssueOptionRow } from "@/components/fields/IssueOptionRow";
 import { personToneFor } from "@/components/fields/PersonAvatar";
 import { PersonChip } from "@/components/fields/PersonChip";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { useIssueDrill } from "@/features/issues/hooks/view/useIssueDrill";
 import {
@@ -190,6 +192,12 @@ interface IssueChildrenProps {
   issueId: string;
   /** Whole-vault list already loaded by the detail panel. */
   allIssues: readonly IssueListItem[];
+  /** True only while the list has no successful result yet. */
+  allIssuesPending: boolean;
+  /** True when the list request failed, including a failed revalidation. */
+  allIssuesError: boolean;
+  /** Retry the whole-vault list request. */
+  onRetryAllIssues: () => void;
   /** Current vault roster already loaded by the detail panel. */
   members?: readonly VaultMember[];
   /**
@@ -227,11 +235,15 @@ interface IssueChildrenProps {
 export const IssueChildren = memo(function IssueChildren({
   issueId,
   allIssues,
+  allIssuesPending,
+  allIssuesError,
+  onRetryAllIssues,
   members = [],
   relationGraph,
   action,
 }: IssueChildrenProps) {
   const t = useTranslations("issues.relations");
+  const common = useTranslations("common");
   const currentLogin = useCurrentUserLogin();
   const children = useMemo(() => {
     const mine = allIssues.filter((issue) => issue.parent_id === issueId);
@@ -274,64 +286,108 @@ export const IssueChildren = memo(function IssueChildren({
 
   return (
     <IssueFormSection title={t("subIssues")} action={action}>
-      <div className="flex min-w-0 flex-col gap-2" data-testid="issue-children">
-        {total === 0 ? (
-          <p
-            data-testid="issue-children-empty"
-            className="w-fit max-w-full px-1.5 py-1 text-xs text-muted-foreground/80"
+      <div
+        className="flex min-w-0 flex-col gap-2"
+        data-testid="issue-children"
+        aria-busy={allIssuesPending || undefined}
+      >
+        {allIssuesPending ? (
+          <div
+            data-testid="issue-children-loading"
+            role="status"
+            aria-label={t("subIssuesLoading")}
+            className="flex min-w-0 flex-col gap-2"
           >
-            {t("noSubIssues")}
-          </p>
+            <span className="sr-only">{t("subIssuesLoading")}</span>
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-1 flex-1" />
+              <Skeleton className="h-[18px] w-16" />
+            </div>
+            <div className="flex flex-col gap-0.5 px-1">
+              <Skeleton className="h-9 w-full" />
+              <Skeleton className="h-9 w-full" />
+            </div>
+          </div>
         ) : (
           <>
-            <div className="flex items-center gap-3">
-              {/* Animate transform (not width) so the bar fill stays off the layout
-                  path; transform-origin left grows it from the start. */}
+            {allIssuesError ? (
               <div
-                className="h-1 flex-1 overflow-hidden rounded-full bg-secondary"
-                role="progressbar"
-                aria-valuenow={doneCount}
-                aria-valuemin={0}
-                aria-valuemax={total}
-                aria-label={t("progressLabel", { done: doneCount, total })}
+                data-testid="issue-children-error"
+                role="alert"
+                className="flex flex-wrap items-center gap-2 px-1.5 py-1 text-xs text-destructive-text"
               >
-                <div
-                  className="h-full origin-left rounded-full bg-brand-fill transition-transform duration-300 motion-reduce:transition-none"
-                  style={{ transform: `scaleX(${doneCount / total})` }}
-                />
+                <span>{t("subIssuesLoadError")}</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onRetryAllIssues}
+                >
+                  {common("retry")}
+                </Button>
               </div>
-              <span
-                data-typography-role="subissue-progress"
-                className="shrink-0 type-subissue-progress text-muted-foreground"
-              >
-                {t("progressCount", { done: doneCount, total })}
-              </span>
-            </div>
-
-            <TooltipProvider>
-              <ul
-                aria-label={t("subIssues")}
-                // Keep the link's 2px teal focus ring inside the detail main's
-                // horizontal clipping boundary without changing the row grid.
-                className="flex flex-col gap-0.5 px-1"
-              >
-                {children.map((child) => (
-                  <li key={child.id} className="@container">
-                    <IssueChildRow
-                      child={child}
-                      blockerCount={unresolvedBlockerCountIn(
-                        child,
-                        blockedIndex,
-                      )}
-                      getDrillProps={getDrillProps}
-                      membersByUsername={membersByUsername}
-                      currentLogin={currentLogin}
-                      resolved={isResolvedStatus(child.status)}
+            ) : null}
+            {total === 0 ? (
+              allIssuesError ? null : (
+                <p
+                  data-testid="issue-children-empty"
+                  className="w-fit max-w-full px-1.5 py-1 text-xs text-muted-foreground/80"
+                >
+                  {t("noSubIssues")}
+                </p>
+              )
+            ) : (
+              <>
+                <div className="flex items-center gap-3">
+                  {/* Animate transform (not width) so the bar fill stays off the layout
+                      path; transform-origin left grows it from the start. */}
+                  <div
+                    className="h-1 flex-1 overflow-hidden rounded-full bg-secondary"
+                    role="progressbar"
+                    aria-valuenow={doneCount}
+                    aria-valuemin={0}
+                    aria-valuemax={total}
+                    aria-label={t("progressLabel", { done: doneCount, total })}
+                  >
+                    <div
+                      className="h-full origin-left rounded-full bg-brand-fill transition-transform duration-300 motion-reduce:transition-none"
+                      style={{ transform: `scaleX(${doneCount / total})` }}
                     />
-                  </li>
-                ))}
-              </ul>
-            </TooltipProvider>
+                  </div>
+                  <span
+                    data-typography-role="subissue-progress"
+                    className="shrink-0 type-subissue-progress text-muted-foreground"
+                  >
+                    {t("progressCount", { done: doneCount, total })}
+                  </span>
+                </div>
+
+                <TooltipProvider>
+                  <ul
+                    aria-label={t("subIssues")}
+                    // Keep the link's 2px teal focus ring inside the detail main's
+                    // horizontal clipping boundary without changing the row grid.
+                    className="flex flex-col gap-0.5 px-1"
+                  >
+                    {children.map((child) => (
+                      <li key={child.id} className="@container">
+                        <IssueChildRow
+                          child={child}
+                          blockerCount={unresolvedBlockerCountIn(
+                            child,
+                            blockedIndex,
+                          )}
+                          getDrillProps={getDrillProps}
+                          membersByUsername={membersByUsername}
+                          currentLogin={currentLogin}
+                          resolved={isResolvedStatus(child.status)}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </TooltipProvider>
+              </>
+            )}
           </>
         )}
       </div>
