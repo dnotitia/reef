@@ -3,6 +3,7 @@ import {
   formatMentionToken,
   parseMentionTokens,
 } from "@reef/core";
+import { vaultMemberDisplayName } from "@/lib/vaultMemberNames";
 
 export interface CommentMentionDraftToken {
   username: string;
@@ -279,7 +280,7 @@ export function commentMentionSuggestions(
       if (!query) return true;
       return (
         member.username.toLocaleLowerCase().includes(query) ||
-        (member.display_name?.toLocaleLowerCase().includes(query) ?? false)
+        vaultMemberDisplayName(member).toLocaleLowerCase().includes(query)
       );
     })
     .slice(0, 8);

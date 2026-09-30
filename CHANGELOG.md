@@ -24,6 +24,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Issue activity and people controls show current vault display names.**
+  Timeline actors, selected assignees, and mention suggestions resolve stable
+  usernames through the current roster, with readable document-history
+  fallbacks for former members. (REEF-653)
 - **Direct issue links keep the detail frame visible while authentication, issue
   data, and the editor load.** Hard entry and reload carry the same panel and
   chrome into the interactive Sheet without a blank handoff or stacked modal.

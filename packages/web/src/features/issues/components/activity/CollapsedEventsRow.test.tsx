@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 import type { Status } from "@reef/core";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@/features/planning/hooks/usePlanningCatalog", () => ({
+  usePlanningCatalog: () => ({ data: undefined }),
+}));
 import { CollapsedEventsRow } from "./CollapsedEventsRow";
 import type { SystemEntry } from "./timelineModel";
 
@@ -53,5 +58,26 @@ describe("CollapsedEventsRow — focus & motion (REEF-287)", () => {
     expect(chevron?.getAttribute("class")).toContain(
       "motion-safe:transition-transform",
     );
+  });
+
+  it("resolves actors with the same roster after expanding a folded run", async () => {
+    const user = userEvent.setup();
+    render(
+      <CollapsedEventsRow
+        events={EVENTS}
+        vault="v"
+        members={[
+          { username: "bob", display_name: "Bob Example", role: "writer" },
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /status changes/ }));
+    const rows = screen.getAllByTestId("activity-event");
+    expect(rows).toHaveLength(EVENTS.length);
+    for (const row of rows) {
+      expect(row).toHaveTextContent("Bob Example");
+      expect(row).not.toHaveTextContent("bob");
+    }
   });
 });

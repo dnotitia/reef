@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,7 +11,9 @@ vi.mock("@/lib/apiClient", async () => {
 });
 
 import { apiFetch } from "@/lib/apiClient";
+import type { VaultMember } from "@reef/core";
 import { AssigneeCombobox } from "./AssigneeCombobox";
+import { vaultRosterKey } from "@/features/settings/hooks/useVaultRoster";
 
 const mockApiFetch = vi.mocked(apiFetch);
 
@@ -102,6 +104,90 @@ describe("AssigneeCombobox", () => {
     );
     expect(screen.getByTestId("assignee-combobox")).toBeInTheDocument();
     expect(screen.getByLabelText("Assignee: alice")).toBeInTheDocument();
+  });
+
+  it("uses the current roster display name on the assigned value and refreshes it", async () => {
+    let displayName = "Fixture Editor";
+    const members: VaultMember[] = [
+      {
+        username: "fixture.editor",
+        display_name: displayName,
+        role: "writer",
+      },
+    ];
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    mockApiFetch.mockImplementation(async (input) => {
+      if (String(input).includes("/api/vaults/")) {
+        return new Response(JSON.stringify({ members }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ users: [] }), { status: 200 });
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AssigneeCombobox
+          value="fixture.editor"
+          onChange={vi.fn()}
+          vault="reef-acme"
+        />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText("Assignee: Fixture Editor"),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.getByText("Fixture Editor")).toBeInTheDocument();
+
+    displayName = "Updated Fixture Editor";
+    const member = members[0];
+    if (member) member.display_name = displayName;
+    await queryClient.invalidateQueries({
+      queryKey: vaultRosterKey("reef-acme"),
+    });
+
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText("Assignee: Updated Fixture Editor"),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.getByText("Updated Fixture Editor")).toBeInTheDocument();
+  });
+
+  it("falls back to the username for a whitespace display name", async () => {
+    mockApiFetch.mockImplementation(async (input) => {
+      if (String(input).includes("/api/vaults/")) {
+        return new Response(
+          JSON.stringify({
+            members: [
+              { username: "fixture.blank", display_name: "  ", role: "writer" },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ users: [] }), { status: 200 });
+    });
+
+    render(
+      wrap(
+        <AssigneeCombobox
+          value="fixture.blank"
+          onChange={() => {}}
+          vault="reef-acme"
+        />,
+      ),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText("Assignee: fixture.blank"),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.getByText("fixture.blank")).toBeInTheDocument();
   });
 
   it("renders placeholder when value is empty", () => {

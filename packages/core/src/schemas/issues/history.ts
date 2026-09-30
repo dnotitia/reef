@@ -36,7 +36,10 @@ export const IssueBodyHistoryEventSchema = z.object({
   id: z.string().min(1),
   hash: z.string().min(1),
   at: IsoDateFieldSchema,
-  actor: z.string().nullable(),
+  /** Stable AKB agent username, used to resolve the current roster label. */
+  actorUsername: z.string().nullable(),
+  /** Human-readable author label when the original principal is unavailable. */
+  actorFallback: z.string().nullable(),
   kind: z.literal("body_update"),
 });
 export type IssueBodyHistoryEvent = z.infer<typeof IssueBodyHistoryEventSchema>;

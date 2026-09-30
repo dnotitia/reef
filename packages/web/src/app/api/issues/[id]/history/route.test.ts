@@ -46,7 +46,8 @@ const EVENT = {
   id: "body-update:c1",
   hash: "c1",
   at: "2026-08-18T01:00:00.000Z",
-  actor: null,
+  actorUsername: null,
+  actorFallback: null,
   kind: "body_update",
 };
 

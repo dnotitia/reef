@@ -31,7 +31,14 @@ vi.mock("streamdown", () => ({
 }));
 
 import { apiFetch } from "@/lib/apiClient";
-import type { ActivityEvent, Comment, IssueMetadata, Status } from "@reef/core";
+import type {
+  ActivityEvent,
+  Comment,
+  IssueBodyHistoryEvent,
+  IssueMetadata,
+  Status,
+  VaultMember,
+} from "@reef/core";
 import { ActivityTimeline } from "./ActivityTimeline";
 
 const mockApiFetch = vi.mocked(apiFetch);
@@ -68,6 +75,7 @@ function statusEvent(
   at: string,
   from: Status,
   to: Status,
+  actor = "bob",
 ): ActivityEvent {
   return {
     id,
@@ -75,7 +83,7 @@ function statusEvent(
     event_type: "status_change",
     event_key: `status_change:${from}->${to}@${at}`,
     payload: { from, to },
-    actor: "bob",
+    actor,
     at,
     source: null,
   };
@@ -83,6 +91,8 @@ function statusEvent(
 
 let comments: Comment[] = [];
 let activity: ActivityEvent[] = [];
+let roster: VaultMember[] = [];
+let bodyHistory: IssueBodyHistoryEvent[] = [];
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -90,6 +100,8 @@ beforeEach(() => {
   activity = [
     statusEvent("a1", "2026-06-04T00:00:00.000Z", "todo", "in_progress"),
   ];
+  roster = [];
+  bodyHistory = [];
   mockApiFetch.mockImplementation(
     async (input: URL | RequestInfo, init?: RequestInit) => {
       const url = String(input);
@@ -101,7 +113,8 @@ beforeEach(() => {
           releases: [],
           rollover_resumes: [],
         });
-      if (url.includes("/members")) return json({ members: [] });
+      if (url.includes("/history")) return json({ history: bodyHistory });
+      if (url.includes("/members")) return json({ members: roster });
       if (url.includes("/activity")) return json({ activity });
       if (url.includes("/attachments")) {
         if (method === "POST") {
@@ -184,16 +197,19 @@ function renderTimeline(issue = makeIssue()) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <ActivityTimeline
-        issueId="REEF-001"
-        vault="v"
-        issue={issue}
-        knownIssues={[]}
-      />
-    </QueryClientProvider>,
-  );
+  return {
+    queryClient,
+    ...render(
+      <QueryClientProvider client={queryClient}>
+        <ActivityTimeline
+          issueId="REEF-001"
+          vault="v"
+          issue={issue}
+          knownIssues={[]}
+        />
+      </QueryClientProvider>,
+    ),
+  };
 }
 
 describe("ActivityTimeline — unified feed (AC1, AC2)", () => {
@@ -260,6 +276,97 @@ describe("ActivityTimeline — unified feed (AC1, AC2)", () => {
     for (const row of rows) {
       expect(row.querySelector("time")).not.toBeNull();
     }
+  });
+
+  it("uses the current roster name for created, activity, body, and delivery rows", async () => {
+    comments = [];
+    roster = [
+      {
+        username: "fixture.editor",
+        display_name: "Current Fixture Editor",
+        role: "writer",
+      },
+    ];
+    activity = [
+      statusEvent(
+        "identity-status",
+        "2026-06-03T00:00:00.000Z",
+        "todo",
+        "in_progress",
+        "fixture.editor",
+      ),
+      {
+        id: "identity-priority",
+        reef_id: "REEF-001",
+        event_type: "priority_change",
+        event_key: "priority_change:low->high@2026-06-05T00:00:00.000Z",
+        payload: { from: "low", to: "high" },
+        actor: "fixture.editor",
+        at: "2026-06-05T00:00:00.000Z",
+        source: null,
+      },
+    ];
+    bodyHistory = [
+      {
+        id: "body-update:identity-body",
+        hash: "identity-body",
+        at: "2026-06-07T00:00:00.000Z",
+        actorUsername: "fixture.editor",
+        actorFallback: "Former Fixture Editor",
+        kind: "body_update",
+      },
+    ];
+    const issue = makeIssue({
+      created_by: "fixture.editor",
+      assigned_to: "fixture.editor",
+      implementation_refs: [
+        {
+          type: "pull_request",
+          repo: "fixture/reef",
+          ref: "25",
+          url: "https://github.com/fixture/reef/pull/25",
+          title: "Fixture delivery",
+          actor: "fixture.editor",
+          detected_at: "2026-06-06T00:00:00.000Z",
+        },
+      ],
+    });
+    const { queryClient } = renderTimeline(issue);
+
+    await waitFor(() =>
+      expect(
+        screen
+          .getAllByTestId("activity-event")
+          .filter((row) => row.textContent?.includes("Current Fixture Editor")),
+      ).toHaveLength(5),
+    );
+
+    expect(issue.created_by).toBe("fixture.editor");
+    expect(issue.assigned_to).toBe("fixture.editor");
+    expect(activity.every((event) => event.actor === "fixture.editor")).toBe(
+      true,
+    );
+    expect(bodyHistory[0]?.actorUsername).toBe("fixture.editor");
+
+    roster = roster.map((member) =>
+      member.username === "fixture.editor"
+        ? { ...member, display_name: "Updated Fixture Editor" }
+        : member,
+    );
+    await queryClient.invalidateQueries({ queryKey: ["vault-roster", "v"] });
+
+    await waitFor(() =>
+      expect(
+        screen
+          .getAllByTestId("activity-event")
+          .filter((row) => row.textContent?.includes("Updated Fixture Editor")),
+      ).toHaveLength(5),
+    );
+    expect(
+      screen
+        .getAllByTestId("activity-event")
+        .some((row) => row.textContent?.includes("fixture.editor")),
+    ).toBe(false);
   });
 
   it("reconstructs a closed event with its reason and the closer (AC5)", async () => {

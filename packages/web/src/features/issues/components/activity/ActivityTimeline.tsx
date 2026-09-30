@@ -266,6 +266,7 @@ export function ActivityTimeline({
                 key={`collapsed:${entry.events[0].event.id}`}
                 events={entry.events}
                 vault={vault}
+                members={vaultMembers}
               />
             );
           }
@@ -274,6 +275,7 @@ export function ActivityTimeline({
               key={entry.event.id}
               event={entry.event}
               vault={vault}
+              members={vaultMembers}
             />
           );
         })}

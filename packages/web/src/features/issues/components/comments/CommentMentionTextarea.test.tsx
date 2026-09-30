@@ -141,4 +141,72 @@ describe("CommentMentionTextarea avatar tone", () => {
     expect(avatar).toHaveClass("bg-brand-fill");
     expect(avatar?.className).not.toMatch(/\bbg-av-\d\b/);
   });
+
+  it("shows the trimmed roster display name and keeps the username candidate", async () => {
+    const user = userEvent.setup();
+    render(
+      <IntlTestProvider>
+        <CommentMentionTextarea
+          draft={emptyCommentMentionDraft()}
+          members={[
+            {
+              username: "fixture.editor",
+              display_name: "  Fixture Editor  ",
+              role: "writer",
+            },
+          ]}
+          pending={false}
+          name="comment"
+          ariaLabel="Add a comment"
+          placeholder="Write a comment"
+          rows={2}
+          className=""
+          onDraftChange={vi.fn()}
+        />
+      </IntlTestProvider>,
+    );
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Add a comment" }),
+      "@",
+    );
+
+    const option = screen.getByRole("option", {
+      name: "Mention @fixture.editor",
+    });
+    expect(option).toHaveTextContent("Fixture Editor");
+    expect(option).toHaveTextContent("@fixture.editor");
+    expect(option).not.toHaveTextContent("  Fixture Editor  ");
+  });
+
+  it("uses the username when the roster display name is whitespace", async () => {
+    const user = userEvent.setup();
+    render(
+      <IntlTestProvider>
+        <CommentMentionTextarea
+          draft={emptyCommentMentionDraft()}
+          members={[
+            { username: "fixture.blank", display_name: "  ", role: "writer" },
+          ]}
+          pending={false}
+          name="comment"
+          ariaLabel="Add a comment"
+          placeholder="Write a comment"
+          rows={2}
+          className=""
+          onDraftChange={vi.fn()}
+        />
+      </IntlTestProvider>,
+    );
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Add a comment" }),
+      "@",
+    );
+
+    const option = screen.getByRole("option", {
+      name: "Mention @fixture.blank",
+    });
+    expect(option).toHaveTextContent("fixture.blank");
+  });
 });

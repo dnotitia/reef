@@ -939,6 +939,13 @@ avatar and display name (or a localized unassigned label), with long names
 truncated inside the row and available through their own tooltip and accessible
 name.
 
+Activity actor identities resolve against the current vault roster and show the
+member's trimmed display name. A blank or missing roster name falls back to the
+stable username; document-history events use AKB's readable author name when
+their agent is no longer in the roster. Assignee values and mention suggestions
+use the same trimmed roster display name while retaining usernames for identity
+and mention tokens.
+
 The chrome also carries an actor-scoped notification control. Its trigger names
 and shows the effective **Watch / Watching / Muted** state, while the menu
 offers Watch and Mute. Changes update optimistically, block duplicate input
