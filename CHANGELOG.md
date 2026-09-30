@@ -24,6 +24,9 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Issue detail no longer reserves blank space for attachments while files are
+  loading.** Empty results and inline-image-only results leave Delivery and
+  Activity in place until downloadable files are available. (REEF-652)
 - **Issue detail restores its tab-local panel width and Description height while
   the issue or editor loads.** Loading skeletons use the saved dimensions from
   first paint, so the panel, toolbar, and content below the editor do not jump
