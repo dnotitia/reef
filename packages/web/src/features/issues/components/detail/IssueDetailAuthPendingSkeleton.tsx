@@ -51,7 +51,8 @@ export function IssueDetailAuthPendingSkeleton({
         tabIndex={-1}
         className="issue-detail-sheet fixed inset-y-0 right-0 z-50 flex min-w-0 flex-col overflow-hidden border-l border-border-subtle bg-surface-elevated shadow-xl shadow-foreground/10"
         style={{
-          width: "min(94vw, var(--issue-detail-width-default))",
+          width:
+            "min(var(--reef-issue-detail-initial-width, var(--issue-detail-width-default)), 94vw)",
           maxWidth: "var(--issue-detail-width-default)",
           ...(overlayOnly ? { pointerEvents: "auto" } : {}),
         }}

@@ -65,11 +65,16 @@ describe("IssueDetailSkeleton", () => {
 
   it("reserves the description, lower main sections and activity regions so the panel does not double on hydration (REEF-258)", () => {
     const { container } = render(<IssueDetailSkeleton />);
-    // Description reserves the MarkdownEditor's ~356px height (320px frame +
-    // toolbar), not the old short stub.
+    // The shared loading surface includes the toolbar and the editor's saved
+    // frame, so its next section cannot jump when the detail hydrates.
+    expect(screen.getByTestId("markdown-toolbar")).toBeInTheDocument();
     expect(
-      container.querySelectorAll(".reef-shimmer.h-\\[356px\\]"),
-    ).toHaveLength(1);
+      screen.getByTestId("markdown-editor-skeleton-body-frame"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("markdown-editor-skeleton")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
     expect(container.querySelectorAll(".reef-shimmer.h-44")).toHaveLength(0);
     // Activity composer (h-20) + its three event rows (h-12) are reserved below
     // Sub-issues / linked documents / refs, which the old skeleton omitted.

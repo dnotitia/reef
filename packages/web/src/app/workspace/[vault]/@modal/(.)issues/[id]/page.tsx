@@ -18,9 +18,9 @@ interface IssueModalPageProps {
  * step because drill hops keep the history flat (list ⇄ sheet, REEF-270).
  * Back/Esc within the drill trail are driven by the sheet's in-memory nav
  * stack, not this callback. If a hard-open sheet drills into this route, the
- * sheet keeps the hard-open callback captured at session start. Parallel-route
- * slots retain an unmatched child during soft navigation, so this page also
- * yields its sheet when the pathname is no longer an issue detail; otherwise a
+ * base route keeps its original Sheet mounted and this slot yields. Parallel-
+ * route slots retain an unmatched child during soft navigation, so this page
+ * also yields when the pathname is no longer an issue detail; otherwise a
  * deep-link Close would leave stale @modal content over the list.
  */
 export default function IssueModalPage({ params }: IssueModalPageProps) {
@@ -28,13 +28,20 @@ export default function IssueModalPage({ params }: IssueModalPageProps) {
   const router = useRouter();
   const pathname = usePathname();
   const clear = useIssueNavStack((state) => state.clear);
+  const entryRoute = useIssueNavStack((state) => state.entryRoute);
   const isActiveIssuePath = pathname.endsWith(`/issues/${id}`);
 
   useEffect(() => {
-    if (!isActiveIssuePath) clear();
-  }, [clear, isActiveIssuePath]);
+    if (entryRoute !== "base" && !isActiveIssuePath) clear();
+  }, [clear, entryRoute, isActiveIssuePath]);
 
-  if (!isActiveIssuePath) return null;
+  if (!isActiveIssuePath || entryRoute === "base") return null;
 
-  return <IssueDetailSheet issueId={id} onClose={() => router.back()} />;
+  return (
+    <IssueDetailSheet
+      entryRoute="modal"
+      issueId={id}
+      onClose={() => router.back()}
+    />
+  );
 }

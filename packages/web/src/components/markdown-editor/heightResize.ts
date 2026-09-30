@@ -6,6 +6,31 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import {
+  clampEditorHeight,
+  EDITOR_BODY_DEFAULT_HEIGHT,
+  EDITOR_BODY_FINE_POINTER_MEDIA_QUERY,
+  EDITOR_BODY_KEYBOARD_STEP,
+  EDITOR_BODY_MANUAL_FRAME_MARGIN_PX,
+  EDITOR_BODY_MIN_HEIGHT,
+  EDITOR_BODY_RESIZE_MIN_WIDTH,
+  EDITOR_BODY_SESSION_STORAGE_KEY,
+  EDITOR_RESIZE_DESCRIPTION_ID,
+  getEditorMaxHeight,
+} from "./heightResizePolicy";
+
+export {
+  clampEditorHeight,
+  EDITOR_BODY_DEFAULT_HEIGHT,
+  EDITOR_BODY_FINE_POINTER_MEDIA_QUERY,
+  EDITOR_BODY_KEYBOARD_STEP,
+  EDITOR_BODY_MANUAL_FRAME_MARGIN_PX,
+  EDITOR_BODY_MIN_HEIGHT,
+  EDITOR_BODY_RESIZE_MIN_WIDTH,
+  EDITOR_BODY_SESSION_STORAGE_KEY,
+  EDITOR_RESIZE_DESCRIPTION_ID,
+  getEditorMaxHeight,
+} from "./heightResizePolicy";
 
 /**
  * Shared height policy for both editor surfaces — the WYSIWYG body and the
@@ -18,9 +43,9 @@ import {
  * detail slide-over and the create dialog alike: 48vh keeps the rest of the
  * form in view, and a 960px ceiling caps the height on large monitors. (REEF-133)
  *
- * The dynamic wrapper's loading skeleton reserves the same 320px frame for
- * opted-in issue Descriptions, while other consumers retain their 200px
- * automatic floor. (REEF-220)
+ * The loading skeleton reads the same saved frame for opted-in issue
+ * Descriptions, while other consumers retain their 200px automatic floor.
+ * (REEF-220)
  */
 export const EDITOR_BODY_SIZING =
   "min-h-[200px] max-h-[clamp(200px,48vh,560px)] overflow-y-auto [scrollbar-gutter:stable]";
@@ -28,25 +53,14 @@ export const EDITOR_BODY_FRAME_CLASS = "p-1";
 export const EDITOR_CONTENT_CLASS = "reef-markdown-editor";
 export const MARKDOWN_SURFACE_CLASS = "reef-markdown-surface";
 export const EDITOR_RESIZABLE_BODY_ID = "markdown-editor-body-frame";
-export const EDITOR_BODY_MIN_HEIGHT = 200;
-export const EDITOR_BODY_DEFAULT_HEIGHT = 320;
-const EDITOR_BODY_MAX_HEIGHT = 960;
-export const EDITOR_BODY_KEYBOARD_STEP = 32;
 /**
  * The height control is useful once the editor has enough room for a stable
  * writing surface. This is intentionally narrower than the Issue Detail
  * sheet's desktop breakpoint so browser zoom and split-window layouts do not
  * make a mouse-accessible control disappear.
  */
-export const EDITOR_BODY_RESIZE_MIN_WIDTH = 1024;
-export const EDITOR_BODY_FINE_POINTER_MEDIA_QUERY = "(pointer: fine)";
-const EDITOR_BODY_VIEWPORT_RESERVATION = 160;
-export const EDITOR_BODY_SESSION_STORAGE_KEY =
-  "reef:issue-description-height:v1";
 const EDITOR_BODY_SESSION_STORAGE_EVENT =
   "reef:issue-description-height-change";
-export const EDITOR_RESIZE_DESCRIPTION_ID =
-  "markdown-editor-resize-description";
 
 /**
  * Manual height uses a scrollable content surface inside a non-scrolling frame.
@@ -115,24 +129,6 @@ function parseEditorViewportSnapshot(snapshot: string) {
     width: Number.isFinite(width) ? width : 0,
     height: Number.isFinite(height) ? height : 0,
   };
-}
-
-export function getEditorMaxHeight(viewportHeight: number) {
-  return Math.max(
-    EDITOR_BODY_MIN_HEIGHT,
-    Math.min(
-      EDITOR_BODY_MAX_HEIGHT,
-      viewportHeight - EDITOR_BODY_VIEWPORT_RESERVATION,
-    ),
-  );
-}
-
-export function clampEditorHeight(value: number, maxHeight: number) {
-  const safeMax = Math.max(EDITOR_BODY_MIN_HEIGHT, maxHeight);
-  if (!Number.isFinite(value)) {
-    return Math.min(EDITOR_BODY_DEFAULT_HEIGHT, safeMax);
-  }
-  return Math.min(Math.max(value, EDITOR_BODY_MIN_HEIGHT), safeMax);
 }
 
 function subscribeToStoredEditorHeight(onStoreChange: () => void) {

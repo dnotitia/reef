@@ -28,6 +28,10 @@ explicitly in the entries below.
   data, and the editor load.** Hard entry and reload carry the same panel and
   chrome into the interactive Sheet without a blank handoff or stacked modal.
   (REEF-648)
+- **Issue detail restores its tab-local panel width and Description height while
+  the issue or editor loads.** Loading skeletons use the saved dimensions from
+  first paint, so the panel, toolbar, and content below the editor do not jump
+  when the loaded UI takes over. (REEF-650)
 - **Issue search keeps one results-level progress indicator through debounce and
   refresh.** Empty searches start quietly, and board, list, backlog, and timeline
   searches share one progress bar and live announcement. (REEF-645)
@@ -45,6 +49,10 @@ explicitly in the entries below.
   board, list, and backlog views.** Cached searches no longer show a blank
   result set while the input catches up, and delayed searches retain the prior
   results until the requested set arrives. (REEF-646)
+- **Directly opened issue details keep their Sheet and wayfinding mounted while
+  a relationship destination loads.** The existing Sheet follows the replaced
+  issue URL, keeping Back, Close, and the destination-specific editor together.
+  (REEF-649)
 
 ### Migration
 

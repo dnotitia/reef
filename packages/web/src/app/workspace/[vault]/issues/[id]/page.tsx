@@ -29,9 +29,9 @@ interface IssuePageProps {
  * carried back to the entry list. A cold hit starts a depth-0 drill trail
  * (REEF-270), so exiting pushes the user to that vault-scoped list — we don't
  * rely on history.back() here because the tab may have started directly at
- * this URL with no prior entry. Once a relationship drill activates the
- * intercepting parallel route, the base sheet yields to that route so the
- * session has one visible sheet rather than a stacked duplicate.
+ * this URL with no prior entry. When a cold-open sheet drills into a related
+ * issue, this base route remains the session owner and updates the same sheet
+ * in place; the intercepting slot yields so its wayfinding frame stays mounted.
  */
 export default function IssuePage({ params }: IssuePageProps) {
   const { id, vault } = use(params);
@@ -40,9 +40,9 @@ export default function IssuePage({ params }: IssuePageProps) {
   const hasDrilledInSession = useIssueNavStack(
     (state) => state.hasDrilledInSession,
   );
-  // Route-local (not persisted): once this base page hands the session to
-  // the intercepting slot, it stays hidden even when Back unwinds to the
-  // original issue, preventing the two parallel sheets from stacking again.
+  const currentId = useIssueNavStack((state) => state.currentId);
+  const entryRoute = useIssueNavStack((state) => state.entryRoute);
+  const sheetIssueId = hasDrilledInSession && currentId ? currentId : id;
   const entryViewPath = searchParams.toString()
     ? `/issues?${searchParams.toString()}`
     : "/issues";
@@ -73,16 +73,20 @@ export default function IssuePage({ params }: IssuePageProps) {
           <IssuesWorkspace />
         </Suspense>
       ) : null}
-      {!hasDrilledInSession && !sheetReady && !completeGuardHandoff ? (
+      {entryRoute !== "modal" &&
+      !hasDrilledInSession &&
+      !sheetReady &&
+      !completeGuardHandoff ? (
         <IssueDetailAuthPendingSkeleton
           issueId={id}
           searchParams={searchParams.toString()}
           showWorkspaceSkeleton={!mounted}
         />
       ) : null}
-      {mounted && !hasDrilledInSession && (
+      {mounted && entryRoute !== "modal" && (
         <IssueDetailSheet
-          issueId={id}
+          entryRoute="base"
+          issueId={sheetIssueId}
           onReady={handleSheetReady}
           disableOpenAnimation
           onClose={() => router.push(withVault(vault, entryViewPath))}
