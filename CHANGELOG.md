@@ -24,6 +24,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Direct issue links keep the detail frame visible while authentication, issue
+  data, and the editor load.** Hard entry and reload carry the same panel and
+  chrome into the interactive Sheet without a blank handoff or stacked modal.
+  (REEF-648)
 - **Issue detail no longer reserves blank space for attachments while files are
   loading.** Empty results and inline-image-only results leave Delivery and
   Activity in place until downloadable files are available. (REEF-652)
