@@ -66,25 +66,28 @@ describe("useIssueNavStack (REEF-270)", () => {
     const firstExit = () => {};
     const remountedRouteExit = () => {};
 
-    useIssueNavStack.getState().registerExitOwner(firstExit);
-    useIssueNavStack.getState().registerExitOwner(remountedRouteExit);
+    useIssueNavStack.getState().registerExitOwner(firstExit, "base");
+    useIssueNavStack.getState().registerExitOwner(remountedRouteExit, "modal");
 
     expect(useIssueNavStack.getState().exitOwner).toBe(firstExit);
+    expect(useIssueNavStack.getState().entryRoute).toBe("base");
 
     useIssueNavStack.getState().clear();
     expect(useIssueNavStack.getState().exitOwner).toBeNull();
+    expect(useIssueNavStack.getState().entryRoute).toBeNull();
   });
 
   it("resets the entry exit owner with a fresh route navigation", () => {
     const initialExit = () => {};
     const freshRouteExit = () => {};
 
-    useIssueNavStack.getState().registerExitOwner(initialExit);
+    useIssueNavStack.getState().registerExitOwner(initialExit, "modal");
     useIssueNavStack.setState({ currentId: "REEF-A" });
     useIssueNavStack.getState().reconcile("REEF-B");
-    useIssueNavStack.getState().registerExitOwner(freshRouteExit);
+    useIssueNavStack.getState().registerExitOwner(freshRouteExit, "base");
 
     expect(useIssueNavStack.getState().exitOwner).toBe(freshRouteExit);
+    expect(useIssueNavStack.getState().entryRoute).toBe("base");
   });
 
   it("clear empties the trail and current pointer (the session-boundary reset)", () => {

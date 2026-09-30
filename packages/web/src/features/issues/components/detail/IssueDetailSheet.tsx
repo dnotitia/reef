@@ -30,10 +30,13 @@ import { IssueDetail } from "./IssueDetail";
 import { IssueDetailCloseButton } from "./IssueDetailCloseButton";
 import { IssueDetailSkeleton } from "./IssueDetailSkeleton";
 import { IssueDrillBackBar } from "./IssueDrillBackBar";
+import type { IssueDetailEntryRoute } from "../../stores/useIssueNavStack";
 
 interface IssueDetailSheetProps {
   /** Issue ID like "REEF-001". */
   issueId: string;
+  /** Route that owns this sheet for the lifetime of the current detail session. */
+  entryRoute: IssueDetailEntryRoute;
   /**
    * Exit the sheet to its entry view (the list/board the user came from). Used
    * by Close, by an outside click, and by Esc when there is no drill trail. The
@@ -396,7 +399,11 @@ function useIssueDetailResize(): IssueDetailResizeHandlers {
  * unwinds one hop; Close / outside click exit the whole trail to the entry view;
  * Esc means Back while drilled in, Close otherwise.
  */
-export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
+export function IssueDetailSheet({
+  issueId,
+  entryRoute,
+  onClose,
+}: IssueDetailSheetProps) {
   const t = useTranslations("issues.detail");
   const nav = useTranslations("nav");
   const {
@@ -416,6 +423,7 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
   const { vault, isLoading: vaultLoading } = useActiveVault();
   const { backTo, goBack, exit, dismissViaEsc } = useIssueSheetDismiss({
     issueId,
+    entryRoute,
     onExit: onClose,
   });
   const openerRef = useRef<HTMLElement | null>(null);
