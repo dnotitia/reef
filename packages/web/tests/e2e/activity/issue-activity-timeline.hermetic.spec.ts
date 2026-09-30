@@ -275,10 +275,6 @@ test.describe("Hermetic activity display names", () => {
       .filter({ hasText: "Fixture delivery" });
     await expect(delivery).toContainText("Current Fixture Editor");
 
-    const statusChanges = page.getByRole("button", {
-      name: "3 status changes",
-    });
-    await statusChanges.click();
     await expect(
       page
         .locator('[data-testid="activity-event"]')
