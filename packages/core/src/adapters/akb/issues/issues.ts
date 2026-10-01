@@ -1227,7 +1227,12 @@ export async function reorderIssue(
       metaExpression = `jsonb_set(${metaExpression}, '{last_editor}', to_jsonb(${actorParam}::text), true)`;
       if (groupChanged && group?.field === "status") {
         const atParam = sqlParams.add(at, "reorder status timestamp");
-        metaExpression = `jsonb_set(${metaExpression}, '{last_status_change}', to_jsonb(${atParam}::text), true)`;
+        const statusIssueParam = sqlParams.add(issueId, "reorder reef_id");
+        // Rank rebalancing can touch neighbors; only the moved issue changed status.
+        metaExpression =
+          `CASE WHEN "reef_id" = ${statusIssueParam} THEN ` +
+          `jsonb_set(${metaExpression}, '{last_status_change}', to_jsonb(${atParam}::text), true) ` +
+          `ELSE ${metaExpression} END`;
       }
       setClauses.push(`"meta" = ${metaExpression}::json`);
 

@@ -24,6 +24,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Board reordering preserves status-change times for neighboring issues.**
+  Rank materialization and re-spacing now stamp the transition time only on the
+  issue whose status changed, keeping auto-hide, report dates, and activity
+  timelines aligned with the actual transition. (REEF-655)
 - **Issue activity and people controls show current vault display names.**
   Timeline actors, selected assignees, and mention suggestions resolve stable
   usernames through the current roster, with readable document-history
