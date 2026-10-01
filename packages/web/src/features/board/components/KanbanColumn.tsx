@@ -17,12 +17,20 @@ import type {
   Status,
 } from "@reef/core";
 import { ExternalLink } from "lucide-react";
-import { memo, useCallback, useLayoutEffect, useMemo, useRef } from "react";
+import {
+  memo,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  type FocusEvent,
+} from "react";
 import { useStatusLabels } from "@/i18n/fieldLabels";
 import { useTranslations } from "next-intl";
 import type { IssueGroupBucket } from "../../issues/lib/grouping";
 import type { IssueReorderSurfaceState } from "../../issues/components/shared/IssueReorderFeedback";
 import { useIssueKeyboardStore } from "../../issues/stores/useIssueKeyboardStore";
+import type { BoardViewportAnchor } from "../../issues/stores/useIssueKeyboardStore";
 import { KanbanCard } from "./KanbanCard";
 
 const EMPTY_BLOCKED_IDS: ReadonlySet<string> = new Set();
@@ -33,6 +41,8 @@ const INITIAL_CARD_SCROLL_RECT = { width: 320, height: 480 };
 export interface KanbanColumnProps {
   bucket: IssueGroupBucket;
   vault?: string;
+  continuityKey?: string | null;
+  restoreAnchor?: BoardViewportAnchor | null;
   issues: IssueListItem[];
   /**
    * Blocked-issue ids precomputed once by the board (see `computeBlockedIds`).
@@ -59,6 +69,8 @@ export interface KanbanColumnProps {
 export const KanbanColumn = memo(function KanbanColumn({
   bucket,
   vault,
+  continuityKey = null,
+  restoreAnchor = null,
   issues,
   blockedIds = EMPTY_BLOCKED_IDS,
   planningCatalog,
@@ -92,6 +104,10 @@ export const KanbanColumn = memo(function KanbanColumn({
     easing: EASE_SIGNATURE,
   });
   const scrollElementRef = useRef<HTMLDivElement | null>(null);
+  const restoredAnchorRef = useRef<string | null>(null);
+  const restoreAnchorRef = useRef(restoreAnchor);
+  restoreAnchorRef.current = restoreAnchor;
+  const saveAnchorFrameRef = useRef(0);
   const setCardListRef = useCallback(
     (node: HTMLDivElement | null) => {
       scrollElementRef.current = node;
@@ -166,12 +182,128 @@ export const KanbanColumn = memo(function KanbanColumn({
         ? (issueIndexesById.get(pendingFocusRequest.issueId) ?? -1)
         : -1))
     : -1;
+  const restoreIndex = restoreAnchor
+    ? (issueIndexesByOccurrenceKey.get(restoreAnchor.occurrenceKey) ?? -1)
+    : -1;
 
   useLayoutEffect(() => {
     if (requestedIndex >= 0 && pendingFocusRequest) {
       virtualizer.scrollToIndex(requestedIndex, { align: "auto" });
     }
   }, [pendingFocusRequest, requestedIndex, virtualizer]);
+
+  useLayoutEffect(() => {
+    const anchor = restoreAnchorRef.current;
+    if (
+      !continuityKey ||
+      !anchor ||
+      restoreIndex < 0 ||
+      anchor.occurrenceKey !== restoreAnchor?.occurrenceKey ||
+      restoredAnchorRef.current === anchor.occurrenceKey
+    ) {
+      return;
+    }
+    restoredAnchorRef.current = anchor.occurrenceKey;
+    virtualizer.scrollToIndex(restoreIndex, { align: "start" });
+    let frame = 0;
+    let attempts = 0;
+    const restore = () => {
+      const scrollElement = scrollElementRef.current;
+      const card = scrollElement
+        ? Array.from(
+            scrollElement.querySelectorAll<HTMLElement>(
+              '[data-testid="kanban-card"][data-occurrence-key]',
+            ),
+          ).find(
+            (element) => element.dataset.occurrenceKey === anchor.occurrenceKey,
+          )
+        : undefined;
+      if (!scrollElement || !card) {
+        if (attempts < 4) {
+          attempts += 1;
+          frame = requestAnimationFrame(restore);
+        }
+        return;
+      }
+      useIssueKeyboardStore
+        .getState()
+        .focusOccurrence("board", anchor.occurrenceKey, anchor.issueId, {
+          requestDomFocus: true,
+        });
+      frame = requestAnimationFrame(() => {
+        frame = requestAnimationFrame(() => {
+          const currentScrollElement = scrollElementRef.current;
+          const currentCard = currentScrollElement
+            ? Array.from(
+                currentScrollElement.querySelectorAll<HTMLElement>(
+                  '[data-testid="kanban-card"][data-occurrence-key]',
+                ),
+              ).find(
+                (element) =>
+                  element.dataset.occurrenceKey === anchor.occurrenceKey,
+              )
+            : undefined;
+          if (!currentScrollElement || !currentCard) {
+            if (attempts < 8 && currentScrollElement) {
+              attempts += 1;
+              currentScrollElement.scrollTop = anchor.offset;
+              frame = requestAnimationFrame(restore);
+            }
+            return;
+          }
+          currentScrollElement.scrollTop = anchor.offset;
+          const cardRect = currentCard.getBoundingClientRect();
+          const scrollRect = currentScrollElement.getBoundingClientRect();
+          currentScrollElement.scrollTop +=
+            cardRect.top - scrollRect.top - anchor.itemOffset;
+        });
+      });
+    };
+    frame = requestAnimationFrame(restore);
+    return () => cancelAnimationFrame(frame);
+  }, [continuityKey, restoreAnchor?.occurrenceKey, restoreIndex, virtualizer]);
+
+  const saveFocusedAnchor = useCallback(() => {
+    if (!continuityKey) return;
+    const state = useIssueKeyboardStore.getState();
+    const occurrenceKey = state.focusedOccurrenceKey.board;
+    const issueId = state.focusedIssueId.board;
+    const scrollElement = scrollElementRef.current;
+    if (!occurrenceKey || !issueId || !scrollElement) return;
+    const card = Array.from(
+      scrollElement.querySelectorAll<HTMLElement>(
+        '[data-testid="kanban-card"][data-occurrence-key]',
+      ),
+    ).find((element) => element.dataset.occurrenceKey === occurrenceKey);
+    if (!card || !occurrenceKey.startsWith(`${bucket.id}:`)) return;
+    const cardRect = card.getBoundingClientRect();
+    const scrollRect = scrollElement.getBoundingClientRect();
+    state.setBoardViewportAnchor(continuityKey, {
+      bucketId: bucket.id,
+      occurrenceKey,
+      issueId,
+      offset: scrollElement.scrollTop,
+      itemOffset: cardRect.top - scrollRect.top,
+      focused: true,
+    });
+  }, [bucket.id, continuityKey]);
+
+  const scheduleFocusedAnchorSave = useCallback(() => {
+    if (saveAnchorFrameRef.current) return;
+    saveAnchorFrameRef.current = requestAnimationFrame(() => {
+      saveAnchorFrameRef.current = 0;
+      saveFocusedAnchor();
+    });
+  }, [saveFocusedAnchor]);
+
+  useLayoutEffect(
+    () => () => {
+      if (saveAnchorFrameRef.current) {
+        cancelAnimationFrame(saveAnchorFrameRef.current);
+      }
+    },
+    [],
+  );
 
   const virtualItems = virtualizer.getVirtualItems();
   return (
@@ -252,6 +384,8 @@ export const KanbanColumn = memo(function KanbanColumn({
       >
         <div
           ref={setCardListRef}
+          onFocus={(_event: FocusEvent<HTMLDivElement>) => saveFocusedAnchor()}
+          onScroll={scheduleFocusedAnchorSave}
           className="min-h-0 max-h-[calc(100dvh_-_8rem)] flex-1 overflow-y-auto overscroll-contain lg:max-h-none"
           data-testid="kanban-column-scroll-container"
         >

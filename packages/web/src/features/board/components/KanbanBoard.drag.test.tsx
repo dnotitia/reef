@@ -438,7 +438,9 @@ describe("KanbanBoard drag and status updates", () => {
     const detect = dndHarness.contextProps?.collisionDetection as (
       args: unknown,
     ) => unknown[];
-    expect(detect({})).toEqual([cardCollision]);
+    expect(detect({ pointerCoordinates: { x: 10, y: 10 } })).toEqual([
+      cardCollision,
+    ]);
   });
 
   it("disables the Board drop settle animation for reduced-motion users", async () => {

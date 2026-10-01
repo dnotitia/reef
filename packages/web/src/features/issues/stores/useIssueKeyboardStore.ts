@@ -29,6 +29,14 @@ export interface IssueKeyboardOccurrence {
   key: string;
   issueId: string;
 }
+export interface BoardViewportAnchor {
+  bucketId: string;
+  occurrenceKey: string;
+  issueId: string;
+  offset: number;
+  itemOffset: number;
+  focused: boolean;
+}
 type OccurrencesByScope = Record<IssueKeyboardScope, IssueKeyboardOccurrence[]>;
 type OccurrenceKeyByScope = Record<IssueKeyboardScope, string | null>;
 
@@ -41,6 +49,7 @@ interface IssueKeyboardState {
   tabStopOccurrenceKey: OccurrenceKeyByScope;
   focusRequest: FocusRequest | null;
   quickEditRequest: QuickEditRequest | null;
+  boardViewportAnchors: Record<string, BoardViewportAnchor>;
   setVisibleIssueIds: (
     scope: IssueKeyboardScope,
     issueIds: readonly string[],
@@ -67,6 +76,11 @@ interface IssueKeyboardState {
     options?: { requestDomFocus?: boolean },
   ) => void;
   closeQuickEdit: () => void;
+  setBoardViewportAnchor: (
+    contextKey: string,
+    anchor: BoardViewportAnchor,
+  ) => void;
+  clearBoardViewportAnchor: (contextKey: string) => void;
 }
 
 const EMPTY_IDS: IssueIdsByScope = { list: [], board: [], backlog: [] };
@@ -95,6 +109,7 @@ export const useIssueKeyboardStore = create<IssueKeyboardState>((set) => ({
   tabStopOccurrenceKey: EMPTY_OCCURRENCE_KEYS,
   focusRequest: null,
   quickEditRequest: null,
+  boardViewportAnchors: {},
 
   setVisibleIssueIds: (scope, issueIds) =>
     set((state) => {
@@ -389,4 +404,18 @@ export const useIssueKeyboardStore = create<IssueKeyboardState>((set) => ({
     }),
 
   closeQuickEdit: () => set({ quickEditRequest: null }),
+  setBoardViewportAnchor: (contextKey, anchor) =>
+    set((state) => ({
+      boardViewportAnchors: {
+        ...state.boardViewportAnchors,
+        [contextKey]: anchor,
+      },
+    })),
+  clearBoardViewportAnchor: (contextKey) =>
+    set((state) => {
+      if (!(contextKey in state.boardViewportAnchors)) return {};
+      const boardViewportAnchors = { ...state.boardViewportAnchors };
+      delete boardViewportAnchors[contextKey];
+      return { boardViewportAnchors };
+    }),
 }));

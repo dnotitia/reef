@@ -11,6 +11,7 @@ import {
   readFixtureState,
   resetFixture,
   setIssueListFailure,
+  setIssueReorderControl,
   signInAsAlice,
 } from "../harness/fixture";
 
@@ -110,6 +111,26 @@ function readTicketNumber(id: string): bigint {
   const match = /^[A-Z][A-Z0-9_]*-(\d+)$/u.exec(id);
   expect(match).not.toBeNull();
   return BigInt(match?.[1] ?? "0");
+}
+
+type FixtureIssue = Awaited<
+  ReturnType<typeof readFixtureState>
+>["vaults"][number]["issues"][number];
+
+function canonicalTodoIds(issues: FixtureIssue[]): string[] {
+  return issues
+    .filter((issue) => issue.status === "todo")
+    .sort((left, right) => {
+      if (left.rank !== right.rank) {
+        if (left.rank === null) return 1;
+        if (right.rank === null) return -1;
+        return left.rank - right.rank;
+      }
+      const leftNumber = readTicketNumber(left.id);
+      const rightNumber = readTicketNumber(right.id);
+      return leftNumber === rightNumber ? 0 : leftNumber > rightNumber ? -1 : 1;
+    })
+    .map(({ id }) => id);
 }
 
 function assertTicketPageOrder(ids: string[], order: "asc" | "desc"): void {
@@ -1059,6 +1080,396 @@ test.describe("large Board column virtualization", () => {
     await resetFixture(request, "large_vault");
   });
 
+  test("retries the complete Board projection without introducing cursors", async ({
+    page,
+    request,
+  }) => {
+    await setIssueListFailure(request, true);
+    const boardRequests: string[] = [];
+    const isBoardProjection = (url: URL) => {
+      const statuses = url.searchParams.getAll("status");
+      return (
+        url.pathname === "/api/issues" &&
+        url.searchParams.get("vault") === LARGE_VAULT &&
+        url.searchParams.get("sort_field") === "rank" &&
+        statuses.length === 5 &&
+        ["todo", "in_progress", "in_review", "done", "closed"].every((status) =>
+          statuses.includes(status),
+        )
+      );
+    };
+    page.on("request", (requestEvent) => {
+      const url = new URL(requestEvent.url());
+      if (requestEvent.method() === "GET" && isBoardProjection(url)) {
+        boardRequests.push(url.toString());
+      }
+    });
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page, LARGE_VAULT);
+    await page.goto(`/workspace/${LARGE_VAULT}/issues?view=board`);
+    await expect(
+      page
+        .locator('[role="alert"]')
+        .filter({ hasText: "Failed to load some issues." }),
+    ).toContainText("Failed to load some issues.", { timeout: 20_000 });
+    const failedBoardRequestCount = boardRequests.length;
+    expect(failedBoardRequestCount).toBeGreaterThan(0);
+    expect(
+      boardRequests.every((raw) => !new URL(raw).searchParams.has("cursor")),
+    ).toBe(true);
+
+    await setIssueListFailure(request, false);
+    const retryResponsePromise = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        response.request().method() === "GET" &&
+        isBoardProjection(url) &&
+        response.ok()
+      );
+    });
+    await page.getByRole("button", { name: "Retry" }).click();
+    const retryResponse = await retryResponsePromise;
+    expect(retryResponse.status()).toBe(200);
+    expect(new URL(retryResponse.url()).searchParams.has("cursor")).toBe(false);
+    await expect(
+      page.locator('[data-group-by="status"][data-group-value="todo"]'),
+    ).toHaveAttribute("aria-label", "Todo, 1205");
+    expect(boardRequests).toHaveLength(failedBoardRequestCount + 1);
+  });
+
+  test("pointer auto-scroll reorders past the mounted window using canonical neighbours", async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page, LARGE_VAULT);
+    const initialState = await readFixtureState(request);
+    const initialIssues = initialState.vaults.find(
+      (vault) => vault.name === LARGE_VAULT,
+    )?.issues;
+    if (!initialIssues) throw new Error("missing large-vault issues");
+    const initialOrder = canonicalTodoIds(initialIssues);
+    const sourceId = initialOrder[0];
+    if (!sourceId) throw new Error("missing initial canonical Board issue");
+
+    await page.goto(`/workspace/${LARGE_VAULT}/issues?view=board`);
+    await expect(page.getByTestId("sort-control-trigger")).toContainText(
+      "Rank order",
+    );
+    const column = page.locator(
+      '[data-group-by="status"][data-group-value="todo"]',
+    );
+    const scroll = column.getByTestId("kanban-column-scroll-container");
+    const source = column.locator(
+      `[data-testid="kanban-card"][data-issue-id="${sourceId}"]`,
+    );
+    await expect(source).toBeVisible();
+    const initialMountedIds = await column
+      .getByTestId("kanban-card")
+      .evaluateAll((cards) =>
+        cards
+          .map((card) => card.getAttribute("data-issue-id"))
+          .filter((id): id is string => id !== null),
+      );
+    const scrollBox = await scroll.boundingBox();
+    const sourceBox = await source.boundingBox();
+    if (!scrollBox || !sourceBox) {
+      throw new Error("missing initial Board drag bounds");
+    }
+    const reorderRequestPromise = page.waitForRequest((requestEvent) => {
+      return (
+        requestEvent.method() === "POST" &&
+        new URL(requestEvent.url()).pathname === "/api/issues/reorder"
+      );
+    });
+    const reorderResponsePromise = page.waitForResponse((response) => {
+      return (
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/api/issues/reorder"
+      );
+    });
+
+    await page.mouse.move(
+      sourceBox.x + sourceBox.width / 2,
+      sourceBox.y + sourceBox.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      sourceBox.x + sourceBox.width / 2 + 8,
+      sourceBox.y + sourceBox.height / 2,
+    );
+    await expect(source).toHaveAttribute("data-dragging", "true");
+    await page.mouse.move(
+      scrollBox.x + scrollBox.width / 2,
+      scrollBox.y + scrollBox.height - 8,
+      { steps: 8 },
+    );
+    await expect
+      .poll(() => scroll.evaluate((element) => element.scrollTop), {
+        timeout: 15_000,
+      })
+      .toBeGreaterThan(0);
+    const readVisibleDropCandidate = () =>
+      scroll.evaluate((element) => {
+        const root = element as HTMLElement;
+        const rootRect = root.getBoundingClientRect();
+        const cards = Array.from(
+          root.querySelectorAll<HTMLElement>('[data-testid="kanban-card"]'),
+        );
+        const visible = cards.filter((card) => {
+          const rect = card.getBoundingClientRect();
+          return (
+            rect.top >= rootRect.top + 8 && rect.bottom <= rootRect.bottom - 8
+          );
+        });
+        const target = visible.at(-2) ?? visible.at(-1);
+        return {
+          issueId: target?.dataset.issueId ?? null,
+          mountedIds: cards.flatMap((card) =>
+            card.dataset.issueId ? [card.dataset.issueId] : [],
+          ),
+        };
+      });
+    await expect
+      .poll(
+        async () => {
+          const candidate = await readVisibleDropCandidate();
+          return candidate.issueId
+            ? initialOrder.indexOf(candidate.issueId)
+            : -1;
+        },
+        { timeout: 15_000 },
+      )
+      .toBeGreaterThan(initialMountedIds.length - 1);
+    const targetCandidate = await readVisibleDropCandidate();
+    const targetId = targetCandidate.issueId;
+    if (!targetId) throw new Error("missing mounted Board drop target");
+    const targetIndex = initialOrder.indexOf(targetId);
+    expect(targetIndex).toBeGreaterThan(initialMountedIds.length - 1);
+    expect(initialMountedIds).not.toContain(targetId);
+    expect(targetCandidate.mountedIds).toContain(sourceId);
+
+    const target = column.locator(
+      `[data-testid="kanban-card"][data-issue-id="${targetId}"]`,
+    );
+    const targetBox = await target.boundingBox();
+    if (!targetBox) throw new Error("missing mounted Board target bounds");
+    await page.mouse.move(
+      targetBox.x + targetBox.width / 2,
+      targetBox.y + targetBox.height / 2,
+      { steps: 8 },
+    );
+    await page.mouse.up();
+
+    const [reorderRequest, reorderResponse] = await Promise.all([
+      reorderRequestPromise,
+      reorderResponsePromise,
+    ]);
+    expect(reorderResponse.status()).toBe(200);
+    const requestBody = reorderRequest.postDataJSON() as {
+      vault?: unknown;
+      scope?: unknown;
+      issue_id?: unknown;
+      before_id?: unknown;
+      after_id?: unknown;
+    };
+    expect(requestBody).toMatchObject({
+      vault: LARGE_VAULT,
+      scope: "active",
+      issue_id: sourceId,
+    });
+    const beforeId = requestBody.before_id;
+    const afterId = requestBody.after_id;
+    if (typeof beforeId !== "string" || typeof afterId !== "string") {
+      throw new Error("missing canonical neighbours in Board reorder request");
+    }
+    const beforeIndex = initialOrder.indexOf(beforeId);
+    const afterIndex = initialOrder.indexOf(afterId);
+    expect(beforeIndex).toBeGreaterThan(initialMountedIds.length - 1);
+    expect(afterIndex).toBe(beforeIndex + 1);
+
+    const persistedState = await readFixtureState(request);
+    const persistedIssues = persistedState.vaults.find(
+      (vault) => vault.name === LARGE_VAULT,
+    )?.issues;
+    if (!persistedIssues)
+      throw new Error("missing persisted large-vault issues");
+    const persistedOrder = canonicalTodoIds(persistedIssues);
+    const movedIndex = persistedOrder.indexOf(sourceId);
+    expect(persistedOrder.slice(movedIndex - 1, movedIndex + 2)).toEqual([
+      beforeId,
+      sourceId,
+      afterId,
+    ]);
+  });
+
+  test("keyboard Manual reorder crosses virtual windows, cancels, and persists exact neighbours", async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page, LARGE_VAULT);
+    const initialState = await readFixtureState(request);
+    const initialIssues = initialState.vaults.find(
+      (vault) => vault.name === LARGE_VAULT,
+    )?.issues;
+    if (!initialIssues) throw new Error("missing large-vault issues");
+    const initialOrder = canonicalTodoIds(initialIssues);
+    const sourceId = initialOrder[0];
+    if (!sourceId) throw new Error("missing initial canonical Board issue");
+
+    await page.goto(`/workspace/${LARGE_VAULT}/issues?view=board`);
+    const column = page.locator(
+      '[data-group-by="status"][data-group-value="todo"]',
+    );
+    const scroll = column.getByTestId("kanban-column-scroll-container");
+    const source = column.locator(
+      `[data-testid="kanban-card"][data-issue-id="${sourceId}"]`,
+    );
+    await expect(source).toBeVisible();
+    const initialMountedIds = await column
+      .getByTestId("kanban-card")
+      .evaluateAll((cards) =>
+        cards
+          .map((card) => card.getAttribute("data-issue-id"))
+          .filter((id): id is string => id !== null),
+      );
+    let reorderRequestCount = 0;
+    page.on("request", (requestEvent) => {
+      if (
+        requestEvent.method() === "POST" &&
+        new URL(requestEvent.url()).pathname === "/api/issues/reorder"
+      ) {
+        reorderRequestCount += 1;
+      }
+    });
+
+    await source.focus();
+    await page.keyboard.press("Space");
+    await expect(source).toHaveAttribute("data-dragging", "true");
+    for (let index = 0; index < 100; index += 1) {
+      await page.keyboard.press("ArrowDown");
+    }
+    await expect
+      .poll(() => scroll.evaluate((element) => element.scrollTop), {
+        timeout: 15_000,
+      })
+      .toBeGreaterThan(0);
+    await page.keyboard.press("Escape");
+    await expect(source).not.toHaveAttribute("data-dragging", "true");
+    expect(reorderRequestCount).toBe(0);
+    const afterCancel = await readFixtureState(request);
+    const afterCancelIssues = afterCancel.vaults.find(
+      (vault) => vault.name === LARGE_VAULT,
+    )?.issues;
+    if (!afterCancelIssues) throw new Error("missing issues after drag cancel");
+    expect(canonicalTodoIds(afterCancelIssues)).toEqual(initialOrder);
+
+    await scroll.evaluate(async (element) => {
+      (element as HTMLElement).scrollTop = 0;
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      );
+    });
+    await source.focus();
+    await page.keyboard.press("Space");
+    await expect(source).toHaveAttribute("data-dragging", "true");
+    for (let index = 0; index < 100; index += 1) {
+      await page.keyboard.press("ArrowDown");
+    }
+    await expect
+      .poll(() => scroll.evaluate((element) => element.scrollTop), {
+        timeout: 15_000,
+      })
+      .toBeGreaterThan(0);
+    const mountedAfterKeyboardMove = await column
+      .getByTestId("kanban-card")
+      .evaluateAll((cards) =>
+        cards
+          .map((card) => card.getAttribute("data-issue-id"))
+          .filter((id): id is string => id !== null),
+      );
+    expect(
+      mountedAfterKeyboardMove.some((id) => !initialMountedIds.includes(id)),
+    ).toBe(true);
+
+    const reorderRequestPromise = page.waitForRequest((requestEvent) => {
+      return (
+        requestEvent.method() === "POST" &&
+        new URL(requestEvent.url()).pathname === "/api/issues/reorder"
+      );
+    });
+    const reorderResponsePromise = page.waitForResponse((response) => {
+      return (
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/api/issues/reorder"
+      );
+    });
+    await setIssueReorderControl(request, { failures: 1 });
+    await page.keyboard.press("Space");
+    const [failedRequest, failedResponse] = await Promise.all([
+      reorderRequestPromise,
+      reorderResponsePromise,
+    ]);
+    expect(failedResponse.ok()).toBe(false);
+    await expect(page.getByTestId("issue-detail")).toHaveCount(0);
+    expect(reorderRequestCount).toBe(1);
+    const failedRequestBody = failedRequest.postDataJSON() as {
+      issue_id?: unknown;
+      before_id?: unknown;
+      after_id?: unknown;
+    };
+    expect(failedRequestBody.issue_id).toBe(sourceId);
+    expect(typeof failedRequestBody.before_id).toBe("string");
+    expect(typeof failedRequestBody.after_id).toBe("string");
+    expect(initialMountedIds).not.toContain(failedRequestBody.before_id);
+    expect(initialMountedIds).not.toContain(failedRequestBody.after_id);
+    await expect(source).toHaveAttribute("data-reorder-state", "error");
+    const afterFailure = await readFixtureState(request);
+    const afterFailureIssues = afterFailure.vaults.find(
+      (vault) => vault.name === LARGE_VAULT,
+    )?.issues;
+    if (!afterFailureIssues)
+      throw new Error("missing issues after reorder failure");
+    expect(canonicalTodoIds(afterFailureIssues)).toEqual(initialOrder);
+
+    const retryRequestPromise = page.waitForRequest((requestEvent) => {
+      return (
+        requestEvent.method() === "POST" &&
+        new URL(requestEvent.url()).pathname === "/api/issues/reorder"
+      );
+    });
+    const retryResponsePromise = page.waitForResponse((response) => {
+      return (
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/api/issues/reorder"
+      );
+    });
+    await page.getByRole("button", { name: "Retry" }).click();
+    const [retryRequest, retryResponse] = await Promise.all([
+      retryRequestPromise,
+      retryResponsePromise,
+    ]);
+    expect(retryResponse.status()).toBe(200);
+    expect(retryRequest.postDataJSON()).toEqual(failedRequest.postDataJSON());
+    expect(reorderRequestCount).toBe(2);
+
+    const persistedState = await readFixtureState(request);
+    const persistedIssues = persistedState.vaults.find(
+      (vault) => vault.name === LARGE_VAULT,
+    )?.issues;
+    if (!persistedIssues)
+      throw new Error("missing persisted large-vault issues");
+    const persistedOrder = canonicalTodoIds(persistedIssues);
+    const movedIndex = persistedOrder.indexOf(sourceId);
+    expect(persistedOrder[movedIndex - 1]).toBe(failedRequestBody.before_id);
+    expect(persistedOrder[movedIndex + 1]).toBe(failedRequestBody.after_id);
+  });
+
   test("bounds mounted cards and preserves deep keyboard focus and detail continuity", async ({
     page,
   }, testInfo) => {
@@ -1072,6 +1483,8 @@ test.describe("large Board column virtualization", () => {
           url: string;
           parseMs: number;
           parsedAt: number;
+          issueCount: number | null;
+          responseBytes: number;
         }>,
         firstCardDomAt: null as number | null,
         mountedCardsAtFirstDom: 0,
@@ -1106,10 +1519,16 @@ test.describe("large Board column virtualization", () => {
         const result = await originalJson.call(this);
         if (new URL(url).pathname === "/api/issues") {
           const parsedAt = performance.now();
+          const issueCount = Array.isArray(result?.issues)
+            ? result.issues.length
+            : null;
           metrics.issueResponses.push({
             url,
             parseMs: parsedAt - startedAt,
             parsedAt,
+            issueCount,
+            responseBytes: new TextEncoder().encode(JSON.stringify(result))
+              .byteLength,
           });
           recordFirstCardDom();
         }
@@ -1135,10 +1554,6 @@ test.describe("large Board column virtualization", () => {
       `/workspace/${LARGE_VAULT}/issues?view=board&sort=reef_id&order=asc`,
     );
     const issueListResponse = await issueListResponsePromise;
-    const issueListBody = (await issueListResponse.json()) as {
-      issues: unknown[];
-    };
-    expect(issueListBody.issues).toHaveLength(1_205);
 
     const column = page.locator(
       '[data-group-by="status"][data-group-value="todo"]',
@@ -1147,7 +1562,9 @@ test.describe("large Board column virtualization", () => {
       timeout: 20_000,
     });
     const scroll = column.getByTestId("kanban-column-scroll-container");
-    const firstCard = column.getByTestId("kanban-card").first();
+    const firstCard = column.locator(
+      '[data-testid="kanban-card"][data-issue-id="REEF-0001"]',
+    );
     await expect(firstCard).toBeVisible();
 
     const initialMetrics = await scroll.evaluate((element) => {
@@ -1164,6 +1581,111 @@ test.describe("large Board column virtualization", () => {
       initialMetrics.clientHeight,
     );
     expect(initialMetrics.mountedCards).toBeLessThanOrEqual(50);
+
+    const viewportGeometry = await scroll.evaluate(async (element) => {
+      const root = element as HTMLElement;
+      const samples: Array<{
+        position: "top" | "middle" | "end";
+        scrollTop: number;
+        issueIds: string[];
+        heights: number[];
+        indexes: number[];
+        adjacentGaps: number[];
+        leadingGap: number;
+        trailingGap: number;
+      }> = [];
+      const settleVirtualWindow = () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        );
+
+      for (const position of ["top", "middle", "end"] as const) {
+        const maxScrollTop = Math.max(0, root.scrollHeight - root.clientHeight);
+        root.scrollTop =
+          position === "top"
+            ? 0
+            : position === "middle"
+              ? Math.round(maxScrollTop * (600 / 1_205))
+              : maxScrollTop;
+        await settleVirtualWindow();
+        if (position === "end") {
+          root.scrollTop = root.scrollHeight;
+          await settleVirtualWindow();
+        }
+
+        const rootRect = root.getBoundingClientRect();
+        const visibleCards = Array.from(
+          root.querySelectorAll<HTMLElement>('[data-testid="kanban-card"]'),
+        )
+          .map((card) => {
+            const rect = card.getBoundingClientRect();
+            return {
+              id: card.dataset.issueId ?? "",
+              index: Number(
+                card.closest<HTMLElement>("[data-index]")?.dataset.index,
+              ),
+              top: rect.top,
+              bottom: rect.bottom,
+              height: rect.height,
+            };
+          })
+          .filter(
+            (card) => card.bottom > rootRect.top && card.top < rootRect.bottom,
+          )
+          .sort((left, right) => left.top - right.top);
+        const firstCard = visibleCards[0];
+        const lastCard = visibleCards.at(-1);
+        samples.push({
+          position,
+          scrollTop: root.scrollTop,
+          issueIds: visibleCards.map((card) => card.id),
+          heights: visibleCards.map(
+            (card) => Math.round(card.height * 100) / 100,
+          ),
+          indexes: visibleCards.map((card) => card.index),
+          adjacentGaps: visibleCards.slice(1).map((card, index) => {
+            const previousCard = visibleCards[index];
+            return (
+              Math.round(
+                (card.top - (previousCard?.bottom ?? card.top)) * 100,
+              ) / 100
+            );
+          }),
+          leadingGap: firstCard ? firstCard.top - rootRect.top : Number.NaN,
+          trailingGap: lastCard
+            ? rootRect.bottom - lastCard.bottom
+            : Number.NaN,
+        });
+      }
+      root.scrollTop = 0;
+      await settleVirtualWindow();
+      return samples;
+    });
+    expect(viewportGeometry.map(({ position }) => position)).toEqual([
+      "top",
+      "middle",
+      "end",
+    ]);
+    expect(viewportGeometry[0]?.issueIds).toContain("REEF-0001");
+    expect(viewportGeometry[0]?.issueIds).toContain("REEF-0005");
+    expect(viewportGeometry[1]?.issueIds).toContain("REEF-0601");
+    expect(viewportGeometry[2]?.issueIds).toContain("REEF-1206");
+    for (const sample of viewportGeometry) {
+      expect(sample.heights.length).toBeGreaterThan(1);
+      expect(
+        Math.max(...sample.heights) - Math.min(...sample.heights),
+      ).toBeGreaterThan(8);
+      expect(
+        sample.indexes.slice(1).every((index, offset) => {
+          return index - (sample.indexes[offset] ?? index) === 1;
+        }),
+      ).toBe(true);
+      expect(sample.adjacentGaps.every((gap) => gap >= -1 && gap <= 16)).toBe(
+        true,
+      );
+    }
+    expect(viewportGeometry[0]?.leadingGap).toBeLessThanOrEqual(16);
+    expect(viewportGeometry[2]?.trailingGap).toBeLessThanOrEqual(16);
 
     const scrollRenderMs = await scroll.evaluate(async (element) => {
       const root = element as HTMLElement;
@@ -1276,15 +1798,38 @@ test.describe("large Board column virtualization", () => {
       deepScrollMetrics.scrollBottomEdge,
     );
 
-    const scrollTopBeforeDetail = deepScrollMetrics.scrollTop;
+    const targetViewportOffsetBeforeDetail = await target.evaluate((card) => {
+      const scrollContainer = card.closest<HTMLElement>(
+        '[data-testid="kanban-column-scroll-container"]',
+      );
+      if (!scrollContainer) throw new Error("missing Board scroll container");
+      return Math.round(
+        card.getBoundingClientRect().top -
+          scrollContainer.getBoundingClientRect().top,
+      );
+    });
+    await expect(target).not.toHaveAttribute("data-dragging", "true");
     await page.keyboard.press("Enter");
     await expect(page.getByTestId("issue-detail")).toBeVisible();
     await page.getByTestId("issue-close").click();
     await expect(page.getByTestId("issue-detail")).toHaveCount(0);
     await expect(target).toBeFocused();
     await expect
-      .poll(() => scroll.evaluate((element) => element.scrollTop))
-      .toBe(scrollTopBeforeDetail);
+      .poll(() =>
+        target.evaluate((card, beforeOffset) => {
+          const scrollContainer = card.closest<HTMLElement>(
+            '[data-testid="kanban-column-scroll-container"]',
+          );
+          if (!scrollContainer) return Number.POSITIVE_INFINITY;
+          return Math.abs(
+            Math.round(
+              card.getBoundingClientRect().top -
+                scrollContainer.getBoundingClientRect().top,
+            ) - beforeOffset,
+          );
+        }, targetViewportOffsetBeforeDetail),
+      )
+      .toBeLessThanOrEqual(2);
 
     await page.setViewportSize({ width: 640, height: 360 });
     const mobileMetrics = await scroll.evaluate((element) => {
@@ -1334,6 +1879,8 @@ test.describe("large Board column virtualization", () => {
             url: string;
             parseMs: number;
             parsedAt: number;
+            issueCount: number | null;
+            responseBytes: number;
           }>;
           firstCardDomAt: number | null;
           mountedCardsAtFirstDom: number;
@@ -1346,6 +1893,8 @@ test.describe("large Board column virtualization", () => {
       const firstCardDomAt = measurement?.firstCardDomAt;
       return {
         parseMs: response?.parseMs ?? null,
+        issueCount: response?.issueCount ?? null,
+        responseBytes: response?.responseBytes ?? null,
         postParseToFirstCardDomMs:
           response && firstCardDomAt !== null && firstCardDomAt !== undefined
             ? firstCardDomAt - response.parsedAt
@@ -1362,13 +1911,12 @@ test.describe("large Board column virtualization", () => {
       viewport: { width: 1440, height: 900 },
       mobileViewport: { width: 640, height: 360 },
       browserVersion: page.context().browser()?.version() ?? "unknown",
-      totalIssues: issueListBody.issues.length,
+      totalIssues: browserMetrics.issueCount,
       requestDurationMs: requestTiming.responseEnd - requestTiming.requestStart,
       requestStartToFirstByteMs:
         requestTiming.responseStart - requestTiming.requestStart,
       responseBodyTransferMs:
         requestTiming.responseEnd - requestTiming.responseStart,
-      responseBytes: (await issueListResponse.body()).byteLength,
       ...browserMetrics,
       initialMountedCards: initialMetrics.mountedCards,
       mountedCardsAfterScroll,
@@ -1379,10 +1927,11 @@ test.describe("large Board column virtualization", () => {
       activeDragMountedCards: activeDragMetrics.mountedCards,
       activeDragScrollTop: activeDragMetrics.scrollTop,
       activeCardsAfterOffscreenScroll: activeDragMetrics.activeCards,
+      viewportGeometry,
       keyboardTraversalMs,
       deepMountedCards: deepScrollMetrics.mountedCards,
       deepScrollTop: deepScrollMetrics.scrollTop,
-      detailScrollTopBeforeClose: scrollTopBeforeDetail,
+      detailTargetViewportOffsetBeforeOpen: targetViewportOffsetBeforeDetail,
       initialClientHeight: initialMetrics.clientHeight,
       initialScrollHeight: initialMetrics.scrollHeight,
       mobileClientHeight: mobileMetrics.clientHeight,
@@ -1396,6 +1945,8 @@ test.describe("large Board column virtualization", () => {
       mobileColumnScrollTopAfterWheel,
     };
     expect(browserMetrics.parseMs).not.toBeNull();
+    expect(browserMetrics.issueCount).toBe(1_205);
+    expect(browserMetrics.responseBytes).toBeGreaterThan(0);
     expect(browserMetrics.postParseToFirstCardDomMs).not.toBeNull();
     expect(browserMetrics.mountedCardsAtFirstDom).not.toBeNull();
     expect(report.parseMs).toBeGreaterThanOrEqual(0);
@@ -1411,9 +1962,151 @@ test.describe("large Board column virtualization", () => {
     expect(report.boardBodyScrollTopAfterMobileWheel).toBe(
       report.boardBodyScrollTopBeforeMobileWheel,
     );
+    console.log("BOARD_VIRTUALIZATION_LARGE", JSON.stringify(report));
     await testInfo.attach("board-virtualization-measurement", {
       body: JSON.stringify(report, null, 2),
       contentType: "application/json",
     });
+  });
+
+  test("restores the focused Board occurrence and pixel anchor after workspace navigation", async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page, LARGE_VAULT);
+    await page.goto(
+      `/workspace/${LARGE_VAULT}/issues?view=board&sort=reef_id&order=asc`,
+    );
+
+    const column = page.locator(
+      '[data-group-by="status"][data-group-value="todo"]',
+    );
+    const scroll = column.getByTestId("kanban-column-scroll-container");
+    const firstCard = column.locator(
+      '[data-testid="kanban-card"][data-issue-id="REEF-0001"]',
+    );
+    const anchorCard = column.locator(
+      '[data-testid="kanban-card"][data-issue-id="REEF-0101"]',
+    );
+    await expect(firstCard).toBeVisible();
+    await firstCard.focus();
+    for (let index = 0; index < 100; index += 1) {
+      await page.keyboard.press("j");
+    }
+    await expect(anchorCard).toHaveAttribute("data-keyboard-focused", "true");
+    await expect(anchorCard).toBeFocused();
+    await scroll.evaluate(async (element) => {
+      const root = element as HTMLElement;
+      root.scrollTop = Math.max(0, root.scrollTop - 36);
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      );
+    });
+
+    const before = await anchorCard.evaluate((element) => {
+      const root = element.closest<HTMLElement>(
+        '[data-testid="kanban-column-scroll-container"]',
+      );
+      if (!root) throw new Error("missing Board column scroll container");
+      const rect = element.getBoundingClientRect();
+      const rootRect = root.getBoundingClientRect();
+      return {
+        id: element.getAttribute("data-issue-id"),
+        occurrenceKey: element.getAttribute("data-occurrence-key"),
+        offset: Math.round(rect.top - rootRect.top),
+        scrollTop: root.scrollTop,
+        focused: document.activeElement === element,
+      };
+    });
+    expect(before).toMatchObject({
+      id: "REEF-0101",
+      occurrenceKey: "todo:REEF-0101",
+      focused: true,
+    });
+    expect(before.scrollTop).toBeGreaterThan(0);
+    expect(before.offset).toBeGreaterThan(0);
+    await page.getByTestId("sidebar-nav-settings").click();
+    await expect(page).toHaveURL(
+      new RegExp(`/workspace/${LARGE_VAULT}/settings(?:/|$)`),
+    );
+    await page.getByTestId("sidebar-nav-issues").click();
+    await expect(page).toHaveURL(
+      new RegExp(`/workspace/${LARGE_VAULT}/issues(?:\\?|$)`),
+    );
+    await expect(page.getByTestId("kanban-board")).toBeVisible();
+    await expect(anchorCard).toBeVisible({ timeout: 20_000 });
+    await expect(anchorCard).toHaveAttribute("data-keyboard-focused", "true");
+    await expect(anchorCard).toBeFocused();
+
+    const after = await anchorCard.evaluate((element) => {
+      const root = element.closest<HTMLElement>(
+        '[data-testid="kanban-column-scroll-container"]',
+      );
+      if (!root) throw new Error("missing Board column scroll container");
+      const rect = element.getBoundingClientRect();
+      const rootRect = root.getBoundingClientRect();
+      return {
+        id: element.getAttribute("data-issue-id"),
+        occurrenceKey: element.getAttribute("data-occurrence-key"),
+        offset: Math.round(rect.top - rootRect.top),
+        scrollTop: root.scrollTop,
+        focused: document.activeElement === element,
+      };
+    });
+    expect(after).toMatchObject({
+      id: before.id,
+      occurrenceKey: before.occurrenceKey,
+      focused: true,
+    });
+    expect(after.scrollTop).toBeGreaterThan(0);
+    expect(Math.abs(after.offset - before.offset)).toBeLessThanOrEqual(2);
+  });
+
+  test("does not carry a same-ID Board anchor into another workspace", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "configured_multi");
+    await context.clearCookies();
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page, "reef-alpha");
+
+    const boardUrl = (vault: string) => `/workspace/${vault}/issues?view=board`;
+    await page.goto(boardUrl("reef-alpha"));
+    const firstWorkspaceCard = page.locator(
+      '[data-group-by="status"][data-group-value="todo"] [data-testid="kanban-card"][data-issue-id="REEF-001"]',
+    );
+    await expect(firstWorkspaceCard).toBeVisible();
+    await firstWorkspaceCard.focus();
+    await expect(firstWorkspaceCard).toHaveAttribute(
+      "data-keyboard-focused",
+      "true",
+    );
+
+    await page.getByTestId("sidebar-workspace-trigger").click();
+    await page.getByTestId("workspace-switcher-option-reef-zeta").click();
+    await expect(page).toHaveURL(/\/workspace\/reef-zeta\/issues(?:\?|$)/);
+    const sameIdInOtherWorkspace = page.locator(
+      '[data-group-by="status"][data-group-value="todo"] [data-testid="kanban-card"][data-issue-id="REEF-001"]',
+    );
+    await expect(sameIdInOtherWorkspace).toBeVisible();
+    await expect(sameIdInOtherWorkspace).not.toHaveAttribute(
+      "data-keyboard-focused",
+      "true",
+    );
+    await expect(sameIdInOtherWorkspace).not.toBeFocused();
+
+    await page.getByTestId("sidebar-workspace-trigger").click();
+    await page.getByTestId("workspace-switcher-option-reef-alpha").click();
+    await expect(page).toHaveURL(/\/workspace\/reef-alpha\/issues(?:\?|$)/);
+    await expect(firstWorkspaceCard).toBeVisible();
+    await expect(firstWorkspaceCard).toHaveAttribute(
+      "data-keyboard-focused",
+      "true",
+    );
+    await expect(firstWorkspaceCard).toBeFocused();
   });
 });

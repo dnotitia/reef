@@ -53,6 +53,7 @@ import type { IssueGroupBy } from "@/features/issues/lib/groupBy";
 import type { IssueScope } from "@/features/issues/lib/viewMode";
 import { useFlashStore } from "@/features/issues/stores/useFlashStore";
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
+import type { BoardViewportAnchor } from "@/features/issues/stores/useIssueKeyboardStore";
 import {
   IssueReorderAnnouncement,
   type IssueReorderSurfaceState,
@@ -74,6 +75,7 @@ import {
   type DropAnimation,
   PointerSensor,
   KeyboardSensor,
+  closestCenter,
   defaultDropAnimationSideEffects,
   pointerWithin,
   useSensor,
@@ -141,7 +143,12 @@ function prefersReducedMotion(): boolean {
 }
 
 const boardCollisionDetection: CollisionDetection = (args) => {
-  const collisions = pointerWithin(args);
+  // Pointer-based collision requires pointer coordinates, which keyboard
+  // drags do not provide. Use the translated active rect to resolve the
+  // nearest mounted card while the virtualizer scrolls the keyboard target.
+  const collisions = args.pointerCoordinates
+    ? pointerWithin(args)
+    : closestCenter(args);
   const issueCollision = collisions.find((collision) => {
     const data = collision.data?.droppableContainer.data.current as
       | { issue?: unknown }
@@ -153,6 +160,7 @@ const boardCollisionDetection: CollisionDetection = (args) => {
 
 interface KanbanBoardProps {
   vault: string;
+  continuityKey?: string | null;
   scope?: IssueScope;
   groupBy?: IssueGroupBy;
   fixedSprintId?: string;
@@ -166,6 +174,7 @@ interface KanbanBoardProps {
  */
 export function KanbanBoard({
   vault,
+  continuityKey = null,
   scope = "active",
   groupBy,
   fixedSprintId,
@@ -236,6 +245,9 @@ export function KanbanBoard({
   const openIssue = useOpenIssue();
   const activeIssueId = useBoardStore((state) => state.activeIssueId);
   const setActiveIssueId = useBoardStore((state) => state.setActiveIssueId);
+  const boardViewportAnchor = useIssueKeyboardStore((state) =>
+    continuityKey ? (state.boardViewportAnchors[continuityKey] ?? null) : null,
+  );
   const flashIssue = useFlashStore((state) => state.flashIssue);
   const [pendingClose, setPendingClose] = useState<{
     issue: IssueListItem;
@@ -264,6 +276,7 @@ export function KanbanBoard({
   });
   const keyboardSensor = useSensor(KeyboardSensor, {
     coordinateGetter: sortableKeyboardCoordinates,
+    scrollBehavior: "auto",
   });
   // Keep the hook's dependency shape stable while label grouping remains
   // non-mutating. The cards and columns gate their own drag affordances with
@@ -413,6 +426,36 @@ export function KanbanBoard({
       .getState()
       .setVisibleOccurrences("board", renderedOccurrences);
   }, [renderedOccurrences]);
+
+  useEffect(() => {
+    if (
+      !continuityKey ||
+      !boardViewportAnchor ||
+      isPending ||
+      isFetching ||
+      isError ||
+      isPlaceholderData
+    ) {
+      return;
+    }
+    if (
+      !renderedOccurrences.some(
+        ({ key, issueId }) =>
+          key === boardViewportAnchor.occurrenceKey &&
+          issueId === boardViewportAnchor.issueId,
+      )
+    ) {
+      useIssueKeyboardStore.getState().clearBoardViewportAnchor(continuityKey);
+    }
+  }, [
+    boardViewportAnchor,
+    continuityKey,
+    isError,
+    isFetching,
+    isPending,
+    isPlaceholderData,
+    renderedOccurrences,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -940,6 +983,14 @@ export function KanbanBoard({
               key={bucket.id}
               bucket={bucket}
               vault={vault}
+              continuityKey={continuityKey}
+              restoreAnchor={
+                boardViewportAnchor?.bucketId === bucket.id &&
+                boardViewportAnchor.occurrenceKey ===
+                  `${bucket.id}:${boardViewportAnchor.issueId}`
+                  ? boardViewportAnchor
+                  : null
+              }
               issues={issues}
               blockedIds={blockedIds}
               planningCatalog={planningCatalog}

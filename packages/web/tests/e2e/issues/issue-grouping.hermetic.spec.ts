@@ -124,6 +124,12 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
       "title",
       /Label groups cannot be moved by dragging/,
     );
+    await expect(
+      page.locator('[data-occurrence-key="label:e2e:REEF-001"]'),
+    ).toHaveCount(1);
+    await expect(
+      page.locator('[data-occurrence-key="label:frontend:REEF-001"]'),
+    ).toHaveCount(1);
     await page.getByTestId("view-switcher-list").click();
     await page.waitForURL(/view=list.*group=label|group=label.*view=list/);
   });
@@ -164,6 +170,10 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
     await expect(
       foundationColumn.locator('[data-testid="epic-group-header"]'),
     ).not.toContainText("1 of 2 done or closed");
+    await expect(foundationColumn).toHaveAttribute(
+      "aria-label",
+      /1 of 2 done or closed/,
+    );
     await expect(
       foundationColumn.locator('[data-testid="kanban-card"]'),
     ).toHaveCount(2);
@@ -207,12 +217,12 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
 
     await page.goto(`${WORKSPACE}?view=board&group=epic`);
+    await expect(page.locator('[data-interaction-ready="true"]')).toHaveCount(
+      1,
+    );
     const actionChildCard = foundationColumn
       .locator('[data-testid="kanban-card"]')
       .first();
-    await actionChildCard.click({ button: "right" });
-    await expect(page.getByRole("menu")).toBeVisible();
-    await page.keyboard.press("Escape");
     await actionChildCard.focus();
     await page.keyboard.press("s");
     await expect(page.getByTestId("issue-quick-edit-status")).toBeVisible();
@@ -265,6 +275,87 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
     await expect(
       page.locator('[data-group-by="epic"][data-group-value="REEF-101"]'),
     ).toContainText("0");
+  });
+
+  test("groups Board issues by sprint with real API projection and stable order", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "configured");
+    await context.clearCookies();
+    await openExistingWorkspace(page);
+    const issueResponsePromise = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        response.request().method() === "GET" &&
+        url.pathname === "/api/issues" &&
+        url.searchParams.get("vault") === "reef-e2e" &&
+        url.searchParams.get("sort_field") === "rank" &&
+        url.searchParams.getAll("status").length === 5 &&
+        response.ok()
+      );
+    });
+    await page.goto(`${WORKSPACE}?view=board&group=sprint`);
+    const issueResponse = await issueResponsePromise;
+    const body = (await issueResponse.json()) as {
+      issues?: Array<{ id?: unknown; sprint_id?: unknown }>;
+    };
+    const apiRows = (body.issues ?? []).flatMap((issue) =>
+      typeof issue.id === "string"
+        ? [{ id: issue.id, sprintId: issue.sprint_id ?? null }]
+        : [],
+    );
+    expect(apiRows.map(({ id }) => id)).toEqual(["REEF-002", "REEF-001"]);
+    const sprintId = apiRows.find(({ id }) => id === "REEF-001")?.sprintId;
+    expect(typeof sprintId).toBe("string");
+
+    const assignedColumn = page.locator(
+      `[data-group-by="sprint"][data-group-value="${String(sprintId)}"]`,
+    );
+    const unassignedColumn = page.locator(
+      '[data-group-by="sprint"][data-group-value="none"]',
+    );
+    await expect(assignedColumn).toBeVisible();
+    await expect(
+      assignedColumn.getByTestId("kanban-group-header"),
+    ).toContainText("Sprint Alpha");
+    await expect(assignedColumn).toHaveAttribute("aria-label", /1$/);
+    await expect(
+      assignedColumn.locator('[data-testid="kanban-card"]'),
+    ).toHaveAttribute("data-issue-id", "REEF-001");
+    await expect(unassignedColumn).toBeVisible();
+    await expect(
+      unassignedColumn.locator('[data-testid="kanban-card"]'),
+    ).toHaveAttribute("data-issue-id", "REEF-002");
+    await expect(
+      page.locator('[data-group-by="sprint"] [data-testid="kanban-card"]'),
+    ).toHaveCount(2);
+  });
+
+  test("keeps a Board blocked badge when its blocker is hidden by search", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "demo_board");
+    await context.clearCookies();
+    await openExistingWorkspace(page);
+    await page.goto(
+      "/workspace/reef-e2e/issues?view=board&q=Stream%20grounded",
+    );
+
+    const blockedCard = page.locator(
+      '[data-testid="kanban-card"][data-issue-id="REEF-105"]',
+    );
+    await expect(blockedCard).toBeVisible();
+    await expect(
+      page.locator('[data-testid="kanban-card"][data-issue-id="REEF-104"]'),
+    ).toHaveCount(0);
+    await expect(
+      blockedCard.getByText("Blocked", { exact: true }),
+    ).toBeVisible();
+    await expect(page.locator('[data-testid="kanban-card"]')).toHaveCount(1);
   });
 
   test("keeps grouped List rows and group controls inside the internal scrollport at narrow widths", async ({

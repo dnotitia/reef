@@ -14,6 +14,7 @@ describe("useIssueKeyboardStore", () => {
       tabStopOccurrenceKey: { list: null, board: null, backlog: null },
       focusRequest: null,
       quickEditRequest: null,
+      boardViewportAnchors: {},
     });
   });
 
@@ -77,6 +78,43 @@ describe("useIssueKeyboardStore", () => {
       list: "REEF-001",
       board: "REEF-010",
       backlog: null,
+    });
+  });
+
+  it("keeps Board viewport anchors isolated by account and workspace context", () => {
+    const first = {
+      bucketId: "status:todo",
+      occurrenceKey: "status:todo:REEF-0101",
+      issueId: "REEF-0101",
+      offset: 42,
+      itemOffset: 18,
+      focused: true,
+    };
+    const second = {
+      bucketId: "status:todo",
+      occurrenceKey: "status:todo:REEF-0101",
+      issueId: "REEF-0101",
+      offset: 0,
+      itemOffset: 0,
+      focused: false,
+    };
+
+    useIssueKeyboardStore
+      .getState()
+      .setBoardViewportAnchor("alice:reef-e2e", first);
+    useIssueKeyboardStore
+      .getState()
+      .setBoardViewportAnchor("bob:reef-e2e", second);
+
+    expect(useIssueKeyboardStore.getState().boardViewportAnchors).toEqual({
+      "alice:reef-e2e": first,
+      "bob:reef-e2e": second,
+    });
+
+    useIssueKeyboardStore.getState().clearBoardViewportAnchor("bob:reef-e2e");
+
+    expect(useIssueKeyboardStore.getState().boardViewportAnchors).toEqual({
+      "alice:reef-e2e": first,
     });
   });
 

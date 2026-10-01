@@ -26,6 +26,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Board navigation restores the focused issue occurrence and its column position.**
+  The in-memory anchor is scoped to the signed-in account and workspace, so a
+  matching issue id in another vault does not inherit the previous view.
+  (REEF-616)
 - **Board reordering preserves status-change times for neighboring issues.**
   Rank materialization and re-spacing now stamp the transition time only on the
   issue whose status changed, keeping auto-hide, report dates, and activity
