@@ -772,6 +772,19 @@ export async function updateIssue(
       }
     }
 
+    // Establish the current participant sources before any activity event can
+    // wake the projector. This closes the race where a status/assignee event
+    // reaches the tail before its requester/assignee recipient source exists.
+    if (partial.requester !== undefined || partial.assigned_to !== undefined) {
+      await syncAutomaticIssueSubscriptions(
+        adapter,
+        vault,
+        id,
+        current.issue,
+        mergedIssue,
+      );
+    }
+
     if (docDirty && mentionDelta.changed) {
       try {
         await appendIssueBodyMentionsChangeEvent(adapter, vault, {
@@ -879,16 +892,6 @@ export async function updateIssue(
           });
         }
       }
-    }
-
-    if (partial.requester !== undefined || partial.assigned_to !== undefined) {
-      await syncAutomaticIssueSubscriptions(
-        adapter,
-        vault,
-        id,
-        current.issue,
-        mergedIssue,
-      );
     }
 
     return {
@@ -1304,11 +1307,18 @@ export async function reorderIssue(
       });
 
       if (groupChanged && group) {
-        let beforeIssue: IssueMetadata | undefined;
-        let afterIssue: IssueMetadata | undefined;
+        const beforeIssue = rowToIssue(movedRow);
+        const afterIssue = issueWithReorderGroup(beforeIssue, group);
+        if (group.field === "assigned_to") {
+          await syncAutomaticIssueSubscriptions(
+            adapter,
+            vault,
+            issueId,
+            beforeIssue,
+            afterIssue,
+          );
+        }
         try {
-          beforeIssue = rowToIssue(movedRow);
-          afterIssue = issueWithReorderGroup(beforeIssue, group);
           if (group.field === "status") {
             await appendStatusChangeEvent(adapter, vault, {
               reefId: issueId,
@@ -1337,15 +1347,6 @@ export async function reorderIssue(
           span.addEvent("activity_append_failed", {
             error: error instanceof Error ? error.message : String(error),
           });
-        }
-        if (group.field === "assigned_to" && beforeIssue && afterIssue) {
-          await syncAutomaticIssueSubscriptions(
-            adapter,
-            vault,
-            issueId,
-            beforeIssue,
-            afterIssue,
-          );
         }
       }
 

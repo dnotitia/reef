@@ -230,6 +230,8 @@ export async function requestControlPlaneJson({
   path,
   init,
   acceptedStatuses,
+  missingTokenCode = "missing_admin_token",
+  authorizationHeader = true,
 }: {
   baseUrl: string;
   tokenSource: ControlPlaneTokenSource;
@@ -239,6 +241,8 @@ export async function requestControlPlaneJson({
   path: string;
   init: RequestInit;
   acceptedStatuses: readonly number[];
+  missingTokenCode?: string;
+  authorizationHeader?: boolean;
 }): Promise<{ status: number; body: unknown }> {
   let token: string;
   try {
@@ -249,7 +253,7 @@ export async function requestControlPlaneJson({
       upstreamStatus: 0,
       httpStatus: 401,
       retryable: false,
-      upstreamCode: "missing_admin_token",
+      upstreamCode: missingTokenCode,
     });
   }
 
@@ -260,7 +264,7 @@ export async function requestControlPlaneJson({
       ...init,
       headers: {
         Accept: "application/json",
-        Authorization: `Bearer ${token}`,
+        ...(authorizationHeader ? { Authorization: `Bearer ${token}` } : {}),
         ...(init.headers ?? {}),
       },
       redirect: "manual",
@@ -320,12 +324,13 @@ export async function requestControlPlaneJson({
 export function withControlPlaneSpan<T>(
   operation: string,
   work: (span: Span, setUpstreamStatus: (status: number) => void) => Promise<T>,
+  actorMode: "app" | "system_admin" = "system_admin",
 ): Promise<T> {
   return withSpan(
     `akb.control_plane.${operation}`,
     {
       "control_plane.operation": operation,
-      "control_plane.actor_mode": "system_admin",
+      "control_plane.actor_mode": actorMode,
     },
     async (span) => {
       const startedAt = Date.now();
@@ -348,7 +353,7 @@ export function withControlPlaneSpan<T>(
           span,
           {
             "control_plane.operation": operation,
-            "control_plane.actor_mode": "system_admin",
+            "control_plane.actor_mode": actorMode,
             ...fields,
             "control_plane.duration_ms": Date.now() - startedAt,
           },

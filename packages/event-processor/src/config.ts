@@ -1,5 +1,4 @@
 import { isIP } from "node:net";
-import { VaultNameSchema } from "@reef/core";
 
 export const EVENT_PROCESSOR_CONFIG_DEFAULTS = Object.freeze({
   host: "0.0.0.0",
@@ -12,7 +11,7 @@ export const EVENT_PROCESSOR_CONFIG_DEFAULTS = Object.freeze({
 export interface EventProcessorConfig {
   baseUrl: string;
   credential: string;
-  vault: string;
+  appCredential: string;
   host: string;
   port: number;
   reconnectDelayMs: number;
@@ -135,18 +134,15 @@ export function parseEventProcessorConfig(
     environment,
     "REEF_EVENT_PROCESSOR_AKB_TOKEN",
   );
-  const vault = requiredString(environment, "REEF_EVENT_PROCESSOR_VAULT");
-  if (!VaultNameSchema.safeParse(vault).success) {
-    throw new EventProcessorConfigurationError(
-      "REEF_EVENT_PROCESSOR_VAULT",
-      "must be a valid AKB vault name",
-    );
-  }
+  const appCredential = requiredString(
+    environment,
+    "REEF_EVENT_PROCESSOR_APP_CREDENTIAL",
+  );
 
   return {
     baseUrl,
     credential,
-    vault,
+    appCredential,
     host: parseHost(environment),
     port: parseInteger(
       environment,

@@ -29,6 +29,8 @@ These few rules, if broken, produce a malformed or invisible issue. They are sho
 
 7. **Issue-body mentions are roster-resolved metadata, not a second data model.** On issue create/update, reuse the canonical @username / @{unsafe username} parser and the current akb_vault_members roster. Store only sorted, deduplicated, exact-case resolved usernames in meta.mention_recipients; unresolved tokens remain ordinary body text and must not reveal membership. The issue_body_mentions_change activity row is an internal precursor for committed deltas, is idempotent by document commit, and is not a user timeline event. Never add a mention table, column, or separate store. (issue-workflows.md + comments-and-activity.md)
 
+8. **Automatic subscriptions are source-specific.** Keep requester and assignee rows in sync with issue writes, and upsert a commenter row after each new comment or reply. Prepare requester/assignee sources before appending activity events. Remove only the changed automatic source; never overwrite or delete a manual watch/mute row. Comment edits do not create a commenter source. (issue-workflows.md + comments-and-activity.md)
+
 ## Read the runbook before you act
 
 Creating an issue needs two runbooks, not one: conversational-playbook.md (what to decide, when to ask, planning-link judgment) and issue-workflows.md (the write mechanics). Reading only the mechanics one is the common miss -- it is how planning links and PM judgment get dropped. For other intents, read the one the router names; use akb_browse before akb_put on an unfamiliar collection.

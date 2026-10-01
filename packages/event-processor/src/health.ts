@@ -4,6 +4,28 @@ import type {
   EventProcessorTailState,
 } from "./processor.js";
 
+interface InstallationHealth {
+  vaultId: string;
+  active: boolean;
+  ready: boolean;
+  tailConnected: boolean;
+  recovering: boolean;
+  tailAttempts: number;
+  tailReconnects: number;
+  eventGapRecoveries: number;
+  notificationsFannedOut: number;
+  reconciliationSuccesses: number;
+  reconciliationFailures: number;
+  failures: number;
+}
+
+function metricLabel(value: string): string {
+  return value
+    .replaceAll("\\", "\\\\")
+    .replaceAll('"', '\\"')
+    .replaceAll("\n", "\\n");
+}
+
 export class ProcessorHealth {
   private ready = false;
   private stopping = false;
@@ -20,7 +42,118 @@ export class ProcessorHealth {
   private lastTailConnectionSeconds = 0;
   private lastReconciliationSuccessSeconds = 0;
   private lastReconciliationFailureSeconds = 0;
+  private inventoryManaged = false;
+  private inventoryReady = false;
+  private inventoryRefreshSuccesses = 0;
+  private inventoryRefreshFailures = 0;
+  private readonly installations = new Map<string, InstallationHealth>();
   private readonly startedAtMs = Date.now();
+
+  registerInstallation(installationId: string, vaultId: string): void {
+    const existing = this.installations.get(installationId);
+    if (existing) {
+      existing.active = true;
+      existing.vaultId = vaultId;
+      existing.ready = false;
+      existing.tailConnected = false;
+      existing.recovering = false;
+      return;
+    }
+    this.installations.set(installationId, {
+      vaultId,
+      active: true,
+      ready: false,
+      tailConnected: false,
+      recovering: false,
+      tailAttempts: 0,
+      tailReconnects: 0,
+      eventGapRecoveries: 0,
+      notificationsFannedOut: 0,
+      reconciliationSuccesses: 0,
+      reconciliationFailures: 0,
+      failures: 0,
+    });
+  }
+
+  markInstallationRemoved(installationId: string): void {
+    const installation = this.installations.get(installationId);
+    if (!installation) return;
+    installation.active = false;
+    installation.ready = false;
+    installation.tailConnected = false;
+    installation.recovering = false;
+  }
+
+  markInventoryRefresh(outcome: "success" | "failure"): void {
+    this.inventoryManaged = true;
+    if (outcome === "success") {
+      this.inventoryRefreshSuccesses += 1;
+      this.inventoryReady = !this.stopping;
+      return;
+    }
+    this.inventoryRefreshFailures += 1;
+  }
+
+  markInstallationReady(installationId: string): void {
+    const installation = this.installations.get(installationId);
+    if (installation && !this.stopping) installation.ready = true;
+  }
+
+  markInstallationFailed(installationId: string): void {
+    const installation = this.installations.get(installationId);
+    if (!installation) return;
+    installation.failures += 1;
+    installation.ready = false;
+    installation.tailConnected = false;
+  }
+
+  markInstallationTailState(
+    installationId: string,
+    state: EventProcessorTailState,
+  ): void {
+    const installation = this.installations.get(installationId);
+    if (!installation) return;
+    if (state === "connecting") {
+      if (installation.tailAttempts > 0) installation.tailReconnects += 1;
+      installation.tailAttempts += 1;
+      installation.tailConnected = false;
+      return;
+    }
+    installation.tailConnected = state === "connected";
+  }
+
+  markInstallationRecoveryChange(
+    installationId: string,
+    recovering: boolean,
+  ): void {
+    const installation = this.installations.get(installationId);
+    if (!installation) return;
+    if (recovering && !installation.recovering) {
+      installation.eventGapRecoveries += 1;
+    }
+    installation.recovering = recovering;
+    if (recovering) installation.ready = false;
+    else if (!this.stopping) installation.ready = true;
+  }
+
+  recordInstallationReconciliation(
+    installationId: string,
+    outcome: EventProcessorReconciliationOutcome,
+  ): void {
+    const installation = this.installations.get(installationId);
+    if (installation) {
+      if (outcome.status === "success") {
+        installation.reconciliationSuccesses += 1;
+        installation.notificationsFannedOut +=
+          outcome.result.activity.fannedOut + outcome.result.comment.fannedOut;
+        if (!this.stopping) installation.ready = true;
+      } else {
+        installation.reconciliationFailures += 1;
+        installation.ready = false;
+      }
+    }
+    this.recordReconciliation(outcome, installationId);
+  }
 
   markReady(): void {
     if (!this.stopping) this.ready = true;
@@ -33,7 +166,13 @@ export class ProcessorHealth {
   markStopping(): void {
     this.stopping = true;
     this.ready = false;
+    this.inventoryReady = false;
     this.tailConnected = false;
+    for (const installation of this.installations.values()) {
+      installation.ready = false;
+      installation.tailConnected = false;
+      installation.recovering = false;
+    }
   }
 
   markTailState(state: EventProcessorTailState): void {
@@ -61,7 +200,10 @@ export class ProcessorHealth {
     this.recovering = false;
   }
 
-  recordReconciliation(outcome: EventProcessorReconciliationOutcome): void {
+  recordReconciliation(
+    outcome: EventProcessorReconciliationOutcome,
+    installationId?: string,
+  ): void {
     const now = Date.now() / 1_000;
     if (outcome.status === "success") {
       this.reconciliationSuccesses += 1;
@@ -70,21 +212,29 @@ export class ProcessorHealth {
       this.notificationsFannedOut +=
         outcome.result.activity.fannedOut + outcome.result.comment.fannedOut;
       this.lastReconciliationSuccessSeconds = now;
-      if (!this.stopping) this.ready = true;
+      if (
+        !this.stopping &&
+        !this.inventoryManaged &&
+        installationId === undefined
+      ) {
+        this.ready = true;
+      }
       return;
     }
     this.reconciliationFailures += 1;
     this.lastReconciliationFailureSeconds = now;
-    this.ready = false;
+    if (!this.inventoryManaged && installationId === undefined)
+      this.ready = false;
   }
 
   isReady(): boolean {
+    if (this.inventoryManaged) return this.inventoryReady && !this.stopping;
     return this.ready && !this.stopping && !this.recovering;
   }
 
   metrics(): string {
     const lines = [
-      "# HELP reef_event_processor_ready Whether startup reconciliation has succeeded and shutdown has not started.",
+      "# HELP reef_event_processor_ready Whether the processor is ready for work and has not started graceful shutdown.",
       "# TYPE reef_event_processor_ready gauge",
       `reef_event_processor_ready ${this.isReady() ? 1 : 0}`,
       "# HELP reef_event_processor_stopping Whether graceful shutdown has started.",
@@ -122,6 +272,51 @@ export class ProcessorHealth {
       "# HELP reef_event_processor_last_reconciliation_failure_timestamp_seconds Time of the last failed source reconciliation.",
       "# TYPE reef_event_processor_last_reconciliation_failure_timestamp_seconds gauge",
       `reef_event_processor_last_reconciliation_failure_timestamp_seconds ${this.lastReconciliationFailureSeconds}`,
+      "# HELP reef_event_processor_inventory_ready Whether a complete app installation inventory has been read successfully.",
+      "# TYPE reef_event_processor_inventory_ready gauge",
+      `reef_event_processor_inventory_ready ${this.inventoryReady && !this.stopping ? 1 : 0}`,
+      "# HELP reef_event_processor_inventory_refresh_total App installation inventory refresh attempts by outcome.",
+      "# TYPE reef_event_processor_inventory_refresh_total counter",
+      `reef_event_processor_inventory_refresh_total{result="success"} ${this.inventoryRefreshSuccesses}`,
+      `reef_event_processor_inventory_refresh_total{result="failure"} ${this.inventoryRefreshFailures}`,
+      "# HELP reef_event_processor_active_installations Number of active installation workers in the last valid inventory.",
+      "# TYPE reef_event_processor_active_installations gauge",
+      `reef_event_processor_active_installations ${[...this.installations.values()].filter((installation) => installation.active).length}`,
+      "# HELP reef_event_processor_installation_active Whether this installation is present in the latest valid inventory.",
+      "# TYPE reef_event_processor_installation_active gauge",
+      "# HELP reef_event_processor_installation_ready Whether this installation is ready to process event sources.",
+      "# TYPE reef_event_processor_installation_ready gauge",
+      "# HELP reef_event_processor_installation_tail_connected Whether this installation's authenticated event stream is open.",
+      "# TYPE reef_event_processor_installation_tail_connected gauge",
+      "# HELP reef_event_processor_installation_tail_reconnects_total Number of tail reconnect attempts for this installation after the initial attempt.",
+      "# TYPE reef_event_processor_installation_tail_reconnects_total counter",
+      "# HELP reef_event_processor_installation_event_gap_recoveries_total Event gap recovery attempts by installation.",
+      "# TYPE reef_event_processor_installation_event_gap_recoveries_total counter",
+      "# HELP reef_event_processor_installation_recovering Whether this installation is recovering an event gap.",
+      "# TYPE reef_event_processor_installation_recovering gauge",
+      "# HELP reef_event_processor_installation_reconciliation_total Source reconciliation attempts by installation and outcome.",
+      "# TYPE reef_event_processor_installation_reconciliation_total counter",
+      "# HELP reef_event_processor_installation_notifications_fanned_out_total Notifications created by source reconciliation for this installation.",
+      "# TYPE reef_event_processor_installation_notifications_fanned_out_total counter",
+      "# HELP reef_event_processor_installation_failures_total Terminal worker failures by installation.",
+      "# TYPE reef_event_processor_installation_failures_total counter",
+      ...[...this.installations.entries()].flatMap(
+        ([installationId, installation]) => {
+          const labels = `installation_id="${metricLabel(installationId)}",vault_id="${metricLabel(installation.vaultId)}"`;
+          return [
+            `reef_event_processor_installation_active{${labels}} ${installation.active ? 1 : 0}`,
+            `reef_event_processor_installation_ready{${labels}} ${installation.ready && !this.stopping ? 1 : 0}`,
+            `reef_event_processor_installation_tail_connected{${labels}} ${installation.tailConnected ? 1 : 0}`,
+            `reef_event_processor_installation_tail_reconnects_total{${labels}} ${installation.tailReconnects}`,
+            `reef_event_processor_installation_event_gap_recoveries_total{${labels}} ${installation.eventGapRecoveries}`,
+            `reef_event_processor_installation_recovering{${labels}} ${installation.recovering ? 1 : 0}`,
+            `reef_event_processor_installation_reconciliation_total{${labels},result="success"} ${installation.reconciliationSuccesses}`,
+            `reef_event_processor_installation_reconciliation_total{${labels},result="failure"} ${installation.reconciliationFailures}`,
+            `reef_event_processor_installation_notifications_fanned_out_total{${labels}} ${installation.notificationsFannedOut}`,
+            `reef_event_processor_installation_failures_total{${labels}} ${installation.failures}`,
+          ];
+        },
+      ),
       "# HELP reef_event_processor_uptime_seconds Process uptime in seconds.",
       "# TYPE reef_event_processor_uptime_seconds gauge",
       `reef_event_processor_uptime_seconds ${Math.max(0, (Date.now() - this.startedAtMs) / 1_000)}`,

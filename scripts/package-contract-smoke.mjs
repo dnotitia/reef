@@ -247,13 +247,16 @@ async function proveCoreInstallationConsumer(consumerDir) {
   AppReleaseManifestSchema,
   ControlPlaneError,
   ControlPlaneInstallationSchema,
+  ControlPlaneInstallationInventoryItemSchema,
   ReleaseBlueprintSchema,
   buildReleaseBlueprint,
   createAkbAppInstallationReader,
+  createAkbAppInstallationInventoryReader,
   finalizeAppReleaseManifest,
   verifyFinalizedRelease,
   type AppReleaseManifest,
   type ControlPlaneInstallation,
+  type ControlPlaneInstallationInventoryItem,
   type ControlPlaneRequestPolicy,
   type FinalizedReleasePayload,
   type ReleaseBlueprint,
@@ -271,6 +274,13 @@ const reader = createAkbAppInstallationReader({
 const installation: Promise<ControlPlaneInstallation> = reader.getInstallation(
   "22222222-2222-4222-8222-222222222222",
 );
+const inventoryReader = createAkbAppInstallationInventoryReader({
+  baseUrl: "https://akb.example.test",
+  appCredential: "deployment-managed-app-credential",
+  requestPolicy,
+});
+const inventory: Promise<ControlPlaneInstallationInventoryItem[]> =
+  inventoryReader.listActiveInstallations();
 const isControlPlaneError = (error: unknown): error is ControlPlaneError =>
   error instanceof ControlPlaneError;
 const validateInstallation = (value: unknown): ControlPlaneInstallation =>
@@ -278,6 +288,12 @@ const validateInstallation = (value: unknown): ControlPlaneInstallation =>
 void isControlPlaneError;
 void validateInstallation;
 void installation;
+void inventory;
+const validateInventoryItem = (
+  value: unknown,
+): ControlPlaneInstallationInventoryItem =>
+  ControlPlaneInstallationInventoryItemSchema.parse(value);
+void validateInventoryItem;
 const blueprint: Promise<ReleaseBlueprint> = buildReleaseBlueprint();
 const validateBlueprint = (value: unknown): ReleaseBlueprint =>
   ReleaseBlueprintSchema.parse(value);
