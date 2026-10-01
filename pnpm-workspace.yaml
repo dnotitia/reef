@@ -1,10 +1,6 @@
 packages:
   - "packages/*"
 
-# Keep resolved reference labels out of ProseMirror's authored document state.
-patchedDependencies:
-  "@akb/markdown-editor@0.16.0": patches/markdown-editor.patch
-
 catalog:
   "@octokit/rest": ^22.0.1
   "@opentelemetry/api": ^1.9.1
@@ -19,7 +15,7 @@ catalog:
 pmOnFail: download
 
 allowBuilds:
-  '@akb/markdown-editor@https://codeload.github.com/dnotitia/akb/tar.gz/5853b2fc6ab9a6916778c8a1a90ed5a2213c2ed0#path:/frontend/packages/markdown-editor': true
+  '@akb/markdown-editor@https://codeload.github.com/dnotitia/akb/tar.gz/a5018b1cc6b4da18d9c15910e90b3590ffcd2cf8#path:/frontend/packages/markdown-editor': true
   "@biomejs/biome": true
   "@parcel/watcher": true
   "@swc/core": true

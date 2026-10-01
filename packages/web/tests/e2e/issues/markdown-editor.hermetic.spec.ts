@@ -844,22 +844,35 @@ test.describe("Hermetic Markdown editor fixture", () => {
     );
     expect(await fileResponse.text()).toContain("fixture incident log");
     const issueReference = editor.locator(
-      'a[href="/workspace/reef-e2e/issues/REEF-002"]',
+      '[data-markdown-reference-runtime-url="/workspace/reef-e2e/issues/REEF-002"][role="link"]',
     );
     await expect(issueReference).toHaveCount(1);
     await expect(issueReference).toHaveRole("link");
     await expect(issueReference).toContainText("REEF-002");
-    await expect(issueReference).toContainText("Alpha follow-up");
+    await expect(issueReference).toHaveAccessibleName(
+      "REEF-002 Alpha follow-up",
+    );
+    await expect(issueReference).toBeVisible();
+    expect(
+      await issueReference.evaluate(
+        (element) => window.getComputedStyle(element, "::after").content,
+      ),
+    ).toBe('"Alpha follow-up"');
     await expect(issueReference).toHaveAttribute(
-      "href",
+      "data-markdown-reference-runtime-url",
       "/workspace/reef-e2e/issues/REEF-002",
+    );
+    await expect(issueReference).toHaveAttribute(
+      "data-markdown-reference-title",
+      "Alpha follow-up",
     );
     await expect(issueReference).toHaveAttribute(
       "title",
       "REEF-002 — Alpha follow-up",
     );
-    await expect(issueReference).toHaveAttribute("target", "_blank");
-    await expect(issueReference).toHaveAttribute("rel", "noreferrer");
+    expect(await issueReference.getAttribute("href")).toBeNull();
+    expect(await issueReference.getAttribute("target")).toBeNull();
+    expect(await issueReference.getAttribute("rel")).toBeNull();
     const documentReference = editor.locator(
       'a[data-markdown-target*="/doc/"]',
     );
@@ -1344,19 +1357,33 @@ test.describe("Hermetic Markdown editor fixture", () => {
       MARKDOWN_FIXTURE_FILE_URI,
     );
     const reopenedIssueReference = reopenedEditor.locator(
-      'a[href="/workspace/reef-e2e/issues/REEF-002"]',
+      '[data-markdown-reference-runtime-url="/workspace/reef-e2e/issues/REEF-002"][role="link"]',
     );
     await expect(reopenedIssueReference).toHaveCount(2);
     for (const reference of await reopenedIssueReference.all()) {
       await expect(reference).toHaveAttribute(
-        "href",
+        "data-markdown-reference-runtime-url",
         "/workspace/reef-e2e/issues/REEF-002",
       );
+      await expect(reference).toHaveAttribute(
+        "data-markdown-reference-title",
+        "Alpha follow-up",
+      );
+      await expect(reference).toBeVisible();
+      expect(
+        await reference.evaluate(
+          (element) => window.getComputedStyle(element, "::after").content,
+        ),
+      ).toBe('"Alpha follow-up"');
       await expect(reference).toHaveAttribute(
         "title",
         "REEF-002 — Alpha follow-up",
       );
+      await expect(reference).toHaveAccessibleName("REEF-002 Alpha follow-up");
       await expect(reference).toHaveRole("link");
+      expect(await reference.getAttribute("href")).toBeNull();
+      expect(await reference.getAttribute("target")).toBeNull();
+      expect(await reference.getAttribute("rel")).toBeNull();
     }
     expect(await reopenedFileLink.getAttribute("href")).toContain(
       "/api/issues/REEF-001/attachments/file?",
@@ -2106,11 +2133,6 @@ test.describe("Hermetic Markdown editor fixture", () => {
 
     const listbox = page.getByRole("listbox");
     await expect(listbox).toBeVisible();
-    await expect(
-      editor.getByRole("img", {
-        name: /Broken fixture image/u,
-      }),
-    ).toBeVisible();
     const readDocumentText = () =>
       editor.evaluate((root) => {
         const document = root.cloneNode(true) as HTMLElement;
@@ -2206,7 +2228,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
 
     await editor.focus();
     const controls = editor.locator(
-      'a[href], input[type="checkbox"]:not(:disabled), pre[data-markdown-code][tabindex="0"]',
+      'a[href], a[data-markdown-reference-runtime-url][role="link"], input[type="checkbox"]:not(:disabled), pre[data-markdown-code][tabindex="0"]',
     );
     const tabsToFirstTask = await controls.evaluateAll((elements) =>
       elements.findIndex((element) =>
@@ -2288,7 +2310,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     const normalLink = editor.getByRole("link", { name: "reef link" });
     const akbLink = editor.getByRole("link", { name: "AKB report" });
     const issueReference = editor.locator(
-      'a[href="/workspace/reef-e2e/issues/REEF-002"]',
+      'a[data-markdown-reference-runtime-url="/workspace/reef-e2e/issues/REEF-002"][role="link"]',
     );
     const mention = editor.getByText("@alice", { exact: true });
     const firstTaskCheckbox = editor

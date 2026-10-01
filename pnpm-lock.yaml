@@ -59,9 +59,6 @@ overrides:
   vite: 6.4.3
   ws: 8.21.0
 
-patchedDependencies:
-  '@akb/markdown-editor@0.16.0': 7680e0646fb21ecd65ca7c6d33fc9870e785022bd5f73cfeea67eb15bb00edb6
-
 importers:
 
   .:
@@ -178,8 +175,8 @@ importers:
         specifier: ^1.0.58
         version: 1.0.58(zod@4.4.3)
       '@akb/markdown-editor':
-        specifier: git+https://github.com/dnotitia/akb.git#5853b2fc6ab9a6916778c8a1a90ed5a2213c2ed0&path:/frontend/packages/markdown-editor
-        version: https://codeload.github.com/dnotitia/akb/tar.gz/5853b2fc6ab9a6916778c8a1a90ed5a2213c2ed0#path:/frontend/packages/markdown-editor(patch_hash=7680e0646fb21ecd65ca7c6d33fc9870e785022bd5f73cfeea67eb15bb00edb6)(@floating-ui/dom@1.7.6)(@tiptap/extension-list@3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))(@tiptap/pm@3.31.3))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        specifier: git+https://github.com/dnotitia/akb.git#a5018b1cc6b4da18d9c15910e90b3590ffcd2cf8&path:/frontend/packages/markdown-editor
+        version: https://codeload.github.com/dnotitia/akb/tar.gz/a5018b1cc6b4da18d9c15910e90b3590ffcd2cf8#path:/frontend/packages/markdown-editor(@floating-ui/dom@1.7.6)(@tiptap/extension-list@3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))(@tiptap/pm@3.31.3))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@dnd-kit/core':
         specifier: ^6.3.1
         version: 6.3.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -429,9 +426,9 @@ packages:
     resolution: {integrity: sha512-6or44XprPzKbr8zkmzosowSE0pxkvJcoojBL+mCZvPUt3kvXp3XSNqeVun9golb1acEfSo6yaEBRT18h2VU+1Q==}
     engines: {node: '>=22'}
 
-  '@akb/markdown-editor@https://codeload.github.com/dnotitia/akb/tar.gz/5853b2fc6ab9a6916778c8a1a90ed5a2213c2ed0#path:/frontend/packages/markdown-editor':
-    resolution: {gitHosted: true, integrity: sha512-7tcrAkwOyRp4LHdgNc5lLGN/hAxrUI7UkAelI8532/eHcw1pvOE9xf703bgqk2hboj8V7VXo0URBlREHiXBQMA==, path: /frontend/packages/markdown-editor, tarball: https://codeload.github.com/dnotitia/akb/tar.gz/5853b2fc6ab9a6916778c8a1a90ed5a2213c2ed0}
-    version: 0.16.0
+  '@akb/markdown-editor@https://codeload.github.com/dnotitia/akb/tar.gz/a5018b1cc6b4da18d9c15910e90b3590ffcd2cf8#path:/frontend/packages/markdown-editor':
+    resolution: {gitHosted: true, integrity: sha512-sF8i6TbiCVbSFNrKnCjswyYYVj5L5HGw9OlYjNWkowiS43KvsraN9cPKuKmLaoOdQRqJW6M+aYvJUqS+Al6jnQ==, path: /frontend/packages/markdown-editor, tarball: https://codeload.github.com/dnotitia/akb/tar.gz/a5018b1cc6b4da18d9c15910e90b3590ffcd2cf8}
+    version: 0.16.1
     engines: {node: 22.19.0}
     peerDependencies:
       react: ^19.0.0
@@ -6179,7 +6176,7 @@ snapshots:
     dependencies:
       json-schema: 0.4.0
 
-  '@akb/markdown-editor@https://codeload.github.com/dnotitia/akb/tar.gz/5853b2fc6ab9a6916778c8a1a90ed5a2213c2ed0#path:/frontend/packages/markdown-editor(patch_hash=7680e0646fb21ecd65ca7c6d33fc9870e785022bd5f73cfeea67eb15bb00edb6)(@floating-ui/dom@1.7.6)(@tiptap/extension-list@3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))(@tiptap/pm@3.31.3))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+  '@akb/markdown-editor@https://codeload.github.com/dnotitia/akb/tar.gz/a5018b1cc6b4da18d9c15910e90b3590ffcd2cf8#path:/frontend/packages/markdown-editor(@floating-ui/dom@1.7.6)(@tiptap/extension-list@3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))(@tiptap/pm@3.31.3))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@radix-ui/react-dialog': 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@tiptap/core': 3.31.3(@tiptap/pm@3.31.3)
@@ -6202,6 +6199,7 @@ snapshots:
       katex: 0.17.0
       lowlight: 3.3.0
       lucide-react: 1.7.0(react@19.2.8)
+      marked: 17.0.6
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
     transitivePeerDependencies:
