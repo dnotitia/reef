@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   AkbApiError,
@@ -12,6 +12,8 @@ import {
   buildIssueMetadataFromCreateInput,
   createAkbAdapter,
   createAkbAppInstallationReader,
+  createAkbAppRegistry,
+  createAkbAppRollout,
   createAkbChangeEventTail,
   createVault,
   getAuthConfig,
@@ -21,6 +23,8 @@ import {
   readInstallation,
   readMemberInstallationActive,
   requestInstallation,
+  REEF_SCHEMA_VERSION,
+  REEF_SETTINGS_TABLE,
   uninstallInstallation,
   listIssues,
   listIssueBodyHistory,
@@ -40,6 +44,7 @@ import {
   unlinkResources,
 } from "../../src/adapters/akb/core/relations";
 import { verifyRequiredTables } from "../../src/adapters/akb/core/verifyRequiredTables";
+import type { ControlPlaneRollout } from "../../src/schemas/controlPlane";
 import {
   AkbSearchResponseSchema,
   AkbSqlMutationResponseSchema,
@@ -752,6 +757,23 @@ async function waitForActiveInstallation(params: {
   );
 }
 
+async function waitForAppliedRollout(params: {
+  rollout: ReturnType<typeof createAkbAppRollout>;
+  appId: string;
+  jobId: string;
+}): Promise<ControlPlaneRollout> {
+  const deadline = Date.now() + 55_000;
+  while (Date.now() < deadline) {
+    const rollout = await params.rollout.getRollout(params.appId, params.jobId);
+    if (rollout.status === "applied") return rollout;
+    if (rollout.status === "blocked") {
+      throw new Error("Live workspace schema rollout was blocked");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+  throw new Error("Timed out waiting for the live workspace schema rollout");
+}
+
 describe("AKB live adapter construction", () => {
   it("preserves the stream capability when request instrumentation wraps the adapter", () => {
     const baseAdapter = createAkbAdapter({
@@ -775,6 +797,12 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
   let vaultId: string;
   let tableCatalogGetCount = 0;
   let schemaMutationCount = 0;
+  let observeReadiness = false;
+  let readinessRequests: Array<{ path: string; method: string }> = [];
+  let registry: ReturnType<typeof createAkbAppRegistry>;
+  let rolloutApi: ReturnType<typeof createAkbAppRollout>;
+  let rolloutEvidence: Record<string, unknown> = { status: "not_run" };
+  let readinessEvidence: Record<string, unknown> | undefined;
   let authEvidence: Record<string, unknown> | undefined;
   let installationEvidence: Record<string, unknown> = {
     status: "not_run",
@@ -801,6 +829,7 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
       const [path, init] = args;
       const tableRoot = `/api/v1/tables/${encodeURIComponent(vault)}`;
       const method = init?.method ?? "GET";
+      if (observeReadiness) readinessRequests.push({ path, method });
       const isSchemaRoute =
         path === tableRoot ||
         (path.startsWith(`${tableRoot}/`) && path !== `${tableRoot}/sql`);
@@ -808,6 +837,21 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
       if (path === tableRoot && method === "GET") tableCatalogGetCount += 1;
       return baseAdapter.request(...args);
     });
+
+    // Check the test-only canonical release registration before any lifecycle
+    // fixture reset can remove it. This control-plane work is test preparation.
+    registry = createAkbAppRegistry({ baseUrl, adminToken: token });
+    rolloutApi = createAkbAppRollout({ baseUrl, adminToken: token });
+    const registeredApp = await registry.getApp(LIVE_APP_ID as string);
+    const registeredRelease = await registry.getRelease(
+      LIVE_APP_ID as string,
+      LIVE_RELEASE_ID as string,
+    );
+    expect(registeredApp.appKey).toBe("reef");
+    expect(registeredRelease.appId).toBe(registeredApp.id);
+    expect(registeredRelease.id).toBe(LIVE_RELEASE_ID);
+    expect(registeredRelease.manifest.app_key).toBe("reef");
+    expect(registeredRelease.manifest.schema_version).toBe(REEF_SCHEMA_VERSION);
 
     // Throwaway vault per run so local re-runs never collide; teardown below.
     const vaultSuffix =
@@ -829,12 +873,42 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
       releaseId: LIVE_RELEASE_ID as string,
       mode: "install",
     });
+    // Operator-only fixture preparation: command_installation records the
+    // install intent but does not enqueue a rollout on this AKB revision. Ask
+    // AKB's public operator API to apply the registered release before testing
+    // Reef's verify-only readiness boundary below.
+    const requestedRollout = await rolloutApi.requestRollout({
+      appId: registeredApp.id,
+      releaseId: registeredRelease.id,
+      manifestChecksum: registeredRelease.manifestChecksum,
+      idempotencyKey: randomUUID(),
+    });
+    const appliedRollout = await waitForAppliedRollout({
+      rollout: rolloutApi,
+      appId: registeredApp.id,
+      jobId: requestedRollout.rollout.jobId,
+    });
+    expect(appliedRollout.targets.length).toBeGreaterThan(0);
+    expect(
+      appliedRollout.targets.some((target) => target.vaultId === vaultId),
+    ).toBe(true);
+    rolloutEvidence = {
+      api: "createAkbAppRollout",
+      job_id: appliedRollout.jobId,
+      status: appliedRollout.status,
+      targets: appliedRollout.targets.map((target) => ({
+        state: target.state,
+        steps: target.steps.map(({ operation, state }) => ({
+          operation,
+          state,
+        })),
+      })),
+    };
     await waitForActiveInstallation({
       adapter,
       appId: LIVE_APP_ID as string,
       vaultId,
     });
-    await verifyRequiredTables({ adapter, vault, canManage: true });
 
     // Seed one issue through reef's REAL write path (doc PUT + reef_issues row).
     const issue = buildIssueMetadataFromCreateInput({
@@ -851,7 +925,7 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
       issue,
       content: "Seed body for the REEF-056 live contract smoke.",
     });
-  }, 60_000);
+  }, 120_000);
 
   afterAll(async () => {
     if (adapter && vault) {
@@ -1751,10 +1825,103 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
   });
 
   it("required-table verification reads the active release schema without schema writes", async () => {
+    const readState = async () => {
+      const [tableCatalog, app, release, schemaVersionResult] =
+        await Promise.all([
+          adapter.request(`/api/v1/tables/${encodeURIComponent(vault)}`, {
+            resource: `tables in vault ${vault}`,
+          }),
+          registry.getApp(LIVE_APP_ID as string),
+          registry.getRelease(LIVE_APP_ID as string, LIVE_RELEASE_ID as string),
+          runSql(
+            adapter,
+            vault,
+            `SELECT value FROM ${REEF_SETTINGS_TABLE} WHERE key = $1 LIMIT 1`,
+            ["schema_version"],
+          ),
+        ]);
+      if (schemaVersionResult.kind !== "table_query") {
+        throw new Error("Schema-version evidence query did not return rows");
+      }
+      return {
+        tableCatalog,
+        registry: {
+          appId: app.id,
+          appKey: app.appKey,
+          releaseId: release.id,
+          releaseAppId: release.appId,
+          manifestChecksum: release.manifestChecksum,
+          manifestSchemaVersion: release.manifest.schema_version,
+          manifestSchema: release.manifest.schema,
+        },
+        schemaVersion: schemaVersionResult.items[0]?.value ?? null,
+      };
+    };
+
     const readsBefore = tableCatalogGetCount;
-    await verifyRequiredTables({ adapter, vault, canManage: true });
-    expect(tableCatalogGetCount).toBe(readsBefore + 1);
-    expect(schemaMutationCount).toBe(0);
+    const mutationsBefore = schemaMutationCount;
+    const before = await readState();
+    readinessRequests = [];
+    observeReadiness = true;
+    try {
+      await verifyRequiredTables({ adapter, vault, canManage: true });
+    } finally {
+      observeReadiness = false;
+    }
+    const after = await readState();
+
+    expect(tableCatalogGetCount).toBe(readsBefore + 3);
+    expect(readinessRequests).toEqual([
+      {
+        path: `/api/v1/tables/${encodeURIComponent(vault)}`,
+        method: "GET",
+      },
+    ]);
+    expect(schemaMutationCount).toBe(mutationsBefore);
+    expect(after.tableCatalog).toEqual(before.tableCatalog);
+    expect(after.registry).toEqual(before.registry);
+    expect(after.schemaVersion).toEqual(before.schemaVersion);
+
+    const catalogItems = record(
+      before.tableCatalog,
+      "live table catalog",
+    ).items;
+    if (!Array.isArray(catalogItems)) {
+      throw new Error("Live table catalog items were not an array");
+    }
+    readinessEvidence = {
+      preparation: rolloutEvidence,
+      catalog_sha256: createHash("sha256")
+        .update(JSON.stringify(before.tableCatalog) ?? "null")
+        .digest("hex"),
+      catalog_item_count: catalogItems.length,
+      registry_sha256: createHash("sha256")
+        .update(JSON.stringify(before.registry) ?? "null")
+        .digest("hex"),
+      registry_unchanged: true,
+      schema_version: before.schemaVersion,
+      schema_version_unchanged: true,
+      catalog_unchanged: true,
+      requests_during_verification: readinessRequests.map(
+        ({ path, method }) => ({
+          route:
+            path === `/api/v1/tables/${encodeURIComponent(vault)}`
+              ? "table-catalog"
+              : path === `/api/v1/tables/${encodeURIComponent(vault)}/sql`
+                ? "table-sql"
+                : "other",
+          method,
+        }),
+      ),
+      reef_origin_schema_mutations: schemaMutationCount - mutationsBefore,
+      separate_control_plane_audit_api:
+        "not exposed by Reef's public AKB adapter; the applied rollout record is captured",
+    };
+    if (process.env.REEF_LIVE_AKB_EVIDENCE === "1") {
+      console.info(
+        `REEF_WORKSPACE_READINESS_EVIDENCE ${JSON.stringify(readinessEvidence)}`,
+      );
+    }
   });
 
   it("notification storage — public APIs preserve identity, recipient, state, and source contracts", async () => {
@@ -1894,11 +2061,7 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
           {
             api: "verifyRequiredTables",
             input: { vault: "<ephemeral>" },
-            output: {
-              active_release_schema_verified: true,
-              table_catalog_gets: tableCatalogGetCount,
-              schema_mutations: schemaMutationCount,
-            },
+            output: readinessEvidence ?? { status: "not_run" },
           },
           {
             api: "akbCreateNotification + akbListNotifications",
