@@ -30,8 +30,10 @@ explicitly in the entries below.
   target through auto-scroll.** Reorders no longer fall through to the column
   tail when collision data lags. (REEF-616)
 - **Board navigation restores the focused issue occurrence and its column position.**
-  The in-memory anchor is scoped to the signed-in account and workspace, so a
-  matching issue id in another vault does not inherit the previous view.
+  When an already-focused card matches its saved position, restoration skips
+  the intermediate scroll. The in-memory anchor is scoped to the signed-in
+  account and workspace, so a matching issue id in another vault does not
+  inherit the previous view.
   (REEF-616)
 - **Board reordering preserves status-change times for neighboring issues.**
   Rank materialization and re-spacing now stamp the transition time only on the

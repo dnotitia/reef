@@ -203,6 +203,35 @@ export const KanbanColumn = memo(function KanbanColumn({
     ) {
       return;
     }
+    const focusedScrollElement = scrollElementRef.current;
+    const focusedCard = focusedScrollElement
+      ? Array.from(
+          focusedScrollElement.querySelectorAll<HTMLElement>(
+            '[data-testid="kanban-card"][data-occurrence-key]',
+          ),
+        ).find(
+          (candidate) =>
+            candidate.dataset.occurrenceKey === anchor.occurrenceKey,
+        )
+      : undefined;
+    if (
+      anchor.focused &&
+      focusedScrollElement &&
+      focusedCard?.contains(document.activeElement)
+    ) {
+      const cardRect = focusedCard.getBoundingClientRect();
+      const scrollRect = focusedScrollElement.getBoundingClientRect();
+      const itemOffset = cardRect.top - scrollRect.top;
+      if (
+        Math.abs(focusedScrollElement.scrollTop - anchor.offset) <= 2 &&
+        Math.abs(itemOffset - anchor.itemOffset) <= 2
+      ) {
+        // Avoid an intermediate align-start jump when the focused card is
+        // already at its saved pixel anchor.
+        restoredAnchorRef.current = anchor.occurrenceKey;
+        return;
+      }
+    }
     restoredAnchorRef.current = anchor.occurrenceKey;
     virtualizer.scrollToIndex(restoreIndex, { align: "start" });
     let frame = 0;

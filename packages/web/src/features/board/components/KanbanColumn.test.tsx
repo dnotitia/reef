@@ -117,7 +117,10 @@ vi.mock("@formkit/auto-animate/react", () => ({
 import { useDroppable } from "@dnd-kit/core";
 import type { KanbanColumnProps } from "./KanbanColumn";
 import type { IssueGroupBucket } from "../../issues/lib/grouping";
-import { useIssueKeyboardStore } from "../../issues/stores/useIssueKeyboardStore";
+import {
+  useIssueKeyboardStore,
+  type BoardViewportAnchor,
+} from "../../issues/stores/useIssueKeyboardStore";
 
 function statusBucket(status: "todo" | "in_progress"): IssueGroupBucket {
   return {
@@ -171,11 +174,13 @@ const makeTestIssue = (id: string): IssueListItem => ({
 vi.mock("./KanbanCard", () => ({
   KanbanCard: ({
     issue,
+    occurrenceKey,
     onClick,
     dragRestrictionReason,
     dragEnabled,
   }: {
     issue: IssueListItem;
+    occurrenceKey: string;
     onClick?: (id: string) => void;
     dragRestrictionReason?: string;
     dragEnabled?: boolean;
@@ -183,6 +188,7 @@ vi.mock("./KanbanCard", () => ({
     <button
       type="button"
       data-testid="kanban-card"
+      data-occurrence-key={occurrenceKey}
       data-drag-restriction-reason={dragRestrictionReason}
       data-drag-enabled={String(dragEnabled)}
       onClick={() => onClick?.(issue.id)}
@@ -313,6 +319,59 @@ describe("KanbanColumn", () => {
     expect(
       screen.getByRole("button", { name: "Issue reef-009" }),
     ).toBeDefined();
+  });
+
+  it("restores an already-focused mounted occurrence without an intermediate scroll", () => {
+    const issues = Array.from({ length: 10 }, (_, index) =>
+      makeTestIssue(`reef-${String(index + 1).padStart(3, "0")}`),
+    );
+    const anchor: BoardViewportAnchor = {
+      bucketId: "todo",
+      occurrenceKey: "todo:reef-005",
+      issueId: "reef-005",
+      offset: 670,
+      itemOffset: 50,
+      focused: true,
+    };
+    const continuityKey = "alice:reef-e2e";
+    const initialProps: KanbanColumnProps = {
+      bucket: statusBucket("todo"),
+      continuityKey,
+      issues,
+    };
+    useIssueKeyboardStore.setState({
+      focusedIssueId: { list: null, board: anchor.issueId, backlog: null },
+      focusedOccurrenceKey: {
+        list: null,
+        board: anchor.occurrenceKey,
+        backlog: null,
+      },
+    });
+    const { rerender } = renderColumn(initialProps);
+
+    const scrollElement = screen.getByTestId("kanban-column-scroll-container");
+    const targetCard = screen.getByRole("button", {
+      name: "Issue reef-005",
+    });
+    vi.spyOn(scrollElement, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 100, 320, 480),
+    );
+    vi.spyOn(targetCard, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 150, 320, 88),
+    );
+    (scrollElement as HTMLElement).scrollTop = anchor.offset;
+    targetCard.focus();
+
+    expect(
+      useIssueKeyboardStore.getState().boardViewportAnchors[continuityKey],
+    ).toMatchObject(anchor);
+    virtualizerProbe.scrollToIndex.mockClear();
+
+    rerender(<KanbanColumn {...initialProps} restoreAnchor={anchor} />);
+
+    expect(virtualizerProbe.scrollToIndex).not.toHaveBeenCalled();
+    expect((scrollElement as HTMLElement).scrollTop).toBe(anchor.offset);
+    expect(document.activeElement).toBe(targetCard);
   });
 
   it("uses an independent serial baseline for quick-edit requests", () => {
