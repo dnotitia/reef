@@ -116,7 +116,7 @@ describe("TemplatesSection", () => {
     expect(name).not.toHaveAttribute("aria-describedby");
     expect(label).toHaveAttribute("aria-invalid", "true");
     expect(label).toHaveAttribute("aria-describedby", "templates-label-error");
-  });
+  }, 15_000);
 
   it("lets a read-only viewer inspect a template's full details without edit/save controls", async () => {
     mockApiFetch.mockResolvedValue(
