@@ -8,6 +8,7 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
+import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
 import type {
   Collaborator,
@@ -16,14 +17,18 @@ import type {
   Status,
 } from "@reef/core";
 import { ExternalLink } from "lucide-react";
-import { memo, useLayoutEffect } from "react";
+import { memo, useCallback, useLayoutEffect, useMemo, useRef } from "react";
 import { useStatusLabels } from "@/i18n/fieldLabels";
 import { useTranslations } from "next-intl";
 import type { IssueGroupBucket } from "../../issues/lib/grouping";
 import type { IssueReorderSurfaceState } from "../../issues/components/shared/IssueReorderFeedback";
+import { useIssueKeyboardStore } from "../../issues/stores/useIssueKeyboardStore";
 import { KanbanCard } from "./KanbanCard";
 
 const EMPTY_BLOCKED_IDS: ReadonlySet<string> = new Set();
+const CARD_ESTIMATED_HEIGHT = 176;
+const CARD_OVERSCAN = 4;
+const INITIAL_CARD_SCROLL_RECT = { width: 320, height: 480 };
 
 export interface KanbanColumnProps {
   bucket: IssueGroupBucket;
@@ -44,6 +49,9 @@ export interface KanbanColumnProps {
   reorderIssueId?: string | null;
   reorderState?: IssueReorderSurfaceState | null;
   autoAnimateEnabled?: boolean;
+  activeIssueId?: string | null;
+  focusRequestBaselineSerial?: number;
+  quickEditRequestBaselineSerial?: number;
 }
 
 // Drop hover uses neutral surface + brand ring, not purple, to avoid
@@ -62,6 +70,9 @@ export const KanbanColumn = memo(function KanbanColumn({
   reorderIssueId,
   reorderState,
   autoAnimateEnabled = true,
+  activeIssueId = null,
+  focusRequestBaselineSerial = -1,
+  quickEditRequestBaselineSerial = -1,
 }: KanbanColumnProps) {
   const t = useTranslations("board");
   const statusLabels = useStatusLabels();
@@ -80,9 +91,89 @@ export const KanbanColumn = memo(function KanbanColumn({
     duration: DURATION_BASE,
     easing: EASE_SIGNATURE,
   });
+  const scrollElementRef = useRef<HTMLDivElement | null>(null);
+  const setCardListRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      scrollElementRef.current = node;
+      cardListRef(node);
+    },
+    [cardListRef],
+  );
   useLayoutEffect(() => {
     setAutoAnimateEnabled?.(autoAnimateEnabled);
   }, [autoAnimateEnabled, setAutoAnimateEnabled]);
+
+  const activeIndex = activeIssueId
+    ? issues.findIndex((issue) => issue.id === activeIssueId)
+    : -1;
+  const issueIndexesById = useMemo(
+    () => new Map(issues.map((issue, index) => [issue.id, index])),
+    [issues],
+  );
+  const issueIndexesByOccurrenceKey = useMemo(
+    () =>
+      new Map(
+        issues.map((issue, index) => [`${bucket.id}:${issue.id}`, index]),
+      ),
+    [bucket.id, issues],
+  );
+  const sortableIds = useMemo(
+    () => issues.map((issue) => `${bucket.id}:${issue.id}`),
+    [bucket.id, issues],
+  );
+  // TanStack Virtual exposes imperative methods outside React Compiler's safe
+  // memoization model; keep the compiler skip local to this integration point.
+  // eslint-disable-next-line react-hooks/incompatible-library -- the issue list uses this established virtualizer API too.
+  const virtualizer = useVirtualizer({
+    count: issues.length,
+    getScrollElement: () => scrollElementRef.current,
+    estimateSize: () => CARD_ESTIMATED_HEIGHT,
+    getItemKey: (index) => `${bucket.id}:${issues[index]?.id ?? index}`,
+    initialRect: INITIAL_CARD_SCROLL_RECT,
+    overscan: CARD_OVERSCAN,
+    rangeExtractor: (range) => {
+      const indexes = defaultRangeExtractor(range);
+      return activeIndex < 0 || indexes.includes(activeIndex)
+        ? indexes
+        : [...indexes, activeIndex].sort((left, right) => left - right);
+    },
+  });
+
+  const pendingFocusRequest = useIssueKeyboardStore((state) => {
+    const focusRequest = state.focusRequest;
+    const quickEditRequest = state.quickEditRequest;
+    const request =
+      focusRequest?.scope === "board" &&
+      focusRequest.serial > focusRequestBaselineSerial
+        ? focusRequest
+        : quickEditRequest?.scope === "board" &&
+            quickEditRequest.serial > quickEditRequestBaselineSerial
+          ? quickEditRequest
+          : null;
+    if (!request) return null;
+    const matchesOccurrence =
+      request.occurrenceKey !== undefined &&
+      issueIndexesByOccurrenceKey.has(request.occurrenceKey);
+    const matchesIssue =
+      bucket.groupBy !== "label" && issueIndexesById.has(request.issueId);
+    return matchesOccurrence || matchesIssue ? request : null;
+  });
+  const requestedIndex = pendingFocusRequest
+    ? (issueIndexesByOccurrenceKey.get(
+        pendingFocusRequest.occurrenceKey ?? "",
+      ) ??
+      (bucket.groupBy !== "label"
+        ? (issueIndexesById.get(pendingFocusRequest.issueId) ?? -1)
+        : -1))
+    : -1;
+
+  useLayoutEffect(() => {
+    if (requestedIndex >= 0 && pendingFocusRequest) {
+      virtualizer.scrollToIndex(requestedIndex, { align: "auto" });
+    }
+  }, [pendingFocusRequest, requestedIndex, virtualizer]);
+
+  const virtualItems = virtualizer.getVirtualItems();
   return (
     <div
       ref={setNodeRef}
@@ -156,31 +247,52 @@ export const KanbanColumn = memo(function KanbanColumn({
 
       {/* Cards — scroll within the column when many */}
       <SortableContext
-        items={issues.map((issue) => `${bucket.id}:${issue.id}`)}
+        items={sortableIds}
         strategy={verticalListSortingStrategy}
       >
         <div
-          ref={cardListRef}
-          className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto"
+          ref={setCardListRef}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+          data-testid="kanban-column-scroll-container"
         >
-          {issues.map((issue) => (
-            <KanbanCard
-              key={`${bucket.id}:${issue.id}`}
-              vault={vault}
-              issue={issue}
-              bucket={bucket}
-              occurrenceKey={`${bucket.id}:${issue.id}`}
-              dragEnabled={canDrag}
-              dragRestrictionReason={cardDragRestrictionReason}
-              blocked={blockedIds.has(issue.id)}
-              planningCatalog={planningCatalog}
-              assignees={assignees}
-              onClick={onIssueClick}
-              reorderState={
-                reorderIssueId === issue.id ? (reorderState ?? null) : null
-              }
-            />
-          ))}
+          <div
+            className="relative w-full"
+            style={{ height: `${virtualizer.getTotalSize()}px` }}
+          >
+            {virtualItems.map((virtualItem) => {
+              const issue = issues[virtualItem.index];
+              if (!issue) return null;
+              const occurrenceKey = `${bucket.id}:${issue.id}`;
+              return (
+                <div
+                  key={virtualItem.key}
+                  ref={virtualizer.measureElement}
+                  data-index={virtualItem.index}
+                  className="absolute left-0 top-0 w-full pb-1.5"
+                  style={{ transform: `translateY(${virtualItem.start}px)` }}
+                >
+                  <KanbanCard
+                    vault={vault}
+                    issue={issue}
+                    bucket={bucket}
+                    occurrenceKey={occurrenceKey}
+                    dragEnabled={canDrag}
+                    dragRestrictionReason={cardDragRestrictionReason}
+                    blocked={blockedIds.has(issue.id)}
+                    planningCatalog={planningCatalog}
+                    assignees={assignees}
+                    onClick={onIssueClick}
+                    focusRequestBaselineSerial={focusRequestBaselineSerial}
+                    reorderState={
+                      reorderIssueId === issue.id
+                        ? (reorderState ?? null)
+                        : null
+                    }
+                  />
+                </div>
+              );
+            })}
+          </div>
         </div>
       </SortableContext>
     </div>

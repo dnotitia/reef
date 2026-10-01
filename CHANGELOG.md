@@ -17,6 +17,8 @@ explicitly in the entries below.
 - Reports now receive validated server-computed aggregates, flow metrics, health
   rollups, pivots, and forecasts in one workspace-scoped response instead of
   loading issue and activity rows into the browser. (REEF-617)
+- Board columns now virtualize card rendering for large groups while preserving
+  complete issue counts and keyboard traversal. (REEF-616)
 - **Workspace setup follows AKB's app installation lifecycle.** Owners and
   admins explicitly approve install, restore, or fresh-install commands;
   ordinary members receive only the canonical active status. Uninstall retains

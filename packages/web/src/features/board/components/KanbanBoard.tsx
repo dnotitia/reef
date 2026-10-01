@@ -204,6 +204,9 @@ export function KanbanBoard({
     }
     return buildIssueQuery(filter, searchQuery, scope, fixedSprintId);
   }, [filter, fixedSprintId, manualOrder, scope, searchQuery]);
+  // The Board keeps the complete issue projection for group counts, keyboard
+  // traversal, and canonical Manual-order anchors. Bound card DOM here; defer
+  // cursor loading until those contracts can be represented incrementally.
   // isPending (not isLoading) — see useActiveVault for the rationale.
   const {
     data: issues,
@@ -243,6 +246,16 @@ export function KanbanBoard({
   const lastPointerCoordinatesRef = useRef<{ x: number; y: number } | null>(
     null,
   );
+  // Reset pending focus serials on vault changes so a same-id issue in the next
+  // workspace cannot inherit the previous board's DOM-focus request.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: vault is an intentional reset key for this snapshot.
+  const keyboardRequestBaseline = useMemo(() => {
+    const keyboardState = useIssueKeyboardStore.getState();
+    return {
+      focusRequest: keyboardState.focusRequest?.serial ?? 0,
+      quickEditRequest: keyboardState.quickEditRequest?.serial ?? 0,
+    };
+  }, [vault]);
 
   // PointerSensor just starts a drag after a small distance — anything
   // shorter is treated as a click and reaches KanbanCard's onClick.
@@ -934,6 +947,11 @@ export function KanbanBoard({
               reorderIssueId={reorderIssueId}
               reorderState={reorderState}
               autoAnimateEnabled={false}
+              activeIssueId={activeIssueId}
+              focusRequestBaselineSerial={keyboardRequestBaseline.focusRequest}
+              quickEditRequestBaselineSerial={
+                keyboardRequestBaseline.quickEditRequest
+              }
               onIssueClick={openIssue}
               onGroupClick={bucket.epic ? openIssue : undefined}
               dragEnabled={

@@ -1052,3 +1052,242 @@ test.describe("large issue list virtualization", () => {
     });
   });
 });
+
+test.describe("large Board column virtualization", () => {
+  test.beforeEach(async ({ context, request }) => {
+    await context.clearCookies();
+    await resetFixture(request, "large_vault");
+  });
+
+  test("bounds mounted cards and preserves deep keyboard focus and detail continuity", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page, LARGE_VAULT);
+    await page.addInitScript(() => {
+      const metrics = {
+        issueResponses: [] as Array<{
+          url: string;
+          parseMs: number;
+          parsedAt: number;
+        }>,
+        firstCardDomAt: null as number | null,
+        mountedCardsAtFirstDom: 0,
+      };
+      const runtimeWindow = window as Window & {
+        __reefBoardVirtualizationMetrics?: typeof metrics;
+      };
+      runtimeWindow.__reefBoardVirtualizationMetrics = metrics;
+
+      const originalJson = Response.prototype.json;
+      Response.prototype.json = async function timedJson() {
+        const url = this.url;
+        const startedAt = performance.now();
+        const result = await originalJson.call(this);
+        if (new URL(url).pathname === "/api/issues") {
+          const parsedAt = performance.now();
+          metrics.issueResponses.push({
+            url,
+            parseMs: parsedAt - startedAt,
+            parsedAt,
+          });
+        }
+        return result;
+      };
+
+      const observer = new MutationObserver(() => {
+        if (metrics.firstCardDomAt !== null) return;
+        const column = document.querySelector<HTMLElement>(
+          '[data-group-by="status"][data-group-value="todo"]',
+        );
+        const mountedCards =
+          column?.querySelectorAll('[data-testid="kanban-card"]').length ?? 0;
+        if (mountedCards === 0) return;
+        metrics.firstCardDomAt = performance.now();
+        metrics.mountedCardsAtFirstDom = mountedCards;
+        observer.disconnect();
+      });
+      observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+      });
+    });
+
+    const issueListResponsePromise = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        response.request().method() === "GET" &&
+        url.pathname === "/api/issues" &&
+        response.ok()
+      );
+    });
+    await page.goto(
+      `/workspace/${LARGE_VAULT}/issues?view=board&sort=reef_id&order=asc`,
+    );
+    const issueListResponse = await issueListResponsePromise;
+    const issueListBody = (await issueListResponse.json()) as {
+      issues: unknown[];
+    };
+    expect(issueListBody.issues).toHaveLength(1_205);
+
+    const column = page.locator(
+      '[data-group-by="status"][data-group-value="todo"]',
+    );
+    await expect(column).toHaveAttribute("aria-label", "Todo, 1205", {
+      timeout: 20_000,
+    });
+    const scroll = column.getByTestId("kanban-column-scroll-container");
+    const firstCard = column.getByTestId("kanban-card").first();
+    await expect(firstCard).toBeVisible();
+
+    const initialMetrics = await scroll.evaluate((element) => {
+      const root = element as HTMLElement;
+      return {
+        clientHeight: root.clientHeight,
+        scrollHeight: root.scrollHeight,
+        mountedCards: root.querySelectorAll('[data-testid="kanban-card"]')
+          .length,
+      };
+    });
+    expect(initialMetrics.clientHeight).toBeGreaterThan(0);
+    expect(initialMetrics.scrollHeight).toBeGreaterThan(
+      initialMetrics.clientHeight,
+    );
+    expect(initialMetrics.mountedCards).toBeLessThanOrEqual(50);
+
+    const target = column.locator(
+      '[data-testid="kanban-card"][data-issue-id="REEF-0101"]',
+    );
+    await expect(target).toHaveCount(0);
+    await firstCard.focus();
+    for (let index = 0; index < 100; index += 1) {
+      await page.keyboard.press("j");
+    }
+    await expect(target).toHaveAttribute("data-keyboard-focused", "true", {
+      timeout: 15_000,
+    });
+    await expect(target).toBeFocused();
+    const deepScrollMetrics = await scroll.evaluate((element) => {
+      const root = element as HTMLElement;
+      const rootRect = root.getBoundingClientRect();
+      const targetRect = root
+        .querySelector<HTMLElement>('[data-issue-id="REEF-0101"]')
+        ?.getBoundingClientRect();
+      return {
+        scrollTop: root.scrollTop,
+        mountedCards: root.querySelectorAll('[data-testid="kanban-card"]')
+          .length,
+        targetTop: targetRect?.top ?? -1,
+        targetBottom: targetRect?.bottom ?? -1,
+        scrollTopEdge: rootRect.top,
+        scrollBottomEdge: rootRect.bottom,
+      };
+    });
+    expect(deepScrollMetrics.scrollTop).toBeGreaterThan(0);
+    expect(deepScrollMetrics.mountedCards).toBeLessThanOrEqual(50);
+    expect(deepScrollMetrics.targetTop).toBeGreaterThanOrEqual(
+      deepScrollMetrics.scrollTopEdge,
+    );
+    expect(deepScrollMetrics.targetBottom).toBeLessThanOrEqual(
+      deepScrollMetrics.scrollBottomEdge,
+    );
+
+    const scrollTopBeforeDetail = deepScrollMetrics.scrollTop;
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await page.getByTestId("issue-close").click();
+    await expect(page.getByTestId("issue-detail")).toHaveCount(0);
+    await expect(target).toBeFocused();
+    await expect
+      .poll(() => scroll.evaluate((element) => element.scrollTop))
+      .toBe(scrollTopBeforeDetail);
+
+    await page.setViewportSize({ width: 640, height: 360 });
+    const mobileMetrics = await scroll.evaluate((element) => {
+      const root = element as HTMLElement;
+      return {
+        clientHeight: root.clientHeight,
+        scrollHeight: root.scrollHeight,
+        mountedCards: root.querySelectorAll('[data-testid="kanban-card"]')
+          .length,
+      };
+    });
+    expect(mobileMetrics.clientHeight).toBeGreaterThan(0);
+    expect(mobileMetrics.clientHeight).toBeLessThanOrEqual(360);
+    expect(mobileMetrics.scrollHeight).toBeGreaterThan(
+      mobileMetrics.clientHeight,
+    );
+    expect(mobileMetrics.mountedCards).toBeLessThanOrEqual(50);
+    const boardBody = page.getByTestId("kanban-board-body");
+    const boardBodyScrollTop = await boardBody.evaluate(
+      (element) => element.scrollTop,
+    );
+    await scroll.evaluate((element) => {
+      const root = element as HTMLElement;
+      root.scrollTop = root.scrollHeight;
+    });
+    await expect
+      .poll(() => scroll.evaluate((element) => element.scrollTop))
+      .toBeGreaterThan(0);
+    const scrollBox = await scroll.boundingBox();
+    if (!scrollBox) throw new Error("missing mobile Board column bounds");
+    await page.mouse.move(
+      scrollBox.x + scrollBox.width / 2,
+      scrollBox.y + scrollBox.height / 2,
+    );
+    await page.mouse.wheel(0, 800);
+    await expect
+      .poll(() => boardBody.evaluate((element) => element.scrollTop))
+      .toBe(boardBodyScrollTop);
+
+    const browserMetrics = await page.evaluate(() => {
+      const runtimeWindow = window as Window & {
+        __reefBoardVirtualizationMetrics?: {
+          issueResponses: Array<{
+            url: string;
+            parseMs: number;
+            parsedAt: number;
+          }>;
+          firstCardDomAt: number | null;
+          mountedCardsAtFirstDom: number;
+        };
+      };
+      const measurement = runtimeWindow.__reefBoardVirtualizationMetrics;
+      const response = measurement?.issueResponses.find(
+        ({ url }) => new URL(url).searchParams.get("sort_field") === "reef_id",
+      );
+      const firstCardDomAt = measurement?.firstCardDomAt;
+      return {
+        parseMs: response?.parseMs ?? null,
+        postParseToFirstCardDomMs:
+          response && firstCardDomAt !== null && firstCardDomAt !== undefined
+            ? firstCardDomAt - response.parsedAt
+            : null,
+        mountedCardsAtFirstDom: measurement?.mountedCardsAtFirstDom ?? null,
+      };
+    });
+    const requestTiming = issueListResponse.request().timing();
+    const report = {
+      fixture: "large_vault",
+      totalIssues: issueListBody.issues.length,
+      requestDurationMs: requestTiming.responseEnd,
+      responseBytes: (await issueListResponse.body()).byteLength,
+      ...browserMetrics,
+      initialMountedCards: initialMetrics.mountedCards,
+      deepMountedCards: deepScrollMetrics.mountedCards,
+    };
+    expect(browserMetrics.parseMs).not.toBeNull();
+    expect(browserMetrics.postParseToFirstCardDomMs).not.toBeNull();
+    expect(browserMetrics.mountedCardsAtFirstDom).not.toBeNull();
+    expect(report.parseMs).toBeGreaterThanOrEqual(0);
+    expect(report.postParseToFirstCardDomMs).toBeGreaterThanOrEqual(0);
+    expect(report.mountedCardsAtFirstDom).toBeGreaterThan(0);
+    expect(report.mountedCardsAtFirstDom).toBeLessThanOrEqual(50);
+    await testInfo.attach("board-virtualization-measurement", {
+      body: JSON.stringify(report, null, 2),
+      contentType: "application/json",
+    });
+  });
+});
