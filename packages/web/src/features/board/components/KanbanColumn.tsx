@@ -252,7 +252,7 @@ export const KanbanColumn = memo(function KanbanColumn({
       >
         <div
           ref={setCardListRef}
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+          className="min-h-0 max-h-[calc(100dvh_-_8rem)] flex-1 overflow-y-auto overscroll-contain lg:max-h-none"
           data-testid="kanban-column-scroll-container"
         >
           <div

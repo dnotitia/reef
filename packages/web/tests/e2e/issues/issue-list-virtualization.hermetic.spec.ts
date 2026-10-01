@@ -1080,6 +1080,24 @@ test.describe("large Board column virtualization", () => {
         __reefBoardVirtualizationMetrics?: typeof metrics;
       };
       runtimeWindow.__reefBoardVirtualizationMetrics = metrics;
+      const recordFirstCardDom = () => {
+        if (
+          metrics.issueResponses.length === 0 ||
+          metrics.firstCardDomAt !== null
+        ) {
+          return;
+        }
+        const column = document.querySelector<HTMLElement>(
+          '[data-group-by="status"][data-group-value="todo"]',
+        );
+        const mountedCards =
+          column?.querySelectorAll('[data-testid="kanban-card"]').length ?? 0;
+        if (mountedCards === 0) return;
+        metrics.firstCardDomAt = performance.now();
+        metrics.mountedCardsAtFirstDom = mountedCards;
+        observer.disconnect();
+      };
+      const observer = new MutationObserver(recordFirstCardDom);
 
       const originalJson = Response.prototype.json;
       Response.prototype.json = async function timedJson() {
@@ -1093,26 +1111,16 @@ test.describe("large Board column virtualization", () => {
             parseMs: parsedAt - startedAt,
             parsedAt,
           });
+          recordFirstCardDom();
         }
         return result;
       };
 
-      const observer = new MutationObserver(() => {
-        if (metrics.firstCardDomAt !== null) return;
-        const column = document.querySelector<HTMLElement>(
-          '[data-group-by="status"][data-group-value="todo"]',
-        );
-        const mountedCards =
-          column?.querySelectorAll('[data-testid="kanban-card"]').length ?? 0;
-        if (mountedCards === 0) return;
-        metrics.firstCardDomAt = performance.now();
-        metrics.mountedCardsAtFirstDom = mountedCards;
-        observer.disconnect();
-      });
       observer.observe(document.documentElement, {
         childList: true,
         subtree: true,
       });
+      recordFirstCardDom();
     });
 
     const issueListResponsePromise = page.waitForResponse((response) => {
@@ -1157,14 +1165,88 @@ test.describe("large Board column virtualization", () => {
     );
     expect(initialMetrics.mountedCards).toBeLessThanOrEqual(50);
 
+    const scrollRenderMs = await scroll.evaluate(async (element) => {
+      const root = element as HTMLElement;
+      const startedAt = performance.now();
+      root.scrollTop = Math.min(1024, root.scrollHeight);
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      );
+      return performance.now() - startedAt;
+    });
+    const mountedCardsAfterScroll = await scroll.evaluate(
+      (element) =>
+        (element as HTMLElement).querySelectorAll('[data-testid="kanban-card"]')
+          .length,
+    );
+    await scroll.evaluate(async (element) => {
+      (element as HTMLElement).scrollTop = 0;
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      );
+    });
+    await expect(firstCard).toBeVisible();
+    await expect(firstCard).toBeInViewport({ ratio: 0.5 });
+
+    const firstCardBounds = await firstCard.boundingBox();
+    if (!firstCardBounds) throw new Error("missing initial Todo card bounds");
+    const dragStartedAt = await page.evaluate(() => performance.now());
+    await page.mouse.move(
+      firstCardBounds.x + firstCardBounds.width / 2,
+      firstCardBounds.y + firstCardBounds.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      firstCardBounds.x + firstCardBounds.width / 2 + 8,
+      firstCardBounds.y + firstCardBounds.height / 2,
+    );
+    await expect(firstCard).toHaveAttribute("data-dragging", "true", {
+      timeout: 15_000,
+    });
+    const dragStartMs = await page.evaluate(
+      (startedAt) => performance.now() - startedAt,
+      dragStartedAt,
+    );
+    const activeDragScrollMs = await scroll.evaluate(async (element) => {
+      const root = element as HTMLElement;
+      const startedAt = performance.now();
+      root.scrollTop = root.scrollHeight;
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      );
+      return performance.now() - startedAt;
+    });
+    const activeDragMetrics = await scroll.evaluate((element) => {
+      const root = element as HTMLElement;
+      return {
+        mountedCards: root.querySelectorAll('[data-testid="kanban-card"]')
+          .length,
+        activeCards: root.querySelectorAll(
+          '[data-testid="kanban-card"][data-issue-id="REEF-0001"]',
+        ).length,
+        scrollTop: root.scrollTop,
+      };
+    });
+    expect(activeDragMetrics.scrollTop).toBeGreaterThan(0);
+    expect(activeDragMetrics.activeCards).toBe(1);
+    expect(activeDragMetrics.mountedCards).toBeLessThanOrEqual(50);
+    await page.keyboard.press("Escape");
+    await page.mouse.up();
+    await expect(firstCard).not.toHaveAttribute("data-dragging", "true");
+
     const target = column.locator(
       '[data-testid="kanban-card"][data-issue-id="REEF-0101"]',
     );
     await expect(target).toHaveCount(0);
     await firstCard.focus();
+    const keyboardStartedAt = await page.evaluate(() => performance.now());
     for (let index = 0; index < 100; index += 1) {
       await page.keyboard.press("j");
     }
+    const keyboardTraversalMs = await page.evaluate(
+      (startedAt) => performance.now() - startedAt,
+      keyboardStartedAt,
+    );
     await expect(target).toHaveAttribute("data-keyboard-focused", "true", {
       timeout: 15_000,
     });
@@ -1220,27 +1302,30 @@ test.describe("large Board column virtualization", () => {
       mobileMetrics.clientHeight,
     );
     expect(mobileMetrics.mountedCards).toBeLessThanOrEqual(50);
+    await scroll.scrollIntoViewIfNeeded();
     const boardBody = page.getByTestId("kanban-board-body");
     const boardBodyScrollTop = await boardBody.evaluate(
       (element) => element.scrollTop,
     );
-    await scroll.evaluate((element) => {
-      const root = element as HTMLElement;
-      root.scrollTop = root.scrollHeight;
-    });
-    await expect
-      .poll(() => scroll.evaluate((element) => element.scrollTop))
-      .toBeGreaterThan(0);
+    const mobileColumnScrollTopBeforeWheel = await scroll.evaluate(
+      (element) => element.scrollTop,
+    );
     const scrollBox = await scroll.boundingBox();
     if (!scrollBox) throw new Error("missing mobile Board column bounds");
     await page.mouse.move(
       scrollBox.x + scrollBox.width / 2,
-      scrollBox.y + scrollBox.height / 2,
+      scrollBox.y + Math.min(8, scrollBox.height / 2),
     );
     await page.mouse.wheel(0, 800);
     await expect
+      .poll(() => scroll.evaluate((element) => element.scrollTop))
+      .toBeGreaterThan(mobileColumnScrollTopBeforeWheel);
+    await expect
       .poll(() => boardBody.evaluate((element) => element.scrollTop))
       .toBe(boardBodyScrollTop);
+    const mobileColumnScrollTopAfterWheel = await scroll.evaluate(
+      (element) => element.scrollTop,
+    );
 
     const browserMetrics = await page.evaluate(() => {
       const runtimeWindow = window as Window & {
@@ -1270,13 +1355,45 @@ test.describe("large Board column virtualization", () => {
     });
     const requestTiming = issueListResponse.request().timing();
     const report = {
+      build: "candidate",
       fixture: "large_vault",
+      query: "view=board&sort=reef_id&order=asc",
+      cacheMode: "fresh browser context; persisted query cache removed",
+      viewport: { width: 1440, height: 900 },
+      mobileViewport: { width: 640, height: 360 },
+      browserVersion: page.context().browser()?.version() ?? "unknown",
       totalIssues: issueListBody.issues.length,
-      requestDurationMs: requestTiming.responseEnd,
+      requestDurationMs: requestTiming.responseEnd - requestTiming.requestStart,
+      requestStartToFirstByteMs:
+        requestTiming.responseStart - requestTiming.requestStart,
+      responseBodyTransferMs:
+        requestTiming.responseEnd - requestTiming.responseStart,
       responseBytes: (await issueListResponse.body()).byteLength,
       ...browserMetrics,
       initialMountedCards: initialMetrics.mountedCards,
+      mountedCardsAfterScroll,
+      scrollRenderMs,
+      dragStartMs,
+      activeDragScrollMs,
+      dragMode: "pointer",
+      activeDragMountedCards: activeDragMetrics.mountedCards,
+      activeDragScrollTop: activeDragMetrics.scrollTop,
+      activeCardsAfterOffscreenScroll: activeDragMetrics.activeCards,
+      keyboardTraversalMs,
       deepMountedCards: deepScrollMetrics.mountedCards,
+      deepScrollTop: deepScrollMetrics.scrollTop,
+      detailScrollTopBeforeClose: scrollTopBeforeDetail,
+      initialClientHeight: initialMetrics.clientHeight,
+      initialScrollHeight: initialMetrics.scrollHeight,
+      mobileClientHeight: mobileMetrics.clientHeight,
+      mobileScrollHeight: mobileMetrics.scrollHeight,
+      mobileMountedCards: mobileMetrics.mountedCards,
+      boardBodyScrollTopBeforeMobileWheel: boardBodyScrollTop,
+      boardBodyScrollTopAfterMobileWheel: await boardBody.evaluate(
+        (element) => element.scrollTop,
+      ),
+      mobileColumnScrollTopBeforeWheel,
+      mobileColumnScrollTopAfterWheel,
     };
     expect(browserMetrics.parseMs).not.toBeNull();
     expect(browserMetrics.postParseToFirstCardDomMs).not.toBeNull();
@@ -1285,6 +1402,15 @@ test.describe("large Board column virtualization", () => {
     expect(report.postParseToFirstCardDomMs).toBeGreaterThanOrEqual(0);
     expect(report.mountedCardsAtFirstDom).toBeGreaterThan(0);
     expect(report.mountedCardsAtFirstDom).toBeLessThanOrEqual(50);
+    expect(report.requestStartToFirstByteMs).toBeGreaterThanOrEqual(0);
+    expect(report.responseBodyTransferMs).toBeGreaterThanOrEqual(0);
+    expect(report.mountedCardsAfterScroll).toBeLessThanOrEqual(50);
+    expect(report.activeDragMountedCards).toBeLessThanOrEqual(50);
+    expect(report.keyboardTraversalMs).toBeGreaterThanOrEqual(0);
+    expect(report.mobileClientHeight).toBeLessThanOrEqual(360);
+    expect(report.boardBodyScrollTopAfterMobileWheel).toBe(
+      report.boardBodyScrollTopBeforeMobileWheel,
+    );
     await testInfo.attach("board-virtualization-measurement", {
       body: JSON.stringify(report, null, 2),
       contentType: "application/json",
