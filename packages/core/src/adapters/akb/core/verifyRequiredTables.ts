@@ -17,7 +17,7 @@ const NonEmptyStringSchema = z.string().min(1);
 const TableColumnSchema = z.looseObject({
   name: NonEmptyStringSchema,
   type: AkbTableColumnTypeSchema,
-  required: z.boolean(),
+  required: z.boolean().default(false),
 });
 const UniqueKeySchema = z.looseObject({
   name: NonEmptyStringSchema.optional(),

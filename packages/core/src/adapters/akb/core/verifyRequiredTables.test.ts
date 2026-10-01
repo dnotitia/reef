@@ -4,7 +4,7 @@ import {
   AuthError,
   WorkspaceReadinessError,
 } from "../../../errors";
-import { REEF_DESIRED_TABLES } from "./tableManifest";
+import { REEF_DESIRED_TABLES, type AkbTableColumn } from "./tableManifest";
 import { verifyRequiredTables } from "./verifyRequiredTables";
 import type { AkbAdapter } from "./http";
 
@@ -14,10 +14,9 @@ function tableList(vault = "reef-sample") {
     vault,
     items: REEF_DESIRED_TABLES.map((table) => ({
       name: table.name,
-      columns: table.columns.map((column) => ({
-        ...column,
-        required: column.required === true,
-      })),
+      columns: table.columns.map(({ required, ...column }) =>
+        required === true ? { ...column, required: true } : column,
+      ),
       unique_keys: structuredClone(table.unique_keys ?? []),
       indexes: structuredClone(table.indexes ?? []),
     })),
@@ -32,7 +31,9 @@ function notificationTable(payload: ReturnType<typeof tableList>) {
   return table;
 }
 
-function notificationFirstColumn(payload: ReturnType<typeof tableList>) {
+function notificationFirstColumn(
+  payload: ReturnType<typeof tableList>,
+): AkbTableColumn {
   const column = notificationTable(payload).columns[0];
   if (!column) throw new Error("notification column missing from test fixture");
   return column;

@@ -668,6 +668,15 @@ export async function handleAkb(req, res, url, state) {
         return json(res, 200, { error: "e2e forced issue reorder failure" });
       }
       rememberSqlCall(state, vault.name, username, sql);
+      if (
+        state.contentSearchMode === "missing-comments" &&
+        /^\s*select id, reef_id, body, created_at from \(/i.test(sql) &&
+        /\bfrom reef_comments\b/i.test(sql)
+      ) {
+        return json(res, 200, {
+          error: 'relation "reef_comments" does not exist',
+        });
+      }
       const result = handleSql(state, vault, sql, username);
       if (result.kind === "sql_error") {
         return json(res, result.status, result.body);
