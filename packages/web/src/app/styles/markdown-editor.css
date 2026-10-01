@@ -1,3 +1,23 @@
+/* Reef owns the visible editor divider and maps the shared toolbar to its icon palette. */
+.reef-markdown-toolbar {
+  border-bottom-color: transparent;
+}
+
+.reef-markdown-toolbar button[data-markdown-toolbar-button] {
+  color: var(--muted-foreground);
+}
+
+.reef-markdown-toolbar
+  button[data-markdown-toolbar-button]:hover:not(:disabled) {
+  color: var(--foreground);
+}
+
+.reef-markdown-toolbar
+  button[data-markdown-toolbar-button][aria-pressed="true"] {
+  background: var(--surface-hover);
+  color: var(--brand-text);
+}
+
 /*
  * Keep the issue body compact without changing the global `prose-sm` rhythm.
  * These selectors intentionally address direct children: paragraphs and

@@ -558,6 +558,88 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await resetFixture(request, "markdown_fixture");
   });
 
+  test("matches Reef toolbar divider, alignment, and icon color", async ({
+    page,
+    request,
+  }, testInfo) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 1280, height: 720 });
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+
+    const readChrome = (toolbar: Locator) =>
+      toolbar.evaluate((outer) => {
+        const inner = outer.querySelector<HTMLElement>('[role="toolbar"]');
+        const formattingButton = inner?.querySelector<HTMLElement>(
+          "button[data-markdown-toolbar-button]",
+        );
+        const inactiveButton = inner?.querySelector<HTMLElement>(
+          'button[data-markdown-toolbar-button][aria-pressed="false"]:not(:disabled)',
+        );
+        const sourceButton = outer.querySelector<HTMLElement>(
+          '[data-testid="markdown-source-toggle"] button',
+        );
+        if (!inner || !formattingButton || !inactiveButton || !sourceButton) {
+          throw new Error("Markdown toolbar chrome is incomplete");
+        }
+        const mutedProbe = document.createElement("span");
+        mutedProbe.style.color = "var(--muted-foreground)";
+        outer.append(mutedProbe);
+        const reefMutedColor = getComputedStyle(mutedProbe).color;
+        mutedProbe.remove();
+        const formattingBox = formattingButton.getBoundingClientRect();
+        const sourceBox = sourceButton.getBoundingClientRect();
+        return {
+          outerDivider: getComputedStyle(outer).borderBottomWidth,
+          innerDivider: getComputedStyle(inner).borderBottomWidth,
+          innerDividerColor: getComputedStyle(inner).borderBottomColor,
+          iconColor: getComputedStyle(inactiveButton).color,
+          reefMutedColor,
+          centerOffset:
+            sourceBox.top +
+            sourceBox.height / 2 -
+            (formattingBox.top + formattingBox.height / 2),
+        };
+      });
+    const expectChrome = async (toolbar: Locator) => {
+      await expect(toolbar.getByRole("toolbar")).toBeVisible();
+      const chrome = await readChrome(toolbar);
+      expect(chrome.outerDivider).toBe("1px");
+      expect(chrome.innerDivider).toBe("1px");
+      expect(chrome.innerDividerColor).toBe("rgba(0, 0, 0, 0)");
+      expect(chrome.iconColor).toBe(chrome.reefMutedColor);
+      expect(Math.abs(chrome.centerOffset)).toBeLessThanOrEqual(0.5);
+    };
+    await expectChrome(page.getByTestId("markdown-toolbar"));
+
+    await page.getByTestId("issue-close").click();
+    await page.getByTestId("new-issue-trigger").click();
+    const dialog = page.getByTestId("new-issue-dialog");
+    await expect(dialog).toBeVisible();
+    const newIssueToolbar = dialog.getByTestId("markdown-toolbar");
+    await expectChrome(newIssueToolbar);
+    await dialog.screenshot({
+      animations: "disabled",
+      path: testInfo.outputPath("new-issue-toolbar-en.png"),
+    });
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/settings/preferences`);
+    const language = page.getByRole("region", { name: /^(Language|언어)$/u });
+    await language.getByTestId("locale-option-ko").click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+    await page.goto(task.start_path ?? "");
+    await page.getByTestId("issue-close").click();
+    await page.getByTestId("new-issue-trigger").click();
+    const koreanDialog = page.getByTestId("new-issue-dialog");
+    await expect(koreanDialog).toBeVisible();
+    await expectChrome(koreanDialog.getByTestId("markdown-toolbar"));
+    await koreanDialog.screenshot({
+      animations: "disabled",
+      path: testInfo.outputPath("new-issue-toolbar-ko.png"),
+    });
+  });
+
   test("keeps the focused editor chrome continuous across the toolbar divider", async ({
     page,
     request,

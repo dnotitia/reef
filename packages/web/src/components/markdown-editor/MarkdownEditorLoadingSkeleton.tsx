@@ -59,7 +59,7 @@ export function MarkdownEditorLoadingSkeleton({
           data-testid="markdown-toolbar-controls"
           className="flex min-w-0 flex-1 flex-wrap items-center gap-0.5"
         >
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 border-b border-border">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 border-b border-transparent">
             {TOOLBAR_GROUPS.map((count, index) => (
               <ToolbarGroup count={count} key={index} />
             ))}
@@ -68,7 +68,7 @@ export function MarkdownEditorLoadingSkeleton({
         <div data-testid="markdown-source-toggle" className="shrink-0">
           <span
             aria-hidden="true"
-            className="inline-flex h-7 shrink-0 items-center align-middle whitespace-nowrap rounded-md bg-border-subtle/60 px-2 text-xs font-mono font-medium text-transparent"
+            className="inline-flex h-8 shrink-0 items-center align-middle whitespace-nowrap rounded-md bg-border-subtle/60 px-2 text-xs font-mono font-medium text-transparent"
           >
             {t("source")}
           </span>

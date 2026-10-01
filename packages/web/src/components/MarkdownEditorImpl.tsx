@@ -689,7 +689,7 @@ function MarkdownEditorContent({
           >
             <MarkdownToolbar
               editor={sourceMode ? null : editor}
-              className="min-w-0 flex-1 border-0 bg-transparent px-0 py-0"
+              className="reef-markdown-toolbar min-w-0 flex-1 bg-transparent px-0 py-0"
               link={{ normalizeUrl }}
             >
               {onUploadFiles ? (
@@ -723,7 +723,7 @@ function MarkdownEditorContent({
               size="sm"
               aria-pressed={sourceMode}
               onClick={toggleSourceMode}
-              className="h-7 px-2 text-xs font-mono"
+              className="h-8 px-2 text-xs font-mono"
               title={toolbarLabels.toggleSourceMode}
             >
               {toolbarLabels.source}
