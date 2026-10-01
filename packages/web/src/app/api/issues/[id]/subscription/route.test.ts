@@ -29,13 +29,13 @@ vi.mock("@/lib/logging/logger", () => ({
 }));
 
 const {
-  mockGetAkbAdapter,
+  mockGetWorkspaceAkbAdapter,
   mockGetAkbCurrentActor,
   mockGetEffectiveSubscriptionState,
   mockMuteIssue,
   mockWatchIssue,
 } = vi.hoisted(() => ({
-  mockGetAkbAdapter: vi.fn(),
+  mockGetWorkspaceAkbAdapter: vi.fn(),
   mockGetAkbCurrentActor: vi.fn(),
   mockGetEffectiveSubscriptionState: vi.fn(),
   mockMuteIssue: vi.fn(),
@@ -47,7 +47,7 @@ vi.mock("@/lib/api/requestHelpers", async (importOriginal) => {
     await importOriginal<typeof import("@/lib/api/requestHelpers")>();
   return {
     ...original,
-    getAkbAdapter: mockGetAkbAdapter,
+    getWorkspaceAkbAdapter: mockGetWorkspaceAkbAdapter,
     getAkbCurrentActor: mockGetAkbCurrentActor,
   };
 });
@@ -82,7 +82,7 @@ function request(
 describe("/api/issues/[id]/subscription", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetAkbAdapter.mockReturnValue({ adapter });
+    mockGetWorkspaceAkbAdapter.mockReturnValue({ adapter });
     mockGetAkbCurrentActor.mockResolvedValue({ actor: "alice" });
     mockGetEffectiveSubscriptionState.mockResolvedValue("unwatched");
     mockWatchIssue.mockResolvedValue({});

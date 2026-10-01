@@ -18,14 +18,19 @@ export default defineConfig({
       {
         extends: true,
         test: {
+          name: "api",
+          environment: "node",
+          setupFiles: ["./vitest.setup.node.ts", "./vitest.setup.api.ts"],
+          include: ["src/app/api/**/*.test.{ts,tsx}"],
+        },
+      },
+      {
+        extends: true,
+        test: {
           name: "node",
           environment: "node",
           setupFiles: ["./vitest.setup.node.ts"],
-          include: [
-            "src/app/api/**/*.test.{ts,tsx}",
-            "src/server/**/*.test.{ts,tsx}",
-            "scripts/**/*.test.mts",
-          ],
+          include: ["src/server/**/*.test.{ts,tsx}", "scripts/**/*.test.mts"],
         },
       },
       {

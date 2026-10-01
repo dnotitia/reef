@@ -1,5 +1,5 @@
 import {
-  getAkbAdapter,
+  getWorkspaceAkbAdapter,
   invalidBodyResponse,
   invalidJsonBodyResponse,
   missingVaultParamResponse,
@@ -33,7 +33,7 @@ export async function POST(request: Request): Promise<Response> {
   const parsed = ResolveDocumentTitlesRequestSchema.safeParse(rawBody);
   if (!parsed.success) return invalidBodyResponse(parsed.error);
 
-  const adapterResult = getAkbAdapter(request);
+  const adapterResult = await getWorkspaceAkbAdapter(request);
   if ("response" in adapterResult) return adapterResult.response;
   const { adapter } = adapterResult;
 

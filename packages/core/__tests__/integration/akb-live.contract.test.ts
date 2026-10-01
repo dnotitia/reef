@@ -14,7 +14,6 @@ import {
   createAkbAppInstallationReader,
   createAkbChangeEventTail,
   createVault,
-  ensureReefTables,
   getAuthConfig,
   getCurrentActor,
   getMe,
@@ -40,6 +39,7 @@ import {
   linkResources,
   unlinkResources,
 } from "../../src/adapters/akb/core/relations";
+import { verifyRequiredTables } from "../../src/adapters/akb/core/verifyRequiredTables";
 import {
   AkbSearchResponseSchema,
   AkbSqlMutationResponseSchema,
@@ -50,10 +50,6 @@ import {
   runSql,
 } from "../../src/adapters/akb/core/shared";
 import {
-  REEF_DESIRED_TABLES,
-  REEF_NOTIFICATIONS_TABLE,
-  REEF_SCHEMA_VERSION,
-  REEF_SUBSCRIPTIONS_TABLE,
   akbCreateComment,
   akbCreateNotification,
   akbGetEffectiveSubscriptionState,
@@ -80,6 +76,8 @@ import {
  * fails here at the integration level instead of in production (REEF-049 class).
  *
  * Hermetic by design — OFF unless REEF_LIVE_AKB_URL points at a reachable AKB.
+ * The writable smoke leg also requires REEF_APP_ID and REEF_RELEASE_ID so its
+ * throwaway vault can be installed through AKB before Reef verifies its schema.
  * The default `pnpm --filter @reef/core test` does NOT include
  * `__tests__/integration/**` (vitest `include` is `src/**`); this file runs only
  * via the dedicated `test:live-akb` script when an external endpoint is
@@ -100,6 +98,8 @@ import {
 const BASE_URL = process.env.REEF_LIVE_AKB_URL;
 const FIXTURE_BASE_URL = process.env.REEF_LIVE_AKB_FIXTURE_URL;
 const LIVE_SCENARIO = process.env.REEF_SCENARIO;
+const LIVE_APP_ID = process.env.REEF_APP_ID;
+const LIVE_RELEASE_ID = process.env.REEF_RELEASE_ID;
 const USERNAME = process.env.AKB_E2E_USERNAME ?? "reef-smoke";
 const PASSWORD = process.env.AKB_E2E_PASSWORD ?? "reef-smoke-pw-123";
 const EMAIL = process.env.REEF_LIVE_AKB_EMAIL ?? "reef-smoke@example.com";
@@ -728,6 +728,30 @@ function wrapLiveAdapter(
   return { request, stream: baseAdapter.stream };
 }
 
+async function waitForActiveInstallation(params: {
+  adapter: AkbAdapter;
+  appId: string;
+  vaultId: string;
+}): Promise<void> {
+  const deadline = Date.now() + 55_000;
+  while (Date.now() < deadline) {
+    const installation = await readInstallation(params);
+    if (installation.lifecycle === "active") return;
+    if (
+      installation.lifecycle === "blocked" ||
+      installation.lifecycle === "uninstalled"
+    ) {
+      throw new Error(
+        `Live workspace installation stopped in ${installation.lifecycle}`,
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+  throw new Error(
+    "Timed out waiting for the live workspace installation to become active",
+  );
+}
+
 describe("AKB live adapter construction", () => {
   it("preserves the stream capability when request instrumentation wraps the adapter", () => {
     const baseAdapter = createAkbAdapter({
@@ -740,13 +764,17 @@ describe("AKB live adapter construction", () => {
   });
 });
 
-describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
+const describeLiveContract = describe.skipIf(
+  !BASE_URL || !LIVE_APP_ID || !LIVE_RELEASE_ID,
+);
+describeLiveContract("akb live contract smoke (REEF-056)", () => {
   const baseUrl = BASE_URL as string;
   let adapter: AkbStreamAdapter;
   let sessionToken: string;
   let vault: string;
-  let provisionCreateCount = 0;
-  let provisionAlterCount = 0;
+  let vaultId: string;
+  let tableCatalogGetCount = 0;
+  let schemaMutationCount = 0;
   let authEvidence: Record<string, unknown> | undefined;
   let installationEvidence: Record<string, unknown> = {
     status: "not_run",
@@ -771,18 +799,13 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
     const baseAdapter = createAkbAdapter({ baseUrl, credential: token });
     adapter = wrapLiveAdapter(baseAdapter, async (...args) => {
       const [path, init] = args;
-      if (
-        path === `/api/v1/tables/${encodeURIComponent(vault)}` &&
-        init?.method === "POST"
-      ) {
-        provisionCreateCount += 1;
-      }
-      if (
-        path.startsWith(`/api/v1/tables/${encodeURIComponent(vault)}/`) &&
-        init?.method === "PATCH"
-      ) {
-        provisionAlterCount += 1;
-      }
+      const tableRoot = `/api/v1/tables/${encodeURIComponent(vault)}`;
+      const method = init?.method ?? "GET";
+      const isSchemaRoute =
+        path === tableRoot ||
+        (path.startsWith(`${tableRoot}/`) && path !== `${tableRoot}/sql`);
+      if (isSchemaRoute && method !== "GET") schemaMutationCount += 1;
+      if (path === tableRoot && method === "GET") tableCatalogGetCount += 1;
       return baseAdapter.request(...args);
     });
 
@@ -793,12 +816,25 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
         .slice(0, 17);
     vault = `reef-live-smoke-${vaultSuffix}`;
     expect(vault).toHaveLength(33);
-    await createVault({
+    const createdVault = await createVault({
       adapter,
       name: vault,
       description: "REEF-056 live contract smoke (throwaway)",
     });
-    await ensureReefTables({ adapter, vault });
+    vaultId = createdVault.vault_id;
+    await requestInstallation({
+      adapter,
+      appId: LIVE_APP_ID as string,
+      vaultId,
+      releaseId: LIVE_RELEASE_ID as string,
+      mode: "install",
+    });
+    await waitForActiveInstallation({
+      adapter,
+      appId: LIVE_APP_ID as string,
+      vaultId,
+    });
+    await verifyRequiredTables({ adapter, vault, canManage: true });
 
     // Seed one issue through reef's REAL write path (doc PUT + reef_issues row).
     const issue = buildIssueMetadataFromCreateInput({
@@ -1714,182 +1750,15 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
     expect(updated.issue.priority).toBe("low");
   });
 
+  it("required-table verification reads the active release schema without schema writes", async () => {
+    const readsBefore = tableCatalogGetCount;
+    await verifyRequiredTables({ adapter, vault, canManage: true });
+    expect(tableCatalogGetCount).toBe(readsBefore + 1);
+    expect(schemaMutationCount).toBe(0);
+  });
+
   it("notification storage — public APIs preserve identity, recipient, state, and source contracts", async () => {
-    expect(REEF_SCHEMA_VERSION).toBe(3);
-    expect(provisionCreateCount).toBe(REEF_DESIRED_TABLES.length);
-    expect(provisionAlterCount).toBe(0);
-
-    const overlongVault = `reef-boundary-${"x".repeat(50)}`;
-    let overlongVaultAdapterCalls = 0;
-    let overlongVaultTableCount = -1;
-    await createVault({
-      adapter,
-      name: overlongVault,
-      description: "ephemeral Reef table identifier boundary probe",
-    });
-    try {
-      const overlongVaultAdapter: AkbAdapter = {
-        request: async (...args) => {
-          overlongVaultAdapterCalls += 1;
-          return adapter.request(...args);
-        },
-      };
-      await expect(
-        ensureReefTables({
-          adapter: overlongVaultAdapter,
-          vault: overlongVault,
-        }),
-      ).rejects.toMatchObject({ name: "SchemaValidationError" });
-      expect(overlongVaultAdapterCalls).toBe(0);
-
-      const boundaryManifest = (await adapter.request(
-        `/api/v1/tables/${encodeURIComponent(overlongVault)}`,
-        { resource: "ephemeral boundary vault tables" },
-      )) as { items?: Array<Record<string, unknown>> };
-      overlongVaultTableCount = boundaryManifest.items?.length ?? 0;
-      expect(overlongVaultTableCount).toBe(0);
-    } finally {
-      await adapter.request(
-        `/api/v1/vaults/${encodeURIComponent(overlongVault)}`,
-        {
-          method: "DELETE",
-          resource: "ephemeral boundary vault",
-        },
-      );
-    }
-
-    const mismatchPreflight = [];
-    const preflightBaseManifests = REEF_DESIRED_TABLES.filter(
-      (manifest) =>
-        manifest.name !== REEF_NOTIFICATIONS_TABLE &&
-        manifest.name !== REEF_SUBSCRIPTIONS_TABLE,
-    );
-    for (const variant of ["column", "unique_key", "index"] as const) {
-      const suffix =
-        `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`
-          .padEnd(12, "0")
-          .slice(0, 12);
-      const mismatchVault = `reef-mm-${suffix}-${variant.slice(0, 1)}`;
-      expect(mismatchVault.length).toBeLessThanOrEqual(33);
-      await createVault({
-        adapter,
-        name: mismatchVault,
-        description: "ephemeral Reef manifest mismatch preflight probe",
-      });
-      try {
-        for (const manifest of preflightBaseManifests) {
-          await adapter.request(
-            `/api/v1/tables/${encodeURIComponent(mismatchVault)}`,
-            {
-              method: "POST",
-              body: structuredClone(manifest),
-              resource: `ephemeral legacy table ${manifest.name}`,
-            },
-          );
-        }
-        const notificationManifest = structuredClone(
-          REEF_DESIRED_TABLES.find(
-            (manifest) => manifest.name === REEF_NOTIFICATIONS_TABLE,
-          ),
-        );
-        if (!notificationManifest) {
-          throw new Error("Missing notification manifest");
-        }
-        if (variant === "column") {
-          notificationManifest.columns = notificationManifest.columns.filter(
-            (column) => column.name !== "meta",
-          );
-        } else if (variant === "unique_key") {
-          notificationManifest.unique_keys =
-            notificationManifest.unique_keys?.slice(0, 1);
-        } else {
-          notificationManifest.indexes = [];
-        }
-        await adapter.request(
-          `/api/v1/tables/${encodeURIComponent(mismatchVault)}`,
-          {
-            method: "POST",
-            body: notificationManifest,
-            resource: `ephemeral mismatched ${variant} table`,
-          },
-        );
-
-        let createCalls = 0;
-        let alterCalls = 0;
-        const mismatchAdapter: AkbAdapter = {
-          request: async (...args) => {
-            const [path, init] = args;
-            if (
-              path === `/api/v1/tables/${encodeURIComponent(mismatchVault)}` &&
-              init?.method === "POST"
-            ) {
-              createCalls += 1;
-            }
-            if (
-              path.startsWith(
-                `/api/v1/tables/${encodeURIComponent(mismatchVault)}/`,
-              ) &&
-              init?.method === "PATCH"
-            ) {
-              alterCalls += 1;
-            }
-            return adapter.request(...args);
-          },
-        };
-        await expect(
-          ensureReefTables({
-            adapter: mismatchAdapter,
-            vault: mismatchVault,
-          }),
-        ).rejects.toMatchObject({ name: "SchemaValidationError" });
-        expect(createCalls).toBe(0);
-        expect(alterCalls).toBe(0);
-        const manifest = (await adapter.request(
-          `/api/v1/tables/${encodeURIComponent(mismatchVault)}`,
-          { resource: "ephemeral mismatch vault tables" },
-        )) as { items?: Array<Record<string, unknown>> };
-        expect(manifest.items).toHaveLength(preflightBaseManifests.length + 1);
-        expect(
-          manifest.items?.some(
-            (table) => table.name === REEF_SUBSCRIPTIONS_TABLE,
-          ),
-        ).toBe(false);
-        mismatchPreflight.push({
-          variant,
-          create_calls: createCalls,
-          alter_calls: alterCalls,
-          manifest_count: manifest.items?.length ?? 0,
-        });
-      } finally {
-        await adapter.request(
-          `/api/v1/vaults/${encodeURIComponent(mismatchVault)}`,
-          {
-            method: "DELETE",
-            resource: "ephemeral mismatch vault",
-          },
-        );
-      }
-    }
-
-    await ensureReefTables({ adapter, vault });
-    expect(provisionCreateCount).toBe(REEF_DESIRED_TABLES.length);
-    expect(provisionAlterCount).toBe(0);
-
-    const tableEnvelope = (await adapter.request(
-      `/api/v1/tables/${encodeURIComponent(vault)}`,
-      { resource: `tables in vault ${vault}` },
-    )) as { items?: Array<Record<string, unknown>> };
-    expect(tableEnvelope.items).toHaveLength(REEF_DESIRED_TABLES.length);
-    for (const tableName of [
-      REEF_NOTIFICATIONS_TABLE,
-      REEF_SUBSCRIPTIONS_TABLE,
-    ]) {
-      const table = tableEnvelope.items?.find(
-        (item) => item.name === tableName,
-      );
-      expect(table?.unique_keys).toEqual(expect.any(Array));
-      expect(table?.indexes).toEqual(expect.any(Array));
-    }
+    expect(schemaMutationCount).toBe(0);
 
     const runToken = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const occurredAt = new Date().toISOString();
@@ -2023,35 +1892,13 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
         app_installation: installationEvidence,
         transcript: [
           {
-            api: "akbEnsureReefTables",
+            api: "verifyRequiredTables",
             input: { vault: "<ephemeral>" },
             output: {
-              schema_version: REEF_SCHEMA_VERSION,
-              manifest_count: tableEnvelope.items?.length ?? 0,
-              create_calls: provisionCreateCount,
-              alter_calls: provisionAlterCount,
-              second_run_create_calls: 0,
-              second_run_alter_calls: 0,
+              active_release_schema_verified: true,
+              table_catalog_gets: tableCatalogGetCount,
+              schema_mutations: schemaMutationCount,
             },
-          },
-          {
-            api: "akbEnsureReefTables boundary validation",
-            input: { vault_length: overlongVault.length },
-            output: {
-              rejected: true,
-              adapter_calls: overlongVaultAdapterCalls,
-              manifest_count: overlongVaultTableCount,
-              partial_manifest: overlongVaultTableCount !== 0,
-            },
-          },
-          {
-            api: "akbEnsureReefTables mismatch preflight",
-            input: {
-              variants: ["column", "unique_key", "index"],
-              existing_manifest_count: preflightBaseManifests.length + 1,
-              missing_table: REEF_SUBSCRIPTIONS_TABLE,
-            },
-            output: mismatchPreflight,
           },
           {
             api: "akbCreateNotification + akbListNotifications",

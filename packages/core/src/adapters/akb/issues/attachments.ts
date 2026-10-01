@@ -19,7 +19,6 @@ import {
   decodeSettingsValue,
   deleteAkbFile,
   downloadAkbFile,
-  ensureReefTables,
   isMissingTableError,
   quoteIdent,
   SqlParameterBuilder,
@@ -381,7 +380,6 @@ export async function uploadIssueAttachment(
         createdAt,
         meta: params.meta ?? null,
       });
-      await ensureReefTables({ adapter, vault });
       await assertIssueExists(adapter, vault, reefId);
       const idempotencyKey = jiraIdempotencyKey(params.meta ?? null);
       if (idempotencyKey) {
@@ -493,7 +491,6 @@ export async function createIssueAttachmentRecord(
         createdAt: input.created_at,
         meta: input.meta ?? null,
       });
-      await ensureReefTables({ adapter, vault });
       await assertIssueExists(adapter, vault, input.reef_id);
       const attachment = await insertAttachmentRow(adapter, vault, input);
       await appendAttachmentAddedEvent(adapter, vault, attachment).catch(

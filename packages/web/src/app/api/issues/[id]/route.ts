@@ -1,5 +1,5 @@
 import {
-  getAkbAdapter,
+  getWorkspaceAkbAdapter,
   getAkbCurrentActor,
   invalidBodyResponse,
   invalidIssueIdResponse,
@@ -26,7 +26,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   const { id } = await params;
-  const context = getIssueRouteReadContext(request, id);
+  const context = await getIssueRouteReadContext(request, id);
   if ("response" in context) return context.response;
   const { adapter, vault } = context;
 
@@ -81,7 +81,7 @@ export async function PATCH(
   const { vault, update } = parsed.data;
   if (update.issue_id !== id) return invalidIssueIdResponse();
 
-  const adapterResult = getAkbAdapter(request);
+  const adapterResult = await getWorkspaceAkbAdapter(request, vault);
   if ("response" in adapterResult) return adapterResult.response;
   const { adapter } = adapterResult;
   const actorResult = await getAkbCurrentActor(request);
@@ -137,7 +137,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   const { id } = await params;
-  const context = getIssueRouteReadContext(request, id);
+  const context = await getIssueRouteReadContext(request, id);
   if ("response" in context) return context.response;
   const { adapter, vault } = context;
 

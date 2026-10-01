@@ -1,6 +1,6 @@
 import {
   VaultNameSchema,
-  getAkbAdapter,
+  getWorkspaceAkbAdapter,
   invalidBodyResponse,
   invalidJsonBodyResponse,
   missingVaultParamResponse,
@@ -48,7 +48,7 @@ export async function GET(
   const vault = parseVaultParam(request);
   if (!vault) return missingVaultParamResponse();
 
-  const adapterResult = getAkbAdapter(request);
+  const adapterResult = await getWorkspaceAkbAdapter(request, vault);
   if ("response" in adapterResult) return adapterResult.response;
   const { adapter } = adapterResult;
 
@@ -91,7 +91,7 @@ export async function PUT(
     );
   }
 
-  const adapterResult = getAkbAdapter(request);
+  const adapterResult = await getWorkspaceAkbAdapter(request, vault);
   if ("response" in adapterResult) return adapterResult.response;
   const { adapter } = adapterResult;
 
@@ -114,7 +114,7 @@ export async function DELETE(
   const vault = parseVaultParam(request);
   if (!vault) return missingVaultParamResponse();
 
-  const adapterResult = getAkbAdapter(request);
+  const adapterResult = await getWorkspaceAkbAdapter(request, vault);
   if ("response" in adapterResult) return adapterResult.response;
   const { adapter } = adapterResult;
 

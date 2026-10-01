@@ -18,7 +18,6 @@ import {
   REEF_RELEASES_TABLE,
   REEF_SPRINTS_TABLE,
   SqlParameterBuilder,
-  ensureReefTables,
   isMissingTableError,
   withSpan,
 } from "../core/shared";
@@ -128,7 +127,6 @@ export async function createSprint(
 ): Promise<Sprint> {
   const { adapter, vault, item, idempotencyKey } = params;
   return withSpan("akb.create_sprint", { vault }, async () => {
-    await ensureReefTables({ adapter, vault });
     // Validate before the insert — akb assigns the uuid id, but the other
     // fields should be checked here so an invalid row does not persists.
     const validated = SprintCreateSchema.parse(item);
@@ -170,7 +168,6 @@ export async function updateSprint(
       });
     }
     const sprint = SprintSchema.parse(item);
-    await ensureReefTables({ adapter, vault });
     await assertUniquePlanningName(
       adapter,
       vault,
@@ -202,7 +199,6 @@ export async function createMilestone(
 ): Promise<Milestone> {
   const { adapter, vault, item } = params;
   return withSpan("akb.create_milestone", { vault }, async () => {
-    await ensureReefTables({ adapter, vault });
     const validated = MilestoneCreateSchema.parse(item);
     await assertUniquePlanningName(
       adapter,
@@ -231,7 +227,6 @@ export async function updateMilestone(
       });
     }
     const milestone = MilestoneSchema.parse(item);
-    await ensureReefTables({ adapter, vault });
     await assertUniquePlanningName(
       adapter,
       vault,
@@ -265,7 +260,6 @@ export async function createRelease(
 ): Promise<Release> {
   const { adapter, vault, item, idempotencyKey } = params;
   return withSpan("akb.create_release", { vault }, async () => {
-    await ensureReefTables({ adapter, vault });
     const validated = ReleaseCreateSchema.parse(item);
     return claimAndReadPlanningRow({
       adapter,
@@ -304,7 +298,6 @@ export async function updateRelease(
       });
     }
     const release = ReleaseSchema.parse(item);
-    await ensureReefTables({ adapter, vault });
     await assertUniquePlanningName(
       adapter,
       vault,

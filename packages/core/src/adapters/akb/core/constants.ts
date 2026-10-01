@@ -9,14 +9,12 @@ export const ISSUES_COLLECTION = "issues";
 
 /**
  * Names of the structured-data tables reef writes into an akb vault. Tables
- * live at vault root (no collection) and are managed via akb's HTTP
- * `/api/v1/tables/{vault}` endpoints.
+ * live at vault root (no collection). AKB owns their schema lifecycle; Reef's
+ * request path verifies the canonical shape through the table catalog.
  *
  *   reef_settings — single-row-per-key team-shared settings (project_prefix
  *                   today, future flags later). Schema-free `value json`
- *                   remains an extension envelope pending an explicit
- *                   operator migration, including environments where migration
- *                   execution is unavailable.
+ *                   remains an extension envelope for ad-hoc settings.
  *   monitored_repos — typed rows for GitHub repos this workspace tracks. PK
  *                     is the GitHub numeric `github_id` (rename/transfer-safe).
  *   reef_issues — one row per reef issue, the queryable read projection of the
@@ -32,10 +30,7 @@ export const ISSUES_COLLECTION = "issues";
  *                 than the issue's two-store split — a template's body is
  *                 boilerplate "material", not a searchable akb document.
  *   reef_comments — flat issue comment rows keyed by `reef_id`; comment author
- *                 and edit semantics live in `meta` so the create-time schema
- *                 stays an extension envelope pending an explicit operator
- *                 migration, including environments where migration execution
- *                 is unavailable.
+ *                 and edit semantics live in `meta` as an extension envelope.
  *   reef_attachments — issue-scoped AKB file metadata. File bytes stay in AKB
  *                 file storage; this table holds the queryable issue link and
  *                 Jira import provenance.
@@ -56,7 +51,6 @@ export const REEF_SPRINTS_TABLE = "reef_sprints";
 export const REEF_MILESTONES_TABLE = "reef_milestones";
 export const REEF_RELEASES_TABLE = "reef_releases";
 export const REEF_SETTINGS_PROJECT_PREFIX_KEY = "project_prefix";
-export const REEF_SETTINGS_SCHEMA_VERSION_KEY = "schema_version";
 /**
  * `reef_settings` key holding the installed vault-skill version stamp. Value is
  * a JSON object `{ version, synced_at }` written by `installReefVaultSkill`

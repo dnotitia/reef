@@ -32,7 +32,6 @@ import {
   REEF_SPRINTS_TABLE,
   SqlParameterBuilder,
   decodeSettingsValue,
-  ensureReefTables,
   runSql,
   rowToIssue,
   selectIssueRows,
@@ -1032,8 +1031,6 @@ export async function closeSprintAndRollover(
         });
       }
       const targetInput = SprintRolloverTargetSchema.parse(params.target);
-      await ensureReefTables({ adapter, vault });
-
       let sourceRecord = await readSprintRecord(adapter, vault, sourceSprintId);
       const operationKey = `sprint-rollover:${sourceSprintId}`;
       const requestedEndDate = assertSourceEndDate(

@@ -1,5 +1,5 @@
 import {
-  getAkbAdapter,
+  getWorkspaceAkbAdapter,
   invalidBodyResponse,
   missingVaultParamResponse,
   parseVaultParam,
@@ -30,7 +30,7 @@ export async function GET(request: Request): Promise<Response> {
   });
   if (!parsed.success) return invalidBodyResponse(parsed.error);
 
-  const adapterResult = getAkbAdapter(request);
+  const adapterResult = await getWorkspaceAkbAdapter(request);
   if ("response" in adapterResult) return adapterResult.response;
   const { adapter } = adapterResult;
   const { q, limit } = parsed.data;

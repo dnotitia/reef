@@ -2,13 +2,11 @@ import { describe, expect, it } from "vitest";
 import { SchemaValidationError } from "../../../errors";
 import { downloadIssueAttachment } from "./attachments";
 import {
-  ALL_REEF_TABLES,
   REEF_ATTACHMENTS_TABLE,
   createIssueAttachmentRecord,
   downloadIssueAttachmentByFileUri,
   listIssueAttachments,
   makeAdapter,
-  makeListTablesResponse,
   makeSqlQueryResponse,
   makeSqlRuntimeErrorResponse,
   setupFetch,
@@ -103,7 +101,6 @@ describe("listIssueAttachments", () => {
 describe("uploadIssueAttachment", () => {
   it("uploads bytes to AKB files, inserts metadata, and returns the row", async () => {
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlQueryResponse([{ reef_id: "REEF-349" }], ["reef_id"]) },
       { body: makeSqlQueryResponse([], ATTACHMENT_ROW_COLUMNS) },
       {
@@ -137,7 +134,6 @@ describe("uploadIssueAttachment", () => {
           ATTACHMENT_ROW_COLUMNS,
         ),
       },
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlQueryResponse([{ id: "event-1" }], ["id"]) },
     ]);
 
@@ -164,12 +160,12 @@ describe("uploadIssueAttachment", () => {
       file_uri: "akb://reef-sample/issues/file/file-1",
       size_bytes: 4,
     });
-    expect(calls[3]?.url).toContain(
+    expect(calls[2]?.url).toContain(
       "https://akb.test/api/v1/files/reef-sample/upload?",
     );
-    expect(calls[3]?.url).toContain("filename=screenshot.png");
-    expect(calls[3]?.url).toContain("content_hash=");
-    expect(calls[4]).toMatchObject({
+    expect(calls[2]?.url).toContain("filename=screenshot.png");
+    expect(calls[2]?.url).toContain("content_hash=");
+    expect(calls[3]).toMatchObject({
       url: "https://s3.test/presigned-put",
       init: {
         method: "PUT",
@@ -177,17 +173,17 @@ describe("uploadIssueAttachment", () => {
         redirect: "error",
       },
     });
-    expect(calls[5]?.url).toContain(
+    expect(calls[4]?.url).toContain(
       "https://akb.test/api/v1/files/reef-sample/file-1/confirm?",
     );
-    const issueLookup = sqlRequestBody(calls[1]);
+    const issueLookup = sqlRequestBody(calls[0]);
     expect(issueLookup.sql).toContain("WHERE reef_id = $1");
     expect(issueLookup.params).toEqual(["REEF-349"]);
-    const idempotencyLookup = sqlRequestBody(calls[2]);
+    const idempotencyLookup = sqlRequestBody(calls[1]);
     expect(idempotencyLookup.sql).toContain("= $1");
     expect(idempotencyLookup.sql).not.toContain("attachment:cloud-1:source-42");
     expect(idempotencyLookup.params).toEqual(["attachment:cloud-1:source-42"]);
-    const insertBody = sqlRequestBody(calls[6]);
+    const insertBody = sqlRequestBody(calls[5]);
     const insertSql = insertBody.sql;
     expect(insertSql).toContain(`INSERT INTO ${REEF_ATTACHMENTS_TABLE}`);
     expect(
@@ -221,7 +217,7 @@ describe("uploadIssueAttachment", () => {
       }),
       "attachment:cloud-1:source-42",
     ]);
-    const activityBody = sqlRequestBody(calls[8]);
+    const activityBody = sqlRequestBody(calls[6]);
     expect(activityBody.sql).toContain(
       'INSERT INTO reef_activity ("reef_id", "event_type", "event_key", "payload", "meta")',
     );
@@ -235,7 +231,6 @@ describe("uploadIssueAttachment", () => {
 
   it("returns a compatible idempotent attachment before uploading", async () => {
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlQueryResponse([{ reef_id: "REEF-349" }], ["reef_id"]) },
       {
         body: makeSqlQueryResponse(
@@ -297,7 +292,6 @@ describe("uploadIssueAttachment", () => {
 
   it("treats canonically equivalent Unicode filenames as idempotent", async () => {
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlQueryResponse([{ reef_id: "REEF-349" }], ["reef_id"]) },
       {
         body: makeSqlQueryResponse(
@@ -361,7 +355,6 @@ describe("uploadIssueAttachment", () => {
   it("deletes the uploaded file when the single-statement claim reuses another row", async () => {
     const idempotencyKey = "attachment:cloud-1:source-42";
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlQueryResponse([{ reef_id: "REEF-349" }], ["reef_id"]) },
       { body: makeSqlQueryResponse([], ATTACHMENT_ROW_COLUMNS) },
       {
@@ -411,7 +404,6 @@ describe("uploadIssueAttachment", () => {
         headers: { "content-type": "image/png" },
       },
       { empty: true },
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlQueryResponse([{ id: "event-1" }], ["id"]) },
     ]);
 
@@ -435,10 +427,13 @@ describe("uploadIssueAttachment", () => {
       file_uri: "akb://reef-sample/issues/file/file-2",
     });
 
-    expect(calls[9]).toMatchObject({
-      url: "https://akb.test/api/v1/files/reef-sample/file-1",
-      init: { method: "DELETE" },
-    });
+    expect(
+      calls.find(
+        (call) =>
+          call.url === "https://akb.test/api/v1/files/reef-sample/file-1" &&
+          call.init?.method === "DELETE",
+      ),
+    ).toBeDefined();
   });
 });
 
@@ -461,7 +456,6 @@ describe("createIssueAttachmentRecord", () => {
       },
     };
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       {
         body: makeSqlQueryResponse([{ reef_id: input.reef_id }], ["reef_id"]),
       },
@@ -496,7 +490,7 @@ describe("createIssueAttachmentRecord", () => {
     expect(calls.some((call) => call.url.endsWith("/api/v1/files"))).toBe(
       false,
     );
-    const insertBody = sqlRequestBody(calls[2]);
+    const insertBody = sqlRequestBody(calls[1]);
     const sql = insertBody.sql;
     const insertColumns = sql.slice(0, sql.indexOf(" VALUES "));
     expect(insertColumns).not.toContain('"created_at"');

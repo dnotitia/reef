@@ -1,5 +1,5 @@
 import {
-  getAkbAdapter,
+  getWorkspaceAkbAdapter,
   missingVaultParamResponse,
   parseVaultParam,
   respondWithError,
@@ -44,7 +44,7 @@ export async function GET(request: Request): Promise<Response> {
     : DEFAULT_LIMIT;
   const fetchLimit = Math.min(limit * OVERFETCH_FACTOR, AKB_MAX_LIMIT);
 
-  const adapterResult = getAkbAdapter(request);
+  const adapterResult = await getWorkspaceAkbAdapter(request);
   if ("response" in adapterResult) return adapterResult.response;
   const { adapter } = adapterResult;
 

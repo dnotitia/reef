@@ -6,12 +6,8 @@ import {
   ControlPlaneError,
   NotFoundError,
   akbListVaults,
-  akbHasReefVaultSkillDocuments,
   akbInitializeReefWorkspace,
-  akbListTemplates,
-  akbReadConfig,
-  akbReadInstallation,
-  akbReadMemberInstallationActive,
+  akbCheckWorkspaceReadiness,
   akbRequestInstallation,
   akbUninstallInstallation,
   type VaultSummary,
@@ -58,20 +54,6 @@ function hasManagementRole(role: string | null | undefined): boolean {
   return role === "owner" || role === "admin";
 }
 
-async function isReefInitializationComplete(params: {
-  adapter: AkbAdapter;
-  vault: string;
-}): Promise<boolean> {
-  const [config, templates, hasSkillDocuments] = await Promise.all([
-    akbReadConfig(params),
-    akbListTemplates(params),
-    akbHasReefVaultSkillDocuments(params),
-  ]);
-  if (!config.exists || !hasSkillDocuments) return false;
-  const names = new Set(templates.map(({ template }) => template.name));
-  return DEFAULT_ISSUE_TEMPLATES.every(({ name }) => names.has(name));
-}
-
 /** Read AKB's canonical state and initialize Reef data only after it is active. */
 export async function readWorkspaceInstallationState(params: {
   adapter: AkbAdapter;
@@ -81,70 +63,64 @@ export async function readWorkspaceInstallationState(params: {
   const target = readInstallationTarget();
   if (!target) return { installation_status: "target_unavailable" };
   if (!vault.id) return { installation_status: "unknown" };
-
-  if (!hasManagementRole(vault.role)) {
-    const active = await akbReadMemberInstallationActive({
-      adapter,
-      appId: target.appId,
-      vaultId: vault.id,
-    });
-    if (!active) {
-      return { installation_status: "management_required" };
-    }
+  const canManage = hasManagementRole(vault.role);
+  const requiredTemplateNames = DEFAULT_ISSUE_TEMPLATES.map(({ name }) => name);
+  const check = await akbCheckWorkspaceReadiness({
+    adapter,
+    appId: target.appId,
+    vaultId: vault.id,
+    vault: vault.name,
+    canManage,
+    requiredTemplateNames,
+  });
+  if (check.state === "inactive") {
+    return { installation_status: "management_required" };
+  }
+  if (check.state === "not_installed" || check.state === "adoption_required") {
+    return { installation_status: check.state };
+  }
+  if (check.state !== "active") {
     return {
-      installation_status: (await isReefInitializationComplete({
-        adapter,
-        vault: vault.name,
-      }))
-        ? "ready"
-        : "management_required",
+      installation_status: check.state,
+      installation: check.installation,
     };
   }
-
-  let installation: ControlPlaneInstallation;
-  try {
-    installation = await akbReadInstallation({
-      adapter,
-      appId: target.appId,
-      vaultId: vault.id,
-    });
-  } catch (error) {
-    if (!(error instanceof NotFoundError)) throw error;
-    const config = await akbReadConfig({ adapter, vault: vault.name });
+  if (check.initialization_complete) {
     return {
-      installation_status: config.exists
-        ? "adoption_required"
-        : "not_installed",
+      installation_status: "ready",
+      ...(check.installation ? { installation: check.installation } : {}),
     };
   }
-  if (installation.lifecycle !== "active") {
-    return {
-      installation_status: installation.lifecycle,
-      installation,
-    };
-  }
+  if (!canManage) return { installation_status: "management_required" };
 
-  if (
-    !(await isReefInitializationComplete({
-      adapter,
-      vault: vault.name,
-    }))
-  ) {
-    await akbInitializeReefWorkspace({
-      adapter,
-      vault: vault.name,
-      defaultTemplates: DEFAULT_ISSUE_TEMPLATES,
-    });
-    if (
-      !(await isReefInitializationComplete({
-        adapter,
-        vault: vault.name,
-      }))
-    ) {
-      return { installation_status: "management_required", installation };
-    }
-  }
-  return { installation_status: "ready", installation };
+  await akbInitializeReefWorkspace({
+    adapter,
+    vault: vault.name,
+    defaultTemplates: DEFAULT_ISSUE_TEMPLATES,
+  });
+  const afterInitialization = await akbCheckWorkspaceReadiness({
+    adapter,
+    appId: target.appId,
+    vaultId: vault.id,
+    vault: vault.name,
+    canManage,
+    requiredTemplateNames,
+  });
+  return afterInitialization.state === "active" &&
+    afterInitialization.initialization_complete
+    ? {
+        installation_status: "ready",
+        ...(afterInitialization.installation
+          ? { installation: afterInitialization.installation }
+          : {}),
+      }
+    : {
+        installation_status: "management_required",
+        ...(afterInitialization.state === "active" &&
+        afterInitialization.installation
+          ? { installation: afterInitialization.installation }
+          : {}),
+      };
 }
 
 export async function requestWorkspaceInstallation(params: {

@@ -1,6 +1,6 @@
 import { localizedErrorResponse } from "@/lib/api/errorLocalization";
 import {
-  getAkbAdapter,
+  getWorkspaceAkbAdapter,
   getAkbCurrentActor,
   invalidBodyResponse,
   missingVaultParamResponse,
@@ -48,7 +48,7 @@ export async function GET(request: Request): Promise<Response> {
     return localizedErrorResponse("invalidNotificationLimit", 400);
   }
 
-  const adapterResult = getAkbAdapter(request);
+  const adapterResult = await getWorkspaceAkbAdapter(request);
   if ("response" in adapterResult) return adapterResult.response;
   const { adapter } = adapterResult;
   const actorResult = await getAkbCurrentActor(request);

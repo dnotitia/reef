@@ -697,7 +697,7 @@ function configuredVault(name) {
       {
         id: uuidFor(41),
         reef_id: "REEF-001",
-        body: "Agreed. Pushed the schema_version stamp:\n\n```ts\nawait ensureReefTables({ adapter, vault });\n```",
+        body: "Agreed. AKB reconciles the workspace schema; Reef checks required table metadata before serving requests.",
         meta: {
           author: "alice",
           created_at: "2026-06-16T10:30:00.000Z",
@@ -1707,8 +1707,7 @@ function notificationRow({
 /**
  * Notification Inbox fixture: exactly 100 unread Alice rows exercises the
  * bounded badge contract, plus reader and writer rows for role-scoped API
- * checks. Each role is a real fixture user; the old schema stamp stays below
- * the current Reef version so notification reads cannot rely on reconciliation.
+ * checks. The stale schema stamp verifies it is ignored and left untouched.
  */
 function seedNotifications(vault) {
   vault.settings.set("schema_version", "2");
