@@ -298,11 +298,6 @@ const server = createServer(async (req, res) => {
         0,
         Math.min(Number(body?.delay_ms ?? 0), 2_000),
       );
-      const vault = state.vaults.get(REEF_VAULT);
-      if (vault) {
-        if (mode === "missing-comments") vault.tables.delete("reef_comments");
-        else vault.tables.add("reef_comments");
-      }
       return json(res, 200, {
         ok: true,
         mode,

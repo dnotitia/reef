@@ -7,7 +7,7 @@ const {
   mockCreateLlmAdapter,
   mockCreateWorkspaceChatAgentResponse,
   mockEnrichIssue,
-  mockGetAkbAdapter,
+  mockGetWorkspaceAkbAdapter,
   mockGetAkbCurrentActor,
   mockReadAuthoringLanguage,
 } = vi.hoisted(() => ({
@@ -16,7 +16,7 @@ const {
   mockCreateLlmAdapter: vi.fn(),
   mockCreateWorkspaceChatAgentResponse: vi.fn(),
   mockEnrichIssue: vi.fn(),
-  mockGetAkbAdapter: vi.fn(),
+  mockGetWorkspaceAkbAdapter: vi.fn(),
   mockGetAkbCurrentActor: vi.fn(),
   mockReadAuthoringLanguage: vi.fn(),
 }));
@@ -62,7 +62,7 @@ vi.mock("@/server/adapters/llmAdapter", async (importOriginal) => {
 });
 
 vi.mock("@/lib/api/requestHelpers", () => ({
-  getAkbAdapter: mockGetAkbAdapter,
+  getWorkspaceAkbAdapter: mockGetWorkspaceAkbAdapter,
   getAkbCurrentActor: mockGetAkbCurrentActor,
 }));
 
@@ -268,7 +268,7 @@ export {
   mockCreateLlmAdapter,
   mockCreateWorkspaceChatAgentResponse,
   mockEnrichIssue,
-  mockGetAkbAdapter,
+  mockGetWorkspaceAkbAdapter,
   mockGetAkbCurrentActor,
   mockReadAuthoringLanguage,
 };
@@ -284,7 +284,7 @@ export function resetAgentRunsRouteMocks() {
   vi.stubEnv("REEF_LLM_BASE_URL", "https://api.openai.com/v1");
   vi.stubEnv("REEF_LLM_MODEL", "gpt-4o");
   appConfigState.current = APP_CONFIG;
-  mockGetAkbAdapter.mockReturnValue({ adapter: { request: vi.fn() } });
+  mockGetWorkspaceAkbAdapter.mockReturnValue({ adapter: { request: vi.fn() } });
   mockGetAkbCurrentActor.mockResolvedValue({ actor: "alice" });
   mockCreateGitHubAdapter.mockReturnValue({});
   mockCreateGitHubAppInstallationTokenProvider.mockReturnValue(

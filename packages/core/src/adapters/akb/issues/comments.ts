@@ -23,7 +23,6 @@ import {
   REEF_ISSUES_TABLE,
   REEF_NOTIFICATIONS_TABLE,
   decodeSettingsValue,
-  ensureReefTables,
   isMissingTableError,
   quoteIdent,
   SqlParameterBuilder,
@@ -157,9 +156,8 @@ export async function listComments(
  * (mirrors `insertAndReadPlanningRow`). `author` is the session actor resolved
  * by the route — not client-supplied — and is stored in `meta` (REEF-125).
  *
- * Provisions `reef_comments` lazily via `ensureReefTables` so the first comment
- * on a vault that predates the table self-heals instead of 500-ing (REEF-125
- * write-path gating).
+ * The workspace readiness boundary verifies Reef's required table schema
+ * before this product operation is allowed to run.
  */
 export async function createComment(
   adapter: AkbAdapter,
@@ -183,7 +181,6 @@ export async function createComment(
         vault,
         body,
       );
-      await ensureReefTables({ adapter, vault });
       const createdAt = preserved?.createdAt ?? new Date().toISOString();
       const editedAt = preserved?.editedAt ?? null;
       const metadata = Object.fromEntries(
@@ -344,7 +341,6 @@ export async function updateComment(
         vault,
         body,
       );
-      await ensureReefTables({ adapter, vault });
       const editedAt = preserved?.editedAt ?? new Date().toISOString();
       const preservedMetadata = preserved
         ? {
@@ -424,7 +420,6 @@ export async function deleteComment(
     "akb.delete_comment",
     { vault, reef_id: reefId, comment_id: commentId },
     async (span) => {
-      await ensureReefTables({ adapter, vault });
       const sqlParams = new SqlParameterBuilder();
       const targetIdParam = sqlParams.add(commentId, "comment id");
       const targetReefParam = sqlParams.add(reefId, "comment reef_id");
@@ -506,7 +501,6 @@ export async function reconcileJiraImportedComment(
         vault,
         input.body,
       );
-      await ensureReefTables({ adapter, vault });
       const migrationMeta = {
         author: input.author,
         created_at: input.createdAt,

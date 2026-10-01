@@ -1,6 +1,6 @@
 import {
   VaultNameSchema,
-  getAkbAdapter,
+  getWorkspaceAkbAdapter,
   invalidBodyResponse,
   invalidJsonBodyResponse,
   missingVaultParamResponse,
@@ -60,12 +60,11 @@ export async function GET(request: Request): Promise<Response> {
   const vault = parseVaultParam(request);
   if (!vault) return missingVaultParamResponse();
 
-  const adapterResult = getAkbAdapter(request);
+  const adapterResult = await getWorkspaceAkbAdapter(request, vault);
   if ("response" in adapterResult) return adapterResult.response;
   const { adapter } = adapterResult;
 
   try {
-    await requireWorkspaceReady({ adapter, vaultName: vault });
     const { config } = await readConfig({ adapter, vault });
     return Response.json({ config });
   } catch (err) {
@@ -87,12 +86,11 @@ export async function PATCH(request: Request): Promise<Response> {
 
   const { vault, patch } = parsed.data;
 
-  const adapterResult = getAkbAdapter(request);
+  const adapterResult = await getWorkspaceAkbAdapter(request, vault);
   if ("response" in adapterResult) return adapterResult.response;
   const { adapter } = adapterResult;
 
   try {
-    await requireWorkspaceReady({ adapter, vaultName: vault });
     const { config: current } = await readConfig({ adapter, vault });
 
     // Drop undefined entries so `.optional()` keys present-but-undefined

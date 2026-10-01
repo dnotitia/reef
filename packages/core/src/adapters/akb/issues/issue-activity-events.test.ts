@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
 import {
-  ALL_REEF_TABLES,
   ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE,
   REEF_ACTIVITY_TABLE,
   SAMPLE_ISSUE,
@@ -13,7 +12,6 @@ import {
   listIssueActivity,
   listReportStatusActivity,
   makeAdapter,
-  makeListTablesResponse,
   makeSqlMutationResponse,
   makeSqlQueryResponse,
   makeSqlRuntimeErrorResponse,
@@ -91,7 +89,6 @@ describe("issue body mention activity", () => {
 
   it("stores the canonical delta payload with the normal activity schema", async () => {
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlQueryResponse([{ id: "mention-event" }], ["id"]) },
     ]);
 
@@ -106,8 +103,8 @@ describe("issue body mention activity", () => {
       source: "web",
     });
 
-    expect(calls).toHaveLength(2);
-    const body = sqlRequestBody(calls[1]);
+    expect(calls).toHaveLength(1);
+    const body = sqlRequestBody(calls[0]);
     expect(body.sql).toContain("WHERE NOT EXISTS");
     expect(body.params).toEqual(
       expect.arrayContaining([
@@ -124,9 +121,8 @@ describe("issue body mention activity", () => {
 });
 
 describe("appendStatusChangeEvent", () => {
-  it("provisions, then conditionally inserts only declared columns in one statement", async () => {
+  it("conditionally inserts only declared columns in one statement", async () => {
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) }, // ensureReefTables
       { body: makeSqlQueryResponse([{ id: "new-uuid" }], ["id"]) }, // INSERT … RETURNING id
     ]);
 
@@ -139,10 +135,9 @@ describe("appendStatusChangeEvent", () => {
       source: "ai-agent:user_request",
     });
 
-    // One provisioning call + one conditional insert — no separate probe.
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(1);
 
-    const insertBody = sqlRequestBody(calls[1]);
+    const insertBody = sqlRequestBody(calls[0]);
     const insertSql = insertBody.sql;
     expect(insertSql).toContain(`INSERT INTO ${REEF_ACTIVITY_TABLE}`);
     // Declared columns are used; akb reserved/auto columns are excluded.
@@ -177,7 +172,6 @@ describe("appendStatusChangeEvent", () => {
 
   it("is idempotent: the NOT EXISTS guard records nothing when the event already exists", async () => {
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) }, // ensureReefTables
       { body: makeSqlQueryResponse([], ["id"]) }, // INSERT … RETURNING id → 0 rows (guard matched)
     ]);
 
@@ -191,14 +185,13 @@ describe("appendStatusChangeEvent", () => {
       actor: "alice",
     });
 
-    expect(calls).toHaveLength(2);
-    const insertSql = lastSql(calls[1]?.init?.body);
+    expect(calls).toHaveLength(1);
+    const insertSql = lastSql(calls[0]?.init?.body);
     expect(insertSql).toContain("WHERE NOT EXISTS");
   });
 
   it("defaults meta.source to null when no provenance is given", async () => {
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlQueryResponse([{ id: "new-uuid" }], ["id"]) },
     ]);
 
@@ -210,7 +203,7 @@ describe("appendStatusChangeEvent", () => {
       actor: "bob",
     });
 
-    const insertBody = sqlRequestBody(calls[1]);
+    const insertBody = sqlRequestBody(calls[0]);
     expect(insertBody.params).toContain(
       JSON.stringify({
         actor: "bob",

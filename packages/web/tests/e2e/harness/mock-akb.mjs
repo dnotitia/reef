@@ -44,21 +44,25 @@ import {
   waitForIssueUpdateRelease,
 } from "./mock-state.mjs";
 import { docUri, makeJwt, slugify, uuidFor } from "./mock-utils.mjs";
+import { REEF_DESIRED_TABLES } from "@reef/core";
 
-const REEF_INSTALLATION_TABLES = [
-  "reef_settings",
-  "monitored_repos",
-  "reef_issues",
-  "reef_sprints",
-  "reef_milestones",
-  "reef_releases",
-  "reef_templates",
-  "reef_comments",
-  "reef_attachments",
-  "reef_activity",
-  "reef_notifications",
-  "reef_subscriptions",
-];
+const REEF_INSTALLATION_TABLES = REEF_DESIRED_TABLES.map(({ name }) => name);
+const REEF_INSTALLATION_TABLE_METADATA = REEF_DESIRED_TABLES.map((table) => ({
+  name: table.name,
+  columns: table.columns.map(({ name, type, required }) => ({
+    name,
+    type,
+    required: required === true,
+  })),
+  unique_keys: (table.unique_keys ?? []).map(({ columns }) => ({ columns })),
+  indexes: (table.indexes ?? []).map(({ columns }) => ({
+    columns: columns.map((column) =>
+      typeof column === "string"
+        ? column
+        : { name: column.name, order: column.order ?? "asc" },
+    ),
+  })),
+}));
 
 function installationWire(vault) {
   const installation = vault.installation;
@@ -561,7 +565,30 @@ export async function handleAkb(req, res, url, state) {
     return json(res, 200, {
       kind: "table",
       vault: vault.name,
-      items: [...vault.tables].map((name) => ({ name })),
+      items: [...vault.tables].map((name) => {
+        const table = REEF_INSTALLATION_TABLE_METADATA.find(
+          (item) => item.name === name,
+        ) ?? {
+          name,
+          columns: [],
+          unique_keys: [],
+          indexes: [],
+        };
+        if (
+          state.scenario === "notifications" &&
+          vault.name === REEF_VAULT &&
+          state.notificationSchemaMode === "incompatible" &&
+          name === "reef_notifications"
+        ) {
+          return {
+            ...table,
+            columns: table.columns.filter(
+              ({ name: columnName }) => columnName !== "archived_at",
+            ),
+          };
+        }
+        return table;
+      }),
     });
   }
   if (tablesMatch && req.method === "POST") {
@@ -641,6 +668,15 @@ export async function handleAkb(req, res, url, state) {
         return json(res, 200, { error: "e2e forced issue reorder failure" });
       }
       rememberSqlCall(state, vault.name, username, sql);
+      if (
+        state.contentSearchMode === "missing-comments" &&
+        /^\s*select id, reef_id, body, created_at from \(/i.test(sql) &&
+        /\bfrom reef_comments\b/i.test(sql)
+      ) {
+        return json(res, 200, {
+          error: 'relation "reef_comments" does not exist',
+        });
+      }
       const result = handleSql(state, vault, sql, username);
       if (result.kind === "sql_error") {
         return json(res, result.status, result.body);

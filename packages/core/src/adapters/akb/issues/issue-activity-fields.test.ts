@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
 import {
-  ALL_REEF_TABLES,
   REEF_ACTIVITY_TABLE,
   SAMPLE_ISSUE,
   activityEventKey,
@@ -10,7 +9,6 @@ import {
   diffFieldActivityEvents,
   listIssueActivity,
   makeAdapter,
-  makeListTablesResponse,
   makeSqlMutationResponse,
   makeSqlQueryResponse,
   makeSqlRuntimeErrorResponse,
@@ -281,9 +279,8 @@ describe("appendActivityEvents (REEF-126)", () => {
     { at, actor: "carol", source: null },
   );
 
-  it("provisions once, then conditionally inserts one row per event", async () => {
+  it("conditionally inserts one row per event", async () => {
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) }, // ensureReefTables (once)
       { body: makeSqlQueryResponse([{ id: "e1" }], ["id"]) }, // INSERT assignee
       { body: makeSqlQueryResponse([{ id: "e2" }], ["id"]) }, // INSERT priority
     ]);
@@ -294,8 +291,8 @@ describe("appendActivityEvents (REEF-126)", () => {
       "assignee_change",
       "priority_change",
     ]);
-    expect(calls).toHaveLength(3);
-    const insert1 = sqlRequestBody(calls[1]);
+    expect(calls).toHaveLength(2);
+    const insert1 = sqlRequestBody(calls[0]);
     expect(insert1.sql).toContain("WHERE NOT EXISTS");
     expect(insert1.params).toEqual(
       expect.arrayContaining([
@@ -305,7 +302,7 @@ describe("appendActivityEvents (REEF-126)", () => {
         JSON.stringify({ actor: "carol", at, source: null }),
       ]),
     );
-    const insert2 = sqlRequestBody(calls[2]);
+    const insert2 = sqlRequestBody(calls[1]);
     expect(insert2.params).toEqual(
       expect.arrayContaining([
         "priority_change",
@@ -322,7 +319,6 @@ describe("appendActivityEvents (REEF-126)", () => {
 
   it("accepts a validated caller-supplied migration key and preserves ordinary key calculation", async () => {
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlQueryResponse([{ id: "migration-event" }], ["id"]) },
     ]);
     const eventKey = "jira-changelog:cloud-1:10001:h-1:0:issue_type_change";
@@ -337,7 +333,7 @@ describe("appendActivityEvents (REEF-126)", () => {
         source: "jira-changelog:history-key:0",
       },
     ]);
-    expect(sqlRequestBody(calls[1]).params).toContain(eventKey);
+    expect(sqlRequestBody(calls[0]).params).toContain(eventKey);
     expect(activityEventKey(events[0], at)).toBe(
       `assignee_change:alice->bob@${at}`,
     );
@@ -394,7 +390,6 @@ describe("reconcileJiraChangelogActivityEvents", () => {
 
   it("repairs the existing Jira-owned event in place", async () => {
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlQueryResponse([{ id: "existing-event" }], ["id"]) },
     ]);
 
@@ -402,8 +397,8 @@ describe("reconcileJiraChangelogActivityEvents", () => {
       event,
     ]);
 
-    expect(calls).toHaveLength(2);
-    const updateBody = sqlRequestBody(calls[1]);
+    expect(calls).toHaveLength(1);
+    const updateBody = sqlRequestBody(calls[0]);
     expect(updateBody.sql).toContain(`UPDATE ${REEF_ACTIVITY_TABLE}`);
     expect(updateBody.sql).toContain("SET event_type = $1");
     expect(updateBody.sql).toContain("event_key = $5");
@@ -425,7 +420,6 @@ describe("reconcileJiraChangelogActivityEvents", () => {
 
   it("uses the idempotent insert path when the Jira event is absent", async () => {
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlQueryResponse([], ["id"]) },
       { body: makeSqlQueryResponse([{ id: "new-event" }], ["id"]) },
     ]);
@@ -434,14 +428,14 @@ describe("reconcileJiraChangelogActivityEvents", () => {
       event,
     ]);
 
-    expect(calls).toHaveLength(3);
-    expect(lastSql(calls[1]?.init?.body)).toContain(
+    expect(calls).toHaveLength(2);
+    expect(lastSql(calls[0]?.init?.body)).toContain(
       `UPDATE ${REEF_ACTIVITY_TABLE}`,
     );
-    const insertSql = lastSql(calls[2]?.init?.body);
+    const insertSql = lastSql(calls[1]?.init?.body);
     expect(insertSql).toContain(`INSERT INTO ${REEF_ACTIVITY_TABLE}`);
     expect(insertSql).toContain("WHERE NOT EXISTS");
-    expect(sqlRequestBody(calls[2]).params).toContain(event.eventKey);
+    expect(sqlRequestBody(calls[1]).params).toContain(event.eventKey);
   });
 
   it("rejects non-Jira or missing event keys before I/O", async () => {
@@ -471,7 +465,6 @@ describe("reconcileJiraImportedAttachmentActivityActor", () => {
 
   it("repairs only the exact fallback-owned attachment event", async () => {
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlMutationResponse("UPDATE 1") },
     ]);
 
@@ -481,8 +474,8 @@ describe("reconcileJiraImportedAttachmentActivityActor", () => {
       input,
     );
 
-    expect(calls).toHaveLength(2);
-    const updateBody = sqlRequestBody(calls[1]);
+    expect(calls).toHaveLength(1);
+    const updateBody = sqlRequestBody(calls[0]);
     expect(updateBody.sql).toContain(`UPDATE ${REEF_ACTIVITY_TABLE}`);
     expect(updateBody.sql).toContain("event_type = $3");
     expect(updateBody.sql).toContain("event_key = $4");

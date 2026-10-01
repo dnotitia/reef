@@ -1,19 +1,4 @@
 import type { Template } from "../../../schemas/issues/template";
-import {
-  MONITORED_REPOS_TABLE,
-  REEF_ACTIVITY_TABLE,
-  REEF_ATTACHMENTS_TABLE,
-  REEF_COMMENTS_TABLE,
-  REEF_ISSUES_TABLE,
-  REEF_MILESTONES_TABLE,
-  REEF_NOTIFICATIONS_TABLE,
-  REEF_RELEASES_TABLE,
-  REEF_SCHEMA_VERSION,
-  REEF_SETTINGS_TABLE,
-  REEF_SPRINTS_TABLE,
-  REEF_SUBSCRIPTIONS_TABLE,
-  REEF_TEMPLATES_TABLE,
-} from "../index";
 
 export function makeSqlQueryResponse(
   items: Record<string, unknown>[],
@@ -45,42 +30,6 @@ export function makeSqlRuntimeErrorResponse(table: string): {
     body: { error: `relation "${table}" does not exist` },
   };
 }
-
-export function makeListTablesResponse(names: string[]): unknown {
-  return {
-    kind: "table",
-    vault: "reef-sample",
-    items: names.map((name) => ({ name })),
-  };
-}
-
-export function makeSchemaVersionResponse(
-  version: number = REEF_SCHEMA_VERSION,
-): unknown {
-  return makeSqlQueryResponse(
-    [
-      {
-        value: JSON.stringify({ version, applied_at: "2026-06-17T00:00:00Z" }),
-      },
-    ],
-    ["value"],
-  );
-}
-
-export const ALL_REEF_TABLES = [
-  REEF_SETTINGS_TABLE,
-  MONITORED_REPOS_TABLE,
-  REEF_ISSUES_TABLE,
-  REEF_SPRINTS_TABLE,
-  REEF_MILESTONES_TABLE,
-  REEF_RELEASES_TABLE,
-  REEF_TEMPLATES_TABLE,
-  REEF_COMMENTS_TABLE,
-  REEF_ATTACHMENTS_TABLE,
-  REEF_ACTIVITY_TABLE,
-  REEF_NOTIFICATIONS_TABLE,
-  REEF_SUBSCRIPTIONS_TABLE,
-];
 
 export const SPRINT_ROW_COLUMNS = [
   "id",

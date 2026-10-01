@@ -44,10 +44,6 @@ export {
   REEF_RELEASES_TABLE,
   REEF_SCHEMA_VERSION,
   REEF_DESIRED_TABLES,
-  AkbTableMutationColumnTypeSchema,
-  alterAkbTable,
-  applyAkbTableMigration,
-  ensureReefTables,
   resolveDocumentTitles,
   searchDocuments,
   issueDocumentUri,
@@ -59,18 +55,6 @@ export {
   type AkbStreamRequest,
   type AkbStreamRequestInit,
   type AkbSearchHit,
-  type AkbAlterTableChanges,
-  type AkbTableMigrationOperation,
-  type AkbTableResult,
-  type AkbTableMigrationResult,
-  type AlterAkbTableParams,
-  type ApplyAkbTableMigrationParams,
-  type AkbCreateTableRequest,
-  type AkbTableColumn,
-  type AkbTableIndex,
-  type AkbTableIndexColumn,
-  type AkbTableUniqueKey,
-  type ReefTableManifest,
 } from "./core/shared";
 export {
   hydrateIssuesByDocumentUri,
@@ -96,6 +80,7 @@ export {
 } from "./workspace/vaults";
 export { deleteVault } from "./workspace/workspaceDeletion";
 export { initializeReefWorkspace } from "./workspace/initializeWorkspace";
+export { checkWorkspaceReadiness } from "./workspace/readiness";
 export {
   readIssue,
   claimIssueId,

@@ -509,6 +509,15 @@
       "conflict": "저장 충돌이 발생했습니다 — 새로고침 후 다시 시도해 주세요.",
       "unknown": "워크스페이스 백엔드와 통신하는 중 오류가 발생했습니다. 다시 시도해 주세요."
     },
+    "workspaceReadiness": {
+      "ownerActionRequired": "워크스페이스를 사용할 수 없습니다. 관리자에게 설정 상태를 확인해 달라고 요청하세요.",
+      "requiredTablesMissing": "워크스페이스에 필요한 데이터가 없습니다. 운영자에게 설정 완료를 요청하세요.",
+      "requiredTablesMismatch": "워크스페이스 데이터가 현재 애플리케이션 요구사항과 일치하지 않습니다. 운영자에게 설정 검토를 요청하세요.",
+      "requiredTablesForbidden": "현재 권한으로 워크스페이스 데이터를 확인할 수 없습니다. 운영자에게 권한을 확인해 달라고 요청하세요.",
+      "requiredTablesUnavailable": "워크스페이스 서비스에 연결할 수 없어 데이터를 확인하지 못했습니다. 나중에 다시 시도하세요.",
+      "requiredTablesTransport": "워크스페이스 서비스에 연결할 수 없어 데이터를 확인하지 못했습니다. 나중에 다시 시도하세요.",
+      "requiredTablesInvalidResponse": "워크스페이스 확인 중 잘못된 데이터가 반환됐습니다. 운영자에게 검토를 요청하세요."
+    },
     "sessionExpired": "세션이 만료되었습니다. 다시 로그인해 주세요.",
     "planning": {
       "sprintRollover": {

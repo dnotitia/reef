@@ -2,14 +2,12 @@ import { describe, expect, it } from "vitest";
 import { akbGetEffectiveSubscriptionState } from "../../../index";
 import { buildSubscriptionKey } from "../../../schemas/notifications";
 import {
-  ALL_REEF_TABLES,
   ISSUE_ROW_COLUMNS,
   SAMPLE_ISSUE,
   createComment,
   makeAdapter,
   makeDocumentResponse,
   makeIssueRow,
-  makeListTablesResponse,
   makePutResponse,
   makeSqlMutationResponse,
   makeSqlQueryResponse,
@@ -278,7 +276,6 @@ describe("automatic issue-participant subscriptions (REEF-429)", () => {
       },
     });
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       {
         body: makeSqlQueryResponse([root], COMMENT_ROW_COLUMNS),
       },
@@ -288,7 +285,6 @@ describe("automatic issue-participant subscriptions (REEF-429)", () => {
           SUBSCRIPTION_ROW_COLUMNS,
         ),
       },
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlQueryResponse([reply], COMMENT_ROW_COLUMNS) },
       {
         body: makeSqlQueryResponse(
@@ -296,7 +292,6 @@ describe("automatic issue-participant subscriptions (REEF-429)", () => {
           SUBSCRIPTION_ROW_COLUMNS,
         ),
       },
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       {
         body: makeSqlQueryResponse(
           [commentRow("root-author", { body: "edited root" })],
@@ -317,7 +312,7 @@ describe("automatic issue-participant subscriptions (REEF-429)", () => {
         editedAt: null,
       },
     );
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(2);
     await createComment(
       makeAdapter(),
       "reef-sample",
@@ -330,7 +325,7 @@ describe("automatic issue-participant subscriptions (REEF-429)", () => {
         editedAt: null,
       },
     );
-    expect(calls).toHaveLength(6);
+    expect(calls).toHaveLength(4);
     await updateComment(
       makeAdapter(),
       "reef-sample",
@@ -340,7 +335,7 @@ describe("automatic issue-participant subscriptions (REEF-429)", () => {
       "root-author",
     );
 
-    expect(calls).toHaveLength(8);
+    expect(calls).toHaveLength(5);
     const subscriptionRequests = calls.filter(
       (call) =>
         call.url.includes("/sql") && sql(call).includes("reef_subscriptions"),

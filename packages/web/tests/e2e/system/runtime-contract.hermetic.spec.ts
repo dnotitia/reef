@@ -839,7 +839,7 @@ test.describe("Hermetic runtime discovery", () => {
           start_path: "/workspace/reef-e2e/inbox",
           controls: {
             notification_control: [
-              "old schema_version=2 with healthy notification tables",
+              "stale schema_version=2 is ignored and remains unchanged",
               "schema_mode=healthy|missing|incompatible",
               "data_mode=healthy|forbidden|error",
               "Alice owner, writer writer, and Bob reader fixture sessions",

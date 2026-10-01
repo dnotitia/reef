@@ -1,6 +1,6 @@
 import { localizedErrorResponse } from "@/lib/api/errorLocalization";
 import {
-  getAkbAdapter,
+  getWorkspaceAkbAdapter,
   invalidIssueIdResponse,
   isValidIssueIdPathParam,
   missingVaultParamResponse,
@@ -44,7 +44,7 @@ export async function GET(
   if (!fileUri) return new Response("Missing uri", { status: 400 });
   const download = url.searchParams.get("download") === "1";
 
-  const adapterResult = getAkbAdapter(request);
+  const adapterResult = await getWorkspaceAkbAdapter(request);
   if ("response" in adapterResult) return adapterResult.response;
   const { adapter } = adapterResult;
 

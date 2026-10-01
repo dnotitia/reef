@@ -14,6 +14,10 @@ explicitly in the entries below.
 
 ### Changed
 
+- **AKB owns every Reef table schema.** Workspace readiness now verifies the
+  canonical installation, required table metadata, and Reef data initialization
+  through a read-only Core check. Normal product and agent requests no longer
+  create, migrate, or stamp tables. (REEF-419)
 - Reports now receive validated server-computed aggregates, flow metrics, health
   rollups, pivots, and forecasts in one workspace-scoped response instead of
   loading issue and activity rows into the browser. (REEF-617)
@@ -71,6 +75,10 @@ explicitly in the entries below.
 
 ### Migration
 
+- Deploy the AKB release that installs or reconciles Reef's canonical required
+  tables before this version. Reef readiness treats missing or stale local
+  `schema_version` settings as non-authoritative and performs no table schema
+  writes. (REEF-419)
 - Deploy an AKB build with the app installation lifecycle API before deploying
   this Reef version. Readiness no longer falls back to the presence of Reef
   configuration or tables. (REEF-418)

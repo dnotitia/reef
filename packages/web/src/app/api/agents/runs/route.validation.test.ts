@@ -8,7 +8,7 @@ import {
   makeRequest,
   mockCreateWorkspaceChatAgentResponse,
   mockEnrichIssue,
-  mockGetAkbAdapter,
+  mockGetWorkspaceAkbAdapter,
   parseSseEvents,
   resetAgentRunsRouteMocks,
 } from "./route.testSupport";
@@ -68,15 +68,13 @@ describe("POST /api/agents/runs validation", () => {
     const authHeaders = new Headers({ "Cache-Control": "no-store" });
     authHeaders.append("Set-Cookie", "__reef_session=; Path=/; Max-Age=0");
     authHeaders.append("Set-Cookie", "__reef_auth_v2=; Path=/; Max-Age=0");
-    mockGetAkbAdapter.mockReturnValueOnce({
-      response: Promise.resolve(
-        Response.json(
-          { error: "Your session has expired." },
-          {
-            status: 401,
-            headers: authHeaders,
-          },
-        ),
+    mockGetWorkspaceAkbAdapter.mockReturnValueOnce({
+      response: Response.json(
+        { error: "Your session has expired." },
+        {
+          status: 401,
+          headers: authHeaders,
+        },
       ),
     });
 

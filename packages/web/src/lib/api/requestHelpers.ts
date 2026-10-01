@@ -18,6 +18,8 @@ import {
 import { AUTH_V2_SESSION_COOKIE } from "@/server/auth-v2/cookie";
 import { readAuthV2RuntimeConfig } from "@/server/auth-v2/config";
 import { resolveAuthV2Credential } from "@/server/auth-v2/routeHelpers";
+import { requireWorkspaceReady } from "@/server/adapters/workspaceInstallation";
+import { logger } from "@/lib/logging/logger";
 import {
   buildClearedAuthV2LogoutCookie,
   buildClearedAuthV2SessionCookie,
@@ -348,6 +350,38 @@ export function getAkbAdapter(
       credential: () => resolveAuthV2Credential(handle),
     }),
   };
+}
+
+/**
+ * Build the per-request AKB adapter only after this workspace passes the
+ * canonical installation, required-table, and product-initialization checks.
+ * Lifecycle and onboarding handlers keep using `getAkbAdapter` directly.
+ */
+export async function getWorkspaceAkbAdapter(
+  request: Request,
+  requestedVault?: string,
+): Promise<{ adapter: AkbAdapter } | { response: Response }> {
+  const adapterResult = getAkbAdapter(request);
+  if ("response" in adapterResult) {
+    return { response: await adapterResult.response };
+  }
+
+  const vault = requestedVault ?? parseVaultParam(request);
+  if (!vault || !VaultNameSchema.safeParse(vault).success) {
+    return { response: await missingVaultParamResponse() };
+  }
+  try {
+    await requireWorkspaceReady({
+      adapter: adapterResult.adapter,
+      vaultName: vault,
+    });
+    return adapterResult;
+  } catch (error) {
+    logger.error({ err: error, vault }, "workspace readiness check failed");
+    return {
+      response: await respondWithError(error, { resourceKind: "workspace" }),
+    };
+  }
 }
 
 /**

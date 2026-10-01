@@ -1,5 +1,5 @@
 import {
-  getAkbAdapter,
+  getWorkspaceAkbAdapter,
   invalidIssueIdResponse,
   isValidIssueIdPathParam,
   missingVaultParamResponse,
@@ -7,20 +7,20 @@ import {
 } from "@/lib/api/requestHelpers";
 import type { AkbAdapter } from "@reef/core";
 
-export function getIssueRouteReadContext(
+export async function getIssueRouteReadContext(
   request: Request,
   id: string,
-):
-  | { id: string; vault: string; adapter: AkbAdapter }
-  | { response: Promise<Response> } {
+): Promise<
+  { id: string; vault: string; adapter: AkbAdapter } | { response: Response }
+> {
   if (!isValidIssueIdPathParam(id)) {
-    return { response: invalidIssueIdResponse() };
+    return { response: await invalidIssueIdResponse() };
   }
 
   const vault = parseVaultParam(request);
-  if (!vault) return { response: missingVaultParamResponse() };
+  if (!vault) return { response: await missingVaultParamResponse() };
 
-  const adapterResult = getAkbAdapter(request);
+  const adapterResult = await getWorkspaceAkbAdapter(request, vault);
   if ("response" in adapterResult) return adapterResult;
   return { id, vault, adapter: adapterResult.adapter };
 }

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { buildSubscriptionKey } from "../../../schemas/notifications";
 import {
   AkbApiError,
-  ALL_REEF_TABLES,
   AuthError,
   ConflictError,
   ISSUES_COLLECTION,
@@ -15,7 +14,6 @@ import {
   makeAdapter,
   makeDocumentResponse,
   makeIssueRow,
-  makeListTablesResponse,
   makePutResponse,
   makeSqlMutationResponse,
   makeSqlQueryResponse,
@@ -328,7 +326,6 @@ describe("writeIssue", () => {
       },
       { status: 201, body: makePutResponse() },
       { body: makeSqlMutationResponse("INSERT 0 1") },
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlQueryResponse([{ id: "mention-event" }], ["id"]) },
     ]);
     const issue: IssueMetadata = {
@@ -354,7 +351,7 @@ describe("writeIssue", () => {
         ),
       ]),
     );
-    const eventBody = JSON.parse(String(calls[4]?.init?.body));
+    const eventBody = JSON.parse(String(calls[3]?.init?.body));
     expect(eventBody.params).toEqual(
       expect.arrayContaining([
         "issue_body_mentions_change:abc1234",
@@ -396,7 +393,6 @@ describe("writeIssue", () => {
       },
       { status: 201, body: makePutResponse() },
       { body: makeSqlMutationResponse("INSERT 0 1") },
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { status: 500, body: { detail: "activity insert blew up" } },
       { body: makeSqlMutationResponse("DELETE 1") },
       { status: 204, empty: true },
@@ -411,11 +407,11 @@ describe("writeIssue", () => {
       }),
     ).rejects.toBeInstanceOf(AkbApiError);
 
-    expect(calls).toHaveLength(7);
-    expect(JSON.parse(String(calls[5]?.init?.body)).sql).toContain(
+    expect(calls).toHaveLength(6);
+    expect(JSON.parse(String(calls[4]?.init?.body)).sql).toContain(
       "DELETE FROM reef_issues",
     );
-    expect(calls[6]?.init?.method).toBe("DELETE");
+    expect(calls[5]?.init?.method).toBe("DELETE");
   });
 
   it("propagates 409 as ConflictError", async () => {
