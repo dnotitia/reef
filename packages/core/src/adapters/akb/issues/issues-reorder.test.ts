@@ -9,6 +9,11 @@ import {
   setupFetch,
 } from "../../../test-support/akb/fetchMock";
 import { mockOpenTelemetry } from "../../../test-support/akb/otelMock";
+import {
+  ALL_REEF_TABLES,
+  makeListTablesResponse,
+  makeSqlQueryResponse,
+} from "../core/akb.testSupport";
 import { reorderIssue } from "./issues";
 
 mockOpenTelemetry();
@@ -71,6 +76,29 @@ function subscriptionRow(subscriber: string) {
     subscribed_at: "2026-05-02T00:00:00.000Z",
     meta: null,
   };
+}
+
+function expectStatusTimestampOnlyFor(
+  updateBody: Record<string, unknown>,
+  issueId: string,
+) {
+  const sql = String(updateBody.sql);
+  const metaAssignment = sql
+    .split('"meta" = ')[1]
+    ?.split(' WHERE "reef_id" IN (')[0];
+  expect(metaAssignment).toBeDefined();
+  if (!metaAssignment) return;
+
+  const targetParameter = /^CASE WHEN "reef_id" = \$(\d+) THEN/.exec(
+    metaAssignment,
+  );
+  expect(targetParameter).not.toBeNull();
+  const params = Array.isArray(updateBody.params) ? updateBody.params : [];
+  expect(params[Number(targetParameter?.[1]) - 1]).toBe(issueId);
+  expect(metaAssignment).toContain("'{last_status_change}'");
+  expect(metaAssignment).toContain(
+    "ELSE jsonb_set(COALESCE(\"meta\"::jsonb, '{}'::jsonb), '{last_editor}'",
+  );
 }
 
 describe("reorderIssue (REEF-570)", () => {
@@ -192,6 +220,295 @@ describe("reorderIssue (REEF-570)", () => {
     expect(updateBody.params).toContain(4000);
   });
 
+  it("preserves neighbor status times when materializing an unranked tail", async () => {
+    const rows = makeIssueQueryResponse([
+      makeIssue({
+        id: "REEF-001",
+        status: "done",
+        rank: null,
+        last_status_change: "2026-05-01T00:00:00.000Z",
+      }),
+      makeIssue({
+        id: "REEF-002",
+        status: "closed",
+        rank: null,
+        closed_at: "2026-05-01T00:00:00.000Z",
+        closed_reason: "completed",
+      }),
+      makeIssue({
+        id: "REEF-003",
+        status: "todo",
+        rank: null,
+      }),
+    ]) as { items: Array<Record<string, unknown>> };
+    rows.items[1].closed_at = "2026-05-01T00:00:00.000Z";
+    rows.items[1].closed_reason = "completed";
+    const absentTimestampMeta = rows.items[2].meta as Record<string, unknown>;
+    delete absentTimestampMeta.last_status_change;
+    const { calls } = setupFetch([
+      { body: rows },
+      {
+        body: {
+          kind: "table_query",
+          columns: ["reef_id", "rank", "updated_at"],
+          items: [
+            {
+              reef_id: "REEF-002",
+              rank: 1000,
+              updated_at: "2026-05-02T00:00:00.000Z",
+            },
+            {
+              reef_id: "REEF-003",
+              rank: 2000,
+              updated_at: "2026-05-02T00:00:00.000Z",
+            },
+            {
+              reef_id: "REEF-001",
+              rank: 3000,
+              updated_at: "2026-05-02T00:00:00.000Z",
+            },
+          ],
+          total: 3,
+        },
+      },
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { body: makeSqlQueryResponse([{ id: "status-event" }], ["id"]) },
+    ]);
+
+    const result = await reorderIssue({
+      adapter: makeTestAkbAdapter(),
+      vault: VAULT,
+      scope: "active",
+      issueId: "REEF-001",
+      beforeId: "REEF-003",
+      afterId: null,
+      expected: {
+        issueRank: null,
+        issueUpdatedAt: "2026-05-01T00:00:00.000Z",
+        beforeRank: null,
+        beforeUpdatedAt: "2026-05-01T00:00:00.000Z",
+        afterRank: null,
+        afterUpdatedAt: null,
+      },
+      group: { field: "status", value: "in_progress" },
+      actor: "carol",
+      at: "2026-05-02T00:00:00.000Z",
+    });
+
+    expect(result.assignments).toMatchObject([
+      { id: "REEF-002", rank: 1000 },
+      { id: "REEF-003", rank: 2000 },
+      { id: "REEF-001", rank: 3000 },
+    ]);
+    const updateBody = bodyOf(calls[1]);
+    expectStatusTimestampOnlyFor(updateBody, "REEF-001");
+    expect(String(updateBody.sql)).toContain('"closed_at" = CASE "reef_id"');
+    expect(String(updateBody.sql)).toMatch(
+      /"closed_reason" = CASE "reef_id" WHEN \$\d+ THEN NULL ELSE "closed_reason" END/,
+    );
+    const activityBody = bodyOf(calls[3]);
+    expect(activityBody.params).toEqual(
+      expect.arrayContaining([
+        "REEF-001",
+        "status_change:done->in_progress@2026-05-02T00:00:00.000Z",
+      ]),
+    );
+    expect(calls).toHaveLength(4);
+  });
+
+  it("preserves neighbor status times when exhausted ranks are re-spaced", async () => {
+    const rows = makeIssueQueryResponse([
+      makeIssue({
+        id: "REEF-001",
+        status: "closed",
+        rank: 1,
+        last_status_change: "2026-05-01T00:00:00.000Z",
+      }),
+      makeIssue({ id: "REEF-002", status: "done", rank: 1 + Number.EPSILON }),
+      makeIssue({
+        id: "REEF-003",
+        status: "todo",
+        rank: 3000,
+      }),
+      makeIssue({ id: "REEF-004", status: "in_progress", rank: null }),
+    ]);
+    const { calls } = setupFetch([
+      { body: rows },
+      {
+        body: {
+          kind: "table_query",
+          columns: ["reef_id", "rank", "updated_at"],
+          items: [
+            {
+              reef_id: "REEF-001",
+              rank: 1000,
+              updated_at: "2026-05-02T00:00:00.000Z",
+            },
+            {
+              reef_id: "REEF-003",
+              rank: 2000,
+              updated_at: "2026-05-02T00:00:00.000Z",
+            },
+            {
+              reef_id: "REEF-002",
+              rank: 3000,
+              updated_at: "2026-05-02T00:00:00.000Z",
+            },
+          ],
+          total: 3,
+        },
+      },
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { body: makeSqlQueryResponse([{ id: "status-event" }], ["id"]) },
+    ]);
+
+    const result = await reorderIssue({
+      adapter: makeTestAkbAdapter(),
+      vault: VAULT,
+      scope: "active",
+      issueId: "REEF-003",
+      beforeId: "REEF-001",
+      afterId: "REEF-002",
+      expected: {
+        issueRank: 3000,
+        issueUpdatedAt: "2026-05-01T00:00:00.000Z",
+        beforeRank: 1,
+        beforeUpdatedAt: "2026-05-01T00:00:00.000Z",
+        afterRank: 1 + Number.EPSILON,
+        afterUpdatedAt: "2026-05-01T00:00:00.000Z",
+      },
+      group: { field: "status", value: "in_progress" },
+      actor: "carol",
+      at: "2026-05-02T00:00:00.000Z",
+    });
+
+    expect(result.assignments).toMatchObject([
+      { id: "REEF-001", rank: 1000 },
+      { id: "REEF-003", rank: 2000 },
+      { id: "REEF-002", rank: 3000 },
+    ]);
+    expectStatusTimestampOnlyFor(bodyOf(calls[1]), "REEF-003");
+    expect(bodyOf(calls[3]).params).toEqual(
+      expect.arrayContaining([
+        "REEF-003",
+        "status_change:todo->in_progress@2026-05-02T00:00:00.000Z",
+      ]),
+    );
+    expect(calls).toHaveLength(4);
+  });
+
+  it("stamps a single issue on a status-only move", async () => {
+    const { calls } = setupFetch([
+      {
+        body: makeIssueQueryResponse([
+          makeIssue({
+            id: "REEF-001",
+            status: "todo",
+            rank: 1000,
+            last_status_change: "2026-05-01T00:00:00.000Z",
+          }),
+        ]),
+      },
+      {
+        body: {
+          kind: "table_query",
+          columns: ["reef_id", "rank", "updated_at"],
+          items: [
+            {
+              reef_id: "REEF-001",
+              rank: 1000,
+              updated_at: "2026-05-02T00:00:00.000Z",
+            },
+          ],
+          total: 1,
+        },
+      },
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { body: makeSqlQueryResponse([{ id: "status-event" }], ["id"]) },
+    ]);
+
+    await reorderIssue({
+      adapter: makeTestAkbAdapter(),
+      vault: VAULT,
+      scope: "active",
+      issueId: "REEF-001",
+      beforeId: null,
+      afterId: null,
+      expected: {
+        issueRank: 1000,
+        issueUpdatedAt: "2026-05-01T00:00:00.000Z",
+        beforeRank: null,
+        beforeUpdatedAt: null,
+        afterRank: null,
+        afterUpdatedAt: null,
+      },
+      group: { field: "status", value: "in_progress" },
+      actor: "carol",
+      at: "2026-05-02T00:00:00.000Z",
+    });
+
+    expectStatusTimestampOnlyFor(bodyOf(calls[1]), "REEF-001");
+    expect(bodyOf(calls[3]).params).toEqual(
+      expect.arrayContaining([
+        "REEF-001",
+        "status_change:todo->in_progress@2026-05-02T00:00:00.000Z",
+      ]),
+    );
+    expect(calls).toHaveLength(4);
+  });
+
+  it("does not change status time on a same-status reorder", async () => {
+    const { calls } = setupFetch([
+      {
+        body: makeIssueQueryResponse([
+          makeIssue({ id: "REEF-001", status: "done", rank: 1000 }),
+          makeIssue({ id: "REEF-002", status: "done", rank: 2000 }),
+          makeIssue({ id: "REEF-003", status: "done", rank: 3000 }),
+        ]),
+      },
+      {
+        body: {
+          kind: "table_query",
+          columns: ["reef_id", "rank", "updated_at"],
+          items: [
+            {
+              reef_id: "REEF-003",
+              rank: 1500,
+              updated_at: "2026-05-02T00:00:00.000Z",
+            },
+          ],
+          total: 1,
+        },
+      },
+    ]);
+
+    await reorderIssue({
+      adapter: makeTestAkbAdapter(),
+      vault: VAULT,
+      scope: "active",
+      issueId: "REEF-003",
+      beforeId: "REEF-001",
+      afterId: "REEF-002",
+      expected: {
+        issueRank: 3000,
+        issueUpdatedAt: "2026-05-01T00:00:00.000Z",
+        beforeRank: 1000,
+        beforeUpdatedAt: "2026-05-01T00:00:00.000Z",
+        afterRank: 2000,
+        afterUpdatedAt: "2026-05-01T00:00:00.000Z",
+      },
+      group: { field: "status", value: "done" },
+      actor: "carol",
+      at: "2026-05-02T00:00:00.000Z",
+    });
+
+    const updateBody = bodyOf(calls[1]);
+    expect(String(updateBody.sql)).not.toContain("'{last_status_change}'");
+    expect(String(updateBody.sql)).toContain("'{last_editor}'");
+    expect(updateBody.params).toContain("carol");
+    expect(calls).toHaveLength(2);
+  });
+
   it("applies a Board group change and rank in the same SQL update", async () => {
     const rows = makeIssueQueryResponse([
       makeIssue({ id: "REEF-001", rank: 1000, priority: "high" }),
@@ -242,6 +559,7 @@ describe("reorderIssue (REEF-570)", () => {
     expect(sql).toContain('"priority" = CASE "reef_id"');
     expect(sql).toContain("THEN $4");
     expect(sql).toContain('"meta" =');
+    expect(sql).not.toContain("'{last_status_change}'");
     expect(updateBody.params).toEqual(
       expect.arrayContaining(["REEF-003", 1500, "high", "carol"]),
     );

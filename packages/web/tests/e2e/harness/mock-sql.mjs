@@ -949,11 +949,21 @@ function handleIssueReorderSql(state, vault, sql) {
     if (assignment) groupAssignments.set(column, assignment);
   }
 
-  const editor = matchSqlString(sql, /to_jsonb\('((?:''|[^'])*)'::text\)/i);
+  const metaExpression =
+    sql.match(
+      /"meta"\s*=\s*([\s\S]*?)::json\b\s+where\s+"reef_id"\s+in\s*\(/i,
+    )?.[1] ?? "";
+  const editor = matchSqlString(
+    metaExpression,
+    /to_jsonb\('((?:''|[^'])*)'::text\)/i,
+  );
   const statusChangedAt = matchSqlString(
-    sql,
+    metaExpression,
     /\{last_status_change\}.*?to_jsonb\('((?:''|[^'])*)'::text\)/i,
   );
+  const statusTarget = metaExpression
+    .match(/^\s*case\s+when\s+"reef_id"\s*=\s*'((?:''|[^'])*)'\s+then\b/i)?.[1]
+    ?.replace(/''/g, "'");
   const updatedAt = nextEditTimestamp();
   const updatedRows = [];
   for (const row of rows) {
@@ -967,7 +977,10 @@ function handleIssueReorderSql(state, vault, sql) {
     if (editor !== null) {
       row.meta = { ...(row.meta ?? {}), last_editor: editor };
     }
-    if (statusChangedAt !== null) {
+    if (
+      statusChangedAt !== null &&
+      (statusTarget === undefined || statusTarget === row.reef_id)
+    ) {
       row.meta = {
         ...(row.meta ?? {}),
         last_status_change: statusChangedAt,
