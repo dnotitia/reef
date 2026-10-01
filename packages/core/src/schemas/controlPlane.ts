@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AkbTableColumnTypeSchema } from "../adapters/akb/core/tableManifest";
+import { VaultNameSchema } from "./workspace/config";
 
 /** UUIDs and lifecycle values are part of the AKB app-installation wire contract. */
 export const ControlPlaneIdSchema = z.uuid();
@@ -98,6 +99,18 @@ export const ControlPlaneInstallationSchema = z.object({
   drift: ControlPlaneDriftSchema.nullable().optional(),
   driftClassification: ControlPlaneDriftSchema.nullable().optional(),
 });
+
+/** Public identity for one active installation in the app-scoped inventory. */
+export const ControlPlaneInstallationInventoryItemSchema = z.strictObject({
+  installationId: ControlPlaneIdSchema,
+  appId: ControlPlaneIdSchema,
+  vaultId: ControlPlaneIdSchema,
+  vaultName: VaultNameSchema,
+  lifecycle: z.literal("active"),
+});
+export type ControlPlaneInstallationInventoryItem = z.infer<
+  typeof ControlPlaneInstallationInventoryItemSchema
+>;
 
 /** Public app-registry projection; opaque registry metadata is not exposed. */
 export const ControlPlaneAppDefinitionSchema = z.object({

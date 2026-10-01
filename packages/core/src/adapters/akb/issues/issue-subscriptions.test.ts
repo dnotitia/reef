@@ -264,6 +264,63 @@ describe("automatic issue-participant subscriptions (REEF-429)", () => {
     ).not.toContain("'manual'");
   });
 
+  it("upserts participant sources before status and field activity can wake projection", async () => {
+    const at = "2026-08-01T00:00:00.000Z";
+    const current = { ...SAMPLE_ISSUE, assigned_to: "alice" };
+    const { calls } = setupFetch([
+      { body: makeDocumentResponse() },
+      {
+        body: makeSqlQueryResponse([makeIssueRow(current)], ISSUE_ROW_COLUMNS),
+      },
+      { body: makeSqlMutationResponse("UPDATE 1") },
+      { body: makeSqlQueryResponse([{ id: "removed-assignee" }], ["id"]) },
+      {
+        body: makeSqlQueryResponse(
+          [subscriptionRow("bob", "assignee")],
+          SUBSCRIPTION_ROW_COLUMNS,
+        ),
+      },
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { body: makeSqlQueryResponse([{ id: "status-event" }], ["id"]) },
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { body: makeSqlQueryResponse([{ id: "assignee-event" }], ["id"]) },
+    ]);
+
+    await updateIssue({
+      adapter: makeAdapter(),
+      vault: "reef-sample",
+      id: "REEF-001",
+      partial: {
+        assigned_to: "bob",
+        status: "in_progress",
+        last_status_change: at,
+        updated_at: at,
+        updated_by: "carol",
+      },
+    });
+
+    const sqlCalls = calls.flatMap((call, index) =>
+      call.url.includes("/sql")
+        ? [{ index, request: sqlRequestBody(call) }]
+        : [],
+    );
+    const subscriptionIndex = sqlCalls.find(
+      ({ request }) =>
+        request.sql.includes("INSERT INTO reef_subscriptions") &&
+        request.sql.includes("ON CONFLICT (subscription_key) DO UPDATE"),
+    )?.index;
+    const activityIndexes = sqlCalls
+      .filter(({ request }) =>
+        request.sql.includes("INSERT INTO reef_activity"),
+      )
+      .map(({ index }) => index);
+
+    expect(subscriptionIndex).toBeDefined();
+    expect(activityIndexes).toHaveLength(2);
+    expect(subscriptionIndex).toBeLessThan(activityIndexes[0] ?? -1);
+    expect(subscriptionIndex).toBeLessThan(activityIndexes[1] ?? -1);
+  });
+
   it("creates commenter sources for comments and replies, but never for an edit", async () => {
     const root = commentRow("root-author", { body: "root" });
     const reply = commentRow("reply-author", {

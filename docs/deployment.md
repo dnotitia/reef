@@ -156,11 +156,19 @@ receipt, log, or metric:
 ```bash
 kubectl create secret generic reef-event-processor-secret \
   --namespace my-namespace \
-  --from-literal=REEF_EVENT_PROCESSOR_AKB_TOKEN="$REEF_EVENT_PROCESSOR_AKB_TOKEN"
+  --from-literal=REEF_EVENT_PROCESSOR_AKB_TOKEN="$REEF_EVENT_PROCESSOR_AKB_TOKEN" \
+  --from-literal=REEF_EVENT_PROCESSOR_APP_CREDENTIAL="$REEF_EVENT_PROCESSOR_APP_CREDENTIAL"
 ```
 
-The processor reads `AKB_BACKEND_URL` and `REEF_EVENT_PROCESSOR_VAULT` plus
-these bounded settings (defaults shown):
+The processor reads every active installation in the registered Reef app's
+app-scoped inventory. Its AKB data-plane token and app credential are separate
+deployment secrets. The app credential is exchanged for a short-lived app
+token when refreshing inventory; the app must already have `inventory:read`.
+No vault grant or inventory permission is created by Reef. A denied inventory
+read keeps the last valid worker set and retries on the reconciliation interval.
+
+The processor also reads `AKB_BACKEND_URL` plus these bounded settings
+(defaults shown):
 
 | Variable | Default | Valid range |
 | --- | ---: | --- |
@@ -170,11 +178,13 @@ these bounded settings (defaults shown):
 | `REEF_EVENT_PROCESSOR_RECONCILIATION_INTERVAL_MS` | `300000` | 15000–86400000 |
 | `REEF_EVENT_PROCESSOR_DRAIN_TIMEOUT_MS` | `20000` | 1000–60000 |
 
-The three processor inputs are required. The AKB endpoint must be HTTPS, or a
+The AKB endpoint and both processor credentials are required. The AKB endpoint must be HTTPS, or a
 private local/cluster HTTP origin; embedded credentials, paths, queries, and
 fragments are rejected at startup. The processor exposes internal-only
-`/healthz`, `/readyz`, and `/metrics` on port `9090`. Readiness stays down
-during startup, Event Gap recovery, and SIGTERM shutdown.
+`/healthz`, `/readyz`, and `/metrics` on port `9090`. Readiness stays down until
+one complete inventory read succeeds and during SIGTERM shutdown. Installation
+metrics report each vault's processor, event tail, reconciliation outcomes,
+notification fan-out, and failure state independently.
 
 ### TLS
 
@@ -309,7 +319,7 @@ services:
     environment:
       AKB_BACKEND_URL: http://akb-backend:8000
       REEF_EVENT_PROCESSOR_AKB_TOKEN: ${REEF_EVENT_PROCESSOR_AKB_TOKEN:?set REEF_EVENT_PROCESSOR_AKB_TOKEN}
-      REEF_EVENT_PROCESSOR_VAULT: ${REEF_EVENT_PROCESSOR_VAULT:?set REEF_EVENT_PROCESSOR_VAULT}
+      REEF_EVENT_PROCESSOR_APP_CREDENTIAL: ${REEF_EVENT_PROCESSOR_APP_CREDENTIAL:?set REEF_EVENT_PROCESSOR_APP_CREDENTIAL}
 ```
 
 ```bash
@@ -339,8 +349,8 @@ The event processor reads the processor ConfigMap and Secret shown above.
 | Variable | Required | Description |
 | --- | --- | --- |
 | `AKB_BACKEND_URL` | yes | Base URL of the akb backend reef-web calls server-side. In-cluster this is a Service DNS name (`http://<service>.<namespace>.svc.cluster.local:8000`). |
-| `REEF_EVENT_PROCESSOR_AKB_TOKEN` | yes for processor | Deployment-managed AKB credential used only in the private processor process. |
-| `REEF_EVENT_PROCESSOR_VAULT` | yes for processor | Explicit AKB Vault whose activity/comment Source State is reconciled. |
+| `REEF_EVENT_PROCESSOR_AKB_TOKEN` | yes for processor | Deployment-managed AKB data-plane credential used only by private per-installation workers. |
+| `REEF_EVENT_PROCESSOR_APP_CREDENTIAL` | yes for processor | Deployment-managed credential for the registered Reef app. The processor exchanges it for short-lived app tokens to read active installation inventory; the app must already have `inventory:read`. |
 | `REEF_AUTH_MODE` | yes | Explicit `local` or `sso`; must match AKB's `schema_version=2` `auth_mode`. No hybrid or legacy fallback is supported. |
 | `REEF_PUBLIC_ORIGIN` | yes for SSO | Reef's canonical external origin — bare `scheme://host[:port]`, no path. It is used for the fixed OIDC callback and post-logout redirect and must match the registered companion origin. |
 | `REEF_KEYCLOAK_ISSUER` | yes for SSO | Public Keycloak realm issuer used for browser authorization and JWT `iss`. |

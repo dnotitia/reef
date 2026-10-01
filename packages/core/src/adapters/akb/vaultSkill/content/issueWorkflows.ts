@@ -28,6 +28,7 @@ Use this runbook for requests such as "Create an issue for...", "Update REEF-001
    - content: the issue body in markdown, seeded from the template in step 4
    Keep the akb:// URI from the response; that is the document_uri.
 6. Insert the reef_issues row with the same reef_id and the document_uri from akb_put.
+7. After the row insert succeeds, upsert an active requester source for a non-empty requester and an active assignee source for a non-empty assigned_to, using "Automatic participant subscriptions" below. Read the source rows back before treating the create as complete. These are separate source rows; do not use or modify the manual source.
 
 The AKB document title must be the uppercase issue id, not the human title. Store the human title in the document summary and the reef_issues.title column.
 
@@ -137,9 +138,33 @@ For meta-only fields such as source, last_status_change, external_refs, and impl
 
 Do not set updated_at yourself; AKB bumps it on any row UPDATE.
 
+## Automatic participant subscriptions
+
+On issue create, upsert an active requester source for a non-empty requester and an active assignee source for a non-empty assigned_to after the reef_issues row insert succeeds. On update, apply this lifecycle when the generic update includes requester or assigned_to: read the previous values first, delete only a previous subscriber's matching source when that participant changes or clears, then upsert the current non-empty source. Do not sync these sources for an unrelated field update; this matches the product write path and does not backfill old issues. Never delete another source for that subscriber. In particular, a manual watch/mute is owned by the manual source and is never changed here.
+
+Build \`subscription_key\` with the exact source identity format from pm-model.md, counting each string segment with JavaScript \`String.length\`: \`subscription:<reef_id length>:<reef_id>:<subscriber length>:<subscriber>:<source length>:<source>\`. Escape single quotes in usernames as SQL data. For example, reapply Alice's assignee source:
+
+INSERT INTO reef_subscriptions
+  (subscription_key, reef_id, subscriber, source, status, subscribed_at, meta)
+VALUES
+  ('subscription:8:REEF-001:5:alice:8:assignee', 'REEF-001', 'alice', 'assignee', 'active',
+   to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), NULL)
+ON CONFLICT (subscription_key) DO UPDATE SET status = 'active'
+RETURNING subscription_key;
+
+For a removed assignee, remove only this source identity:
+
+DELETE FROM reef_subscriptions
+WHERE reef_id = 'REEF-001' AND subscriber = 'alice' AND source = 'assignee'
+RETURNING subscription_key;
+
+Read back each touched source with SELECT subscription_key, status FROM reef_subscriptions WHERE reef_id = 'REEF-001' AND subscriber = 'alice' AND source = 'assignee', replacing the example values with the participant and source being checked. An upsert must leave exactly the expected source key active; a removal must leave no row for that exact source. If a source write errors or read-back disagrees, retry only that same idempotent upsert or source-specific delete once, then read again. If it still disagrees, stop and report the partial write. Do not append activity until requester and assignee sources are verified, and do not undo the issue document or row. A Change Event can wake projection as soon as the event row commits, so writing the activity first can miss the new requester or assignee. See comments-and-activity.md for the commenter source, which is added after each comment insert succeeds.
+
 ## Record a field-change activity event
 
 reef_activity logs more than status. When an update changes the assignee, the priority, a planning link (milestone, sprint, or release), the title, the labels, the due date, the estimate, the parent, a relation (depends_on, blocks, or related_to), the archived state, or links a new delivery ref (a pull_request, commit, or branch in implementation_refs), you MUST ALSO append one immutable reef_activity row per change, in the same update -- the same append-only mechanism as the status_change rule below, just a different event_type. This is what populates the issue timeline with the full history, not status alone. An issue body create/update that changes the resolved mention set MUST ALSO append the internal precursor event below; a no-op recipient set emits no event, and this event is filtered from the user activity timeline. Append:
+
+First finish the requester/assignee source writes from "Automatic participant subscriptions". Then append the activity row so the projector sees current recipients when the change event arrives.
 
 INSERT INTO reef_activity (reef_id, event_type, event_key, payload, meta)
 VALUES (
@@ -176,6 +201,8 @@ A status change is a row-only update; it does not touch the document. On ANY sta
 When the new status is closed, also set closed_at and closed_reason (see Close). When the new status is anything other than closed (including done and any reopen), set closed_at = NULL and closed_reason = NULL so stale closure fields do not linger.
 
 On ANY status change you MUST ALSO append one immutable event row to the reef_activity table, in addition to the reef_issues row update above. reef_activity is the issue's ordered audit history (the timeline reads it); meta.last_status_change on the row is only the last-event safety net, while reef_activity keeps every transition. Insert:
+
+If requester or assignee changes in the same write, finish those automatic subscription upserts/removals before appending this event.
 
 INSERT INTO reef_activity (reef_id, event_type, event_key, payload, meta)
 VALUES (

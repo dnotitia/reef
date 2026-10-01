@@ -587,7 +587,6 @@ describe("reorderIssue (REEF-570)", () => {
           total: 1,
         },
       },
-      { status: 500, body: { error: "activity unavailable" } },
       {
         body: {
           kind: "table_query",
@@ -604,6 +603,7 @@ describe("reorderIssue (REEF-570)", () => {
           total: 1,
         },
       },
+      { status: 500, body: { error: "activity unavailable" } },
     ]);
 
     await reorderIssue({
@@ -626,7 +626,7 @@ describe("reorderIssue (REEF-570)", () => {
       at: "2026-05-02T00:00:00.000Z",
     });
 
-    const subscriptionRequests = calls.slice(3).map(bodyOf);
+    const subscriptionRequests = calls.slice(2, 4).map(bodyOf);
     expect(subscriptionRequests).toHaveLength(2);
     expect(String(subscriptionRequests[0].sql)).toContain(
       "DELETE FROM reef_subscriptions",
