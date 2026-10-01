@@ -657,11 +657,9 @@ export function KanbanBoard({
     }
   }
 
-  // PointerSensor can activate on the first move without emitting a later
-  // collision update when a pointer jumps directly to its destination. Use
-  // the final rendered DOM target to recover that drop target; canonical
-  // rank resolution remains owned by the shared reorder helper and server.
-  function pointerDropTargetAtLastPointer(): {
+  // DragOverlay's wrapper can be hit-tested before the rendered card beneath
+  // it, so inspect the full stack for the final card or column target.
+  function pointerDropTargetAtLastPointer(activeIssueId: string): {
     id: string;
     issue?: IssueListItem;
     bucket: IssueGroupBucket;
@@ -670,14 +668,21 @@ export function KanbanBoard({
     if (
       !point ||
       typeof document === "undefined" ||
-      typeof document.elementFromPoint !== "function"
+      typeof document.elementsFromPoint !== "function"
     ) {
       return null;
     }
-    const element = document.elementFromPoint(point.x, point.y);
-    const card = element?.closest<HTMLElement>(
-      '[data-testid="kanban-card"][data-occurrence-key]',
-    );
+    const elements = document.elementsFromPoint(point.x, point.y);
+    const cards = elements
+      .map((element) =>
+        element.closest<HTMLElement>(
+          '[data-testid="kanban-card"][data-occurrence-key]',
+        ),
+      )
+      .filter((candidate): candidate is HTMLElement => candidate !== null);
+    const card =
+      cards.find((candidate) => candidate.dataset.issueId !== activeIssueId) ??
+      cards[0];
     const occurrenceKey = card?.dataset.occurrenceKey;
     if (occurrenceKey) {
       const group = issueGroups.find(({ bucket: candidate, issues }) =>
@@ -691,7 +696,9 @@ export function KanbanBoard({
       }
     }
 
-    const column = element?.closest<HTMLElement>("[data-group-by]");
+    const column = elements
+      .map((element) => element.closest<HTMLElement>("[data-group-by]"))
+      .find((candidate): candidate is HTMLElement => candidate !== null);
     if (!column) return null;
     const group = issueGroups.find(
       ({ bucket: candidate }) =>
@@ -714,18 +721,19 @@ export function KanbanBoard({
       event.activatorEvent?.type === "pointerdown" ||
       event.activatorEvent?.type === "mousedown";
     const pointerTarget = isPointerDrag
-      ? pointerDropTargetAtLastPointer()
+      ? pointerDropTargetAtLastPointer(issue.id)
       : null;
-    const rawOverId = over ? String(over.id) : null;
-    const usePointerTarget =
-      pointerTarget !== null &&
-      (rawOverId === null ||
-        rawOverId === String(active.id) ||
-        overData?.issue?.id === issue.id);
+    // Pointer collision data can lag behind auto-scroll. Keyboard drags have
+    // no pointer target and continue to use dnd-kit `over` as before.
+    const usePointerTarget = pointerTarget !== null;
     const resolvedOverData = usePointerTarget
       ? { issue: pointerTarget.issue, bucket: pointerTarget.bucket }
       : overData;
-    const overId = usePointerTarget ? pointerTarget.id : rawOverId;
+    const overId = usePointerTarget
+      ? pointerTarget.id
+      : over
+        ? String(over.id)
+        : null;
     lastPointerCoordinatesRef.current = null;
     const overGroup = issueGroups.find(
       ({ bucket: candidate, issues: bucketIssues }) =>
@@ -912,6 +920,15 @@ export function KanbanBoard({
     <div
       data-testid="kanban-board"
       className="flex min-h-48 min-w-0 flex-1 flex-col"
+      onPointerMove={(event) => {
+        lastPointerCoordinatesRef.current = {
+          x: event.clientX,
+          y: event.clientY,
+        };
+      }}
+      onPointerLeave={() => {
+        lastPointerCoordinatesRef.current = null;
+      }}
     >
       <IssueReorderAnnouncement message={reorderAnnouncement} />
       <div className="pointer-events-none sticky top-0 z-10 h-0 overflow-visible">
@@ -967,15 +984,6 @@ export function KanbanBoard({
           // biome-ignore lint/a11y/noNoninteractiveTabindex: The labeled overflow region is the keyboard scrollport.
           tabIndex={0}
           onKeyDown={handleBoardScrollKeyDown}
-          onPointerMove={(event) => {
-            lastPointerCoordinatesRef.current = {
-              x: event.clientX,
-              y: event.clientY,
-            };
-          }}
-          onPointerLeave={() => {
-            lastPointerCoordinatesRef.current = null;
-          }}
           className="relative grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-3 overflow-x-hidden overflow-y-auto px-6 py-4 md:grid-cols-2 lg:flex lg:flex-nowrap lg:overflow-x-auto lg:overflow-y-hidden"
         >
           {issueGroups.map(({ bucket, issues }) => (

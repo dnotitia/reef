@@ -1211,56 +1211,144 @@ test.describe("large Board column virtualization", () => {
         timeout: 15_000,
       })
       .toBeGreaterThan(0);
-    const readVisibleDropCandidate = () =>
+    const safeDropInset = 64;
+    const readVisibleDropCandidates = () =>
       scroll.evaluate((element) => {
         const root = element as HTMLElement;
         const rootRect = root.getBoundingClientRect();
         const cards = Array.from(
           root.querySelectorAll<HTMLElement>('[data-testid="kanban-card"]'),
         );
-        const visible = cards.filter((card) => {
+        const visible = cards.flatMap((card) => {
+          const issueId = card.dataset.issueId;
+          if (!issueId) return [];
           const rect = card.getBoundingClientRect();
-          return (
-            rect.top >= rootRect.top + 8 && rect.bottom <= rootRect.bottom - 8
-          );
+          return rect.top >= rootRect.top + 8 &&
+            rect.bottom <= rootRect.bottom - 8
+            ? [{ issueId, top: rect.top, bottom: rect.bottom }]
+            : [];
         });
-        const target = visible.at(-2) ?? visible.at(-1);
         return {
-          issueId: target?.dataset.issueId ?? null,
+          rootTop: rootRect.top,
+          rootBottom: rootRect.bottom,
           mountedIds: cards.flatMap((card) =>
             card.dataset.issueId ? [card.dataset.issueId] : [],
           ),
+          visible,
         };
       });
     await expect
       .poll(
         async () => {
-          const candidate = await readVisibleDropCandidate();
-          return candidate.issueId
-            ? initialOrder.indexOf(candidate.issueId)
-            : -1;
+          const snapshot = await readVisibleDropCandidates();
+          return snapshot.visible.some((candidate) => {
+            const index = initialOrder.indexOf(candidate.issueId);
+            return (
+              index > initialMountedIds.length - 1 &&
+              candidate.top >= snapshot.rootTop + safeDropInset &&
+              candidate.bottom <= snapshot.rootBottom - safeDropInset
+            );
+          });
         },
         { timeout: 15_000 },
       )
-      .toBeGreaterThan(initialMountedIds.length - 1);
-    const targetCandidate = await readVisibleDropCandidate();
-    const targetId = targetCandidate.issueId;
+      .toBe(true);
+    const targetCandidate = await readVisibleDropCandidates();
+    const safeTarget = targetCandidate.visible.find((candidate) => {
+      const index = initialOrder.indexOf(candidate.issueId);
+      return (
+        index > initialMountedIds.length - 1 &&
+        candidate.top >= targetCandidate.rootTop + safeDropInset &&
+        candidate.bottom <= targetCandidate.rootBottom - safeDropInset
+      );
+    });
+    const targetId = safeTarget?.issueId;
     if (!targetId) throw new Error("missing mounted Board drop target");
     const targetIndex = initialOrder.indexOf(targetId);
     expect(targetIndex).toBeGreaterThan(initialMountedIds.length - 1);
     expect(initialMountedIds).not.toContain(targetId);
     expect(targetCandidate.mountedIds).toContain(sourceId);
+    expect(targetCandidate.mountedIds.length).toBeLessThanOrEqual(50);
 
     const target = column.locator(
       `[data-testid="kanban-card"][data-issue-id="${targetId}"]`,
     );
-    const targetBox = await target.boundingBox();
+    const waitForStableTarget = async () => {
+      let previousScrollTop: number | null = null;
+      let previousTargetBox: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      } | null = null;
+      await expect
+        .poll(
+          async () => {
+            const [currentScrollTop, currentTargetBox] = await Promise.all([
+              scroll.evaluate((element) => (element as HTMLElement).scrollTop),
+              target.boundingBox(),
+            ]);
+            const stable =
+              currentTargetBox !== null &&
+              previousTargetBox !== null &&
+              currentScrollTop === previousScrollTop &&
+              Math.abs(currentTargetBox.x - previousTargetBox.x) < 1 &&
+              Math.abs(currentTargetBox.y - previousTargetBox.y) < 1 &&
+              Math.abs(currentTargetBox.width - previousTargetBox.width) < 1 &&
+              Math.abs(currentTargetBox.height - previousTargetBox.height) < 1;
+            previousScrollTop = currentScrollTop;
+            previousTargetBox = currentTargetBox;
+            return stable;
+          },
+          { timeout: 5_000 },
+        )
+        .toBe(true);
+    };
+    let targetBox = await target.boundingBox();
     if (!targetBox) throw new Error("missing mounted Board target bounds");
     await page.mouse.move(
       targetBox.x + targetBox.width / 2,
       targetBox.y + targetBox.height / 2,
       { steps: 8 },
     );
+    await waitForStableTarget();
+    targetBox = await target.boundingBox();
+    if (!targetBox) throw new Error("missing settled Board target bounds");
+    const releasePoint = {
+      x: targetBox.x + targetBox.width / 2,
+      y: targetBox.y + targetBox.height / 2,
+    };
+    await page.mouse.move(releasePoint.x, releasePoint.y, { steps: 1 });
+    const pointerTargetAtRelease = await page.evaluate(
+      ({ x, y, activeIssueId }) => {
+        const elements = document.elementsFromPoint(x, y);
+        const cards = elements
+          .map((element) =>
+            element.closest<HTMLElement>(
+              '[data-testid="kanban-card"][data-occurrence-key]',
+            ),
+          )
+          .filter((candidate): candidate is HTMLElement => candidate !== null);
+        const card =
+          cards.find(
+            (candidate) => candidate.dataset.issueId !== activeIssueId,
+          ) ?? cards[0];
+        const column = elements
+          .map((element) => element.closest<HTMLElement>("[data-group-by]"))
+          .find((candidate): candidate is HTMLElement => candidate !== null);
+        return {
+          issueId: card?.dataset.issueId ?? null,
+          groupBy: column?.dataset.groupBy ?? null,
+          groupValue: column?.dataset.groupValue ?? null,
+        };
+      },
+      { ...releasePoint, activeIssueId: sourceId },
+    );
+    expect(pointerTargetAtRelease).toMatchObject({
+      issueId: targetId,
+      groupBy: "status",
+      groupValue: "todo",
+    });
     await page.mouse.up();
 
     const [reorderRequest, reorderResponse] = await Promise.all([
@@ -1269,15 +1357,11 @@ test.describe("large Board column virtualization", () => {
     ]);
     expect(reorderResponse.status()).toBe(200);
     const requestBody = reorderRequest.postDataJSON() as {
-      vault?: unknown;
-      scope?: unknown;
       issue_id?: unknown;
       before_id?: unknown;
       after_id?: unknown;
     };
     expect(requestBody).toMatchObject({
-      vault: LARGE_VAULT,
-      scope: "active",
       issue_id: sourceId,
     });
     const beforeId = requestBody.before_id;
@@ -1287,8 +1371,13 @@ test.describe("large Board column virtualization", () => {
     }
     const beforeIndex = initialOrder.indexOf(beforeId);
     const afterIndex = initialOrder.indexOf(afterId);
+    const expectedAfterId = initialOrder[targetIndex + 1];
+    expect(expectedAfterId).toBeDefined();
+    expect(beforeId).toBe(targetId);
+    expect(afterId).toBe(expectedAfterId);
     expect(beforeIndex).toBeGreaterThan(initialMountedIds.length - 1);
-    expect(afterIndex).toBe(beforeIndex + 1);
+    expect(beforeIndex).toBe(targetIndex);
+    expect(afterIndex).toBe(targetIndex + 1);
 
     const persistedState = await readFixtureState(request);
     const persistedIssues = persistedState.vaults.find(
@@ -1299,9 +1388,9 @@ test.describe("large Board column virtualization", () => {
     const persistedOrder = canonicalTodoIds(persistedIssues);
     const movedIndex = persistedOrder.indexOf(sourceId);
     expect(persistedOrder.slice(movedIndex - 1, movedIndex + 2)).toEqual([
-      beforeId,
+      targetId,
       sourceId,
-      afterId,
+      expectedAfterId,
     ]);
   });
 

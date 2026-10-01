@@ -26,6 +26,9 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Pointer drags on large Board columns keep the card under the pointer as the
+  target through auto-scroll.** Reorders no longer fall through to the column
+  tail when collision data lags. (REEF-616)
 - **Board navigation restores the focused issue occurrence and its column position.**
   The in-memory anchor is scoped to the signed-in account and workspace, so a
   matching issue id in another vault does not inherit the previous view.
