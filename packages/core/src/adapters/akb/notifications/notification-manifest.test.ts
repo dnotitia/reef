@@ -24,7 +24,7 @@ describe("notification storage manifest", () => {
     );
   });
 
-  it("declares the current schema version and complete create-time tables", () => {
+  it("declares the schema version and complete create-time tables", () => {
     expect(REEF_SCHEMA_VERSION).toBe(4);
     expect(REEF_DESIRED_TABLES).toHaveLength(12);
     expect(

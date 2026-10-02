@@ -104,6 +104,11 @@ explicitly in the entries below.
 
 ### Migration
 
+- **Reef schema v4 adds seven non-unique lookup indexes.** Fresh installs include
+  them in complete `create_table` descriptors from the canonical Desired Schema
+  Projection. Existing v3 installs can transition only from releases `0.14.0`,
+  `0.15.0`, or `0.16.0` with an exact v3 schema fingerprint, using explicit AKB
+  `add_index` rollout steps. Reef requests do not modify schemas. (REEF-654)
 - Deploy the AKB release that installs or reconciles Reef's canonical required
   tables before this version. Reef readiness treats missing or stale local
   `schema_version` settings as non-authoritative and performs no table schema
@@ -111,6 +116,20 @@ explicitly in the entries below.
 - Deploy an AKB build with the app installation lifecycle API before deploying
   this Reef version. Readiness no longer falls back to the presence of Reef
   configuration or tables. (REEF-418)
+
+### Operational
+
+- **Apply the schema v4 transition in an operator-approved maintenance window.**
+  Block access to the affected workspace and stop the old Reef runtime; do not
+  run both versions concurrently. After the AKB rollout reaches terminal
+  `applied`, deploy the matching Release identity, Reef image, and installation
+  target settings. Resume access only after an authenticated Workspace Ready
+  check succeeds; neither `/api/healthz` nor `/api/readyz` alone confirms schema
+  validation. On partial failure, `blocked`, or timeout, keep maintenance in
+  place and preserve the job ID and applied results. Fix the cause, then
+  explicitly resume the same rollout with a new idempotency key. Reverting only
+  the image after indexes are applied does not restore schema compatibility.
+  (REEF-654)
 
 ## v0.16.1 - 2026-09-28
 

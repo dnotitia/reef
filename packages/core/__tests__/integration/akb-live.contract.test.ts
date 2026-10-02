@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   AkbApiError,
@@ -11,7 +12,6 @@ import {
   type AkbStreamAdapter,
   appendStatusChangeEvent,
   buildIssueMetadataFromCreateInput,
-  buildReleaseBlueprint,
   canonicalJson,
   createAkbAdapter,
   createAkbAppInstallationReader,
@@ -30,7 +30,6 @@ import {
   REEF_ACTIVITY_TABLE,
   REEF_SETTINGS_TABLE,
   sha256Hex,
-  tableSchemaFingerprint,
   uninstallInstallation,
   listIssues,
   listIssueBodyHistory,
@@ -117,6 +116,15 @@ const EMAIL = process.env.REEF_LIVE_AKB_EMAIL ?? "reef-smoke@example.com";
 const V3_SOURCE_VERSIONS = ["0.14.0", "0.15.0", "0.16.0"] as const;
 const V3_SCHEMA_FINGERPRINT =
   "dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727";
+const V4_LOOKUP_INDEXES = [
+  { table: "reef_activity", columns: ["reef_id", "event_key"] },
+  { table: "reef_attachments", columns: ["reef_id"] },
+  { table: "reef_comments", columns: ["reef_id"] },
+  { table: "reef_issues", columns: ["document_uri"] },
+  { table: "reef_issues", columns: ["parent_id"] },
+  { table: "reef_issues", columns: ["reef_id"] },
+  { table: "reef_issues", columns: ["status"] },
+] as const;
 
 function fixtureOrigin(): string {
   if (!FIXTURE_BASE_URL) {
@@ -285,6 +293,41 @@ async function reefActivityUniqueKeys(
       throw new Error("Activity unique key columns were not an array");
     }
     return uniqueKey.columns.map((column) => String(column));
+  });
+}
+
+async function reefTableIndexColumns(
+  adapter: AkbAdapter,
+  vault: string,
+  tableName: string,
+): Promise<string[][]> {
+  const catalog = record(
+    await adapter.request(`/api/v1/tables/${encodeURIComponent(vault)}`, {
+      resource: `tables in vault ${vault}`,
+    }),
+    "table catalog",
+  );
+  if (!Array.isArray(catalog.items)) {
+    throw new Error("Table catalog items were not an array");
+  }
+  const table = catalog.items
+    .map((item) => record(item, "table catalog item"))
+    .find((item) => item.name === tableName);
+  if (!table) throw new Error(`${tableName} was absent from the live catalog`);
+  if (!Array.isArray(table.indexes)) return [];
+  return table.indexes.map((value) => {
+    const index = record(value, `${tableName} index`);
+    if (!Array.isArray(index.columns)) {
+      throw new Error(`${tableName} index columns were not an array`);
+    }
+    return index.columns.map((column) => {
+      if (typeof column === "string") return column;
+      return requiredString(
+        record(column, `${tableName} index column`),
+        "name",
+        `${tableName} index column`,
+      );
+    });
   });
 }
 
@@ -853,7 +896,7 @@ async function waitForTerminalRollout(params: {
   throw new Error("Timed out waiting for the live schema rollout to finish");
 }
 
-/** Register a fixture-only exact v3 Reef release to prove the v4 transition. */
+/** Register the exact historical v3 artifact for a source-version proof. */
 async function registerV3BaselineRelease(params: {
   baseUrl: string;
   token: string;
@@ -861,43 +904,48 @@ async function registerV3BaselineRelease(params: {
   version: (typeof V3_SOURCE_VERSIONS)[number];
 }): Promise<{ releaseId: string; checksum: string }> {
   const { version } = params;
-  const blueprint = await buildReleaseBlueprint();
-  const tables = blueprint.schema.tables.map((table) => ({
-    ...table,
-    unique_keys: table.name === REEF_ACTIVITY_TABLE ? [] : table.unique_keys,
-  }));
-  const fingerprint = await tableSchemaFingerprint(tables);
-  if (fingerprint !== V3_SCHEMA_FINGERPRINT) {
-    throw new Error("Fixture v3 projection differs from the declared baseline");
-  }
-  const steps = await Promise.all(
-    tables.map(async (table) => {
-      const withoutChecksum = {
-        id: `create_${table.name}`,
-        phase: "expand" as const,
-        operation: "create_table" as const,
-        payload: {
-          table: table.name,
-          columns: table.columns,
-          unique_keys: table.unique_keys,
-          indexes: table.indexes,
-        },
-      };
-      return {
-        ...withoutChecksum,
-        checksum: await sha256Hex(canonicalJson(withoutChecksum)),
-      };
-    }),
+  const baseline = record(
+    JSON.parse(
+      await readFile(
+        new URL(
+          `../fixtures/reef-release-baselines/${version}.json`,
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    ) as unknown,
+    `fixture v3 release ${version}`,
   );
-  const manifest = {
-    manifest_version: 2,
-    app_key: "reef",
-    source_revision: "a".repeat(40),
-    image_digest: `sha256:${"b".repeat(64)}`,
-    schema_version: 3,
-    schema: { tables, fingerprint },
-    transition_plans: [{ source: "fresh", steps }],
-  };
+  if (requiredString(baseline, "version", "fixture v3 release") !== version) {
+    throw new Error(`Fixture v3 release version did not match ${version}`);
+  }
+  const manifest = record(baseline.manifest, `fixture v3 manifest ${version}`);
+  if (manifest.schema_version !== 3) {
+    throw new Error(`Fixture v3 release ${version} did not contain schema v3`);
+  }
+  const schema = record(manifest.schema, `fixture v3 schema ${version}`);
+  if (schema.fingerprint !== V3_SCHEMA_FINGERPRINT) {
+    throw new Error(`Fixture v3 release ${version} fingerprint was unexpected`);
+  }
+  if (!Array.isArray(manifest.transition_plans)) {
+    throw new Error(`Fixture v3 release ${version} had no transition plans`);
+  }
+  const transitionPlans = manifest.transition_plans.map((value) => {
+    const plan = record(value, `fixture v3 transition plan ${version}`);
+    if (!Array.isArray(plan.steps)) {
+      throw new Error(`Fixture v3 release ${version} had malformed steps`);
+    }
+    return {
+      source: plan.source,
+      steps: plan.steps.map((value) => {
+        const { checksum: _checksum, ...step } = record(
+          value,
+          `fixture v3 transition step ${version}`,
+        );
+        return step;
+      }),
+    };
+  });
   const checksum = await sha256Hex(
     canonicalJson({
       manifest_version: manifest.manifest_version,
@@ -905,14 +953,20 @@ async function registerV3BaselineRelease(params: {
       source_revision: manifest.source_revision,
       image_digest: manifest.image_digest,
       schema_version: manifest.schema_version,
-      schema: manifest.schema,
-      transition_plans: manifest.transition_plans.map((plan) => ({
-        source: plan.source,
-        steps: plan.steps.map(({ checksum: _checksum, ...step }) => step),
-      })),
+      schema,
+      transition_plans: transitionPlans,
       product_version: version,
     }),
   );
+  if (
+    requiredString(
+      baseline,
+      "manifest_checksum",
+      `fixture v3 release ${version}`,
+    ) !== checksum
+  ) {
+    throw new Error(`Fixture v3 release ${version} checksum was invalid`);
+  }
   const response = await fetch(
     `${params.baseUrl.replace(/\/+$/u, "")}/api/v1/apps/${encodeURIComponent(params.appId)}/releases`,
     {
@@ -1100,6 +1154,14 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
           ({ vaultId }) => vaultId === target.vaultId,
         );
         expect(rolloutTarget).toBeDefined();
+        expect(
+          await reefActivityUniqueKeys(adapter, target.name),
+        ).not.toContainEqual(["reef_id", "event_key"]);
+        for (const index of V4_LOOKUP_INDEXES) {
+          expect(
+            await reefTableIndexColumns(adapter, target.name, index.table),
+          ).not.toContainEqual([...index.columns]);
+        }
         const installation = await readInstallation({
           adapter,
           appId: registeredApp.id,
@@ -1136,15 +1198,28 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
         const rolloutTarget = applied.targets.find(
           ({ vaultId }) => vaultId === target.vaultId,
         );
+        const transitionSteps = rolloutTarget?.steps ?? [];
         expect(rolloutTarget?.steps).toContainEqual(
           expect.objectContaining({
             operation: "add_unique_key",
             state: "applied",
           }),
         );
+        const indexSteps = transitionSteps.filter(
+          (step) => step.operation === "add_index",
+        );
+        expect(indexSteps).toHaveLength(V4_LOOKUP_INDEXES.length);
+        expect(indexSteps.map(({ state }) => state)).toEqual(
+          Array.from({ length: V4_LOOKUP_INDEXES.length }, () => "applied"),
+        );
         expect(
           await reefActivityUniqueKeys(adapter, target.name),
         ).toContainEqual(["reef_id", "event_key"]);
+        for (const index of V4_LOOKUP_INDEXES) {
+          expect(
+            await reefTableIndexColumns(adapter, target.name, index.table),
+          ).toContainEqual([...index.columns]);
+        }
         await expect(
           verifyRequiredTables({
             adapter,
@@ -1306,6 +1381,11 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
     expect(failedStep).toBeDefined();
     expect(failedStep?.state).not.toBe("applied");
     expect(
+      failedTarget?.steps.some(
+        (step) => step.operation === "add_index" && step.state === "applied",
+      ),
+    ).toBe(false);
+    expect(
       blocked.targets
         .find((target) => target.vaultId === followingVaultId)
         ?.steps.some((step) => step.state === "applied"),
@@ -1316,6 +1396,14 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
     expect(
       await reefActivityUniqueKeys(adapter, followingVault),
     ).not.toContainEqual(["reef_id", "event_key"]);
+    for (const index of V4_LOOKUP_INDEXES) {
+      expect(
+        await reefTableIndexColumns(adapter, legacyVault, index.table),
+      ).not.toContainEqual([...index.columns]);
+      expect(
+        await reefTableIndexColumns(adapter, followingVault, index.table),
+      ).not.toContainEqual([...index.columns]);
+    }
     expect(
       await reefActivityRows(adapter, legacyVault, duplicateEventKey),
     ).toEqual(duplicateRowsBefore);
@@ -1368,6 +1456,13 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
           state: "applied",
         }),
       );
+      const appliedIndexSteps =
+        resumedTarget?.steps.filter((step) => step.operation === "add_index") ??
+        [];
+      expect(appliedIndexSteps).toHaveLength(V4_LOOKUP_INDEXES.length);
+      expect(appliedIndexSteps.map(({ state }) => state)).toEqual(
+        Array.from({ length: V4_LOOKUP_INDEXES.length }, () => "applied"),
+      );
     }
     const repeatedResume = await rolloutApi.resumeRollout({
       appId: registeredApp.id,
@@ -1386,6 +1481,14 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
     expect(
       await reefActivityUniqueKeys(adapter, followingVault),
     ).toContainEqual(["reef_id", "event_key"]);
+    for (const index of V4_LOOKUP_INDEXES) {
+      expect(
+        await reefTableIndexColumns(adapter, legacyVault, index.table),
+      ).toContainEqual([...index.columns]);
+      expect(
+        await reefTableIndexColumns(adapter, followingVault, index.table),
+      ).toContainEqual([...index.columns]);
+    }
     await expect(
       verifyRequiredTables({
         adapter,
@@ -1421,6 +1524,7 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
       blocked_without_cleanup: true,
       duplicate_rows_preserved_on_failure: true,
       following_target_untouched_on_failure: true,
+      lookup_indexes_not_applied_on_failure: true,
       repeated_request_remained_blocked: true,
       explicit_resume_status: resumed.status,
       repeated_resume_status: repeatedResume.rollout.status,
@@ -1428,6 +1532,7 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
       migration_step_applied_for_all_sources: true,
       retained_event_count: retained.length,
       activity_key_present_after_resume: true,
+      lookup_indexes_applied_after_resume: true,
     };
     verifiedSourceVersions.sort();
     rolloutEvidence = {
@@ -2529,6 +2634,7 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
       blocked_without_cleanup: true,
       duplicate_rows_preserved_on_failure: true,
       following_target_untouched_on_failure: true,
+      lookup_indexes_not_applied_on_failure: true,
       repeated_request_remained_blocked: true,
       explicit_resume_status: "applied",
       repeated_resume_status: "applied",
@@ -2536,6 +2642,7 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
       migration_step_applied_for_all_sources: true,
       retained_event_count: 1,
       activity_key_present_after_resume: true,
+      lookup_indexes_applied_after_resume: true,
     });
     if (!legacyVault) {
       throw new Error("Live v3 migration target was not initialized");

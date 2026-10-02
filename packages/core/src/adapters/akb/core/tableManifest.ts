@@ -266,6 +266,12 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
       { name: "archived_at", type: "text" },
       { name: "meta", type: "jsonb" },
     ],
+    indexes: [
+      { columns: ["reef_id"] },
+      { columns: ["document_uri"] },
+      { columns: ["parent_id"] },
+      { columns: ["status"] },
+    ],
   },
   {
     name: REEF_SPRINTS_TABLE,
@@ -334,6 +340,7 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
       { name: "body", type: "text", required: true },
       { name: "meta", type: "jsonb" },
     ],
+    indexes: [{ columns: ["reef_id"] }],
   },
   {
     name: REEF_ATTACHMENTS_TABLE,
@@ -350,6 +357,7 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
       { name: "original_jira_attachment_id", type: "text" },
       { name: "meta", type: "jsonb" },
     ],
+    indexes: [{ columns: ["reef_id"] }],
   },
   {
     name: REEF_ACTIVITY_TABLE,
@@ -362,6 +370,7 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
       { name: "payload", type: "jsonb" },
       { name: "meta", type: "jsonb" },
     ],
+    indexes: [{ columns: ["reef_id", "event_key"] }],
   },
   {
     name: REEF_NOTIFICATIONS_TABLE,

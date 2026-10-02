@@ -65,7 +65,20 @@
             "columns": ["reef_id", "event_key"]
           }
         ],
-        "indexes": []
+        "indexes": [
+          {
+            "columns": [
+              {
+                "name": "reef_id",
+                "order": "asc"
+              },
+              {
+                "name": "event_key",
+                "order": "asc"
+              }
+            ]
+          }
+        ]
       },
       {
         "name": "reef_attachments",
@@ -119,7 +132,16 @@
           }
         ],
         "unique_keys": [],
-        "indexes": []
+        "indexes": [
+          {
+            "columns": [
+              {
+                "name": "reef_id",
+                "order": "asc"
+              }
+            ]
+          }
+        ]
       },
       {
         "name": "reef_comments",
@@ -140,7 +162,16 @@
           }
         ],
         "unique_keys": [],
-        "indexes": []
+        "indexes": [
+          {
+            "columns": [
+              {
+                "name": "reef_id",
+                "order": "asc"
+              }
+            ]
+          }
+        ]
       },
       {
         "name": "reef_issues",
@@ -256,7 +287,40 @@
           }
         ],
         "unique_keys": [],
-        "indexes": []
+        "indexes": [
+          {
+            "columns": [
+              {
+                "name": "document_uri",
+                "order": "asc"
+              }
+            ]
+          },
+          {
+            "columns": [
+              {
+                "name": "parent_id",
+                "order": "asc"
+              }
+            ]
+          },
+          {
+            "columns": [
+              {
+                "name": "reef_id",
+                "order": "asc"
+              }
+            ]
+          },
+          {
+            "columns": [
+              {
+                "name": "status",
+                "order": "asc"
+              }
+            ]
+          }
+        ]
       },
       {
         "name": "reef_milestones",
@@ -573,7 +637,7 @@
         "indexes": []
       }
     ],
-    "fingerprint": "7a0d63db7ec6b6ae5a86d8e73cbdcf52aa023cada299ab7ede55d5b1c73a96b6"
+    "fingerprint": "ec53a0d4dd7242e2f47c915f3e07c048044c9b68efc3383597d10df69244e080"
   },
   "transition_plans": [
     {
@@ -647,9 +711,22 @@
                 "columns": ["reef_id", "event_key"]
               }
             ],
-            "indexes": []
+            "indexes": [
+              {
+                "columns": [
+                  {
+                    "name": "reef_id",
+                    "order": "asc"
+                  },
+                  {
+                    "name": "event_key",
+                    "order": "asc"
+                  }
+                ]
+              }
+            ]
           },
-          "checksum": "abfae870f5e0af8cb633be7cfd32d152ad3b81dc8e2143d9ccfe36c4e91b81bd"
+          "checksum": "01fa3aa70fd1b9f24f2e31bd293d1d256957e9e5aae3af823990538df56c0461"
         },
         {
           "id": "create_reef_attachments",
@@ -707,9 +784,18 @@
               }
             ],
             "unique_keys": [],
-            "indexes": []
+            "indexes": [
+              {
+                "columns": [
+                  {
+                    "name": "reef_id",
+                    "order": "asc"
+                  }
+                ]
+              }
+            ]
           },
-          "checksum": "81b4c416ffe1fa5d857661f3b8faa06f3806669f79dab74a44d4689e2e7ab05f"
+          "checksum": "9c0522a9aa4c9475cf40306d77a1cc72cc8e7a0a43519c58bf0249127d7a6872"
         },
         {
           "id": "create_reef_comments",
@@ -734,9 +820,18 @@
               }
             ],
             "unique_keys": [],
-            "indexes": []
+            "indexes": [
+              {
+                "columns": [
+                  {
+                    "name": "reef_id",
+                    "order": "asc"
+                  }
+                ]
+              }
+            ]
           },
-          "checksum": "e6490d6f69c8b38b83d20608afb7fad8a96eb88084396fef0bfe439bb6800231"
+          "checksum": "f634ee7c0fcda86a846b3c1a3cd15ed97c5698ff741f75d3aca79d14e3a71058"
         },
         {
           "id": "create_reef_issues",
@@ -856,9 +951,42 @@
               }
             ],
             "unique_keys": [],
-            "indexes": []
+            "indexes": [
+              {
+                "columns": [
+                  {
+                    "name": "document_uri",
+                    "order": "asc"
+                  }
+                ]
+              },
+              {
+                "columns": [
+                  {
+                    "name": "parent_id",
+                    "order": "asc"
+                  }
+                ]
+              },
+              {
+                "columns": [
+                  {
+                    "name": "reef_id",
+                    "order": "asc"
+                  }
+                ]
+              },
+              {
+                "columns": [
+                  {
+                    "name": "status",
+                    "order": "asc"
+                  }
+                ]
+              }
+            ]
           },
-          "checksum": "99991248175e3bc8032df6eed00a61cc53d82d3e11fcc279966736fe2464c978"
+          "checksum": "de3698976c8bf5d6ecdbb8fa8881c2cdcda094b7d76b89f10816abb9fb489465"
         },
         {
           "id": "create_reef_milestones",
@@ -1233,6 +1361,115 @@
             "columns": ["reef_id", "event_key"]
           },
           "checksum": "3cb937e3677402537707c15c8071c2b52df41292e4b1eb5fbb971da7d3bcaee9"
+        },
+        {
+          "id": "add_index_reef_activity_reef_id_event_key",
+          "phase": "expand",
+          "operation": "add_index",
+          "payload": {
+            "table": "reef_activity",
+            "columns": [
+              {
+                "name": "reef_id",
+                "order": "asc"
+              },
+              {
+                "name": "event_key",
+                "order": "asc"
+              }
+            ]
+          },
+          "checksum": "45a8c5dc6c395cdf6479c03eeafa29b596aa2fa15dcf52b61c0ba2101d107ac4"
+        },
+        {
+          "id": "add_index_reef_attachments_reef_id",
+          "phase": "expand",
+          "operation": "add_index",
+          "payload": {
+            "table": "reef_attachments",
+            "columns": [
+              {
+                "name": "reef_id",
+                "order": "asc"
+              }
+            ]
+          },
+          "checksum": "3ee6d6c58408c84f85a84f5f7fe0f5adb45a701d9feaac638fa83426c71caa34"
+        },
+        {
+          "id": "add_index_reef_comments_reef_id",
+          "phase": "expand",
+          "operation": "add_index",
+          "payload": {
+            "table": "reef_comments",
+            "columns": [
+              {
+                "name": "reef_id",
+                "order": "asc"
+              }
+            ]
+          },
+          "checksum": "992242375d7e018dfab6181c1081b57aeab158e391782bf8c374a24ca2132ef8"
+        },
+        {
+          "id": "add_index_reef_issues_document_uri",
+          "phase": "expand",
+          "operation": "add_index",
+          "payload": {
+            "table": "reef_issues",
+            "columns": [
+              {
+                "name": "document_uri",
+                "order": "asc"
+              }
+            ]
+          },
+          "checksum": "03391a660c1a788b4017fc2e902dd8bf0e50126c22746913a8482cb9a4ca3439"
+        },
+        {
+          "id": "add_index_reef_issues_parent_id",
+          "phase": "expand",
+          "operation": "add_index",
+          "payload": {
+            "table": "reef_issues",
+            "columns": [
+              {
+                "name": "parent_id",
+                "order": "asc"
+              }
+            ]
+          },
+          "checksum": "5f24de9473f48679a7700d357f349985a5913e29b858e685d570e08690268963"
+        },
+        {
+          "id": "add_index_reef_issues_reef_id",
+          "phase": "expand",
+          "operation": "add_index",
+          "payload": {
+            "table": "reef_issues",
+            "columns": [
+              {
+                "name": "reef_id",
+                "order": "asc"
+              }
+            ]
+          },
+          "checksum": "ced9a4b568e583dd6e7187a9f37efada41efb9453d8a78e49b2f81bbfc0be494"
+        },
+        {
+          "id": "add_index_reef_issues_status",
+          "phase": "expand",
+          "operation": "add_index",
+          "payload": {
+            "table": "reef_issues",
+            "columns": [
+              {
+                "name": "status",
+                "order": "asc"
+              }
+            ]
+          },
+          "checksum": "f490ab1fa4f1781c37afa08ab6782966b616e896cc1f0bf1d8d934f31b1aa265"
         }
       ]
     },
@@ -1251,6 +1488,115 @@
             "columns": ["reef_id", "event_key"]
           },
           "checksum": "3cb937e3677402537707c15c8071c2b52df41292e4b1eb5fbb971da7d3bcaee9"
+        },
+        {
+          "id": "add_index_reef_activity_reef_id_event_key",
+          "phase": "expand",
+          "operation": "add_index",
+          "payload": {
+            "table": "reef_activity",
+            "columns": [
+              {
+                "name": "reef_id",
+                "order": "asc"
+              },
+              {
+                "name": "event_key",
+                "order": "asc"
+              }
+            ]
+          },
+          "checksum": "45a8c5dc6c395cdf6479c03eeafa29b596aa2fa15dcf52b61c0ba2101d107ac4"
+        },
+        {
+          "id": "add_index_reef_attachments_reef_id",
+          "phase": "expand",
+          "operation": "add_index",
+          "payload": {
+            "table": "reef_attachments",
+            "columns": [
+              {
+                "name": "reef_id",
+                "order": "asc"
+              }
+            ]
+          },
+          "checksum": "3ee6d6c58408c84f85a84f5f7fe0f5adb45a701d9feaac638fa83426c71caa34"
+        },
+        {
+          "id": "add_index_reef_comments_reef_id",
+          "phase": "expand",
+          "operation": "add_index",
+          "payload": {
+            "table": "reef_comments",
+            "columns": [
+              {
+                "name": "reef_id",
+                "order": "asc"
+              }
+            ]
+          },
+          "checksum": "992242375d7e018dfab6181c1081b57aeab158e391782bf8c374a24ca2132ef8"
+        },
+        {
+          "id": "add_index_reef_issues_document_uri",
+          "phase": "expand",
+          "operation": "add_index",
+          "payload": {
+            "table": "reef_issues",
+            "columns": [
+              {
+                "name": "document_uri",
+                "order": "asc"
+              }
+            ]
+          },
+          "checksum": "03391a660c1a788b4017fc2e902dd8bf0e50126c22746913a8482cb9a4ca3439"
+        },
+        {
+          "id": "add_index_reef_issues_parent_id",
+          "phase": "expand",
+          "operation": "add_index",
+          "payload": {
+            "table": "reef_issues",
+            "columns": [
+              {
+                "name": "parent_id",
+                "order": "asc"
+              }
+            ]
+          },
+          "checksum": "5f24de9473f48679a7700d357f349985a5913e29b858e685d570e08690268963"
+        },
+        {
+          "id": "add_index_reef_issues_reef_id",
+          "phase": "expand",
+          "operation": "add_index",
+          "payload": {
+            "table": "reef_issues",
+            "columns": [
+              {
+                "name": "reef_id",
+                "order": "asc"
+              }
+            ]
+          },
+          "checksum": "ced9a4b568e583dd6e7187a9f37efada41efb9453d8a78e49b2f81bbfc0be494"
+        },
+        {
+          "id": "add_index_reef_issues_status",
+          "phase": "expand",
+          "operation": "add_index",
+          "payload": {
+            "table": "reef_issues",
+            "columns": [
+              {
+                "name": "status",
+                "order": "asc"
+              }
+            ]
+          },
+          "checksum": "f490ab1fa4f1781c37afa08ab6782966b616e896cc1f0bf1d8d934f31b1aa265"
         }
       ]
     },
@@ -1269,6 +1615,115 @@
             "columns": ["reef_id", "event_key"]
           },
           "checksum": "3cb937e3677402537707c15c8071c2b52df41292e4b1eb5fbb971da7d3bcaee9"
+        },
+        {
+          "id": "add_index_reef_activity_reef_id_event_key",
+          "phase": "expand",
+          "operation": "add_index",
+          "payload": {
+            "table": "reef_activity",
+            "columns": [
+              {
+                "name": "reef_id",
+                "order": "asc"
+              },
+              {
+                "name": "event_key",
+                "order": "asc"
+              }
+            ]
+          },
+          "checksum": "45a8c5dc6c395cdf6479c03eeafa29b596aa2fa15dcf52b61c0ba2101d107ac4"
+        },
+        {
+          "id": "add_index_reef_attachments_reef_id",
+          "phase": "expand",
+          "operation": "add_index",
+          "payload": {
+            "table": "reef_attachments",
+            "columns": [
+              {
+                "name": "reef_id",
+                "order": "asc"
+              }
+            ]
+          },
+          "checksum": "3ee6d6c58408c84f85a84f5f7fe0f5adb45a701d9feaac638fa83426c71caa34"
+        },
+        {
+          "id": "add_index_reef_comments_reef_id",
+          "phase": "expand",
+          "operation": "add_index",
+          "payload": {
+            "table": "reef_comments",
+            "columns": [
+              {
+                "name": "reef_id",
+                "order": "asc"
+              }
+            ]
+          },
+          "checksum": "992242375d7e018dfab6181c1081b57aeab158e391782bf8c374a24ca2132ef8"
+        },
+        {
+          "id": "add_index_reef_issues_document_uri",
+          "phase": "expand",
+          "operation": "add_index",
+          "payload": {
+            "table": "reef_issues",
+            "columns": [
+              {
+                "name": "document_uri",
+                "order": "asc"
+              }
+            ]
+          },
+          "checksum": "03391a660c1a788b4017fc2e902dd8bf0e50126c22746913a8482cb9a4ca3439"
+        },
+        {
+          "id": "add_index_reef_issues_parent_id",
+          "phase": "expand",
+          "operation": "add_index",
+          "payload": {
+            "table": "reef_issues",
+            "columns": [
+              {
+                "name": "parent_id",
+                "order": "asc"
+              }
+            ]
+          },
+          "checksum": "5f24de9473f48679a7700d357f349985a5913e29b858e685d570e08690268963"
+        },
+        {
+          "id": "add_index_reef_issues_reef_id",
+          "phase": "expand",
+          "operation": "add_index",
+          "payload": {
+            "table": "reef_issues",
+            "columns": [
+              {
+                "name": "reef_id",
+                "order": "asc"
+              }
+            ]
+          },
+          "checksum": "ced9a4b568e583dd6e7187a9f37efada41efb9453d8a78e49b2f81bbfc0be494"
+        },
+        {
+          "id": "add_index_reef_issues_status",
+          "phase": "expand",
+          "operation": "add_index",
+          "payload": {
+            "table": "reef_issues",
+            "columns": [
+              {
+                "name": "status",
+                "order": "asc"
+              }
+            ]
+          },
+          "checksum": "f490ab1fa4f1781c37afa08ab6782966b616e896cc1f0bf1d8d934f31b1aa265"
         }
       ]
     }

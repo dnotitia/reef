@@ -122,7 +122,7 @@ Before creating a release tag:
    - `pnpm run check`
    - `pnpm run build`
    - `pnpm --filter @reef/web run test:e2e` when the required environment is available.
-5. Run `pnpm run release:blueprint:check` to verify the committed schema-v3
+5. Run `pnpm run release:blueprint:check` to verify the committed schema-v4
    Release Blueprint against the Core schema source.
 6. After both runtime images are built and a release payload has been
    assembled, run `pnpm run release:manifest:check <finalized-payload.json>` to
