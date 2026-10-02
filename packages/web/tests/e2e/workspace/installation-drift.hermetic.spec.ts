@@ -84,19 +84,29 @@ test.describe("installation drift and readiness guidance", () => {
     ).toBeVisible();
     await expect(
       details.getByText(E2E_REEF_RELEASE_VERSION, { exact: true }),
-    ).toHaveCount(3);
+    ).toHaveCount(1);
+    const schema = details.getByTestId("installation-comparison-schema");
     await expect(
-      details.getByTestId("installation-schema-observed-value"),
-    ).toHaveText(E2E_REEF_OLD_SCHEMA_FINGERPRINT);
+      schema.getByText(E2E_REEF_OLD_SCHEMA_FINGERPRINT, { exact: true }),
+    ).toBeVisible();
     await expect(
-      details.getByTestId("installation-snapshot-fingerprint"),
-    ).toHaveText(E2E_REEF_SCHEMA_FINGERPRINT);
-    for (const id of [
-      "installation-schema-expected",
-      "installation-schema-observed-value",
-      "installation-snapshot-fingerprint",
+      schema.getByText(E2E_REEF_SCHEMA_FINGERPRINT, { exact: true }),
+    ).toHaveCount(1);
+    await expect(
+      schema.getByText(
+        "Expected schema fingerprint · Installation snapshot fingerprint",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(
+      schema.getByText("Observed drift fingerprint", { exact: true }),
+    ).toBeVisible();
+    for (const value of [
+      E2E_REEF_OLD_SCHEMA_FINGERPRINT,
+      E2E_REEF_SCHEMA_FINGERPRINT,
     ]) {
-      const fingerprint = details.getByTestId(id);
+      const fingerprint = schema.locator("dd").filter({ hasText: value });
+      await expect(fingerprint).toHaveCount(1);
       await expect(fingerprint).toHaveCSS("word-break", "break-all");
       expect(
         await fingerprint.evaluate(
@@ -241,12 +251,20 @@ test.describe("installation drift and readiness guidance", () => {
       "data-overall-drift",
       "drifted",
     );
+    const release = diagnostics.getByTestId("installation-comparison-release");
     await expect(
-      diagnostics.getByTestId("installation-release-observed"),
-    ).toHaveText(E2E_REEF_RELEASE_VERSION);
+      release.getByText(E2E_REEF_RELEASE_VERSION, { exact: true }),
+    ).toHaveCount(1);
+    await expect(release.getByText("0.15.0", { exact: true })).toBeVisible();
     await expect(
-      diagnostics.getByTestId("installation-release-comparison-observed"),
-    ).toHaveText("0.15.0");
+      release.getByText(
+        "Desired release · Current release · Installation snapshot release",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(
+      release.getByText("Drift comparison observed release", { exact: true }),
+    ).toBeVisible();
     await expect(
       diagnostics
         .getByTestId("installation-comparison-release")

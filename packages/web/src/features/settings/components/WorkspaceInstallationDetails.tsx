@@ -122,27 +122,113 @@ function InstallationDetailsContent({
   ];
   const releaseValue = (value: ControlPlaneInstallation["desiredRelease"]) => {
     const version = value?.version;
+    const id = value?.id;
     const versionHasDistinctIds =
       version != null &&
+      id != null &&
       releaseReferences.some(
         (reference) =>
           reference?.version === version &&
-          (reference.id ?? null) !== (value?.id ?? null),
+          reference.id != null &&
+          reference.id !== id,
       );
     return versionHasDistinctIds
-      ? t("releaseVersionWithId", { version, id: value?.id ?? unknown })
-      : (version ?? value?.id ?? unknown);
+      ? t("releaseVersionWithId", { version, id })
+      : (version ?? id ?? unknown);
   };
-  const hasSeparateReleaseComparison =
-    (comparedObservedRelease?.id ?? null) !== (snapshotRelease?.id ?? null) ||
-    (comparedObservedRelease?.version ?? null) !==
-      (snapshotRelease?.version ?? null);
-  const comparedObservedReleaseValue = releaseValue(comparedObservedRelease);
+
+  const groupedReleaseReferences: Array<{
+    labels: string[];
+    reference: ControlPlaneInstallation["desiredRelease"];
+  }> = [];
+  for (const source of [
+    {
+      label: t("desiredRelease"),
+      reference: installation.desiredRelease,
+    },
+    { label: t("currentRelease"), reference: installation.currentRelease },
+    { label: t("observedRelease"), reference: snapshotRelease },
+    { label: t("comparedRelease"), reference: comparedObservedRelease },
+  ]) {
+    const reference = source.reference;
+    const duplicate =
+      reference?.id != null && reference.version != null
+        ? groupedReleaseReferences.find(
+            (group) =>
+              group.reference?.id === reference.id &&
+              group.reference?.version === reference.version,
+          )
+        : undefined;
+    if (duplicate) duplicate.labels.push(source.label);
+    else groupedReleaseReferences.push({ labels: [source.label], reference });
+  }
+  const releaseFields = groupedReleaseReferences.map(
+    ({ labels, reference }) => ({ labels, value: releaseValue(reference) }),
+  );
+
   const observedSchema = drift?.schema.observed;
   const observedSchemaFingerprint = installation.observed?.schemaFingerprint;
-  const hasDistinctSnapshotFingerprint =
-    observedSchemaFingerprint != null &&
-    observedSchemaFingerprint !== observedSchema;
+  const groupedSchemaFields: Array<{
+    knownValue: string | undefined;
+    labels: string[];
+    value: string;
+  }> = [];
+  for (const source of [
+    { label: t("desiredSchema"), value: drift?.schema.expected },
+    { label: t("observedSchema"), value: observedSchema },
+    ...(observedSchemaFingerprint != null
+      ? [
+          {
+            label: t("observedSchemaFingerprint"),
+            value: observedSchemaFingerprint,
+          },
+        ]
+      : []),
+  ]) {
+    const duplicate =
+      source.value != null
+        ? groupedSchemaFields.find((field) => field.knownValue === source.value)
+        : undefined;
+    if (duplicate) duplicate.labels.push(source.label);
+    else {
+      groupedSchemaFields.push({
+        knownValue: source.value ?? undefined,
+        labels: [source.label],
+        value: source.value ?? unknown,
+      });
+    }
+  }
+  const schemaFields = groupedSchemaFields.map(({ labels, value }) => ({
+    labels,
+    value,
+  }));
+
+  const groupedGrantFields: Array<{
+    knownValue: number | undefined;
+    labels: string[];
+    value: string;
+  }> = [];
+  for (const source of [
+    { label: t("desiredGrant"), value: drift?.grant.desiredGeneration },
+    { label: t("observedGrant"), value: drift?.grant.observedGeneration },
+  ]) {
+    const duplicate =
+      source.value != null
+        ? groupedGrantFields.find((field) => field.knownValue === source.value)
+        : undefined;
+    if (duplicate) duplicate.labels.push(source.label);
+    else {
+      groupedGrantFields.push({
+        knownValue: source.value ?? undefined,
+        labels: [source.label],
+        value: source.value?.toString() ?? unknown,
+      });
+    }
+  }
+  const grantFields = groupedGrantFields.map(({ labels, value }) => ({
+    labels,
+    value,
+  }));
 
   return (
     <section
@@ -191,73 +277,17 @@ function InstallationDetailsContent({
       <InstallationComparisonGroup
         dimension="release"
         status={drift?.release.status}
-        fields={[
-          {
-            id: "installation-release-desired",
-            label: t("desiredRelease"),
-            value: releaseValue(installation.desiredRelease),
-          },
-          {
-            id: "installation-release-current",
-            label: t("currentRelease"),
-            value: releaseValue(installation.currentRelease),
-          },
-          {
-            id: "installation-release-observed",
-            label: t("observedRelease"),
-            value: releaseValue(snapshotRelease),
-          },
-          ...(hasSeparateReleaseComparison
-            ? [
-                {
-                  id: "installation-release-comparison-observed",
-                  label: t("comparedRelease"),
-                  value: comparedObservedReleaseValue,
-                },
-              ]
-            : []),
-        ]}
+        fields={releaseFields}
       />
       <InstallationComparisonGroup
         dimension="schema"
         status={drift?.schema.status}
-        fields={[
-          {
-            id: "installation-schema-expected",
-            label: t("desiredSchema"),
-            value: drift?.schema.expected ?? unknown,
-          },
-          {
-            id: "installation-schema-observed-value",
-            label: t("observedSchema"),
-            value: observedSchema ?? unknown,
-          },
-          ...(hasDistinctSnapshotFingerprint
-            ? [
-                {
-                  id: "installation-snapshot-fingerprint",
-                  label: t("observedSchemaFingerprint"),
-                  value: observedSchemaFingerprint,
-                },
-              ]
-            : []),
-        ]}
+        fields={schemaFields}
       />
       <InstallationComparisonGroup
         dimension="grant"
         status={drift?.grant.status}
-        fields={[
-          {
-            id: "installation-grant-desired",
-            label: t("desiredGrant"),
-            value: drift?.grant.desiredGeneration?.toString() ?? unknown,
-          },
-          {
-            id: "installation-grant-observed",
-            label: t("observedGrant"),
-            value: drift?.grant.observedGeneration?.toString() ?? unknown,
-          },
-        ]}
+        fields={grantFields}
       />
 
       {installation.lifecycle === "blocked" && (
@@ -299,7 +329,7 @@ function InstallationComparisonGroup({
 }: {
   dimension: "release" | "schema" | "grant";
   status: "in_sync" | "mismatch" | "unknown" | undefined;
-  fields: Array<{ id: string; label: string; value: string }>;
+  fields: Array<{ labels: string[]; value: string }>;
 }) {
   const t = useTranslations("workspaceInstallation.details");
 
@@ -324,12 +354,12 @@ function InstallationComparisonGroup({
         </span>
       </div>
       <dl className="grid grid-cols-1 gap-x-4 gap-y-3 text-sm sm:grid-cols-2">
-        {fields.map(({ id, label, value }) => (
-          <div key={id} className="min-w-0">
-            <dt className="text-xs text-muted-foreground">{label}</dt>
-            <dd className="mt-1 break-all text-foreground" data-testid={id}>
-              {value}
-            </dd>
+        {fields.map(({ labels, value }) => (
+          <div key={labels.join("|")} className="min-w-0">
+            <dt className="text-xs text-muted-foreground">
+              {labels.join(" · ")}
+            </dt>
+            <dd className="mt-1 break-all text-foreground">{value}</dd>
           </div>
         ))}
       </dl>
