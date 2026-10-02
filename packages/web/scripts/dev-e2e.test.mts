@@ -658,7 +658,7 @@ describe("dev:e2e runtime contract", () => {
     const payload = buildReadyPayload({
       webOrigin: "http://localhost:9135",
       fixtureOrigin: "http://127.0.0.1:9136",
-      scenario: "comment_mentions",
+      scenario: "installation_drift",
     });
 
     await writeReadyFile(readyFile, payload);
@@ -666,7 +666,7 @@ describe("dev:e2e runtime contract", () => {
     expect(payload).toEqual({
       schema_version: 2,
       status: "ready",
-      scenario: "comment_mentions",
+      scenario: "installation_drift",
       services: {
         web: {
           origin: "http://localhost:9135",
@@ -683,7 +683,7 @@ describe("dev:e2e runtime contract", () => {
             method: "POST",
             url: "http://127.0.0.1:9136/__e2e/reset",
             content_type: "application/json",
-            body: { scenario: "comment_mentions" },
+            body: { scenario: "installation_drift" },
           },
           discovery: {
             method: "GET",

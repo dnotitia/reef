@@ -3,6 +3,12 @@ import {
   IMAGE_UPLOAD_FIXTURE_CONTENT_TYPE,
   IMAGE_UPLOAD_FIXTURE_FILE_NAME,
   IMAGE_UPLOAD_FIXTURE_PATH,
+  INSTALLATION_BLOCKED_REASONS,
+  INSTALLATION_DRIFT_STATUSES,
+  INSTALLATION_LIFECYCLES,
+  INSTALLATION_LOOKUP_MODES,
+  INSTALLATION_OBSERVATION_MODES,
+  INSTALLATION_ROLES,
   NOTIFICATION_DATA_MODES,
   NOTIFICATION_SCHEMA_MODES,
   REEF_VAULT,
@@ -82,6 +88,29 @@ export function runtimeDiscovery(state) {
           operation: "document|document_get|tables|null",
           failures: "<count>",
           successes_before_failure: "<count>",
+        },
+      },
+      installation_control: {
+        method: "POST",
+        path: "/__e2e/installation-control",
+        content_type: "application/json",
+        body: {
+          vault: "<vault>",
+          lifecycle: INSTALLATION_LIFECYCLES.join("|"),
+          drift: {
+            release: INSTALLATION_DRIFT_STATUSES.join("|"),
+            schema: INSTALLATION_DRIFT_STATUSES.join("|"),
+            grant: INSTALLATION_DRIFT_STATUSES.join("|"),
+          },
+          observation: INSTALLATION_OBSERVATION_MODES.join("|"),
+          blocked_reason: INSTALLATION_BLOCKED_REASONS.join("|"),
+          member_lookup: INSTALLATION_LOOKUP_MODES.join("|"),
+          detail_lookup: INSTALLATION_LOOKUP_MODES.join("|"),
+          roles: {
+            alice: INSTALLATION_ROLES.join("|"),
+            bob: INSTALLATION_ROLES.join("|"),
+            writer: INSTALLATION_ROLES.join("|"),
+          },
         },
       },
       planning_catalog_control: {
@@ -346,6 +375,46 @@ export function runtimeDiscovery(state) {
           type: "notification_inbox",
           operation:
             "verify reader listing and unread badge, writer state transitions, recipient/key isolation, reader PATCH 403 with session preservation, and explicit schema/data failures",
+        },
+      },
+      installation_drift: {
+        scenario: "installation_drift",
+        workspace: "reef-e2e",
+        start_path: "/workspace/reef-e2e/settings/workspace",
+        identities: {
+          owner: {
+            username: fixtureLogin.username,
+            password: fixtureLogin.password,
+            role: "owner",
+            installation_detail_access: "allowed",
+          },
+          writer: {
+            username: "writer",
+            password: fixtureLogin.password,
+            role: "writer",
+            installation_detail_access: "not exposed",
+          },
+          reader: {
+            username: "bob",
+            password: fixtureLogin.password,
+            role: "reader",
+            installation_detail_access: "not exposed",
+          },
+        },
+        controls: {
+          installation_control: [
+            `installation lifecycle: ${INSTALLATION_LIFECYCLES.join("|")}`,
+            `release/schema/grant drift: ${INSTALLATION_DRIFT_STATUSES.join("|")}`,
+            `observation freshness or absence: ${INSTALLATION_OBSERVATION_MODES.join("|")}`,
+            `bounded, unknown, missing, or malformed reason: ${INSTALLATION_BLOCKED_REASONS.join("|")}`,
+            `member/detail lookup outcome per vault: ${INSTALLATION_LOOKUP_MODES.join("|")}`,
+            `change fixture roles: ${INSTALLATION_ROLES.join("|")}`,
+          ],
+        },
+        interaction: {
+          type: "installation_drift",
+          operation:
+            "compare owner/admin installation details with writer/reader minimal readiness, observe drift warnings without access loss, exercise lifecycle recovery guidance and read failures, then switch to another ready workspace",
         },
       },
       comments: {

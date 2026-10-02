@@ -2,6 +2,8 @@
 
 import { ReefMark } from "@/components/ui/reef-mark";
 import { AccountMenu } from "@/features/auth/components/AccountMenu";
+import { InstallationActionControls } from "@/features/workspaceInstallation/components/InstallationActionControls";
+import { useWorkspaceInstallationActions } from "@/features/workspaceInstallation/hooks/useWorkspaceInstallationActions";
 import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
 import type {
@@ -19,6 +21,7 @@ interface WorkspaceAccessDeniedProps {
   /** The vaults the user CAN access, from `useVaults()`. */
   vaults: EnrichedVaultSummary[];
   installationStatus?: WorkspaceInstallationStatus;
+  role?: string | null;
 }
 
 /**
@@ -35,18 +38,17 @@ export function WorkspaceAccessDenied({
   vault,
   vaults,
   installationStatus,
+  role,
 }: WorkspaceAccessDeniedProps) {
   const t = useTranslations("workspace.accessDenied");
   const reefVaults = vaults.filter((v) => v.installation_status === "ready");
+  const canManage = role === "owner" || role === "admin";
   const hasInstallationState = installationStatus !== undefined;
-  const title = hasInstallationState ? t("installationTitle") : t("title");
-  const body = hasInstallationState
-    ? t(`installation.${installationStatus}`)
-    : t("body", { vault });
+  const body = hasInstallationState ? null : t("body", { vault });
 
   return (
     <div
-      className="relative flex h-screen flex-col items-center justify-center bg-surface-page px-6"
+      className="relative flex min-h-screen flex-col items-center justify-center bg-surface-page px-6 py-16"
       data-testid="workspace-access-denied"
     >
       <div
@@ -55,14 +57,23 @@ export function WorkspaceAccessDenied({
       >
         <AccountMenu appVersion={appVersion} placement="utility" />
       </div>
-      <div className="flex w-full max-w-md flex-col items-center gap-6 text-center">
+      <div className="flex w-full max-w-md flex-col items-center gap-6">
         <ReefMark className="size-10" decorative />
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col items-center gap-2 text-center">
           <h1 className="font-display text-lg font-semibold text-foreground">
-            {title}
+            {t("title")}
           </h1>
-          <p className="text-sm text-muted-foreground">{body}</p>
+          {body && <p className="text-sm text-muted-foreground">{body}</p>}
         </div>
+
+        {installationStatus !== undefined && (
+          <WorkspaceAvailability
+            key={`${vault}:${installationStatus}:${canManage ? "manager" : "member"}`}
+            vault={vault}
+            initialStatus={installationStatus}
+            canManage={canManage}
+          />
+        )}
 
         {reefVaults.length > 0 ? (
           <nav
@@ -86,7 +97,7 @@ export function WorkspaceAccessDenied({
             ))}
           </nav>
         ) : (
-          <div className="flex flex-col items-center gap-3">
+          <div className="flex flex-col items-center gap-3 text-center">
             <p className="text-sm text-muted-foreground">{t("empty")}</p>
             <Link
               href="/onboarding"
@@ -99,5 +110,85 @@ export function WorkspaceAccessDenied({
         )}
       </div>
     </div>
+  );
+}
+
+function WorkspaceAvailability({
+  vault,
+  initialStatus,
+  canManage,
+}: {
+  vault: string;
+  initialStatus: WorkspaceInstallationStatus;
+  canManage: boolean;
+}) {
+  const t = useTranslations("workspaceInstallation");
+  const actions = useWorkspaceInstallationActions({
+    vault,
+    initialStatus,
+    canManage,
+  });
+  const visibleStatus =
+    !canManage && actions.status !== "ready"
+      ? "management_required"
+      : actions.status;
+
+  return (
+    <article
+      className="flex w-full flex-col gap-3 rounded-md border border-border-subtle bg-surface-subtle/40 px-4 py-3 text-left"
+      data-testid={`workspace-installation-${vault}`}
+      data-status={visibleStatus}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <h2 className="type-control font-medium text-foreground">{vault}</h2>
+        <span className="type-caption text-muted-foreground">
+          {t(`status.${visibleStatus}`)}
+        </span>
+      </div>
+      <dl className="grid w-full grid-cols-1 gap-y-2 text-sm">
+        <div>
+          <dt className="text-xs text-muted-foreground">{t("label.impact")}</dt>
+          <dd className="mt-0.5 text-muted-foreground">
+            {t(`impact.${visibleStatus}`)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground">
+            {t("label.nextAction")}
+          </dt>
+          <dd className="mt-0.5 text-muted-foreground">
+            {t(`nextAction.${visibleStatus}`)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground">
+            {t("label.responsible")}
+          </dt>
+          <dd className="mt-0.5 text-muted-foreground">
+            {t(`responsible.${visibleStatus}`)}
+          </dd>
+        </div>
+      </dl>
+      <InstallationActionControls
+        vault={vault}
+        status={visibleStatus}
+        canManage={canManage}
+        busy={actions.busy}
+        activity={actions.activity}
+        acknowledgement={actions.acknowledgement}
+        error={actions.error}
+        onRunCommand={(mode) => void actions.runCommand(mode)}
+        onCheckStatus={() => void actions.checkStatus()}
+      />
+      {canManage && (
+        <Link
+          href={withVault(vault, "/settings/workspace")}
+          data-testid={`installation-diagnostics-link-${vault}`}
+          className="type-small-button text-foreground underline decoration-border underline-offset-4 hover:text-brand-text"
+        >
+          {t("button.openDiagnostics")}
+        </Link>
+      )}
+    </article>
   );
 }

@@ -64,18 +64,52 @@ export const ControlPlaneObservedSchema = z.object({
   grantGeneration: z.number().int().nonnegative().nullable().optional(),
 });
 
-/** Public drift dimensions carry classification, without expected/actual data. */
+export const ControlPlaneBlockedReasonEnum = z.enum([
+  "worker_timeout",
+  "step_failed",
+  "fixture_blocked",
+  "checksum_mismatch",
+]);
+
+export const ControlPlaneDriftStatusEnum = z.enum([
+  "in_sync",
+  "mismatch",
+  "unknown",
+]);
+
+/** Public drift dimensions carry bounded canonical comparisons, never `actual`. */
+export const ControlPlaneReleaseDriftSchema = z.object({
+  status: ControlPlaneDriftStatusEnum,
+  desired: ControlPlaneReleaseReferenceSchema.nullable().optional(),
+  observed: ControlPlaneReleaseReferenceSchema.nullable().optional(),
+});
+
+export const ControlPlaneSchemaDriftSchema = z.object({
+  status: ControlPlaneDriftStatusEnum,
+  expected: z.string().min(1).nullable().optional(),
+  observed: z.string().min(1).nullable().optional(),
+});
+
+export const ControlPlaneGrantDriftSchema = z.object({
+  status: ControlPlaneDriftStatusEnum,
+  desiredGeneration: z.number().int().nonnegative().nullable().optional(),
+  observedGeneration: z.number().int().nonnegative().nullable().optional(),
+});
+
+/** Kept as the shared classification-only dimension used by existing callers. */
 export const ControlPlaneDriftDimensionSchema = z.object({
   status: z.enum(["in_sync", "mismatch", "unknown"]),
 });
 
 export const ControlPlaneDriftSchema = z.object({
-  release: ControlPlaneDriftDimensionSchema,
-  schema: ControlPlaneDriftDimensionSchema,
-  grant: ControlPlaneDriftDimensionSchema,
+  release: ControlPlaneReleaseDriftSchema,
+  schema: ControlPlaneSchemaDriftSchema,
+  grant: ControlPlaneGrantDriftSchema,
   overall: z.enum(["in_sync", "drifted", "unknown"]),
-  reasons: z.array(z.string()),
-  unknownDimensions: z.array(z.string()),
+  reasons: z.array(
+    z.enum(["release_mismatch", "schema_mismatch", "grant_mismatch"]),
+  ),
+  unknownDimensions: z.array(z.enum(["release", "schema", "grant"])),
 });
 
 /**
@@ -88,7 +122,7 @@ export const ControlPlaneInstallationSchema = z.object({
   appId: ControlPlaneIdSchema,
   vaultId: ControlPlaneIdSchema,
   lifecycle: ControlPlaneInstallationLifecycleEnum,
-  blockedReason: z.string().min(1).nullable().optional(),
+  blockedReason: ControlPlaneBlockedReasonEnum.nullable().optional(),
   desiredRelease: ControlPlaneReleaseReferenceSchema.nullable().optional(),
   currentRelease: ControlPlaneReleaseReferenceSchema.nullable().optional(),
   observed: ControlPlaneObservedSchema.nullable().optional(),
@@ -247,6 +281,9 @@ export type ControlPlaneDriftDimension = z.infer<
   typeof ControlPlaneDriftDimensionSchema
 >;
 export type ControlPlaneDrift = z.infer<typeof ControlPlaneDriftSchema>;
+export type ControlPlaneBlockedReason = z.infer<
+  typeof ControlPlaneBlockedReasonEnum
+>;
 export type ControlPlaneInstallation = z.infer<
   typeof ControlPlaneInstallationSchema
 >;

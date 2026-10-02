@@ -1022,11 +1022,32 @@ description and monitored repositories, and create. Reef then asks the owner
 or admin to approve its registered AKB app release before initializing tables,
 templates, configuration, and managed instructions. Raw vaults do not count as
 configured workspaces and therefore do not bypass onboarding. An existing
-member can enter an active workspace after Reef initialization is complete;
-members see only whether Reef is ready, while owners and admins manage install,
-restore, and fresh-install actions. A blocked install requires an AKB operator
-to resolve its state. Uninstall revokes Reef's grant but keeps the vault data;
-full vault deletion remains a separate owner-only, typed-name confirmation.
+member can enter an active workspace after Reef initialization is complete.
+Installation guidance preserves remembered-workspace-first and deterministic
+ASCII auto-resume. It does not add a workspace chooser or confirmation step.
+Onboarding lists only existing workspaces that still need setup; each compact
+row names the workspace, summarizes the next action, and exposes only actions
+allowed to the current role.
+
+Settings concerns only the selected workspace. A ready workspace shows no
+installation task to readers or writers. Its owner or admin may expand a
+collapsed installation observation; the detailed request starts only after
+the disclosure opens. For an unavailable selected workspace, the first view
+states the impact, next action, and responsible person. Controls show only
+permitted actions, and no other workspace setup cards appear in this section.
+An active installation with drift remains usable when the existing readiness
+checks pass. Unknown observations stay unknown rather than being presented as
+healthy. The detailed comparison shows release, schema, and grant values,
+dimension states, a single overall drift result, and localized observation
+time; matching fingerprints appear once.
+
+The access-denied screen describes only the requested workspace and its next
+permitted action. Other ready Reef workspaces remain plain switch links. It does
+not show installation diagnostics or operator procedures. The status summary
+uses the existing product typography and remains usable at 390px and desktop in
+English and Korean, light and dark themes. Uninstall revokes Reef's grant but
+keeps the vault data; full vault deletion remains a separate owner-only,
+typed-name confirmation.
 Monitored repository access comes from deployment-managed GitHub
 credentials, so onboarding configures a *workspace*, not a Git repo, and no
 issue is committed under anyone's GitHub identity.
