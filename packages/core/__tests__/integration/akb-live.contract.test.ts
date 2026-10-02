@@ -9,7 +9,10 @@ import {
 import {
   type AkbAdapter,
   type AkbStreamAdapter,
+  appendStatusChangeEvent,
   buildIssueMetadataFromCreateInput,
+  buildReleaseBlueprint,
+  canonicalJson,
   createAkbAdapter,
   createAkbAppInstallationReader,
   createAkbAppRegistry,
@@ -24,7 +27,10 @@ import {
   readMemberInstallationActive,
   requestInstallation,
   REEF_SCHEMA_VERSION,
+  REEF_ACTIVITY_TABLE,
   REEF_SETTINGS_TABLE,
+  sha256Hex,
+  tableSchemaFingerprint,
   uninstallInstallation,
   listIssues,
   listIssueBodyHistory,
@@ -223,6 +229,60 @@ function requiredString(
   expect(typeof candidate, `${label}.${key}`).toBe("string");
   expect((candidate as string).length, `${label}.${key}`).toBeGreaterThan(0);
   return candidate as string;
+}
+
+async function reefActivityRows(
+  adapter: AkbAdapter,
+  vault: string,
+  eventKey: string,
+): Promise<Record<string, unknown>[]> {
+  const result = await runSql(
+    adapter,
+    vault,
+    `SELECT id, reef_id, event_type, event_key, payload, meta FROM ${REEF_ACTIVITY_TABLE} WHERE event_key = $1 ORDER BY reef_id ASC, id ASC`,
+    [eventKey],
+  );
+  if (result.kind !== "table_query") {
+    throw new Error("Live activity read did not return rows");
+  }
+  return result.items;
+}
+
+function jsonColumn(row: Record<string, unknown>, key: string): unknown {
+  const value = row[key];
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return value;
+  }
+}
+
+async function reefActivityUniqueKeys(
+  adapter: AkbAdapter,
+  vault: string,
+): Promise<string[][]> {
+  const catalog = record(
+    await adapter.request(`/api/v1/tables/${encodeURIComponent(vault)}`, {
+      resource: `tables in vault ${vault}`,
+    }),
+    "activity table catalog",
+  );
+  if (!Array.isArray(catalog.items)) {
+    throw new Error("Activity table catalog items were not an array");
+  }
+  const table = catalog.items
+    .map((item) => record(item, "table catalog item"))
+    .find((item) => item.name === REEF_ACTIVITY_TABLE);
+  if (!table) throw new Error("reef_activity was absent from the live catalog");
+  if (!Array.isArray(table.unique_keys)) return [];
+  return table.unique_keys.map((key) => {
+    const uniqueKey = record(key, "activity unique key");
+    if (!Array.isArray(uniqueKey.columns)) {
+      throw new Error("Activity unique key columns were not an array");
+    }
+    return uniqueKey.columns.map((column) => String(column));
+  });
 }
 
 function expectSafeControlPlaneError(
@@ -774,6 +834,110 @@ async function waitForAppliedRollout(params: {
   throw new Error("Timed out waiting for the live workspace schema rollout");
 }
 
+async function waitForTerminalRollout(params: {
+  rollout: ReturnType<typeof createAkbAppRollout>;
+  appId: string;
+  jobId: string;
+}): Promise<ControlPlaneRollout> {
+  const deadline = Date.now() + 55_000;
+  while (Date.now() < deadline) {
+    const rollout = await params.rollout.getRollout(params.appId, params.jobId);
+    if (rollout.status === "applied" || rollout.status === "blocked") {
+      return rollout;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+  throw new Error("Timed out waiting for the live schema rollout to finish");
+}
+
+/** Register a fixture-only exact v3 Reef release to prove the v4 transition. */
+async function registerV3BaselineRelease(params: {
+  baseUrl: string;
+  token: string;
+  appId: string;
+}): Promise<{ releaseId: string; checksum: string }> {
+  const version = "0.16.0";
+  const baselineFingerprint =
+    "dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727";
+  const blueprint = await buildReleaseBlueprint();
+  const tables = blueprint.schema.tables.map((table) => ({
+    ...table,
+    unique_keys: table.name === REEF_ACTIVITY_TABLE ? [] : table.unique_keys,
+  }));
+  const fingerprint = await tableSchemaFingerprint(tables);
+  if (fingerprint !== baselineFingerprint) {
+    throw new Error("Fixture v3 projection differs from the declared baseline");
+  }
+  const steps = await Promise.all(
+    tables.map(async (table) => {
+      const withoutChecksum = {
+        id: `create_${table.name}`,
+        phase: "expand" as const,
+        operation: "create_table" as const,
+        payload: {
+          table: table.name,
+          columns: table.columns,
+          unique_keys: table.unique_keys,
+          indexes: table.indexes,
+        },
+      };
+      return {
+        ...withoutChecksum,
+        checksum: await sha256Hex(canonicalJson(withoutChecksum)),
+      };
+    }),
+  );
+  const manifest = {
+    manifest_version: 2,
+    app_key: "reef",
+    source_revision: "a".repeat(40),
+    image_digest: `sha256:${"b".repeat(64)}`,
+    schema_version: 3,
+    schema: { tables, fingerprint },
+    transition_plans: [{ source: "fresh", steps }],
+  };
+  const checksum = await sha256Hex(
+    canonicalJson({
+      manifest_version: manifest.manifest_version,
+      app_key: manifest.app_key,
+      source_revision: manifest.source_revision,
+      image_digest: manifest.image_digest,
+      schema_version: manifest.schema_version,
+      schema: manifest.schema,
+      transition_plans: manifest.transition_plans.map((plan) => ({
+        source: plan.source,
+        steps: plan.steps.map(({ checksum: _checksum, ...step }) => step),
+      })),
+      product_version: version,
+    }),
+  );
+  const response = await fetch(
+    `${params.baseUrl.replace(/\/+$/u, "")}/api/v1/apps/${encodeURIComponent(params.appId)}/releases`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${params.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        version,
+        manifest,
+        manifest_checksum: checksum,
+      }),
+    },
+  );
+  if (response.status !== 200) {
+    throw new Error(
+      `Fixture v3 release registration failed (${response.status})`,
+    );
+  }
+  const release = record(await response.json(), "fixture v3 release");
+  return {
+    releaseId: requiredString(release, "id", "fixture v3 release"),
+    checksum,
+  };
+}
+
 describe("AKB live adapter construction", () => {
   it("preserves the stream capability when request instrumentation wraps the adapter", () => {
     const baseAdapter = createAkbAdapter({
@@ -795,12 +959,17 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
   let sessionToken: string;
   let vault: string;
   let vaultId: string;
+  let legacyVault: string | undefined;
+  let legacyVaultId: string | undefined;
+  let followingVault: string | undefined;
+  let followingVaultId: string | undefined;
   let tableCatalogGetCount = 0;
   let schemaMutationCount = 0;
   let observeReadiness = false;
   let readinessRequests: Array<{ path: string; method: string }> = [];
   let registry: ReturnType<typeof createAkbAppRegistry>;
   let rolloutApi: ReturnType<typeof createAkbAppRollout>;
+  let migrationEvidence: Record<string, unknown> = { status: "not_run" };
   let rolloutEvidence: Record<string, unknown> = { status: "not_run" };
   let readinessEvidence: Record<string, unknown> | undefined;
   let authEvidence: Record<string, unknown> | undefined;
@@ -853,50 +1022,239 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
     expect(registeredRelease.manifest.app_key).toBe("reef");
     expect(registeredRelease.manifest.schema_version).toBe(REEF_SCHEMA_VERSION);
 
-    // Throwaway vault per run so local re-runs never collide; teardown below.
-    const vaultSuffix =
+    const baseline = await registerV3BaselineRelease({
+      baseUrl,
+      token,
+      appId: registeredApp.id,
+    });
+    const legacySuffix =
       `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`
         .padEnd(17, "0")
         .slice(0, 17);
-    vault = `reef-live-smoke-${vaultSuffix}`;
-    expect(vault).toHaveLength(33);
-    const createdVault = await createVault({
+    legacyVault = `reef-v3-live-${legacySuffix}`;
+    followingVault = `reef-v3-next-${legacySuffix}`;
+    const legacyCreated = await createVault({
       adapter,
-      name: vault,
-      description: "REEF-056 live contract smoke (throwaway)",
+      name: legacyVault,
+      description: "REEF-366 v3 migration blocker proof (throwaway)",
     });
-    vaultId = createdVault.vault_id;
+    legacyVaultId = legacyCreated.vault_id;
+    const followingCreated = await createVault({
+      adapter,
+      name: followingVault,
+      description: "REEF-366 later rollout target proof (throwaway)",
+    });
+    followingVaultId = followingCreated.vault_id;
     await requestInstallation({
       adapter,
-      appId: LIVE_APP_ID as string,
-      vaultId,
-      releaseId: LIVE_RELEASE_ID as string,
+      appId: registeredApp.id,
+      vaultId: legacyVaultId,
+      releaseId: baseline.releaseId,
       mode: "install",
     });
-    // Operator-only fixture preparation: command_installation records the
-    // install intent but does not enqueue a rollout on this AKB revision. Ask
-    // AKB's public operator API to apply the registered release before testing
-    // Reef's verify-only readiness boundary below.
-    const requestedRollout = await rolloutApi.requestRollout({
+    await requestInstallation({
+      adapter,
+      appId: registeredApp.id,
+      vaultId: followingVaultId,
+      releaseId: baseline.releaseId,
+      mode: "install",
+    });
+    const baselineRequest = await rolloutApi.requestRollout({
+      appId: registeredApp.id,
+      releaseId: baseline.releaseId,
+      manifestChecksum: baseline.checksum,
+      idempotencyKey: randomUUID(),
+    });
+    const baselineApplied = await waitForAppliedRollout({
+      rollout: rolloutApi,
+      appId: registeredApp.id,
+      jobId: baselineRequest.rollout.jobId,
+    });
+    expect(baselineApplied.targets).toHaveLength(2);
+    const baselineLegacyKeys = await reefActivityUniqueKeys(
+      adapter,
+      legacyVault,
+    );
+    expect(baselineLegacyKeys).not.toContainEqual(["reef_id", "event_key"]);
+
+    const duplicateEventKey = `status_change:todo->in_progress@${new Date().toISOString()}`;
+    const insertLegacyDuplicate = async (
+      payload: Record<string, unknown>,
+      meta: Record<string, unknown>,
+    ): Promise<void> => {
+      const inserted = await runSql(
+        adapter,
+        legacyVault as string,
+        `INSERT INTO ${REEF_ACTIVITY_TABLE} (reef_id, event_type, event_key, payload, meta) VALUES ($1, $2, $3, $4::json, $5::json)`,
+        [
+          "REEF-777",
+          "status_change",
+          duplicateEventKey,
+          JSON.stringify(payload),
+          JSON.stringify(meta),
+        ],
+      );
+      if (inserted.kind !== "table_sql") {
+        throw new Error("v3 duplicate fixture row was not inserted");
+      }
+    };
+    await insertLegacyDuplicate(
+      { from: "todo", to: "in_progress" },
+      {
+        actor: "alice",
+        at: "2026-08-01T00:00:00.000Z",
+        source: "first-write",
+      },
+    );
+    await insertLegacyDuplicate(
+      { from: "todo", to: "done" },
+      {
+        actor: "bob",
+        at: "2026-08-01T00:00:01.000Z",
+        source: "conflicting-write",
+      },
+    );
+    const duplicateRowsBefore = await reefActivityRows(
+      adapter,
+      legacyVault,
+      duplicateEventKey,
+    );
+    expect(duplicateRowsBefore).toHaveLength(2);
+    const preservedDuplicate = duplicateRowsBefore[0];
+    const removedDuplicate = duplicateRowsBefore[1];
+    if (!preservedDuplicate || !removedDuplicate) {
+      throw new Error("v3 duplicate fixture rows were not readable");
+    }
+    const preservedDuplicateId = requiredString(
+      preservedDuplicate,
+      "id",
+      "preserved v3 duplicate fixture row",
+    );
+    const removedDuplicateId = requiredString(
+      removedDuplicate,
+      "id",
+      "removed v3 duplicate fixture row",
+    );
+    const candidateRequestKey = randomUUID();
+    const candidateRequest = await rolloutApi.requestRollout({
       appId: registeredApp.id,
       releaseId: registeredRelease.id,
       manifestChecksum: registeredRelease.manifestChecksum,
-      idempotencyKey: randomUUID(),
+      idempotencyKey: candidateRequestKey,
     });
-    const appliedRollout = await waitForAppliedRollout({
+    const blocked = await waitForTerminalRollout({
       rollout: rolloutApi,
       appId: registeredApp.id,
-      jobId: requestedRollout.rollout.jobId,
+      jobId: candidateRequest.rollout.jobId,
     });
-    expect(appliedRollout.targets.length).toBeGreaterThan(0);
+    expect(blocked.status).toBe("blocked");
+    const failedTarget = blocked.targets.find(
+      (target) => target.vaultId === legacyVaultId,
+    );
+    expect(failedTarget).toBeDefined();
+    const failedStep = failedTarget?.steps.find(
+      (step) => step.operation === "add_unique_key",
+    );
+    expect(failedStep).toBeDefined();
+    expect(failedStep?.state).not.toBe("applied");
     expect(
-      appliedRollout.targets.some((target) => target.vaultId === vaultId),
-    ).toBe(true);
+      blocked.targets
+        .find((target) => target.vaultId === followingVaultId)
+        ?.steps.some((step) => step.state === "applied"),
+    ).toBe(false);
+    expect(
+      await reefActivityUniqueKeys(adapter, legacyVault),
+    ).not.toContainEqual(["reef_id", "event_key"]);
+    expect(
+      await reefActivityUniqueKeys(adapter, followingVault),
+    ).not.toContainEqual(["reef_id", "event_key"]);
+    expect(
+      await reefActivityRows(adapter, legacyVault, duplicateEventKey),
+    ).toEqual(duplicateRowsBefore);
+    await expect(
+      verifyRequiredTables({
+        adapter,
+        vault: legacyVault,
+        canManage: true,
+      }),
+    ).rejects.toThrow();
+    const repeatedRequest = await rolloutApi.requestRollout({
+      appId: registeredApp.id,
+      releaseId: registeredRelease.id,
+      manifestChecksum: registeredRelease.manifestChecksum,
+      idempotencyKey: candidateRequestKey,
+    });
+    expect(repeatedRequest.rollout.jobId).toBe(blocked.jobId);
+    expect(repeatedRequest.rollout.status).toBe("blocked");
+    expect(repeatedRequest.rollout.replayed).toBe(true);
+
+    await runSql(
+      adapter,
+      legacyVault,
+      `DELETE FROM ${REEF_ACTIVITY_TABLE} WHERE id = $1`,
+      [removedDuplicateId],
+    );
+    const resumeRequest = await rolloutApi.resumeRollout({
+      appId: registeredApp.id,
+      releaseId: registeredRelease.id,
+      manifestChecksum: registeredRelease.manifestChecksum,
+      sourceRolloutId: blocked.jobId,
+      idempotencyKey: randomUUID(),
+    });
+    const resumed = await waitForAppliedRollout({
+      rollout: rolloutApi,
+      appId: registeredApp.id,
+      jobId: resumeRequest.rollout.jobId,
+    });
+    expect(resumed.status).toBe("applied");
+    expect(await reefActivityUniqueKeys(adapter, legacyVault)).toContainEqual([
+      "reef_id",
+      "event_key",
+    ]);
+    expect(
+      await reefActivityUniqueKeys(adapter, followingVault),
+    ).toContainEqual(["reef_id", "event_key"]);
+    await expect(
+      verifyRequiredTables({
+        adapter,
+        vault: legacyVault,
+        canManage: true,
+      }),
+    ).resolves.toBeUndefined();
+    const retained = await reefActivityRows(
+      adapter,
+      legacyVault,
+      duplicateEventKey,
+    );
+    expect(retained).toHaveLength(1);
+    expect(retained[0]?.id).toBe(preservedDuplicateId);
+    expect(jsonColumn(retained[0] ?? {}, "payload")).toEqual(
+      jsonColumn(preservedDuplicate, "payload"),
+    );
+    expect(jsonColumn(retained[0] ?? {}, "meta")).toEqual(
+      jsonColumn(preservedDuplicate, "meta"),
+    );
+    migrationEvidence = {
+      blocked_without_cleanup: true,
+      duplicate_rows_preserved_on_failure: true,
+      following_target_untouched_on_failure: true,
+      repeated_request_remained_blocked: true,
+      explicit_resume_status: resumed.status,
+      retained_event_count: retained.length,
+      activity_key_present_after_resume: true,
+    };
     rolloutEvidence = {
       api: "createAkbAppRollout",
-      job_id: appliedRollout.jobId,
-      status: appliedRollout.status,
-      targets: appliedRollout.targets.map((target) => ({
+      blocked_status: blocked.status,
+      blocked_targets: blocked.targets.map((target) => ({
+        state: target.state,
+        steps: target.steps.map(({ operation, state }) => ({
+          operation,
+          state,
+        })),
+      })),
+      resume_status: resumed.status,
+      resumed_targets: resumed.targets.map((target) => ({
         state: target.state,
         steps: target.steps.map(({ operation, state }) => ({
           operation,
@@ -904,9 +1262,45 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
         })),
       })),
     };
+
+    // A fresh v4 installation is requested after the existing-v3 rollout proof.
+    const freshSuffix =
+      `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`
+        .padEnd(17, "0")
+        .slice(0, 17);
+    vault = `reef-live-smoke-${freshSuffix}`;
+    expect(vault).toHaveLength(33);
+    const freshVault = await createVault({
+      adapter,
+      name: vault,
+      description: "REEF-056 live contract smoke (throwaway)",
+    });
+    vaultId = freshVault.vault_id;
+    await requestInstallation({
+      adapter,
+      appId: registeredApp.id,
+      vaultId,
+      releaseId: registeredRelease.id,
+      mode: "install",
+    });
+    const freshRequest = await rolloutApi.requestRollout({
+      appId: registeredApp.id,
+      releaseId: registeredRelease.id,
+      manifestChecksum: registeredRelease.manifestChecksum,
+      idempotencyKey: randomUUID(),
+    });
+    const freshApplied = await waitForAppliedRollout({
+      rollout: rolloutApi,
+      appId: registeredApp.id,
+      jobId: freshRequest.rollout.jobId,
+    });
+    expect(
+      freshApplied.targets.some((target) => target.vaultId === vaultId),
+    ).toBe(true);
+    rolloutEvidence.fresh_install_status = freshApplied.status;
     await waitForActiveInstallation({
       adapter,
-      appId: LIVE_APP_ID as string,
+      appId: registeredApp.id,
       vaultId,
     });
 
@@ -934,6 +1328,22 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
         .request(`/api/v1/vaults/${encodeURIComponent(vault)}`, {
           method: "DELETE",
           resource: `vault ${vault}`,
+        })
+        .catch(() => {});
+    }
+    if (adapter && legacyVault) {
+      await adapter
+        .request(`/api/v1/vaults/${encodeURIComponent(legacyVault)}`, {
+          method: "DELETE",
+          resource: `vault ${legacyVault}`,
+        })
+        .catch(() => {});
+    }
+    if (adapter && followingVault) {
+      await adapter
+        .request(`/api/v1/vaults/${encodeURIComponent(followingVault)}`, {
+          method: "DELETE",
+          resource: `vault ${followingVault}`,
         })
         .catch(() => {});
     }
@@ -1923,6 +2333,67 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
       );
     }
   });
+
+  it("uses the activity unique key for concurrent and sequential replay", async () => {
+    expect(migrationEvidence).toMatchObject({
+      blocked_without_cleanup: true,
+      duplicate_rows_preserved_on_failure: true,
+      following_target_untouched_on_failure: true,
+      repeated_request_remained_blocked: true,
+      explicit_resume_status: "applied",
+      retained_event_count: 1,
+      activity_key_present_after_resume: true,
+    });
+    if (!legacyVault) {
+      throw new Error("Live v3 migration target was not initialized");
+    }
+
+    const eventAt = new Date().toISOString();
+    const replayKey = `status_change:todo->in_progress@${eventAt}`;
+    const writeStatusEvent = async (reefId: string, actor: string) =>
+      appendStatusChangeEvent(adapter, legacyVault as string, {
+        reefId,
+        from: "todo",
+        to: "in_progress",
+        at: eventAt,
+        actor,
+        source: "reef-366-live-proof",
+      });
+
+    await Promise.all([
+      writeStatusEvent("REEF-901", "alice"),
+      writeStatusEvent("REEF-901", "bob"),
+    ]);
+    const afterRace = await reefActivityRows(adapter, legacyVault, replayKey);
+    expect(afterRace).toHaveLength(1);
+    const originalPersisted = {
+      payload: jsonColumn(afterRace[0] ?? {}, "payload"),
+      meta: jsonColumn(afterRace[0] ?? {}, "meta"),
+    };
+
+    await writeStatusEvent("REEF-901", "replay-user");
+    const afterSequentialReplay = await reefActivityRows(
+      adapter,
+      legacyVault,
+      replayKey,
+    );
+    expect(afterSequentialReplay).toHaveLength(1);
+    expect({
+      payload: jsonColumn(afterSequentialReplay[0] ?? {}, "payload"),
+      meta: jsonColumn(afterSequentialReplay[0] ?? {}, "meta"),
+    }).toEqual(originalPersisted);
+
+    await writeStatusEvent("REEF-902", "carol");
+    const acrossIssues = await reefActivityRows(
+      adapter,
+      legacyVault,
+      replayKey,
+    );
+    expect(acrossIssues.map((row) => row.reef_id)).toEqual([
+      "REEF-901",
+      "REEF-902",
+    ]);
+  }, 120_000);
 
   it("notification storage — public APIs preserve identity, recipient, state, and source contracts", async () => {
     expect(schemaMutationCount).toBe(0);

@@ -262,6 +262,18 @@ REEF_RELEASE_RECEIPT=/tmp/reef-release.json \
     --request-key <new-resume-uuid>
 ```
 
+Reef schema v4 adds AKB's unique key on `reef_activity(reef_id, event_key)`.
+Fresh installations get it at table creation. Existing installations use the
+release's explicit v3 source transition. If duplicate pairs prevent AKB from
+adding the key, the rollout stays blocked at that target, later targets and the
+new runtime are not applied, and existing activity rows and the target schema
+remain intact. Repeating the same rollout request returns its blocked state;
+it does not retry or clean up rows. Have the AKB/vault data owner inspect the
+conflicting rows and choose a safe resolution, then resume explicitly with a
+new request key. Reef does not delete or rewrite activity history automatically.
+Workspace readiness remains blocked until the rollout is applied and the
+required-table check sees the new key.
+
 The CLI derives provenance from the root package version and full `HEAD`; it
 does not accept version/commit identity overrides or deploy a mutable `latest`
 reference. `kubernetes.io/change-cause` and the `REEF_RELEASE_*` PodTemplate

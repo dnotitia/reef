@@ -377,7 +377,21 @@ export const ReleaseCreateTablePayloadSchema = z.strictObject({
   indexes: z.array(ReleaseManifestIndexSchema).max(256),
 });
 
-export const ReleaseBlueprintStepSchema = z.strictObject({
+export const ReleaseAddUniqueKeyPayloadSchema = z
+  .strictObject({
+    table: ReleaseIdentifierSchema,
+    columns: z.array(ReleaseIdentifierSchema).min(1).max(256),
+    name: ReleaseIdentifierSchema.optional(),
+  })
+  .refine(
+    (payload) => new Set(payload.columns).size === payload.columns.length,
+    {
+      message: "Unique key columns must be distinct",
+      path: ["columns"],
+    },
+  );
+
+const ReleaseCreateTableStepSchema = z.strictObject({
   id: ReleaseStepIdSchema,
   phase: z.literal("expand"),
   operation: z.literal("create_table"),
@@ -385,13 +399,23 @@ export const ReleaseBlueprintStepSchema = z.strictObject({
   checksum: ReleaseSha256Schema,
 });
 
-export const ReleaseManifestStepSchema = z.strictObject({
+const ReleaseAddUniqueKeyStepSchema = z.strictObject({
   id: ReleaseStepIdSchema,
   phase: z.literal("expand"),
-  operation: z.literal("create_table"),
-  payload: ReleaseCreateTablePayloadSchema,
+  operation: z.literal("add_unique_key"),
+  payload: ReleaseAddUniqueKeyPayloadSchema,
   checksum: ReleaseSha256Schema,
 });
+
+export const ReleaseBlueprintStepSchema = z.union([
+  ReleaseCreateTableStepSchema,
+  ReleaseAddUniqueKeyStepSchema,
+]);
+
+export const ReleaseManifestStepSchema = z.union([
+  ReleaseCreateTableStepSchema,
+  ReleaseAddUniqueKeyStepSchema,
+]);
 
 export const ReleaseBlueprintTransitionPlanSchema = z.strictObject({
   source: ReleaseTransitionPlanSourceSchema,
@@ -412,7 +436,7 @@ export const ReefAppDefinitionSchema = z.strictObject({
 
 export const ReleaseBlueprintSchema = z.strictObject({
   app_definition: ReefAppDefinitionSchema,
-  schema_version: z.literal(3),
+  schema_version: z.literal(4),
   schema: ReleaseDesiredSchemaProjectionSchema,
   transition_plans: z
     .array(ReleaseBlueprintTransitionPlanSchema)
@@ -425,7 +449,7 @@ export const AppReleaseManifestSchema = z.strictObject({
   app_key: z.literal("reef"),
   source_revision: ReleaseSourceRevisionSchema,
   image_digest: ReleaseImageDigestSchema,
-  schema_version: z.literal(3),
+  schema_version: z.literal(4),
   schema: ReleaseDesiredSchemaProjectionSchema,
   transition_plans: z
     .array(ReleaseManifestTransitionPlanSchema)
@@ -459,6 +483,9 @@ export type ReleaseTransitionPlanSource = z.infer<
 >;
 export type ReleaseCreateTablePayload = z.infer<
   typeof ReleaseCreateTablePayloadSchema
+>;
+export type ReleaseAddUniqueKeyPayload = z.infer<
+  typeof ReleaseAddUniqueKeyPayloadSchema
 >;
 export type ReleaseBlueprintStep = z.infer<typeof ReleaseBlueprintStepSchema>;
 export type ReleaseManifestStep = z.infer<typeof ReleaseManifestStepSchema>;

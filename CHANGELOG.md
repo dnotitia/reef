@@ -14,6 +14,7 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Activity events now have a database-enforced `(reef_id, event_key)` unique key.** Fresh vaults include it at creation; supported existing v3 installations require an AKB release rollout. Duplicate pairs block that rollout without automatic cleanup or runtime advancement; an operator must resolve the conflict and explicitly resume. (REEF-366)
 - **Markdown link insertion searches documents and files in the active vault.**
   Selected resources persist as canonical AKB links while their display text
   stays in Markdown. (REEF-629)

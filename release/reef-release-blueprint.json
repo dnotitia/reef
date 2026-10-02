@@ -4,7 +4,7 @@
     "display_name": "Reef",
     "description": "Reef project management workspace"
   },
-  "schema_version": 3,
+  "schema_version": 4,
   "schema": {
     "tables": [
       {
@@ -60,7 +60,11 @@
             "required": true
           }
         ],
-        "unique_keys": [],
+        "unique_keys": [
+          {
+            "columns": ["reef_id", "event_key"]
+          }
+        ],
         "indexes": []
       },
       {
@@ -569,7 +573,7 @@
         "indexes": []
       }
     ],
-    "fingerprint": "dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727"
+    "fingerprint": "7a0d63db7ec6b6ae5a86d8e73cbdcf52aa023cada299ab7ede55d5b1c73a96b6"
   },
   "transition_plans": [
     {
@@ -638,10 +642,14 @@
                 "required": true
               }
             ],
-            "unique_keys": [],
+            "unique_keys": [
+              {
+                "columns": ["reef_id", "event_key"]
+              }
+            ],
             "indexes": []
           },
-          "checksum": "64547845adc612bb832dddd28c9869357b4218b38426d3d23be9b31869e08139"
+          "checksum": "abfae870f5e0af8cb633be7cfd32d152ad3b81dc8e2143d9ccfe36c4e91b81bd"
         },
         {
           "id": "create_reef_attachments",
@@ -1215,21 +1223,54 @@
         "release_version": "0.14.0",
         "schema_fingerprint": "dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727"
       },
-      "steps": []
+      "steps": [
+        {
+          "id": "add_reef_activity_event_key_unique_key",
+          "phase": "expand",
+          "operation": "add_unique_key",
+          "payload": {
+            "table": "reef_activity",
+            "columns": ["reef_id", "event_key"]
+          },
+          "checksum": "3cb937e3677402537707c15c8071c2b52df41292e4b1eb5fbb971da7d3bcaee9"
+        }
+      ]
     },
     {
       "source": {
         "release_version": "0.15.0",
         "schema_fingerprint": "dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727"
       },
-      "steps": []
+      "steps": [
+        {
+          "id": "add_reef_activity_event_key_unique_key",
+          "phase": "expand",
+          "operation": "add_unique_key",
+          "payload": {
+            "table": "reef_activity",
+            "columns": ["reef_id", "event_key"]
+          },
+          "checksum": "3cb937e3677402537707c15c8071c2b52df41292e4b1eb5fbb971da7d3bcaee9"
+        }
+      ]
     },
     {
       "source": {
         "release_version": "0.16.0",
         "schema_fingerprint": "dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727"
       },
-      "steps": []
+      "steps": [
+        {
+          "id": "add_reef_activity_event_key_unique_key",
+          "phase": "expand",
+          "operation": "add_unique_key",
+          "payload": {
+            "table": "reef_activity",
+            "columns": ["reef_id", "event_key"]
+          },
+          "checksum": "3cb937e3677402537707c15c8071c2b52df41292e4b1eb5fbb971da7d3bcaee9"
+        }
+      ]
     }
   ]
 }

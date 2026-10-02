@@ -612,18 +612,11 @@ export function buildEntries(
       replies: thread.replies,
     });
   }
-  // De-dupe activity by event_key, keeping the first server-ordered row. The
-  // append path is idempotent on event_key but akb's HTTP surface has no unique
-  // index, so two simultaneous identical inserts can leave duplicate rows; the
-  // adapter documents that the timeline is the downstream de-duper (REEF-125).
   // Every recorded event kind renders (REEF-276) — status_change, assignee /
   // priority / planning changes — except impl_ref_linked, which `fromActivityEvent`
   // drops to null because the delivery line is reconstructed from the issue's
   // own refs (AC4).
-  const seenKeys = new Set<string>();
   for (const event of activity) {
-    if (seenKeys.has(event.event_key)) continue;
-    seenKeys.add(event.event_key);
     const systemEvent = fromActivityEvent(event);
     if (!systemEvent) continue;
     // A logged plain close (status_change → closed) is superseded by the

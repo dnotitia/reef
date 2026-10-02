@@ -12,6 +12,7 @@ import {
   type AppReleaseManifest,
   type FinalizedReleasePayload,
   type ReleaseBlueprint,
+  type ReleaseAddUniqueKeyPayload,
   type ReleaseCreateTablePayload,
   type ReleaseDesiredSchemaProjection,
   type ReleaseManifestStep,
@@ -24,13 +25,16 @@ import {
   REEF_SCHEMA_VERSION,
   type ReefTableProjectionInput,
 } from "../core/tableManifest";
+import { REEF_ACTIVITY_TABLE } from "../core/constants";
 
 const REEF_TABLE_COUNT = 12;
 const REEF_BASELINE_RELEASE_VERSION = "0.14.0";
 const REEF_BASELINE_SCHEMA_FINGERPRINT =
   "dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727";
+const REEF_CURRENT_SCHEMA_FINGERPRINT =
+  "7a0d63db7ec6b6ae5a86d8e73cbdcf52aa023cada299ab7ede55d5b1c73a96b6";
 
-/** Explicit source releases that may use the schema no-op transition. */
+/** Explicit source releases whose installed schema is the v3 baseline. */
 export const REEF_SUPPORTED_TRANSITION_SOURCES: readonly ReleaseTransitionSource[] =
   Object.freeze([
     Object.freeze({
@@ -220,6 +224,23 @@ async function createTableStep(
   };
 }
 
+async function addActivityEventKeyStep(): Promise<ReleaseManifestStep> {
+  const payload: ReleaseAddUniqueKeyPayload = {
+    table: REEF_ACTIVITY_TABLE,
+    columns: ["reef_id", "event_key"],
+  };
+  const stepWithoutDigest = {
+    id: "add_reef_activity_event_key_unique_key",
+    phase: "expand" as const,
+    operation: "add_unique_key" as const,
+    payload,
+  };
+  return {
+    ...stepWithoutDigest,
+    checksum: await sha256Hex(canonicalJson(stepWithoutDigest)),
+  };
+}
+
 function releaseBoundBlueprint(blueprint: ReleaseBlueprint): JsonObject {
   return {
     app_key: blueprint.app_definition.app_key,
@@ -252,17 +273,23 @@ async function parseCurrentBlueprint(
   return blueprint;
 }
 
-/** Build the source-committed current Reef v3 release blueprint. */
+/** Build the source-committed current Reef v4 release blueprint. */
 export async function buildReleaseBlueprint(): Promise<ReleaseBlueprint> {
   const schema = await buildDesiredSchemaProjection();
+  if (schema.fingerprint !== REEF_CURRENT_SCHEMA_FINGERPRINT) {
+    throw releaseValidationError(
+      "Desired schema differs from the explicitly supported Reef v4 projection",
+    );
+  }
   const steps = await Promise.all(schema.tables.map(createTableStep));
   for (const source of REEF_SUPPORTED_TRANSITION_SOURCES) {
-    if (source.schema_fingerprint !== schema.fingerprint) {
+    if (source.schema_fingerprint !== REEF_BASELINE_SCHEMA_FINGERPRINT) {
       throw releaseValidationError(
-        `Supported transition source ${source.release_version} does not match the desired schema fingerprint`,
+        `Supported transition source ${source.release_version} differs from the explicit v3 baseline`,
       );
     }
   }
+  const activityKeyStep = await addActivityEventKeyStep();
   return ReleaseBlueprintSchema.parse({
     app_definition: { ...REEF_APP_DEFINITION },
     schema_version: REEF_SCHEMA_VERSION,
@@ -277,7 +304,7 @@ export async function buildReleaseBlueprint(): Promise<ReleaseBlueprint> {
               ? 1
               : 0,
         )
-        .map((source) => ({ source, steps: [] })),
+        .map((source) => ({ source, steps: [activityKeyStep] })),
     ],
   });
 }

@@ -332,14 +332,10 @@ function statusEventsByIssue(
   activity: ReadonlyArray<ActivityEvent>,
 ): Map<string, StatusActivityEvent[]> {
   const eventsByIssue = new Map<string, StatusActivityEvent[]>();
-  const seen = new Set<string>();
 
   for (const event of activity) {
     if (event.event_type !== "status_change") continue;
     if (!Number.isFinite(Date.parse(event.at))) continue;
-    const dedupeKey = `${event.reef_id}:${event.event_key}`;
-    if (seen.has(dedupeKey)) continue;
-    seen.add(dedupeKey);
     const events = eventsByIssue.get(event.reef_id);
     if (events) events.push(event);
     else eventsByIssue.set(event.reef_id, [event]);

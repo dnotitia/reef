@@ -49,7 +49,7 @@ reef_activity is an issue's immutable, append-only audit history, one row per re
 
 - reef_id: the issue the event belongs to.
 - event_type: which kind of change -- status_change, assignee_change, priority_change, planning_link, impl_ref_linked, title_change, labels_change, due_date_change, estimate_change, parent_change, relation_change, archived_change, attachment_added, attachment_removed, issue_type_change, start_date_change, or issue_body_mentions_change.
-- event_key: the idempotency key, so the same logical change retried does not double a row.
+- event_key: the idempotency key. AKB enforces UNIQUE (reef_id, event_key); a retry for the same issue and key leaves the original payload and meta unchanged.
 - payload (json): event-specific data, for example {from,to} for a status_change. The exact shape per event_type is in comments-and-activity.md. The issue_body_mentions_change payload is {recipients, added, removed, document_commit}; it is an internal precursor for notification work, not a user-visible timeline event.
 - meta (json): {actor, at, source}. actor is the reef-semantic actor who caused the event; at is the ISO-8601 event time and sort key; source is the trigger provenance or null. As with reef_comments, these live in meta, not akb's auto columns.
 

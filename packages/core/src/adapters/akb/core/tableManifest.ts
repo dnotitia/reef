@@ -191,7 +191,7 @@ export interface ReefTableManifest extends AkbCreateTableRequest {
   columns: AkbTableColumn[];
 }
 
-export const REEF_SCHEMA_VERSION = 3;
+export const REEF_SCHEMA_VERSION = 4;
 
 /** Columns injected and owned by AKB for every dynamic table. */
 export const AKB_MANAGED_TABLE_COLUMNS = [
@@ -354,6 +354,7 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
   {
     name: REEF_ACTIVITY_TABLE,
     description: "Immutable reef issue activity events",
+    unique_keys: [{ columns: ["reef_id", "event_key"] }],
     columns: [
       { name: "reef_id", type: "text", required: true },
       { name: "event_type", type: "text", required: true },

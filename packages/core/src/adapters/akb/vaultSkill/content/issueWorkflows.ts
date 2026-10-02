@@ -147,14 +147,16 @@ VALUES (
   'assignee_change',
   'assignee_change:alice->bob@2026-06-15T07:34:38.237Z',
   '{"from":"alice","to":"bob"}'::json,
-  '{"actor":"ACTOR","at":"2026-06-15T07:34:38.237Z","source":"ai-agent:user_request"}'::json);
+  '{"actor":"ACTOR","at":"2026-06-15T07:34:38.237Z","source":"ai-agent:user_request"}'::json)
+ON CONFLICT (reef_id, event_key) DO NOTHING
+RETURNING id;
 
 - event_type is one of assignee_change, priority_change, planning_link, impl_ref_linked, title_change, labels_change, due_date_change, estimate_change, parent_change, relation_change, archived_change, or issue_body_mentions_change.
 - payload carries the change. The shape is one of three families:
   - {from,to} mutations -- assignee_change and priority_change (either side may be null: an unassigned issue or unset priority), title_change (both ends carry the title text -- a title is always set), due_date_change and parent_change (null on a set/clear or attach/detach; parent ids are plain reef ids), estimate_change (numbers, null when unset), and archived_change (booleans -- archive is false->true, restore is true->false).
   - {field,from,to} -- planning_link, where field is milestone, sprint, or release and from/to are the planning ids (null on attach/detach).
   - set changes (added/removed id collections) -- labels_change is {added,removed}; relation_change is {relation,added,removed} where relation is depends_on, blocks, or related_to. Emit one labels_change for the whole labels change and one relation_change per changed relation dimension; emit nothing for a dimension whose set is unchanged. impl_ref_linked is the set-addition special case: {ref_type,ref,repo} naming each newly-linked ref (ref_type is pull_request, commit, or branch; repo is owner/name or null), one event per newly-added ref and nothing when the refs array is unchanged.
-- event_key is the idempotency key. The {from,to} family uses <event_type>:<from>-><to>@<at> (booleans render as false/true, numbers as their digits); planning_link uses planning_link:<field>:<from>-><to>@<at>; impl_ref_linked uses impl_ref_linked:<ref_type>:<repo>:<ref>@<at>; the set-change family uses <event_type>:+<sorted added joined by commas>:-<sorted removed>@<at>, and relation_change inserts the relation after the event_type: relation_change:<relation>:+<sorted added>:-<sorted removed>@<at>. Use the literal ∅ token for a null segment so an attach never collides with a value. Before inserting, skip the insert if a row with the same reef_id and event_key already exists.
+- event_key is the idempotency key. The {from,to} family uses <event_type>:<from>-><to>@<at> (booleans render as false/true, numbers as their digits); planning_link uses planning_link:<field>:<from>-><to>@<at>; impl_ref_linked uses impl_ref_linked:<ref_type>:<repo>:<ref>@<at>; the set-change family uses <event_type>:+<sorted added joined by commas>:-<sorted removed>@<at>, and relation_change inserts the relation after the event_type: relation_change:<relation>:+<sorted added>:-<sorted removed>@<at>. Use the literal ∅ token for a null segment so an attach never collides with a value. Insert with ON CONFLICT (reef_id, event_key) DO NOTHING RETURNING id; a returned id means a new event was recorded. A conflict is an idempotent replay and preserves the original payload and meta. Do not pre-read or update the existing event.
 - issue_body_mentions_change is the internal precursor event for an issue body create/update. Its payload is {recipients,added,removed,document_commit}; recipients, added, and removed are sorted exact-case usernames, and document_commit is the committed AKB document revision. Its event_key is issue_body_mentions_change:<document_commit>, so retries of the same document commit are idempotent. It is not a user activity timeline row; do not show it there.
 - An issue body document write, row projection update, and mention delta append are one logical operation. If the row or event append fails, the product path compensates the row and/or document so a partial body/projection/delta is not left behind.
 - In meta, "at" is the update's timestamp (the same value you stamp on every field of this update), "actor" is the acting user, and "source" mirrors the change's provenance or is null. When one update changes several of these fields at once, every event shares that one "at" so they group as a single moment.
@@ -183,9 +185,11 @@ VALUES (
   'status_change',
   'status_change:in_progress->in_review@2026-06-15T07:34:38.237Z',
   '{"from":"in_progress","to":"in_review"}'::json,
-  '{"actor":"ACTOR","at":"2026-06-15T07:34:38.237Z","source":"ai-agent:user_request"}'::json);
+  '{"actor":"ACTOR","at":"2026-06-15T07:34:38.237Z","source":"ai-agent:user_request"}'::json)
+ON CONFLICT (reef_id, event_key) DO NOTHING
+RETURNING id;
 
-- event_key is the idempotency key: build it as status_change:<from>-><to>@<timestamp>, where <timestamp> is the SAME ISO value you wrote to meta.last_status_change. Before inserting, skip the insert if a row with the same reef_id and event_key already exists -- re-applying the same transition must never double the event.
+- event_key is the idempotency key: build it as status_change:<from>-><to>@<timestamp>, where <timestamp> is the SAME ISO value you wrote to meta.last_status_change. Use ON CONFLICT (reef_id, event_key) DO NOTHING RETURNING id; a returned id means this call inserted the event, while a conflict preserves the original row unchanged. Other SQL failures must be handled as failures, not as replays.
 - payload is the {from,to} transition. In meta, "at" MUST equal the meta.last_status_change you set on the issue row, "actor" is the acting user, and "source" mirrors the change's provenance (for example ai-agent:user_request) or is null.
 - Do NOT set id, created_by, created_at, or updated_at; AKB fills them. reef_activity is append-only -- never UPDATE or DELETE an event row. If this append fails after the row UPDATE already changed the status, leave the status change in place (meta.last_status_change still records the latest move); do not roll the status back over a missing history row.
 

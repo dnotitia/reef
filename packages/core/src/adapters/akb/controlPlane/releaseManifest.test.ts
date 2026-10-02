@@ -31,33 +31,44 @@ describe("Reef App Release Blueprint and Manifest v2", () => {
     );
     expect(blueprint.schema.fingerprint).toMatch(/^[0-9a-f]{64}$/u);
     expect(blueprint.schema.fingerprint).toBe(
-      "dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727",
+      "7a0d63db7ec6b6ae5a86d8e73cbdcf52aa023cada299ab7ede55d5b1c73a96b6",
     );
     expect(blueprint.transition_plans).toHaveLength(4);
     expect(blueprint.transition_plans[0]?.source).toBe("fresh");
     expect(blueprint.transition_plans[0]?.steps).toHaveLength(12);
-    expect(blueprint.transition_plans[1]).toEqual({
-      source: {
+    const sourcePlans = blueprint.transition_plans.slice(1);
+    expect(sourcePlans.map((plan) => plan.source)).toEqual([
+      {
         release_version: "0.14.0",
         schema_fingerprint:
           "dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727",
       },
-      steps: [],
-    });
-    expect(blueprint.transition_plans[2]).toEqual({
-      source: {
+      {
         release_version: "0.15.0",
-        schema_fingerprint: blueprint.schema.fingerprint,
+        schema_fingerprint:
+          "dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727",
       },
-      steps: [],
-    });
-    expect(blueprint.transition_plans[3]).toEqual({
-      source: {
+      {
         release_version: "0.16.0",
-        schema_fingerprint: blueprint.schema.fingerprint,
+        schema_fingerprint:
+          "dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727",
       },
-      steps: [],
-    });
+    ]);
+    for (const plan of sourcePlans) {
+      expect(plan.steps).toEqual([
+        {
+          id: "add_reef_activity_event_key_unique_key",
+          phase: "expand",
+          operation: "add_unique_key",
+          payload: {
+            table: "reef_activity",
+            columns: ["reef_id", "event_key"],
+          },
+          checksum:
+            "3cb937e3677402537707c15c8071c2b52df41292e4b1eb5fbb971da7d3bcaee9",
+        },
+      ]);
+    }
     expect(
       blueprint.transition_plans[0]?.steps.every(
         (step) =>
@@ -67,6 +78,10 @@ describe("Reef App Release Blueprint and Manifest v2", () => {
             "columns,indexes,table,unique_keys",
       ),
     ).toBe(true);
+    expect(
+      blueprint.schema.tables.find((table) => table.name === "reef_activity")
+        ?.unique_keys,
+    ).toEqual([{ columns: ["reef_id", "event_key"] }]);
   });
 
   it("normalizes column, key, and index ordering independently of input order", async () => {
@@ -151,13 +166,27 @@ describe("Reef App Release Blueprint and Manifest v2", () => {
         /^[0-9a-f]{64}$/u.test(step.checksum),
       ),
     ).toBe(true);
-    expect(first.manifest.transition_plans[1]?.steps).toEqual([]);
+    expect(first.manifest.transition_plans[1]?.steps).toEqual([
+      {
+        id: "add_reef_activity_event_key_unique_key",
+        phase: "expand",
+        operation: "add_unique_key",
+        payload: {
+          table: "reef_activity",
+          columns: ["reef_id", "event_key"],
+        },
+        checksum:
+          "3cb937e3677402537707c15c8071c2b52df41292e4b1eb5fbb971da7d3bcaee9",
+      },
+    ]);
     expect(first.manifest.transition_plans[3]?.source).toEqual({
       release_version: "0.16.0",
       schema_fingerprint:
         "dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727",
     });
-    expect(first.manifest.transition_plans[3]?.steps).toEqual([]);
+    expect(first.manifest.transition_plans[3]?.steps).toEqual(
+      first.manifest.transition_plans[1]?.steps,
+    );
   });
 
   it("keeps mutable app display metadata outside the release checksum", async () => {
@@ -275,12 +304,12 @@ describe("Reef App Release Blueprint and Manifest v2", () => {
     ).rejects.toThrow();
   });
 
-  it("accepts only explicit same-fingerprint schema no-op sources", async () => {
+  it("accepts only explicit v3 source transitions", async () => {
     const blueprint = await buildReleaseBlueprint();
     const mismatch = structuredClone(blueprint);
     const mismatchPlan = mismatch.transition_plans[1];
     if (!mismatchPlan || mismatchPlan.source === "fresh") {
-      throw new Error("expected a no-op transition plan");
+      throw new Error("expected a v3 source transition plan");
     }
     mismatchPlan.source.schema_fingerprint = "f".repeat(64);
     await expect(
@@ -292,16 +321,19 @@ describe("Reef App Release Blueprint and Manifest v2", () => {
       }),
     ).rejects.toThrow();
 
-    const nonEmpty = structuredClone(blueprint);
-    const nonEmptyPlan = nonEmpty.transition_plans[1];
-    const freshStep = nonEmpty.transition_plans[0]?.steps[0];
-    if (!nonEmptyPlan || nonEmptyPlan.source === "fresh" || !freshStep) {
-      throw new Error("expected a no-op transition plan and fresh step");
+    const malformedPlan = structuredClone(blueprint);
+    const sourcePlan = malformedPlan.transition_plans[1];
+    if (!sourcePlan || sourcePlan.source === "fresh") {
+      throw new Error("expected a v3 source transition plan");
     }
-    nonEmptyPlan.steps = [freshStep];
+    const sourceStep = sourcePlan.steps[0];
+    if (!sourceStep || sourceStep.operation !== "add_unique_key") {
+      throw new Error("expected an add-unique-key step");
+    }
+    sourceStep.payload.columns = ["event_key"];
     await expect(
       finalizeAppReleaseManifest({
-        blueprint: nonEmpty,
+        blueprint: malformedPlan,
         version: "0.14.1",
         sourceRevision: SOURCE_REVISION,
         imageDigest: IMAGE_DIGEST,

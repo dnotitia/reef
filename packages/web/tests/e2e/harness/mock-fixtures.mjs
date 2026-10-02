@@ -1671,8 +1671,7 @@ export function rawVault(name) {
   };
 }
 
-/** Build a seeded reef_activity row (REEF-277). `at` is unique per event so it
- * doubles as a stable id seed and a sufficient event_key for dedup. */
+/** Build a seeded reef_activity row (REEF-277) with a stable unique event key. */
 function activityRow(reefId, eventType, at, payload, actor = "alice") {
   return {
     id: uuidFor(at.replace(/\D/g, "").slice(-12)),

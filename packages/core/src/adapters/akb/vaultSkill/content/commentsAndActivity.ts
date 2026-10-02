@@ -36,7 +36,7 @@ membership information.
 Two read rules:
 
 - Treat the log as append-only. Never UPDATE or DELETE a reef_activity row -- events are written only by the lifecycle rules in issue-workflows.md.
-- Two rows that share an event_key are the same logical change recorded twice (a best-effort append that retried); collapse them to one when you present the history.
+- AKB enforces the composite unique key (reef_id, event_key); retries with the same pair leave the original payload and meta in place. Do not collapse activity rows while reading. If a pre-existing duplicate blocks an installation rollout, keep the rows unchanged and have the AKB/vault operator inspect and resolve the conflict before explicitly resuming the rollout.
 
 Resilience (mirror the product read path): a vault that predates the table reads as an EMPTY history -- a read never provisions the table, and a missing-relation error means "no history yet", not a failure. Skip a single malformed row rather than blanking the whole timeline.
 

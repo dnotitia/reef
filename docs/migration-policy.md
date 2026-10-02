@@ -76,6 +76,16 @@ release registration and rollout remain the deployment-owned schema gate; Reef
 runtime readiness is a read-only verification after that gate. Required-table
 metadata must be present and match before the workspace is exposed as ready.
 
+Reef schema v4 declares `UNIQUE (reef_id, event_key)` on `reef_activity`. Fresh
+installations receive the key with the table; only the explicitly supported
+v3 release/fingerprint sources receive the `add_unique_key` expand step. Existing
+activity rows are not repaired by Reef. If duplicate pairs block AKB's rollout,
+the affected target stays on its prior schema and AKB does not apply the new
+runtime. An operator must inspect the conflicting rows and choose a safe
+resolution before explicitly resuming with a new request key. Replaying the
+original rollout request returns the same blocked job. Runtime readiness
+remains unavailable until AKB reports the rollout applied.
+
 Keep ad-hoc extension fields in their owning `meta` or `payload` JSON envelope
 when database-level filtering, sorting, joining, uniqueness, constraints, or
 indexing is not required. When the canonical schema projection changes, record
