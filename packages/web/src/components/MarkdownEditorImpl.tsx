@@ -428,6 +428,11 @@ function MarkdownEditorContent({
   }, [vault]);
   useEffect(() => {
     const normalized = normalizeMarkdown(value);
+    if (sourceApplyPendingRef.current) {
+      // Keep the pending Source edit as latest until the shared surface applies it.
+      queueDocumentTitleResolution(normalized);
+      return;
+    }
     latestValueRef.current = normalized;
     if (normalized !== lastSyncedValueRef.current) {
       lastSyncedValueRef.current = normalized;
