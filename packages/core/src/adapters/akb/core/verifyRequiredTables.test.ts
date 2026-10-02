@@ -31,6 +31,12 @@ function notificationTable(payload: ReturnType<typeof tableList>) {
   return table;
 }
 
+function issueTable(payload: ReturnType<typeof tableList>) {
+  const table = payload.items.find((item) => item.name === "reef_issues");
+  if (!table) throw new Error("issue table missing from test fixture");
+  return table;
+}
+
 function notificationFirstColumn(
   payload: ReturnType<typeof tableList>,
 ): AkbTableColumn {
@@ -54,6 +60,32 @@ describe("verifyRequiredTables", () => {
       canManage: true,
     });
 
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith("/api/v1/tables/reef-sample", {
+      resource: "tables in vault reef-sample",
+    });
+  });
+
+  it("blocks a missing canonical lookup index using only the read-only catalog", async () => {
+    const expected = issueTable(tableList());
+    expect(expected.indexes.map((index) => index.columns)).toEqual([
+      ["reef_id"],
+      ["document_uri"],
+      ["parent_id"],
+      ["status"],
+    ]);
+
+    const response = tableList();
+    issueTable(response).indexes.pop();
+    const { adapter, request } = makeAdapter(response);
+
+    await expect(
+      verifyRequiredTables({ adapter, vault: "reef-sample", canManage: true }),
+    ).rejects.toMatchObject({
+      name: "WorkspaceReadinessError",
+      reason: "required_tables_mismatch",
+      status: 409,
+    });
     expect(request).toHaveBeenCalledTimes(1);
     expect(request).toHaveBeenCalledWith("/api/v1/tables/reef-sample", {
       resource: "tables in vault reef-sample",

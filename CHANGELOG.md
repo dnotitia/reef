@@ -103,6 +103,10 @@ explicitly in the entries below.
 
 ### Migration
 
+- **Reef 스키마 v4는 조회용 비유니크 인덱스 일곱 개를 추가합니다.** 신규 설치는
+  정준 Desired Schema Projection으로 인덱스를 포함해 생성됩니다. 기존 v3 설치는
+  정확히 일치하는 source fingerprint의 AKB App Rollout으로 전환해야 합니다.
+  Reef의 일반 요청은 스키마를 변경하지 않습니다. (REEF-654)
 - Deploy the AKB release that installs or reconciles Reef's canonical required
   tables before this version. Reef readiness treats missing or stale local
   `schema_version` settings as non-authoritative and performs no table schema
@@ -110,6 +114,14 @@ explicitly in the entries below.
 - Deploy an AKB build with the app installation lifecycle API before deploying
   this Reef version. Readiness no longer falls back to the presence of Reef
   configuration or tables. (REEF-418)
+
+### Operational
+
+- **기존 Reef 설치의 스키마 v4 전환은 운영자가 지정한 점검 시간에 수행합니다.**
+  AKB rollout이 terminal `applied`가 되고 일치하는 Reef image와 설치 대상 설정을
+  적용한 뒤 Workspace Ready를 확인해야 서비스를 재개할 수 있습니다. 실패·blocked·
+  timeout 상태에서는 점검을 유지하고 같은 rollout을 명시적으로 재개합니다. 인덱스
+  적용 뒤 구버전 image만 되돌려도 복구되지 않습니다. (REEF-654)
 
 ## v0.16.1 - 2026-09-28
 
