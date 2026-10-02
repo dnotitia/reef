@@ -2,7 +2,7 @@
 import "fake-indexeddb/auto";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { type ReactNode, StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -49,7 +49,14 @@ function wrap(ui: ReactNode) {
 function vaultsResponse(
   entries: ReadonlyArray<{
     name: string;
-    installation_status: "ready" | "not_installed";
+    installation_status:
+      | "ready"
+      | "not_installed"
+      | "blocked"
+      | "uninstalled"
+      | "installing"
+      | "adoption_required";
+    role?: string;
   }>,
 ) {
   return new Response(
@@ -58,7 +65,7 @@ function vaultsResponse(
         name: e.name,
         description: null,
         status: "active",
-        role: "owner",
+        role: e.role ?? "owner",
         created_at: null,
         installation_status: e.installation_status,
       })),
@@ -70,7 +77,14 @@ function vaultsResponse(
 interface MockApiOptions {
   vaults?: ReadonlyArray<{
     name: string;
-    installation_status: "ready" | "not_installed";
+    installation_status:
+      | "ready"
+      | "not_installed"
+      | "blocked"
+      | "uninstalled"
+      | "installing"
+      | "adoption_required";
+    role?: string;
   }>;
   repos?: ReadonlyArray<{ full_name: string; id: number }>;
   postStatus?: number;
@@ -264,6 +278,36 @@ describe("OnboardingPanel", () => {
       expect(mockReplace).toHaveBeenCalledWith("/workspace/reef-alpha/issues"),
     );
     expect(await getActiveVault()).toBe("reef-alpha");
+  });
+
+  it("shows only compact rows for existing workspaces that need setup", async () => {
+    setupMockApi({
+      vaults: [
+        { name: "reef-blocked", installation_status: "blocked" },
+        { name: "raw-vault", installation_status: "not_installed" },
+      ],
+    });
+
+    render(wrap(<OnboardingPanel />));
+
+    expect(await screen.findByTestId("onboarding-panel")).toBeVisible();
+    const blocked = screen.getByTestId("workspace-installation-reef-blocked");
+    const raw = screen.getByTestId("workspace-installation-raw-vault");
+    expect(blocked).toHaveTextContent("Impact");
+    expect(blocked).toHaveTextContent("Next step");
+    expect(blocked).toHaveTextContent("Who can act");
+    expect(
+      within(blocked).getByRole("button", { name: "Check status" }),
+    ).toBeVisible();
+    expect(
+      within(raw).getByRole("button", { name: "Set up Reef" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByTestId("installation-details-disclosure"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/review the active job and target/i),
+    ).not.toBeInTheDocument();
   });
 
   it("persists and navigates once under Strict Effects", async () => {

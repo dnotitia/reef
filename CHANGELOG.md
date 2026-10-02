@@ -33,14 +33,14 @@ explicitly in the entries below.
   admins explicitly approve install, restore, or fresh-install commands;
   ordinary members receive only the canonical active status. Uninstall retains
   AKB data, while full vault deletion remains separate. (REEF-418)
-- **Workspace readiness guidance leads with the next step for each role.**
-  Owners and admins first see whether people can work and who should act next;
-  bounded release, schema, grant, and recovery details stay collapsed. Readers
-  and writers see plain-language readiness and are directed to an owner or
-  admin when setup is incomplete. Active drift alone still leaves a ready
-  workspace usable, and checking status does not repair or resume setup. Each
-  card names its vault so people can match the state and actions to the right
-  workspace when several cards appear together. (REEF-422)
+- **Workspace setup guidance follows the selected workspace and current task.**
+  Onboarding keeps remembered-workspace-first and deterministic ASCII
+  auto-resume, then lists only workspaces needing setup. Settings covers only
+  the selected workspace: ready readers and writers see no setup task, while
+  owners and admins can open installation details on demand. Unavailable
+  workspaces state their impact, next step, and responsible person; access
+  denial describes only the requested workspace and keeps other ready
+  workspaces as plain switch links. (REEF-422)
 
 ### Fixed
 

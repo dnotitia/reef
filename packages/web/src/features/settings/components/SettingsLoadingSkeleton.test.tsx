@@ -21,9 +21,6 @@ describe("Settings loading surfaces", () => {
     expect(
       screen.getByTestId("workspace-installation-loading"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByTestId("installation-details-loading"),
-    ).toBeInTheDocument();
     for (const label of [
       "Monitored Repositories",
       "Project",

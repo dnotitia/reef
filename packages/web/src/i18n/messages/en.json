@@ -195,7 +195,7 @@
     "switchError": "Couldn't switch workspace. Please try again.",
     "accessDenied": {
       "title": "You don't have access to this workspace",
-      "installationTitle": "Workspace availability",
+      "installationTitle": "This workspace needs setup",
       "body": "You're not a member of \"{vault}\", or it no longer exists. Open one of your workspaces instead.",
       "switchHeading": "Your workspaces",
       "empty": "You don't have any reef workspaces yet.",
@@ -203,7 +203,6 @@
     }
   },
   "workspaceInstallation": {
-    "title": "{vault} workspace status",
     "status": {
       "ready": "Ready to use",
       "installing": "Setup in progress",
@@ -216,19 +215,51 @@
       "target_unavailable": "Setup unavailable",
       "unknown": "Status unavailable"
     },
-    "description": {
-      "ready": "People can use this workspace. No action is needed.",
-      "readyDrift": "People can continue working. The latest installation check reported a difference; ask the AKB installation operator to review it.",
-      "readyObservationUnknown": "People can continue working. The latest installation check couldn't confirm all details; ask the AKB installation operator to review them.",
-      "installing": "Setup is in progress. People can use this workspace when it is ready; an owner or admin can check again shortly.",
-      "upgrading": "An update is in progress. An owner or admin can check again shortly for the latest status.",
-      "blocked": "People can't use this workspace until setup is restored. Contact the AKB installation operator to resolve it.",
-      "uninstalled": "People can't use this workspace in Reef yet. Workspace data is retained; an owner or admin can restore it or request fresh setup.",
-      "not_installed": "People can't use this workspace yet. An owner or admin can approve setup below; existing data is preserved.",
-      "adoption_required": "People can't use this workspace yet. An owner or admin should ask the installation operator to review the existing setup.",
-      "management_required": "This workspace isn't ready to use yet. Ask a workspace owner or admin to check its setup.",
-      "target_unavailable": "Setup can't continue right now. Contact the deployment operator.",
-      "unknown": "The setup status couldn't be confirmed. An owner or admin can check again shortly."
+    "label": {
+      "impact": "Impact",
+      "nextAction": "Next step",
+      "responsible": "Who can act"
+    },
+    "impact": {
+      "ready": "People can use this workspace.",
+      "installing": "Setup is in progress.",
+      "upgrading": "An update is in progress.",
+      "blocked": "People can't use this workspace right now.",
+      "uninstalled": "Reef setup was removed from this workspace.",
+      "not_installed": "Reef isn't set up in this workspace yet.",
+      "adoption_required": "This workspace needs a setup review before people can use it.",
+      "management_required": "This workspace needs an owner or admin before it can be used.",
+      "target_unavailable": "Workspace setup is currently unavailable.",
+      "unknown": "Workspace setup status is unknown."
+    },
+    "nextAction": {
+      "ready": "No action is needed.",
+      "installing": "Wait for setup to finish, then check again.",
+      "upgrading": "Wait for the update to finish, then check again.",
+      "blocked": "An owner or admin can recheck status and contact the AKB installation operator.",
+      "uninstalled": "An owner or admin can restore the setup or request a fresh one.",
+      "not_installed": "An owner or admin can set up Reef for this workspace.",
+      "adoption_required": "Ask an owner or admin to contact the AKB installation operator.",
+      "management_required": "Ask a workspace owner or admin to check the setup.",
+      "target_unavailable": "Contact the deployment operator.",
+      "unknown": "An owner or admin can check again shortly."
+    },
+    "responsible": {
+      "ready": "No one",
+      "installing": "AKB installation service",
+      "upgrading": "AKB installation service",
+      "blocked": "Workspace owner or admin",
+      "uninstalled": "Workspace owner or admin",
+      "not_installed": "Workspace owner or admin",
+      "adoption_required": "AKB installation operator",
+      "management_required": "Workspace owner or admin",
+      "target_unavailable": "Deployment operator",
+      "unknown": "Workspace owner or admin"
+    },
+    "activity": {
+      "checking": "Checking status",
+      "requesting": "Sending setup request",
+      "finishing": "Opening workspace"
     },
     "button": {
       "install": "Set up Reef",
@@ -237,11 +268,8 @@
       "checkStatus": "Check status",
       "finish": "Continue to workspace"
     },
-    "checkStatusNote": "Checking status refreshes this information only. It doesn't fix or resume setup.",
     "acknowledgementAccepted": "Setup request received. Checking the workspace status.",
     "acknowledgementReplayed": "Setup request confirmed. Checking the workspace status.",
-    "checking": "Checking status",
-    "finishing": "Completing setup",
     "stillRunning": "Setup is still in progress. Check its status again shortly.",
     "commandFailed": "The setup request failed.",
     "statusFailed": "Could not check the workspace status.",
@@ -255,6 +283,10 @@
         "in_sync": "In sync",
         "drifted": "Drift detected",
         "unknown": "Unknown"
+      },
+      "impact": {
+        "drifted": "Workspace remains available. The latest installation check found a difference.",
+        "unknown": "Workspace remains available. The latest installation check could not confirm all details."
       },
       "dimension": {
         "release": "Release",
@@ -275,6 +307,7 @@
       "observedSchemaFingerprint": "Installation snapshot fingerprint",
       "desiredGrant": "Desired grant generation",
       "observedGrant": "Observed grant generation",
+      "noObservation": "No installation observation is available yet.",
       "blockedReason": {
         "worker_timeout": "The installation worker timed out.",
         "step_failed": "An installation step failed.",
@@ -475,7 +508,6 @@
         "completedIssues": "Completed Issues",
         "templates": "Templates",
         "installation": "Workspace setup",
-        "otherInstallations": "Other workspace setups",
         "workspaceAiInstructions": "Workspace AI Instructions"
       }
     },
@@ -1810,7 +1842,7 @@
     "createWorkspaceSubtitle": "Start with a workspace for your project.",
     "installApprovalIntro": "An owner or admin approves Reef's setup before people can use this workspace. Existing data is preserved.",
     "existingVaultsTitle": "Existing workspaces",
-    "existingVaultsDescription": "Choose a workspace to check its setup, install Reef, or restore an existing installation.",
+    "existingVaultsDescription": "Workspaces that need setup are listed here. Only owners and admins can request setup changes.",
     "existingWorkspace": "Use an existing reef workspace",
     "existingWorkspaceHint": "Choose a workspace that already has Reef set up.",
     "existingWorkspaceEmpty": "No existing reef workspaces found.",

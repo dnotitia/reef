@@ -1,0 +1,297 @@
+"use client";
+
+import { Button } from "@/components/ui/button";
+import { InstallationDetailsLoading } from "@/features/workspaceInstallation/components/WorkspaceInstallationLoading";
+import { apiFetch, throwHttpError } from "@/lib/apiClient";
+import { formatAbsoluteTime } from "@/lib/relativeTime";
+import {
+  ControlPlaneInstallationSchema,
+  WorkspaceInstallationStatusEnum,
+  type ControlPlaneInstallation,
+} from "@reef/core";
+import { useLocale, useTranslations } from "next-intl";
+import { useCallback, useState, type SyntheticEvent } from "react";
+import { z } from "zod";
+
+const InstallationResponseSchema = z.object({
+  installation_status: WorkspaceInstallationStatusEnum,
+  installation: ControlPlaneInstallationSchema.optional(),
+});
+
+type LoadState = "idle" | "loading" | "loaded" | "error";
+
+export function WorkspaceInstallationDetails({ vault }: { vault: string }) {
+  const t = useTranslations("workspaceInstallation");
+  const [installation, setInstallation] = useState<
+    ControlPlaneInstallation | undefined
+  >();
+  const [loadState, setLoadState] = useState<LoadState>("idle");
+
+  const loadDetails = useCallback(async () => {
+    setLoadState("loading");
+    try {
+      const response = await apiFetch(
+        `/api/vaults/${encodeURIComponent(vault)}/installation`,
+        { cache: "no-store" },
+      );
+      if (!response.ok) {
+        await throwHttpError(
+          response,
+          `GET installation returned ${response.status}`,
+        );
+      }
+      const result = InstallationResponseSchema.parse(await response.json());
+      setInstallation(result.installation);
+      setLoadState("loaded");
+    } catch {
+      setLoadState("error");
+    }
+  }, [vault]);
+
+  function handleToggle(event: SyntheticEvent<HTMLDetailsElement>) {
+    if (event.currentTarget.open && loadState === "idle") {
+      void loadDetails();
+    }
+  }
+
+  const detailText =
+    loadState === "loading" ? (
+      <InstallationDetailsLoading />
+    ) : loadState === "error" ? (
+      <div className="flex flex-col items-start gap-2 pt-3">
+        <p className="text-sm text-destructive-text" role="alert">
+          {t("statusFailed")}
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => void loadDetails()}
+        >
+          {t("button.checkStatus")}
+        </Button>
+      </div>
+    ) : installation ? (
+      <InstallationDetailsContent installation={installation} />
+    ) : loadState === "loaded" ? (
+      <p className="pt-3 text-sm text-muted-foreground">
+        {t("details.noObservation")}
+      </p>
+    ) : null;
+
+  return (
+    <details
+      data-testid="installation-details-disclosure"
+      onToggle={handleToggle}
+    >
+      <summary className="cursor-pointer rounded-md px-1 py-1 text-sm font-medium text-muted-foreground underline decoration-border underline-offset-4 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus">
+        {t("details.toggle")}
+      </summary>
+      <div className="mt-2" data-testid="installation-details-content">
+        {detailText}
+      </div>
+    </details>
+  );
+}
+
+function InstallationDetailsContent({
+  installation,
+}: {
+  installation: ControlPlaneInstallation;
+}) {
+  const t = useTranslations("workspaceInstallation.details");
+  const locale = useLocale();
+  const unknown = t("unknown");
+  const releaseValue = (value: ControlPlaneInstallation["desiredRelease"]) =>
+    value?.version ?? value?.id ?? unknown;
+  const drift = installation.drift;
+  const overallStatus = drift?.overall ?? "unknown";
+  const observedSchema = drift?.schema.observed;
+  const observedSchemaFingerprint = installation.observed?.schemaFingerprint;
+  const hasDistinctSnapshotFingerprint =
+    observedSchemaFingerprint != null &&
+    observedSchemaFingerprint !== observedSchema;
+
+  return (
+    <section
+      className="flex flex-col gap-4 pt-2 text-left"
+      aria-label={t("heading")}
+      data-testid="installation-details"
+      data-overall-drift={drift?.overall ?? "unknown"}
+    >
+      <div className="flex flex-col gap-1">
+        {overallStatus === "drifted" && (
+          <p className="text-sm text-muted-foreground">{t("impact.drifted")}</p>
+        )}
+        {overallStatus === "unknown" && (
+          <p className="text-sm text-muted-foreground">{t("impact.unknown")}</p>
+        )}
+        <p
+          className="type-caption text-muted-foreground"
+          data-testid="installation-overall-drift"
+          data-drift-status={overallStatus}
+        >
+          <span>{t("overallStatus")}: </span>
+          <span className="font-medium text-foreground">
+            {t(`overall.${overallStatus}`)}
+          </span>
+        </p>
+      </div>
+
+      <dl className="grid grid-cols-1 gap-3 border-t border-border-subtle pt-3 text-sm sm:grid-cols-2">
+        <div className="min-w-0">
+          <dt className="text-xs text-muted-foreground">{t("observedAt")}</dt>
+          <dd className="mt-1 break-all text-foreground">
+            {installation.observed?.observedAt ? (
+              <time
+                data-testid="installation-observed-at"
+                dateTime={installation.observed.observedAt}
+              >
+                {formatAbsoluteTime(installation.observed.observedAt, locale)}
+              </time>
+            ) : (
+              <span data-testid="installation-observed-at">{unknown}</span>
+            )}
+          </dd>
+        </div>
+      </dl>
+
+      <InstallationComparisonGroup
+        dimension="release"
+        status={drift?.release.status}
+        fields={[
+          {
+            id: "installation-release-desired",
+            label: t("desiredRelease"),
+            value: releaseValue(installation.desiredRelease),
+          },
+          {
+            id: "installation-release-current",
+            label: t("currentRelease"),
+            value: releaseValue(installation.currentRelease),
+          },
+          {
+            id: "installation-release-observed",
+            label: t("observedRelease"),
+            value: releaseValue(installation.observed?.release),
+          },
+        ]}
+      />
+      <InstallationComparisonGroup
+        dimension="schema"
+        status={drift?.schema.status}
+        fields={[
+          {
+            id: "installation-schema-expected",
+            label: t("desiredSchema"),
+            value: drift?.schema.expected ?? unknown,
+          },
+          {
+            id: "installation-schema-observed-value",
+            label: t("observedSchema"),
+            value: observedSchema ?? unknown,
+          },
+          ...(hasDistinctSnapshotFingerprint
+            ? [
+                {
+                  id: "installation-snapshot-fingerprint",
+                  label: t("observedSchemaFingerprint"),
+                  value: observedSchemaFingerprint,
+                },
+              ]
+            : []),
+        ]}
+      />
+      <InstallationComparisonGroup
+        dimension="grant"
+        status={drift?.grant.status}
+        fields={[
+          {
+            id: "installation-grant-desired",
+            label: t("desiredGrant"),
+            value: drift?.grant.desiredGeneration?.toString() ?? unknown,
+          },
+          {
+            id: "installation-grant-observed",
+            label: t("observedGrant"),
+            value: drift?.grant.observedGeneration?.toString() ?? unknown,
+          },
+        ]}
+      />
+
+      {installation.lifecycle === "blocked" && (
+        <section
+          className="flex flex-col gap-3 border-t border-border-subtle pt-3 text-xs"
+          aria-label={t("blocked.operatorHeading")}
+          data-testid="installation-blocked-guidance"
+        >
+          <div className="flex flex-col gap-1">
+            <span className="text-muted-foreground">
+              {t("blocked.reasonLabel")}
+            </span>
+            <p className="font-medium text-destructive-text">
+              {t(`blockedReason.${installation.blockedReason ?? "unknown"}`)}
+            </p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <h5 className="type-control font-medium text-foreground">
+              {t("blocked.operatorHeading")}
+            </h5>
+            <ol className="list-decimal space-y-1 pl-5 text-muted-foreground">
+              <li>{t("blocked.reviewCurrentState")}</li>
+              <li>{t("blocked.runPreflight")}</li>
+              <li>{t("blocked.resumeRelease")}</li>
+              <li>{t("blocked.createNewRelease")}</li>
+            </ol>
+            <p className="text-muted-foreground">{t("blocked.reasonCaveat")}</p>
+          </div>
+        </section>
+      )}
+    </section>
+  );
+}
+
+function InstallationComparisonGroup({
+  dimension,
+  status,
+  fields,
+}: {
+  dimension: "release" | "schema" | "grant";
+  status: "in_sync" | "mismatch" | "unknown" | undefined;
+  fields: Array<{ id: string; label: string; value: string }>;
+}) {
+  const t = useTranslations("workspaceInstallation.details");
+
+  return (
+    <section
+      className="flex flex-col gap-3 border-t border-border-subtle pt-3"
+      aria-labelledby={`installation-comparison-${dimension}-heading`}
+      data-testid={`installation-comparison-${dimension}`}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <h5
+          id={`installation-comparison-${dimension}-heading`}
+          className="type-control font-medium text-foreground"
+        >
+          {t(`dimension.${dimension}`)}
+        </h5>
+        <span
+          className="type-caption text-muted-foreground"
+          data-drift-status={status ?? "unknown"}
+        >
+          {t(`driftStatus.${status ?? "unknown"}`)}
+        </span>
+      </div>
+      <dl className="grid grid-cols-1 gap-x-4 gap-y-3 text-sm sm:grid-cols-2">
+        {fields.map(({ id, label, value }) => (
+          <div key={id} className="min-w-0">
+            <dt className="text-xs text-muted-foreground">{label}</dt>
+            <dd className="mt-1 break-all text-foreground" data-testid={id}>
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}

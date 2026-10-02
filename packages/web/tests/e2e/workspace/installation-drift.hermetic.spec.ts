@@ -1,10 +1,4 @@
-import {
-  expect,
-  test,
-  type Locator,
-  type Page,
-  type TestInfo,
-} from "@playwright/test";
+import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import {
   E2E_REEF_OLD_SCHEMA_FINGERPRINT,
   E2E_REEF_RELEASE_VERSION,
@@ -22,28 +16,6 @@ import {
   signInAsUser,
   writeIndexedDbConfig,
 } from "../harness/fixture";
-
-async function expectComparisonGroupsToUseVisibleHeadings(
-  cards: Locator[],
-): Promise<void> {
-  const headingIds: string[] = [];
-  for (const card of cards) {
-    for (const testId of [
-      "installation-comparison-release",
-      "installation-comparison-schema",
-      "installation-comparison-grant",
-    ]) {
-      const section = card.getByTestId(testId);
-      const heading = section.getByRole("heading");
-      await expect(heading).toBeVisible();
-      const headingId = await heading.getAttribute("id");
-      expect(headingId).toBeTruthy();
-      await expect(section).toHaveAttribute("aria-labelledby", headingId ?? "");
-      headingIds.push(headingId ?? "");
-    }
-  }
-  expect(new Set(headingIds).size).toBe(headingIds.length);
-}
 
 async function attachFullPageScreenshot(
   page: Page,
@@ -79,28 +51,18 @@ test.describe("installation drift and readiness guidance", () => {
     await page.goto("/workspace/reef-e2e/issues");
     await page.goto("/workspace/reef-e2e/settings/workspace");
 
-    const installation = page.getByTestId("workspace-installation-reef-e2e");
-    await expect(installation).toHaveAttribute("data-status", "ready");
+    const settings = page.getByTestId("workspace-installation-section");
+    await expect(settings).toBeVisible();
     await expect(
-      installation.getByRole("heading", {
-        name: "reef-e2e workspace status",
-      }),
-    ).toBeVisible();
-    await expect(
-      installation.getByText(/People can continue working/),
-    ).toBeVisible();
-    await expect(
-      installation.getByTestId("installation-check-status-note"),
-    ).toBeVisible();
-    const disclosure = installation.getByTestId(
-      "installation-details-disclosure",
-    );
+      page.getByTestId("workspace-installation-reef-e2e"),
+    ).toHaveCount(0);
+    const disclosure = settings.getByTestId("installation-details-disclosure");
     await expect(disclosure).not.toHaveAttribute("open");
     await attachFullPageScreenshot(page, testInfo, "owner-ready-default.png");
 
     const details = page.getByTestId("installation-details");
     await disclosure.locator("summary").click();
-    await installation.evaluate((element) =>
+    await settings.evaluate((element) =>
       element.scrollIntoView({ block: "start", inline: "nearest" }),
     );
     await expect(details).toHaveAttribute("data-overall-drift", "drifted");
@@ -171,7 +133,10 @@ test.describe("installation drift and readiness guidance", () => {
     await signInAsAlice(page);
     await page.goto("/workspace/reef-e2e/issues");
     await page.goto("/workspace/reef-e2e/settings/workspace");
-    const ownerDisclosure = page.getByTestId("installation-details-disclosure");
+    const ownerSettings = page.getByTestId("workspace-installation-section");
+    const ownerDisclosure = ownerSettings.getByTestId(
+      "installation-details-disclosure",
+    );
     await expect(ownerDisclosure).not.toHaveAttribute("open");
     await ownerDisclosure.locator("summary").click();
     await expect(page.getByTestId("installation-details")).toBeVisible();
@@ -179,8 +144,8 @@ test.describe("installation drift and readiness guidance", () => {
     await setInstallationControl(page.request, { roles: { alice: "writer" } });
     await page.reload();
     await expect(
-      page.getByTestId("workspace-installation-reef-e2e"),
-    ).toHaveAttribute("data-status", "ready");
+      page.getByTestId("workspace-installation-section"),
+    ).toHaveCount(0);
     await expect(page.getByTestId("installation-details")).toHaveCount(0);
     await expect(
       page.getByTestId("installation-details-disclosure"),
@@ -191,8 +156,8 @@ test.describe("installation drift and readiness guidance", () => {
       await signInAsUser(page, credentials);
       await page.goto("/workspace/reef-e2e/settings/workspace");
       await expect(
-        page.getByTestId("workspace-installation-reef-e2e"),
-      ).toHaveAttribute("data-status", "ready");
+        page.getByTestId("workspace-installation-section"),
+      ).toHaveCount(0);
       await expect(page.getByTestId("installation-details")).toHaveCount(0);
       const status = await page.request.get(
         "/api/vaults/reef-e2e/installation",
@@ -213,28 +178,22 @@ test.describe("installation drift and readiness guidance", () => {
     });
     await signInAsAlice(page);
     await page.goto("/workspace/reef-e2e/issues");
-    const installation = page.getByTestId("workspace-installation-reef-e2e");
-    await expect(installation).toHaveAttribute("data-status", "blocked");
+    await expect(page.getByTestId("workspace-access-denied")).toBeVisible();
+    const availability = page.getByTestId("workspace-installation-reef-e2e");
+    await expect(availability).toHaveAttribute("data-status", "blocked");
     await expect(
-      installation.getByText(/People can't use this workspace/),
+      availability.getByText("People can't use this workspace right now."),
     ).toBeVisible();
     await expect(
-      installation.getByTestId("installation-check-status-note"),
+      availability.getByText(/contact the AKB installation operator/i),
     ).toBeVisible();
-    const disclosure = installation.getByTestId(
-      "installation-details-disclosure",
-    );
-    await expect(disclosure).not.toHaveAttribute("open");
-    await attachFullPageScreenshot(page, testInfo, "owner-blocked-default.png");
-    await disclosure.locator("summary").click();
     await expect(
-      page.getByText("The installation worker timed out."),
+      availability.getByRole("button", { name: "Check status" }),
     ).toBeVisible();
-    await attachFullPageScreenshot(
-      page,
-      testInfo,
-      "owner-blocked-technical-details.png",
-    );
+    await expect(
+      availability.getByTestId("installation-details-disclosure"),
+    ).toHaveCount(0);
+    await attachFullPageScreenshot(page, testInfo, "owner-blocked-access.png");
     await page.getByRole("button", { name: "Check status" }).click();
     await expect(
       page.getByRole("button", { name: "Check status" }),
@@ -257,19 +216,19 @@ test.describe("installation drift and readiness guidance", () => {
     await page.goto("/workspace/reef-e2e/issues");
     await expect(page.getByTestId("workspace-access-denied")).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Workspace availability" }),
+      page.getByRole("heading", { name: "This workspace needs setup" }),
     ).toBeVisible();
     await expect(
       page
         .getByTestId("workspace-installation-reef-e2e")
-        .getByText(/ask a workspace owner or admin/i),
+        .getByText("Ask a workspace owner or admin to check the setup."),
     ).toBeVisible();
     await expect(
       page.getByText("The installation worker timed out."),
     ).toHaveCount(0);
     await expect(
-      page.getByTestId("installation-check-status-note"),
-    ).toBeVisible();
+      page.getByTestId("installation-details-disclosure"),
+    ).toHaveCount(0);
     await attachFullPageScreenshot(page, testInfo, "member-blocked.png");
     const memberStatus = await page.request.get(
       "/api/vaults/reef-e2e/installation",
@@ -366,33 +325,31 @@ test.describe("installation drift and readiness guidance", () => {
             await clearPersistedQueryCacheOnLoad(page);
             await page.goto("/workspace/reef-e2e/issues");
             await page.goto(surfacePaths.settings);
-            const settingsCard = page.getByTestId(
-              "workspace-installation-reef-e2e",
+            const settingsSection = page.getByTestId(
+              "workspace-installation-section",
             );
-            await expect(settingsCard).toHaveAttribute("data-status", "ready");
-            await expect(
-              settingsCard.getByRole("heading", {
-                name:
-                  locale === "en"
-                    ? "reef-e2e workspace status"
-                    : "reef-e2e 워크스페이스 상태",
-              }),
-            ).toBeVisible();
-            await expect(settingsCard).toHaveCSS("text-align", "left");
+            if (canManage) {
+              await expect(settingsSection).toBeVisible();
+              await expect(
+                settingsSection.getByTestId("installation-details-disclosure"),
+              ).not.toHaveAttribute("open");
+            } else {
+              await expect(settingsSection).toHaveCount(0);
+            }
             await attachFullPageScreenshot(
               page,
               testInfo,
               `settings--${appearance}--default.png`,
             );
             if (canManage) {
-              await settingsCard
+              await settingsSection
                 .getByTestId("installation-details-disclosure")
                 .locator("summary")
                 .click();
               await expect(
-                settingsCard.getByTestId("installation-details"),
+                settingsSection.getByTestId("installation-details"),
               ).toBeVisible();
-              await settingsCard.evaluate((element) =>
+              await settingsSection.evaluate((element) =>
                 element.scrollIntoView({ block: "start", inline: "nearest" }),
               );
               await attachFullPageScreenshot(
@@ -401,15 +358,15 @@ test.describe("installation drift and readiness guidance", () => {
                 `settings--${appearance}--details.png`,
               );
               if (viewport.name === "mobile") {
-                const statusNote = settingsCard.getByTestId(
-                  "installation-check-status-note",
+                const observedAt = settingsSection.getByTestId(
+                  "installation-observed-at",
                 );
-                await statusNote.scrollIntoViewIfNeeded();
-                const statusNoteBounds = await statusNote.boundingBox();
-                expect(statusNoteBounds?.y).toBeGreaterThanOrEqual(0);
+                await observedAt.scrollIntoViewIfNeeded();
+                const observedBounds = await observedAt.boundingBox();
+                expect(observedBounds?.y).toBeGreaterThanOrEqual(0);
                 expect(
-                  (statusNoteBounds?.y ?? viewport.height) +
-                    (statusNoteBounds?.height ?? viewport.height),
+                  (observedBounds?.y ?? viewport.height) +
+                    (observedBounds?.height ?? viewport.height),
                 ).toBeLessThanOrEqual(viewport.height);
                 await attachFullPageScreenshot(
                   page,
@@ -417,10 +374,6 @@ test.describe("installation drift and readiness guidance", () => {
                   `settings--${appearance}--details-bottom.png`,
                 );
               }
-            } else {
-              await expect(
-                settingsCard.getByTestId("installation-details-disclosure"),
-              ).toHaveCount(0);
             }
 
             await setInstallationControl(request, {
@@ -459,8 +412,6 @@ test.describe("installation drift and readiness guidance", () => {
             const rawVaultCard = page.getByTestId(
               "workspace-installation-raw-vault",
             );
-            const workspaceStatusSuffix =
-              locale === "en" ? "workspace status" : "워크스페이스 상태";
             const onboardingCards = [
               { card: onboardingCard, vault: "reef-e2e" },
               { card: secondBlockedCard, vault: "reef-zeta" },
@@ -469,7 +420,7 @@ test.describe("installation drift and readiness guidance", () => {
             for (const { card, vault } of onboardingCards) {
               await expect(
                 card.getByRole("heading", {
-                  name: `${vault} ${workspaceStatusSuffix}`,
+                  name: vault,
                 }),
               ).toBeVisible();
             }
@@ -562,35 +513,12 @@ test.describe("installation drift and readiness guidance", () => {
               testInfo,
               `onboarding--${appearance}--default.png`,
             );
-            if (canManage) {
-              await onboardingCard
-                .getByTestId("installation-details-disclosure")
-                .locator("summary")
-                .click();
-              await expect(
-                onboardingCard.getByTestId("installation-blocked-guidance"),
-              ).toBeVisible();
-              await secondBlockedCard
-                .getByTestId("installation-details-disclosure")
-                .locator("summary")
-                .click();
-              await expect(
-                secondBlockedCard.getByTestId("installation-details"),
-              ).toBeVisible();
-              await expectComparisonGroupsToUseVisibleHeadings([
-                onboardingCard,
-                secondBlockedCard,
-              ]);
-              await attachFullPageScreenshot(
-                page,
-                testInfo,
-                `onboarding--${appearance}--details-multiple.png`,
-              );
-            } else {
-              await expect(
-                onboardingCard.getByTestId("installation-details-disclosure"),
-              ).toHaveCount(0);
-            }
+            await expect(
+              page.getByTestId("installation-details-disclosure"),
+            ).toHaveCount(0);
+            await expect(
+              page.getByText(/review the active job and target/i),
+            ).toHaveCount(0);
 
             await setInstallationControl(request, {
               vault: "reef-e2e",
@@ -610,7 +538,7 @@ test.describe("installation drift and readiness guidance", () => {
             ).toBeVisible();
             await expect(
               page.getByRole("heading", {
-                name: /Workspace availability|워크스페이스 이용 상태/,
+                name: /This workspace needs setup|이 워크스페이스에는 설정이 필요합니다/,
               }),
             ).toBeVisible();
             const accessCard = page.getByTestId(
@@ -625,40 +553,18 @@ test.describe("installation drift and readiness guidance", () => {
               testInfo,
               `access--${appearance}--default.png`,
             );
-            if (canManage) {
-              await accessCard
-                .getByTestId("installation-details-disclosure")
-                .locator("summary")
-                .click();
-              await expect(
-                accessCard.getByTestId("installation-blocked-guidance"),
-              ).toBeVisible();
-              const documentHeight = await page.evaluate(
-                () => document.documentElement.scrollHeight,
-              );
-              expect(documentHeight).toBeGreaterThanOrEqual(viewport.height);
-              await expect(
-                page.getByRole("heading", {
-                  name: /Workspace availability|워크스페이스 이용 상태/,
-                }),
-              ).toBeVisible();
-              const headingBounds = await page
-                .getByRole("heading", {
-                  name: /Workspace availability|워크스페이스 이용 상태/,
-                })
-                .boundingBox();
-              expect(headingBounds?.y).toBeGreaterThanOrEqual(0);
-              expect(headingBounds?.y).toBeLessThan(viewport.height);
-              await attachFullPageScreenshot(
-                page,
-                testInfo,
-                `access--${appearance}--details.png`,
-              );
-            } else {
-              await expect(
-                accessCard.getByTestId("installation-details-disclosure"),
-              ).toHaveCount(0);
-            }
+            await expect(
+              accessCard.getByTestId("installation-details-disclosure"),
+            ).toHaveCount(0);
+            await expect(
+              accessCard.getByTestId("installation-blocked-guidance"),
+            ).toHaveCount(0);
+            const accessHeading = page.getByRole("heading", {
+              name: /This workspace needs setup|이 워크스페이스에는 설정이 필요합니다/,
+            });
+            const headingBounds = await accessHeading.boundingBox();
+            expect(headingBounds?.y).toBeGreaterThanOrEqual(0);
+            expect(headingBounds?.y).toBeLessThan(viewport.height);
           }
         }
       }

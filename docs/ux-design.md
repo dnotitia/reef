@@ -1023,34 +1023,31 @@ or admin to approve its registered AKB app release before initializing tables,
 templates, configuration, and managed instructions. Raw vaults do not count as
 configured workspaces and therefore do not bypass onboarding. An existing
 member can enter an active workspace after Reef initialization is complete.
-Installation guidance leads with the workspace's user-facing state. Readers
-and writers see whether the workspace is ready in everyday language; otherwise
-they are asked to contact a workspace owner or admin, without receiving
-installation reasons or technical actions. Owners and admins see the current
-state first, followed by its effect on use and the next step with its
-responsible person. An active installation with drift remains usable when the
-existing readiness checks pass, and its summary says people can continue while
-the AKB installation operator reviews the reported difference.
+Installation guidance preserves remembered-workspace-first and deterministic
+ASCII auto-resume. It does not add a workspace chooser or confirmation step.
+Onboarding lists only existing workspaces that still need setup; each compact
+row names the workspace, summarizes the next action, and exposes only actions
+allowed to the current role.
 
-The installation status card uses left-aligned body copy in onboarding,
-Settings, and the unavailable-workspace screen; only the access-denied page
-heading stays centered. Each card names its vault in its visible and accessible
-heading so people can match its state and actions to the right workspace.
-Owners and admins can expand release, schema, and grant
-comparisons grouped by meaning. Each group carries its own dimension status,
-and the canonical overall drift judgment appears once beside the details
-heading. Duplicate reason and unknown lists do not repeat those results. The
-last observation time is localized, missing values remain unknown, and matching
-schema drift and installation snapshot fingerprints appear once. Distinct
-canonical fingerprints stay separately labelled. A blocked workspace asks
-people to contact the installation operator; technical details give the
-operator's checks as a short ordered list and distinguish same-release resume
-from registering a new release after a Manifest or Transition Plan change.
-Checking status only refreshes information; it does not repair or resume setup.
-Expanded details can extend and scroll the page without covering the heading or
-cutting off the card. Unknown or unavailable states do not imply an unreported
-cause. Uninstall revokes Reef's grant but keeps the vault data; full vault
-deletion remains a separate owner-only, typed-name confirmation.
+Settings concerns only the selected workspace. A ready workspace shows no
+installation task to readers or writers. Its owner or admin may expand a
+collapsed installation observation; the detailed request starts only after
+the disclosure opens. For an unavailable selected workspace, the first view
+states the impact, next action, and responsible person. Controls show only
+permitted actions, and no other workspace setup cards appear in this section.
+An active installation with drift remains usable when the existing readiness
+checks pass. Unknown observations stay unknown rather than being presented as
+healthy. The detailed comparison shows release, schema, and grant values,
+dimension states, a single overall drift result, and localized observation
+time; matching fingerprints appear once.
+
+The access-denied screen describes only the requested workspace and its next
+permitted action. Other ready Reef workspaces remain plain switch links. It does
+not show installation diagnostics or operator procedures. The status summary
+uses the existing product typography and remains usable at 390px and desktop in
+English and Korean, light and dark themes. Uninstall revokes Reef's grant but
+keeps the vault data; full vault deletion remains a separate owner-only,
+typed-name confirmation.
 Monitored repository access comes from deployment-managed GitHub
 credentials, so onboarding configures a *workspace*, not a Git repo, and no
 issue is committed under anyone's GitHub identity.

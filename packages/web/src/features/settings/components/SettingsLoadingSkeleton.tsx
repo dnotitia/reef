@@ -3,7 +3,7 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
-import { WorkspaceInstallationLoading } from "@/features/onboarding/components/WorkspaceInstallationLoading";
+import { WorkspaceInstallationLoading } from "@/features/workspaceInstallation/components/WorkspaceInstallationLoading";
 import { SettingsGroup } from "./SettingsGroup";
 
 function LoadingSection({

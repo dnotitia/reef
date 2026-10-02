@@ -2,7 +2,16 @@ import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import type { EnrichedVaultSummary } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { mockApiFetch } = vi.hoisted(() => ({ mockApiFetch: vi.fn() }));
+
+vi.mock("@/lib/apiClient", () => ({
+  apiFetch: mockApiFetch,
+  throwHttpError: vi.fn(async (response: Response) => {
+    throw new Error(`HTTP ${response.status}`);
+  }),
+}));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
@@ -53,64 +62,65 @@ function renderDenied(
   );
 }
 
-describe("WorkspaceAccessDenied (REEF-315 AC5)", () => {
-  it("lists only the user's reef workspaces as switch links", () => {
+describe("WorkspaceAccessDenied", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockApiFetch.mockResolvedValue(
+      new Response(JSON.stringify({ vaults: [] }), { status: 200 }),
+    );
+  });
+
+  it("lists only the user's ready Reef workspaces as state-free switch links", () => {
     renderDenied([vault("reef-acme", true), vault("raw", false)]);
 
     const link = screen.getByTestId("access-denied-workspace-reef-acme");
     expect(link).toHaveAttribute("href", "/workspace/reef-acme/issues");
     expect(link.closest("nav")).toHaveClass("bg-surface-subtle");
-    // Non-reef vaults are not offered as switch targets.
-    expect(
-      screen.queryByTestId("access-denied-workspace-raw"),
-    ).not.toBeInTheDocument();
-    // No silent fallback: the onboarding CTA appears when there are no
-    // reef workspaces to switch to.
-    expect(
-      screen.queryByTestId("access-denied-onboarding"),
-    ).not.toBeInTheDocument();
+    expect(link).not.toHaveTextContent(/ready|blocked|setup/i);
+    expect(screen.queryByTestId("access-denied-workspace-raw")).toBeNull();
+    expect(screen.queryByTestId("access-denied-onboarding")).toBeNull();
   });
 
-  it("offers an onboarding path when the user has no reef workspaces", () => {
+  it("offers onboarding when the user has no ready Reef workspace", () => {
     renderDenied([vault("raw", false)]);
 
-    const cta = screen.getByTestId("access-denied-onboarding");
-    expect(cta).toHaveAttribute("href", "/onboarding");
-    expect(
-      screen.queryByTestId("access-denied-workspace-raw"),
-    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("access-denied-onboarding")).toHaveAttribute(
+      "href",
+      "/onboarding",
+    );
+    expect(screen.queryByTestId("access-denied-workspace-raw")).toBeNull();
   });
 
-  it("keeps the authenticated account menu available as a secondary utility", () => {
+  it("keeps the authenticated account menu available", () => {
     renderDenied([vault("reef-acme", true)]);
 
-    expect(
-      screen.getByRole("button", { name: "Account menu" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Account menu" })).toBeVisible();
   });
 
-  it("keeps a reader's blocked Vault guidance minimal and exposes a status recheck", () => {
+  it("summarizes only the requested blocked workspace for a reader", () => {
     renderDenied([vault("reef-acme", true)], "reef-blocked", {
       role: "reader",
       installationStatus: "blocked",
     });
 
+    const status = screen.getByTestId("workspace-installation-reef-blocked");
+    expect(status).toHaveAttribute("data-status", "management_required");
     expect(
-      screen.getByTestId("workspace-installation-reef-blocked"),
-    ).toHaveAttribute("data-status", "management_required");
-    expect(
-      screen.getByRole("heading", { name: "Workspace availability" }),
-    ).toBeInTheDocument();
-    expect(screen.getAllByText(/ask a workspace owner or admin/i)).toHaveLength(
-      1,
+      screen.getByRole("heading", { name: "This workspace needs setup" }),
+    ).toBeVisible();
+    expect(status).toHaveTextContent(
+      "This workspace needs an owner or admin before it can be used.",
     );
-    expect(
-      screen.getByRole("button", { name: "Check status" }),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/AKB has blocked/i)).not.toBeInTheDocument();
+    expect(status).toHaveTextContent(
+      "Ask a workspace owner or admin to check the setup.",
+    );
+    expect(screen.getByRole("button", { name: "Check status" })).toBeVisible();
+    expect(screen.queryByTestId("installation-details-disclosure")).toBeNull();
+    expect(screen.queryByTestId("installation-blocked-guidance")).toBeNull();
+    expect(screen.queryByText(/AKB installation operator/i)).toBeNull();
   });
 
-  it("keeps the access heading centered while the installation card has its own left alignment", () => {
+  it("lets an owner recheck current-target status without showing diagnostics", () => {
     renderDenied([vault("reef-acme", true)], "reef-blocked", {
       role: "owner",
       installationStatus: "blocked",
@@ -119,11 +129,13 @@ describe("WorkspaceAccessDenied (REEF-315 AC5)", () => {
     const surface = screen.getByTestId("workspace-access-denied");
     expect(surface).toHaveClass("min-h-screen", "py-16");
     expect(surface).not.toHaveClass("h-screen");
-    expect(
-      screen.getByTestId("workspace-installation-reef-blocked"),
-    ).toHaveClass("text-left");
-    expect(
-      screen.getByRole("heading", { name: "Workspace availability" }),
-    ).toBeInTheDocument();
+    const status = screen.getByTestId("workspace-installation-reef-blocked");
+    expect(status).toHaveAttribute("data-status", "blocked");
+    expect(status).toHaveTextContent("Impact");
+    expect(status).toHaveTextContent("Next step");
+    expect(status).toHaveTextContent("Who can act");
+    expect(screen.getByRole("button", { name: "Check status" })).toBeVisible();
+    expect(screen.queryByTestId("installation-details-disclosure")).toBeNull();
+    expect(screen.queryByTestId("installation-blocked-guidance")).toBeNull();
   });
 });

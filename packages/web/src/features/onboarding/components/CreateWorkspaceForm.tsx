@@ -31,7 +31,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { type SyntheticEvent, useState } from "react";
 import { z } from "zod";
-import { WorkspaceInstallationActions } from "./WorkspaceInstallationActions";
+import { WorkspaceSetupApproval } from "./WorkspaceSetupApproval";
 
 const CreateVaultResponseSchema = z.object({
   vault_id: z.string().min(1),
@@ -238,10 +238,8 @@ export function CreateWorkspaceForm({
         <p className="text-sm text-muted-foreground">
           {t("installApprovalIntro")}
         </p>
-        <WorkspaceInstallationActions
+        <WorkspaceSetupApproval
           vault={pendingVault.name}
-          initialStatus="not_installed"
-          canManage
           onReady={finishWorkspaceSetup}
         />
       </div>

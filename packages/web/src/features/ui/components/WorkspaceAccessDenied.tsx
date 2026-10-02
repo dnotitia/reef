@@ -2,7 +2,8 @@
 
 import { ReefMark } from "@/components/ui/reef-mark";
 import { AccountMenu } from "@/features/auth/components/AccountMenu";
-import { WorkspaceInstallationActions } from "@/features/onboarding/components/WorkspaceInstallationActions";
+import { InstallationActionControls } from "@/features/workspaceInstallation/components/InstallationActionControls";
+import { useWorkspaceInstallationActions } from "@/features/workspaceInstallation/hooks/useWorkspaceInstallationActions";
 import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
 import type {
@@ -42,24 +43,9 @@ export function WorkspaceAccessDenied({
   const t = useTranslations("workspace.accessDenied");
   const reefVaults = vaults.filter((v) => v.installation_status === "ready");
   const canManage = role === "owner" || role === "admin";
-  const canReadWorkspaceStatus =
-    canManage || role === "writer" || role === "reader";
-  const visibleInstallationStatus = canManage
-    ? installationStatus
-    : canReadWorkspaceStatus
-      ? installationStatus === "ready"
-        ? "ready"
-        : "management_required"
-      : installationStatus;
-  const hasInstallationState = visibleInstallationStatus !== undefined;
-  const showInstallationState = canReadWorkspaceStatus && hasInstallationState;
-  const title = showInstallationState ? t("installationTitle") : t("title");
-  const body = showInstallationState ? null : t("body", { vault });
-  const safeInitialStatus = canManage
-    ? (visibleInstallationStatus ?? "unknown")
-    : visibleInstallationStatus === "ready"
-      ? "ready"
-      : "management_required";
+  const hasInstallationState = installationStatus !== undefined;
+  const title = hasInstallationState ? t("installationTitle") : t("title");
+  const body = hasInstallationState ? null : t("body", { vault });
 
   return (
     <div
@@ -81,11 +67,11 @@ export function WorkspaceAccessDenied({
           {body && <p className="text-sm text-muted-foreground">{body}</p>}
         </div>
 
-        {canReadWorkspaceStatus && (
-          <WorkspaceInstallationActions
-            key={`${vault}:${canManage ? "manager" : "member"}`}
+        {installationStatus !== undefined && (
+          <WorkspaceAvailability
+            key={`${vault}:${installationStatus}:${canManage ? "manager" : "member"}`}
             vault={vault}
-            initialStatus={safeInitialStatus}
+            initialStatus={installationStatus}
             canManage={canManage}
           />
         )}
@@ -125,5 +111,76 @@ export function WorkspaceAccessDenied({
         )}
       </div>
     </div>
+  );
+}
+
+function WorkspaceAvailability({
+  vault,
+  initialStatus,
+  canManage,
+}: {
+  vault: string;
+  initialStatus: WorkspaceInstallationStatus;
+  canManage: boolean;
+}) {
+  const t = useTranslations("workspaceInstallation");
+  const actions = useWorkspaceInstallationActions({
+    vault,
+    initialStatus,
+    canManage,
+  });
+  const visibleStatus =
+    !canManage && actions.status !== "ready"
+      ? "management_required"
+      : actions.status;
+
+  return (
+    <article
+      className="flex w-full flex-col gap-3 rounded-md border border-border-subtle bg-surface-subtle/40 px-4 py-3 text-left"
+      data-testid={`workspace-installation-${vault}`}
+      data-status={visibleStatus}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <h2 className="type-control font-medium text-foreground">{vault}</h2>
+        <span className="type-caption text-muted-foreground">
+          {t(`status.${visibleStatus}`)}
+        </span>
+      </div>
+      <dl className="grid w-full grid-cols-1 gap-y-2 text-sm">
+        <div>
+          <dt className="text-xs text-muted-foreground">{t("label.impact")}</dt>
+          <dd className="mt-0.5 text-muted-foreground">
+            {t(`impact.${visibleStatus}`)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground">
+            {t("label.nextAction")}
+          </dt>
+          <dd className="mt-0.5 text-muted-foreground">
+            {t(`nextAction.${visibleStatus}`)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground">
+            {t("label.responsible")}
+          </dt>
+          <dd className="mt-0.5 text-muted-foreground">
+            {t(`responsible.${visibleStatus}`)}
+          </dd>
+        </div>
+      </dl>
+      <InstallationActionControls
+        vault={vault}
+        status={visibleStatus}
+        canManage={canManage}
+        busy={actions.busy}
+        activity={actions.activity}
+        acknowledgement={actions.acknowledgement}
+        error={actions.error}
+        onRunCommand={(mode) => void actions.runCommand(mode)}
+        onCheckStatus={() => void actions.checkStatus()}
+      />
+    </article>
   );
 }
