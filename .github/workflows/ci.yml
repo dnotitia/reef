@@ -271,6 +271,11 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ steps.pw.outputs.version }}
 
+      # Playwright installs Linux packages through apt. Remove the runner's
+      # preferred Azure HTTP mirror, which stalled during apt update.
+      - name: Use HTTPS Ubuntu archive for Playwright dependencies
+        run: sudo sed -i '/^http:\/\/azure\.archive\.ubuntu\.com\/ubuntu\//d' /etc/apt/apt-mirrors.txt
+
       - name: Install Playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm --filter @reef/web exec playwright install --with-deps chromium

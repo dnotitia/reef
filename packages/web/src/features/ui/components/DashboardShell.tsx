@@ -260,6 +260,16 @@ function subscribeToPlatformStore() {
 const MOBILE_SIDEBAR_MEDIA_QUERY = "(max-width: 767px)";
 const COMMAND_FOCUS_PENDING_ATTRIBUTE = "data-reef-command-focus-pending";
 
+function resolveCommandFocusTarget(
+  target: HTMLElement | null | undefined,
+): HTMLElement | null {
+  if (!target) return null;
+  if (target.matches("[data-reef-editable-markdown]")) {
+    return target.querySelector<HTMLElement>(".reef-markdown-editor") ?? target;
+  }
+  return target;
+}
+
 function subscribeToMobileSidebar(onStoreChange: () => void) {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function")
     return () => {};
@@ -504,6 +514,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
     null,
   );
   const commandDestinationRef = useRef<HTMLElement>(null);
+  const commandDestinationFocusTargetRef = useRef<HTMLElement | null>(null);
   const commandDestinationFocusPendingRef = useRef(false);
   const commandDestinationFocusPathRef = useRef<string | null>(null);
   const commandDestinationFocusLocaleRef = useRef<string | null>(null);
@@ -560,13 +571,26 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
     [requestQuickEdit, selectionActive],
   );
 
-  const focusCommandDestination = useCallback(() => {
-    commandDestinationFocusPendingRef.current = true;
-    commandDestinationFocusPathRef.current = pathname;
-    commandDestinationFocusLocaleRef.current = activeLocale;
-    document.documentElement.setAttribute(COMMAND_FOCUS_PENDING_ATTRIBUTE, "");
-    commandDestinationRef.current?.focus({ preventScroll: true });
-  }, [activeLocale, pathname]);
+  const focusCommandDestination = useCallback(
+    (target?: HTMLElement | null) => {
+      if (target === null) return;
+      commandDestinationFocusPendingRef.current = true;
+      commandDestinationFocusPathRef.current = pathname;
+      commandDestinationFocusLocaleRef.current = activeLocale;
+      commandDestinationFocusTargetRef.current = target ?? null;
+      document.documentElement.setAttribute(
+        COMMAND_FOCUS_PENDING_ATTRIBUTE,
+        "",
+      );
+      const focusTarget = target?.isConnected
+        ? resolveCommandFocusTarget(target)
+        : null;
+      (focusTarget ?? commandDestinationRef.current)?.focus({
+        preventScroll: true,
+      });
+    },
+    [activeLocale, pathname],
+  );
 
   // Radix closes the palette before the App Router finishes a soft navigation.
   // A synchronous focus handoff is therefore vulnerable to the router's route
@@ -597,7 +621,14 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
       commandDestinationFocusPathRef.current = null;
       commandDestinationFocusLocaleRef.current = null;
       document.documentElement.removeAttribute(COMMAND_FOCUS_PENDING_ATTRIBUTE);
-      commandDestinationRef.current?.focus({ preventScroll: true });
+      const target = commandDestinationFocusTargetRef.current;
+      commandDestinationFocusTargetRef.current = null;
+      const focusTarget = target?.isConnected
+        ? resolveCommandFocusTarget(target)
+        : null;
+      (focusTarget ?? commandDestinationRef.current)?.focus({
+        preventScroll: true,
+      });
     });
     return () => window.cancelAnimationFrame(frame);
   }, [activeLocale, pathname]);

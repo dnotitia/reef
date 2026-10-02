@@ -155,22 +155,30 @@ test.describe("Hermetic issue description height resize", () => {
       throw new Error("Description resize handle is not laid out");
     }
     const bodyScroll = await frame.evaluate((frame) => {
+      if (!(frame instanceof HTMLElement)) {
+        throw new Error("Description editor frame is not an HTML element");
+      }
       const editable = frame.querySelector<HTMLElement>(
         '[contenteditable="true"]',
       );
-      const contentSurface = editable?.parentElement;
-      const scrollOwner = [contentSurface, editable, frame].find(
-        (candidate) => {
-          if (!candidate) return false;
-          const { overflow, overflowY } = getComputedStyle(candidate);
-          const canScroll =
-            overflow === "auto" ||
-            overflow === "scroll" ||
-            overflowY === "auto" ||
-            overflowY === "scroll";
-          return canScroll && candidate.scrollHeight > candidate.clientHeight;
-        },
-      );
+      const ancestors: HTMLElement[] = [];
+      for (
+        let candidate = editable?.parentElement ?? null;
+        candidate && candidate !== frame;
+        candidate = candidate.parentElement
+      ) {
+        ancestors.push(candidate);
+      }
+      ancestors.push(frame);
+      const scrollOwner = ancestors.find((candidate) => {
+        const { overflow, overflowY } = getComputedStyle(candidate);
+        const canScroll =
+          overflow === "auto" ||
+          overflow === "scroll" ||
+          overflowY === "auto" ||
+          overflowY === "scroll";
+        return canScroll && candidate.scrollHeight > candidate.clientHeight;
+      });
       if (!scrollOwner) {
         throw new Error("Markdown editor body has no scroll owner");
       }

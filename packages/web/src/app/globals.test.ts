@@ -844,6 +844,9 @@ describe("global focus styles", () => {
     const css = readGlobalCss();
     const surfaceStart = css.indexOf(".reef-markdown-surface {");
     expect(surfaceStart).toBeGreaterThan(-1);
+    expect(css).toContain(
+      '.reef-markdown-editor a[href^="/workspace/"][target="_blank"][rel="noreferrer"],',
+    );
     const surfaceEnd = findCssBlockEnd(css, surfaceStart);
     expect(surfaceEnd).toBeGreaterThan(surfaceStart);
     const surfaceBlock = css.slice(surfaceStart, surfaceEnd);
@@ -902,7 +905,7 @@ describe("global focus styles", () => {
   });
 
   it("keeps bold, italic, strike, and mentions on the foreground hierarchy", () => {
-    const css = readGlobalCss();
+    const css = readGlobalCss().replace(/\s+/g, " ");
     for (const [selector, declarations] of [
       [
         ".reef-markdown-editor strong {",
@@ -928,7 +931,7 @@ describe("global focus styles", () => {
     }
 
     const mentionStart = css.indexOf(
-      ".reef-markdown-editor [data-reef-mention] {",
+      '.reef-markdown-editor [data-markdown-reference="true"][data-markdown-reference-kind="person"][data-markdown-reference-resolution="available"] {',
     );
     expect(mentionStart).toBeGreaterThan(-1);
     const mentionEnd = findCssBlockEnd(css, mentionStart);
@@ -1000,7 +1003,7 @@ describe("global focus styles", () => {
 
   it("contains editor images without enlarging small evidence or leaking globally", () => {
     const css = readGlobalCss();
-    const imageStart = css.indexOf(".reef-markdown-editor > img {");
+    const imageStart = css.indexOf(".reef-markdown-editor img {");
     expect(imageStart).toBeGreaterThan(-1);
     const imageEnd = findCssBlockEnd(css, imageStart);
     const imageBlock = css.slice(imageStart, imageEnd);
@@ -1025,45 +1028,28 @@ describe("global focus styles", () => {
     expect(css).not.toContain("\nimg {");
   });
 
-  it("keeps file-link surface and long-label wrapping scoped to the editor", () => {
+  it("keeps AKB file links compact and scoped to the editor", () => {
     const css = readGlobalCss();
     const fileLinkStart = css.indexOf(
-      '.reef-markdown-editor a[data-reef-file-link="true"] {',
+      '.reef-markdown-editor a[data-markdown-target*="/file/"]::before {',
     );
     expect(fileLinkStart).toBeGreaterThan(-1);
     const fileLinkEnd = findCssBlockEnd(css, fileLinkStart);
     const fileLinkBlock = css.slice(fileLinkStart, fileLinkEnd);
     for (const declaration of [
-      "display: inline-flex;",
-      "align-items: baseline;",
-      "max-width: 100%;",
-      "min-width: 0;",
-      "overflow-wrap: anywhere;",
-      "word-break: break-word;",
-      "white-space: normal;",
-      "background: var(--surface-subtle);",
-      "border: 1px solid var(--border-subtle);",
-      "border-radius: 0.25rem;",
-      "text-decoration: none;",
+      'content: "▱";',
+      "align-self: center;",
+      "color: var(--muted-foreground);",
     ]) {
       expect(fileLinkBlock, declaration).toContain(declaration);
     }
-
-    const typeBadgeStart = css.indexOf(
-      '.reef-markdown-editor\n  a[data-reef-file-link="true"]\n  > [data-reef-file-type]::after {',
-    );
-    expect(typeBadgeStart).toBeGreaterThan(fileLinkEnd);
-    const typeBadgeEnd = findCssBlockEnd(css, typeBadgeStart);
-    expect(css.slice(typeBadgeStart, typeBadgeEnd)).toContain(
-      "content: attr(data-reef-file-type);",
-    );
-    expect(css).not.toContain('\na[data-reef-file-link="true"] {');
+    expect(css).not.toContain("data-reef-file-type");
   });
 
   it("gives issue, document, and file references one compact semantic surface", () => {
-    const css = readGlobalCss();
+    const css = readGlobalCss().replace(/\s+/g, " ");
     const surfaceStart = css.indexOf(
-      ".reef-markdown-editor [data-reference-kind] {",
+      '.reef-markdown-editor [data-markdown-reference="true"][data-markdown-reference-kind="issue"],',
     );
     expect(surfaceStart).toBeGreaterThan(-1);
     const surfaceEnd = findCssBlockEnd(css, surfaceStart);
@@ -1080,18 +1066,18 @@ describe("global focus styles", () => {
       expect(surfaceBlock, declaration).toContain(declaration);
     }
     expect(css).toContain(
-      '.reef-markdown-editor [data-reference-kind="issue"]',
+      '.reef-markdown-editor [data-markdown-reference-kind="issue"] > [data-markdown-reference-token]',
     );
     expect(css).toContain("font-family: var(--font-mono-stack);");
     expect(css).toContain(
-      '.reef-markdown-editor a[data-reference-kind="document"]::before',
+      '.reef-markdown-editor a[data-markdown-target*="/doc/"]::before',
     );
     const documentGlyphStart = css.indexOf(
-      '.reef-markdown-editor a[data-reference-kind="document"]::before',
+      '.reef-markdown-editor a[data-markdown-target*="/doc/"]::before',
     );
     const documentGlyphEnd = findCssBlockEnd(css, documentGlyphStart);
     const fileGlyphStart = css.indexOf(
-      '.reef-markdown-editor a[data-reef-file-link="true"]::before',
+      '.reef-markdown-editor a[data-markdown-target*="/file/"]::before',
     );
     const fileGlyphEnd = findCssBlockEnd(css, fileGlyphStart);
     expect(documentGlyphStart).toBeGreaterThan(-1);
@@ -1112,8 +1098,10 @@ describe("global focus styles", () => {
     expect(css.slice(fileGlyphStart, fileGlyphEnd)).not.toContain(
       'content: "▤";',
     );
-    expect(css).toContain(".reef-markdown-editor [data-reference-glyph],");
-    expect(css).not.toContain("\n[data-reference-kind] {");
+    expect(css).toContain(
+      ".reef-markdown-editor [data-markdown-reference-label] {",
+    );
+    expect(css).not.toContain("\n[data-markdown-reference-kind] {");
   });
 
   it("keeps normal lists dense while preserving the live task-list contract", () => {

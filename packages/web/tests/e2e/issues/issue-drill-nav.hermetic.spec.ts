@@ -38,15 +38,23 @@ interface IssueDrillFrame {
   titleValues: string[];
 }
 
+interface IssueDrillTraceState {
+  clickAt: number | null;
+  clickDefaultPrevented: boolean | null;
+  frames: IssueDrillFrame[];
+}
+
 function startIssueDrillFrameRecorder(destinationId: string) {
   type RecorderWindow = Window & {
-    __reef649RecordFrame?: (frame: IssueDrillFrame) => Promise<void>;
-    __reef649MarkClick?: (
-      time: number,
-      defaultPrevented: boolean,
-    ) => Promise<void>;
+    __reef649IssueDrillTrace?: IssueDrillTraceState;
   };
   const recorderWindow = window as RecorderWindow;
+  const trace: IssueDrillTraceState = {
+    clickAt: null,
+    clickDefaultPrevented: null,
+    frames: [],
+  };
+  recorderWindow.__reef649IssueDrillTrace = trace;
   const documentId = String(performance.timeOrigin);
   const panelIds = new WeakMap<Element, string>();
   let nextPanelId = 1;
@@ -58,10 +66,8 @@ function startIssueDrillFrameRecorder(destinationId: string) {
       if (!(target instanceof Element)) return;
       if (target.closest(`a[data-issue-id="${destinationId}"]`) === null)
         return;
-      void recorderWindow.__reef649MarkClick?.(
-        performance.timeOrigin + performance.now(),
-        event.defaultPrevented,
-      );
+      trace.clickAt ??= performance.timeOrigin + performance.now();
+      trace.clickDefaultPrevented ??= event.defaultPrevented;
     },
     false,
   );
@@ -123,11 +129,10 @@ function startIssueDrillFrameRecorder(destinationId: string) {
         ) ?? [],
       ).map((input) => input.value),
     };
-    const recordFrameOnHost = recorderWindow.__reef649RecordFrame;
-    if (!recordFrameOnHost) return;
-    void recordFrameOnHost(frame).then(() => {
-      requestAnimationFrame(recordFrame);
-    });
+    // Keep frame samples in-page and transfer once after recording. A
+    // Playwright bridge call on every RAF throttles the timeline under load.
+    trace.frames.push(frame);
+    requestAnimationFrame(recordFrame);
   };
 
   requestAnimationFrame(recordFrame);
@@ -745,22 +750,6 @@ test.describe("Direct detail first relationship move", () => {
     artifactPrefix: string,
     waitForDelayedRead: boolean,
   ): Promise<void> {
-    const frames: IssueDrillFrame[] = [];
-    let clickAt: number | null = null;
-    let clickDefaultPrevented: boolean | null = null;
-    await page.exposeFunction(
-      "__reef649RecordFrame",
-      (frame: IssueDrillFrame) => {
-        frames.push(frame);
-      },
-    );
-    await page.exposeFunction(
-      "__reef649MarkClick",
-      (time: number, defaultPrevented: boolean) => {
-        clickAt ??= time;
-        clickDefaultPrevented ??= defaultPrevented;
-      },
-    );
     await page.addInitScript(startIssueDrillFrameRecorder, SHORT_CHILD);
     await page.evaluate(() => {
       sessionStorage.setItem("__reef649_issue_drill_trace", "recording");
@@ -788,8 +777,20 @@ test.describe("Direct detail first relationship move", () => {
       await waitForIssueReadPending(request, SHORT_CHILD);
     }
     await page.waitForTimeout(250);
-    const pendingFrames = frames.filter(
-      (frame) => clickAt !== null && frame.time >= clickAt,
+    const pendingTrace = await page.evaluate(() => {
+      const trace = (
+        window as Window & {
+          __reef649IssueDrillTrace?: IssueDrillTraceState;
+        }
+      ).__reef649IssueDrillTrace;
+      return {
+        clickAt: trace?.clickAt ?? null,
+        frames: trace ? [...trace.frames] : [],
+      };
+    });
+    const pendingFrames = pendingTrace.frames.filter(
+      (frame) =>
+        pendingTrace.clickAt !== null && frame.time >= pendingTrace.clickAt,
     );
     expect(pendingFrames.length).toBeGreaterThan(4);
     expect(
@@ -816,13 +817,6 @@ test.describe("Direct detail first relationship move", () => {
       await waitForIssueReadIdle(request, SHORT_CHILD);
       expect(Date.now() - clickStartedAt).toBeGreaterThan(800);
     }
-    await page.evaluate(
-      () =>
-        new Promise<void>((resolve) =>
-          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-        ),
-    );
-
     const destinationReady = await page.screenshot();
     const readyPath = `${artifactPrefix}-destination-ready.png`;
     await writeFile(testInfo.outputPath(readyPath), destinationReady);
@@ -830,23 +824,27 @@ test.describe("Direct detail first relationship move", () => {
       body: destinationReady,
       contentType: "image/png",
     });
-    await page.evaluate(
-      () =>
-        new Promise<void>((resolve) => {
-          sessionStorage.removeItem("__reef649_issue_drill_trace");
-          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-        }),
-    );
+    const browserTrace = await page.evaluate(async () => {
+      sessionStorage.removeItem("__reef649_issue_drill_trace");
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      );
+      const trace = (
+        window as Window & {
+          __reef649IssueDrillTrace?: IssueDrillTraceState;
+        }
+      ).__reef649IssueDrillTrace;
+      return {
+        viewport: { width: innerWidth, height: innerHeight },
+        clickAt: trace?.clickAt ?? null,
+        clickDefaultPrevented: trace?.clickDefaultPrevented ?? null,
+        readyAt: performance.timeOrigin + performance.now(),
+        frames: trace ? [...trace.frames] : [],
+      };
+    });
     const trace = {
-      viewport: await page.evaluate(() => ({
-        width: innerWidth,
-        height: innerHeight,
-      })),
-      clickAt,
-      clickDefaultPrevented,
+      ...browserTrace,
       elapsedMs: Date.now() - clickStartedAt,
-      readyAt: Date.now(),
-      frames,
     };
     const traceJson = JSON.stringify(trace, null, 2);
     const tracePath = `${artifactPrefix}-transition-frames.json`;

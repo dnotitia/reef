@@ -7,13 +7,14 @@ import { useArchiveIssue } from "@/features/issues/hooks/mutations/useArchiveIss
 import { useDeleteIssue } from "@/features/issues/hooks/mutations/useDeleteIssue";
 import { useUpdateIssue } from "@/features/issues/hooks/mutations/useUpdateIssue";
 import { useUploadIssueAttachment } from "@/features/issues/hooks/mutations/useUploadIssueAttachment";
+import { resolveIssueAttachmentUrl } from "@/features/issues/lib/attachmentUrls";
 import {
   type IssueDetailResponse,
   useIssue,
 } from "@/features/issues/hooks/queries/useIssue";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
-import { resolveIssueAttachmentUrl } from "@/features/issues/lib/attachmentUrls";
+import { useAkbWebUrl } from "@/providers/AkbWebUrlProvider";
 import {
   createIssueMarkdownTargetResolver,
   uploadIssueMarkdownFiles,
@@ -174,22 +175,21 @@ function IssueDetailLoaded({
   const handledConflictRef = useRef(conflictCount);
   const issue = data.issue;
   const isArchived = issue.archived_at != null;
+  const akbWebBase = useAkbWebUrl();
   const markdownAdapters = useMemo(
     () => ({
-      targetResolver: createIssueMarkdownTargetResolver({ issueId, vault }),
+      targetResolver: createIssueMarkdownTargetResolver({
+        issueId,
+        vault,
+        akbWebBase,
+      }),
     }),
-    [issueId, vault],
+    [akbWebBase, issueId, vault],
   );
   const resolveBodyImageSrc = useMemo(
     () => (url: string) => resolveIssueAttachmentUrl({ issueId, vault, url }),
     [issueId, vault],
   );
-  const resolveBodyAttachmentHref = useMemo(
-    () => (url: string) =>
-      resolveIssueAttachmentUrl({ issueId, vault, url, key: "href" }),
-    [issueId, vault],
-  );
-
   // "Ask AI about this issue" grounds the chat on this issue (REEF-360 AC3).
   // Grounding is set by this explicit affordance — not silently from the
   // sheet being open — so the context chip reflects a deliberate choice.
@@ -424,7 +424,6 @@ function IssueDetailLoaded({
           onUploadBodyFiles={handleBodyUploadFiles}
           markdownAdapters={markdownAdapters}
           resolveBodyImageSrc={resolveBodyImageSrc}
-          resolveBodyAttachmentHref={resolveBodyAttachmentHref}
           commitTitle={commitTitle}
           commitBody={commitBody}
           commit={commit}
