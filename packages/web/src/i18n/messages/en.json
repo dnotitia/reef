@@ -1713,6 +1713,8 @@
   },
   "markdownEditor": {
     "attachFile": "Attach file",
+    "linkSearchInputLabel": "Search Vault resources",
+    "linkSearchInputPlaceholder": "Find a document or file",
     "source": "Source",
     "toggleSourceMode": "Toggle source mode",
     "uploading": "Uploading attachment…",

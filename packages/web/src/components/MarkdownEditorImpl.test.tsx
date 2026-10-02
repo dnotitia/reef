@@ -14,6 +14,7 @@ import {
 import type { ComponentProps, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
+import { markdownResourceSearchAdapter } from "@/lib/akb/markdownResourceSearch";
 import { MarkdownEditor } from "./MarkdownEditorImpl";
 import {
   EDITOR_BODY_DEFAULT_HEIGHT,
@@ -44,6 +45,7 @@ const markdownMocks = vi.hoisted(() => ({
   targetResolutions: new Map<string, unknown>(),
   referenceResolutions: new Map<string, unknown>(),
   surfaceProps: null as Record<string, unknown> | null,
+  toolbarLink: null as Record<string, unknown> | null,
   surfaceLink: null as {
     href: string;
     text: string;
@@ -88,40 +90,45 @@ vi.mock("@akb/markdown-editor/react", async (importOriginal) => {
       editor,
       children,
       className,
+      link,
     }: {
       editor: object | null;
       children?: ReactNode;
       className?: string;
-    }) => (
-      <div data-testid="shared-toolbar" className={className}>
-        {[
-          "Bold",
-          "Italic",
-          "Strikethrough",
-          "Inline Code",
-          "Heading 1",
-          "Heading 2",
-          "Heading 3",
-          "Bullet list",
-          "Numbered List",
-          "Quote",
-          "Code Block",
-          "Divider",
-          "Link",
-        ].map((label) => (
-          <button
-            key={label}
-            type="button"
-            title={label}
-            disabled={!editor}
-            onClick={() => markdownMocks.commands.focus()}
-          >
-            {label}
-          </button>
-        ))}
-        {children}
-      </div>
-    ),
+      link?: Record<string, unknown>;
+    }) => {
+      markdownMocks.toolbarLink = link ?? null;
+      return (
+        <div data-testid="shared-toolbar" className={className}>
+          {[
+            "Bold",
+            "Italic",
+            "Strikethrough",
+            "Inline Code",
+            "Heading 1",
+            "Heading 2",
+            "Heading 3",
+            "Bullet list",
+            "Numbered List",
+            "Quote",
+            "Code Block",
+            "Divider",
+            "Link",
+          ].map((label) => (
+            <button
+              key={label}
+              type="button"
+              title={label}
+              disabled={!editor}
+              onClick={() => markdownMocks.commands.focus()}
+            >
+              {label}
+            </button>
+          ))}
+          {children}
+        </div>
+      );
+    },
     MarkdownToolbarGroup: ({
       label,
       children,
@@ -265,6 +272,7 @@ describe("MarkdownEditor product adapter", () => {
     markdownMocks.commands.insertImage.mockImplementation(() => true);
     markdownMocks.editorOptions = null;
     markdownMocks.surfaceProps = null;
+    markdownMocks.toolbarLink = null;
     markdownMocks.surfaceLink = null;
     markdownMocks.targetResolutions = new Map();
     markdownMocks.referenceResolutions = new Map();
@@ -285,6 +293,22 @@ describe("MarkdownEditor product adapter", () => {
     expect(content.className).toContain(EDITOR_CONTENT_CLASS);
     expect(content.className).toContain(MARKDOWN_SURFACE_CLASS);
     expect(content).toHaveAttribute("contenteditable", "true");
+  });
+
+  it("connects the shared link search to the active vault with localized labels", () => {
+    renderEditor(
+      { value: "# Body", onChange: vi.fn(), vault: "reef-test" },
+      "ko",
+    );
+
+    expect(markdownMocks.toolbarLink).toMatchObject({
+      searchAdapter: markdownResourceSearchAdapter,
+      searchContext: { vault: "reef-test" },
+      searchLabels: {
+        inputLabel: "볼트 자료 검색",
+        inputPlaceholder: "문서 또는 파일 찾기",
+      },
+    });
   });
 
   it("keeps the shared semantic surface in read-only mode and hides editing controls", () => {

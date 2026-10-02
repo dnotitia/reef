@@ -22,7 +22,7 @@ import type {
   AkbDocumentAssetUploadResponse,
 } from "@reef/core";
 import type { AttachmentUploadResult } from "../hooks/mutations/useUploadIssueAttachment";
-import { isAkbFileUri, resolveIssueAttachmentUrl } from "./attachmentUrls";
+import { akbFileResourceHref, isAkbFileUri } from "./attachmentUrls";
 
 const IMAGE_MIME_TYPES = new Set([
   "image/gif",
@@ -45,8 +45,7 @@ export interface IssueMarkdownUploadAdapterOptions {
   uploadLegacyAttachment: (file: File) => Promise<AttachmentUploadResult>;
 }
 
-export interface IssueMarkdownTargetResolverOptions {
-  issueId: string;
+export interface MarkdownTargetResolverOptions {
   vault: string;
   akbWebBase?: string | null;
 }
@@ -209,7 +208,7 @@ function akbVault(target: string): string | undefined {
 }
 
 function resolverVault(
-  options: IssueMarkdownTargetResolverOptions,
+  options: MarkdownTargetResolverOptions,
   context: MarkdownTargetResolverContext,
 ): string | undefined {
   return context.vault ?? options.vault;
@@ -218,7 +217,7 @@ function resolverVault(
 async function resolveAssetTarget(
   target: string,
   assetId: string,
-  options: IssueMarkdownTargetResolverOptions,
+  options: MarkdownTargetResolverOptions,
   context: MarkdownTargetResolverContext,
 ): Promise<MarkdownTargetResolution> {
   const vault = resolverVault(options, context);
@@ -253,8 +252,8 @@ async function resolveAssetTarget(
   };
 }
 
-export function createIssueMarkdownTargetResolver(
-  options: IssueMarkdownTargetResolverOptions,
+export function createMarkdownTargetResolver(
+  options: MarkdownTargetResolverOptions,
 ): MarkdownTargetResolver {
   return {
     async resolve(target, context = {}) {
@@ -286,11 +285,10 @@ export function createIssueMarkdownTargetResolver(
           target,
           kind: "file",
           status: "available",
-          runtimeUrl: resolveIssueAttachmentUrl({
-            issueId: options.issueId,
+          runtimeUrl: akbFileResourceHref({
             vault: vault ?? options.vault,
-            url: target,
-            key: "href",
+            fileUri: target,
+            download: true,
           }),
         };
       }

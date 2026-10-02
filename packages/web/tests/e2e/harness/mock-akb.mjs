@@ -24,10 +24,12 @@ import {
 } from "./mock-sql.mjs";
 import {
   attachmentReadKey,
+  beginMarkdownLinkSearchRequest,
   beginAttachmentReadRequest,
   beginAuthProbeHold,
   endAuthProbeHold,
   endAttachmentReadRequest,
+  endMarkdownLinkSearchRequest,
   beginIssueReadRequest,
   endIssueReadRequest,
   beginIssueUpdateRequest,
@@ -36,6 +38,7 @@ import {
   endIssueListRequest,
   endIssueUpdateRequest,
   issueUpdateKey,
+  markdownLinkSearchKey,
   nextCommit,
   rememberSqlCall,
   roleForVault,
@@ -851,30 +854,52 @@ export async function handleAkb(req, res, url, state) {
   if (path === "/api/v1/search" && req.method === "GET") {
     const vault = vaultFor(url.searchParams.get("vault") ?? REEF_VAULT);
     if (!vault) return;
-    const isIssueContentSearch =
-      url.searchParams.get("collection") === "issues" &&
-      url.searchParams.get("type") === "task";
-    if (isIssueContentSearch && state.contentSearchDelayMs > 0) {
-      await sleep(state.contentSearchDelayMs);
-    } else if (isToolLoopSearch(url)) {
-      await sleep(350);
+    const query = (url.searchParams.get("q") ?? "").trim();
+    const linkSearchKey = markdownLinkSearchKey(vault.name, query);
+    const linkSearchControl =
+      state.scenario === "markdown_fixture"
+        ? state.markdownLinkSearchControls.get(linkSearchKey)
+        : undefined;
+    if (state.scenario === "markdown_fixture") {
+      beginMarkdownLinkSearchRequest(state, linkSearchKey);
     }
-    if (isIssueContentSearch && state.contentSearchMode === "error") {
-      return json(res, 503, { detail: "e2e forced hybrid search failure" });
+    try {
+      if (linkSearchControl?.delayMs) await sleep(linkSearchControl.delayMs);
+      if (linkSearchControl?.failureStatus) {
+        return json(res, linkSearchControl.failureStatus, {
+          detail: "e2e forced Markdown link search failure",
+        });
+      }
+      const isIssueContentSearch =
+        url.searchParams.get("collection") === "issues" &&
+        url.searchParams.get("type") === "task";
+      if (isIssueContentSearch && state.contentSearchDelayMs > 0) {
+        await sleep(state.contentSearchDelayMs);
+      } else if (isToolLoopSearch(url)) {
+        await sleep(350);
+      }
+      if (isIssueContentSearch && state.contentSearchMode === "error") {
+        return json(res, 503, { detail: "e2e forced hybrid search failure" });
+      }
+      const search = searchVaultResources(vault, url);
+      return json(res, 200, {
+        kind: "search",
+        returned: search.results.length,
+        total_matches: search.totalMatches,
+        truncated: search.totalMatches > search.results.length,
+        degraded:
+          isIssueContentSearch && state.contentSearchMode === "degraded",
+        degradation_reason:
+          isIssueContentSearch && state.contentSearchMode === "degraded"
+            ? "e2e_forced"
+            : null,
+        results: search.results,
+      });
+    } finally {
+      if (state.scenario === "markdown_fixture") {
+        endMarkdownLinkSearchRequest(state, linkSearchKey);
+      }
     }
-    const search = searchVaultDocuments(vault, url);
-    return json(res, 200, {
-      kind: "search",
-      returned: search.results.length,
-      total_matches: search.totalMatches,
-      truncated: search.totalMatches > search.results.length,
-      degraded: isIssueContentSearch && state.contentSearchMode === "degraded",
-      degradation_reason:
-        isIssueContentSearch && state.contentSearchMode === "degraded"
-          ? "e2e_forced"
-          : null,
-      results: search.results,
-    });
   }
 
   return json(res, 404, { error: `unhandled akb mock route: ${path}` });
@@ -961,38 +986,82 @@ function consumeWorkspaceInitializationFailure(state, operation) {
   return true;
 }
 
-function searchVaultDocuments(vault, url) {
+function searchVaultResources(vault, url) {
   const collection = url.searchParams.get("collection");
   const type = url.searchParams.get("type");
   const query = (url.searchParams.get("q") ?? "").trim().toLowerCase();
   const limit = Math.max(1, Number(url.searchParams.get("limit") ?? 10));
 
-  const matches = [...vault.documents.values()]
+  const documents = [...vault.documents.values()]
     .filter((doc) => {
       if (collection && !doc.path.startsWith(`${collection}/`)) return false;
       if (type && doc.type !== type) return false;
       return true;
     })
     .map((doc) => ({
-      doc,
+      hit: {
+        uri: doc.uri,
+        vault: vault.name,
+        title: doc.title ?? null,
+        summary: doc.summary ?? null,
+        matched_section: doc.content?.slice(0, 320) ?? doc.summary ?? null,
+        source_type: "document",
+        collection: doc.path.split("/").at(0) ?? null,
+        doc_type: doc.type ?? null,
+        tags: doc.tags ?? [],
+      },
       score: searchScore(doc, query),
-    }))
+    }));
+  const files = type
+    ? []
+    : [...(vault.files?.values() ?? [])]
+        .filter((file) => file.confirmed)
+        .filter((file) => {
+          if (!collection) return true;
+          const fileCollection = file.uri.match(
+            /^akb:\/\/[^/]+\/(?:coll\/)?(.+)\/file\/[^/]+$/u,
+          )?.[1];
+          return fileCollection === collection;
+        })
+        .map((file) => ({
+          hit: {
+            uri: file.uri,
+            vault: vault.name,
+            title: file.filename,
+            summary: file.mimeType,
+            matched_section: null,
+            source_type: "file",
+            collection:
+              file.uri.match(
+                /^akb:\/\/[^/]+\/(?:coll\/)?(.+)\/file\/[^/]+$/u,
+              )?.[1] ?? null,
+            doc_type: null,
+            tags: [],
+          },
+          score: searchScore(
+            {
+              path: file.uri,
+              title: file.filename,
+              summary: file.mimeType,
+              content: "",
+              tags: [],
+            },
+            query,
+          ),
+        }));
+  const matches = [...documents, ...files]
     .filter(({ score }) => query.length === 0 || score > 0)
-    .sort((a, b) => b.score - a.score || a.doc.path.localeCompare(b.doc.path));
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        a.hit.source_type.localeCompare(b.hit.source_type) ||
+        a.hit.uri.localeCompare(b.hit.uri),
+    );
   return {
     totalMatches: matches.length,
-    results: matches.slice(0, limit).map(({ doc, score }) => ({
-      uri: doc.uri,
-      vault: vault.name,
-      title: doc.title ?? null,
-      summary: doc.summary ?? null,
-      score,
-      matched_section: doc.content?.slice(0, 320) ?? doc.summary ?? null,
-      source_type: "document",
-      collection: doc.path.split("/").at(0) ?? null,
-      doc_type: doc.type ?? null,
-      tags: doc.tags ?? [],
-    })),
+    results: matches
+      .slice(0, limit)
+      .map(({ hit, score }) => ({ ...hit, score })),
   };
 }
 

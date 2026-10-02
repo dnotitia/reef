@@ -36,6 +36,7 @@ import {
   normalizeAkbDocumentMarkdownLinks,
 } from "@/lib/akb/markdownDocumentLinks";
 import { resolveAkbDocumentTitles } from "@/lib/akb/documentTitleResolver";
+import { markdownResourceSearchAdapter } from "@/lib/akb/markdownResourceSearch";
 import { cn } from "@/lib/utils";
 import { formatMentionToken } from "@reef/core";
 import { useLocale, useTranslations } from "next-intl";
@@ -653,6 +654,8 @@ function MarkdownEditorContent({
       source: t("source"),
       toggleSourceMode: t("toggleSourceMode"),
       attachFile: t("attachFile"),
+      linkSearchInputLabel: t("linkSearchInputLabel"),
+      linkSearchInputPlaceholder: t("linkSearchInputPlaceholder"),
       resizeHandle: t("resizeHandle"),
       resizeHandleDescription: (values: {
         current: string;
@@ -690,7 +693,17 @@ function MarkdownEditorContent({
             <MarkdownToolbar
               editor={sourceMode ? null : editor}
               className="reef-markdown-toolbar min-w-0 flex-1 bg-transparent px-0 py-0"
-              link={{ normalizeUrl }}
+              link={{
+                normalizeUrl,
+                searchAdapter: vault
+                  ? markdownResourceSearchAdapter
+                  : undefined,
+                searchContext: vault ? { vault } : undefined,
+                searchLabels: {
+                  inputLabel: toolbarLabels.linkSearchInputLabel,
+                  inputPlaceholder: toolbarLabels.linkSearchInputPlaceholder,
+                },
+              }}
             >
               {onUploadFiles ? (
                 <MarkdownToolbarGroup label={toolbarLabels.attachFile}>

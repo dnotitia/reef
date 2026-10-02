@@ -13,6 +13,11 @@
 :root {
   color-scheme: light;
 
+  /* Shared editor dialogs can open from inside Radix dialogs and sheets.
+   * Keep their overlay above the host surface and their content above it. */
+  --z-overlay: 60;
+  --z-modal: 70;
+
   /* base surfaces — page, subtle, elevated, card, and popover are
    * intentionally distinct so adjacent containers remain legible in both
    * themes. */

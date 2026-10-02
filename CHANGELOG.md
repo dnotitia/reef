@@ -14,6 +14,9 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Markdown link insertion searches documents and files in the active vault.**
+  Selected resources persist as canonical AKB links while their display text
+  stays in Markdown. (REEF-629)
 - **AKB owns every Reef table schema.** Workspace readiness now verifies the
   canonical installation, required table metadata, and Reef data initialization
   through a read-only Core check. Normal product and agent requests no longer

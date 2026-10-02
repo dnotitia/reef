@@ -11,6 +11,9 @@ import {
   openExistingWorkspace,
   readFixtureState,
   resetFixture,
+  setMarkdownLinkSearchControl,
+  waitForMarkdownLinkSearchIdle,
+  waitForMarkdownLinkSearchPending,
   writeIndexedDbConfig,
 } from "../harness/fixture";
 
@@ -677,6 +680,192 @@ test.describe("Hermetic Markdown editor fixture", () => {
     expect(focusIntersection).toMatchSnapshot(
       "markdown-focused-toolbar-intersection.png",
     );
+  });
+
+  test("searches permitted documents and files and applies canonical Markdown links", async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(90_000);
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    const editorRoot = page.getByTestId("markdown-editor");
+    const editor = page.locator(".reef-markdown-editor");
+    const toolbar = editorRoot.getByTestId("markdown-toolbar");
+    const openLinkPopup = () =>
+      toolbar.getByRole("group", { name: "Insert" }).getByRole("button").last();
+    const sourceToggle = page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button");
+
+    const applySearchResult = async (
+      paragraphIndex: number,
+      query: string,
+      optionName: string,
+      targetUri: string,
+      expectedText: string,
+    ) => {
+      const paragraph = editor.locator("p").nth(paragraphIndex);
+      await paragraph.click();
+      await openLinkPopup().click();
+      const popup = page.locator("[data-markdown-link-popup]");
+      await expect(popup).toBeVisible();
+      const search = popup.getByRole("combobox", {
+        name: "Search Vault resources",
+      });
+      const resultsResponse = page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return (
+          url.pathname === "/api/documents/search" &&
+          url.searchParams.get("q") === query
+        );
+      });
+      await search.click();
+      await expect(search).toBeFocused();
+      await page.keyboard.type(query);
+      await expect(search).toHaveValue(query);
+      const response = await resultsResponse;
+      expect(response.status()).toBe(200);
+      const payload = (await response.json()) as {
+        results: Array<{ uri: string }>;
+      };
+      expect(payload.results).toEqual(
+        expect.arrayContaining([expect.objectContaining({ uri: targetUri })]),
+      );
+      const option = popup.getByRole("option", { name: optionName });
+      await expect(option).toBeVisible();
+      await option.click();
+      await expect(popup.getByLabel("URL")).toHaveValue(targetUri);
+      await expect(popup.getByLabel("Text")).toHaveValue(expectedText);
+      await popup.getByRole("button", { name: "Insert link" }).click();
+      await expect(popup).not.toBeVisible();
+      return expectedText;
+    };
+
+    const documentUri = "akb://reef-e2e/coll/docs/doc/alpha-reference.md";
+    const previousDocumentUri = "akb://reef-e2e/coll/docs/doc/spec-overview.md";
+    const fileLinkText = await applySearchResult(
+      0,
+      "incident",
+      "incident.log (File)",
+      MARKDOWN_FIXTURE_FILE_URI,
+      "incident.log",
+    );
+    const documentLinkText = await applySearchResult(
+      1,
+      "Alpha reference",
+      "Alpha reference (Document)",
+      documentUri,
+      "Alpha reference",
+    );
+    await expect(
+      editor.locator('a[data-markdown-target*="/file/"]').first(),
+    ).toHaveAttribute("href", /^\/api\/files\?/);
+
+    const lastParagraph = editor.locator("p").last();
+    await lastParagraph.click();
+    await openLinkPopup().click();
+    const pendingPopup = page.locator("[data-markdown-link-popup]");
+    const pendingSearch = pendingPopup.getByRole("combobox", {
+      name: "Search Vault resources",
+    });
+    await setMarkdownLinkSearchControl(request, {
+      query: "incident",
+      delayMs: 500,
+    });
+    await pendingSearch.fill("incident");
+    await waitForMarkdownLinkSearchPending(request, "incident");
+    await pendingPopup.getByRole("button", { name: "Cancel" }).click();
+    await expect(pendingPopup).not.toBeVisible();
+    await expect(editor).toBeFocused();
+    await waitForMarkdownLinkSearchIdle(request, "incident");
+
+    await setMarkdownLinkSearchControl(request, {
+      query: "missing resource",
+      failureStatus: 503,
+    });
+    await openLinkPopup().click();
+    const errorPopup = page.locator("[data-markdown-link-popup]");
+    await errorPopup
+      .getByRole("combobox", { name: "Search Vault resources" })
+      .fill("missing resource");
+    await expect(errorPopup.getByRole("alert")).toHaveText(
+      "Unable to search resources. Check your access and try again.",
+    );
+    await errorPopup.getByRole("button", { name: "Cancel" }).click();
+    await setMarkdownLinkSearchControl(request, {
+      query: "missing resource",
+    });
+
+    await sourceToggle.click();
+    const source = page.getByTestId("markdown-source-textarea");
+    const appliedMarkdown = await source.inputValue();
+    expect(appliedMarkdown).toContain(
+      `[${fileLinkText}](${MARKDOWN_FIXTURE_FILE_URI})`,
+    );
+    expect(appliedMarkdown).toContain(`[${documentLinkText}](${documentUri})`);
+    expect(appliedMarkdown).not.toContain("/api/assets/");
+    expect(appliedMarkdown).not.toContain("signed");
+    await sourceToggle.click();
+
+    const toolbarUndo = toolbar.getByRole("button", { name: "Undo" });
+    const toolbarRedo = toolbar.getByRole("button", { name: "Redo" });
+    await expect(toolbarUndo).toBeEnabled();
+    await toolbarUndo.click();
+    await sourceToggle.click();
+    expect(await source.inputValue()).not.toContain(documentUri);
+    expect(await source.inputValue()).toContain(previousDocumentUri);
+    await sourceToggle.click();
+    await expect(toolbarRedo).toBeEnabled();
+    await toolbarRedo.click();
+    await sourceToggle.click();
+    const finalMarkdown = await source.inputValue();
+    expect(finalMarkdown).toContain(
+      `[${fileLinkText}](${MARKDOWN_FIXTURE_FILE_URI})`,
+    );
+    expect(finalMarkdown).toContain(`[${documentLinkText}](${documentUri})`);
+
+    const saveResponse = page.waitForResponse((response) => {
+      const request = response.request();
+      if (
+        new URL(response.url()).pathname !== "/api/issues/REEF-001" ||
+        request.method() !== "PATCH"
+      ) {
+        return false;
+      }
+      const body = request.postDataJSON() as {
+        update?: { content?: unknown };
+      };
+      return body.update?.content === finalMarkdown;
+    });
+    await page.getByTestId("issue-title-input").click();
+    const saved = await saveResponse;
+    expect(saved.ok(), `save failed with ${saved.status()}`).toBeTruthy();
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        return state.vaults
+          .find((vault) => vault.name === REEF_E2E_VAULT)
+          ?.documents.find((document) => document.path === "issues/reef-001.md")
+          ?.content;
+      })
+      .toBe(finalMarkdown);
+
+    await page.reload();
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await sourceToggle.click();
+    const reopenedSource = page.getByTestId("markdown-source-textarea");
+    await expect(reopenedSource).toHaveValue(finalMarkdown);
+    expect(await reopenedSource.inputValue()).toContain(
+      MARKDOWN_FIXTURE_FILE_URI,
+    );
+    expect(await reopenedSource.inputValue()).toContain(documentUri);
+    await setMarkdownLinkSearchControl(request, {
+      query: "incident",
+    });
   });
 
   test("renders the discovered fixture through theme and Source round trips", async ({
