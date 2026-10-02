@@ -1355,16 +1355,19 @@ function largeVault(name) {
     const updatedAt = new Date(
       Date.UTC(2026, 0, 1 + ((index * 37) % total)),
     ).toISOString();
+    const title = isSparseMatch
+      ? "Sparse residual match"
+      : index === 4 || index === 600 || index === 1_200
+        ? `${titlePrefixes[index % titlePrefixes.length]} ${String(index + 1).padStart(4, "0")} — ${"variable-height Board sample title segment ".repeat(6)}`
+        : index < 2
+          ? "! Symbol duplicate"
+          : index < 4
+            ? "힣 duplicate"
+            : `${titlePrefixes[index % titlePrefixes.length]} ${String(index + 1).padStart(4, "0")}`;
     issues.push(
       issueRow({
         id,
-        title: isSparseMatch
-          ? "Sparse residual match"
-          : index < 2
-            ? "! Symbol duplicate"
-            : index < 4
-              ? "힣 duplicate"
-              : `${titlePrefixes[index % titlePrefixes.length]} ${String(index + 1).padStart(4, "0")}`,
+        title,
         status: "todo",
         priority,
         start_date: fixtureDate,

@@ -87,23 +87,25 @@ describe("KanbanColumn memo (REEF-097)", () => {
   it("does not re-render an unchanged column when the parent re-renders", () => {
     const issues = [makeIssue("reef-001")];
     render(<Harness issues={issues} />);
-    expect(probe.statusIconRenders).toBe(1);
+    const initialRenders = probe.statusIconRenders;
+    expect(initialRenders).toBeGreaterThanOrEqual(1);
 
     fireEvent.click(screen.getByTestId("force"));
     fireEvent.click(screen.getByTestId("force"));
 
-    // status / issues / blockedIds / onIssueClick refs are all unchanged, so
-    // memo skips the column on each parent re-render.
-    expect(probe.statusIconRenders).toBe(1);
+    // Virtualizer setup may render its initial range once; unchanged props then
+    // let memo skip the column on parent re-renders.
+    expect(probe.statusIconRenders).toBe(initialRenders);
   });
 
   it("re-renders the column only when its issue list actually changes", () => {
     const { rerender } = render(<Harness issues={[makeIssue("reef-001")]} />);
-    expect(probe.statusIconRenders).toBe(1);
+    const initialRenders = probe.statusIconRenders;
+    expect(initialRenders).toBeGreaterThanOrEqual(1);
 
     rerender(
       <Harness issues={[makeIssue("reef-001"), makeIssue("reef-002")]} />,
     );
-    expect(probe.statusIconRenders).toBe(2);
+    expect(probe.statusIconRenders).toBeGreaterThan(initialRenders);
   });
 });

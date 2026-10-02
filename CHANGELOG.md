@@ -27,6 +27,8 @@ explicitly in the entries below.
 - Reports now receive validated server-computed aggregates, flow metrics, health
   rollups, pivots, and forecasts in one workspace-scoped response instead of
   loading issue and activity rows into the browser. (REEF-617)
+- Board columns now virtualize card rendering for large groups while preserving
+  complete issue counts and keyboard traversal. (REEF-616)
 - **Workspace setup follows AKB's app installation lifecycle.** Owners and
   admins explicitly approve install, restore, or fresh-install commands;
   ordinary members receive only the canonical active status. Uninstall retains
@@ -34,6 +36,17 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Pointer drags on large Board columns keep the card under the pointer as the
+  target through auto-scroll.** If hit testing finds only the dragged card,
+  Board follows dnd-kit's valid target instead of rejecting the drop as a
+  self-drop. Reorders also no longer fall through to the column tail when
+  collision data lags. (REEF-616)
+- **Board navigation restores the focused issue occurrence and its column position.**
+  When an already-focused card matches its saved position, restoration skips
+  the intermediate scroll. The in-memory anchor is scoped to the signed-in
+  account and workspace, so a matching issue id in another vault does not
+  inherit the previous view.
+  (REEF-616)
 - **Markdown link search stays opaque and readable in both themes.** Reef maps
   the shared editor's surface, muted, selected, and destructive color roles so
   the dialog, inputs, and result list remain legible. (REEF-629)

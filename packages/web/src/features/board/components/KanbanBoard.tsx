@@ -53,6 +53,7 @@ import type { IssueGroupBy } from "@/features/issues/lib/groupBy";
 import type { IssueScope } from "@/features/issues/lib/viewMode";
 import { useFlashStore } from "@/features/issues/stores/useFlashStore";
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
+import type { BoardViewportAnchor } from "@/features/issues/stores/useIssueKeyboardStore";
 import {
   IssueReorderAnnouncement,
   type IssueReorderSurfaceState,
@@ -74,6 +75,7 @@ import {
   type DropAnimation,
   PointerSensor,
   KeyboardSensor,
+  closestCenter,
   defaultDropAnimationSideEffects,
   pointerWithin,
   useSensor,
@@ -141,7 +143,12 @@ function prefersReducedMotion(): boolean {
 }
 
 const boardCollisionDetection: CollisionDetection = (args) => {
-  const collisions = pointerWithin(args);
+  // Pointer-based collision requires pointer coordinates, which keyboard
+  // drags do not provide. Use the translated active rect to resolve the
+  // nearest mounted card while the virtualizer scrolls the keyboard target.
+  const collisions = args.pointerCoordinates
+    ? pointerWithin(args)
+    : closestCenter(args);
   const issueCollision = collisions.find((collision) => {
     const data = collision.data?.droppableContainer.data.current as
       | { issue?: unknown }
@@ -153,6 +160,7 @@ const boardCollisionDetection: CollisionDetection = (args) => {
 
 interface KanbanBoardProps {
   vault: string;
+  continuityKey?: string | null;
   scope?: IssueScope;
   groupBy?: IssueGroupBy;
   fixedSprintId?: string;
@@ -166,6 +174,7 @@ interface KanbanBoardProps {
  */
 export function KanbanBoard({
   vault,
+  continuityKey = null,
   scope = "active",
   groupBy,
   fixedSprintId,
@@ -204,6 +213,9 @@ export function KanbanBoard({
     }
     return buildIssueQuery(filter, searchQuery, scope, fixedSprintId);
   }, [filter, fixedSprintId, manualOrder, scope, searchQuery]);
+  // The Board keeps the complete issue projection for group counts, keyboard
+  // traversal, and canonical Manual-order anchors. Bound card DOM here; defer
+  // cursor loading until those contracts can be represented incrementally.
   // isPending (not isLoading) — see useActiveVault for the rationale.
   const {
     data: issues,
@@ -233,6 +245,9 @@ export function KanbanBoard({
   const openIssue = useOpenIssue();
   const activeIssueId = useBoardStore((state) => state.activeIssueId);
   const setActiveIssueId = useBoardStore((state) => state.setActiveIssueId);
+  const boardViewportAnchor = useIssueKeyboardStore((state) =>
+    continuityKey ? (state.boardViewportAnchors[continuityKey] ?? null) : null,
+  );
   const flashIssue = useFlashStore((state) => state.flashIssue);
   const [pendingClose, setPendingClose] = useState<{
     issue: IssueListItem;
@@ -243,6 +258,16 @@ export function KanbanBoard({
   const lastPointerCoordinatesRef = useRef<{ x: number; y: number } | null>(
     null,
   );
+  // Reset pending focus serials on vault changes so a same-id issue in the next
+  // workspace cannot inherit the previous board's DOM-focus request.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: vault is an intentional reset key for this snapshot.
+  const keyboardRequestBaseline = useMemo(() => {
+    const keyboardState = useIssueKeyboardStore.getState();
+    return {
+      focusRequest: keyboardState.focusRequest?.serial ?? 0,
+      quickEditRequest: keyboardState.quickEditRequest?.serial ?? 0,
+    };
+  }, [vault]);
 
   // PointerSensor just starts a drag after a small distance — anything
   // shorter is treated as a click and reaches KanbanCard's onClick.
@@ -251,6 +276,7 @@ export function KanbanBoard({
   });
   const keyboardSensor = useSensor(KeyboardSensor, {
     coordinateGetter: sortableKeyboardCoordinates,
+    scrollBehavior: "auto",
   });
   // Keep the hook's dependency shape stable while label grouping remains
   // non-mutating. The cards and columns gate their own drag affordances with
@@ -400,6 +426,36 @@ export function KanbanBoard({
       .getState()
       .setVisibleOccurrences("board", renderedOccurrences);
   }, [renderedOccurrences]);
+
+  useEffect(() => {
+    if (
+      !continuityKey ||
+      !boardViewportAnchor ||
+      isPending ||
+      isFetching ||
+      isError ||
+      isPlaceholderData
+    ) {
+      return;
+    }
+    if (
+      !renderedOccurrences.some(
+        ({ key, issueId }) =>
+          key === boardViewportAnchor.occurrenceKey &&
+          issueId === boardViewportAnchor.issueId,
+      )
+    ) {
+      useIssueKeyboardStore.getState().clearBoardViewportAnchor(continuityKey);
+    }
+  }, [
+    boardViewportAnchor,
+    continuityKey,
+    isError,
+    isFetching,
+    isPending,
+    isPlaceholderData,
+    renderedOccurrences,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -601,11 +657,9 @@ export function KanbanBoard({
     }
   }
 
-  // PointerSensor can activate on the first move without emitting a later
-  // collision update when a pointer jumps directly to its destination. Use
-  // the final rendered DOM target to recover that drop target; canonical
-  // rank resolution remains owned by the shared reorder helper and server.
-  function pointerDropTargetAtLastPointer(): {
+  // DragOverlay's wrapper can be hit-tested before the rendered card beneath
+  // it, so inspect the full stack for the final card or column target.
+  function pointerDropTargetAtLastPointer(activeIssueId: string): {
     id: string;
     issue?: IssueListItem;
     bucket: IssueGroupBucket;
@@ -614,14 +668,21 @@ export function KanbanBoard({
     if (
       !point ||
       typeof document === "undefined" ||
-      typeof document.elementFromPoint !== "function"
+      typeof document.elementsFromPoint !== "function"
     ) {
       return null;
     }
-    const element = document.elementFromPoint(point.x, point.y);
-    const card = element?.closest<HTMLElement>(
-      '[data-testid="kanban-card"][data-occurrence-key]',
-    );
+    const elements = document.elementsFromPoint(point.x, point.y);
+    const cards = elements
+      .map((element) =>
+        element.closest<HTMLElement>(
+          '[data-testid="kanban-card"][data-occurrence-key]',
+        ),
+      )
+      .filter((candidate): candidate is HTMLElement => candidate !== null);
+    const card =
+      cards.find((candidate) => candidate.dataset.issueId !== activeIssueId) ??
+      cards[0];
     const occurrenceKey = card?.dataset.occurrenceKey;
     if (occurrenceKey) {
       const group = issueGroups.find(({ bucket: candidate, issues }) =>
@@ -635,7 +696,9 @@ export function KanbanBoard({
       }
     }
 
-    const column = element?.closest<HTMLElement>("[data-group-by]");
+    const column = elements
+      .map((element) => element.closest<HTMLElement>("[data-group-by]"))
+      .find((candidate): candidate is HTMLElement => candidate !== null);
     if (!column) return null;
     const group = issueGroups.find(
       ({ bucket: candidate }) =>
@@ -657,19 +720,24 @@ export function KanbanBoard({
     const isPointerDrag =
       event.activatorEvent?.type === "pointerdown" ||
       event.activatorEvent?.type === "mousedown";
-    const pointerTarget = isPointerDrag
-      ? pointerDropTargetAtLastPointer()
+    const detectedPointerTarget = isPointerDrag
+      ? pointerDropTargetAtLastPointer(issue.id)
       : null;
-    const rawOverId = over ? String(over.id) : null;
-    const usePointerTarget =
-      pointerTarget !== null &&
-      (rawOverId === null ||
-        rawOverId === String(active.id) ||
-        overData?.issue?.id === issue.id);
+    const pointerTarget =
+      detectedPointerTarget?.issue?.id === issue.id
+        ? null
+        : detectedPointerTarget;
+    // Pointer collision data can lag behind auto-scroll. Keyboard drags have
+    // no pointer target and continue to use dnd-kit `over` as before.
+    const usePointerTarget = pointerTarget !== null;
     const resolvedOverData = usePointerTarget
       ? { issue: pointerTarget.issue, bucket: pointerTarget.bucket }
       : overData;
-    const overId = usePointerTarget ? pointerTarget.id : rawOverId;
+    const overId = usePointerTarget
+      ? pointerTarget.id
+      : over
+        ? String(over.id)
+        : null;
     lastPointerCoordinatesRef.current = null;
     const overGroup = issueGroups.find(
       ({ bucket: candidate, issues: bucketIssues }) =>
@@ -856,6 +924,15 @@ export function KanbanBoard({
     <div
       data-testid="kanban-board"
       className="flex min-h-48 min-w-0 flex-1 flex-col"
+      onPointerMove={(event) => {
+        lastPointerCoordinatesRef.current = {
+          x: event.clientX,
+          y: event.clientY,
+        };
+      }}
+      onPointerLeave={() => {
+        lastPointerCoordinatesRef.current = null;
+      }}
     >
       <IssueReorderAnnouncement message={reorderAnnouncement} />
       <div className="pointer-events-none sticky top-0 z-10 h-0 overflow-visible">
@@ -911,15 +988,6 @@ export function KanbanBoard({
           // biome-ignore lint/a11y/noNoninteractiveTabindex: The labeled overflow region is the keyboard scrollport.
           tabIndex={0}
           onKeyDown={handleBoardScrollKeyDown}
-          onPointerMove={(event) => {
-            lastPointerCoordinatesRef.current = {
-              x: event.clientX,
-              y: event.clientY,
-            };
-          }}
-          onPointerLeave={() => {
-            lastPointerCoordinatesRef.current = null;
-          }}
           className="relative grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-3 overflow-x-hidden overflow-y-auto px-6 py-4 md:grid-cols-2 lg:flex lg:flex-nowrap lg:overflow-x-auto lg:overflow-y-hidden"
         >
           {issueGroups.map(({ bucket, issues }) => (
@@ -927,6 +995,14 @@ export function KanbanBoard({
               key={bucket.id}
               bucket={bucket}
               vault={vault}
+              continuityKey={continuityKey}
+              restoreAnchor={
+                boardViewportAnchor?.bucketId === bucket.id &&
+                boardViewportAnchor.occurrenceKey ===
+                  `${bucket.id}:${boardViewportAnchor.issueId}`
+                  ? boardViewportAnchor
+                  : null
+              }
               issues={issues}
               blockedIds={blockedIds}
               planningCatalog={planningCatalog}
@@ -934,6 +1010,11 @@ export function KanbanBoard({
               reorderIssueId={reorderIssueId}
               reorderState={reorderState}
               autoAnimateEnabled={false}
+              activeIssueId={activeIssueId}
+              focusRequestBaselineSerial={keyboardRequestBaseline.focusRequest}
+              quickEditRequestBaselineSerial={
+                keyboardRequestBaseline.quickEditRequest
+              }
               onIssueClick={openIssue}
               onGroupClick={bucket.epic ? openIssue : undefined}
               dragEnabled={

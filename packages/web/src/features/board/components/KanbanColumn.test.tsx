@@ -1,12 +1,78 @@
 import type { IssueListItem } from "@reef/core";
 import { ISSUE_FIELD_MESSAGES_EN } from "@reef/core/fields";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { KanbanColumn } from "./KanbanColumn";
+
+const virtualizerProbe = vi.hoisted(() => ({
+  scrollToIndex: vi.fn((index: number) => {
+    virtualizerProbe.scrollIndex = index;
+  }),
+  sortableItems: [] as (string | number)[],
+  scrollIndex: 0,
+}));
+
+vi.mock("@tanstack/react-virtual", () => ({
+  defaultRangeExtractor: (range: {
+    startIndex: number;
+    endIndex: number;
+    overscan: number;
+    count: number;
+  }) =>
+    Array.from(
+      {
+        length: Math.max(
+          0,
+          Math.min(range.count - 1, range.endIndex + range.overscan) -
+            Math.max(0, range.startIndex - range.overscan) +
+            1,
+        ),
+      },
+      (_, index) => Math.max(0, range.startIndex - range.overscan) + index,
+    ),
+  useVirtualizer: (options: {
+    count: number;
+    getItemKey: (index: number) => string | number;
+    rangeExtractor: (range: {
+      startIndex: number;
+      endIndex: number;
+      overscan: number;
+      count: number;
+    }) => number[];
+  }) => {
+    const startIndex = Math.max(0, virtualizerProbe.scrollIndex - 2);
+    const endIndex = Math.min(options.count - 1, startIndex + 5);
+    const indexes = options.rangeExtractor({
+      startIndex,
+      endIndex,
+      overscan: 0,
+      count: options.count,
+    });
+    return {
+      getVirtualItems: () =>
+        indexes.map((index) => ({
+          index,
+          key: options.getItemKey(index),
+          start: index * 180,
+          size: 180,
+        })),
+      getTotalSize: () => options.count * 180,
+      measureElement: vi.fn(),
+      scrollToIndex: virtualizerProbe.scrollToIndex,
+    };
+  },
+}));
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
 });
 
 // Mock @dnd-kit/core to avoid JSDOM drag issues
@@ -29,7 +95,16 @@ vi.mock("@dnd-kit/utilities", () => ({
 }));
 
 vi.mock("@dnd-kit/sortable", () => ({
-  SortableContext: ({ children }: { children: ReactNode }) => <>{children}</>,
+  SortableContext: ({
+    children,
+    items,
+  }: {
+    children: ReactNode;
+    items: (string | number)[];
+  }) => {
+    virtualizerProbe.sortableItems = items;
+    return <>{children}</>;
+  },
   verticalListSortingStrategy: vi.fn(),
 }));
 
@@ -42,6 +117,10 @@ vi.mock("@formkit/auto-animate/react", () => ({
 import { useDroppable } from "@dnd-kit/core";
 import type { KanbanColumnProps } from "./KanbanColumn";
 import type { IssueGroupBucket } from "../../issues/lib/grouping";
+import {
+  useIssueKeyboardStore,
+  type BoardViewportAnchor,
+} from "../../issues/stores/useIssueKeyboardStore";
 
 function statusBucket(status: "todo" | "in_progress"): IssueGroupBucket {
   return {
@@ -95,11 +174,13 @@ const makeTestIssue = (id: string): IssueListItem => ({
 vi.mock("./KanbanCard", () => ({
   KanbanCard: ({
     issue,
+    occurrenceKey,
     onClick,
     dragRestrictionReason,
     dragEnabled,
   }: {
     issue: IssueListItem;
+    occurrenceKey: string;
     onClick?: (id: string) => void;
     dragRestrictionReason?: string;
     dragEnabled?: boolean;
@@ -107,6 +188,7 @@ vi.mock("./KanbanCard", () => ({
     <button
       type="button"
       data-testid="kanban-card"
+      data-occurrence-key={occurrenceKey}
       data-drag-restriction-reason={dragRestrictionReason}
       data-drag-enabled={String(dragEnabled)}
       onClick={() => onClick?.(issue.id)}
@@ -121,6 +203,22 @@ function renderColumn(props: KanbanColumnProps) {
 }
 
 describe("KanbanColumn", () => {
+  beforeEach(() => {
+    virtualizerProbe.scrollIndex = 0;
+    virtualizerProbe.scrollToIndex.mockClear();
+    virtualizerProbe.sortableItems = [];
+    useIssueKeyboardStore.setState({
+      focusRequest: null,
+      quickEditRequest: null,
+      focusedIssueId: { list: null, board: null, backlog: null },
+      focusedOccurrenceKey: { list: null, board: null, backlog: null },
+      tabStopIssueId: { list: null, board: null, backlog: null },
+      tabStopOccurrenceKey: { list: null, board: null, backlog: null },
+      visibleIssueIds: { list: [], board: [], backlog: [] },
+      visibleOccurrences: { list: [], board: [], backlog: [] },
+    });
+  });
+
   it("renders column title matching status label", () => {
     renderColumn({ bucket: statusBucket("todo"), issues: [] });
     expect(screen.getByTestId("kanban-group-header")).toHaveClass(
@@ -145,6 +243,167 @@ describe("KanbanColumn", () => {
     const issues = [makeTestIssue("reef-001"), makeTestIssue("reef-002")];
     renderColumn({ bucket: statusBucket("todo"), issues });
     expect(screen.getAllByTestId("kanban-card")).toHaveLength(2);
+  });
+
+  it("bounds mounted cards without changing the full column count", () => {
+    const issues = Array.from({ length: 300 }, (_, index) =>
+      makeTestIssue(`reef-${String(index + 1).padStart(3, "0")}`),
+    );
+    const { container } = renderColumn({
+      bucket: statusBucket("todo"),
+      issues,
+    });
+
+    expect(container.firstChild).toHaveAttribute("aria-label", "Todo, 300");
+    expect(
+      container.querySelectorAll('[data-testid="kanban-card"]').length,
+    ).toBeLessThan(issues.length);
+    expect(virtualizerProbe.sortableItems).toHaveLength(issues.length);
+    expect(virtualizerProbe.sortableItems.at(-1)).toBe("todo:reef-300");
+  });
+
+  it("keeps the actively dragged card mounted outside the normal range", () => {
+    const issues = Array.from({ length: 300 }, (_, index) =>
+      makeTestIssue(`reef-${String(index + 1).padStart(3, "0")}`),
+    );
+    const { container } = renderColumn({
+      bucket: statusBucket("todo"),
+      issues,
+      activeIssueId: "reef-201",
+    });
+
+    expect(
+      container.querySelectorAll('[data-testid="kanban-card"]'),
+    ).toHaveLength(7);
+    expect(
+      screen.getByRole("button", { name: "Issue reef-201" }),
+    ).toBeDefined();
+  });
+
+  it("scrolls the virtualized column to a keyboard focus request", () => {
+    const issues = Array.from({ length: 10 }, (_, index) =>
+      makeTestIssue(`reef-${String(index + 1).padStart(3, "0")}`),
+    );
+    useIssueKeyboardStore.getState().setVisibleOccurrences(
+      "board",
+      issues.map((issue) => ({
+        key: `todo:${issue.id}`,
+        issueId: issue.id,
+      })),
+    );
+
+    const { rerender } = renderColumn({
+      bucket: statusBucket("todo"),
+      issues,
+    });
+    act(() => {
+      useIssueKeyboardStore
+        .getState()
+        .focusOccurrence("board", "todo:reef-009", "reef-009", {
+          requestDomFocus: true,
+        });
+    });
+
+    expect(virtualizerProbe.scrollToIndex).toHaveBeenCalledWith(8, {
+      align: "auto",
+    });
+
+    act(() => {
+      useIssueKeyboardStore
+        .getState()
+        .focusOccurrence("board", "todo:reef-009", "reef-009", {
+          requestDomFocus: true,
+        });
+    });
+    rerender(<KanbanColumn bucket={statusBucket("todo")} issues={issues} />);
+    expect(
+      screen.getByRole("button", { name: "Issue reef-009" }),
+    ).toBeDefined();
+  });
+
+  it("restores an already-focused mounted occurrence without an intermediate scroll", () => {
+    const issues = Array.from({ length: 10 }, (_, index) =>
+      makeTestIssue(`reef-${String(index + 1).padStart(3, "0")}`),
+    );
+    const anchor: BoardViewportAnchor = {
+      bucketId: "todo",
+      occurrenceKey: "todo:reef-005",
+      issueId: "reef-005",
+      offset: 670,
+      itemOffset: 50,
+      focused: true,
+    };
+    const continuityKey = "alice:reef-e2e";
+    const initialProps: KanbanColumnProps = {
+      bucket: statusBucket("todo"),
+      continuityKey,
+      issues,
+    };
+    useIssueKeyboardStore.setState({
+      focusedIssueId: { list: null, board: anchor.issueId, backlog: null },
+      focusedOccurrenceKey: {
+        list: null,
+        board: anchor.occurrenceKey,
+        backlog: null,
+      },
+    });
+    const { rerender } = renderColumn(initialProps);
+
+    const scrollElement = screen.getByTestId("kanban-column-scroll-container");
+    const targetCard = screen.getByRole("button", {
+      name: "Issue reef-005",
+    });
+    vi.spyOn(scrollElement, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 100, 320, 480),
+    );
+    vi.spyOn(targetCard, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 150, 320, 88),
+    );
+    (scrollElement as HTMLElement).scrollTop = anchor.offset;
+    targetCard.focus();
+
+    expect(
+      useIssueKeyboardStore.getState().boardViewportAnchors[continuityKey],
+    ).toMatchObject(anchor);
+    virtualizerProbe.scrollToIndex.mockClear();
+
+    rerender(<KanbanColumn {...initialProps} restoreAnchor={anchor} />);
+
+    expect(virtualizerProbe.scrollToIndex).not.toHaveBeenCalled();
+    expect((scrollElement as HTMLElement).scrollTop).toBe(anchor.offset);
+    expect(document.activeElement).toBe(targetCard);
+  });
+
+  it("uses an independent serial baseline for quick-edit requests", () => {
+    const issues = Array.from({ length: 10 }, (_, index) =>
+      makeTestIssue(`reef-${String(index + 1).padStart(3, "0")}`),
+    );
+    useIssueKeyboardStore.setState({
+      focusRequest: {
+        scope: "board",
+        issueId: "reef-001",
+        occurrenceKey: "todo:reef-001",
+        serial: 100,
+      },
+      quickEditRequest: {
+        scope: "board",
+        issueId: "reef-009",
+        occurrenceKey: "todo:reef-009",
+        field: "status",
+        serial: 1,
+      },
+    });
+
+    renderColumn({
+      bucket: statusBucket("todo"),
+      issues,
+      focusRequestBaselineSerial: 100,
+      quickEditRequestBaselineSerial: 0,
+    });
+
+    expect(virtualizerProbe.scrollToIndex).toHaveBeenCalledWith(8, {
+      align: "auto",
+    });
   });
 
   it("applies brand-ring hover class when isOver is true", () => {

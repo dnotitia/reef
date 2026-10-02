@@ -21,6 +21,7 @@ import {
   sprintDetailPath,
 } from "@/features/planning/lib/planningUrls";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
+import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import { useIssueFilterPersistence } from "@/features/issues/hooks/view/useIssueFilterPersistence";
 import { useIssueUrlSync } from "@/features/issues/hooks/view/useIssueUrlSync";
 import {
@@ -263,6 +264,12 @@ export function IssuesWorkspace({
   hideHeader = false,
 }: IssuesWorkspaceProps = {}) {
   const { vault, isLoading } = useActiveVault();
+  const { data: currentUser } = useCurrentUser();
+  const accountKey =
+    currentUser?.user_id ?? currentUser?.id ?? currentUser?.username;
+  const boardContinuityKey = accountKey
+    ? JSON.stringify([accountKey, vault])
+    : null;
   const planningCatalogQuery = usePlanningCatalog(vault);
   const workspaceAccess = useWorkspaceAccess(vault);
   const hydrated = useHydrated();
@@ -523,6 +530,7 @@ export function IssuesWorkspace({
             {layout === "board" ? (
               <KanbanBoard
                 vault={vault}
+                continuityKey={boardContinuityKey}
                 scope={scope}
                 groupBy={groupBy}
                 fixedSprintId={fixedSprintId}

@@ -86,6 +86,7 @@ interface KanbanCardProps {
   pendingFields?: readonly QuickEditPatchField[];
   updateMessage?: string;
   reorderState?: IssueReorderSurfaceState | null;
+  focusRequestBaselineSerial?: number;
 }
 
 interface KanbanCardSurfaceProps extends HTMLAttributes<HTMLDivElement> {
@@ -410,6 +411,7 @@ const KanbanCardContent = memo(function KanbanCardContent({
   pendingFields = [],
   updateMessage,
   reorderState = null,
+  focusRequestBaselineSerial = -1,
 }: KanbanCardProps) {
   const currentLogin = useCurrentUserLogin();
   const {
@@ -467,6 +469,7 @@ const KanbanCardContent = memo(function KanbanCardContent({
       focusRequest?.issueId === issue.id && bucket?.groupBy !== "label";
     if (
       focusRequest?.scope !== "board" ||
+      focusRequest.serial <= focusRequestBaselineSerial ||
       (!matchesOccurrence && !matchesIssue) ||
       !cardRef.current
     ) {
@@ -474,7 +477,13 @@ const KanbanCardContent = memo(function KanbanCardContent({
     }
     cardRef.current.focus({ preventScroll: true });
     cardRef.current.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [bucket?.groupBy, focusRequest, issue.id, keyboardOccurrenceKey]);
+  }, [
+    bucket?.groupBy,
+    focusRequest,
+    focusRequestBaselineSerial,
+    issue.id,
+    keyboardOccurrenceKey,
+  ]);
 
   const style = {
     ...(transform ? { transform: CSS.Translate.toString(transform) } : {}),
@@ -489,6 +498,7 @@ const KanbanCardContent = memo(function KanbanCardContent({
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (isDragging || event.defaultPrevented) return;
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       onClick?.(issue.id, event.currentTarget);
@@ -502,7 +512,14 @@ const KanbanCardContent = memo(function KanbanCardContent({
       {...sortableListeners}
       {...sortableAttributes}
       onClick={handleClick}
-      onKeyDown={handleKeyDown}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" && !isDragging) {
+          handleKeyDown(event);
+          return;
+        }
+        sortableListeners?.onKeyDown?.(event);
+        handleKeyDown(event);
+      }}
       onFocus={() =>
         useIssueKeyboardStore
           .getState()

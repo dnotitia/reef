@@ -1,5 +1,12 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
+  expect,
+  test,
+  type Locator,
+  type Page,
+  type TestInfo,
+} from "@playwright/test";
+import {
+  clearPersistedQueryCacheOnLoad,
   openExistingWorkspace,
   REPORTS_FIXTURE_NOW,
   resetFixture,
@@ -11,6 +18,41 @@ type Locale = "en" | "ko";
 type Theme = "light" | "dark";
 type HistoricalRoleName = keyof typeof historicalBaseline.roles;
 const CARD_BASELINE = historicalBaseline.cards;
+
+interface SmallBoardMetrics {
+  documentId: string;
+  hrefAtInit: string;
+  readyStateAtInit: string;
+  initializedAt: number;
+  observerAttachedAt: number | null;
+  observerRegistrationError: string | null;
+  observerTargetConnected: boolean;
+  observerTarget: Document | null;
+  mutationCallbackCount: number;
+  mutationSnapshots: Array<{
+    at: number;
+    reason: string;
+    cardCount: number;
+    observerTargetConnected: boolean;
+    documentElementConnected: boolean;
+  }>;
+  issueResponses: Array<{
+    url: string;
+    parseMs: number;
+    parsedAt: number;
+    issueCount: number | null;
+    responseBytes: number;
+    documentId: string;
+    timeOrigin: number;
+    href: string;
+    readyState: string;
+  }>;
+  firstCardDomAt: number | null;
+  mountedCardsAtFirstDom: number;
+  firstCardDocumentId: string | null;
+  firstCardHref: string | null;
+  firstCardObservationReason: string | null;
+}
 
 const VIEWPORTS = [
   { name: "desktop", width: 1440, height: 900 },
@@ -1103,47 +1145,192 @@ test.describe("Hermetic typography role contract", () => {
   test("keeps the representative 79-card board dense across mixed-script titles", async ({
     page,
     request,
-  }) => {
+  }, testInfo: TestInfo) => {
     await resetFixture(request, "typography");
+    await clearPersistedQueryCacheOnLoad(page);
+    await page.addInitScript(() => {
+      const metrics: SmallBoardMetrics = {
+        documentId: crypto.randomUUID(),
+        hrefAtInit: location.href,
+        readyStateAtInit: document.readyState,
+        initializedAt: performance.now(),
+        observerAttachedAt: null as number | null,
+        observerRegistrationError: null as string | null,
+        observerTargetConnected: false,
+        observerTarget: null as Document | null,
+        mutationCallbackCount: 0,
+        mutationSnapshots: [],
+        issueResponses: [],
+        firstCardDomAt: null as number | null,
+        mountedCardsAtFirstDom: 0,
+        firstCardDocumentId: null as string | null,
+        firstCardHref: null as string | null,
+        firstCardObservationReason: null as string | null,
+      };
+      const runtimeWindow = window as Window & {
+        __reefSmallBoardMetrics?: SmallBoardMetrics;
+      };
+      runtimeWindow.__reefSmallBoardMetrics = metrics;
+      // addInitScript can run before the parser creates <html>; Document is a
+      // stable Node target that also keeps observation active if that root is
+      // later replaced.
+      const observerTarget = document;
+      const recordFirstCardDom = (reason: string) => {
+        if (
+          metrics.issueResponses.length === 0 ||
+          metrics.firstCardDomAt !== null
+        ) {
+          return;
+        }
+        const cards = document.querySelectorAll('[data-testid="kanban-card"]');
+        metrics.mutationSnapshots.push({
+          at: performance.now(),
+          reason,
+          cardCount: cards.length,
+          observerTargetConnected: observerTarget.isConnected,
+          documentElementConnected:
+            document.documentElement?.isConnected ?? false,
+        });
+        metrics.mutationSnapshots = metrics.mutationSnapshots.slice(-20);
+        if (cards.length === 0) return;
+        metrics.firstCardDomAt = performance.now();
+        metrics.mountedCardsAtFirstDom = cards.length;
+        metrics.firstCardDocumentId = metrics.documentId;
+        metrics.firstCardHref = location.href;
+        metrics.firstCardObservationReason = reason;
+        observer.disconnect();
+      };
+      const observer = new MutationObserver(() => {
+        metrics.mutationCallbackCount += 1;
+        recordFirstCardDom("mutation");
+      });
+      const originalJson = Response.prototype.json;
+      Response.prototype.json = async function timedJson() {
+        const url = this.url;
+        const startedAt = performance.now();
+        const result = await originalJson.call(this);
+        if (new URL(url).pathname === "/api/issues") {
+          const parsedAt = performance.now();
+          const issueCount = Array.isArray(result?.issues)
+            ? result.issues.length
+            : null;
+          const responseBytes = new TextEncoder().encode(
+            JSON.stringify(result),
+          ).byteLength;
+          metrics.issueResponses.push({
+            url,
+            parseMs: parsedAt - startedAt,
+            parsedAt,
+            issueCount,
+            responseBytes,
+            documentId: metrics.documentId,
+            timeOrigin: performance.timeOrigin,
+            href: location.href,
+            readyState: document.readyState,
+          });
+          recordFirstCardDom("response-json");
+        }
+        return result;
+      };
+      try {
+        observer.observe(observerTarget, {
+          childList: true,
+          subtree: true,
+        });
+        metrics.observerAttachedAt = performance.now();
+        metrics.observerTargetConnected = observerTarget.isConnected;
+        metrics.observerTarget = observerTarget;
+      } catch (error) {
+        metrics.observerRegistrationError =
+          error instanceof Error ? error.message : String(error);
+      }
+      recordFirstCardDom("init");
+    });
     await openExistingWorkspace(page);
     await page.setViewportSize(VIEWPORTS[0]);
+    const issueResponsePromise = page.waitForResponse((response) => {
+      return (
+        response.request().method() === "GET" &&
+        new URL(response.url()).pathname === "/api/issues" &&
+        response.ok()
+      );
+    });
     await openRoute(page, `/workspace/${REEF_E2E_VAULT}/issues?view=board`);
+    const issueResponse = await issueResponsePromise;
 
-    const cards = page.getByTestId("kanban-card");
-    await expect
-      .poll(() => cards.count(), {
-        message: "all representative board cards are rendered",
-      })
-      .toBe(79);
     await expect(page.getByText(/한글 제목/).first()).toBeVisible();
     await expect(page.getByText(/English title/).first()).toBeVisible();
     await expect(page.getByText(/Mixed 제목/).first()).toBeVisible();
 
-    const geometry = await cards.evaluateAll((elements) =>
-      elements.map((element) => {
-        const title = element.querySelector<HTMLElement>("h4");
-        const lineHeight = title
-          ? Number.parseFloat(getComputedStyle(title).lineHeight)
-          : 0;
-        return {
-          id: element.getAttribute("data-issue-id"),
-          height:
-            Math.round(element.getBoundingClientRect().height * 100) / 100,
-          titleLines:
-            title && lineHeight > 0
-              ? Math.round(title.scrollHeight / lineHeight)
-              : 0,
-        };
-      }),
-    );
+    const geometryById = new Map<
+      string,
+      { id: string; height: number; titleLines: number }
+    >();
+    const columns = page.locator('[data-group-by="status"]');
+    for (
+      let columnIndex = 0;
+      columnIndex < (await columns.count());
+      columnIndex += 1
+    ) {
+      const column = columns.nth(columnIndex);
+      const scroll = column.getByTestId("kanban-column-scroll-container");
+      let nextScrollTop = 0;
+      while (true) {
+        await scroll.evaluate(async (element, scrollTop) => {
+          const root = element as HTMLElement;
+          root.scrollTop = scrollTop;
+          await new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          );
+        }, nextScrollTop);
 
-    expect(geometry).toHaveLength(CARD_BASELINE.count);
-    const cardIds = geometry.map((actual) => {
-      if (!actual.id) {
-        throw new Error("typography card is missing its issue id");
+        const mountedGeometry = await column
+          .getByTestId("kanban-card")
+          .evaluateAll((elements) =>
+            elements.map((element) => {
+              const title = element.querySelector<HTMLElement>("h4");
+              const lineHeight = title
+                ? Number.parseFloat(getComputedStyle(title).lineHeight)
+                : 0;
+              return {
+                id: element.getAttribute("data-issue-id"),
+                height:
+                  Math.round(element.getBoundingClientRect().height * 100) /
+                  100,
+                titleLines:
+                  title && lineHeight > 0
+                    ? Math.round(title.scrollHeight / lineHeight)
+                    : 0,
+              };
+            }),
+          );
+        for (const actual of mountedGeometry) {
+          if (!actual.id) {
+            throw new Error("typography card is missing its issue id");
+          }
+          geometryById.set(actual.id, { ...actual, id: actual.id });
+        }
+
+        const scrollMetrics = await scroll.evaluate((element) => {
+          const root = element as HTMLElement;
+          return {
+            scrollTop: root.scrollTop,
+            clientHeight: root.clientHeight,
+            maxScrollTop: root.scrollHeight - root.clientHeight,
+          };
+        });
+        if (scrollMetrics.scrollTop >= scrollMetrics.maxScrollTop - 1) break;
+        nextScrollTop = Math.min(
+          scrollMetrics.maxScrollTop,
+          scrollMetrics.scrollTop +
+            Math.max(1, Math.floor(scrollMetrics.clientHeight / 2)),
+        );
       }
-      return actual.id;
-    });
+    }
+
+    const geometry = Array.from(geometryById.values());
+    expect(geometry).toHaveLength(CARD_BASELINE.count);
+    const cardIds = geometry.map((actual) => actual.id);
     const expectedCardIds = Array.from(
       { length: CARD_BASELINE.count },
       (_, index) => `REEF-${String(index + 1).padStart(3, "0")}`,
@@ -1176,5 +1363,96 @@ test.describe("Hermetic typography role contract", () => {
           titleLines !== expectedTitleLines,
       ),
     ).toHaveLength(0);
+
+    const browserMetrics = await page.evaluate((responseUrl) => {
+      const runtimeWindow = window as Window & {
+        __reefSmallBoardMetrics?: SmallBoardMetrics;
+      };
+      const measurement = runtimeWindow.__reefSmallBoardMetrics;
+      const response = measurement?.issueResponses.find(
+        ({ url }) => url === responseUrl,
+      );
+      return {
+        evidence: {
+          responseUrl: response?.url ?? null,
+          responseDocumentId: response?.documentId ?? null,
+          responseTimeOrigin: response?.timeOrigin ?? null,
+          responseHref: response?.href ?? null,
+          responseReadyState: response?.readyState ?? null,
+          currentDocumentId: measurement?.documentId ?? null,
+          currentTimeOrigin: performance.timeOrigin,
+          currentHref: location.href,
+          currentReadyState: document.readyState,
+          observerAttachedAt: measurement?.observerAttachedAt ?? null,
+          observerRegistrationError:
+            measurement?.observerRegistrationError ?? null,
+          observerTargetConnectedAtAttach:
+            measurement?.observerTargetConnected ?? null,
+          observerTargetConnectedNow:
+            measurement?.observerTarget?.isConnected ?? null,
+          sameDocument: measurement?.observerTarget
+            ? document === measurement.observerTarget
+            : null,
+          mutationCallbackCount: measurement?.mutationCallbackCount ?? null,
+          mutationSnapshots: measurement?.mutationSnapshots ?? [],
+          firstCardDomAt: measurement?.firstCardDomAt ?? null,
+          firstCardDocumentId: measurement?.firstCardDocumentId ?? null,
+          firstCardHref: measurement?.firstCardHref ?? null,
+          firstCardObservationReason:
+            measurement?.firstCardObservationReason ?? null,
+        },
+        metrics: {
+          parseMs: response?.parseMs ?? null,
+          issueCount: response?.issueCount ?? null,
+          responseBytes: response?.responseBytes ?? null,
+          postParseToFirstCardDomMs:
+            response &&
+            measurement?.firstCardDomAt !== null &&
+            measurement?.firstCardDomAt !== undefined
+              ? measurement.firstCardDomAt - response.parsedAt
+              : null,
+          mountedCardsAtFirstDom: measurement?.mountedCardsAtFirstDom ?? null,
+        },
+      };
+    }, issueResponse.url());
+    console.log(
+      "[BOARD_VIRTUALIZATION_TIMELINE]",
+      JSON.stringify({
+        expectedResponseUrl: issueResponse.url(),
+        responseStatus: issueResponse.status(),
+        ...browserMetrics.evidence,
+        ...browserMetrics.metrics,
+      }),
+    );
+    const requestTiming = issueResponse.request().timing();
+    const report = {
+      build: "candidate",
+      fixture: "typography",
+      query: "view=board",
+      cacheMode: "fresh browser context; persisted query cache removed",
+      viewport: VIEWPORTS[0],
+      browserVersion: page.context().browser()?.version() ?? "unknown",
+      totalIssues: browserMetrics.metrics.issueCount ?? 0,
+      requestDurationMs: requestTiming.responseEnd - requestTiming.requestStart,
+      requestStartToFirstByteMs:
+        requestTiming.responseStart - requestTiming.requestStart,
+      responseBodyTransferMs:
+        requestTiming.responseEnd - requestTiming.responseStart,
+      ...browserMetrics.metrics,
+      uniqueCardGeometries: geometry.length,
+    };
+    expect(report.parseMs).toBeGreaterThanOrEqual(0);
+    expect(report.totalIssues).toBe(CARD_BASELINE.count);
+    expect(report.responseBytes).toBeGreaterThan(0);
+    expect(report.postParseToFirstCardDomMs).toBeGreaterThanOrEqual(0);
+    expect(report.mountedCardsAtFirstDom).toBeGreaterThan(0);
+    expect(report.mountedCardsAtFirstDom).toBeLessThanOrEqual(50);
+    expect(report.requestStartToFirstByteMs).toBeGreaterThanOrEqual(0);
+    expect(report.responseBodyTransferMs).toBeGreaterThanOrEqual(0);
+    console.log("BOARD_VIRTUALIZATION_SMALL", JSON.stringify(report));
+    await testInfo.attach("board-virtualization-small-measurement", {
+      body: JSON.stringify(report, null, 2),
+      contentType: "application/json",
+    });
   });
 });
