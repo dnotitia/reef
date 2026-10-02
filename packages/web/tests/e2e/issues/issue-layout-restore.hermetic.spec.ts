@@ -20,8 +20,21 @@ interface LayoutFrame {
   phase: "auth-pending" | "detail-skeleton" | "editor-loading" | "loaded";
   timeMs: number;
   navigationTimeOrigin: number;
+  documentReadyState: DocumentReadyState;
+  navigationTiming: {
+    responseStart: number;
+    responseEnd: number;
+    domInteractive: number;
+    domContentLoadedEventEnd: number;
+    loadEventEnd: number;
+  } | null;
   viewportWidth: number;
   viewportHeight: number;
+  appShellVisible: boolean;
+  detailPanelFound: boolean;
+  detailPanelVisible: boolean;
+  detailPreviewFound: boolean;
+  detailPreviewVisible: boolean;
   panelWidth: number | null;
   panelCssWidth: string | null;
   panelCssMaxWidth: string | null;
@@ -138,16 +151,33 @@ test.describe("Hermetic persisted issue layout", () => {
 
     await page.addInitScript((frameKey) => {
       const frames: LayoutFrame[] = [];
+      const isVisible = (element: HTMLElement | null) => {
+        if (!element?.isConnected) return false;
+        const rect = element.getBoundingClientRect();
+        let ancestor: HTMLElement | null = element;
+        while (ancestor) {
+          const style = getComputedStyle(ancestor);
+          if (
+            style.display === "none" ||
+            style.visibility === "hidden" ||
+            Number(style.opacity) === 0
+          ) {
+            return false;
+          }
+          ancestor = ancestor.parentElement;
+        }
+        return rect.width > 0 && rect.height > 0;
+      };
       const record = () => {
         if (location.pathname !== "/workspace/reef-e2e/issues/REEF-101") {
           requestAnimationFrame(record);
           return;
         }
 
-        const appShell = document.querySelector(
+        const appShell = document.querySelector<HTMLElement>(
           '[data-testid="app-shell-skeleton"]',
         );
-        const detailSkeleton = document.querySelector(
+        const detailSkeleton = document.querySelector<HTMLElement>(
           '[data-testid="issue-detail-skeleton"]',
         );
         const editorSkeleton = document.querySelector(
@@ -190,12 +220,30 @@ test.describe("Hermetic persisted issue layout", () => {
           '[data-testid="issue-detail-scroll"]',
         );
         const panelStyle = panel ? getComputedStyle(panel) : null;
+        const navigation = performance.getEntriesByType("navigation")[0] as
+          | PerformanceNavigationTiming
+          | undefined;
         const frame: LayoutFrame = {
           phase,
           timeMs: performance.now(),
           navigationTimeOrigin: performance.timeOrigin,
+          documentReadyState: document.readyState,
+          navigationTiming: navigation
+            ? {
+                responseStart: navigation.responseStart,
+                responseEnd: navigation.responseEnd,
+                domInteractive: navigation.domInteractive,
+                domContentLoadedEventEnd: navigation.domContentLoadedEventEnd,
+                loadEventEnd: navigation.loadEventEnd,
+              }
+            : null,
           viewportWidth: window.innerWidth,
           viewportHeight: window.innerHeight,
+          appShellVisible: isVisible(appShell),
+          detailPanelFound: panel !== null,
+          detailPanelVisible: isVisible(panel),
+          detailPreviewFound: detailSkeleton !== null,
+          detailPreviewVisible: isVisible(detailSkeleton),
           panelWidth: panel ? panel.getBoundingClientRect().width : null,
           panelCssWidth: panelStyle?.width ?? null,
           panelCssMaxWidth: panelStyle?.maxWidth ?? null,
@@ -377,15 +425,82 @@ test.describe("Hermetic persisted issue layout", () => {
     expect(loadingFrames.length).toBeGreaterThan(0);
     expect(loadedFrames.length).toBeGreaterThan(0);
 
+    const describeDisplayFrame = (frame: LayoutFrame | undefined) =>
+      frame
+        ? {
+            timeMs: Math.round(frame.timeMs * 100) / 100,
+            documentReadyState: frame.documentReadyState,
+            appShellVisible: frame.appShellVisible,
+            detailPanelFound: frame.detailPanelFound,
+            detailPanelVisible: frame.detailPanelVisible,
+            detailPreviewFound: frame.detailPreviewFound,
+            detailPreviewVisible: frame.detailPreviewVisible,
+            panelWidth: frame.panelWidth,
+            bodyHeight: frame.bodyHeight,
+            navigationTiming: frame.navigationTiming,
+          }
+        : null;
+    const firstPanelDisplay = frames.find((frame) => frame.detailPanelVisible);
+    const firstPanelDisplayTime = firstPanelDisplay?.timeMs ?? Infinity;
+    const preDisplayAuthFrames = authFrames.filter(
+      (frame) => frame.timeMs < firstPanelDisplayTime,
+    );
+    const visibilityDiagnostic = {
+      navigationTiming: authFrames[0]?.navigationTiming ?? null,
+      firstAppShellDisplay: describeDisplayFrame(
+        frames.find((frame) => frame.appShellVisible),
+      ),
+      firstPanelDisplay: describeDisplayFrame(firstPanelDisplay),
+      firstPreviewDisplay: describeDisplayFrame(
+        frames.find((frame) => frame.detailPreviewVisible),
+      ),
+      preDisplayAuthFrames: preDisplayAuthFrames.map(describeDisplayFrame),
+    };
+    await writeFile(
+      testInfo.outputPath("reload-visibility.json"),
+      JSON.stringify(visibilityDiagnostic, null, 2),
+    );
+    console.log(
+      "[LAYOUT_RELOAD_VISIBILITY]",
+      JSON.stringify(visibilityDiagnostic),
+    );
+
+    expect(firstPanelDisplay).toBeDefined();
+    expect(
+      preDisplayAuthFrames.every(
+        (frame) =>
+          frame.documentReadyState === "loading" &&
+          !frame.detailPanelFound &&
+          !frame.detailPreviewFound,
+      ),
+    ).toBe(true);
     for (const phaseFrames of [authFrames, loadingFrames, loadedFrames]) {
+      const measurableFrames = phaseFrames.filter(
+        (frame) => frame.timeMs >= firstPanelDisplayTime,
+      );
+      expect(measurableFrames.length).toBeGreaterThan(0);
+      expect(measurableFrames.every((frame) => frame.detailPanelVisible)).toBe(
+        true,
+      );
+      if (phaseFrames === authFrames) {
+        expect(
+          measurableFrames.every((frame) => frame.detailPreviewVisible),
+        ).toBe(true);
+      }
       expect(
-        phaseFrames.every(
-          (frame) => Math.abs((frame.panelWidth ?? 0) - SAVED_WIDTH) <= 1,
+        measurableFrames.every(
+          (frame) =>
+            frame.panelWidth !== null &&
+            frame.panelWidth > 0 &&
+            Math.abs(frame.panelWidth - SAVED_WIDTH) <= 1,
         ),
       ).toBe(true);
       expect(
-        phaseFrames.every(
-          (frame) => Math.abs((frame.bodyHeight ?? 0) - SAVED_HEIGHT) <= 1,
+        measurableFrames.every(
+          (frame) =>
+            frame.bodyHeight !== null &&
+            frame.bodyHeight > 0 &&
+            Math.abs(frame.bodyHeight - SAVED_HEIGHT) <= 1,
         ),
       ).toBe(true);
     }
