@@ -14,6 +14,9 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Issue Markdown editing uses the shared Source surface.** Reef delegates
+  Source mode and draft synchronization to the shared editor while preserving
+  issue-body Markdown and Source attachment uploads. (REEF-630)
 - **Markdown link insertion searches documents and files in the active vault.**
   Selected resources persist as canonical AKB links while their display text
   stays in Markdown. (REEF-629)

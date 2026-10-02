@@ -1049,7 +1049,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     });
 
     await sourceToggle.click();
-    const source = page.getByTestId("markdown-source-textarea");
+    const source = page.locator('[data-markdown-mode="source"] textarea');
     const appliedMarkdown = await source.inputValue();
     expect(appliedMarkdown).toContain(
       `[${fileLinkText}](${MARKDOWN_FIXTURE_FILE_URI})`,
@@ -1105,7 +1105,9 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await page.reload();
     await expect(page.getByTestId("issue-detail")).toBeVisible();
     await sourceToggle.click();
-    const reopenedSource = page.getByTestId("markdown-source-textarea");
+    const reopenedSource = page.locator(
+      '[data-markdown-mode="source"] textarea',
+    );
     const reopenedMarkdown = await reopenedSource.inputValue();
     expect(normalizeAdjacentImageOnlyBlocks(reopenedMarkdown)).toBe(
       normalizeAdjacentImageOnlyBlocks(finalMarkdown),
@@ -1683,7 +1685,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
         .getByTestId("markdown-source-toggle")
         .getByRole("button")
         .click();
-      const source = page.getByTestId("markdown-source-textarea");
+      const source = page.locator('[data-markdown-mode="source"] textarea');
       await expect(source).toBeVisible();
       const sourceMarkdown = await source.inputValue();
       expect(sourceMarkdown).toContain("# Markdown reference");
@@ -1787,7 +1789,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
       .getByTestId("markdown-source-toggle")
       .getByRole("button")
       .click();
-    const saveSource = page.getByTestId("markdown-source-textarea");
+    const saveSource = page.locator('[data-markdown-mode="source"] textarea');
     const persistedMarker =
       "\n\nreef-517 save round-trip marker\n\nResolved reference after reload: REEF-002";
     const sourceBeforeSave = await saveSource.inputValue();
@@ -1843,7 +1845,9 @@ test.describe("Hermetic Markdown editor fixture", () => {
       .getByTestId("markdown-source-toggle")
       .getByRole("button")
       .click();
-    const reopenedSource = page.getByTestId("markdown-source-textarea");
+    const reopenedSource = page.locator(
+      '[data-markdown-mode="source"] textarea',
+    );
     await expect
       .poll(() => reopenedSource.inputValue())
       .toContain(persistedMarker.trim());
@@ -1925,7 +1929,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
       .getByTestId("markdown-source-toggle")
       .getByRole("button")
       .click();
-    const source = page.getByTestId("markdown-source-textarea");
+    const source = page.locator('[data-markdown-mode="source"] textarea');
     const planUri = "akb://reef-e2e/coll/docs/doc/spec-overview.md";
     const customUri = "akb://reef-e2e/coll/docs/doc/alpha-reference.md";
     const authoredMarkdown = [
@@ -1996,7 +2000,9 @@ test.describe("Hermetic Markdown editor fixture", () => {
       .getByTestId("markdown-source-toggle")
       .getByRole("button")
       .click();
-    const reopenedSource = page.getByTestId("markdown-source-textarea");
+    const reopenedSource = page.locator(
+      '[data-markdown-mode="source"] textarea',
+    );
     await expect(reopenedSource).toHaveValue(
       new RegExp(planUri.replaceAll("/", "\\/")),
     );
@@ -2144,7 +2150,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
       .getByTestId("markdown-source-toggle")
       .getByRole("button")
       .click();
-    const source = page.getByTestId("markdown-source-textarea");
+    const source = page.locator('[data-markdown-mode="source"] textarea');
     await expect(source).toBeVisible();
     const sourceMarkdown = await source.inputValue();
     expect(sourceMarkdown).toContain("```ts");
@@ -2218,7 +2224,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
       .getByTestId("markdown-source-toggle")
       .getByRole("button");
     await sourceToggle.click();
-    const source = page.getByTestId("markdown-source-textarea");
+    const source = page.locator('[data-markdown-mode="source"] textarea');
     await expect(source).toBeVisible();
     await expect(source).toHaveValue(/\|/u);
     await expect(source).not.toHaveValue(/\//u);
@@ -2293,7 +2299,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
       .getByTestId("markdown-source-toggle")
       .getByRole("button");
     await sourceToggle.click();
-    const source = dialog.getByTestId("markdown-source-textarea");
+    const source = dialog.locator('[data-markdown-mode="source"] textarea');
     await expect(source).toHaveValue("");
     await expect(source).toHaveAttribute("placeholder", "Describe the issue…");
     await sourceToggle.click();
@@ -2615,7 +2621,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
       .getByTestId("markdown-source-toggle")
       .getByRole("button")
       .click();
-    const source = page.getByTestId("markdown-source-textarea");
+    const source = page.locator('[data-markdown-mode="source"] textarea');
     await expect(source).toHaveValue(
       /\[Alpha reference\]\(akb:\/\/reef-e2e\/coll\/docs\/doc\/alpha-reference\.md\) /u,
     );
@@ -2766,7 +2772,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
       .getByTestId("markdown-source-toggle")
       .getByRole("button");
     await sourceToggle.click();
-    const source = page.getByTestId("markdown-source-textarea");
+    const source = page.locator('[data-markdown-mode="source"] textarea');
     await expect(source).toBeVisible();
     await expect(source).toHaveValue(/- \[ \] Completed parent/u);
     await expect(source).toHaveValue(/- \[ \] Open child/u);
@@ -2807,9 +2813,9 @@ test.describe("Hermetic Markdown editor fixture", () => {
       .getByTestId("markdown-source-toggle")
       .getByRole("button")
       .click();
-    await expect(page.getByTestId("markdown-source-textarea")).toHaveValue(
-      /- \[ \] Completed parent/u,
-    );
+    await expect(
+      page.locator('[data-markdown-mode="source"] textarea'),
+    ).toHaveValue(/- \[ \] Completed parent/u);
   });
 
   test("tabs through Markdown links while skipping the mention", async ({

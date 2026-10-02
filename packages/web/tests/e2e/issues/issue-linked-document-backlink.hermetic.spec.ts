@@ -51,7 +51,7 @@ test.describe("Hermetic linked-document backlink (REEF-368)", () => {
       .getByTestId("markdown-source-toggle")
       .getByRole("button")
       .click();
-    const source = page.getByTestId("markdown-source-textarea");
+    const source = page.locator('[data-markdown-mode="source"] textarea');
     const resolved = `See [Spec overview](${REFERENCE_URI})`;
     const resolveResponse = page.waitForResponse(
       (response) =>
@@ -129,7 +129,7 @@ test.describe("Hermetic linked-document backlink (REEF-368)", () => {
       .getByTestId("markdown-source-toggle")
       .getByRole("button")
       .click();
-    const source = page.getByTestId("markdown-source-textarea");
+    const source = page.locator('[data-markdown-mode="source"] textarea');
 
     const topParagraph = "Top target paragraph for caret placement.";
     const tailParagraph =
